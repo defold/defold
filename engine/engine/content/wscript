@@ -49,7 +49,7 @@ def build(bld):
            'builtins/materials/**/*',
            'builtins/graphics/**/*',
            'builtins/scripts/**/*'],
-           excl = ['**/*.ttf', '**/*.texture_profiles', '**/LICENSE']),
+           excl = ['**/*.ttf', '**/*.texture_profiles', '**/LICENSE', '**/*.vp', '**/*.fp', '**/*.cp']),
        use_compression=True)
 
     for d in ['fonts', 'input', 'render', 'materials', 'graphics', 'scripts', 'docs', 'ca-certificates']:

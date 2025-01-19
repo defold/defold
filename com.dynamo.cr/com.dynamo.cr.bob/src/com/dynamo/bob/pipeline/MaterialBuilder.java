@@ -16,6 +16,7 @@ package com.dynamo.bob.pipeline;
 
 import com.dynamo.bob.util.ComponentsCounter;
 import com.dynamo.render.proto.Font;
+import com.dynamo.render.proto.Material;
 import org.apache.commons.io.FilenameUtils;
 
 import java.io.IOException;
@@ -234,10 +235,14 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
         }
     }
 
-    private IResource getShaderProgram(MaterialDesc.Builder fromBuilder) {
+    private static String getShaderPath(MaterialDesc.Builder fromBuilder) {
         long shaderProgramHash = MurmurHash.hash64(fromBuilder.getVertexProgram() + fromBuilder.getFragmentProgram());
-        String path = String.format("shader_%d%s", shaderProgramHash, ShaderProgramBuilderBundle.EXT);
-        return this.project.getResource(path);
+        return String.format("shader_%d%s", shaderProgramHash, ShaderProgramBuilderBundle.EXT);
+    }
+
+    private IResource getShaderProgram(MaterialDesc.Builder fromBuilder) {
+        String shaderPath = getShaderPath(fromBuilder);
+        return this.project.getResource(shaderPath);
     }
 
     @Override
@@ -248,6 +253,8 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
         // that is a combination of one or more shader modules
         IResource shaderResource = getShaderProgram(materialBuilder);
         IResource shaderResourceOut = shaderResource.changeExt(ShaderProgramBuilderBundle.EXT_OUT);
+
+        System.out.print("MaterialBuilder.create " + input.getPath());
 
         ShaderProgramBuilderBundle.ModuleBundle modules = ShaderProgramBuilderBundle.createBundle();
         modules.add(materialBuilder.getVertexProgram());
@@ -261,40 +268,6 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
 
         createSubTask(shaderResourceOut, materialTaskBuilder);
 
-        /*
-        // To build the shader resource, we need to create an intermediate builder for it
-        ShaderProgramBuilderBundle bundleBuilder = new ShaderProgramBuilderBundle();
-        Task.TaskBuilder bundleTaskBuilder = Task.newBuilder(bundleBuilder)
-                .setName(bundleBuilder.getParams().name())
-                .addInput(project.getResource(materialBuilder.getVertexProgram()))
-                .addInput(project.getResource(materialBuilder.getFragmentProgram()))
-                .addOutput(shaderResource.changeExt());
-        */
-
-        // Task bundleTask = bundleTaskBuilder.build();
-
-        /*
-        Task.TaskBuilder taskBuilder = Task.newBuilder(this)
-                .setName(params.name())
-                .addInput(input)
-                .addInput(bundleTask.output(0)) // First output is the compiled shader bundle
-                .addOutput(input.changeExt(params.outExt()));
-        */
-
-        /*
-        String shaderProgramPath = getShaderProgramPath(materialBuilder);
-        IResource shaderProgramResource = this.project.getResource(shaderProgramPath);
-
-        System.out.println("Material.Create:");
-        System.out.println(materialBuilder.getVertexProgram());
-        System.out.println(materialBuilder.getFragmentProgram());
-        System.out.println(shaderProgramPath);
-        Task shaderProgramTask = createSubTask(shaderProgramResource, taskBuilder);
-        */
-
-        // Task shaderProgramTask = createSubTask(shaderProgramResource, taskBuilder);
-        // taskBuilder.addInput(shaderProgramResource);
-
         return materialTaskBuilder.build();
     }
 
@@ -303,23 +276,23 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
         IResource res = task.firstInput();
         MaterialDesc.Builder materialBuilder = getSrcBuilder(res);
 
-        /*
-        String shaderProgramPath = getShaderProgramPath(materialBuilder);
-        BuilderUtil.checkResource(this.project, res, "shader program", shaderProgramPath);
-        materialBuilder.setProgram(shaderProgramPath);
-        */
-
-        /*
-        ShaderProgramBuilderBundle.ModuleBundle modules = ShaderProgramBuilderBundle.createBundle();
-        modules.add(materialBuilder.getVertexProgram());
-        modules.add(materialBuilder.getFragmentProgram());
-        */
-
-        System.out.print("MaterialBuilder.build");
+        System.out.print("MaterialBuilder.build: " + res.getPath());
 
         migrateTexturesToSamplers(materialBuilder);
         buildVertexAttributes(materialBuilder);
         buildSamplers(materialBuilder);
+
+        IResource shaderResource = getShaderProgram(materialBuilder);
+        IResource shaderResourceOut = shaderResource.changeExt(ShaderProgramBuilderBundle.EXT_OUT);
+
+        String shaderPath = getShaderPath(materialBuilder);
+
+        System.out.println("Shader-path: " + shaderPath);
+        System.out.println(shaderResource.getPath());
+        System.out.println(shaderResourceOut.getPath());
+
+        BuilderUtil.checkResource(this.project, res, "shader program", shaderResourceOut.getPath());
+        materialBuilder.setProgram("/" + BuilderUtil.replaceExt(shaderResource.getPath(), ".spc"));
 
         MaterialDesc materialDesc = materialBuilder.build();
         task.output(0).setContent(materialDesc.toByteArray());
@@ -360,6 +333,8 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
 
         System.setProperty("java.awt.headless", "true");
 
+        System.out.println("Material-builder: " + args[0]);
+
         Reader reader       = new BufferedReader(new FileReader(args[0]));
         OutputStream output = new BufferedOutputStream(new FileOutputStream(args[1]));
 
@@ -369,8 +344,11 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
 
             // TODO: We should probably add the other things that materialbuilder does, but for now this is the minimal
             //       amount of work to get the tests working.
-            materialBuilder.setVertexProgram(BuilderUtil.replaceExt(materialBuilder.getVertexProgram(), ".vp", ".vpc"));
-            materialBuilder.setFragmentProgram(BuilderUtil.replaceExt(materialBuilder.getFragmentProgram(), ".fp", ".fpc"));
+
+            String shaderPath = getShaderPath(materialBuilder);
+            materialBuilder.setProgram("/" + BuilderUtil.replaceExt(shaderPath, ".spc"));
+
+            System.out.println("Shader path: " + materialBuilder.getProgram());
 
             migrateTexturesToSamplers(materialBuilder);
 

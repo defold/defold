@@ -20,12 +20,55 @@ from waf_content import proto_compile_task
 def configure(conf):
     pass
 
-def transform_material(task, msg):
-    msg.vertex_program = msg.vertex_program.replace('.vp', '.vpc')
-    msg.fragment_program = msg.fragment_program.replace('.fp', '.fpc')
-    return msg
+waflib.Task.task_factory('material', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.MaterialBuilder ${SRC} ${TGT}',
+                      color='PINK',
+                      after='proto_gen_py',
+                      before='c cxx',
+                      shell=False)
 
-proto_compile_task('material', 'render.material_ddf_pb2', 'material_ddf_pb2.MaterialDesc', '.material', '.materialc', transform_material)
+waflib.Task.task_factory('shaderbuilder', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.ShaderProgramBuilder ${FP} ${VP} ${TGT} ${PLATFORM}',
+                      color='PINK',
+                      after='proto_gen_py',
+                      before='c cxx',
+                      shell=False)
+
+@extension('.material')
+def material_file(self, node):
+    classpath = [self.env['DYNAMO_HOME'] + '/share/java/bob-light.jar']
+
+    material = self.create_task('material')
+    material.env['CLASSPATH'] = os.pathsep.join(classpath)
+    material.set_inputs(node)
+    material_node = node.change_ext('.materialc')
+    material.set_outputs(material_node)
+
+    import google.protobuf.text_format
+    import render.material_ddf_pb2
+    import dlib
+
+    msg = render.material_ddf_pb2.MaterialDesc()
+    with open(material.inputs[0].srcpath(), 'rb') as in_f:
+        google.protobuf.text_format.Merge(in_f.read(), msg)
+
+    shader_hash = dlib.dmHashBuffer32(msg.vertex_program + msg.fragment_program)
+    shader_name = 'shader_%d%s' % (shader_hash, '.spc')
+
+    shader = self.create_task('shaderbuilder')
+    shader.env['CLASSPATH'] = os.pathsep.join(classpath)
+    shader.env['FP'] = msg.fragment_program
+    shader.env['VP'] = msg.vertex_program
+
+    shader.set_inputs(material_node)
+
+    shader_node = node.parent.make_node(shader_name)
+    shader.set_outputs(shader_node)
+
+    ## long shaderProgramHash = MurmurHash.hash64(fromBuilder.getVertexProgram() + fromBuilder.getFragmentProgram());
+    ## return String.format("shader_%d%s", shaderProgramHash, ShaderProgramBuilderBundle.EXT);
+
+    # dlib.dmHashBuffer32("foo")
+    # atlas.env['CONTENT_ROOT'] = atlas.generator.content_root
+
 
 waflib.Task.task_factory('fontmap', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.font.Fontc ${SRC} ${CONTENT_ROOT} ${TGT}',
                          color='PINK',

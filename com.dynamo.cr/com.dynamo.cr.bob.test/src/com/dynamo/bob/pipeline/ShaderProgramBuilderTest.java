@@ -428,8 +428,8 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
     private void testOutput(String expected, String source) {
         if (!expected.equals(source)) {
-            System.err.println(String.format("EXPECTED:\n'%s'", expected));
-            System.err.println(String.format("SOURCE:\n'%s'", source));
+            System.err.printf("EXPECTED:\n'%s'%n", expected);
+            System.err.printf("SOURCE:\n'%s'%n", source);
         }
         assertEquals(expected, source);
     }

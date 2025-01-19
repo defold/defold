@@ -40,7 +40,7 @@ import com.dynamo.bob.pipeline.shader.SPIRVReflector;
 
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
-@BuilderParams(name="ShaderProgramBuilder", inExts=".shbundle", outExt=".spc")
+@BuilderParams(name="ShaderProgramBuilder", inExts= {".shbundle", ".shbundlec"}, outExt=".spc")
 public class ShaderProgramBuilder extends Builder {
 
     static public class ShaderBuildResult {
@@ -478,6 +478,30 @@ public class ShaderProgramBuilder extends Builder {
         return builder;
     }
 
+    private static String GetShaderSource(Project project, String path) throws IOException, CompileExceptionError {
+        try (BufferedInputStream is = new BufferedInputStream(new FileInputStream(path))) {
+            byte[] inBytes = new byte[is.available()];
+            is.read(inBytes);
+
+            String source = new String(inBytes, StandardCharsets.UTF_8);
+            source = source.replace("\r", "");
+
+            ShaderPreprocessor shaderPreprocessor = new ShaderPreprocessor(project, path, source);
+            return shaderPreprocessor.getCompiledSource();
+        }
+    }
+
+    private static ShaderCompilePipeline.ShaderModuleDesc GetShaderDesc(Project project, String path) {
+        try {
+            ShaderDesc.ShaderType shaderType = parseShaderTypeFromPath(path);
+            ShaderCompilePipeline.ShaderModuleDesc desc = new ShaderCompilePipeline.ShaderModuleDesc();
+            desc.type = shaderType;
+            desc.source = GetShaderSource(project, path);
+            return desc;
+        } catch (Exception ignored) {}
+        return null;
+    }
+
     // Running standalone:
     // java -classpath $DYNAMO_HOME/share/java/bob-light.jar com.dynamo.bob.pipeline.ShaderProgramBuilder <path-in.fp|vp|cp> <path-out.fpc|vpc|cpc> <platform>
     public static void main(String[] args) throws IOException, CompileExceptionError {
@@ -488,11 +512,45 @@ public class ShaderProgramBuilder extends Builder {
         project.scanJavaClasses();
         builder.setProject(project);
 
+        for (String a : args) {
+            System.out.println("Arg : " + a);
+        }
+
         if (args.length < 3) {
-            System.err.println("Unable to build shader %s - no platform passed in.%n");
+            System.err.println("Unable to build shader - no platform passed in.%n");
             return;
         }
 
+        ArrayList<ShaderCompilePipeline.ShaderModuleDesc> modules = new ArrayList<>();
+
+        String outputPath, platform;
+
+        if (args.length == 3) {
+            modules.add(GetShaderDesc(project, args[0]));
+            outputPath   = args[1];
+            platform     = args[2];
+        } else {
+            modules.add(GetShaderDesc(project, args[0]));
+            modules.add(GetShaderDesc(project, args[1]));
+            outputPath   = args[2];
+            platform     = args[3];
+        }
+
+        assert platform != null;
+        Platform outputPlatform = Platform.get(platform);
+        IShaderCompiler shaderCompiler = project.getShaderCompiler(outputPlatform);
+        if (shaderCompiler == null) {
+            System.err.printf("Unable to build shader - no shader compiler found.%n");
+            return;
+        }
+
+        try (BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(outputPath))) {
+            ShaderCompileResult shaderCompilerResult = shaderCompiler.compile(modules, outputPath, true, true);
+            ShaderDescBuildResult shaderDescResult = buildResultsToShaderDescBuildResults(shaderCompilerResult);
+            shaderDescResult.shaderDesc.writeTo(os);
+        }
+
+        /*
         String resourcePath = args[0];
         String outputPath   = args[1];
         String platform     = args[2];
@@ -501,11 +559,6 @@ public class ShaderProgramBuilder extends Builder {
 
         Platform outputPlatform = Platform.get(platform);
         IShaderCompiler shaderCompiler = project.getShaderCompiler(outputPlatform);
-
-        if (shaderCompiler == null) {
-            System.err.printf("Unable to build shader %s - no shader compiler found.%n", resourcePath);
-            return;
-        }
 
         try (BufferedInputStream is = new BufferedInputStream(new FileInputStream(resourcePath));
             BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(outputPath))) {
@@ -530,5 +583,6 @@ public class ShaderProgramBuilder extends Builder {
             ShaderDescBuildResult shaderDescResult = buildResultsToShaderDescBuildResults(shaderCompilerResult);
             shaderDescResult.shaderDesc.writeTo(os);
         }
+        */
     }
 }

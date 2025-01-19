@@ -46,12 +46,9 @@ namespace dmGameSystem
             memset(this, 0, sizeof(*this));
         }
 
-        //dmGraphics::HFragmentProgram    m_FragmentProgram;
-        //dmGraphics::HVertexProgram      m_VertexProgram;
-
-        dmGraphics::HProgram            m_Program;
-        TextureResource*                m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-        dmhash_t                        m_SamplerNames[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        dmGraphics::HProgram m_Program;
+        TextureResource*     m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        dmhash_t             m_SamplerNames[dmRender::RenderObject::MAX_TEXTURE_COUNT];
     };
 
     static void ReleaseTextures(dmResource::HFactory factory, TextureResource** textures)
@@ -66,14 +63,11 @@ namespace dmGameSystem
 
     static void ReleaseResources(dmResource::HFactory factory, MaterialResources* resources)
     {
-        /*
-        if (resources->m_FragmentProgram)
-            dmResource::Release(factory, (void*)resources->m_FragmentProgram);
-        resources->m_FragmentProgram = 0;
-        if (resources->m_VertexProgram)
-            dmResource::Release(factory, (void*)resources->m_VertexProgram);
-        resources->m_VertexProgram = 0;
-        */
+        if (resources->m_Program)
+        {
+            dmResource::Release(factory, (void*)resources->m_Program);
+            resources->m_Program = 0;
+        }
 
         ReleaseTextures(factory, resources->m_Textures);
     }
@@ -83,23 +77,12 @@ namespace dmGameSystem
         memset(resources->m_Textures, 0, sizeof(resources->m_Textures));
         memset(resources->m_SamplerNames, 0, sizeof(resources->m_SamplerNames));
 
-        dmResource::Result factory_e;
-
-        /*
-        factory_e = dmResource::Get(factory, ddf->m_VertexProgram, (void**) &resources->m_VertexProgram);
+        dmResource::Result factory_e = dmResource::Get(factory, ddf->m_Program, (void**) &resources->m_Program);
         if ( factory_e != dmResource::RESULT_OK)
         {
             ReleaseResources(factory, resources);
             return factory_e;
         }
-
-        factory_e = dmResource::Get(factory, ddf->m_FragmentProgram, (void**) &resources->m_FragmentProgram);
-        if ( factory_e != dmResource::RESULT_OK)
-        {
-            ReleaseResources(factory, resources);
-            return factory_e;
-        }
-        */
 
         // Later, in the render.cpp, we do a mapping between the sampler's location and the texture unit.
         // We assume that the textures[8] are always sorted in the sampler appearance.
@@ -122,6 +105,7 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
+    // We can probably remove this callback now
     static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams* params)
     {
         dmRender::HMaterial material = (dmRender::HMaterial) params->m_UserData;
@@ -327,16 +311,12 @@ namespace dmGameSystem
 
     static void ReleaseMaterialFromResource(dmResource::HFactory factory, MaterialResource* resource, dmRender::HRenderContext render_context)
     {
+        // TODO!!!! Release the program
+
         ReleaseTextures(factory, resource->m_Textures);
 
         dmRender::HMaterial material = resource->m_Material;
         dmResource::UnregisterResourceReloadedCallback(factory, ResourceReloadedCallback, material);
-
-        /*
-        dmResource::Release(factory, (void*)dmRender::GetMaterialFragmentProgram(material));
-        dmResource::Release(factory, (void*)dmRender::GetMaterialVertexProgram(material));
-        */
-
         dmRender::DeleteMaterial(render_context, material);
     }
 
