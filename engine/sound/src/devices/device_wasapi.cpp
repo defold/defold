@@ -60,13 +60,13 @@ namespace dmDeviceWasapi
         if (!device)
             return;
 
-        if (!device->m_AudioRenderClient)
+        if (device->m_AudioRenderClient)
         {
             device->m_AudioRenderClient->Release();
             device->m_AudioRenderClient = 0;
         }
 
-        if (!device->m_AudioClient)
+        if (device->m_AudioClient)
         {
             device->m_AudioClient->Release();
             device->m_AudioClient = 0;
