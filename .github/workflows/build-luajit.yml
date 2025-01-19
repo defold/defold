@@ -44,7 +44,11 @@ jobs:
         dpkg --print-foreign-architectures
         gcc --version
         aarch64-linux-gnu-gcc --version
-        
+
+    - name: Check for missing header file
+        run: |
+          find /usr -name "libc-header-start.h" || echo "Header file not found"
+
     - name: Checkout repo
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 

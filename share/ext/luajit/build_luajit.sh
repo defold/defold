@@ -192,8 +192,8 @@ case $1 in
 			export HOST_CC="clang"
 			export HOST_CFLAGS="${COMMON_XCFLAGS} -I."
 			export HOST_LDFLAGS=""
-			export TARGET_CFLAGS="${ARCH_FLAGS}"
-			export TARGET_LDFLAGS="${ARCH_FLAGS}"
+			export TARGET_CFLAGS="${ARCH_FLAGS} -I/usr/aarch64-linux-gnu/include"
+			export TARGET_LDFLAGS="${ARCH_FLAGS} -L/usr/aarch64-linux-gnu/lib"
 
 			echo "Building $CONF_TARGET ($DEFOLD_ARCH) with '$XCFLAGS'"
 			set -e
