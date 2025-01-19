@@ -187,7 +187,7 @@ case $1 in
 			fi
 
 			export DEFOLD_ARCH="32"
-			export XCFLAGS="-DLUAJIT_DISABLE_GC64 ${COMMON_XCFLAGS}"
+			export XCFLAGS="${XCFLAGS} -DLUAJIT_DISABLE_GC64 ${COMMON_XCFLAGS}"
 
 			export HOST_CC="clang"
 			export HOST_CFLAGS="${COMMON_XCFLAGS} -I."
@@ -212,7 +212,7 @@ case $1 in
 			fi
 
 			export DEFOLD_ARCH="64"
-			export XCFLAGS="${ARCH_FLAGS} ${COMMON_XCFLAGS}"
+			export XCFLAGS="${XCFLAGS} ${ARCH_FLAGS} ${COMMON_XCFLAGS}"
 
 			export HOST_CC="clang"
 			export HOST_CFLAGS="${COMMON_XCFLAGS} ${ARCH_FLAGS} -m64 -I."
