@@ -231,7 +231,7 @@ case $1 in
 			export ARCH_FLAGS="--target=aarch64-unknown-linux-gnu"
 
 			export DEFOLD_ARCH="32"
-			export XCFLAGS="-DLUAJIT_TARGET=LUAJIT_ARCH_ARM -DLUAJIT_DISABLE_GC64 ${ARCH_FLAGS} ${COMMON_XCFLAGS}"
+			export XCFLAGS="-DLUAJIT_TARGET=LUAJIT_ARCH_ARM -DLUAJIT_DISABLE_GC64 ${COMMON_XCFLAGS}"
 
 			export HOST_CC="clang"
 			export HOST_CFLAGS="${COMMON_XCFLAGS} -I."
@@ -252,7 +252,7 @@ case $1 in
 			echo "****************************************************"
 
 			export DEFOLD_ARCH="64"
-			export XCFLAGS="-DLUAJIT_TARGET=LUAJIT_ARCH_ARM64 ${ARCH_FLAGS} ${COMMON_XCFLAGS}"
+			export XCFLAGS="-DLUAJIT_TARGET=LUAJIT_ARCH_ARM64 ${COMMON_XCFLAGS}"
 
 			export HOST_CC="clang"
 			export HOST_CFLAGS="${COMMON_XCFLAGS} ${ARCH_FLAGS} -m64 -I."
