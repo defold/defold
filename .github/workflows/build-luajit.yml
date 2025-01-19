@@ -32,18 +32,17 @@ jobs:
         arch: [arm64-linux]
     runs-on: ubuntu-24.04-arm
     steps:
-    - name: Enable ARM64 architecture and install dependencies
+      
+    - name: Add ARM64 architecture and install dependencies
       run: |
         sudo dpkg --add-architecture arm64
         sudo apt update
-        sudo apt install -y libc6-dev:arm64 gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+        sudo apt install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libc6-dev:arm64 build-essential
 
-    - name: Check installed packages
+    - name: Apply workaround for missing ARM headers
       run: |
-        dpkg --print-architecture
-        dpkg --print-foreign-architectures
-        gcc --version
-        aarch64-linux-gnu-gcc --version
+        cd /usr/include/aarch64-linux-gnu
+        sudo cp -r . ..
         
     - name: Checkout repo
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
