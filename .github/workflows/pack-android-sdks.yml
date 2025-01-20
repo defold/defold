@@ -1,7 +1,9 @@
 name: Package Android SDKs
 
+# on:
+#   workflow_dispatch:
 on:
-  workflow_dispatch:
+  push:
 
 jobs:
   build-linux:
