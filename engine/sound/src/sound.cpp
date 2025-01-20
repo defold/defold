@@ -1254,15 +1254,15 @@ namespace dmSound
         bool is_muted = dmSound::IsMuted(instance);
 
         dmSoundCodec::Result r = dmSoundCodec::RESULT_OK;
-        uint32_t mixed_instance_FrameCount = ceilf(mix_context->m_FrameCount * dmMath::Max(1.0f, instance->m_Speed));
+        uint32_t mixed_instance_frame_count = ceilf(mix_context->m_FrameCount * dmMath::Max(1.0f, instance->m_Speed));
 
-        if (instance->m_FrameCount < mixed_instance_FrameCount && instance->m_Playing) {
+        if (instance->m_FrameCount < mixed_instance_frame_count && instance->m_Playing) {
 
             const uint32_t stride = info.m_Channels * (info.m_BitsPerSample / 8);
 
-            while(instance->m_FrameCount < mixed_instance_FrameCount && instance->m_EndOfStream == 0)
+            while(instance->m_FrameCount < mixed_instance_frame_count && instance->m_EndOfStream == 0)
             {
-                uint32_t n = mixed_instance_FrameCount - instance->m_FrameCount; // if the result contains a fractional part and we don't ceil(), we'll end up with a smaller number. Later, when deciding the mix_count in Mix(), a smaller value (integer) will be produced. This will result in leaving a small gap in the mix buffer resulting in sound crackling when the chunk changes.
+                uint32_t n = mixed_instance_frame_count - instance->m_FrameCount; // if the result contains a fractional part and we don't ceil(), we'll end up with a smaller number. Later, when deciding the mix_count in Mix(), a smaller value (integer) will be produced. This will result in leaving a small gap in the mix buffer resulting in sound crackling when the chunk changes.
 
                 char* buffer = ((char*) instance->m_Frames) + instance->m_FrameCount * stride;
                 uint32_t buffer_size = n * stride;
@@ -1314,26 +1314,26 @@ namespace dmSound
                     break;
                 }
             }
+        }
 
-            if (r != dmSoundCodec::RESULT_OK && r != dmSoundCodec::RESULT_END_OF_STREAM)
-            {
-                dmLogWarning("Unable to decode file '%s': %s %d", GetSoundName(sound, instance), dmSoundCodec::ResultToString(r), r);
-                instance->m_Playing = 0;
-                return;
-            }
+        if (r != dmSoundCodec::RESULT_OK && r != dmSoundCodec::RESULT_END_OF_STREAM)
+        {
+            dmLogWarning("Unable to decode file '%s': %s %d", GetSoundName(sound, instance), dmSoundCodec::ResultToString(r), r);
+            instance->m_Playing = 0;
+            return;
+        }
 
-            if (instance->m_FrameCount > 0)
-            {
-                Mix(mix_context, instance, &info);
-            }
+        if (instance->m_FrameCount > 0)
+        {
+            Mix(mix_context, instance, &info);
+        }
 
-            if (instance->m_FrameCount <= instance->m_Speed && instance->m_EndOfStream)
-            {
-                // NOTE: Due to round-off errors, e.g 32000 -> 44100,
-                // the last frame might be partially sampled and
-                // used in the *next* buffer. We truncate such scenarios to 0
-                instance->m_FrameCount = 0;
-            }
+        if (instance->m_FrameCount <= ceilf(instance->m_Speed) && instance->m_EndOfStream)
+        {
+            // NOTE: Due to round-off errors, e.g 32000 -> 44100,
+            // the last frame might be partially sampled and
+            // used in the *next* buffer. We truncate such scenarios to 0
+            instance->m_FrameCount = 0;
         }
     }
 
