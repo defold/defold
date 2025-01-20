@@ -200,7 +200,8 @@
          override-id-generator (is/override-id-generator system)
          tx-data-context-map (or (:tx-data-context-map opts) {})
          metrics-collector (:metrics opts)
-         transaction-context (it/new-transaction-context basis id-generators override-id-generator tx-data-context-map metrics-collector)
+         track-changes (:track-changes opts true)
+         transaction-context (it/new-transaction-context basis id-generators override-id-generator tx-data-context-map metrics-collector track-changes)
          tx-result (it/transact* transaction-context txs)]
      (when (and (not (:dry-run opts))
                 (= :ok (:status tx-result)))
@@ -226,16 +227,6 @@
  "Returns a list of the node-ids added given a result from a transaction, (tx-result)."
   [tx-result]
   (:nodes-added tx-result))
-
-(defn is-added?
-  "Returns a boolean if a node was added as a result of a transaction given a tx-result and node."
-  [tx-result node-id]
-  (contains? (:nodes-added tx-result) node-id))
-
-(defn is-deleted?
-  "Returns a boolean if a node was delete as a result of a transaction given a tx-result and node."
-  [tx-result node-id]
-  (contains? (:nodes-deleted tx-result) node-id))
 
 (defn transaction-basis
   "Returns the final basis from the result of a transaction given a tx-result"

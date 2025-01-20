@@ -83,6 +83,12 @@
 (defonce ^:private resource-metrics (du/make-metrics-collector))
 (defonce ^:private transaction-metrics (du/make-metrics-collector))
 
+(defonce ^:private change-tracked-transact false)
+
+(defonce ^:private transact-opts
+  {:metrics transaction-metrics
+   :track-changes change-tracked-transact})
+
 (defn- measure-task-impl! [task-key task-fn]
   (let [task-label (name task-key)]
     (du/log-time-and-memory task-label
@@ -99,6 +105,9 @@
   `(when (run-task? ~task-key)
      (measure-task! ~task-key ~@body)))
 
+(defonce runtime (Runtime/getRuntime))
+(defonce start-allocated-bytes (du/allocated-bytes runtime))
+(defonce start-time-nanos (System/nanoTime))
 (defonce system-config (shared-editor-settings/load-project-system-config project-path))
 (defonce ^:private -set-system- (do (reset! g/*the-system* (is/make-system system-config)) nil))
 (defonce workspace-graph-id (g/last-graph-added))
@@ -139,9 +148,13 @@
     (g/node-value project :resources)))
 
 (defonce resource-node-ids
-  (run-and-measure-task!
-    :make-nodes
-    (#'project/make-nodes! project resources)))
+  (let [resource-node-ids
+        (run-and-measure-task!
+          :make-nodes
+          (#'project/make-nodes! project resources transact-opts))]
+    (when-not change-tracked-transact
+      (g/clear-system-cache!))
+    resource-node-ids))
 
 (defn- make-resource-node-progress-fn [^String label render-progress!]
   {:pre [(string? label)
@@ -156,12 +169,14 @@
   (when (run-task? :setup-project)
     (when-let [game-project (project/get-resource-node project "/game.project")]
       (let [script-intel (project/script-intelligence project)]
-        (g/transact
+        (g/transact transact-opts
           (concat
             (g/connect script-intel :build-errors game-project :build-errors)
             (g/connect game-project :display-profiles-data project :display-profiles)
             (g/connect game-project :texture-profiles-data project :texture-profiles)
-            (g/connect game-project :settings-map project :settings)))))))
+            (g/connect game-project :settings-map project :settings)))
+        (when-not change-tracked-transact
+          (g/clear-system-cache!))))))
 
 (defonce node-load-infos
   (let [node-load-infos
@@ -193,26 +208,36 @@
               (let [progress-loading! (make-resource-node-progress-fn "Loading" render-progress!)]
                 (measure-task!
                   :load-nodes
-                  (#'project/load-nodes-into-graph! node-load-infos project progress-loading! resource-metrics transaction-metrics))))))
-
-        _
-        (run-and-measure-task!
-          :cache-save-data
-          (#'project/cache-loaded-save-data! node-load-infos project migrated-resource-node-ids))
-
-        basis (g/now)
-
-        migrated-proj-paths
-        (into (sorted-set)
-              (map #(resource/proj-path (resource-node/resource basis %)))
-              migrated-resource-node-ids)]
-
-    (when (pos? (count migrated-proj-paths))
-      (log/info :message "Some files were migrated and will be saved in an updated format." :migrated-proj-paths migrated-proj-paths))
+                  (#'project/load-nodes-into-graph! node-load-infos project progress-loading! resource-metrics transact-opts))))))]
+    (when-not change-tracked-transact
+      (g/clear-system-cache!))
+    (run-and-measure-task!
+      :cache-save-data
+      (#'project/cache-loaded-save-data! node-load-infos project migrated-resource-node-ids))
+    (let [basis (g/now)
+          migrated-proj-paths
+          (into (sorted-set)
+                (map #(resource/proj-path (resource-node/resource basis %)))
+                migrated-resource-node-ids)]
+      (when (pos? (count migrated-proj-paths))
+        (log/info :message "Some files were migrated and will be saved in an updated format." :migrated-proj-paths migrated-proj-paths)))
 
     migrated-resource-node-ids))
 
 (defonce ^:private -reset-undo- (g/reset-undo! project-graph-id))
+
+(defonce total-duration-nanos
+  (let [end-time-nanos (System/nanoTime)]
+    (- end-time-nanos (long start-time-nanos))))
+
+(defonce total-allocated-bytes
+  (let [end-allocated-bytes (du/allocated-bytes runtime)]
+    (- end-allocated-bytes (long start-allocated-bytes))))
+
+(defonce ^:private -log-statistics-
+  (log/info :message "total"
+            :elapsed (du/nanos->string total-duration-nanos)
+            :allocated (du/bytes->string total-allocated-bytes)))
 
 (defonce load-metrics
   (du/when-metrics
