@@ -42,7 +42,7 @@ if [ "$TERM" == "cygwin" ]; then
 	TOOLHOSTNAME="win"
 fi
 
-if [[ "$TERM" == *mingw* ]]; then
+if [[ "$(uname -s)" == MINGW* || "$(uname -s)" == MSYS* ]]; then
     TOOLHOSTNAME="win"
 fi
 
