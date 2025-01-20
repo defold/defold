@@ -42,6 +42,10 @@ if [ "$TERM" == "cygwin" ]; then
 	TOOLHOSTNAME="win"
 fi
 
+if [[ "$TERM" == *mingw* ]]; then
+    TOOLHOSTNAME="win"
+fi
+
 echo TOOLHOSTNAME $TOOLHOSTNAME
 
 # Contains the sdkmanager, which is used to install the sdk
