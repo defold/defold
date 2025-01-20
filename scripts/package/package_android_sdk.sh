@@ -43,7 +43,8 @@ if [ "$TERM" == "cygwin" ]; then
 fi
 
 if [[ "$(uname -s)" == MINGW* || "$(uname -s)" == MSYS* ]]; then
-    TOOLHOSTNAME="win"
+    HOST="win"
+	TOOLHOSTNAME="win"
 fi
 
 echo TOOLHOSTNAME $TOOLHOSTNAME
