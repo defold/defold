@@ -1,6 +1,34 @@
-diff -ruw '--exclude=.git' repo_a/src/lj_alloc.c repo_b/src/lj_alloc.c
---- repo_a/src/lj_alloc.c	2024-09-01 13:42:03.901516700 +0200
-+++ repo_b/src/lj_alloc.c	2024-09-01 13:42:10.628191200 +0200
+diff -ruw --exclude=.git repo_a/src/Makefile repo_b/src/Makefile
+--- repo_a/src/Makefile	2025-01-20 15:14:08
++++ repo_b/src/Makefile	2025-01-20 15:14:12
+@@ -70,10 +70,10 @@
+ # as dynamic mode.
+ #
+ # Mixed mode creates a static + dynamic library and a statically linked luajit.
+-BUILDMODE= mixed
++#BUILDMODE= mixed
+ #
+ # Static mode creates a static library and a statically linked luajit.
+-#BUILDMODE= static
++BUILDMODE= static
+ #
+ # Dynamic mode creates a dynamic library and a dynamically linked luajit.
+ # Note: this executable will only run when the library is installed!
+@@ -322,7 +322,11 @@
+     $(error missing: export MACOSX_DEPLOYMENT_TARGET=XX.YY)
+   endif
+   TARGET_STRIP+= -x
++  ifeq (arm64,$(TARGET_LJARCH))
++    TARGET_XCFLAGS+= -DLUAJIT_UNWIND_INTERNAL
++  else
+     TARGET_XCFLAGS+= -DLUAJIT_UNWIND_EXTERNAL
++  endif
+   TARGET_XSHLDFLAGS= -dynamiclib -undefined dynamic_lookup -fPIC
+   TARGET_DYNXLDOPTS=
+   TARGET_XSHLDFLAGS+= -install_name $(TARGET_DYLIBPATH) -compatibility_version $(MAJVER).$(MINVER) -current_version $(MAJVER).$(MINVER).255
+diff -ruw --exclude=.git repo_a/src/lj_alloc.c repo_b/src/lj_alloc.c
+--- repo_a/src/lj_alloc.c	2025-01-20 15:14:08
++++ repo_b/src/lj_alloc.c	2025-01-20 15:14:12
 @@ -36,7 +36,7 @@
  #ifndef LUAJIT_USE_SYSMALLOC
  
@@ -10,9 +38,9 @@ diff -ruw '--exclude=.git' repo_a/src/lj_alloc.c repo_b/src/lj_alloc.c
  
  #define DEFAULT_GRANULARITY	((size_t)128U * (size_t)1024U)
  #define DEFAULT_TRIM_THRESHOLD	((size_t)2U * (size_t)1024U * (size_t)1024U)
-diff -ruw '--exclude=.git' repo_a/src/lj_jit.h repo_b/src/lj_jit.h
---- repo_a/src/lj_jit.h	2024-09-01 13:42:03.935516100 +0200
-+++ repo_b/src/lj_jit.h	2024-09-01 13:42:10.629190700 +0200
+diff -ruw --exclude=.git repo_a/src/lj_jit.h repo_b/src/lj_jit.h
+--- repo_a/src/lj_jit.h	2025-01-20 15:14:08
++++ repo_b/src/lj_jit.h	2025-01-20 15:14:12
 @@ -452,11 +452,11 @@
    int32_t retdepth;	/* Return frame depth (count of RETF). */
  
@@ -27,10 +55,10 @@ diff -ruw '--exclude=.git' repo_a/src/lj_jit.h repo_b/src/lj_jit.h
  #endif
  
    IRIns *irbuf;		/* Temp. IR instruction buffer. Biased with REF_BIAS. */
-diff -ruw '--exclude=.git' repo_a/src/lj_obj.h repo_b/src/lj_obj.h
---- repo_a/src/lj_obj.h	2024-09-01 13:42:04.058515800 +0200
-+++ repo_b/src/lj_obj.h	2024-09-01 13:42:10.630189500 +0200
-@@ -320,16 +320,23 @@
+diff -ruw --exclude=.git repo_a/src/lj_obj.h repo_b/src/lj_obj.h
+--- repo_a/src/lj_obj.h	2025-01-20 15:14:08
++++ repo_b/src/lj_obj.h	2025-01-20 15:14:12
+@@ -320,15 +320,22 @@
  /* -- Userdata object ----------------------------------------------------- */
  
  /* Userdata object. Payload follows. */
@@ -50,43 +78,14 @@ diff -ruw '--exclude=.git' repo_a/src/lj_obj.h repo_b/src/lj_obj.h
 +  #endif
 +
  } GCudata;
- 
-+LJ_STATIC_ASSERT((sizeof(GCudata) % 16) == 0);
 +
++LJ_STATIC_ASSERT((sizeof(GCudata) % 16) == 0);
+ 
  /* Userdata types. */
  enum {
-   UDTYPE_USERDATA,	/* Regular userdata. */
-diff -ruw '--exclude=.git' repo_a/src/Makefile repo_b/src/Makefile
---- repo_a/src/Makefile	2024-09-01 13:42:04.051515500 +0200
-+++ repo_b/src/Makefile	2024-09-01 13:42:10.628191200 +0200
-@@ -70,10 +70,10 @@
- # as dynamic mode.
- #
- # Mixed mode creates a static + dynamic library and a statically linked luajit.
--BUILDMODE= mixed
-+#BUILDMODE= mixed
- #
- # Static mode creates a static library and a statically linked luajit.
--#BUILDMODE= static
-+BUILDMODE= static
- #
- # Dynamic mode creates a dynamic library and a dynamically linked luajit.
- # Note: this executable will only run when the library is installed!
-@@ -319,7 +319,11 @@
-     $(error missing: export MACOSX_DEPLOYMENT_TARGET=XX.YY)
-   endif
-   TARGET_STRIP+= -x
-+  ifeq (arm64,$(TARGET_LJARCH))
-+    TARGET_XCFLAGS+= -DLUAJIT_UNWIND_INTERNAL
-+  else
-   TARGET_XCFLAGS+= -DLUAJIT_UNWIND_EXTERNAL
-+  endif
-   TARGET_XSHLDFLAGS= -dynamiclib -single_module -undefined dynamic_lookup -fPIC
-   TARGET_DYNXLDOPTS=
-   TARGET_XSHLDFLAGS+= -install_name $(TARGET_DYLIBPATH) -compatibility_version $(MAJVER).$(MINVER) -current_version $(MAJVER).$(MINVER).255
-diff -ruw '--exclude=.git' repo_a/src/msvcbuild.bat repo_b/src/msvcbuild.bat
---- repo_a/src/msvcbuild.bat	2024-09-01 13:42:03.965515000 +0200
-+++ repo_b/src/msvcbuild.bat	2024-09-01 13:42:10.630189500 +0200
+diff -ruw --exclude=.git repo_a/src/msvcbuild.bat repo_b/src/msvcbuild.bat
+--- repo_a/src/msvcbuild.bat	2025-01-20 15:14:08
++++ repo_b/src/msvcbuild.bat	2025-01-20 15:14:12
 @@ -15,10 +15,10 @@
  @setlocal
  @rem Add more debug flags here, e.g. DEBUGCFLAGS=/DLUA_USE_ASSERT
