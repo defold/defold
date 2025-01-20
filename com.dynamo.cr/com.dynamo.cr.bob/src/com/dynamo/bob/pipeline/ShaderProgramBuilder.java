@@ -491,15 +491,15 @@ public class ShaderProgramBuilder extends Builder {
         }
     }
 
-    private static ShaderCompilePipeline.ShaderModuleDesc GetShaderDesc(Project project, String path) {
-        try {
-            ShaderDesc.ShaderType shaderType = parseShaderTypeFromPath(path);
-            ShaderCompilePipeline.ShaderModuleDesc desc = new ShaderCompilePipeline.ShaderModuleDesc();
-            desc.type = shaderType;
-            desc.source = GetShaderSource(project, path);
-            return desc;
-        } catch (Exception ignored) {}
-        return null;
+    private static ShaderCompilePipeline.ShaderModuleDesc GetShaderDesc(Project project, String path) throws IOException, CompileExceptionError {
+
+        System.out.println("Loading " + path);
+
+        ShaderDesc.ShaderType shaderType = parseShaderTypeFromPath(path);
+        ShaderCompilePipeline.ShaderModuleDesc desc = new ShaderCompilePipeline.ShaderModuleDesc();
+        desc.type = shaderType;
+        desc.source = GetShaderSource(project, path);
+        return desc;
     }
 
     // Running standalone:
@@ -549,40 +549,5 @@ public class ShaderProgramBuilder extends Builder {
             ShaderDescBuildResult shaderDescResult = buildResultsToShaderDescBuildResults(shaderCompilerResult);
             shaderDescResult.shaderDesc.writeTo(os);
         }
-
-        /*
-        String resourcePath = args[0];
-        String outputPath   = args[1];
-        String platform     = args[2];
-
-        ShaderDesc.ShaderType shaderType = parseShaderTypeFromPath(resourcePath);
-
-        Platform outputPlatform = Platform.get(platform);
-        IShaderCompiler shaderCompiler = project.getShaderCompiler(outputPlatform);
-
-        try (BufferedInputStream is = new BufferedInputStream(new FileInputStream(resourcePath));
-            BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(outputPath))) {
-
-            byte[] inBytes = new byte[is.available()];
-            is.read(inBytes);
-
-            String source = new String(inBytes, StandardCharsets.UTF_8);
-            source = source.replace("\r", "");
-
-            ShaderPreprocessor shaderPreprocessor = new ShaderPreprocessor(project, resourcePath, source);
-            String finalShaderSource              = shaderPreprocessor.getCompiledSource();
-
-            ShaderCompilePipeline.ShaderModuleDesc desc = new ShaderCompilePipeline.ShaderModuleDesc();
-            desc.type = shaderType;
-            desc.source = finalShaderSource;
-
-            ArrayList<ShaderCompilePipeline.ShaderModuleDesc> modules = new ArrayList<>();
-            modules.add(desc);
-
-            ShaderCompileResult shaderCompilerResult = shaderCompiler.compile(modules, outputPath, true, true);
-            ShaderDescBuildResult shaderDescResult = buildResultsToShaderDescBuildResults(shaderCompilerResult);
-            shaderDescResult.shaderDesc.writeTo(os);
-        }
-        */
     }
 }

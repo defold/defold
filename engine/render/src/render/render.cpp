@@ -76,13 +76,11 @@ namespace dmRender
     RenderContextParams::RenderContextParams()
     : m_ScriptContext(0x0)
     , m_SystemFontMap(0)
-    , m_VertexShaderDesc(0x0)
-    , m_FragmentShaderDesc(0x0)
+    , m_ShaderProgramDesc(0x0)
     , m_MaxRenderTypes(0)
     , m_MaxInstances(0)
     , m_MaxRenderTargets(0)
-    , m_VertexShaderDescSize(0)
-    , m_FragmentShaderDescSize(0)
+    , m_ShaderProgramDescSize(0)
     , m_MaxCharacters(0)
     , m_CommandBufferSize(1024)
     , m_MaxDebugVertexCount(0)
@@ -122,9 +120,8 @@ namespace dmRender
         context->m_CallbackInfo = 0x0;
 
         context->m_DebugRenderer.m_RenderContext = 0;
-        if (params.m_VertexShaderDesc != 0 && params.m_VertexShaderDescSize != 0 &&
-            params.m_FragmentShaderDesc != 0 && params.m_FragmentShaderDescSize != 0) {
-            InitializeDebugRenderer(context, params.m_MaxDebugVertexCount, params.m_VertexShaderDesc, params.m_VertexShaderDescSize, params.m_FragmentShaderDesc, params.m_FragmentShaderDescSize);
+        if (params.m_ShaderProgramDesc != 0 && params.m_ShaderProgramDescSize != 0) {
+            InitializeDebugRenderer(context, params.m_MaxDebugVertexCount, params.m_ShaderProgramDesc, params.m_ShaderProgramDescSize);
         }
 
         InitializeTextContext(context, params.m_MaxCharacters, params.m_MaxBatches);

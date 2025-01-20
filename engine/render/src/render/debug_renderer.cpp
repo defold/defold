@@ -36,7 +36,7 @@ namespace dmRender
         Vector4 m_Color;
     };
 
-    void InitializeDebugRenderer(dmRender::HRenderContext render_context, uint32_t max_vertex_count, const void* vp_desc, uint32_t vp_desc_size, const void* fp_desc, uint32_t fp_desc_size)
+    void InitializeDebugRenderer(dmRender::HRenderContext render_context, uint32_t max_vertex_count, const void* sp_desc, uint32_t sp_desc_size)
     {
         DebugRenderer& debug_renderer = render_context->m_DebugRenderer;
         debug_renderer.m_MaxVertexCount = max_vertex_count;

@@ -24,7 +24,7 @@ namespace dmGameSystem
         dmGraphics::HProgram prog = dmGraphics::NewProgram(context, ddf, error_buffer, sizeof(error_buffer));
         if (prog == 0)
         {
-            dmLogError("Failed to create fragment program '%s': %s", filename, error_buffer);
+            dmLogError("Failed to create shader program '%s': %s", filename, error_buffer);
             return dmResource::RESULT_FORMAT_ERROR;
         }
         *program = prog;

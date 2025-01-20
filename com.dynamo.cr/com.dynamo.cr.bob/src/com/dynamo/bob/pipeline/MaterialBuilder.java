@@ -19,7 +19,9 @@ import com.dynamo.render.proto.Font;
 import com.dynamo.render.proto.Material;
 import org.apache.commons.io.FilenameUtils;
 
-import java.io.IOException;
+import java.io.*;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
@@ -40,12 +42,6 @@ import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.ProtoParams;
 
 // For tests
-import java.io.FileOutputStream;
-import java.io.FileReader;
-import java.io.BufferedOutputStream;
-import java.io.BufferedReader;
-import java.io.Reader;
-import java.io.OutputStream;
 import com.google.protobuf.TextFormat;
 
 @ProtoParams(srcClass = MaterialDesc.class, messageClass = MaterialDesc.class)
@@ -235,13 +231,13 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
         }
     }
 
-    private static String getShaderPath(MaterialDesc.Builder fromBuilder) {
+    private static String getShaderPath(MaterialDesc.Builder fromBuilder, String ext) {
         long shaderProgramHash = MurmurHash.hash64(fromBuilder.getVertexProgram() + fromBuilder.getFragmentProgram());
-        return String.format("shader_%d%s", shaderProgramHash, ShaderProgramBuilderBundle.EXT);
+        return String.format("shader_%d%s", shaderProgramHash, ext);
     }
 
     private IResource getShaderProgram(MaterialDesc.Builder fromBuilder) {
-        String shaderPath = getShaderPath(fromBuilder);
+        String shaderPath = getShaderPath(fromBuilder, ShaderProgramBuilderBundle.EXT);
         return this.project.getResource(shaderPath);
     }
 
@@ -285,12 +281,6 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
         IResource shaderResource = getShaderProgram(materialBuilder);
         IResource shaderResourceOut = shaderResource.changeExt(ShaderProgramBuilderBundle.EXT_OUT);
 
-        String shaderPath = getShaderPath(materialBuilder);
-
-        System.out.println("Shader-path: " + shaderPath);
-        System.out.println(shaderResource.getPath());
-        System.out.println(shaderResourceOut.getPath());
-
         BuilderUtil.checkResource(this.project, res, "shader program", shaderResourceOut.getPath());
         materialBuilder.setProgram("/" + BuilderUtil.replaceExt(shaderResource.getPath(), ".spc"));
 
@@ -328,25 +318,53 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
     }
 
     // Running standalone:
-    // java -classpath $DYNAMO_HOME/share/java/bob-light.jar com.dynamo.bob.pipeline.MaterialBuilder <path-in.material> <path-out.materialc>
+    // java -classpath $DYNAMO_HOME/share/java/bob-light.jar com.dynamo.bob.pipeline.MaterialBuilder <path-in.material> <path-out.materialc> <content-root>
     public static void main(String[] args) throws IOException, CompileExceptionError {
 
         System.setProperty("java.awt.headless", "true");
 
         System.out.println("Material-builder: " + args[0]);
 
-        Reader reader       = new BufferedReader(new FileReader(args[0]));
-        OutputStream output = new BufferedOutputStream(new FileOutputStream(args[1]));
+        String basedir = ".";
+        String pathIn = args[0];
+        String pathOut = args[1];
+        String shaderName = null;
+        File fileIn = new File(pathIn);
 
-        try {
+        if (args.length >= 3) {
+            shaderName = args[2];
+        }
+
+        if (args.length >= 4) {
+            basedir = args[3];
+        }
+
+        try (Reader reader = new BufferedReader(new FileReader(pathIn));
+             OutputStream output = new BufferedOutputStream(new FileOutputStream(pathOut))) {
+
             MaterialDesc.Builder materialBuilder = MaterialDesc.newBuilder();
             TextFormat.merge(reader, materialBuilder);
 
             // TODO: We should probably add the other things that materialbuilder does, but for now this is the minimal
             //       amount of work to get the tests working.
 
-            String shaderPath = getShaderPath(materialBuilder);
-            materialBuilder.setProgram("/" + BuilderUtil.replaceExt(shaderPath, ".spc"));
+            if (shaderName == null) {
+                shaderName = getShaderPath(materialBuilder, ".spc");
+            }
+
+            long shaderProgramHash = MurmurHash.hash64(materialBuilder.getVertexProgram() + materialBuilder.getFragmentProgram());
+            System.out.println(materialBuilder.getVertexProgram() + ", " + materialBuilder.getFragmentProgram());
+            System.out.println("Hash: " + shaderProgramHash);
+
+            // Construct the project-relative path based from the input material file
+            Path basedirAbsolutePath = Paths.get(basedir).toAbsolutePath();
+            Path shaderProgramProjectPath = Paths.get(fileIn.getAbsolutePath().replace(fileIn.getName(), shaderName));
+            Path shaderProgramRelativePath = basedirAbsolutePath.relativize(shaderProgramProjectPath);
+            String shaderProgramProjectStr = "/" + shaderProgramRelativePath.toString().replace("\\", "/");
+
+            materialBuilder.setProgram(shaderProgramProjectStr);
+
+            //materialBuilder.setProgram("/" + BuilderUtil.replaceExt(shaderPath, ".spc"));
 
             System.out.println("Shader path: " + materialBuilder.getProgram());
 
@@ -357,9 +375,6 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
 
             MaterialDesc materialDesc = materialBuilder.build();
             materialDesc.writeTo(output);
-        } finally {
-            reader.close();
-            output.close();
         }
     }
 }

@@ -70,10 +70,8 @@
 
 // Embedded resources
 // Unfortunately, the draw_line et. al are used in production code
-extern unsigned char DEBUG_VPC[];
-extern uint32_t DEBUG_VPC_SIZE;
-extern unsigned char DEBUG_FPC[];
-extern uint32_t DEBUG_FPC_SIZE;
+extern unsigned char DEBUG_SPC[];
+extern uint32_t      DEBUG_SPC_SIZE;
 
 #if !defined(DM_RELEASE)
     extern unsigned char BUILTINS_ARCD[];
@@ -1106,10 +1104,8 @@ namespace dmEngine
         render_params.m_CommandBufferSize = 1024;
         render_params.m_ScriptContext = engine->m_RenderScriptContext;
 #if !defined(DM_RELEASE)
-        render_params.m_VertexShaderDesc = ::DEBUG_VPC;
-        render_params.m_VertexShaderDescSize = ::DEBUG_VPC_SIZE;
-        render_params.m_FragmentShaderDesc = ::DEBUG_FPC;
-        render_params.m_FragmentShaderDescSize = ::DEBUG_FPC_SIZE;
+        render_params.m_ShaderProgramDesc = ::DEBUG_SPC;
+        render_params.m_ShaderProgramDescSize = ::DEBUG_SPC_SIZE;
         render_params.m_MaxDebugVertexCount = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_debug_vertices", 10000);
 #else
         render_params.m_MaxDebugVertexCount = 0;

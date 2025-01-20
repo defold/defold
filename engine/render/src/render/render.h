@@ -135,13 +135,11 @@ namespace dmRender
 
         dmScript::HContext              m_ScriptContext;
         HFontMap                        m_SystemFontMap;
-        void*                           m_VertexShaderDesc;
-        void*                           m_FragmentShaderDesc;
+        void*                           m_ShaderProgramDesc;
         uint32_t                        m_MaxRenderTypes;
         uint32_t                        m_MaxInstances;
         uint32_t                        m_MaxRenderTargets;
-        uint32_t                        m_VertexShaderDescSize;
-        uint32_t                        m_FragmentShaderDescSize;
+        uint32_t                        m_ShaderProgramDescSize;
         uint32_t                        m_MaxCharacters;
         uint32_t                        m_MaxBatches;
         uint32_t                        m_CommandBufferSize;
