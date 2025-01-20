@@ -115,6 +115,21 @@ PACKAGES_ANDROID_64.append(sdk.ANDROID_PACKAGE)
 PACKAGES_EMSCRIPTEN="protobuf-3.20.1 bullet-2.77 glfw-2.7.1".split()
 PACKAGES_NODE_MODULES="xhr2-0.1.0".split()
 
+PLATFORM_PACKAGES = {
+    'win32':          PACKAGES_WIN32,
+    'x86_64-win32':   PACKAGES_WIN32_64,
+    'x86_64-linux':   PACKAGES_LINUX_X86_64,
+    'arm64-linux':    PACKAGES_LINUX_ARM64,
+    'x86_64-macos':   PACKAGES_MACOS_X86_64,
+    'arm64-macos':    PACKAGES_MACOS_ARM64,
+    'arm64-ios':      PACKAGES_IOS_64,
+    'x86_64-ios':     PACKAGES_IOS_X86_64,
+    'armv7-android':  PACKAGES_ANDROID,
+    'arm64-android':  PACKAGES_ANDROID_64,
+    'js-web':         PACKAGES_EMSCRIPTEN,
+    'wasm-web':       PACKAGES_EMSCRIPTEN
+}
+
 DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
 
 CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL", None)
@@ -456,24 +471,9 @@ class Configuration(object):
 
         # TODO: Make sure the order of install does not affect the outcome!
 
-        platform_packages = {
-            'win32':          PACKAGES_WIN32,
-            'x86_64-win32':   PACKAGES_WIN32_64,
-            'x86_64-linux':   PACKAGES_LINUX_X86_64,
-            'arm64-linux':    PACKAGES_LINUX_ARM64,
-            'x86_64-macos':   PACKAGES_MACOS_X86_64,
-            'arm64-macos':    PACKAGES_MACOS_ARM64,
-            'arm64-ios':      PACKAGES_IOS_64,
-            'x86_64-ios':     PACKAGES_IOS_X86_64,
-            'armv7-android':  PACKAGES_ANDROID,
-            'arm64-android':  PACKAGES_ANDROID_64,
-            'js-web':         PACKAGES_EMSCRIPTEN,
-            'wasm-web':       PACKAGES_EMSCRIPTEN
-        }
-
         base_platforms = self.get_base_platforms()
         target_platform = self.target_platform
-        other_platforms = set(platform_packages.keys()).difference(set(base_platforms), set([target_platform, self.host]))
+        other_platforms = set(PLATFORM_PACKAGES.keys()).difference(set(base_platforms), set([target_platform, self.host]))
 
         if target_platform in ['js-web', 'wasm-web']:
             node_modules_dir = os.path.join(self.dynamo_home, NODE_MODULE_LIB_DIR)
@@ -485,7 +485,7 @@ class Configuration(object):
         installed_packages = set()
 
         for platform in other_platforms:
-            packages = platform_packages.get(platform, [])
+            packages = PLATFORM_PACKAGES.get(platform, [])
             package_paths = make_package_paths(self.defold_root, platform, packages)
             print("Installing %s packages " % platform)
             for path in package_paths:
@@ -494,7 +494,7 @@ class Configuration(object):
 
         for base_platform in self.get_base_platforms():
             packages = list(PACKAGES_HOST) + build_private.get_install_host_packages(base_platform)
-            packages.extend(platform_packages.get(base_platform, []))
+            packages.extend(PLATFORM_PACKAGES.get(base_platform, []))
             package_paths = make_package_paths(self.defold_root, base_platform, packages)
             package_paths = [path for path in package_paths if path not in installed_packages]
             if len(package_paths) != 0:
@@ -512,7 +512,7 @@ class Configuration(object):
                 self._extract_tgz(path, self.ext)
             installed_packages.update(package_paths)
 
-        target_packages = platform_packages.get(self.target_platform, []) + build_private.get_install_target_packages(self.target_platform)
+        target_packages = PLATFORM_PACKAGES.get(self.target_platform, []) + build_private.get_install_target_packages(self.target_platform)
         target_package_paths = make_package_paths(self.defold_root, self.target_platform, target_packages)
         target_package_paths = [path for path in target_package_paths if path not in installed_packages]
 
@@ -1293,7 +1293,8 @@ class Configuration(object):
                     ['arm64-linux', 'arm64-linux'],
                     ['x86_64-macos', 'x86_64-macos'],
                     ['arm64-macos', 'arm64-macos']]:
-            luajit_path = join(cwd, '../../packages/luajit-2.1.0-a4f56a4-%s.tar.gz' % (plf[0]))
+            luajit_package = [pkg for pkg in PLATFORM_PACKAGES[plf[0]] if "luajit" in pkg]
+            luajit_path = join(cwd, '../../packages/%s-%s.tar.gz' % (luajit_package[0], plf[0]))
             if not os.path.exists(luajit_path):
                 add_missing(plf[1], "package '%s' could not be found" % (luajit_path))
             else:
