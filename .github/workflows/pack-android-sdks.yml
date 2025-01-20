@@ -26,7 +26,6 @@ jobs:
         path: |
           ${{ github.workspace }}/local_sdks/android-sdk-linux-android-${{ env.ANDROID_TARGET_API_LEVEL }}-${{ env.ANDROID_BUILD_TOOLS_VERSION }}.tar.gz
 
-
   build-macos:
     runs-on: macOS-14
     steps:
@@ -34,27 +33,27 @@ jobs:
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
     - name: Install Rosetta and x86 JDK if running on Apple Silicon
-    run: |
-      # Detect architecture
-      ARCH=$(uname -m)
-      if [ "$ARCH" = "arm64" ]; then
-        echo "Running on Apple Silicon (arm64), installing Rosetta and x86 JDK..."
-        
-        # Install Rosetta 2
-        softwareupdate --install-rosetta --agree-to-license
+      run: |
+        # Detect architecture
+        ARCH=$(uname -m)
+        if [ "$ARCH" = "arm64" ]; then
+          echo "Running on Apple Silicon (arm64), installing Rosetta and x86 JDK..."
+          
+          # Install Rosetta 2
+          softwareupdate --install-rosetta --agree-to-license
 
-        # Install Homebrew for x86
-        arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+          # Install Homebrew for x86
+          arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
-        # Install Temurin JDK x86 version
-        arch -x86_64 /usr/local/bin/brew install --cask temurin@11
+          # Install Temurin JDK x86 version
+          arch -x86_64 /usr/local/bin/brew install --cask temurin@11
 
-        # Set JDK for x86
-        echo "export JAVA_HOME=$(/usr/libexec/java_home -v 11 --arch x86_64)" >> $GITHUB_ENV
-        echo "Using x86 JDK: $JAVA_HOME"
-      else
-        echo "Running on Intel, no need to install Rosetta."
-      fi
+          # Set JDK for x86
+          echo "export JAVA_HOME=$(/usr/libexec/java_home -v 11 --arch x86_64)" >> $GITHUB_ENV
+          echo "Using x86 JDK: $JAVA_HOME"
+        else
+          echo "Running on Intel, no need to install Rosetta."
+        fi
 
     - name: Build
       run: |
@@ -69,7 +68,6 @@ jobs:
         name: android-sdk-darwin-android-${{ env.ANDROID_TARGET_API_LEVEL }}-${{ env.ANDROID_BUILD_TOOLS_VERSION }}
         path: |
           ${{ github.workspace }}/local_sdks/android-sdk-darwin-android-${{ env.ANDROID_TARGET_API_LEVEL }}-${{ env.ANDROID_BUILD_TOOLS_VERSION }}.tar.gz
-
 
   build-windows:
     runs-on: windows-latest
