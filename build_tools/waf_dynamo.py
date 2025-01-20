@@ -1730,6 +1730,7 @@ def detect(conf):
             conf.env.CXX = "clang++"
             conf.env.CC = "clang"
             conf.env.CPP = "clang -E"
+            # llvm-ar or ar are found when loading compiler_c/compiler_cxx
 
     platform_setup_tools(conf, build_util)
 
