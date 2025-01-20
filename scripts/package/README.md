@@ -61,9 +61,9 @@ Run the script (hostsystem is any of darwin/linux/windows):
 and it will output a package (depending on hostsystem):
 
 ```
-	_tmpdir/darwin/android-sdk-darwin-android-34.tar.gz
-	_tmpdir/linux/android-sdk-linux-android-34.tar.gz
-	_tmpdir/windows/android-sdk-windows-android-34.tar.gz
+	_tmpdir/darwin/android-sdk-darwin-android-35.tar.gz
+	_tmpdir/linux/android-sdk-linux-android-35.tar.gz
+	_tmpdir/windows/android-sdk-windows-android-35.tar.gz
 ```
 
 #### Tools

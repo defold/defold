@@ -269,15 +269,15 @@ platforms:
   android:
     env:
         PROGUARD:                 "{{env.ANDROID_PROGUARD}}"
-        LIBRARYJAR:               "{{env.ANDROID_LIBRARYJAR_34}}"
+        LIBRARYJAR:               "{{env.ANDROID_LIBRARYJAR_35}}"
         NDK_PATH:                 "{{env.ANDROID_NDK25_PATH}}"
         SYSROOT:                  "{{env.ANDROID_NDK25_SYSROOT}}"
         MANIFEST_MERGE_TOOL:      "{{env.MANIFEST_MERGE_TOOL}}"
         PATH:                     "{{env.PATH}}"
         NDK_LD:                   "{{env.ANDROID_NDK25_BIN_PATH}}/ld.lld"
         NDK_AR:                   "{{env.ANDROID_NDK25_BIN_PATH}}/llvm-ar"
-        ANDROID_SDK_VERSION:      "{{env.ANDROID_SDK_VERSION_34}}"
-        ANDROID_BUILD_TOOLS_PATH: "{{env.ANDROID_SDK_BUILD_TOOLS_PATH_34}}"
+        ANDROID_SDK_VERSION:      "{{env.ANDROID_SDK_VERSION_35}}"
+        ANDROID_BUILD_TOOLS_PATH: "{{env.ANDROID_SDK_BUILD_TOOLS_PATH_35}}"
     context:
         engineJars: ["{{dynamo_home}}/ext/share/java/android-support-multidex.jar", "{{dynamo_home}}/ext/share/java/androidx-multidex.jar", "{{dynamo_home}}/ext/share/java/glfw_android.jar", "{{dynamo_home}}/share/java/gamesys_android.jar", "{{dynamo_home}}/share/java/sound_android.jar"]
         engineLibs: ["engine", "engine_service", "mbedtls", "zip", "profile", "remotery", "profilerext", "record_null", "gameobject", "ddf", "resource", "gamesys", "gamesys_model", "gamesys_rig", "script_box2d", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "Box2D", "render", "render_font_default", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "image", "dmglfw", "gui", "crashext", "sound", "tremolo", "liveupdate", "unwind"]
