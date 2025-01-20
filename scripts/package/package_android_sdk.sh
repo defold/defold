@@ -41,7 +41,10 @@ if [ "$HOST" == "darwin" ]; then
 fi
 
 if [ "$TERM" == "cygwin" ]; then
+    HOST="win"
 	TOOLHOSTNAME="win"
+	SDKMANAGER="sdkmanager.bat"
+	D8TOOL="d8.bat"
 fi
 
 if [[ "$(uname -s)" == MINGW* || "$(uname -s)" == MSYS* ]]; then
@@ -102,13 +105,13 @@ if [ ! -e ${ANDROID_SDK_INSTALLDIR}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/$
 	(cd ${ANDROID_SDK_INSTALLDIR} && echo y | ./tools/bin/${SDKMANAGER} --verbose --sdk_root=${TMP_ANDROID_HOME} "extras;android;m2repository" "platforms;android-${ANDROID_TARGET_API_LEVEL}" "build-tools;${ANDROID_BUILD_TOOLS_VERSION}" )
 
 	# make sure it installed properly!
-	ls -la ${TMP_ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/d8
+	ls -la ${TMP_ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/${D8TOOL}
 
 	echo "Removing folders..."
 	rm -rf ${TMP_ANDROID_HOME}/extras/android/m2repository/com/android/support/test
 	rm -rf ${TMP_ANDROID_HOME}/emulator
 else
-	echo "Found" ${TMP_ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/d8
+	echo "Found" ${TMP_ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/${D8TOOL}
 	echo "Skipping reinstallation"
 fi
 
