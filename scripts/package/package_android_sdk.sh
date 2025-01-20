@@ -32,6 +32,7 @@ ANDROID_BUILD_TOOLS_VERSION=35.0.1
 PLATFORM=android-${ANDROID_PLATFORM}
 
 HOST=`uname | tr '[:upper:]' '[:lower:]'`
+SDKMANAGER="sdkmanager"
 
 TOOLHOSTNAME=$HOST
 if [ "$HOST" == "darwin" ]; then
@@ -45,6 +46,7 @@ fi
 if [[ "$(uname -s)" == MINGW* || "$(uname -s)" == MSYS* ]]; then
     HOST="win"
 	TOOLHOSTNAME="win"
+	SDKMANAGER="sdkmanager.bat"
 fi
 
 echo TOOLHOSTNAME $TOOLHOSTNAME
@@ -94,8 +96,8 @@ echo "cd ${ANDROID_SDK_INSTALLDIR}"
 if [ ! -e ${ANDROID_SDK_INSTALLDIR}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/d8 ]; then
 	mkdir -p ${TMP_ANDROID_HOME}
 
-	(cd ${ANDROID_SDK_INSTALLDIR} && echo y | ./tools/bin/sdkmanager --verbose --sdk_root=${TMP_ANDROID_HOME} "tools" "platform-tools" )
-	(cd ${ANDROID_SDK_INSTALLDIR} && echo y | ./tools/bin/sdkmanager --verbose --sdk_root=${TMP_ANDROID_HOME} "extras;android;m2repository" "platforms;android-${ANDROID_TARGET_API_LEVEL}" "build-tools;${ANDROID_BUILD_TOOLS_VERSION}" )
+	(cd ${ANDROID_SDK_INSTALLDIR} && echo y | ./tools/bin/${SDKMANAGER} --verbose --sdk_root=${TMP_ANDROID_HOME} "tools" "platform-tools" )
+	(cd ${ANDROID_SDK_INSTALLDIR} && echo y | ./tools/bin/${SDKMANAGER} --verbose --sdk_root=${TMP_ANDROID_HOME} "extras;android;m2repository" "platforms;android-${ANDROID_TARGET_API_LEVEL}" "build-tools;${ANDROID_BUILD_TOOLS_VERSION}" )
 
 	# make sure it installed properly!
 	ls -la ${TMP_ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/d8
