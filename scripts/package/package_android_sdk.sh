@@ -33,6 +33,7 @@ PLATFORM=android-${ANDROID_PLATFORM}
 
 HOST=`uname | tr '[:upper:]' '[:lower:]'`
 SDKMANAGER="sdkmanager"
+D8TOOL="d8"
 
 TOOLHOSTNAME=$HOST
 if [ "$HOST" == "darwin" ]; then
@@ -47,6 +48,7 @@ if [[ "$(uname -s)" == MINGW* || "$(uname -s)" == MSYS* ]]; then
     HOST="win"
 	TOOLHOSTNAME="win"
 	SDKMANAGER="sdkmanager.bat"
+	D8TOOL="d8.bat"
 fi
 
 echo TOOLHOSTNAME $TOOLHOSTNAME
@@ -93,7 +95,7 @@ echo "cd ${ANDROID_SDK_INSTALLDIR}"
 # e.g. export PATH=/usr/lib/jdk/jdk-10.0.2/bin:$PATH
 #export JAVA_OPTS="-XX:+IgnoreUnrecognizedVMOptions --add-modules java.se.ee"
 
-if [ ! -e ${ANDROID_SDK_INSTALLDIR}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/d8 ]; then
+if [ ! -e ${ANDROID_SDK_INSTALLDIR}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/${D8TOOL} ]; then
 	mkdir -p ${TMP_ANDROID_HOME}
 
 	(cd ${ANDROID_SDK_INSTALLDIR} && echo y | ./tools/bin/${SDKMANAGER} --verbose --sdk_root=${TMP_ANDROID_HOME} "tools" "platform-tools" )
