@@ -32,28 +32,28 @@ jobs:
     - name: Checkout repo
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
-    - name: Install Rosetta and x86 JDK if running on Apple Silicon
+    - name: Install Rosetta if running on Apple Silicon
       run: |
         # Detect architecture
         ARCH=$(uname -m)
         if [ "$ARCH" = "arm64" ]; then
-          echo "Running on Apple Silicon (arm64), installing Rosetta and x86 JDK..."
+          echo "Running on Apple Silicon (arm64), installing Rosetta..."
           
           # Install Rosetta 2
           softwareupdate --install-rosetta --agree-to-license
-
-          # Install Homebrew for x86
-          arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-
-          # Install Temurin JDK x86 version
-          arch -x86_64 /usr/local/bin/brew install --cask temurin@11
-
-          # Set JDK for x86
-          echo "export JAVA_HOME=$(/usr/libexec/java_home -v 11 --arch x86_64)" >> $GITHUB_ENV
-          echo "Using x86 JDK: $JAVA_HOME"
+          
+          echo "ROSETTA_INSTALLED=true" >> $GITHUB_ENV
         else
           echo "Running on Intel, no need to install Rosetta."
         fi
+
+    - name: Install x86 Java JDK if running on Apple Silicon
+      if: env.ROSETTA_INSTALLED == 'true'
+      uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9
+      with:
+        java-version: '11'
+        distribution: 'temurin'
+        architecture: 'x64'
 
     - name: Build
       run: |
@@ -74,6 +74,10 @@ jobs:
     steps:
     - name: Checkout repo
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+    - name: Install wget (for downloading dependencies)
+      run: |
+        choco install wget -y
 
     - name: Build
       shell: bash
