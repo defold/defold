@@ -1,12 +1,12 @@
-# Copyright 2020-2024 The Defold Foundation
+# Copyright 2020-2025 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -49,7 +49,7 @@ cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/glslang.exe libexec/x86_64-win32/glslang
 cp -v $DYNAMO_HOME/ext/bin/x86_64-macos/tint libexec/x86_64-macos/tint
 cp -v $DYNAMO_HOME/ext/bin/arm64-macos/tint libexec/arm64-macos/tint
 cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/tint libexec/x86_64-linux/tint
-#cp -v $DYNAMO_HOME/ext/bin/arm64-linux/tint libexec/arm64-linux/tint
+cp -v $DYNAMO_HOME/ext/bin/arm64-linux/tint libexec/arm64-linux/tint
 cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/tint.exe libexec/x86_64-win32/tint.exe
 
 #
@@ -65,21 +65,21 @@ cp -v $DYNAMO_HOME/archive/${SHA1}/engine/share/java/texturecompiler.jar lib/tex
 
 # TEXC Shared
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-linux/libtexc_shared.so lib/x86_64-linux/libtexc_shared.so
-#cp -v $DYNAMO_HOME/archive/${SHA1}/engine/arm64-linux/libtexc_shared.so lib/arm64-linux/libtexc_shared.so
+cp -v $DYNAMO_HOME/archive/${SHA1}/engine/arm64-linux/libtexc_shared.so lib/arm64-linux/libtexc_shared.so
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-win32/texc_shared.dll lib/x86_64-win32/texc_shared.dll
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-macos/libtexc_shared.dylib lib/x86_64-macos/libtexc_shared.dylib
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/arm64-macos/libtexc_shared.dylib lib/arm64-macos/libtexc_shared.dylib
 
 # MODELC Shared
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-linux/libmodelc_shared.so lib/x86_64-linux/libmodelc_shared.so
-#cp -v $DYNAMO_HOME/archive/${SHA1}/engine/arm64-linux/libmodelc_shared.so lib/arm64-linux/libmodelc_shared.so
+cp -v $DYNAMO_HOME/archive/${SHA1}/engine/arm64-linux/libmodelc_shared.so lib/arm64-linux/libmodelc_shared.so
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-win32/modelc_shared.dll lib/x86_64-win32/modelc_shared.dll
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-macos/libmodelc_shared.dylib lib/x86_64-macos/libmodelc_shared.dylib
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/arm64-macos/libmodelc_shared.dylib lib/arm64-macos/libmodelc_shared.dylib
 
 # SHADERC Shared
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-linux/libshaderc_shared.so lib/x86_64-linux/libshaderc_shared.so
-#cp -v $DYNAMO_HOME/archive/${SHA1}/engine/arm64-linux/libshaderc_shared.so lib/arm64-linux/libshaderc_shared.so
+cp -v $DYNAMO_HOME/archive/${SHA1}/engine/arm64-linux/libshaderc_shared.so lib/arm64-linux/libshaderc_shared.so
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-win32/shaderc_shared.dll lib/x86_64-win32/shaderc_shared.dll
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-macos/libshaderc_shared.dylib lib/x86_64-macos/libshaderc_shared.dylib
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/arm64-macos/libshaderc_shared.dylib lib/arm64-macos/libshaderc_shared.dylib
@@ -99,7 +99,7 @@ jar cfM lib/luajit-share.zip -C $DYNAMO_HOME/ext/share/ luajit
 cp -v $DYNAMO_HOME/ext/bin/x86_64-macos/lipo libexec/x86_64-macos/lipo
 cp -v $DYNAMO_HOME/ext/bin/arm64-macos/lipo libexec/arm64-macos/lipo
 cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/lipo libexec/x86_64-linux/lipo
-#cp -v $DYNAMO_HOME/ext/bin/arm64-linux/lipo libexec/arm64-linux/lipo
+cp -v $DYNAMO_HOME/ext/bin/arm64-linux/lipo libexec/arm64-linux/lipo
 cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/lipo.exe libexec/x86_64-win32/lipo.exe
 
 copy () {
@@ -109,8 +109,8 @@ copy () {
 copy x86_64-linux/stripped/dmengine x86_64-linux/dmengine
 copy x86_64-linux/stripped/dmengine_release x86_64-linux/dmengine_release
 # copy x86_64-linux/stripped/dmengine_headless x86_64-linux/dmengine_headless
-#copy arm64-linux/stripped/dmengine arm64-linux/dmengine
-#copy arm64-linux/stripped/dmengine_release arm64-linux/dmengine_release
+copy arm64-linux/stripped/dmengine arm64-linux/dmengine
+copy arm64-linux/stripped/dmengine_release arm64-linux/dmengine_release
 # copy arm64-linux/stripped/dmengine_headless arm64-linux/dmengine_headless
 copy x86_64-macos/stripped/dmengine x86_64-macos/dmengine
 copy x86_64-macos/stripped/dmengine_release x86_64-macos/dmengine_release

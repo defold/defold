@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -2325,14 +2325,19 @@
 
 (defn handle-scroll! [view-node ^ScrollEvent event]
   (.consume event)
-  (when (set-properties! view-node :navigation
-                         (data/scroll (get-property view-node :lines)
-                                      (get-property view-node :scroll-x)
-                                      (get-property view-node :scroll-y)
-                                      (get-property view-node :layout)
-                                      (get-property view-node :gesture-start)
-                                      (.getDeltaX event)
-                                      (.getDeltaY event)))
+  (when (if (.isShortcutDown event)
+          (do (-> (g/node-value view-node :canvas)
+                  (ui/run-command (cond (pos? (.getDeltaY event)) :zoom-in
+                                        (neg? (.getDeltaY event)) :zoom-out)))
+              true)
+          (set-properties! view-node :navigation
+                           (data/scroll (get-property view-node :lines)
+                                        (get-property view-node :scroll-x)
+                                        (get-property view-node :scroll-y)
+                                        (get-property view-node :layout)
+                                        (get-property view-node :gesture-start)
+                                        (.getDeltaX event)
+                                        (.getDeltaY event))))
     (hide-suggestions! view-node)))
 
 ;; -----------------------------------------------------------------------------
@@ -2935,7 +2940,7 @@
 
 ;; -----------------------------------------------------------------------------
 
-(handler/register-menu! ::menubar :editor.app-view/edit-end
+(handler/register-menu! ::menubar-edit :editor.app-view/edit-end
   [{:command :find-text :label "Find..."}
    {:command :find-next :label "Find Next"}
    {:command :find-prev :label "Find Previous"}
@@ -2970,7 +2975,7 @@
    {:command :toggle-breakpoint :label "Toggle Breakpoint"}
    {:command :edit-breakpoint :label "Edit Breakpoint"}])
 
-(handler/register-menu! ::menubar :editor.app-view/view-end
+(handler/register-menu! ::menubar-view :editor.app-view/view-end
   [{:command :toggle-minimap :label "Minimap" :check true}
    {:command :toggle-indentation-guides :label "Indentation Guides" :check true}
    {:command :toggle-visible-whitespace :label "Visible Whitespace" :check true}
