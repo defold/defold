@@ -66,6 +66,8 @@ and it will output a package (depending on hostsystem):
 	_tmpdir/windows/android-sdk-windows-android-35.tar.gz
 ```
 
+An alternative approach could be using GitHub Actions. See *Package Android SDKs* (`pack-android-sdks.yml`).  
+
 #### Tools
 
 Download and unpack this this:

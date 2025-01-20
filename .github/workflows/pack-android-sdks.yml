@@ -92,4 +92,4 @@ jobs:
       with:
         name: android-sdk-windows-android-${{ env.ANDROID_TARGET_API_LEVEL }}-${{ env.ANDROID_BUILD_TOOLS_VERSION }}
         path: |
-          ${{ github.workspace }}/local_sdks/android-sdk-windows-android-${{ env.ANDROID_TARGET_API_LEVEL }}-${{ env.ANDROID_BUILD_TOOLS_VERSION }}.tar.gz
+          ${{ github.workspace }}/local_sdks/android-sdk-win-android-${{ env.ANDROID_TARGET_API_LEVEL }}-${{ env.ANDROID_BUILD_TOOLS_VERSION }}.tar.gz
