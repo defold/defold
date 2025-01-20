@@ -217,10 +217,6 @@
          :header (.getMessage load-worker)
          :content (.getMessage ex)}))))
 
-(g/defnode WebViewNode
-  (inherits view/WorkbenchView)
-  (property web-view WebView))
-
 (defn- make-web-view
    ^WebView [project]
   (let [web-view (WebView.)
@@ -245,18 +241,16 @@
     (when (not= url current-url)
       (.load web-engine url))))
 
-(defn- update-web-view!
+(g/defnk update-web-view!
   "Loads the url corresponding to the current resource.
 
   This will open the resource at the new location if we've moved it.
 
   If we somehow manage to browse away from the project to an external
   page, this will somewhat annoyingly bring us back."
-  [view-id project]
-  (let [web-view ^WebView (g/node-value view-id :web-view)
-        web-engine (.getEngine web-view)]
-    (when-let [resource-node (g/node-value view-id :resource-node)]
-      (load-resource! web-engine project (g/node-value resource-node :resource)))))
+  [html ^WebView web-view]
+  (let [web-engine (.getEngine web-view)]
+    (.loadContent web-engine html)))
 
 (defn- handle-location-change! [project view-id new-location]
   (if-let [new-resource-node
@@ -267,13 +261,19 @@
     (g/transact (view/connect-resource-node view-id new-resource-node))
     (log/warn :message (format "Moving to non-local url or missing resource: %s" new-location))))
 
+(g/defnode WebViewNode
+  (inherits view/WorkbenchView)
+  (property web-view WebView)
+  (input html g/Str)
+  (output update-web-view g/Any :cached update-web-view!)) 
+
 (defn make-view
   [graph ^Parent parent html-node opts]
   (let [project       (or (:project opts) (project/get-project html-node))
         web-view      (make-web-view project)
         web-engine    (.getEngine web-view)
         view-id       (g/make-node! graph WebViewNode :web-view web-view)
-        repainter     (ui/->timer 1 "update-web-view!" (fn [_ _ _] (update-web-view! view-id project)))]
+        repainter     (ui/->timer 1 "update-web-view!" (fn [_ _ _] (g/node-value view-id :update-web-view)))]
 
     (.addListener (.locationProperty web-engine)
                   (ui/change-listener _ _ new-location (handle-location-change! project view-id new-location)))
@@ -291,6 +291,11 @@
                         :header (.getData ^WebEvent ev)})))
       (.setUserStyleSheetLocation (str (io/resource "markdown.css")))
       (load-resource! project (g/node-value html-node :resource)))
+
+    (g/transact
+     (g/connect html-node :html view-id :html))
+
+    (g/node-value view-id :update-web-view)
 
     (ui/timer-start! repainter)
     (when-some [^Tab tab (:tab opts)]
