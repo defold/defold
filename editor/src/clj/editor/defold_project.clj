@@ -645,6 +645,7 @@
                {:label "Rebuild HTML5"
                 :command :rebuild-html5}
                {:label "Bundle"
+                :id ::bundle
                 :command :bundle}
                {:label "Rebundle"
                 :command :rebundle}

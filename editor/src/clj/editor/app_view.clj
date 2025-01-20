@@ -2639,7 +2639,8 @@ If you do not specifically require different script states, consider changing th
                                                     (future/complete! f nil)
                                                     (future/fail! f (LuaError. "Bob invocation failed")))
                                                   (.close out)))))
-                     f))))
+                     f)))
+  (ui/invalidate-menubar-item! ::project/bundle))
 
 (defn- fetch-libraries [app-view workspace project changes-view build-errors-view prefs]
   (let [library-uris (project/project-dependencies project)
