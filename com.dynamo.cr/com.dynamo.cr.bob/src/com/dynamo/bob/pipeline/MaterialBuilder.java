@@ -70,6 +70,8 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
     }
 
     private void validateSpirvShaders(ShaderProgramBuildContext vertexBuildContext, ShaderProgramBuildContext fragmentBuildContext) throws CompileExceptionError {
+
+        /*
         for (ShaderDesc.ResourceBinding input : fragmentBuildContext.desc.getReflection().getInputsList()) {
             boolean input_found = false;
             for (ShaderDesc.ResourceBinding output : vertexBuildContext.desc.getReflection().getOutputsList()) {
@@ -82,6 +84,7 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
                 throw new CompileExceptionError(String.format("Input of fragment shader '%s' not written by vertex shader", input.getName()));
             }
         }
+         */
     }
 
     private ShaderDesc.Shader getTextureArrayShader(ShaderDesc desc) {
@@ -352,10 +355,6 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
                 shaderName = getShaderPath(materialBuilder, ".spc");
             }
 
-            long shaderProgramHash = MurmurHash.hash64(materialBuilder.getVertexProgram() + materialBuilder.getFragmentProgram());
-            System.out.println(materialBuilder.getVertexProgram() + ", " + materialBuilder.getFragmentProgram());
-            System.out.println("Hash: " + shaderProgramHash);
-
             // Construct the project-relative path based from the input material file
             Path basedirAbsolutePath = Paths.get(basedir).toAbsolutePath();
             Path shaderProgramProjectPath = Paths.get(fileIn.getAbsolutePath().replace(fileIn.getName(), shaderName));
@@ -363,10 +362,6 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
             String shaderProgramProjectStr = "/" + shaderProgramRelativePath.toString().replace("\\", "/");
 
             materialBuilder.setProgram(shaderProgramProjectStr);
-
-            //materialBuilder.setProgram("/" + BuilderUtil.replaceExt(shaderPath, ".spc"));
-
-            System.out.println("Shader path: " + materialBuilder.getProgram());
 
             migrateTexturesToSamplers(materialBuilder);
 

@@ -2161,6 +2161,8 @@ static void LogFrameBufferError(GLenum status)
 
     static OpenGLShader* CreateShader(HContext context, GLenum type, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
+        return 0;
+        /*
         ShaderDesc::Shader* ddf_shader = GetShaderProgram(context, ddf);
         if (ddf_shader == 0x0)
         {
@@ -2194,6 +2196,7 @@ static void LogFrameBufferError(GLenum status)
         CreateShaderMeta(&ddf->m_Reflection, &shader->m_ShaderMeta);
 
         return shader;
+        */
     }
 
     /*

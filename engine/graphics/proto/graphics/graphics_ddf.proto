@@ -409,12 +409,13 @@ message ShaderDesc
 
     message ShaderReflection
     {
-        repeated ResourceBinding  uniform_buffers = 1;
-        repeated ResourceBinding  storage_buffers = 2;
-        repeated ResourceBinding  textures        = 3;
-        repeated ResourceBinding  inputs          = 4;
-        repeated ResourceBinding  outputs         = 5;
-        repeated ResourceTypeInfo types           = 6;
+        required ShaderType       shader_stage    = 1;
+        repeated ResourceBinding  uniform_buffers = 2;
+        repeated ResourceBinding  storage_buffers = 3;
+        repeated ResourceBinding  textures        = 4;
+        repeated ResourceBinding  inputs          = 5;
+        repeated ResourceBinding  outputs         = 6;
+        repeated ResourceTypeInfo types           = 7;
     }
 
     message Shader
@@ -426,5 +427,5 @@ message ShaderDesc
     }
 
     repeated Shader shaders              = 1;
-    required ShaderReflection reflection = 2;
+    repeated ShaderReflection reflection = 2; // Reflection is per shader stage
 }

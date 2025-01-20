@@ -89,11 +89,14 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
         return FileUtils.readFileToString(file_out_wgsl);
     }
 
-    private SPIRVCompileResult compileGLSLToSPIRV(String shaderSource, ShaderDesc.ShaderType shaderType, String resourceOutput, String targetProfile, boolean softFail, boolean splitTextureSamplers)  throws IOException, CompileExceptionError {
+    private SPIRVCompileResult compileGLSLToSPIRV(ShaderModuleLegacy moduleLegacy, String resourceOutput, String targetProfile, boolean softFail, boolean splitTextureSamplers)  throws IOException, CompileExceptionError {
         SPIRVCompileResult res = new SPIRVCompileResult();
 
         Exec.Result result;
         File file_out_spv;
+
+        String shaderSource = moduleLegacy.desc.source;
+        ShaderDesc.ShaderType shaderType = moduleLegacy.desc.type;
 
         if (shaderType == ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE) {
 
@@ -189,8 +192,9 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
             checkResult(resultString, null, resourceOutput);
         }
 
-        this.spirvContext = ShadercJni.NewShaderContext(FileUtils.readFileToByteArray(file_out_spv));
-        res.reflector = new SPIRVReflector(this.spirvContext);
+        moduleLegacy.spirvContext = ShadercJni.NewShaderContext(FileUtils.readFileToByteArray(file_out_spv));
+
+        res.reflector = new SPIRVReflector(moduleLegacy.spirvContext, shaderType);
         res.source = FileUtils.readFileToByteArray(file_out_spv);
 
         return res;
@@ -214,11 +218,10 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
     protected void prepare() throws IOException, CompileExceptionError {
         // Generate spirv for each shader module so we can utilize the reflection from it
         for (ShaderModule module : this.shaderModules) {
-            SPIRVCompileResult result = compileGLSLToSPIRV(module.desc.source, module.desc.type, this.pipelineName, "", false, this.options.splitTextureSamplers);
-
             ShaderModuleLegacy moduleLegacy = (ShaderModuleLegacy) module;
-            moduleLegacy.spirvResult = result;
-            this.spirvReflector = moduleLegacy.spirvResult.reflector;
+
+            moduleLegacy.spirvResult = compileGLSLToSPIRV(moduleLegacy, this.pipelineName, "", false, this.options.splitTextureSamplers);
+            moduleLegacy.spirvReflector = moduleLegacy.spirvResult.reflector;
         }
     }
 
@@ -231,8 +234,6 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
         if (module == null) {
             throw new CompileExceptionError("No module found for " + shaderType);
         }
-
-        this.spirvReflector = module.spirvResult.reflector;
 
         if (shaderLanguage == ShaderDesc.Language.LANGUAGE_SPIRV) {
             return module.spirvResult.source;

@@ -16,6 +16,7 @@ package com.dynamo.bob.pipeline;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
@@ -119,16 +120,26 @@ public class ShaderCompilers {
             ArrayList<ShaderDesc.Language> shaderLanguages = getPlatformShaderLanguages(isComputeType, outputSpirv, outputWGSL);
             assert shaderLanguages != null;
 
+            HashMap<ShaderDesc.ShaderType, Boolean> shaderTypeKeys = new HashMap<>();
+
             for (ShaderDesc.Language shaderLanguage : shaderLanguages) {
                 for (ShaderCompilePipeline.ShaderModuleDesc shaderModule : shaderModules) {
                     byte[] crossCompileResult = pipeline.crossCompile(shaderModule.type, shaderLanguage);
                     ShaderDesc.Shader.Builder builder = ShaderProgramBuilder.makeShaderBuilder(crossCompileResult, shaderLanguage, shaderModule.type);
                     shaderBuildResults.add(new ShaderProgramBuilder.ShaderBuildResult(builder));
+
+                    if (!shaderTypeKeys.containsKey(shaderModule.type)) {
+                        shaderTypeKeys.put(shaderModule.type, true);
+                    }
                 }
             }
+
             ShaderProgramBuilder.ShaderCompileResult compileResult = new ShaderProgramBuilder.ShaderCompileResult();
             compileResult.shaderBuildResults = shaderBuildResults;
-            compileResult.reflector = pipeline.getReflectionData();
+
+            for(ShaderDesc.ShaderType type : shaderTypeKeys.keySet()) {
+                compileResult.reflectors.add(pipeline.getReflectionData(type));
+            }
 
             ShaderCompilePipeline.destroyShaderPipeline(pipeline);
 

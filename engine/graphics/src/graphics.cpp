@@ -313,40 +313,55 @@ namespace dmGraphics
         return GetRenderTargetTexture(render_target, GetAttachmentBufferType(attachment));
     }
 
-    ShaderDesc::Shader* GetShaderProgram(HContext context, ShaderDesc* shader_desc)
+    static inline ShaderDesc::Shader* GetShader(HContext context, ShaderDesc* shader_desc, ShaderDesc::ShaderType shader_type)
     {
-        assert(shader_desc);
         ShaderDesc::Shader* selected_shader = 0x0;
 
-        /*
         for(uint32_t i = 0; i < shader_desc->m_Shaders.m_Count; ++i)
         {
             ShaderDesc::Shader* shader = &shader_desc->m_Shaders.m_Data[i];
-
-            if(IsShaderLanguageSupported(context, shader->m_Language, shader_desc->m_ShaderType))
+            if (shader->m_ShaderType != shader_type || !IsShaderLanguageSupported(context, shader->m_Language, shader->m_ShaderType))
             {
-                if (shader->m_VariantTextureArray)
+                continue;
+            }
+
+            if (shader->m_VariantTextureArray)
+            {
+                // Only select this variant if we don't support texture arrays natively
+                if (!IsContextFeatureSupported(context, CONTEXT_FEATURE_TEXTURE_ARRAY))
                 {
-                    // Only select this variant if we don't support texture arrays natively
-                    if (!IsContextFeatureSupported(context, CONTEXT_FEATURE_TEXTURE_ARRAY))
-                    {
-                        return shader;
-                    }
-                }
-                else
-                {
-                    selected_shader = shader;
+                    return shader;
                 }
             }
+            else
+            {
+                selected_shader = shader;
+            }
         }
-        */
-
-        if (selected_shader == 0)
-        {
-            dmLogError("Unable to get a valid shader from a ShaderDesc for this context.");
-        }
-
         return selected_shader;
+    }
+
+    bool GetShaderGraphicsProgram(HContext context, ShaderDesc* shader_desc, ShaderDesc::Shader** vp, ShaderDesc::Shader** fp)
+    {
+        assert(shader_desc);
+        ShaderDesc::Shader* selected_shader_vp = GetShader(context, shader_desc, ShaderDesc::SHADER_TYPE_VERTEX);
+        ShaderDesc::Shader* selected_shader_fp = GetShader(context, shader_desc, ShaderDesc::SHADER_TYPE_FRAGMENT);
+
+        if (selected_shader_vp == 0)
+        {
+            dmLogError("Unable to get a valid vertex shader from a ShaderDesc for this context.");
+        }
+        if (selected_shader_fp == 0)
+        {
+            dmLogError("Unable to get a valid fragment shader from a ShaderDesc for this context.");
+        }
+
+        assert(selected_shader_vp->m_ShaderType == ShaderDesc::SHADER_TYPE_VERTEX);
+        assert(selected_shader_fp->m_ShaderType == ShaderDesc::SHADER_TYPE_FRAGMENT);
+
+        *vp = selected_shader_vp;
+        *fp = selected_shader_fp;
+        return selected_shader_vp != 0 && selected_shader_fp != 0;
     }
 
     uint32_t GetBufferTypeIndex(BufferType buffer_type)
@@ -979,8 +994,24 @@ namespace dmGraphics
         }
     }
 
-    void CreateShaderMeta(ShaderDesc::ShaderReflection* ddf, ShaderMeta* meta)
+    void CreateShaderMeta(ShaderDesc::ShaderReflection* ddfs, uint32_t count, ShaderDesc::ShaderType stage, ShaderMeta* meta)
     {
+        ShaderDesc::ShaderReflection* ddf = 0x0;
+
+        for (int i = 0; i < count; ++i)
+        {
+            if (ddfs[i].m_ShaderStage == stage)
+            {
+                ddf = &ddfs[i];
+                break;
+            }
+        }
+
+        if (!ddf)
+        {
+            return;
+        }
+
         PutShaderResourceBindings(ddf->m_UniformBuffers.m_Data, ddf->m_UniformBuffers.m_Count, meta->m_UniformBuffers, ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER);
         PutShaderResourceBindings(ddf->m_StorageBuffers.m_Data, ddf->m_StorageBuffers.m_Count, meta->m_StorageBuffers, ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER);
         PutShaderResourceBindings(ddf->m_Textures.m_Data, ddf->m_Textures.m_Count, meta->m_Textures, ShaderResourceBinding::BINDING_FAMILY_TEXTURE);

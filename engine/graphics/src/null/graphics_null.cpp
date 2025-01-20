@@ -760,6 +760,7 @@ namespace dmGraphics
     {
         assert(ddf);
 
+        /*
         ShaderDesc::Shader* ddf_shader = GetShaderProgram(context, ddf);
         if (ddf_shader == 0x0)
         {
@@ -775,6 +776,9 @@ namespace dmGraphics
 
         CreateShaderMeta(&ddf->m_Reflection, &shader->m_ShaderMeta);
         return shader;
+        */
+
+        return 0;
     }
 
     static HProgram NullNewProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)

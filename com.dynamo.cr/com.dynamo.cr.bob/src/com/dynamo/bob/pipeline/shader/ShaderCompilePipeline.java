@@ -48,15 +48,15 @@ public class ShaderCompilePipeline {
         ShaderModuleDesc desc;
         public File spirvFile;
 
+        protected SPIRVReflector spirvReflector = null;
+        protected long spirvContext = 0;
+
         public ShaderModule(ShaderModuleDesc desc) {
             this.desc = desc;
         }
     }
 
     protected String pipelineName;
-    protected File spirvFileOut                     = null;
-    protected SPIRVReflector spirvReflector         = null;
-    protected long spirvContext                     = 0;
     protected ArrayList<ShaderModule> shaderModules = new ArrayList<>();
     protected Options options                       = null;
 
@@ -75,8 +75,6 @@ public class ShaderCompilePipeline {
     }
 
     protected void reset() {
-        spirvFileOut = null;
-        spirvReflector = null;
         shaderModules.clear();
     }
 
@@ -179,14 +177,26 @@ public class ShaderCompilePipeline {
         checkResult(result);
     }
 
+    private ShaderModule getShaderModule(ShaderDesc.ShaderType shaderStage) {
+        for (ShaderModule module : shaderModules) {
+            if (module.desc.type == shaderStage) {
+                return module;
+            }
+        }
+        return null;
+    }
+
     protected byte[] generateCrossCompiledShader(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, int versionOut) throws IOException, CompileExceptionError{
 
         long compiler = 0;
 
+        ShaderModule module = getShaderModule(shaderType);
+        assert module != null;
+
         if (shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL) {
-            compiler = ShadercJni.NewShaderCompiler(this.spirvContext, Shaderc.ShaderLanguage.SHADER_LANGUAGE_HLSL.getValue());
+            compiler = ShadercJni.NewShaderCompiler(module.spirvContext, Shaderc.ShaderLanguage.SHADER_LANGUAGE_HLSL.getValue());
         } else {
-            compiler = ShadercJni.NewShaderCompiler(this.spirvContext, Shaderc.ShaderLanguage.SHADER_LANGUAGE_GLSL.getValue());
+            compiler = ShadercJni.NewShaderCompiler(module.spirvContext, Shaderc.ShaderLanguage.SHADER_LANGUAGE_GLSL.getValue());
         }
 
         Shaderc.ShaderCompilerOptions opts = new Shaderc.ShaderCompilerOptions();
@@ -209,7 +219,7 @@ public class ShaderCompilePipeline {
             opts.glslEs = 1;
         }
 
-        byte[] result = ShadercJni.Compile(this.spirvContext, compiler, opts);
+        byte[] result = ShadercJni.Compile(module.spirvContext, compiler, opts);
         ShadercJni.DeleteShaderCompiler(compiler);
         return result;
     }
@@ -223,7 +233,7 @@ public class ShaderCompilePipeline {
             return;
         }
 
-        // 1. Generate SPIR-V for each module that can be linked afterwards
+        // Generate SPIR-V for each module
         for (ShaderModule module : this.shaderModules) {
             String baseName = this.pipelineName + "." + shaderTypeToSpirvStage(module.desc.type);
 
@@ -240,20 +250,17 @@ public class ShaderCompilePipeline {
             File fileOutSpv = File.createTempFile(baseName, ".spv");
             FileUtil.deleteOnExit(fileOutSpv);
             generateSPIRv(module.desc.type, fileInGLSL.getAbsolutePath(), fileOutSpv.getAbsolutePath());
-            module.spirvFile = fileOutSpv;
+
+            // Generate an optimized version of the final .spv file
+            File fileOutSpvOpt = File.createTempFile(this.pipelineName, ".optimized.spv");
+            FileUtil.deleteOnExit(fileOutSpvOpt);
+            generateSPIRvOptimized(fileOutSpv.getAbsolutePath(), fileOutSpvOpt.getAbsolutePath());
+
+            module.spirvFile = fileOutSpvOpt;
+
+            module.spirvContext = ShadercJni.NewShaderContext(FileUtils.readFileToByteArray(fileOutSpvOpt));
+            module.spirvReflector = new SPIRVReflector(module.spirvContext, module.desc.type);
         }
-
-        // 2. TODO: link all the shader modules together. For now we only need to support single modules
-        File fileOutSpvLinked = this.shaderModules.get(0).spirvFile;
-
-        // 3. Generate an optimized version of the final .spv file
-        File fileOutSpvOpt = File.createTempFile(this.pipelineName, ".optimized.spv");
-        FileUtil.deleteOnExit(fileOutSpvOpt);
-        generateSPIRvOptimized(fileOutSpvLinked.getAbsolutePath(), fileOutSpvOpt.getAbsolutePath());
-
-        this.spirvContext = ShadercJni.NewShaderContext(FileUtils.readFileToByteArray(fileOutSpvOpt));
-        this.spirvReflector = new SPIRVReflector(this.spirvContext);
-        this.spirvFileOut = fileOutSpvOpt;
     }
 
     //////////////////////////
@@ -262,8 +269,11 @@ public class ShaderCompilePipeline {
     public byte[] crossCompile(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage) throws IOException, CompileExceptionError {
         int version = shaderLanguageToVersion(shaderLanguage);
 
+        ShaderModule module = getShaderModule(shaderType);
+        assert module != null;
+
         if (shaderLanguage == ShaderDesc.Language.LANGUAGE_SPIRV) {
-            return FileUtils.readFileToByteArray(this.spirvFileOut);
+            return FileUtils.readFileToByteArray(module.spirvFile);
         } else if (shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL) {
             String shaderTypeStr = shaderTypeToSpirvStage(shaderType);
             String versionStr    = "v" + version;
@@ -271,7 +281,7 @@ public class ShaderCompilePipeline {
             File fileCrossCompiled = File.createTempFile(this.pipelineName, "." + versionStr + "." + shaderTypeStr);
             FileUtil.deleteOnExit(fileCrossCompiled);
 
-            generateWGSL(this.spirvFileOut.getAbsolutePath(), fileCrossCompiled.getAbsolutePath());
+            generateWGSL(module.spirvFile.getAbsolutePath(), fileCrossCompiled.getAbsolutePath());
             return FileUtils.readFileToByteArray(fileCrossCompiled);
         } else if (canBeCrossCompiled(shaderLanguage)) {
             byte[] bytes = generateCrossCompiledShader(shaderType, shaderLanguage, version);
@@ -279,7 +289,7 @@ public class ShaderCompilePipeline {
             // JG: spirv-cross renames samplers for GLSL based shaders, so we have to run a second pass to force renaming them back.
             //     There doesn't seem to be a simpler way to do this in spirv-cross from what I can understand.
             if (shaderLanguageIsGLSL(shaderLanguage)) {
-                bytes = remapTextureSamplers(this.spirvReflector.getTextures(), new String(bytes));
+                bytes = remapTextureSamplers(module.spirvReflector.getTextures(), new String(bytes));
             }
 
             return bytes;
@@ -288,8 +298,10 @@ public class ShaderCompilePipeline {
         throw new CompileExceptionError("Cannot crosscompile to shader language: " + shaderLanguage);
     }
 
-    public SPIRVReflector getReflectionData() {
-        return this.spirvReflector;
+    public SPIRVReflector getReflectionData(ShaderDesc.ShaderType shaderStage) {
+        ShaderModule module = getShaderModule(shaderStage);
+        assert module != null;
+        return module.spirvReflector;
     }
 
     public static ShaderCompilePipeline createShaderPipeline(ShaderCompilePipeline pipeline, ShaderModuleDesc desc, Options options) throws IOException, CompileExceptionError {
@@ -309,10 +321,12 @@ public class ShaderCompilePipeline {
     }
 
     public static void destroyShaderPipeline(ShaderCompilePipeline pipeline) {
-        if (pipeline.spirvContext != 0) {
-            ShadercJni.DeleteShaderContext(pipeline.spirvContext);
-            pipeline.spirvContext = 0;
-            pipeline.reset();
+        for (ShaderModule module : pipeline.shaderModules) {
+            if (module.spirvContext != 0) {
+                ShadercJni.DeleteShaderContext(module.spirvContext);
+                module.spirvContext = 0;
+            }
         }
+        pipeline.reset();
     }
 }

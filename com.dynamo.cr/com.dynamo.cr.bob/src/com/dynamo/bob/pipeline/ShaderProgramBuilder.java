@@ -59,7 +59,7 @@ public class ShaderProgramBuilder extends Builder {
 
     static public class ShaderCompileResult {
         public ArrayList<ShaderBuildResult> shaderBuildResults;
-        public SPIRVReflector               reflector;
+        public ArrayList<SPIRVReflector>    reflectors = new ArrayList<>();
     }
 
     ArrayList<ShaderCompilePipeline.ShaderModuleDesc> modulesDescs = new ArrayList<>();
@@ -159,8 +159,12 @@ public class ShaderProgramBuilder extends Builder {
             }
         }
 
-        //shaderDescBuilder.setShaderType(shaderType);
-        shaderDescBuilder.setReflection(makeShaderReflectionBuilder(shaderCompileresult.reflector).build());
+        //shaderDescBuilder.setReflection(makeShaderReflectionBuilder(shaderCompileresult.reflector).build());
+        //shaderDescBuilder.addAllReflection(shaderCompileresult.reflectors);
+
+        for (SPIRVReflector reflector : shaderCompileresult.reflectors) {
+            shaderDescBuilder.addReflection(makeShaderReflectionBuilder(reflector));
+        }
 
         shaderDescBuildResult.shaderDesc = shaderDescBuilder.build();
 
@@ -357,6 +361,8 @@ public class ShaderProgramBuilder extends Builder {
 
     static private ShaderDesc.ShaderReflection.Builder makeShaderReflectionBuilder(SPIRVReflector reflector) throws CompileExceptionError {
         ShaderDesc.ShaderReflection.Builder builder = ShaderDesc.ShaderReflection.newBuilder();
+
+        builder.setShaderStage(reflector.getShaderStage());
 
         ArrayList<Shaderc.ShaderResource> inputs    = reflector.getInputs();
         ArrayList<Shaderc.ShaderResource> outputs   = reflector.getOutputs();
