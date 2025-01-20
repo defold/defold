@@ -33,6 +33,29 @@ jobs:
     - name: Checkout repo
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
+    - name: Install Rosetta and x86 JDK if running on Apple Silicon
+    run: |
+      # Detect architecture
+      ARCH=$(uname -m)
+      if [ "$ARCH" = "arm64" ]; then
+        echo "Running on Apple Silicon (arm64), installing Rosetta and x86 JDK..."
+        
+        # Install Rosetta 2
+        softwareupdate --install-rosetta --agree-to-license
+
+        # Install Homebrew for x86
+        arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+        # Install Temurin JDK x86 version
+        arch -x86_64 /usr/local/bin/brew install --cask temurin@11
+
+        # Set JDK for x86
+        echo "export JAVA_HOME=$(/usr/libexec/java_home -v 11 --arch x86_64)" >> $GITHUB_ENV
+        echo "Using x86 JDK: $JAVA_HOME"
+      else
+        echo "Running on Intel, no need to install Rosetta."
+      fi
+
     - name: Build
       run: |
         ./scripts/package/package_android_sdk.sh darwin
@@ -55,15 +78,12 @@ jobs:
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
     - name: Build
-      shell: cmd
+      shell: bash
       run: |
         ./scripts/package/package_android_sdk.sh win
-        $vars = python ./build_tools/set_sdk_vars.py ANDROID_TARGET_API_LEVEL ANDROID_BUILD_TOOLS_VERSION
-        foreach ($line in $vars -split "`n") {
-          if ($line -match '^(.*?)=(.*?)$') {
-            echo "$($matches[1])=$($matches[2])" >> $env:GITHUB_ENV
-          }
-        }
+        eval "$(python ./build_tools/set_sdk_vars.py ANDROID_TARGET_API_LEVEL ANDROID_BUILD_TOOLS_VERSION)"
+        echo "ANDROID_TARGET_API_LEVEL=$ANDROID_TARGET_API_LEVEL" >> $GITHUB_ENV
+        echo "ANDROID_BUILD_TOOLS_VERSION=$ANDROID_BUILD_TOOLS_VERSION" >> $GITHUB_ENV
 
     - name: Archive results
       uses: actions/upload-artifact@v4
