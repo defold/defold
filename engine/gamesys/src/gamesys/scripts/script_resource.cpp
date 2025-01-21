@@ -259,7 +259,6 @@ struct SetTextureAsyncRequest
     dmBuffer::HBuffer          m_Buffer;
     int32_t                    m_BufferRef;
     HOpaqueHandle              m_Handle;
-    bool                       m_UseRawData;
 };
 
 struct ResourceModule
@@ -701,7 +700,7 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
         dmScript::DestroyCallback(request->m_CallbackInfo);
     }
 
-    if (request->m_UseRawData)
+    if (request->m_RawData)
     {
         delete request->m_RawData;
     }
@@ -1047,9 +1046,8 @@ static int CreateTextureAsync(lua_State* L)
     CheckCreateTextureResourceParams(L, &create_params);
 
     // We need to create an empty upload buffer if no explicit buffer is passed
-    bool is_transcoded              = create_params.m_CompressionType != dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT && dmGraphics::IsFormatTranscoded(create_params.m_CompressionType);
-    bool use_raw_data               = create_params.m_Buffer == 0 || is_transcoded;
-    uint8_t* raw_data               = 0;
+    bool is_transcoded = dmGraphics::IsFormatTranscoded(create_params.m_CompressionType);
+    uint8_t* raw_data  = 0;
 
     if (create_params.m_Buffer == 0)
     {
@@ -1109,7 +1107,6 @@ static int CreateTextureAsync(lua_State* L)
     request->m_Buffer            = create_params.m_Buffer;
     request->m_PathHash          = create_params.m_PathHash;
     request->m_RawData           = raw_data;
-    request->m_UseRawData        = use_raw_data;
 
     dmGraphics::TextureParams texture_params;
     texture_params.m_Width  = create_params.m_Width;
@@ -1152,8 +1149,7 @@ static int CreateTextureAsync(lua_State* L)
         texture_params.m_Data     = decompressed_data;
         texture_params.m_DataSize = decompressed_data_size;
 
-        request->m_RawData    = decompressed_data;
-        request->m_UseRawData = true;
+        request->m_RawData = decompressed_data;
     }
 
     // Execute the upload, the upload buffer should now be locked by this request
