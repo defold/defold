@@ -99,6 +99,10 @@ message CollisionObjectDesc
     optional float                  angular_damping = 10 [default=0];
     optional bool                   locked_rotation = 11 [default=false];
     optional bool                   bullet          = 12 [default=false];
+    // Should the component generate events
+    optional bool                   event_collision = 13 [default=true];
+    optional bool                   event_contact   = 14 [default=true];
+    optional bool                   event_trigger   = 15 [default=true];
 }
 
 /*# Collision object physics API documentation
