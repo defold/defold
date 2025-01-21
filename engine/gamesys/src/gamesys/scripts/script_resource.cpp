@@ -1117,8 +1117,9 @@ static int CreateTextureAsync(lua_State* L)
         compressed_image.m_MipMapSize.m_Count           = 1;
         compressed_image.m_MipMapSizeCompressed.m_Data  = &compressed_mipmap_size;
         compressed_image.m_MipMapSizeCompressed.m_Count = 1;
+        compressed_image.m_Data.m_Data                  = (uint8_t*) texture_params.m_Data;
 
-        if (!dmGraphics::Transcode(create_params.m_Path, &compressed_image, 1, (uint8_t*) texture_params.m_Data, texture_params.m_Format, &decompressed_data, &decompressed_data_size, &num_mips))
+        if (!dmGraphics::Transcode(create_params.m_Path, &compressed_image, 1, texture_params.m_Format, &decompressed_data, &decompressed_data_size, &num_mips))
         {
             return DM_LUA_ERROR("Unable to transcode texture data");
         }

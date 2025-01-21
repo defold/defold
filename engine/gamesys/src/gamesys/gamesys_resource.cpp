@@ -42,7 +42,7 @@ namespace dmGameSystem
         assert(data_size > 0);
 
         data_size                *= layer_count;
-        uint32_t image_data_size  = data_size / 8; // bits -> bytes for compression formats
+        uint32_t image_data_size  = dmMath::Max((uint32_t) 1, data_size / 8); // bits -> bytes for compression formats
         uint8_t* image_data       = 0;
 
         if (params.m_Buffer)
