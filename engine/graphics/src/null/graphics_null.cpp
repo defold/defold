@@ -756,108 +756,116 @@ namespace dmGraphics
         BuildUniforms(&program->m_BaseProgram);
     }
 
-    static NullShaderModule* NewShaderModuleFromDDF(HContext context, ShaderDesc* ddf)
+    static NullShaderModule* NewShaderModuleFromDDF(HContext context, ShaderDesc::Shader* ddf)
     {
-        assert(ddf);
-
-        /*
-        ShaderDesc::Shader* ddf_shader = GetShaderProgram(context, ddf);
-        if (ddf_shader == 0x0)
-        {
-            return 0x0;
-        }
-
         NullShaderModule* shader = new NullShaderModule();
-        shader->m_Data           = new char[ddf_shader->m_Source.m_Count+1];
-        shader->m_Language       = ddf_shader->m_Language;
+        shader->m_Data           = new char[ddf->m_Source.m_Count+1];
+        shader->m_Language       = ddf->m_Language;
 
-        memcpy(shader->m_Data, ddf_shader->m_Source.m_Data, ddf_shader->m_Source.m_Count);
-        shader->m_Data[ddf_shader->m_Source.m_Count] = '\0';
-
-        CreateShaderMeta(&ddf->m_Reflection, &shader->m_ShaderMeta);
+        memcpy(shader->m_Data, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
+        shader->m_Data[ddf->m_Source.m_Count] = '\0';
         return shader;
-        */
-
-        return 0;
     }
 
-    static HProgram NullNewProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
+    static HProgram NullNewProgram(HContext _context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
-        return 0;
-    }
+        ShaderDesc::Shader* ddf_vp = 0x0;
+        ShaderDesc::Shader* ddf_fp = 0x0;
+        ShaderDesc::Shader* ddf_cp = 0x0;
 
-    static void NullDeleteProgram(HContext context, HProgram program)
-    {
-
-    }
-
-    static bool NullReloadProgram(HContext context, HProgram program, ShaderDesc* ddf)
-    {
-        return true;
-    }
-
-    /*
-    static HComputeProgram NullNewComputeProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
-    {
-        return (HComputeProgram) NewShaderModuleFromDDF(context, ddf);
-    }
-
-    static HProgram NullNewProgramFromCompute(HContext context, HComputeProgram compute_program)
-    {
-        NullProgram* p = new NullProgram();
-        p->m_Compute = (NullShaderModule*) compute_program;
-        CreateProgramResourceBindings(p, 0x0, 0x0, p->m_Compute);
-        return (HProgram) p;
-    }
-
-    static void NullDeleteComputeProgram(HComputeProgram prog)
-    {
-        NullShaderModule* p = (NullShaderModule*) prog;
-        delete [] (char*) p->m_Data;
-        DestroyShaderMeta(p->m_ShaderMeta);
-        delete p;
-    }
-
-    static HProgram NullNewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
-    {
-        NullShaderModule* vertex   = 0x0;
-        NullShaderModule* fragment = 0x0;
-        if (vertex_program != INVALID_VERTEX_PROGRAM_HANDLE)
+        if (!GetShaderGraphicsProgram(_context, ddf, &ddf_vp, &ddf_fp))
         {
-            vertex = (NullShaderModule*) vertex_program;
-        }
-        if (fragment_program != INVALID_FRAGMENT_PROGRAM_HANDLE)
-        {
-            fragment = (NullShaderModule*) fragment_program;
+            if (!GetShaderGraphicsCompute(_context, ddf, &ddf_cp))
+            {
+                return 0;
+            }
         }
 
         NullProgram* p = new NullProgram();
-        p->m_VP = vertex;
-        p->m_FP = fragment;
 
-        CreateProgramResourceBindings(p, vertex, fragment, 0x0);
+        if (ddf_cp)
+        {
+            p->m_Compute = NewShaderModuleFromDDF(_context, ddf_cp);
+            CreateShaderMeta(ddf->m_Reflection.m_Data, ddf->m_Reflection.m_Count, ShaderDesc::SHADER_TYPE_VERTEX, &p->m_Compute->m_ShaderMeta);
+            CreateProgramResourceBindings(p, 0x0, 0x0, p->m_Compute);
+        }
+        else
+        {
+            p->m_VP = NewShaderModuleFromDDF(_context, ddf_vp);
+            CreateShaderMeta(ddf->m_Reflection.m_Data, ddf->m_Reflection.m_Count, ShaderDesc::SHADER_TYPE_VERTEX, &p->m_VP->m_ShaderMeta);
+
+            p->m_FP = NewShaderModuleFromDDF(_context, ddf_fp);
+            CreateShaderMeta(ddf->m_Reflection.m_Data, ddf->m_Reflection.m_Count, ShaderDesc::SHADER_TYPE_FRAGMENT, &p->m_FP->m_ShaderMeta);
+
+            CreateProgramResourceBindings(p, p->m_VP, p->m_FP, 0x0);
+        }
+
         return (HProgram) p;
+    }
+
+    static void DeleteShader(NullShaderModule* shader)
+    {
+        if (!shader)
+            return;
+        delete [] (char*) shader->m_Data;
+        DestroyShaderMeta(shader->m_ShaderMeta);
+        delete shader;
     }
 
     static void NullDeleteProgram(HContext context, HProgram _program)
     {
         NullProgram* program = (NullProgram*) _program;
 
-        delete[] program->m_UniformData;
+        DeleteShader(program->m_VP);
+        DeleteShader(program->m_FP);
+        DeleteShader(program->m_Compute);
 
+        delete[] program->m_UniformData;
         delete program;
     }
 
-    static HVertexProgram NullNewVertexProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
+    static bool NullReloadProgram(HContext _context, HProgram program, ShaderDesc* ddf)
     {
-        return (HVertexProgram) NewShaderModuleFromDDF(context, ddf);
+        NullProgram* p = (NullProgram*) program;
+
+        if (g_ForceVertexReloadFail || g_ForceFragmentReloadFail)
+            return false;
+
+        ShaderDesc::Shader* ddf_vp = 0x0;
+        ShaderDesc::Shader* ddf_fp = 0x0;
+        ShaderDesc::Shader* ddf_cp = 0x0;
+
+        if (!GetShaderGraphicsProgram(_context, ddf, &ddf_vp, &ddf_fp))
+        {
+            if (!GetShaderGraphicsCompute(_context, ddf, &ddf_cp))
+            {
+                return 0;
+            }
+        }
+
+        if (ddf_cp)
+        {
+            delete [] (char*) p->m_Compute->m_Data;
+            p->m_Compute->m_Data = new char[ddf_cp->m_Source.m_Count];
+            memcpy((char*)p->m_Compute->m_Data, ddf_cp->m_Source.m_Data, ddf_cp->m_Source.m_Count);
+        }
+        else
+        {
+            // VP
+            delete [] (char*) p->m_VP->m_Data;
+            p->m_VP->m_Data = new char[ddf_vp->m_Source.m_Count];
+            memcpy((char*)p->m_VP->m_Data, ddf_vp->m_Source.m_Data, ddf_vp->m_Source.m_Count);
+
+            // FP
+            delete [] (char*) p->m_FP->m_Data;
+            p->m_FP->m_Data = new char[ddf_fp->m_Source.m_Count];
+            memcpy((char*)p->m_FP->m_Data, ddf_fp->m_Source.m_Data, ddf_fp->m_Source.m_Count);
+        }
+
+        return true;
     }
 
-    static HFragmentProgram NullNewFragmentProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
-    {
-        return (HFragmentProgram) NewShaderModuleFromDDF(context, ddf);
-    }
-
+    /*
     static bool NullReloadVertexProgram(HVertexProgram prog, ShaderDesc* ddf)
     {
         assert(prog);
@@ -892,24 +900,6 @@ namespace dmGraphics
         p->m_Data = new char[shader->m_Source.m_Count];
         memcpy((char*)p->m_Data, shader->m_Source.m_Data, shader->m_Source.m_Count);
         return !g_ForceFragmentReloadFail;
-    }
-
-    static void NullDeleteVertexProgram(HVertexProgram program)
-    {
-        assert(program);
-        NullShaderModule* p = (NullShaderModule*)program;
-        delete [] (char*) p->m_Data;
-        DestroyShaderMeta(p->m_ShaderMeta);
-        delete p;
-    }
-
-    static void NullDeleteFragmentProgram(HFragmentProgram program)
-    {
-        assert(program);
-        NullShaderModule* p = (NullShaderModule*)program;
-        delete [] (char*) p->m_Data;
-        DestroyShaderMeta(p->m_ShaderMeta);
-        delete p;
     }
     */
 
@@ -954,29 +944,6 @@ namespace dmGraphics
         assert(context);
         ((NullContext*) context)->m_Program = 0x0;
     }
-
-    /*
-    static bool NullReloadProgramGraphics(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
-    {
-        (void) context;
-        (void) program;
-
-        return true;
-    }
-
-    static bool NullReloadProgramCompute(HContext context, HProgram program, HComputeProgram compute_program)
-    {
-        (void) context;
-        (void) program;
-        return true;
-    }
-
-    static bool NullReloadComputeProgram(HComputeProgram prog, ShaderDesc* ddf)
-    {
-        (void)prog;
-        return true;
-    }
-    */
 
     static uint32_t NullGetAttributeCount(HProgram prog)
     {

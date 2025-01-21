@@ -450,17 +450,19 @@ TEST_F(dmGraphicsTest, TestProgram)
     dmGraphics::ShaderDesc::ResourceBinding fs_textures[1] = {};
     FillResourceBindingType(&fs_textures[0], "texture_sampler", 3, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
 
-    dmGraphics::ShaderDesc::Shader vs_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, vertex_data, (uint32_t) strlen(vertex_data));
-    dmGraphics::ShaderDesc::Shader fs_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, fragment_data, (uint32_t) strlen(fragment_data));
+    dmGraphics::ShaderDesc::Shader shaders[] = {
+        MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, vertex_data, (uint32_t) strlen(vertex_data)),
+        MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, fragment_data, (uint32_t) strlen(fragment_data))
+    };
 
-    dmGraphics::ShaderDesc vs_desc = MakeDDFShaderDesc(&vs_shader, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, vx_inputs, DM_ARRAY_SIZE(vx_inputs), vx_uniforms, DM_ARRAY_SIZE(vx_uniforms), 0, 0, types, DM_ARRAY_SIZE(types));
-    dmGraphics::ShaderDesc fs_desc = MakeDDFShaderDesc(&fs_shader, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, 0, 0, fs_uniforms, DM_ARRAY_SIZE(fs_uniforms), fs_textures, DM_ARRAY_SIZE(fs_textures), types, DM_ARRAY_SIZE(types));
+    dmGraphics::ShaderDesc shader = MakeDDFShaderDesc(shaders, 2);
+    AddShaderReflection(&shader, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, vx_inputs, DM_ARRAY_SIZE(vx_inputs), vx_uniforms, DM_ARRAY_SIZE(vx_uniforms), 0, 0, types, DM_ARRAY_SIZE(types));
+    AddShaderReflection(&shader, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, 0, 0, fs_uniforms, DM_ARRAY_SIZE(fs_uniforms), fs_textures, DM_ARRAY_SIZE(fs_textures), types, DM_ARRAY_SIZE(types));
 
-    // dmGraphics::HVertexProgram vp   = dmGraphics::NewVertexProgram(m_Context, &vs_desc, 0, 0);
-    // dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_Context, &fs_desc, 0, 0);
-    dmGraphics::HProgram program = 0; // dmGraphics::NewProgram(m_Context, vp, fp);
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_Context, &shader, 0, 0);
 
     CleanupShaderResourceTypeInfos(types, 3);
+    DestroyDDFShader(shader);
 
     const dmGraphics::Uniform* view_proj       = dmGraphics::GetUniform(program, dmHashString64("view_proj"));
     const dmGraphics::Uniform* world           = dmGraphics::GetUniform(program, dmHashString64("world"));
@@ -519,22 +521,22 @@ TEST_F(dmGraphicsTest, TestProgram)
                             Vector4(9.0f, 10.0f, 11.0f, 12.0f),
                             Vector4(13.0f, 14.0f, 15.0f, 16.0f) };
     dmGraphics::SetConstantM4(m_Context, matrix, 1, view_proj->m_Location);
-    char* program_data = new char[1024];
-    *program_data = 0;
-    vs_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, program_data, 1024);
-    vs_desc = MakeDDFShaderDesc(&vs_shader, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, 0, 0, 0, 0, 0, 0, 0, 0);
-    //dmGraphics::ReloadVertexProgram(vp, &vs_desc);
-    delete [] program_data;
-    program_data = new char[1024];
-    *program_data = 0;
-    fs_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, program_data, 1024);
-    fs_desc = MakeDDFShaderDesc(&fs_shader, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, 0, 0, 0, 0, 0, 0, 0, 0);
-    //dmGraphics::ReloadFragmentProgram(fp, &fs_desc);
-    delete [] program_data;
+    char* program_data_vs = new char[1024];
+    *program_data_vs = 0;
+
+    char* program_data_fs = new char[1024];
+    *program_data_fs = 0;
+
+    shaders[0] = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, program_data_vs, 1024);
+    shaders[1] = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, program_data_fs, 1024);
+    shader     = MakeDDFShaderDesc(shaders, 2);
+    dmGraphics::ReloadProgram(m_Context, program, &shader);
+
+    delete [] program_data_vs;
+    delete [] program_data_fs;
+
     dmGraphics::DisableProgram(m_Context);
     dmGraphics::DeleteProgram(m_Context, program);
-    //dmGraphics::DeleteVertexProgram(vp);
-    //dmGraphics::DeleteFragmentProgram(fp);
 }
 
 TEST_F(dmGraphicsTest, TestComputeProgram)
@@ -552,12 +554,14 @@ TEST_F(dmGraphicsTest, TestComputeProgram)
     dmGraphics::ShaderDesc::ResourceBinding uniform = {};
     FillResourceBindingTypeIndex(&uniform, "my_uniform", 0, 0);
 
-    dmGraphics::ShaderDesc::Shader compute_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430, compute_data, (uint32_t) strlen(compute_data));
-    dmGraphics::ShaderDesc compute_desc           = MakeDDFShaderDesc(&compute_shader, dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE, 0, 0, &uniform, 1, 0, 0, types, 1);
-    // dmGraphics::HComputeProgram cp                = dmGraphics::NewComputeProgram(m_Context, &compute_desc, 0, 0);
-    dmGraphics::HProgram program                  = dmGraphics::NewProgram(m_Context, &compute_desc, 0, 0);
+    dmGraphics::ShaderDesc::Shader compute_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430, dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE, compute_data, (uint32_t) strlen(compute_data));
+    dmGraphics::ShaderDesc compute_desc           = MakeDDFShaderDesc(&compute_shader, 1);
+
+    AddShaderReflection(&compute_desc, dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE, 0, 0, &uniform, 1, 0, 0, types, 1);
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_Context, &compute_desc, 0, 0);
 
     CleanupShaderResourceTypeInfos(types, 1);
+    DestroyDDFShader(compute_desc);
 
     const dmGraphics::Uniform* my_uniform = dmGraphics::GetUniform(program, dmHashString64("my_uniform"));
 
@@ -1245,17 +1249,19 @@ TEST_F(dmGraphicsTest, TestVertexAttributesGL3)
     dmGraphics::ShaderDesc::ResourceBinding vx_uniform = {};
     FillResourceBindingTypeIndex(&vx_uniform, "view_proj", 0, 0);
 
-    dmGraphics::ShaderDesc::Shader vs_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, vertex_data, (uint32_t) strlen(vertex_data));
-    dmGraphics::ShaderDesc::Shader fs_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, fragment_data, (uint32_t) strlen(fragment_data));
+    dmGraphics::ShaderDesc::Shader shaders[] {
+        MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, vertex_data, (uint32_t) strlen(vertex_data)),
+        MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, fragment_data, (uint32_t) strlen(fragment_data))
+    };
 
-    dmGraphics::ShaderDesc vs_desc = MakeDDFShaderDesc(&vs_shader, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, vx_inputs, 3, &vx_uniform, 1, 0, 0, resource_types, 1);
-    dmGraphics::ShaderDesc fs_desc = MakeDDFShaderDesc(&fs_shader, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, 0, 0, 0, 0, 0, 0, 0, 0);
+    dmGraphics::ShaderDesc shader = MakeDDFShaderDesc(shaders, 2);
 
-    // dmGraphics::HVertexProgram vp   = dmGraphics::NewVertexProgram(m_Context, &vs_desc, 0, 0);
-    // dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_Context, &fs_desc, 0, 0);
-    dmGraphics::HProgram program    = 0; // dmGraphics::NewProgram(m_Context, vp, fp);
+    AddShaderReflection(&shader, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, vx_inputs, 3, &vx_uniform, 1, 0, 0, resource_types, 1);
+    AddShaderReflection(&shader, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, 0, 0, 0, 0, 0, 0, 0, 0);
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_Context, &shader, 0, 0);
 
     CleanupShaderResourceTypeInfos(resource_types, 1);
+    DestroyDDFShader(shader);
 
     uint32_t attribute_count = dmGraphics::GetAttributeCount(program);
     ASSERT_EQ(3, attribute_count);

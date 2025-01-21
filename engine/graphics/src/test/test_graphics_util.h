@@ -24,43 +24,57 @@
 namespace dmGraphics
 {
     // TODO: We should consider making this take a parameter struct instead
-    static inline dmGraphics::ShaderDesc MakeDDFShaderDesc(
-        dmGraphics::ShaderDesc::Shader* shader,
+    static inline dmGraphics::ShaderDesc MakeDDFShaderDesc(dmGraphics::ShaderDesc::Shader* shaders, uint32_t shader_count)
+    {
+        dmGraphics::ShaderDesc ddf;
+        memset(&ddf,0,sizeof(ddf));
+
+        ddf.m_Shaders.m_Data = shaders;
+        ddf.m_Shaders.m_Count = shader_count;
+
+        ddf.m_Reflection.m_Data = new dmGraphics::ShaderDesc::ShaderReflection[2];
+        ddf.m_Reflection.m_Count = 2;
+        return ddf;
+    }
+
+    static inline void AddShaderReflection(
+        dmGraphics::ShaderDesc* desc,
         dmGraphics::ShaderDesc::ShaderType type,
         dmGraphics::ShaderDesc::ResourceBinding* inputs, uint32_t input_count,
         dmGraphics::ShaderDesc::ResourceBinding* ubos, uint32_t ubos_count,
         dmGraphics::ShaderDesc::ResourceBinding* textures, uint32_t textures_count,
         dmGraphics::ShaderDesc::ResourceTypeInfo* types, uint32_t types_count)
     {
-        dmGraphics::ShaderDesc ddf;
-        memset(&ddf,0,sizeof(ddf));
+        int index = 0;
+        switch(type)
+        {
+        case dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX:
+        case dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE:
+            index = 0;
+            break;
+        case dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT:
+            index = 1;
+            break;
+        }
 
-        ddf.m_Shaders.m_Data = shader;
-        ddf.m_Shaders.m_Count = 1;
-        // ddf.m_ShaderType = type;
-
-        ddf.m_Reflection.m_Inputs.m_Data  = inputs;
-        ddf.m_Reflection.m_Inputs.m_Count = input_count;
-
-        ddf.m_Reflection.m_UniformBuffers.m_Data  = ubos;
-        ddf.m_Reflection.m_UniformBuffers.m_Count = ubos_count;
-
-        ddf.m_Reflection.m_Textures.m_Data  = textures;
-        ddf.m_Reflection.m_Textures.m_Count = textures_count;
-
-        ddf.m_Reflection.m_Types.m_Data  = types;
-        ddf.m_Reflection.m_Types.m_Count = types_count;
-
-        return ddf;
+        desc->m_Reflection[index].m_Inputs.m_Data  = inputs;
+        desc->m_Reflection[index].m_Inputs.m_Count = input_count;
+        desc->m_Reflection[index].m_UniformBuffers.m_Data  = ubos;
+        desc->m_Reflection[index].m_UniformBuffers.m_Count = ubos_count;
+        desc->m_Reflection[index].m_Textures.m_Data  = textures;
+        desc->m_Reflection[index].m_Textures.m_Count = textures_count;
+        desc->m_Reflection[index].m_Types.m_Data  = types;
+        desc->m_Reflection[index].m_Types.m_Count = types_count;
     }
 
-    static inline dmGraphics::ShaderDesc::Shader MakeDDFShader(dmGraphics::ShaderDesc::Language language, const char* data, uint32_t data_size)
+    static inline dmGraphics::ShaderDesc::Shader MakeDDFShader(dmGraphics::ShaderDesc::Language language, dmGraphics::ShaderDesc::ShaderType type, const char* data, uint32_t data_size)
     {
         dmGraphics::ShaderDesc::Shader ddf;
         memset(&ddf,0,sizeof(ddf));
         ddf.m_Source.m_Data  = (uint8_t*)data;
         ddf.m_Source.m_Count = data_size;
         ddf.m_Language       = language;
+        ddf.m_ShaderType     = type;
         return ddf;
     }
 
@@ -117,6 +131,11 @@ namespace dmGraphics
         {
             delete[] infos[i].m_Members.m_Data;
         }
+    }
+
+    static inline void DestroyDDFShader(dmGraphics::ShaderDesc& shader)
+    {
+        delete shader.m_Reflection.m_Data;
     }
 }
 
