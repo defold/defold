@@ -243,21 +243,20 @@
   If we somehow manage to browse away from the project to an external
   page, this will somewhat annoyingly bring us back."
   (when resource-node
-    (let [web-engine  (.getEngine web-view)
-          resource    (g/node-value resource-node :resource)
-          project     (project/get-project resource-node)
-          url         (resource-url (get-http-server! project) resource)
-          current-url (.getLocation web-engine)]
-      (if (not= url current-url)
-        (.load web-engine url)
-        (when html (.loadContent web-engine html))))))
+    (let [web-engine (.getEngine web-view)
+          resource   (g/node-value resource-node :resource)
+          project    (project/get-project resource-node)
+          url        (resource-url (get-http-server! project) resource)]
+      (.load web-engine url))))
 
 (defn- handle-location-change! [project view-id new-location]
   (if-let [new-resource-node
-           (if (string/starts-with? new-location (http-server/url (get-http-server! project)))
-             (let [resource-path (subs new-location (count (http-server/url (get-http-server! project))))]
-               (project/get-resource-node project resource-path))
-             nil)]
+           (when (string/starts-with? new-location (http-server/url (get-http-server! project)))
+             (let [resource-path (subs new-location (count (http-server/url (get-http-server! project))))
+                   resource-node (project/get-resource-node project resource-path)
+                   resource (g/node-value resource-node :resource)]
+               (when (resource/openable-in-view-type? resource :html)
+                 resource-node)))]
     (g/transact [(g/connect new-resource-node :html view-id :html)
                  (view/connect-resource-node view-id new-resource-node)])
     (log/warn :message (format "Moving to non-local url or missing resource: %s" new-location))))
@@ -274,8 +273,7 @@
         web-view      (make-web-view project)
         web-engine    (.getEngine web-view)
         view-id       (g/make-node! graph WebViewNode :web-view web-view)
-        repainter     (ui/->timer 1 "update-web-view!" (fn [_ _ _]
-                                                         (g/node-value view-id :load-resource)))]
+        repainter     (ui/->timer 30 "update-web-view!" (fn [_ _ _] (g/node-value view-id :load-resource)))]
 
     (.addListener (.locationProperty web-engine)
                   (ui/change-listener _ _ new-location (handle-location-change! project view-id new-location)))

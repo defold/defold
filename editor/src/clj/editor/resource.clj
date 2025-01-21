@@ -81,6 +81,10 @@
   (and (openable-resource? value)
        (true? (:editor-openable (resource-type value)))))
 
+(defn openable-in-view-type?
+  [value view-type]
+  (contains? (into #{} (map :id (:view-types (resource-type value)))) view-type))
+
 (defn- ->unix-seps ^String [^String path]
   (FilenameUtils/separatorsToUnix path))
 
