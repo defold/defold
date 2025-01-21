@@ -48,8 +48,9 @@ namespace dmSound
     #define SOUND_MAX_SPEED (5)
     #define SOUND_MAX_HISTORY (4)
     #define SOUND_MAX_FUTURE (4)
+    #define SOUND_INSTANCE_STATEFRAMECOUNT (SOUND_MAX_HISTORY + 1 + SOUND_MAX_FUTURE)
 
-    // TODO: How many bits?
+    // TODO: How many bits? - now adjusted to reflect available polyphase filter bank entries
     const uint32_t RESAMPLE_FRACTION_BITS = 11; //31;
 
     const dmhash_t MASTER_GROUP_HASH = dmHashString64("master");
@@ -175,8 +176,9 @@ namespace dmSound
     struct SoundInstance
     {
         dmSoundCodec::HDecoder m_Decoder;
-        void*       m_FramesAlloc;
         void*       m_Frames;
+        uint32_t    m_FrameCount;
+
         dmhash_t    m_Group;
 
         Value       m_Gain;     // default: 1.0f
@@ -184,7 +186,6 @@ namespace dmSound
         Value       m_ScaleL;
         Value       m_ScaleR;
         float       m_Speed;    // 1.0 = normal speed, 0.5 = half speed, 2.0 = double speed
-        uint32_t    m_FrameCount;
         uint64_t    m_FrameFraction;
 
         uint16_t    m_Index;
@@ -232,12 +233,16 @@ namespace dmSound
         uint32_t                m_FrameCount; // Updated for each available buffer
         uint32_t                m_PlayCounter;
 
+        void*                   m_DecoderOutput;
+
         int16_t*                m_OutBuffers[SOUND_OUTBUFFER_COUNT];
         uint16_t                m_NextOutBuffer;
 
         bool                    m_IsDeviceStarted;
         bool                    m_IsAudioInterrupted;
         bool                    m_HasWindowFocus;
+
+        void* GetDecoderBufferBase() const { return (void*)((uintptr_t)m_DecoderOutput + SOUND_MAX_HISTORY * sizeof(int16_t) * SOUND_MAX_MIX_CHANNELS); }
     };
 
     // Since using threads is optional, we want to make it easy to switch on/off the mutex behavior
@@ -382,10 +387,9 @@ namespace dmSound
             memset(instance, 0, sizeof(*instance));
             instance->m_Index = 0xffff;
             instance->m_SoundDataIndex = 0xffff;
-            // NOTE: "over-fetch" when resampling (actual overreach depends on resampler - polyphase will also access data "before" start of buffer)
-            // NOTE: and x SOUND_MAX_SPEED for potential pitch range
-            instance->m_FramesAlloc = malloc((sound->m_DeviceFrameCount * SOUND_MAX_SPEED + SOUND_MAX_HISTORY + SOUND_MAX_FUTURE) * sizeof(int16_t) * SOUND_MAX_MIX_CHANNELS);
-            instance->m_Frames = (void*)((uintptr_t)instance->m_FramesAlloc + SOUND_MAX_HISTORY * sizeof(uint16_t) * SOUND_MAX_MIX_CHANNELS);
+            // memory to keep around history / future sample state
+            // (history, 1 sample left-over for fractional access, future)
+            instance->m_Frames = malloc(SOUND_INSTANCE_STATEFRAMECOUNT * sizeof(int16_t) * SOUND_MAX_MIX_CHANNELS);
             instance->m_FrameCount = 0;
             instance->m_Speed = 1.0f;
         }
@@ -397,6 +401,8 @@ namespace dmSound
         {
             sound->m_SoundData[i].m_Index = 0xffff;
         }
+
+        sound->m_DecoderOutput = malloc((sound->m_DeviceFrameCount * SOUND_MAX_SPEED + SOUND_MAX_HISTORY + SOUND_MAX_FUTURE) * sizeof(int16_t) * SOUND_MAX_MIX_CHANNELS);
 
         for (int i = 0; i < SOUND_OUTBUFFER_COUNT; ++i) {
             sound->m_OutBuffers[i] = (int16_t*) malloc(sound->m_DeviceFrameCount * sizeof(int16_t) * SOUND_MAX_MIX_CHANNELS);
@@ -453,9 +459,11 @@ namespace dmSound
                 SoundInstance* instance = &sound->m_Instances[i];
                 instance->m_Index = 0xffff;
                 instance->m_SoundDataIndex = 0xffff;
-                free(instance->m_FramesAlloc);
+                free(instance->m_Frames);
                 memset(instance, 0, sizeof(*instance));
             }
+
+            free(sound->m_DecoderOutput);
 
             for (int i = 0; i < SOUND_OUTBUFFER_COUNT; ++i) {
                 free((void*) sound->m_OutBuffers[i]);
@@ -686,7 +694,8 @@ namespace dmSound
         si->m_Decoder = decoder;
         si->m_Group = MASTER_GROUP_HASH;
 
-        memset(si->m_FramesAlloc, 0, SOUND_MAX_HISTORY * sizeof(uint16_t) * SOUND_MAX_MIX_CHANNELS);
+        memset(si->m_Frames, 0, SOUND_MAX_HISTORY * sizeof(uint16_t) * SOUND_MAX_MIX_CHANNELS);
+        si->m_FrameCount = SOUND_MAX_HISTORY;
 
         *sound_instance = si;
 
@@ -972,74 +981,73 @@ namespace dmSound
         return RESULT_OK;
     }
 
-    template <typename T, int offset, int scale>
-    static void MixResampleIdentityMono(const MixContext* mix_context, SoundInstance* instance, uint32_t rate, uint32_t mix_rate, float* mix_buffer, uint32_t mix_buffer_count)
+    template <typename T, int channels>
+    static inline void PrepTempBufferState(SoundInstance* instance, void* decoder_output_buffer)
     {
-        (void)rate;
-        (void)mix_rate;
-
-        T* frames = (T*) instance->m_Frames;
-        Ramp gain_ramp = GetRamp(mix_context, &instance->m_Gain, mix_buffer_count);
-        Ramp pan_ramp = GetRamp(mix_context, &instance->m_Pan, mix_buffer_count);
-
-        for (uint32_t i = 0; i < mix_buffer_count; i++)
+        if (instance->m_FrameCount > 0)
         {
-            float gain = gain_ramp.GetValue(i);
-            float pan = pan_ramp.GetValue(i);
-            float s = frames[i];
-            s = (s - offset) * scale * gain;
-
-            float left_scale, right_scale;
-            GetPanScale(pan, &left_scale, &right_scale);
-            mix_buffer[2 * i]       += s * left_scale;
-            mix_buffer[2 * i + 1]   += s * right_scale;
+            // Bring back history and any still available samples (possible left over sample & 'future' samples as available)
+            assert(instance->m_FrameCount >= SOUND_MAX_HISTORY);
+            uint32_t state_bytes = instance->m_FrameCount * sizeof(T) * channels;
+            memcpy((void*)((uintptr_t)decoder_output_buffer - (SOUND_MAX_HISTORY * sizeof(T) * channels)), instance->m_Frames, state_bytes);
         }
+    }
 
-//CENTRALIZE!
-        // shift any remaining data to beginning of buffer (also updates history data)
-        const uintptr_t history_bytes = SOUND_MAX_HISTORY * sizeof(T);
-        const uintptr_t mixed_bytes = mix_buffer_count * sizeof(T);
-        const uintptr_t unmixed_bytes = (instance->m_FrameCount - mix_buffer_count) * sizeof(T);
-        uint8_t* base_ptr = (uint8_t*)((uintptr_t)instance->m_Frames - history_bytes);
-        memmove(base_ptr, base_ptr + mixed_bytes, unmixed_bytes + history_bytes);
-
-        instance->m_FrameCount -= mix_buffer_count;
+    template <typename T, int channels>
+    static inline void SaveTempBufferState(SoundInstance* instance, uint32_t avail_framecount, uint32_t used_framecount, void* decoder_output_buffer)
+    {
+        // Copy any leftover sample, the last 4 (note: always available in front of the decoder buffer even if nothing new was added) & the next 4 (also always there)...
+        instance->m_FrameCount = SOUND_MAX_HISTORY + (avail_framecount - used_framecount) + SOUND_MAX_FUTURE;
+        assert(instance->m_FrameCount <= SOUND_INSTANCE_STATEFRAMECOUNT);
+        memcpy(instance->m_Frames, (void*)((uintptr_t)decoder_output_buffer + (used_framecount - SOUND_MAX_HISTORY) * sizeof(T) * channels), instance->m_FrameCount * sizeof(T) * channels);
     }
 
     template <typename T, int offset, int scale>
-    static void MixResampleIdentityStereo(const MixContext* mix_context, SoundInstance* instance, uint32_t rate, uint32_t mix_rate, float* mix_buffer, uint32_t mix_buffer_count)
+    static void MixResampleIdentityMono(const MixContext* mix_context, SoundInstance* instance, uint32_t rate, uint32_t mix_rate, float* mix_buffer, uint32_t mix_buffer_count, void* decoder_output_buffer, uint32_t avail_framecount)
     {
         (void)rate;
         (void)mix_rate;
 
-        T* frames = (T*) instance->m_Frames;
-        Ramp gain_ramp = GetRamp(mix_context, &instance->m_Gain, mix_buffer_count);
-        Ramp pan_ramp = GetRamp(mix_context, &instance->m_Pan, mix_buffer_count);
+        PrepTempBufferState<T, 1>(instance, decoder_output_buffer);
 
-        for (uint32_t i = 0; i < mix_buffer_count; i++)
+        T* frames = (T*) decoder_output_buffer;
+        Ramp scale_l_ramp = GetRamp(mix_context, &instance->m_ScaleL, mix_buffer_count);
+        Ramp scale_r_ramp = GetRamp(mix_context, &instance->m_ScaleR, mix_buffer_count);
+
+        for (uint32_t i = 0; i < mix_buffer_count; ++i)
         {
-            float gain = gain_ramp.GetValue(i);
-            float pan = pan_ramp.GetValue(i);
-            float s1 = frames[2 * i];
-            float s2 = frames[2 * i + 1];
-            s1 = (s1 - offset) * scale * gain;
-            s2 = (s2 - offset) * scale * gain;
-
-            float left_scale, right_scale;
-            GetPanScale(pan, &left_scale, &right_scale);
-            mix_buffer[2 * i]       += s1 * left_scale;
-            mix_buffer[2 * i + 1]   += s2 * right_scale;
+            float s = (*(frames++) - offset) * scale;
+            mix_buffer[0] += s * scale_l_ramp.GetValue(i);
+            mix_buffer[1] += s * scale_r_ramp.GetValue(i);
+            mix_buffer += 2;
         }
 
-//CENTRALIZE!
-        // shift any remaining data to beginning of buffer (also updates history data)
-        const uintptr_t history_bytes = SOUND_MAX_HISTORY * sizeof(T) * 2;
-        const uintptr_t mixed_bytes = mix_buffer_count * sizeof(T) * 2;
-        const uintptr_t unmixed_bytes = (instance->m_FrameCount - mix_buffer_count) * sizeof(T) * 2;
-        uint8_t* base_ptr = (uint8_t*)((uintptr_t)instance->m_Frames - history_bytes);
-        memmove(base_ptr, base_ptr + mixed_bytes, unmixed_bytes + history_bytes);
+        SaveTempBufferState<T, 1>(instance, avail_framecount, mix_buffer_count, decoder_output_buffer);
+    }
 
-        instance->m_FrameCount -= mix_buffer_count;
+    template <typename T, int offset, int scale>
+    static void MixResampleIdentityStereo(const MixContext* mix_context, SoundInstance* instance, uint32_t rate, uint32_t mix_rate, float* mix_buffer, uint32_t mix_buffer_count, void* decoder_output_buffer, uint32_t avail_framecount)
+    {
+        (void)rate;
+        (void)mix_rate;
+
+        PrepTempBufferState<T, 2>(instance, decoder_output_buffer);
+
+        T* frames = (T*) decoder_output_buffer;
+        Ramp scale_l_ramp = GetRamp(mix_context, &instance->m_ScaleL, mix_buffer_count);
+        Ramp scale_r_ramp = GetRamp(mix_context, &instance->m_ScaleR, mix_buffer_count);
+
+        for (uint32_t i = 0; i < mix_buffer_count; ++i)
+        {
+            float s1 = (frames[0] - offset) * scale;
+            float s2 = (frames[1] - offset) * scale;
+            frames += 2;
+            mix_buffer[0] += s1 * scale_l_ramp.GetValue(i);
+            mix_buffer[1] += s2 * scale_r_ramp.GetValue(i);
+            mix_buffer += 2;
+        }
+
+        SaveTempBufferState<T, 2>(instance, avail_framecount, mix_buffer_count, decoder_output_buffer);
     }
 
     template <typename T, int offset, int scale, int step>
@@ -1061,17 +1069,18 @@ namespace dmSound
         return t[0] * c[0] + t[1] * c[1] + t[2] * c[2] + t[3] * c[3] + t[4] * c[4] + t[5] * c[5] + t[6] * c[6] + t[7] * c[7];
     }
 
-//static uint32_t idx = 0;
     template <typename T, int offset, int scale>
-    static void MixResamplePolyphaseMono(const MixContext* mix_context, SoundInstance* instance, uint32_t rate, uint32_t mix_rate, float* mix_buffer, uint32_t mix_buffer_count)
+    static void MixResamplePolyphaseMono(const MixContext* mix_context, SoundInstance* instance, uint32_t rate, uint32_t mix_rate, float* mix_buffer, uint32_t mix_buffer_count, void* decoder_output_buffer, uint32_t avail_framecount)
     {
+        PrepTempBufferState<T, 1>(instance, decoder_output_buffer);
+
         const uint32_t mask = (1U << RESAMPLE_FRACTION_BITS) - 1U;
 
         uint64_t frac = instance->m_FrameFraction;
         uint64_t delta = (((uint64_t) rate) << RESAMPLE_FRACTION_BITS) / mix_rate;
         delta *= instance->m_Speed;
 
-        T* frames = (T*) instance->m_Frames;
+        T* frames = (T*) decoder_output_buffer;
 
         Ramp scale_l_ramp = GetRamp(mix_context, &instance->m_ScaleL, mix_buffer_count);
         Ramp scale_r_ramp = GetRamp(mix_context, &instance->m_ScaleR, mix_buffer_count);
@@ -1083,9 +1092,9 @@ namespace dmSound
             float s = FilterSample<T, offset, scale, 1>(&frames[index], frac);
 
             // Mix
-            mix_buffer[2 * i]       += s * scale_l_ramp.GetValue(i);
-            mix_buffer[2 * i + 1]   += s * scale_r_ramp.GetValue(i);
-//printf("%d, %f\n", idx++, s);
+            mix_buffer[0] += s * scale_l_ramp.GetValue(i);
+            mix_buffer[1] += s * scale_r_ramp.GetValue(i);
+            mix_buffer += 2;
 
             // Advance
             frac += delta;
@@ -1094,29 +1103,21 @@ namespace dmSound
         uint32_t next_index = frac >> RESAMPLE_FRACTION_BITS;
         instance->m_FrameFraction = frac & mask;
 
-        assert(instance->m_FrameCount >= next_index);
-
-//CENTRALIZE
-        // shift any remaining data to beginning of buffer (also updates history data)
-        const uintptr_t history_bytes = SOUND_MAX_HISTORY * sizeof(T);
-        const uintptr_t mixed_bytes = next_index * sizeof(T);
-        const uintptr_t unmixed_bytes = (instance->m_FrameCount - next_index) * sizeof(T);
-        uint8_t* base_ptr = (uint8_t*)((uintptr_t)instance->m_Frames - history_bytes);
-        memmove(base_ptr, base_ptr + mixed_bytes, unmixed_bytes + history_bytes);
-
-        instance->m_FrameCount -= next_index;
+        SaveTempBufferState<T, 1>(instance, avail_framecount, next_index, decoder_output_buffer);
     }
 
     template <typename T, int offset, int scale>
-    static void MixResamplePolyphaseStereo(const MixContext* mix_context, SoundInstance* instance, uint32_t rate, uint32_t mix_rate, float* mix_buffer, uint32_t mix_buffer_count)
+    static void MixResamplePolyphaseStereo(const MixContext* mix_context, SoundInstance* instance, uint32_t rate, uint32_t mix_rate, float* mix_buffer, uint32_t mix_buffer_count, void* decoder_output_buffer, uint32_t avail_framecount)
     {
+        PrepTempBufferState<T, 2>(instance, decoder_output_buffer);
+
         const uint32_t mask = (1U << RESAMPLE_FRACTION_BITS) - 1U;
 
         uint64_t frac = instance->m_FrameFraction;
         uint64_t delta = (((uint64_t) rate) << RESAMPLE_FRACTION_BITS) / mix_rate;
         delta *= instance->m_Speed;
 
-        T* frames = (T*) instance->m_Frames;
+        T* frames = (T*) decoder_output_buffer;
 
         Ramp scale_l_ramp = GetRamp(mix_context, &instance->m_ScaleL, mix_buffer_count);
         Ramp scale_r_ramp = GetRamp(mix_context, &instance->m_ScaleR, mix_buffer_count);
@@ -1129,11 +1130,9 @@ namespace dmSound
             float sr = FilterSample<T, offset, scale, 2>(&frames[2 * index + 1], frac);
 
             // Mix
-//WRONG PANNING FOR STEREO - E.G. IF CENTERED, IT WILL PLAY HALF AS LOUD AS IT SHOULD! (WOULD NEED TO HAVE 2 PANS, BOTH OFFSET FOR EITHER SIDE)
-            float scale_l = scale_l_ramp.GetValue(i);
-            float scale_r = scale_r_ramp.GetValue(i);
-            mix_buffer[2 * i]       += sl * scale_l;
-            mix_buffer[2 * i + 1]   += sr * scale_r;
+            mix_buffer[0] += sl * scale_l_ramp.GetValue(i);
+            mix_buffer[1] += sr * scale_r_ramp.GetValue(i);
+            mix_buffer += 2;
 
             // Advance
             frac += delta;
@@ -1141,20 +1140,10 @@ namespace dmSound
         uint32_t next_index = frac >> RESAMPLE_FRACTION_BITS;
         instance->m_FrameFraction = frac & mask;
 
-        assert(instance->m_FrameCount >= next_index);
-
-//CENTRALIZE
-        // shift any remaining data to beginning of buffer (also updates history data)
-        const uintptr_t history_bytes = SOUND_MAX_HISTORY * sizeof(T) * 2;
-        const uintptr_t mixed_bytes = next_index * sizeof(T) * 2;
-        const uintptr_t unmixed_bytes = (instance->m_FrameCount - next_index) * sizeof(T) * 2;
-        uint8_t* base_ptr = (uint8_t*)((uintptr_t)instance->m_Frames - history_bytes);
-        memmove(base_ptr, base_ptr + mixed_bytes, unmixed_bytes + history_bytes);
-
-        instance->m_FrameCount -= next_index;
+        SaveTempBufferState<T, 2>(instance, avail_framecount, next_index, decoder_output_buffer);
     }
 
-    typedef void (*MixerFunction)(const MixContext* mix_context, SoundInstance* instance, uint32_t rate, uint32_t mix_rate, float* mix_buffer, uint32_t mix_buffer_count);
+    typedef void (*MixerFunction)(const MixContext* mix_context, SoundInstance* instance, uint32_t rate, uint32_t mix_rate, float* mix_buffer, uint32_t mix_buffer_count, void* decoder_output_buffer, uint32_t avail_framecount);
 
     struct Mixer
     {
@@ -1169,7 +1158,6 @@ namespace dmSound
         }
     };
 
-//NOTE: TO KEEP 1:1 RESAMPLING WORKING 100% FINE WITH VARIABLE SPEED VALUES WE NEED TO AT LEAST ADJUST THE PHASE THERE, TOO! (of course 1:1 would sound more "open" then non-1:1 :-/)
     Mixer g_Mixers[] = {
             Mixer(1, 16, MixResamplePolyphaseMono<int16_t, 0, 1>),
             Mixer(2, 16, MixResamplePolyphaseStereo<int16_t, 0, 1>),
@@ -1184,14 +1172,13 @@ namespace dmSound
             Mixer(2, 16, MixResampleIdentityStereo<int16_t, 0, 1>),
     };
 
-    static void MixResample(const MixContext* mix_context, SoundInstance* instance, const dmSoundCodec::Info* info, uint32_t mix_rate, float* mix_buffer, uint32_t mix_buffer_count)
+    static void MixResample(const MixContext* mix_context, SoundInstance* instance, const dmSoundCodec::Info* info, uint32_t mix_rate, float* mix_buffer, uint32_t mix_buffer_count, void* decoder_output_buffer, uint32_t avail_framecount)
     {
         const uint32_t rate = info->m_Rate;
 
         MixerFunction mixer_fn = nullptr;
 
-//HACK!!!
-        bool identity_mixer = false; //rate == mix_rate && instance->m_Speed == 1.0f;
+        bool identity_mixer = rate == mix_rate && instance->m_Speed == 1.0f;
 
         if (identity_mixer) {
             uint32_t n = sizeof(g_IdentityMixers) / sizeof(g_IdentityMixers[0]);
@@ -1214,10 +1201,11 @@ namespace dmSound
                 }
             }
         }
-        mixer_fn(mix_context, instance, rate, mix_rate, mix_buffer, mix_buffer_count);
+
+        mixer_fn(mix_context, instance, rate, mix_rate, mix_buffer, mix_buffer_count, decoder_output_buffer, avail_framecount);
     }
 
-    static void Mix(const MixContext* mix_context, SoundInstance* instance, uint32_t instance_frames, const dmSoundCodec::Info* info)
+    static void Mix(const MixContext* mix_context, SoundInstance* instance, void* decoder_output_buffer, uint32_t avail_frames, const dmSoundCodec::Info* info, SoundGroup* group)
     {
         DM_PROFILE(__FUNCTION__);
 
@@ -1225,17 +1213,11 @@ namespace dmSound
         // (input frames given excludes "future" ones)
         SoundSystem* sound = g_SoundSystem;
         uint64_t delta = (((uint64_t) info->m_Rate) << RESAMPLE_FRACTION_BITS) / sound->m_MixRate;
-        uint32_t mix_count = ((uint64_t) (instance_frames) << RESAMPLE_FRACTION_BITS) / (delta * instance->m_Speed);
+        uint32_t mix_count = ((uint64_t) (avail_frames) << RESAMPLE_FRACTION_BITS) / (delta * instance->m_Speed);
         mix_count = dmMath::Min(mix_count, mix_context->m_FrameCount);
         assert(mix_count <= sound->m_DeviceFrameCount);
 
-        int* index = sound->m_GroupMap.Get(instance->m_Group);
-        if (index) {
-            SoundGroup* group = &sound->m_Groups[*index];
-            MixResample(mix_context, instance, info, sound->m_MixRate, group->m_MixBuffer, mix_count);
-        } else {
-            dmLogError("Sound group not found");
-        }
+        MixResample(mix_context, instance, info, sound->m_MixRate, group->m_MixBuffer, mix_count, decoder_output_buffer, avail_frames);
     }
 
     static bool IsMuted(SoundInstance* instance) {
@@ -1283,6 +1265,17 @@ namespace dmSound
             return;
         }
 
+        SoundGroup* group = nullptr;
+        int* index = sound->m_GroupMap.Get(instance->m_Group);
+        if (index) {
+            group = &sound->m_Groups[*index];
+        } else {
+            dmLogError("Sound group not found");
+            return;
+        }
+
+        void* decoder_output_buffer = sound->GetDecoderBufferBase();
+
         bool is_muted = dmSound::IsMuted(instance);
 
         dmSoundCodec::Result r = dmSoundCodec::RESULT_OK;
@@ -1291,15 +1284,19 @@ namespace dmSound
         float ratio = ((float)info.m_Rate / g_SoundSystem->m_MixRate) * instance->m_Speed;
         uint32_t mixed_instance_FrameCount = ceilf(mix_context->m_FrameCount * ratio) + SOUND_MAX_FUTURE;
 
-        if (instance->m_FrameCount < mixed_instance_FrameCount && instance->m_Playing) {
+        // Compute initial amount of samples in temp buffer once we restore per instance state prior to actual mixing
+        uint32_t frame_count = (instance->m_FrameCount > SOUND_MAX_HISTORY) ? (instance->m_FrameCount - SOUND_MAX_HISTORY) : 0;
+
+        // Refill as needed...
+        if (frame_count < mixed_instance_FrameCount && instance->m_Playing) {
 
             const uint32_t stride = info.m_Channels * (info.m_BitsPerSample / 8);
 
-            while(instance->m_FrameCount < mixed_instance_FrameCount)
+            while(frame_count < mixed_instance_FrameCount)
             {
-                uint32_t n = mixed_instance_FrameCount - instance->m_FrameCount; // if the result contains a fractional part and we don't ceil(), we'll end up with a smaller number. Later, when deciding the mix_count in Mix(), a smaller value (integer) will be produced. This will result in leaving a small gap in the mix buffer resulting in sound crackling when the chunk changes.
+                uint32_t n = mixed_instance_FrameCount - frame_count; // if the result contains a fractional part and we don't ceil(), we'll end up with a smaller number. Later, when deciding the mix_count in Mix(), a smaller value (integer) will be produced. This will result in leaving a small gap in the mix buffer resulting in sound crackling when the chunk changes.
 
-                char* buffer = ((char*) instance->m_Frames) + instance->m_FrameCount * stride;
+                char* buffer = ((char*) decoder_output_buffer) + frame_count * stride;
                 uint32_t buffer_size = n * stride;
                 uint32_t decoded = 0;
                 if (!is_muted)
@@ -1319,7 +1316,7 @@ namespace dmSound
                         break; // Need to break as we're not progressing this sound instance
                     }
 
-                    instance->m_FrameCount += decoded / stride;
+                    frame_count += decoded / stride;
                 }
                 else if (r == dmSoundCodec::RESULT_END_OF_STREAM)
                 {
@@ -1356,40 +1353,40 @@ namespace dmSound
             }
         }
 
-        if (instance->m_FrameCount > 0)
+        if (frame_count > 0)
         {
-           if (instance->m_FrameCount < mixed_instance_FrameCount)
+           if (frame_count < mixed_instance_FrameCount)
             {
                 // We generated fewer samples then we asked for. Make sure we can still mix all "real" samples, by ensuring we have enough "future" sample values in any case
-                uint32_t missing_frames = dmMath::Min(mixed_instance_FrameCount - instance->m_FrameCount, (uint32_t)SOUND_MAX_FUTURE);
+                uint32_t missing_frames = dmMath::Min(mixed_instance_FrameCount - frame_count, (uint32_t)SOUND_MAX_FUTURE);
 
                 // Generate missing frames (duplicate last)
                 switch((info.m_BitsPerSample * info.m_Channels) / 8)
                 {
                     case    1:
                     {
-                        uint8_t last = ((int8_t*)(instance->m_Frames))[instance->m_FrameCount - 1];
+                        uint8_t last = ((int8_t*)decoder_output_buffer)[frame_count - 1];
                         for(; missing_frames > 0; --missing_frames)
                         {
-                            ((int8_t*)(instance->m_Frames))[instance->m_FrameCount++] = last;
+                            ((int8_t*)decoder_output_buffer)[frame_count++] = last;
                         }
                         break;
                     }
                     case    2:
                     {
-                        uint16_t last = ((int8_t*)(instance->m_Frames))[instance->m_FrameCount - 1];
+                        uint16_t last = ((int8_t*)decoder_output_buffer)[frame_count - 1];
                         for(; missing_frames > 0; --missing_frames)
                         {
-                            ((int16_t*)(instance->m_Frames))[instance->m_FrameCount++] = last;
+                            ((int16_t*)decoder_output_buffer)[frame_count++] = last;
                         }
                         break;
                     }
                     case    4:
                     {
-                        uint32_t last = ((int8_t*)(instance->m_Frames))[instance->m_FrameCount - 1];
+                        uint32_t last = ((int8_t*)decoder_output_buffer)[frame_count - 1];
                         for(; missing_frames > 0; --missing_frames)
                         {
-                            ((int32_t*)(instance->m_Frames))[instance->m_FrameCount++] = last;
+                            ((int32_t*)decoder_output_buffer)[frame_count++] = last;
                         }
                         break;
                     }
@@ -1399,8 +1396,8 @@ namespace dmSound
             }
 
             // Mix the data
-            assert(instance->m_FrameCount > SOUND_MAX_FUTURE);
-            Mix(mix_context, instance, instance->m_FrameCount - SOUND_MAX_FUTURE, &info);
+            assert(frame_count > SOUND_MAX_FUTURE);
+            Mix(mix_context, instance, decoder_output_buffer, frame_count - SOUND_MAX_FUTURE, &info, group);
         }
     }
 
@@ -1444,13 +1441,13 @@ namespace dmSound
         uint32_t instances = sound->m_Instances.Size();
         for (uint32_t i = 0; i < instances; ++i) {
             SoundInstance* instance = &sound->m_Instances[i];
-            if (instance->m_Playing || instance->m_FrameCount > 0)
+            if (instance->m_Playing)
             {
                 MixInstance(mix_context, instance);
             }
 
 //Q: MOVE INTO MixInstance? (does some controlling of this already)
-            if (instance->m_EndOfStream) { // && instance->m_FrameCount == 0) {
+            if (instance->m_EndOfStream) {
                 instance->m_Playing = 0;
             }
         }
