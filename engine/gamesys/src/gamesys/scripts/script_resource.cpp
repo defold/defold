@@ -255,10 +255,10 @@ struct SetTextureAsyncRequest
     lua_State*                 m_LuaState;
     dmScript::LuaCallbackInfo* m_CallbackInfo;
     TextureResource*           m_TextureResource;
+    uint8_t*                   m_RawData;
     dmBuffer::HBuffer          m_Buffer;
     int32_t                    m_BufferRef;
     HOpaqueHandle              m_Handle;
-    bool                       m_UseUploadBuffer;
 };
 
 struct ResourceModule
@@ -700,12 +700,11 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
         dmScript::DestroyCallback(request->m_CallbackInfo);
     }
 
-    // If we used a temporary upload buffer, we need to delete it.
-    if (request->m_UseUploadBuffer)
+    if (request->m_RawData)
     {
-        dmBuffer::Destroy(request->m_Buffer);
+        delete request->m_RawData;
     }
-    else
+    if (request->m_Buffer)
     {
         dmScript::Unref(request->m_LuaState, LUA_REGISTRYINDEX, request->m_BufferRef);
     }
@@ -1046,17 +1045,13 @@ static int CreateTextureAsync(lua_State* L)
     CreateTextureResourceParams create_params = {};
     CheckCreateTextureResourceParams(L, &create_params);
 
-    // Create an empty upload buffer
-    dmBuffer::HBuffer upload_buffer = create_params.m_Buffer;
-    bool use_upload_buffer = create_params.m_Buffer == 0;
-    if (use_upload_buffer)
+    // We need to create an empty upload buffer if no explicit buffer is passed
+    bool is_transcoded = dmGraphics::IsFormatTranscoded(create_params.m_CompressionType);
+    uint8_t* raw_data  = 0;
+
+    if (create_params.m_Buffer == 0)
     {
-        const dmBuffer::StreamDeclaration streams_decl = {dmHashString64("data"), dmBuffer::VALUE_TYPE_UINT8, 1};
-        dmBuffer::Result r = dmBuffer::Create(create_params.m_Width * create_params.m_Height * create_params.m_TextureBpp, &streams_decl, 1, &upload_buffer);
-        if (r != dmBuffer::RESULT_OK)
-        {
-            return DM_LUA_ERROR("Unable to create an empty upload buffer: %s (%d)", dmBuffer::GetResultString(r), r);
-        }
+        raw_data = new uint8_t[create_params.m_Width * create_params.m_Height * create_params.m_TextureBpp];
     }
 
     // The callback is optional, we don't have to do anything with the result if we don't need to.
@@ -1070,6 +1065,9 @@ static int CreateTextureAsync(lua_State* L)
     create_texture_resource_params.m_Height     = 1;
     create_texture_resource_params.m_MaxMipMaps = 1;
     create_texture_resource_params.m_Buffer     = 0;
+
+    // We can't support a compression type here because the texture doesn't exist yet, so set it to a default.
+    create_texture_resource_params.m_CompressionType = dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT;
 
     dmGraphics::TextureImage texture_image = {};
     MakeTextureImage(create_texture_resource_params, &texture_image);
@@ -1095,6 +1093,8 @@ static int CreateTextureAsync(lua_State* L)
 
     dmGraphics::TextureCreationParams texture_create_params;
     texture_create_params.m_Type = create_params.m_Type;
+    texture_create_params.m_Width = create_params.m_Width;
+    texture_create_params.m_Height = create_params.m_Height;
 
     dmGraphics::HTexture texture_dst = dmGraphics::NewTexture(g_ResourceModule.m_GraphicsContext, texture_create_params);
 
@@ -1104,23 +1104,52 @@ static int CreateTextureAsync(lua_State* L)
     request->m_TextureResource   = (TextureResource*) resource;
     request->m_Handle            = request_handle;
     request->m_CallbackInfo      = callback_info;
-    request->m_Buffer            = upload_buffer;
-    request->m_UseUploadBuffer   = use_upload_buffer;
+    request->m_Buffer            = create_params.m_Buffer;
     request->m_PathHash          = create_params.m_PathHash;
+    request->m_RawData           = raw_data;
 
     dmGraphics::TextureParams texture_params;
     texture_params.m_Width  = create_params.m_Width;
     texture_params.m_Height = create_params.m_Height;
     texture_params.m_Format = create_params.m_Format;
 
-    dmBuffer::GetBytes(request->m_Buffer, (void**)&texture_params.m_Data, &texture_params.m_DataSize);
-
     // If we are not using a specifically created upload buffer, we push the Lua object and increase its ref count,
     // this is so that we can make sure that the buffer to live during the upload.
-    if (!use_upload_buffer)
+    if (create_params.m_Buffer)
     {
         lua_pushvalue(L, 3);
         request->m_BufferRef = dmScript::Ref(L, LUA_REGISTRYINDEX);
+    }
+
+    dmBuffer::GetBytes(request->m_Buffer, (void**) &texture_params.m_Data, &texture_params.m_DataSize);
+
+    // If the data is transcoded, we need an extra pass here to unpack the data before uploading it
+    if (is_transcoded)
+    {
+        assert(create_params.m_Buffer != 0);
+
+        uint32_t num_mips = 1;
+        texture_params.m_Format = dmGraphics::GetSupportedCompressionFormat(g_ResourceModule.m_GraphicsContext, texture_params.m_Format, texture_params.m_Width, texture_params.m_Height);
+
+        uint8_t* decompressed_data;
+        uint32_t decompressed_data_size;
+        uint32_t compressed_mipmap_size = texture_params.m_DataSize;
+
+        // TODO: Perhaps we should change the transcode function to not take an image? We only use these fields:
+        dmGraphics::TextureImage::Image compressed_image;
+        compressed_image.m_MipMapSize.m_Count           = 1;
+        compressed_image.m_MipMapSizeCompressed.m_Data  = &compressed_mipmap_size;
+        compressed_image.m_MipMapSizeCompressed.m_Count = 1;
+
+        if (!dmGraphics::Transcode(create_params.m_Path, &compressed_image, 1, (uint8_t*) texture_params.m_Data, texture_params.m_Format, &decompressed_data, &decompressed_data_size, &num_mips))
+        {
+            return DM_LUA_ERROR("Unable to transcode texture data");
+        }
+
+        texture_params.m_Data     = decompressed_data;
+        texture_params.m_DataSize = decompressed_data_size;
+
+        request->m_RawData = decompressed_data;
     }
 
     // Execute the upload, the upload buffer should now be locked by this request
