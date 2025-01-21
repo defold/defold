@@ -356,8 +356,14 @@ public class BundlerTest {
         project.scan(scanner, "com.dynamo.bob.pipeline");
 
         setProjectProperties(project);
-
-        List<TaskResult> result = project.build(new NullProgress(), "clean", "build", "bundle");
+        List<TaskResult> result;
+        try {
+            result = project.build(new NullProgress(), "clean", "build", "bundle");
+        } catch (Exception e) {
+            System.err.println("An error occurred during the build process: " + e.getMessage());
+            e.printStackTrace();
+            throw e;
+        }
         for (TaskResult taskResult : result) {
             assertTrue(taskResult.toString(), taskResult.isOk());
         }
