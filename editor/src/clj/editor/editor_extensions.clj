@@ -563,9 +563,9 @@
 (defn- re-create-ext-state [initial-state evaluation-context]
   (let [{:keys [rt display-output!]} initial-state]
     (->> (e/concat
+           [bundle-editor-script-prototype]
            (:library-prototypes initial-state)
-           (:project-prototypes initial-state)
-           [bundle-editor-script-prototype])
+           (:project-prototypes initial-state))
          (reduce
            (fn [acc x]
              (cond

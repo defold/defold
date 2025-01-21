@@ -689,7 +689,7 @@ namespace dmScript
      * if not result then
      *    print("the timer is already cancelled or complete")
      * end
-     * ``
+     * ```
      */
     static int TimerTrigger(lua_State* L)
     {

@@ -455,13 +455,17 @@
 (handler/defhandler :show-visibility-settings :workbench
   (run [app-view scene-visibility]
     (when-let [btn (some-> ^TabPane (g/node-value app-view :active-tab-pane)
-                           (ui/selected-tab)
-                           (.. getContent (lookup "#show-visibility-settings")))]
+                           ui/selected-tab
+                           .getContent
+                           (.lookup "#visibility-settings-graphic")
+                           .getParent)]
       (scene-visibility/show-visibility-settings! app-view btn scene-visibility)))
   (state [app-view scene-visibility]
     (when-let [btn (some-> ^TabPane (g/node-value app-view :active-tab-pane)
-                           (ui/selected-tab)
-                           (.. getContent (lookup "#show-visibility-settings")))]
+                           ui/selected-tab
+                           .getContent
+                           (.lookup "#visibility-settings-graphic")
+                           .getParent)]
       ;; TODO: We have no mechanism for updating the style nor icon on
       ;; on the toolbar button. For now we piggyback on the state
       ;; update polling to set a style when the filters are active.
@@ -483,6 +487,7 @@
 
 (defn- make-visibility-settings-graphic []
   (doto (StackPane.)
+    (.setId "visibility-settings-graphic")
     (ui/children! [(doto (make-svg-icon-graphic eye-icon-svg-path)
                      (.setId "eye-icon"))
                    (doto (Ellipse. 3.0 3.0)
@@ -2639,7 +2644,8 @@ If you do not specifically require different script states, consider changing th
                                                     (future/complete! f nil)
                                                     (future/fail! f (LuaError. "Bob invocation failed")))
                                                   (.close out)))))
-                     f))))
+                     f)))
+  (ui/invalidate-menubar-item! ::project/bundle))
 
 (defn- fetch-libraries [app-view workspace project changes-view build-errors-view prefs]
   (let [library-uris (project/project-dependencies project)

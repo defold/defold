@@ -141,8 +141,9 @@ function cmi_patch() {
 
 
 export CONF_TARGET=$1
+PLATFORM=$1
 
-case $1 in
+case ${PLATFORM} in
 	arm64-ios)
 		export TARGET_SYS=iOS
 		;;
@@ -181,7 +182,7 @@ case $1 in
 		export TARGET_SYS=Linux
 		function cmi_make() {
 			export ARCH_FLAGS="--target=x86_64-unknown-linux-gnu"
-			if [ "arm64-linux" == "$1" ]; then
+			if [ "arm64-linux" == "${PLATFORM}" ]; then
 				ARCH_FLAGS="--target=aarch64-unknown-linux-gnu"
 				XCFLAGS="-DLUAJIT_TARGET=LUAJIT_ARCH_ARM ${XCFLAGS}"
 			fi
@@ -206,9 +207,8 @@ case $1 in
 			echo "****************************************************"
 			file $PREFIX/bin/$CONF_TARGET/luajit-${DEFOLD_ARCH}
 			echo "****************************************************"
-			exit 1
 
-			if [ "arm64-linux" == "$1" ]; then
+			if [ "arm64-linux" == "${PLATFORM}" ]; then
 				XCFLAGS="-DLUAJIT_TARGET=LUAJIT_ARCH_ARM64 ${XCFLAGS}"
 			fi
 
@@ -216,11 +216,12 @@ case $1 in
 			export XCFLAGS="${ARCH_FLAGS} ${COMMON_XCFLAGS}"
 
 			export HOST_CC="clang"
-			export HOST_CFLAGS="${COMMON_XCFLAGS} ${ARCH_FLAGS} -m64 -I."
-			export HOST_ALDFLAGS="-m64"
-			export TARGET_LDFLAGS="-m64"
+			export HOST_CFLAGS="${COMMON_XCFLAGS} -m64 -I."
+			export HOST_LDFLAGS="-m64"
+			export TARGET_CFLAGS="-m64 ${ARCH_FLAGS}"
+			export TARGET_LDFLAGS="-m64 ${ARCH_FLAGS}"
 
-			echo "Building $CONF_TARGET ($DEFOLD_ARCH) with '$XCFLAGS'"
+			echo "Building $CONF_TARGET ($DEFOLD_ARCH) with '$XCFLAGS' and ${ARCH_FLAGS}"
 			set -e
 			make -j8
 			make install

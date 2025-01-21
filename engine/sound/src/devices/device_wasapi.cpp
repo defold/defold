@@ -60,13 +60,13 @@ namespace dmDeviceWasapi
         if (!device)
             return;
 
-        if (!device->m_AudioRenderClient)
+        if (device->m_AudioRenderClient)
         {
             device->m_AudioRenderClient->Release();
             device->m_AudioRenderClient = 0;
         }
 
-        if (!device->m_AudioClient)
+        if (device->m_AudioClient)
         {
             device->m_AudioClient->Release();
             device->m_AudioClient = 0;
@@ -333,16 +333,38 @@ namespace dmDeviceWasapi
 
         const int channels_in = 2;
         const int channels_out = device->m_MixFormat->nChannels;
-        for (int i = 0; i < frames_available; ++i)
+
+        if (device->m_Format == WAVE_FORMAT_IEEE_FLOAT)
         {
-            if (device->m_Format == WAVE_FORMAT_IEEE_FLOAT)
+            float* fout = (float*)out;
+
+            if (channels_out >= 2)
             {
-                float* fout = (float*)out;
-                fout[i*channels_out+0] = samples[i*channels_in+0]/32768.0f;
-                fout[i*channels_out+1] = samples[i*channels_in+1]/32768.0f;
-                for (int c = channels_in; c < channels_out; ++c)
+                for (int i = 0; i < frames_available; ++i)
                 {
-                    fout[i*channels_out+c] = 0;
+                    float left = samples[i*channels_in+0]/32768.0f;
+                    float right = samples[i*channels_in+1]/32768.0f;
+
+                    fout[i*channels_out+0] = left;
+                    fout[i*channels_out+1] = right;
+
+                    for (int c = channels_in; c < channels_out; ++c)
+                    {
+                        fout[i*channels_out+c] = 0;
+                    }
+                }
+            }
+            else if (channels_out == 1)
+            {
+                for (int i = 0; i < frames_available; ++i)
+                {
+                    float left = samples[i*channels_in+0]/32768.0f;
+                    float right = samples[i*channels_in+1]/32768.0f;
+
+                    float mix = (left + right) * 0.5f;
+                    if (mix < -1.0f) mix = -1.0f;
+                    if (mix >  1.0f) mix = 1.0f;
+                    fout[i] = mix;
                 }
             }
         }
