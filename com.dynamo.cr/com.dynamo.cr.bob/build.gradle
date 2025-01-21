@@ -183,23 +183,23 @@ task compileBobLight(dependsOn: [getGitRevision, compileSrc, createLuaJitShareZi
                 into "${project.bobDir}/libexec/$platform"
             }
         }
-
+        def defaultTarName = 'luajit-2.1.0-a4f56a4'
         def tarFiles = [
-                'x86_64-linux': 'bin/x86_64-linux/**',
-                'arm64-linux': 'bin/arm64-linux/**',
-                'x86_64-win32': 'bin/x86_64-win32/**',
-                'x86_64-macos': 'bin/x86_64-macos/**',
-                'arm64-macos': 'bin/arm64-macos/**'
+                'x86_64-linux': [pattern: 'bin/x86_64-linux/**', name: defaultTarName],
+                'arm64-linux': [pattern: 'bin/arm64-linux/**', name: defaultTarName],
+                'x86_64-win32': [pattern: 'bin/x86_64-win32/**', name: defaultTarName],
+                'x86_64-macos': [pattern: 'bin/x86_64-macos/**', name: defaultTarName],
+                'arm64-macos': [pattern: 'bin/arm64-macos/**', name: defaultTarName]
         ]
 
-        tarFiles.forEach { platform, includePattern ->
+        tarFiles.forEach { platform, config ->
             copy {
-                from tarTree(resources.gzip(file("../../packages/luajit-2.1.0-04dca79-${platform}.tar.gz")))
+                from tarTree(resources.gzip(file("../../packages/${config.name}-${platform}.tar.gz")))
                 into "${project.bobDir}/libexec/${platform}"
                 eachFile { fileCopyDetails ->
                     fileCopyDetails.path = fileCopyDetails.path.replaceFirst("^bin/$platform/", "")
                 }
-                include includePattern
+                include config.pattern
             }
         }
 
