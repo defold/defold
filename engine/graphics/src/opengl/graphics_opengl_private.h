@@ -116,6 +116,9 @@ namespace dmGraphics
     struct OpenGLProgram
     {
         Program                        m_BaseProgram;
+        OpenGLShader*                  m_VertexShader;
+        OpenGLShader*                  m_FragmentShader;
+        OpenGLShader*                  m_ComputeShader;
         uint32_t                       m_Id;
         ShaderDesc::Language           m_Language;
         dmArray<OpenGLVertexAttribute> m_Attributes;

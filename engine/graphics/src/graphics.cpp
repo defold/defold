@@ -364,6 +364,20 @@ namespace dmGraphics
         return selected_shader_vp != 0 && selected_shader_fp != 0;
     }
 
+    bool GetShaderGraphicsCompute(HContext context, ShaderDesc* shader_desc, ShaderDesc::Shader** cp)
+    {
+        assert(shader_desc);
+        ShaderDesc::Shader* selected_shader = GetShader(context, shader_desc, ShaderDesc::SHADER_TYPE_COMPUTE);
+        if (selected_shader == 0)
+        {
+            dmLogError("Unable to get a valid compute shader from a ShaderDesc for this context.");
+        }
+
+        assert(selected_shader->m_ShaderType == ShaderDesc::SHADER_TYPE_COMPUTE);
+        *cp = selected_shader;
+        return selected_shader != 0;
+    }
+
     uint32_t GetBufferTypeIndex(BufferType buffer_type)
     {
         switch(buffer_type)

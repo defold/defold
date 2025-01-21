@@ -249,6 +249,7 @@ namespace dmGraphics
     uint32_t             GetShaderTypeSize(ShaderDesc::ShaderDataType type);
     Type                 ShaderDataTypeToGraphicsType(ShaderDesc::ShaderDataType shader_type);
     bool                 GetShaderGraphicsProgram(HContext context, ShaderDesc* shader_desc, ShaderDesc::Shader** vp, ShaderDesc::Shader** fp);
+    bool                 GetShaderGraphicsCompute(HContext context, ShaderDesc* shader_desc, ShaderDesc::Shader** cp);
 
     void                 CreateShaderMeta(ShaderDesc::ShaderReflection* ddf, uint32_t count, ShaderDesc::ShaderType stage, ShaderMeta* meta);
     void                 DestroyShaderMeta(ShaderMeta& meta);
