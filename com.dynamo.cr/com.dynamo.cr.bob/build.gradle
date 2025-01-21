@@ -289,7 +289,7 @@ task createBobLightJar(type: Jar, dependsOn: [createExternalLibsLightJar, create
                 'libexec/**/tint*',
                 'libexec/**/spirv-opt*',
                 'libexec/**/luajit*',
-                'libexec/**/aapt2'
+                'libexec/**/aapt2*'
     }
 
     from {
