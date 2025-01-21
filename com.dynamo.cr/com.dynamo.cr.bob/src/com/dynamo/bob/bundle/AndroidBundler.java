@@ -149,29 +149,32 @@ public class AndroidBundler implements IBundler {
                 Bob.atomicCopy(classes_dex, f, false);
             }
 
-            // Make sure it's extracted once
-            File bundletool = new File(Bob.getLibExecPath("bundletool-all.jar"));
+            String aapt2 = Bob.getExe(Platform.getHostPlatform(), "aapt2");
+            if (aapt2 == null) {
+                // Make sure it's extracted once
+                File bundletool = new File(Bob.getLibExecPath("bundletool-all.jar"));
 
-            // Find the file to extract from the bundletool
-            {
-                Platform hostPlatform = Platform.getHostPlatform();
-                String platformName = "macos";
-                String suffix = "";
-                if (hostPlatform == Platform.X86_64Win32)
+                // Find the file to extract from the bundletool
                 {
-                    platformName = "windows";
-                    suffix = ".exe";
-                }
-                else if (hostPlatform == Platform.X86_64Linux)
-                {
-                    platformName = "linux";
-                }
+                    Platform hostPlatform = Platform.getHostPlatform();
+                    String platformName = "macos";
+                    String suffix = "";
+                    if (hostPlatform == Platform.X86_64Win32)
+                    {
+                        platformName = "windows";
+                        suffix = ".exe";
+                    }
+                    else if (hostPlatform == Platform.X86_64Linux)
+                    {
+                        platformName = "linux";
+                    }
 
-                File aapt2 = new File(bundletool.getParent(), getAapt2Name());
-                if (!aapt2.exists())
-                {
-                    extractFile(bundletool, platformName + "/" + getAapt2Name(), aapt2);
-                    aapt2.setExecutable(true);
+                    File aapt2_file = new File(bundletool.getParent(), getAapt2Name());
+                    if (!aapt2_file.exists())
+                    {
+                        extractFile(bundletool, platformName + "/" + getAapt2Name(), aapt2_file);
+                        aapt2_file.setExecutable(true);
+                    }
                 }
             }
 
@@ -463,7 +466,10 @@ public class AndroidBundler implements IBundler {
             File compiledResourcesDir = Files.createTempDirectory("compiled_resources").toFile();
             FileUtil.deleteOnExit(compiledResourcesDir);
 
-            String aapt2 = Bob.getLibExecPath(getAapt2Name());
+            String aapt2 = Bob.getExe(Platform.getHostPlatform(), "aapt2");
+            if (aapt2 == null) {
+                aapt2 = Bob.getLibExecPath(getAapt2Name());
+            }
 
             // compile the resources for each package
             for (File packageDir : androidResDir.listFiles(File::isDirectory)) {
@@ -503,8 +509,12 @@ public class AndroidBundler implements IBundler {
             File apkDir = createDir(aabDir, "aapt2/apk");
             File outApk = new File(apkDir, "output.apk");
 
+            String aapt2 = Bob.getExe(Platform.getHostPlatform(), "aapt2");
+            if (aapt2 == null) {
+                aapt2 = Bob.getLibExecPath(getAapt2Name());
+            }
             List<String> args = new ArrayList<String>();
-            args.add(Bob.getLibExecPath(getAapt2Name()));
+            args.add(aapt2);
             args.add("link");
             args.add("--proto-format");
             args.add("-o"); args.add(outApk.getAbsolutePath());

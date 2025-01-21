@@ -288,7 +288,8 @@ task createBobLightJar(type: Jar, dependsOn: [createExternalLibsLightJar, create
         include 'libexec/**/glslang*',
                 'libexec/**/tint*',
                 'libexec/**/spirv-opt*',
-                'libexec/**/luajit*'
+                'libexec/**/luajit*',
+                'libexec/**/aapt2'
     }
 
     from {
