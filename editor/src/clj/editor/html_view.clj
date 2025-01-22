@@ -249,7 +249,7 @@
              (let [resource-path (subs new-location (count (http-server/url (get-http-server! project))))
                    resource-node (project/get-resource-node project (URLDecoder/decode resource-path))
                    resource (g/node-value resource-node :resource)]
-               (when (and resource (resource/has-view-type? resource :html))
+               (when (resource/has-view-type? resource :html)
                  resource-node)))]
     (g/transact [(g/connect new-resource-node :html view-id :html)
                  (view/connect-resource-node view-id new-resource-node)])
