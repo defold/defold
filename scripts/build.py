@@ -1071,7 +1071,7 @@ class Configuration(object):
         for zip_arch in zip_archs:
             self.upload_to_archive(join(dynamo_home, 'share', zip_arch), '%s/%s' % (share_archive_path, zip_arch))
 
-        if self.target_platform in ['x86_64-linux', 'arm64-linux']:
+        if self.target_platform in ['x86_64-linux']:
             # NOTE: It's arbitrary for which platform we archive dlib.jar. Currently set to linux 64-bit
             self.upload_to_archive(join(dynamo_home, 'share', 'java', 'dlib.jar'), '%s/dlib.jar' % (java_archive_path))
             self.upload_to_archive(join(dynamo_home, 'share', 'java', 'modelimporter.jar'), '%s/modelimporter.jar' % (java_archive_path))
