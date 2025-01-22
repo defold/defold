@@ -290,7 +290,6 @@ namespace dmRender
     void                            DeleteComputeProgram(dmRender::HRenderContext render_context, HComputeProgram program);
     HSampler                        GetComputeProgramSampler(HComputeProgram program, uint32_t unit);
     HRenderContext                  GetProgramRenderContext(HComputeProgram program);
-    //dmGraphics::HComputeProgram     GetComputeProgramShader(HComputeProgram program);
     dmGraphics::HProgram            GetComputeProgram(HComputeProgram program);
     uint64_t                        GetProgramUserData(HComputeProgram program);
     void                            SetProgramUserData(HComputeProgram program, uint64_t user_data);

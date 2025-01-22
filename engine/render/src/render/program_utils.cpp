@@ -229,7 +229,7 @@ namespace dmRender
             dmGraphics::Uniform uniform_desc;
             dmGraphics::GetUniform(program, i, &uniform_desc);
 
-        #if 1
+        #if 0
             dmLogInfo("Uniform[%d]: name=%s, type=%s, num_values=%d, location=%lld",
                 i, uniform_desc.m_Name, dmGraphics::GetGraphicsTypeLiteral(uniform_desc.m_Type),
                 uniform_desc.m_Count, uniform_desc.m_Location);
