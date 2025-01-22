@@ -433,7 +433,7 @@
 (g/defnode MarkdownNode
   (inherits r/CodeEditorResourceNode)
 
-  (output html g/Str :cached (g/fnk [arg-list] [save-value]
+  (output html g/Str :cached (g/fnk [save-value]
                                (str "<!DOCTYPE html>"
                                     "<html><head></head><body>"
                                     (-> save-value
