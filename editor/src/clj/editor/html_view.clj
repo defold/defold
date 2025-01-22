@@ -268,7 +268,7 @@
         web-engine (.getEngine web-view)
         view-id (g/make-node! graph WebViewNode :web-view web-view)
         repainter (ui/->timer 30 "update-web-view!" (fn [_ _ _]
-                                                      (when (.isSelected (:tab opts))
+                                                      (when (.isSelected ^Tab (:tab opts))
                                                         (g/node-value view-id :update-web-view))))]
 
     (.addListener (.locationProperty web-engine)
