@@ -235,12 +235,12 @@
     (str (http-server/url http-server)
          (resource/proj-path resource))))
 
-(g/defnk load-resource! [^WebView web-view resource-node _node-id html]
+(g/defnk produce-update-web-view! [^WebView web-view resource-node _node-id html]
   (when resource-node
     (let [web-engine (.getEngine web-view)
-          resource   (g/node-value resource-node :resource)
-          project    (project/get-project resource-node)
-          url        (resource-url (get-http-server! project) resource)]
+          resource (g/node-value resource-node :resource)
+          project (project/get-project resource-node)
+          url (resource-url (get-http-server! project) resource)]
       (.load web-engine url))))
 
 (defn- handle-location-change! [project view-id new-location]
@@ -249,7 +249,7 @@
              (let [resource-path (subs new-location (count (http-server/url (get-http-server! project))))
                    resource-node (project/get-resource-node project resource-path)
                    resource (g/node-value resource-node :resource)]
-               (when (resource/openable-in-view-type? resource :html)
+               (when (resource/has-view-type? resource :html)
                  resource-node)))]
     (g/transact [(g/connect new-resource-node :html view-id :html)
                  (view/connect-resource-node view-id new-resource-node)])
@@ -259,17 +259,17 @@
   (inherits view/WorkbenchView)
   (property web-view WebView)
   (input html g/Str)
-  (output load-resource g/Any :cached load-resource!)) 
+  (output update-web-view g/Any :cached produce-update-web-view!)) 
 
 (defn make-view
   [graph ^Parent parent html-node opts]
-  (let [project       (or (:project opts) (project/get-project html-node))
-        web-view      (make-web-view project)
-        web-engine    (.getEngine web-view)
-        view-id       (g/make-node! graph WebViewNode :web-view web-view)
-        repainter     (ui/->timer 30 "update-web-view!" (fn [_ _ _] 
-                                                          (when (.isSelected (:tab opts))
-                                                            (g/node-value view-id :load-resource))))]
+  (let [project (or (:project opts) (project/get-project html-node))
+        web-view (make-web-view project)
+        web-engine (.getEngine web-view)
+        view-id (g/make-node! graph WebViewNode :web-view web-view)
+        repainter (ui/->timer 30 "update-web-view!" (fn [_ _ _]
+                                                      (when (.isSelected (:tab opts))
+                                                        (g/node-value view-id :update-web-view))))]
 
     (.addListener (.locationProperty web-engine)
                   (ui/change-listener _ _ new-location (handle-location-change! project view-id new-location)))

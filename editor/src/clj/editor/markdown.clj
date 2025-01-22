@@ -433,13 +433,13 @@
 (g/defnode MarkdownNode
   (inherits r/CodeEditorResourceNode)
 
-  (output html g/Str :cached (g/fnk [save-value]
-                                    (str "<!DOCTYPE html>"
-                                         "<html><head></head><body>"
-                                         (-> save-value
-                                             data/lines->string
-                                             markdown->html)
-                                         "</body></html>"))))
+  (output html g/Str :cached (g/fnk [arg-list] [save-value]
+                               (str "<!DOCTYPE html>"
+                                    "<html><head></head><body>"
+                                    (-> save-value
+                                        data/lines->string
+                                        markdown->html)
+                                    "</body></html>"))))
 
 (defn register-resource-types [workspace]
   (r/register-code-resource-type workspace
