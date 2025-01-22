@@ -5566,7 +5566,7 @@ TEST_F(ShaderTest, Compute)
 {
     dmGraphics::ShaderDesc* ddf;
     ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessageFromFile("build/src/gamesys/test/shader/valid.cpc", dmGraphics::ShaderDesc::m_DDFDescriptor, (void**) &ddf));
-    ASSERT_EQ(dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE, ddf->m_ShaderType);
+    ASSERT_EQ(dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE, ddf->m_Shaders[0].m_ShaderType);
     ASSERT_NE(0, ddf->m_Shaders.m_Count);
 
     dmGraphics::ShaderDesc::Shader* compute_shader = 0;
@@ -5608,10 +5608,7 @@ TEST_F(ShaderTest, ComputeResource)
 
     dmRender::HComputeProgram compute_program = compute_program_res->m_Program;
 
-    dmGraphics::HComputeProgram graphics_compute_shader = dmRender::GetComputeProgramShader(compute_program);
-    ASSERT_NE((dmGraphics::HComputeProgram) 0, graphics_compute_shader);
-
-    dmGraphics::HProgram graphics_compute_program  = dmRender::GetComputeProgram(compute_program);
+    dmGraphics::HProgram graphics_compute_program = dmRender::GetComputeProgram(compute_program);
     ASSERT_EQ(9, dmGraphics::GetUniformCount(graphics_compute_program));
 
     dmRender::HConstant ca, cb, cc, cd;

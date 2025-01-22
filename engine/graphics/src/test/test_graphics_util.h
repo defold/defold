@@ -56,7 +56,7 @@ namespace dmGraphics
         void AddShader(ShaderDesc::ShaderType type, ShaderDesc::Language language, const char* data, uint32_t data_size)
         {
             ShaderDesc::Shader shader = {};
-            shader.m_Source.m_Data  = (uint8_t*)data;
+            shader.m_Source.m_Data  = (uint8_t*) data;
             shader.m_Source.m_Count = data_size;
             shader.m_Language       = language;
             shader.m_ShaderType     = type;
@@ -141,6 +141,22 @@ namespace dmGraphics
             info.m_NameHash        = dmHashString64(name);
             info.m_Members.m_Data  = member;
             info.m_Members.m_Count = 1;
+
+            m_Types.OffsetCapacity(1);
+            m_Types.Push(info);
+
+            UpdateDDFPointers();
+        }
+
+        void AddTypeMemberWithMembers(const char* name, ShaderDesc::ResourceMember* members, uint32_t member_count)
+        {
+            ShaderDesc::ResourceTypeInfo info = {};
+            info.m_Name            = name;
+            info.m_NameHash        = dmHashString64(name);
+
+            info.m_Members.m_Data = new ShaderDesc::ResourceMember[member_count];
+            info.m_Members.m_Count = member_count;
+            memcpy(info.m_Members.m_Data, members, sizeof(ShaderDesc::ResourceMember) * member_count);
 
             m_Types.OffsetCapacity(1);
             m_Types.Push(info);

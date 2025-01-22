@@ -326,8 +326,6 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
 
         System.setProperty("java.awt.headless", "true");
 
-        System.out.println("Material-builder: " + args[0]);
-
         String basedir = ".";
         String pathIn = args[0];
         String pathOut = args[1];
@@ -342,6 +340,7 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
             basedir = args[3];
         }
 
+
         try (Reader reader = new BufferedReader(new FileReader(pathIn));
              OutputStream output = new BufferedOutputStream(new FileOutputStream(pathOut))) {
 
@@ -354,6 +353,11 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
             if (shaderName == null) {
                 shaderName = getShaderPath(materialBuilder, ".spc");
             }
+
+            System.out.println("Material-builder: " + pathIn);
+            System.out.println("Material-out: " + pathOut);
+            System.out.println("Shader: " + shaderName);
+            System.out.println("Basedir: " + basedir);
 
             // Construct the project-relative path based from the input material file
             Path basedirAbsolutePath = Paths.get(basedir).toAbsolutePath();

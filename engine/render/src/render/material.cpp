@@ -291,9 +291,6 @@ namespace dmRender
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
         dmGraphics::DeleteVertexDeclaration(material->m_VertexDeclarationPerVertex);
 
-        // This usually comes from a resource, so we can't delete it
-        dmGraphics::DeleteProgram(graphics_context, material->m_Program);
-
         if (material->m_VertexDeclarationPerInstance)
             dmGraphics::DeleteVertexDeclaration(material->m_VertexDeclarationPerInstance);
 

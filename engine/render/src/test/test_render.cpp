@@ -1,5 +1,5 @@
 // Copyright 2020-2025 The Defold Foundation
-// Copyright 2014-2020 King
+// Copyright 2014-2020 King/
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
@@ -451,16 +451,12 @@ TEST_F(dmRenderTest, TestRenderListDrawState)
     dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fs_desc, 0, 0);
     */
 
-    dmGraphics::ShaderDesc shaders[] = {
-      dmGraphics::MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "foo", 3),
-      dmGraphics::MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, "foo", 3),
-    };
+    dmGraphics::ShaderDescBuilder shader_desc_builder;
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, "foo", 3);
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, "foo", 3);
 
-    dmGraphics::ShaderDesc shader_desc = dmGraphics::MakeShaderDesc(shaders, 2);
-    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, &shader_desc, 0, 0);
-    dmGraphics::DestroyDDFShader(shader_desc);
-
-    dmRender::HMaterial material    = dmRender::NewMaterial(m_Context, program);
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader_desc_builder.Get(), 0, 0);
+    dmRender::HMaterial material = dmRender::NewMaterial(m_Context, program);
     dmhash_t tag = dmHashString64("tag");
     dmRender::SetMaterialTags(material, 1, &tag);
 
@@ -508,8 +504,8 @@ TEST_F(dmRenderTest, TestRenderListDrawState)
 
     ASSERT_EQ(0, memcmp(&ps_before, &ps_after, sizeof(dmGraphics::PipelineState)));
 
-    dmGraphics::DeleteProgram(m_GraphicsContext, program);
     dmRender::DeleteMaterial(m_Context, material);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
 
     dmGraphics::DeleteVertexBuffer(vx_buffer);
     dmGraphics::DeleteVertexDeclaration(vx_decl);
@@ -575,11 +571,22 @@ TEST_F(dmRenderTest, TestEnableTextureByHash)
                              "uniform lowp sampler2DArray texture_sampler_3;\n"
                              "uniform lowp sampler2D texture_sampler_4;\n";
 
-    dmGraphics::ShaderDesc::ResourceBinding fs_uniforms[4] = {};
-    dmGraphics::FillResourceBindingType(&fs_uniforms[0], "texture_sampler_1", 0, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
-    dmGraphics::FillResourceBindingType(&fs_uniforms[1], "texture_sampler_2", 1, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
-    dmGraphics::FillResourceBindingType(&fs_uniforms[2], "texture_sampler_3", 2, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY);
-    dmGraphics::FillResourceBindingType(&fs_uniforms[3], "texture_sampler_4", 3, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    dmGraphics::ShaderDescBuilder shader_desc_builder;
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, "foo", 3);
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, shader_src, strlen(shader_src));
+
+    shader_desc_builder.AddTexture("texture_sampler_1", 0, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    shader_desc_builder.AddTexture("texture_sampler_2", 1, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    shader_desc_builder.AddTexture("texture_sampler_3", 2, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY);
+    shader_desc_builder.AddTexture("texture_sampler_4", 3, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader_desc_builder.Get(), 0, 0);
+
+    // dmGraphics::ShaderDesc::ResourceBinding fs_uniforms[4] = {};
+    // dmGraphics::FillResourceBindingType(&fs_uniforms[0], "texture_sampler_1", 0, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    // dmGraphics::FillResourceBindingType(&fs_uniforms[1], "texture_sampler_2", 1, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    // dmGraphics::FillResourceBindingType(&fs_uniforms[2], "texture_sampler_3", 2, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY);
+    // dmGraphics::FillResourceBindingType(&fs_uniforms[3], "texture_sampler_4", 3, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
 
     /*
     dmGraphics::ShaderDesc::Shader vs_shader = dmGraphics::MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, "foo", 3);
@@ -591,16 +598,10 @@ TEST_F(dmRenderTest, TestEnableTextureByHash)
     dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fs_desc, 0, 0);
     */
 
-    dmGraphics::ShaderDesc shaders[] = {
-      dmGraphics::MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "foo", 3),
-      dmGraphics::MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, shader_src, strlen(shader_src)),
-    };
-
-    dmGraphics::ShaderDesc shader_desc = dmGraphics::MakeShaderDesc(shaders, 2);
-    AddShaderReflection(&shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, 0, 0, 0, 0, fs_uniforms, 4, 0, 0);
-
-    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, &shader_desc, 0, 0);
-    dmGraphics::DestroyDDFShader(shader_desc);
+    // dmGraphics::ShaderDesc shaders[] = {
+    //   dmGraphics::MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "foo", 3),
+    //   dmGraphics::MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, shader_src, strlen(shader_src)),
+    // };
 
     dmRender::HMaterial material    = dmRender::NewMaterial(m_Context, program);
     dmhash_t texture_sampler_1_hash = dmHashString64("texture_sampler_1");
@@ -749,14 +750,12 @@ TEST_F(dmRenderTest, TestEnableTextureByHash)
 
 TEST_F(dmRenderTest, TestEnableDisableContextTextures)
 {
-    dmGraphics::ShaderDesc::Shader vs_shader = dmGraphics::MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, "foo", 3);
-    dmGraphics::ShaderDesc::Shader fs_shader = dmGraphics::MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, "foo", 3);
-    dmGraphics::ShaderDesc vs_desc           = dmGraphics::MakeDDFShaderDesc(&vs_shader, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, 0, 0, 0, 0, 0, 0, 0, 0);
-    dmGraphics::ShaderDesc fs_desc           = dmGraphics::MakeDDFShaderDesc(&fs_shader, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, 0, 0, 0, 0, 0, 0, 0, 0);
+    dmGraphics::ShaderDescBuilder shader_desc_builder;
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, "foo", 3);
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, "foo", 3);
 
-    dmGraphics::HVertexProgram vp   = dmGraphics::NewVertexProgram(m_GraphicsContext, &vs_desc, 0, 0);
-    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fs_desc, 0, 0);
-    dmRender::HMaterial material    = dmRender::NewMaterial(m_Context, vp, fp);
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader_desc_builder.Get(), 0, 0);
+    dmRender::HMaterial material = dmRender::NewMaterial(m_Context, program);
 
     dmhash_t tag = dmHashString64("tag");
     dmRender::SetMaterialTags(material, 1, &tag);
@@ -817,9 +816,8 @@ TEST_F(dmRenderTest, TestEnableDisableContextTextures)
     ASSERT_EQ(0, m_Context->m_TextureBindTable[1].m_Texture);
     ASSERT_EQ(0, m_Context->m_TextureBindTable[1].m_Samplerhash);
 
-    dmGraphics::DeleteVertexProgram(vp);
-    dmGraphics::DeleteFragmentProgram(fp);
     dmRender::DeleteMaterial(m_Context, material);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
 
     dmGraphics::DeleteVertexBuffer(vx_buffer);
     dmGraphics::DeleteVertexDeclaration(vx_decl);
@@ -868,18 +866,17 @@ TEST_F(dmRenderTest, TestDefaultSamplerFilters)
                              "uniform lowp sampler2D texture_sampler_2;\n"
                              "uniform lowp sampler2D texture_sampler_3;\n";
 
-    dmGraphics::ShaderDesc::ResourceBinding uniforms[3] = {};
-    dmGraphics::FillResourceBindingType(&uniforms[0], "texture_sampler_1", 0, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
-    dmGraphics::FillResourceBindingType(&uniforms[1], "texture_sampler_2", 1, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
-    dmGraphics::FillResourceBindingType(&uniforms[2], "texture_sampler_3", 2, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    dmGraphics::ShaderDescBuilder shader_desc_builder;
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, shader_src, strlen(shader_src));
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, shader_src, strlen(shader_src));
 
-    dmGraphics::ShaderDesc::Shader shader    = dmGraphics::MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, shader_src, strlen(shader_src));
-    dmGraphics::ShaderDesc vs_desc           = dmGraphics::MakeDDFShaderDesc(&shader, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, 0, 0, 0, 0, uniforms, 3, 0, 0);
-    dmGraphics::ShaderDesc fs_desc           = dmGraphics::MakeDDFShaderDesc(&shader, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, 0, 0, 0, 0, uniforms, 3, 0, 0);
-    dmGraphics::HVertexProgram vp            = dmGraphics::NewVertexProgram(m_GraphicsContext, &vs_desc, 0, 0);
-    dmGraphics::HFragmentProgram fp          = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fs_desc, 0, 0);
-    dmRender::HMaterial material             = dmRender::NewMaterial(m_Context, vp, fp);
-    dmRender::HMaterial material_no_samplers = dmRender::NewMaterial(m_Context, vp, fp);
+    shader_desc_builder.AddTexture("texture_sampler_1", 0, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    shader_desc_builder.AddTexture("texture_sampler_2", 1, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    shader_desc_builder.AddTexture("texture_sampler_3", 2, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+
+    dmGraphics::HProgram program             = dmGraphics::NewProgram(m_GraphicsContext, shader_desc_builder.Get(), 0, 0);
+    dmRender::HMaterial material             = dmRender::NewMaterial(m_Context, program);
+    dmRender::HMaterial material_no_samplers = dmRender::NewMaterial(m_Context, program);
 
     dmhash_t tag = dmHashString64("tag");
     dmRender::SetMaterialTags(material, 1, &tag);
@@ -993,10 +990,9 @@ TEST_F(dmRenderTest, TestDefaultSamplerFilters)
         ASSERT_EQ(gfx_mag_filter_default, gfx_mag_filter_active);
     }
 
-    dmGraphics::DeleteVertexProgram(vp);
-    dmGraphics::DeleteFragmentProgram(fp);
     dmRender::DeleteMaterial(m_Context, material);
     dmRender::DeleteMaterial(m_Context, material_no_samplers);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
 
     dmGraphics::DeleteTexture(texture);
     dmGraphics::DeleteVertexBuffer(vx_buffer);

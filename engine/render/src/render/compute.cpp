@@ -109,13 +109,6 @@ namespace dmRender
         return GetProgramSampler(program->m_Samplers, unit);
     }
 
-    /*
-    dmGraphics::HComputeProgram GetComputeProgramShader(HComputeProgram program)
-    {
-        return program->m_Shader;
-    }
-    */
-
     dmGraphics::HProgram GetComputeProgram(HComputeProgram program)
     {
         return program->m_Program;
@@ -123,8 +116,6 @@ namespace dmRender
 
     void DeleteComputeProgram(dmRender::HRenderContext render_context, HComputeProgram program)
     {
-        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
-        dmGraphics::DeleteProgram(graphics_context, program->m_Program);
         delete program;
     }
 
