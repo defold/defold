@@ -273,7 +273,9 @@
         web-view      (make-web-view project)
         web-engine    (.getEngine web-view)
         view-id       (g/make-node! graph WebViewNode :web-view web-view)
-        repainter     (ui/->timer 30 "update-web-view!" (fn [_ _ _] (g/node-value view-id :load-resource)))]
+        repainter     (ui/->timer 30 "update-web-view!" (fn [_ _ _] 
+                                                          (when (.isSelected (:tab opts))
+                                                            (g/node-value view-id :load-resource))))]
 
     (.addListener (.locationProperty web-engine)
                   (ui/change-listener _ _ new-location (handle-location-change! project view-id new-location)))
