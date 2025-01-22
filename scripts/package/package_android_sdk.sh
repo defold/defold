@@ -41,14 +41,14 @@ if [ "$HOST" == "darwin" ]; then
 fi
 
 if [ "$TERM" == "cygwin" ]; then
-    HOST="win"
+	HOST="win"
 	TOOLHOSTNAME="win"
 	SDKMANAGER="sdkmanager.bat"
 	D8TOOL="d8.bat"
 fi
 
 if [[ "$(uname -s)" == MINGW* || "$(uname -s)" == MSYS* ]]; then
-    HOST="win"
+	HOST="win"
 	TOOLHOSTNAME="win"
 	SDKMANAGER="sdkmanager.bat"
 	D8TOOL="d8.bat"

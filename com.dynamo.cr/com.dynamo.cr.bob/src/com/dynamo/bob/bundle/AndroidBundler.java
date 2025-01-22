@@ -149,14 +149,14 @@ public class AndroidBundler implements IBundler {
                 Bob.atomicCopy(classes_dex, f, false);
             }
 
-            String aapt2 = Bob.getExe(Platform.getHostPlatform(), "aapt2");
+            Platform hostPlatform = Platform.getHostPlatform();
+            String aapt2 = Bob.getExe(hostPlatform, "aapt2");
             if (aapt2 == null) {
                 // Make sure it's extracted once
                 File bundletool = new File(Bob.getLibExecPath("bundletool-all.jar"));
 
                 // Find the file to extract from the bundletool
                 {
-                    Platform hostPlatform = Platform.getHostPlatform();
                     String platformName = "macos";
                     String suffix = "";
                     if (hostPlatform == Platform.X86_64Win32)
@@ -169,11 +169,11 @@ public class AndroidBundler implements IBundler {
                         platformName = "linux";
                     }
 
-                    File aapt2_file = new File(bundletool.getParent(), getAapt2Name());
-                    if (!aapt2_file.exists())
+                    File aapt2File = new File(bundletool.getParent(), getAapt2Name());
+                    if (!aapt2File.exists())
                     {
-                        extractFile(bundletool, platformName + "/" + getAapt2Name(), aapt2_file);
-                        aapt2_file.setExecutable(true);
+                        extractFile(bundletool, platformName + "/" + getAapt2Name(), aapt2File);
+                        aapt2File.setExecutable(true);
                     }
                 }
             }
