@@ -41,6 +41,7 @@
            ["Alt+Meta+E" :select-next-occurrence]
            ["Alt+Meta+F" :replace-text]
            ["Alt+Meta+G" :replace-next]
+           ["Alt+Space" :proposals]
            ["Alt+Right" :next-word]
            ["Alt+Up" :beginning-of-line]
            ["Alt+Up" :move-up]
