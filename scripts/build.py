@@ -18,7 +18,7 @@ import sys, os, platform
 from os.path import join, dirname, basename, relpath, expanduser, normpath, abspath, splitext
 sys.path.append(os.path.join(normpath(join(dirname(abspath(__file__)), '..')), "build_tools"))
 
-import shutil, zipfile, re, itertools, json, platform, math, mimetypes, hashlib, zlib
+import shutil, zipfile, re, itertools, json, platform, math, mimetypes, hashlib
 import optparse, pprint, subprocess, urllib, urllib.parse, tempfile, time
 import github
 import run
@@ -2155,11 +2155,6 @@ class Configuration(object):
         else:
             raise Exception('Unsupported url %s' % (url))
 
-    def CRCR32_from_chunk(chunk):
-        checksum = 0
-        m = zlib.crc32(chunk, checksum)
-        m = m.to_bytes((m.bit_length() + 7) // 8, 'big') or b'\0'
-        return m
 
     def upload_to_s3(self, path, url):
         url = url.replace('\\', '/')
@@ -2193,10 +2188,9 @@ class Configuration(object):
                 contenttype, _ = mimetypes.guess_type(path)
                 mp = None
                 if contenttype is not None:
-                    mp = bucket.Object(p).initiate_multipart_upload(ContentType=contenttype,
-                                                                    ChecksumAlgorithm='CRC32')
+                    mp = bucket.Object(p).initiate_multipart_upload(ContentType=contenttype)
                 else:
-                    mp = bucket.Object(p).initiate_multipart_upload(ChecksumAlgorithm='CRC32')
+                    mp = bucket.Object(p).initiate_multipart_upload()
 
                 source_size = os.stat(path).st_size
                 chunksize = 64 * 1024 * 1024 # 64 MiB
@@ -2207,10 +2201,7 @@ class Configuration(object):
                         fhandle.seek(offset)
                         part_content = fhandle.read(size)
                         part = mp.Part(part)
-                        part.upload(Body=part_content,
-                                    ContentLength=size,
-                                    ChecksumAlgorithm='CRC32',
-                                    ChecksumCRC32=CRC32_from_chunk(chunk))
+                        part.upload(Body=part_content, ContentLength=size)
                         fhandle.close()
 
                 _threads = []
@@ -2255,10 +2246,10 @@ class Configuration(object):
                     raise RuntimeError('Failed to upload %s -> %s' % (path, url))
 
             f = None
-            if sys.platform == 'win32':
-                f = Future(self.thread_pool, upload_singlefile)
-            else:
-                f = Future(self.thread_pool, upload_multipart)
+            #if sys.platform == 'win32':
+            f = Future(self.thread_pool, upload_singlefile)
+            # else:
+            #     f = Future(self.thread_pool, upload_multipart)
             self.futures.append(f)
 
         else:
