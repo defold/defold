@@ -130,23 +130,23 @@ public class AndroidBundler implements IBundler {
         try {
             // Android SDK aapt is dynamically linked against libc++.so, we need to extract it so that
             // aapt will find it later when AndroidBundler is run.
-            String libc_filename = Platform.getHostPlatform().getLibPrefix() + "c++" + Platform.getHostPlatform().getLibSuffix();
-            URL libc_url = Bob.class.getResource("/lib/" + Platform.getHostPlatform().getPair() + "/" + libc_filename);
-            if (libc_url != null) {
-                File f = new File(rootFolder, Platform.getHostPlatform().getPair() + "/lib/" + libc_filename);
-                Bob.atomicCopy(libc_url, f, false);
+            String libcFilename = Platform.getHostPlatform().getLibPrefix() + "c++" + Platform.getHostPlatform().getLibSuffix();
+            URL libcUrl = Bob.class.getResource("/lib/" + Platform.getHostPlatform().getPair() + "/" + libcFilename);
+            if (libcUrl != null) {
+                File f = new File(rootFolder, Platform.getHostPlatform().getPair() + "/lib/" + libcFilename);
+                Bob.atomicCopy(libcUrl, f, false);
             }
 
             // NOTE: android.jar and classes.dex aren't are only available in "full bob", i.e. from CI
-            URL android_jar = Bob.class.getResource("/lib/android.jar");
-            if (android_jar != null) {
+            URL androidJar = Bob.class.getResource("/lib/android.jar");
+            if (androidJar != null) {
                 File f = new File(rootFolder, "lib/android.jar");
-                Bob.atomicCopy(android_jar, f, false);
+                Bob.atomicCopy(androidJar, f, false);
             }
-            URL classes_dex = Bob.class.getResource("/lib/classes.dex");
-            if (classes_dex != null) {
+            URL classesDex = Bob.class.getResource("/lib/classes.dex");
+            if (classesDex != null) {
                 File f = new File(rootFolder, "lib/classes.dex");
-                Bob.atomicCopy(classes_dex, f, false);
+                Bob.atomicCopy(classesDex, f, false);
             }
 
             Platform hostPlatform = Platform.getHostPlatform();
