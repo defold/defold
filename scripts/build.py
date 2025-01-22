@@ -18,7 +18,7 @@ import sys, os, platform
 from os.path import join, dirname, basename, relpath, expanduser, normpath, abspath, splitext
 sys.path.append(os.path.join(normpath(join(dirname(abspath(__file__)), '..')), "build_tools"))
 
-import shutil, zipfile, re, itertools, json, platform, math, mimetypes, hashlib
+import shutil, zipfile, re, itertools, json, platform, math, mimetypes, hashlib, crc32
 import optparse, pprint, subprocess, urllib, urllib.parse, tempfile, time
 import github
 import run
@@ -523,7 +523,7 @@ class Configuration(object):
             installed_packages.update(target_package_paths)
 
         print("Installing python wheels")
-        run.env_command(self._form_env(), self.get_python() + ['-m', 'pip', '-q', '-q', 'install', '-t', join(self.ext, 'lib', 'python'), 'requests', 'pyaml', 'rangehttpserver'])
+        run.env_command(self._form_env(), self.get_python() + ['-m', 'pip', '-q', '-q', 'install', '-t', join(self.ext, 'lib', 'python'), 'crc32c', 'requests', 'pyaml', 'rangehttpserver'])
         for whl in glob(join(self.defold_root, 'packages', '*.whl')):
             self._log('Installing %s' % basename(whl))
             run.env_command(self._form_env(), self.get_python() + ['-m', 'pip', '-q', '-q', 'install', '--upgrade', '-t', join(self.ext, 'lib', 'python'), whl])
@@ -2155,6 +2155,10 @@ class Configuration(object):
         else:
             raise Exception('Unsupported url %s' % (url))
 
+    def CRC32C_from_chunk(chunk):
+        m = crc32c.crc32c(chunk)
+        m = m.to_bytes((m.bit_length() + 7) // 8, 'big') or b'\0'
+        return m
 
     def upload_to_s3(self, path, url):
         url = url.replace('\\', '/')
@@ -2188,9 +2192,12 @@ class Configuration(object):
                 contenttype, _ = mimetypes.guess_type(path)
                 mp = None
                 if contenttype is not None:
-                    mp = bucket.Object(p).initiate_multipart_upload(ContentType=contenttype)
+                    mp = bucket.Object(p).initiate_multipart_upload(ContentType=contenttype,
+                                                                    ChecksumAlgorithm='CRC32C',
+                                                                    ChecksumType='COMPOSITE')
                 else:
-                    mp = bucket.Object(p).initiate_multipart_upload()
+                    mp = bucket.Object(p).initiate_multipart_upload(ChecksumAlgorithm='CRC32C',
+                                                                    ChecksumType='COMPOSITE')
 
                 source_size = os.stat(path).st_size
                 chunksize = 64 * 1024 * 1024 # 64 MiB
@@ -2201,7 +2208,10 @@ class Configuration(object):
                         fhandle.seek(offset)
                         part_content = fhandle.read(size)
                         part = mp.Part(part)
-                        part.upload(Body=part_content, ContentLength=size)
+                        part.upload(Body=part_content,
+                                    ContentLength=size,
+                                    ChecksumAlgorithm='CRC32C',
+                                    ChecksumCRC32C=CRC32C_from_chunk(chunk))
                         fhandle.close()
 
                 _threads = []
