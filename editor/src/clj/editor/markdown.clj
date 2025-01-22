@@ -446,5 +446,5 @@
     :ext "md"
     :label "Markdown"
     :node-type MarkdownNode
-    :view-types [:html :text]
+    :view-types [:html :code]
     :view-opts nil))

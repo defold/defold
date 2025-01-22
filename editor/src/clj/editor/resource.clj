@@ -83,7 +83,7 @@
 
 (defn openable-in-view-type?
   [value view-type]
-  (contains? (into #{} (map :id (:view-types (resource-type value)))) view-type))
+  (coll/some #(= view-type %) (:view-types (resource-type value))))
 
 (defn- ->unix-seps ^String [^String path]
   (FilenameUtils/separatorsToUnix path))

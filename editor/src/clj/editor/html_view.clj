@@ -236,12 +236,6 @@
          (resource/proj-path resource))))
 
 (g/defnk load-resource! [^WebView web-view resource-node _node-id html]
-  "Loads the url corresponding to the current resource.
-
-  This will open the resource at the new location if we've moved it.
-
-  If we somehow manage to browse away from the project to an external
-  page, this will somewhat annoyingly bring us back."
   (when resource-node
     (let [web-engine (.getEngine web-view)
           resource   (g/node-value resource-node :resource)
