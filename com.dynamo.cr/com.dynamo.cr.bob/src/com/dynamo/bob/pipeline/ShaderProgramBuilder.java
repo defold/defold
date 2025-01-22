@@ -472,20 +472,34 @@ public class ShaderProgramBuilder extends Builder {
 
     static public ShaderCompilePipeline newShaderPipeline(String resourcePath, ArrayList<ShaderCompilePipeline.ShaderModuleDesc> shaderDescs, ShaderCompilePipeline.Options options) throws IOException, CompileExceptionError {
         // Validate that all the shaders can use the same pipeline (TODO: Can we mix and match?)
-        int countNewPipeline = 0, countOldPipeline = 0;
+
+        ArrayList<ShaderCompilePipeline.ShaderModuleDesc> oldShaders = new ArrayList<>();
+        ArrayList<ShaderCompilePipeline.ShaderModuleDesc> newShaders = new ArrayList<>();
+
         for (ShaderCompilePipeline.ShaderModuleDesc shaderDesc : shaderDescs) {
             Common.GLSLShaderInfo shaderInfo = Common.getShaderInfo(shaderDesc.source);
             if (shaderInfo == null) {
-                countOldPipeline++;
-            } else
-            {
-                countNewPipeline++;
+                oldShaders.add(shaderDesc);
+            } else {
+                newShaders.add(shaderDesc);
             }
         }
 
-        if (countNewPipeline > 0 && countOldPipeline > 0) {
-            throw new CompileExceptionError("Unable to mix old shader layout with new shader layout.");
-        } else if (countNewPipeline > 0) {
+        if (newShaders.size() > 0 && oldShaders.size() > 0) {
+            System.out.println("Warning: Mixing old shaders with new shaders is slow. Consider migrating old shaders to using the new shader pipeline.");
+
+            ArrayList<ShaderCompilePipeline.ShaderModuleDesc> newDescs = new ArrayList<>(newShaders);
+            for (ShaderCompilePipeline.ShaderModuleDesc old : oldShaders) {
+                ShaderUtil.ES2ToES3Converter.Result transformResult = ShaderUtil.ES2ToES3Converter.transform(old.source, old.type, "", 140, true, options.splitTextureSamplers);
+                ShaderCompilePipeline.ShaderModuleDesc transformedDesc = new ShaderCompilePipeline.ShaderModuleDesc();
+                transformedDesc.type = old.type;
+                transformedDesc.source = transformResult.output;
+                newDescs.add(transformedDesc);
+            }
+            shaderDescs = newDescs;
+        }
+
+        if (newShaders.size() > 0) {
             return ShaderCompilePipeline.createShaderPipeline(new ShaderCompilePipeline(resourcePath), shaderDescs, options);
         } else {
             return ShaderCompilePipeline.createShaderPipeline(new ShaderCompilePipelineLegacy(resourcePath), shaderDescs, options);

@@ -61,27 +61,26 @@ public class ComputeBuilder extends ProtoBuilder<ComputeDesc.Builder> {
     }
 
     // Running standalone:
-    // java -classpath $DYNAMO_HOME/share/java/bob-light.jar com.dynamo.bob.pipeline.computeBuilder <path-in.compute> <path-out.computec>
+    // java -classpath $DYNAMO_HOME/share/java/bob-light.jar com.dynamo.bob.pipeline.computeBuilder <path-in.compute> <path-in.compute_shader> <path-out.computec>
     public static void main(String[] args) throws IOException, CompileExceptionError {
 
         System.setProperty("java.awt.headless", "true");
 
-        Reader reader       = new BufferedReader(new FileReader(args[0]));
-        OutputStream output = new BufferedOutputStream(new FileOutputStream(args[1]));
+        String pathIn = args[0];
+        String nameSpc = args[1];
+        String pathOut = args[2];
 
-        try {
+        try (Reader reader = new BufferedReader(new FileReader(pathIn)); OutputStream output = new BufferedOutputStream(new FileOutputStream(pathOut))) {
             ComputeDesc.Builder computeBuilder = ComputeDesc.newBuilder();
             TextFormat.merge(reader, computeBuilder);
 
-            computeBuilder.setComputeProgram(BuilderUtil.replaceExt(computeBuilder.getComputeProgram(), ".cp", ".cpc"));
+            // computeBuilder.setComputeProgram(BuilderUtil.replaceExt(computeBuilder.getComputeProgram(), ".cp", ".spc"));
+            computeBuilder.setComputeProgram(nameSpc);
 
             buildSamplers(computeBuilder);
 
             ComputeDesc ComputeDesc = computeBuilder.build();
             ComputeDesc.writeTo(output);
-        } finally {
-            reader.close();
-            output.close();
         }
     }
 }

@@ -218,7 +218,6 @@ def model_file(self, node):
     out_rigscene = node.change_ext(rig_ext)
     task.set_outputs([out_model, out_rigscene])
 
-
 waflib.Task.task_factory('shaderbuilder', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.ShaderProgramBuilder ${SRC} ${TGT} ${PLATFORM}',
                       color='PINK',
                       after='proto_gen_py',
@@ -232,7 +231,7 @@ def vertexprogram_file(self, node):
     shader.env['CLASSPATH'] = os.pathsep.join(classpath)
     shader.set_inputs(node)
     _, ext = os.path.splitext(node.abspath())
-    obj_ext = ext + "c"
+    obj_ext = ext + ".spc"
     out = node.change_ext(obj_ext)
     shader.set_outputs(out)
 
@@ -712,23 +711,8 @@ def tileset_file(self, node):
     out = node.change_ext(obj_ext)
     tileset.set_outputs(out)
 
-waflib.Task.task_factory('material', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.MaterialBuilder ${SRC} ${TGT}',
-                      color='PINK',
-                      after='proto_gen_py',
-                      before='c cxx',
-                      shell=False)
 
-@extension('.material')
-def material_file(self, node):
-    classpath = [self.env['DYNAMO_HOME'] + '/share/java/bob-light.jar']
-    material = self.create_task('material')
-    material.env['CLASSPATH'] = os.pathsep.join(classpath)
-    material.set_inputs(node)
-    obj_ext = '.materialc'
-    out = node.change_ext(obj_ext)
-    material.set_outputs(out)
-
-waflib.Task.task_factory('compute', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.ComputeBuilder ${SRC} ${TGT}',
+waflib.Task.task_factory('compute', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.ComputeBuilder ${SRC} ${SPC} ${TGT}',
                       color='PINK',
                       after='proto_gen_py',
                       before='c cxx',
@@ -736,9 +720,22 @@ waflib.Task.task_factory('compute', '${JAVA} -classpath ${CLASSPATH} com.dynamo.
 
 @extension('.compute')
 def compute_file(self, node):
+    import google.protobuf.text_format
+    import render.compute_ddf_pb2
+    import dlib
+
+    msg = render.compute_ddf_pb2.ComputeDesc()
+    with open(node.srcpath(), 'rb') as in_f:
+        google.protobuf.text_format.Merge(in_f.read(), msg)
+
+    shader_name = msg.compute_program + ".spc"
+    print("COMPUTE!", shader_name)
+
     classpath = [self.env['DYNAMO_HOME'] + '/share/java/bob-light.jar']
     compute = self.create_task('compute')
     compute.env['CLASSPATH'] = os.pathsep.join(classpath)
+    compute.env['SPC'] = shader_name
+
     compute.set_inputs(node)
     obj_ext = '.computec'
     out = node.change_ext(obj_ext)

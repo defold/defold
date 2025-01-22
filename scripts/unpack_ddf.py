@@ -264,10 +264,10 @@ def print_shader_file(shader_file):
 
 
 PRINTERS = {}
-PRINTERS['.luac']       = print_lua_file
-PRINTERS['.vpc']        = print_shader_file
-PRINTERS['.fpc']        = print_shader_file
-PRINTERS['.cpc']        = print_shader_file
+PRINTERS['.luac'] = print_lua_file
+#PRINTERS['.vpc']  = print_shader_file
+#PRINTERS['.fpc']  = print_shader_file
+#PRINTERS['.cpc']  = print_shader_file
 
 if __name__ == "__main__":
     path = sys.argv[1]

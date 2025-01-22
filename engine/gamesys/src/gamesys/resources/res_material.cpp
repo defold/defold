@@ -118,6 +118,16 @@ namespace dmGameSystem
             dmRender::HRenderContext render_context = dmRender::GetMaterialRenderContext(material);
             dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
             dmGraphics::HProgram program = dmRender::GetMaterialProgram(material);
+
+            // HMMM Shouldn't we reset the material here? If a shader has changed inputs/outputs etc,
+            // we need to recreate our internal material structures?? I think this has been broken for a long time.
+
+            // dmRenderDDF::MaterialDesc* ddf = (dmRenderDDF::MaterialDesc*) params->m_PreloadData;
+            // if (!dmGraphics::ReloadProgram(graphics_context, program, params->m_))
+            // {
+            //     dmLogWarning("Reloading the material failed, some shaders might not have been correctly linked.");
+            // }
+
             /*
             dmGraphics::HVertexProgram vert_program = dmRender::GetMaterialVertexProgram(material);
             dmGraphics::HFragmentProgram frag_program = dmRender::GetMaterialFragmentProgram(material);
@@ -275,9 +285,9 @@ namespace dmGameSystem
         factory_e = dmResource::GetDescriptor(factory, ddf->m_FragmentProgram, &desc);
         assert(factory_e == dmResource::RESULT_OK); // Should not fail at this point
         dmRender::SetMaterialUserData2(material, ResourceDescriptorGetNameHash(desc));
-        */
 
         dmResource::RegisterResourceReloadedCallback(factory, ResourceReloadedCallback, material);
+        */
 
         return material;
     }
