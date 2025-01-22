@@ -2194,11 +2194,9 @@ class Configuration(object):
                 mp = None
                 if contenttype is not None:
                     mp = bucket.Object(p).initiate_multipart_upload(ContentType=contenttype,
-                                                                    ChecksumAlgorithm='CRC32',
-                                                                    ChecksumType='COMPOSITE')
+                                                                    ChecksumAlgorithm='CRC32')
                 else:
-                    mp = bucket.Object(p).initiate_multipart_upload(ChecksumAlgorithm='CRC32',
-                                                                    ChecksumType='COMPOSITE')
+                    mp = bucket.Object(p).initiate_multipart_upload(ChecksumAlgorithm='CRC32')
 
                 source_size = os.stat(path).st_size
                 chunksize = 64 * 1024 * 1024 # 64 MiB
