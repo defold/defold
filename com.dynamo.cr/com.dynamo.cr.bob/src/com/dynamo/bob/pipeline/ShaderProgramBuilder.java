@@ -71,9 +71,13 @@ public class ShaderProgramBuilder extends Builder {
                 .setName(params.name())
                 .addInput(input);
 
+        System.out.println("ShaderBuilder.Create " + input.getPath());
+
         ShaderProgramBuilderBundle.ModuleBundle modules = ShaderProgramBuilderBundle.ModuleBundle.load(input);
         for (String path : modules.get()) {
             IResource moduleInput = this.project.getResource(path);
+
+            System.out.println("  module: " + path);
 
             // Parse source for includes and add the include nodes as inputs/dependancies to the shader
             String source = new String(moduleInput.getContent(), StandardCharsets.UTF_8);
@@ -162,9 +166,8 @@ public class ShaderProgramBuilder extends Builder {
         //shaderDescBuilder.setReflection(makeShaderReflectionBuilder(shaderCompileresult.reflector).build());
         //shaderDescBuilder.addAllReflection(shaderCompileresult.reflectors);
 
-        for (SPIRVReflector reflector : shaderCompileresult.reflectors) {
-            shaderDescBuilder.addReflection(makeShaderReflectionBuilder(reflector));
-        }
+        // SPIRVReflector reflector = SPIRVReflector.merge(shaderCompileresult.reflectors);
+        shaderDescBuilder.setReflection(makeShaderReflectionBuilder(shaderCompileresult.reflectors));
 
         shaderDescBuildResult.shaderDesc = shaderDescBuilder.build();
 
@@ -308,12 +311,12 @@ public class ShaderProgramBuilder extends Builder {
         }
     }
 
-    static public ShaderDesc.ResourceType.Builder getResourceTypeBuilder(Shaderc.ResourceType type) throws CompileExceptionError {
+    static public ShaderDesc.ResourceType.Builder getResourceTypeBuilder(Shaderc.ResourceType type, int typeMemberOffset) throws CompileExceptionError {
         ShaderDesc.ResourceType.Builder resourceTypeBuilder = ShaderDesc.ResourceType.newBuilder();
         resourceTypeBuilder.setUseTypeIndex(type.useTypeIndex);
 
         if (type.useTypeIndex) {
-            resourceTypeBuilder.setTypeIndex(type.typeIndex);
+            resourceTypeBuilder.setTypeIndex(type.typeIndex + typeMemberOffset);
         } else {
             ShaderDesc.ShaderDataType shaderType = resourceTypeToShaderDataType(type);
             resourceTypeBuilder.setShaderType(shaderType);
@@ -321,15 +324,16 @@ public class ShaderProgramBuilder extends Builder {
         return resourceTypeBuilder;
     }
 
-    static public ShaderDesc.ResourceBinding.Builder SPIRVResourceToResourceBindingBuilder(Shaderc.ShaderResource res) throws CompileExceptionError {
+    static public ShaderDesc.ResourceBinding.Builder SPIRVResourceToResourceBindingBuilder(Shaderc.ShaderResource res, int stageFlags, int typeMemberOffset) throws CompileExceptionError {
         ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
-        ShaderDesc.ResourceType.Builder typeBuilder = getResourceTypeBuilder(res.type);
+        ShaderDesc.ResourceType.Builder typeBuilder = getResourceTypeBuilder(res.type, typeMemberOffset);
         resourceBindingBuilder.setType(typeBuilder);
         resourceBindingBuilder.setName(res.name);
         resourceBindingBuilder.setNameHash(res.nameHash);
         resourceBindingBuilder.setId(res.id);
         resourceBindingBuilder.setSet(res.set);
         resourceBindingBuilder.setBinding(res.binding);
+        resourceBindingBuilder.setStageFlags(stageFlags);
 
         if (res.blockSize != 0) {
             resourceBindingBuilder.setBlockSize(res.blockSize);
@@ -359,11 +363,22 @@ public class ShaderProgramBuilder extends Builder {
         }
     }
 
-    static private ShaderDesc.ShaderReflection.Builder makeShaderReflectionBuilder(SPIRVReflector reflector) throws CompileExceptionError {
+    static private ShaderDesc.ShaderReflection.Builder makeShaderReflectionBuilder(ArrayList<SPIRVReflector> reflectors) throws CompileExceptionError {
         ShaderDesc.ShaderReflection.Builder builder = ShaderDesc.ShaderReflection.newBuilder();
 
-        builder.setShaderStage(reflector.getShaderStage());
+        for (SPIRVReflector reflector : reflectors) {
+            int stageFlags = 0;
+            switch(reflector.getShaderStage()) {
+                case SHADER_TYPE_VERTEX -> stageFlags = 1;
+                case SHADER_TYPE_FRAGMENT -> stageFlags = 2;
+                case SHADER_TYPE_COMPUTE -> stageFlags = 4;
+            }
+            fillShaderReflectionBuilder(builder, reflector, stageFlags);
+        }
+        return builder;
+    }
 
+    static private void fillShaderReflectionBuilder(ShaderDesc.ShaderReflection.Builder builder, SPIRVReflector reflector, int stageFlags) throws CompileExceptionError {
         ArrayList<Shaderc.ShaderResource> inputs    = reflector.getInputs();
         ArrayList<Shaderc.ShaderResource> outputs   = reflector.getOutputs();
         ArrayList<Shaderc.ShaderResource> ubos      = reflector.getUBOs();
@@ -371,33 +386,35 @@ public class ShaderProgramBuilder extends Builder {
         ArrayList<Shaderc.ShaderResource> textures  = reflector.getTextures();
         ArrayList<Shaderc.ResourceTypeInfo> types   = reflector.getTypes();
 
+        int typeMemberOffset = builder.getTypesCount();
+
         HashMap<Integer, Integer> idToTextureIndex = new HashMap<>();
         ResolveSamplerIndices(textures, idToTextureIndex);
 
         for (Shaderc.ShaderResource input : inputs) {
-            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(input);
+            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(input, stageFlags, typeMemberOffset);
             resourceBindingBuilder.setBinding(input.location);
             builder.addInputs(resourceBindingBuilder);
         }
 
         for (Shaderc.ShaderResource output : outputs) {
-            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(output);
+            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(output, stageFlags, typeMemberOffset);
             resourceBindingBuilder.setBinding(output.location);
             builder.addOutputs(resourceBindingBuilder);
         }
 
         for (Shaderc.ShaderResource ubo : ubos) {
-            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(ubo);
+            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(ubo, stageFlags, typeMemberOffset);
             builder.addUniformBuffers(resourceBindingBuilder);
         }
 
         for (Shaderc.ShaderResource ssbo : ssbos) {
-            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(ssbo);
+            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(ssbo, stageFlags, typeMemberOffset);
             builder.addStorageBuffers(resourceBindingBuilder);
         }
 
         for (Shaderc.ShaderResource texture : textures) {
-            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(texture);
+            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(texture, stageFlags, typeMemberOffset);
 
             Integer textureIndex = idToTextureIndex.get(texture.id);
             if (textureIndex != null) {
@@ -416,7 +433,7 @@ public class ShaderProgramBuilder extends Builder {
             for (Shaderc.ResourceMember member : type.members) {
                 ShaderDesc.ResourceMember.Builder typeMemberBuilder = ShaderDesc.ResourceMember.newBuilder();
 
-                ShaderDesc.ResourceType.Builder typeBuilder = getResourceTypeBuilder(member.type);
+                ShaderDesc.ResourceType.Builder typeBuilder = getResourceTypeBuilder(member.type, typeMemberOffset);
                 typeMemberBuilder.setType(typeBuilder);
                 typeMemberBuilder.setName(member.name);
                 typeMemberBuilder.setNameHash(MurmurHash.hash64(member.name));
@@ -428,7 +445,6 @@ public class ShaderProgramBuilder extends Builder {
 
             builder.addTypes(resourceTypeInfoBuilder);
         }
-        return builder;
     }
 
     private static ShaderDesc.ShaderType parseShaderTypeFromPath(String path) throws CompileExceptionError {

@@ -743,9 +743,11 @@ namespace dmGraphics
         uint32_t ssbo_alignment = 0;
 
         ProgramResourceBindingsInfo binding_info = {};
-        FillProgramResourceBindings(&program->m_BaseProgram, &vertex_module->m_ShaderMeta, bindings, ubo_alignment, ssbo_alignment, SHADER_STAGE_FLAG_VERTEX, binding_info);
-        FillProgramResourceBindings(&program->m_BaseProgram, &fragment_module->m_ShaderMeta, bindings, ubo_alignment, ssbo_alignment, SHADER_STAGE_FLAG_FRAGMENT, binding_info);
-        FillProgramResourceBindings(&program->m_BaseProgram, &compute_module->m_ShaderMeta, bindings, ubo_alignment, ssbo_alignment, SHADER_STAGE_FLAG_COMPUTE, binding_info);
+        FillProgramResourceBindings(&program->m_BaseProgram, bindings, ubo_alignment, ssbo_alignment, binding_info);
+
+        //FillProgramResourceBindings(&program->m_BaseProgram, &vertex_module->m_ShaderMeta, bindings, ubo_alignment, ssbo_alignment, SHADER_STAGE_FLAG_VERTEX, binding_info);
+        //FillProgramResourceBindings(&program->m_BaseProgram, &fragment_module->m_ShaderMeta, bindings, ubo_alignment, ssbo_alignment, SHADER_STAGE_FLAG_FRAGMENT, binding_info);
+        //FillProgramResourceBindings(&program->m_BaseProgram, &compute_module->m_ShaderMeta, bindings, ubo_alignment, ssbo_alignment, SHADER_STAGE_FLAG_COMPUTE, binding_info);
 
         program->m_BaseProgram.m_MaxSet     = binding_info.m_MaxSet;
         program->m_BaseProgram.m_MaxBinding = binding_info.m_MaxBinding;
@@ -773,12 +775,9 @@ namespace dmGraphics
         ShaderDesc::Shader* ddf_fp = 0x0;
         ShaderDesc::Shader* ddf_cp = 0x0;
 
-        if (!GetShaderGraphicsProgram(_context, ddf, &ddf_vp, &ddf_fp))
+        if (!GetShaderProgram(_context, ddf, &ddf_vp, &ddf_fp, &ddf_cp))
         {
-            if (!GetShaderGraphicsCompute(_context, ddf, &ddf_cp))
-            {
-                return 0;
-            }
+            return 0;
         }
 
         NullProgram* p = new NullProgram();
@@ -786,19 +785,15 @@ namespace dmGraphics
         if (ddf_cp)
         {
             p->m_Compute = NewShaderModuleFromDDF(_context, ddf_cp);
-            CreateShaderMeta(ddf->m_Reflection.m_Data, ddf->m_Reflection.m_Count, ShaderDesc::SHADER_TYPE_VERTEX, &p->m_Compute->m_ShaderMeta);
-            CreateProgramResourceBindings(p, 0x0, 0x0, p->m_Compute);
         }
         else
         {
             p->m_VP = NewShaderModuleFromDDF(_context, ddf_vp);
-            CreateShaderMeta(ddf->m_Reflection.m_Data, ddf->m_Reflection.m_Count, ShaderDesc::SHADER_TYPE_VERTEX, &p->m_VP->m_ShaderMeta);
-
             p->m_FP = NewShaderModuleFromDDF(_context, ddf_fp);
-            CreateShaderMeta(ddf->m_Reflection.m_Data, ddf->m_Reflection.m_Count, ShaderDesc::SHADER_TYPE_FRAGMENT, &p->m_FP->m_ShaderMeta);
-
-            CreateProgramResourceBindings(p, p->m_VP, p->m_FP, 0x0);
         }
+
+        CreateShaderMeta(&ddf->m_Reflection, &p->m_BaseProgram.m_ShaderMeta);
+        CreateProgramResourceBindings(p, p->m_VP, p->m_FP, p->m_Compute);
 
         return (HProgram) p;
     }
@@ -808,7 +803,7 @@ namespace dmGraphics
         if (!shader)
             return;
         delete [] (char*) shader->m_Data;
-        DestroyShaderMeta(shader->m_ShaderMeta);
+        //DestroyShaderMeta(shader->m_ShaderMeta);
         delete shader;
     }
 
@@ -835,12 +830,9 @@ namespace dmGraphics
         ShaderDesc::Shader* ddf_fp = 0x0;
         ShaderDesc::Shader* ddf_cp = 0x0;
 
-        if (!GetShaderGraphicsProgram(_context, ddf, &ddf_vp, &ddf_fp))
+        if (!GetShaderProgram(_context, ddf, &ddf_vp, &ddf_fp, &ddf_cp))
         {
-            if (!GetShaderGraphicsCompute(_context, ddf, &ddf_cp))
-            {
-                return 0;
-            }
+            return 0;
         }
 
         if (ddf_cp)
@@ -948,46 +940,39 @@ namespace dmGraphics
     static uint32_t NullGetAttributeCount(HProgram prog)
     {
         NullProgram* program_ptr = (NullProgram*) prog;
-        return program_ptr->m_VP->m_ShaderMeta.m_Inputs.Size();
-    }
 
-    static uint32_t GetElementCount(Type type)
-    {
-        switch(type)
+        uint32_t num_vx_inputs = 0;
+        for (int i = 0; i < program_ptr->m_BaseProgram.m_ShaderMeta.m_Inputs.Size(); ++i)
         {
-            case TYPE_BYTE:
-            case TYPE_UNSIGNED_BYTE:
-            case TYPE_SHORT:
-            case TYPE_UNSIGNED_SHORT:
-            case TYPE_INT:
-            case TYPE_UNSIGNED_INT:
-            case TYPE_FLOAT:
-                return 1;
-                break;
-            case TYPE_FLOAT_VEC4:       return 4;
-            case TYPE_FLOAT_MAT4:       return 16;
-            case TYPE_SAMPLER_2D:       return 1;
-            case TYPE_SAMPLER_CUBE:     return 1;
-            case TYPE_SAMPLER_2D_ARRAY: return 1;
-            case TYPE_IMAGE_2D:         return 1;
-            case TYPE_FLOAT_VEC2:       return 2;
-            case TYPE_FLOAT_VEC3:       return 3;
-            case TYPE_FLOAT_MAT2:       return 4;
-            case TYPE_FLOAT_MAT3:       return 9;
+            if (program_ptr->m_BaseProgram.m_ShaderMeta.m_Inputs[i].m_StageFlags & SHADER_STAGE_FLAG_VERTEX)
+            {
+                num_vx_inputs++;
+            }
         }
-        assert(0);
-        return 0;
+        return num_vx_inputs;
     }
 
     static void NullGetAttribute(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location)
     {
-        NullProgram* program        = (NullProgram*) prog;
-        ShaderResourceBinding& attr = program->m_VP->m_ShaderMeta.m_Inputs[index];
-        *name_hash                  = attr.m_NameHash;
-        *type                       = ShaderDataTypeToGraphicsType(attr.m_Type.m_ShaderType);
-        *num_values                 = 1;
-        *location                   = attr.m_Binding;
-        *element_count              = GetShaderTypeSize(attr.m_Type.m_ShaderType) / sizeof(float);
+        NullProgram* program = (NullProgram*) prog;
+
+        uint32_t input_ix = 0;
+        for (int i = 0; i < program->m_BaseProgram.m_ShaderMeta.m_Inputs.Size(); ++i)
+        {
+            if (program->m_BaseProgram.m_ShaderMeta.m_Inputs[i].m_StageFlags & SHADER_STAGE_FLAG_VERTEX)
+            {
+                if (input_ix == index)
+                {
+                    ShaderResourceBinding& attr = program->m_BaseProgram.m_ShaderMeta.m_Inputs[i];
+                    *name_hash                  = attr.m_NameHash;
+                    *type                       = ShaderDataTypeToGraphicsType(attr.m_Type.m_ShaderType);
+                    *num_values                 = 1;
+                    *location                   = attr.m_Binding;
+                    *element_count              = GetShaderTypeSize(attr.m_Type.m_ShaderType) / sizeof(float);
+                }
+                input_ix++;
+            }
+        }
     }
 
     const Uniform* GetUniform(HProgram prog, dmhash_t name_hash)

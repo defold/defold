@@ -186,7 +186,7 @@ public class ShaderCompilePipeline {
         return null;
     }
 
-    protected byte[] generateCrossCompiledShader(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, int versionOut) throws IOException, CompileExceptionError{
+    protected byte[] generateCrossCompiledShader(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, int versionOut) {
 
         long compiler = 0;
 

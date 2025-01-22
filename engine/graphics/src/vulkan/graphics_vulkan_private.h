@@ -262,7 +262,7 @@ namespace dmGraphics
 
     struct ShaderModule
     {
-        ShaderMeta                      m_ShaderMeta;
+        //ShaderMeta                      m_ShaderMeta;
         uint64_t                        m_Hash;
         VkShaderModule                  m_Module;
         VkPipelineShaderStageCreateInfo m_PipelineStageInfo;

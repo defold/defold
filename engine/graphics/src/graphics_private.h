@@ -124,6 +124,7 @@ namespace dmGraphics
         uint16_t           m_Binding;
         uint16_t           m_ElementCount;
         BindingInfo        m_BindingInfo;
+        uint8_t            m_StageFlags;
     };
 
     struct ShaderMeta
@@ -188,6 +189,7 @@ namespace dmGraphics
     struct Program
     {
         ProgramResourceBinding m_ResourceBindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
+        ShaderMeta             m_ShaderMeta;
         dmArray<Uniform>       m_Uniforms;
         uint8_t                m_MaxSet;
         uint8_t                m_MaxBinding;
@@ -248,10 +250,9 @@ namespace dmGraphics
     ShaderDesc::Language GetShaderProgramLanguage(HContext context);
     uint32_t             GetShaderTypeSize(ShaderDesc::ShaderDataType type);
     Type                 ShaderDataTypeToGraphicsType(ShaderDesc::ShaderDataType shader_type);
-    bool                 GetShaderGraphicsProgram(HContext context, ShaderDesc* shader_desc, ShaderDesc::Shader** vp, ShaderDesc::Shader** fp);
-    bool                 GetShaderGraphicsCompute(HContext context, ShaderDesc* shader_desc, ShaderDesc::Shader** cp);
+    bool                 GetShaderProgram(HContext context, ShaderDesc* shader_desc, ShaderDesc::Shader** vp, ShaderDesc::Shader** fp, ShaderDesc::Shader** cp);
 
-    void                 CreateShaderMeta(ShaderDesc::ShaderReflection* ddf, uint32_t count, ShaderDesc::ShaderType stage, ShaderMeta* meta);
+    void                 CreateShaderMeta(ShaderDesc::ShaderReflection* ddf, ShaderMeta* meta);
     void                 DestroyShaderMeta(ShaderMeta& meta);
     bool                 GetUniformIndices(const dmArray<ShaderResourceBinding>& uniforms, dmhash_t name_hash, uint64_t* index_out, uint64_t* index_member_out);
     uint32_t             CountShaderResourceLeafMembers(const dmArray<ShaderResourceTypeInfo>& type_infos, ShaderResourceType type, uint32_t count = 0);
@@ -264,16 +265,13 @@ namespace dmGraphics
         ResourceBindingDesc                   bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT],
         uint32_t                              ubo_alignment,
         uint32_t                              ssbo_alignment,
-        ShaderStageFlag                       stage_flag,
         ProgramResourceBindingsInfo&          info);
 
     void FillProgramResourceBindings(
         Program*                     program,
-        ShaderMeta*                  meta,
         ResourceBindingDesc          bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT],
         uint32_t                     ubo_alignment,
         uint32_t                     ssbo_alignment,
-        ShaderStageFlag              stage_flag,
         ProgramResourceBindingsInfo& info);
 
     void                  InitializeSetTextureAsyncState(SetTextureAsyncState& state);

@@ -2226,13 +2226,13 @@ static void LogFrameBufferError(GLenum status)
 
     static void BuildUniformBuffers(OpenGLContext* context, OpenGLProgram* program, OpenGLShader** shaders, uint32_t num_shaders)
     {
-        uint32_t num_ubos = 0;
+        uint32_t num_ubos = program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers.Size();
         uint32_t ubo_binding = 0;
-        for (uint32_t i = 0; i < num_shaders; ++i)
-        {
-            OpenGLShader* shader = shaders[i];
-            num_ubos += shader->m_ShaderMeta.m_UniformBuffers.Size();
-        }
+        //(for (uint32_t i = 0; i < num_shaders; ++i)
+        //({
+        //(    OpenGLShader* shader = shaders[i];
+        //(    num_ubos += shader->m_ShaderMeta.m_UniformBuffers.Size();
+        //(}
 
         program->m_UniformBuffers.SetCapacity(num_ubos);
         program->m_UniformBuffers.SetSize(num_ubos);
@@ -2243,9 +2243,9 @@ static void LogFrameBufferError(GLenum status)
         {
             OpenGLShader* shader = shaders[i];
 
-            for (uint32_t j = 0; j < shader->m_ShaderMeta.m_UniformBuffers.Size(); ++j)
+            for (uint32_t j = 0; j < program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers.Size(); ++j)
             {
-                ShaderResourceBinding& res = shader->m_ShaderMeta.m_UniformBuffers[j];
+                ShaderResourceBinding& res = program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers[j];
                 GLuint program_handle = GetGLHandle(context, program->m_Id);
 
                 GLuint blockIndex = glGetUniformBlockIndex(program_handle, res.m_Name);
@@ -2624,13 +2624,13 @@ static void LogFrameBufferError(GLenum status)
         ProgramResourceBindingsInfo binding_info = {};
         for (int i = 0; i < num_shaders; ++i)
         {
-            FillProgramResourceBindings(&program->m_BaseProgram, &shaders[i]->m_ShaderMeta, bindings, 0, 0, shaders[i]->m_Stage, binding_info);
+            FillProgramResourceBindings(&program->m_BaseProgram, bindings, 0, 0, binding_info);
         }
         program->m_BaseProgram.m_MaxSet     = binding_info.m_MaxSet;
         program->m_BaseProgram.m_MaxBinding = binding_info.m_MaxBinding;
     }
 
-    static HProgram NewGraphicsProgram(HContext _context, OpenGLShader* vertex_shader, OpenGLShader* fragment_shader)
+    static OpenGLProgram* NewGraphicsProgram(HContext _context, OpenGLShader* vertex_shader, OpenGLShader* fragment_shader)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         OpenGLProgram* program = new OpenGLProgram();
@@ -2679,10 +2679,10 @@ static void LogFrameBufferError(GLenum status)
 
         OpenGLBuildUniforms((OpenGLContext*) context, program, shaders, DM_ARRAY_SIZE(shaders));
         BuildAttributes(program);
-        return (HProgram) program;
+        return program;
     }
 
-    static HProgram NewComputeProgram(OpenGLContext* context, OpenGLShader* shader)
+    static OpenGLProgram* NewComputeProgram(OpenGLContext* context, OpenGLShader* shader)
     {
     #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
         IncreaseModificationVersion(context);
@@ -2710,7 +2710,7 @@ static void LogFrameBufferError(GLenum status)
         program->m_ComputeShader = shader;
 
         OpenGLBuildUniforms(context, program, &shader, 1);
-        return (HProgram) program;
+        return program;
     #else
         dmLogInfo("Compute Shaders are not supported for OpenGL on this platform.");
         return 0;
@@ -2734,20 +2734,19 @@ static void LogFrameBufferError(GLenum status)
         ShaderDesc::Shader* ddf_fp = 0x0;
         ShaderDesc::Shader* ddf_cp = 0x0;
 
-        if (!GetShaderGraphicsProgram(_context, ddf, &ddf_vp, &ddf_fp))
+        if (!GetShaderProgram(_context, ddf, &ddf_vp, &ddf_fp, &ddf_cp))
         {
-            if (!GetShaderGraphicsCompute(_context, ddf, &ddf_cp))
-            {
-                return 0;
-            }
+            return 0;
         }
+
+        OpenGLProgram* program = 0;
 
         if (ddf_cp)
         {
         #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
             OpenGLShader* compute_shader = CreateShader(context, DMGRAPHICS_TYPE_COMPUTE_SHADER, ddf_cp, error_buffer, error_buffer_size);
             CreateShaderMeta(ddf->m_Reflection.m_Data, ddf->m_Reflection.m_Count, ShaderDesc::SHADER_TYPE_COMPUTE, &compute_shader->m_ShaderMeta);
-            return NewComputeProgram(_context, compute_shader);
+            program = NewComputeProgram(_context, compute_shader);
         #else
             dmSnPrintf(error_buffer, error_buffer_size, "Compute Shaders are not supported for OpenGL on this platform.");
             return 0;
@@ -2757,11 +2756,12 @@ static void LogFrameBufferError(GLenum status)
         {
             OpenGLShader* vertex_shader = CreateShader(_context, GL_VERTEX_SHADER, ddf_vp, error_buffer, error_buffer_size);
             OpenGLShader* fragment_shader = CreateShader(_context, GL_FRAGMENT_SHADER, ddf_fp, error_buffer, error_buffer_size);
-
-            CreateShaderMeta(ddf->m_Reflection.m_Data, ddf->m_Reflection.m_Count, ShaderDesc::SHADER_TYPE_VERTEX, &vertex_shader->m_ShaderMeta);
-            CreateShaderMeta(ddf->m_Reflection.m_Data, ddf->m_Reflection.m_Count, ShaderDesc::SHADER_TYPE_FRAGMENT, &fragment_shader->m_ShaderMeta);
-            return NewGraphicsProgram(_context, vertex_shader, fragment_shader);
+            program = NewGraphicsProgram(_context, vertex_shader, fragment_shader);
         }
+
+        CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram.m_ShaderMeta);
+
+        return (HProgram) program;
     }
 
     // Tries to compile a shader (either a vertex or fragment) program.
@@ -2856,12 +2856,9 @@ static void LogFrameBufferError(GLenum status)
         ShaderDesc::Shader* ddf_fp = 0x0;
         ShaderDesc::Shader* ddf_cp = 0x0;
 
-        if (!GetShaderGraphicsProgram(_context, ddf, &ddf_vp, &ddf_fp))
+        if (!GetShaderProgram(_context, ddf, &ddf_vp, &ddf_fp, &ddf_cp))
         {
-            if (!GetShaderGraphicsCompute(_context, ddf, &ddf_cp))
-            {
-                return 0;
-            }
+            return 0;
         }
 
         OpenGLContext* context = (OpenGLContext*) _context;

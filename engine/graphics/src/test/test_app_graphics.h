@@ -39,42 +39,31 @@ static inline void AddShader(dmGraphics::ShaderDesc* desc, dmGraphics::ShaderDes
     shader->m_Source.m_Count = source_size;
 }
 
-static inline void EnsureReflection(dmGraphics::ShaderDesc* desc)
-{
-    if (desc->m_Reflection.m_Data == 0)
-    {
-        desc->m_Reflection.m_Data = (dmGraphics::ShaderDesc::ShaderReflection*) malloc(sizeof(dmGraphics::ShaderDesc::ShaderReflection));
-        desc->m_Reflection.m_Count = 1;
-    }
-}
-
 static inline void AddShaderResource(dmGraphics::ShaderDesc* desc, const char* name, dmGraphics::ShaderDesc::ShaderDataType shader_type, int type_index, uint32_t binding, uint32_t set, BindingType binding_type)
 {
     dmGraphics::ShaderDesc::ResourceBinding** data = 0;
     uint32_t* count = 0;
 
-    EnsureReflection(desc);
-
     switch(binding_type)
     {
     case BINDING_TYPE_INPUT:
-        data = &desc->m_Reflection[0].m_Inputs.m_Data;
-        count = &desc->m_Reflection[0].m_Inputs.m_Count;
+        data = &desc->m_Reflection.m_Inputs.m_Data;
+        count = &desc->m_Reflection.m_Inputs.m_Count;
         break;
     case BINDING_TYPE_OUTPUT:
-        data = &desc->m_Reflection[0].m_Outputs.m_Data;
-        count = &desc->m_Reflection[0].m_Outputs.m_Count;
+        data = &desc->m_Reflection.m_Outputs.m_Data;
+        count = &desc->m_Reflection.m_Outputs.m_Count;
         break;
     case BINDING_TYPE_TEXTURE:
-        data = &desc->m_Reflection[0].m_Textures.m_Data;
-        count = &desc->m_Reflection[0].m_Textures.m_Count;
+        data = &desc->m_Reflection.m_Textures.m_Data;
+        count = &desc->m_Reflection.m_Textures.m_Count;
         break;
     case BINDING_TYPE_UNIFORM_BUFFER:
-        data = &desc->m_Reflection[0].m_UniformBuffers.m_Data;
-        count = &desc->m_Reflection[0].m_UniformBuffers.m_Count;
+        data = &desc->m_Reflection.m_UniformBuffers.m_Data;
+        count = &desc->m_Reflection.m_UniformBuffers.m_Count;
     case BINDING_TYPE_STORAGE_BUFFER:
-        data = &desc->m_Reflection[0].m_StorageBuffers.m_Data;
-        count = &desc->m_Reflection[0].m_StorageBuffers.m_Count;
+        data = &desc->m_Reflection.m_StorageBuffers.m_Data;
+        count = &desc->m_Reflection.m_StorageBuffers.m_Count;
     }
 
     *data = (dmGraphics::ShaderDesc::ResourceBinding*) realloc(data, sizeof(dmGraphics::ShaderDesc::ResourceBinding) * (*count + 1));
@@ -106,12 +95,10 @@ static inline void AddShaderResource(dmGraphics::ShaderDesc* desc, const char* n
 
 static inline dmGraphics::ShaderDesc::ResourceTypeInfo* AddShaderType(dmGraphics::ShaderDesc* desc, const char* name)
 {
-    EnsureReflection(desc);
-
-    desc->m_Reflection[0].m_Types.m_Data = (dmGraphics::ShaderDesc::ResourceTypeInfo*) realloc(desc->m_Reflection[0].m_Types.m_Data, sizeof(dmGraphics::ShaderDesc::ResourceTypeInfo) * (desc->m_Reflection[0].m_Types.m_Count + 1));
-    dmGraphics::ShaderDesc::ResourceTypeInfo* type_info = desc->m_Reflection[0].m_Types.m_Data + desc->m_Reflection[0].m_Types.m_Count;
+    desc->m_Reflection.m_Types.m_Data = (dmGraphics::ShaderDesc::ResourceTypeInfo*) realloc(desc->m_Reflection.m_Types.m_Data, sizeof(dmGraphics::ShaderDesc::ResourceTypeInfo) * (desc->m_Reflection.m_Types.m_Count + 1));
+    dmGraphics::ShaderDesc::ResourceTypeInfo* type_info = desc->m_Reflection.m_Types.m_Data + desc->m_Reflection.m_Types.m_Count;
     memset(type_info, 0, sizeof(dmGraphics::ShaderDesc::ResourceTypeInfo));
-    desc->m_Reflection[0].m_Types.m_Count++;
+    desc->m_Reflection.m_Types.m_Count++;
 
     type_info->m_Name = name;
     type_info->m_NameHash = dmHashString64(name);
@@ -133,18 +120,13 @@ static inline void AddShaderTypeMember(dmGraphics::ShaderDesc* desc, dmGraphics:
 static inline void DeleteShaderDesc(dmGraphics::ShaderDesc* desc)
 {
 #define FREE_IF_SIZE_NOT_ZERO(x) if (x.m_Count > 0) free(x.m_Data);
-    if (desc->m_Reflection.m_Data)
-    {
-        FREE_IF_SIZE_NOT_ZERO(desc->m_Reflection[0].m_Inputs);
-        FREE_IF_SIZE_NOT_ZERO(desc->m_Reflection[0].m_Textures);
-        FREE_IF_SIZE_NOT_ZERO(desc->m_Reflection[0].m_Outputs);
-        FREE_IF_SIZE_NOT_ZERO(desc->m_Shaders);
-        FREE_IF_SIZE_NOT_ZERO(desc->m_Reflection[0].m_UniformBuffers);
-        FREE_IF_SIZE_NOT_ZERO(desc->m_Reflection[0].m_StorageBuffers);
-        FREE_IF_SIZE_NOT_ZERO(desc->m_Reflection[0].m_Types);
-
-        free(desc->m_Reflection.m_Data);
-    }
+    FREE_IF_SIZE_NOT_ZERO(desc->m_Reflection.m_Inputs);
+    FREE_IF_SIZE_NOT_ZERO(desc->m_Reflection.m_Textures);
+    FREE_IF_SIZE_NOT_ZERO(desc->m_Reflection.m_Outputs);
+    FREE_IF_SIZE_NOT_ZERO(desc->m_Shaders);
+    FREE_IF_SIZE_NOT_ZERO(desc->m_Reflection.m_UniformBuffers);
+    FREE_IF_SIZE_NOT_ZERO(desc->m_Reflection.m_StorageBuffers);
+    FREE_IF_SIZE_NOT_ZERO(desc->m_Reflection.m_Types);
 #undef FREE_IF_SIZE_NOT_ZERO
 
     free(desc);

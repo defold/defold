@@ -81,7 +81,6 @@ namespace dmGraphics
     struct OpenGLShader
     {
         HOpenglID            m_Id;
-        ShaderMeta           m_ShaderMeta;
         ShaderDesc::Language m_Language;
         ShaderStageFlag      m_Stage;
     };

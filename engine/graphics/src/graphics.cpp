@@ -341,41 +341,28 @@ namespace dmGraphics
         return selected_shader;
     }
 
-    bool GetShaderGraphicsProgram(HContext context, ShaderDesc* shader_desc, ShaderDesc::Shader** vp, ShaderDesc::Shader** fp)
+    bool GetShaderProgram(HContext context, ShaderDesc* shader_desc, ShaderDesc::Shader** vp, ShaderDesc::Shader** fp, ShaderDesc::Shader** cp)
     {
         assert(shader_desc);
         ShaderDesc::Shader* selected_shader_vp = GetShader(context, shader_desc, ShaderDesc::SHADER_TYPE_VERTEX);
         ShaderDesc::Shader* selected_shader_fp = GetShader(context, shader_desc, ShaderDesc::SHADER_TYPE_FRAGMENT);
 
-        if (selected_shader_vp == 0)
+        if (selected_shader_vp && selected_shader_fp)
         {
-            dmLogError("Unable to get a valid vertex shader from a ShaderDesc for this context.");
-        }
-        if (selected_shader_fp == 0)
-        {
-            dmLogError("Unable to get a valid fragment shader from a ShaderDesc for this context.");
+            *vp = selected_shader_vp;
+            *fp = selected_shader_fp;
+            return true;
         }
 
-        assert(selected_shader_vp->m_ShaderType == ShaderDesc::SHADER_TYPE_VERTEX);
-        assert(selected_shader_fp->m_ShaderType == ShaderDesc::SHADER_TYPE_FRAGMENT);
-
-        *vp = selected_shader_vp;
-        *fp = selected_shader_fp;
-        return selected_shader_vp != 0 && selected_shader_fp != 0;
-    }
-
-    bool GetShaderGraphicsCompute(HContext context, ShaderDesc* shader_desc, ShaderDesc::Shader** cp)
-    {
-        assert(shader_desc);
         ShaderDesc::Shader* selected_shader = GetShader(context, shader_desc, ShaderDesc::SHADER_TYPE_COMPUTE);
-        if (selected_shader == 0)
+        if (selected_shader)
         {
-            dmLogError("Unable to get a valid compute shader from a ShaderDesc for this context.");
+            *cp = selected_shader;
+            return true;
         }
 
-        assert(selected_shader->m_ShaderType == ShaderDesc::SHADER_TYPE_COMPUTE);
-        *cp = selected_shader;
-        return selected_shader != 0;
+        dmLogError("Unable to get a valid shader from a ShaderDesc for this context.");
+        return 0;
     }
 
     uint32_t GetBufferTypeIndex(BufferType buffer_type)
@@ -989,6 +976,7 @@ namespace dmGraphics
             res.m_ElementCount         = (uint16_t) dmMath::Max(bindings[i].m_ElementCount, (uint32_t) 1);
             res.m_Type.m_UseTypeIndex  = bindings[i].m_Type.m_UseTypeIndex;
             res.m_BindingFamily        = family;
+            res.m_StageFlags           = bindings[i].m_StageFlags;
 
             if (bindings[i].m_InstanceName)
             {
@@ -1008,24 +996,8 @@ namespace dmGraphics
         }
     }
 
-    void CreateShaderMeta(ShaderDesc::ShaderReflection* ddfs, uint32_t count, ShaderDesc::ShaderType stage, ShaderMeta* meta)
+    void CreateShaderMeta(ShaderDesc::ShaderReflection* ddf, ShaderMeta* meta)
     {
-        ShaderDesc::ShaderReflection* ddf = 0x0;
-
-        for (int i = 0; i < count; ++i)
-        {
-            if (ddfs[i].m_ShaderStage == stage)
-            {
-                ddf = &ddfs[i];
-                break;
-            }
-        }
-
-        if (!ddf)
-        {
-            return;
-        }
-
         PutShaderResourceBindings(ddf->m_UniformBuffers.m_Data, ddf->m_UniformBuffers.m_Count, meta->m_UniformBuffers, ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER);
         PutShaderResourceBindings(ddf->m_StorageBuffers.m_Data, ddf->m_StorageBuffers.m_Count, meta->m_StorageBuffers, ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER);
         PutShaderResourceBindings(ddf->m_Textures.m_Data, ddf->m_Textures.m_Count, meta->m_Textures, ShaderResourceBinding::BINDING_FAMILY_TEXTURE);
@@ -1069,6 +1041,9 @@ namespace dmGraphics
             if (bindings[i].m_InstanceName)
                 free(bindings[i].m_InstanceName);
         }
+
+        bindings.SetSize(0);
+        bindings.SetCapacity(0);
     }
 
     void DestroyShaderMeta(ShaderMeta& meta)
@@ -1085,7 +1060,12 @@ namespace dmGraphics
             {
                 free(meta.m_TypeInfos[i].m_Members[j].m_Name);
             }
+
+            meta.m_TypeInfos[i].m_Members.SetSize(0);
+            meta.m_TypeInfos[i].m_Members.SetCapacity(0);
         }
+        meta.m_TypeInfos.SetSize(0);
+        meta.m_TypeInfos.SetCapacity(0);
     }
 
     uint32_t CountShaderResourceLeafMembers(const dmArray<ShaderResourceTypeInfo>& type_infos, ShaderResourceType type, uint32_t count)
@@ -1277,6 +1257,8 @@ namespace dmGraphics
 
         program->m_Uniforms.SetCapacity(0);
         program->m_Uniforms.SetSize(0);
+
+        DestroyShaderMeta(program->m_ShaderMeta);
     }
 
     void FillProgramResourceBindings(
@@ -1286,7 +1268,6 @@ namespace dmGraphics
         ResourceBindingDesc              bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT],
         uint32_t                         ubo_alignment,
         uint32_t                         ssbo_alignment,
-        ShaderStageFlag                  stage_flag,
         ProgramResourceBindingsInfo&     info)
     {
         for (int i = 0; i < resources.Size(); ++i)
@@ -1302,7 +1283,7 @@ namespace dmGraphics
 
                 program_resource_binding.m_Res         = &res;
                 program_resource_binding.m_TypeInfos   = &stage_type_infos;
-                program_resource_binding.m_StageFlags |= (int) stage_flag;
+                program_resource_binding.m_StageFlags |= res.m_StageFlags;
 
                 switch(res.m_BindingFamily)
                 {
@@ -1346,18 +1327,16 @@ namespace dmGraphics
 
     void FillProgramResourceBindings(
         Program*                     program,
-        ShaderMeta*                  meta,
         ResourceBindingDesc          bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT],
         uint32_t                     ubo_alignment,
         uint32_t                     ssbo_alignment,
-        ShaderStageFlag              stage_flag,
         ProgramResourceBindingsInfo& info)
     {
-        if (program && meta)
+        if (program)
         {
-            FillProgramResourceBindings(program, meta->m_UniformBuffers, meta->m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, stage_flag, info);
-            FillProgramResourceBindings(program, meta->m_StorageBuffers, meta->m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, stage_flag, info);
-            FillProgramResourceBindings(program, meta->m_Textures, meta->m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, stage_flag, info);
+            FillProgramResourceBindings(program, program->m_ShaderMeta.m_UniformBuffers, program->m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, info);
+            FillProgramResourceBindings(program, program->m_ShaderMeta.m_StorageBuffers, program->m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, info);
+            FillProgramResourceBindings(program, program->m_ShaderMeta.m_Textures, program->m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, info);
         }
     }
 

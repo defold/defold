@@ -83,20 +83,32 @@ class dmRenderComputeTest : public RenderProgramTestBase {};
 
 TEST_F(dmRenderMaterialTest, TestTags)
 {
-    dmGraphics::ShaderDesc::Shader shader = dmGraphics::MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, "foo", 3);
-    dmGraphics::ShaderDesc vs_desc = dmGraphics::MakeDDFShaderDesc(&shader, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, 0, 0, 0, 0, 0, 0, 0, 0);
-    dmGraphics::ShaderDesc fp_desc = dmGraphics::MakeDDFShaderDesc(&shader, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, 0, 0, 0, 0, 0, 0, 0, 0);
+    // dmGraphics::ShaderDesc::Shader shader = dmGraphics::MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, "foo", 3);
+    // dmGraphics::ShaderDesc vs_desc = dmGraphics::MakeDDFShaderDesc(&shader, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, 0, 0, 0, 0, 0, 0, 0, 0);
+    // dmGraphics::ShaderDesc fp_desc = dmGraphics::MakeDDFShaderDesc(&shader, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, 0, 0, 0, 0, 0, 0, 0, 0);
+    // dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(m_GraphicsContext, &vs_desc, 0, 0);
+    // dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fp_desc, 0, 0);
 
-    dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(m_GraphicsContext, &vs_desc, 0, 0);
-    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fp_desc, 0, 0);
-    dmRender::HMaterial material = dmRender::NewMaterial(m_RenderContext, vp, fp);
+    dmGraphics::ShaderDesc::Shader shaders[] = {
+        dmGraphics::MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "foo", 3),
+        dmGraphics::MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, "foo", 3),
+    };
+
+    dmGraphics::ShaderDesc shader_desc = dmGraphics::MakeDDFShaderDesc(shaders, 2);
+
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, &shader_desc, 0, 0);
+
+    dmRender::HMaterial material = dmRender::NewMaterial(m_RenderContext, program);
+    dmGraphics::DestroyDDFShader(shader_desc);
 
     dmhash_t tags[] = {dmHashString64("tag1"), dmHashString64("tag2")};
     dmRender::SetMaterialTags(material, DM_ARRAY_SIZE(tags), tags);
     ASSERT_EQ(dmHashBuffer32(tags, DM_ARRAY_SIZE(tags)*sizeof(tags[0])), dmRender::GetMaterialTagListKey(material));
 
-    dmGraphics::DeleteVertexProgram(vp);
-    dmGraphics::DeleteFragmentProgram(fp);
+    // dmGraphics::DeleteVertexProgram(vp);
+    // dmGraphics::DeleteFragmentProgram(fp);
+
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
 
     dmRender::DeleteMaterial(m_RenderContext, material);
 }
@@ -109,18 +121,22 @@ TEST_F(dmRenderMaterialTest, TestMaterialConstants)
     dmGraphics::ShaderDesc::ResourceBinding uniform = {};
     FillResourceBindingUniformBufferTypeIndex(&uniform, "tint", 0, 0, dmGraphics::GetShaderTypeSize(dmGraphics::ShaderDesc::SHADER_TYPE_VEC4));
 
-    // create default material
-    dmGraphics::ShaderDesc::Shader vp_shader = dmGraphics::MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, "uniform vec4 tint;\n", 19);
-    dmGraphics::ShaderDesc vs_desc           = dmGraphics::MakeDDFShaderDesc(&vp_shader, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, 0, 0, &uniform, 1, 0, 0, &types, 1);
-    dmGraphics::HVertexProgram vp            = dmGraphics::NewVertexProgram(m_GraphicsContext, &vs_desc, 0, 0);
+    dmGraphics::ShaderDesc::Shader shaders[] = {
+        dmGraphics::MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "uniform vec4 tint;\n", 19),
+        dmGraphics::MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, "foo", 3),
+    };
 
-    dmGraphics::ShaderDesc::Shader fp_shader = dmGraphics::MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, "foo", 3);
-    dmGraphics::ShaderDesc fp_desc           = dmGraphics::MakeDDFShaderDesc(&fp_shader, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, 0, 0, 0, 0, 0, 0, &types, 1);
-    dmGraphics::HFragmentProgram fp          = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fp_desc, 0, 0);
+    dmGraphics::ShaderDesc shader_desc = dmGraphics::MakeDDFShaderDesc(shaders, 2);
+
+    AddShaderReflection(&shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, 0, 0, &uniform, 1, 0, 0, &types, 1);
+    AddShaderReflection(&shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, 0, 0, 0, 0, 0, 0, &types, 1);
+
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, &shader_desc, 0, 0);
+
+    dmRender::HMaterial material = dmRender::NewMaterial(m_RenderContext, program);
 
     CleanupShaderResourceTypeInfos(&types, 1);
-
-    dmRender::HMaterial material = dmRender::NewMaterial(m_RenderContext, vp, fp);
+    dmGraphics::DestroyDDFShader(shader_desc);
 
     // Constants buffer
     dmRender::HNamedConstantBuffer constants = dmRender::NewNamedConstantBuffer();
@@ -133,10 +149,10 @@ TEST_F(dmRenderMaterialTest, TestMaterialConstants)
     ro.m_ConstantBuffer = constants;
 
     // test setting constant
-    dmGraphics::HProgram program = dmRender::GetMaterialProgram(material);
-    dmGraphics::EnableProgram(m_GraphicsContext, program);
+    dmGraphics::HProgram material_program = dmRender::GetMaterialProgram(material);
+    dmGraphics::EnableProgram(m_GraphicsContext, material_program);
 
-    const dmGraphics::Uniform* tint = dmGraphics::GetUniform(program, dmHashString64("tint"));
+    const dmGraphics::Uniform* tint = dmGraphics::GetUniform(material_program, dmHashString64("tint"));
 
     ASSERT_EQ(0, tint->m_Location);
     dmRender::ApplyNamedConstantBuffer(m_RenderContext, material, ro.m_ConstantBuffer);
@@ -148,8 +164,8 @@ TEST_F(dmRenderMaterialTest, TestMaterialConstants)
 
     dmRender::DeleteNamedConstantBuffer(constants);
     dmGraphics::DisableProgram(m_GraphicsContext);
-    dmGraphics::DeleteVertexProgram(vp);
-    dmGraphics::DeleteFragmentProgram(fp);
+
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
     dmRender::DeleteMaterial(m_RenderContext, material);
 }
 
