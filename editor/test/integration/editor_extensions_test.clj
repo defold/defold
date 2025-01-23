@@ -309,7 +309,7 @@
         (is (= 2.5 (test-util/prop sprite-outline :playback-rate)))))))
 
 (deftest refresh-context-after-write-test
-  (test-util/with-loaded-project "test/resources/editor_extensions/refresh_context_project"
+  (test-util/with-scratch-project "test/resources/editor_extensions/refresh_context_project"
     (let [output (atom [])
           _ (reload-editor-scripts! project :display-output! #(swap! output conj [%1 %2]))
           handler+context (handler/active
@@ -396,7 +396,7 @@
       (test-initial-state!))))
 
 (deftest save-test
-  (test-util/with-loaded-project "test/resources/editor_extensions/save_test"
+  (test-util/with-scratch-project "test/resources/editor_extensions/save_test"
     (let [output (atom [])
           _ (reload-editor-scripts! project :display-output! #(swap! output conj [%1 %2]))
           handler+context (handler/active

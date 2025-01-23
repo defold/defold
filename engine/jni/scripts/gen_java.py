@@ -24,6 +24,12 @@
 import os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'external'))
 
+# until we have a DEFOLD_HOME
+if not 'DEFOLD_HOME' in os.environ:
+    os.environ['DEFOLD_HOME'] = os.path.normpath(os.path.join(os.environ["DYNAMO_HOME"], '../..'))
+sys.path.insert(0, os.environ['DEFOLD_HOME'])
+import apply_license
+
 import gen_ir
 import os, sys
 
@@ -473,6 +479,8 @@ def gen_namespace(inp, class_name, package_name):
                 pass
 
 def gen_java_source(inp, class_name, package_name):
+    l(apply_license.get_license_for_file("foo.java"))
+    l('')
     l('// generated, do not edit')
     l('')
     l(f'package {package_name};')
@@ -1164,6 +1172,8 @@ def gen_jni_namespace_source(inp, class_name, package_name, header=False):
             #     print(f"Not implemented yet: {kind}")
 
 def gen_jni_source(inp, class_name, header_name, package_name):
+    l(apply_license.get_license_for_file("foo.cpp"))
+    l('')
     l('// generated, do not edit')
     l('')
     l('#include <jni.h>')
@@ -1179,6 +1189,8 @@ def gen_jni_source(inp, class_name, header_name, package_name):
 
 
 def gen_jni_header(inp, class_name, package_name):
+    l(apply_license.get_license_for_file("foo.h"))
+    l('')
     l('// generated, do not edit')
     l('')
     l('#include <jni.h>')

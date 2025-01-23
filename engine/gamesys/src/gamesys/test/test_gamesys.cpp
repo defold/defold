@@ -400,7 +400,9 @@ TEST_F(ResourceTest, TestCreateTextureFromScript)
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
+    // Wait until all async operations are done
     ASSERT_TRUE(UpdateAndWaitUntilDone(scriptlibcontext, m_Collection, &m_UpdateContext, false, "async_test_done"));
+    ASSERT_TRUE(UpdateAndWaitUntilDone(scriptlibcontext, m_Collection, &m_UpdateContext, false, "async_basis_test_done"));
 
     // cleanup
     DeleteInstance(m_Collection, go);

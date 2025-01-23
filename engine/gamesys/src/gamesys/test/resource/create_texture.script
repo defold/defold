@@ -127,7 +127,7 @@ end
 
 function test_async_simple(self)
     self.requests = {}
-    
+
     -- Request with buffer + callback
     local tex_buffer = buffer.create(tparams.width * tparams.height, {{name = hash("data"), type = buffer.VALUE_TYPE_UINT8, count = 4 }})
     self.requests[1] = {}
@@ -185,6 +185,56 @@ function test_async_simple(self)
     collectgarbage("collect")
 end
 
+async_basis_test_done = false
+async_basis_tests_complete = 0
+
+function async_basis_test_completed(self)
+    async_basis_tests_complete = async_basis_tests_complete + 1
+    async_basis_test_done = async_basis_tests_complete == #self.requests_basis
+end
+
+function test_async_basis(self)
+    local host_path = sys.get_host_path("src/gamesys/test/resource/blank.basis")
+    local f     = io.open(host_path, "rb")
+    local c     = f:read("*all")
+    local fsize = f:seek("end")
+    f:close()
+
+    local tex_buffer = buffer.create(fsize, {{name = hash("data"), type = buffer.VALUE_TYPE_UINT8, count = 1 }})
+    local stream     = buffer.get_stream(tex_buffer, hash("data"))
+
+    for i=1, fsize do
+        stream[i] = c:byte(i)
+    end
+
+    local tparams = {
+        type             = graphics.TEXTURE_TYPE_2D,
+        width            = 32,
+        height           = 32,
+        format           = graphics.TEXTURE_FORMAT_RGB_ETC1,
+        compression_type = graphics.COMPRESSION_TYPE_BASIS_UASTC,
+    }
+
+    self.requests_basis = {}
+
+    -- Request with buffer + callback
+    self.requests_basis[1] = {}
+    self.requests_basis[1].path, self.requests_basis[1].id = resource.create_texture_async("/test_async_basis.texturec", tparams, tex_buffer,
+        function(self, request_id, result)
+            assert(request_id  == self.requests_basis[1].id)
+            assert(result.path == self.requests_basis[1].path)
+
+            local t_info = resource.get_texture_info(result.path)
+            assert(t_info.width == tparams.width)
+            assert(t_info.height == tparams.height)
+            async_basis_test_completed(self)
+        end)
+
+    local t_info = resource.get_texture_info(self.requests_basis[1].path)
+    assert(t_info.width  == 1)
+    assert(t_info.height == 1)
+end
+
 function test_get_texture_info()
     local t_id   = resource.create_texture("/test_get_texture_info.texturec", tparams)
     local t_info = resource.get_texture_info(t_id)
@@ -237,6 +287,7 @@ function update(self)
         test_get_texture_info,
         test_invalid,
         test_async_simple,
+        test_async_basis,
     }
 
     if tests[self.update_counter] ~= nil then
