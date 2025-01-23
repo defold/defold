@@ -92,26 +92,27 @@ public class SupportPath {
         if (userHome == null) {
             return null;
         }
+        final Path home = Paths.get(userHome);
 
         // 1. $HOME/.Defold
-        final Path homeDefold = Paths.get(userHome, "." + applicationName);
-        if (Files.isDirectory(homeDefold)) {
-            return userHome.resolve("." + applicationName);
+        final Path homeDefoldDir = home.resolve("." + applicationName);
+        if (Files.isDirectory(homeDefoldDir)) {
+            return homeDefoldDir;
         }
 
         // 2. $XDG_STATE_HOME
-        final String localStateEnv = System.getenv("XDG_STATE_HOME");
-        if (localStateEnv != null) {
-            Path localState = Paths.get(localStateEnv);
-            if (Files.isDirectory(localState)) {
-                return localState.resolve(applicationName);
+        final String xdgStateEnv = System.getenv("XDG_STATE_HOME");
+        if (xdgStateEnv != null) {
+            Path xdgStateHome = Paths.get(xdgStateEnv);
+            if (Files.isDirectory(xdgStateHome)) {
+                return xdgStateHome.resolve(applicationName);
             }
         }
 
         // 3. $HOME/.local/state
-        final Path home = Paths.get(userHome);
         if (Files.isDirectory(home)) {
-            return home.resolve(".local", "state", applicationName);
+            Path homeLocalState = Paths.get(userHome, ".local", "state");
+            return homeLocalState.resolve(applicationName);
         }
 
         return null;
