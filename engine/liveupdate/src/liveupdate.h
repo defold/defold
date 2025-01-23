@@ -74,6 +74,8 @@ namespace dmLiveUpdate
     // The new api
     Result AddMountAsync(const char* name, const char* uri, int priority, void (*callback)(const char*, const char*, int, void*), void* cbk_ctx);
     Result RemoveMountSync(const char* name);
+
+    bool IsBuiltWithExcludedFiles();
 };
 
 #endif // DM_LIVEUPDATE_H

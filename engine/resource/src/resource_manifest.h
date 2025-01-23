@@ -55,6 +55,9 @@ namespace dmResource
     dmResource::Result  LoadManifest(const char* path, dmResource::HManifest* out);
     dmResource::Result  LoadManifestFromBuffer(const uint8_t* buffer, uint32_t buffer_len, dmResource::HManifest* out);
 
+    // If it has excluded entries, we have built the game using the liveupdate setting
+    bool                HasManifestExcludedEntries(dmResource::HManifest manifest);
+
     dmResource::Result  WriteManifest(const char* path, dmResource::HManifest manifest);
 
     // Gets the dependencies of a resource.
