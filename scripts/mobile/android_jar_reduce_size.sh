@@ -39,7 +39,7 @@ unzip -q "$JAR_PATH" -d "$TMP_DIR"
 echo "Replacing pixels in PNG files..."
 find "$TMP_DIR" -type f -name "*.png" -print0 | while IFS= read -r -d '' file
 do
-  convert "$file" -alpha opaque -fill black -colorize 100% "$file"
+  magick "$file" -alpha opaque -fill black -colorize 100% "$file"
 done
 
 echo "Repacking jar file..."
