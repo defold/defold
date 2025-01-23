@@ -162,10 +162,9 @@ namespace dmSound
      */
     struct OpenDeviceParams
     {
-        OpenDeviceParams() : m_MaxFrequency(48000), m_BufferCount(0), m_FrameCount(0)
+        OpenDeviceParams() : m_BufferCount(0), m_FrameCount(0)
         {
         }
-        uint32_t m_MaxFrequency;
         uint32_t m_BufferCount;
         uint32_t m_FrameCount;
     };

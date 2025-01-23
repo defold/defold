@@ -262,7 +262,7 @@ namespace dmSound
         params->m_MaxSoundData = 128;
         params->m_MaxSources = 16;
         params->m_MaxBuffers = 32;
-        params->m_BufferSize = 12 * 4096;
+        params->m_BufferSize = 0; // unused
         params->m_FrameCount = 768;
         params->m_MaxInstances = 256;
         params->m_UseThread = true;
@@ -322,8 +322,6 @@ namespace dmSound
 
         HDevice device = 0;
         OpenDeviceParams device_params;
-        if (config)
-            device_params.m_MaxFrequency = dmConfigFile::GetInt(config, "sound.device_max_frequency", device_params.m_MaxFrequency);
 
         // TODO: m_BufferCount configurable?
         device_params.m_BufferCount = SOUND_OUTBUFFER_COUNT;

@@ -74,7 +74,7 @@ namespace dmDeviceOpenAL
         }
 
         // Since the alcGetIntegerv(al_device, ALC_FREQUENCY, ...) is giving me bogus... /MAWE
-        ALCint frequencies[3] = {(int)params->m_MaxFrequency, 48000, 44100};
+        ALCint frequencies[] = {48000, 44100};
         ALCint frequency = 0;
         for (int i = 0; i < DM_ARRAY_SIZE(frequencies); ++i)
         {
@@ -126,6 +126,9 @@ namespace dmDeviceOpenAL
         openal->m_MixRate = frequency;
 
         *device = openal;
+
+        dmLogInfo("Info");
+        dmLogInfo("  nSamplesPerSec:   %d", openal->m_MixRate);
 
         alcMakeContextCurrent(NULL);
 
