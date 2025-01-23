@@ -42,6 +42,7 @@
            ["Alt+Meta+F" :replace-text]
            ["Alt+Meta+G" :replace-next]
            ["Alt+Right" :next-word]
+           ["Alt+Space" :proposals]
            ["Alt+Up" :beginning-of-line]
            ["Alt+Up" :move-up]
            ["Backspace" :delete-backward]
