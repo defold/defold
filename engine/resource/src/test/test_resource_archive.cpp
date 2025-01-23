@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -56,6 +56,14 @@ extern unsigned char RESOURCES_COMPRESSED_ARCD[];
 extern uint32_t RESOURCES_COMPRESSED_ARCD_SIZE;
 extern unsigned char RESOURCES_COMPRESSED_DMANIFEST[];
 extern uint32_t RESOURCES_COMPRESSED_DMANIFEST_SIZE;
+
+// An archive without any live update files
+extern unsigned char RESOURCES_NO_LU_ARCI[];
+extern uint32_t RESOURCES_NO_LU_ARCI_SIZE;
+extern unsigned char RESOURCES_NO_LU_ARCD[];
+extern uint32_t RESOURCES_NO_LU_ARCD_SIZE;
+extern unsigned char RESOURCES_NO_LU_DMANIFEST[];
+extern uint32_t RESOURCES_NO_LU_DMANIFEST_SIZE;
 
 static const uint64_t path_hash[]       = { 0x1db7f0530911b1ce, 0x68b7e06402ee965c, 0x731d3cc48697dfe4, 0x8417331f14a42e4b,  0xb4870d43513879ba,  0xe1f97b41134ff4a6, 0xe7b921ca4d761083 };
 static const char* path_name[]          = { "/archive_data/file4.adc",
@@ -364,6 +372,30 @@ TEST(dmResourceArchive, ManifestHeader)
     ASSERT_EQ(dmLiveUpdateDDF::HASH_SHA256, manifest_data->m_Header.m_SignatureHashAlgorithm);
 
     ASSERT_EQ(dmLiveUpdateDDF::SIGN_RSA, manifest_data->m_Header.m_SignatureSignAlgorithm);
+
+    dmResource::DeleteManifest(manifest);
+}
+
+TEST(dmResourceArchive, HasLiveupdateContent_True)
+{
+    dmResource::HManifest manifest = new dmResource::Manifest();
+    dmResource::Result result = dmResource::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+    ASSERT_EQ(dmResource::MANIFEST_VERSION, manifest->m_DDF->m_Version);
+
+    ASSERT_TRUE(dmResource::HasManifestExcludedEntries(manifest));
+
+    dmResource::DeleteManifest(manifest);
+}
+
+TEST(dmResourceArchive, HasLiveupdateContent_False)
+{
+    dmResource::HManifest manifest = new dmResource::Manifest();
+    dmResource::Result result = dmResource::LoadManifestFromBuffer(RESOURCES_NO_LU_DMANIFEST, RESOURCES_NO_LU_DMANIFEST_SIZE, &manifest);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+    ASSERT_EQ(dmResource::MANIFEST_VERSION, manifest->m_DDF->m_Version);
+
+    ASSERT_FALSE(dmResource::HasManifestExcludedEntries(manifest));
 
     dmResource::DeleteManifest(manifest);
 }

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -14,13 +14,32 @@
 
 package com.dynamo.bob.pipeline;
 
+import java.io.IOException;
+
 import com.dynamo.bob.BuilderParams;
+import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.CopyBuilder;
+import com.dynamo.bob.Project;
+import com.dynamo.bob.Task;
+import com.dynamo.bob.fs.IResource;
 
 public class CopyBuilders {
 
     @BuilderParams(name = "Wav", inExts = ".wav", outExt = ".wavc")
-    public static class WavBuilder extends CopyBuilder {}
+    public static class WavBuilder extends CopyBuilder {
+        @Override
+        public void build(Task task) throws IOException {
+            super.build(task);
+
+            boolean soundStreaming = project.getProjectProperties().getBooleanValue("sound", "stream_enabled", false); // if no value set use old hardcoded path (backward compatability)
+            boolean compressSounds = soundStreaming ? false : true; // We want to be able to read directly from the files as-is (without compression)
+            for(IResource res : task.getOutputs()) {
+                if (!compressSounds) {
+                    project.addOutputFlags(res.getAbsPath(), Project.OutputFlags.UNCOMPRESSED);
+                }
+            }
+        }
+    }
 
     @BuilderParams(name = "Gamepads", inExts = ".gamepads", outExt = ".gamepadsc")
     public static class GamepadsBuilder extends CopyBuilder {}

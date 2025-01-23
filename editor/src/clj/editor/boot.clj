@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -39,24 +39,24 @@
 (def namespace-counter (atom 0))
 (def namespace-progress-reporter (atom nil))
 
-(alter-var-root (var clojure.core/load-lib)
-                (fn [f]
-                  (fn [prefix lib & options]
-                    (swap! namespace-counter inc)
-                    (when @namespace-progress-reporter
-                      (@namespace-progress-reporter
-                       #(progress/jump %
-                                       @namespace-counter
-                                       (str "Initializing editor " (if prefix
-                                                                     (str prefix "." lib)
-                                                                     (str lib))))))
-                    (apply f prefix lib options))))
+(alter-var-root
+  (var clojure.core/load-lib)
+  (fn [core-load-lib-fn]
+    (fn [prefix lib & options]
+      (when-let [progress-reporter @namespace-progress-reporter]
+        (let [pos (swap! namespace-counter inc)
+              msg (str "Initializing editor " (if prefix
+                                                (str prefix "." lib)
+                                                (str lib)))]
+          (progress-reporter
+            #(progress/jump % pos msg))))
+      (apply core-load-lib-fn prefix lib options))))
 
 (defn- open-project-with-progress-dialog
   [namespace-loader user-prefs project updater newly-created?]
   (dialogs/make-load-project-dialog
     (fn [render-progress!]
-      (let [namespace-progress (progress/make "Loading editor" 1471) ; Magic number from printing namespace-counter after load. Connecting a REPL skews the result!
+      (let [namespace-progress (progress/make "Loading editor" 2867) ; Magic number from printing namespace-counter after load. Connecting a REPL skews the result!
             render-namespace-progress! (progress/nest-render-progress render-progress! (progress/make "Loading" 5 0) 1)
             render-project-progress! (progress/nest-render-progress render-progress! (progress/make "Loading" 5 1) 4)
             project-file (io/file project)
@@ -68,12 +68,17 @@
         ;; Ensure that namespace loading has completed.
         @namespace-loader
 
+        ;; Disable namespace progress reporting after the built-in namespaces
+        ;; have finished loading. We don't want to report progress from plugin
+        ;; namespaces, since that would "roll back" the progress bar.
+        (reset! namespace-progress-reporter nil)
+        (log/info :message "Finished loading editor namespaces." :namespace-counter @namespace-counter)
+
         ;; Initialize the system and load the project.
         (let [system-config (apply (var-get (ns-resolve 'editor.shared-editor-settings 'load-project-system-config)) [project-dir])]
           (apply (var-get (ns-resolve 'editor.boot-open-project 'initialize-systems!)) [project-prefs])
           (apply (var-get (ns-resolve 'editor.boot-open-project 'initialize-project!)) [system-config])
-          (apply (var-get (ns-resolve 'editor.boot-open-project 'open-project!)) [project-file project-prefs render-project-progress! updater newly-created?])
-          (reset! namespace-progress-reporter nil))))))
+          (apply (var-get (ns-resolve 'editor.boot-open-project 'open-project!)) [project-file project-prefs render-project-progress! updater newly-created?]))))))
 
 (defn- select-project-from-welcome
   [namespace-loader prefs updater]

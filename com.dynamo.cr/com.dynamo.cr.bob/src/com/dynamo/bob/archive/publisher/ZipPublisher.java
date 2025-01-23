@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -145,6 +145,7 @@ public class ZipPublisher extends Publisher {
         final String archiveEntryHexdigest = entry.getHexDigest();
         final String archiveEntryName = entry.getName();
         final String zipEntryName = (archiveEntryHexdigest != null) ? archiveEntryHexdigest : archiveEntryName;
+        entries.put(archiveEntryName, entry);
         synchronized (zipEntries) {
             if (zipEntries.contains(zipEntryName)) {
                 return;

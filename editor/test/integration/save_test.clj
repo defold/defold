@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -208,7 +208,8 @@
           external-game-object-text (slurp (workspace/find-resource workspace "/game_object/empty_props.go"))
           external-json-text "{\"item\" : \"Added externally\"}"
           external-lua-text "-- Edited externally"
-          external-markdown-text "# Added externally"]
+          external-markdown-text "# Added externally"
+          external-html-text "<div>Added externally</div>"]
       (test-util/run-event-loop!
         (fn [exit-event-loop!]
           (let [dirty-save-data-before (project/dirty-save-data project)]
@@ -218,12 +219,14 @@
             (spit-file! workspace "/json/test.json" external-json-text)
             (spit-file! workspace "/script/test_module.lua" external-lua-text)
             (spit-file! workspace "/markdown/test.md" external-markdown-text)
+            (spit-file! workspace "/html/test.html" external-markdown-text)
 
             ;; Added externally.
             (spit-file! workspace "/added_externally.go" external-game-object-text)
             (spit-file! workspace "/added_externally.json" external-json-text)
             (spit-file! workspace "/added_externally.lua" external-lua-text)
             (spit-file! workspace "/added_externally.md" external-markdown-text)
+            (spit-file! workspace "/added_externally.html" external-html-text)
 
             (disk/async-reload! progress/null-render-progress! workspace [] nil
                                 (fn [successful?]
@@ -237,25 +240,31 @@
                                         (is (= #{:save-data :save-value} (cached-save-data-outputs "/game_object/test.go")))
                                         (is (= #{:save-data} (cached-save-data-outputs "/json/test.json"))) ; The save-value output is not :cached. Lazy loaded.
                                         (is (= #{:save-data} (cached-save-data-outputs "/script/test_module.lua"))) ; The save-value output is not :cached.
-                                        (is (= #{} (cached-save-data-outputs "/markdown/test.md"))) ; Stateless, so no save-data.
+                                        (is (= #{:save-data} (cached-save-data-outputs "/markdown/test.md")))
+                                        (is (= #{:save-data} (cached-save-data-outputs "/html/test.html")))
 
                                         (is (= #{:save-data :save-value} (cached-save-data-outputs "/added_externally.go")))
                                         (is (= #{:save-data} (cached-save-data-outputs "/added_externally.json"))) ; The save-value output is not :cached. Lazy loaded.
                                         (is (= #{:save-data} (cached-save-data-outputs "/added_externally.lua"))) ; The save-value output is not :cached.
-                                        (is (= #{} (cached-save-data-outputs "/added_externally.md"))))) ; Stateless, so no save-data.
+                                        (is (= #{:save-data} (cached-save-data-outputs "/added_externally.md")))
+                                        (is (= #{:save-data} (cached-save-data-outputs "/added_externally.html")))))
 
                                     (testing "Expectations for reloaded resources."
                                       (let [external-game-object-pb-map (protobuf/read-map-without-defaults GameObject$PrototypeDesc (workspace/find-resource workspace "/game_object/test.go"))
-                                            external-lua-lines (code.util/split-lines external-lua-text)]
+                                            external-lua-lines (code.util/split-lines external-lua-text)
+                                            external-markdown-lines (code.util/split-lines external-markdown-text)
+                                            external-html-lines (code.util/split-lines external-html-text)]
                                         (is (check-eager-loaded-save-data! project "/game_object/test.go" external-game-object-text external-game-object-pb-map))
                                         (is (check-lazy-loaded-save-data! project "/json/test.json" external-json-text))
                                         (is (check-eager-loaded-save-data! project "/script/test_module.lua" external-lua-text external-lua-lines))
-                                        (is (check-lazy-loaded-save-data! project "/markdown/test.md" external-markdown-text))
+                                        (is (check-eager-loaded-save-data! project "/markdown/test.md" external-markdown-text external-markdown-lines))
+                                        (is (check-eager-loaded-save-data! project "/html/test.html" external-markdown-text external-markdown-lines))
 
                                         (is (check-eager-loaded-save-data! project "/added_externally.go" external-game-object-text external-game-object-pb-map))
                                         (is (check-lazy-loaded-save-data! project "/added_externally.json" external-json-text))
                                         (is (check-eager-loaded-save-data! project "/added_externally.lua" external-lua-text external-lua-lines))
-                                        (is (check-lazy-loaded-save-data! project "/added_externally.md" external-markdown-text))))
+                                        (is (check-eager-loaded-save-data! project "/added_externally.md" external-markdown-text external-markdown-lines))
+                                        (is (check-eager-loaded-save-data! project "/added_externally.html" external-html-text external-html-lines))))
 
                                     (testing "Save data unaffected."
                                       (is (= dirty-save-data-before (project/dirty-save-data project))))
@@ -264,7 +273,7 @@
                                       (is (= {"script" 1} (g/node-value (project/get-resource-node project "/game_object/test.go") :id-counts)))
                                       (is (= (code.util/split-lines external-json-text) (g/node-value (project/get-resource-node project "/json/test.json") :lines)))
                                       (is (= (code.util/split-lines external-lua-text) (g/node-value (project/get-resource-node project "/script/test_module.lua") :lines)))
-                                      (is (= external-markdown-text (g/node-value (project/get-resource-node project "/markdown/test.md") :markdown))))
+                                      (is (= (code.util/split-lines external-markdown-text) (g/node-value (project/get-resource-node project "/markdown/test.md") :lines))))
 
                                     (testing "Externally added files are seen by the editor."
                                       (is (some? (workspace/find-resource workspace "/added_externally.go")))
@@ -278,7 +287,7 @@
                                       (is (= {"script" 1} (g/node-value (project/get-resource-node project "/added_externally.go") :id-counts)))
                                       (is (= (code.util/split-lines external-json-text) (g/node-value (project/get-resource-node project "/added_externally.json") :lines)))
                                       (is (= (code.util/split-lines external-lua-text) (g/node-value (project/get-resource-node project "/added_externally.lua") :lines)))
-                                      (is (= external-markdown-text (g/node-value (project/get-resource-node project "/added_externally.md") :markdown))))
+                                      (is (= (code.util/split-lines external-markdown-text) (g/node-value (project/get-resource-node project "/added_externally.md") :lines))))
 
                                     (testing "Can delete externally added files from within the editor."
                                       (delete-file! workspace "/added_externally.go")

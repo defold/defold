@@ -1,20 +1,22 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns util.debug-util
-  (:require [service.log :as log])
-  (:import [java.util Locale]))
+  (:require [clojure.repl :as repl]
+            [service.log :as log])
+  (:import [java.util Locale]
+           [org.apache.commons.lang3.time DurationFormatUtils]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -22,10 +24,13 @@
 (def ^:private ^:const nanos-per-ms 1000000.0)
 (def ^:private ^:const nanos-per-second 1000000000.0)
 (def ^:private ^:const nanos-per-minute (* nanos-per-second 60.0))
-(def ^:private ^:const nanos-per-hour (* nanos-per-minute 60.0))
-(def ^:private ^:const nanos-per-day (* nanos-per-hour 24.0))
 
-(defn- time-string
+(def ^:private ^:const bytes-per-kilobyte 1024.0)
+(def ^:private ^:const bytes-per-megabyte (* 1024.0 bytes-per-kilobyte))
+(def ^:private ^:const bytes-per-gigabyte (* 1024.0 bytes-per-megabyte))
+(def ^:private ^:const bytes-per-terabyte (* 1024.0 bytes-per-gigabyte))
+
+(defn- decimal-string
   ^String [num ^String unit]
   (String/format Locale/ROOT "%.2f %s" (to-array [num unit])))
 
@@ -44,33 +49,46 @@
   ^double [^long nanos]
   (/ (double nanos) nanos-per-minute))
 
-(defn nanos->hours
-  "Converts a nanosecond value into a double in hours."
-  ^double [^long nanos]
-  (/ (double nanos) nanos-per-hour))
-
-(defn nanos->days
-  "Converts a nanosecond value into a double in days."
-  ^double [^long nanos]
-  (/ (double nanos) nanos-per-day))
-
 (defn nanos->string
   "Converts a nanosecond value into a human-readable duration string."
   ^String [^long nanos]
   (let [ms (nanos->millis nanos)]
     (if (> 1000.0 ms)
-      (time-string ms "ms")
+      (decimal-string ms "ms")
       (let [seconds (nanos->seconds nanos)]
         (if (> 60.0 seconds)
-          (time-string seconds "s")
+          (decimal-string seconds "s")
           (let [minutes (nanos->minutes nanos)]
             (if (> 60.0 minutes)
-              (time-string minutes "min")
-              (let [hours (nanos->hours nanos)]
-                (if (> 24.0 hours)
-                  (time-string hours "h")
-                  (let [days (nanos->days nanos)]
-                    (time-string days "d")))))))))))
+              (DurationFormatUtils/formatDuration ms "m:ss")
+              (DurationFormatUtils/formatDuration ms "H:mm:ss"))))))))
+
+(defn bytes->string
+  "Converts a byte size into a human-readable size string."
+  ^String [^long bytes]
+  (let [double-bytes (double bytes)]
+    (condp > double-bytes
+      bytes-per-kilobyte (str bytes " B")
+      bytes-per-megabyte (decimal-string (/ double-bytes bytes-per-kilobyte) "KB")
+      bytes-per-gigabyte (decimal-string (/ double-bytes bytes-per-megabyte) "MB")
+      bytes-per-terabyte (decimal-string (/ double-bytes bytes-per-gigabyte) "GB")
+      (decimal-string (/ double-bytes bytes-per-terabyte) "TB"))))
+
+(defn stack-trace
+  "Returns a human-readable stack trace as a vector of strings. Elements are
+  ordered from the stack-trace function call site towards the outermost stack
+  frame of the current Thread. Optionally, a different Thread can be specified."
+  ([]
+   (stack-trace (Thread/currentThread)))
+  ([^Thread thread]
+   (let [own-class-name (.getName (class stack-trace))]
+     (into []
+           (comp (drop 1)
+                 (drop-while (fn [^StackTraceElement stack-trace-element]
+                               (= own-class-name
+                                  (.getClassName stack-trace-element))))
+                 (map repl/stack-element-str))
+           (.getStackTrace thread)))))
 
 (defn release-build?
   "Returns true if we're running a release build of the editor."
@@ -133,19 +151,49 @@
         (log/info :message (str ~label " completed in " (nanos->string (- end# start#))))
         ret#))))
 
+(defmacro allocated-bytes
+  "Performs a garbage collection, then returns the number of bytes currently
+  allocated in the JVM."
+  ([]
+   `(allocated-bytes (Runtime/getRuntime)))
+  ([runtime-expr]
+   `(let [^Runtime runtime# ~runtime-expr]
+      (System/gc)
+      (System/runFinalization)
+      (- (.totalMemory runtime#)
+         (.freeMemory runtime#)))))
+
+(defmacro log-time-and-memory
+  "Evaluates expr. Then logs the supplied label along with the time it took and
+  the amount of memory allocated in the process. Returns the value of expr."
+  ([expr]
+   (log-time-and-memory "Expression" expr))
+  ([label expr]
+   ;; Disabled during tests to minimize log spam.
+   (if (running-tests?)
+     expr
+     `(let [runtime# (Runtime/getRuntime)
+            start-bytes# (allocated-bytes runtime#)
+            start-ns# (System/nanoTime)
+            ret# ~expr
+            end-ns# (System/nanoTime)
+            end-bytes# (allocated-bytes runtime#)
+            allocated-bytes# (- end-bytes# start-bytes#)
+            elapsed-ns# (- end-ns# start-ns#)]
+        (if (pos? allocated-bytes#)
+          (log/info :message ~label
+                    :elapsed (nanos->string elapsed-ns#)
+                    :allocated (bytes->string allocated-bytes#))
+          (log/info :message ~label
+                    :elapsed (nanos->string elapsed-ns#)))
+        ret#))))
+
 (defmacro log-statistics!
   "Gathers and logs statistics relevant to editor development."
   [label]
   (when-not (or (release-build?)
                 (running-tests?))
-    `(do
-       (System/gc)
-       (System/runFinalization)
-       (let [runtime# (Runtime/getRuntime)
-             allocated-megabytes# (quot (- (.totalMemory runtime#)
-                                           (.freeMemory runtime#))
-                                        (* 1024 1024))]
-         (log/info :message ~label :allocated-megabytes allocated-megabytes#)))))
+    `(log/info :message ~label :allocated (bytes->string (allocated-bytes)))))
 
 (defmacro make-metrics-collector
   "Returns a metrics-collector for use with the measuring macro if we're running
