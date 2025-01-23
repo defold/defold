@@ -2129,8 +2129,7 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
                     binding.buffer.type          = WGPUBufferBindingType_Uniform;
 
                     assert(res.m_Type.m_UseTypeIndex);
-                    program_resource_binding.m_DataOffset         = info.m_UniformDataSize;
-                    program_resource_binding.m_DynamicOffsetIndex = info.m_UniformBufferCount;
+                    program_resource_binding.m_DataOffset = info.m_UniformDataSize;
 
                     info.m_UniformBufferCount++;
                     info.m_UniformDataSize        += res.m_BindingInfo.m_BlockSize;

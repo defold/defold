@@ -2065,6 +2065,8 @@ bail:
         uint16_t image_to_write_index   = 0;
         uint16_t buffer_to_write_index  = 0;
 
+        uint32_t dynamic_offset_index = 0;
+
         ProgramResourceBindingIterator it(&program->m_BaseProgram);
         const ProgramResourceBinding* next;
         while((next = it.Next()))
@@ -2104,9 +2106,9 @@ bail:
                 } break;
                 case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER:
                 {
-                    dynamic_offsets[next->m_DynamicOffsetIndex] = (uint32_t) scratch_buffer->m_MappedDataCursor;
-                    const uint32_t uniform_size_nonalign          = res->m_BindingInfo.m_BlockSize;
-                    const uint32_t uniform_size_align             = DM_ALIGN(uniform_size_nonalign, dynamic_alignment);
+                    dynamic_offsets[dynamic_offset_index] = (uint32_t) scratch_buffer->m_MappedDataCursor;
+                    const uint32_t uniform_size_nonalign  = res->m_BindingInfo.m_BlockSize;
+                    const uint32_t uniform_size_align     = DM_ALIGN(uniform_size_nonalign, dynamic_alignment);
 
                     assert(uniform_size_nonalign > 0);
 
@@ -2125,6 +2127,7 @@ bail:
                         uniform_size_align);
 
                     scratch_buffer->m_MappedDataCursor += uniform_size_align;
+                    dynamic_offset_index++;
                 } break;
                 case ShaderResourceBinding::BINDING_FAMILY_GENERIC:
                 default: continue;
@@ -2561,8 +2564,7 @@ bail:
                     case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER:
                     {
                         assert(res.m_Type.m_UseTypeIndex);
-                        program_resource_binding.m_DataOffset         = info.m_UniformDataSize;
-                        program_resource_binding.m_DynamicOffsetIndex = info.m_UniformBufferCount;
+                        program_resource_binding.m_DataOffset = info.m_UniformDataSize;
 
                         info.m_UniformBufferCount++;
                         info.m_UniformDataSize        += res.m_BindingInfo.m_BlockSize;
@@ -2575,7 +2577,7 @@ bail:
 
                 info.m_MaxSet     = dmMath::Max(info.m_MaxSet, (uint32_t) (res.m_Set + 1));
                 info.m_MaxBinding = dmMath::Max(info.m_MaxBinding, (uint32_t) (res.m_Binding + 1));
-            #if 0
+            #if 1
                 dmLogInfo("    name=%s, set=%d, binding=%d, data_offset=%d", res.m_Name, res.m_Set, res.m_Binding, program_resource_binding.m_DataOffset);
             #endif
             }
@@ -2605,6 +2607,8 @@ bail:
 
         uint32_t ubo_alignment  = (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment;
         uint32_t ssbo_alignment = (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minStorageBufferOffsetAlignment;
+
+        dmLogInfo("CreateProgramResourceBindings");
 
         ProgramResourceBindingsInfo binding_info = {};
         FillProgramResourceBindings(program, bindings, ubo_alignment, ssbo_alignment, binding_info);

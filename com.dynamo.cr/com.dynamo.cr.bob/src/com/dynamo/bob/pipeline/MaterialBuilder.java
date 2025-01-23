@@ -232,7 +232,8 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
 
         // The material should depend on the finally built shader resource file
         // that is a combination of one or more shader modules
-        IResource shaderResourceOut = getShaderProgram(materialBuilder);
+        IResource shaderResource = getShaderProgram(materialBuilder);
+        IResource shaderResourceOut = shaderResource.changeExt(ShaderProgramBuilderBundle.EXT_OUT);
 
         ShaderProgramBuilderBundle.ModuleBundle modules = ShaderProgramBuilderBundle.createBundle();
         modules.add(materialBuilder.getVertexProgram());
@@ -261,8 +262,10 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
         buildVertexAttributes(materialBuilder);
         buildSamplers(materialBuilder);
 
-        IResource shaderResourceOut = getShaderProgram(materialBuilder);
-        materialBuilder.setProgram("/" + BuilderUtil.replaceExt(shaderResourceOut.getPath(), ".spc"));
+        getShaderProgram(materialBuilder);
+        IResource shaderResource = getShaderProgram(materialBuilder);
+
+        materialBuilder.setProgram("/" + BuilderUtil.replaceExt(shaderResource.getPath(), ".spc"));
 
         MaterialDesc materialDesc = materialBuilder.build();
         task.output(0).setContent(materialDesc.toByteArray());

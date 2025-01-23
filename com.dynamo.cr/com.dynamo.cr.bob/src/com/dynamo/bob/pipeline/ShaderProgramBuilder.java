@@ -70,15 +70,15 @@ public class ShaderProgramBuilder extends Builder {
                 .setName(params.name())
                 .addInput(input);
 
-        System.out.println("ShaderBuilder.Create " + input.getPath());
+        System.out.println("Building shader program: " + input.getAbsPath());
 
         ShaderProgramBuilderBundle.ModuleBundle modules = ShaderProgramBuilderBundle.ModuleBundle.load(input);
         for (String path : modules.get()) {
             IResource moduleInput = this.project.getResource(path);
 
-            System.out.println("  module: " + path);
+            System.out.println("  module: " + moduleInput.getPath());
 
-            // Parse source for includes and add the include nodes as inputs/dependancies to the shader
+            // Parse source for includes and add the include-nodes as inputs/dependencies to the shader
             String source = new String(moduleInput.getContent(), StandardCharsets.UTF_8);
 
             // SPIR-v tools cannot handle carriage return
@@ -162,10 +162,6 @@ public class ShaderProgramBuilder extends Builder {
             }
         }
 
-        //shaderDescBuilder.setReflection(makeShaderReflectionBuilder(shaderCompileresult.reflector).build());
-        //shaderDescBuilder.addAllReflection(shaderCompileresult.reflectors);
-
-        // SPIRVReflector reflector = SPIRVReflector.merge(shaderCompileresult.reflectors);
         shaderDescBuilder.setReflection(makeShaderReflectionBuilder(shaderCompileresult.reflectors));
 
         shaderDescBuildResult.shaderDesc = shaderDescBuilder.build();
@@ -470,8 +466,6 @@ public class ShaderProgramBuilder extends Builder {
     }
 
     static public ShaderCompilePipeline newShaderPipeline(String resourcePath, ArrayList<ShaderCompilePipeline.ShaderModuleDesc> shaderDescs, ShaderCompilePipeline.Options options) throws IOException, CompileExceptionError {
-        // Validate that all the shaders can use the same pipeline (TODO: Can we mix and match?)
-
         ArrayList<ShaderCompilePipeline.ShaderModuleDesc> oldShaders = new ArrayList<>();
         ArrayList<ShaderCompilePipeline.ShaderModuleDesc> newShaders = new ArrayList<>();
 

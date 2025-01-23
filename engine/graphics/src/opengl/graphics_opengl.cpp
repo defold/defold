@@ -2630,11 +2630,8 @@ static void LogFrameBufferError(GLenum status)
         program->m_BaseProgram.m_MaxBinding = binding_info.m_MaxBinding;
     }
 
-    static OpenGLProgram* NewGraphicsProgram(HContext _context, OpenGLShader* vertex_shader, OpenGLShader* fragment_shader)
+    static OpenGLProgram* SetupGraphicsProgram(OpenGLContext* context, OpenGLProgram* program, OpenGLShader* vertex_shader, OpenGLShader* fragment_shader)
     {
-        OpenGLContext* context = (OpenGLContext*) _context;
-        OpenGLProgram* program = new OpenGLProgram();
-
         IncreaseModificationVersion(context);
 
         (void) context;
@@ -2682,12 +2679,10 @@ static void LogFrameBufferError(GLenum status)
         return program;
     }
 
-    static OpenGLProgram* NewComputeProgram(OpenGLContext* context, OpenGLShader* shader)
+    static void SetupComputeProgram(OpenGLContext* context, OpenGLProgram* program, OpenGLShader* shader)
     {
     #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
         IncreaseModificationVersion(context);
-
-        OpenGLProgram* program = new OpenGLProgram();
 
         GLuint p = glCreateProgram();
         CHECK_GL_ERROR;
@@ -2710,10 +2705,8 @@ static void LogFrameBufferError(GLenum status)
         program->m_ComputeShader = shader;
 
         OpenGLBuildUniforms(context, program, &shader, 1);
-        return program;
     #else
         dmLogInfo("Compute Shaders are not supported for OpenGL on this platform.");
-        return 0;
     #endif
     }
 
@@ -2739,13 +2732,16 @@ static void LogFrameBufferError(GLenum status)
             return 0;
         }
 
-        OpenGLProgram* program = 0;
+        OpenGLContext* context = (OpenGLContext*) _context;
+        OpenGLProgram* program = new OpenGLProgram();
+
+        CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram.m_ShaderMeta);
 
         if (ddf_cp)
         {
         #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
             OpenGLShader* compute_shader = CreateShader(_context, DMGRAPHICS_TYPE_COMPUTE_SHADER, ddf_cp, error_buffer, error_buffer_size);
-            program = NewComputeProgram(_context, compute_shader);
+            SetupComputeProgram(context, program, compute_shader);
         #else
             dmSnPrintf(error_buffer, error_buffer_size, "Compute Shaders are not supported for OpenGL on this platform.");
             return 0;
@@ -2755,10 +2751,8 @@ static void LogFrameBufferError(GLenum status)
         {
             OpenGLShader* vertex_shader = CreateShader(_context, GL_VERTEX_SHADER, ddf_vp, error_buffer, error_buffer_size);
             OpenGLShader* fragment_shader = CreateShader(_context, GL_FRAGMENT_SHADER, ddf_fp, error_buffer, error_buffer_size);
-            program = NewGraphicsProgram(_context, vertex_shader, fragment_shader);
+            SetupGraphicsProgram(context, program, vertex_shader, fragment_shader);
         }
-
-        CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram.m_ShaderMeta);
 
         return (HProgram) program;
     }

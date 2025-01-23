@@ -98,6 +98,9 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
         String shaderSource = moduleLegacy.desc.source;
         ShaderDesc.ShaderType shaderType = moduleLegacy.desc.type;
 
+        System.out.println("compileGLSLToSPIRV: " + resourceOutput + ", " + shaderType);
+        System.out.println(shaderSource);
+
         if (shaderType == ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE) {
 
             int version = 430;
