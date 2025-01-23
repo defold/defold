@@ -322,10 +322,12 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
                 shaderName = getShaderName(materialBuilder, ".spc");
             }
 
+            /*
             System.out.println("Material-builder: " + pathIn);
             System.out.println("Material-out: " + pathOut);
             System.out.println("Shader: " + shaderName);
             System.out.println("Basedir: " + basedir);
+             */
 
             // Construct the project-relative path based from the input material file
             Path basedirAbsolutePath = Paths.get(basedir).toAbsolutePath();

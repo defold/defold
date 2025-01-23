@@ -41,7 +41,7 @@ public class ComputeBuilderTest extends AbstractProtoBuilderTest {
                 void main() {}
                 """;
 
-        addAndBuildShaderDesc("/test.cp", "/test.shbundle", srcCompute);
+        addAndBuildShaderDesc("/test.cp", srcCompute, "/test.shbundle");
 
         StringBuilder src = new StringBuilder();
         src.append("compute_program: \"/test.cp\"\n");

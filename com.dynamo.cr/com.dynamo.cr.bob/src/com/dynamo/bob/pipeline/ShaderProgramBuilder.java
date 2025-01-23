@@ -70,13 +70,9 @@ public class ShaderProgramBuilder extends Builder {
                 .setName(params.name())
                 .addInput(input);
 
-        System.out.println("Building shader program: " + input.getAbsPath());
-
         ShaderProgramBuilderBundle.ModuleBundle modules = ShaderProgramBuilderBundle.ModuleBundle.load(input);
         for (String path : modules.get()) {
             IResource moduleInput = this.project.getResource(path);
-
-            System.out.println("  module: " + moduleInput.getPath());
 
             // Parse source for includes and add the include-nodes as inputs/dependencies to the shader
             String source = new String(moduleInput.getContent(), StandardCharsets.UTF_8);
@@ -521,9 +517,6 @@ public class ShaderProgramBuilder extends Builder {
     }
 
     private static ShaderCompilePipeline.ShaderModuleDesc GetShaderDesc(Project project, String path) throws IOException, CompileExceptionError {
-
-        System.out.println("Loading " + path);
-
         ShaderDesc.ShaderType shaderType = parseShaderTypeFromPath(path);
         ShaderCompilePipeline.ShaderModuleDesc desc = new ShaderCompilePipeline.ShaderModuleDesc();
         desc.type = shaderType;
