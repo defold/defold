@@ -34,6 +34,10 @@
 #include <math.h>
 #include <cfloat>
 
+#ifdef __SSE__
+#include <immintrin.h>
+#endif
+
 /**
  * Defold simple sound system
  * NOTE: Must units is in frames, i.e a sample in time with N channels
@@ -694,6 +698,7 @@ namespace dmSound
         si->m_Decoder = decoder;
         si->m_Group = MASTER_GROUP_HASH;
 
+        // prep sample history with silence
         memset(si->m_Frames, 0, SOUND_MAX_HISTORY * sizeof(uint16_t) * SOUND_MAX_MIX_CHANNELS);
         si->m_FrameCount = SOUND_MAX_HISTORY;
 
@@ -1053,21 +1058,65 @@ namespace dmSound
     template <typename T, int offset, int scale, int step>
     static inline float FilterSample(const T* frames, uint64_t frac_pos)
     {
-        float t[8];
-        t[0] = (frames[-3 * step] - offset) * scale;
-        t[1] = (frames[-2 * step] - offset) * scale;
-        t[2] = (frames[-1 * step] - offset) * scale;
-        t[3] = (frames[ 0 * step] - offset) * scale;
-        t[4] = (frames[ 1 * step] - offset) * scale;
-        t[5] = (frames[ 2 * step] - offset) * scale;
-        t[6] = (frames[ 3 * step] - offset) * scale;
-        t[7] = (frames[ 4 * step] - offset) * scale;
+            uint32_t pi = ((frac_pos >> (RESAMPLE_FRACTION_BITS - 11)) << 3) & (2047 << 3); // 8 tabs, 2048 (11 fractional bits) banks
+            const float* c = &_pfb[pi];
 
-        uint32_t pi = ((frac_pos >> (RESAMPLE_FRACTION_BITS - 11)) << 3) & (2047 << 3); // 8 tabs, 2048 (11 fractional bits) banks
-        const float* c = &_pfb[pi];
-
-        return t[0] * c[0] + t[1] * c[1] + t[2] * c[2] + t[3] * c[3] + t[4] * c[4] + t[5] * c[5] + t[6] * c[6] + t[7] * c[7];
+            float t[8];
+            t[0] = (frames[-3 * step] - offset) * scale;
+            t[1] = (frames[-2 * step] - offset) * scale;
+            t[2] = (frames[-1 * step] - offset) * scale;
+            t[3] = (frames[ 0 * step] - offset) * scale;
+            t[4] = (frames[ 1 * step] - offset) * scale;
+            t[5] = (frames[ 2 * step] - offset) * scale;
+            t[6] = (frames[ 3 * step] - offset) * scale;
+            t[7] = (frames[ 4 * step] - offset) * scale;
+            return t[0] * c[0] + t[1] * c[1] + t[2] * c[2] + t[3] * c[3] + t[4] * c[4] + t[5] * c[5] + t[6] * c[6] + t[7] * c[7];
     }
+
+#if defined(__SSE__) || defined(__SSE2__) || defined(__SSE3__) || defined(__SSE_4_1__)
+    typedef __m128 vec4;
+
+    template<typename, int offset=0, int scale=1, int step>
+    static inline float FilterSample(const int16_t* frames, uint64_t frac_pos)
+    {
+            uint32_t pi = ((frac_pos >> (RESAMPLE_FRACTION_BITS - 11)) << 3) & (2047 << 3); // 8 tabs, 2048 (11 fractional bits) banks
+            const float* c = &_pfb[pi];
+
+#if defined(__SSE4_1__)
+            typedef __m128i ivec8;
+            ivec8 in = _mm_loadu_si128((const __m128i_u*)&frames[-3 * step]);
+            vec4 taps0 = _mm_cvtepi32_ps(_mm_cvtepi16_epi32(in));
+            vec4 taps1 = _mm_cvtepi32_ps(_mm_cvtepi16_epi32(_mm_movehl(in, in)));
+            return (_mm_dp_ps(taps0, *(const vec4*)&c[0], 0xf1) + _mm_dp_ps(taps1, *(const vec4*)&c[4], 0xf1))[0];
+#else
+            // Fetch sample data
+#if 1 //defined(__SSE2__) || defined(__SSE3__)
+            typedef __m128i ivec8;
+            ivec8 in = _mm_loadu_si128((const __m128i_u*)&frames[-3 * step]);
+            vec4 taps0 = _mm_cvtepi32_ps(_mm_srai_epi32(_mm_unpacklo_epi16(in, in), 16));
+            vec4 taps1 = _mm_cvtepi32_ps(_mm_srai_epi32(_mm_unpackhi_epi16(in, in), 16));
+#else
+            vec4 zero = _mm_setzero_ps();
+            __m64 in0 = *(const __m64*)&frames[-3 * step];
+            vec4 hi0 = _mm_cvtpi32_ps(zero, _mm_srai_pi32(_mm_unpackhi_pi16(in0, in0), 16));
+            vec4 taps0 = _mm_cvtpi32_ps(_mm_movelh_ps(hi0, hi0), _mm_srai_pi32(_mm_unpacklo_pi16(in0, in0), 16));
+            __m64 in1 = *(const __m64*)&frames[ 1 * step];
+            vec4 hi1 = _mm_cvtpi32_ps(zero, _mm_srai_pi32(_mm_unpackhi_pi16(in1, in1), 16));
+            vec4 taps1 = _mm_cvtpi32_ps(_mm_movelh_ps(hi1, hi1), _mm_srai_pi32(_mm_unpacklo_pi16(in1, in1), 16));
+#endif
+            // Apply dot product (FIR filter)
+            vec4 filt0 = *(const vec4*)&c[0];
+            vec4 filt1 = *(const vec4*)&c[4];
+            vec4 tmp0 = taps0 * filt0;
+            vec4 tmp1 = taps1 * filt1;
+            tmp0 += _mm_shuffle_ps(tmp0, tmp0, _MM_SHUFFLE(0, 3, 0, 1)); // X=X+Y; Z=Z+W
+            tmp1 += _mm_shuffle_ps(tmp1, tmp1, _MM_SHUFFLE(0, 3, 0, 1)); // X=X+Y; Z=Z+W
+            tmp0 += _mm_shuffle_ps(tmp0, tmp0, _MM_SHUFFLE(0, 0, 0, 2)); // X=X+Y+Z+W
+            tmp1 += _mm_shuffle_ps(tmp1, tmp1, _MM_SHUFFLE(0, 0, 0, 2)); // X=X+Y+Z+W
+            return (tmp0 + tmp1)[0];
+#endif
+    }
+#endif
 
     template <typename T, int offset, int scale>
     static void MixResamplePolyphaseMono(const MixContext* mix_context, SoundInstance* instance, uint32_t rate, uint32_t mix_rate, float* mix_buffer, uint32_t mix_buffer_count, void* decoder_output_buffer, uint32_t avail_framecount)
