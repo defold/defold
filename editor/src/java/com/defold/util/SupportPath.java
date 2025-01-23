@@ -94,13 +94,7 @@ public class SupportPath {
         }
         final Path home = Paths.get(userHome);
 
-        // 1. $HOME/.Defold
-        final Path homeDefoldDir = home.resolve("." + applicationName);
-        if (Files.isDirectory(homeDefoldDir)) {
-            return homeDefoldDir;
-        }
-
-        // 2. $XDG_STATE_HOME
+        // 1. $XDG_STATE_HOME
         final String xdgStateEnv = System.getenv("XDG_STATE_HOME");
         if (xdgStateEnv != null) {
             Path xdgStateHome = Paths.get(xdgStateEnv);
@@ -109,7 +103,7 @@ public class SupportPath {
             }
         }
 
-        // 3. $HOME/.local/state
+        // 2. $HOME/.local/state
         if (Files.isDirectory(home)) {
             Path homeLocalState = Paths.get(userHome, ".local", "state");
             return homeLocalState.resolve(applicationName);
