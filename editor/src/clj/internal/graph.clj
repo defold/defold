@@ -17,13 +17,12 @@
             [internal.graph.types :as gt]
             [internal.node :as in]
             [internal.util :as util]
-            [util.coll :refer [pair]])
+            [util.coll :as coll :refer [pair]])
   (:import [clojure.lang IPersistentSet]
            [com.github.benmanes.caffeine.cache Cache Caffeine]
            [internal.graph.types Arc Endpoint]
            [java.util ArrayList]
-           [java.util.concurrent ConcurrentHashMap ForkJoinPool TimeUnit]
-           [java.util.function Function]))
+           [java.util.concurrent ConcurrentHashMap ForkJoinPool TimeUnit]))
 
 ;; A brief braindump on Overrides.
 ;;
@@ -824,20 +823,21 @@
 
 (defn- basis-dependencies [basis endpoints]
   (assert (every? gt/endpoint? endpoints))
-  (let [graph-id->node-successor-map
-        (persistent!
-          (reduce-kv
-            (fn [acc graph-id graph]
-              (assoc! acc graph-id (:successors graph)))
-            (transient {})
-            (:graphs basis)))
-        cache-key (into [endpoints]
-                        (map #(System/identityHashCode (val %)))
-                        graph-id->node-successor-map)]
-    (.get basis-dependencies-cache
-          cache-key
-          (reify Function
-            (apply [_ _]
+  (if (coll/empty? endpoints)
+    #{}
+    (let [graph-id->node-successor-map
+          (persistent!
+            (reduce-kv
+              (fn [acc graph-id graph]
+                (assoc! acc graph-id (:successors graph)))
+              (transient {})
+              (:graphs basis)))
+          cache-key (into [endpoints]
+                          (map #(System/identityHashCode (val %)))
+                          graph-id->node-successor-map)]
+      (.get basis-dependencies-cache
+            cache-key
+            (fn [_]
               (let [pool (ForkJoinPool/commonPool)
                     all-endpoints (ConcurrentHashMap.)
                     make-task! (fn [endpoints]
