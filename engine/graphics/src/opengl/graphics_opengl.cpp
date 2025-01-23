@@ -2744,8 +2744,7 @@ static void LogFrameBufferError(GLenum status)
         if (ddf_cp)
         {
         #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
-            OpenGLShader* compute_shader = CreateShader(context, DMGRAPHICS_TYPE_COMPUTE_SHADER, ddf_cp, error_buffer, error_buffer_size);
-            CreateShaderMeta(ddf->m_Reflection.m_Data, ddf->m_Reflection.m_Count, ShaderDesc::SHADER_TYPE_COMPUTE, &compute_shader->m_ShaderMeta);
+            OpenGLShader* compute_shader = CreateShader(_context, DMGRAPHICS_TYPE_COMPUTE_SHADER, ddf_cp, error_buffer, error_buffer_size);
             program = NewComputeProgram(_context, compute_shader);
         #else
             dmSnPrintf(error_buffer, error_buffer_size, "Compute Shaders are not supported for OpenGL on this platform.");
