@@ -73,6 +73,7 @@ namespace dmGraphics
     const static uint8_t DM_GRAPHICS_STATE_WRITE_B = 0x4;
     const static uint8_t DM_GRAPHICS_STATE_WRITE_A = 0x8;
 
+    static const HProgram         INVALID_PROGRAM_HANDLE   = ~0u;
     static const HUniformLocation INVALID_UNIFORM_LOCATION = ~0ull;
 
     enum AdapterFamily

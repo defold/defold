@@ -326,8 +326,12 @@ namespace dmGameSystem
         ReleaseTextures(factory, resource->m_Textures);
 
         dmRender::HMaterial material = resource->m_Material;
+        dmGraphics::HProgram program = dmRender::GetMaterialProgram(material);
+
         dmResource::UnregisterResourceReloadedCallback(factory, ResourceReloadedCallback, material);
         dmRender::DeleteMaterial(render_context, material);
+
+        dmResource::Release(factory, (void*) program);
     }
 
     dmResource::Result ResMaterialDestroy(const dmResource::ResourceDestroyParams* params)

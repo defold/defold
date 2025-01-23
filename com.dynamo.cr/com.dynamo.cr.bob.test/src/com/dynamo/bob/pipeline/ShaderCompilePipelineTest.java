@@ -64,7 +64,7 @@ public class ShaderCompilePipelineTest {
         ShaderCompilePipeline pipelineVertex = new ShaderCompilePipeline("testSimpleVertex");
         ShaderCompilePipeline.createShaderPipeline(pipelineVertex, vsDesc, new ShaderCompilePipeline.Options());
 
-        SPIRVReflector reflector                  = pipelineVertex.getReflectionData();
+        SPIRVReflector reflector                  = pipelineVertex.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX);
         ArrayList<Shaderc.ShaderResource> inputs  = reflector.getInputs();
         ArrayList<Shaderc.ShaderResource> ubos    = reflector.getUBOs();
         ArrayList<Shaderc.ResourceTypeInfo> types = reflector.getTypes();
@@ -107,7 +107,7 @@ public class ShaderCompilePipelineTest {
         ShaderCompilePipeline pipelineFragment = new ShaderCompilePipeline("testSimpleFragment");
         ShaderCompilePipeline.createShaderPipeline(pipelineFragment, fsDesc, new ShaderCompilePipeline.Options());
 
-        reflector = pipelineFragment.getReflectionData();
+        reflector = pipelineFragment.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT);
         ubos      = reflector.getUBOs();
         types     = reflector.getTypes();
 
@@ -165,7 +165,7 @@ public class ShaderCompilePipelineTest {
         ShaderCompilePipeline pipelineFragment = new ShaderCompilePipeline("testFragment");
         ShaderCompilePipeline.createShaderPipeline(pipelineFragment, fsDesc, new ShaderCompilePipeline.Options());
 
-        SPIRVReflector reflector                    = pipelineFragment.getReflectionData();
+        SPIRVReflector reflector                    = pipelineFragment.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT);
         ArrayList<Shaderc.ShaderResource> inputs    = reflector.getInputs();
         ArrayList<Shaderc.ShaderResource> outputs   = reflector.getOutputs();
         ArrayList<Shaderc.ShaderResource> ubos      = reflector.getUBOs();
@@ -199,7 +199,7 @@ public class ShaderCompilePipelineTest {
         ShaderCompilePipelineLegacy pipelineFragmentLegacy = new ShaderCompilePipelineLegacy("testFragment");
         ShaderCompilePipeline.createShaderPipeline(pipelineFragmentLegacy, fsDescLegacy, new ShaderCompilePipeline.Options());
 
-        reflector = pipelineFragmentLegacy.getReflectionData();
+        reflector = pipelineFragmentLegacy.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT);
         inputs    = reflector.getInputs();
         outputs   = reflector.getOutputs();
         ubos      = reflector.getUBOs();

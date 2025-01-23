@@ -55,6 +55,23 @@ namespace dmRender
 
         dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
 
+        dmGraphics::HProgram program = dmGraphics::INVALID_PROGRAM_HANDLE;
+
+        if (sp_desc_size > 0)
+        {
+            dmGraphics::ShaderDesc* shader_desc;
+            dmDDF::Result e = dmDDF::LoadMessage(sp_desc, sp_desc_size, &dmGraphics_ShaderDesc_DESCRIPTOR, (void**) &shader_desc);
+            if (e != dmDDF::RESULT_OK)
+            {
+                dmLogWarning("Failed to create DebugRenderer shader (%d)", e);
+            }
+            else
+            {
+                program = dmGraphics::NewProgram(render_context->m_GraphicsContext, shader_desc, 0, 0);
+                dmDDF::FreeMessage(shader_desc);
+            }
+        }
+
         /*
         dmGraphics::HVertexProgram vertex_program = dmGraphics::INVALID_VERTEX_PROGRAM_HANDLE;
         dmGraphics::ShaderDesc* shader_desc;
@@ -85,13 +102,14 @@ namespace dmRender
                 dmDDF::FreeMessage(shader_desc);
             }
         }
+        */
 
-        HMaterial material3d = NewMaterial(render_context, vertex_program, fragment_program);
+        HMaterial material3d = NewMaterial(render_context, program);
         SetMaterialProgramConstantType(material3d, dmHashString64("view_proj"), dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ);
         dmhash_t debug_tag_3d = dmHashString64(DEBUG_3D_NAME);
         SetMaterialTags(material3d, 1, &debug_tag_3d);
 
-        HMaterial material2d = NewMaterial(render_context, vertex_program, fragment_program);
+        HMaterial material2d = NewMaterial(render_context, program);
         SetMaterialProgramConstantType(material2d, dmHashString64("view_proj"), dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ);
         dmhash_t debug_tag_2d = dmHashString64(DEBUG_2D_NAME);
         SetMaterialTags(material2d, 1, &debug_tag_2d);
@@ -117,7 +135,6 @@ namespace dmRender
         debug_renderer.m_2dPredicate.m_Tags[0] = dmHashString64(DEBUG_2D_NAME);
         debug_renderer.m_2dPredicate.m_TagCount = 1;
         debug_renderer.m_RenderBatchVersion = 0;
-        */
     }
 
     void FinalizeDebugRenderer(HRenderContext context)
@@ -127,14 +144,9 @@ namespace dmRender
         DebugRenderer& debug_renderer = context->m_DebugRenderer;
         HMaterial material = debug_renderer.m_TypeData[DEBUG_RENDER_TYPE_FACE_3D].m_RenderObject.m_Material;
 
-        /*
-        dmGraphics::HVertexProgram vp = GetMaterialVertexProgram(material);
-        if (vp != dmGraphics::INVALID_VERTEX_PROGRAM_HANDLE)
-            dmGraphics::DeleteVertexProgram(vp);
-        dmGraphics::HFragmentProgram fp = GetMaterialFragmentProgram(material);
-        if (fp != dmGraphics::INVALID_FRAGMENT_PROGRAM_HANDLE)
-            dmGraphics::DeleteFragmentProgram(fp);
-            */
+        dmGraphics::HProgram program = GetMaterialProgram(material);
+        if (program != dmGraphics::INVALID_PROGRAM_HANDLE)
+            dmGraphics::DeleteProgram(context->m_GraphicsContext, program);
 
         DeleteMaterial(context, material);
         material = debug_renderer.m_TypeData[DEBUG_RENDER_TYPE_FACE_2D].m_RenderObject.m_Material;

@@ -14,7 +14,6 @@
 
 package com.dynamo.bob.pipeline;
 
-import static org.junit.Assert.assertEquals;
 import java.util.List;
 
 import com.dynamo.graphics.proto.Graphics;
@@ -22,6 +21,8 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.dynamo.render.proto.Material.MaterialDesc;
+
+import static org.junit.Assert.*;
 
 public class MaterialBuilderTest extends AbstractProtoBuilderTest {
 
@@ -36,12 +37,10 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
         src.append("    name: ").append(nameEscaped);
         src.append("    element_count: ").append(elementCount);
         if (semanticType != Graphics.VertexAttribute.SemanticType.SEMANTIC_TYPE_NONE) {
-            src.append("    semantic_type: " + semanticType);
+            src.append("    semantic_type: ").append(semanticType);
         }
         src.append("    double_values {");
-        for (int i=0; i < elementCount; i++) {
-            src.append("        v: 1.0");
-        }
+        src.append("        v: 1.0".repeat(Math.max(0, elementCount)));
         src.append("    }");
         src.append("}");
     }
@@ -57,26 +56,36 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testCombinedShader() throws Exception {
+        String srcShaderStr = "void main() {}\n";
+        Graphics.ShaderDesc shaderDesc = addAndBuildShaderDescs(
+                new String[]{"/test_combined.vp", "/test_combined.fp"},
+                new String[]{srcShaderStr, srcShaderStr},
+                "/test_combined.shbundle");
+        assertEquals(2, shaderDesc.getShadersCount());
 
-        StringBuilder src = new StringBuilder();
-        src.append("name: \"test_combined\"\n");
-        src.append("vertex_program: \"/test_combined.vp\"\n");
-        src.append("fragment_program: \"/test_combined.fp\"\n");
+        String src = """
+                name: "test_combined"
+                vertex_program: "/test_combined.vp"
+                fragment_program: "/test_combined.fp"
+                """;
 
-        MaterialDesc material = (MaterialDesc) build("/test_migrate_vx_attributes.material", src.toString()).get(0);
+        MaterialDesc material = getMessage(build("/test_migrate_vx_attributes.material", src), MaterialDesc.class);
+
+        assertNotNull(material);
+        assertTrue(material.hasProgram());
+
+        String program = material.getProgram();
+        String expectedProgram = "/" + MaterialBuilder.getShaderName("/test_combined.vp", "/test_combined.fp", ".spc");
+        assertEquals(expectedProgram, program);
     }
 
     @Test
     public void testMigrateVertexAttributes() throws Exception {
         addFile("/test_migrate_vx_attributes.material", "");
-        addFile("/test_migrate_vx_attributes.vp", "");
-        addFile("/test_migrate_vx_attributes.fp", "");
 
-        StringBuilder srcShader = new StringBuilder();
-        srcShader.append("void main() {}\n");
-
-        build("/test_migrate_vx_attributes.vp", srcShader.toString());
-        build("/test_migrate_vx_attributes.fp", srcShader.toString());
+        String srcShaderStr = "void main() {}\n";
+        Graphics.ShaderDesc shaderDesc = addAndBuildShaderDescs(new String[]{"/test_migrate_vx_attributes.vp", "/test_migrate_vx_attributes.fp"}, new String[]{srcShaderStr,srcShaderStr}, "/test_migrate_vx_attributes.shbundle");
+        assertEquals(2, shaderDesc.getShadersCount());
 
         StringBuilder src = new StringBuilder();
         src.append("name: \"test_material\"\n");
@@ -109,21 +118,14 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testMigrateTextures() throws Exception {
-
-        addFile("/test.material", "");
-        addFile("/test.vp", "");
-        addFile("/test.fp", "");
-
-        StringBuilder srcShader = new StringBuilder();
-        srcShader.append("void main() {}\n");
-
-        build("/test.vp", srcShader.toString());
-        build("/test.fp", srcShader.toString());
+        String srcShaderStr = "void main() {}\n";
+        Graphics.ShaderDesc shaderDesc = addAndBuildShaderDescs(new String[]{"/test_vp.vp", "/test_fp.fp"}, new String[]{srcShaderStr,srcShaderStr}, "/test.shbundle");
+        assertEquals(2, shaderDesc.getShadersCount());
 
         StringBuilder src = new StringBuilder();
         src.append("name: \"test_material\"\n");
-        src.append("vertex_program: \"/test.vp\"\n");
-        src.append("fragment_program: \"/test.fp\"\n");
+        src.append("vertex_program: \"/test_vp.vp\"\n");
+        src.append("fragment_program: \"/test_fp.fp\"\n");
 
         // these should be migrated
         src.append("textures: \"tex0\"\n");
@@ -150,6 +152,7 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
         src.append("    filter_mag: FILTER_MODE_MAG_LINEAR\n");
         src.append("}\n");
 
+        addFile("/test.material", "");
         MaterialDesc material = getMessage(build("/test.material", src.toString()), MaterialDesc.class);
         assertEquals(0, material.getTexturesCount());
         assertEquals(5, material.getSamplersCount());

@@ -26,7 +26,7 @@ waflib.Task.task_factory('material', '${JAVA} -classpath ${CLASSPATH} com.dynamo
                       before='c cxx',
                       shell=False)
 
-waflib.Task.task_factory('shaderbuilder', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.ShaderProgramBuilder ${FP} ${VP} ${TGT} ${PLATFORM}',
+waflib.Task.task_factory('material_shaderbuilder', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.ShaderProgramBuilder ${FP} ${VP} ${TGT} ${PLATFORM}',
                       color='PINK',
                       after='proto_gen_py',
                       before='c cxx',
@@ -64,7 +64,7 @@ def material_file(self, node):
     material_node = node.change_ext('.materialc')
     material.set_outputs(material_node)
 
-    shader = self.create_task('shaderbuilder')
+    shader = self.create_task('material_shaderbuilder')
     shader.env['CLASSPATH'] = os.pathsep.join(classpath)
     shader.env['FP'] = material.generator.content_root + msg.fragment_program
     shader.env['VP'] = material.generator.content_root + msg.vertex_program

@@ -29,6 +29,7 @@ import java.security.CodeSource;
 import javax.imageio.ImageIO;
 
 import com.dynamo.bob.fs.*;
+import com.dynamo.graphics.proto.Graphics;
 import org.apache.commons.io.FilenameUtils;
 
 import org.junit.After;
@@ -255,5 +256,23 @@ public abstract class AbstractProtoBuilderTest {
         ImageIO.write(img, FilenameUtils.getExtension(path), baos);
         baos.flush();
         addFile(path, baos.toByteArray());
+    }
+
+    protected Graphics.ShaderDesc addAndBuildShaderDescs(String[] shaderPaths, String[] shaderSources, String shaderBundlePath) throws Exception {
+        ShaderProgramBuilderBundle.ModuleBundle modules = ShaderProgramBuilderBundle.createBundle();
+
+        for (int i = 0; i < shaderPaths.length; i++) {
+            String path = shaderPaths[i];
+            String source = shaderSources[i];
+            addFile(path, source);
+            modules.add(path);
+        }
+
+        List<Message> outputs = build(shaderBundlePath, modules.toBase64String());
+        return (Graphics.ShaderDesc) outputs.get(0);
+    }
+
+    protected Graphics.ShaderDesc addAndBuildShaderDesc(String shaderPath, String shaderSource, String shaderBundlePath) throws Exception {
+        return addAndBuildShaderDescs(new String[]{shaderPath}, new String[]{shaderSource}, shaderBundlePath);
     }
 }

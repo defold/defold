@@ -16,6 +16,7 @@ package com.dynamo.bob.pipeline;
 
 import java.io.IOException;
 
+import com.dynamo.render.proto.Compute;
 import com.google.protobuf.TextFormat;
 
 import com.dynamo.bob.ProtoBuilder;
@@ -46,13 +47,43 @@ public class ComputeBuilder extends ProtoBuilder<ComputeDesc.Builder> {
         }
     }
 
+    private IResource getShaderProgram(ComputeDesc.Builder fromBuilder) {
+        String shaderPath = BuilderUtil.replaceExt(fromBuilder.getComputeProgram(), ".cp", ShaderProgramBuilderBundle.EXT);
+        return this.project.getResource(shaderPath);
+    }
+
+    @Override
+    public Task create(IResource input) throws IOException, CompileExceptionError {
+        ComputeDesc.Builder computeBuilder = getSrcBuilder(input);
+
+        // The material should depend on the finally built shader resource file
+        // that is a combination of one or more shader modules
+        IResource shaderResourceOut = getShaderProgram(computeBuilder);
+
+        ShaderProgramBuilderBundle.ModuleBundle modules = ShaderProgramBuilderBundle.createBundle();
+        modules.add(computeBuilder.getComputeProgram());
+        shaderResourceOut.setContent(modules.toByteArray());
+
+        Task.TaskBuilder computeTaskBuilder = Task.newBuilder(this)
+                .setName(params.name())
+                .addInput(input)
+                .addOutput(input.changeExt(params.outExt()));
+
+        createSubTask(shaderResourceOut, computeTaskBuilder);
+
+        return computeTaskBuilder.build();
+    }
+
+
     @Override
     public void build(Task task) throws CompileExceptionError, IOException {
         IResource res = task.firstInput();
         ComputeDesc.Builder computeBuilder = getSrcBuilder(res);
 
         BuilderUtil.checkResource(this.project, res, "compute program", computeBuilder.getComputeProgram());
-        computeBuilder.setComputeProgram(BuilderUtil.replaceExt(computeBuilder.getComputeProgram(), ".cp", ".cpc"));
+        IResource shaderResourceOut = getShaderProgram(computeBuilder);
+
+        computeBuilder.setComputeProgram("/" + BuilderUtil.replaceExt(shaderResourceOut.getPath(), ".spc"));
 
         buildSamplers(computeBuilder);
 
@@ -74,7 +105,6 @@ public class ComputeBuilder extends ProtoBuilder<ComputeDesc.Builder> {
             ComputeDesc.Builder computeBuilder = ComputeDesc.newBuilder();
             TextFormat.merge(reader, computeBuilder);
 
-            // computeBuilder.setComputeProgram(BuilderUtil.replaceExt(computeBuilder.getComputeProgram(), ".cp", ".spc"));
             computeBuilder.setComputeProgram(nameSpc);
 
             buildSamplers(computeBuilder);
