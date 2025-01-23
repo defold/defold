@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -686,6 +686,14 @@ Result LoadResourceToBufferLocked(HFactory factory, const char* path, const char
     }
     return RESULT_RESOURCE_NOT_FOUND;
 }
+
+#if !defined(DM_HAS_THREADS)
+// Only used on single threaded systems (load_queue_sync.cpp)
+LoadBufferType* GetGlobalLoadBuffer(HFactory factory)
+{
+    return &factory->m_Buffer;
+}
+#endif
 
 // Called from the resource_preloader.cpp
 // Takes the lock.

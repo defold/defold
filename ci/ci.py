@@ -1,13 +1,13 @@
 #!/usr/bin/env python
-# Copyright 2020-2024 The Defold Foundation
+# Copyright 2020-2025 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -148,11 +148,44 @@ def install(args):
 
         call("sudo apt-get install -y software-properties-common")
 
-        call("ls /usr/bin/clang*")
+        call("update-alternatives --display clang")
+        call("update-alternatives --display clang++")
 
-        call("sudo update-alternatives --remove-all clang")
-        call("sudo update-alternatives --remove-all clang++")
-        call("sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-12 120 --slave /usr/bin/clang++ clang++ /usr/bin/clang++-12")
+        clang_priority = 200 # GA runner has clang at prio 100, so let's add a higher prio
+        clang_version = 16
+        clang_path = "/usr/bin"
+        clang_exe = f"/usr/bin/clang-{clang_version}" # installed on the recent GA runners
+
+        # On older ubuntu 20 clang-16 isn't available
+        # Also note that this is before the install_sdk step
+        # if we had to install it ourselves, let's use the correct path
+        if not os.path.exists(clang_exe):
+            print(f"{clang_exe} not found. Installing LLVM + CLANG {clang_version} ...")
+
+            call(f"wget https://apt.llvm.org/llvm.sh")
+            call(f"chmod +x ./llvm.sh")
+            call(f"sudo ./llvm.sh {clang_version}")
+            call(f"rm ./llvm.sh")
+
+            clang_path = f"/usr/lib/llvm-{clang_version}/bin"
+
+            # Add and select the correct version
+            call(f"sudo update-alternatives --install /usr/bin/clang clang {clang_path}/clang-{clang_version} {clang_priority}")
+            call(f"sudo update-alternatives --install /usr/bin/clang++ clang++ {clang_path}/clang++ {clang_priority}")
+            call(f"sudo update-alternatives --install /usr/bin/clang-cpp clang-cpp {clang_path}/clang-cpp {clang_priority}")
+            call(f"sudo update-alternatives --install /usr/bin/llvm-ar llvm-ar {clang_path}/llvm-ar {clang_priority}")
+
+        else:
+            # Add and select the correct version
+            call(f"sudo update-alternatives --install /usr/bin/clang clang {clang_path}/clang-{clang_version} {clang_priority}")
+            call(f"sudo update-alternatives --install /usr/bin/clang++ clang++ {clang_path}/clang++-{clang_version} {clang_priority}")
+            call(f"sudo update-alternatives --install /usr/bin/clang-cpp clang-cpp {clang_path}/clang-cpp-{clang_version} {clang_priority}")
+            call(f"sudo update-alternatives --install /usr/bin/llvm-ar llvm-ar {clang_path}/llvm-ar-{clang_version} {clang_priority}")
+
+        call("update-alternatives --display clang")
+        call("update-alternatives --display clang++")
+        call("update-alternatives --display clang-cpp")
+        call("update-alternatives --display llvm-ar")
 
         packages = [
             "autoconf",
@@ -167,7 +200,6 @@ def install(args):
             "libopenal-dev",
             "libgl1-mesa-dev",
             "libglw1-mesa-dev",
-            "lib32z1",
             "openssl",
             "tofrodos",
             "tree",
@@ -187,6 +219,7 @@ def install(args):
             call("echo steam steam/question select 'I AGREE' | sudo debconf-set-selections")
             call("echo steam steam/license note '' | sudo debconf-set-selections")
             packages = [
+                "lib32z1",
                 "steamcmd",
                 "lib32gcc1",
                 "hfsprogs"   # for mounting DMG files
@@ -204,7 +237,7 @@ def build_engine(platform, channel, with_valgrind = False, with_asan = False, wi
 
     install_sdk = 'install_sdk'
     # for some platforms, we use the locally installed platform sdk
-    if platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios', 'js-web', 'wasm-web'):
+    if platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios', 'js-web', 'wasm-web', 'arm64-linux', 'x86_64-linux'):
         install_sdk = ''
 
     args = ('python scripts/build.py distclean %s install_ext check_sdk' % install_sdk).split()

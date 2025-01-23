@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -160,18 +160,17 @@
   (let [endpoint-invalidated-since-snapshot? (g/endpoint-invalidated-pred (:snapshot-invalidate-counters post-save-actions))]
     (resource-node/merge-source-values! (:written-source-values-by-node-id post-save-actions))
     (g/cache-output-values!
-      (g/with-auto-evaluation-context evaluation-context
-        (into []
-              (keep (fn [{:keys [node-id] :as save-data}]
-                      ;; It's possible the user might have edited a resource
-                      ;; while we were saving on a background thread. We need to
-                      ;; make sure we don't add a stale save-data entry to the
-                      ;; cache.
-                      (let [save-data-endpoint (g/endpoint node-id :save-data)]
-                        (when-not (endpoint-invalidated-since-snapshot? save-data-endpoint)
-                          (pair save-data-endpoint
-                                (assoc save-data :dirty false))))))
-              (:written-save-datas post-save-actions))))
+      (into []
+            (keep (fn [{:keys [node-id] :as save-data}]
+                    ;; It's possible the user might have edited a resource
+                    ;; while we were saving on a background thread. We need to
+                    ;; make sure we don't add a stale save-data entry to the
+                    ;; cache.
+                    (let [save-data-endpoint (g/endpoint node-id :save-data)]
+                      (when-not (endpoint-invalidated-since-snapshot? save-data-endpoint)
+                        (pair save-data-endpoint
+                              (assoc save-data :dirty false))))))
+            (:written-save-datas post-save-actions)))
     (project/log-cache-info! (g/cache) "Cached written save data in system cache.")))
 
 (defn- write-message-fn [save-data]

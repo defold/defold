@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -22,7 +22,7 @@
             [internal.util :as util]
             [schema.core :as s]
             [util.array :as array]
-            [util.coll :refer [pair]]
+            [util.coll :as coll :refer [pair]]
             [util.debug-util :as du]
             [util.eduction :as e])
   (:import [internal.graph.types Arc]))
@@ -384,9 +384,9 @@
                                      node-type (gt/node-type original-node)
                                      init-props (when init-props-fn
                                                   (init-props-fn basis original-node-id node-type))
-                                     properties (cond->> (properties-by-node-id original-node-id)
-                                                         (pos? (count init-props))
-                                                         (merge init-props))]
+                                     properties (coll/merge
+                                                  init-props
+                                                  (properties-by-node-id original-node-id))]
                                  (in/make-override-node override-id override-node-id node-type original-node-id properties)))
                              node-ids)
         override-node-ids (map gt/node-id override-nodes)
@@ -865,23 +865,26 @@
 
 (defn- apply-tx
   [ctx actions]
-  (loop [ctx ctx
-         actions actions]
-    (if (seq actions)
-      (if-let [action (first actions)]
-        (if (sequential? action)
-          (recur (apply-tx ctx action) (next actions))
-          (recur (-> (try
-                       (du/measuring (:metrics ctx) (:type action) (metrics-key action)
-                         (perform ctx action))
-                       (catch Exception e
-                         (when *tx-debug*
-                           (println (txerrstr ctx "Transaction failed on " action)))
-                         (throw e)))
-                     (update :completed conj action))
-                 (next actions)))
-        (recur ctx (next actions)))
-      ctx)))
+  (reduce
+    (fn [ctx action]
+      (cond
+        (nil? action)
+        ctx
+
+        (sequential? action)
+        (apply-tx ctx action)
+
+        :else
+        (-> (try
+              (du/measuring (:metrics ctx) (:type action) (metrics-key action)
+                (perform ctx action))
+              (catch Exception e
+                (when *tx-debug*
+                  (println (txerrstr ctx "Transaction failed on " action)))
+                (throw e)))
+            (update :completed-action-count inc))))
+    ctx
+    actions))
 
 (defn- mark-nodes-modified
   [{:keys [nodes-affected] :as ctx}]
@@ -906,7 +909,7 @@
   "Makes the transacted graph the new value of the world-state graph."
   [{:keys [nodes-modified graphs-modified tx-data-context] :as ctx}]
   (-> (select-keys ctx tx-report-keys)
-      (assoc :status (if (empty? (:completed ctx)) :empty :ok)
+      (assoc :status (if (zero? (:completed-action-count ctx)) :empty :ok)
              :graphs-modified (into graphs-modified (map gt/node-id->graph-id nodes-modified))
              :tx-data-context-map (deref tx-data-context))))
 
@@ -925,7 +928,7 @@
    :successors-changed {}
    :node-id-generators node-id-generators
    :override-id-generator override-id-generator
-   :completed []
+   :completed-action-count 0
    :txid (new-txid)
    :tx-data-context (atom tx-data-context-map)
    :deferred-setters []

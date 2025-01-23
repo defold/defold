@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -151,21 +151,25 @@
       (and (.exists f) (= mtime (.lastModified f)) (= size (.length f))))))
 
 (defn- to-disk! [artifact content-hash]
-  (assert (some? (:content artifact)))
+  (assert (or (some? (:write-content-fn artifact)) (some? (:content artifact))))
   (fs/create-parent-directories! (io/as-file (:resource artifact)))
-  (let [^bytes content (:content artifact)]
-    (with-open [out (io/output-stream (:resource artifact))]
-      (.write out content))
+  (let [^bytes content (:content artifact)
+        write-content-fn (:write-content-fn artifact)
+        sha1-hash (if write-content-fn
+                    ;; The write-content-fn returns the hash of the content
+                    (write-content-fn (:resource artifact) (:user-data artifact))
+                    ;; otherwise, we write and hash the content
+                    (with-open [out (io/output-stream (:resource artifact))]
+                      (.write out content)
+                      (digest/sha1-hex content)))]
     (let [^File target-f (io/as-file (:resource artifact))
           mtime (.lastModified target-f)
           size (.length target-f)]
-      (-> artifact
-          (dissoc :content)
-          (assoc
-            :content-hash content-hash
-            :mtime mtime
-            :size size
-            :etag (digest/sha1-hex content))))))
+      {:resource (:resource artifact)
+       :content-hash content-hash
+       :mtime mtime
+       :size size
+       :etag sha1-hash})))
 
 (defn- prune-build-dir! [build-dir build-targets-by-content-hash]
   (let [targets (into #{}

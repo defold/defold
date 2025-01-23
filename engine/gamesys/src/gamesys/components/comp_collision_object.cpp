@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -91,6 +91,13 @@ namespace dmGameSystem
         JointEntry* m_JointEntry;
     };
 
+    enum EventMask
+    {
+        EVENT_MASK_COLLISION = 1 << 0,
+        EVENT_MASK_CONTACT   = 1 << 1,
+        EVENT_MASK_TRIGGER   = 1 << 2,
+    };
+
     struct CollisionComponent
     {
         CollisionObjectResource* m_Resource;
@@ -125,6 +132,7 @@ namespace dmGameSystem
         uint8_t m_StartAsEnabled : 1;
         uint8_t m_FlippedX : 1; // set if it's been flipped
         uint8_t m_FlippedY : 1;
+        uint8_t m_EventMask : 3;
     };
 
     struct CollisionWorld
@@ -390,6 +398,11 @@ namespace dmGameSystem
         dmPhysics::CollisionObjectData data;
         SetCollisionObjectData(world, component, resource, ddf, enabled, data);
         component->m_Mask = data.m_Mask;
+
+        component->m_EventMask  = ddf->m_EventCollision?EVENT_MASK_COLLISION:0;
+        component->m_EventMask |= ddf->m_EventContact?EVENT_MASK_CONTACT:0;
+        component->m_EventMask |= ddf->m_EventTrigger?EVENT_MASK_TRIGGER:0;
+
         if (physics_context->m_3D)
         {
             if (resource->m_TileGrid)
@@ -594,21 +607,34 @@ namespace dmGameSystem
         }
     }
 
-    void RunPhysicsCallback(CollisionWorld* world, const dmDDF::Descriptor* desc, const char* data)
+    static void RunPhysicsCallback(CollisionWorld* world, const dmDDF::Descriptor* desc, const char* data)
     {
         RunCollisionWorldCallback(world->m_CallbackInfo, desc, data);
     }
 
-    bool CollisionCallback(void* user_data_a, uint16_t group_a, void* user_data_b, uint16_t group_b, void* user_data)
+    // Returns true if either of the components supports the flag(s)
+    static bool SupportsEvent(CollisionComponent* component, uint8_t event)
+    {
+        return (component->m_EventMask & event) == event;
+    }
+
+    static bool CollisionCallback(void* user_data_a, uint16_t group_a, void* user_data_b, uint16_t group_b, void* user_data)
     {
         CollisionUserData* cud = (CollisionUserData*)user_data;
         if (cud->m_Count < cud->m_Context->m_MaxCollisionCount)
         {
             CollisionWorld* world = cud->m_World;
-            cud->m_Count += 1;
 
             CollisionComponent* component_a = (CollisionComponent*)user_data_a;
             CollisionComponent* component_b = (CollisionComponent*)user_data_b;
+
+            bool event_supported_a = SupportsEvent(component_a, EVENT_MASK_COLLISION);
+            bool event_supported_b = SupportsEvent(component_b, EVENT_MASK_COLLISION);
+            if (!event_supported_a && event_supported_a == event_supported_b)
+                return false; // Neither supported this event
+
+            cud->m_Count += 1;
+
             dmGameObject::HInstance instance_a = component_a->m_Instance;
             dmGameObject::HInstance instance_b = component_b->m_Instance;
             dmhash_t instance_a_id = dmGameObject::GetIdentifier(instance_a);
@@ -634,23 +660,29 @@ namespace dmGameSystem
                 return true;
             }
 
-            dmPhysicsDDF::CollisionResponse ddf;
-
             // Broadcast to A components
-            ddf.m_OwnGroup = group_hash_a;
-            ddf.m_OtherGroup = group_hash_b;
-            ddf.m_Group = group_hash_b;
-            ddf.m_OtherId = instance_b_id;
-            ddf.m_OtherPosition = dmGameObject::GetWorldPosition(instance_b);
-            BroadCast(&ddf, instance_a, instance_a_id, component_a->m_ComponentIndex);
+            if (event_supported_a)
+            {
+                dmPhysicsDDF::CollisionResponse ddf;
+                ddf.m_OwnGroup = group_hash_a;
+                ddf.m_OtherGroup = group_hash_b;
+                ddf.m_Group = group_hash_b;
+                ddf.m_OtherId = instance_b_id;
+                ddf.m_OtherPosition = dmGameObject::GetWorldPosition(instance_b);
+                BroadCast(&ddf, instance_a, instance_a_id, component_a->m_ComponentIndex);
+            }
 
             // Broadcast to B components
-            ddf.m_OwnGroup = group_hash_b;
-            ddf.m_OtherGroup = group_hash_a;
-            ddf.m_Group = group_hash_a;
-            ddf.m_OtherId = instance_a_id;
-            ddf.m_OtherPosition = dmGameObject::GetWorldPosition(instance_a);
-            BroadCast(&ddf, instance_b, instance_b_id, component_b->m_ComponentIndex);
+            if (event_supported_b)
+            {
+                dmPhysicsDDF::CollisionResponse ddf;
+                ddf.m_OwnGroup = group_hash_b;
+                ddf.m_OtherGroup = group_hash_a;
+                ddf.m_Group = group_hash_a;
+                ddf.m_OtherId = instance_a_id;
+                ddf.m_OtherPosition = dmGameObject::GetWorldPosition(instance_a);
+                BroadCast(&ddf, instance_b, instance_b_id, component_b->m_ComponentIndex);
+            }
 
             return true;
         }
@@ -660,16 +692,23 @@ namespace dmGameSystem
         }
     }
 
-    bool ContactPointCallback(const dmPhysics::ContactPoint& contact_point, void* user_data)
+    static bool ContactPointCallback(const dmPhysics::ContactPoint& contact_point, void* user_data)
     {
         CollisionUserData* cud = (CollisionUserData*)user_data;
         if (cud->m_Count < cud->m_Context->m_MaxContactPointCount)
         {
             CollisionWorld* world = cud->m_World;
-            cud->m_Count += 1;
 
             CollisionComponent* component_a = (CollisionComponent*)contact_point.m_UserDataA;
             CollisionComponent* component_b = (CollisionComponent*)contact_point.m_UserDataB;
+
+            bool event_supported_a = SupportsEvent(component_a, EVENT_MASK_CONTACT);
+            bool event_supported_b = SupportsEvent(component_b, EVENT_MASK_CONTACT);
+            if (!event_supported_a && event_supported_a == event_supported_b)
+                return false; // Neither supported this event
+
+            cud->m_Count += 1;
+
             dmGameObject::HInstance instance_a = component_a->m_Instance;
             dmGameObject::HInstance instance_b = component_b->m_Instance;
             dmhash_t instance_a_id = dmGameObject::GetIdentifier(instance_a);
@@ -707,39 +746,45 @@ namespace dmGameSystem
                 return true;
             }
 
-            dmPhysicsDDF::ContactPointResponse ddf;
-
             // Broadcast to A components
-            ddf.m_Position = contact_point.m_PositionA;
-            ddf.m_Normal = -contact_point.m_Normal;
-            ddf.m_RelativeVelocity = -contact_point.m_RelativeVelocity;
-            ddf.m_Distance = contact_point.m_Distance;
-            ddf.m_AppliedImpulse = contact_point.m_AppliedImpulse;
-            ddf.m_Mass = mass_a;
-            ddf.m_OtherMass = mass_b;
-            ddf.m_OtherId = instance_b_id;
-            ddf.m_OtherPosition = dmGameObject::GetWorldPosition(instance_b);
-            ddf.m_Group = group_hash_b;
-            ddf.m_OwnGroup = group_hash_a;
-            ddf.m_OtherGroup = group_hash_b;
-            ddf.m_LifeTime = 0;
-            BroadCast(&ddf, instance_a, instance_a_id, component_a->m_ComponentIndex);
+            if (event_supported_a)
+            {
+                dmPhysicsDDF::ContactPointResponse ddf;
+                ddf.m_Position = contact_point.m_PositionA;
+                ddf.m_Normal = -contact_point.m_Normal;
+                ddf.m_RelativeVelocity = -contact_point.m_RelativeVelocity;
+                ddf.m_Distance = contact_point.m_Distance;
+                ddf.m_AppliedImpulse = contact_point.m_AppliedImpulse;
+                ddf.m_Mass = mass_a;
+                ddf.m_OtherMass = mass_b;
+                ddf.m_OtherId = instance_b_id;
+                ddf.m_OtherPosition = dmGameObject::GetWorldPosition(instance_b);
+                ddf.m_Group = group_hash_b;
+                ddf.m_OwnGroup = group_hash_a;
+                ddf.m_OtherGroup = group_hash_b;
+                ddf.m_LifeTime = 0;
+                BroadCast(&ddf, instance_a, instance_a_id, component_a->m_ComponentIndex);
+            }
 
             // Broadcast to B components
-            ddf.m_Position = contact_point.m_PositionB;
-            ddf.m_Normal = contact_point.m_Normal;
-            ddf.m_RelativeVelocity = contact_point.m_RelativeVelocity;
-            ddf.m_Distance = contact_point.m_Distance;
-            ddf.m_AppliedImpulse = contact_point.m_AppliedImpulse;
-            ddf.m_Mass = mass_b;
-            ddf.m_OtherMass = mass_a;
-            ddf.m_OtherId = instance_a_id;
-            ddf.m_OtherPosition = dmGameObject::GetWorldPosition(instance_a);
-            ddf.m_Group = group_hash_a;
-            ddf.m_OwnGroup = group_hash_b;
-            ddf.m_OtherGroup = group_hash_a;
-            ddf.m_LifeTime = 0;
-            BroadCast(&ddf, instance_b, instance_b_id, component_b->m_ComponentIndex);
+            if (event_supported_b)
+            {
+                dmPhysicsDDF::ContactPointResponse ddf;
+                ddf.m_Position = contact_point.m_PositionB;
+                ddf.m_Normal = contact_point.m_Normal;
+                ddf.m_RelativeVelocity = contact_point.m_RelativeVelocity;
+                ddf.m_Distance = contact_point.m_Distance;
+                ddf.m_AppliedImpulse = contact_point.m_AppliedImpulse;
+                ddf.m_Mass = mass_b;
+                ddf.m_OtherMass = mass_a;
+                ddf.m_OtherId = instance_a_id;
+                ddf.m_OtherPosition = dmGameObject::GetWorldPosition(instance_a);
+                ddf.m_Group = group_hash_a;
+                ddf.m_OwnGroup = group_hash_b;
+                ddf.m_OtherGroup = group_hash_a;
+                ddf.m_LifeTime = 0;
+                BroadCast(&ddf, instance_b, instance_b_id, component_b->m_ComponentIndex);
+            }
 
             return true;
         }
@@ -752,11 +797,17 @@ namespace dmGameSystem
     static bool g_CollisionOverflowWarning = false;
     static bool g_ContactOverflowWarning = false;
 
-    void TriggerEnteredCallback(const dmPhysics::TriggerEnter& trigger_enter, void* user_data)
+    static void TriggerEnteredCallback(const dmPhysics::TriggerEnter& trigger_enter, void* user_data)
     {
         CollisionWorld* world = (CollisionWorld*)user_data;
         CollisionComponent* component_a = (CollisionComponent*)trigger_enter.m_UserDataA;
         CollisionComponent* component_b = (CollisionComponent*)trigger_enter.m_UserDataB;
+
+        bool event_supported_a = SupportsEvent(component_a, EVENT_MASK_TRIGGER);
+        bool event_supported_b = SupportsEvent(component_b, EVENT_MASK_TRIGGER);
+        if (!event_supported_a && event_supported_a == event_supported_b)
+            return; // Neither supported this event
+
         dmGameObject::HInstance instance_a = component_a->m_Instance;
         dmGameObject::HInstance instance_b = component_b->m_Instance;
         dmhash_t instance_a_id = dmGameObject::GetIdentifier(instance_a);
@@ -767,7 +818,6 @@ namespace dmGameSystem
 
         if (world->m_CallbackInfo != 0x0)
         {
-
             dmPhysicsDDF::TriggerEvent ddf;
             ddf.m_Enter = 1;
 
@@ -787,18 +837,24 @@ namespace dmGameSystem
         ddf.m_Enter = 1;
 
         // Broadcast to A components
-        ddf.m_OtherId = instance_b_id;
-        ddf.m_Group = group_hash_b;
-        ddf.m_OwnGroup = group_hash_a;
-        ddf.m_OtherGroup = group_hash_b;
-        BroadCast(&ddf, instance_a, instance_a_id, component_a->m_ComponentIndex);
+        if (event_supported_a)
+        {
+            ddf.m_OtherId = instance_b_id;
+            ddf.m_Group = group_hash_b;
+            ddf.m_OwnGroup = group_hash_a;
+            ddf.m_OtherGroup = group_hash_b;
+            BroadCast(&ddf, instance_a, instance_a_id, component_a->m_ComponentIndex);
+        }
 
         // Broadcast to B components
-        ddf.m_OtherId = instance_a_id;
-        ddf.m_Group = group_hash_a;
-        ddf.m_OwnGroup = group_hash_b;
-        ddf.m_OtherGroup = group_hash_a;
-        BroadCast(&ddf, instance_b, instance_b_id, component_b->m_ComponentIndex);
+        if (event_supported_b)
+        {
+            ddf.m_OtherId = instance_a_id;
+            ddf.m_Group = group_hash_a;
+            ddf.m_OwnGroup = group_hash_b;
+            ddf.m_OtherGroup = group_hash_a;
+            BroadCast(&ddf, instance_b, instance_b_id, component_b->m_ComponentIndex);
+        }
     }
 
     void TriggerExitedCallback(const dmPhysics::TriggerExit& trigger_exit, void* user_data)

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -28,4 +28,8 @@ public interface ITextureCompressor {
     public default int getAlignedWidth(TextureImage.TextureFormat format, int width) { return width; }
 
     public default int getAlignedHeight(TextureImage.TextureFormat format, int height) { return height; }
+
+    public boolean supportsTextureFormat(TextureImage.TextureFormat format);
+
+    public boolean supportsTextureCompressorPreset(TextureCompressorPreset preset);
 }
