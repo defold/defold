@@ -244,16 +244,17 @@
       (.load web-engine url))))
 
 (defn- handle-location-change! [project view-id new-location]
-  (if-let [new-resource-node
-           (when (string/starts-with? new-location (http-server/url (get-http-server! project)))
-             (let [resource-path (subs new-location (count (http-server/url (get-http-server! project))))
-                   resource-node (project/get-resource-node project resource-path)
-                   resource (g/node-value resource-node :resource)]
-               (when (resource/has-view-type? resource :html)
-                 resource-node)))]
-    (g/transact [(g/connect new-resource-node :html view-id :html)
-                 (view/connect-resource-node view-id new-resource-node)])
-    (log/warn :message (format "Moving to non-local url or missing resource: %s" new-location))))
+  (let [url (http-server/url (get-http-server! project))]
+    (if-let [new-resource-node
+             (when (string/starts-with? new-location url)
+               (let [resource-path (URLDecoder/decode (subs new-location (count url)))
+                     resource-node (project/get-resource-node project resource-path)]
+                 (when-let [resource (g/node-value resource-node :resource)]
+                   (when (resource/has-view-type? resource :html)
+                     resource-node))))]
+      (g/transact [(g/connect new-resource-node :html view-id :html)
+                   (view/connect-resource-node view-id new-resource-node)])
+      (log/warn :message (format "Moving to non-local url or missing resource: %s" new-location)))))
 
 (g/defnode WebViewNode
   (inherits view/WorkbenchView)
