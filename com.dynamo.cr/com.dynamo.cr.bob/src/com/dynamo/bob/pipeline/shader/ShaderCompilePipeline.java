@@ -92,6 +92,7 @@ public class ShaderCompilePipeline {
             case LANGUAGE_GLES_SM300 -> 300;
             case LANGUAGE_GLSL_SM330 -> 330;
             case LANGUAGE_GLSL_SM430 -> 430;
+            case LANGUAGE_HLSL       -> 50;
             default -> 0;
         };
     }
@@ -106,7 +107,9 @@ public class ShaderCompilePipeline {
     }
 
     protected static boolean canBeCrossCompiled(ShaderDesc.Language shaderLanguage) {
-        return shaderLanguageIsGLSL(shaderLanguage) || shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL;
+        return shaderLanguageIsGLSL(shaderLanguage) ||
+               shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL ||
+               shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL;
     }
 
     private static byte[] remapTextureSamplers(ArrayList<Shaderc.ShaderResource> textures, String source) {
