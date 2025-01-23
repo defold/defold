@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -898,7 +898,7 @@ namespace dmGraphics
      * @param format dmGraphics::TextureImage::CompressionType
      * @return true if the format is transcoded
      */
-    bool Transcode(const char* path, TextureImage::Image* image, uint8_t image_count, TextureFormat format, uint8_t** images, uint32_t* sizes, uint32_t* num_transcoded_mips);
+    bool Transcode(const char* path, TextureImage::Image* image, uint8_t image_count, uint8_t* image_bytes, TextureFormat format, uint8_t** images, uint32_t* sizes, uint32_t* num_transcoded_mips);
 
     /**
      * Read frame buffer pixels in BGRA format

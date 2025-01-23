@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -217,10 +217,6 @@
          :header (.getMessage load-worker)
          :content (.getMessage ex)}))))
 
-(g/defnode WebViewNode
-  (inherits view/WorkbenchView)
-  (property web-view WebView))
-
 (defn- make-web-view
    ^WebView [project]
   (let [web-view (WebView.)
@@ -239,41 +235,42 @@
     (str (http-server/url http-server)
          (resource/proj-path resource))))
 
-(defn- load-resource! [^WebEngine web-engine project resource]
-  (let [url         (resource-url (get-http-server! project) resource)
-        current-url (.getLocation web-engine)]
-    (when (not= url current-url)
+(g/defnk produce-update-web-view! [^WebView web-view resource-node _node-id html]
+  (when resource-node
+    (let [web-engine (.getEngine web-view)
+          resource (g/node-value resource-node :resource)
+          project (project/get-project resource-node)
+          url (resource-url (get-http-server! project) resource)]
       (.load web-engine url))))
 
-(defn- update-web-view!
-  "Loads the url corresponding to the current resource.
-
-  This will open the resource at the new location if we've moved it.
-
-  If we somehow manage to browse away from the project to an external
-  page, this will somewhat annoyingly bring us back."
-  [view-id project]
-  (let [web-view ^WebView (g/node-value view-id :web-view)
-        web-engine (.getEngine web-view)]
-    (when-let [resource-node (g/node-value view-id :resource-node)]
-      (load-resource! web-engine project (g/node-value resource-node :resource)))))
-
 (defn- handle-location-change! [project view-id new-location]
-  (if-let [new-resource-node
-           (if (string/starts-with? new-location (http-server/url (get-http-server! project)))
-             (let [resource-path (subs new-location (count (http-server/url (get-http-server! project))))]
-               (project/get-resource-node project resource-path))
-             nil)]
-    (g/transact (view/connect-resource-node view-id new-resource-node))
-    (log/warn :message (format "Moving to non-local url or missing resource: %s" new-location))))
+  (let [url (http-server/url (get-http-server! project))]
+    (if-let [new-resource-node
+             (when (string/starts-with? new-location url)
+               (let [resource-path (URLDecoder/decode (subs new-location (count url)))
+                     resource-node (project/get-resource-node project resource-path)]
+                 (when-let [resource (g/node-value resource-node :resource)]
+                   (when (resource/has-view-type? resource :html)
+                     resource-node))))]
+      (g/transact [(g/connect new-resource-node :html view-id :html)
+                   (view/connect-resource-node view-id new-resource-node)])
+      (log/warn :message (format "Moving to non-local url or missing resource: %s" new-location)))))
+
+(g/defnode WebViewNode
+  (inherits view/WorkbenchView)
+  (property web-view WebView)
+  (input html g/Str)
+  (output update-web-view g/Any :cached produce-update-web-view!)) 
 
 (defn make-view
   [graph ^Parent parent html-node opts]
-  (let [project       (or (:project opts) (project/get-project html-node))
-        web-view      (make-web-view project)
-        web-engine    (.getEngine web-view)
-        view-id       (g/make-node! graph WebViewNode :web-view web-view)
-        repainter     (ui/->timer 1 "update-web-view!" (fn [_ _ _] (update-web-view! view-id project)))]
+  (let [project (or (:project opts) (project/get-project html-node))
+        web-view (make-web-view project)
+        web-engine (.getEngine web-view)
+        view-id (g/make-node! graph WebViewNode :web-view web-view)
+        repainter (ui/->timer 30 "update-web-view!" (fn [_ _ _]
+                                                      (when (.isSelected ^Tab (:tab opts))
+                                                        (g/node-value view-id :update-web-view))))]
 
     (.addListener (.locationProperty web-engine)
                   (ui/change-listener _ _ new-location (handle-location-change! project view-id new-location)))
@@ -289,9 +286,7 @@
                        {:title "Alert"
                         :icon :icon/circle-info
                         :header (.getData ^WebEvent ev)})))
-      (.setUserStyleSheetLocation (str (io/resource "markdown.css")))
-      (load-resource! project (g/node-value html-node :resource)))
-
+      (.setUserStyleSheetLocation (str (io/resource "markdown.css"))))
     (ui/timer-start! repainter)
     (when-some [^Tab tab (:tab opts)]
       (ui/timer-stop-on-closed! tab repainter))

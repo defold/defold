@@ -1,4 +1,4 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -20,6 +20,7 @@
             [editor.defold-project :as project]
             [editor.editor-extensions.coerce :as coerce]
             [editor.editor-extensions.runtime :as rt]
+            [editor.game-project :as game-project]
             [editor.outline :as outline]
             [editor.properties :as properties]
             [editor.resource :as resource]
@@ -121,14 +122,17 @@
     property              string property name
     evaluation-context    used evaluation context"
   [node-id property evaluation-context]
-  (if (fn/multi-responds? ext-get node-id property evaluation-context)
-    #(ext-get node-id property evaluation-context)
-    (when-let [outline-property (outline-property node-id property evaluation-context)]
-      (when-let [to (-> outline-property
-                        properties/edit-type-id
-                        edit-type-id->value-converter
-                        :to)]
-        #(some-> (properties/value outline-property) to)))))
+  (or (when (fn/multi-responds? ext-get node-id property evaluation-context)
+        #(ext-get node-id property evaluation-context))
+      (when (and (= :editor.game-project/GameProjectNode (node-id->type-keyword node-id evaluation-context))
+                 (re-matches #"^[a-zA-Z_][a-zA-Z0-9_]*\.[a-zA-Z_][a-zA-Z0-9_]*$" property))
+        #(game-project/get-setting node-id (string/split property #"\." 2) evaluation-context))
+      (when-let [outline-property (outline-property node-id property evaluation-context)]
+        (when-let [to (-> outline-property
+                          properties/edit-type-id
+                          edit-type-id->value-converter
+                          :to)]
+          #(some-> (properties/value outline-property) to)))))
 
 ;; endregion
 

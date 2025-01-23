@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -235,19 +235,19 @@ namespace dmGraphics
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA32UI);
 
             // ASTC
-            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_4x4);
-            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_5x5);
-            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_6x5);
-            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_6x6);
-            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_8x5);
-            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_8x6);
-            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_8x8);
-            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_10x5);
-            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_10x6);
-            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_10x8);
-            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_10x10);
-            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_12x10);
-            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_12x12);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_4X4);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_5X5);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_6X5);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_6X6);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_8X5);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_8X6);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_8X8);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_10X5);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_10X6);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_10X8);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_10X10);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_12X10);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_12X12);
             default:break;
         }
         return "<unknown dmGraphics::TextureFormat>";
@@ -611,20 +611,20 @@ namespace dmGraphics
 
     bool IsTextureFormatASTC(TextureFormat format)
     {
-        return format == TEXTURE_FORMAT_RGBA_ASTC_4x4 ||
-               format == TEXTURE_FORMAT_RGBA_ASTC_5x4 ||
-               format == TEXTURE_FORMAT_RGBA_ASTC_5x5 ||
-               format == TEXTURE_FORMAT_RGBA_ASTC_6x5 ||
-               format == TEXTURE_FORMAT_RGBA_ASTC_6x6 ||
-               format == TEXTURE_FORMAT_RGBA_ASTC_8x5 ||
-               format == TEXTURE_FORMAT_RGBA_ASTC_8x6 ||
-               format == TEXTURE_FORMAT_RGBA_ASTC_8x8 ||
-               format == TEXTURE_FORMAT_RGBA_ASTC_10x5 ||
-               format == TEXTURE_FORMAT_RGBA_ASTC_10x6 ||
-               format == TEXTURE_FORMAT_RGBA_ASTC_10x8 ||
-               format == TEXTURE_FORMAT_RGBA_ASTC_10x10 ||
-               format == TEXTURE_FORMAT_RGBA_ASTC_12x10 ||
-               format == TEXTURE_FORMAT_RGBA_ASTC_12x12;
+        return format == TEXTURE_FORMAT_RGBA_ASTC_4X4 ||
+               format == TEXTURE_FORMAT_RGBA_ASTC_5X4 ||
+               format == TEXTURE_FORMAT_RGBA_ASTC_5X5 ||
+               format == TEXTURE_FORMAT_RGBA_ASTC_6X5 ||
+               format == TEXTURE_FORMAT_RGBA_ASTC_6X6 ||
+               format == TEXTURE_FORMAT_RGBA_ASTC_8X5 ||
+               format == TEXTURE_FORMAT_RGBA_ASTC_8X6 ||
+               format == TEXTURE_FORMAT_RGBA_ASTC_8X8 ||
+               format == TEXTURE_FORMAT_RGBA_ASTC_10X5 ||
+               format == TEXTURE_FORMAT_RGBA_ASTC_10X6 ||
+               format == TEXTURE_FORMAT_RGBA_ASTC_10X8 ||
+               format == TEXTURE_FORMAT_RGBA_ASTC_10X10 ||
+               format == TEXTURE_FORMAT_RGBA_ASTC_12X10 ||
+               format == TEXTURE_FORMAT_RGBA_ASTC_12X12;
     }
 
     // For estimating resource size

@@ -4,6 +4,11 @@ if not defined INCLUDE goto :FAIL_MSVS
 if not defined VCINSTALLDIR goto :FAIL_MSVS
 
 set PLATFORM=%1
+
+
+if "%PLATFORM%" equ "x64" set PLATFORM=x86_64-win32
+if "%PLATFORM%" equ "x86" set PLATFORM=win32
+
 if "%PLATFORM%" equ "x86_64-win32" goto :PLATFORM_X64
 if "%PLATFORM%" equ "win32" goto :PLATFORM_X86
 goto :FAIL_PLATFORM
@@ -147,13 +152,16 @@ echo.
 echo *******************************************************
 echo *** Build FAILED -- Please check the error messages ***
 echo *******************************************************
-goto :END
+goto :ERROR_END
 :FAIL_MSVS
 echo To run this script you must open a "Native Tools Command Prompt for VS".
 echo.
 echo Either the x86 version, or x64.
-goto :END
+goto :ERROR_END
 :FAIL_PLATFORM
 echo You need to supply a PLATFORM: win32 or x86_64-win32 (found '%PLATFORM%')
-goto :END
+goto :ERROR_END
 :END
+exit /b 0
+:ERROR_END
+exit /b 1

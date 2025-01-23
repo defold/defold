@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -43,7 +43,7 @@ TEST(ResourceChunkCache, Small)
     ASSERT_TRUE(ResourceChunkCacheVerify(cache));
 
     // First chunk
-    ASSERT_TRUE(ResourceChunkCachePut(cache, path_hash1, &chunk1));
+    ASSERT_TRUE(ResourceChunkCachePut(cache, path_hash1, RESOURCE_CHUNK_CACHE_DEFAULT, &chunk1));
     ASSERT_EQ(1u, ResourceChunkCacheGetNumChunks(cache));
     ASSERT_FALSE(ResourceChunkCacheCanFit(cache, chunk_size*3));
     ASSERT_TRUE(ResourceChunkCacheCanFit(cache, chunk_size*2));
@@ -65,7 +65,7 @@ TEST(ResourceChunkCache, Small)
     ASSERT_FALSE(ResourceChunkCacheGet(cache, path_hash1, 16, &getter));
 
     // Second chunk
-    ASSERT_TRUE(ResourceChunkCachePut(cache, path_hash1, &chunk2));
+    ASSERT_TRUE(ResourceChunkCachePut(cache, path_hash1, RESOURCE_CHUNK_CACHE_DEFAULT, &chunk2));
     ASSERT_EQ(2u, ResourceChunkCacheGetNumChunks(cache));
     ASSERT_FALSE(ResourceChunkCacheCanFit(cache, chunk_size*2));
     ASSERT_TRUE(ResourceChunkCacheCanFit(cache, chunk_size*1));
@@ -80,7 +80,7 @@ TEST(ResourceChunkCache, Small)
     ASSERT_FALSE(ResourceChunkCacheGet(cache, path_hash1, 16, &getter));
 
     // Third chunk
-    ASSERT_TRUE(ResourceChunkCachePut(cache, path_hash1, &chunk3));
+    ASSERT_TRUE(ResourceChunkCachePut(cache, path_hash1, RESOURCE_CHUNK_CACHE_DEFAULT, &chunk3));
     ASSERT_EQ(3u, ResourceChunkCacheGetNumChunks(cache));
     ASSERT_FALSE(ResourceChunkCacheCanFit(cache, chunk_size*1));
     ASSERT_TRUE(ResourceChunkCacheVerify(cache));
@@ -93,7 +93,7 @@ TEST(ResourceChunkCache, Small)
 
     // Same chunk
     dmLogWarning("EXPECTED ERROR -->");
-    ASSERT_FALSE(ResourceChunkCachePut(cache, path_hash1, &chunk3));
+    ASSERT_FALSE(ResourceChunkCachePut(cache, path_hash1, RESOURCE_CHUNK_CACHE_DEFAULT, &chunk3));
     dmLogWarning("<-- EXPECTED ERROR END");
     ASSERT_EQ(3u, ResourceChunkCacheGetNumChunks(cache));
     ASSERT_FALSE(ResourceChunkCacheCanFit(cache, chunk_size*1));
@@ -162,9 +162,9 @@ TEST(ResourceChunkCache, Multiple)
     ResourceCacheChunk f3ch3 = {(uint8_t*)data3 +chunk_size*2, chunk_size*2, chunk_size};
     uint64_t path_hash3 = dmHashString64("file3");
 
-
-    // Let's only fit 3 chunks at the same time
-    HResourceChunkCache cache = ResourceChunkCacheCreate(num_files*chunk_size);
+    // The initial chunks are "no evict", and then add some extra space to add another chunk
+    int max_num_chunks_in_cache = num_files + 1;
+    HResourceChunkCache cache = ResourceChunkCacheCreate(max_num_chunks_in_cache*chunk_size);
     ASSERT_NE((HResourceChunkCache)0, cache);
 
     ResourceCacheChunk* expected_chunks[num_files][num_chunks_per_file] = {
@@ -177,20 +177,42 @@ TEST(ResourceChunkCache, Multiple)
 
     // We basically want to add chunks in a looping
     // fashion, and check that the collected data is the correct one
+    uint32_t prev_count = 0;
     for (uint32_t i = 0; i < 30; ++i)
     {
         uint32_t file_index = i % num_files;
         uint32_t chunk_index = (i / num_files) % num_chunks_per_file;
+
+        ResourceCacheChunk* expected_chunk = expected_chunks[file_index][chunk_index];
+        bool is_no_evict = expected_chunk->m_Offset == 0;
+        bool add_no_evict = i < num_files;
+        bool will_evict = prev_count == max_num_chunks_in_cache;
+        bool will_add = !is_no_evict ? 1 : add_no_evict;
+
+        uint32_t expected_num_chunks_before = prev_count;
+        uint32_t expected_num_chunks_after  = expected_num_chunks_before;
+        if (will_evict)
+            expected_num_chunks_after--;
+        if (will_add)
+            expected_num_chunks_after++;
 
         dmhash_t path_hash = path_hashes[file_index];
 
         printf("********************************************\n");
         printf("LOOP: %u  file: %s  chunk: %u\n", i, dmHashReverseSafe64(path_hash), chunk_index);
 
-        if (i < num_files)
+        // printf("  prev_count: %u\n", prev_count);
+        // printf("  is_no_evict: %s\n", is_no_evict?"true":"false");
+        // printf("  add_no_evict: %s\n", add_no_evict?"true":"false");
+        // printf("  will_evict: %s\n", will_evict?"true":"false");
+        // printf("  will_add: %s\n", will_add?"true":"false");
+        // printf("  before: %u  after: %u\n", expected_num_chunks_before, expected_num_chunks_after);
+
+        ASSERT_EQ(chunk_size*expected_num_chunks_before, ResourceChunkCacheGetUsedMemory(cache));
+
+        if (expected_num_chunks_before < max_num_chunks_in_cache)
         {
-            ASSERT_EQ(chunk_size*i, ResourceChunkCacheGetUsedMemory(cache));
-            ASSERT_TRUE(ResourceChunkCacheCanFit(cache, chunk_size*(num_files-i)));
+            ASSERT_TRUE(ResourceChunkCacheCanFit(cache, chunk_size*(max_num_chunks_in_cache-expected_num_chunks_before)));
         }
         else
         {
@@ -201,15 +223,23 @@ TEST(ResourceChunkCache, Multiple)
             ASSERT_TRUE(ResourceChunkCacheCanFit(cache, chunk_size));
         }
 
-        ResourceCacheChunk* expected_chunk = expected_chunks[file_index][chunk_index];
-        ASSERT_TRUE(ResourceChunkCachePut(cache, path_hash, expected_chunk));
+        int flags = RESOURCE_CHUNK_CACHE_DEFAULT;
+        if (is_no_evict)
+            flags = RESOURCE_CHUNK_CACHE_NO_EVICT;
+
+        bool expected_add_result = true;
+        if (is_no_evict && !add_no_evict)
+            expected_add_result = false;
+
+        bool added = ResourceChunkCachePut(cache, path_hash, flags, expected_chunk);
+        ASSERT_EQ(expected_add_result, added);
 
         ResourceChunkCacheDebugChunks(cache);
 
-        uint32_t expected_num_chunks = i < num_files ? i+1 : num_files;
-        ASSERT_EQ(expected_num_chunks, ResourceChunkCacheGetNumChunks(cache));
+        ASSERT_EQ(expected_num_chunks_after, ResourceChunkCacheGetNumChunks(cache));
+        prev_count = expected_num_chunks_after;
 
-        if (expected_num_chunks == 3)
+        if (expected_num_chunks_after == max_num_chunks_in_cache)
         {
             ASSERT_FALSE(ResourceChunkCacheCanFit(cache, chunk_size));
         }

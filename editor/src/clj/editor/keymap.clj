@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -42,6 +42,7 @@
            ["Alt+Meta+F" :replace-text]
            ["Alt+Meta+G" :replace-next]
            ["Alt+Right" :next-word]
+           ["Alt+Space" :proposals]
            ["Alt+Up" :beginning-of-line]
            ["Alt+Up" :move-up]
            ["Backspace" :delete-backward]
@@ -74,7 +75,10 @@
            ["Home" :beginning-of-line-text]
            ["Left" :left]
            ["Meta+'+'" :zoom-in]
+           ["Meta+Add" :zoom-in]
            ["Meta+'-'" :zoom-out]
+           ["Meta+Subtract" :zoom-out]
+           ["Meta+0" :reset-zoom]
            ["Meta+A" :select-all]
            ["Meta+B" :build]
            ["Meta+M" :build-html5]
@@ -168,7 +172,10 @@
            ["Alt+Up" :move-up]
            ["Backspace" :delete-backward]
            ["Ctrl+'+'" :zoom-in]
+           ["Ctrl+Add" :zoom-in]
            ["Ctrl+'-'" :zoom-out]
+           ["Ctrl+Subtract" :zoom-out]
+           ["Ctrl+0" :reset-zoom]
            ["Ctrl+A" :select-all]
            ["Ctrl+B" :build]
            ["Ctrl+M" :build-html5]
@@ -282,7 +289,10 @@
            ["Alt+Up" :move-up]
            ["Backspace" :delete-backward]
            ["Ctrl+'+'" :zoom-in]
+           ["Ctrl+Add" :zoom-in]
            ["Ctrl+'-'" :zoom-out]
+           ["Ctrl+Subtract" :zoom-out]
+           ["Ctrl+0" :reset-zoom]
            ["Ctrl+A" :select-all]
            ["Ctrl+B" :build]
            ["Ctrl+M" :build-html5]
