@@ -1827,7 +1827,7 @@ class Configuration(object):
         if self.channel in ('stable', 'beta', 'alpha'):
             engine_channel = self.channel
             editor_channel = self.channel
-            prerelease = self.channel in ('alpha',)
+            prerelease = self.channel in ('alpha', 'beta')
             tag_name = self.create_tag()
             self.push_tag(tag_name)
 
