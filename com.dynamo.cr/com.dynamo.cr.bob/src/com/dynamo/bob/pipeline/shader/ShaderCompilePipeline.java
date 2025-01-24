@@ -84,7 +84,7 @@ public class ShaderCompilePipeline {
         };
     }
 
-    private static int shaderLanguageToVersion(ShaderDesc.Language shaderLanguage) {
+    private static Integer shaderLanguageToVersion(ShaderDesc.Language shaderLanguage) {
         return switch (shaderLanguage) {
             case LANGUAGE_GLSL_SM120 -> 120;
             case LANGUAGE_GLSL_SM140 -> 140;
