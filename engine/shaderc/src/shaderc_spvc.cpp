@@ -444,6 +444,14 @@ namespace dmShaderc
         else if (compiler->m_BaseCompiler.m_Language == SHADER_LANGUAGE_HLSL)
         {
             spvc_compiler_options_set_uint(spv_options, SPVC_COMPILER_OPTION_HLSL_SHADER_MODEL, options.m_Version);
+
+            if (options.m_Stage == SHADER_STAGE_COMPUTE)
+            {
+                if (spvc_compiler_hlsl_remap_num_workgroups_builtin(compiler->m_SPVCCompiler))
+                {
+                    dmLogInfo("HLSL: gl_NumWorkGroups has been remapped, this should be handled by the engine (TODO).");
+                }
+            }
         }
         else
         {
