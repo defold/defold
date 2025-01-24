@@ -35,6 +35,7 @@ public class ShaderCompilers {
         private ArrayList<ShaderDesc.Language> getPlatformShaderLanguages(boolean isComputeType, boolean outputSpirvRequested, boolean outputWGSLRequested) {
             ArrayList<ShaderDesc.Language> shaderLanguages = new ArrayList<>();
             boolean spirvSupported = true;
+            boolean hlslSupported = platform == Platform.X86_64Win32;
 
             switch(platform) {
                 case Arm64MacOS:
@@ -86,6 +87,11 @@ public class ShaderCompilers {
             if (spirvSupported && outputSpirvRequested) {
                 shaderLanguages.add(ShaderDesc.Language.LANGUAGE_SPIRV);
             }
+
+            if (hlslSupported && outputHlslRequested) {
+                shaderLanguages.add(ShaderDesc.Language.LANGUAGE_HLSL);
+            }
+
             return shaderLanguages;
         }
 
@@ -109,10 +115,12 @@ public class ShaderCompilers {
         public ShaderProgramBuilder.ShaderCompileResult compile(ArrayList<ShaderCompilePipeline.ShaderModuleDesc> shaderModules, String resourceOutputPath, boolean outputSpirv, boolean outputWGSL) throws IOException, CompileExceptionError {
 
             ShaderCompilePipeline.Options opts = new ShaderCompilePipeline.Options();
-            opts.splitTextureSamplers = outputWGSL;
+            opts.splitTextureSamplers = outputWGSL || outputHlsl;
 
             ShaderCompilePipeline pipeline = ShaderProgramBuilder.newShaderPipeline(resourceOutputPath, shaderModules, opts);
             ArrayList<ShaderProgramBuilder.ShaderBuildResult> shaderBuildResults = new ArrayList<>();
+
+            ArrayList<ShaderDesc.Language> shaderLanguages = getPlatformShaderLanguages(shaderType, outputSpirv, outputHlsl, outputWGSL);
 
             validateModules(shaderModules);
 

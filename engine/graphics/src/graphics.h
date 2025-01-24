@@ -68,22 +68,33 @@ namespace dmGraphics
     static const uint8_t  MAX_BUFFER_TYPE_COUNT   = 2 + MAX_BUFFER_COLOR_ATTACHMENTS;
     const static uint8_t  MAX_VERTEX_STREAM_COUNT = 8;
 
-    const static uint8_t DM_GRAPHICS_STATE_WRITE_R = 0x1;
-    const static uint8_t DM_GRAPHICS_STATE_WRITE_G = 0x2;
-    const static uint8_t DM_GRAPHICS_STATE_WRITE_B = 0x4;
-    const static uint8_t DM_GRAPHICS_STATE_WRITE_A = 0x8;
+    const static uint8_t DM_GRAPHICS_STATE_WRITE_R   = 0x1;
+    const static uint8_t DM_GRAPHICS_STATE_WRITE_G   = 0x2;
+    const static uint8_t DM_GRAPHICS_STATE_WRITE_B   = 0x4;
+    const static uint8_t DM_GRAPHICS_STATE_WRITE_A   = 0x8;
 
     static const HProgram         INVALID_PROGRAM_HANDLE   = ~0u;
     static const HUniformLocation INVALID_UNIFORM_LOCATION = ~0ull;
 
     enum AdapterFamily
     {
-        ADAPTER_FAMILY_NONE   = -1,
-        ADAPTER_FAMILY_NULL   = 1,
-        ADAPTER_FAMILY_OPENGL = 2,
-        ADAPTER_FAMILY_VULKAN = 3,
-        ADAPTER_FAMILY_VENDOR = 4,
-        ADAPTER_FAMILY_WEBGPU = 5,
+        ADAPTER_FAMILY_NONE    = -1,
+        ADAPTER_FAMILY_NULL    = 1,
+        ADAPTER_FAMILY_OPENGL  = 2,
+        ADAPTER_FAMILY_VULKAN  = 3,
+        ADAPTER_FAMILY_VENDOR  = 4,
+        ADAPTER_FAMILY_WEBGPU  = 5,
+        ADAPTER_FAMILY_DIRECTX = 6,
+    };
+
+    enum AdapterFamilyPriority
+    {
+        ADAPTER_FAMILY_PRIORITY_NULL    = 32,
+        ADAPTER_FAMILY_PRIORITY_OPENGL  = 2,
+        ADAPTER_FAMILY_PRIORITY_VULKAN  = 1,
+        ADAPTER_FAMILY_PRIORITY_VENDOR  = 0,
+        ADAPTER_FAMILY_PRIORITY_WEBGPU  = 0,
+        ADAPTER_FAMILY_PRIORITY_DIRECTX = 0,
     };
 
     enum AssetType

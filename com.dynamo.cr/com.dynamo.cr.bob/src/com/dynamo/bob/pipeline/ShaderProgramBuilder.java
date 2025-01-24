@@ -100,7 +100,8 @@ public class ShaderProgramBuilder extends Builder {
         // NOTE: We include the platform string as well for the same reason as spirv, but it doesn't seem to work correctly.
         //       Keeping the build folder and rebuilding for a different platform _should_ invalidate the cache, but it doesn't.
         //       Needs further investigation!
-        String shaderCacheKey = String.format("output_spirv=%s;output_wgsl=%s;platform_key=%s", getOutputSpirvFlag(), getOutputWGSLFlag(), platformString);
+        String shaderCacheKey = String.format("output_spirv=%s;output_hlsl=%s;output_wgsl=%s;platform_key=%s",
+                getOutputSpirvFlag(), getOutputHlslFlag(), getOutputWGSLFlag(),  platformString);
 
         taskBuilder.addOutput(input.changeExt(params.outExt()));
         taskBuilder.addExtraCacheKey(shaderCacheKey);
@@ -142,8 +143,17 @@ public class ShaderProgramBuilder extends Builder {
         }
     }
 
-    static public ShaderDescBuildResult buildResultsToShaderDescBuildResults(ShaderCompileResult shaderCompileresult) throws CompileExceptionError {
+    private boolean getOutputShaderFlag(String projectOption, String projectProperty) {
+        boolean fromProjectOptions    = this.project.option(projectOption, "false").equals("true");
+        boolean fromProjectProperties = this.project.getProjectProperties().getBooleanValue("shader", projectProperty, false);
+        return fromProjectOptions || fromProjectProperties;
+    }
 
+    private boolean getOutputSpirvFlag() { return getOutputShaderFlag("output-spirv", "output_spirv"); }
+    private boolean getOutputHlslFlag() { return getOutputShaderFlag("output-hlsl", "output_hlsl"); }
+    private boolean getOutputWGSLFlag() { return getOutputShaderFlag("output-wgsl", "output_wgsl"); }
+
+    static public ShaderDescBuildResult buildResultsToShaderDescBuildResults(ShaderCompileResult shaderCompileresult, ShaderDesc.ShaderType shaderType) throws CompileExceptionError {
         ShaderDescBuildResult shaderDescBuildResult = new ShaderDescBuildResult();
         ShaderDesc.Builder shaderDescBuilder = ShaderDesc.newBuilder();
 
@@ -165,13 +175,36 @@ public class ShaderProgramBuilder extends Builder {
         return shaderDescBuildResult;
     }
 
+    public ShaderDescBuildResult makeShaderDesc(String resourceOutputPath, ShaderPreprocessor shaderPreprocessor, ShaderDesc.ShaderType shaderType, String platform, boolean outputSpirv, boolean outputHlsl, boolean outputWGSL) throws IOException, CompileExceptionError {
+        Platform platformKey = Platform.get(platform);
+        if(platformKey == null) {
+            throw new CompileExceptionError("Unknown platform for shader program '" + resourceOutputPath + "'': " + platform);
+        }
+
+        String finalShaderSource                 = shaderPreprocessor.getCompiledSource();
+        IShaderCompiler shaderCompiler           = project.getShaderCompiler(platformKey);
+        ShaderCompileResult shaderCompilerResult = shaderCompiler.compile(finalShaderSource, shaderType, resourceOutputPath, outputSpirv, outputHlsl, outputWGSL);
+        return buildResultsToShaderDescBuildResults(shaderCompilerResult, shaderType);
+    }
+
+    static private void handleShaderDescBuildResult(ShaderDescBuildResult result, String resourceOutputPath) throws CompileExceptionError {
+        if (result.buildWarnings != null) {
+            for(String warningStr : result.buildWarnings) {
+                System.err.println(warningStr);
+            }
+            throw new CompileExceptionError("Errors when producing output " + resourceOutputPath);
+        }
+    }
+
     public ShaderDesc getCompiledShaderDesc(Task task, ShaderDesc.ShaderType shaderType) throws IOException, CompileExceptionError {
-        boolean outputSpirv                   = getOutputSpirvFlag();
-        boolean outputWGSL                    = getOutputWGSLFlag();
-        String resourceOutputPath             = task.getOutputs().get(0).getPath();
+        boolean outputSpirv       = getOutputSpirvFlag();
+        boolean outputHlsl        = getOutputHlslFlag();
+        boolean outputWGSL        = getOutputWGSLFlag();
+        String resourceOutputPath = task.getOutputs().get(0).getPath();
 
         /*
         ShaderDescBuildResult shaderDescBuildResult = makeShaderDesc(resourceOutputPath, shaderPreprocessor, shaderType, this.project.getPlatformStrings()[0], outputSpirv, outputWGSL);
+        ShaderDescBuildResult shaderDescBuildResult = makeShaderDesc(resourceOutputPath, shaderPreprocessor, shaderType, this.project.getPlatformStrings()[0], outputSpirv, outputHlsl, outputWGSL);
 
         handleShaderDescBuildResult(shaderDescBuildResult, resourceOutputPath);
 
@@ -180,23 +213,6 @@ public class ShaderProgramBuilder extends Builder {
 
         return null;
     }
-
-    /*
-    static public ShaderCompilePipeline newShaderPipelineFromShaderSource(ShaderDesc.ShaderType type, String resourcePath, String shaderSource, ShaderCompilePipeline.Options options) throws IOException, CompileExceptionError {
-        ShaderCompilePipeline pipeline;
-        Common.GLSLShaderInfo shaderInfo = Common.getShaderInfo(shaderSource);
-
-        if (shaderInfo == null) {
-            pipeline = new ShaderCompilePipelineLegacy(resourcePath);
-        } else {
-            pipeline = new ShaderCompilePipeline(resourcePath);
-        }
-
-        createShaderPipeline(ShaderCompilePipeline pipeline, ArrayList<ShaderModuleDesc> descs, Options options)
-
-        return ShaderCompilePipeline.createShaderPipeline(pipeline, shaderSource, type, options);
-    }
-    */
 
     static public ShaderProgramBuilder.ShaderBuildResult makeShaderBuilderFromGLSLSource(String source, ShaderDesc.Language shaderLanguage) throws IOException {
         ShaderDesc.Shader.Builder builder = ShaderDesc.Shader.newBuilder();

@@ -92,10 +92,9 @@ static GraphicsAdapterFunctionTable WebGPURegisterFunctionTable();
 static bool WebGPUIsSupported();
 static HContext WebGPUGetContext();
 static GraphicsAdapter g_webgpu_adapter(ADAPTER_FAMILY_WEBGPU);
-static const int8_t g_webgpu_adapter_priority = 0;
-static WebGPUContext* g_WebGPUContext         = NULL;
+static WebGPUContext* g_WebGPUContext = NULL;
 
-DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterWebGPU, &g_webgpu_adapter, WebGPUIsSupported, WebGPURegisterFunctionTable, WebGPUGetContext, g_webgpu_adapter_priority);
+DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterWebGPU, &g_webgpu_adapter, WebGPUIsSupported, WebGPURegisterFunctionTable, WebGPUGetContext, ADAPTER_FAMILY_PRIORITY_WEBGPU);
 
 static WGPUSampler WebGPUGetOrCreateSampler(WebGPUContext* context, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
 {

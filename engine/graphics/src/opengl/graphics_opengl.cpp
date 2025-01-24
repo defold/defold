@@ -410,10 +410,9 @@ static void LogFrameBufferError(GLenum status)
     static GraphicsAdapterFunctionTable OpenGLRegisterFunctionTable();
     static bool                         OpenGLIsSupported();
     static HContext                     OpenGLGetContext();
-    static int8_t          g_null_adapter_priority = 1;
     static GraphicsAdapter g_opengl_adapter(ADAPTER_FAMILY_OPENGL);
 
-    DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterOpenGL, &g_opengl_adapter, OpenGLIsSupported, OpenGLRegisterFunctionTable, OpenGLGetContext, g_null_adapter_priority);
+    DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterOpenGL, &g_opengl_adapter, OpenGLIsSupported, OpenGLRegisterFunctionTable, OpenGLGetContext, ADAPTER_FAMILY_PRIORITY_OPENGL);
 
     static void PostDeleteTextures(OpenGLContext*, bool);
     static bool OpenGLInitialize(HContext context, const ContextParams& params);

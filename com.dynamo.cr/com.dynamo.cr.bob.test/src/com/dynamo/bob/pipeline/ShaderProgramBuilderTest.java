@@ -631,7 +631,6 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
     static ShaderDesc.Shader getShaderByLanguage(ShaderDesc shaderDesc, ShaderDesc.Language language) {
         for (ShaderDesc.Shader shader : shaderDesc.getShadersList()) {
-            System.out.println("Shader " + shader.getLanguage());
             if (shader.getLanguage() == language) {
                 return shader;
             }

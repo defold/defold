@@ -87,16 +87,14 @@ public class SupportPath {
     // linux
 
     private static Path getLinuxSupportPath(String applicationName) {
-        final String userHome = System.getProperty("user.home");
-        if (userHome == null) {
-            return null;
-        }
-        final Path home = Paths.get(userHome);
-        if (Files.isDirectory(home)) {
-            return home.resolve("." + applicationName);
+        final String xdgStateHome = System.getenv("XDG_STATE_HOME");
+        if (xdgStateHome != null) {
+            // 1. $XDG_STATE_HOME
+            return Path.of(xdgStateHome, applicationName);
         }
 
-        return null;
+        // 2. ~/.local/state
+        return Path.of(System.getProperty("user.home"), ".local", "state", applicationName);
     }
 
     public static void main(String[] args) {
