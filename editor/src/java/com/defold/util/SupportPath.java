@@ -87,29 +87,14 @@ public class SupportPath {
     // linux
 
     private static Path getLinuxSupportPath(String applicationName) {
-        // Ensure we have a user.home set
-        final String userHome = System.getProperty("user.home");
-        if (userHome == null) {
-            return null;
+        final String xdgStateHome = System.getenv("XDG_STATE_HOME");
+        if (xdgStateHome != null) {
+            // 1. $XDG_STATE_HOME
+            return Path.of(xdgStateHome, applicationName);
+        } else {
+            // 2. ~/.local/state
+            return Path.of(System.getProperty("user.home"), ".local", "state", applicationName);
         }
-        final Path home = Paths.get(userHome);
-
-        // 1. $XDG_STATE_HOME
-        final String xdgStateEnv = System.getenv("XDG_STATE_HOME");
-        if (xdgStateEnv != null) {
-            Path xdgStateHome = Paths.get(xdgStateEnv);
-            if (Files.isDirectory(xdgStateHome)) {
-                return xdgStateHome.resolve(applicationName);
-            }
-        }
-
-        // 2. $HOME/.local/state
-        if (Files.isDirectory(home)) {
-            Path homeLocalState = Paths.get(userHome, ".local", "state");
-            return homeLocalState.resolve(applicationName);
-        }
-
-        return null;
     }
 
     public static void main(String[] args) {
