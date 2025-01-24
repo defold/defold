@@ -48,11 +48,10 @@ namespace dmGraphics
     static bool                         DX12IsSupported();
     static HContext                     DX12GetContext();
     static bool                         DX12Initialize(HContext _context);
-    static const int8_t    g_dx12_adapter_priority = 0;
     static GraphicsAdapter g_dx12_adapter(ADAPTER_FAMILY_DIRECTX);
     static DX12Context*    g_DX12Context = 0x0;
 
-    DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterDX12, &g_dx12_adapter, DX12IsSupported, DX12RegisterFunctionTable, DX12GetContext, g_dx12_adapter_priority);
+    DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterDX12, &g_dx12_adapter, DX12IsSupported, DX12RegisterFunctionTable, DX12GetContext, ADAPTER_FAMILY_PRIORITY_DIRECTX);
 
     static int16_t CreateTextureSampler(DX12Context* context, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod, float max_anisotropy);
     static void    FlushResourcesToDestroy(DX12FrameResource& current_frame_resource);

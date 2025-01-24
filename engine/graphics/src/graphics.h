@@ -88,6 +88,16 @@ namespace dmGraphics
         ADAPTER_FAMILY_DIRECTX = 6,
     };
 
+    enum AdapterFamilyPriority
+    {
+        ADAPTER_FAMILY_PRIORITY_NULL    = 32,
+        ADAPTER_FAMILY_PRIORITY_OPENGL  = 2,
+        ADAPTER_FAMILY_PRIORITY_VULKAN  = 1,
+        ADAPTER_FAMILY_PRIORITY_VENDOR  = 0,
+        ADAPTER_FAMILY_PRIORITY_WEBGPU  = 0,
+        ADAPTER_FAMILY_PRIORITY_DIRECTX = 0,
+    };
+
     enum AssetType
     {
         ASSET_TYPE_NONE          = 0,

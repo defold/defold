@@ -160,7 +160,7 @@ public class ShaderCompilePipeline {
             pathFileInSpv,
             "--output", pathFileOutHLSL,
             "--hlsl",
-            "--shader-model", "50");
+            "--shader-model", shaderLanguageToVersion(ShaderDesc.Language.LANGUAGE_HLSL).toString());
         checkResult(result);
     }
 

@@ -40,11 +40,9 @@ namespace dmGraphics
     static GraphicsAdapterFunctionTable VulkanRegisterFunctionTable();
     static bool                         VulkanIsSupported();
     static HContext                     VulkanGetContext();
-
-    static const int8_t    g_vulkan_adapter_priority = 1;
     static GraphicsAdapter g_vulkan_adapter(ADAPTER_FAMILY_VULKAN);
 
-    DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterVulkan, &g_vulkan_adapter, VulkanIsSupported, VulkanRegisterFunctionTable, VulkanGetContext, g_vulkan_adapter_priority);
+    DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterVulkan, &g_vulkan_adapter, VulkanIsSupported, VulkanRegisterFunctionTable, VulkanGetContext, ADAPTER_FAMILY_PRIORITY_VULKAN);
 
     static const char* VkResultToStr(VkResult res);
     #define CHECK_VK_ERROR(result) \
