@@ -79,7 +79,7 @@ ENGINE="${DYNAMO_HOME:-}/bin/${PLATFORM:-}/dmengine"
 [ -f "${PROFILE}" ] || terminate "Profile does not exist: ${PROFILE}"
 [ -f "${ENGINE}" ] || terminate "Engine does not exist: ${ENGINE}"
 
-ASAN_PATH=${DYNAMO_HOME}/ext/SDKs/XcodeDefault14.2.xctoolchain/usr/lib/clang/14.0.0/lib/darwin
+ASAN_PATH=${DYNAMO_HOME}/ext/SDKs/XcodeDefault16.2.xctoolchain/usr/lib/clang/16.0.0/lib/darwin
 # e.g. libclang_rt.asan_ios_dynamic.dylib
 
 ASAN_DEPENDENCY=$(otool -L ${ENGINE} | grep libclang_rt.asan | awk '{print $1;}')

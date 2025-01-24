@@ -59,7 +59,7 @@ if [ "Darwin" == "$(uname)" ]; then
     set -e
 
     PACKAGED_XCODE=${DYNAMO_HOME}/ext/SDKs/
-    PACKAGED_XCODE_TOOLCHAIN=${PACKAGED_XCODE}/Toolchains/XcodeDefault.xctoolchain
+    PACKAGED_XCODE_TOOLCHAIN=${PACKAGED_XCODE}/XcodeDefault16.2.xctoolchain
     LOCAL_XCODE=$(xcode-select -print-path)
     LOCAL_XCODE_TOOLCHAIN=${LOCAL_XCODE}/Toolchains/XcodeDefault.xctoolchain
 fi
