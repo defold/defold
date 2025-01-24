@@ -91,10 +91,10 @@ public class SupportPath {
         if (xdgStateHome != null) {
             // 1. $XDG_STATE_HOME
             return Path.of(xdgStateHome, applicationName);
-        } else {
-            // 2. ~/.local/state
-            return Path.of(System.getProperty("user.home"), ".local", "state", applicationName);
         }
+
+        // 2. ~/.local/state
+        return Path.of(System.getProperty("user.home"), ".local", "state", applicationName);
     }
 
     public static void main(String[] args) {
