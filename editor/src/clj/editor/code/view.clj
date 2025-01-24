@@ -2230,6 +2230,8 @@
   (.consume event)
   (let [character (.getCharacter event)]
     (when (and (typable-key-event? event)
+               ;; Ignore Alt+Space on macOS
+               (not (and (os/is-mac-os?) (= " " character) (.isAltDown event)))
                ;; Ignore characters in the control range and the ASCII delete
                ;; as it is done by JavaFX in `TextInputControlBehavior`'s
                ;; `defaultKeyTyped` method.
