@@ -30,6 +30,7 @@ dmResource::Result DoLoadResource(dmResource::HFactory factory, HRequest request
     result->m_LoadResult = dmResource::LoadResourceToBuffer(factory, request->m_CanonicalPath, request->m_Name, preload_size, &request->m_ResourceSize, &request->m_BufferSize, buffer);
     result->m_PreloadResult = dmResource::RESULT_PENDING;
     result->m_PreloadData   = 0;
+    result->m_BufferOwnershipTransferred = false;
 
     if (result->m_LoadResult == dmResource::RESULT_OK)
     {
@@ -53,7 +54,11 @@ dmResource::Result DoLoadResource(dmResource::HFactory factory, HRequest request
             params.m_FileSize       = request->m_ResourceSize;
             params.m_IsBufferPartial= request->m_BufferSize != request->m_ResourceSize;
             params.m_HintInfo       = &request->m_PreloadInfo.m_HintInfo;
-            params.m_PreloadData    = &result->m_PreloadData;
+
+            // out
+            params.m_PreloadData = &result->m_PreloadData;
+            params.m_BufferOwnershipTransferred = &result->m_BufferOwnershipTransferred;
+
             result->m_PreloadResult = (dmResource::Result)request->m_PreloadInfo.m_CompleteFunction(&params);
         }
         else

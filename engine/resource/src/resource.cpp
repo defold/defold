@@ -746,7 +746,8 @@ static Result DoCreateResource(HFactory factory, ResourceType* resource_type, co
     tmp_resource.m_ReferenceCount = 1;
     tmp_resource.m_ResourceType   = resource_type;
 
-    void *preload_data = 0;
+    void* preload_data = 0;
+    bool ownership_transferred = false;
     Result create_error = RESULT_OK;
 
     bool is_partial = buffer_size != resource_size;
@@ -761,9 +762,11 @@ static Result DoCreateResource(HFactory factory, ResourceType* resource_type, co
         params.m_BufferSize     = buffer_size;
         params.m_FileSize       = resource_size;
         params.m_IsBufferPartial= is_partial;
-        params.m_PreloadData    = &preload_data;
         params.m_Filename       = name;
         params.m_HintInfo       = 0; // No hinting now
+        // out
+        params.m_PreloadData    = &preload_data;
+        params.m_BufferOwnershipTransferred = &ownership_transferred;
         create_error            = (Result)resource_type->m_PreloadFunction(&params);
     }
 
@@ -801,6 +804,11 @@ static Result DoCreateResource(HFactory factory, ResourceType* resource_type, co
                 break;
             dmTime::Sleep(1000);
         }
+    }
+
+    if (ownership_transferred)
+    {
+        memset((void*)&factory->m_Buffer, 0, sizeof(factory->m_Buffer));
     }
 
     // Restore to default buffer size

@@ -357,8 +357,10 @@ struct ResourcePreloadParams
     uint32_t                 m_FileSize:31;
     uint32_t                 m_IsBufferPartial:1;
     HResourcePreloadHintInfo m_HintInfo;
-    void**                   m_PreloadData;
     HResourceType            m_Type;
+    // Out
+    void**                   m_PreloadData;
+    bool*                    m_BufferOwnershipTransferred; // If set, the resource type has taken ownership of the data
 };
 
 /*#

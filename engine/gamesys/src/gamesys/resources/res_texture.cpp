@@ -33,6 +33,7 @@ namespace dmGameSystem
 
     struct ImageDesc
     {
+        uint8_t*                  m_Memory; // the memory from the resource system
         dmGraphics::TextureImage* m_DDFImage;
         uint8_t*                  m_DDFImageBytes;
         uint8_t*                  m_DecompressedData[MAX_MIPMAP_COUNT];
@@ -329,10 +330,11 @@ namespace dmGameSystem
         return result;
     }
 
-    static ImageDesc* CreateImage(dmGraphics::HContext context, dmGraphics::TextureImage* texture_image, uint8_t* image_bytes)
+    static ImageDesc* CreateImage(dmGraphics::HContext context, dmGraphics::TextureImage* texture_image, uint8_t* memory, uint8_t* image_bytes)
     {
         ImageDesc* image_desc = new ImageDesc;
         memset(image_desc, 0x0, sizeof(ImageDesc));
+        image_desc->m_Memory = memory;
         image_desc->m_DDFImage = texture_image;
         image_desc->m_DDFImageBytes = image_bytes;
         return image_desc;
@@ -348,6 +350,7 @@ namespace dmGameSystem
             }
         }
 
+        delete[] image_desc->m_Memory;
         delete image_desc;
     }
 
@@ -376,8 +379,9 @@ namespace dmGameSystem
             image_payload = message_bytes + header_size + sizeof(int32_t);
         }
 
-        ImageDesc* image_desc = CreateImage((dmGraphics::HContext) params->m_Context, texture_image, image_payload);
+        ImageDesc* image_desc = CreateImage((dmGraphics::HContext) params->m_Context, texture_image, (uint8_t*) params->m_Buffer, image_payload);
         *params->m_PreloadData = image_desc;
+        *params->m_BufferOwnershipTransferred = true;
         return dmResource::RESULT_OK;
     }
 
@@ -485,7 +489,7 @@ namespace dmGameSystem
 
         // Create the image from the DDF data.
         // Note that the image desc for performance reasons keeps references to the DDF image, meaning they're invalid after the DDF message has been free'd!
-        ImageDesc* image_desc = CreateImage((dmGraphics::HContext) params->m_Context, texture_image, (uint8_t*) texture_image->m_ImageDataAddress);
+        ImageDesc* image_desc = CreateImage((dmGraphics::HContext) params->m_Context, texture_image, 0, (uint8_t*) texture_image->m_ImageDataAddress);
 
         ResTextureUploadParams upload_params = {};
 
