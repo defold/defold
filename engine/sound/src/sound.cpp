@@ -367,6 +367,7 @@ namespace dmSound
 
         sound->m_MixRate = device_info.m_MixRate;
         sound->m_DeviceFrameCount = device_info.m_FrameCount ? device_info.m_FrameCount : params->m_FrameCount;
+        sound->m_FrameCount = 0;
         sound->m_Instances.SetCapacity(max_instances);
         sound->m_Instances.SetSize(max_instances);
         sound->m_InstancesPool.SetCapacity(max_instances);
@@ -809,6 +810,13 @@ namespace dmSound
             return RESULT_NO_SUCH_GROUP;
         }
 
+        if (sound->m_FrameCount == 0)
+        {
+            *rms_left = 0;
+            *rms_right = 0;
+            return RESULT_OK;
+        }
+
         SoundGroup* g = &sound->m_Groups[*index];
         uint32_t rms_frames = (uint32_t) (sound->m_MixRate * window);
         int left = rms_frames;
@@ -839,6 +847,13 @@ namespace dmSound
         int* index = sound->m_GroupMap.Get(group_hash);
         if (!index) {
             return RESULT_NO_SUCH_GROUP;
+        }
+
+        if (sound->m_FrameCount == 0)
+        {
+            *peak_left = 0;
+            *peak_right = 0;
+            return RESULT_OK;
         }
 
         SoundGroup* g = &sound->m_Groups[*index];
@@ -1555,11 +1570,11 @@ namespace dmSound
         while (free_slots > 0) {
 
             // Get the number of frames available
-            sound->m_FrameCount = sound->m_DeviceFrameCount;
-            uint32_t frame_count = sound->m_FrameCount;
+            uint32_t frame_count = sound->m_DeviceFrameCount;
             if (sound->m_DeviceType->m_GetAvailableFrames)
                 frame_count = sound->m_DeviceType->m_GetAvailableFrames(sound->m_Device);
 
+            sound->m_FrameCount = frame_count;
             MixContext mix_context(current_buffer, total_buffers, frame_count);
             MixInstances(&mix_context);
 
