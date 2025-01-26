@@ -2595,8 +2595,6 @@ bail:
         uint32_t ubo_alignment  = (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment;
         uint32_t ssbo_alignment = (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minStorageBufferOffsetAlignment;
 
-        dmLogInfo("CreateProgramResourceBindings");
-
         ProgramResourceBindingsInfo binding_info = {};
         FillProgramResourceBindings(program, bindings, ubo_alignment, ssbo_alignment, binding_info);
 
