@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -1382,7 +1382,7 @@ public class Project {
         return executor.submit(callable);
     }
 
-    private boolean hasSymbol(String findSymbol) throws IOException, CompileExceptionError {
+    private boolean hasSymbol(String symbolName) throws IOException, CompileExceptionError {
         IResource appManifestResource = this.getResource("native_extension", "app_manifest", false);
         if (appManifestResource != null && appManifestResource.exists()) {
             Map<String, Object> yamlAppManifest = ExtenderUtil.readYaml(appManifestResource);
@@ -1396,17 +1396,17 @@ public class Project {
                     Map<String, Object> yamlPlatformContext = (Map<String, Object>) yamlPlatform.getOrDefault("context", null);
 
                     if (yamlPlatformContext != null) {
-                        boolean found = false;
+                        boolean symbolFound = false;
+
                         List<String> symbols = (List<String>) yamlPlatformContext.getOrDefault("symbols", new ArrayList<String>());
 
                         for (String symbol : symbols) {
-                            if (symbol.equals(findSymbol)) {
-                                found = true;
+                            if (symbol.equals(symbolName)) {
+                                symbolFound = true;
                                 break;
                             }
                         }
-
-                        return found;
+                        return symbolFound;
                     }
                 }
             }
@@ -1415,23 +1415,22 @@ public class Project {
         return false;
     }
 
-    private boolean getSpirvRequired() throws IOException, CompileExceptionError {
-        return hasSymbol("GraphicsAdapterVulkan");
-    }
-
-    private boolean getWGSLRequired() throws IOException, CompileExceptionError {
-        return hasSymbol("GraphicsAdapterWebGPU");
-    }
-
     private void configurePreBuildProjectOptions() throws IOException, CompileExceptionError {
-        // Build spir-v either if:
-        //   1. If the user has specified explicitly to build or not to build with spir-v
-        //   2. The project has an app manifest with vulkan enabled
+        // Build spir-v or HLSL either if:
+        //   1. If the user has specified explicitly to build or not to build with spir-v or HLSL
+        //   2. The project has an app manifest with vulkan or DX12 enabled
         if (this.hasOption("debug-output-spirv")) {
             this.setOption("output-spirv", this.option("debug-output-spirv", "false"));
         } else {
-            this.setOption("output-spirv", getSpirvRequired() ? "true" : "false");
+            this.setOption("output-spirv", hasSymbol("GraphicsAdapterVulkan") ? "true" : "false");
         }
+
+        if (this.hasOption("debug-output-hlsl")) {
+            this.setOption("output-hlsl", this.option("debug-output-hlsl", "false"));
+        } else {
+            this.setOption("output-hlsl", hasSymbol("GraphicsAdapterDX12") ? "true" : "false");
+        }
+
         // Build wgsl either if:
         //   1. If the user has specified explicitly to build or not to build with wgsl
         //   2. The project has an app manifest with webgpu enabled
@@ -1439,7 +1438,7 @@ public class Project {
         if (this.hasOption("debug-output-wgsl"))
             outputWGSL = this.option("debug-output-wgsl", "false");
         else
-            outputWGSL = getWGSLRequired() ? "true" : "false";
+            outputWGSL = hasSymbol("GraphicsAdapterWebGPU") ? "true" : "false";
         this.setOption("output-wgsl", outputWGSL);
     }
 

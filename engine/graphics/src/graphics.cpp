@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -112,6 +112,8 @@ namespace dmGraphics
             return ADAPTER_FAMILY_WEBGPU;
         if (dmStrCaseCmp("vendor", adapter_name) == 0)
             return ADAPTER_FAMILY_VENDOR;
+        if (dmStrCaseCmp("dx12", adapter_name) == 0)
+            return ADAPTER_FAMILY_DIRECTX;
         assert(0 && "Adapter type not supported?");
         return ADAPTER_FAMILY_NONE;
     }
@@ -128,6 +130,7 @@ namespace dmGraphics
             GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_VULKAN);
             GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_VENDOR);
             GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_WEBGPU);
+            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_DIRECTX);
             default:break;
         }
         return "<unknown dmGraphics::AdapterFamily>";
@@ -719,19 +722,6 @@ namespace dmGraphics
 
         // Not supported
         return (Type) 0xffffffff;
-    }
-
-    bool IsUniformTextureSampler(ShaderDesc::ShaderDataType uniform_type)
-    {
-        return uniform_type == ShaderDesc::SHADER_TYPE_SAMPLER2D       ||
-               uniform_type == ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY ||
-               uniform_type == ShaderDesc::SHADER_TYPE_SAMPLER3D       ||
-               uniform_type == ShaderDesc::SHADER_TYPE_SAMPLER_CUBE;
-    }
-
-    bool IsUniformStorageBuffer(ShaderDesc::ShaderDataType uniform_type)
-    {
-        return uniform_type == ShaderDesc::SHADER_TYPE_STORAGE_BUFFER;
     }
 
     bool IsTextureFormatCompressed(dmGraphics::TextureFormat format)

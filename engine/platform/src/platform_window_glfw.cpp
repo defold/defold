@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -243,7 +243,7 @@ namespace dmPlatform
         return PLATFORM_RESULT_OK;
     }
 
-    static PlatformResult OpenWindowVulkan(dmWindow* wnd, const WindowParams& params)
+    static PlatformResult OpenWindowNoAPI(dmWindow* wnd, const WindowParams& params)
     {
         glfwOpenWindowHint(GLFW_CLIENT_API,   GLFW_NO_API);
         glfwOpenWindowHint(GLFW_FSAA_SAMPLES, params.m_Samples);
@@ -280,7 +280,7 @@ namespace dmPlatform
                 break;
             case PLATFORM_GRAPHICS_API_WEBGPU:
             case PLATFORM_GRAPHICS_API_VULKAN:
-                res = OpenWindowVulkan(window, params);
+                res = OpenWindowNoAPI(window, params);
                 break;
             default: assert(0);
         }

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -129,10 +129,6 @@ static int ChunkComparePathOffsetFn(const void* a, const void* b)
     uint64_t patha = chunka->m_PathHash;
     uint64_t pathb = chunkb->m_PathHash;
 
-    // printf(" cmp\n");
-    // printf("   chunka: %p  %s %llu  off: %u \n", chunka, dmHashReverseSafe64(chunka->m_PathHash), chunka->m_PathHash, chunka->m_Offset);
-    // printf("   chunkb: %p  %s %llu  off: %u \n", chunkb, dmHashReverseSafe64(chunkb->m_PathHash), chunkb->m_PathHash, chunkb->m_Offset);
-
     if (patha != pathb)
         return patha < pathb ? -1 : 1;
 
@@ -143,20 +139,17 @@ static int ChunkComparePathOffsetFn(const void* a, const void* b)
 
 static void SortChunksOnPathAndOffset(ResourceChunkCache* cache)
 {
-    // ResourceChunkCacheDebugChunks(cache);
-    // printf("COMPARE: %u\n", cache->m_Chunks.Size());
     qsort(cache->m_Chunks.Begin(), cache->m_Chunks.Size(), sizeof(cache->m_Chunks[0]), ChunkComparePathOffsetFn);
 }
 
 static bool ChunkComparePathFn(const ResourceInternalDataChunk* chunk, dmhash_t path_hash)
 {
-    //printf(" cmp path: %s %llu == %s %llu \n", dmHashReverseSafe64(chunk->m_PathHash), chunk->m_PathHash, dmHashReverseSafe64(path_hash), path_hash);
     return chunk->m_PathHash < path_hash;
 }
 
 static void PrintChunk(ResourceChunkCache* cache, ResourceInternalDataChunk* chunk)
 {
-    printf("  chunk: '%s'  offset: %8u  size: %8u  data: %p  noevict: %s\n", dmHashReverseSafe64(chunk->m_PathHash), chunk->m_Offset, chunk->m_Size, chunk->m_Data, chunk->m_NoEvict?"true":"false");
+    printf("  offset: %8u  size: %8u  data: %p  noevict: %s  file: '%s'\n", chunk->m_Offset, chunk->m_Size, chunk->m_Data, chunk->m_NoEvict?"true":"false", dmHashReverseSafe64(chunk->m_PathHash));
 }
 
 static void PrintList(ResourceChunkCache* cache, DLList* list)
@@ -307,7 +300,6 @@ bool ResourceChunkCacheGet(HResourceChunkCache cache, dmhash_t path_hash, uint32
 // Stores a new resoruce chunk
 bool ResourceChunkCachePut(HResourceChunkCache cache, uint64_t path_hash, int flags, ResourceCacheChunk* _chunk)
 {
-//printf("put '%s': '%s' sz: %u  off: %u\n", dmHashReverseSafe64(path_hash), (const char*)_chunk->m_Data, _chunk->m_Size, _chunk->m_Offset);
     if (!ResourceChunkCacheCanFit(cache, _chunk->m_Size))
     {
         dmLogError("Cache is full. Failed to add chunk: '%s' size: %u, offset: %u", dmHashReverseSafe64(path_hash), _chunk->m_Size, _chunk->m_Offset);

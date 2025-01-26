@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -87,6 +87,17 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
         FileUtil.deleteOnExit(file_out_wgsl);
         generateWGSL(file_in_spv.getAbsolutePath(), file_out_wgsl.getAbsolutePath());
         return FileUtils.readFileToString(file_out_wgsl);
+    }
+
+    static private String compileSPIRVToHLSL(byte[] shaderSource, String resourceOutput)  throws IOException, CompileExceptionError {
+        File file_in_spv = File.createTempFile(FilenameUtils.getName(resourceOutput), ".spv");
+        FileUtil.deleteOnExit(file_in_spv);
+        FileUtils.writeByteArrayToFile(file_in_spv, shaderSource);
+
+        File file_out_hlsl = File.createTempFile(FilenameUtils.getName(resourceOutput), ".hlsl");
+        FileUtil.deleteOnExit(file_out_hlsl);
+        generateHLSL(file_in_spv.getAbsolutePath(), file_out_hlsl.getAbsolutePath());
+        return FileUtils.readFileToString(file_out_hlsl);
     }
 
     private SPIRVCompileResult compileGLSLToSPIRV(String shaderSource, ShaderDesc.ShaderType shaderType, String resourceOutput, String targetProfile, boolean softFail, boolean splitTextureSamplers)  throws IOException, CompileExceptionError {

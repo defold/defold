@@ -1,4 +1,4 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -46,7 +46,7 @@
     https://code.visualstudio.com/api/references/contribution-points#contributes.configuration
     https://docs.google.com/document/d/17ke9huzMaagHAYmdzGGGRHnDD5ViLZrChT3OYaEXZuU/edit
     https://json-schema.org/understanding-json-schema/reference"
-  (:refer-clojure :exclude [get])
+  (:refer-clojure :exclude [get set?])
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.spec.alpha :as s]
@@ -129,54 +129,9 @@
     :bundle {:type :object
              :scope :project
              :properties
-             {:variant {:type :enum :values ["debug" "release" "headless"]}
-              :texture-compression {:type :enum :values ["enabled" "disabled" "editor"]}
-              :debug-symbols {:type :boolean :default true}
-              :build-report {:type :boolean}
-              :liveupdate {:type :boolean}
-              :contentless {:type :boolean}
+             {:last-bundle-command {:type :any}
               :output-directory {:type :string}
-              :open-output-directory {:type :boolean :default true}
-              :android {:type :object
-                        :properties
-                        {:keystore {:type :string}
-                         :keystore-pass {:type :string}
-                         :key-pass {:type :string}
-                         :architecture {:type :object
-                                        :properties
-                                        {:armv7-android {:type :boolean :default true}
-                                         :arm64-android {:type :boolean}}}
-                         :format {:type :enum :values ["apk" "aab" "apk,aab"]}
-                         :install {:type :boolean}
-                         :launch {:type :boolean}}}
-              :macos {:type :object
-                      :properties
-                      {:architecture {:type :object
-                                      :properties
-                                      {:x86_64-macos {:type :boolean :default true}
-                                       :arm64-macos {:type :boolean :default true}}}}}
-              :ios {:type :object
-                    :properties
-                    {:sign {:type :boolean :default true}
-                     :code-signing-identity {:type :string}
-                     :provisioning-profile {:type :string}
-                     :architecture {:type :object
-                                    :properties
-                                    {:arm64-ios {:type :boolean :default true}
-                                     :x86_64-ios {:type :boolean}}}
-                     :install {:type :boolean}
-                     :launch {:type :boolean}}}
-              :html5 {:type :object
-                      :properties
-                      {:architecture {:type :object
-                                      :properties
-                                      {:js-web {:type :boolean}
-                                       :wasm-web {:type :boolean :default true}}}}}
-              :windows {:type :object
-                        :properties
-                        {:platform {:type :enum
-                                    ;; derive from bob?
-                                    :values ["x86_64-win32" "x86-win32"]}}}}}
+              :open-output-directory {:type :boolean :default true}}}
     :window {:type :object
              :properties
              {:dimensions {:type :any}
@@ -232,7 +187,7 @@
     :array (and (vector? value)
                 (let [item-schema (:item schema)]
                   (every? #(valid? item-schema %) value)))
-    :set (and (set? value)
+    :set (and (clojure.core/set? value)
               (let [item-schema (:item schema)]
                 (every? #(valid? item-schema %) value)))
     :object (and (map? value)
@@ -343,7 +298,7 @@
                 (map-entry? x) (do (write! (key x) indent)
                                    (.write w " ")
                                    (write! (val x) indent))
-                (set? x) (write-contents-indented! "#{" "}" (sort x) indent)
+                (clojure.core/set? x) (write-contents-indented! "#{" "}" (sort x) indent)
                 (map? x) (write-contents-indented! "{" "}" (sort-by key x) indent)
                 (or (vector? x) (array? x)) (write-contents-indented! "[" "]" x indent)
                 :else (.write w (pr-str x))))]
@@ -466,6 +421,16 @@
               (not (valid? schema value)))
         (default-value schema)
         value))))
+
+(defn- value-at-path-set? [scopes storage schema path]
+  (if (= :object (:type schema))
+    (boolean
+      (coll/some
+        #(value-at-path-set? scopes storage (val %) (conj path (key %)))
+        (:properties schema)))
+    (let [value (-> schema :scope scopes storage (get-in path ::not-found))]
+      (and (not (identical? value ::not-found))
+           (valid? schema value)))))
 
 (defn merge-schemas
   "Similar to clojure.core/merge-with, but for schemas
@@ -619,6 +584,13 @@
   (let [{:keys [registry storage]} @global-state
         schema (combined-schema-at-path registry prefs path)]
     (lookup-valid-value-at-path (:scopes prefs) storage schema path)))
+
+(defn set?
+  "Check if there is an explicit prefs value set for the path"
+  [prefs path]
+  (let [{:keys [registry storage]} @global-state
+        schema (combined-schema-at-path registry prefs path)]
+    (value-at-path-set? (:scopes prefs) storage schema path)))
 
 (defn set!
   "Set a value in preferences at a specified assoc-in path

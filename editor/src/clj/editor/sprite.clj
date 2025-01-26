@@ -1,4 +1,4 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -356,6 +356,7 @@
                                          (g/error-value? anim-data) (dissoc :anim-data)
                                          (g/error-value? anim-ids) (dissoc :anim-ids)
                                          (g/error-value? texture-page-count) (dissoc :texture-page-count))))
+  (output texture-binding-save-value g/Any (g/fnk [sampler texture :as info] info))
   (output scene-info g/Any (g/fnk [sampler gpu-texture anim-data :as info] info))
   (input build-targets g/Any :array)
   (output build-targets g/Any (gu/passthrough build-targets)))
@@ -367,6 +368,7 @@
     (g/connect texture-binding :_node-id sprite :copied-nodes)
     (g/connect texture-binding :build-targets sprite :dep-build-targets)
     (g/connect texture-binding :texture-binding-info sprite :texture-binding-infos)
+    (g/connect texture-binding :texture-binding-save-value sprite :texture-binding-save-values)
     (g/connect texture-binding :scene-info sprite :scene-infos)))
 
 (defn- clear-texture-binding-node-id [texture-binding-node-id _]
@@ -557,6 +559,7 @@
             (dynamic visible (g/constantly false)))
 
   (input texture-binding-infos g/Any :array)
+  (input texture-binding-save-values g/Any :array)
   (input scene-infos g/Any :array)
   (output scene-infos g/Any :cached produce-scene-infos)
 
@@ -564,6 +567,10 @@
                                         (if (g/error-value? material-samplers)
                                           texture-binding-infos
                                           (detect-and-apply-renames texture-binding-infos material-samplers))))
+  (output texture-binding-save-values g/Any (g/fnk [texture-binding-save-values ^:try material-samplers]
+                                              (if (g/error-value? material-samplers)
+                                                texture-binding-save-values
+                                                (util/detect-and-apply-renames texture-binding-save-values :sampler material-samplers :name))))
   (output primary-texture-binding-info g/Any (g/fnk [texture-binding-infos ^:try material-samplers]
                                                (if (g/error-value? material-samplers)
                                                  (first texture-binding-infos)
@@ -573,12 +580,8 @@
                                                                  texture-binding-info))
                                                              texture-binding-infos)
                                                        (first texture-binding-infos))))))
-  (output textures g/Any (g/fnk [texture-binding-infos]
-                           (into []
-                                 (keep (fn [{:keys [sampler texture]}]
-                                         (when texture
-                                           {:sampler sampler :texture texture})))
-                                 texture-binding-infos)))
+  (output textures g/Any (g/fnk [texture-binding-save-values]
+                           (filterv :texture texture-binding-save-values)))
   (output anim-ids g/Any (g/fnk [primary-texture-binding-info] (:anim-ids primary-texture-binding-info)))
 
   (input dep-build-targets g/Any :array)

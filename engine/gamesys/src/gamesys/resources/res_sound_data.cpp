@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -71,27 +71,28 @@ namespace dmGameSystem
         g_SoundDataContext->m_ChunkSize = chunk_size;
     }
 
-    static dmSound::SoundDataType TryToGetTypeFromBuffer(char* buffer, uint32_t bufferSize, dmSound::SoundDataType default_type)
+    static bool TryToGetTypeFromBuffer(char* buffer, uint32_t buffer_size, dmSound::SoundDataType* out)
     {
-        dmSound::SoundDataType type = default_type;
-        if (bufferSize < 3)
+        if (buffer_size < 3)
         {
-            return type;
+            return false;
         }
         // positions according to format specs (ogg, wav)
         if (buffer[0] == 'O' && buffer[1] == 'g' && buffer[2] == 'g')
         {
-            type = dmSound::SOUND_DATA_TYPE_OGG_VORBIS;
+            *out = dmSound::SOUND_DATA_TYPE_OGG_VORBIS;
+            return true;
         }
-        if (bufferSize < 11)
+        if (buffer_size < 11)
         {
-            return type;
+            return false;
         }
         if (buffer[8] == 'W' && buffer[9] == 'A' && buffer[10] == 'V')
         {
-            type = dmSound::SOUND_DATA_TYPE_WAV;
+            *out = dmSound::SOUND_DATA_TYPE_WAV;
+            return true;
         };
-        return type;
+        return false;
     }
 
     static dmResource::Result DestroyResource(SoundDataResource* resource)
@@ -246,7 +247,13 @@ namespace dmGameSystem
 
     dmResource::Result ResSoundDataCreate(const dmResource::ResourceCreateParams* params)
     {
-        dmSound::SoundDataType type = TryToGetTypeFromBuffer((char*)params->m_Buffer, params->m_BufferSize, dmSound::SOUND_DATA_TYPE_WAV);
+        dmSound::SoundDataType type;
+        bool type_result = TryToGetTypeFromBuffer((char*)params->m_Buffer, params->m_BufferSize, &type);
+        if (!type_result)
+        {
+            dmLogError("Failed to detect sound type for: %s", params->m_Filename);
+            return dmResource::RESULT_INVALID_DATA;
+        }
 
         SoundDataContext* context = (SoundDataContext*)ResourceTypeGetContext(params->m_Type);
         // Until we have a way to get the factory at the time of type creation
@@ -307,8 +314,15 @@ namespace dmGameSystem
     {
         SoundDataResource* sound_data_res = (SoundDataResource*) dmResource::GetResource(params->m_Resource);
 
+        dmSound::SoundDataType type;
+        bool type_result = TryToGetTypeFromBuffer((char*)params->m_Buffer, params->m_BufferSize, &type);
+        if (!type_result)
+        {
+            dmLogError("Failed to detect sound type for: %s", params->m_Filename);
+            return dmResource::RESULT_INVALID_DATA;
+        }
+
         dmSound::HSoundData sound_data;
-        dmSound::SoundDataType type = TryToGetTypeFromBuffer((char*)params->m_Buffer, params->m_BufferSize, (dmSound::SoundDataType)sound_data_res->m_Type);
         dmSound::Result r = dmSound::NewSoundData(params->m_Buffer, params->m_BufferSize, type, &sound_data, dmResource::GetNameHash(params->m_Resource));
 
         if (r != dmSound::RESULT_OK)
