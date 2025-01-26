@@ -95,7 +95,7 @@
            [javafx.collections ListChangeListener ObservableList]
            [javafx.event Event]
            [javafx.geometry HPos Orientation Pos]
-           [javafx.scene Parent Scene]
+           [javafx.scene Parent Scene Node]
            [javafx.scene.control Label MenuBar SplitPane Tab TabPane TabPane$TabClosingPolicy TabPane$TabDragPolicy Tooltip]
            [javafx.scene.image Image ImageView]
            [javafx.scene.input Clipboard ClipboardContent MouseEvent MouseButton]
@@ -1874,11 +1874,11 @@ If you do not specifically require different script states, consider changing th
   "Selects the tab on right-click."
   [^TabPane tab-pane ^MouseEvent event]
   (when (= MouseButton/SECONDARY (.getButton event))
-    ;; Hackish way to get the tab index under the mouse cursor
+    ;; Hackish way to get the tab index under the mouse cursor.
     (when-let [target-tab (->> (.lookupAll tab-pane ".tab")
                                (keep-indexed
-                                (fn [i tab]
-                                  (when (.contains (.getBoundsInParent tab)
+                                (fn [i ^Node node]
+                                  (when (.contains (.getBoundsInParent node)
                                                    (.getX event) (.getY event))
                                     i)))
                                first)]
