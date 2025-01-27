@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -115,7 +115,7 @@ namespace dmScript
      * @param L lua state
      * @param name_hash the hash of the name returned by SetGlobal
      */
-    void GetGlobal(lua_State*L, uint32_t name_hash);
+    void GetGlobal(lua_State* L, uint32_t name_hash);
 
     /**
      * Use a ScriptExtension to hook into various callbacks of the script lifetime
@@ -263,8 +263,18 @@ namespace dmScript
      * @param L Lua state
      * @param descriptor Field descriptor
      * @param data DDF data
+     * @param pointers_are_offets True if pointers are offsets
      */
-    void PushDDF(lua_State*L, const dmDDF::Descriptor* descriptor, const char* data);
+    void PushDDFNoDecoder(lua_State* L, const dmDDF::Descriptor* descriptor, const char* data, bool pointers_are_offsets);
+
+    /**
+     * Push DDF message to Lua stack. Invokes any registered decoder
+     * @note the pointers_are_offsets is set as false
+     * @param L Lua state
+     * @param descriptor Field descriptor
+     * @param data DDF data
+     */
+    void PushDDF(lua_State* L, const dmDDF::Descriptor* descriptor, const char* data);
 
     void RegisterDDFDecoder(void* descriptor, MessageDecoder decoder);
 

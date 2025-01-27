@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -394,7 +394,10 @@
         linear-damping :linear-damping
         angular-damping :angular-damping
         locked-rotation :locked-rotation
-        bullet :bullet)
+        bullet :bullet
+        event-collision :event-collision
+        event-contact :event-contact
+        event-trigger :event-trigger)
       (g/connect self :collision-group-node project :collision-group-nodes)
       (g/connect project :collision-groups-data self :collision-groups-data)
       (g/connect project :settings self :project-settings)
@@ -439,7 +442,7 @@
 
 (g/defnk produce-save-value
   [collision-shape-resource type mass friction restitution
-   group mask angular-damping linear-damping locked-rotation bullet
+   group mask angular-damping linear-damping locked-rotation bullet event-collision event-contact event-trigger
    shapes]
   (let [embedded-collision-shape (make-embedded-collision-shape shapes)
         mask (cond-> []
@@ -459,6 +462,9 @@
           :angular-damping angular-damping
           :locked-rotation locked-rotation
           :bullet bullet
+          :event-collision event-collision
+          :event-contact event-contact
+          :event-trigger event-trigger
           :embedded-collision-shape embedded-collision-shape)
         (strip-empty-embedded-collision-shape))))
 
@@ -583,6 +589,18 @@
             (default (protobuf/default Physics$CollisionObjectDesc :locked-rotation)))
   (property bullet g/Bool
             (default (protobuf/default Physics$CollisionObjectDesc :bullet)))
+  (property event-collision g/Bool
+            (dynamic label (g/constantly "Generate Collision Events"))
+            (dynamic tooltip (g/constantly "If disabled, filters out any collision events involving this collision object"))
+            (default (protobuf/default Physics$CollisionObjectDesc :event-collision)))
+  (property event-contact g/Bool
+            (dynamic label (g/constantly "Generate Contact Events"))
+            (dynamic tooltip (g/constantly "If disabled, filters out any contact events involving this collision object"))
+            (default (protobuf/default Physics$CollisionObjectDesc :event-contact)))
+  (property event-trigger g/Bool
+            (dynamic label (g/constantly "Generate Trigger Events"))
+            (dynamic tooltip (g/constantly "If disabled, filters out any trigger events involving this collision object"))
+            (default (protobuf/default Physics$CollisionObjectDesc :event-trigger)))
 
   (property group g/Str) ; Required protobuf field.
   (property mask g/Str) ; Nil is valid default.

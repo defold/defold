@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -1596,13 +1596,13 @@ struct StreamTestResource
     uint32_t    m_ChunkSize;
 };
 
-static int StreamingPreloadCallback(dmResource::HFactory factory, void* cbk_ctx, HResourceDescriptor rd, uint32_t nread, uint8_t* buffer)
+static int StreamingPreloadCallback(dmResource::HFactory factory, void* cbk_ctx, HResourceDescriptor rd, uint32_t offset, uint32_t nread, uint8_t* buffer)
 {
     StreamTestResource* resource = (StreamTestResource*)cbk_ctx;
-    uint32_t newsize = resource->m_Offset + nread;
+    uint32_t newsize = offset + nread;
     resource->m_Data = (uint8_t*)realloc(resource->m_Data, newsize);
 
-    memcpy(resource->m_Data + resource->m_Offset, buffer, nread);
+    memcpy(resource->m_Data + offset, buffer, nread);
     resource->m_Offset = newsize;
 
     if (resource->m_Offset < resource->m_ResourceSize)

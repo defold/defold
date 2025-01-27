@@ -117,6 +117,16 @@ def build(bld):
 
         bld.add_group()
 
+    if platform_supports_feature(bld.env.PLATFORM, 'dx12', {}):
+
+        dx12_header_includes = [build_util.get_dynamo_ext('include', 'directx')]
+
+        obj = bld.stlib(features        = 'cxx',
+                        includes        = ['.', 'dx12'] + proto_cpp_includes + dx12_header_includes,
+                        use             = 'DDF DLIB',
+                        source          = bld.path.ant_glob(['*.cpp', 'dx12/*.cpp']) + proto_cpp_source,
+                        target          = 'graphics_dx12')
+
     if bld.env.PLATFORM in ('x86_64-ps4','x86_64-ps5'):
         bld.recurse('ps4')
 

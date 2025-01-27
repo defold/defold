@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -17,6 +17,8 @@
 #include <string.h>
 #include <stdint.h>
 #include <assert.h>
+
+#include <dlib/log.h>
 
 #include "sound_codec.h"
 #include "sound_decoder.h"
@@ -73,5 +75,24 @@ namespace dmSoundCodec
 
         assert(best != 0);
         return best;
+    }
+
+    const char* ResultToString(Result result)
+    {
+        switch(result)
+        {
+#define RESULT_CASE(_NAME) \
+    case _NAME: return #_NAME
+
+            RESULT_CASE(RESULT_OK);
+            RESULT_CASE(RESULT_OUT_OF_RESOURCES);
+            RESULT_CASE(RESULT_INVALID_FORMAT);
+            RESULT_CASE(RESULT_DECODE_ERROR);
+            RESULT_CASE(RESULT_UNSUPPORTED);
+            RESULT_CASE(RESULT_END_OF_STREAM);
+            RESULT_CASE(RESULT_UNKNOWN_ERROR);
+            default: return "Unknown";
+        }
+#undef RESULT_CASE
     }
 }

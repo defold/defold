@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 
-# Copyright 2020-2024 The Defold Foundation
+# Copyright 2020-2025 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -18,14 +18,16 @@ set -e
 
 SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
-# config
-IOS_SDK_VERSION=16.2
-IOS_SIMULATOR_SDK_VERSION=16.2
-IOS_MIN_SDK_VERSION=11.0
+eval $(python $SCRIPTDIR/../../build_tools/set_sdk_vars.py VERSION_IPHONEOS VERSION_IPHONESIMULATOR VERSION_IPHONEOS_MIN VERSION_MACOSX_MIN VERSION_MACOSX VERSION_XCODE)
 
-OSX_MIN_SDK_VERSION=10.13
-OSX_SDK_VERSION=13.1
-XCODE_VERSION=14.2
+# config
+IOS_SDK_VERSION=$VERSION_IPHONEOS
+IOS_SIMULATOR_SDK_VERSION=$VERSION_IPHONESIMULATOR
+IOS_MIN_SDK_VERSION=$VERSION_IPHONEOS_MIN
+
+OSX_MIN_SDK_VERSION=$VERSION_MACOSX_MIN
+OSX_SDK_VERSION=$VERSION_MACOSX
+XCODE_VERSION=$VERSION_XCODE
 
 OSX_SDK_ROOT=${DYNAMO_HOME}/ext/SDKs/MacOSX${OSX_SDK_VERSION}.sdk
 IOS_SDK_ROOT=${DYNAMO_HOME}/ext/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk

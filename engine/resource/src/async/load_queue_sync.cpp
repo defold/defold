@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,6 +15,7 @@
 #include "resource.h"
 #include "resource_private.h"
 #include "load_queue.h"
+#include "load_queue_private.h" // Request
 
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
@@ -23,13 +24,6 @@ namespace dmLoadQueue
 {
     // Implementation of the LoadQueue API where all loads happen during the EndLoad call.
     // EndLoad thus never returns _PENDING
-
-    struct Request
-    {
-        const char* m_Name;
-        const char* m_CanonicalPath;
-        PreloadInfo m_PreloadInfo;
-    };
 
     struct Queue
     {
@@ -66,27 +60,23 @@ namespace dmLoadQueue
         return queue->m_ActiveRequest;
     }
 
-    Result EndLoad(HQueue queue, HRequest request, void** buf, uint32_t* size, LoadResult* load_result)
+    Result EndLoad(HQueue queue, HRequest request, void** buf, uint32_t* buffer_size, uint32_t* resource_size, LoadResult* load_result)
     {
         if (!queue || !request || queue->m_ActiveRequest != request)
         {
             return RESULT_INVALID_PARAM;
         }
 
-        load_result->m_LoadResult    = dmResource::LoadResource(queue->m_Factory, request->m_CanonicalPath, request->m_Name, buf, size);
-        load_result->m_PreloadResult = dmResource::RESULT_PENDING;
-        load_result->m_PreloadData   = 0;
+        dmResource::LoadBufferType* buffer = dmResource::GetGlobalLoadBuffer(queue->m_Factory);
+        DoLoadResource(queue->m_Factory, request, buffer, load_result);
+        *buffer_size = request->m_BufferSize;
+        *resource_size = request->m_ResourceSize;
+        *buf = buffer->Begin();
 
-        if (load_result->m_LoadResult == dmResource::RESULT_OK && request->m_PreloadInfo.m_CompleteFunction)
+        if (load_result->m_IsBufferOwnershipTransferred)
         {
-            dmResource::ResourcePreloadParams params;
-            params.m_Factory             = queue->m_Factory;
-            params.m_Context             = request->m_PreloadInfo.m_Context;
-            params.m_Buffer              = *buf;
-            params.m_BufferSize          = *size;
-            params.m_HintInfo            = &request->m_PreloadInfo.m_HintInfo;
-            params.m_PreloadData         = &load_result->m_PreloadData;
-            load_result->m_PreloadResult = (dmResource::Result)request->m_PreloadInfo.m_CompleteFunction(&params);
+            // we reset the dmArray (size = 0, capacity = 0)
+            memset((void*)buffer, 0, sizeof(*buffer));
         }
         return RESULT_OK;
     }

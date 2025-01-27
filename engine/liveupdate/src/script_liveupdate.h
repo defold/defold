@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -349,9 +349,9 @@ namespace dmLiveUpdate
  * Add multiple mounts. Higher priority takes precedence.
  *
  * ```lua
- * liveupdate.add_mount("common", "zip:/path/to/common_stuff.zip", 10) -- base pack
- * liveupdate.add_mount("levelpack_1", "zip:/path/to/levels_1_to_20.zip", 20) -- level pack
- * liveupdate.add_mount("season_pack_1", "zip:/path/to/easter_pack_1.zip", 30) -- season pack, overriding content in the other packs
+ * liveupdate.add_mount("common", "zip:/path/to/common_stuff.zip", 10, function (result) end) -- base pack
+ * liveupdate.add_mount("levelpack_1", "zip:/path/to/levels_1_to_20.zip", 20, function (result) end) -- level pack
+ * liveupdate.add_mount("season_pack_1", "zip:/path/to/easter_pack_1.zip", 30, function (result) end) -- season pack, overriding content in the other packs
  * ```
  */
 

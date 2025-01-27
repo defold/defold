@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -19,6 +19,8 @@ import static org.apache.commons.io.FilenameUtils.normalize;
 import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.fs.FileSystemWalker;
 import com.dynamo.bob.fs.ZipMountPoint;
+import com.dynamo.bob.util.MiscUtil;
+import com.dynamo.bob.util.TextureUtil;
 import org.apache.commons.io.filefilter.DirectoryFileFilter;
 import org.apache.commons.io.filefilter.RegexFileFilter;
 
@@ -179,7 +181,15 @@ public class ExtenderUtil {
 		}
 
         @Override
-        public byte[] sha1(boolean allowCached) throws IOException {
+        public void appendContent(byte[] content) throws IOException {
+            ArrayList<byte[]> parts = new ArrayList<>();
+            parts.add(this.content);
+            parts.add(content);
+            this.content = MiscUtil.concatenateArrays(parts);
+        }
+
+        @Override
+        public byte[] sha1() throws IOException {
             byte[] content = getContent();
             if (content == null) {
                 throw new IllegalArgumentException(String.format("Resource '%s' is not created", path));
@@ -192,11 +202,6 @@ public class ExtenderUtil {
             }
             sha1.update(content);
             return sha1.digest();
-        }
-
-        @Override
-        public byte[] sha1() throws IOException {
-            return sha1(false);
         }
 
 		@Override

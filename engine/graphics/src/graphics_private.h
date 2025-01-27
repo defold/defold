@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -23,7 +23,20 @@
 
 namespace dmGraphics
 {
-    #define UNIFORM_LOCATION_MAX                ((uint64_t) 0xFFFF)
+    const static uint8_t DM_RENDERTARGET_BACKBUFFER_ID = 0;
+    const static uint8_t MAX_VERTEX_BUFFERS            = 3;
+    const static uint8_t MAX_BINDINGS_PER_SET_COUNT    = 32;
+    const static uint8_t MAX_SET_COUNT                 = 4;
+    const static uint8_t MAX_STORAGE_BUFFERS           = 4;
+    const static uint8_t DM_MAX_TEXTURE_UNITS          = 32;
+
+    // In OpenGL, there is a single global resource identifier between
+    // fragment and vertex uniforms for a single program. In Vulkan,
+    // a uniform can be present in both shaders so we have to keep track
+    // of this ourselves. Because of this we pack resource locations
+    // for uniforms in a single base register with 15 bits
+    // per shader location. If uniform is not found, we return -1 as usual.
+    #define UNIFORM_LOCATION_MAX          ((uint64_t) 0xFFFF)
     #define UNIFORM_LOCATION_GET_OP0(loc) (loc & UNIFORM_LOCATION_MAX)
     #define UNIFORM_LOCATION_GET_OP1(loc) ((loc & (UNIFORM_LOCATION_MAX << 16)) >> 16)
     #define UNIFORM_LOCATION_GET_OP2(loc) ((loc & (UNIFORM_LOCATION_MAX << 32)) >> 32)
@@ -46,10 +59,12 @@ namespace dmGraphics
 
     typedef void (*IterateUniformsCallback)(const CreateUniformLeafMembersCallbackParams& params, void* user_data);
 
-    const static uint8_t MAX_BINDINGS_PER_SET_COUNT = 32;
-    const static uint8_t MAX_SET_COUNT              = 4;
-    const static uint8_t MAX_STORAGE_BUFFERS        = 4;
-    const static uint8_t MAX_VERTEX_BUFFERS         = 3;
+    // Fence values to indicate frame ready or in-use state
+    enum RenderContextState
+    {
+        RENDER_CONTEXT_STATE_FREE   = 0,
+        RENDER_CONTEXT_STATE_IN_USE = 1,
+    };
 
     struct VertexStream
     {
@@ -214,8 +229,6 @@ namespace dmGraphics
     void                 SetForceVertexReloadFail(bool should_fail);
     void                 SetPipelineStateValue(PipelineState& pipeline_state, State state, uint8_t value);
     bool                 IsTextureFormatCompressed(TextureFormat format);
-    bool                 IsUniformTextureSampler(ShaderDesc::ShaderDataType uniform_type);
-    bool                 IsUniformStorageBuffer(ShaderDesc::ShaderDataType uniform_type);
     void                 RepackRGBToRGBA(uint32_t num_pixels, uint8_t* rgb, uint8_t* rgba);
     bool                 IsTextureFormatASTC(TextureFormat format);
     const char*          TextureFormatToString(TextureFormat format);
@@ -260,6 +273,18 @@ namespace dmGraphics
     {
         params.m_Data     = 0x0;
         params.m_DataSize = 0;
+    }
+
+    static inline uint32_t GetNextRenderTargetId()
+    {
+        static uint32_t next_id = 1;
+
+        // DM_RENDERTARGET_BACKBUFFER_ID is taken for the main framebuffer
+        if (next_id == DM_RENDERTARGET_BACKBUFFER_ID)
+        {
+            next_id = DM_RENDERTARGET_BACKBUFFER_ID + 1;
+        }
+        return next_id++;
     }
 
     template <typename T>

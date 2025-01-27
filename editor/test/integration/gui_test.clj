@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -762,11 +762,17 @@
 
       (testing "Introduce missing referenced layer in template scene"
         (with-open [_ (make-restore-point!)]
-          (is (nil? (g/node-value (:pie template-shapes) :layer-index)))
-          (is (nil? (g/node-value (:pie shapes) :layer-index)))
-          (add-layer! template-scene (g/node-value (:pie template-shapes) :layer) 0)
-          (is (= 0 (g/node-value (:pie template-shapes) :layer-index)))
-          (is (= 0 (g/node-value (:pie shapes) :layer-index)))))
+          (let [template-pie (:pie template-shapes)
+                imported-pie (:pie shapes)
+                template-layer (g/node-value template-pie :layer)]
+            (is (= template-layer (g/node-value imported-pie :layer))) ; Layer property is inherited from template.
+            (is (nil? (g/node-value template-pie :layer-index)))
+            (is (nil? (g/node-value imported-pie :layer-index)))
+            (add-layer! template-scene template-layer 0)
+            (is (= 0 (g/node-value template-pie :layer-index)))
+            (is (nil? (g/node-value imported-pie :layer-index))) ; Layers are isolated between scenes. The imported pie inherits the layer property, but there is still no matching layer in its scene.
+            (add-layer! scene template-layer 0)
+            (is (= 0 (g/node-value imported-pie :layer-index))))))
 
       (testing "Introduce missing referenced texture in template scene"
         (with-open [_ (make-restore-point!)]
@@ -880,7 +886,7 @@
     (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))
           scene (project/get-resource-node project "/gui/reorder.gui")
           id-map (scene-gui-node-map scene)
-          layouts (g/node-feeding-into scene :own-layout-names)
+          layouts (g/node-feeding-into scene :layout-names)
           [landscape portrait] (map first (g/sources-of layouts :names))]
 
       ;; sanity
@@ -973,7 +979,7 @@
 (defn- make-displayed-layout->node->data [gui-scene-node-id data-fn]
   {:pre [(g/node-id? gui-scene-node-id)
          (ifn? data-fn)]}
-  (let [layout-names (cons "" (g/node-value gui-scene-node-id :own-layout-names))
+  (let [layout-names (cons "" (g/node-value gui-scene-node-id :layout-names))
         gui-node-name->node-id (g/node-value gui-scene-node-id :node-ids)]
     (coll/transfer layout-names (sorted-map)
       (map (fn [layout-name]
@@ -2714,4 +2720,259 @@
                                    "panel_resources/text" {:font "panel_font_renamed"
                                                            :layer "panel_layer_renamed"
                                                            :material "panel_material_renamed"}}}
+                     (make-layout->node->resource-field-values referencing-scene))))))))))
+
+(deftest template-layout-shadowing-resource-rename-test
+  (test-util/with-loaded-project "test/resources/gui_project"
+    (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))]
+      (let [referencing-scene (project/get-resource-node project "/gui/resources/shadowing_panel.gui")
+            referenced-scene (project/get-resource-node project "/gui/resources/shadowing_button.gui")
+
+            make-layout->node->resource-field-values
+            (fn make-layout->node->resource-field-values [gui-scene-node-id]
+              (let [scene-desc (g/valid-node-value gui-scene-node-id :save-value)]
+                (make-layout->node->field->value
+                  scene-desc
+                  (fn node-desc-fn [node-desc _is-override-node-desc]
+                    (-> node-desc
+                        (select-keys [:font :layer :material :particlefx :spine-scene :texture])
+                        (coll/not-empty))))))]
+
+        (testing "Before renaming resources."
+          (testing "Referenced scene."
+            (is (= {"Default" {"box" {:layer "shadowing_layer"
+                                      :material "shadowing_material"
+                                      :texture "shadowing_texture/button_striped"}
+                               "particlefx" {:layer "shadowing_layer"
+                                             :material "shadowing_material"
+                                             :particlefx "shadowing_particlefx"}
+                               "pie" {:layer "shadowing_layer"
+                                      :material "shadowing_material"
+                                      :texture "shadowing_texture/button_striped"}
+                               "spine" {:layer "shadowing_layer"
+                                        :material "shadowing_material"
+                                        :spine-scene "shadowing_spinescene"}
+                               "text" {:font "shadowing_font"
+                                       :layer "shadowing_layer"
+                                       :material "shadowing_material"}}
+                    "Landscape" {"box" {:layer "shadowing_layer"
+                                        :material "shadowing_material"
+                                        :texture "shadowing_texture/button_striped"}
+                                 "particlefx" {:layer "shadowing_layer"
+                                               :material "shadowing_material"
+                                               :particlefx "shadowing_particlefx"}
+                                 "pie" {:layer "shadowing_layer"
+                                        :material "shadowing_material"
+                                        :texture "shadowing_texture/button_striped"}
+                                 "spine" {:layer "shadowing_layer"
+                                          :material "shadowing_material"
+                                          :spine-scene "shadowing_spinescene"}
+                                 "text" {:font "shadowing_font"
+                                         :layer "shadowing_layer"
+                                         :material "shadowing_material"}}}
+                   (make-layout->node->resource-field-values referenced-scene))))
+
+          (testing "Referencing scene."
+            (is (= {"Default" {"shadowing_resources" {:layer "shadowing_layer"}
+                               "shadowing_resources/box" {:layer "shadowing_layer"
+                                                          :material "shadowing_material"
+                                                          :texture "shadowing_texture/button_striped"}
+                               "shadowing_resources/particlefx" {:layer "shadowing_layer"
+                                                                 :material "shadowing_material"
+                                                                 :particlefx "shadowing_particlefx"}
+                               "shadowing_resources/pie" {:layer "shadowing_layer"
+                                                          :material "shadowing_material"
+                                                          :texture "shadowing_texture/button_striped"}
+                               "shadowing_resources/spine" {:layer "shadowing_layer"
+                                                            :material "shadowing_material"
+                                                            :spine-scene "shadowing_spinescene"}
+                               "shadowing_resources/text" {:font "shadowing_font"
+                                                           :layer "shadowing_layer"
+                                                           :material "shadowing_material"}}
+                    "Landscape" {"shadowing_resources/box" {:layer "shadowing_layer"
+                                                            :material "shadowing_material"
+                                                            :texture "shadowing_texture/button_striped"}
+                                 "shadowing_resources/particlefx" {:layer "shadowing_layer"
+                                                                   :material "shadowing_material"
+                                                                   :particlefx "shadowing_particlefx"}
+                                 "shadowing_resources/pie" {:layer "shadowing_layer"
+                                                            :material "shadowing_material"
+                                                            :texture "shadowing_texture/button_striped"}
+                                 "shadowing_resources/spine" {:layer "shadowing_layer"
+                                                              :material "shadowing_material"
+                                                              :spine-scene "shadowing_spinescene"}
+                                 "shadowing_resources/text" {:font "shadowing_font"
+                                                             :layer "shadowing_layer"
+                                                             :material "shadowing_material"}}}
+                   (make-layout->node->resource-field-values referencing-scene)))))
+
+        (testing "After renaming resources in the referenced scene."
+          (with-open [_ (make-restore-point!)]
+
+            ;; Rename all resources in the referenced scene.
+            (let [button-font (gui-font referenced-scene "shadowing_font")
+                  button-layer (gui-layer referenced-scene "shadowing_layer")
+                  button-material (gui-material referenced-scene "shadowing_material")
+                  button-particlefx (gui-particlefx-resource referenced-scene "shadowing_particlefx")
+                  button-spinescene (gui-spine-scene referenced-scene "shadowing_spinescene")
+                  button-texture (gui-texture referenced-scene "shadowing_texture")]
+              (test-util/prop! button-font :name "shadowing_font_renamed")
+              (test-util/prop! button-layer :name "shadowing_layer_renamed")
+              (test-util/prop! button-material :name "shadowing_material_renamed")
+              (test-util/prop! button-particlefx :name "shadowing_particlefx_renamed")
+              (test-util/prop! button-spinescene :name "shadowing_spinescene_renamed")
+              (test-util/prop! button-texture :name "shadowing_texture_renamed"))
+
+            (testing "Referenced scene."
+              (is (= {"Default" {"box" {:layer "shadowing_layer_renamed"
+                                        :material "shadowing_material_renamed"
+                                        :texture "shadowing_texture_renamed/button_striped"}
+                                 "particlefx" {:layer "shadowing_layer_renamed"
+                                               :material "shadowing_material_renamed"
+                                               :particlefx "shadowing_particlefx_renamed"}
+                                 "pie" {:layer "shadowing_layer_renamed"
+                                        :material "shadowing_material_renamed"
+                                        :texture "shadowing_texture_renamed/button_striped"}
+                                 "spine" {:layer "shadowing_layer_renamed"
+                                          :material "shadowing_material_renamed"
+                                          :spine-scene "shadowing_spinescene_renamed"}
+                                 "text" {:font "shadowing_font_renamed"
+                                         :layer "shadowing_layer_renamed"
+                                         :material "shadowing_material_renamed"}}
+                      "Landscape" {"box" {:layer "shadowing_layer_renamed"
+                                          :material "shadowing_material_renamed"
+                                          :texture "shadowing_texture_renamed/button_striped"}
+                                   "particlefx" {:layer "shadowing_layer_renamed"
+                                                 :material "shadowing_material_renamed"
+                                                 :particlefx "shadowing_particlefx_renamed"}
+                                   "pie" {:layer "shadowing_layer_renamed"
+                                          :material "shadowing_material_renamed"
+                                          :texture "shadowing_texture_renamed/button_striped"}
+                                   "spine" {:layer "shadowing_layer_renamed"
+                                            :material "shadowing_material_renamed"
+                                            :spine-scene "shadowing_spinescene_renamed"}
+                                   "text" {:font "shadowing_font_renamed"
+                                           :layer "shadowing_layer_renamed"
+                                           :material "shadowing_material_renamed"}}}
+                     (make-layout->node->resource-field-values referenced-scene))))
+
+            (testing "Referencing scene."
+              ;; After the renames in button.gui, we should not see any updated
+              ;; references in panel.gui, since it has its own resources with
+              ;; identical names shadowing the resources in button.gui.
+              (is (= {"Default" {"shadowing_resources" {:layer "shadowing_layer"}
+                                 "shadowing_resources/box" {:layer "shadowing_layer"
+                                                            :material "shadowing_material"
+                                                            :texture "shadowing_texture/button_striped"}
+                                 "shadowing_resources/particlefx" {:layer "shadowing_layer"
+                                                                   :material "shadowing_material"
+                                                                   :particlefx "shadowing_particlefx"}
+                                 "shadowing_resources/pie" {:layer "shadowing_layer"
+                                                            :material "shadowing_material"
+                                                            :texture "shadowing_texture/button_striped"}
+                                 "shadowing_resources/spine" {:layer "shadowing_layer"
+                                                              :material "shadowing_material"
+                                                              :spine-scene "shadowing_spinescene"}
+                                 "shadowing_resources/text" {:font "shadowing_font"
+                                                             :layer "shadowing_layer"
+                                                             :material "shadowing_material"}}
+                      "Landscape" {"shadowing_resources/box" {:layer "shadowing_layer"
+                                                              :material "shadowing_material"
+                                                              :texture "shadowing_texture/button_striped"}
+                                   "shadowing_resources/particlefx" {:layer "shadowing_layer"
+                                                                     :material "shadowing_material"
+                                                                     :particlefx "shadowing_particlefx"}
+                                   "shadowing_resources/pie" {:layer "shadowing_layer"
+                                                              :material "shadowing_material"
+                                                              :texture "shadowing_texture/button_striped"}
+                                   "shadowing_resources/spine" {:layer "shadowing_layer"
+                                                                :material "shadowing_material"
+                                                                :spine-scene "shadowing_spinescene"}
+                                   "shadowing_resources/text" {:font "shadowing_font"
+                                                               :layer "shadowing_layer"
+                                                               :material "shadowing_material"}}}
+                     (make-layout->node->resource-field-values referencing-scene))))))
+
+        (testing "After renaming resources in the referencing scene."
+          (with-open [_ (make-restore-point!)]
+
+            ;; Rename all resources in the referencing scene.
+            (let [panel-font (gui-font referencing-scene "shadowing_font")
+                  panel-layer (gui-layer referencing-scene "shadowing_layer")
+                  panel-material (gui-material referencing-scene "shadowing_material")
+                  panel-particlefx (gui-particlefx-resource referencing-scene "shadowing_particlefx")
+                  panel-spinescene (gui-spine-scene referencing-scene "shadowing_spinescene")
+                  panel-texture (gui-texture referencing-scene "shadowing_texture")]
+              (test-util/prop! panel-font :name "shadowing_font_renamed")
+              (test-util/prop! panel-layer :name "shadowing_layer_renamed")
+              (test-util/prop! panel-material :name "shadowing_material_renamed")
+              (test-util/prop! panel-particlefx :name "shadowing_particlefx_renamed")
+              (test-util/prop! panel-spinescene :name "shadowing_spinescene_renamed")
+              (test-util/prop! panel-texture :name "shadowing_texture_renamed"))
+
+            (testing "Referenced scene."
+              (is (= {"Default" {"box" {:layer "shadowing_layer"
+                                        :material "shadowing_material"
+                                        :texture "shadowing_texture/button_striped"}
+                                 "particlefx" {:layer "shadowing_layer"
+                                               :material "shadowing_material"
+                                               :particlefx "shadowing_particlefx"}
+                                 "pie" {:layer "shadowing_layer"
+                                        :material "shadowing_material"
+                                        :texture "shadowing_texture/button_striped"}
+                                 "spine" {:layer "shadowing_layer"
+                                          :material "shadowing_material"
+                                          :spine-scene "shadowing_spinescene"}
+                                 "text" {:font "shadowing_font"
+                                         :layer "shadowing_layer"
+                                         :material "shadowing_material"}}
+                      "Landscape" {"box" {:layer "shadowing_layer"
+                                          :material "shadowing_material"
+                                          :texture "shadowing_texture/button_striped"}
+                                   "particlefx" {:layer "shadowing_layer"
+                                                 :material "shadowing_material"
+                                                 :particlefx "shadowing_particlefx"}
+                                   "pie" {:layer "shadowing_layer"
+                                          :material "shadowing_material"
+                                          :texture "shadowing_texture/button_striped"}
+                                   "spine" {:layer "shadowing_layer"
+                                            :material "shadowing_material"
+                                            :spine-scene "shadowing_spinescene"}
+                                   "text" {:font "shadowing_font"
+                                           :layer "shadowing_layer"
+                                           :material "shadowing_material"}}}
+                     (make-layout->node->resource-field-values referenced-scene))))
+
+            (testing "Referencing scene."
+              (is (= {"Default" {"shadowing_resources" {:layer "shadowing_layer_renamed"}
+                                 "shadowing_resources/box" {:layer "shadowing_layer_renamed"
+                                                            :material "shadowing_material_renamed"
+                                                            :texture "shadowing_texture_renamed/button_striped"}
+                                 "shadowing_resources/particlefx" {:layer "shadowing_layer_renamed"
+                                                                   :material "shadowing_material_renamed"
+                                                                   :particlefx "shadowing_particlefx_renamed"}
+                                 "shadowing_resources/pie" {:layer "shadowing_layer_renamed"
+                                                            :material "shadowing_material_renamed"
+                                                            :texture "shadowing_texture_renamed/button_striped"}
+                                 "shadowing_resources/spine" {:layer "shadowing_layer_renamed"
+                                                              :material "shadowing_material_renamed"
+                                                              :spine-scene "shadowing_spinescene_renamed"}
+                                 "shadowing_resources/text" {:font "shadowing_font_renamed"
+                                                             :layer "shadowing_layer_renamed"
+                                                             :material "shadowing_material_renamed"}}
+                      "Landscape" {"shadowing_resources/box" {:layer "shadowing_layer_renamed"
+                                                              :material "shadowing_material_renamed"
+                                                              :texture "shadowing_texture_renamed/button_striped"}
+                                   "shadowing_resources/particlefx" {:layer "shadowing_layer_renamed"
+                                                                     :material "shadowing_material_renamed"
+                                                                     :particlefx "shadowing_particlefx_renamed"}
+                                   "shadowing_resources/pie" {:layer "shadowing_layer_renamed"
+                                                              :material "shadowing_material_renamed"
+                                                              :texture "shadowing_texture_renamed/button_striped"}
+                                   "shadowing_resources/spine" {:layer "shadowing_layer_renamed"
+                                                                :material "shadowing_material_renamed"
+                                                                :spine-scene "shadowing_spinescene_renamed"}
+                                   "shadowing_resources/text" {:font "shadowing_font_renamed"
+                                                               :layer "shadowing_layer_renamed"
+                                                               :material "shadowing_material_renamed"}}}
                      (make-layout->node->resource-field-values referencing-scene))))))))))

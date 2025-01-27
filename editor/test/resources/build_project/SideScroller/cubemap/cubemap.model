@@ -1,0 +1,10 @@
+mesh: "/builtins/assets/meshes/sphere.dae"
+name: "cubemap"
+materials {
+  name: "default"
+  material: "/builtins/materials/model.material"
+  textures {
+    sampler: "tex0"
+    texture: "/cubemap/cubemap.cubemap"
+  }
+}

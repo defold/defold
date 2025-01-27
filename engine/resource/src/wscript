@@ -13,6 +13,7 @@ def build(bld):
                          proto_gen_py = True,
                          target = 'resource')
 
+    resource.source.append('async/load_queue.cpp');
     if 'web' in bld.env.PLATFORM:
          resource.source.append('async/load_queue_sync.cpp');
     else:
@@ -38,6 +39,7 @@ def build(bld):
 
     bld.install_files('${PREFIX}/include/resource', 'resource.h')
     bld.install_files('${PREFIX}/include/resource', 'resource_archive.h')
+    bld.install_files('${PREFIX}/include/resource', 'resource_chunk_cache.h')
     bld.install_files('${PREFIX}/include/resource', 'resource_manifest.h')
     bld.install_files('${PREFIX}/include/resource', 'resource_mounts.h')
     bld.install_files('${PREFIX}/include/resource', 'resource_util.h')

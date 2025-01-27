@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -26,14 +26,18 @@
             [editor.progress :as progress]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.settings-core :as settings-core]
             [editor.workspace :as workspace]
             [integration.test-util :refer [with-loaded-project] :as test-util]
             [support.test-support :refer [with-clean-system]]
             [util.murmur :as murmur])
-  (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
+  (:import [com.dynamo.bob.pipeline CubemapBuilder]
+           [com.dynamo.bob.util TextureUtil]
+           [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
            [com.dynamo.gamesys.proto GameSystem$CollectionProxyDesc]
            [com.dynamo.gamesys.proto TextureSetProto$TextureSet]
+           [com.dynamo.graphics.proto Graphics$TextureImage]
            [com.dynamo.render.proto Font$FontMap Font$GlyphBank]
            [com.dynamo.particle.proto Particle$ParticleFX]
            [com.dynamo.gamesys.proto Sound$SoundDesc]
@@ -294,7 +298,21 @@
     build-results))
 
 (defn- project-build-artifacts [project resource-node evaluation-context]
-  (:artifacts (project-build project resource-node evaluation-context)))
+  (let [build-results (project-build project resource-node evaluation-context)
+        error-value (:error build-results)]
+    (if (nil? error-value)
+      (:artifacts build-results)
+      (let [resource (resource-node/resource resource-node)
+            proj-path (resource/proj-path resource)
+            error-message (some :message (tree-seq :causes :causes error-value))]
+        (throw
+          (ex-info
+            (format "Failed to build '%s': %s"
+                    proj-path
+                    error-message)
+            {:resource-node resource-node
+             :resource resource
+             :error-value error-value}))))))
 
 (deftest merge-gos
   (testing "Verify equivalent game objects are merged"
@@ -475,6 +493,18 @@
             _                 (g/set-property! resource-node :margin -42)
             build-results     (project-build project resource-node (g/make-evaluation-context))]
         (is (instance? internal.graph.error_values.ErrorValue (:error build-results)))))))
+
+(deftest build-cubemap
+  (testing "Building cubemap"
+    (with-build-results "/cubemap/cubemap.cubemap"
+      (let [content (get content-by-source "/cubemap/cubemap.cubemap")
+            desc (protobuf/pb->map-with-defaults (TextureUtil/textureResourceBytesToTextureImage content))
+            first-alternative (first (:alternatives desc))]
+        (is (= 6 (:count desc)))
+        (is (= :type-cubemap (:type desc)))
+        (is (= 6 (count (:mip-map-size-compressed first-alternative))))
+        ;; six sides, where each side is 2x2 RGBA
+        (is (= (* 6 2 2 4) (:data-size first-alternative)))))))
 
 (deftest build-font
   (testing "Building TTF font"

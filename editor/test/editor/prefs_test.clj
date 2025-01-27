@@ -1,4 +1,4 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -230,6 +230,41 @@
                       :tuple ["/game.project" :form-view]
                       :object-of {"foo" "bar"}}}
              (prefs/get p []))))))
+
+(deftest set?-test
+  (with-schemas {::test {:type :string}}
+    (let [p (prefs/make :scopes {:global (fs/create-temp-file! "is-set-test" "test.editor_settings")}
+                        :schemas [::test])]
+      (is (false? (prefs/set? p [])))
+      (prefs/set! p [] "new-string")
+      (is (true? (prefs/set? p [])))))
+  (with-schemas {::nested {:type :object
+                           :properties
+                           {:root {:type :object
+                                   :properties
+                                   {:a {:type :object
+                                        :properties
+                                        {:leaf {:type :string}}}
+                                    :b {:type :object
+                                        :properties
+                                        {:leaf {:type :string}}}}}}}}
+    (let [p (prefs/make :scopes {:global (fs/create-temp-file! "is-set-nested-test" "test.editor_settings")}
+                        :schemas [::nested])]
+      (is (not (prefs/set? p [:root :a :leaf])))
+      (is (not (prefs/set? p [:root :a])))
+      (is (not (prefs/set? p [:root :b :leaf])))
+      (is (not (prefs/set? p [:root :b])))
+      (is (not (prefs/set? p [:root])))
+      (is (not (prefs/set? p [])))
+
+      (prefs/set! p [:root :a :leaf] "changed")
+
+      (is (prefs/set? p [:root :a :leaf]))
+      (is (prefs/set? p [:root :a]))
+      (is (not (prefs/set? p [:root :b :leaf])))
+      (is (not (prefs/set? p [:root :b])))
+      (is (prefs/set? p [:root]))
+      (is (prefs/set? p [])))))
 
 (deftest get-unregistered-key-test
   (with-schemas {::unregistered-key {:type :object :properties {:name {:type :string}}}}

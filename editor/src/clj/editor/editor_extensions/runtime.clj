@@ -1,4 +1,4 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -50,12 +50,16 @@
             [dynamo.graph :as g]
             [editor.editor-extensions.coerce :as coerce]
             [editor.editor-extensions.vm :as vm]
-            [editor.future :as future])
+            [editor.future :as future]
+            [editor.resource :as resource]
+            editor.workspace)
   (:import [com.defold.editor.luart DefoldBaseLib DefoldCoroutine$Create DefoldCoroutine$Yield DefoldIoLib DefoldUserdata DefoldVarArgFn SearchPath]
+           [editor.resource FileResource ZipResource MemoryResource]
+           [editor.workspace BuildResource]
            [java.io File PrintStream Writer]
            [java.nio.charset StandardCharsets]
            [org.apache.commons.io.output WriterOutputStream]
-           [org.luaj.vm2 LoadState LuaError LuaFunction LuaTable LuaValue OrphanedThread]
+           [org.luaj.vm2 LoadState LuaError LuaFunction LuaString LuaTable LuaValue OrphanedThread]
            [org.luaj.vm2.compiler LuaC]
            [org.luaj.vm2.lib Bit32Lib CoroutineLib PackageLib PackageLib$lua_searcher PackageLib$preload_searcher StringLib TableLib]
            [org.luaj.vm2.lib.jse JseMathLib JseOsLib]))
@@ -94,6 +98,12 @@
   "Convert Clojure data structure to Lua data structure"
   ^LuaValue [x]
   (vm/->lua x))
+
+(extend-protocol vm/->Lua
+  FileResource (->lua [x] (LuaString/valueOf (resource/proj-path x)))
+  ZipResource (->lua [x] (LuaString/valueOf (resource/proj-path x)))
+  BuildResource (->lua [x] (LuaString/valueOf (resource/proj-path x)))
+  MemoryResource (->lua [_] (throw (LuaError. "Cannot represent memory resource in Lua"))))
 
 (defn ->varargs
   "Convert 0 or more Clojure data structures into Lua varargs"
