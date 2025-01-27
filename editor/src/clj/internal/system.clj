@@ -351,6 +351,7 @@
 
 (defn update-cache-from-evaluation-context
   [system evaluation-context]
+  {:pre [(some? system)]}
   ;; We assume here that the evaluation context was created from
   ;; the system but they may have diverged, making some cache
   ;; hits/misses invalid.

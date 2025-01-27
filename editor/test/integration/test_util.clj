@@ -312,6 +312,11 @@
      (g/reset-undo! proj-graph)
      project)))
 
+(defn load-project-nodes! [project resource-node-ids]
+  (let [{:keys [migrated-resource-node-ids node-load-infos]}
+        (#'project/load-nodes! project resource-node-ids (constantly nil) {} nil nil)]
+    (#'project/cache-loaded-save-data! node-load-infos project migrated-resource-node-ids)))
+
 (defn project-node-resources [project]
   (g/with-auto-evaluation-context evaluation-context
     (sort-by resource/proj-path
@@ -561,7 +566,7 @@
 (defmacro with-ui-run-later-rebound
   [& forms]
   `(let [laters# (atom [])]
-     (with-redefs [ui/do-run-later (fn [f#] (swap! laters# conj f#))]
+     (with-redefs [ui/do-run-later (fn ~'fake-run-later [f#] (swap! laters# conj f#))]
        (let [result# (do ~@forms)]
          (doseq [f# @laters#] (f#))
          result#))))

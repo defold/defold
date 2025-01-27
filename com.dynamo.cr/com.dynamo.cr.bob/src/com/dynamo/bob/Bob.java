@@ -606,7 +606,8 @@ public class Bob {
                 // debug options
                 opt(null, "debug-ne-upload", ZERO, "Outputs the files sent to build server as upload.zip", false),
                 opt(null, "debug-output-spirv", ONE, "Force build SPIR-V shaders", false),
-                opt(null, "debug-output-wgsl", ONE, "Force build WGSL shaders", false)
+                opt(null, "debug-output-wgsl", ONE, "Force build WGSL shaders", false),
+                opt(null, "debug-output-hlsl", ONE, "Force build HLSL shaders", false)
         );
     }
 

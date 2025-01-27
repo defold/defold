@@ -157,11 +157,11 @@
   ([]
    `(allocated-bytes (Runtime/getRuntime)))
   ([runtime-expr]
-   `(let [^Runtime runtime# ~runtime-expr]
-      (System/gc)
-      (System/runFinalization)
-      (- (.totalMemory runtime#)
-         (.freeMemory runtime#)))))
+   `(long (let [^Runtime runtime# ~runtime-expr]
+            (System/gc)
+            (System/runFinalization)
+            (- (.totalMemory runtime#)
+               (.freeMemory runtime#))))))
 
 (defmacro log-time-and-memory
   "Evaluates expr. Then logs the supplied label along with the time it took and

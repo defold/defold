@@ -84,7 +84,7 @@ public class ShaderCompilePipeline {
         };
     }
 
-    private static int shaderLanguageToVersion(ShaderDesc.Language shaderLanguage) {
+    private static Integer shaderLanguageToVersion(ShaderDesc.Language shaderLanguage) {
         return switch (shaderLanguage) {
             case LANGUAGE_GLSL_SM120 -> 120;
             case LANGUAGE_GLSL_SM140 -> 140;
@@ -92,6 +92,7 @@ public class ShaderCompilePipeline {
             case LANGUAGE_GLES_SM300 -> 300;
             case LANGUAGE_GLSL_SM330 -> 330;
             case LANGUAGE_GLSL_SM430 -> 430;
+            case LANGUAGE_HLSL       -> 50;
             default -> 0;
         };
     }
@@ -106,7 +107,9 @@ public class ShaderCompilePipeline {
     }
 
     protected static boolean canBeCrossCompiled(ShaderDesc.Language shaderLanguage) {
-        return shaderLanguageIsGLSL(shaderLanguage) || shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL;
+        return shaderLanguageIsGLSL(shaderLanguage) ||
+               shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL ||
+               shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL;
     }
 
     private static byte[] remapTextureSamplers(ArrayList<Shaderc.ShaderResource> textures, String source) {
@@ -148,6 +151,16 @@ public class ShaderCompilePipeline {
             "--format", "wgsl",
             "-o", pathFileOutWGSL,
             pathFileInSpv);
+        checkResult(result);
+    }
+
+    protected static void generateHLSL(String pathFileInSpv, String pathFileOutHLSL) throws IOException, CompileExceptionError {
+        Result result = Exec.execResult(
+            Bob.getExe(Platform.getHostPlatform(), "spirv-cross"),
+            pathFileInSpv,
+            "--output", pathFileOutHLSL,
+            "--hlsl",
+            "--shader-model", shaderLanguageToVersion(ShaderDesc.Language.LANGUAGE_HLSL).toString());
         checkResult(result);
     }
 

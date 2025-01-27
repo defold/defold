@@ -31,9 +31,10 @@ public class ShaderCompilers {
             this.platform = platform;
         }
 
-        private ArrayList<ShaderDesc.Language> getPlatformShaderLanguages(ShaderDesc.ShaderType shaderType, boolean outputSpirvRequested, boolean outputWGSLRequested) {
+        private ArrayList<ShaderDesc.Language> getPlatformShaderLanguages(ShaderDesc.ShaderType shaderType, boolean outputSpirvRequested, boolean outputHlslRequested, boolean outputWGSLRequested) {
             ArrayList<ShaderDesc.Language> shaderLanguages = new ArrayList<>();
             boolean spirvSupported = true;
+            boolean hlslSupported = platform == Platform.X86_64Win32;
 
             switch(platform) {
                 case Arm64MacOS:
@@ -85,17 +86,22 @@ public class ShaderCompilers {
             if (spirvSupported && outputSpirvRequested) {
                 shaderLanguages.add(ShaderDesc.Language.LANGUAGE_SPIRV);
             }
+
+            if (hlslSupported && outputHlslRequested) {
+                shaderLanguages.add(ShaderDesc.Language.LANGUAGE_HLSL);
+            }
+
             return shaderLanguages;
         }
 
-        public ShaderProgramBuilder.ShaderCompileResult compile(String shaderSource, ShaderDesc.ShaderType shaderType, String resourceOutputPath, boolean outputSpirv, boolean outputWGSL) throws IOException, CompileExceptionError {
+        public ShaderProgramBuilder.ShaderCompileResult compile(String shaderSource, ShaderDesc.ShaderType shaderType, String resourceOutputPath, boolean outputSpirv, boolean outputHlsl, boolean outputWGSL) throws IOException, CompileExceptionError {
 
             ShaderCompilePipeline.Options opts = new ShaderCompilePipeline.Options();
-            opts.splitTextureSamplers = outputWGSL;
+            opts.splitTextureSamplers = outputWGSL || outputHlsl;
 
             ShaderCompilePipeline pipeline = ShaderProgramBuilder.newShaderPipelineFromShaderSource(shaderType, resourceOutputPath, shaderSource, opts);
             ArrayList<ShaderProgramBuilder.ShaderBuildResult> shaderBuildResults = new ArrayList<>();
-            ArrayList<ShaderDesc.Language> shaderLanguages = getPlatformShaderLanguages(shaderType, outputSpirv, outputWGSL);
+            ArrayList<ShaderDesc.Language> shaderLanguages = getPlatformShaderLanguages(shaderType, outputSpirv, outputHlsl, outputWGSL);
 
             assert shaderLanguages != null;
             for (ShaderDesc.Language shaderLanguage : shaderLanguages) {

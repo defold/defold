@@ -160,7 +160,7 @@
           project (project/make-project proj-graph workspace extensions)]
       (let [node-load-infos
             (-> project
-                (#'project/make-nodes! (g/node-value project :resources))
+                (#'project/make-nodes! (g/node-value project :resources) nil)
                 (#'project/read-node-load-infos (constantly nil) nil)
                 (#'project/sort-node-load-infos-for-loading {} {}))
 
