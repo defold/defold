@@ -85,6 +85,7 @@ protected:
         dmPlatform::WindowParams win_params = {};
         win_params.m_Width = 20;
         win_params.m_Height = 10;
+        win_params.m_ContextAlphabits = 8;
 
         m_Window = dmPlatform::NewWindow();
         dmPlatform::OpenWindow(m_Window, win_params);

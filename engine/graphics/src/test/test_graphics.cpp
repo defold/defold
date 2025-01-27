@@ -96,6 +96,7 @@ public:
         params.m_Height = HEIGHT;
         params.m_Fullscreen = false;
         params.m_PrintDeviceInfo = false;
+        params.m_ContextAlphabits = 8;
 
         m_Window = dmPlatform::NewWindow();
         dmPlatform::OpenWindow(m_Window, params);

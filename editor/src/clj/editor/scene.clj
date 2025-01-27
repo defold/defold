@@ -1237,9 +1237,9 @@
 
 (defn- nudge! [scene-node-ids ^double dx ^double dy ^double dz]
   (g/transact
-    (for [node-id scene-node-ids
-          :let [[^double x ^double y ^double z] (g/node-value node-id :position)]]
-      (g/set-property node-id :position [(+ x dx) (+ y dy) (+ z dz)]))))
+    (g/with-auto-evaluation-context evaluation-context
+      (for [node-id scene-node-ids]
+        (scene-tools/manip-move evaluation-context node-id (Vector3d. dx dy dz))))))
 
 (declare selection->movable)
 

@@ -934,6 +934,11 @@ namespace dmEngine
         window_params.m_HighDPI                 = (bool) dmConfigFile::GetInt(engine->m_Config, "display.high_dpi", 0);
         window_params.m_BackgroundColor         = clear_color;
         window_params.m_GraphicsApi             = AdapterFamilyToGraphicsAPI(dmGraphics::GetInstalledAdapterFamily());
+#if defined(__EMSCRIPTEN__)
+        window_params.m_ContextAlphabits        = dmConfigFile::GetInt(engine->m_Config, "html5.transparent_graphics_context", 0) == 0 ? 0 : 8;
+#else
+        window_params.m_ContextAlphabits        = 8;
+#endif
 
         if (window_params.m_GraphicsApi == dmPlatform::PLATFORM_GRAPHICS_API_OPENGL)
         {

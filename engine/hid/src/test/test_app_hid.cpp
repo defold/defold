@@ -143,10 +143,11 @@ static void* EngineCreate(int argc, char** argv)
     engine->m_Window = dmPlatform::NewWindow();
 
     dmPlatform::WindowParams window_params = {};
-    window_params.m_Width       = 32;
-    window_params.m_Height      = 32;
-    window_params.m_Title       = "hid_test_app";
-    window_params.m_GraphicsApi = dmPlatform::PLATFORM_GRAPHICS_API_OPENGL;
+    window_params.m_Width            = 32;
+    window_params.m_Height           = 32;
+    window_params.m_Title            = "hid_test_app";
+    window_params.m_GraphicsApi      = dmPlatform::PLATFORM_GRAPHICS_API_OPENGL;
+    window_params.m_ContextAlphabits = 8;
 
     (void)dmPlatform::OpenWindow(engine->m_Window, window_params);
 
