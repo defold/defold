@@ -52,7 +52,7 @@ namespace dmSound
     #define SOUND_MAX_SPEED (5)
     #define SOUND_MAX_HISTORY (4)
     #define SOUND_MAX_FUTURE (4)
-    #define SOUND_INSTANCE_STATEFRAMECOUNT (SOUND_MAX_HISTORY + 1 + SOUND_MAX_FUTURE)
+    #define SOUND_INSTANCE_STATEFRAMECOUNT (SOUND_MAX_HISTORY + SOUND_MAX_SPEED + SOUND_MAX_FUTURE)         // "max speed" is used as "extra sample count" as we can at most leave these many samples in the buffers due to fractional positions etc.
 
     // TODO: How many bits? - now adjusted to reflect available polyphase filter bank entries
     const uint32_t RESAMPLE_FRACTION_BITS = 11; //31;
@@ -1008,10 +1008,9 @@ namespace dmSound
     }
 
     template <typename T, int offset, int scale>
-    static void MixResampleIdentityMono(const MixContext* mix_context, SoundInstance* instance, uint32_t rate, uint32_t mix_rate, float* mix_buffer, uint32_t mix_buffer_count, void* decoder_output_buffer, uint32_t avail_framecount)
+    static void MixResampleIdentityMono(const MixContext* mix_context, SoundInstance* instance, uint64_t delta, float* mix_buffer, uint32_t mix_buffer_count, void* decoder_output_buffer, uint32_t avail_framecount)
     {
-        (void)rate;
-        (void)mix_rate;
+        (void)delta;
 
         PrepTempBufferState<T, 1>(instance, decoder_output_buffer);
 
@@ -1031,10 +1030,9 @@ namespace dmSound
     }
 
     template <typename T, int offset, int scale>
-    static void MixResampleIdentityStereo(const MixContext* mix_context, SoundInstance* instance, uint32_t rate, uint32_t mix_rate, float* mix_buffer, uint32_t mix_buffer_count, void* decoder_output_buffer, uint32_t avail_framecount)
+    static void MixResampleIdentityStereo(const MixContext* mix_context, SoundInstance* instance, uint64_t delta, float* mix_buffer, uint32_t mix_buffer_count, void* decoder_output_buffer, uint32_t avail_framecount)
     {
-        (void)rate;
-        (void)mix_rate;
+        (void)delta;
 
         PrepTempBufferState<T, 2>(instance, decoder_output_buffer);
 
@@ -1073,7 +1071,8 @@ namespace dmSound
             return t[0] * c[0] + t[1] * c[1] + t[2] * c[2] + t[3] * c[3] + t[4] * c[4] + t[5] * c[5] + t[6] * c[6] + t[7] * c[7];
     }
 
-#if defined(__SSE__) || defined(__SSE2__) || defined(__SSE3__) || defined(__SSE_4_1__)
+//off for now: experimental
+#if 0 //defined(__SSE__) || defined(__SSE2__) || defined(__SSE3__) || defined(__SSE_4_1__)
     typedef __m128 vec4;
 
     template<typename, int offset=0, int scale=1, int step>
@@ -1090,7 +1089,7 @@ namespace dmSound
             return (_mm_dp_ps(taps0, *(const vec4*)&c[0], 0xf1) + _mm_dp_ps(taps1, *(const vec4*)&c[4], 0xf1))[0];
 #else
             // Fetch sample data
-#if 1 //defined(__SSE2__) || defined(__SSE3__)
+#if defined(__SSE2__) || defined(__SSE3__)
             typedef __m128i ivec8;
             ivec8 in = _mm_loadu_si128((const __m128i_u*)&frames[-3 * step]);
             vec4 taps0 = _mm_cvtepi32_ps(_mm_srai_epi32(_mm_unpacklo_epi16(in, in), 16));
@@ -1105,10 +1104,8 @@ namespace dmSound
             vec4 taps1 = _mm_cvtpi32_ps(_mm_movelh_ps(hi1, hi1), _mm_srai_pi32(_mm_unpacklo_pi16(in1, in1), 16));
 #endif
             // Apply dot product (FIR filter)
-            vec4 filt0 = *(const vec4*)&c[0];
-            vec4 filt1 = *(const vec4*)&c[4];
-            vec4 tmp0 = taps0 * filt0;
-            vec4 tmp1 = taps1 * filt1;
+            vec4 tmp0 = taps0 * *(const vec4*)&c[0];
+            vec4 tmp1 = taps1 * *(const vec4*)&c[4];
             tmp0 += _mm_shuffle_ps(tmp0, tmp0, _MM_SHUFFLE(0, 3, 0, 1)); // X=X+Y; Z=Z+W
             tmp1 += _mm_shuffle_ps(tmp1, tmp1, _MM_SHUFFLE(0, 3, 0, 1)); // X=X+Y; Z=Z+W
             tmp0 += _mm_shuffle_ps(tmp0, tmp0, _MM_SHUFFLE(0, 0, 0, 2)); // X=X+Y+Z+W
@@ -1116,28 +1113,22 @@ namespace dmSound
             return (tmp0 + tmp1)[0];
 #endif
     }
-#endif
+#endif // SSEx
 
     template <typename T, int offset, int scale>
-    static void MixResamplePolyphaseMono(const MixContext* mix_context, SoundInstance* instance, uint32_t rate, uint32_t mix_rate, float* mix_buffer, uint32_t mix_buffer_count, void* decoder_output_buffer, uint32_t avail_framecount)
+    static void MixResamplePolyphaseMono(const MixContext* mix_context, SoundInstance* instance, uint64_t delta, float* mix_buffer, uint32_t mix_buffer_count, void* decoder_output_buffer, uint32_t avail_framecount)
     {
         PrepTempBufferState<T, 1>(instance, decoder_output_buffer);
 
-        const uint32_t mask = (1U << RESAMPLE_FRACTION_BITS) - 1U;
-
         uint64_t frac = instance->m_FrameFraction;
-        uint64_t delta = (((uint64_t) rate) << RESAMPLE_FRACTION_BITS) / mix_rate;
-        delta *= instance->m_Speed;
-
-        T* frames = (T*) decoder_output_buffer;
-
         Ramp scale_l_ramp = GetRamp(mix_context, &instance->m_ScaleL, mix_buffer_count);
         Ramp scale_r_ramp = GetRamp(mix_context, &instance->m_ScaleR, mix_buffer_count);
 
-        for (uint32_t i = 0; i < mix_buffer_count; i++)
+        T* frames = (T*) decoder_output_buffer;
+        for (uint32_t i = 0; i < mix_buffer_count; ++i)
         {
             // Resample
-            uint32_t index = (int32_t)(frac >> RESAMPLE_FRACTION_BITS);
+            uint32_t index = (uint32_t)(frac >> RESAMPLE_FRACTION_BITS);
             float s = FilterSample<T, offset, scale, 1>(&frames[index], frac);
 
             // Mix
@@ -1149,32 +1140,26 @@ namespace dmSound
             frac += delta;
         }
 
-        uint32_t next_index = frac >> RESAMPLE_FRACTION_BITS;
-        instance->m_FrameFraction = frac & mask;
+        uint32_t next_index = (uint32_t)(frac >> RESAMPLE_FRACTION_BITS);
+        instance->m_FrameFraction = frac & ((1U << RESAMPLE_FRACTION_BITS) - 1U);
 
         SaveTempBufferState<T, 1>(instance, avail_framecount, next_index, decoder_output_buffer);
     }
 
     template <typename T, int offset, int scale>
-    static void MixResamplePolyphaseStereo(const MixContext* mix_context, SoundInstance* instance, uint32_t rate, uint32_t mix_rate, float* mix_buffer, uint32_t mix_buffer_count, void* decoder_output_buffer, uint32_t avail_framecount)
+    static void MixResamplePolyphaseStereo(const MixContext* mix_context, SoundInstance* instance, uint64_t delta, float* mix_buffer, uint32_t mix_buffer_count, void* decoder_output_buffer, uint32_t avail_framecount)
     {
         PrepTempBufferState<T, 2>(instance, decoder_output_buffer);
 
-        const uint32_t mask = (1U << RESAMPLE_FRACTION_BITS) - 1U;
-
         uint64_t frac = instance->m_FrameFraction;
-        uint64_t delta = (((uint64_t) rate) << RESAMPLE_FRACTION_BITS) / mix_rate;
-        delta *= instance->m_Speed;
-
-        T* frames = (T*) decoder_output_buffer;
-
         Ramp scale_l_ramp = GetRamp(mix_context, &instance->m_ScaleL, mix_buffer_count);
         Ramp scale_r_ramp = GetRamp(mix_context, &instance->m_ScaleR, mix_buffer_count);
 
-        for (uint32_t i = 0; i < mix_buffer_count; i++)
+        T* frames = (T*) decoder_output_buffer;
+        for (uint32_t i = 0; i < mix_buffer_count; ++i)
         {
             // Resample
-            uint32_t index = (int32_t)(frac >> RESAMPLE_FRACTION_BITS);
+            uint32_t index = (uint32_t)(frac >> RESAMPLE_FRACTION_BITS);
             float sl = FilterSample<T, offset, scale, 2>(&frames[2 * index + 0], frac);
             float sr = FilterSample<T, offset, scale, 2>(&frames[2 * index + 1], frac);
 
@@ -1186,13 +1171,13 @@ namespace dmSound
             // Advance
             frac += delta;
         }
-        uint32_t next_index = frac >> RESAMPLE_FRACTION_BITS;
-        instance->m_FrameFraction = frac & mask;
+        uint32_t next_index = (uint32_t)(frac >> RESAMPLE_FRACTION_BITS);
+        instance->m_FrameFraction = frac & ((1U << RESAMPLE_FRACTION_BITS) - 1U);
 
         SaveTempBufferState<T, 2>(instance, avail_framecount, next_index, decoder_output_buffer);
     }
 
-    typedef void (*MixerFunction)(const MixContext* mix_context, SoundInstance* instance, uint32_t rate, uint32_t mix_rate, float* mix_buffer, uint32_t mix_buffer_count, void* decoder_output_buffer, uint32_t avail_framecount);
+    typedef void (*MixerFunction)(const MixContext* mix_context, SoundInstance* instance, uint64_t delta, float* mix_buffer, uint32_t mix_buffer_count, void* decoder_output_buffer, uint32_t avail_framecount);
 
     struct Mixer
     {
@@ -1221,13 +1206,16 @@ namespace dmSound
             Mixer(2, 16, MixResampleIdentityStereo<int16_t, 0, 1>),
     };
 
-    static void MixResample(const MixContext* mix_context, SoundInstance* instance, const dmSoundCodec::Info* info, uint32_t mix_rate, float* mix_buffer, uint32_t mix_buffer_count, void* decoder_output_buffer, uint32_t avail_framecount)
+    static void MixResample(const MixContext* mix_context, SoundInstance* instance, const dmSoundCodec::Info* info, uint64_t delta, float* mix_buffer, uint32_t mix_buffer_count, void* decoder_output_buffer, uint32_t avail_framecount)
     {
         const uint32_t rate = info->m_Rate;
 
         MixerFunction mixer_fn = nullptr;
 
-        bool identity_mixer = rate == mix_rate && instance->m_Speed == 1.0f;
+        // 1:1 output only if:
+        // - rate is mixrate (including speed factor!) -> delta = 1.0
+        // - sampling is not at a fractional position
+        bool identity_mixer = delta == (1UL << RESAMPLE_FRACTION_BITS) && instance->m_FrameFraction == 0;
 
         if (identity_mixer) {
             uint32_t n = sizeof(g_IdentityMixers) / sizeof(g_IdentityMixers[0]);
@@ -1251,22 +1239,19 @@ namespace dmSound
             }
         }
 
-        mixer_fn(mix_context, instance, rate, mix_rate, mix_buffer, mix_buffer_count, decoder_output_buffer, avail_framecount);
+        mixer_fn(mix_context, instance, delta, mix_buffer, mix_buffer_count, decoder_output_buffer, avail_framecount);
     }
 
-    static void Mix(const MixContext* mix_context, SoundInstance* instance, void* decoder_output_buffer, uint32_t avail_frames, const dmSoundCodec::Info* info, SoundGroup* group)
+    static void Mix(const MixContext* mix_context, SoundInstance* instance, uint64_t delta, void* decoder_output_buffer, uint32_t avail_frames, const dmSoundCodec::Info* info, SoundGroup* group)
     {
         DM_PROFILE(__FUNCTION__);
 
-        // Make sure we do not produce more output than we got input samples for (clamps the number of output samples we will generate to what the input has to offer)
-        // (input frames given excludes "future" ones)
         SoundSystem* sound = g_SoundSystem;
-        uint64_t delta = (((uint64_t) info->m_Rate) << RESAMPLE_FRACTION_BITS) / sound->m_MixRate;
-        uint32_t mix_count = ((uint64_t) (avail_frames) << RESAMPLE_FRACTION_BITS) / (delta * instance->m_Speed);
-        mix_count = dmMath::Min(mix_count, mix_context->m_FrameCount);
-        assert(mix_count <= sound->m_DeviceFrameCount);
 
-        MixResample(mix_context, instance, info, sound->m_MixRate, group->m_MixBuffer, mix_count, decoder_output_buffer, avail_frames);
+        uint32_t avail_mix_count = ((avail_frames << RESAMPLE_FRACTION_BITS) - instance->m_FrameFraction) / delta;
+        uint32_t mix_count = dmMath::Min(mix_context->m_FrameCount, avail_mix_count);
+
+        MixResample(mix_context, instance, info, delta, group->m_MixBuffer, mix_count, decoder_output_buffer, avail_frames);
     }
 
     static bool IsMuted(SoundInstance* instance) {
@@ -1329,9 +1314,9 @@ namespace dmSound
 
         dmSoundCodec::Result r = dmSoundCodec::RESULT_OK;
 
-        // Compute how many input samples we will need to produce the requested output samples (includes extra samples to sattisfy resampler)
-        float ratio = ((float)info.m_Rate / g_SoundSystem->m_MixRate) * instance->m_Speed;
-        uint32_t mixed_instance_FrameCount = ceilf(mix_context->m_FrameCount * ratio) + SOUND_MAX_FUTURE;
+        // Compute how many input samples we will need to produce the requested output samples
+        uint64_t delta = (uint64_t)(((float)(info.m_Rate << RESAMPLE_FRACTION_BITS) / sound->m_MixRate) * instance->m_Speed);
+        uint32_t mixed_instance_FrameCount = (uint32_t)((instance->m_FrameFraction + mix_context->m_FrameCount * delta + ((1UL << RESAMPLE_FRACTION_BITS) - 1)) >> RESAMPLE_FRACTION_BITS) + SOUND_MAX_FUTURE;
 
         // Compute initial amount of samples in temp buffer once we restore per instance state prior to actual mixing
         uint32_t frame_count = (instance->m_FrameCount > SOUND_MAX_HISTORY) ? (instance->m_FrameCount - SOUND_MAX_HISTORY) : 0;
@@ -1446,7 +1431,7 @@ namespace dmSound
 
             // Mix the data
             assert(frame_count > SOUND_MAX_FUTURE);
-            Mix(mix_context, instance, decoder_output_buffer, frame_count - SOUND_MAX_FUTURE, &info, group);
+            Mix(mix_context, instance, delta, decoder_output_buffer, frame_count - SOUND_MAX_FUTURE, &info, group);
         }
     }
 
@@ -1533,6 +1518,7 @@ namespace dmSound
             {
                 continue;
             }
+//OPT: SIMD (do we need that clamp? - mostly we will not ramp... if it's too costly: special case)
             Ramp ramp = GetRamp(mix_context, &g->m_Gain, n);
             for (uint32_t i = 0; i < n; i++) {
                 float gain = ramp.GetValue(i);
@@ -1545,6 +1531,7 @@ namespace dmSound
             }
         }
 
+//OPT: SIMD
         Ramp ramp = GetRamp(mix_context, &master->m_Gain, n);
         for (uint32_t i = 0; i < n; i++) {
             float gain = ramp.GetValue(i);
