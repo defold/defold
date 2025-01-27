@@ -95,7 +95,7 @@
            [javafx.collections ListChangeListener ObservableList]
            [javafx.event Event]
            [javafx.geometry HPos Orientation Pos]
-           [javafx.scene Parent Scene Node]
+           [javafx.scene Parent Scene]
            [javafx.scene.control Label MenuBar SplitPane Tab TabPane TabPane$TabClosingPolicy TabPane$TabDragPolicy Tooltip]
            [javafx.scene.image Image ImageView]
            [javafx.scene.input Clipboard ClipboardContent MouseEvent MouseButton]
