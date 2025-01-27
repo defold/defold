@@ -213,4 +213,56 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
         assertEquals("tex1",                          samplers.get(3).getName());
         assertEquals("tex2",                          samplers.get(4).getName());
     }
+
+    private String makeMaterial(int[] tintRgb) {
+        String materialFormat =
+                """
+                name: "sprite"
+                tags: "tile"
+                vertex_program: "/test_vp.vp"
+                fragment_program: "/test_fp.fp"
+                fragment_constants {
+                  name: "tint"
+                  type: CONSTANT_TYPE_USER
+                  value {
+                    x: %d.0
+                    y: %d.0
+                    z: %d.0
+                    w: 1.0
+                  }
+                }
+                """;
+        return String.format(materialFormat, tintRgb[0], tintRgb[1], tintRgb[2]);
+    }
+
+    @Test
+    public void testSharedShaderProgram() throws Exception {
+        String vsShaderLegacy = "void main() {}\n";
+        String fsShaderLegacy =
+                """
+                uniform vec4 tint;
+                void main() {
+                    gl_FragColor = tint;
+                }
+                """;
+
+        addFile("/test_vp.vp", vsShaderLegacy);
+        addFile("/test_fp.fp", fsShaderLegacy);
+
+        String materialRedStr = makeMaterial(new int[]{1, 0, 0});
+        String materialGreenStr = makeMaterial(new int[]{0, 1, 0});
+        String materialBlueStr = makeMaterial(new int[]{0, 0, 1});
+
+        addFile("/red.material", "");
+        addFile("/green.material", "");
+        addFile("/blue.material", "");
+
+        MaterialDesc materialRed = getMessage(build("/red.material", materialRedStr), MaterialDesc.class);
+        MaterialDesc materialGreen = getMessage(build("/green.material", materialRedStr), MaterialDesc.class);
+        MaterialDesc materialBlue = getMessage(build("/blue.material", materialRedStr), MaterialDesc.class);
+
+        assertTrue(materialRed.hasProgram());
+        assertEquals(materialRed.getProgram(), materialGreen.getProgram());
+        assertEquals(materialGreen.getProgram(), materialBlue.getProgram());
+    }
 }

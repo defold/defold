@@ -14,15 +14,9 @@
 
 package com.dynamo.bob.pipeline;
 
-import com.dynamo.render.proto.Material;
-import org.apache.commons.io.FilenameUtils;
-
 import java.io.*;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.List;
 
 import com.dynamo.bob.fs.IResource;
@@ -44,139 +38,6 @@ import com.google.protobuf.TextFormat;
 @ProtoParams(srcClass = MaterialDesc.class, messageClass = MaterialDesc.class)
 @BuilderParams(name = "Material", inExts = {".material"}, outExt = ".materialc")
 public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
-
-    private static final String TextureArrayFilenameVariantFormat = "_max_pages_%d.%s";
-
-    private static class ShaderProgramBuildContext {
-        public String                buildPath;
-        public String                projectPath;
-        public IResource             resource;
-        public ShaderDesc.ShaderType type;
-        public ShaderDesc            desc;
-
-        // Variant specific state
-        public boolean hasTextureArrayVariant;
-        public String[] arraySamplers = new String[0];
-    }
-
-    private ShaderDesc getShaderDesc(IResource resource, ShaderProgramBuilder builder, ShaderDesc.ShaderType shaderType) throws IOException, CompileExceptionError {
-        builder.setProject(this.project);
-        Task task = builder.create(resource);
-        return null;
-        // return builder.getCompiledShaderDesc(task, shaderType);
-    }
-
-    private ShaderDesc.Shader getTextureArrayShader(ShaderDesc desc) {
-        for (int i=0; i < desc.getShadersCount(); i++) {
-            ShaderDesc.Shader shader = desc.getShaders(i);
-            if (VariantTextureArrayFallback.isRequired(shader.getLanguage())) {
-                return shader;
-            }
-        }
-        return null;
-    }
-
-    /*
-    private void applyVariantTextureArray(MaterialDesc.Builder materialBuilder, ShaderProgramBuildContext ctx, String inExt, String outExt) throws IOException, CompileExceptionError {
-
-        ShaderDesc.Shader shader = getTextureArrayShader(ctx.desc);
-        if (shader == null) {
-            return;
-        }
-        int maxPageCount = materialBuilder.getMaxPageCount();
-        String shaderSource = new String(shader.getSource().toByteArray());
-
-        Common.GLSLCompileResult variantCompileResult = VariantTextureArrayFallback.transform(shaderSource, maxPageCount);
-        if (variantCompileResult == null || variantCompileResult.arraySamplers.length == 0) {
-            return;
-        }
-
-        ShaderProgramBuilder.ShaderBuildResult variantBuildResult = ShaderProgramBuilder.makeShaderBuilderFromGLSLSource(variantCompileResult.source, shader.getLanguage());
-        variantBuildResult.shaderBuilder.setVariantTextureArray(true);
-
-        if (variantBuildResult.buildWarnings != null) {
-            for(String warningStr : variantBuildResult.buildWarnings) {
-                System.err.println(warningStr);
-            }
-            throw new CompileExceptionError("Errors when producing texture array variant output " + ctx.projectPath);
-        }
-
-        IResource variantResource = ctx.resource.changeExt(String.format(TextureArrayFilenameVariantFormat, maxPageCount, outExt));
-
-        // Transfer already built shaders to this variant shader
-        ShaderDesc.Builder variantShaderDescBuilder = ShaderDesc.newBuilder();
-        variantShaderDescBuilder.addAllShaders(ctx.desc.getShadersList());
-        variantShaderDescBuilder.addShaders(variantBuildResult.shaderBuilder);
-        variantShaderDescBuilder.setReflection(ctx.desc.getReflection());
-        variantShaderDescBuilder.setShaderType(ctx.desc.getShaderType());
-        variantResource.setContent(variantShaderDescBuilder.build().toByteArray());
-
-        ctx.buildPath             = variantResource.getPath();
-        ctx.projectPath           = BuilderUtil.replaceExt(ctx.projectPath, "." + inExt, String.format(TextureArrayFilenameVariantFormat, maxPageCount, inExt));
-        ctx.arraySamplers         = variantCompileResult.arraySamplers;
-        ctx.hasTextureArrayVariant = true;
-    }
-
-    /*
-    private ShaderProgramBuildContext makeShaderProgramBuildContext(MaterialDesc.Builder materialBuilder, String shaderResourcePath) throws CompileExceptionError, IOException {
-        IResource shaderResource = this.project.getResource(shaderResourcePath);
-        String shaderFileInExt   = FilenameUtils.getExtension(shaderResourcePath);
-        String shaderFileOutExt  = shaderFileInExt + "c";
-
-        ShaderDesc.ShaderType shaderType;
-        ShaderProgramBuilder shaderBuilder = new ShaderProgramBuilder();
-
-        if (shaderFileInExt.equals("vp")) {
-            shaderType = ShaderDesc.ShaderType.SHADER_TYPE_VERTEX;
-        } else {
-            shaderType = ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT;
-        }
-
-        ShaderDesc shaderDesc = getShaderDesc(shaderResource, shaderBuilder, shaderType);
-
-        ShaderProgramBuildContext ctx = new ShaderProgramBuildContext();
-        ctx.buildPath   = shaderResourcePath;
-        ctx.projectPath = shaderResourcePath;
-        ctx.resource    = shaderResource;
-        ctx.type        = shaderType;
-        ctx.desc        = shaderDesc;
-
-        applyVariantTextureArray(materialBuilder, ctx, shaderFileInExt, shaderFileOutExt);
-
-        return ctx;
-    }
-    */
-
-    private void applyShaderProgramBuildContexts(MaterialDesc.Builder materialBuilder, ShaderProgramBuildContext vertexBuildContext, ShaderProgramBuildContext fragmentBuildContext) {
-        if (!(vertexBuildContext.hasTextureArrayVariant || fragmentBuildContext.hasTextureArrayVariant)) {
-            return;
-        }
-
-        // Generate indirection table for all material samplers based on the result of the shader build context
-        Set<String> mergedArraySamplers = new HashSet<>();
-        mergedArraySamplers.addAll(Arrays.asList(vertexBuildContext.arraySamplers));
-        mergedArraySamplers.addAll(Arrays.asList(fragmentBuildContext.arraySamplers));
-
-        for (int i=0; i < materialBuilder.getSamplersCount(); i++) {
-            MaterialDesc.Sampler materialSampler = materialBuilder.getSamplers(i);
-
-            if (mergedArraySamplers.contains(materialSampler.getName())) {
-                MaterialDesc.Sampler.Builder samplerBuilder = MaterialDesc.Sampler.newBuilder(materialSampler);
-
-                for (int j = 0; j < materialBuilder.getMaxPageCount(); j++) {
-                    samplerBuilder.addNameIndirections(MurmurHash.hash64(VariantTextureArrayFallback.samplerNameToSliceSamplerName(materialSampler.getName(), j)));
-                }
-
-                materialBuilder.setSamplers(i, samplerBuilder.build());
-            }
-        }
-
-        // This value is not needed in the engine specifically for validation in bob
-        // I.e we need to set this to zero to check if the combination of material and atlas is correct.
-        if (mergedArraySamplers.size() == 0) {
-            materialBuilder.setMaxPageCount(0);
-        }
-    }
 
     private static void migrateTexturesToSamplers(MaterialDesc.Builder materialBuilder) {
         List<MaterialDesc.Sampler> samplers = materialBuilder.getSamplersList();
@@ -242,6 +103,8 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
         ShaderProgramBuilderBundle.ModuleBundle modules = ShaderProgramBuilderBundle.createBundle();
         modules.addModule(materialBuilder.getVertexProgram());
         modules.addModule(materialBuilder.getFragmentProgram());
+        modules.setCompileOptions(compileOptions);
+
         shaderResourceOut.setContent(modules.toByteArray());
 
         Task.TaskBuilder materialTaskBuilder = Task.newBuilder(this)
@@ -301,18 +164,6 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
 
         MaterialDesc materialDesc = materialBuilder.build();
         task.output(0).setContent(materialDesc.toByteArray());
-
-        //applyShaderProgramBuildContexts(materialBuilder, vertexBuildContext, fragmentBuildContext);
-
-        //BuilderUtil.checkResource(this.project, res, "vertex program", vertexBuildContext.buildPath);
-        //BuilderUtil.checkResource(this.project, res, "fragment program", fragmentBuildContext.buildPath);
-        //materialBuilder.setVertexProgram(BuilderUtil.replaceExt(vertexBuildContext.projectPath, ".vp", ".vpc"));
-        //materialBuilder.setFragmentProgram(BuilderUtil.replaceExt(fragmentBuildContext.projectPath, ".fp", ".fpc"));
-
-        // IResource variantResource = ctx.resource.changeExt(String.format(TextureArrayFilenameVariantFormat, maxPageCount, outExt));
-
-        //IResource fsShader = this.project.getResource(materialBuilder.getFragmentProgram());
-        //IResource vsShader = this.project.getResource(materialBuilder.getVertexProgram());
     }
 
     private MaterialDesc.Sampler.Builder getSamplerBuilder(List<MaterialDesc.Sampler.Builder> samplerBuilders, String samplerName) {
