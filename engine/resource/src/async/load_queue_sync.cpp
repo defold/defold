@@ -73,7 +73,7 @@ namespace dmLoadQueue
         *resource_size = request->m_ResourceSize;
         *buf = buffer->Begin();
 
-        if (load_result->m_BufferOwnershipTransferred)
+        if (load_result->m_IsBufferOwnershipTransferred)
         {
             // we reset the dmArray (size = 0, capacity = 0)
             memset((void*)buffer, 0, sizeof(*buffer));

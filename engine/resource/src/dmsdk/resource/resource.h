@@ -354,13 +354,14 @@ struct ResourcePreloadParams
     const char*              m_Filename;
     const void*              m_Buffer;
     uint32_t                 m_BufferSize;
-    uint32_t                 m_FileSize:31;
+    uint32_t                 m_FileSize:30;
     uint32_t                 m_IsBufferPartial:1;
+    uint32_t                 m_IsBufferTransferrable:1; // Can the callback take ownership?
     HResourcePreloadHintInfo m_HintInfo;
     HResourceType            m_Type;
     // Out
     void**                   m_PreloadData;
-    bool*                    m_BufferOwnershipTransferred; // If set, the resource type has taken ownership of the data
+    bool*                    m_IsBufferOwnershipTransferred; // If set, the resource type has taken ownership of the data
 };
 
 /*#
