@@ -247,15 +247,6 @@ def download_sdk(conf, url, targetfolder, strip_components=1, force_extract=Fals
     else:
         print ("SDK already installed:", targetfolder)
 
-# a bit different function for xcode toolchain because package has slightly different structure
-def download_xcode_toolchain(conf, url, targetfolder, target_file_name, strip_components=1, force_extract=False, format='z'):
-    if not os.path.exists(join(targetfolder, target_file_name)) or force_extract:
-        path = conf.get_local_or_remote_file(url)
-        conf._extract_tgz_rename_folder(path, targetfolder, strip_components, format=format)
-    else:
-        print ("SDK already installed:", join(targetfolder, target_file_name))
-
-
 class Configuration(object):
     def __init__(self, dynamo_home = None,
                  target_platform = None,
@@ -611,7 +602,7 @@ class Configuration(object):
         if target_platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
             # macOS SDK
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_MACOS_SDK), join(sdkfolder, sdk.PACKAGES_MACOS_SDK))
-            download_xcode_toolchain(self,'%s/%s.darwin.tar.gz' % (self.package_path, sdk.PACKAGES_XCODE_TOOLCHAIN), sdkfolder, sdk.PACKAGES_XCODE_TOOLCHAIN)
+            download_sdk(self,'%s/%s.darwin.tar.gz' % (self.package_path, sdk.PACKAGES_XCODE_TOOLCHAIN), sdkfolder, force_extract=True)
 
         if target_platform in ('arm64-ios', 'x86_64-ios'):
             # iOS SDK

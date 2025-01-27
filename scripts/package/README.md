@@ -84,7 +84,7 @@ And repackage into a tar file:
 
 ### Prerequisites
 
-This script cannot download the sdk's by itself, but instead relies on the user having installed XCode on the local machine. Download and install Xcode from the App Store or https://developer.apple.com/services-account/download?path=/Developer_Tools/Xcode_16.2/Xcode_16.1.xip. Make sure to use the version listed in [sdk.py](https://github.com/defold/defold/blob/dev/build_tools/sdk.py).
+This script cannot download the sdk's by itself, but instead relies on the user having installed XCode on the local machine. Download and install Xcode from the App Store or https://developer.apple.com/services-account/download?path=/Developer_Tools/Xcode_16.2/Xcode_16.2.xip. Make sure to use the version listed in [sdk.py](https://github.com/defold/defold/blob/dev/build_tools/sdk.py).
 
 ### Packaging
 
