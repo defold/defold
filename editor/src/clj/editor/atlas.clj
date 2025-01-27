@@ -15,6 +15,7 @@
 (ns editor.atlas
   (:require [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.camera :as c]
             [editor.colors :as colors]
             [editor.core :as core]
             [editor.defold-project :as project]
@@ -59,7 +60,7 @@
            [java.awt.image BufferedImage]
            [java.nio ByteBuffer]
            [java.util List]
-           [javax.vecmath Matrix4d Point3d Vector3d]))
+           [javax.vecmath AxisAngle4d Matrix4d Point3d Vector3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -980,19 +981,6 @@
       (map (partial make-atlas-animation self)
            (:animations atlas)))))
 
-(defn register-resource-types [workspace]
-  (resource-node/register-ddf-resource-type workspace
-    :ext "atlas"
-    :label "Atlas"
-    :build-ext "a.texturesetc"
-    :node-type AtlasNode
-    :ddf-type AtlasProto$Atlas
-    :load-fn load-atlas
-    :icon atlas-icon
-    :icon-class :design
-    :view-types [:scene :text]
-    :view-opts {:scene {:grid false}}))
-
 (defn- selection->atlas [selection] (handler/adapt-single selection AtlasNode))
 (defn- selection->animation [selection] (handler/adapt-single selection AtlasAnimation))
 (defn- selection->image [selection] (handler/adapt-single selection AtlasImage))
@@ -1111,12 +1099,6 @@
                           (< node-child-index (dec (.size children)))))
   (run [selection] (move-node! (selection->image selection) 1)))
 
-(defmethod scene-tools/manip-move-manips ::AtlasImage 
-  [_node-id] 
-  [:move-pivot-xy])
-
-(defmethod scene-tools/manip-pivot-movable? ::AtlasImage [_node-id] true)
-
 (defn- snap-pivot
   [pivot threshold]
   (let [snap-values [0.0 0.5 1.0]]
@@ -1124,7 +1106,7 @@
                        (when (< (Math/abs (- % snap-value)) threshold)
                          snap-value)) snap-values) %) pivot)))
 
-(defmethod scene-tools/manip-pivot-move ::AtlasImage
+(defn- manip-pivot
   [evaluation-context node-id ^Vector3d delta snap-threshold]
   (let [scene (g/node-value node-id :scene evaluation-context)
         rect (-> scene :renderable :user-data :rect)
@@ -1138,3 +1120,146 @@
     (g/set-property node-id :pivot (-> updated-pivot
                                        properties/round-vec-coarse
                                        (snap-pivot snap-threshold)))))
+
+(defn- move-pivot
+  [reference-renderable ^Vector3d manip-delta scale]
+  (let [{:keys [geometry x y width height]} (-> reference-renderable :user-data :rect)
+        {:keys [pivot-x pivot-y rotated]} geometry
+        absolute-pivot-x (* (+ pivot-x 0.5) (if rotated height width))
+        absolute-pivot-y (* (+ pivot-y 0.5) (if rotated width height))
+        x (+ x (if rotated absolute-pivot-y absolute-pivot-x) (.x manip-delta) )
+        y (+ y (if rotated (- height absolute-pivot-x) absolute-pivot-y) (.y manip-delta))
+        position (conj (mapv #(/ % scale) (snap-pivot [x y] 0.1)) 0.0)]
+    (concat
+     (scene-tools/vtx-add position (scene-tools/vtx-scale [7.0 7.0 1.0] (scene-tools/gen-circle 64)))
+     (scene-tools/vtx-add position (scene-tools/gen-point)))))
+
+(g/defnk produce-manip-delta
+  [original-values manip-space start-action action]
+  (if (and start-action action)
+    (let [{:keys [world-rotation world-transform]} (peek original-values)
+          manip-origin (math/translation world-transform)
+          manip-rotation (scene-tools/get-manip-rotation manip-space world-rotation)
+          lead-transform (doto (Matrix4d.) (.set manip-origin))
+          [start-pos pos] (map #(let [manip-dir (math/rotate manip-rotation (Vector3d. 0.0 0.0 1.0))
+                                      _ (.transform lead-transform manip-dir)
+                                      _ (.normalize manip-dir)
+                                      manip-pos (math/translation lead-transform)]
+                                  (math/line-plane-intersection (:world-pos %) (:world-dir %) (Point3d. manip-pos) manip-dir)) [start-action action])]
+      (doto (Vector3d.) (.sub pos start-pos)))
+    (Vector3d. 0.0 0.0 0.0)))
+
+(g/defnk produce-renderables [_node-id manip-space camera viewport selected-renderables manip-delta]
+  (if (empty? selected-renderables)
+    {}
+    (let [reference-renderable (last selected-renderables)
+          world-translation (:world-translation reference-renderable)
+          world-rotation (:world-rotation reference-renderable)
+          scale (scene-tools/scale-factor camera viewport world-translation)
+          world-transform (scene-tools/manip-world-transform reference-renderable manip-space scale)
+          single-selection? (not (second selected-renderables))
+          vertices (move-pivot reference-renderable manip-delta scale)
+          inv-view (doto (c/camera-view-matrix camera) (.invert))
+          renderables [(scene-tools/gen-manip-renderable _node-id :move-pivot manip-space world-rotation world-transform (AxisAngle4d.) vertices colors/defold-turquoise inv-view)]]
+      (when single-selection?
+        (reduce #(assoc %1 %2 renderables) {} [pass/manipulator pass/manipulator-selection])))))
+
+(defn- apply-manipulator [evaluation-context original-values camera viewport manip-delta]
+  (let [{:keys [world-transform]} (peek original-values)
+        manip-origin (math/translation world-transform)
+        lead-transform (doto (Matrix4d.) (.set manip-origin))
+        manip-pos (math/translation lead-transform)
+        scale (scene-tools/scale-factor camera viewport manip-pos)
+        snap-threshold (* 0.1 scale)]
+    (for [{:keys [node-id parent-world-transform]} original-values
+          :let [world->local (math/inverse parent-world-transform)
+                local-delta (math/transform-vector world->local manip-delta)]]
+      (manip-pivot evaluation-context node-id local-delta snap-threshold))))
+
+(def ^:private original-values #(select-keys % [:node-id :world-rotation :world-transform :parent-world-transform]))
+
+(defn handle-input [self action selection-data]
+  (case (:type action)
+    :mouse-pressed (if-let [manip (first (get selection-data self))]
+                     (let [evaluation-context (g/make-evaluation-context)
+                           selected-renderables (g/node-value self :selected-renderables evaluation-context)
+                           original-values (mapv original-values selected-renderables)]
+                       (when (not (empty? original-values))
+                         (g/transact
+                            (concat
+                              (g/set-property self :start-action action)
+                              (g/set-property self :prev-action action)
+                              (g/set-property self :original-values original-values)
+                              (g/set-property self :initial-evaluation-context (atom evaluation-context))
+                              (g/set-property self :active-manip manip)
+                              (g/set-property self :op-seq (gensym)))))
+                       nil)
+                     action)
+    :mouse-released (if (g/node-value self :start-action)
+                      (let [original-values (g/node-value self :original-values)
+                            camera (g/node-value self :camera)
+                            viewport (g/node-value self :viewport)
+                            manip-delta (g/node-value self :manip-delta)
+                            evaluation-context @(g/node-value self :initial-evaluation-context)]
+                        (g/transact
+                          (concat
+                            (apply-manipulator evaluation-context original-values camera viewport manip-delta)
+                            (g/set-property self :start-action nil)
+                            (g/set-property self :prev-action nil)
+                            (g/set-property self :original-values nil)))
+                        nil)
+                      action)
+    :mouse-moved (if (g/node-value self :start-action)
+                   (let [op-seq (g/node-value self :op-seq)]
+                     (g/transact
+                       (concat
+                         (g/operation-label "translate pivot")
+                         (g/operation-sequence op-seq)
+                         (g/set-property self :prev-action action)
+                         (g/set-property self :action action)))
+                     nil)
+                   action)
+    action))
+
+(g/defnk produce-manip-space [manip-space]
+  (let [supported-manip-spaces #{:local :world}]
+    (if (contains? supported-manip-spaces manip-space)
+      manip-space
+      (first supported-manip-spaces))))
+
+(g/defnode AtlasToolController
+  (property prefs g/Any)
+  (property start-action g/Any)
+  (property prev-action g/Any)
+  (property action g/Any)
+  (property original-values g/Any)
+  (property initial-evaluation-context g/Any)
+
+  (property active-manip g/Any)
+  (property op-seq g/Any)
+
+  (input active-tool g/Keyword)
+  (input manip-space g/Keyword)
+  (input camera g/Any)
+  (input viewport g/Any)
+  (input selected-renderables g/Any)
+
+  (output manip-delta g/Any :cached produce-manip-delta)
+  (output renderables pass/RenderData :cached produce-renderables)
+  (output input-handler Runnable :cached (g/constantly handle-input))
+  (output info-text g/Str (g/constantly nil))
+  (output manip-opts g/Any produce-manip-opts)
+  (output manip-space g/Keyword produce-manip-space))
+
+(defn register-resource-types [workspace]
+  (resource-node/register-ddf-resource-type workspace
+    :ext "atlas"
+    :label "Atlas"
+    :build-ext "a.texturesetc"
+    :node-type AtlasNode
+    :ddf-type AtlasProto$Atlas
+    :load-fn load-atlas
+    :icon atlas-icon
+    :icon-class :design
+    :view-types [:scene :text]
+    :view-opts {:scene {:tool-controller AtlasToolController}}))
