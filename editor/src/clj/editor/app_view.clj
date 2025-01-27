@@ -1876,10 +1876,9 @@ If you do not specifically require different script states, consider changing th
   (defn- handle-tab-pane-mouse-pressed! 
     [^TabPane tab-pane ^MouseEvent event]
     (when (= MouseButton/SECONDARY (.getButton event))
-      (->> (.invoke getTab
-                    (ui/closest-node-where #(instance? TabHeaderSkin %) (.getTarget event))
-                    (into-array Object []))
-           (.select (.getSelectionModel tab-pane))))))
+      (when-let [node (ui/closest-node-where #(instance? TabHeaderSkin %) (.getTarget event))]
+        (->> (.invoke getTab node (into-array Object []))
+             (.select (.getSelectionModel tab-pane)))))))
 
 (defn- configure-editor-tab-pane! [^TabPane tab-pane ^Scene app-scene app-view]
   (.setTabClosingPolicy tab-pane TabPane$TabClosingPolicy/ALL_TABS)
