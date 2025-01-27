@@ -649,13 +649,16 @@
 
 (def ^:private render-task-progress-ui-inflight (ref false))
 
+(def status-bar-delay
+  (delay (.. (ui/main-stage) (getScene) (getRoot) (lookup "#status-bar"))))
+
 (defn- render-task-progress-ui! []
   (let [task-progress-snapshot (ref nil)]
     (dosync
       (ref-set render-task-progress-ui-inflight false)
       (ref-set task-progress-snapshot
                (into {} (map (juxt first (comp deref second))) app-task-progress)))
-    (let [status-bar (.. (ui/main-stage) (getScene) (getRoot) (lookup "#status-bar"))
+    (let [status-bar @status-bar-delay
           [key progress] (->> app-task-ui-priority
                               (map (juxt identity @task-progress-snapshot))
                               (filter (comp (complement progress/done?) second))

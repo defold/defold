@@ -1139,6 +1139,21 @@
     (fs/delete-directory! build-directory {:fail :silently})
     (:error build-result)))
 
+(defn resolve-build-dependencies
+  "Returns a flat list of dependent build targets"
+  [node-id project]
+  (let [ret (build/resolve-node-dependencies node-id project)]
+    (when-not (is (not (g/error-value? ret)))
+      (let [path (some-> (g/maybe-node-value node-id :resource) resource/proj-path)
+            cause (->> ret
+                       (tree-seq :causes :causes)
+                       (some :message))]
+        (throw (ex-info (str "Failed to build"
+                             (when path (str " " path))
+                             (when cause (str ": " cause)))
+                        {:error ret}))))
+    ret))
+
 (defn node-build-resource [node-id]
   (:resource (first (g/node-value node-id :build-targets))))
 

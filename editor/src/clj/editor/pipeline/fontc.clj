@@ -17,7 +17,8 @@
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [util.coll :refer [pair]])
-  (:import [com.dynamo.bob.font BMFont BMFont$Char DistanceFieldGenerator Fontc]
+  (:import [com.defold.util IDigestable]
+           [com.dynamo.bob.font BMFont BMFont$Char DistanceFieldGenerator Fontc]
            [com.dynamo.render.proto Font$FontDesc]
            [com.google.protobuf ByteString]
            [java.awt BasicStroke Canvas Color Composite CompositeContext Font FontMetrics Graphics2D RenderingHints Shape Transparency]
@@ -40,6 +41,8 @@
   (assert (>= ^int n 0))
   (int (Math/pow 2 (Math/ceil (/ (Math/log (max ^int n 1.0)) (Math/log 2))))))
 
+(defrecord WH [width height])
+
 (defn- cache-wh [font-desc {^int cache-cell-width :width ^int cache-cell-height :height} glyph-count]
   (assert (and (> cache-cell-width 0) (> cache-cell-height 0)))
   (let [^int cache-width (if (> ^int (:cache-width font-desc) 0)
@@ -51,18 +54,15 @@
                                   total-rows (int (Math/ceil (/ (double glyph-count) (double cache-columns))))
                                   total-height (* total-rows ^int cache-cell-height)]
                               (min ^int (next-pow2 total-height) (int 2048))))]
-    {:width cache-width
-     :height cache-height}))
+    (->WH cache-width cache-height)))
 
 (defn- glyph-wh [{^int glyph-width :width
                   ^int glyph-ascent :ascent
                   ^int glyph-descent :descent}]
-  {:width glyph-width
-   :height (+ glyph-ascent glyph-descent)})
+  (->WH glyph-width (+ glyph-ascent glyph-descent)))
 
 (defn- pad-wh [padding {^int width :width ^int height :height}]
-  {:width (+ width (* ^int padding 2))
-   :height (+ height (* ^int padding 2))})
+  (->WH (+ width (* ^int padding 2)) (+ height (* ^int padding 2))))
 
 (defn- wh-size [{^int width :width ^int height :height}]
   (* width height))
@@ -86,21 +86,48 @@
                            (reductions + 0 (map :glyph-data-size glyph-extents)))]
     glyph-extents))
 
+(defrecord Glyph [character width advance left-bearing ascent descent glyph-cell-wh glyph-data-offset glyph-data-size]
+  IDigestable
+  (digest [_ w]
+    (doto w
+      (.write "#dg/glyph[")
+      (.write (str character))
+      (.write " ")
+      (.write (str width))
+      (.write " ")
+      (.write (str advance))
+      (.write " ")
+      (.write (str left-bearing))
+      (.write " ")
+      (.write (str ascent))
+      (.write " ")
+      (.write (str descent))
+      (.write " ")
+      (.write (str (:width glyph-cell-wh)))
+      (.write " ")
+      (.write (str (:height glyph-cell-wh)))
+      (.write " ")
+      (.write (str glyph-data-offset))
+      (.write " ")
+      (.write (str glyph-data-size))
+      (.write "]"))))
+
 (defn- make-ddf-glyphs [semi-glyphs glyph-extents padding]
-  (map
+  (mapv
     (fn [glyph glyph-extents]
       (let [wh (:glyph-wh glyph-extents)]
-        {:character (:character glyph)
-         :width (if (positive-wh? wh)
-                  (:width (:image-wh glyph-extents))
-                  (:width wh))
-         :advance (:advance glyph)
-         :left-bearing (:left-bearing glyph)
-         :ascent (+ ^int (:ascent glyph) ^int padding)
-         :descent (+ ^int (:descent glyph) ^int padding)
-         :glyph-cell-wh (:glyph-cell-wh glyph-extents)
-         :glyph-data-offset (:glyph-data-offset glyph-extents)
-         :glyph-data-size (:glyph-data-size glyph-extents)}))
+        (->Glyph
+          #_character (:character glyph)
+          #_width (if (positive-wh? wh)
+                    (:width (:image-wh glyph-extents))
+                    (:width wh))
+          #_advance (:advance glyph)
+          #_left-bearing (:left-bearing glyph)
+          #_ascent (+ ^int (:ascent glyph) ^int padding)
+          #_descent (+ ^int (:descent glyph) ^int padding)
+          #_glyph-cell-wh (:glyph-cell-wh glyph-extents)
+          #_glyph-data-offset (:glyph-data-offset glyph-extents)
+          #_glyph-data-size (:glyph-data-size glyph-extents))))
     semi-glyphs glyph-extents))
 
 (defn- max-glyph-cell-wh [glyph-extents ^long line-height ^long padding ^long glyph-cell-padding]
@@ -118,7 +145,7 @@
         max-height (+ line-height padding padding glyph-cell-padding glyph-cell-padding)]
     (if (or (zero? max-width) (zero? max-height))
       (throw (ex-info "No glyph size information. Incompatible font format?" {}))
-      {:width max-width :height max-height})))
+      (->WH max-width max-height))))
 
 (defn- draw-bm-font-glyph ^BufferedImage [glyph ^BufferedImage bm-image]
   (.getSubimage bm-image
@@ -139,8 +166,7 @@
                          :character (.id c)
                          :advance (double (.xadvance c))
                          :left-bearing (double (.xoffset c))
-                         :width (.width c)
-                         }))]
+                         :width (.width c)}))]
     (when-not (seq semi-glyphs)
       (throw (ex-info "No character glyphs were included! Maybe turn on 'all_chars'?" {})))
     semi-glyphs))
@@ -285,12 +311,12 @@
          :is-monospaced is-monospaced
          :padding padding}))))
 
-  (defn- do-blend-rasters [^Raster src ^Raster dst-in ^WritableRaster dst-out]
-    (let [width (min (.getWidth src) (.getWidth dst-in) (.getWidth dst-out))
-          height (min (.getHeight src) (.getHeight dst-in) (.getHeight dst-out))
-          int0 (int 0)
-          int1 (int 1)]
-      (doseq [^int i (range width)
+(defn- do-blend-rasters [^Raster src ^Raster dst-in ^WritableRaster dst-out]
+  (let [width (min (.getWidth src) (.getWidth dst-in) (.getWidth dst-out))
+        height (min (.getHeight src) (.getHeight dst-in) (.getHeight dst-out))
+        int0 (int 0)
+        int1 (int 1)]
+    (doseq [^int i (range width)
             ^int j (range height)]
       (let [sr (.getSampleFloat src i j 0)
             sg (.getSampleFloat src i j 1)]
