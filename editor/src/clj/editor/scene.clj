@@ -14,6 +14,7 @@
 
 (ns editor.scene
   (:require [clojure.set :as set]
+            [clojure.string :as str]
             [dynamo.graph :as g]
             [editor.background :as background]
             [editor.camera :as c]
@@ -1237,9 +1238,16 @@
 
 (defn- nudge! [scene-node-ids ^double dx ^double dy ^double dz]
   (g/transact
-    (for [node-id scene-node-ids
-          :let [[^double x ^double y ^double z] (g/node-value node-id :position)]]
-      (g/set-property node-id :position [(+ x dx) (+ y dy) (+ z dz)]))))
+   (for [node-id scene-node-ids
+         :let [[^double x ^double y ^double z] (g/node-value node-id :position)
+               current-layout (g/maybe-node-value node-id :current-layout)
+               new-position [(+ x dx) (+ y dy) (+ z dz)]]]
+     (if (str/blank? current-layout)
+       (g/set-property node-id :position new-position)
+       (g/update-property
+        node-id :layout->prop->override
+        update current-layout
+        assoc :position new-position)))))
 
 (declare selection->movable)
 
