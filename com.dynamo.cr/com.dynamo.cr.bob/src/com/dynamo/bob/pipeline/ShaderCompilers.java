@@ -114,23 +114,23 @@ public class ShaderCompilers {
 
         public ShaderProgramBuilder.ShaderCompileResult compile(ArrayList<ShaderCompilePipeline.ShaderModuleDesc> shaderModules, String resourceOutputPath, CompileOptions compileOptions) throws IOException, CompileExceptionError {
 
-            ShaderCompilePipeline.Options opts = new ShaderCompilePipeline.Options();
-            ShaderCompilePipeline pipeline = ShaderProgramBuilder.newShaderPipeline(resourceOutputPath, shaderModules, opts);
-            ArrayList<ShaderProgramBuilder.ShaderBuildResult> shaderBuildResults = new ArrayList<>();
-
-            validateModules(shaderModules);
-
             boolean isComputeType = shaderModules.get(0).type == ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE;
             boolean outputSpirv = false;
             boolean outputHLSL = false;
             boolean outputWGSL = false;
 
+            ShaderCompilePipeline.Options opts = new ShaderCompilePipeline.Options();
             for (ShaderDesc.Language shaderLanguage : compileOptions.forceIncludeShaderLanguages) {
                 opts.splitTextureSamplers |= shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL || shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL;
                 outputSpirv |= shaderLanguage == ShaderDesc.Language.LANGUAGE_SPIRV;
                 outputHLSL |= shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL;
                 outputWGSL |= shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL;
             }
+
+            ShaderCompilePipeline pipeline = ShaderProgramBuilder.newShaderPipeline(resourceOutputPath, shaderModules, opts);
+            ArrayList<ShaderProgramBuilder.ShaderBuildResult> shaderBuildResults = new ArrayList<>();
+
+            validateModules(shaderModules);
 
             ArrayList<ShaderDesc.Language> shaderLanguages = getPlatformShaderLanguages(isComputeType, outputSpirv, outputWGSL, outputHLSL);
             assert shaderLanguages != null;
