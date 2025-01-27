@@ -197,6 +197,7 @@ namespace dmSound
         float*   m_MixBuffer;
         float    m_SumSquaredMemory[SOUND_MAX_MIX_CHANNELS * GROUP_MEMORY_BUFFER_COUNT];
         float    m_PeakMemorySq[SOUND_MAX_MIX_CHANNELS * GROUP_MEMORY_BUFFER_COUNT];
+        int16_t  m_FrameCounts[GROUP_MEMORY_BUFFER_COUNT];
         int      m_NextMemorySlot;
     };
 
@@ -823,18 +824,19 @@ namespace dmSound
         int ss_index = (g->m_NextMemorySlot - 1) % GROUP_MEMORY_BUFFER_COUNT;
         float sum_sq_left = 0;
         float sum_sq_right = 0;
-        int count = 0;
+        int total_frame_count = 0;
         while (left > 0) {
             sum_sq_left += g->m_SumSquaredMemory[2 * ss_index + 0];
             sum_sq_right += g->m_SumSquaredMemory[2 * ss_index + 1];
+            int16_t frame_count = g->m_FrameCounts[ss_index];
 
-            left -= sound->m_FrameCount;
+            left -= frame_count;
+            total_frame_count += frame_count;
             ss_index = (ss_index - 1) % GROUP_MEMORY_BUFFER_COUNT;
-            count++;
         }
 
-        *rms_left = sqrtf(sum_sq_left / (float) (count * sound->m_FrameCount)) / 32767.0f;
-        *rms_right = sqrtf(sum_sq_right / (float) (count * sound->m_FrameCount)) / 32767.0f;
+        *rms_left = sqrtf(sum_sq_left / (float) (total_frame_count)) / 32767.0f;
+        *rms_right = sqrtf(sum_sq_right / (float) (total_frame_count)) / 32767.0f;
 
         return RESULT_OK;
     }
@@ -865,8 +867,9 @@ namespace dmSound
         while (left > 0) {
             max_peak_left_sq = dmMath::Max(max_peak_left_sq, g->m_PeakMemorySq[2 * ss_index + 0]);
             max_peak_right_sq = dmMath::Max(max_peak_right_sq, g->m_PeakMemorySq[2 * ss_index + 1]);
+            int16_t frame_count = g->m_FrameCounts[ss_index];
 
-            left -= sound->m_FrameCount;
+            left -= frame_count;
             ss_index = (ss_index - 1) % GROUP_MEMORY_BUFFER_COUNT;
         }
 
@@ -1379,11 +1382,13 @@ namespace dmSound
                     max_sq_left = dmMath::Max(max_sq_left, left_sq);
                     max_sq_right = dmMath::Max(max_sq_right, right_sq);
                 }
-                g->m_SumSquaredMemory[2 * g->m_NextMemorySlot + 0] = sum_sq_left;
-                g->m_SumSquaredMemory[2 * g->m_NextMemorySlot + 1] = sum_sq_right;
-                g->m_PeakMemorySq[2 * g->m_NextMemorySlot + 0] = max_sq_left;
-                g->m_PeakMemorySq[2 * g->m_NextMemorySlot + 1] = max_sq_right;
-                g->m_NextMemorySlot = (g->m_NextMemorySlot + 1) % GROUP_MEMORY_BUFFER_COUNT;
+                int memory_slot = g->m_NextMemorySlot;
+                g->m_FrameCounts[memory_slot] = frame_count;
+                g->m_SumSquaredMemory[2 * memory_slot + 0] = sum_sq_left;
+                g->m_SumSquaredMemory[2 * memory_slot + 1] = sum_sq_right;
+                g->m_PeakMemorySq[2 * memory_slot + 0] = max_sq_left;
+                g->m_PeakMemorySq[2 * memory_slot + 1] = max_sq_right;
+                g->m_NextMemorySlot = (memory_slot + 1) % GROUP_MEMORY_BUFFER_COUNT;
 
                 memset(g->m_MixBuffer, 0, frame_count * sizeof(float) * 2);
             }
