@@ -98,7 +98,7 @@
            [javafx.scene Parent Scene]
            [javafx.scene.control Label MenuBar SplitPane Tab TabPane TabPane$TabClosingPolicy TabPane$TabDragPolicy Tooltip]
            [javafx.scene.image Image ImageView]
-           [javafx.scene.input Clipboard ClipboardContent]
+           [javafx.scene.input Clipboard ClipboardContent MouseEvent MouseButton]
            [javafx.scene.layout AnchorPane GridPane HBox Region StackPane]
            [javafx.scene.paint Color]
            [javafx.scene.shape Ellipse SVGPath]
@@ -1870,6 +1870,16 @@ If you do not specifically require different script states, consider changing th
 (defn- tab->view-type [^Tab tab]
   (some-> tab (ui/user-data ::view-type) :id))
 
+(let [TabHeaderSkin (Class/forName "javafx.scene.control.skin.TabPaneSkin$TabHeaderSkin")
+      getTab (.getDeclaredMethod TabHeaderSkin "getTab" (into-array Class []))]
+  (.setAccessible getTab true)
+  (defn- handle-tab-pane-mouse-pressed! 
+    [^TabPane tab-pane ^MouseEvent event]
+    (when (= MouseButton/SECONDARY (.getButton event))
+      (when-let [node (ui/closest-node-where #(instance? TabHeaderSkin %) (.getTarget event))]
+        (->> (.invoke getTab node (into-array Object []))
+             (.select (.getSelectionModel tab-pane)))))))
+
 (defn- configure-editor-tab-pane! [^TabPane tab-pane ^Scene app-scene app-view]
   (.setTabClosingPolicy tab-pane TabPane$TabClosingPolicy/ALL_TABS)
   (.setTabDragPolicy tab-pane TabPane$TabDragPolicy/REORDER)
@@ -1893,6 +1903,7 @@ If you do not specifically require different script states, consider changing th
                 (when (< 1 (count tab-panes))
                   (.remove tab-panes tab-pane)
                   (.requestFocus ^TabPane (.get tab-panes 0)))))))))
+  (.addEventFilter tab-pane MouseEvent/MOUSE_PRESSED (ui/event-handler event (handle-tab-pane-mouse-pressed! tab-pane event)))
   (ui/register-tab-pane-context-menu tab-pane ::tab-menu))
 
 (defn- handle-focus-owner-change! [app-view app-scene new-focus-owner]
