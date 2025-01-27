@@ -84,7 +84,7 @@ And repackage into a tar file:
 
 ### Prerequisites
 
-This script cannot download the sdk's by itself, but instead relies on the user having installed XCode on the local machine. Download and install Xcode from the App Store or https://developer.apple.com/services-account/download?path=/Developer_Tools/Xcode_15.0.1/Xcode_15.0.1.xip. Make sure to use the version listed in [sdk.py](https://github.com/defold/defold/blob/dev/build_tools/sdk.py).
+This script cannot download the sdk's by itself, but instead relies on the user having installed XCode on the local machine. Download and install Xcode from the App Store or https://developer.apple.com/services-account/download?path=/Developer_Tools/Xcode_16.2/Xcode_16.2.xip. Make sure to use the version listed in [sdk.py](https://github.com/defold/defold/blob/dev/build_tools/sdk.py).
 
 ### Packaging
 
@@ -94,10 +94,10 @@ Run the script
 
 and it will output files in `local_sdks` (version depends on which is the current recommended version):
 
-	./local_sdks/MacOSX11.3.sdk.tar.gz
-	./local_sdks/XcodeDefault12.5.xctoolchain.tar.gz
-	./local_sdks/iPhoneOS14.5.sdk.tar.gz
-	./local_sdks/iPhoneSimulator14.5.sdk.tar.gz
+	./local_sdks/MacOSX15.2.sdk.tar.gz
+	./local_sdks/XcodeDefault16.2.xctoolchain.darwin.tar.gz
+	./local_sdks/iPhoneOS18.2.sdk.tar.gz
+	./local_sdks/iPhoneSimulator18.2.sdk.tar.gz
 
 ## Windows
 

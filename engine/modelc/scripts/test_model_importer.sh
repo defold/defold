@@ -14,8 +14,8 @@
 # specific language governing permissions and limitations under the License.
 
 
-
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+eval $(python $SCRIPT_DIR/../../../build_tools/set_sdk_vars.py VERSION_XCODE)
 pushd $SCRIPT_DIR/..
 BUILD_DIR=$(realpath ./build/src)
 
@@ -59,7 +59,7 @@ if [ "Darwin" == "$(uname)" ]; then
     set -e
 
     PACKAGED_XCODE=${DYNAMO_HOME}/ext/SDKs/
-    PACKAGED_XCODE_TOOLCHAIN=${PACKAGED_XCODE}/Toolchains/XcodeDefault.xctoolchain
+    PACKAGED_XCODE_TOOLCHAIN=${PACKAGED_XCODE}/XcodeDefault${VERSION_XCODE}.xctoolchain
     LOCAL_XCODE=$(xcode-select -print-path)
     LOCAL_XCODE_TOOLCHAIN=${LOCAL_XCODE}/Toolchains/XcodeDefault.xctoolchain
 fi
