@@ -47,6 +47,7 @@ namespace dmLoadQueue
         dmResource::Result m_LoadResult;
         dmResource::Result m_PreloadResult;
         void* m_PreloadData;
+        bool m_IsBufferOwnershipTransferred; // If true, the resource preloader has taken ownership of the data
     };
 
     HQueue CreateQueue(dmResource::HFactory factory);
