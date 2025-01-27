@@ -1237,17 +1237,10 @@
           (.setImage image-view new-image))))))
 
 (defn- nudge! [scene-node-ids ^double dx ^double dy ^double dz]
-  (g/transact
-   (for [node-id scene-node-ids
-         :let [[^double x ^double y ^double z] (g/node-value node-id :position)
-               current-layout (g/maybe-node-value node-id :current-layout)
-               new-position [(+ x dx) (+ y dy) (+ z dz)]]]
-     (if (str/blank? current-layout)
-       (g/set-property node-id :position new-position)
-       (g/update-property
-        node-id :layout->prop->override
-        update current-layout
-        assoc :position new-position)))))
+  (g/with-auto-evaluation-context evaluation-context
+    (g/transact
+      (for [node-id scene-node-ids]
+        (scene-tools/manip-move evaluation-context node-id (Vector3d. dx dy dz))))))
 
 (declare selection->movable)
 
