@@ -1870,21 +1870,16 @@ If you do not specifically require different script states, consider changing th
 (defn- tab->view-type [^Tab tab]
   (some-> tab (ui/user-data ::view-type) :id))
 
-(defn- get-target-tab
-  [^MouseEvent event]
-  (let [TabHeaderSkin (Class/forName "javafx.scene.control.skin.TabPaneSkin$TabHeaderSkin")
-        getTab (.getDeclaredMethod TabHeaderSkin "getTab" (into-array Class []))]
-    (.setAccessible getTab true)
-    (.invoke getTab
-             (ui/closest-node-where #(instance? TabHeaderSkin %) (.getTarget event))
-             (into-array Object []))))
-
-(defn- handle-tab-pane-mouse-pressed!
-  "Activates the tab on right-click."
-  [^TabPane tab-pane ^MouseEvent event]
-  (when (= MouseButton/SECONDARY (.getButton event))
-    (->> (get-target-tab event)
-         (.select (.getSelectionModel tab-pane)))))
+(let [TabHeaderSkin (Class/forName "javafx.scene.control.skin.TabPaneSkin$TabHeaderSkin")
+      getTab (.getDeclaredMethod TabHeaderSkin "getTab" (into-array Class []))]
+  (.setAccessible getTab true)
+  (defn- handle-tab-pane-mouse-pressed! 
+    [^TabPane tab-pane ^MouseEvent event]
+    (when (= MouseButton/SECONDARY (.getButton event))
+      (->> (.invoke getTab
+                    (ui/closest-node-where #(instance? TabHeaderSkin %) (.getTarget event))
+                    (into-array Object []))
+           (.select (.getSelectionModel tab-pane))))))
 
 (defn- configure-editor-tab-pane! [^TabPane tab-pane ^Scene app-scene app-view]
   (.setTabClosingPolicy tab-pane TabPane$TabClosingPolicy/ALL_TABS)
