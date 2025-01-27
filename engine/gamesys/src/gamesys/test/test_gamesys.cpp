@@ -175,6 +175,33 @@ TEST_P(ResourceTest, TestPreload)
     dmResource::Release(m_Factory, resource);
 }
 
+TEST_P(ResourceTest, TestPreloadAsync)
+{
+    const char* resource_name = GetParam();
+    void* resource;
+    dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, resource_name);
+    dmResource::Result r;
+
+    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
+    null_context->m_UseAsyncTextureLoad   = 1;
+
+    uint64_t stop_time = dmTime::GetMonotonicTime() + 30*10e6;
+    while (dmTime::GetMonotonicTime() < stop_time)
+    {
+        // Simulate running at 30fps
+        r = dmResource::UpdatePreloader(pr, 0, 0, 33*1000);
+        if (r != dmResource::RESULT_PENDING)
+            break;
+        dmTime::Sleep(33*1000);
+    }
+
+    ASSERT_EQ(dmResource::RESULT_OK, r);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, resource_name, &resource));
+
+    dmResource::DeletePreloader(pr);
+    dmResource::Release(m_Factory, resource);
+}
+
 TEST_F(ResourceTest, TestReloadTextureSet)
 {
     const char* texture_set_path_a   = "/textureset/valid_a.t.texturesetc";
