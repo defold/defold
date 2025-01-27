@@ -26,6 +26,7 @@ public interface IShaderCompiler {
     class CompileOptions implements Serializable {
         public ArrayList<ShaderDesc.Language> forceIncludeShaderLanguages = new ArrayList<>();
         public int maxPageCount;
+        public boolean forceSplitSamplers;
     };
 
     ShaderProgramBuilder.ShaderCompileResult compile(ArrayList<ShaderCompilePipeline.ShaderModuleDesc> shaderModules, String resourceOutputPath, CompileOptions options) throws IOException, CompileExceptionError;

@@ -120,6 +120,8 @@ public class ShaderCompilers {
             boolean outputWGSL = false;
 
             ShaderCompilePipeline.Options opts = new ShaderCompilePipeline.Options();
+            opts.splitTextureSamplers = compileOptions.forceSplitSamplers;
+
             for (ShaderDesc.Language shaderLanguage : compileOptions.forceIncludeShaderLanguages) {
                 opts.splitTextureSamplers |= shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL || shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL;
                 outputSpirv |= shaderLanguage == ShaderDesc.Language.LANGUAGE_SPIRV;

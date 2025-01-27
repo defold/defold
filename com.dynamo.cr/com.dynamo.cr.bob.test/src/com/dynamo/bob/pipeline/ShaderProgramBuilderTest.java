@@ -376,9 +376,11 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         // but since we only build shaders for the host platform no actual WGSL shaders will be built!
         if (isHostPlatformDesktop())
         {
-            getProject().getProjectProperties().putBooleanValue("shader", "output_wgsl", true);
+            IShaderCompiler.CompileOptions compileOptions = new IShaderCompiler.CompileOptions();
+            compileOptions.forceSplitSamplers = true;
 
-            ShaderDesc shaderDesc = addAndBuildShaderDesc("/reflection_3.fp", fs_sampler_type_src, "/reflection_3.shbundle");
+            ShaderProgramBuilderBundle.ModuleBundle modules = createShaderModules(new String[] {"/reflection_3.fp"}, compileOptions);
+            ShaderDesc shaderDesc = addAndBuildShaderDescs(modules, new String[] {fs_sampler_type_src}, "/reflection_3.shbundle");
 
             assertTrue(shaderDesc.getShadersCount() > 0);
             assertNotNull(getShaderByLanguage(shaderDesc, ShaderDesc.Language.LANGUAGE_SPIRV));
@@ -413,8 +415,6 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
             // The non-constructed sampler shouldn't have any reference to a texture
             assertFalse(r.getTextures(10).hasSamplerTextureIndex());
-
-            getProject().getProjectProperties().putBooleanValue("shader", "output_wgsl", false);
         }
     }
 
