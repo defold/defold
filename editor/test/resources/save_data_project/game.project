@@ -94,6 +94,7 @@ show_console_banner = 0
 scale_mode = no_scale
 retry_count = 11
 retry_time = 1.5
+transparent_graphics_context = 1
 
 [ios]
 app_icon_76x76 = /referenced/images/diamond.png

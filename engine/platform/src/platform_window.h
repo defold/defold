@@ -142,6 +142,7 @@ namespace dmPlatform
         bool                    m_HighDPI;
         // Window background color, RGB 0x00BBGGRR
         uint32_t                m_BackgroundColor;
+        uint8_t                 m_ContextAlphabits;
         // OpenGL specific settings
         uint8_t                 m_OpenGLVersionHint        : 7; // I.e: 33, 40-46, 0 (use highest available)
         uint8_t                 m_OpenGLUseCoreProfileHint : 1;
