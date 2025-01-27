@@ -98,8 +98,7 @@
   (let [build-resource->fused-build-resource-path (comp resource/proj-path build-resource->fused-build-resource)
         material-desc-with-fused-build-resource-paths
         (-> (:material-desc-with-build-resources user-data)
-            (update :vertex-program build-resource->fused-build-resource-path)
-            (update :fragment-program build-resource->fused-build-resource-path))]
+            (update :program build-resource->fused-build-resource-path))]
     {:resource resource
      :content (protobuf/map->bytes Material$MaterialDesc material-desc-with-fused-build-resource-paths)}))
 
@@ -129,15 +128,12 @@
         (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program" "vp")
         (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program" "fp")
         (mapcat #(attribute-info->error-values % _node-id :attributes) attribute-infos))
-      (let [compile-spirv true
-            vertex-shader-build-target (code.shader/make-shader-build-target vertex-shader-source-info compile-spirv max-page-count)
-            fragment-shader-build-target (code.shader/make-shader-build-target fragment-shader-source-info compile-spirv max-page-count)
+      (let [shader-desc-build-target (code.shader/make-shader-build-target _node-id [vertex-shader-source-info fragment-shader-source-info] max-page-count)
             build-target-samplers (build-target-samplers (:samplers base-pb-msg) max-page-count)
             build-target-attributes (build-target-attributes attribute-infos)
-            dep-build-targets [vertex-shader-build-target fragment-shader-build-target]
+            dep-build-targets [shader-desc-build-target]
             material-desc-with-build-resources (assoc base-pb-msg
-                                                 :vertex-program (:resource vertex-shader-build-target)
-                                                 :fragment-program (:resource fragment-shader-build-target)
+                                                 :program (:resource shader-desc-build-target)
                                                  :samplers build-target-samplers
                                                  :attributes build-target-attributes)]
         [(bt/with-content-hash

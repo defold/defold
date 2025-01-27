@@ -28,6 +28,11 @@ public class SPIRVReflector {
     private final Shaderc.ShaderReflection reflection;
     private final Graphics.ShaderDesc.ShaderType shaderStage;
 
+    public SPIRVReflector() {
+        reflection = new Shaderc.ShaderReflection();
+        shaderStage = null;
+    }
+
     public SPIRVReflector(long ctx, Graphics.ShaderDesc.ShaderType shaderStage) {
         this.reflection = ShadercJni.GetReflection(ctx);
         this.shaderStage = shaderStage;

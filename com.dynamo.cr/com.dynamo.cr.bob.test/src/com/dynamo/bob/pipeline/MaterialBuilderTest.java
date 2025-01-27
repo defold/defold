@@ -16,6 +16,7 @@ package com.dynamo.bob.pipeline;
 
 import java.util.List;
 
+import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.graphics.proto.Graphics;
 import org.junit.Before;
 import org.junit.Test;
@@ -75,7 +76,7 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
         assertTrue(material.hasProgram());
 
         String program = material.getProgram();
-        String expectedProgram = "/" + MaterialBuilder.getShaderName("/test_combined.vp", "/test_combined.fp", ".spc");
+        String expectedProgram = "/" + MaterialBuilder.getShaderName("/test_combined.vp", "/test_combined.fp", 0, ".spc");
         assertEquals(expectedProgram, program);
     }
 
@@ -114,6 +115,54 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
 
         assertAttribute(material.getAttributes(6), "ele_count_4_normal", Graphics.VertexAttribute.VectorType.VECTOR_TYPE_MAT2);
         assertAttribute(material.getAttributes(7), "ele_count_4_world", Graphics.VertexAttribute.VectorType.VECTOR_TYPE_MAT2);
+    }
+
+    @Test
+    public void testVariantArrayTextures() throws Exception {
+        String vsShaderLegacy = "void main() {}\n";
+        String fsShaderLegacy =
+                """
+                varying mediump vec2 var_texcoord0;
+                varying lowp vec4 var_color;
+                varying lowp float var_page_index;
+                uniform lowp sampler2DArray texture_sampler;
+                void main() {
+                    lowp vec4 tex = texture2DArray(texture_sampler, vec3(var_texcoord0.xy, var_page_index));
+                    gl_FragColor = tex * var_color;
+                }
+                """;
+
+        addFile("/test_vp.vp", vsShaderLegacy);
+        addFile("/test_fp.fp", fsShaderLegacy);
+
+        String materialSrc =
+                """
+                name: "test_material"
+                vertex_program: "/test_vp.vp"
+                fragment_program: "/test_fp.fp"
+                max_page_count: 4
+                samplers {
+                  name: "texture_sampler"
+                  wrap_u: WRAP_MODE_CLAMP_TO_EDGE
+                  wrap_v: WRAP_MODE_CLAMP_TO_EDGE
+                  filter_min: FILTER_MODE_MIN_DEFAULT
+                  filter_mag: FILTER_MODE_MAG_DEFAULT
+                }
+                """;
+
+        getProject().getProjectProperties().putBooleanValue("shader", "output_glsl120", true);
+
+        addFile("/test.material", "");
+        MaterialDesc material = getMessage(build("/test.material", materialSrc), MaterialDesc.class);
+
+        assertEquals("texture_sampler", material.getSamplers(0).getName());
+
+        for (int i = 0; i < material.getMaxPageCount(); i++) {
+            long sliceHash = MurmurHash.hash64(ShaderUtil.VariantTextureArrayFallback.samplerNameToSliceSamplerName("texture_sampler", i));
+            assertEquals(sliceHash, material.getSamplers(0).getNameIndirections(i));
+        }
+
+        getProject().getProjectProperties().putBooleanValue("shader", "output_glsl120", false);
     }
 
     @Test

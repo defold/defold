@@ -64,6 +64,8 @@ public class ShaderProgramBuilder extends Builder {
     ArrayList<ShaderCompilePipeline.ShaderModuleDesc> modulesDescs = new ArrayList<>();
     ArrayList<ShaderPreprocessor> modulePreprocessors = new ArrayList<>();
 
+    IShaderCompiler.CompileOptions compileOptions = new IShaderCompiler.CompileOptions();
+
     @Override
     public Task create(IResource input) throws IOException, CompileExceptionError {
         Task.TaskBuilder taskBuilder = Task.newBuilder(this)
@@ -71,7 +73,7 @@ public class ShaderProgramBuilder extends Builder {
                 .addInput(input);
 
         ShaderProgramBuilderBundle.ModuleBundle modules = ShaderProgramBuilderBundle.ModuleBundle.load(input);
-        for (String path : modules.get()) {
+        for (String path : modules.getModules()) {
             IResource moduleInput = this.project.getResource(path);
 
             // Parse source for includes and add the include-nodes as inputs/dependencies to the shader
@@ -93,6 +95,8 @@ public class ShaderProgramBuilder extends Builder {
             modulesDescs.add(moduleDesc);
             modulePreprocessors.add(shaderPreprocessor);
         }
+
+        compileOptions = modules.getCompileOptions();
 
         String platformString = this.project.getPlatformStrings()[0];
 
@@ -123,10 +127,33 @@ public class ShaderProgramBuilder extends Builder {
             this.modulesDescs.get(i).source = this.modulePreprocessors.get(i).getCompiledSource();
         }
 
-        IShaderCompiler.CompileOptions compileOptions = new IShaderCompiler.CompileOptions();
-        compileOptions.outputHLSL = getOutputHlslFlag();
-        compileOptions.outputSpirv = getOutputSpirvFlag();
-        compileOptions.outputWGLS = getOutputWGSLFlag();
+        if (getOutputHlslFlag()) {
+            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_HLSL);
+        }
+        if (getOutputSpirvFlag()) {
+            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_SPIRV);
+        }
+        if (getOutputWGSLFlag()) {
+            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_WGSL);
+        }
+        if (getOutputGLSLESFlag(100)) {
+            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
+        }
+        if (getOutputGLSLESFlag(300)) {
+            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
+        }
+        if (getOutputGLSLFlag(120)) {
+            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM120);
+        }
+        if (getOutputGLSLFlag(140)) {
+            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM140);
+        }
+        if (getOutputGLSLFlag(330)) {
+            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
+        }
+        if (getOutputGLSLFlag(430)) {
+            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM430);
+        }
 
         IShaderCompiler shaderCompiler              = project.getShaderCompiler(platformKey);
         ShaderCompileResult shaderCompilerResult    = shaderCompiler.compile(this.modulesDescs, resourceOutputPath, compileOptions);
@@ -146,6 +173,8 @@ public class ShaderProgramBuilder extends Builder {
     private boolean getOutputSpirvFlag() { return getOutputShaderFlag("output-spirv", "output_spirv"); }
     private boolean getOutputHlslFlag() { return getOutputShaderFlag("output-hlsl", "output_hlsl"); }
     private boolean getOutputWGSLFlag() { return getOutputShaderFlag("output-wgsl", "output_wgsl"); }
+    private boolean getOutputGLSLESFlag(int version) { return getOutputShaderFlag("output-glsles" + version, "output_glsl_es" + version); }
+    private boolean getOutputGLSLFlag(int version) { return getOutputShaderFlag("output-glsl" + version, "output_glsl" + version); }
 
     static public ShaderDescBuildResult buildResultsToShaderDescBuildResults(ShaderCompileResult shaderCompileresult) throws CompileExceptionError {
         ShaderDescBuildResult shaderDescBuildResult = new ShaderDescBuildResult();
@@ -573,9 +602,9 @@ public class ShaderProgramBuilder extends Builder {
         try (BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(outputPath))) {
 
             IShaderCompiler.CompileOptions compileOptions = new IShaderCompiler.CompileOptions();
-            compileOptions.outputHLSL = true;
-            compileOptions.outputSpirv = true;
-            compileOptions.outputWGLS = true;
+            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_HLSL);
+            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_SPIRV);
+            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_WGSL);
 
             ShaderCompileResult shaderCompilerResult = shaderCompiler.compile(modules, outputPath, compileOptions);
             ShaderDescBuildResult shaderDescResult = buildResultsToShaderDescBuildResults(shaderCompilerResult);

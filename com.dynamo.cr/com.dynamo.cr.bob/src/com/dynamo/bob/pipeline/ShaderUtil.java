@@ -16,7 +16,6 @@ package com.dynamo.bob.pipeline;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintWriter;
-import java.lang.reflect.Array;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -31,10 +30,6 @@ import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.TokenStreamRewriter;
 import com.dynamo.bob.pipeline.antlr.glsl.GLSLLexer;
-import org.antlr.v4.runtime.tree.ParseTree;
-import org.antlr.v4.runtime.tree.ParseTreeWalker;
-import org.antlr.v4.runtime.tree.pattern.ParseTreeMatch;
-import org.antlr.v4.runtime.tree.pattern.ParseTreePattern;
 
 public class ShaderUtil {
     public static class Common {
@@ -59,7 +54,7 @@ public class ShaderUtil {
         {
             public String         source;
             public String[]       arraySamplers = new String[0];
-            public SPIRVReflector reflector = null;
+            public SPIRVReflector reflector = new SPIRVReflector();
 
             public GLSLCompileResult() {}
 

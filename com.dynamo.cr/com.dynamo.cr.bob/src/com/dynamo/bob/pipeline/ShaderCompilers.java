@@ -32,7 +32,7 @@ public class ShaderCompilers {
             this.platform = platform;
         }
 
-        private ArrayList<ShaderDesc.Language> getPlatformShaderLanguages(boolean isComputeType, CompileOptions compileOptions) {
+        private ArrayList<ShaderDesc.Language> getPlatformShaderLanguages(boolean isComputeType, boolean outputSpirv, boolean outputWGLS, boolean outputHLSL) {
             ArrayList<ShaderDesc.Language> shaderLanguages = new ArrayList<>();
             boolean spirvSupported = true;
             boolean hlslSupported = platform == Platform.X86_64Win32;
@@ -74,21 +74,21 @@ public class ShaderCompilers {
                         shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
                         shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
                     }
-                    if (compileOptions.outputWGLS)
+                    if (outputWGLS)
                         shaderLanguages.add(ShaderDesc.Language.LANGUAGE_WGSL);
                     spirvSupported = false;
                 } break;
                 case Arm64NX64:
-                    compileOptions.outputSpirv = true;
+                    outputSpirv = true;
                     break;
                 default: return null;
             }
 
-            if (spirvSupported && compileOptions.outputSpirv) {
+            if (spirvSupported && outputSpirv) {
                 shaderLanguages.add(ShaderDesc.Language.LANGUAGE_SPIRV);
             }
 
-            if (hlslSupported && compileOptions.outputHLSL) {
+            if (hlslSupported && outputHLSL) {
                 shaderLanguages.add(ShaderDesc.Language.LANGUAGE_HLSL);
             }
 
@@ -115,27 +115,61 @@ public class ShaderCompilers {
         public ShaderProgramBuilder.ShaderCompileResult compile(ArrayList<ShaderCompilePipeline.ShaderModuleDesc> shaderModules, String resourceOutputPath, CompileOptions compileOptions) throws IOException, CompileExceptionError {
 
             ShaderCompilePipeline.Options opts = new ShaderCompilePipeline.Options();
-            opts.splitTextureSamplers = compileOptions.outputWGLS ||compileOptions.outputHLSL;
-
             ShaderCompilePipeline pipeline = ShaderProgramBuilder.newShaderPipeline(resourceOutputPath, shaderModules, opts);
             ArrayList<ShaderProgramBuilder.ShaderBuildResult> shaderBuildResults = new ArrayList<>();
 
             validateModules(shaderModules);
 
             boolean isComputeType = shaderModules.get(0).type == ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE;
-            ArrayList<ShaderDesc.Language> shaderLanguages = getPlatformShaderLanguages(isComputeType, compileOptions);
+            boolean outputSpirv = false;
+            boolean outputHLSL = false;
+            boolean outputWGSL = false;
+
+            for (ShaderDesc.Language shaderLanguage : compileOptions.forceIncludeShaderLanguages) {
+                opts.splitTextureSamplers |= shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL || shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL;
+                outputSpirv |= shaderLanguage == ShaderDesc.Language.LANGUAGE_SPIRV;
+                outputHLSL |= shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL;
+                outputWGSL |= shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL;
+            }
+
+            ArrayList<ShaderDesc.Language> shaderLanguages = getPlatformShaderLanguages(isComputeType, outputSpirv, outputWGSL, outputHLSL);
             assert shaderLanguages != null;
+
+            // Used for tests, merge in potentially unsupported languages here.
+            for (ShaderDesc.Language shaderLanguage : compileOptions.forceIncludeShaderLanguages) {
+                if (!shaderLanguages.contains(shaderLanguage)) {
+                    shaderLanguages.add(shaderLanguage);
+                }
+            }
 
             HashMap<ShaderDesc.ShaderType, Boolean> shaderTypeKeys = new HashMap<>();
 
             for (ShaderDesc.Language shaderLanguage : shaderLanguages) {
+
+                boolean arrayTextureFallbackRequired = ShaderUtil.VariantTextureArrayFallback.isRequired(shaderLanguage);
+
                 for (ShaderCompilePipeline.ShaderModuleDesc shaderModule : shaderModules) {
+
+                    boolean variantTextureArray = false;
                     byte[] crossCompileResult = pipeline.crossCompile(shaderModule.type, shaderLanguage);
-                    ShaderDesc.Shader.Builder builder = ShaderProgramBuilder.makeShaderBuilder(crossCompileResult, shaderLanguage, shaderModule.type);
-                    shaderBuildResults.add(new ShaderProgramBuilder.ShaderBuildResult(builder));
 
                     if (!shaderTypeKeys.containsKey(shaderModule.type)) {
                         shaderTypeKeys.put(shaderModule.type, true);
+                    }
+
+                    if (arrayTextureFallbackRequired) {
+                        ShaderUtil.Common.GLSLCompileResult variantCompileResult = ShaderUtil.VariantTextureArrayFallback.transform(new String(crossCompileResult), compileOptions.maxPageCount);
+                        if (variantCompileResult != null && variantCompileResult.arraySamplers.length > 0) {
+                            crossCompileResult = variantCompileResult.source.getBytes();
+                            variantTextureArray = true;
+                        }
+                    }
+
+                    ShaderDesc.Shader.Builder builder = ShaderProgramBuilder.makeShaderBuilder(crossCompileResult, shaderLanguage, shaderModule.type);
+                    shaderBuildResults.add(new ShaderProgramBuilder.ShaderBuildResult(builder));
+
+                    if (variantTextureArray) {
+                        builder.setVariantTextureArray(true);
                     }
                 }
             }

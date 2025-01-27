@@ -15,6 +15,7 @@
 package com.dynamo.bob.pipeline;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.util.ArrayList;
 
 import com.dynamo.bob.CompileExceptionError;
@@ -22,10 +23,9 @@ import com.dynamo.bob.pipeline.shader.ShaderCompilePipeline;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
 public interface IShaderCompiler {
-    class CompileOptions {
-        boolean outputSpirv;
-        boolean outputWGLS;
-        boolean outputHLSL;
+    class CompileOptions implements Serializable {
+        public ArrayList<ShaderDesc.Language> forceIncludeShaderLanguages = new ArrayList<>();
+        public int maxPageCount;
     };
 
     ShaderProgramBuilder.ShaderCompileResult compile(ArrayList<ShaderCompilePipeline.ShaderModuleDesc> shaderModules, String resourceOutputPath, CompileOptions options) throws IOException, CompileExceptionError;

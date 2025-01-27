@@ -16,7 +16,6 @@ package com.dynamo.bob.pipeline;
 
 import java.io.IOException;
 
-import com.dynamo.render.proto.Compute;
 import com.google.protobuf.TextFormat;
 
 import com.dynamo.bob.ProtoBuilder;
@@ -61,7 +60,7 @@ public class ComputeBuilder extends ProtoBuilder<ComputeDesc.Builder> {
         IResource shaderResourceOut = getShaderProgram(computeBuilder);
 
         ShaderProgramBuilderBundle.ModuleBundle modules = ShaderProgramBuilderBundle.createBundle();
-        modules.add(computeBuilder.getComputeProgram());
+        modules.addModule(computeBuilder.getComputeProgram());
         shaderResourceOut.setContent(modules.toByteArray());
 
         Task.TaskBuilder computeTaskBuilder = Task.newBuilder(this)

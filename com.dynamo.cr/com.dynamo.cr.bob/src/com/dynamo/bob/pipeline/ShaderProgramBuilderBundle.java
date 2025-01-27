@@ -32,13 +32,20 @@ public class ShaderProgramBuilderBundle extends Builder {
         private static final long serialVersionUID = 1L;
         private ArrayList<String> modules = new ArrayList<>();
 
-        public void add(String path) {
+        private IShaderCompiler.CompileOptions compileOptions = new IShaderCompiler.CompileOptions();
+
+
+        public void addModule(String path) {
             modules.add(path);
         }
 
-        public String[] get() {
+        public String[] getModules() {
             return modules.toArray(new String[0]);
         }
+
+        public void setCompileOptions(IShaderCompiler.CompileOptions compileOptions) { this.compileOptions = compileOptions; }
+
+        public IShaderCompiler.CompileOptions getCompileOptions() { return this.compileOptions; }
 
         public byte[] toByteArray() throws IOException {
             ByteArrayOutputStream bos = new ByteArrayOutputStream(128 * 16);
@@ -126,8 +133,8 @@ public class ShaderProgramBuilderBundle extends Builder {
         BuilderUtil.checkResource(this.project, fsRes, "Fragment program", fsRes.getPath());
 
         ModuleBundle modules = new ModuleBundle();
-        modules.add(vsRes.getPath());
-        modules.add(fsRes.getPath());
+        modules.addModule(vsRes.getPath());
+        modules.addModule(fsRes.getPath());
         task.output(0).setContent(modules.toByteArray());
     }
 }

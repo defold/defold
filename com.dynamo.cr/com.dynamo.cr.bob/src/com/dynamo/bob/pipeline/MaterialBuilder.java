@@ -14,6 +14,7 @@
 
 package com.dynamo.bob.pipeline;
 
+import com.dynamo.render.proto.Material;
 import org.apache.commons.io.FilenameUtils;
 
 import java.io.*;
@@ -75,14 +76,13 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
         return null;
     }
 
+    /*
     private void applyVariantTextureArray(MaterialDesc.Builder materialBuilder, ShaderProgramBuildContext ctx, String inExt, String outExt) throws IOException, CompileExceptionError {
 
         ShaderDesc.Shader shader = getTextureArrayShader(ctx.desc);
         if (shader == null) {
             return;
         }
-
-        /*
         int maxPageCount = materialBuilder.getMaxPageCount();
         String shaderSource = new String(shader.getSource().toByteArray());
 
@@ -115,9 +115,9 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
         ctx.projectPath           = BuilderUtil.replaceExt(ctx.projectPath, "." + inExt, String.format(TextureArrayFilenameVariantFormat, maxPageCount, inExt));
         ctx.arraySamplers         = variantCompileResult.arraySamplers;
         ctx.hasTextureArrayVariant = true;
-        */
     }
 
+    /*
     private ShaderProgramBuildContext makeShaderProgramBuildContext(MaterialDesc.Builder materialBuilder, String shaderResourcePath) throws CompileExceptionError, IOException {
         IResource shaderResource = this.project.getResource(shaderResourcePath);
         String shaderFileInExt   = FilenameUtils.getExtension(shaderResourcePath);
@@ -145,6 +145,7 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
 
         return ctx;
     }
+    */
 
     private void applyShaderProgramBuildContexts(MaterialDesc.Builder materialBuilder, ShaderProgramBuildContext vertexBuildContext, ShaderProgramBuildContext fragmentBuildContext) {
         if (!(vertexBuildContext.hasTextureArrayVariant || fragmentBuildContext.hasTextureArrayVariant)) {
@@ -212,13 +213,13 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
         }
     }
 
-    public static String getShaderName(String vertexProgram, String fragmentProgram, String ext) {
-        long shaderProgramHash = MurmurHash.hash64(vertexProgram + fragmentProgram);
+    public static String getShaderName(String vertexProgram, String fragmentProgram, int maxPageCount, String ext) {
+        long shaderProgramHash = MurmurHash.hash64(vertexProgram + fragmentProgram + maxPageCount);
         return String.format("shader_%d%s", shaderProgramHash, ext);
     }
 
     private static String getShaderName(MaterialDesc.Builder fromBuilder, String ext) {
-        return getShaderName(fromBuilder.getVertexProgram(), fromBuilder.getFragmentProgram(), ext);
+        return getShaderName(fromBuilder.getVertexProgram(), fromBuilder.getFragmentProgram(), fromBuilder.getMaxPageCount(), ext);
     }
 
     private IResource getShaderProgram(MaterialDesc.Builder fromBuilder) {
@@ -235,9 +236,12 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
         IResource shaderResource = getShaderProgram(materialBuilder);
         IResource shaderResourceOut = shaderResource.changeExt(ShaderProgramBuilderBundle.EXT_OUT);
 
+        IShaderCompiler.CompileOptions compileOptions = new IShaderCompiler.CompileOptions();
+        compileOptions.maxPageCount = materialBuilder.getMaxPageCount();
+
         ShaderProgramBuilderBundle.ModuleBundle modules = ShaderProgramBuilderBundle.createBundle();
-        modules.add(materialBuilder.getVertexProgram());
-        modules.add(materialBuilder.getFragmentProgram());
+        modules.addModule(materialBuilder.getVertexProgram());
+        modules.addModule(materialBuilder.getFragmentProgram());
         shaderResourceOut.setContent(modules.toByteArray());
 
         Task.TaskBuilder materialTaskBuilder = Task.newBuilder(this)
@@ -250,9 +254,32 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
         return materialTaskBuilder.build();
     }
 
+    private void applyVariantTextureArray(MaterialDesc.Builder materialBuilder, ShaderDesc.Builder shaderBuilder) {
+        for (ShaderDesc.Shader shader : shaderBuilder.getShadersList()) {
+            if (shader.getVariantTextureArray()) {
+                for (ShaderDesc.ResourceBinding resourceBinding : shaderBuilder.getReflection().getTexturesList()) {
+                    if (resourceBinding.getType().getShaderType() == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY ||
+                            resourceBinding.getType().getShaderType() == ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE2D_ARRAY) {
+
+                        MaterialDesc.Sampler.Builder samplerBuilder = getSamplerBuilder(materialBuilder.getSamplersBuilderList(), resourceBinding.getName());
+
+                        if (samplerBuilder != null) {
+                            for (int i = 0; i < materialBuilder.getMaxPageCount(); i++) {
+                                samplerBuilder.addNameIndirections(MurmurHash.hash64(VariantTextureArrayFallback.samplerNameToSliceSamplerName(resourceBinding.getName(), i)));
+                            }
+                        }
+                    }
+                }
+                break;
+            }
+        }
+    }
+
     @Override
     public void build(Task task) throws CompileExceptionError, IOException {
         IResource res = task.firstInput();
+        IResource resShader = task.input(1);
+
         MaterialDesc.Builder materialBuilder = getSrcBuilder(res);
 
         BuilderUtil.checkResource(this.project, res, "vertex program", materialBuilder.getVertexProgram());
@@ -267,13 +294,13 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
 
         materialBuilder.setProgram("/" + BuilderUtil.replaceExt(shaderResource.getPath(), ".spc"));
 
+        ShaderDesc.Builder shaderBuilder = ShaderDesc.newBuilder();
+        shaderBuilder.mergeFrom(resShader.getContent());
+
+        applyVariantTextureArray(materialBuilder, shaderBuilder);
+
         MaterialDesc materialDesc = materialBuilder.build();
         task.output(0).setContent(materialDesc.toByteArray());
-
-        /*
-        ShaderProgramBuildContext vertexBuildContext   = makeShaderProgramBuildContext(materialBuilder, materialBuilder.getVertexProgram());
-        ShaderProgramBuildContext fragmentBuildContext = makeShaderProgramBuildContext(materialBuilder, materialBuilder.getFragmentProgram());
-        */
 
         //applyShaderProgramBuildContexts(materialBuilder, vertexBuildContext, fragmentBuildContext);
 
@@ -286,6 +313,15 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
 
         //IResource fsShader = this.project.getResource(materialBuilder.getFragmentProgram());
         //IResource vsShader = this.project.getResource(materialBuilder.getVertexProgram());
+    }
+
+    private MaterialDesc.Sampler.Builder getSamplerBuilder(List<MaterialDesc.Sampler.Builder> samplerBuilders, String samplerName) {
+        for (MaterialDesc.Sampler.Builder builder : samplerBuilders) {
+            if (builder.getName().equals(samplerName)) {
+                return builder;
+            }
+        }
+        return null;
     }
 
     // Running standalone:
@@ -321,13 +357,6 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
             if (shaderName == null) {
                 shaderName = getShaderName(materialBuilder, ".spc");
             }
-
-            /*
-            System.out.println("Material-builder: " + pathIn);
-            System.out.println("Material-out: " + pathOut);
-            System.out.println("Shader: " + shaderName);
-            System.out.println("Basedir: " + basedir);
-             */
 
             // Construct the project-relative path based from the input material file
             Path basedirAbsolutePath = Paths.get(basedir).toAbsolutePath();

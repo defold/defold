@@ -240,9 +240,6 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
 
     @Override
     public byte[] crossCompile(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage) throws CompileExceptionError, IOException {
-
-        System.out.println("Cross-compiling " + shaderType + ", " + shaderLanguage);
-
         ShaderModuleLegacy module = getShaderModule(shaderType);
         if (module == null) {
             throw new CompileExceptionError("No module found for " + shaderType);

@@ -258,18 +258,29 @@ public abstract class AbstractProtoBuilderTest {
         addFile(path, baos.toByteArray());
     }
 
-    protected Graphics.ShaderDesc addAndBuildShaderDescs(String[] shaderPaths, String[] shaderSources, String shaderBundlePath) throws Exception {
+    protected ShaderProgramBuilderBundle.ModuleBundle createShaderModules(String[] shaderPaths, IShaderCompiler.CompileOptions compileOptions) {
         ShaderProgramBuilderBundle.ModuleBundle modules = ShaderProgramBuilderBundle.createBundle();
+        modules.setCompileOptions(compileOptions);
+        for (String path : shaderPaths) {
+            modules.addModule(path);
+        }
+        return modules;
+    }
 
+    protected Graphics.ShaderDesc addAndBuildShaderDescs(ShaderProgramBuilderBundle.ModuleBundle modules, String[] shaderSources, String shaderBundlePath) throws Exception {
+        String[] shaderPaths = modules.getModules();
         for (int i = 0; i < shaderPaths.length; i++) {
             String path = shaderPaths[i];
             String source = shaderSources[i];
             addFile(path, source);
-            modules.add(path);
         }
 
         List<Message> outputs = build(shaderBundlePath, modules.toBase64String());
         return (Graphics.ShaderDesc) outputs.get(0);
+    }
+
+    protected Graphics.ShaderDesc addAndBuildShaderDescs(String[] shaderPaths, String[] shaderSources, String shaderBundlePath) throws Exception {
+        return addAndBuildShaderDescs(createShaderModules(shaderPaths, new IShaderCompiler.CompileOptions()), shaderSources, shaderBundlePath);
     }
 
     protected Graphics.ShaderDesc addAndBuildShaderDesc(String shaderPath, String shaderSource, String shaderBundlePath) throws Exception {
