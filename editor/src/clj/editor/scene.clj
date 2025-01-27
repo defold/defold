@@ -14,7 +14,6 @@
 
 (ns editor.scene
   (:require [clojure.set :as set]
-            [clojure.string :as str]
             [dynamo.graph :as g]
             [editor.background :as background]
             [editor.camera :as c]
