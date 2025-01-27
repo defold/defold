@@ -13,6 +13,7 @@ def build(bld):
                          proto_gen_py = True,
                          target = 'resource')
 
+    resource.source.append('async/load_queue.cpp');
     if 'web' in bld.env.PLATFORM:
          resource.source.append('async/load_queue_sync.cpp');
     else:

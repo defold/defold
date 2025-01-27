@@ -738,7 +738,7 @@ var ProgressView = {
 
             // Remove any background/splash image that was set in runApp().
             // Workaround for Safari bug DEF-3061.
-            Module.canvas.style.background = "";
+            Module.canvas.style.background = "none";
         }
     }
 };

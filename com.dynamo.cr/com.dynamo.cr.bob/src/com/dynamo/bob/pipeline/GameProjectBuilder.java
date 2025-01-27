@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -129,7 +129,6 @@ public class GameProjectBuilder extends Builder {
         project.createPublisher(shouldPublish);
         TaskBuilder builder = Task.newBuilder(this)
                 .setName(params.name())
-                .disableCache()
                 .addInput(input)
                 .addOutput(input.changeExt(".projectc").disableCache());
 
@@ -241,6 +240,7 @@ public class GameProjectBuilder extends Builder {
             EnumSet<Project.OutputFlags> flags = outputs.get(path);
             boolean compress = (flags == null || !flags.contains(Project.OutputFlags.UNCOMPRESSED)) && doCompress;
             boolean encrypt = (flags != null && flags.contains(Project.OutputFlags.ENCRYPTED));
+
             archiveBuilder.add(path, compress, encrypt);
         }
 

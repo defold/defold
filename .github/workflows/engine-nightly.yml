@@ -43,7 +43,7 @@ jobs:
                mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
       }]
 
-  bld-eng-linux-64:
+  bld-eng-linux-x64:
     runs-on: ubuntu-20.04
     steps: [
       { name: 'Checkout', uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 },
@@ -66,6 +66,38 @@ jobs:
       {
         name: 'VALGRIND',
         run: 'ci/ci.sh --platform=x86_64-linux --with-valgrind --skip-builtins --skip-docs engine'
+      },
+      {
+         name: 'Notify if build status changed',
+         uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
+         if: failure(),
+         with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
+      }]
+
+  bld-eng-linux-arm64:
+    runs-on: ubuntu-24.04-arm
+    steps: [
+      { name: 'Checkout', uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 },
+      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12} },
+      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '21.0.5+11.0.LTS', distribution: 'temurin'} },
+      { name: 'Setup dotnet', uses: actions/setup-dotnet@v4, with: {dotnet-version: '9.x'}},
+      { name: 'Install dependencies', run: 'ci/ci.sh install' },
+      {
+        name: 'ASAN',
+        run: 'ci/ci.sh --platform=arm64-linux --with-asan --skip-builtins --skip-docs engine'
+      },
+      {
+        name: 'UBSAN',
+        run: 'ci/ci.sh --platform=arm64-linux --with-ubsan --skip-builtins --skip-docs engine'
+      },
+      {
+        name: 'TSAN',
+        run: 'ci/ci.sh --platform=arm64-linux --with-tsan --skip-builtins --skip-docs engine'
+      },
+      {
+        name: 'VALGRIND',
+        run: 'ci/ci.sh --platform=arm64-linux --with-valgrind --skip-builtins --skip-docs engine'
       },
       {
          name: 'Notify if build status changed',

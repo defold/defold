@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -560,7 +560,7 @@ public class Bob {
                 opt(null, "with-symbols", ZERO, "Generate the symbol file (if applicable)", false),
 
                 opt("tp", "texture-profiles", ONE, "DEPRECATED! Use --texture-compression instead", true),
-                opt("tc", "texture-compression", ONE, "Use texture compression as specified in texture profiles", true),
+                opt("tc", "texture-compression", ZERO, "Use texture compression as specified in texture profiles", true),
 
                 opt(null, "exclude-build-folder", ONE, "DEPRECATED! Use '.defignore' file instead", true),
 
@@ -606,10 +606,23 @@ public class Bob {
                 // debug options
                 opt(null, "debug-ne-upload", ZERO, "Outputs the files sent to build server as upload.zip", false),
                 opt(null, "debug-output-spirv", ONE, "Force build SPIR-V shaders", false),
-                opt(null, "debug-output-wgsl", ONE, "Force build WGSL shaders", false)
+                opt(null, "debug-output-wgsl", ONE, "Force build WGSL shaders", false),
+                opt(null, "debug-output-hlsl", ONE, "Force build HLSL shaders", false)
         );
+    }
 
-
+    private static String[] migrateInvalidArguments(String[] args) {
+        ArrayList<String> migratedArguments = new ArrayList<>();
+        for (String arg : args) {
+            // Migrate texture compression argument. Deprecated in 1.9.7 (https://github.com/defold/defold/pull/10000)
+            boolean argIsTextureCompression = arg.startsWith("--tc") || arg.startsWith("--texture-compression");
+            if (argIsTextureCompression && arg.contains("=false")) {
+                System.out.println("Warning: --texture-compression and --tc no longer accepts an argument. To disable texture compression, remove the argument.");
+            } else {
+                migratedArguments.add(arg);
+            }
+        }
+        return migratedArguments.toArray(new String[0]);
     }
 
     private static CommandLine parse(String[] args) throws OptionValidationException {
@@ -618,6 +631,9 @@ public class Bob {
 
         CommandLineParser parser = new PosixParser();
         CommandLine cmd;
+
+        args = migrateInvalidArguments(args);
+
         try {
             cmd = parser.parse(options, args);
         } catch (ParseException e) {
@@ -941,7 +957,7 @@ public class Bob {
                 System.out.println("WARNING option 'texture-profiles' is deprecated, use option 'texture-compression' instead.");
                 String texCompression = cmd.getOptionValue("texture-profiles");
                 if (cmd.hasOption("texture-compression")) {
-                    texCompression = cmd.getOptionValue("texture-compression");
+                    texCompression = "true";
                 }
                 project.setOption("texture-compression", texCompression);
             }

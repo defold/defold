@@ -45,12 +45,12 @@
         }
     }
 
-    #show-visibility-settings {
-        #eye-icon {
+    #visibility-settings-graphic {
+        & > #eye-icon {
             -fx-translate-y: 1px;
         }
 
-        #active-indicator {
+        & > #active-indicator {
             visibility: hidden;
             -fx-fill: -df-defold-orange;
             -fx-stroke: -df-component-darker;
@@ -58,12 +58,13 @@
             -fx-translate-x: 3.5px;
             -fx-translate-y: -5px;
         }
-
-        &:selected #active-indicator {
+    }
+    .toggle-button {
+        &:selected > #visibility-settings-graphic > #active-indicator {
             -fx-stroke: -df-background-light;
         }
 
-        &.filters-active #active-indicator {
+        &.filters-active > #visibility-settings-graphic > #active-indicator {
             visibility: visible;
         }
     }

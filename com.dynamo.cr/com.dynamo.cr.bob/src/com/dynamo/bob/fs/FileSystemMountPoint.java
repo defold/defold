@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -81,13 +81,13 @@ public class FileSystemMountPoint implements IMountPoint {
         }
 
         @Override
-        public byte[] sha1() throws IOException {
-            return resource.sha1();
+        public void appendContent(byte[] content) throws IOException {
+            resource.appendContent(content);
         }
 
         @Override
-        public byte[] sha1(boolean allowCached) throws IOException {
-            return resource.sha1(allowCached);
+        public byte[] sha1() throws IOException {
+            return resource.sha1();
         }
 
         @Override

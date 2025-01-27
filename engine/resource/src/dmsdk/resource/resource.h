@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -354,11 +354,14 @@ struct ResourcePreloadParams
     const char*              m_Filename;
     const void*              m_Buffer;
     uint32_t                 m_BufferSize;
-    uint32_t                 m_FileSize:31;
+    uint32_t                 m_FileSize:30;
     uint32_t                 m_IsBufferPartial:1;
+    uint32_t                 m_IsBufferTransferrable:1; // Can the callback take ownership?
     HResourcePreloadHintInfo m_HintInfo;
-    void**                   m_PreloadData;
     HResourceType            m_Type;
+    // Out
+    void**                   m_PreloadData;
+    bool*                    m_IsBufferOwnershipTransferred; // If set, the resource type has taken ownership of the data
 };
 
 /*#

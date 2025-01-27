@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -217,6 +217,7 @@ namespace dmScript
      * Retrieve a LuaHBuffer from the supplied lua state.
      * Check if the value in the supplied index on the lua stack is a LuaHBuffer and returns it.
      * @note Returns 0 on error. Does not invoke lua_error.
+     * @note deprecated. Prefer ToBuffer() instead.
      * @name dmScript::CheckBufferNoError
      * @param L [type:lua_State*] lua state
      * @param index [type:int] Index of the value
@@ -224,6 +225,18 @@ namespace dmScript
      * @note The dmBuffer::IsBufferValid is already called on the returned buffer
      */
     LuaHBuffer* CheckBufferNoError(lua_State* L, int index);
+
+    /*# retrieve a LuaHBuffer from the supplied lua state.
+     * Retrieve a LuaHBuffer from the supplied lua state.
+     * Check if the value in the supplied index on the lua stack is a LuaHBuffer and returns it.
+     * @note Returns 0 on error. Does not invoke lua_error.
+     * @name dmScript::ToBuffer
+     * @param L [type:lua_State*] lua state
+     * @param index [type:int] Index of the value
+     * @return buffer [type:LuaHBuffer*] pointer to dmScript::LuaHBuffer or 0 if not valid
+     * @note The dmBuffer::IsBufferValid is already called on the returned buffer
+     */
+    LuaHBuffer* ToBuffer(lua_State* L, int index);
 
     /*# retrieve a HBuffer from the supplied lua state
      * Retrieve a HBuffer from the supplied lua state

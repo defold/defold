@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -255,10 +255,10 @@ struct SetTextureAsyncRequest
     lua_State*                 m_LuaState;
     dmScript::LuaCallbackInfo* m_CallbackInfo;
     TextureResource*           m_TextureResource;
+    uint8_t*                   m_RawData;
     dmBuffer::HBuffer          m_Buffer;
     int32_t                    m_BufferRef;
     HOpaqueHandle              m_Handle;
-    bool                       m_UseUploadBuffer;
 };
 
 struct ResourceModule
@@ -313,13 +313,32 @@ static dmhash_t GetCanonicalPathHash(const char* path)
     return dmHashBuffer64(canonical_path, path_len);
 }
 
-static void PreCreateResource(lua_State* L, const char* path_str, const char* path_ext_wanted, dmhash_t* canonical_path_hash_out)
+static void PreCreateResources(lua_State* L, const char* path_str, const char** supported_exts, uint32_t num_supported_exts, dmhash_t* canonical_path_hash_out)
 {
     const char* path_ext = dmResource::GetExtFromPath(path_str);
-
-    if (path_ext == 0x0 || dmStrCaseCmp(path_ext, path_ext_wanted) != 0)
+    bool path_ok = false;
+    if (path_ext)
     {
-        luaL_error(L, "Unable to create resource, path '%s' must have the %s extension", path_str, path_ext_wanted);
+        for (uint32_t i = 0; i < num_supported_exts; ++i)
+        {
+            const char* ext = supported_exts[i];
+            if (dmStrCaseCmp(path_ext, ext) == 0)
+            {
+                path_ok = true;
+                break;
+            }
+        }
+    }
+
+    if (!path_ok)
+    {
+        char message[1024];
+        dmSnPrintf(message, sizeof(message), "Unable to create resource, path '%s' must have any of the following extensions: ", path_str);
+        for (uint32_t i = 0; i < num_supported_exts; ++i)
+        {
+            dmStrlCat(message, supported_exts[i], sizeof(message));
+        }
+        luaL_error(L, "%s", message);
     }
 
     dmhash_t canonical_path_hash = GetCanonicalPathHash(path_str);
@@ -329,6 +348,11 @@ static void PreCreateResource(lua_State* L, const char* path_str, const char* pa
     }
 
     *canonical_path_hash_out = canonical_path_hash;
+}
+
+static void PreCreateResource(lua_State* L, const char* path_str, const char* path_ext_wanted, dmhash_t* canonical_path_hash_out)
+{
+    PreCreateResources(L, path_str, &path_ext_wanted, 1, canonical_path_hash_out);
 }
 
 /*# Set a resource
@@ -676,12 +700,11 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
         dmScript::DestroyCallback(request->m_CallbackInfo);
     }
 
-    // If we used a temporary upload buffer, we need to delete it.
-    if (request->m_UseUploadBuffer)
+    if (request->m_RawData)
     {
-        dmBuffer::Destroy(request->m_Buffer);
+        delete request->m_RawData;
     }
-    else
+    if (request->m_Buffer)
     {
         dmScript::Unref(request->m_LuaState, LUA_REGISTRYINDEX, request->m_BufferRef);
     }
@@ -1022,17 +1045,13 @@ static int CreateTextureAsync(lua_State* L)
     CreateTextureResourceParams create_params = {};
     CheckCreateTextureResourceParams(L, &create_params);
 
-    // Create an empty upload buffer
-    dmBuffer::HBuffer upload_buffer = create_params.m_Buffer;
-    bool use_upload_buffer = create_params.m_Buffer == 0;
-    if (use_upload_buffer)
+    // We need to create an empty upload buffer if no explicit buffer is passed
+    bool is_transcoded = dmGraphics::IsFormatTranscoded(create_params.m_CompressionType);
+    uint8_t* raw_data  = 0;
+
+    if (create_params.m_Buffer == 0)
     {
-        const dmBuffer::StreamDeclaration streams_decl = {dmHashString64("data"), dmBuffer::VALUE_TYPE_UINT8, 1};
-        dmBuffer::Result r = dmBuffer::Create(create_params.m_Width * create_params.m_Height * create_params.m_TextureBpp, &streams_decl, 1, &upload_buffer);
-        if (r != dmBuffer::RESULT_OK)
-        {
-            return DM_LUA_ERROR("Unable to create an empty upload buffer: %s (%d)", dmBuffer::GetResultString(r), r);
-        }
+        raw_data = new uint8_t[create_params.m_Width * create_params.m_Height * create_params.m_TextureBpp];
     }
 
     // The callback is optional, we don't have to do anything with the result if we don't need to.
@@ -1047,15 +1066,17 @@ static int CreateTextureAsync(lua_State* L)
     create_texture_resource_params.m_MaxMipMaps = 1;
     create_texture_resource_params.m_Buffer     = 0;
 
+    // We can't support a compression type here because the texture doesn't exist yet, so set it to a default.
+    create_texture_resource_params.m_CompressionType = dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT;
+
     dmGraphics::TextureImage texture_image = {};
     MakeTextureImage(create_texture_resource_params, &texture_image);
 
-    dmArray<uint8_t> ddf_buffer;
-    dmDDF::Result ddf_result = dmDDF::SaveMessageToArray(&texture_image, dmGraphics::TextureImage::m_DDFDescriptor, ddf_buffer);
-    assert(ddf_result == dmDDF::RESULT_OK);
+    dmArray<uint8_t> texture_resource_buffer;
+    FillTextureResourceBuffer(&texture_image, texture_resource_buffer);
 
     void* resource = 0x0;
-    dmResource::Result res = dmResource::CreateResource(g_ResourceModule.m_Factory, create_params.m_Path, ddf_buffer.Begin(), ddf_buffer.Size(), &resource);
+    dmResource::Result res = dmResource::CreateResource(g_ResourceModule.m_Factory, create_params.m_Path, texture_resource_buffer.Begin(), texture_resource_buffer.Size(), &resource);
     DestroyTextureImage(texture_image, create_params.m_Buffer == 0);
 
     if (res != dmResource::RESULT_OK)
@@ -1072,6 +1093,8 @@ static int CreateTextureAsync(lua_State* L)
 
     dmGraphics::TextureCreationParams texture_create_params;
     texture_create_params.m_Type = create_params.m_Type;
+    texture_create_params.m_Width = create_params.m_Width;
+    texture_create_params.m_Height = create_params.m_Height;
 
     dmGraphics::HTexture texture_dst = dmGraphics::NewTexture(g_ResourceModule.m_GraphicsContext, texture_create_params);
 
@@ -1081,23 +1104,52 @@ static int CreateTextureAsync(lua_State* L)
     request->m_TextureResource   = (TextureResource*) resource;
     request->m_Handle            = request_handle;
     request->m_CallbackInfo      = callback_info;
-    request->m_Buffer            = upload_buffer;
-    request->m_UseUploadBuffer   = use_upload_buffer;
+    request->m_Buffer            = create_params.m_Buffer;
     request->m_PathHash          = create_params.m_PathHash;
+    request->m_RawData           = raw_data;
 
     dmGraphics::TextureParams texture_params;
     texture_params.m_Width  = create_params.m_Width;
     texture_params.m_Height = create_params.m_Height;
     texture_params.m_Format = create_params.m_Format;
 
-    dmBuffer::GetBytes(request->m_Buffer, (void**)&texture_params.m_Data, &texture_params.m_DataSize);
-
     // If we are not using a specifically created upload buffer, we push the Lua object and increase its ref count,
     // this is so that we can make sure that the buffer to live during the upload.
-    if (!use_upload_buffer)
+    if (create_params.m_Buffer)
     {
         lua_pushvalue(L, 3);
         request->m_BufferRef = dmScript::Ref(L, LUA_REGISTRYINDEX);
+    }
+
+    dmBuffer::GetBytes(request->m_Buffer, (void**) &texture_params.m_Data, &texture_params.m_DataSize);
+
+    // If the data is transcoded, we need an extra pass here to unpack the data before uploading it
+    if (is_transcoded)
+    {
+        assert(create_params.m_Buffer != 0);
+
+        uint32_t num_mips = 1;
+        texture_params.m_Format = dmGraphics::GetSupportedCompressionFormat(g_ResourceModule.m_GraphicsContext, texture_params.m_Format, texture_params.m_Width, texture_params.m_Height);
+
+        uint8_t* decompressed_data;
+        uint32_t decompressed_data_size;
+        uint32_t compressed_mipmap_size = texture_params.m_DataSize;
+
+        // TODO: Perhaps we should change the transcode function to not take an image? We only use these fields:
+        dmGraphics::TextureImage::Image compressed_image;
+        compressed_image.m_MipMapSize.m_Count           = 1;
+        compressed_image.m_MipMapSizeCompressed.m_Data  = &compressed_mipmap_size;
+        compressed_image.m_MipMapSizeCompressed.m_Count = 1;
+
+        if (!dmGraphics::Transcode(create_params.m_Path, &compressed_image, 1, (uint8_t*) texture_params.m_Data, texture_params.m_Format, &decompressed_data, &decompressed_data_size, &num_mips))
+        {
+            return DM_LUA_ERROR("Unable to transcode texture data");
+        }
+
+        texture_params.m_Data     = decompressed_data;
+        texture_params.m_DataSize = decompressed_data_size;
+
+        request->m_RawData = decompressed_data;
     }
 
     // Execute the upload, the upload buffer should now be locked by this request
@@ -2657,6 +2709,98 @@ static int SetSound(lua_State* L) {
     return 0;
 }
 
+static uint8_t* CheckBufferOrString(lua_State* L, int index, uint32_t* data_size)
+{
+    dmScript::LuaHBuffer* lua_buffer = dmScript::ToBuffer(L, index);
+    if (lua_buffer)
+    {
+        dmBuffer::HBuffer buffer = dmGameSystem::UnpackLuaBuffer(lua_buffer);
+
+        uint8_t* data = 0;
+        dmBuffer::GetBytes(buffer, (void**)&data, data_size);
+        return data;
+    }
+    else if (lua_isstring(L, index))
+    {
+        size_t string_len;
+        uint8_t* data = (uint8_t*)luaL_checklstring(L, -1, &string_len);
+        *data_size = (uint32_t)string_len;
+        return data;
+    }
+    luaL_error(L, "The field must be using either a buffer or a string.");
+    return 0;
+}
+
+static int CreateSoundData(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 1);
+
+    const char* path = luaL_checkstring(L, 1);
+    const char* path_ext = dmResource::GetExtFromPath(path);
+
+    const char* exts[]  = {".wav", ".ogg", ".wavc", ".oggc"};
+
+    dmhash_t canonical_path_hash = 0;
+    PreCreateResources(L, path, exts, DM_ARRAY_SIZE(exts), &canonical_path_hash);
+
+    // Find the correct type, as the resource types are registered as .wavc / .oggc
+    char type_suffix[32];
+    {
+        // Skip the '.'
+        int len = dmStrlCpy(type_suffix, path_ext+1, sizeof(type_suffix));
+        if (type_suffix[len-1] != 'c')
+        {
+            type_suffix[len++] = 'c';
+            type_suffix[len] = 0;
+        }
+    }
+
+    dmResource::HResourceType resource_type;
+    dmResource::Result r = dmResource::GetTypeFromExtension(g_ResourceModule.m_Factory, type_suffix, &resource_type);
+    if (dmResource::RESULT_OK != r)
+    {
+        return luaL_error(L, "Failed to find resource type '%s': %s %d", type_suffix, dmResource::ResultToString(r), r);
+    }
+
+    //////////////////////////////////////////////////
+    // Options table
+    luaL_checktype(L, 2, LUA_TTABLE);
+    lua_pushvalue(L, 2);
+
+    uint32_t data_size = 0;
+    uint8_t* data = 0;
+
+    lua_getfield(L, -1, "data");
+    data = CheckBufferOrString(L, -1, &data_size);
+    lua_pop(L, 1); // "data"
+
+    uint32_t file_size = data_size;
+    bool partial = CheckFieldValue<bool>(L, -1, "partial", false);
+    if (partial)
+    {
+        file_size = CheckFieldValue<int>(L, -1, "filesize");
+    }
+
+    lua_pop(L, 1); // args table
+    // End options table
+    //////////////////////////////////////////////////
+
+    void* resource = 0x0;
+    dmResource::Result res = dmResource::CreateResourcePartial(g_ResourceModule.m_Factory, resource_type, path, data, data_size, file_size, &resource);
+
+    if (res != dmResource::RESULT_OK)
+    {
+        return ReportPathError(L, res, canonical_path_hash);
+    }
+
+    dmGameObject::HInstance sender_instance = dmScript::CheckGOInstance(L);
+    dmGameObject::HCollection collection    = dmGameObject::GetCollection(sender_instance);
+    dmGameObject::AddDynamicResourceHash(collection, canonical_path_hash);
+    dmScript::PushHash(L, canonical_path_hash);
+
+    return 1;
+}
+
 #if 0 // debug print a buffer
 void PrintBuffer(const char* label, const dmScript::LuaHBuffer& buffer)
 {
@@ -3161,6 +3305,7 @@ static const luaL_reg Module_methods[] =
     {"create_buffer",           CreateBuffer},
     {"create_texture",          CreateTexture},
     {"create_texture_async",    CreateTextureAsync},
+    {"create_sound_data",       CreateSoundData},
     {"release",                 ReleaseResource},
     {"set_atlas",               SetAtlas},
     {"get_atlas",               GetAtlas},

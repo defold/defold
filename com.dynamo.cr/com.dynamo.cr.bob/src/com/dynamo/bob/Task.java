@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -39,7 +39,6 @@ public class Task {
     private final HashSet<IResource> inputLookup = new HashSet<IResource>();
 
     private final Builder builder;
-    private boolean cacheable = true;
 
     /**
      * Task builder for create a {@link Task}.
@@ -58,11 +57,6 @@ public class Task {
 
         public TaskBuilder<T> setName(String name) {
             task.name = name;
-            return this;
-        }
-
-        public TaskBuilder<T> disableCache() {
-            task.cacheable = false;
             return this;
         }
 
@@ -146,7 +140,7 @@ public class Task {
     }
 
     public boolean isCacheable() {
-        return cacheable;
+        return builder.params != null ? builder.params.isCacheble() : false;
     }
 
     /**
@@ -166,7 +160,7 @@ public class Task {
             }
         });
         for (IResource r : sortedResources) {
-            digest.update(r.sha1(true));
+            digest.update(r.sha1());
         }
     }
 

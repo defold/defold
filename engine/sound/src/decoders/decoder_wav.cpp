@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -216,7 +216,7 @@ namespace dmSoundCodec
             }
         } else {
             const char* chunk = (const char*)&header.m_ChunkID;
-            dmLogWarning("Unknown header: chunk: %08x %c%c%c%c  format: %08x", header.m_ChunkID,
+            dmLogWarning("Wav: Unknown header: chunk: %08x %c%c%c%c  format: %08x", header.m_ChunkID,
                         (char)chunk[0], (char)chunk[1], (char)chunk[2], (char)chunk[3], header.m_Format);
             return RESULT_INVALID_FORMAT;
         }
