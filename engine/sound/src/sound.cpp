@@ -1071,53 +1071,53 @@ namespace dmSound
             return t[0] * c[0] + t[1] * c[1] + t[2] * c[2] + t[3] * c[3] + t[4] * c[4] + t[5] * c[5] + t[6] * c[6] + t[7] * c[7];
     }
 
-//off for now: experimental
-#if 0 //defined(__SSE__) || defined(__SSE2__) || defined(__SSE3__) || defined(__SSE_4_1__)
+//note: does NOT do stereo setup correctly (interleaved format is not very SIMD friendly)
+#if defined(__SSE__)
     typedef __m128 vec4;
 
-    template<typename, int offset=0, int scale=1, int step>
-    static inline float FilterSample(const int16_t* frames, uint64_t frac_pos)
+    template <>
+    inline float FilterSample<int16_t,0,1,1>(const int16_t* frames, uint64_t frac_pos)
     {
-            uint32_t pi = ((frac_pos >> (RESAMPLE_FRACTION_BITS - 11)) << 3) & (2047 << 3); // 8 tabs, 2048 (11 fractional bits) banks
-            const float* c = &_pfb[pi];
+        uint32_t pi = ((frac_pos >> (RESAMPLE_FRACTION_BITS - 11)) << 3) & (2047 << 3); // 8 tabs, 2048 (11 fractional bits) banks
+        const float* c = &_pfb[pi];
 
 #if defined(__SSE4_1__)
-            typedef __m128i ivec8;
-            ivec8 in = _mm_loadu_si128((const __m128i_u*)&frames[-3 * step]);
-            vec4 taps0 = _mm_cvtepi32_ps(_mm_cvtepi16_epi32(in));
-            vec4 taps1 = _mm_cvtepi32_ps(_mm_cvtepi16_epi32(_mm_movehl(in, in)));
-            return (_mm_dp_ps(taps0, *(const vec4*)&c[0], 0xf1) + _mm_dp_ps(taps1, *(const vec4*)&c[4], 0xf1))[0];
+        typedef __m128i ivec8;
+        ivec8 in = _mm_loadu_si128((const __m128i_u*)&frames[-3]);
+        vec4 taps0 = _mm_cvtepi32_ps(_mm_cvtepi16_epi32(in));
+        vec4 taps1 = _mm_cvtepi32_ps(_mm_cvtepi16_epi32(_mm_movehl(in, in)));
+        return (_mm_dp_ps(taps0, *(const vec4*)&c[0], 0xf1) + _mm_dp_ps(taps1, *(const vec4*)&c[4], 0xf1))[0];
 #else
-            // Fetch sample data
+        // Fetch sample data
 #if defined(__SSE2__) || defined(__SSE3__)
-            typedef __m128i ivec8;
-            ivec8 in = _mm_loadu_si128((const __m128i_u*)&frames[-3 * step]);
-            vec4 taps0 = _mm_cvtepi32_ps(_mm_srai_epi32(_mm_unpacklo_epi16(in, in), 16));
-            vec4 taps1 = _mm_cvtepi32_ps(_mm_srai_epi32(_mm_unpackhi_epi16(in, in), 16));
+        typedef __m128i ivec8;
+        ivec8 in = _mm_loadu_si128((const __m128i_u*)&frames[-3]);
+        vec4 taps0 = _mm_cvtepi32_ps(_mm_srai_epi32(_mm_unpacklo_epi16(in, in), 16));
+        vec4 taps1 = _mm_cvtepi32_ps(_mm_srai_epi32(_mm_unpackhi_epi16(in, in), 16));
 #else
-            vec4 zero = _mm_setzero_ps();
-            __m64 in0 = *(const __m64*)&frames[-3 * step];
-            vec4 hi0 = _mm_cvtpi32_ps(zero, _mm_srai_pi32(_mm_unpackhi_pi16(in0, in0), 16));
-            vec4 taps0 = _mm_cvtpi32_ps(_mm_movelh_ps(hi0, hi0), _mm_srai_pi32(_mm_unpacklo_pi16(in0, in0), 16));
-            __m64 in1 = *(const __m64*)&frames[ 1 * step];
-            vec4 hi1 = _mm_cvtpi32_ps(zero, _mm_srai_pi32(_mm_unpackhi_pi16(in1, in1), 16));
-            vec4 taps1 = _mm_cvtpi32_ps(_mm_movelh_ps(hi1, hi1), _mm_srai_pi32(_mm_unpacklo_pi16(in1, in1), 16));
+        vec4 zero = _mm_setzero_ps();
+        __m64 in0 = *(const __m64*)&frames[-3];
+        vec4 hi0 = _mm_cvtpi32_ps(zero, _mm_srai_pi32(_mm_unpackhi_pi16(in0, in0), 16));
+        vec4 taps0 = _mm_cvtpi32_ps(_mm_movelh_ps(hi0, hi0), _mm_srai_pi32(_mm_unpacklo_pi16(in0, in0), 16));
+        __m64 in1 = *(const __m64*)&frames[ 1];
+        vec4 hi1 = _mm_cvtpi32_ps(zero, _mm_srai_pi32(_mm_unpackhi_pi16(in1, in1), 16));
+        vec4 taps1 = _mm_cvtpi32_ps(_mm_movelh_ps(hi1, hi1), _mm_srai_pi32(_mm_unpacklo_pi16(in1, in1), 16));
 #endif
-            // Apply dot product (FIR filter)
-            vec4 tmp0 = taps0 * *(const vec4*)&c[0];
-            vec4 tmp1 = taps1 * *(const vec4*)&c[4];
-            tmp0 += _mm_shuffle_ps(tmp0, tmp0, _MM_SHUFFLE(0, 3, 0, 1)); // X=X+Y; Z=Z+W
-            tmp1 += _mm_shuffle_ps(tmp1, tmp1, _MM_SHUFFLE(0, 3, 0, 1)); // X=X+Y; Z=Z+W
-            tmp0 += _mm_shuffle_ps(tmp0, tmp0, _MM_SHUFFLE(0, 0, 0, 2)); // X=X+Y+Z+W
-            tmp1 += _mm_shuffle_ps(tmp1, tmp1, _MM_SHUFFLE(0, 0, 0, 2)); // X=X+Y+Z+W
-            return (tmp0 + tmp1)[0];
+        // Apply dot product (FIR filter)
+        vec4 tmp0 = taps0 * *(const vec4*)&c[0];
+        vec4 tmp1 = taps1 * *(const vec4*)&c[4];
+        tmp0 += _mm_shuffle_ps(tmp0, tmp0, _MM_SHUFFLE(0, 3, 0, 1)); // X=X+Y; Z=Z+W
+        tmp1 += _mm_shuffle_ps(tmp1, tmp1, _MM_SHUFFLE(0, 3, 0, 1)); // X=X+Y; Z=Z+W
+        tmp0 += _mm_shuffle_ps(tmp0, tmp0, _MM_SHUFFLE(0, 0, 0, 2)); // X=X+Y+Z+W
+        tmp1 += _mm_shuffle_ps(tmp1, tmp1, _MM_SHUFFLE(0, 0, 0, 2)); // X=X+Y+Z+W
+        return (tmp0 + tmp1)[0];
 #endif
     }
 #endif // SSEx
 
     template <typename T, int offset, int scale>
     static void MixResamplePolyphaseMono(const MixContext* mix_context, SoundInstance* instance, uint64_t delta, float* mix_buffer, uint32_t mix_buffer_count, void* decoder_output_buffer, uint32_t avail_framecount)
-    {
+    { 
         PrepTempBufferState<T, 1>(instance, decoder_output_buffer);
 
         uint64_t frac = instance->m_FrameFraction;
