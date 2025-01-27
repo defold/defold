@@ -1236,8 +1236,8 @@
           (.setImage image-view new-image))))))
 
 (defn- nudge! [scene-node-ids ^double dx ^double dy ^double dz]
-  (g/with-auto-evaluation-context evaluation-context
-    (g/transact
+  (g/transact
+    (g/with-auto-evaluation-context evaluation-context
       (for [node-id scene-node-ids]
         (scene-tools/manip-move evaluation-context node-id (Vector3d. dx dy dz))))))
 
