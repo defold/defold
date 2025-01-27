@@ -3350,18 +3350,6 @@ ResourceFailParams invalid_font_resources[] =
 };
 INSTANTIATE_TEST_CASE_P(FontMap, ResourceFailTest, jc_test_values_in(invalid_font_resources));
 
-/* Fragment Program */
-
-/*
-const char* valid_fp_resources[] = {"/fragment_program/valid.fpc"};
-INSTANTIATE_TEST_CASE_P(FragmentProgram, ResourceTest, jc_test_values_in(valid_fp_resources));
-
-ResourceFailParams invalid_fp_resources[] =
-{
-    {"/fragment_program/valid.fpc", "/fragment_program/missing.fpc"},
-};
-INSTANTIATE_TEST_CASE_P(FragmentProgram, ResourceFailTest, jc_test_values_in(invalid_fp_resources));
-*/
 
 /* Gui Script */
 
@@ -3652,19 +3640,6 @@ ResourceFailParams invalid_texture_resources[] =
     {"/texture/valid_png.texturec", "/texture/missing.texturec"},
 };
 INSTANTIATE_TEST_CASE_P(Texture, ResourceFailTest, jc_test_values_in(invalid_texture_resources));
-
-/* Vertex Program */
-
-/*
-const char* valid_vp_resources[] = {"/vertex_program/valid.vpc"};
-INSTANTIATE_TEST_CASE_P(VertexProgram, ResourceTest, jc_test_values_in(valid_vp_resources));
-
-ResourceFailParams invalid_vp_resources[] =
-{
-    {"/vertex_program/valid.vpc", "/vertex_program/missing.vpc"},
-};
-INSTANTIATE_TEST_CASE_P(VertexProgram, ResourceFailTest, jc_test_values_in(invalid_vp_resources));
-*/
 
 /* Label */
 

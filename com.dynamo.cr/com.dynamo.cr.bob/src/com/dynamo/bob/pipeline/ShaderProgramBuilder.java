@@ -198,22 +198,6 @@ public class ShaderProgramBuilder extends Builder {
         return shaderDescBuildResult;
     }
 
-    public ShaderDescBuildResult makeShaderDesc(String resourceOutputPath, ShaderPreprocessor shaderPreprocessor, ShaderDesc.ShaderType shaderType, String platform, IShaderCompiler.CompileOptions compileOptions) throws IOException, CompileExceptionError {
-        Platform platformKey = Platform.get(platform);
-        if(platformKey == null) {
-            throw new CompileExceptionError("Unknown platform for shader program '" + resourceOutputPath + "'': " + platform);
-        }
-
-        return null;
-
-        /*
-        String finalShaderSource                 = shaderPreprocessor.getCompiledSource();
-        IShaderCompiler shaderCompiler           = project.getShaderCompiler(platformKey);
-        ShaderCompileResult shaderCompilerResult = shaderCompiler.compile(finalShaderSource, shaderType, resourceOutputPath, compileOptions);
-        return buildResultsToShaderDescBuildResults(shaderCompilerResult, shaderType);
-        */
-    }
-
     static private void handleShaderDescBuildResult(ShaderDescBuildResult result, String resourceOutputPath) throws CompileExceptionError {
         if (result.buildWarnings != null) {
             for(String warningStr : result.buildWarnings) {
@@ -221,33 +205,6 @@ public class ShaderProgramBuilder extends Builder {
             }
             throw new CompileExceptionError("Errors when producing output " + resourceOutputPath);
         }
-    }
-
-    public ShaderDesc getCompiledShaderDesc(Task task, ShaderDesc.ShaderType shaderType) throws IOException, CompileExceptionError {
-        String resourceOutputPath = task.getOutputs().get(0).getPath();
-
-        /*
-        IShaderCompiler.CompileOptions compileOptions = new IShaderCompiler.CompileOptions();
-        compileOptions.outputHLSL = getOutputHlslFlag();
-        compileOptions.outputSpirv = getOutputSpirvFlag();
-        compileOptions.outputWGLS = getOutputWGSLFlag();
-
-        ShaderDescBuildResult shaderDescBuildResult = makeShaderDesc(resourceOutputPath, shaderPreprocessor, shaderType, this.project.getPlatformStrings()[0], outputSpirv, outputWGSL);
-        ShaderDescBuildResult shaderDescBuildResult = makeShaderDesc(resourceOutputPath, shaderPreprocessor, shaderType, this.project.getPlatformStrings()[0], outputSpirv, outputHlsl, outputWGSL);
-
-        handleShaderDescBuildResult(shaderDescBuildResult, resourceOutputPath);
-
-        return shaderDescBuildResult.shaderDesc;
-        */
-
-        return null;
-    }
-
-    static public ShaderProgramBuilder.ShaderBuildResult makeShaderBuilderFromGLSLSource(String source, ShaderDesc.Language shaderLanguage) throws IOException {
-        ShaderDesc.Shader.Builder builder = ShaderDesc.Shader.newBuilder();
-        builder.setLanguage(shaderLanguage);
-        builder.setSource(ByteString.copyFrom(source, "UTF-8"));
-        return new ShaderProgramBuilder.ShaderBuildResult(builder);
     }
 
     static private ShaderDesc.ShaderDataType TextureToShaderDataType(Shaderc.ResourceType type) throws CompileExceptionError {

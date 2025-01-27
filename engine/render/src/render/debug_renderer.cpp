@@ -72,38 +72,6 @@ namespace dmRender
             }
         }
 
-        /*
-        dmGraphics::HVertexProgram vertex_program = dmGraphics::INVALID_VERTEX_PROGRAM_HANDLE;
-        dmGraphics::ShaderDesc* shader_desc;
-        if (vp_desc_size > 0)
-        {
-            dmDDF::Result e = dmDDF::LoadMessage(vp_desc, vp_desc_size, &dmGraphics_ShaderDesc_DESCRIPTOR, (void**) &shader_desc);
-            if (e != dmDDF::RESULT_OK)
-            {
-                dmLogWarning("Failed to create DebugRenderer vertex shader (%d)", e);
-            }
-            else
-            {
-                vertex_program = dmGraphics::NewVertexProgram(render_context->m_GraphicsContext, shader_desc, 0, 0);
-                dmDDF::FreeMessage(shader_desc);
-            }
-        }
-        dmGraphics::HFragmentProgram fragment_program = dmGraphics::INVALID_FRAGMENT_PROGRAM_HANDLE;
-        if ((vertex_program != dmGraphics::INVALID_VERTEX_PROGRAM_HANDLE) && (fp_desc_size > 0))
-        {
-            dmDDF::Result e = dmDDF::LoadMessage(fp_desc, fp_desc_size, &dmGraphics_ShaderDesc_DESCRIPTOR, (void**) &shader_desc);
-            if (e != dmDDF::RESULT_OK)
-            {
-                dmLogWarning("Failed to create DebugRenderer fragment shader (%d)", e);
-            }
-            else
-            {
-                fragment_program = dmGraphics::NewFragmentProgram(render_context->m_GraphicsContext, shader_desc, 0, 0);
-                dmDDF::FreeMessage(shader_desc);
-            }
-        }
-        */
-
         HMaterial material3d = NewMaterial(render_context, program);
         SetMaterialProgramConstantType(material3d, dmHashString64("view_proj"), dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ);
         dmhash_t debug_tag_3d = dmHashString64(DEBUG_3D_NAME);

@@ -531,25 +531,6 @@ TEST_F(dmRenderComputeTest, TestComputeConstants)
     shader_desc_builder.AddUniformBuffer("tint_b", 1, 1, dmGraphics::GetShaderTypeSize(dmGraphics::ShaderDesc::SHADER_TYPE_VEC4));
     shader_desc_builder.AddTexture("texture_sampler", 2, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
 
-    /*
-    dmGraphics::ShaderDesc::ResourceTypeInfo types[2] = {};
-    dmGraphics::FillShaderResourceWithSingleTypeMember(&types[0], "tint_a", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
-    dmGraphics::FillShaderResourceWithSingleTypeMember(&types[1], "tint_b", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
-
-    dmGraphics::ShaderDesc::ResourceBinding uniforms[3] = {};
-    dmGraphics::FillResourceBindingUniformBufferTypeIndex(&uniforms[0], "tint_a", 0, 0, dmGraphics::GetShaderTypeSize(dmGraphics::ShaderDesc::SHADER_TYPE_VEC4));
-    dmGraphics::FillResourceBindingUniformBufferTypeIndex(&uniforms[1], "tint_b", 1, 1, dmGraphics::GetShaderTypeSize(dmGraphics::ShaderDesc::SHADER_TYPE_VEC4));
-    dmGraphics::FillResourceBindingType(&uniforms[2], "texture_sampler", 2, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
-    */
-
-    /*
-    dmGraphics::ShaderDesc::Shader cp_shader  = dmGraphics::MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430, shader_src, strlen(shader_src));
-    dmGraphics::ShaderDesc cp_desc            = dmGraphics::MakeDDFShaderDesc(&cp_shader, dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE, 0, 0, uniforms, 2, &uniforms[2], 1, types, 2);
-    dmGraphics::HComputeProgram cp            = dmGraphics::NewComputeProgram(m_GraphicsContext, &cp_desc, 0, 0);
-    dmRender::HComputeProgram compute_program = dmRender::NewComputeProgram(m_RenderContext, cp);
-    ASSERT_NE((dmRender::HComputeProgram) 0, compute_program);
-    */
-
     dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader_desc_builder.Get(), 0, 0);
     dmRender::HComputeProgram compute_program = dmRender::NewComputeProgram(m_RenderContext, program);
     ASSERT_NE((dmRender::HComputeProgram) 0, compute_program);

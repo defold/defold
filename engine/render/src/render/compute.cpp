@@ -30,8 +30,7 @@ namespace dmRender
 
         ComputeProgram* program        = new ComputeProgram();
         program->m_RenderContext       = render_context;
-        //program->m_Shader              = shader;
-        program->m_Program             = compute_program; // dmGraphics::NewProgram(render_context->m_GraphicsContext, shader);
+        program->m_Program             = compute_program;
         uint32_t total_constants_count = dmGraphics::GetUniformCount(program->m_Program);
 
         uint32_t constants_count = 0;

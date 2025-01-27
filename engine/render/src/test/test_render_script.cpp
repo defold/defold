@@ -1121,18 +1121,6 @@ TEST_F(dmRenderScriptTest, TestLuaConstantBuffers_NestedStructs)
 
     shader_desc_builder.AddUniform("ubo", 0, 0);
 
-    // Configure type list
-    // dmGraphics::FillShaderResourceWithMembers(&types[0], "ubo", ubo_members, 2);
-    // dmGraphics::FillShaderResourceWithSingleTypeMember(&types[1], "color", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
-    // dmGraphics::ShaderDesc::ResourceBinding fs_uniforms[1] = {};
-    // FillResourceBindingTypeIndex(&fs_uniforms[0], "ubo", 0, 0);
-
-    // dmGraphics::ShaderDesc::Shader shader = dmGraphics::MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, shader_src, strlen(shader_src));
-    // dmGraphics::ShaderDesc vp_desc        = dmGraphics::MakeDDFShaderDesc(&shader, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, 0, 0, 0, 0, 0, 0, types, 2);
-    // dmGraphics::ShaderDesc fp_desc        = dmGraphics::MakeDDFShaderDesc(&shader, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, 0, 0, fs_uniforms, 1, 0, 0, types, 2);
-    // dmGraphics::HVertexProgram vp         = dmGraphics::NewVertexProgram(m_GraphicsContext, &vp_desc, 0, 0);
-    // dmGraphics::HFragmentProgram fp       = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fp_desc, 0, 0);
-
     dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader_desc_builder.Get(), 0, 0);
     dmRender::HMaterial material = dmRender::NewMaterial(m_Context, program);
 

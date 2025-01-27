@@ -271,8 +271,6 @@ namespace dmRender
     void                            ApplyMaterialSampler(dmRender::HRenderContext render_context, HMaterial material, HSampler sampler, uint8_t value_index, dmGraphics::HTexture texture);
 
     dmGraphics::HProgram            GetMaterialProgram(HMaterial material);
-    //dmGraphics::HVertexProgram      GetMaterialVertexProgram(HMaterial material);
-    //dmGraphics::HFragmentProgram    GetMaterialFragmentProgram(HMaterial material);
     void                            SetMaterialProgramConstantType(HMaterial material, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type);
     bool                            GetMaterialProgramConstant(HMaterial, dmhash_t name_hash, HConstant& out_value);
 

@@ -87,8 +87,6 @@ namespace dmRender
 
         dmRender::HRenderContext                m_RenderContext;
         dmGraphics::HProgram                    m_Program;
-        //dmGraphics::HVertexProgram              m_VertexProgram;
-        //dmGraphics::HFragmentProgram            m_FragmentProgram;
         dmGraphics::HVertexDeclaration          m_VertexDeclarationShared;
         dmGraphics::HVertexDeclaration          m_VertexDeclarationPerVertex;
         dmGraphics::HVertexDeclaration          m_VertexDeclarationPerInstance;

@@ -25,9 +25,6 @@
 #include <render/render.h>
 #include <render/material_ddf.h>
 
-#include "res_fragment_program.h"
-#include "res_vertex_program.h"
-
 #include <dmsdk/dlib/hashtable.h>
 
 namespace dmGameSystem
@@ -321,8 +318,6 @@ namespace dmGameSystem
 
     static void ReleaseMaterialFromResource(dmResource::HFactory factory, MaterialResource* resource, dmRender::HRenderContext render_context)
     {
-        // TODO!!!! Release the program
-
         ReleaseTextures(factory, resource->m_Textures);
 
         dmRender::HMaterial material = resource->m_Material;

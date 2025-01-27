@@ -86,8 +86,6 @@ public class ResourceGraph implements IResourceVisitor {
         IResource output = resource.output();
         resources.add(output);
 
-        System.out.println("visit: resource=" + resource.getPath() + ", output=" + output.getPath());
-
         // create a new node since we are only visiting new resources (see check in shouldVisit)
         ResourceNode currentNode = new ResourceNode(resource);
         resourceNodes.add(currentNode);
