@@ -1151,8 +1151,7 @@
     (:resource (nth (:deps (first (g/node-value resource-node :build-targets))) index))))
 
 (def texture-build-resource (partial nth-dep-build-resource 0))
-(def vertex-shader-build-resource (partial nth-dep-build-resource 0))
-(def fragment-shader-build-resource (partial nth-dep-build-resource 1))
+(def shader-program-build-resource (partial nth-dep-build-resource 0))
 
 (defn build-output
   ^bytes [project path]
