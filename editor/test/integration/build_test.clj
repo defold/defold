@@ -665,7 +665,7 @@
                        "/main/blob.tilemap"
                        "/collisionobject/tile_map.collisionobject"
                        "/collisionobject/convex_shape.collisionobject"]
-          exp-exts    ["vpc" "fpc" "texturec"]]
+          exp-exts    ["spc" "texturec"]]
       (when (contains? build-results :error)
          (log-errors (:error build-results)))
       (is (not (contains? build-results :error)))
