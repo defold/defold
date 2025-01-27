@@ -1113,6 +1113,44 @@ namespace dmSound
         return (tmp0 + tmp1)[0];
 #endif
     }
+
+//STEREO [1 channel processed] (extra loads and garbage transfers -> even worse than MONO and DIFFERENT if channel count would go up! (from decoder))
+    template <>
+    inline float FilterSample<int16_t,0,1,2>(const int16_t* frames, uint64_t frac_pos)
+    {
+        uint32_t pi = ((frac_pos >> (RESAMPLE_FRACTION_BITS - 11)) << 3) & (2047 << 3); // 8 tabs, 2048 (11 fractional bits) banks
+        const float* c = &_pfb[pi];
+
+#if 0 //defined(__SSE4_1__)
+    // [...]
+#else
+        // Fetch sample data
+#if 0 //defined(__SSE2__) || defined(__SSE3__)
+    // [...]
+#else
+        vec4 zero = _mm_setzero_ps();
+        __m64 in0a = _m_pshufw(*(const __m64*)&frames[-3*2], 0xD8);     // L0L1R0R1 (0123)
+        __m64 in0b = _m_pshufw(*(const __m64*)&frames[-3*2+4], 0xD8);   // L2L3R2R3 (0123)
+        vec4 hi0 = _mm_cvtpi32_ps(zero, _mm_srai_pi32(_mm_unpacklo_pi16(in0b, in0b), 16));
+        vec4 taps0 = _mm_cvtpi32_ps(_mm_movelh_ps(hi0, hi0), _mm_srai_pi32(_mm_unpacklo_pi16(in0a, in0a), 16));
+        __m64 in1a = _m_pshufw(*(const __m64*)&frames[ 1*2], 0xD8);     // L0L1R0R1 (0123)
+        __m64 in1b = _m_pshufw(*(const __m64*)&frames[ 1*2+4], 0xD8);   // L2L3R2R3 (0123)
+        vec4 hi1 = _mm_cvtpi32_ps(zero, _mm_srai_pi32(_mm_unpacklo_pi16(in1b, in1b), 16));
+        vec4 taps1 = _mm_cvtpi32_ps(_mm_movelh_ps(hi1, hi1), _mm_srai_pi32(_mm_unpacklo_pi16(in1a, in1a), 16));
+#endif
+        // Apply dot product (FIR filter)
+        vec4 tmp0 = taps0 * *(const vec4*)&c[0];
+        vec4 tmp1 = taps1 * *(const vec4*)&c[4];
+        tmp0 += _mm_shuffle_ps(tmp0, tmp0, _MM_SHUFFLE(0, 3, 0, 1)); // X=X+Y; Z=Z+W
+        tmp1 += _mm_shuffle_ps(tmp1, tmp1, _MM_SHUFFLE(0, 3, 0, 1)); // X=X+Y; Z=Z+W
+        tmp0 += _mm_shuffle_ps(tmp0, tmp0, _MM_SHUFFLE(0, 0, 0, 2)); // X=X+Y+Z+W
+        tmp1 += _mm_shuffle_ps(tmp1, tmp1, _MM_SHUFFLE(0, 0, 0, 2)); // X=X+Y+Z+W
+        return (tmp0 + tmp1)[0];
+#endif
+
+
+
+    }
 #endif // SSEx
 
     template <typename T, int offset, int scale>
