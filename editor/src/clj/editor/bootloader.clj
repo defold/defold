@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -30,22 +30,29 @@
    (let [batches (->> (io/resource "sorted_clojure_ns_list.edn")
                       (slurp)
                       (edn/read-string))
-         boot-loaded? (promise)
+         boot-loaded-promise (promise)
          loader (future
                   (try
                     (doseq [batch batches]
-                      (dorun (pmap #(do
-                                      (when print-to-stdout
-                                        (print (str "Loading namespace " % \newline))
-                                        (flush))
-                                      (require %))
-                                   batch))
-                      (when (contains? batch 'editor.boot)
-                        (deliver boot-loaded? true)))
+                      (let [boot-loaded
+                            (->> batch
+                                 (pmap (fn [ns-sym]
+                                         (when print-to-stdout
+                                           (print (str "Loading namespace " ns-sym \newline))
+                                           (flush))
+                                         (require ns-sym)
+                                         ns-sym))
+                                 (reduce (fn [boot-loaded ns-sym]
+                                           (case ns-sym
+                                             'editor.boot true
+                                             boot-loaded))
+                                         false))]
+                        (when boot-loaded
+                          (deliver boot-loaded-promise true))))
                     (catch Throwable t
-                      (deliver boot-loaded? t)
+                      (deliver boot-loaded-promise t)
                       (throw t))))]
-     (reset! load-info [loader boot-loaded?]))))
+     (reset! load-info [loader boot-loaded-promise]))))
 
 (defn wait-until-editor-boot-loaded
   []

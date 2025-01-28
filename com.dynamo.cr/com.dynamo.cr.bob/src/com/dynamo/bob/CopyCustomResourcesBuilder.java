@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -30,8 +30,7 @@ public class CopyCustomResourcesBuilder extends Builder {
         String[] resources = properties.getStringArrayValue("project", "custom_resources", new String[0]);
 
         TaskBuilder b = Task.newBuilder(this)
-                .setName("Copy Custom Resources")
-                .disableCache();
+                .setName("Copy Custom Resources");
 
         for (String s : resources) {
             s = s.trim();

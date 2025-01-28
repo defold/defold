@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -200,7 +200,7 @@ namespace dmSoundCodec
 
         *decoded = done_frames * streamInfo->m_Info.m_Channels * sizeof(int16_t);
 
-        return bEOS ? RESULT_END_OF_STREAM : RESULT_OK;
+        return (done_frames == 0 && bEOS) ? RESULT_END_OF_STREAM : RESULT_OK;
     }
 
     static Result StbVorbisResetStream(HDecodeStream stream)

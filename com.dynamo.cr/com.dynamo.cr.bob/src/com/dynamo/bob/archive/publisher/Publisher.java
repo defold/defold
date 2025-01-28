@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -27,7 +27,7 @@ import com.dynamo.bob.CompileExceptionError;
 public abstract class Publisher {
 
     private final PublisherSettings settings;
-    private final Map<File, ArchiveEntry> entries = new HashMap<File, ArchiveEntry>();
+    protected final Map<String, ArchiveEntry> entries = new HashMap<String, ArchiveEntry>();
     protected String platform = "";
 
     public Publisher(PublisherSettings settings) {
@@ -52,7 +52,7 @@ public abstract class Publisher {
         return this.settings;
     }
 
-    public final Map<File, ArchiveEntry> getEntries() {
+    public final Map<String, ArchiveEntry> getEntries() {
         return this.entries;
     }
     

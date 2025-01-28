@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -18,7 +18,6 @@
             [cljfx.fx.progress-bar :as fx.progress-bar]
             [cljfx.fx.v-box :as fx.v-box]
             [clojure.pprint :as pprint]
-            [clojure.repl :as repl]
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.asset-browser :as asset-browser]
@@ -59,8 +58,10 @@
             [lambdaisland.deep-diff2.printer-impl :as deep-diff.printer-impl]
             [lambdaisland.deep-diff2.puget.color :as puget.color]
             [lambdaisland.deep-diff2.puget.printer :as puget.printer]
+            [potemkin.namespaces :as namespaces]
             [service.log :as log]
             [util.coll :as coll :refer [pair]]
+            [util.debug-util]
             [util.diff :as diff]
             [util.eduction :as e]
             [util.fn :as fn])
@@ -84,20 +85,7 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(defn stack-trace
-  "Returns a human-readable stack trace as a vector of strings. Elements are
-  ordered from the stack-trace function call site towards the outermost stack
-  frame of the current Thread. Optionally, a different Thread can be specified."
-  ([]
-   (stack-trace (Thread/currentThread)))
-  ([^Thread thread]
-   (into []
-         (comp (drop 1)
-               (drop-while (fn [^StackTraceElement stack-trace-element]
-                             (= "dev$stack_trace"
-                                (.getClassName stack-trace-element))))
-               (map repl/stack-element-str))
-         (.getStackTrace thread))))
+(namespaces/import-vars [util.debug-util stack-trace])
 
 (defn javafx-tree [obj]
   (jfx/info-tree obj))
@@ -1264,7 +1252,7 @@
 
                                   :always
                                   (assoc :bytes (transduce (map (fn [^Graphics$TextureImage$Image image]
-                                                                  (.size (.getData image))))
+                                                                  (.getDataSize image)))
                                                            +
                                                            alternatives))))))}]
 

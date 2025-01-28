@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright 2020-2024 The Defold Foundation
+# Copyright 2020-2025 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -35,7 +35,7 @@ from threading import Thread, Event
 from queue import Queue
 from configparser import ConfigParser
 
-BASE_PLATFORMS = [  'x86_64-linux', #'arm64-linux',
+BASE_PLATFORMS = [  'x86_64-linux', 'arm64-linux',
                     'x86_64-macos', 'arm64-macos',
                     'win32', 'x86_64-win32',
                     'x86_64-ios', 'arm64-ios',
@@ -98,22 +98,37 @@ assert(hasattr(build_private, 'get_tag_suffix'))
 def get_target_platforms():
     return BASE_PLATFORMS + build_private.get_target_platforms()
 
-PACKAGES_ALL="protobuf-3.20.1 waf-2.0.3 junit-4.6 jsign-4.2 protobuf-java-3.20.1 openal-1.1 maven-3.0.1 vecmath vpx-1.7.0 luajit-2.1.0-04dca79 tremolo-b0cb4d1 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.10.2 vulkan-v1.3.299".split()
-PACKAGES_HOST="vpx-1.7.0 luajit-2.1.0-04dca79 tremolo-b0cb4d1".split()
-PACKAGES_IOS_X86_64="protobuf-3.20.1 luajit-2.1.0-04dca79 tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
-PACKAGES_IOS_64="protobuf-3.20.1 luajit-2.1.0-04dca79 tremolo-b0cb4d1 bullet-2.77 moltenvk-1.3.261.1 glfw-2.7.1".split()
-PACKAGES_MACOS_X86_64="protobuf-3.20.1 luajit-2.1.0-04dca79 vpx-1.7.0 tremolo-b0cb4d1 bullet-2.77 spirv-cross-9040e0d2 spirv-tools-b21dda0e glslang-42d9adf5 moltenvk-1.3.261.1 lipo-9ffdea2 sassc-5472db213ec223a67482df2226622be372921847 glfw-3.4 tint-22b958 astcenc-8b0aa01".split()
-PACKAGES_MACOS_ARM64="protobuf-3.20.1 luajit-2.1.0-04dca79 vpx-1.7.0 tremolo-b0cb4d1 bullet-2.77 spirv-cross-9040e0d2 spirv-tools-b21dda0e glslang-42d9adf5 moltenvk-1.3.261.1 lipo-9ffdea2 glfw-3.4 tint-22b958 astcenc-8b0aa01".split()
-PACKAGES_WIN32="protobuf-3.20.1 luajit-2.1.0-04dca79 glut-3.7.6 bullet-2.77 vulkan-1.3.261.1 glfw-3.4".split()
-PACKAGES_WIN32_64="protobuf-3.20.1 luajit-2.1.0-04dca79 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 glslang-42d9adf5 spirv-cross-9040e0d2 spirv-tools-d24a39a7 vulkan-1.3.261.1 lipo-9ffdea2 glfw-3.4 tint-22b958 astcenc-8b0aa01".split()
-PACKAGES_LINUX_X86_64="protobuf-3.20.1 luajit-2.1.0-04dca79 bullet-2.77 glslang-ba5c010c spirv-cross-9040e0d2 spirv-tools-d24a39a7 vulkan-1.1.108  tremolo-b0cb4d1 lipo-9ffdea2 glfw-3.4 tint-22b958 sassc-5472db213ec223a67482df2226622be372921847 astcenc-8b0aa01".split()
-PACKAGES_LINUX_ARM64 ="protobuf-3.20.1 luajit-2.1.0-04dca79 bullet-2.77 glslang-2fed4fc0 spirv-cross-9040e0d2 spirv-tools-4fab7435 vulkan-v1.3.299 tremolo-b0cb4d1 lipo-abb8ab1 glfw-3.4".split() # vulkan-1.1.108  tint-22b958".split()
-PACKAGES_ANDROID="protobuf-3.20.1 android-support-multidex androidx-multidex luajit-2.1.0-04dca79 tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
+PACKAGES_ALL="protobuf-3.20.1 waf-2.0.3 junit-4.6 jsign-4.2 protobuf-java-3.20.1 openal-1.1 maven-3.0.1 vecmath vpx-1.7.0 luajit-2.1.0-a4f56a4 tremolo-b0cb4d1 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.10.2 vulkan-v1.3.299".split()
+PACKAGES_HOST="vpx-1.7.0 luajit-2.1.0-a4f56a4 tremolo-b0cb4d1".split()
+PACKAGES_IOS_X86_64="protobuf-3.20.1 luajit-2.1.0-a4f56a4 tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
+PACKAGES_IOS_64="protobuf-3.20.1 luajit-2.1.0-a4f56a4 tremolo-b0cb4d1 bullet-2.77 moltenvk-1.3.261.1 glfw-2.7.1".split()
+PACKAGES_MACOS_X86_64="protobuf-3.20.1 luajit-2.1.0-a4f56a4 vpx-1.7.0 tremolo-b0cb4d1 bullet-2.77 spirv-cross-9040e0d2 spirv-tools-b21dda0e glslang-42d9adf5 moltenvk-1.3.261.1 lipo-9ffdea2 sassc-5472db213ec223a67482df2226622be372921847 glfw-3.4 tint-22b958 astcenc-8b0aa01".split()
+PACKAGES_MACOS_ARM64="protobuf-3.20.1 luajit-2.1.0-a4f56a4 vpx-1.7.0 tremolo-b0cb4d1 bullet-2.77 spirv-cross-9040e0d2 spirv-tools-b21dda0e glslang-42d9adf5 moltenvk-1.3.261.1 lipo-9ffdea2 glfw-3.4 tint-22b958 astcenc-8b0aa01".split()
+PACKAGES_WIN32="protobuf-3.20.1 luajit-2.1.0-a4f56a4 glut-3.7.6 bullet-2.77 vulkan-1.3.261.1 glfw-3.4".split()
+PACKAGES_WIN32_64="protobuf-3.20.1 luajit-2.1.0-a4f56a4 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 glslang-42d9adf5 spirv-cross-9040e0d2 spirv-tools-d24a39a7 vulkan-1.3.261.1 lipo-9ffdea2 glfw-3.4 tint-22b958 astcenc-8b0aa01 directx-headers-1.611.0".split()
+PACKAGES_LINUX_X86_64="protobuf-3.20.1 luajit-2.1.0-a4f56a4 bullet-2.77 glslang-ba5c010c spirv-cross-9040e0d2 spirv-tools-d24a39a7 vulkan-1.1.108  tremolo-b0cb4d1 lipo-9ffdea2 glfw-3.4 tint-22b958 sassc-5472db213ec223a67482df2226622be372921847 astcenc-8b0aa01".split()
+PACKAGES_LINUX_ARM64 ="protobuf-3.20.1 luajit-2.1.0-a4f56a4 bullet-2.77 glslang-2fed4fc0 spirv-cross-9040e0d2 spirv-tools-4fab7435 vulkan-v1.3.299 tremolo-b0cb4d1 lipo-abb8ab1 glfw-3.4 tint-22b958 astcenc-8b0aa01".split() # vulkan-1.1.108".split()
+PACKAGES_ANDROID="protobuf-3.20.1 android-support-multidex androidx-multidex luajit-2.1.0-a4f56a4 tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
 PACKAGES_ANDROID.append(sdk.ANDROID_PACKAGE)
-PACKAGES_ANDROID_64="protobuf-3.20.1 android-support-multidex androidx-multidex luajit-2.1.0-04dca79 tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
+PACKAGES_ANDROID_64="protobuf-3.20.1 android-support-multidex androidx-multidex luajit-2.1.0-a4f56a4 tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
 PACKAGES_ANDROID_64.append(sdk.ANDROID_PACKAGE)
 PACKAGES_EMSCRIPTEN="protobuf-3.20.1 bullet-2.77 glfw-2.7.1".split()
 PACKAGES_NODE_MODULES="xhr2-0.1.0".split()
+
+PLATFORM_PACKAGES = {
+    'win32':          PACKAGES_WIN32,
+    'x86_64-win32':   PACKAGES_WIN32_64,
+    'x86_64-linux':   PACKAGES_LINUX_X86_64,
+    'arm64-linux':    PACKAGES_LINUX_ARM64,
+    'x86_64-macos':   PACKAGES_MACOS_X86_64,
+    'arm64-macos':    PACKAGES_MACOS_ARM64,
+    'arm64-ios':      PACKAGES_IOS_64,
+    'x86_64-ios':     PACKAGES_IOS_X86_64,
+    'armv7-android':  PACKAGES_ANDROID,
+    'arm64-android':  PACKAGES_ANDROID_64,
+    'js-web':         PACKAGES_EMSCRIPTEN,
+    'wasm-web':       PACKAGES_EMSCRIPTEN
+}
 
 DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
 
@@ -456,24 +471,9 @@ class Configuration(object):
 
         # TODO: Make sure the order of install does not affect the outcome!
 
-        platform_packages = {
-            'win32':          PACKAGES_WIN32,
-            'x86_64-win32':   PACKAGES_WIN32_64,
-            'x86_64-linux':   PACKAGES_LINUX_X86_64,
-            'arm64-linux':    PACKAGES_LINUX_ARM64,
-            'x86_64-macos':   PACKAGES_MACOS_X86_64,
-            'arm64-macos':    PACKAGES_MACOS_ARM64,
-            'arm64-ios':      PACKAGES_IOS_64,
-            'x86_64-ios':     PACKAGES_IOS_X86_64,
-            'armv7-android':  PACKAGES_ANDROID,
-            'arm64-android':  PACKAGES_ANDROID_64,
-            'js-web':         PACKAGES_EMSCRIPTEN,
-            'wasm-web':       PACKAGES_EMSCRIPTEN
-        }
-
         base_platforms = self.get_base_platforms()
         target_platform = self.target_platform
-        other_platforms = set(platform_packages.keys()).difference(set(base_platforms), set([target_platform, self.host]))
+        other_platforms = set(PLATFORM_PACKAGES.keys()).difference(set(base_platforms), set([target_platform, self.host]))
 
         if target_platform in ['js-web', 'wasm-web']:
             node_modules_dir = os.path.join(self.dynamo_home, NODE_MODULE_LIB_DIR)
@@ -485,7 +485,7 @@ class Configuration(object):
         installed_packages = set()
 
         for platform in other_platforms:
-            packages = platform_packages.get(platform, [])
+            packages = PLATFORM_PACKAGES.get(platform, [])
             package_paths = make_package_paths(self.defold_root, platform, packages)
             print("Installing %s packages " % platform)
             for path in package_paths:
@@ -494,7 +494,7 @@ class Configuration(object):
 
         for base_platform in self.get_base_platforms():
             packages = list(PACKAGES_HOST) + build_private.get_install_host_packages(base_platform)
-            packages.extend(platform_packages.get(base_platform, []))
+            packages.extend(PLATFORM_PACKAGES.get(base_platform, []))
             package_paths = make_package_paths(self.defold_root, base_platform, packages)
             package_paths = [path for path in package_paths if path not in installed_packages]
             if len(package_paths) != 0:
@@ -512,7 +512,7 @@ class Configuration(object):
                 self._extract_tgz(path, self.ext)
             installed_packages.update(package_paths)
 
-        target_packages = platform_packages.get(self.target_platform, []) + build_private.get_install_target_packages(self.target_platform)
+        target_packages = PLATFORM_PACKAGES.get(self.target_platform, []) + build_private.get_install_target_packages(self.target_platform)
         target_package_paths = make_package_paths(self.defold_root, self.target_platform, target_packages)
         target_package_paths = [path for path in target_package_paths if path not in installed_packages]
 
@@ -602,7 +602,7 @@ class Configuration(object):
         if target_platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
             # macOS SDK
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_MACOS_SDK), join(sdkfolder, sdk.PACKAGES_MACOS_SDK))
-            download_sdk(self,'%s/%s.darwin.tar.gz' % (self.package_path, sdk.PACKAGES_XCODE_TOOLCHAIN), join(sdkfolder, sdk.PACKAGES_XCODE_TOOLCHAIN))
+            download_sdk(self,'%s/%s.darwin.tar.gz' % (self.package_path, sdk.PACKAGES_XCODE_TOOLCHAIN), sdkfolder, force_extract=True)
 
         if target_platform in ('arm64-ios', 'x86_64-ios'):
             # iOS SDK
@@ -1071,7 +1071,7 @@ class Configuration(object):
         for zip_arch in zip_archs:
             self.upload_to_archive(join(dynamo_home, 'share', zip_arch), '%s/%s' % (share_archive_path, zip_arch))
 
-        if self.target_platform in ['x86_64-linux', 'arm64-linux']:
+        if self.target_platform in ['x86_64-linux']:
             # NOTE: It's arbitrary for which platform we archive dlib.jar. Currently set to linux 64-bit
             self.upload_to_archive(join(dynamo_home, 'share', 'java', 'dlib.jar'), '%s/dlib.jar' % (java_archive_path))
             self.upload_to_archive(join(dynamo_home, 'share', 'java', 'modelimporter.jar'), '%s/modelimporter.jar' % (java_archive_path))
@@ -1293,7 +1293,8 @@ class Configuration(object):
                     ['arm64-linux', 'arm64-linux'],
                     ['x86_64-macos', 'x86_64-macos'],
                     ['arm64-macos', 'arm64-macos']]:
-            luajit_path = join(cwd, '../../packages/luajit-2.1.0-04dca79-%s.tar.gz' % (plf[0]))
+            luajit_package = [pkg for pkg in PLATFORM_PACKAGES[plf[0]] if "luajit" in pkg]
+            luajit_path = join(cwd, '../../packages/%s-%s.tar.gz' % (luajit_package[0], plf[0]))
             if not os.path.exists(luajit_path):
                 add_missing(plf[1], "package '%s' could not be found" % (luajit_path))
             else:
@@ -1826,7 +1827,7 @@ class Configuration(object):
         if self.channel in ('stable', 'beta', 'alpha'):
             engine_channel = self.channel
             editor_channel = self.channel
-            prerelease = self.channel in ('alpha',)
+            prerelease = self.channel in ('alpha', 'beta')
             tag_name = self.create_tag()
             self.push_tag(tag_name)
 
@@ -2245,10 +2246,10 @@ class Configuration(object):
                     raise RuntimeError('Failed to upload %s -> %s' % (path, url))
 
             f = None
-            if sys.platform == 'win32':
-                f = Future(self.thread_pool, upload_singlefile)
-            else:
-                f = Future(self.thread_pool, upload_multipart)
+            #if sys.platform == 'win32':
+            f = Future(self.thread_pool, upload_singlefile)
+            # else:
+            #     f = Future(self.thread_pool, upload_multipart)
             self.futures.append(f)
 
         else:

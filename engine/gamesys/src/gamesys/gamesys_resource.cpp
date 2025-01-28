@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -79,23 +79,20 @@ namespace dmGameSystem
         texture_image->m_Type                  = params.m_TextureType;
         texture_image->m_Count                 = layer_count;
         texture_image->m_UsageFlags            = params.m_UsageFlags;
+        texture_image->m_ImageDataAddress      = (uint64_t) image_data;
 
-        image->m_Width                = params.m_Width;
-        image->m_Height               = params.m_Height;
-        image->m_Depth                = params.m_Depth;
-        image->m_OriginalWidth        = params.m_Width;
-        image->m_OriginalHeight       = params.m_Height;
-        image->m_OriginalDepth        = params.m_Depth;
-        image->m_Format               = params.m_TextureFormat;
-        image->m_CompressionType      = params.m_CompressionType;
-        image->m_CompressionFlags     = 0;
-        image->m_Data.m_Data          = image_data;
-        image->m_Data.m_Count         = image_data_size;
-
-        image->m_MipMapOffset.m_Data  = mip_map_offsets;
-        image->m_MipMapOffset.m_Count = params.m_MaxMipMaps;
-        image->m_MipMapSize.m_Data    = mip_map_sizes;
-        image->m_MipMapSize.m_Count   = params.m_MaxMipMaps;
+        image->m_Width                        = params.m_Width;
+        image->m_Height                       = params.m_Height;
+        image->m_Depth                        = params.m_Depth;
+        image->m_OriginalWidth                = params.m_Width;
+        image->m_OriginalHeight               = params.m_Height;
+        image->m_OriginalDepth                = params.m_Depth;
+        image->m_Format                       = params.m_TextureFormat;
+        image->m_CompressionType              = params.m_CompressionType;
+        image->m_MipMapOffset.m_Data          = mip_map_offsets;
+        image->m_MipMapOffset.m_Count         = params.m_MaxMipMaps;
+        image->m_MipMapSize.m_Data            = mip_map_sizes;
+        image->m_MipMapSize.m_Count           = params.m_MaxMipMaps;
         image->m_MipMapSizeCompressed.m_Data  = mip_map_offsets_compressed;
         image->m_MipMapSizeCompressed.m_Count = 1;
 
@@ -112,10 +109,30 @@ namespace dmGameSystem
             delete[] image.m_MipMapSize.m_Data;
             delete[] image.m_MipMapSizeCompressed.m_Data;
             delete[] image.m_MipMapDimensions.m_Data;
-            if (destroy_image_data)
-                delete[] image.m_Data.m_Data;
         }
         delete[] texture_image.m_Alternatives.m_Data;
+
+        if (destroy_image_data)
+        {
+            delete[] (uint8_t*) texture_image.m_ImageDataAddress;
+        }
+    }
+
+    void FillTextureResourceBuffer(const dmGraphics::TextureImage* texture_image, dmArray<uint8_t>& texture_resource_buffer)
+    {
+        dmArray<uint8_t> ddf_buffer;
+        dmDDF::Result ddf_result = dmDDF::SaveMessageToArray(texture_image, dmGraphics::TextureImage::m_DDFDescriptor, ddf_buffer);
+        assert(ddf_result == dmDDF::RESULT_OK);
+
+        // Construct the header size + message
+        const uint32_t TEXTURE_RES_MESSAGE_SIZE = sizeof(int32_t) + ddf_buffer.Size();
+
+        texture_resource_buffer.SetCapacity(TEXTURE_RES_MESSAGE_SIZE);
+        texture_resource_buffer.SetSize(TEXTURE_RES_MESSAGE_SIZE);
+
+        int32_t* texture_resource_header_size = (int32_t*) texture_resource_buffer.Begin();
+        *texture_resource_header_size = ddf_buffer.Size();
+        memcpy(texture_resource_buffer.Begin() + sizeof(int32_t), ddf_buffer.Begin(), ddf_buffer.Size());
     }
 
     dmGraphics::TextureImage::TextureFormat GraphicsTextureFormatToImageFormat(dmGraphics::TextureFormat textureformat)
@@ -173,12 +190,11 @@ namespace dmGameSystem
         dmGraphics::TextureImage texture_image = {};
         MakeTextureImage(create_params, &texture_image);
 
-        dmArray<uint8_t> ddf_buffer;
-        dmDDF::Result ddf_result = dmDDF::SaveMessageToArray(&texture_image, dmGraphics::TextureImage::m_DDFDescriptor, ddf_buffer);
-        assert(ddf_result == dmDDF::RESULT_OK);
+        dmArray<uint8_t> texture_resource_buffer;
+        FillTextureResourceBuffer(&texture_image, texture_resource_buffer);
 
         void* resource = 0x0;
-        dmResource::Result res = dmResource::CreateResource(factory, create_params.m_Path, ddf_buffer.Begin(), ddf_buffer.Size(), &resource);
+        dmResource::Result res = dmResource::CreateResource(factory, create_params.m_Path, texture_resource_buffer.Begin(), texture_resource_buffer.Size(), &resource);
 
         DestroyTextureImage(texture_image, create_params.m_Buffer == 0 && create_params.m_Data == 0);
 
@@ -204,7 +220,9 @@ namespace dmGameSystem
         texture_image.m_Alternatives.m_Count   = 1;
         texture_image.m_Type                   = GraphicsTextureTypeToImageType(params.m_TextureType);
         texture_image.m_Count                  = 1;
+        texture_image.m_ImageDataAddress       = (uint64_t) params.m_Data;
 
+<<<<<<< HEAD
         image.m_Width            = params.m_Width;
         image.m_Height           = params.m_Height;
         image.m_Depth            = params.m_Depth;
@@ -216,6 +234,14 @@ namespace dmGameSystem
         image.m_CompressionFlags = 0;
         image.m_Data.m_Data      = (uint8_t*) params.m_Data;
         image.m_Data.m_Count     = params.m_DataSize;
+=======
+        image.m_Width                = params.m_Width;
+        image.m_Height               = params.m_Height;
+        image.m_OriginalWidth        = params.m_Width;
+        image.m_OriginalHeight       = params.m_Height;
+        image.m_Format               = GraphicsTextureFormatToImageFormat(params.m_TextureFormat);
+        image.m_CompressionType      = params.m_CompressionType;
+>>>>>>> dev
 
         uint32_t mip_map_dimensions[]    = {params.m_Width, params.m_Height};
         image.m_MipMapDimensions.m_Data  = mip_map_dimensions;

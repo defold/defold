@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copyright 2020-2024 The Defold Foundation
+# Copyright 2020-2025 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -19,6 +19,7 @@
 PLATFORM=$1
 PWD=$(pwd)
 SOURCE_DIR=${PWD}/source
+SHA1=8b0aa018558028b6475a83463e29d4b8cf27de8f
 BUILD_DIR=${PWD}/build/${PLATFORM}
 
 . ../common.sh
@@ -45,6 +46,11 @@ case $PLATFORM in
         CMAKE_FLAGS="-DCMAKE_OSX_ARCHITECTURES=x86_64 ${CMAKE_FLAGS}"
         CMAKE_FLAGS="-DCMAKE_OSX_DEPLOYMENT_TARGET=${OSX_MIN_SDK_VERSION} ${CMAKE_FLAGS}"
         ;;
+    arm64-linux)
+        CMAKE_FLAGS="-DARCH=aarch64 -DASTCENC_ISA_NEON=ON ${CMAKE_FLAGS}"
+        # Need to setup clang on linux
+        cmi_setup_cc $PLATFORM
+        ;;
     x86_64-linux)
         # Need to setup clang on linux
         cmi_setup_cc $PLATFORM
@@ -64,6 +70,7 @@ esac
 # Follow the build instructions on https://github.com/ARM-software/astc-encoder
 if [ ! -d "$SOURCE_DIR" ]; then
     git clone https://github.com/ARM-software/astc-encoder.git $SOURCE_DIR
+    (cd $SOURCE_DIR && git reset --hard $SHA1)
 fi
 
 mkdir -p ${BUILD_DIR}
@@ -82,6 +89,9 @@ case $PLATFORM in
         ;;
     x86_64-macos)
         LIB_NAME=libastcenc-sse4.1-static.a
+        ;;
+    arm64-linux)
+        LIB_NAME=libastcenc-neon-static.a
         ;;
     x86_64-linux)
         LIB_NAME=libastcenc-native-static.a

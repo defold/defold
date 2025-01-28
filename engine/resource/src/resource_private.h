@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -101,6 +101,11 @@ namespace dmResource
 {
 
     Result CheckSuppliedResourcePath(const char* name);
+
+#if !defined(DM_HAS_THREADS)
+    // Only use for single threaded loading! (used in load_queue_sync.cpp)
+    LoadBufferType* GetGlobalLoadBuffer(HFactory factory);
+#endif
 
     // load with default internal buffer and its management, returns buffer ptr in 'buffer'
     Result LoadResource(HFactory factory, const char* path, const char* original_name, void** buffer, uint32_t* resource_size);

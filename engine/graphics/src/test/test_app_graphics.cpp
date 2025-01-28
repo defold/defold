@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -158,6 +158,7 @@ struct EngineCtx
     int m_WasRun;
     int m_WasDestroyed;
     int m_WasResultCalled;
+    int m_Running;
 
     uint64_t m_TimeStart;
 
@@ -172,7 +173,8 @@ struct EngineCtx
 struct ClearBackbufferTest : ITest
 {
     void Initialize(EngineCtx* engine) override
-    {}
+    {
+    }
 
     void Execute(EngineCtx* engine) override
     {
@@ -367,12 +369,12 @@ static void* EngineCreate(int argc, char** argv)
     engine->m_Window = dmPlatform::NewWindow();
 
     dmPlatform::WindowParams window_params = {};
-    window_params.m_Width                 = 512;
-    window_params.m_Height                = 512;
-    window_params.m_Title                 = "Vulkan Test App";
-    window_params.m_GraphicsApi           = dmPlatform::PLATFORM_GRAPHICS_API_VULKAN;
-    window_params.m_CloseCallback         = OnWindowClose;
-    window_params.m_CloseCallbackUserData = (void*) engine;
+    window_params.m_Width                  = 512;
+    window_params.m_Height                 = 512;
+    window_params.m_Title                  = "Graphics Test App";
+    window_params.m_GraphicsApi            = dmPlatform::PLATFORM_GRAPHICS_API_VULKAN;
+    window_params.m_CloseCallback          = OnWindowClose;
+    window_params.m_CloseCallbackUserData  = (void*) engine;
 
     if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGL)
     {
@@ -401,7 +403,9 @@ static void* EngineCreate(int argc, char** argv)
     engine->m_Test->Initialize(engine);
 
     engine->m_WasCreated++;
+    engine->m_Running = 1;
     engine->m_TimeStart = dmTime::GetMonotonicTime();
+
     return &g_EngineCtx;
 }
 
@@ -424,6 +428,11 @@ static UpdateResult EngineUpdate(void* _engine)
     if (elapsed > 3.0f)
         return RESULT_EXIT;
     */
+
+    if (!engine->m_Running)
+    {
+        return RESULT_EXIT;
+    }
 
     dmPlatform::PollEvents(engine->m_Window);
 
