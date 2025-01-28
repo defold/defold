@@ -1107,20 +1107,18 @@
                          snap-value)) snap-values) %) pivot)))
 
 (defn- updated-pivot
-  [node-id ^Vector3d delta snap-threshold]
+  [node-id ^Vector3d delta]
   (let [scene (g/node-value node-id :scene)
         rect (-> scene :renderable :user-data :rect)
         {:keys [geometry width height]} rect
-        rotated? (:rotated geometry)
+        rotated (:rotated geometry)
         [pivot-x pivot-y] (g/node-value node-id :pivot)
-        delta-x (/ (cond-> (.x delta) rotated? -) width)
-        delta-y (/ (cond-> (.y delta) (not rotated?) -) height)
-        pivot (if rotated?
+        delta-x (/ (cond-> (.x delta) rotated -) width)
+        delta-y (/ (cond-> (.y delta) (not rotated) -) height)
+        pivot (if rotated
                 [(- pivot-x delta-y) (+ pivot-y delta-x)]
                 [(+ pivot-x delta-x) (+ pivot-y delta-y)])]
-    (-> pivot
-        (snap-pivot snap-threshold)
-        properties/round-vec-coarse)))
+    (properties/round-vec-coarse pivot)))
 
 (defn- pivot-handle
   [reference-renderable pivot-pos scale]
@@ -1151,9 +1149,7 @@
                                   (math/line-plane-intersection (:world-pos %) (:world-dir %) (Point3d. manip-pos) manip-dir)) [start-action action])]
       (doto (Vector3d.) (.sub pos start-pos)))))
 
-(defn- snap-threshold [scale] (* 0.1 scale))
-
-(g/defnk produce-renderables [_node-id manip-space camera viewport selected-renderables manip-delta]
+(g/defnk produce-renderables [_node-id manip-space camera viewport selected-renderables manip-delta snap-enabled snap-threshold]
   (if (or (empty? selected-renderables) (second selected-renderables))
     {}
     (let [reference-renderable (last selected-renderables)
@@ -1162,30 +1158,30 @@
           scale (scene-tools/scale-factor camera viewport world-translation)
           world-transform (scene-tools/manip-world-transform reference-renderable manip-space scale)
           node-id (:node-id reference-renderable)
-          pivot-pos (if manip-delta 
-                      (updated-pivot node-id manip-delta (snap-threshold scale))
+          pivot-pos (if manip-delta
+                      (cond-> (updated-pivot node-id manip-delta)
+                        snap-enabled (snap-pivot snap-threshold))
                       (g/node-value node-id :pivot))
           vertices (pivot-handle reference-renderable pivot-pos scale)
           inv-view (doto (c/camera-view-matrix camera) (.invert))
-          renderables [(scene-tools/gen-manip-renderable _node-id :move-pivot manip-space world-rotation world-transform (AxisAngle4d.) vertices colors/defold-turquoise inv-view)]]
-      (reduce #(assoc %1 %2 renderables) {} [pass/manipulator pass/manipulator-selection]))))
+          renderable (scene-tools/gen-manip-renderable _node-id :move-pivot manip-space world-rotation world-transform (AxisAngle4d.) vertices colors/defold-turquoise inv-view)]
+      {pass/manipulator [renderable]
+       pass/manipulator-selection [renderable]})))
 
-(defn- update-pivot [original-values camera viewport manip-delta]
-  (let [{:keys [world-transform node-id]} (peek original-values)
-        manip-origin (math/translation world-transform)
-        lead-transform (doto (Matrix4d.) (.set manip-origin))
-        manip-pos (math/translation lead-transform)
-        scale (scene-tools/scale-factor camera viewport manip-pos)
-        snap-threshold (snap-threshold scale)]
-    (g/set-property node-id :pivot (updated-pivot node-id manip-delta snap-threshold))))
+(g/defnk produce-scale [original-values camera viewport]
+  (when-not (empty? original-values)
+    (let [{:keys [world-transform]} (peek original-values)
+          manip-origin (math/translation world-transform)
+          lead-transform (doto (Matrix4d.) (.set manip-origin))
+          manip-pos (math/translation lead-transform)]
+      (scene-tools/scale-factor camera viewport manip-pos))))
 
 (def ^:private original-values #(select-keys % [:node-id :world-rotation :world-transform :parent-world-transform]))
 
 (defn handle-input [self action selection-data]
   (case (:type action)
     :mouse-pressed (if (first (get selection-data self))
-                     (let [evaluation-context (g/make-evaluation-context)
-                           selected-renderables (g/node-value self :selected-renderables evaluation-context)
+                     (let [selected-renderables (g/node-value self :selected-renderables)
                            original-values (mapv original-values selected-renderables)]
                        (when-not (empty? original-values)
                          (g/transact
@@ -1198,15 +1194,17 @@
                      action)
     :mouse-released (if (g/node-value self :start-action)
                       (let [original-values (g/node-value self :original-values)
-                            camera (g/node-value self :camera)
-                            viewport (g/node-value self :viewport)
                             op-seq (g/node-value self :op-seq)
-                            manip-delta (g/node-value self :manip-delta)]
+                            manip-delta (g/node-value self :manip-delta)
+                            snap-enabled (g/node-value self :snap-enabled)
+                            snap-threshold (g/node-value self :snap-threshold)
+                            {:keys [node-id]} (peek original-values)]
                         (g/transact
                           (concat
                             (g/operation-label "Move pivot point")
                             (g/operation-sequence op-seq)
-                            (update-pivot original-values camera viewport manip-delta)))
+                            (g/set-property node-id :pivot (cond-> (updated-pivot node-id manip-delta)
+                                                             snap-enabled (snap-pivot snap-threshold)))))
                         (g/transact
                           (concat
                             (g/set-property self :start-action nil)
@@ -1234,7 +1232,10 @@
   (input camera g/Any)
   (input viewport g/Any)
   (input selected-renderables g/Any)
-
+  
+  (output scale g/Any :cached produce-scale)
+  (output snap-threshold g/Any :cached (g/fnk [scale] (cond-> 0.1 scale (* scale))))
+  (output snap-enabled g/Bool :cached (g/fnk [action] (:shift action)))
   (output manip-delta g/Any :cached produce-manip-delta)
   (output renderables pass/RenderData :cached produce-renderables)
   (output input-handler Runnable :cached (g/constantly handle-input))
