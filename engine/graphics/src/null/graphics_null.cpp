@@ -853,44 +853,6 @@ namespace dmGraphics
         return true;
     }
 
-    /*
-    static bool NullReloadVertexProgram(HVertexProgram prog, ShaderDesc* ddf)
-    {
-        assert(prog);
-        assert(ddf);
-
-        ShaderDesc::Shader* shader = GetShaderProgram((HContext) g_NullContext, ddf);
-        if (shader == 0x0)
-        {
-            return false;
-        }
-
-        NullShaderModule* p = (NullShaderModule*) prog;
-        delete [] (char*)p->m_Data;
-        p->m_Data = new char[shader->m_Source.m_Count];
-        memcpy((char*)p->m_Data, shader->m_Source.m_Data, shader->m_Source.m_Count);
-        return !g_ForceVertexReloadFail;
-    }
-
-    static bool NullReloadFragmentProgram(HFragmentProgram prog, ShaderDesc* ddf)
-    {
-        assert(prog);
-        assert(ddf);
-
-        ShaderDesc::Shader* shader = GetShaderProgram((HContext) g_NullContext, ddf);
-        if (shader == 0x0)
-        {
-            return false;
-        }
-
-        NullShaderModule* p = (NullShaderModule*)prog;
-        delete [] (char*)p->m_Data;
-        p->m_Data = new char[shader->m_Source.m_Count];
-        memcpy((char*)p->m_Data, shader->m_Source.m_Data, shader->m_Source.m_Count);
-        return !g_ForceFragmentReloadFail;
-    }
-    */
-
     static ShaderDesc::Language NullGetProgramLanguage(HProgram program)
     {
         return ((NullShaderModule*) program)->m_Language;

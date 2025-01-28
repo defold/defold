@@ -91,6 +91,7 @@ public class ShaderProgramBuilder extends Builder {
 
             ShaderCompilePipeline.ShaderModuleDesc moduleDesc = new ShaderCompilePipeline.ShaderModuleDesc();
             moduleDesc.type = parseShaderTypeFromPath(moduleInput.getPath());
+            moduleDesc.resourcePath = path;
 
             modulesDescs.add(moduleDesc);
             modulePreprocessors.add(shaderPreprocessor);

@@ -41,6 +41,7 @@ public class ShaderCompilePipeline {
 
     public static class ShaderModuleDesc {
         public String source;
+        public String resourcePath;
         public ShaderDesc.ShaderType type;
     }
 
@@ -136,37 +137,43 @@ public class ShaderCompilePipeline {
         return source.getBytes(StandardCharsets.UTF_8);
     }
 
-    private static void checkResult(Result result) throws CompileExceptionError {
+    protected static String intermediateResourceToProjectPath(String message, String projectPath) {
+        String[] knownFileExtensions = new String[] { "glsl", "spv", "wgsl", "hlsl" };
+        String replacementRegex = String.format("/[^\\s:]+\\.(%s)(?=:)", String.join("|", knownFileExtensions));
+        return message.replaceAll(replacementRegex, projectPath);
+    }
+
+    private static void checkResult(String resourcePath, Result result) throws CompileExceptionError {
         if (result.ret != 0) {
             String[] tokenizedResult = new String(result.stdOutErr).split(":", 2);
             String message = tokenizedResult[0];
             if(tokenizedResult.length != 1) {
                 message = tokenizedResult[1];
             }
-
+            message = intermediateResourceToProjectPath(message, resourcePath);
             throw new CompileExceptionError(message);
         }
     }
 
-    protected static void generateWGSL(String pathFileInSpv, String pathFileOutWGSL) throws IOException, CompileExceptionError {
+    protected static void generateWGSL(String resourcePath, String pathFileInSpv, String pathFileOutWGSL) throws IOException, CompileExceptionError {
         Result result = Exec.execResult(tintExe,
             "--format", "wgsl",
             "-o", pathFileOutWGSL,
             pathFileInSpv);
-        checkResult(result);
+        checkResult(resourcePath, result);
     }
 
-    protected static void generateHLSL(String pathFileInSpv, String pathFileOutHLSL) throws IOException, CompileExceptionError {
+    protected static void generateHLSL(String resourcePath, String pathFileInSpv, String pathFileOutHLSL) throws IOException, CompileExceptionError {
         Result result = Exec.execResult(
             Bob.getExe(Platform.getHostPlatform(), "spirv-cross"),
             pathFileInSpv,
             "--output", pathFileOutHLSL,
             "--hlsl",
             "--shader-model", shaderLanguageToVersion(ShaderDesc.Language.LANGUAGE_HLSL).toString());
-        checkResult(result);
+        checkResult(resourcePath, result);
     }
 
-    private void generateSPIRv(ShaderDesc.ShaderType shaderType, String pathFileInGLSL, String pathFileOutSpv) throws IOException, CompileExceptionError {
+    private void generateSPIRv(String resourcePath, ShaderDesc.ShaderType shaderType, String pathFileInGLSL, String pathFileOutSpv) throws IOException, CompileExceptionError {
         Result result = Exec.execResult(glslangExe,
             "-w",
             "--entry-point", "main",
@@ -178,16 +185,16 @@ public class ShaderCompilePipeline {
             "-o", pathFileOutSpv,
             "-V",
             pathFileInGLSL);
-        checkResult(result);
+        checkResult(resourcePath, result);
     }
 
-    private void generateSPIRvOptimized(String pathFileInSpv, String pathFileOutSpvOpt) throws IOException, CompileExceptionError{
+    private void generateSPIRvOptimized(String resourcePath, String pathFileInSpv, String pathFileOutSpvOpt) throws IOException, CompileExceptionError{
         // Run optimization pass on the result
         Result result = Exec.execResult(spirvOptExe,
             "-O",
             pathFileInSpv,
             "-o", pathFileOutSpvOpt);
-        checkResult(result);
+        checkResult(resourcePath, result);
     }
 
     private ShaderModule getShaderModule(ShaderDesc.ShaderType shaderStage) {
@@ -262,12 +269,12 @@ public class ShaderCompilePipeline {
 
             File fileOutSpv = File.createTempFile(baseName, ".spv");
             FileUtil.deleteOnExit(fileOutSpv);
-            generateSPIRv(module.desc.type, fileInGLSL.getAbsolutePath(), fileOutSpv.getAbsolutePath());
+            generateSPIRv(module.desc.resourcePath, module.desc.type, fileInGLSL.getAbsolutePath(), fileOutSpv.getAbsolutePath());
 
             // Generate an optimized version of the final .spv file
             File fileOutSpvOpt = File.createTempFile(this.pipelineName, ".optimized.spv");
             FileUtil.deleteOnExit(fileOutSpvOpt);
-            generateSPIRvOptimized(fileOutSpv.getAbsolutePath(), fileOutSpvOpt.getAbsolutePath());
+            generateSPIRvOptimized(module.desc.resourcePath, fileOutSpv.getAbsolutePath(), fileOutSpvOpt.getAbsolutePath());
 
             module.spirvFile = fileOutSpvOpt;
 
@@ -294,7 +301,7 @@ public class ShaderCompilePipeline {
             File fileCrossCompiled = File.createTempFile(this.pipelineName, "." + versionStr + "." + shaderTypeStr);
             FileUtil.deleteOnExit(fileCrossCompiled);
 
-            generateWGSL(module.spirvFile.getAbsolutePath(), fileCrossCompiled.getAbsolutePath());
+            generateWGSL(module.desc.resourcePath, module.spirvFile.getAbsolutePath(), fileCrossCompiled.getAbsolutePath());
             return FileUtils.readFileToByteArray(fileCrossCompiled);
         } else if (canBeCrossCompiled(shaderLanguage)) {
             byte[] bytes = generateCrossCompiledShader(shaderType, shaderLanguage, version);

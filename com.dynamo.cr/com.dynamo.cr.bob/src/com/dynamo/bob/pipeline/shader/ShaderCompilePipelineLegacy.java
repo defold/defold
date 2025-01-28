@@ -21,7 +21,6 @@ import java.util.ArrayList;
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
-import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ShadercJni;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.FileUtil;
@@ -55,13 +54,10 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
         if (spirvOptExe == null) spirvOptExe = Bob.getExe(Platform.getHostPlatform(), "spirv-opt");
     }
 
-    static private void checkResult(String result_string, IResource resource, String resourceOutput) throws CompileExceptionError {
+    static private void checkResult(String resourcePath, String result_string) throws CompileExceptionError {
         if (result_string != null ) {
-            if(resource != null) {
-                throw new CompileExceptionError(resource, 0, result_string);
-            } else {
-                throw new CompileExceptionError(resourceOutput + ":" + result_string, null);
-            }
+            String messagePrefixedWithProjectPath = intermediateResourceToProjectPath(result_string, resourcePath);
+            throw new CompileExceptionError(messagePrefixedWithProjectPath, null);
         }
     }
 
@@ -78,25 +74,25 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
         return null;
     }
 
-    static private String compileSPIRVToWGSL(byte[] shaderSource, String resourceOutput)  throws IOException, CompileExceptionError {
+    static private String compileSPIRVToWGSL(String resourcePath, byte[] shaderSource, String resourceOutput)  throws IOException, CompileExceptionError {
         File file_in_spv = File.createTempFile(FilenameUtils.getName(resourceOutput), ".spv");
         FileUtil.deleteOnExit(file_in_spv);
         FileUtils.writeByteArrayToFile(file_in_spv, shaderSource);
 
         File file_out_wgsl = File.createTempFile(FilenameUtils.getName(resourceOutput), ".wgsl");
         FileUtil.deleteOnExit(file_out_wgsl);
-        generateWGSL(file_in_spv.getAbsolutePath(), file_out_wgsl.getAbsolutePath());
+        generateWGSL(resourcePath, file_in_spv.getAbsolutePath(), file_out_wgsl.getAbsolutePath());
         return FileUtils.readFileToString(file_out_wgsl);
     }
 
-    static private String compileSPIRVToHLSL(byte[] shaderSource, String resourceOutput)  throws IOException, CompileExceptionError {
+    static private String compileSPIRVToHLSL(String resourcePath, byte[] shaderSource, String resourceOutput)  throws IOException, CompileExceptionError {
         File file_in_spv = File.createTempFile(FilenameUtils.getName(resourceOutput), ".spv");
         FileUtil.deleteOnExit(file_in_spv);
         FileUtils.writeByteArrayToFile(file_in_spv, shaderSource);
 
         File file_out_hlsl = File.createTempFile(FilenameUtils.getName(resourceOutput), ".hlsl");
         FileUtil.deleteOnExit(file_out_hlsl);
-        generateHLSL(file_in_spv.getAbsolutePath(), file_out_hlsl.getAbsolutePath());
+        generateHLSL(resourcePath, file_in_spv.getAbsolutePath(), file_out_hlsl.getAbsolutePath());
         return FileUtils.readFileToString(file_out_hlsl);
     }
 
@@ -185,7 +181,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
             res.compile_warnings.add("\nCompatability issue: " + resultString);
             return res;
         } else {
-            checkResult(resultString, null, resourceOutput);
+            checkResult(moduleLegacy.desc.resourcePath, resultString);
         }
 
         File file_out_spv_opt = File.createTempFile(FilenameUtils.getName(resourceOutput), ".spv");
@@ -202,7 +198,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
             res.compile_warnings.add("\nOptimization pass failed: " + resultString);
             return res;
         } else {
-            checkResult(resultString, null, resourceOutput);
+            checkResult(moduleLegacy.desc.resourcePath, resultString);
         }
 
         moduleLegacy.spirvContext = ShadercJni.NewShaderContext(FileUtils.readFileToByteArray(file_out_spv));
@@ -248,7 +244,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
         if (shaderLanguage == ShaderDesc.Language.LANGUAGE_SPIRV) {
             return module.spirvResult.source;
         } else if(shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL) {
-            String result = compileSPIRVToWGSL(module.spirvResult.source, this.pipelineName);
+            String result = compileSPIRVToWGSL(module.desc.resourcePath, module.spirvResult.source, this.pipelineName);
             return result.getBytes();
         } else if(shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL) {
             return this.generateCrossCompiledShader(shaderType, shaderLanguage, 50);

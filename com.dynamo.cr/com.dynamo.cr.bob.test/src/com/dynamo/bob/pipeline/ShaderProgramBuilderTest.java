@@ -754,6 +754,26 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
     }
 
     @Test
+    public void testGenerateErrorsWithProjectPath() throws Exception {
+        String src =
+                """
+                #version wrong-version
+                void main(){
+                   gl_FragColor = vec4(1.0);
+                }
+                """;
+
+        boolean didFail = false;
+        try {
+            addAndBuildShaderDesc("/test_shader_error.fp", src, "/test_shader_error.shbundle");
+        } catch (CompileExceptionError e) {
+            assertTrue(e.getMessage().contains("/test_shader_error.fp:3"));
+            didFail = true;
+        }
+        assertTrue(didFail);
+    }
+
+    @Test
     public void testShaderCompilePipelines() throws Exception {
         String shaderNewPipeline =
             """

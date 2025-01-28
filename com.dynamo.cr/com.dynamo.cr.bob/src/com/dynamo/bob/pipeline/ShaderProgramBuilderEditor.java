@@ -26,7 +26,7 @@ import java.util.HashMap;
 import static com.dynamo.bob.pipeline.ShaderProgramBuilder.buildResultsToShaderDescBuildResults;
 
 public class ShaderProgramBuilderEditor {
-    static public ShaderUtil.Common.GLSLCompileResult buildGLSLVariantTextureArray(String source, Graphics.ShaderDesc.ShaderType shaderType, Graphics.ShaderDesc.Language shaderLanguage, boolean isDebug, int maxPageCount) throws IOException, CompileExceptionError {
+    static public ShaderUtil.Common.GLSLCompileResult buildGLSLVariantTextureArray(String resourcePath, String source, Graphics.ShaderDesc.ShaderType shaderType, Graphics.ShaderDesc.Language shaderLanguage, int maxPageCount) throws IOException, CompileExceptionError {
         ShaderCompilePipeline.ShaderModuleDesc module = new ShaderCompilePipeline.ShaderModuleDesc();
         module.source = source;
         module.type = shaderType;
@@ -38,7 +38,7 @@ public class ShaderProgramBuilderEditor {
         ShaderCompilePipeline pipeline;
 
         try {
-            pipeline = ShaderProgramBuilder.newShaderPipeline("variant-texture-array", shaderDescs, options);
+            pipeline = ShaderProgramBuilder.newShaderPipeline(resourcePath, shaderDescs, options);
         } catch (Exception e) {
             // We don't have a graceful way to handle shader errors in the editor except for building/bundling
             return new ShaderUtil.Common.GLSLCompileResult(source);
@@ -81,7 +81,7 @@ public class ShaderProgramBuilderEditor {
         ArrayList<ShaderCompilePipeline.ShaderModuleDesc> shaderModuleDescsArrayList = new ArrayList<>(Arrays.asList(shaderDescs));
 
         try {
-            pipeline = ShaderProgramBuilder.newShaderPipeline("variant-texture-array", shaderModuleDescsArrayList, options);
+            pipeline = ShaderProgramBuilder.newShaderPipeline(resourceOutputPath, shaderModuleDescsArrayList, options);
         } catch (Exception e) {
             ShaderProgramBuilder.ShaderDescBuildResult res = new ShaderProgramBuilder.ShaderDescBuildResult();
             res.buildWarnings = new String[] { e.getMessage()};

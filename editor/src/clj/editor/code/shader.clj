@@ -135,12 +135,13 @@
   (let [resource-path (resource/path build-resource)
         max-page-count (:max-page-count user-data)
         shader-module-descs (into-array ShaderCompilePipeline$ShaderModuleDesc
-                              (mapv (fn [shader-info]
-                                      (let [shader-module-desc (ShaderCompilePipeline$ShaderModuleDesc.)]
-                                        (set! (. shader-module-desc source) (:source shader-info))
-                                        (set! (. shader-module-desc type) (shader-type-from-ext (:ext shader-info)))
-                                        shader-module-desc))
-                                    (:shader-infos user-data)))
+                                        (mapv (fn [shader-info]
+                                                (let [shader-module-desc (ShaderCompilePipeline$ShaderModuleDesc.)]
+                                                  (set! (. shader-module-desc source) (:source shader-info))
+                                                  (set! (. shader-module-desc resourcePath) (:resource-path shader-info))
+                                                  (set! (. shader-module-desc type) (shader-type-from-ext (:ext shader-info)))
+                                                  shader-module-desc))
+                                              (:shader-infos user-data)))
         result (ShaderProgramBuilderEditor/makeShaderDescWithVariants resource-path shader-module-descs java-shader-languages-with-spirv max-page-count)
         compile-warning-messages (.-buildWarnings result)
         compile-error-values (mapv error-string->error-value compile-warning-messages)]
@@ -156,6 +157,7 @@
         user-data {:max-page-count max-page-count
                    :shader-infos (mapv (fn [shader-source-info]
                                          {:source (:shader-source shader-source-info)
+                                          :resource-path (resource/proj-path (:resource shader-source-info))
                                           :ext (resource/type-ext (:resource shader-source-info))})
                                        shader-source-infos)}]
     (bt/with-content-hash

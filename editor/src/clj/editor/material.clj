@@ -171,11 +171,10 @@ there is no way a user can know what the generated id will be for older shaders.
       (str "_" (.id uniform-buffer-object)))
     (.getUBOs reflector)))
 
-(defn- transpile-shader-source [shader-ext ^String shader-source ^long max-page-count]
+(defn- transpile-shader-source [resource-path shader-ext ^String shader-source ^long max-page-count]
   (let [shader-type (code.shader/shader-type-from-ext shader-ext)
         shader-language (code.shader/shader-language-to-java :language-glsl-sm120) ; use the old gles2 compatible shaders
-        is-debug true
-        result (ShaderProgramBuilderEditor/buildGLSLVariantTextureArray shader-source shader-type shader-language is-debug max-page-count)
+        result (ShaderProgramBuilderEditor/buildGLSLVariantTextureArray resource-path shader-source shader-type shader-language max-page-count)
         full-source (.source result)
         array-sampler-names-array (.arraySamplers result)
         ^SPIRVReflector reflector (.reflector result)]
@@ -208,8 +207,8 @@ there is no way a user can know what the generated id will be for older shaders.
 (g/defnk produce-shader [_node-id vertex-shader-source-info vertex-program fragment-shader-source-info fragment-program vertex-constants fragment-constants samplers max-page-count]
   (or (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program" "vp")
       (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program" "fp")
-      (let [augmented-vertex-shader-info (transpile-shader-source "vp" (:shader-source vertex-shader-source-info) max-page-count)
-            augmented-fragment-shader-info (transpile-shader-source "fp" (:shader-source fragment-shader-source-info) max-page-count)
+      (let [augmented-vertex-shader-info (transpile-shader-source (resource/proj-path vertex-program) "vp" (:shader-source vertex-shader-source-info) max-page-count)
+            augmented-fragment-shader-info (transpile-shader-source (resource/proj-path fragment-program) "fp" (:shader-source fragment-shader-source-info) max-page-count)
             array-sampler-name->slice-sampler-names
             (into {}
                   (comp (distinct)
