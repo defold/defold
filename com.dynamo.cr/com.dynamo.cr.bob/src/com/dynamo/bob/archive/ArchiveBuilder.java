@@ -294,9 +294,9 @@ public class ArchiveBuilder {
         // create the executor service to write entries in parallel
         int nThreads = project.getMaxCpuThreads();
         logger.info("Creating archive entries with a fixed thread pool executor using %d threads", nThreads);
-        ExecutorService multithreadedExecutorService = Executors.newFixedThreadPool(nThreads);
+        ExecutorService multiThreadedExecutorService = Executors.newFixedThreadPool(nThreads);
         // temp workaround for a bug in the ZipPublisher
-        ExecutorService singlereadedExecutorService = Executors.newFixedThreadPool(1);
+        ExecutorService singleThreadedExecutorService = Executors.newFixedThreadPool(1);
 
         Collections.sort(entries); // Since it has no hash, it sorts on path
 
@@ -305,7 +305,7 @@ public class ArchiveBuilder {
 
         // create archive entry write tasks
         List<Future<ArchiveEntry>> futures = new ArrayList<>(entries.size());
-        ExecutorService executorService = multithreadedExecutorService;
+        ExecutorService executorService = multiThreadedExecutorService;
         for (int i = entries.size() - 1; i >= 0; --i) {
             ArchiveEntry entry = entries.get(i);
             String normalisedPath = FilenameUtils.separatorsToUnix(entry.getRelativeFilename());
@@ -314,11 +314,11 @@ public class ArchiveBuilder {
                 entry.setFlag(ArchiveEntry.FLAG_LIVEUPDATE);
                 entries.remove(i);
                 excludedEntries.add(entry);
-                executorService = singlereadedExecutorService;
+                executorService = singleThreadedExecutorService;
             }
             else {
                 includedEntries.add(entry);
-                executorService = multithreadedExecutorService;
+                executorService = multiThreadedExecutorService;
             }
             Future<ArchiveEntry> future = executorService.submit(() -> {
                 writeArchiveEntry(archiveData, entry, excludedResources);
@@ -337,8 +337,8 @@ public class ArchiveBuilder {
             throw new CompileExceptionError("Error while writing archive", e);
         }
         finally {
-            multithreadedExecutorService.shutdownNow();
-            singlereadedExecutorService.shutdownNow();
+            multiThreadedExecutorService.shutdownNow();
+            singleThreadedExecutorService.shutdownNow();
             archiveData.close();
         }
 
