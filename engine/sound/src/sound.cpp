@@ -390,9 +390,9 @@ namespace dmSound
             memset(instance, 0, sizeof(*instance));
             instance->m_Index = 0xffff;
             instance->m_SoundDataIndex = 0xffff;
-            // NOTE: +1 for "over-fetch" when up-sampling
+            // NOTE: +2 for "over-fetch" when up-sampling
             // NOTE: and x SOUND_MAX_SPEED for potential pitch range
-            instance->m_Frames = malloc((sound->m_DeviceFrameCount * SOUND_MAX_SPEED + 1) * sizeof(int16_t) * SOUND_MAX_MIX_CHANNELS);
+            instance->m_Frames = malloc((sound->m_DeviceFrameCount * SOUND_MAX_SPEED + 2) * sizeof(int16_t) * SOUND_MAX_MIX_CHANNELS);
             instance->m_FrameCount = 0;
             instance->m_Speed = 1.0f;
         }
@@ -986,6 +986,8 @@ namespace dmSound
         // Typically when the buffer is less than a mix-buffer we might overfetch
         // We never overfetch for identity mixing as identity mixing is a special case
         frames[instance->m_FrameCount] = frames[instance->m_FrameCount-1];
+        // due to fraction inaccuracies - TODO: Look into this further
+        frames[instance->m_FrameCount+1] = frames[instance->m_FrameCount-1];
 
         Ramp gain_ramp = GetRamp(mix_context, &instance->m_Gain, mix_buffer_count);
         Ramp pan_ramp = GetRamp(mix_context, &instance->m_Pan, mix_buffer_count);
@@ -1041,6 +1043,9 @@ namespace dmSound
         // We never overfetch for identity mixing as identity mixing is a special case
         frames[2 * instance->m_FrameCount] = frames[2 * instance->m_FrameCount - 2];
         frames[2 * instance->m_FrameCount + 1] = frames[2 * instance->m_FrameCount - 1];
+        // due to fraction inaccuracies - TODO: Look into this further
+        frames[2 * instance->m_FrameCount + 2] = frames[2 * instance->m_FrameCount - 2];
+        frames[2 * instance->m_FrameCount + 3] = frames[2 * instance->m_FrameCount - 1];
 
         Ramp gain_ramp = GetRamp(mix_context, &instance->m_Gain, mix_buffer_count);
         Ramp pan_ramp = GetRamp(mix_context, &instance->m_Pan, mix_buffer_count);
