@@ -1987,10 +1987,16 @@ static bool WebGPUCreateShaderModuleFromDDF(WebGPUContext* context, WebGPUShader
 {
     TRACE_CALL;
     {
+        char* tmpMemoryBuffer = (char*) malloc(ddf->m_Source.m_Count + 1);
+        memcpy(tmpMemoryBuffer, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
+        tmpMemoryBuffer[ddf->m_Source.m_Count] = '\0';
+
         WGPUShaderModuleDescriptor shader_desc = {};
-        WGPUShaderModuleWGSLDescriptor wgsl    = { { shader_desc.nextInChain, WGPUSType_ShaderModuleWGSLDescriptor }, (const char*)ddf->m_Source.m_Data };
+        WGPUShaderModuleWGSLDescriptor wgsl    = { { shader_desc.nextInChain, WGPUSType_ShaderModuleWGSLDescriptor }, (const char*) tmpMemoryBuffer };
         shader_desc.nextInChain                = (WGPUChainedStruct*)&wgsl;
         shader->m_Module                       = wgpuDeviceCreateShaderModule(context->m_Device, &shader_desc);
+
+        free(tmpMemoryBuffer);
     }
     {
         HashState64 shader_hash_state;
