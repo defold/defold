@@ -338,8 +338,7 @@ namespace dmGameSystem
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
-        dmResource::PreloadHint(params->m_HintInfo, ddf->m_VertexProgram);
-        dmResource::PreloadHint(params->m_HintInfo, ddf->m_FragmentProgram);
+        dmResource::PreloadHint(params->m_HintInfo, ddf->m_Program);
 
         dmRenderDDF::MaterialDesc::Sampler* sampler = ddf->m_Samplers.m_Data;
         for (uint32_t i = 0; i < ddf->m_Samplers.m_Count; i++)
