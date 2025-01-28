@@ -592,6 +592,7 @@ static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceP
     int depth                        = CheckTableInteger(L, 2, "depth", 1);
     uint32_t max_mipmaps             = (uint32_t) CheckTableInteger(L, 2, "max_mipmaps", 0);
     uint32_t usage_flags             = (uint32_t) CheckTableInteger(L, 2, "flags", dmGraphics::TEXTURE_USAGE_FLAG_SAMPLE);
+    uint32_t layer_count             = 1; // TODO
 
     if (width < 1 || height < 1 || depth < 1)
     {
@@ -660,6 +661,7 @@ static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceP
     params->m_Width           = width;
     params->m_Height          = height;
     params->m_Depth           = depth;
+    params->m_LayerCount      = layer_count;
     params->m_MaxMipMaps      = max_mipmaps;
     params->m_Type            = type;
     params->m_Format          = format;

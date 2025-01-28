@@ -222,26 +222,14 @@ namespace dmGameSystem
         texture_image.m_Count                  = 1;
         texture_image.m_ImageDataAddress       = (uint64_t) params.m_Data;
 
-<<<<<<< HEAD
-        image.m_Width            = params.m_Width;
-        image.m_Height           = params.m_Height;
-        image.m_Depth            = params.m_Depth;
-        image.m_OriginalWidth    = params.m_Width;
-        image.m_OriginalHeight   = params.m_Height;
-        image.m_OriginalDepth    = params.m_Depth;
-        image.m_Format           = GraphicsTextureFormatToImageFormat(params.m_TextureFormat);
-        image.m_CompressionType  = params.m_CompressionType;
-        image.m_CompressionFlags = 0;
-        image.m_Data.m_Data      = (uint8_t*) params.m_Data;
-        image.m_Data.m_Count     = params.m_DataSize;
-=======
         image.m_Width                = params.m_Width;
         image.m_Height               = params.m_Height;
+        image.m_Depth                = params.m_Depth;
         image.m_OriginalWidth        = params.m_Width;
         image.m_OriginalHeight       = params.m_Height;
+        image.m_OriginalDepth        = params.m_Depth;
         image.m_Format               = GraphicsTextureFormatToImageFormat(params.m_TextureFormat);
         image.m_CompressionType      = params.m_CompressionType;
->>>>>>> dev
 
         uint32_t mip_map_dimensions[]    = {params.m_Width, params.m_Height};
         image.m_MipMapDimensions.m_Data  = mip_map_dimensions;
