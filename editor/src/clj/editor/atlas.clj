@@ -1154,11 +1154,9 @@
           (not= (-> selected-renderables last :node-id g/node-by-id g/node-type) AtlasImage))
     {}
     (let [reference-renderable (last selected-renderables)
-          world-translation (:world-translation reference-renderable)
-          world-rotation (:world-rotation reference-renderable)
+          {:keys [node-id world-translation world-rotation]} reference-renderable
           scale (scene-tools/scale-factor camera viewport world-translation)
           world-transform (scene-tools/manip-world-transform reference-renderable manip-space scale)
-          node-id (:node-id reference-renderable)
           pivot-pos (if manip-delta
                       (cond-> (updated-pivot node-id manip-delta)
                         snap-enabled (snap-pivot snap-threshold))
@@ -1177,13 +1175,12 @@
           manip-pos (math/translation lead-transform)]
       (scene-tools/scale-factor camera viewport manip-pos))))
 
-(def ^:private original-values #(select-keys % [:node-id :world-rotation :world-transform :parent-world-transform]))
-
 (defn handle-input [self action selection-data]
   (case (:type action)
     :mouse-pressed (if (first (get selection-data self))
                      (let [selected-renderables (g/node-value self :selected-renderables)
-                           original-values (mapv original-values selected-renderables)]
+                           original-values (mapv #(select-keys % [:node-id :world-rotation :world-transform]) 
+                                                 selected-renderables)]
                        (when-not (empty? original-values)
                          (g/transact
                             (concat
