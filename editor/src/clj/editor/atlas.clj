@@ -1114,11 +1114,10 @@
         rotated (:rotated geometry)
         [pivot-x pivot-y] (g/node-value node-id :pivot)
         delta-x (/ (cond-> (.x delta) rotated -) width)
-        delta-y (/ (cond-> (.y delta) (not rotated) -) height)
-        pivot (if rotated
-                [(- pivot-x delta-y) (+ pivot-y delta-x)]
-                [(+ pivot-x delta-x) (+ pivot-y delta-y)])]
-    (properties/round-vec-coarse pivot)))
+        delta-y (/ (cond-> (.y delta) (not rotated) -) height)]
+    (if rotated
+      [(- pivot-x delta-y) (+ pivot-y delta-x)]
+      [(+ pivot-x delta-x) (+ pivot-y delta-y)])))
 
 (defn- pivot-handle
   [reference-renderable pivot-pos scale]
@@ -1150,7 +1149,9 @@
       (doto (Vector3d.) (.sub pos start-pos)))))
 
 (g/defnk produce-renderables [_node-id manip-space camera viewport selected-renderables manip-delta snap-enabled snap-threshold]
-  (if (or (empty? selected-renderables) (second selected-renderables))
+  (if (or (empty? selected-renderables)
+          (second selected-renderables)
+          (not= (-> selected-renderables last :node-id g/node-by-id g/node-type) AtlasImage))
     {}
     (let [reference-renderable (last selected-renderables)
           world-translation (:world-translation reference-renderable)
