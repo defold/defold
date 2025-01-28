@@ -2009,34 +2009,6 @@ static void WebGPUDestroyShader(WebGPUShaderModule* shader)
     shader->m_Module = NULL;
 }
 
-/*
-static HComputeProgram WebGPUNewComputeProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
-{
-    TRACE_CALL;
-    WebGPUShaderModule* shader = new WebGPUShaderModule;
-    memset(shader, 0, sizeof(*shader));
-    WebGPUCreateShaderModuleFromDDF((WebGPUContext*)context, shader, ddf);
-    return (HComputeProgram)shader;
-}
-
-static bool WebGPUReloadShader(WebGPUShaderModule* shader, ShaderDesc* ddf)
-{
-    TRACE_CALL;
-    ShaderDesc::Shader* ddf_shader = GetShaderProgram((HContext)g_WebGPUContext, ddf);
-    if (ddf_shader == NULL)
-        return false;
-
-    WebGPUShaderModule tmp_shader;
-    if (WebGPUCreateShaderModuleFromDDF(g_WebGPUContext, &tmp_shader, ddf))
-    {
-        WebGPUDestroyShader(shader);
-        memcpy(shader, &tmp_shader, sizeof(*shader));
-        return true;
-    }
-    return false;
-}
-*/
-
 static inline WGPUShaderStageFlags GetShaderStageFlags(uint8_t flag_bits)
 {
     WGPUShaderStageFlags bits = 0;
@@ -2165,19 +2137,6 @@ static void WebGPUUpdateProgramLayouts(WebGPUContext* context, WebGPUProgram* pr
 
     WebGPUUpdateBindGroupLayouts(context, program, bindings, binding_info);
 
-    /*
-    if (program->m_ComputeModule)
-    {
-        WebGPUUpdateBindGroupLayouts(context, program, program->m_ComputeModule, bindings, WGPUShaderStage_Compute, binding_info);
-    }
-    else
-    {
-        assert(program->m_VertexModule && program->m_FragmentModule);
-        WebGPUUpdateBindGroupLayouts(context, program, program->m_VertexModule, bindings, WGPUShaderStage_Vertex, binding_info);
-        WebGPUUpdateBindGroupLayouts(context, program, program->m_FragmentModule, bindings, WGPUShaderStage_Fragment, binding_info);
-    }
-    */
-
     // fill in program
     program->m_UniformData = new uint8_t[binding_info.m_UniformDataSize];
     memset(program->m_UniformData, 0, binding_info.m_UniformDataSize);
@@ -2244,24 +2203,6 @@ static void WebGPUCreateGraphicsProgram(WebGPUContext* context, WebGPUProgram* p
     }
     WebGPUUpdateProgramLayouts(context, program);
 }
-
-/*
-static HProgram WebGPUNewProgramFromCompute(HContext context, HComputeProgram compute_program)
-{
-    TRACE_CALL;
-    WebGPUProgram* program = new WebGPUProgram;
-    WebGPUCreateComputeProgram((WebGPUContext*)context, program, (WebGPUShaderModule*)compute_program);
-    return (HProgram)program;
-}
-
-static void WebGPUDeleteComputeProgram(HComputeProgram prog)
-{
-    TRACE_CALL;
-    WebGPUShaderModule* shader = (WebGPUShaderModule*)prog;
-    WebGPUDestroyShader(shader);
-    delete shader;
-}
-*/
 
 static HProgram WebGPUNewProgram(HContext _context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
 {
@@ -2337,54 +2278,6 @@ static void WebGPUDeleteProgram(HContext context, HProgram _program)
     WebGPUDestroyProgram((WebGPUContext*)context, program);
     delete program;
 }
-    
-/*
-static HVertexProgram WebGPUNewVertexProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
-{
-    TRACE_CALL;
-    WebGPUShaderModule* shader = new WebGPUShaderModule;
-    memset(shader, 0, sizeof(*shader));
-    WebGPUCreateShaderModuleFromDDF((WebGPUContext*)context, shader, ddf);
-    return (HComputeProgram)shader;
-}
-
-static HFragmentProgram WebGPUNewFragmentProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
-{
-    TRACE_CALL;
-    WebGPUShaderModule* shader = new WebGPUShaderModule;
-    memset(shader, 0, sizeof(*shader));
-    WebGPUCreateShaderModuleFromDDF((WebGPUContext*)context, shader, ddf);
-    return (HComputeProgram)shader;
-}
-
-static bool WebGPUReloadVertexProgram(HVertexProgram prog, ShaderDesc* ddf)
-{
-    TRACE_CALL;
-    return WebGPUReloadShader((WebGPUShaderModule*)prog, ddf);
-}
-
-static bool WebGPUReloadFragmentProgram(HFragmentProgram prog, ShaderDesc* ddf)
-{
-    TRACE_CALL;
-    return WebGPUReloadShader((WebGPUShaderModule*)prog, ddf);
-}
-
-static void WebGPUDeleteVertexProgram(HVertexProgram program)
-{
-    TRACE_CALL;
-    WebGPUShaderModule* shader = (WebGPUShaderModule*)program;
-    WebGPUDestroyShader(shader);
-    delete shader;
-}
-
-static void WebGPUDeleteFragmentProgram(HFragmentProgram program)
-{
-    TRACE_CALL;
-    WebGPUShaderModule* shader = (WebGPUShaderModule*)program;
-    WebGPUDestroyShader(shader);
-    delete shader;
-}
-*/
 
 static ShaderDesc::Language WebGPUGetProgramLanguage(HProgram program)
 {

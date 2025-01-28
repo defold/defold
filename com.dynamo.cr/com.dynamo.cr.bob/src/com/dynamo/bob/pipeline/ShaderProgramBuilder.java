@@ -525,10 +525,6 @@ public class ShaderProgramBuilder extends Builder {
         project.scanJavaClasses();
         builder.setProject(project);
 
-        for (String a : args) {
-            System.out.println("Arg : " + a);
-        }
-
         if (args.length < 3) {
             System.err.println("Unable to build shader - no platform passed in.%n");
             return;

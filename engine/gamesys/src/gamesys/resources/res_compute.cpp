@@ -167,22 +167,6 @@ namespace dmGameSystem
         }
     }
 
-    static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams* params)
-    {
-        ComputeResource* resource               = (ComputeResource*) params->m_UserData;
-        dmRender::HComputeProgram program       = resource->m_Program;
-        dmRender::HRenderContext render_context = dmRender::GetProgramRenderContext(program);
-        dmGraphics::HContext graphics_context   = dmRender::GetGraphicsContext(render_context);
-        dmGraphics::HProgram gfx_program        = GetComputeProgram(program);
-
-        /*
-        if (!dmGraphics::ReloadProgram(graphics_context, gfx_program))
-        {
-            dmLogWarning("Reloading the compute program failed.");
-        }
-        */
-    }
-
     dmResource::Result ResComputeCreate(const dmResource::ResourceCreateParams* params)
     {
         dmRender::HRenderContext render_context = (dmRender::HRenderContext) params->m_Context;
@@ -199,8 +183,6 @@ namespace dmGameSystem
 
             assert(res == dmResource::RESULT_OK);
             dmRender::SetProgramUserData(compute_program, ResourceDescriptorGetNameHash(desc));
-
-            dmResource::RegisterResourceReloadedCallback(params->m_Factory, ResourceReloadedCallback, compute_program);
 
             ComputeResource* resource = new ComputeResource();
             resource->m_Program       = compute_program;
@@ -220,8 +202,6 @@ namespace dmGameSystem
         dmGraphics::HProgram gfx_program        = dmRender::GetComputeProgram(program);
 
         ReleaseTextures(params->m_Factory, resource->m_Textures);
-
-        dmResource::UnregisterResourceReloadedCallback(params->m_Factory, ResourceReloadedCallback, program);
 
         dmResource::Release(params->m_Factory, (void*) gfx_program);
         dmRender::DeleteComputeProgram(render_context, program);

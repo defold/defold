@@ -107,7 +107,6 @@ namespace dmRender
     struct ComputeProgram
     {
         dmRender::HRenderContext                    m_RenderContext;
-        //dmGraphics::HComputeProgram                 m_Shader;
         dmGraphics::HProgram                        m_Program;
         dmArray<RenderConstant>                     m_Constants;
         dmArray<Sampler>                            m_Samplers;

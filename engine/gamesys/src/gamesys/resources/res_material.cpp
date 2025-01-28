@@ -102,41 +102,6 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
-    // We can probably remove this callback now
-    static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams* params)
-    {
-        dmRender::HMaterial material = (dmRender::HMaterial) params->m_UserData;
-
-        uint64_t vertex_name_hash = dmRender::GetMaterialUserData1(material);
-        uint64_t fragment_name_hash = dmRender::GetMaterialUserData2(material);
-
-        if (params->m_FilenameHash == vertex_name_hash || params->m_FilenameHash == fragment_name_hash)
-        {
-            dmRender::HRenderContext render_context = dmRender::GetMaterialRenderContext(material);
-            dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
-            dmGraphics::HProgram program = dmRender::GetMaterialProgram(material);
-
-            // HMMM Shouldn't we reset the material here? If a shader has changed inputs/outputs etc,
-            // we need to recreate our internal material structures?? I think this has been broken for a long time.
-
-            // dmRenderDDF::MaterialDesc* ddf = (dmRenderDDF::MaterialDesc*) params->m_PreloadData;
-            // if (!dmGraphics::ReloadProgram(graphics_context, program, params->m_))
-            // {
-            //     dmLogWarning("Reloading the material failed, some shaders might not have been correctly linked.");
-            // }
-
-            /*
-            dmGraphics::HVertexProgram vert_program = dmRender::GetMaterialVertexProgram(material);
-            dmGraphics::HFragmentProgram frag_program = dmRender::GetMaterialFragmentProgram(material);
-
-            if (!dmGraphics::ReloadProgram(graphics_context, program, vert_program, frag_program))
-            {
-                dmLogWarning("Reloading the material failed, some shaders might not have been correctly linked.");
-            }
-            */
-        }
-    }
-
     static void SetMaterial(const char* path, MaterialResource* resource, MaterialResources* resources, dmRenderDDF::MaterialDesc* ddf)
     {
         dmhash_t tags[dmRender::MAX_MATERIAL_TAG_COUNT];
@@ -270,22 +235,6 @@ namespace dmGameSystem
             dmResource::Release(factory, (void*)resources.m_Program);
             return 0;
         }
-
-        HResourceDescriptor desc;
-        dmResource::Result factory_e;
-
-        /*
-        factory_e = dmResource::GetDescriptor(factory, ddf->m_VertexProgram, &desc);
-        assert(factory_e == dmResource::RESULT_OK); // Should not fail at this point
-        dmRender::SetMaterialUserData1(material, ResourceDescriptorGetNameHash(desc));
-
-        factory_e = dmResource::GetDescriptor(factory, ddf->m_FragmentProgram, &desc);
-        assert(factory_e == dmResource::RESULT_OK); // Should not fail at this point
-        dmRender::SetMaterialUserData2(material, ResourceDescriptorGetNameHash(desc));
-
-        dmResource::RegisterResourceReloadedCallback(factory, ResourceReloadedCallback, material);
-        */
-
         return material;
     }
 
@@ -323,7 +272,6 @@ namespace dmGameSystem
         dmRender::HMaterial material = resource->m_Material;
         dmGraphics::HProgram program = dmRender::GetMaterialProgram(material);
 
-        dmResource::UnregisterResourceReloadedCallback(factory, ResourceReloadedCallback, material);
         dmRender::DeleteMaterial(render_context, material);
 
         dmResource::Release(factory, (void*) program);

@@ -729,8 +729,6 @@ def compute_file(self, node):
         google.protobuf.text_format.Merge(in_f.read(), msg)
 
     shader_name = msg.compute_program + ".spc"
-    print("COMPUTE!", shader_name)
-
     classpath = [self.env['DYNAMO_HOME'] + '/share/java/bob-light.jar']
     compute = self.create_task('compute')
     compute.env['CLASSPATH'] = os.pathsep.join(classpath)

@@ -2227,12 +2227,6 @@ static void LogFrameBufferError(GLenum status)
     {
         uint32_t num_ubos = program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers.Size();
         uint32_t ubo_binding = 0;
-        //(for (uint32_t i = 0; i < num_shaders; ++i)
-        //({
-        //(    OpenGLShader* shader = shaders[i];
-        //(    num_ubos += shader->m_ShaderMeta.m_UniformBuffers.Size();
-        //(}
-
         program->m_UniformBuffers.SetCapacity(num_ubos);
         program->m_UniformBuffers.SetSize(num_ubos);
 
@@ -2240,8 +2234,6 @@ static void LogFrameBufferError(GLenum status)
 
         for (uint32_t i = 0; i < num_shaders; ++i)
         {
-            OpenGLShader* shader = shaders[i];
-
             for (uint32_t j = 0; j < program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers.Size(); ++j)
             {
                 ShaderResourceBinding& res = program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers[j];

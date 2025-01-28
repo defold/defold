@@ -2377,29 +2377,48 @@ bail:
         vkCmdDispatch(vk_command_buffer, group_count_x, group_count_y, group_count_z);
     }
 
-    static bool ValidateShaderModule(VulkanContext* context, ShaderModule* shader, char* error_buffer, uint32_t error_buffer_size)
+    static bool ValidateShaderModule(VulkanContext* context, ShaderMeta* meta, ShaderModule* shader, ShaderStageFlag stage_flags, char* error_buffer, uint32_t error_buffer_size)
     {
-        // TODO!
-        /*
-        if (shader->m_ShaderMeta.m_UniformBuffers.Size() > context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorUniformBuffers)
+        uint32_t stage_uniform_buffers = 0;
+        uint32_t stage_storage_buffers = 0;
+        uint32_t stage_textures        = 0;
+
+        for (int i = 0; i < meta->m_UniformBuffers.Size(); ++i)
+        {
+            if (meta->m_UniformBuffers[i].m_StageFlags & stage_flags)
+                stage_uniform_buffers++;
+        }
+
+        for (int i = 0; i < meta->m_StorageBuffers.Size(); ++i)
+        {
+            if (meta->m_StorageBuffers[i].m_StageFlags & stage_flags)
+                stage_storage_buffers++;
+        }
+
+        for (int i = 0; i < meta->m_Textures.Size(); ++i)
+        {
+            if (meta->m_Textures[i].m_StageFlags & stage_flags)
+                stage_textures++;
+        }
+
+        if (stage_uniform_buffers > context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorUniformBuffers)
         {
             dmSnPrintf(error_buffer, error_buffer_size, "Maximum number of uniform buffers exceeded: shader has %d buffers, but maximum is %d.",
-                shader->m_ShaderMeta.m_UniformBuffers.Size(), context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorUniformBuffers);
+                stage_uniform_buffers, context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorUniformBuffers);
             return false;
         }
-        else if (shader->m_ShaderMeta.m_StorageBuffers.Size() > context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorStorageBuffers)
+        else if (stage_storage_buffers > context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorStorageBuffers)
         {
             dmSnPrintf(error_buffer, error_buffer_size, "Maximum number of storage exceeded: shader has %d buffer, but maximum is %d.",
-                shader->m_ShaderMeta.m_StorageBuffers.Size(), context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorStorageBuffers);
+                stage_storage_buffers, context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorStorageBuffers);
             return false;
         }
-        else if (shader->m_ShaderMeta.m_Textures.Size() > context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorSamplers)
+        else if (stage_textures > context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorSamplers)
         {
             dmSnPrintf(error_buffer, error_buffer_size, "Maximum number of texture samplers exceeded: shader has %d samplers, but maximum is %d.",
-                shader->m_ShaderMeta.m_Textures.Size(), context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorSamplers);
+                stage_textures, context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorSamplers);
             return false;
         }
-        */
         return true;
     }
 
@@ -2564,7 +2583,7 @@ bail:
 
                 info.m_MaxSet     = dmMath::Max(info.m_MaxSet, (uint32_t) (res.m_Set + 1));
                 info.m_MaxBinding = dmMath::Max(info.m_MaxBinding, (uint32_t) (res.m_Binding + 1));
-            #if 1
+            #if 0
                 dmLogInfo("    name=%s, set=%d, binding=%d, data_offset=%d", res.m_Name, res.m_Set, res.m_Binding, program_resource_binding.m_DataOffset);
             #endif
             }
@@ -2671,7 +2690,6 @@ bail:
         }
 
         DestroyShaderModule(context->m_LogicalDevice.m_Device, shader);
-        //DestroyShaderMeta(shader->m_ShaderMeta);
     }
 
     static bool ReloadShader(VulkanContext* context, ShaderModule* shader, ShaderDesc::Shader* ddf, VkShaderStageFlagBits stage_flag)
@@ -2692,7 +2710,7 @@ bail:
         return false;
     }
 
-    static inline ShaderModule* NewShaderModule(VulkanContext* context, ShaderDesc::Shader* ddf, VkShaderStageFlagBits stage, char* error_buffer, uint32_t error_buffer_size)
+    static inline ShaderModule* NewShaderModule(VulkanContext* context, ShaderMeta* meta, ShaderDesc::Shader* ddf, VkShaderStageFlagBits stage, char* error_buffer, uint32_t error_buffer_size)
     {
         ShaderModule* module = new ShaderModule;
         memset(module, 0, sizeof(*module));
@@ -2700,7 +2718,20 @@ bail:
         VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, stage, module);
         CHECK_VK_ERROR(res);
 
-        if (!ValidateShaderModule(context, module, error_buffer, error_buffer_size))
+        ShaderStageFlag stage_flag = (ShaderStageFlag) -1;
+        if (stage == VK_SHADER_STAGE_VERTEX_BIT)
+        {
+            stage_flag = SHADER_STAGE_FLAG_VERTEX;
+        }
+        else if (stage == VK_SHADER_STAGE_FRAGMENT_BIT)
+        {
+            stage_flag = SHADER_STAGE_FLAG_FRAGMENT;
+        }
+        else if (stage == VK_SHADER_STAGE_COMPUTE_BIT)
+        {
+            stage_flag = SHADER_STAGE_FLAG_COMPUTE;
+        }
+        if (!ValidateShaderModule(context, meta, module, stage_flag, error_buffer, error_buffer_size))
         {
             DestroyShader(context, module);
             delete module;
@@ -2727,13 +2758,13 @@ bail:
 
         if (ddf_cp)
         {
-            ShaderModule* module_cp = NewShaderModule(context, ddf_cp, VK_SHADER_STAGE_COMPUTE_BIT, error_buffer, error_buffer_size);
+            ShaderModule* module_cp = NewShaderModule(context, &program->m_BaseProgram.m_ShaderMeta, ddf_cp, VK_SHADER_STAGE_COMPUTE_BIT, error_buffer, error_buffer_size);
             CreateComputeProgram(context, program, module_cp);
         }
         else
         {
-            ShaderModule* vertex_module = NewShaderModule(context, ddf_vp, VK_SHADER_STAGE_VERTEX_BIT, error_buffer, error_buffer_size);
-            ShaderModule* fragment_module = NewShaderModule(context, ddf_fp, VK_SHADER_STAGE_FRAGMENT_BIT, error_buffer, error_buffer_size);
+            ShaderModule* vertex_module = NewShaderModule(context, &program->m_BaseProgram.m_ShaderMeta, ddf_vp, VK_SHADER_STAGE_VERTEX_BIT, error_buffer, error_buffer_size);
+            ShaderModule* fragment_module = NewShaderModule(context, &program->m_BaseProgram.m_ShaderMeta, ddf_fp, VK_SHADER_STAGE_FRAGMENT_BIT, error_buffer, error_buffer_size);
             CreateGraphicsProgram((VulkanContext*) context, program, vertex_module, fragment_module);
         }
 
@@ -4222,47 +4253,6 @@ bail:
         }
         return false;
     }
-
-/*
-    static HComputeProgram VulkanNewComputeProgram(HContext _context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
-    {
-        ShaderDesc::Shader* ddf_shader = GetShaderProgram(_context, ddf);
-        if (ddf_shader == 0x0)
-        {
-            return 0x0;
-        }
-
-        VulkanContext* context = (VulkanContext*) _context;
-        ShaderModule* shader   = new ShaderModule;
-        memset(shader, 0, sizeof(*shader));
-
-        VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf_shader->m_Source.m_Data, ddf_shader->m_Source.m_Count, VK_SHADER_STAGE_COMPUTE_BIT, shader);
-        CHECK_VK_ERROR(res);
-        CreateShaderMeta(&ddf->m_Reflection, &shader->m_ShaderMeta);
-
-        if (!ValidateShaderModule(context, shader, error_buffer, error_buffer_size))
-        {
-            DeleteComputeProgram((HComputeProgram) shader);
-            return 0;
-        }
-
-        return (HComputeProgram) shader;
-    }
-
-    static HProgram VulkanNewProgramFromCompute(HContext context, HComputeProgram compute_program)
-    {
-        VulkanProgram* program = new VulkanProgram;
-        CreateComputeProgram((VulkanContext*) context, program, (ShaderModule*) compute_program);
-        return (HProgram) program;
-    }
-
-    static void VulkanDeleteComputeProgram(HComputeProgram prog)
-    {
-        ShaderModule* shader = (ShaderModule*) prog;
-        DestroyShader(shader);
-        delete shader;
-    }
-    */
 
     static void VulkanInvalidateGraphicsHandles(HContext context)
     {
