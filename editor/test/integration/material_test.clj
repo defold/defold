@@ -16,8 +16,6 @@
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.resource :as resource]
-            [editor.resource :as resource]
-            [editor.resource :as resource]
             [integration.test-util :as test-util]
             [editor.workspace :as workspace]
             [editor.defold-project :as project]))
