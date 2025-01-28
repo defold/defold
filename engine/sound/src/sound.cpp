@@ -31,7 +31,6 @@
 #include "sound_private.h"
 
 #include <math.h>
-#include <cfloat>
 
 /**
  * Defold simple sound system
@@ -366,8 +365,22 @@ namespace dmSound
             max_instances = (uint32_t) dmConfigFile::GetInt(config, "sound.max_sound_instances", (int32_t) max_instances);
         }
 
+        // The device wanted to provide the count
+        if (device_info.m_FrameCount)
+        {
+            sound->m_DeviceFrameCount = device_info.m_FrameCount;
+        }
+        else
+        {
+            // for generic devices, we try to calculate a conservative yet small number of frames
+            uint32_t auto_frame_count = device_info.m_MixRate / 60; // use default count
+            float f_auto_frame_count = auto_frame_count / 32; // try to round it to some nice sample alignment (e.g. 16bits *2 channels)
+            sound->m_DeviceFrameCount = ceilf(f_auto_frame_count) * 32;
+            // 48000 -> 800 frames, 44100 -> 736 frames
+        }
+
+        sound->m_FrameCount = sound->m_DeviceFrameCount;
         sound->m_MixRate = device_info.m_MixRate;
-        sound->m_DeviceFrameCount = device_info.m_FrameCount ? device_info.m_FrameCount : params->m_FrameCount;
         sound->m_Instances.SetCapacity(max_instances);
         sound->m_Instances.SetSize(max_instances);
         sound->m_InstancesPool.SetCapacity(max_instances);

@@ -113,7 +113,8 @@ struct TestParams
     float       m_Speed;
     uint8_t     m_Loopcount;
 
-    TestParams(const char* device_name, void* sound, uint32_t sound_size, SoundDataType type, uint32_t tone_rate, uint32_t mix_rate, uint32_t frame_count, uint32_t buffer_frame_count)
+    TestParams(const char* device_name, void* sound, uint32_t sound_size, SoundDataType type,
+                uint32_t tone_rate, uint32_t mix_rate, uint32_t frame_count, uint32_t buffer_frame_count)
     : m_Pan(0.0f)
     , m_Speed(1.0f)
     , m_Loopcount(0)
@@ -1223,14 +1224,14 @@ TEST_P(dmSoundTestPlaySpeedTest, Play)
     ASSERT_EQ(dmSound::RESULT_OK, r);
 }
 
-#define SOUND_TEST(DEVICE, CHANNELS, FREQ, FRAMES, BYTES, BUFFERSIZE) \
+#define SOUND_TEST(DEVICE, CHANNELS, TONE, SAMPLE_RATE, NUM_FRAMES, BUFFERSIZE) \
     TestParams(DEVICE, \
-                CHANNELS ## _TONE_ ## FREQ ## _ ## FRAMES ## _ ## BYTES ## _WAV, \
-                CHANNELS ## _TONE_ ## FREQ ## _ ## FRAMES ## _ ## BYTES ## _WAV_SIZE, \
+                CHANNELS ## _TONE_ ## TONE ## _ ## SAMPLE_RATE ## _ ## NUM_FRAMES ## _WAV, \
+                CHANNELS ## _TONE_ ## TONE ## _ ## SAMPLE_RATE ## _ ## NUM_FRAMES ## _WAV_SIZE, \
                 dmSound::SOUND_DATA_TYPE_WAV, \
-                FREQ, \
-                FRAMES, \
-                FRAMES, \
+                TONE, \
+                SAMPLE_RATE, \
+                NUM_FRAMES, \
                 BUFFERSIZE)
 
 const TestParams params_test_play_test[] = {
@@ -1257,7 +1258,7 @@ const TestParams params_test_play_test[] = {
     SOUND_TEST("default", STEREO, 2000, 44100, 11025, 2048),
     SOUND_TEST("default", STEREO, 2000, 48000, 12000, 2048),
 };
-INSTANTIATE_TEST_CASE_P(dmSoundTestPlayTestMono, dmSoundTestPlayTest, jc_test_values_in(params_test_play_test));
+INSTANTIATE_TEST_CASE_P(dmSoundTestPlayTest, dmSoundTestPlayTest, jc_test_values_in(params_test_play_test));
 
 const TestParams params_test_play_speed_test[] = {
     TestParams("default",
