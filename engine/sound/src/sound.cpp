@@ -1004,7 +1004,7 @@ namespace dmSound
         }
     }
 
-    static void MixResampleIdentity(const MixContext* mix_context, SoundInstance* instance, uint32_t channels, uint64_t delta, float* mix_buffer[], uint32_t mix_buffer_count, uint32_t avail_framecount)
+    static inline void MixResampleIdentity(const MixContext* mix_context, SoundInstance* instance, uint32_t channels, uint64_t delta, float* mix_buffer[], uint32_t mix_buffer_count, uint32_t avail_framecount)
     {
         (void)delta;
 
@@ -1032,7 +1032,7 @@ namespace dmSound
         SaveTempBufferState(instance, avail_framecount, mix_buffer_count, channels);
     }
 
-    static void MixResamplePolyphase(const MixContext* mix_context, SoundInstance* instance, uint32_t channels, uint64_t delta, float* mix_buffer[], uint32_t mix_buffer_count, uint32_t avail_framecount)
+    static inline void MixResamplePolyphase(const MixContext* mix_context, SoundInstance* instance, uint32_t channels, uint64_t delta, float* mix_buffer[], uint32_t mix_buffer_count, uint32_t avail_framecount)
     { 
         static_assert(SOUND_MAX_MIX_CHANNELS == 2, "this code assumes 2 mix channels");
 
@@ -1065,7 +1065,7 @@ namespace dmSound
         SaveTempBufferState(instance, avail_framecount, next_index, channels);
     }
 
-    static void MixResample(const MixContext* mix_context, SoundInstance* instance, const dmSoundCodec::Info* info, uint64_t delta, float* mix_buffer[], uint32_t mix_buffer_count, uint32_t avail_framecount)
+    static inline void MixResample(const MixContext* mix_context, SoundInstance* instance, const dmSoundCodec::Info* info, uint64_t delta, float* mix_buffer[], uint32_t mix_buffer_count, uint32_t avail_framecount)
     {
         // 1:1 output only if:
         // - rate is mixrate (including speed factor!) -> delta = 1.0
@@ -1081,7 +1081,7 @@ namespace dmSound
         }
     }
 
-    static void Mix(const MixContext* mix_context, SoundInstance* instance, uint64_t delta, uint32_t avail_frames, const dmSoundCodec::Info* info, SoundGroup* group)
+    static inline void Mix(const MixContext* mix_context, SoundInstance* instance, uint64_t delta, uint32_t avail_frames, const dmSoundCodec::Info* info, SoundGroup* group)
     {
         DM_PROFILE(__FUNCTION__);
 
@@ -1121,7 +1121,7 @@ namespace dmSound
         return false;
     }
 
-    static void MixInstance(const MixContext* mix_context, SoundInstance* instance) {
+    static inline void MixInstance(const MixContext* mix_context, SoundInstance* instance) {
         SoundSystem* sound = g_SoundSystem;
 
         dmSoundCodec::Info info;
@@ -1286,6 +1286,10 @@ namespace dmSound
             assert(frame_count > SOUND_MAX_FUTURE);
             Mix(mix_context, instance, delta, frame_count - SOUND_MAX_FUTURE, &info, group);
         }
+
+        if (instance->m_EndOfStream) {
+            instance->m_Playing = 0;
+        }
     }
 
     static void MixInstances(const MixContext* mix_context)
@@ -1297,25 +1301,12 @@ namespace dmSound
         for (uint32_t i = 0; i < MAX_GROUPS; i++) {
             SoundGroup* g = &sound->m_Groups[i];
 
-//TODO: WHY IS THIS DONE ALL THE TIME? SEEMS A BIT OF A LUXURY? WHAT DEPENDS ON IT?
             if (g->m_MixBuffer[0]) {
-                float sum_sq_left = 0;
-                float sum_sq_right = 0;
-                float max_sq_left = 0;
-                float max_sq_right = 0;
-                for (uint32_t j = 0; j < frame_count; j++) {
-
-                    float gain = g->m_Gain.m_Current;
-
-                    float left = g->m_MixBuffer[0][j] * gain;
-                    float right = g->m_MixBuffer[1][j] * gain;
-                    float left_sq = left * left;
-                    float right_sq = right * right;
-                    sum_sq_left += left_sq;
-                    sum_sq_right += right_sq;
-                    max_sq_left = dmMath::Max(max_sq_left, left_sq);
-                    max_sq_right = dmMath::Max(max_sq_right, right_sq);
-                }
+                float sum_sq_left;
+                float sum_sq_right;
+                float max_sq_left;
+                float max_sq_right;
+                GatherPowerData(g->m_MixBuffer, frame_count, g->m_Gain.m_Current, sum_sq_left, sum_sq_right, max_sq_left, max_sq_right);
                 g->m_SumSquaredMemory[2 * g->m_NextMemorySlot + 0] = sum_sq_left;
                 g->m_SumSquaredMemory[2 * g->m_NextMemorySlot + 1] = sum_sq_right;
                 g->m_PeakMemorySq[2 * g->m_NextMemorySlot + 0] = max_sq_left;
@@ -1333,11 +1324,6 @@ namespace dmSound
             if (instance->m_Playing)
             {
                 MixInstance(mix_context, instance);
-            }
-
-//Q: MOVE INTO MixInstance? (does some controlling of this already)
-            if (instance->m_EndOfStream) {
-                instance->m_Playing = 0;
             }
         }
     }

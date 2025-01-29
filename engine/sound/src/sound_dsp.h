@@ -320,6 +320,59 @@ static inline void ApplyGainAndInterleaveToS16(int16_t* out, float* in[], uint32
     }
 }
 
+static inline void GatherPowerData(float* in[], uint32_t num, float gain, float& sum_sq_left, float& sum_sq_right, float& max_sq_left, float& max_sq_right)
+{
+    vec4* in_l = (vec4*)in[0];
+    vec4* in_r = (vec4*)in[1];
+
+    vec4 maxl = _mm_set1_ps(0.0f);
+    vec4 suml = maxl;
+    vec4 maxr = maxl;
+    vec4 sumr = maxl;
+
+    for(; num>3; num-=4)
+    {
+        vec4 sl = *(in_l++) * gain;
+        vec4 sr = *(in_l++) * gain;
+        sl *= sl;
+        sr *= sr;
+        maxl = _mm_max_ps(maxl, sl);
+        maxr = _mm_max_ps(maxr, sr);
+        suml += sl;
+        sumr += sr;
+    }
+
+    maxl = _mm_max_ps(maxl, _mm_shuffle_ps(maxl, maxl, _MM_SHUFFLE(0,3,0,1)));
+    maxl = _mm_max_ps(maxl, _mm_shuffle_ps(maxl, maxl, _MM_SHUFFLE(0,0,0,2)));
+    max_sq_left = maxl[0];
+
+    maxr = _mm_max_ps(maxr, _mm_shuffle_ps(maxr, maxr, _MM_SHUFFLE(0,3,0,1)));
+    maxr = _mm_max_ps(maxr, _mm_shuffle_ps(maxr, maxr, _MM_SHUFFLE(0,0,0,2)));
+    max_sq_right = maxr[0];
+
+    suml += _mm_shuffle_ps(suml, suml, _MM_SHUFFLE(0,3,0,1));
+    suml += _mm_shuffle_ps(suml, suml, _MM_SHUFFLE(0,0,0,2));
+    sum_sq_left = suml[0];
+
+    sumr += _mm_shuffle_ps(sumr, sumr, _MM_SHUFFLE(0,3,0,1));
+    sumr += _mm_shuffle_ps(sumr, sumr, _MM_SHUFFLE(0,0,0,2));
+    sum_sq_right = sumr[0];
+
+    float* fin_l = (float*)in_l;
+    float* fin_r = (float*)in_r;
+    for (; num>0; --num)
+    {
+        float left = *(fin_l++) * gain;
+        float right = *(fin_r++) * gain;
+        float left_sq = left * left;
+        float right_sq = right * right;
+        sum_sq_left += left_sq;
+        sum_sq_right += right_sq;
+        max_sq_left = dmMath::Max(max_sq_left, left_sq);
+        max_sq_right = dmMath::Max(max_sq_right, right_sq);
+    }
+}
+
 #else // defined(__SSE__)
 
 //
@@ -439,6 +492,26 @@ static inline void ApplyGainAndInterleaveToS16(int16_t* out, float* in[], uint32
         scale += scale_delta;
     }
 }
+
+static inline void GatherPowerData(float* in[], uint32_t num, float gain, float& sum_sq_left, float& sum_sq_right, float& max_sq_left, float& max_sq_right)
+{
+    sum_sq_left = 0;
+    sum_sq_right = 0;
+    max_sq_left = 0;
+    max_sq_right = 0;
+    for (uint32_t j = 0; j < num; j++) {
+        float left = in[0][j] * gain;
+        float right = in[1][j] * gain;
+        float left_sq = left * left;
+        float right_sq = right * right;
+        sum_sq_left += left_sq;
+        sum_sq_right += right_sq;
+        max_sq_left = dmMath::Max(max_sq_left, left_sq);
+        max_sq_right = dmMath::Max(max_sq_right, right_sq);
+    }
+}
+
+
 
 #endif // SSEx
 
