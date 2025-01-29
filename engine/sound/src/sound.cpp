@@ -197,7 +197,7 @@ namespace dmSound
         float*   m_MixBuffer;
         float    m_SumSquaredMemory[SOUND_MAX_MIX_CHANNELS * GROUP_MEMORY_BUFFER_COUNT];
         float    m_PeakMemorySq[SOUND_MAX_MIX_CHANNELS * GROUP_MEMORY_BUFFER_COUNT];
-        int16_t  m_FrameCounts[GROUP_MEMORY_BUFFER_COUNT];
+        uint16_t m_FrameCounts[GROUP_MEMORY_BUFFER_COUNT];
         int      m_NextMemorySlot;
     };
 
@@ -828,7 +828,7 @@ namespace dmSound
         while (left > 0) {
             sum_sq_left += g->m_SumSquaredMemory[2 * ss_index + 0];
             sum_sq_right += g->m_SumSquaredMemory[2 * ss_index + 1];
-            int16_t frame_count = g->m_FrameCounts[ss_index];
+            uint16_t frame_count = g->m_FrameCounts[ss_index];
 
             left -= frame_count;
             total_frame_count += frame_count;
@@ -867,7 +867,7 @@ namespace dmSound
         while (left > 0) {
             max_peak_left_sq = dmMath::Max(max_peak_left_sq, g->m_PeakMemorySq[2 * ss_index + 0]);
             max_peak_right_sq = dmMath::Max(max_peak_right_sq, g->m_PeakMemorySq[2 * ss_index + 1]);
-            int16_t frame_count = g->m_FrameCounts[ss_index];
+            uint16_t frame_count = g->m_FrameCounts[ss_index];
 
             left -= frame_count;
             ss_index = (ss_index - 1) % GROUP_MEMORY_BUFFER_COUNT;
