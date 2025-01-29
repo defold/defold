@@ -685,12 +685,13 @@ var GameArchiveLoader = {
                     data = FS.mmap(file.stream, file.size, 0, 0x01, 0x01); //PROT_READ, MAP_SHARED
                 } catch(e) { }
             }
-            return window.crypto.subtle.digest("SHA-1", data).then((digest) => {
-                const sha1 = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
-                if (sha1 !== file.sha1)
-                    return Promise.reject(new Error(`Unexpected hash ${sha1} wanted ${file.sha1}`));
-                return;
-            });
+            if(data) {
+                return window.crypto.subtle.digest("SHA-1", data).then((digest) => {
+                    const sha1 = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+                    if (sha1 !== file.sha1)
+                        return Promise.reject(new Error(`Unexpected hash ${sha1} wanted ${file.sha1}`));
+                });
+            }
         }
         return Promise.resolve();
     },
