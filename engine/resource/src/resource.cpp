@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -687,6 +687,14 @@ Result LoadResourceToBufferLocked(HFactory factory, const char* path, const char
     return RESULT_RESOURCE_NOT_FOUND;
 }
 
+#if !defined(DM_HAS_THREADS)
+// Only used on single threaded systems (load_queue_sync.cpp)
+LoadBufferType* GetGlobalLoadBuffer(HFactory factory)
+{
+    return &factory->m_Buffer;
+}
+#endif
+
 // Called from the resource_preloader.cpp
 // Takes the lock.
 Result LoadResourceToBuffer(HFactory factory, const char* path, const char* original_name, uint32_t preload_size, uint32_t* resource_size, uint32_t* buffer_size, LoadBufferType* buffer)
@@ -738,7 +746,7 @@ static Result DoCreateResource(HFactory factory, ResourceType* resource_type, co
     tmp_resource.m_ReferenceCount = 1;
     tmp_resource.m_ResourceType   = resource_type;
 
-    void *preload_data = 0;
+    void* preload_data = 0;
     Result create_error = RESULT_OK;
 
     bool is_partial = buffer_size != resource_size;
@@ -746,17 +754,20 @@ static Result DoCreateResource(HFactory factory, ResourceType* resource_type, co
     if (resource_type->m_PreloadFunction)
     {
         ResourcePreloadParams params;
-        params.m_Factory        = factory;
-        params.m_Type           = resource_type;
-        params.m_Context        = resource_type->m_Context;
-        params.m_Buffer         = buffer;
-        params.m_BufferSize     = buffer_size;
-        params.m_FileSize       = resource_size;
-        params.m_IsBufferPartial= is_partial;
-        params.m_PreloadData    = &preload_data;
-        params.m_Filename       = name;
-        params.m_HintInfo       = 0; // No hinting now
-        create_error            = (Result)resource_type->m_PreloadFunction(&params);
+        params.m_Factory                = factory;
+        params.m_Type                   = resource_type;
+        params.m_Context                = resource_type->m_Context;
+        params.m_Buffer                 = buffer;
+        params.m_BufferSize             = buffer_size;
+        params.m_FileSize               = resource_size;
+        params.m_IsBufferPartial        = is_partial;
+        params.m_IsBufferTransferrable  = 0;
+        params.m_Filename               = name;
+        params.m_HintInfo               = 0; // No hinting now
+        // out
+        params.m_PreloadData            = &preload_data;
+        params.m_IsBufferOwnershipTransferred = 0;
+        create_error                    = (Result)resource_type->m_PreloadFunction(&params);
     }
 
     if (create_error == RESULT_OK)

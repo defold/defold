@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -20,11 +20,9 @@
             [editor.diff-view :as diff-view]
             [editor.disk-availability :as disk-availability]
             [editor.error-reporting :as error-reporting]
-            [editor.fxui :as fxui]
             [editor.git :as git]
             [editor.handler :as handler]
             [editor.resource :as resource]
-            [editor.sync :as sync]
             [editor.ui :as ui]
             [editor.vcs-status :as vcs-status]
             [editor.workspace :as workspace]
@@ -131,39 +129,6 @@
             (git/selection-diffable? selection))
   (run [selection ^Git git]
        (diff-view/present-diff-data (git/selection-diff-data git selection))))
-
-(defn project-is-git-repo? [changes-view]
-  (some? (g/node-value changes-view :git)))
-
-(defn regular-sync! [changes-view]
-  (let [git (g/node-value changes-view :git)
-        prefs (g/node-value changes-view :prefs)
-        flow (sync/begin-flow! git prefs)]
-    (sync/open-sync-dialog flow prefs)))
-
-(defn ensure-no-locked-files! [changes-view]
-  (let [git (g/node-value changes-view :git)]
-    (loop []
-      (if-some [locked-files (not-empty (git/locked-files git))]
-        ;; Found locked files below the project. Notify user and offer to retry.
-        (if (dialogs/make-confirmation-dialog
-              {:title "Not Safe to Sync"
-               :icon :icon/circle-question
-               :header "There are locked files, retry?"
-               :content {:fx/type fxui/label
-                         :style-class "dialog-content-padding"
-                         :text (git/locked-files-error-message locked-files)}
-               :buttons [{:text "Cancel"
-                          :cancel-button true
-                          :result false}
-                         {:text "Retry"
-                          :default-button true
-                          :result true}]})
-          (recur)
-          false)
-
-        ;; Found no locked files.
-        true))))
 
 (g/defnode ChangesView
   (inherits core/Scope)

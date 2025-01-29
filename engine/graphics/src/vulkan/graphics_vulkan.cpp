@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -40,10 +40,9 @@ namespace dmGraphics
     static GraphicsAdapterFunctionTable VulkanRegisterFunctionTable();
     static bool                         VulkanIsSupported();
     static HContext                     VulkanGetContext();
-    static const int8_t    g_vulkan_adapter_priority = 0;
     static GraphicsAdapter g_vulkan_adapter(ADAPTER_FAMILY_VULKAN);
 
-    DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterVulkan, &g_vulkan_adapter, VulkanIsSupported, VulkanRegisterFunctionTable, VulkanGetContext, g_vulkan_adapter_priority);
+    DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterVulkan, &g_vulkan_adapter, VulkanIsSupported, VulkanRegisterFunctionTable, VulkanGetContext, ADAPTER_FAMILY_PRIORITY_VULKAN);
 
     static const char* VkResultToStr(VkResult res);
     #define CHECK_VK_ERROR(result) \
@@ -142,18 +141,6 @@ namespace dmGraphics
     static inline bool IsTextureMemoryless(VulkanTexture* texture)
     {
         return texture->m_UsageFlags & VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
-    }
-
-    static inline uint32_t GetNextRenderTargetId()
-    {
-        static uint32_t next_id = 1;
-
-        // DM_RENDERTARGET_BACKBUFFER_ID is taken for the main framebuffer
-        if (next_id == DM_RENDERTARGET_BACKBUFFER_ID)
-        {
-            next_id = DM_RENDERTARGET_BACKBUFFER_ID + 1;
-        }
-        return next_id++;
     }
 
     static inline bool IsRenderTargetbound(VulkanContext* context, HRenderTarget rt)
@@ -3075,20 +3062,20 @@ bail:
             case TEXTURE_FORMAT_BGRA8U:             return VK_FORMAT_B8G8R8A8_UNORM;
             case TEXTURE_FORMAT_R32UI:              return VK_FORMAT_R32_UINT;
             // ASTC
-            case TEXTURE_FORMAT_RGBA_ASTC_4x4:      return VK_FORMAT_ASTC_4x4_UNORM_BLOCK;
-            case TEXTURE_FORMAT_RGBA_ASTC_5x4:      return VK_FORMAT_ASTC_5x4_UNORM_BLOCK;
-            case TEXTURE_FORMAT_RGBA_ASTC_5x5:      return VK_FORMAT_ASTC_5x5_UNORM_BLOCK;
-            case TEXTURE_FORMAT_RGBA_ASTC_6x5:      return VK_FORMAT_ASTC_6x5_UNORM_BLOCK;
-            case TEXTURE_FORMAT_RGBA_ASTC_6x6:      return VK_FORMAT_ASTC_6x6_UNORM_BLOCK;
-            case TEXTURE_FORMAT_RGBA_ASTC_8x5:      return VK_FORMAT_ASTC_8x5_UNORM_BLOCK;
-            case TEXTURE_FORMAT_RGBA_ASTC_8x6:      return VK_FORMAT_ASTC_8x6_UNORM_BLOCK;
-            case TEXTURE_FORMAT_RGBA_ASTC_8x8:      return VK_FORMAT_ASTC_8x8_UNORM_BLOCK;
-            case TEXTURE_FORMAT_RGBA_ASTC_10x5:     return VK_FORMAT_ASTC_10x5_UNORM_BLOCK;
-            case TEXTURE_FORMAT_RGBA_ASTC_10x6:     return VK_FORMAT_ASTC_10x6_UNORM_BLOCK;
-            case TEXTURE_FORMAT_RGBA_ASTC_10x8:     return VK_FORMAT_ASTC_10x8_UNORM_BLOCK;
-            case TEXTURE_FORMAT_RGBA_ASTC_10x10:    return VK_FORMAT_ASTC_10x10_UNORM_BLOCK;
-            case TEXTURE_FORMAT_RGBA_ASTC_12x10:    return VK_FORMAT_ASTC_12x10_UNORM_BLOCK;
-            case TEXTURE_FORMAT_RGBA_ASTC_12x12:    return VK_FORMAT_ASTC_12x12_UNORM_BLOCK;
+            case TEXTURE_FORMAT_RGBA_ASTC_4X4:      return VK_FORMAT_ASTC_4x4_UNORM_BLOCK;
+            case TEXTURE_FORMAT_RGBA_ASTC_5X4:      return VK_FORMAT_ASTC_5x4_UNORM_BLOCK;
+            case TEXTURE_FORMAT_RGBA_ASTC_5X5:      return VK_FORMAT_ASTC_5x5_UNORM_BLOCK;
+            case TEXTURE_FORMAT_RGBA_ASTC_6X5:      return VK_FORMAT_ASTC_6x5_UNORM_BLOCK;
+            case TEXTURE_FORMAT_RGBA_ASTC_6X6:      return VK_FORMAT_ASTC_6x6_UNORM_BLOCK;
+            case TEXTURE_FORMAT_RGBA_ASTC_8X5:      return VK_FORMAT_ASTC_8x5_UNORM_BLOCK;
+            case TEXTURE_FORMAT_RGBA_ASTC_8X6:      return VK_FORMAT_ASTC_8x6_UNORM_BLOCK;
+            case TEXTURE_FORMAT_RGBA_ASTC_8X8:      return VK_FORMAT_ASTC_8x8_UNORM_BLOCK;
+            case TEXTURE_FORMAT_RGBA_ASTC_10X5:     return VK_FORMAT_ASTC_10x5_UNORM_BLOCK;
+            case TEXTURE_FORMAT_RGBA_ASTC_10X6:     return VK_FORMAT_ASTC_10x6_UNORM_BLOCK;
+            case TEXTURE_FORMAT_RGBA_ASTC_10X8:     return VK_FORMAT_ASTC_10x8_UNORM_BLOCK;
+            case TEXTURE_FORMAT_RGBA_ASTC_10X10:    return VK_FORMAT_ASTC_10x10_UNORM_BLOCK;
+            case TEXTURE_FORMAT_RGBA_ASTC_12X10:    return VK_FORMAT_ASTC_12x10_UNORM_BLOCK;
+            case TEXTURE_FORMAT_RGBA_ASTC_12X12:    return VK_FORMAT_ASTC_12x12_UNORM_BLOCK;
 
             default:                                return VK_FORMAT_UNDEFINED;
         };

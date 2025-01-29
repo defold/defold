@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -20,6 +20,7 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
 import java.util.List;
 
+import com.dynamo.bob.util.MurmurHash;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -643,7 +644,6 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
     static ShaderDesc.Shader getShaderByLanguage(ShaderDesc shaderDesc, ShaderDesc.Language language) {
         for (ShaderDesc.Shader shader : shaderDesc.getShadersList()) {
-            System.out.println("Shader " + shader.getLanguage());
             if (shader.getLanguage() == language) {
                 return shader;
             }
@@ -818,12 +818,66 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
     @Test
     public void testNativeReflectionAPI() throws Exception {
         byte[] spvSimple = getFile("simple.spv");
-        assertTrue(spvSimple != null);
+        assertNotNull(spvSimple);
 
         long ctx = ShadercJni.NewShaderContext(spvSimple);
         Shaderc.ShaderReflection reflection = ShadercJni.GetReflection(ctx);
 
         assertEquals("FragColor", reflection.outputs[0].name);
+
+        ShadercJni.DeleteShaderContext(ctx);
+    }
+
+    static Shaderc.ShaderResource getShaderResourceByName(Shaderc.ShaderResource[] resources, String name) {
+        for (Shaderc.ShaderResource res : resources) {
+            if (res.name.equals(name)) {
+                return res;
+            }
+        }
+        return null;
+    }
+
+    @Test
+    public void testNativeReflectionAPIRemapBindings() throws Exception {
+        byte[] spvBindings = getFile("bindings.spv");
+        assertNotNull(spvBindings);
+
+        long ctx = ShadercJni.NewShaderContext(spvBindings);
+        Shaderc.ShaderReflection reflection = ShadercJni.GetReflection(ctx);
+
+        Shaderc.ShaderResource res_position = getShaderResourceByName(reflection.inputs, "position");
+        assertNotNull(res_position);
+        Shaderc.ShaderResource res_normal = getShaderResourceByName(reflection.inputs, "normal");
+        assertNotNull(res_normal);
+        Shaderc.ShaderResource res_tex_coord = getShaderResourceByName(reflection.inputs, "tex_coord");
+        assertNotNull(res_tex_coord);
+
+        assertEquals(0, res_position.location);
+        assertEquals(1, res_normal.location);
+        assertEquals(2, res_tex_coord.location);
+
+        long spvCompiler = ShadercJni.NewShaderCompiler(ctx, Shaderc.ShaderLanguage.SHADER_LANGUAGE_SPIRV.getValue());
+        ShadercJni.SetResourceLocation(ctx, spvCompiler, MurmurHash.hash64("position"), 3);
+        ShadercJni.SetResourceLocation(ctx, spvCompiler, MurmurHash.hash64("normal"), 4);
+        ShadercJni.SetResourceLocation(ctx, spvCompiler, MurmurHash.hash64("tex_coord"), 5);
+
+        Shaderc.ShaderCompilerOptions opts = new Shaderc.ShaderCompilerOptions();
+        opts.entryPoint = "no-entry-point"; // JNI will crash if this is null!
+
+        byte[] spvCompiledResult = ShadercJni.Compile(ctx, spvCompiler, opts);
+        long spvCompiledCtx = ShadercJni.NewShaderContext(spvCompiledResult);
+        Shaderc.ShaderReflection spvCompiledReflection = ShadercJni.GetReflection(spvCompiledCtx);
+
+        res_position = getShaderResourceByName(spvCompiledReflection.inputs, "position");
+        assertNotNull(res_position);
+        res_normal = getShaderResourceByName(spvCompiledReflection.inputs, "normal");
+        assertNotNull(res_normal);
+        res_tex_coord = getShaderResourceByName(spvCompiledReflection.inputs, "tex_coord");
+        assertNotNull(res_tex_coord);
+
+        assertEquals(3, res_position.location);
+        assertEquals(4, res_normal.location);
+        assertEquals(5, res_tex_coord.location);
 
         ShadercJni.DeleteShaderContext(ctx);
     }

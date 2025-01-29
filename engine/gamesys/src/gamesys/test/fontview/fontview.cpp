@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -129,9 +129,10 @@ namespace dmFontView
             context->m_Window = dmPlatform::NewWindow();
 
             dmPlatform::WindowParams window_params = {};
-            window_params.m_Width           = 960;
-            window_params.m_Height          = 540;
-            window_params.m_Title           = "FontView";
+            window_params.m_Width            = 960;
+            window_params.m_Height           = 540;
+            window_params.m_Title            = "FontView";
+            window_params.m_ContextAlphabits = 8;
 
             dmPlatform::OpenWindow(context->m_Window, window_params);
 

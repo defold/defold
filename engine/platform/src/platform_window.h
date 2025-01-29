@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -41,11 +41,12 @@ namespace dmPlatform
 
     enum PlatformGraphicsApi
     {
-        PLATFORM_GRAPHICS_API_NULL   = 0,
-        PLATFORM_GRAPHICS_API_OPENGL = 1,
-        PLATFORM_GRAPHICS_API_VULKAN = 2,
-        PLATFORM_GRAPHICS_API_VENDOR = 3,
-        PLATFORM_GRAPHICS_API_WEBGPU = 4,
+        PLATFORM_GRAPHICS_API_NULL    = 0,
+        PLATFORM_GRAPHICS_API_OPENGL  = 1,
+        PLATFORM_GRAPHICS_API_VULKAN  = 2,
+        PLATFORM_GRAPHICS_API_VENDOR  = 3,
+        PLATFORM_GRAPHICS_API_WEBGPU  = 4,
+        PLATFORM_GRAPHICS_API_DIRECTX = 5,
     };
 
     enum DeviceState
@@ -141,6 +142,7 @@ namespace dmPlatform
         bool                    m_HighDPI;
         // Window background color, RGB 0x00BBGGRR
         uint32_t                m_BackgroundColor;
+        uint8_t                 m_ContextAlphabits;
         // OpenGL specific settings
         uint8_t                 m_OpenGLVersionHint        : 7; // I.e: 33, 40-46, 0 (use highest available)
         uint8_t                 m_OpenGLUseCoreProfileHint : 1;
