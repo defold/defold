@@ -432,6 +432,9 @@ namespace dmSound
             sound->m_Thread = dmThread::New((dmThread::ThreadStart)SoundThread, 0x80000, sound, "sound");
         }
 
+        dmLogInfo("Sound");
+        dmLogInfo("  nSamplesPerSec:   %d", device_info.m_MixRate);
+
         return r;
     }
 

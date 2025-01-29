@@ -127,9 +127,6 @@ namespace dmDeviceOpenAL
 
         *device = openal;
 
-        dmLogInfo("Info");
-        dmLogInfo("  nSamplesPerSec:   %d", openal->m_MixRate);
-
         alcMakeContextCurrent(NULL);
 
         return dmSound::RESULT_OK;
