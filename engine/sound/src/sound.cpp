@@ -491,6 +491,11 @@ namespace dmSound
         return result;
     }
 
+    uint32_t GetMixRate()
+    {
+        return g_SoundSystem->m_MixRate;
+    }
+
     static inline const char* GetSoundName(SoundSystem* sound, SoundInstance* instance)
     {
         dmhash_t hash = sound->m_SoundData[instance->m_SoundDataIndex].m_NameHash;
@@ -1389,7 +1394,7 @@ namespace dmSound
                 g->m_PeakMemorySq[2 * g->m_NextMemorySlot + 1] = max_sq_right;
                 g->m_NextMemorySlot = (g->m_NextMemorySlot + 1) % GROUP_MEMORY_BUFFER_COUNT;
 
-                memset(g->m_MixBuffer, 0, frame_count * sizeof(float) * 2);
+                memset(g->m_MixBuffer, 0, frame_count * sizeof(float) * SOUND_MAX_MIX_CHANNELS);
             }
         }
 
@@ -1455,10 +1460,8 @@ namespace dmSound
             float gain = ramp.GetValue(i);
             float s1 = mix_buffer[2 * i] * gain;
             float s2 = mix_buffer[2 * i + 1] * gain;
-            s1 = dmMath::Min(32767.0f, s1);
-            s1 = dmMath::Max(-32768.0f, s1);
-            s2 = dmMath::Min(32767.0f, s2);
-            s2 = dmMath::Max(-32768.0f, s2);
+            s1 = dmMath::Clamp(s1, -32768.0f, 32767.0f);
+            s2 = dmMath::Clamp(s2, -32768.0f, 32767.0f);
             out[2 * i] = (int16_t) s1;
             out[2 * i + 1] = (int16_t) s2;
         }

@@ -103,6 +103,10 @@ namespace dmSound
     // Pauses the (threaded) sound system
     Result Pause(bool pause);
 
+    // returns the audio device mix rate (48000, 44100 etc)
+    // Only valid after successful initialization
+    uint32_t GetMixRate();
+
     const char* ResultToString(Result result);
 
     typedef Result (*FSoundDataGetData)(void* context, uint32_t offset, uint32_t size, void* out, uint32_t* out_size);

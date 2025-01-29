@@ -1179,7 +1179,7 @@ TEST_P(dmSoundTestPlayTest, Play)
     ASSERT_EQ(dmSound::RESULT_OK, r);
 }
 
-TEST_P(dmSoundTestPlaySpeedTest, Play)
+TEST_P(dmSoundTestPlaySpeedTest, PlaySpeed)
 {
     TestParams params = GetParam();
     dmSound::Result r;
