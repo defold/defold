@@ -29,14 +29,10 @@
 #include "sound.h"
 #include "sound_codec.h"
 #include "sound_private.h"
-#include "sound_pfb.h"
+#include "sound_dsp.h"
 
 #include <math.h>
 #include <cfloat>
-
-#ifdef __SSE__
-#include <immintrin.h>
-#endif
 
 /**
  * Defold simple sound system
@@ -46,20 +42,6 @@
 namespace dmSound
 {
     using namespace dmVMath;
-
-    #define SOUND_MAX_DECODE_CHANNELS (2)
-    #define SOUND_MAX_MIX_CHANNELS (2)
-    #define SOUND_OUTBUFFER_COUNT (6)
-    #define SOUND_MAX_SPEED (5)
-    #define SOUND_MAX_HISTORY (4)
-    #define SOUND_MAX_FUTURE (4)
-    #define SOUND_INSTANCE_STATEFRAMECOUNT (SOUND_MAX_HISTORY + SOUND_MAX_SPEED + SOUND_MAX_FUTURE)         // "max speed" is used as "extra sample count" as we can at most leave these many samples in the buffers due to fractional positions etc.
-
-    // TODO: How many bits? - now adjusted to reflect available polyphase filter bank entries
-    const uint32_t RESAMPLE_FRACTION_BITS = 11; //31;
-
-    const dmhash_t MASTER_GROUP_HASH = dmHashString64("master");
-    const uint32_t GROUP_MEMORY_BUFFER_COUNT = 64;
 
     static void SoundThread(void* ctx);
 
@@ -115,28 +97,6 @@ namespace dmSound
     };
 
     /**
-     * Helper for calculating ramps
-     */
-    struct Ramp
-    {
-        float m_From, m_To, m_TotalSamplesRecip;
-
-        Ramp(const Value* value, uint32_t buffer, uint32_t total_buffers, uint32_t total_samples)
-        {
-            float ramp_length = (value->m_Current - value->m_Prev) / total_buffers;
-            m_From = value->m_Prev + ramp_length * buffer;
-            m_To = m_From + ramp_length;
-            m_TotalSamplesRecip = 1.0f / total_samples;
-        }
-
-        inline float GetValue(int i) const
-        {
-            float mix = i * m_TotalSamplesRecip;
-            return m_From + mix * (m_To - m_From);
-        }
-    };
-
-    /**
      * Context with data for mixing N buffers, i.e. during update
      */
     struct MixContext
@@ -154,10 +114,11 @@ namespace dmSound
         uint32_t m_FrameCount;
     };
 
-    Ramp GetRamp(const MixContext* mix_context, const Value* value, uint32_t total_samples)
+    float GetRampDelta(float& from, const MixContext* mix_context, const Value* value, uint32_t total_samples)
     {
-        Ramp ramp(value, mix_context->m_CurrentBuffer, mix_context->m_TotalBuffers, total_samples);
-        return ramp;
+        float ramp_length = (value->m_Current - value->m_Prev) / mix_context->m_TotalBuffers;
+        from = value->m_Prev + ramp_length * mix_context->m_CurrentBuffer;
+        return ramp_length / total_samples;
     }
 
     struct SoundDataCallbacks
@@ -206,7 +167,7 @@ namespace dmSound
     {
         dmhash_t m_NameHash;
         Value    m_Gain;
-        float*   m_MixBuffer;
+        float*   m_MixBuffer[SOUND_MAX_MIX_CHANNELS];
         float    m_SumSquaredMemory[SOUND_MAX_MIX_CHANNELS * GROUP_MEMORY_BUFFER_COUNT];
         float    m_PeakMemorySq[SOUND_MAX_MIX_CHANNELS * GROUP_MEMORY_BUFFER_COUNT];
         int      m_NextMemorySlot;
@@ -323,9 +284,13 @@ namespace dmSound
         SoundGroup* group = &sound->m_Groups[index];
         group->m_NameHash = group_hash;
         group->m_Gain.Reset(1.0f);
-        size_t mix_buffer_size = sound->m_DeviceFrameCount * sizeof(float) * SOUND_MAX_MIX_CHANNELS;
-        group->m_MixBuffer = (float*) malloc(mix_buffer_size);
-        memset(group->m_MixBuffer, 0, mix_buffer_size);
+
+        for(uint32_t c=0; c<SOUND_MAX_MIX_CHANNELS; ++c)
+        {
+            size_t mix_buffer_size = sound->m_DeviceFrameCount * sizeof(float);
+            group->m_MixBuffer[c] = (float*) malloc(mix_buffer_size);
+            memset(group->m_MixBuffer[c], 0, mix_buffer_size);
+        }
         sound->m_GroupMap.Put(group_hash, index);
         return index;
     }
@@ -491,8 +456,11 @@ namespace dmSound
 
             for (uint32_t i = 0; i < MAX_GROUPS; i++) {
                 SoundGroup* g = &sound->m_Groups[i];
-                if (g->m_MixBuffer) {
-                    free((void*) g->m_MixBuffer);
+                for(uint32_t c=0; c<SOUND_MAX_MIX_CHANNELS; ++c)
+                {
+                    if (g->m_MixBuffer[c]) {
+                        free((void*) g->m_MixBuffer[c]);
+                    }
                 }
             }
 
@@ -1036,152 +1004,59 @@ namespace dmSound
         }
     }
 
-    static void MixResampleIdentity(const MixContext* mix_context, SoundInstance* instance, uint32_t channels, uint64_t delta, float* mix_buffer, uint32_t mix_buffer_count, uint32_t avail_framecount)
+    static void MixResampleIdentity(const MixContext* mix_context, SoundInstance* instance, uint32_t channels, uint64_t delta, float* mix_buffer[], uint32_t mix_buffer_count, uint32_t avail_framecount)
     {
         (void)delta;
 
         PrepTempBufferState(instance, channels);
 
+        float scale_l, scale_r;
+        float scale_dl = GetRampDelta(scale_l, mix_context, &instance->m_ScaleL, mix_buffer_count);
+        float scale_dr = GetRampDelta(scale_r, mix_context, &instance->m_ScaleR, mix_buffer_count);
+
         if (channels == 1)
         {
-            Ramp scale_l_ramp = GetRamp(mix_context, &instance->m_ScaleL, mix_buffer_count);
-            Ramp scale_r_ramp = GetRamp(mix_context, &instance->m_ScaleR, mix_buffer_count);
-            const float* frames = g_SoundSystem->GetDecoderBufferBase(0);
-            float* out = mix_buffer;
-            for (uint32_t i = 0; i < mix_buffer_count; ++i)
-            {
-                float s = *(frames++);
-                out[0] += s * scale_l_ramp.GetValue(i);
-                out[1] += s * scale_r_ramp.GetValue(i);
-                out += 2;
-            }
+            MixScaledMonoToStereo(mix_buffer, g_SoundSystem->GetDecoderBufferBase(0), mix_buffer_count, scale_l, scale_r, scale_dl, scale_dr);
         }
         else
         {
 #if 1
 // "old-style" stereo panning
             assert(channels == 2);
-
-            const float* frames_l = g_SoundSystem->GetDecoderBufferBase(0);
-            const float* frames_r = g_SoundSystem->GetDecoderBufferBase(1);
-            Ramp scale_l_ramp = GetRamp(mix_context, &instance->m_ScaleL, mix_buffer_count);
-            Ramp scale_r_ramp = GetRamp(mix_context, &instance->m_ScaleR, mix_buffer_count);
-            float* out = mix_buffer;
-            for (uint32_t i = 0; i < mix_buffer_count; ++i)
-            {
-                float sl = *(frames_l++);
-                float sr = *(frames_r++);
-                out[0] += sl * scale_l_ramp.GetValue(i);
-                out[1] += sr * scale_r_ramp.GetValue(i);
-                out += 2;
-            }
+            MixScaledStereoToStereo_MonoPan(mix_buffer, g_SoundSystem->GetDecoderBufferBase(0), g_SoundSystem->GetDecoderBufferBase(1), mix_buffer_count, scale_l, scale_r, scale_dl, scale_dr);
 #else
         // [...] proper version? (panning & N-channel)
 #endif
         }
 
-
-
-
-
         SaveTempBufferState(instance, avail_framecount, mix_buffer_count, channels);
     }
 
-#if defined(__SSE__)
-    typedef __m128 vec4;
-
-    static inline float FilterSample(const float* frames, uint64_t frac_pos)
-    {
-        uint32_t pi = ((frac_pos >> (RESAMPLE_FRACTION_BITS - 11)) << 3) & (2047 << 3); // 8 tabs, 2048 (11 fractional bits) banks
-        const float* c = &_pfb[pi];
-
-#if defined(__SSE4_1__)
-        vec4 taps0 = _mm_loadu_ps(&frames[-3])
-        vec4 taps1 = _mm_loadu_ps(&frames[ 1])
-        return (_mm_dp_ps(taps0, *(const vec4*)&c[0], 0xf1) + _mm_dp_ps(taps1, *(const vec4*)&c[4], 0xf1))[0];
-#else
-        vec4 tmp0 = _mm_loadu_ps(&frames[-3]) * *(const vec4*)&c[0];
-        vec4 tmp1 = _mm_loadu_ps(&frames[ 1]) * *(const vec4*)&c[4];
-        tmp0 += _mm_shuffle_ps(tmp0, tmp0, _MM_SHUFFLE(0, 3, 0, 1)); // X=X+Y; Z=Z+W
-        tmp1 += _mm_shuffle_ps(tmp1, tmp1, _MM_SHUFFLE(0, 3, 0, 1)); // X=X+Y; Z=Z+W
-        tmp0 += _mm_shuffle_ps(tmp0, tmp0, _MM_SHUFFLE(0, 0, 0, 2)); // X=X+Y+Z+W
-        tmp1 += _mm_shuffle_ps(tmp1, tmp1, _MM_SHUFFLE(0, 0, 0, 2)); // X=X+Y+Z+W
-        return (tmp0 + tmp1)[0];
-#endif
-    }
-
-#else // SSEx
-
-    static inline float FilterSample(const float* frames, uint64_t frac_pos)
-    {
-            uint32_t pi = ((frac_pos >> (RESAMPLE_FRACTION_BITS - 11)) << 3) & (2047 << 3); // 8 tabs, 2048 (11 fractional bits) banks
-            const float* c = &_pfb[pi];
-            const float *t = &frames[-3];
-            return t[0] * c[0] + t[1] * c[1] + t[2] * c[2] + t[3] * c[3] + t[4] * c[4] + t[5] * c[5] + t[6] * c[6] + t[7] * c[7];
-    }
-#endif // SSEx
-
-    static void MixResamplePolyphase(const MixContext* mix_context, SoundInstance* instance, uint32_t channels, uint64_t delta, float* mix_buffer, uint32_t mix_buffer_count, uint32_t avail_framecount)
+    static void MixResamplePolyphase(const MixContext* mix_context, SoundInstance* instance, uint32_t channels, uint64_t delta, float* mix_buffer[], uint32_t mix_buffer_count, uint32_t avail_framecount)
     { 
+        static_assert(SOUND_MAX_MIX_CHANNELS == 2, "this code assumes 2 mix channels");
+
         PrepTempBufferState(instance, channels);
 
-        uint64_t frac;
+        float scale_l, scale_r;
+        float scale_dl = GetRampDelta(scale_l, mix_context, &instance->m_ScaleL, mix_buffer_count);
+        float scale_dr = GetRampDelta(scale_r, mix_context, &instance->m_ScaleR, mix_buffer_count);
+
+        uint64_t frac = instance->m_FrameFraction;
 
         if (channels == 1)
         {
-            frac = instance->m_FrameFraction;
-            Ramp scale_l_ramp = GetRamp(mix_context, &instance->m_ScaleL, mix_buffer_count);
-            Ramp scale_r_ramp = GetRamp(mix_context, &instance->m_ScaleR, mix_buffer_count);
-
-            float* out = mix_buffer;
-            const float* frames = g_SoundSystem->GetDecoderBufferBase(0);
-            for (uint32_t i = 0; i < mix_buffer_count; ++i)
-            {
-                // Resample
-                uint32_t index = (uint32_t)(frac >> RESAMPLE_FRACTION_BITS);
-                float s = FilterSample(&frames[index], frac);
-
-                // Mix
-                out[0] += s * scale_l_ramp.GetValue(i);
-                out[1] += s * scale_r_ramp.GetValue(i);
-                out += 2;
-
-                // Advance
-                frac += delta;
-            }
+            frac = MixAndResampleMonoToStero_Polyphase(mix_buffer, g_SoundSystem->GetDecoderBufferBase(0), mix_buffer_count, frac, delta, scale_l, scale_r, scale_dl, scale_dr);
         }
         else
         {
 #if 1
 // "old-style" stereo panning
             assert(channels == 2);
-
-            frac = instance->m_FrameFraction;
-            Ramp scale_l_ramp = GetRamp(mix_context, &instance->m_ScaleL, mix_buffer_count);
-            Ramp scale_r_ramp = GetRamp(mix_context, &instance->m_ScaleR, mix_buffer_count);
-
-            float* out = mix_buffer;
-            const float* frames_l = g_SoundSystem->GetDecoderBufferBase(0);
-            const float* frames_r = g_SoundSystem->GetDecoderBufferBase(1);
-            for (uint32_t i = 0; i < mix_buffer_count; ++i)
-            {
-                // Resample
-                uint32_t index = (uint32_t)(frac >> RESAMPLE_FRACTION_BITS);
-                float sl = FilterSample(&frames_l[index], frac);
-                float sr = FilterSample(&frames_r[index], frac);
-
-                // Mix
-                out[0] += sl * scale_l_ramp.GetValue(i);
-                out[1] += sr * scale_r_ramp.GetValue(i);
-                out += 2;
-
-                // Advance
-                frac += delta;
-            }
+            frac = MixAndResampleStereoToStero_Polyphase_MonoPan(mix_buffer, g_SoundSystem->GetDecoderBufferBase(0), g_SoundSystem->GetDecoderBufferBase(1), mix_buffer_count, frac, delta, scale_l, scale_r, scale_dl, scale_dr);
 #else
         // "propper" version
 #endif
-
         }
 
         uint32_t next_index = (uint32_t)(frac >> RESAMPLE_FRACTION_BITS);
@@ -1190,7 +1065,7 @@ namespace dmSound
         SaveTempBufferState(instance, avail_framecount, next_index, channels);
     }
 
-    static void MixResample(const MixContext* mix_context, SoundInstance* instance, const dmSoundCodec::Info* info, uint64_t delta, float* mix_buffer, uint32_t mix_buffer_count, uint32_t avail_framecount)
+    static void MixResample(const MixContext* mix_context, SoundInstance* instance, const dmSoundCodec::Info* info, uint64_t delta, float* mix_buffer[], uint32_t mix_buffer_count, uint32_t avail_framecount)
     {
         // 1:1 output only if:
         // - rate is mixrate (including speed factor!) -> delta = 1.0
@@ -1391,6 +1266,7 @@ namespace dmSound
             if (frame_count < mixed_instance_FrameCount)
             {
                 // We generated fewer samples then we asked for. Make sure we can still mix all "real" samples, by ensuring we have enough "future" sample values in any case
+                // (should only trigger at the end of samples)
                 uint32_t missing_frames = dmMath::Min(mixed_instance_FrameCount - frame_count, (uint32_t)SOUND_MAX_FUTURE);
 
                 for(uint32_t c=0; c<info.m_Channels; ++c)
@@ -1421,7 +1297,8 @@ namespace dmSound
         for (uint32_t i = 0; i < MAX_GROUPS; i++) {
             SoundGroup* g = &sound->m_Groups[i];
 
-            if (g->m_MixBuffer) {
+//TODO: WHY IS THIS DONE ALL THE TIME? SEEMS A BIT OF A LUXURY? WHAT DEPENDS ON IT?
+            if (g->m_MixBuffer[0]) {
                 float sum_sq_left = 0;
                 float sum_sq_right = 0;
                 float max_sq_left = 0;
@@ -1430,8 +1307,8 @@ namespace dmSound
 
                     float gain = g->m_Gain.m_Current;
 
-                    float left = g->m_MixBuffer[2 * j + 0] * gain;
-                    float right = g->m_MixBuffer[2 * j + 1] * gain;
+                    float left = g->m_MixBuffer[0][j] * gain;
+                    float right = g->m_MixBuffer[1][j] * gain;
                     float left_sq = left * left;
                     float right_sq = right * right;
                     sum_sq_left += left_sq;
@@ -1445,7 +1322,8 @@ namespace dmSound
                 g->m_PeakMemorySq[2 * g->m_NextMemorySlot + 1] = max_sq_right;
                 g->m_NextMemorySlot = (g->m_NextMemorySlot + 1) % GROUP_MEMORY_BUFFER_COUNT;
 
-                memset(g->m_MixBuffer, 0, frame_count * sizeof(float) * 2);
+                memset(g->m_MixBuffer[0], 0, frame_count * sizeof(float));
+                memset(g->m_MixBuffer[1], 0, frame_count * sizeof(float));
             }
         }
 
@@ -1473,7 +1351,7 @@ namespace dmSound
         int16_t* out = sound->m_OutBuffers[sound->m_NextOutBuffer];
         int* master_index = sound->m_GroupMap.Get(MASTER_GROUP_HASH);
         SoundGroup* master = &sound->m_Groups[*master_index];
-        float* mix_buffer = master->m_MixBuffer;
+        float* mix_buffer[2] = {master->m_MixBuffer[0], master->m_MixBuffer[1]};
 
         if (master->m_Gain.IsZero())
         {
@@ -1483,7 +1361,7 @@ namespace dmSound
 
         for (uint32_t i = 0; i < MAX_GROUPS; i++) {
             SoundGroup* g = &sound->m_Groups[i];
-            if (g->m_MixBuffer == 0x0)
+            if (g->m_MixBuffer[0] == nullptr)
             {
                 continue;
             }
@@ -1495,32 +1373,14 @@ namespace dmSound
             {
                 continue;
             }
-//OPT: SIMD (do we need that clamp? - mostly we will not ramp... if it's too costly: special case)
-            Ramp ramp = GetRamp(mix_context, &g->m_Gain, n);
-            for (uint32_t i = 0; i < n; i++) {
-                float gain = ramp.GetValue(i);
-                gain = dmMath::Clamp(gain, 0.0f, 1.0f);
-
-                float s1 = g->m_MixBuffer[2 * i];
-                float s2 = g->m_MixBuffer[2 * i + 1];
-                mix_buffer[2 * i] += s1 * gain;
-                mix_buffer[2 * i + 1] += s2 * gain;
-            }
+            float gain;
+            float gaind = GetRampDelta(gain, mix_context, &g->m_Gain, n);
+            ApplyClampedGain(mix_buffer, g->m_MixBuffer, n, gain, gaind);
         }
 
-//OPT: SIMD
-        Ramp ramp = GetRamp(mix_context, &master->m_Gain, n);
-        for (uint32_t i = 0; i < n; i++) {
-            float gain = ramp.GetValue(i);
-            float s1 = mix_buffer[2 * i] * gain;
-            float s2 = mix_buffer[2 * i + 1] * gain;
-            s1 = dmMath::Min(32767.0f, s1);
-            s1 = dmMath::Max(-32768.0f, s1);
-            s2 = dmMath::Min(32767.0f, s2);
-            s2 = dmMath::Max(-32768.0f, s2);
-            out[2 * i] = (int16_t) s1;
-            out[2 * i + 1] = (int16_t) s2;
-        }
+        float gain;
+        float gaind = GetRampDelta(gain, mix_context, &master->m_Gain, n);
+        ApplyGainAndInterleaveToS16(out, mix_buffer, n, gain, gaind);
     }
 
     static void StepGroupValues()
@@ -1529,7 +1389,7 @@ namespace dmSound
 
         for (uint32_t i = 0; i < MAX_GROUPS; i++) {
             SoundGroup* g = &sound->m_Groups[i];
-            if (g->m_MixBuffer) {
+            if (g->m_MixBuffer[0]) {
                 g->m_Gain.Step();
             }
         }
