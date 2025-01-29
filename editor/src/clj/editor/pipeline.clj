@@ -47,7 +47,8 @@
                     (assoc! (resource/proj-path build-resource) fused-path)
                     (assoc! source-resource fused-path)
                     (assoc! (resource/proj-path source-resource) fused-path))))
-            (transient {nil ""})
+            (transient {"" nil
+                        nil nil})
             dep-resources))]
     (reduce
       (fn [pb-map [field-path field-value]]
@@ -56,12 +57,13 @@
                       (resource/resource? field-value))
           (throw (ex-info "value for resource field in pb-map is not a Resource or proj-path."
                           {:field-value field-value :field-path field-path})))
-        (if-let [fused-path (field-value->fused-path field-value)]
-          (coll/assoc-in-ex pb-map field-path fused-path)
-          (throw (ex-info "deps-resources is missing a referenced source-resource. Ensure it is among the dep-build-targets."
-                          {:field-value field-value
-                           :field-path field-path
-                           :deps-by-source field-value->fused-path}))))
+        (let [fused-path (field-value->fused-path field-value ::not-found)]
+          (if (identical? ::not-found fused-path)
+            (throw (ex-info "deps-resources is missing a referenced source-resource. Ensure it is among the dep-build-targets."
+                            {:field-value field-value
+                             :field-path field-path
+                             :deps-by-source field-value->fused-path}))
+            (coll/assoc-in-ex pb-map field-path fused-path))))
       pb-map
       (protobuf/get-field-value-paths pb-map pb-class))))
 
@@ -74,7 +76,7 @@
 
 (defn make-protobuf-build-target
   ([node-id source-resource pb-class pb-map]
-   (make-protobuf-build-target node-id source-resource pb-class pb-map nil))
+   (make-protobuf-build-target node-id source-resource pb-class pb-map nil nil))
   ([node-id source-resource pb-class pb-map dep-build-targets]
    (make-protobuf-build-target node-id source-resource pb-class pb-map dep-build-targets nil))
   ([node-id source-resource pb-class pb-map dep-build-targets dynamic-deps]

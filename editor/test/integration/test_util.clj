@@ -1628,3 +1628,21 @@
 
 (defmacro check-thrown-with-data! [expected-data-pred & body]
   `(is (~'thrown-with-data? ~expected-data-pred ~@body)))
+
+(defmethod test/assert-expr 'thrown-with-root-cause-msg? [msg [_ re & body :as form]]
+  `(try
+     (do ~@body)
+     (test/do-report {:type :fail :message ~msg :expected '~form :actual nil})
+     (catch Throwable e#
+       (let [^Throwable root# (loop [e# e#]
+                                (if-let [cause# (ex-cause e#)]
+                                  (recur cause#)
+                                  e#))
+             m# (.getMessage root#)]
+         (if (re-find ~re m#)
+           (test/do-report {:type :pass :message ~msg :expected '~form :actual e#})
+           (test/do-report {:type :fail, :message ~msg, :expected '~form :actual e#})))
+       e#)))
+
+(defmacro check-thrown-with-root-cause-msg! [re & body]
+  `(is (~'thrown-with-root-cause-msg? ~re ~@body)))
