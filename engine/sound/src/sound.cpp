@@ -374,21 +374,9 @@ namespace dmSound
             {
                 sound->m_DeviceFrameCount = sample_frame_count;
             }
-            if (device_info.m_MixRate == 48000)
-            {
-                sound->m_DeviceFrameCount = 1024;
-            }
-            else if (device_info.m_MixRate == 44100)
-            {
-                sound->m_DeviceFrameCount = 768;
-            }
             else
             {
-                // for generic devices, we try to calculate a conservative yet small number of frames
-                uint32_t frame_count = device_info.m_MixRate / 60; // use default count
-                float f_frame_count = frame_count / 32; // try to round it to some nice sample alignment (e.g. 16bits *2 channels)
-                float extra_percent = 1.05f;
-                sound->m_DeviceFrameCount = ceilf(f_frame_count * extra_percent) * 32;
+                sound->m_DeviceFrameCount = GetDefaultFrameCount(device_info.m_MixRate);
             }
         }
 
