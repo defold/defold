@@ -1122,19 +1122,21 @@
       snap-enabled (mapv (partial snap-axis snap-threshold))
       :always (mapv properties/round-scalar))))
 
-(defn- pivot-handle
-  [rect ^double scale]
+(defn- rect->absolute-pivot-pos
+  [rect]
   (let [{:keys [geometry ^double x ^double y ^double width ^double height]} rect
         {:keys [rotated ^double pivot-x ^double pivot-y]} geometry
         absolute-pivot-x (* pivot-x (if rotated height width))
         absolute-pivot-y (* pivot-y (if rotated width height))
         x (+ x (if rotated (- width absolute-pivot-y) absolute-pivot-x))
-        y (+ y (- height (if rotated absolute-pivot-x absolute-pivot-y))) 
-        position (-> (mapv #(/ ^double % scale) [x y])
-                     (conj 0.0))]
-    (concat
-      (scene-tools/vtx-add position (scene-tools/vtx-scale [7.0 7.0 1.0] (scene-tools/gen-circle 64)))
-      (scene-tools/vtx-add position (scene-tools/gen-point)))))
+        y (+ y (- height (if rotated absolute-pivot-x absolute-pivot-y)))]
+    [x y 0.0]))
+
+(defn- pivot-handle
+  [position]
+  (concat
+    (scene-tools/vtx-add position (scene-tools/vtx-scale [7.0 7.0 1.0] (scene-tools/gen-circle 64)))
+    (scene-tools/vtx-add position (scene-tools/gen-point))))
 
 (defn- action->pos [action ^Vector3d manip-pos manip-dir]
   (let [{:keys [world-pos world-dir]} action]
@@ -1155,30 +1157,33 @@
       (doto (Vector3d.) (.sub pos start-pos)))
     (Vector3d. 0.0 0.0 0.0)))
 
-(g/defnk produce-renderables [_node-id manip-space camera selected-renderables manip-delta snap-enabled snap-threshold scale]
-  (if-not (-> selected-renderables util/only :user-data :rect :geometry :pivot-x)
+(defn- show-pivot? [selected-renderables]
+  (-> selected-renderables util/only :user-data :rect :geometry :pivot-x))
+
+(g/defnk produce-renderables [_node-id manip-space camera viewport selected-renderables manip-delta snap-enabled snap-threshold]
+  (if-not (show-pivot? selected-renderables)
     {}
     (let [reference-renderable (last selected-renderables)
           {:keys [world-rotation]} reference-renderable
-          world-transform (scene-tools/manip-world-transform reference-renderable manip-space scale)
           rect (-> reference-renderable :user-data :rect)
           [pivot-x pivot-y] (updated-pivot rect manip-delta snap-enabled snap-threshold)
-          vertices (-> rect
-                       (assoc-in [:geometry :pivot-x] pivot-x)
-                       (assoc-in [:geometry :pivot-y] pivot-y)
-                       (pivot-handle scale))
+          rect (-> rect
+                   (assoc-in [:geometry :pivot-x] pivot-x)
+                   (assoc-in [:geometry :pivot-y] pivot-y))
+          pivot-pos (rect->absolute-pivot-pos rect)
+          scale (scene-tools/scale-factor camera viewport (Vector3d. (first pivot-pos) (second pivot-pos) 0.0))
+          world-transform (scene-tools/manip-world-transform reference-renderable manip-space scale)
+          absolute-pivot-pos (mapv #(/ ^double % scale) (rect->absolute-pivot-pos rect))
+          vertices (pivot-handle absolute-pivot-pos)
           inv-view (doto (c/camera-view-matrix camera) (.invert))
           renderables [(scene-tools/gen-manip-renderable _node-id :move-pivot manip-space world-rotation world-transform (AxisAngle4d.) vertices colors/defold-turquoise inv-view)]]
       {pass/manipulator renderables
        pass/manipulator-selection renderables})))
 
 (g/defnk produce-scale [selected-renderables camera viewport]
-  (when-not (empty? selected-renderables)
-    (let [{:keys [world-transform]} (peek selected-renderables)
-          manip-origin (math/translation world-transform)
-          lead-transform (doto (Matrix4d.) (.set manip-origin))
-          manip-pos (math/translation lead-transform)]
-      (scene-tools/scale-factor camera viewport manip-pos))))
+  (when (show-pivot? selected-renderables)
+    (let [pivot-pos (rect->absolute-pivot-pos (-> selected-renderables util/only :user-data :rect))]
+      (scene-tools/scale-factor camera viewport (Vector3d. (first pivot-pos) (second pivot-pos) 0.0)))))
 
 (defn handle-input [self action selection-data]
   (case (:type action)
@@ -1228,7 +1233,7 @@
   (input camera g/Any)
   (input viewport g/Any)
   (input selected-renderables g/Any)
-  
+
   (output scale g/Any :cached produce-scale)
   (output snap-threshold g/Any :cached (g/fnk [scale] (cond-> 0.1 scale (* ^double scale))))
   (output snap-enabled g/Bool :cached (g/fnk [start-action action] (and start-action (:shift action))))
