@@ -83,7 +83,6 @@ namespace dmSound
         uint32_t m_MaxSoundData;
         uint32_t m_MaxSources;
         uint32_t m_MaxBuffers;
-        uint32_t m_BufferSize;
         uint32_t m_FrameCount;
         uint32_t m_MaxInstances;
         bool     m_UseThread;

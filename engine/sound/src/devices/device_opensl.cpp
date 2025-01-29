@@ -315,9 +315,15 @@ namespace dmDeviceOpenSL
         opensl->m_Ready.SetSize(params->m_BufferCount);
         opensl->m_Playing.SetSize(params->m_BufferCount);
 
+        uint32_t frame_count = params->m_FrameCount;
+        if (frame_count == 0)
+        {
+            frame_count = GetDefaultFrameCount(sample_rate);
+        }
+
         for (uint32_t i = 0; i < params->m_BufferCount; ++i) {
-            uint32_t n = params->m_FrameCount * sizeof(uint16_t) * 2;
-            Buffer b(malloc(n), params->m_FrameCount);
+            uint32_t n = frame_count * sizeof(uint16_t) * 2;
+            Buffer b(malloc(n), frame_count);
             opensl->m_Free.Push(b);
         }
 

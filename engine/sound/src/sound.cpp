@@ -261,8 +261,7 @@ namespace dmSound
         params->m_MaxSoundData = 128;
         params->m_MaxSources = 16;
         params->m_MaxBuffers = 32;
-        params->m_BufferSize = 0; // unused
-        params->m_FrameCount = 768;
+        params->m_FrameCount = 0; // Let the sound system choose by default
         params->m_MaxInstances = 256;
         params->m_UseThread = true;
     }
@@ -319,17 +318,32 @@ namespace dmSound
             return r;
         }
 
+        float    master_gain = params->m_MasterGain;
+        uint32_t max_sound_data = params->m_MaxSoundData;
+        uint32_t max_sources = params->m_MaxSources;
+        uint32_t max_instances = params->m_MaxInstances;
+        uint32_t sample_frame_count = params->m_FrameCount; // 0 means, use the defaults
+
+        if (config)
+        {
+            master_gain = dmConfigFile::GetFloat(config, "sound.gain", 1.0f);
+            max_sound_data = (uint32_t) dmConfigFile::GetInt(config, "sound.max_sound_data", (int32_t) max_sound_data);
+            max_sources = (uint32_t) dmConfigFile::GetInt(config, "sound.max_sound_sources", (int32_t) max_sources);
+            max_instances = (uint32_t) dmConfigFile::GetInt(config, "sound.max_sound_instances", (int32_t) max_instances);
+            sample_frame_count = (uint32_t) dmConfigFile::GetInt(config, "sound.sample_frame_count", (int32_t) sample_frame_count);
+        }
+
         HDevice device = 0;
         OpenDeviceParams device_params;
 
         // TODO: m_BufferCount configurable?
         device_params.m_BufferCount = SOUND_OUTBUFFER_COUNT;
-        device_params.m_FrameCount = params->m_FrameCount;
+        device_params.m_FrameCount = sample_frame_count; // May be 0
         DeviceType* device_type;
         DeviceInfo device_info = {0};
         r = OpenDevice(params->m_OutputDevice, &device_params, &device_type, &device);
         if (r != RESULT_OK) {
-            dmLogError("Failed to Open device '%s'", params->m_OutputDevice);
+            dmLogError("Failed to open device '%s'", params->m_OutputDevice);
             device_info.m_MixRate = 44100;
             device_type = 0;
         }
@@ -337,8 +351,6 @@ namespace dmSound
         {
             device_type->m_DeviceInfo(device, &device_info);
         }
-
-        float master_gain = params->m_MasterGain;
 
         g_SoundSystem = new SoundSystem();
         SoundSystem* sound = g_SoundSystem;
@@ -351,32 +363,33 @@ namespace dmSound
         codec_params.m_MaxDecoders = params->m_MaxInstances;
         sound->m_CodecContext = dmSoundCodec::New(&codec_params);
 
-        uint32_t max_sound_data = params->m_MaxSoundData;
-        uint32_t max_buffers = params->m_MaxBuffers;
-        uint32_t max_sources = params->m_MaxSources;
-        uint32_t max_instances = params->m_MaxInstances;
-
-        if (config)
-        {
-            master_gain = dmConfigFile::GetFloat(config, "sound.gain", 1.0f);
-            max_sound_data = (uint32_t) dmConfigFile::GetInt(config, "sound.max_sound_data", (int32_t) max_sound_data);
-            max_buffers = (uint32_t) dmConfigFile::GetInt(config, "sound.max_sound_buffers", (int32_t) max_buffers);
-            max_sources = (uint32_t) dmConfigFile::GetInt(config, "sound.max_sound_sources", (int32_t) max_sources);
-            max_instances = (uint32_t) dmConfigFile::GetInt(config, "sound.max_sound_instances", (int32_t) max_instances);
-        }
-
-        // The device wanted to provide the count
+        // The device wanted to provide the count (e.g. Wasapi)
         if (device_info.m_FrameCount)
         {
             sound->m_DeviceFrameCount = device_info.m_FrameCount;
         }
         else
         {
-            // for generic devices, we try to calculate a conservative yet small number of frames
-            uint32_t auto_frame_count = device_info.m_MixRate / 60; // use default count
-            float f_auto_frame_count = auto_frame_count / 32; // try to round it to some nice sample alignment (e.g. 16bits *2 channels)
-            sound->m_DeviceFrameCount = ceilf(f_auto_frame_count) * 32;
-            // 48000 -> 800 frames, 44100 -> 736 frames
+            if (sample_frame_count != 0)
+            {
+                sound->m_DeviceFrameCount = sample_frame_count;
+            }
+            if (device_info.m_MixRate == 48000)
+            {
+                sound->m_DeviceFrameCount = 1024;
+            }
+            else if (device_info.m_MixRate == 44100)
+            {
+                sound->m_DeviceFrameCount = 768;
+            }
+            else
+            {
+                // for generic devices, we try to calculate a conservative yet small number of frames
+                uint32_t frame_count = device_info.m_MixRate / 60; // use default count
+                float f_frame_count = frame_count / 32; // try to round it to some nice sample alignment (e.g. 16bits *2 channels)
+                float extra_percent = 1.05f;
+                sound->m_DeviceFrameCount = ceilf(f_frame_count * extra_percent) * 32;
+            }
         }
 
         sound->m_FrameCount = sound->m_DeviceFrameCount;
@@ -494,6 +507,21 @@ namespace dmSound
     uint32_t GetMixRate()
     {
         return g_SoundSystem->m_MixRate;
+    }
+
+    uint32_t GetDefaultFrameCount(uint32_t rate)
+    {
+        if (rate == 48000)
+            return 1024;
+
+        if (rate == 44100)
+            return 768;
+
+        // for generic devices, we try to calculate a conservative yet small number of frames
+        uint32_t frame_count = rate / 60; // use default count
+        float f_frame_count = frame_count / 32; // try to round it to some nice sample alignment (e.g. 16bits *2 channels)
+        float extra_percent = 1.05f;
+        return ceilf(f_frame_count * extra_percent) * 32;
     }
 
     static inline const char* GetSoundName(SoundSystem* sound, SoundInstance* instance)
@@ -1577,11 +1605,11 @@ namespace dmSound
         while (free_slots > 0) {
 
             // Get the number of frames available
-            sound->m_FrameCount = sound->m_DeviceFrameCount;
-            uint32_t frame_count = sound->m_FrameCount;
+            uint32_t frame_count = sound->m_DeviceFrameCount;
             if (sound->m_DeviceType->m_GetAvailableFrames)
                 frame_count = sound->m_DeviceType->m_GetAvailableFrames(sound->m_Device);
 
+            sound->m_FrameCount = frame_count;
             MixContext mix_context(current_buffer, total_buffers, frame_count);
             MixInstances(&mix_context);
 
