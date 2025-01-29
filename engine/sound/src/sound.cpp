@@ -1236,29 +1236,31 @@ namespace dmSound
                 const uint32_t nc = info.m_Channels;
                 if (info.m_BitsPerSample == 8)
                 {
-                    for(uint32_t c=0; c<nc; ++c)
+                    if (nc == 1)
                     {
-                        float* out = sound->GetDecoderBufferBase(c) + initial_frame_count;
-                        const int8_t* in = &((int8_t*)decoder_temp)[c];
-                        for(uint32_t i=0; i<new_frame_count; ++i)
-                        {
-                            *(out++) = (float)(((uint32_t)*in + 128) * 255);
-                            in += nc;
-                        }
+                        ConvertFromS8(sound->GetDecoderBufferBase(0) + initial_frame_count, (int8_t*)decoder_temp, new_frame_count);
+                    }
+                    else
+                    {
+                        assert(nc == 2);
+                        float* out[] = {sound->GetDecoderBufferBase(0) + initial_frame_count,
+                                        sound->GetDecoderBufferBase(1) + initial_frame_count};
+                        DeinterleaveFromS8(out, (int8_t*)decoder_temp, new_frame_count);
                     }
                 }
                 else
                 {
                     assert(info.m_BitsPerSample == 16);
-                    for(uint32_t c=0; c<nc; ++c)
+                    if (nc == 1)
                     {
-                        float* out = sound->GetDecoderBufferBase(c) + initial_frame_count;
-                        const int16_t* in = &((int16_t*)decoder_temp)[c];
-                        for(uint32_t i=0; i<new_frame_count; ++i)
-                        {
-                            *(out++) = *in;
-                            in += nc;
-                        }
+                        ConvertFromS16(sound->GetDecoderBufferBase(0) + initial_frame_count, (int16_t*)decoder_temp, new_frame_count);
+                    }
+                    else
+                    {
+                        assert(nc == 2);
+                        float* out[] = {sound->GetDecoderBufferBase(0) + initial_frame_count,
+                                        sound->GetDecoderBufferBase(1) + initial_frame_count};
+                        DeinterleaveFromS16(out, (int16_t*)decoder_temp, new_frame_count);
                     }
                 }
             }

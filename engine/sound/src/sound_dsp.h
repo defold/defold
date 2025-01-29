@@ -330,10 +330,12 @@ static inline void GatherPowerData(float* in[], uint32_t num, float gain, float&
     vec4 maxr = maxl;
     vec4 sumr = maxl;
 
+    vec4 scale = _mm_set1_ps(gain);
+
     for(; num>3; num-=4)
     {
-        vec4 sl = *(in_l++) * gain;
-        vec4 sr = *(in_l++) * gain;
+        vec4 sl = *(in_l++) * scale;
+        vec4 sr = *(in_r++) * scale;
         sl *= sl;
         sr *= sr;
         maxl = _mm_max_ps(maxl, sl);
@@ -370,6 +372,124 @@ static inline void GatherPowerData(float* in[], uint32_t num, float gain, float&
         sum_sq_right += right_sq;
         max_sq_left = dmMath::Max(max_sq_left, left_sq);
         max_sq_right = dmMath::Max(max_sq_right, right_sq);
+    }
+}
+
+// note: supports unaligned src & dest
+static inline void ConvertFromS16(float* out, const int16_t* in, uint32_t num)
+{
+    vec4 zero = _mm_set1_ps(0.0);
+
+    const __m64* vin = (const __m64*)in;
+    vec4* vout = (vec4*)out;
+    for(; num>3; num-=4)
+    {
+        __m64 iin0 = *(vin++);
+        _mm_storeu_ps((float*)vout++, _mm_cvt_pi2ps(_mm_movelh_ps(zero, _mm_cvt_pi2ps(zero, _mm_srai_pi32(_mm_unpackhi_pi16(iin0, iin0), 16))), _mm_srai_pi32(_mm_unpacklo_pi16(iin0, iin0), 16)));
+    }
+
+    out = (float*)vout;
+    in = (const int16_t*)vin;
+    for(; num>0; --num)
+    {
+        *(out++) = (float)*(in++);
+    }
+}
+
+// note: supports unaligned src & dest
+static inline void ConvertFromS8(float* out, const int8_t* in, uint32_t num)
+{
+    vec4 zero = _mm_set1_ps(0.0);
+
+    const __m64* vin = (const __m64*)in;
+    vec4* vout = (vec4*)out;
+    for(; num>7; num-=8)
+    {
+        __m64 iin = *(vin++);
+        __m64 iin0 = _mm_unpacklo_pi8(iin, iin);   // s0-3 as int16 (we duplicate the high bits into the low bits to approximate overall value better)
+        __m64 iin1 = _mm_unpackhi_pi8(iin, iin);   // s4-7 as int16
+        _mm_storeu_ps((float*)vout++, _mm_cvt_pi2ps(_mm_movelh_ps(zero, _mm_cvt_pi2ps(zero, _mm_srai_pi32(_mm_unpackhi_pi16(iin0, iin0), 16))), _mm_srai_pi32(_mm_unpacklo_pi16(iin0, iin0), 16)));
+        _mm_storeu_ps((float*)vout++, _mm_cvt_pi2ps(_mm_movelh_ps(zero, _mm_cvt_pi2ps(zero, _mm_srai_pi32(_mm_unpackhi_pi16(iin1, iin1), 16))), _mm_srai_pi32(_mm_unpacklo_pi16(iin1, iin1), 16)));
+    }
+
+    out = (float*)vout;
+    in = (const int8_t*)vin;
+    for(; num>0; --num)
+    {
+        *(out++) = (float)*(in++);
+    }
+}
+
+// note: supports unaligned src & dest
+static inline void DeinterleaveFromS16(float* out[], const int16_t* in, uint32_t num)
+{
+    vec4 zero = _mm_set1_ps(0.0);
+
+    const __m64* vin = (const __m64*)in;
+    vec4* vout_l = (vec4*)out[0];
+    vec4* vout_r = (vec4*)out[1];
+    for(; num>3; num-=4)
+    {
+        __m64 iin0 = *(vin++);
+        __m64 iin1 = *(vin++);
+        vec4 in0 = _mm_cvt_pi2ps(_mm_movelh_ps(zero, _mm_cvt_pi2ps(zero, _mm_srai_pi32(_mm_unpackhi_pi16(iin0, iin0), 16))), _mm_srai_pi32(_mm_unpacklo_pi16(iin0, iin0), 16));
+        vec4 in1 = _mm_cvt_pi2ps(_mm_movelh_ps(zero, _mm_cvt_pi2ps(zero, _mm_srai_pi32(_mm_unpackhi_pi16(iin1, iin1), 16))), _mm_srai_pi32(_mm_unpacklo_pi16(iin1, iin1), 16));
+
+        in0 = _mm_shuffle_ps(in0, in0, _MM_SHUFFLE(3,1,2,0));     // L0L1R0R1
+        in1 = _mm_shuffle_ps(in1, in1, _MM_SHUFFLE(3,1,2,0));     // L2L3R2R3
+        _mm_storeu_ps((float*)vout_l++, _mm_shuffle_ps(in0, in1, _MM_SHUFFLE(1,0,1,0)));
+        _mm_storeu_ps((float*)vout_r++, _mm_shuffle_ps(in0, in1, _MM_SHUFFLE(3,2,3,2)));
+    }
+
+    float* out_l = (float*)vout_l;
+    float* out_r = (float*)vout_r;
+    in = (const int16_t*)vin;
+    for(; num>0; --num)
+    {
+        *(out_l++) = (float)*(in++);
+        *(out_r++) = (float)*(in++);
+    }
+}
+
+// note: supports unaligned src & dest
+static inline void DeinterleaveFromS8(float* out[], const int8_t* in, uint32_t num)
+{
+    vec4 zero = _mm_set1_ps(0.0);
+
+    const __m64* vin = (const __m64*)in;
+    vec4* vout_l = (vec4*)out[0];
+    vec4* vout_r = (vec4*)out[1];
+    for(; num>7; num-=8)
+    {
+        __m64 iin = *(vin++);
+        __m64 iin0 = _mm_unpacklo_pi8(iin, iin);
+        __m64 iin1 = _mm_unpackhi_pi8(iin, iin);
+        iin = *(vin++);
+        __m64 iin2 = _mm_unpacklo_pi8(iin, iin);
+        __m64 iin3 = _mm_unpackhi_pi8(iin, iin);
+
+        vec4 in0 = _mm_cvt_pi2ps(_mm_movelh_ps(zero, _mm_cvt_pi2ps(zero, _mm_srai_pi32(_mm_unpackhi_pi16(iin0, iin0), 16))), _mm_srai_pi32(_mm_unpacklo_pi16(iin0, iin0), 16));
+        vec4 in1 = _mm_cvt_pi2ps(_mm_movelh_ps(zero, _mm_cvt_pi2ps(zero, _mm_srai_pi32(_mm_unpackhi_pi16(iin1, iin1), 16))), _mm_srai_pi32(_mm_unpacklo_pi16(iin1, iin1), 16));
+        vec4 in2 = _mm_cvt_pi2ps(_mm_movelh_ps(zero, _mm_cvt_pi2ps(zero, _mm_srai_pi32(_mm_unpackhi_pi16(iin2, iin2), 16))), _mm_srai_pi32(_mm_unpacklo_pi16(iin2, iin2), 16));
+        vec4 in3 = _mm_cvt_pi2ps(_mm_movelh_ps(zero, _mm_cvt_pi2ps(zero, _mm_srai_pi32(_mm_unpackhi_pi16(iin3, iin3), 16))), _mm_srai_pi32(_mm_unpacklo_pi16(iin3, iin3), 16));
+
+        in0 = _mm_shuffle_ps(in0, in0, _MM_SHUFFLE(3,1,2,0));     // L0L1R0R1
+        in1 = _mm_shuffle_ps(in1, in1, _MM_SHUFFLE(3,1,2,0));     // L2L3R2R3
+        in2 = _mm_shuffle_ps(in2, in2, _MM_SHUFFLE(3,1,2,0));     // L4L5R4R5
+        in3 = _mm_shuffle_ps(in3, in3, _MM_SHUFFLE(3,1,2,0));     // L6L7R6R7
+        _mm_storeu_ps((float*)vout_l++, _mm_shuffle_ps(in0, in1, _MM_SHUFFLE(1,0,1,0)));
+        _mm_storeu_ps((float*)vout_l++, _mm_shuffle_ps(in2, in3, _MM_SHUFFLE(1,0,1,0)));
+        _mm_storeu_ps((float*)vout_r++, _mm_shuffle_ps(in0, in1, _MM_SHUFFLE(3,2,3,2)));
+        _mm_storeu_ps((float*)vout_r++, _mm_shuffle_ps(in2, in3, _MM_SHUFFLE(3,2,3,2)));
+    }
+
+    float* out_l = (float*)vout_l;
+    float* out_r = (float*)vout_r;
+    in = (const int8_t*)vin;
+    for(; num>0; --num)
+    {
+        *(out_l++) = (float)*(in++);
+        *(out_r++) = (float)*(in++);
     }
 }
 
@@ -511,7 +631,43 @@ static inline void GatherPowerData(float* in[], uint32_t num, float gain, float&
     }
 }
 
+static inline void ConvertFromS16(float* out, const int16_t* in, uint32_t num)
+{
+    for(; num>0; --num)
+    {
+        *(out++) = (float)*(in++);
+    }
+}
 
+static inline void ConvertFromS8(float* out, const int8_t* in, uint32_t num)
+{
+    for(; num>0; --num)
+    {
+        *(out++) = (float)*(in++);
+    }
+}
+
+static inline void DeinterleaveFromS16(float* out[], const int16_t* in, uint32_t num)
+{
+    float* out_l = out[0];
+    float* out_r = out[1];
+    for(; num>0; --num)
+    {
+        *(out_l++) = (float)*(in++);
+        *(out_r++) = (float)*(in++);
+    }
+}
+
+static inline void DeinterleaveFromS8(float* out[], const int8_t* in, uint32_t num)
+{
+    float* out_l = out[0];
+    float* out_r = out[1];
+    for(; num>0; --num)
+    {
+        *(out_l++) = (float)*(in++);
+        *(out_r++) = (float)*(in++);
+    }
+}
 
 #endif // SSEx
 
