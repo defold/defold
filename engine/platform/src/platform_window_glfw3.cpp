@@ -116,10 +116,9 @@ namespace dmPlatform
     static void OnMouseScroll(GLFWwindow* glfw_window, double xoffset, double yoffset)
     {
         HWindow window = (HWindow) glfwGetWindowUserPointer(glfw_window);
-        window->m_MouseScrollX = xoffset;
-        window->m_MouseScrollY = yoffset;
-
-        dmLogInfo("OnMouseScroll, %f, %f", window->m_MouseScrollX, window->m_MouseScrollY);
+        window->m_MouseScrollX += xoffset;
+        window->m_MouseScrollY += yoffset;
+        // dmLogInfo("OnMouseScroll, %f, %f", window->m_MouseScrollX, window->m_MouseScrollY);
     }
 
     static void OnJoystick(int id, int event)

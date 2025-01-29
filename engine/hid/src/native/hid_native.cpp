@@ -262,10 +262,10 @@ namespace dmHID
                         packet.m_Buttons[i / 32] &= ~mask;
                 }
                 double wheel = dmPlatform::GetMouseWheel(context->m_Window);
-                if (wheel != 0)
-                {
-                    dmLogInfo("Wheel: %f", wheel);
-                }
+                // if (wheel != 0)
+                // {
+                //     dmLogInfo("Wheel: %f", wheel);
+                // }
 
                 if (context->m_FlipScrollDirection)
                 {

@@ -56,7 +56,8 @@ namespace dmInput
         uint32_t m_PositionSet : 1;
         uint32_t m_AccelerationSet : 1;
         uint32_t m_Dirty : 1; // it's dirty and should report its value
-        uint32_t :22;
+        uint32_t m_PressedThresholdIsZero : 1; // Some inputs may trigger a press/release just by having a value != 0 (e.g mouse wheel)
+        uint32_t :21;
     };
 
     typedef struct Context* HContext;

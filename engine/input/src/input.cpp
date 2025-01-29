@@ -584,9 +584,19 @@ namespace dmInput
     {
         UpdateActionContext* update_context = (UpdateActionContext*)context;
 
-        float pressed_threshold = update_context->m_Context->m_PressedThreshold;
-        action->m_Pressed = (action->m_PrevValue < pressed_threshold && action->m_Value >= pressed_threshold) ? 1 : 0;
-        action->m_Released = (action->m_PrevValue >= pressed_threshold && action->m_Value < pressed_threshold) ? 1 : 0;
+        if (action->m_PressedThresholdIsZero)
+        {
+            const float EPSION = 0.00001f;
+            action->m_Pressed = (action->m_PrevValue < EPSION && action->m_Value >= EPSION) ? 1 : 0;
+            action->m_Released = (action->m_PrevValue >= EPSION && action->m_Value < EPSION) ? 1 : 0;
+        }
+        else
+        {
+            float pressed_threshold = update_context->m_Context->m_PressedThreshold;
+            action->m_Pressed = (action->m_PrevValue < pressed_threshold && action->m_Value >= pressed_threshold) ? 1 : 0;
+            action->m_Released = (action->m_PrevValue >= pressed_threshold && action->m_Value < pressed_threshold) ? 1 : 0;
+        }
+
         action->m_Repeated = false;
         if (action->m_Value > 0.0f)
         {
@@ -752,19 +762,27 @@ namespace dmInput
                         v = dmHID::GetMouseButton(packet, MOUSE_BUTTON_MAP[trigger.m_Input]) ? 1.0 : 0.0;
                         break;
                     }
-                    v = dmMath::Clamp(v, 0.0, 1.0);
+
+                    v = dmMath::Clamp(v, -1.0, 1.0);
 
                     Action* action = binding->m_Actions.Get(trigger.m_ActionId);
+                    action->m_PressedThresholdIsZero = 1;
+
                     if (action != 0x0)
                     {
-                        if (v != 0.0)
+                        if (packet->m_Wheel != prev_packet->m_Wheel)
                         {
-                            dmLogInfo("V: %f, abs-v: %f, abs-action: %f, take it? %d", v, dmMath::Abs(v), dmMath::Abs(action->m_Value), (int) dmMath::Abs(action->m_Value) < dmMath::Abs(v));
+                            dmLogInfo("Wheel=%f, v=%f, now=%f, prev=%f", packet->m_Wheel, v, packet->m_Wheel, prev_packet->m_Wheel);
                         }
 
-                        if (dmMath::Abs(action->m_Value) < dmMath::Abs(v))
+                        // if (v != 0.0)
+                        // {
+                        //     dmLogInfo("V: %f, abs-v: %f, abs-action: %f, take it? %d", v, dmMath::Abs(v), dmMath::Abs(action->m_Value), (int) (dmMath::Abs(action->m_Value) < dmMath::Abs(v)));
+                        // }
+
+                        // if (dmMath::Abs(action->m_Value) < dmMath::Abs(v))
                         {
-                            action->m_Value = (float) v;
+                            action->m_Value = (float) dmMath::Abs(v);
                         }
                     }
                 }
