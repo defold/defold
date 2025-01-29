@@ -109,7 +109,7 @@
     :scale-xz [0.0 1.0 0.0]
     :scale-yz [1.0 0.0 0.0]
     :scale-uniform [0.0 0.0 1.0]
-    [0.0 0.0 1.0]))
+    :move-pivot [0.0 0.0 1.0]))
 
 (defn- manip->normal
   ^Vector3d [manip ^Quat4d rotation]

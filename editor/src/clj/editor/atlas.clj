@@ -1099,77 +1099,82 @@
                           (< node-child-index (dec (.size children)))))
   (run [selection] (move-node! (selection->image selection) 1)))
 
-(defn- snap-pivot
-  [pivot threshold]
-  (let [snap-values [0.0 0.5 1.0]]
-    (mapv #(or (some (fn [^double snap-value]
-                       (when (< (Math/abs (- % snap-value)) threshold)
-                         snap-value)) snap-values) %) pivot)))
+(defn- snap-axis
+  [^double threshold ^double v]
+  (or (->> [0.0 0.5 1.0]
+           (some (fn [^double snap-value]
+                   (when (< (Math/abs (- v snap-value)) threshold)
+                     snap-value))))
+      v))
 
 (defn- updated-pivot
-  [node-id ^Vector3d delta]
-  (let [scene (g/node-value node-id :scene)
-        rect (-> scene :renderable :user-data :rect)
-        {:keys [geometry width height]} rect
-        rotated (:rotated geometry)
-        [pivot-x pivot-y] (g/node-value node-id :pivot)
-        delta-x (/ (cond-> (.x delta) rotated -) width)
-        delta-y (/ (cond-> (.y delta) (not rotated) -) height)]
-    (if rotated
-      [(- pivot-x delta-y) (+ pivot-y delta-x)]
-      [(+ pivot-x delta-x) (+ pivot-y delta-y)])))
+  [rect ^Vector3d delta snap-enabled snap-threshold]
+  (let [{:keys [geometry ^double width ^double height]} rect
+        {:keys [rotated ^double pivot-x ^double pivot-y]} geometry
+        pivot-x (+ 0.5 pivot-x)
+        pivot-y (- 0.5 pivot-y)
+        delta-x (/ (cond-> ^double (.x delta) rotated -) width)
+        delta-y (/ ^double (.y delta) height)
+        pivot (if rotated
+                [(- pivot-x delta-y) (+ pivot-y delta-x)]
+                [(+ pivot-x delta-x) (- pivot-y delta-y)])]
+    (cond->> pivot
+      snap-enabled (mapv (partial snap-axis snap-threshold))
+      :always (mapv properties/round-scalar))))
 
 (defn- pivot-handle
-  [reference-renderable pivot-pos scale]
-  (let [{:keys [geometry x y width height]} (-> reference-renderable :user-data :rect)
-        {:keys [rotated]} geometry
-        [pivot-x pivot-y] pivot-pos
+  [rect ^double scale]
+  (let [{:keys [geometry ^double x ^double y ^double width ^double height]} rect
+        {:keys [rotated ^double pivot-x ^double pivot-y]} geometry
         absolute-pivot-x (* pivot-x (if rotated height width))
         absolute-pivot-y (* pivot-y (if rotated width height))
         x (+ x (if rotated (- width absolute-pivot-y) absolute-pivot-x))
         y (+ y (- height (if rotated absolute-pivot-x absolute-pivot-y))) 
-        position (-> (mapv #(/ % scale) [x y])
+        position (-> (mapv #(/ ^double % scale) [x y])
                      (conj 0.0))]
     (concat
-     (scene-tools/vtx-add position (scene-tools/vtx-scale [7.0 7.0 1.0] (scene-tools/gen-circle 64)))
-     (scene-tools/vtx-add position (scene-tools/gen-point)))))
+      (scene-tools/vtx-add position (scene-tools/vtx-scale [7.0 7.0 1.0] (scene-tools/gen-circle 64)))
+      (scene-tools/vtx-add position (scene-tools/gen-point)))))
+
+(defn- action->pos [action ^Vector3d manip-pos manip-dir]
+  (let [{:keys [world-pos world-dir]} action]
+    (math/line-plane-intersection world-pos world-dir manip-pos manip-dir)))
 
 (g/defnk produce-manip-delta
-  [original-values manip-space start-action action]
-  (when (and start-action action)
-    (let [{:keys [world-rotation world-transform]} (peek original-values)
+  [selected-renderables manip-space start-action action]
+  (if (and start-action action)
+    (let [{:keys [world-rotation world-transform]} (peek selected-renderables)
           manip-origin (math/translation world-transform)
           manip-rotation (scene-tools/get-manip-rotation manip-space world-rotation)
           lead-transform (doto (Matrix4d.) (.set manip-origin))
-          [start-pos pos] (map #(let [manip-dir (math/rotate manip-rotation (Vector3d. 0.0 0.0 1.0))
-                                      _ (.transform lead-transform manip-dir)
-                                      _ (.normalize manip-dir)
-                                      manip-pos (math/translation lead-transform)]
-                                  (math/line-plane-intersection (:world-pos %) (:world-dir %) (Point3d. manip-pos) manip-dir)) [start-action action])]
-      (doto (Vector3d.) (.sub pos start-pos)))))
+          manip-dir (math/rotate manip-rotation (Vector3d. 0.0 0.0 1.0))
+          _ (.transform lead-transform manip-dir)
+          _ (.normalize manip-dir)
+          manip-pos (Point3d. (math/translation lead-transform))
+          [start-pos pos] (mapv #(action->pos % manip-pos manip-dir) [start-action action])]
+      (doto (Vector3d.) (.sub pos start-pos)))
+    (Vector3d. 0.0 0.0 0.0)))
 
-(g/defnk produce-renderables [_node-id manip-space camera viewport selected-renderables manip-delta snap-enabled snap-threshold]
-  (if (or (empty? selected-renderables)
-          (second selected-renderables)
-          (not= (-> selected-renderables last :node-id g/node-by-id g/node-type) AtlasImage))
+(g/defnk produce-renderables [_node-id manip-space camera selected-renderables manip-delta snap-enabled snap-threshold scale]
+  (if-not (-> selected-renderables util/only :user-data :rect :geometry :pivot-x)
     {}
     (let [reference-renderable (last selected-renderables)
-          {:keys [node-id world-translation world-rotation]} reference-renderable
-          scale (scene-tools/scale-factor camera viewport world-translation)
+          {:keys [world-rotation]} reference-renderable
           world-transform (scene-tools/manip-world-transform reference-renderable manip-space scale)
-          pivot-pos (if manip-delta
-                      (cond-> (updated-pivot node-id manip-delta)
-                        snap-enabled (snap-pivot snap-threshold))
-                      (g/node-value node-id :pivot))
-          vertices (pivot-handle reference-renderable pivot-pos scale)
+          rect (-> reference-renderable :user-data :rect)
+          [pivot-x pivot-y] (updated-pivot rect manip-delta snap-enabled snap-threshold)
+          vertices (-> rect
+                       (assoc-in [:geometry :pivot-x] pivot-x)
+                       (assoc-in [:geometry :pivot-y] pivot-y)
+                       (pivot-handle scale))
           inv-view (doto (c/camera-view-matrix camera) (.invert))
-          renderable (scene-tools/gen-manip-renderable _node-id :move-pivot manip-space world-rotation world-transform (AxisAngle4d.) vertices colors/defold-turquoise inv-view)]
-      {pass/manipulator [renderable]
-       pass/manipulator-selection [renderable]})))
+          renderables [(scene-tools/gen-manip-renderable _node-id :move-pivot manip-space world-rotation world-transform (AxisAngle4d.) vertices colors/defold-turquoise inv-view)]]
+      {pass/manipulator renderables
+       pass/manipulator-selection renderables})))
 
-(g/defnk produce-scale [original-values camera viewport]
-  (when-not (empty? original-values)
-    (let [{:keys [world-transform]} (peek original-values)
+(g/defnk produce-scale [selected-renderables camera viewport]
+  (when-not (empty? selected-renderables)
+    (let [{:keys [world-transform]} (peek selected-renderables)
           manip-origin (math/translation world-transform)
           lead-transform (doto (Matrix4d.) (.set manip-origin))
           manip-pos (math/translation lead-transform)]
@@ -1178,35 +1183,30 @@
 (defn handle-input [self action selection-data]
   (case (:type action)
     :mouse-pressed (if (first (get selection-data self))
-                     (let [selected-renderables (g/node-value self :selected-renderables)
-                           original-values (mapv #(select-keys % [:node-id :world-rotation :world-transform]) 
-                                                 selected-renderables)]
-                       (when-not (empty? original-values)
-                         (g/transact
-                            (concat
-                              (g/set-property self :start-action action)
-                              (g/set-property self :action action)
-                              (g/set-property self :original-values original-values)
-                              (g/set-property self :op-seq (gensym)))))
+                     (do
+                       (g/transact
+                         (concat
+                           (g/set-property self :start-action action)
+                           (g/set-property self :action action)
+                           (g/set-property self :op-seq (gensym))))
                        nil)
                      action)
     :mouse-released (if (g/node-value self :start-action)
-                      (let [original-values (g/node-value self :original-values)
+                      (let [selected-renderables (g/node-value self :selected-renderables)
                             op-seq (g/node-value self :op-seq)
                             manip-delta (g/node-value self :manip-delta)
                             snap-enabled (g/node-value self :snap-enabled)
                             snap-threshold (g/node-value self :snap-threshold)
-                            {:keys [node-id]} (peek original-values)]
+                            reference-renderable (last selected-renderables)
+                            rect (-> reference-renderable :user-data :rect)
+                            pivot (updated-pivot rect manip-delta snap-enabled snap-threshold)]
                         (g/transact
                           (concat
                             (g/operation-label "Move pivot point")
                             (g/operation-sequence op-seq)
-                            (g/set-property node-id :pivot (cond-> (updated-pivot node-id manip-delta)
-                                                             snap-enabled (snap-pivot snap-threshold)))))
+                            (g/set-property (:node-id reference-renderable) :pivot pivot)))
                         (g/transact
-                          (concat
-                            (g/set-property self :start-action nil)
-                            (g/set-property self :original-values nil)))
+                          (g/set-property self :start-action nil))
                         nil)
                       action)
     :mouse-moved (if (g/node-value self :start-action)
@@ -1221,8 +1221,6 @@
   (property prefs g/Any)
   (property start-action g/Any)
   (property action g/Any)
-  (property original-values g/Any)
-
   (property op-seq g/Any)
 
   (input active-tool g/Keyword)
@@ -1232,8 +1230,8 @@
   (input selected-renderables g/Any)
   
   (output scale g/Any :cached produce-scale)
-  (output snap-threshold g/Any :cached (g/fnk [scale] (cond-> 0.1 scale (* scale))))
-  (output snap-enabled g/Bool :cached (g/fnk [action] (:shift action)))
+  (output snap-threshold g/Any :cached (g/fnk [scale] (cond-> 0.1 scale (* ^double scale))))
+  (output snap-enabled g/Bool :cached (g/fnk [start-action action] (and start-action (:shift action))))
   (output manip-delta g/Any :cached produce-manip-delta)
   (output renderables pass/RenderData :cached produce-renderables)
   (output input-handler Runnable :cached (g/constantly handle-input))
