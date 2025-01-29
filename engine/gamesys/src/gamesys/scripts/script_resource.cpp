@@ -567,6 +567,15 @@ static float CheckTableNumber(lua_State* L, int index, const char* name, float d
     return CheckTableValue<float>(L, index, name, default_value);
 }
 
+static inline bool IsTextureFormatSupported(dmGraphics::TextureType type)
+{
+    return type == dmGraphics::TEXTURE_TYPE_2D ||
+           type == dmGraphics::TEXTURE_TYPE_3D ||
+           type == dmGraphics::TEXTURE_TYPE_CUBE_MAP ||
+           type == dmGraphics::TEXTURE_TYPE_IMAGE_2D ||
+           type == dmGraphics::TEXTURE_TYPE_IMAGE_3D;
+}
+
 static void CheckTextureResource(lua_State* L, int i, const char* field_name, dmhash_t* texture_path_out, dmGraphics::HTexture* texture_out)
 {
     lua_getfield(L, i, field_name);
@@ -599,14 +608,7 @@ static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceP
         return luaL_error(L, "Unable to create texture, width, height and depth must be larger than 0");
     }
 
-    bool supported_format = type == dmGraphics::TEXTURE_TYPE_2D ||
-                            type == dmGraphics::TEXTURE_TYPE_3D ||
-                            type == dmGraphics::TEXTURE_TYPE_CUBE_MAP ||
-                            type == dmGraphics::TEXTURE_TYPE_IMAGE_2D ||
-                            type == dmGraphics::TEXTURE_TYPE_IMAGE_3D;
-
-    // TODO: Texture arrays
-    if (!supported_format)
+    if (!IsTextureFormatSupported(type))
     {
         return luaL_error(L, "Unable to create texture, unsupported texture type '%s'.", dmGraphics::GetTextureTypeLiteral(type));
     }
@@ -1367,7 +1369,7 @@ static int SetTexture(lua_State* L)
     }
 
     // TODO: Texture arrays
-    if (!(type == dmGraphics::TEXTURE_TYPE_2D || type == dmGraphics::TEXTURE_TYPE_CUBE_MAP || type == dmGraphics::TEXTURE_TYPE_IMAGE_2D))
+    if (!IsTextureFormatSupported(type))
     {
         return luaL_error(L, "Unable to set texture, unsupported texture type '%s'.", dmGraphics::GetTextureTypeLiteral(type));
     }
