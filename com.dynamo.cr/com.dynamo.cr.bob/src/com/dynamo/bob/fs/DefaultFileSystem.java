@@ -27,6 +27,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
@@ -40,7 +41,7 @@ public class DefaultFileSystem extends AbstractFileSystem<DefaultFileSystem, Def
         byte[] sha1;
     }
 
-    private Map<String, CacheEntry> cache = new HashMap<String, DefaultFileSystem.CacheEntry>();
+    private Map<String, CacheEntry> cache = new ConcurrentHashMap<String, CacheEntry>();
 
     @Override
     public IResource get(String path) {
