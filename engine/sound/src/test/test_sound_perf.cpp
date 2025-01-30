@@ -133,7 +133,7 @@ public:
         printf("[%s - %s (%s)] Total: %.3f s", decoder_name, test_name, (skip ? "SKIPPING" : "DECODING"), t2s * (time_done - time_beg));
         printf(" | Chunks: %u, max: %.3f ms, avg: %.3f ms", (int)iterations, t2ms * max_chunk_time, (time_done - time_open) * t2ms / float(iterations));
         printf(" | Output: %d Kb, %.1f s\n", (int)(total_decoded / 1024), audio_length);
-        printf("  * Per out second: %.3f ms", t2ms * (time_done - time_beg) / audio_length);
+        printf("  * Per out second: %.3f ms", t2ms * (time_done - time_open) / audio_length);
         printf(" | In %.1f kbps | Out: %.1f Kb/s\n", (float)size / (128.0f * audio_length), (float)bytes_per_second / 1024.0f);
 
         decoder->m_CloseStream(stream);

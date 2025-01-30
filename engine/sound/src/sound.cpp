@@ -1160,7 +1160,9 @@ namespace dmSound
 
         void* decoder_temp = sound->m_DecoderTempOutput;
 
+        //
         // Refill as needed...
+        //
         if (frame_count < mixed_instance_FrameCount && instance->m_Playing) {
 
             const uint32_t stride = info.m_Channels * (info.m_BitsPerSample / 8);
@@ -1179,7 +1181,7 @@ namespace dmSound
                 }
                 else
                 {
-                    // Output fill be either single channel or non-interleaved in float format -> we can just have it delivered into our work buffers
+                    // Output will be either single channel or non-interleaved in float format -> we can just have it delivered into our work buffers
                     for(uint32_t c=0; c<info.m_Channels; ++c)
                     {
                         buffer[c] = (char*)(sound->GetDecoderBufferBase(c) + frame_count);
@@ -1250,7 +1252,9 @@ namespace dmSound
 
         if (frame_count > 0)
         {
-            // Any new data? Convert it as needed!
+            //
+            // Convert decoded data as needed...
+            //
             if (new_frame_count > 0)
             {
 //FUNCTION? - EASIER TO READ!
@@ -1311,6 +1315,9 @@ namespace dmSound
                 }
             }
 
+            //
+            // Ensure proper "future" data (close to end of stream)
+            //
             if (frame_count < mixed_instance_FrameCount)
             {
                 // We generated fewer samples then we asked for. Make sure we can still mix all "real" samples, by ensuring we have enough "future" sample values in any case
@@ -1330,7 +1337,9 @@ namespace dmSound
                 frame_count += missing_frames;
             }
 
+            //
             // Mix the data
+            //
             assert(frame_count > SOUND_MAX_FUTURE);
             Mix(mix_context, instance, delta, frame_count - SOUND_MAX_FUTURE, &info, group);
         }
