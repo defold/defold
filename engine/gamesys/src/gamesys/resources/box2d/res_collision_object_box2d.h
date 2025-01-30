@@ -12,18 +12,18 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_GAMESYS_RES_COLLISION_OBJECT_H
-#define DM_GAMESYS_RES_COLLISION_OBJECT_H
+#ifndef DM_GAMESYS_RES_COLLISION_OBJECT_BOX2D_H
+#define DM_GAMESYS_RES_COLLISION_OBJECT_BOX2D_H
 
 #include <dmsdk/resource/resource.hpp>
 #include <dmsdk/gamesys/resources/res_collision_object.h>
 
 namespace dmGameSystem
 {
-    dmResource::Result ResCollisionObjectCreate(const dmResource::ResourceCreateParams* params);
+    dmResource::Result ResCollisionObjectBox2DCreate(const dmResource::ResourceCreateParams* params);
 
-    dmResource::Result ResCollisionObjectDestroy(const dmResource::ResourceDestroyParams* params);
+    dmResource::Result ResCollisionObjectBox2DDestroy(const dmResource::ResourceDestroyParams* params);
 
-    dmResource::Result ResCollisionObjectRecreate(const dmResource::ResourceRecreateParams* params);
+    dmResource::Result ResCollisionObjectBox2DRecreate(const dmResource::ResourceRecreateParams* params);
 }
 #endif

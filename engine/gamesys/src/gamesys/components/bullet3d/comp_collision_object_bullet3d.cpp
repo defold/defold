@@ -12,145 +12,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "comp_collision_object.h"
-
-#include "gamesys.h"
-
-namespace dmGameSystem
-{
-    /// Config key to use for tweaking maximum number of collision objects
-    const char* PHYSICS_MAX_COLLISION_OBJECTS_KEY   = "physics.max_collision_object_count";
-    /// Config key to use for tweaking maximum number of collisions reported
-    const char* PHYSICS_MAX_COLLISIONS_KEY          = "physics.max_collisions";
-    /// Config key to use for tweaking maximum number of contacts reported
-    const char* PHYSICS_MAX_CONTACTS_KEY            = "physics.max_contacts";
-    /// Config key for using fixed frame rate for the physics worlds
-    const char* PHYSICS_USE_FIXED_TIMESTEP          = "physics.use_fixed_timestep";
-    /// Config key for using max updates during a single step
-    const char* PHYSICS_MAX_FIXED_TIMESTEPS         = "physics.max_fixed_timesteps";
-
-    // Looks into world->m_Groups index for the speficied group_hash. It returns its position as
-    // bit index (a uint16_t with n-th bit set). If the hash is not found and we're in readonly mode
-    // it will return 0. If readonly is false though, it assigns the hash to the first empty bit slot.
-    // If there are no positions are left, it returns 0.
-    static uint16_t GetGroupBitIndex(CollisionWorld* world, uint64_t group_hash, bool readonly)
-    {
-        if (group_hash != 0)
-        {
-            for (uint32_t i = 0; i < 16; ++i)
-            {
-                if (world->m_Groups[i] != 0)
-                {
-                    if (world->m_Groups[i] == group_hash)
-                    {
-                        return 1 << i;
-                    }
-                }
-                else if (readonly)
-                {
-                    return 0;
-                } else
-                {
-                    world->m_Groups[i] = group_hash;
-                    return 1 << i;
-                }
-            }
-
-            // When we get here, there are no more group bits available
-            dmLogWarning("The collision group '%s' could not be used since the maximum group count has been reached (16).", dmHashReverseSafe64(group_hash));
-        }
-        return 0;
-    }
-
-    static bool CompCollisionIterPropertiesGetNext(dmGameObject::SceneNodePropertyIterator* pit)
-    {
-        CollisionWorld* world = (CollisionWorld*)pit->m_Node->m_ComponentWorld;
-        CollisionComponent* component = (CollisionComponent*)pit->m_Node->m_Component;
-
-        uint64_t index = pit->m_Next++;
-
-        uint32_t num_bool_properties = 1;
-        if (index < num_bool_properties)
-        {
-            if (index == 0)
-            {
-                pit->m_Property.m_Type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_BOOLEAN;
-
-                assert(0);
-                /*
-                if (world->m_3D)
-                {
-                    pit->m_Property.m_Value.m_Bool = dmPhysics::IsEnabled3D(component->m_Object3D);
-                }
-                else
-                {
-                    pit->m_Property.m_Value.m_Bool = dmPhysics::IsEnabled2D(component->m_Object2D);
-                }
-                */
-                pit->m_Property.m_NameHash = dmHashString64("enabled");
-            }
-            return true;
-        }
-        index -= num_bool_properties;
-
-        return false;
-    }
-
-    // We use this to determine if a physics object is still alive, by determinig if the game object is still alive
-    dmGameObject::HInstance CompCollisionObjectGetInstance(void* _user_data)
-    {
-        CollisionComponent* component = (CollisionComponent*) _user_data; // See SetCollisionObjectData and dmPhysics::NewCollisionObject2D
-        return component->m_Instance;
-    }
-
-    void CompCollisionIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node)
-    {
-        assert(node->m_Type == dmGameObject::SCENE_NODE_TYPE_COMPONENT);
-        assert(node->m_ComponentType != 0);
-        pit->m_Node = node;
-        pit->m_Next = 0;
-        pit->m_FnIterateNext = CompCollisionIterPropertiesGetNext;
-    }
-
-    uint16_t CompCollisionGetGroupBitIndex(CollisionWorld* world, uint64_t group_hash)
-    {
-        return GetGroupBitIndex(world, group_hash, false);
-    }
-
-    // Converts a collision mask bitfield to the respective group hash. Takes into account only the least significant bit.
-    uint64_t GetLSBGroupHash(CollisionWorld* world, uint16_t mask)
-    {
-        if (mask > 0)
-        {
-            uint32_t index = 0;
-            while ((mask & 1) == 0)
-            {
-                mask >>= 1;
-                ++index;
-            }
-            return world->m_Groups[index];
-        }
-        return 0;
-    }
-
-    dmhash_t CompCollisionObjectGetIdentifier(CollisionComponent* component)
-    {
-        return dmGameObject::GetIdentifier(component->m_Instance);
-    }
-
-    void WakeupCollision(CollisionWorld* world, CollisionComponent* component)
-    {
-        world->m_AdapterFunctions->m_WakeupCollision(world, component);
-    }
-
-    void RayCast(CollisionWorld* world, const dmPhysics::RayCastRequest& request, dmArray<dmPhysics::RayCastResponse>& results)
-    {
-        world->m_AdapterFunctions->m_RayCast(world, request, results);
-    }
-}
-
 /*
-#include "comp_collision_object.h"
+#include "comp_collision_object_bullet3d.h"
 
 #include <dlib/dlib.h>
 #include <dlib/dstrings.h>
@@ -179,10 +42,23 @@ namespace dmGameSystem
 
 DM_PROPERTY_EXTERN(rmtp_Components);
 DM_PROPERTY_U32(rmtp_CollisionObject, 0, FrameReset, "# components", &rmtp_Components);
+*/
 
 namespace dmGameSystem
 {
+    /*
     using namespace dmVMath;
+
+    /// Config key to use for tweaking maximum number of collision objects
+    const char* PHYSICS_MAX_COLLISION_OBJECTS_KEY   = "physics.max_collision_object_count";
+    /// Config key to use for tweaking maximum number of collisions reported
+    const char* PHYSICS_MAX_COLLISIONS_KEY          = "physics.max_collisions";
+    /// Config key to use for tweaking maximum number of contacts reported
+    const char* PHYSICS_MAX_CONTACTS_KEY            = "physics.max_contacts";
+    /// Config key for using fixed frame rate for the physics worlds
+    const char* PHYSICS_USE_FIXED_TIMESTEP          = "physics.use_fixed_timestep";
+    /// Config key for using max updates during a single step
+    const char* PHYSICS_MAX_FIXED_TIMESTEPS         = "physics.max_fixed_timesteps";
 
     static const dmhash_t PROP_LINEAR_DAMPING = dmHashString64("linear_damping");
     static const dmhash_t PROP_ANGULAR_DAMPING = dmHashString64("angular_damping");
@@ -260,6 +136,25 @@ namespace dmGameSystem
         uint8_t m_FlippedX : 1; // set if it's been flipped
         uint8_t m_FlippedY : 1;
         uint8_t m_EventMask : 3;
+    };
+
+    struct CollisionWorld
+    {
+        uint64_t m_Groups[16];
+
+        void* m_CallbackInfo;
+
+        union
+        {
+            dmPhysics::HWorld2D m_World2D;
+            dmPhysics::HWorld3D m_World3D;
+        };
+        float       m_CurrentDT;    // Used to calculate joint reaction force and torque.
+        float       m_AccumTime;    // Time saved from last component type update
+        uint8_t     m_ComponentTypeIndex;
+        uint8_t     m_3D : 1;
+        uint8_t     m_FirstUpdate : 1;
+        dmArray<CollisionComponent*> m_Components;
     };
 
     // Forward declarations
@@ -369,6 +264,56 @@ namespace dmGameSystem
             dmPhysics::DeleteWorld2D(physics_context->m_Context2D, world->m_World2D);
         delete world;
         return dmGameObject::CREATE_RESULT_OK;
+    }
+
+    // Looks into world->m_Groups index for the speficied group_hash. It returns its position as
+    // bit index (a uint16_t with n-th bit set). If the hash is not found and we're in readonly mode
+    // it will return 0. If readonly is false though, it assigns the hash to the first empty bit slot.
+    // If there are no positions are left, it returns 0.
+    static uint16_t GetGroupBitIndex(CollisionWorld* world, uint64_t group_hash, bool readonly)
+    {
+        if (group_hash != 0)
+        {
+            for (uint32_t i = 0; i < 16; ++i)
+            {
+                if (world->m_Groups[i] != 0)
+                {
+                    if (world->m_Groups[i] == group_hash)
+                    {
+                        return 1 << i;
+                    }
+                }
+                else if (readonly)
+                {
+                    return 0;
+                } else
+                {
+                    world->m_Groups[i] = group_hash;
+                    return 1 << i;
+                }
+            }
+
+            // When we get here, there are no more group bits available
+            dmLogWarning("The collision group '%s' could not be used since the maximum group count has been reached (16).", dmHashReverseSafe64(group_hash));
+        }
+        return 0;
+    }
+
+    // Converts a collision mask bitfield to the respective group hash. Takes into account only the least significant bit.
+    uint64_t GetLSBGroupHash(void* _world, uint16_t mask)
+    {
+        if (mask > 0)
+        {
+            uint32_t index = 0;
+            while ((mask & 1) == 0)
+            {
+                mask >>= 1;
+                ++index;
+            }
+            CollisionWorld* world = (CollisionWorld*)_world;
+            return world->m_Groups[index];
+        }
+        return 0;
     }
 
     static void SetupEmptyTileGrid(CollisionWorld* world, CollisionComponent* component)
@@ -1578,6 +1523,24 @@ namespace dmGameSystem
         }
     }
 
+    uint16_t CompCollisionGetGroupBitIndex(void* world, uint64_t group_hash)
+    {
+        return GetGroupBitIndex((CollisionWorld*)world, group_hash, false);
+    }
+
+    void RayCast(void* _world, const dmPhysics::RayCastRequest& request, dmArray<dmPhysics::RayCastResponse>& results)
+    {
+        CollisionWorld* world = (CollisionWorld*)_world;
+        if (world->m_3D)
+        {
+            dmPhysics::RayCast3D(world->m_World3D, request, results);
+        }
+        else
+        {
+            dmPhysics::RayCast2D(world->m_World2D, request, results);
+        }
+    }
+
     // Find a JointEntry in the linked list of a collision component based on the joint id.
     static JointEntry* FindJointEntry(CollisionWorld* world, CollisionComponent* component, dmhash_t id)
     {
@@ -2048,6 +2011,12 @@ namespace dmGameSystem
         return true;
     }
 
+    dmhash_t CompCollisionObjectGetIdentifier(void* _component)
+    {
+        CollisionComponent* component = (CollisionComponent*)_component;
+        return dmGameObject::GetIdentifier(component->m_Instance);
+    }
+
     bool IsCollision2D(void* _world)
     {
         CollisionWorld* world = (CollisionWorld*)_world;
@@ -2068,6 +2037,20 @@ namespace dmGameSystem
         if (component->m_FlippedY != flip)
             dmPhysics::FlipV2D(component->m_Object2D);
         component->m_FlippedY = flip;
+    }
+
+    void WakeupCollision(void* _world, void* _component)
+    {
+        CollisionWorld* world = (CollisionWorld*)_world;
+        CollisionComponent* component = (CollisionComponent*)_component;
+
+        if (world->m_3D)
+        {
+            dmPhysics::Wakeup3D(component->m_Object3D);
+        } else
+        {
+            dmPhysics::Wakeup2D(component->m_Object2D);
+        }
     }
 
     void* GetCollisionWorldCallback(void* _world)
@@ -2181,6 +2164,45 @@ namespace dmGameSystem
         }
     }
 
+    static bool CompCollisionIterPropertiesGetNext(dmGameObject::SceneNodePropertyIterator* pit)
+    {
+        CollisionWorld* world = (CollisionWorld*)pit->m_Node->m_ComponentWorld;
+        CollisionComponent* component = (CollisionComponent*)pit->m_Node->m_Component;
+
+        uint64_t index = pit->m_Next++;
+
+        uint32_t num_bool_properties = 1;
+        if (index < num_bool_properties)
+        {
+            if (index == 0)
+            {
+                pit->m_Property.m_Type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_BOOLEAN;
+                if (world->m_3D)
+                {
+                    pit->m_Property.m_Value.m_Bool = dmPhysics::IsEnabled3D(component->m_Object3D);
+                }
+                else
+                {
+                    pit->m_Property.m_Value.m_Bool = dmPhysics::IsEnabled2D(component->m_Object2D);
+                }
+                pit->m_Property.m_NameHash = dmHashString64("enabled");
+            }
+            return true;
+        }
+        index -= num_bool_properties;
+
+        return false;
+    }
+
+    void CompCollisionIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node)
+    {
+        assert(node->m_Type == dmGameObject::SCENE_NODE_TYPE_COMPONENT);
+        assert(node->m_ComponentType != 0);
+        pit->m_Node = node;
+        pit->m_Next = 0;
+        pit->m_FnIterateNext = CompCollisionIterPropertiesGetNext;
+    }
+
     b2World* CompCollisionObjectGetBox2DWorld(dmGameObject::HComponentWorld _world)
     {
         CollisionWorld* world = (CollisionWorld*)_world;
@@ -2203,6 +2225,5 @@ namespace dmGameSystem
         CollisionComponent* component = (CollisionComponent*)_user_data; // See SetCollisionObjectData and dmPhysics::NewCollisionObject2D
         return component->m_Instance;
     }
+    */
 }
-*/
-

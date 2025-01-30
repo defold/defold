@@ -25,8 +25,10 @@
 #include <render/render.h>
 #include <dmsdk/resource/resource.h>
 
+#include "resources/box2d/res_collision_object_box2d.h"
+#include "resources/bullet3d/res_collision_object_bullet3d.h"
+
 #include "resources/res_collection_proxy.h"
-#include "resources/res_collision_object.h"
 #include "resources/res_convex_shape.h"
 #include "resources/res_particlefx.h"
 #include "resources/res_texture.h"
@@ -60,6 +62,10 @@
 #include "resources/res_label.h"
 #include "resources/res_glyph_bank.h"
 
+
+#include "components/box2d/comp_collision_object_box2d.h"
+#include "components/bullet3d/comp_collision_object_bullet3d.h"
+
 #include "components/comp_private.h"
 #include "components/comp_collection_proxy.h"
 #include "components/comp_collision_object.h"
@@ -79,7 +85,7 @@ DM_PROPERTY_GROUP(rmtp_Components, "Gameobject Components");
 
 namespace dmGameSystem
 {
-    dmResource::Result RegisterResourceTypes(dmResource::HFactory factory, dmRender::HRenderContext render_context, dmInput::HContext input_context, PhysicsContext* physics_context)
+    dmResource::Result RegisterResourceTypes(dmResource::HFactory factory, dmRender::HRenderContext render_context, dmInput::HContext input_context, PhysicsContextBox2D* physics_context_box2d, PhysicsContextBullet3D* physics_context_bullet3d)
     {
         dmResource::Result e;
 
@@ -94,8 +100,10 @@ namespace dmGameSystem
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
 
         REGISTER_RESOURCE_TYPE("collectionproxyc", 0, 0, ResCollectionProxyCreate, 0, ResCollectionProxyDestroy, ResCollectionProxyRecreate);
-        REGISTER_RESOURCE_TYPE("collisionobjectc", physics_context, 0, ResCollisionObjectCreate, 0, ResCollisionObjectDestroy, ResCollisionObjectRecreate);
-        REGISTER_RESOURCE_TYPE("convexshapec", physics_context, 0, ResConvexShapeCreate, 0, ResConvexShapeDestroy, ResConvexShapeRecreate);
+        REGISTER_RESOURCE_TYPE("collisionobject_box2dc", physics_context_box2d, 0, ResCollisionObjectBox2DCreate, 0, ResCollisionObjectBox2DDestroy, ResCollisionObjectBox2DRecreate);
+        // TODO
+        // REGISTER_RESOURCE_TYPE("collisionobject_bullet3ddc", physics_context_bullet3d, 0, ResCollisionObjectBullet3DCreate, 0, ResCollisionObjectBullet3DDestroy, ResCollisionObjectBullet3DRecreate);
+        REGISTER_RESOURCE_TYPE("convexshapec", physics_context_box2d, 0, ResConvexShapeCreate, 0, ResConvexShapeDestroy, ResConvexShapeRecreate);
         REGISTER_RESOURCE_TYPE("particlefxc", 0, ResParticleFXPreload, ResParticleFXCreate, 0, ResParticleFXDestroy, ResParticleFXRecreate);
         REGISTER_RESOURCE_TYPE("texturec", graphics_context, ResTexturePreload, ResTextureCreate, ResTexturePostCreate, ResTextureDestroy, ResTextureRecreate);
         REGISTER_RESOURCE_TYPE("vpc", graphics_context, ResVertexProgramPreload, ResVertexProgramCreate, 0, ResVertexProgramDestroy, ResVertexProgramRecreate);
@@ -122,8 +130,8 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("render_targetc", render_context, ResRenderTargetPreload, ResRenderTargetCreate, 0, ResRenderTargetDestroy, ResRenderTargetRecreate);
         REGISTER_RESOURCE_TYPE("renderc", render_context, 0, ResRenderPrototypeCreate, 0, ResRenderPrototypeDestroy, ResRenderPrototypeRecreate);
         REGISTER_RESOURCE_TYPE("spritec", 0, ResSpritePreload, ResSpriteCreate, 0, ResSpriteDestroy, ResSpriteRecreate);
-        REGISTER_RESOURCE_TYPE("texturesetc", physics_context, ResTextureSetPreload, ResTextureSetCreate, 0, ResTextureSetDestroy, ResTextureSetRecreate);
-        REGISTER_RESOURCE_TYPE(TILE_MAP_EXT, physics_context, ResTileGridPreload, ResTileGridCreate, 0, ResTileGridDestroy, ResTileGridRecreate);
+        REGISTER_RESOURCE_TYPE("texturesetc", physics_context_box2d, ResTextureSetPreload, ResTextureSetCreate, 0, ResTextureSetDestroy, ResTextureSetRecreate);
+        REGISTER_RESOURCE_TYPE(TILE_MAP_EXT, physics_context_box2d, ResTileGridPreload, ResTileGridCreate, 0, ResTileGridDestroy, ResTileGridRecreate);
         REGISTER_RESOURCE_TYPE("meshsetc", 0, ResMeshSetPreload, ResMeshSetCreate, 0, ResMeshSetDestroy, ResMeshSetRecreate);
         REGISTER_RESOURCE_TYPE("skeletonc", 0, ResSkeletonPreload, ResSkeletonCreate, 0, ResSkeletonDestroy, ResSkeletonRecreate);
         REGISTER_RESOURCE_TYPE("rigscenec", 0, ResRigScenePreload, ResRigSceneCreate, 0, ResRigSceneDestroy, ResRigSceneRecreate);
@@ -137,7 +145,8 @@ namespace dmGameSystem
     dmGameObject::Result RegisterComponentTypes(dmResource::HFactory factory,
                                                 dmGameObject::HRegister regist,
                                                 dmRender::HRenderContext render_context,
-                                                PhysicsContext* physics_context,
+                                                PhysicsContextBox2D* physics_context_box2d,
+                                                PhysicsContextBullet3D* physics_context_bullet3d,
                                                 ParticleFXContext* particlefx_context,
                                                 SpriteContext* sprite_context,
                                                 CollectionProxyContext* collection_proxy_context,
@@ -213,13 +222,23 @@ namespace dmGameSystem
 
         // prio: 300  comp_gui.cpp
 
-        REGISTER_COMPONENT_TYPE("collisionobjectc", 400, physics_context,
-                &CompCollisionObjectNewWorld, &CompCollisionObjectDeleteWorld,
-                &CompCollisionObjectCreate, &CompCollisionObjectDestroy, 0, &CompCollisionObjectFinal, &CompCollisionObjectAddToUpdate, CompCollisionObjectGetComponent,
-                &CompCollisionObjectUpdate, CompCollisionObjectFixedUpdate, 0, &CompCollisionObjectPostUpdate, &CompCollisionObjectOnMessage, 0,
-                &CompCollisionObjectOnReload, CompCollisionObjectGetProperty, CompCollisionObjectSetProperty,
+        REGISTER_COMPONENT_TYPE("collisionobject_box2dc", 400, physics_context_box2d,
+                &CompCollisionObjectBox2DNewWorld, &CompCollisionObjectBox2DDeleteWorld,
+                &CompCollisionObjectBox2DCreate, &CompCollisionObjectBox2DDestroy, 0, &CompCollisionObjectBox2DFinal, &CompCollisionObjectBox2DAddToUpdate, CompCollisionObjectBox2DGetComponent,
+                &CompCollisionObjectBox2DUpdate, CompCollisionObjectBox2DFixedUpdate, 0, &CompCollisionObjectBox2DPostUpdate, &CompCollisionObjectBox2DOnMessage, 0,
+                &CompCollisionObjectBox2DOnReload, CompCollisionObjectBox2DGetProperty, CompCollisionObjectBox2DSetProperty,
                 0, CompCollisionIterProperties,
                 1);
+
+        /*
+        REGISTER_COMPONENT_TYPE("collisionobject_bullet3dc", 400, physics_context_bullet3d,
+                &CompCollisionObjectBullet3DNewWorld, &CompCollisionObjectBullet3DDeleteWorld,
+                &CompCollisionObjectBullet3DCreate, &CompCollisionObjectBullet3DDestroy, 0, &CompCollisionObjectBullet3DFinal, &CompCollisionObjectBullet3DAddToUpdate, CompCollisionObjectBullet3DGetComponent,
+                &CompCollisionObjectBullet3DUpdate, CompCollisionObjectBullet3DFixedUpdate, 0, &CompCollisionObjectBullet3DPostUpdate, &CompCollisionObjectBullet3DOnMessage, 0,
+                &CompCollisionObjectBullet3DOnReload, CompCollisionObjectBullet3DGetProperty, CompCollisionObjectBullet3DSetProperty,
+                0, CompCollisionIterProperties,
+                1);
+        */
 
         REGISTER_COMPONENT_TYPE("camerac", 500, render_context,
                 &CompCameraNewWorld, &CompCameraDeleteWorld,

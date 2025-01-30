@@ -124,7 +124,8 @@ namespace dmEngine
         dmJobThread::HContext                       m_JobThreadContext;
         dmGraphics::HContext                        m_GraphicsContext;
         dmRender::HRenderContext                    m_RenderContext;
-        dmGameSystem::PhysicsContext                m_PhysicsContext;
+        dmGameSystem::PhysicsContextBox2D           m_PhysicsContextBox2D;
+        dmGameSystem::PhysicsContextBullet3D        m_PhysicsContextBullet3D;
         dmGameSystem::ParticleFXContext             m_ParticleFXContext;
         /// If the shared context is set, the three environment specific contexts below will point to the same context
         dmScript::HContext                          m_SharedScriptContext;

@@ -12,8 +12,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_GAMESYS_COMP_COLLISION_OBJECT_H
-#define DM_GAMESYS_COMP_COLLISION_OBJECT_H
+#ifndef DM_GAMESYS_COMP_COLLISION_OBJECT_BULLET3D_H
+#define DM_GAMESYS_COMP_COLLISION_OBJECT_BULLET3D_H
 
 #include <gameobject/component.h>
 #include <dmsdk/dlib/vmath.h>
@@ -21,51 +21,53 @@
 // for scripting
 #include <stdint.h>
 #include <physics/physics.h>
-#include <gamesys.h>
 
 #include <gamesys/physics_ddf.h>
 
+template <typename T> class dmArray;
+
+class b2World;
+class b2Body;
+
 namespace dmGameSystem
 {
-    static const dmhash_t PROP_LINEAR_DAMPING   = dmHashString64("linear_damping");
-    static const dmhash_t PROP_ANGULAR_DAMPING  = dmHashString64("angular_damping");
-    static const dmhash_t PROP_LINEAR_VELOCITY  = dmHashString64("linear_velocity");
-    static const dmhash_t PROP_ANGULAR_VELOCITY = dmHashString64("angular_velocity");
-    static const dmhash_t PROP_MASS             = dmHashString64("mass");
-    static const dmhash_t PROP_BULLET           = dmHashString64("bullet");
+    /*
+    dmGameObject::CreateResult CompCollisionObjectBullet3DNewWorld(const dmGameObject::ComponentNewWorldParams& params);
 
-    enum EventMask
-    {
-        EVENT_MASK_COLLISION = 1 << 0,
-        EVENT_MASK_CONTACT   = 1 << 1,
-        EVENT_MASK_TRIGGER   = 1 << 2,
-    };
+    dmGameObject::CreateResult CompCollisionObjectBullet3DDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params);
 
-    struct ShapeInfo
-    {
-        union
-        {
-            float m_BoxDimensions[3];
-            float m_CapsuleDiameterHeight[2];
-            float m_SphereDiameter;
-        };
-        dmPhysicsDDF::CollisionShape::Type m_Type;
-    };
+    dmGameObject::CreateResult CompCollisionObjectBullet3DCreate(const dmGameObject::ComponentCreateParams& params);
 
-    void                    CompCollisionIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node);
-    dmGameObject::HInstance CompCollisionObjectGetInstance(void* user_data);
+    dmGameObject::CreateResult CompCollisionObjectBullet3DDestroy(const dmGameObject::ComponentDestroyParams& params);
+
+    dmGameObject::CreateResult CompCollisionObjectBullet3DFinal(const dmGameObject::ComponentFinalParams& params);
+
+    dmGameObject::CreateResult CompCollisionObjectBullet3DAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params);
+
+    dmGameObject::UpdateResult CompCollisionObjectBullet3DUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result);
+
+    dmGameObject::UpdateResult CompCollisionObjectBullet3DFixedUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result);
+
+    dmGameObject::UpdateResult CompCollisionObjectBullet3DPostUpdate(const dmGameObject::ComponentsPostUpdateParams& params);
+
+    dmGameObject::UpdateResult CompCollisionObjectBullet3DOnMessage(const dmGameObject::ComponentOnMessageParams& params);
+
+    void*                      CompCollisionObjectBullet3DGetComponent(const dmGameObject::ComponentGetParams& params);
+
+    void CompCollisionObjectBullet3DOnReload(const dmGameObject::ComponentOnReloadParams& params);
+
+    dmGameObject::PropertyResult CompCollisionObjectBullet3DGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value);
+
+    dmGameObject::PropertyResult CompCollisionObjectBullet3DSetProperty(const dmGameObject::ComponentSetPropertyParams& params);
+
+    void CompCollisionIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node);
+
+    uint16_t CompCollisionGetGroupBitIndex(void* world, uint64_t group_hash);
 
     // For script_physics.cpp
-    void     RayCast(CollisionWorld* world, const dmPhysics::RayCastRequest& request, dmArray<dmPhysics::RayCastResponse>& results);
-    uint64_t GetLSBGroupHash(CollisionWorld* world, uint16_t mask);
-    dmhash_t CompCollisionObjectGetIdentifier(CollisionComponent* component);
-    uint16_t CompCollisionGetGroupBitIndex(CollisionWorld* world, uint64_t group_hash);
-
-    // Adapter API
-    void WakeupCollision(CollisionWorld* world, CollisionComponent* component);
-
-    /*
-    void CompCollisionIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node);
+    void RayCast(void* world, const dmPhysics::RayCastRequest& request, dmArray<dmPhysics::RayCastResponse>& results);
+    uint64_t GetLSBGroupHash(void* world, uint16_t mask);
+    dmhash_t CompCollisionObjectBullet3DGetIdentifier(void* component);
 
     dmPhysics::JointResult CreateJoint(void* _world, void* _component_a, dmhash_t id, const dmVMath::Point3& apos, void* _component_b, const dmVMath::Point3& bpos, dmPhysics::JointType type, const dmPhysics::ConnectJointParams& joint_params);
     dmPhysics::JointResult DestroyJoint(void* _world, void* _component, dmhash_t id);
@@ -92,10 +94,21 @@ namespace dmGameSystem
     void SetCollisionWorldCallback(void* _world, void* callback_info);
     void RunCollisionWorldCallback(void* callback_data, const dmDDF::Descriptor* desc, const char* data);
 
+    struct ShapeInfo
+    {
+        union
+        {
+            float m_BoxDimensions[3];
+            float m_CapsuleDiameterHeight[2];
+            float m_SphereDiameter;
+        };
+        dmPhysicsDDF::CollisionShape::Type m_Type;
+    };
+
     bool GetShapeIndex(void* _component, dmhash_t shape_name_hash, uint32_t* index_out);
     bool GetShape(void* _world, void* _component, uint32_t shape_ix, ShapeInfo* shape_info);
     bool SetShape(void* _world, void* _component, uint32_t shape_ix, ShapeInfo* shape_info);
     */
 }
 
-#endif // DM_GAMESYS_COMP_COLLISION_OBJECT_H
+#endif // DM_GAMESYS_COMP_COLLISION_OBJECT_BULLET3D_H

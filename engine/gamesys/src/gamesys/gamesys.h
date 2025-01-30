@@ -26,6 +26,7 @@
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/lua/lua.h>
 #include <dmsdk/gameobject/gameobject.h>
+#include <dmsdk/gamesys/resources/res_collision_object.h>
 
 #include <gui/gui.h>
 #include <input/input.h>
@@ -75,20 +76,60 @@ namespace dmGameSystem
         uint32_t                    m_Subpixels : 1;
     };
 
+    // TODO: Move this?
+    struct CollisionWorld;
+    struct CollisionComponent;
+
+    typedef void (*WakeupCollisionFn)(CollisionWorld* world, CollisionComponent* component);
+    typedef void (*RayCastFn)(CollisionWorld* world, const dmPhysics::RayCastRequest& request, dmArray<dmPhysics::RayCastResponse>& results);
+
+    struct PhysicsAdapterFunctionTable
+    {
+        WakeupCollisionFn m_WakeupCollision;
+        RayCastFn         m_RayCast;
+    };
+
+    struct CollisionWorld
+    {
+        PhysicsAdapterFunctionTable* m_AdapterFunctions;
+        uint64_t                     m_Groups[16];
+    };
+
+    struct CollisionComponent
+    {
+        CollisionObjectResource*      m_Resource;
+        dmGameObject::HInstance       m_Instance;
+        uint16_t                      m_Mask;
+        uint16_t                      m_ComponentIndex;
+        // Tracking initial state.
+        uint8_t                       m_AddedToUpdate  : 1;
+        uint8_t                       m_StartAsEnabled : 1;
+        uint8_t                       m_FlippedX       : 1; // set if it's been flipped
+        uint8_t                       m_FlippedY       : 1; // --||--
+        uint8_t                       m_EventMask      : 3;
+    };
+
     struct PhysicsContext
     {
-        union
-        {
-            dmPhysics::HContext3D m_Context3D;
-            dmPhysics::HContext2D m_Context2D;
-        };
-        uint32_t    m_MaxCollisionCount;
-        uint32_t    m_MaxCollisionObjectCount;
-        uint32_t    m_MaxContactPointCount;
-        bool        m_Debug;
-        bool        m_3D;
-        bool        m_UseFixedTimestep;
-        uint32_t    m_MaxFixedTimesteps;
+        uint32_t m_MaxCollisionCount;
+        uint32_t m_MaxCollisionObjectCount;
+        uint32_t m_MaxContactPointCount;
+        bool     m_Debug;
+        bool     m_UseFixedTimestep;
+        uint32_t m_MaxFixedTimesteps;
+    };
+
+    // Maybe hide these in the implementations themselves?
+    struct PhysicsContextBox2D
+    {
+        PhysicsContext        m_BaseContext;
+        dmPhysics::HContext2D m_Context;
+    };
+
+    struct PhysicsContextBullet3D
+    {
+        PhysicsContext        m_BaseContext;
+        dmPhysics::HContext3D m_Context;
     };
 
     struct ParticleFXContext
@@ -190,12 +231,14 @@ namespace dmGameSystem
     dmResource::Result RegisterResourceTypes(dmResource::HFactory factory,
         dmRender::HRenderContext render_context,
         dmInput::HContext input_context,
-        PhysicsContext* physics_context);
+        PhysicsContextBox2D* physics_context_box2d,
+        PhysicsContextBullet3D* physics_context_bullet3d);
 
     dmGameObject::Result RegisterComponentTypes(dmResource::HFactory factory,
                                                   dmGameObject::HRegister regist,
                                                   dmRender::HRenderContext render_context,
-                                                  PhysicsContext* physics_context,
+                                                  PhysicsContextBox2D* physics_context_box2d,
+                                                  PhysicsContextBullet3D* physics_context_bullet3d,
                                                   ParticleFXContext* emitter_context,
                                                   SpriteContext* sprite_context,
                                                   CollectionProxyContext* collection_proxy_context,

@@ -32,6 +32,7 @@ namespace dmGameSystem
                            ConvexShapeResource* resource,
                            const char* filename)
     {
+        /*
         dmPhysicsDDF::ConvexShape* convex_shape;
         dmDDF::Result e = dmDDF::LoadMessage<dmPhysicsDDF::ConvexShape>(buffer, buffer_size, &convex_shape);
         if ( e != dmDDF::RESULT_OK )
@@ -112,10 +113,14 @@ namespace dmGameSystem
 
         dmDDF::FreeMessage(convex_shape);
         return result;
+        */
+
+        return true;
     }
 
     dmResource::Result ResConvexShapeCreate(const dmResource::ResourceCreateParams* params)
     {
+        /*
         ConvexShapeResource* convex_shape = new ConvexShapeResource();
         convex_shape->m_3D = ((PhysicsContext*) params->m_Context)->m_3D;
         if (AcquireResources(params->m_Factory, (PhysicsContext*) params->m_Context, params->m_Buffer, params->m_BufferSize, convex_shape, params->m_Filename))
@@ -128,6 +133,9 @@ namespace dmGameSystem
             delete convex_shape;
             return dmResource::RESULT_FORMAT_ERROR;
         }
+        */
+
+        return dmResource::RESULT_OK;
     }
 
     void ReleaseResources(ConvexShapeResource* resource)
@@ -151,6 +159,7 @@ namespace dmGameSystem
 
     dmResource::Result ResConvexShapeRecreate(const dmResource::ResourceRecreateParams* params)
     {
+        /*
         ConvexShapeResource* cs_resource = (ConvexShapeResource*)dmResource::GetResource(params->m_Resource);
         ConvexShapeResource tmp_convex_shape;
         PhysicsContext* physics_context = (PhysicsContext*) params->m_Context;
@@ -169,5 +178,8 @@ namespace dmGameSystem
         {
             return dmResource::RESULT_FORMAT_ERROR;
         }
+        */
+
+        return dmResource::RESULT_OK;
     }
 }
