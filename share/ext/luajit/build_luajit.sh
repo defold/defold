@@ -184,29 +184,29 @@ case ${PLATFORM} in
 			export ARCH_FLAGS="--target=x86_64-unknown-linux-gnu"
 			if [ "arm64-linux" == "${PLATFORM}" ]; then
 				ARCH_FLAGS="--target=aarch64-unknown-linux-gnu"
-				XCFLAGS="-DLUAJIT_TARGET=LUAJIT_ARCH_ARM ${XCFLAGS}"
+			# 	XCFLAGS="-DLUAJIT_TARGET=LUAJIT_ARCH_ARM ${XCFLAGS}"
 			fi
 
-			export DEFOLD_ARCH="32"
-			export XCFLAGS="-DLUAJIT_DISABLE_GC64 ${COMMON_XCFLAGS}"
+			# export DEFOLD_ARCH="32"
+			# export XCFLAGS="-DLUAJIT_DISABLE_GC64 ${COMMON_XCFLAGS}"
 
-			export HOST_CC="clang"
-			export HOST_CFLAGS="${COMMON_XCFLAGS} -I."
-			export HOST_LDFLAGS=""
-			export TARGET_CFLAGS="${ARCH_FLAGS}"
-			export TARGET_LDFLAGS="${ARCH_FLAGS}"
+			# export HOST_CC="clang"
+			# export HOST_CFLAGS="${COMMON_XCFLAGS} -I."
+			# export HOST_LDFLAGS=""
+			# export TARGET_CFLAGS="${ARCH_FLAGS}"
+			# export TARGET_LDFLAGS="${ARCH_FLAGS}"
 
-			echo "Building $CONF_TARGET ($DEFOLD_ARCH) with '$XCFLAGS'"
-			set -e
-			make -j8
-			make install
-			mv $PREFIX/bin/$CONF_TARGET/${TARGET_FILE} $PREFIX/bin/$CONF_TARGET/luajit-${DEFOLD_ARCH}
-			make clean
-			set +e
+			# echo "Building $CONF_TARGET ($DEFOLD_ARCH) with '$XCFLAGS'"
+			# set -e
+			# make -j8
+			# make install
+			# mv $PREFIX/bin/$CONF_TARGET/${TARGET_FILE} $PREFIX/bin/$CONF_TARGET/luajit-${DEFOLD_ARCH}
+			# make clean
+			# set +e
 
-			echo "****************************************************"
-			file $PREFIX/bin/$CONF_TARGET/luajit-${DEFOLD_ARCH}
-			echo "****************************************************"
+			# echo "****************************************************"
+			# file $PREFIX/bin/$CONF_TARGET/luajit-${DEFOLD_ARCH}
+			# echo "****************************************************"
 
 			if [ "arm64-linux" == "${PLATFORM}" ]; then
 				XCFLAGS="-DLUAJIT_TARGET=LUAJIT_ARCH_ARM64 ${XCFLAGS}"
