@@ -174,7 +174,7 @@ namespace dmPlatform
 
     int32_t        GetKey(HWindow window, int32_t code);
     int32_t        GetMouseButton(HWindow window, int32_t button);
-    double         GetMouseWheel(HWindow window);
+    int32_t        GetMouseWheel(HWindow window);
     void           GetMousePosition(HWindow window, int32_t* x, int32_t* y);
     uint32_t       GetTouchData(HWindow window, TouchData* touch_data, uint32_t touch_data_count);
     bool           GetAcceleration(HWindow window, float* x, float* y, float* z);

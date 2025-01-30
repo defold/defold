@@ -261,15 +261,11 @@ namespace dmHID
                     else
                         packet.m_Buttons[i / 32] &= ~mask;
                 }
-                double wheel = dmPlatform::GetMouseWheel(context->m_Window);
-                // if (wheel != 0)
-                // {
-                //     dmLogInfo("Wheel: %f", wheel);
-                // }
+                int32_t wheel = dmPlatform::GetMouseWheel(context->m_Window);
 
                 if (context->m_FlipScrollDirection)
                 {
-                    wheel *= -1.0;
+                    wheel *= -1;
                 }
 
                 packet.m_Wheel = wheel;

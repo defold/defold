@@ -358,8 +358,8 @@ namespace dmPlatform
 
     void PollEvents(HWindow window)
     {
-        window->m_MouseScrollX = 0.0;
-        window->m_MouseScrollY = 0.0;
+        // window->m_MouseScrollX = 0.0;
+        // window->m_MouseScrollY = 0.0;
         glfwPollEvents();
     }
 
@@ -481,9 +481,9 @@ namespace dmPlatform
         return glfwGetKey(window->m_Window, code);
     }
 
-    double GetMouseWheel(HWindow window)
+    int32_t GetMouseWheel(HWindow window)
     {
-        return window->m_MouseScrollY;
+        return (int32_t) round(window->m_MouseScrollY);
     }
 
     int32_t GetMouseButton(HWindow window, int32_t button)
