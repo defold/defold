@@ -35,7 +35,7 @@ namespace dmGameSystem
     static const dmhash_t prefix##_EXT_HASH = dmHashString64(ext);\
 
     EXT_CONSTANTS(COLLECTION_FACTORY, "collectionfactoryc")
-    EXT_CONSTANTS(COLLISION_OBJECT, "collisionobjectc")
+    EXT_CONSTANTS(COLLISION_OBJECT, "collisionobject_box2dc")
     EXT_CONSTANTS(FACTORY, "factoryc")
     EXT_CONSTANTS(FONT, "fontc")
     EXT_CONSTANTS(MATERIAL, "materialc")

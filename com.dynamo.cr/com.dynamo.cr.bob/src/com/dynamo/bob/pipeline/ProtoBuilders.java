@@ -171,11 +171,10 @@ public class ProtoBuilders {
     public static class ConvexShapeBuilder extends ProtoBuilder<ConvexShape.Builder> {}
 
     @ProtoParams(srcClass = CollisionObjectDesc.class, messageClass = CollisionObjectDesc.class)
-    @BuilderParams(name="CollisionObjectDesc", inExts=".collisionobject", outExt=".collisionobjectc")
+    @BuilderParams(name="CollisionObjectDesc", inExts=".collisionobject", outExt=".collisionobject_box2dc")
     public static class CollisionObjectBuilder extends ProtoBuilder<CollisionObjectDesc.Builder> {
 
-        private void ValidateShapeTypes(List<Shape> shapeList, IResource resource) throws IOException, CompileExceptionError {
-            String physicsTypeStr = StringUtil.toUpperCase(this.project.getProjectProperties().getStringValue("physics", "type", "2D"));
+        private void ValidateShapeTypes(List<Shape> shapeList, IResource resource, String physicsTypeStr) throws IOException, CompileExceptionError {
             for(Shape shape : shapeList) {
                 if(shape.getShapeType() == Type.TYPE_CAPSULE) {
                     if(physicsTypeStr.contains("2D")) {
@@ -190,17 +189,20 @@ public class ProtoBuilders {
             if (messageBuilder.getEmbeddedCollisionShape().getShapesCount() == 0) {
                 BuilderUtil.checkResource(this.project, resource, "collision shape", messageBuilder.getCollisionShape());
             }
+
+            String physicsTypeStr = StringUtil.toUpperCase(this.project.getProjectProperties().getStringValue("physics", "type", "2D"));
+
             // Merge convex shape resource with collision object
             // NOTE: Special case for tilegrid resources. They are left as is
             if(messageBuilder.hasEmbeddedCollisionShape()) {
-                ValidateShapeTypes(messageBuilder.getEmbeddedCollisionShape().getShapesList(), resource);
+                ValidateShapeTypes(messageBuilder.getEmbeddedCollisionShape().getShapesList(), resource, physicsTypeStr);
             }
             if (messageBuilder.hasCollisionShape() && !messageBuilder.getCollisionShape().isEmpty() && !(messageBuilder.getCollisionShape().endsWith(".tilegrid") || messageBuilder.getCollisionShape().endsWith(".tilemap"))) {
                 IResource shapeResource = project.getResource(messageBuilder.getCollisionShape().substring(1));
                 ConvexShape.Builder cb = ConvexShape.newBuilder();
                 ProtoUtil.merge(shapeResource, cb);
                 CollisionShape.Builder eb = CollisionShape.newBuilder().mergeFrom(messageBuilder.getEmbeddedCollisionShape());
-                ValidateShapeTypes(eb.getShapesList(), shapeResource);
+                ValidateShapeTypes(eb.getShapesList(), shapeResource, physicsTypeStr);
                 Shape.Builder sb = Shape.newBuilder()
                         .setShapeType(CollisionShape.Type.valueOf(cb.getShapeType().getNumber()))
                         .setPosition(Point3.newBuilder())

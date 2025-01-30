@@ -32,8 +32,6 @@ namespace dmGameSystem
 
     struct CollisionObjectResource
     {
-        CollisionObjectResource();
-
         dmPhysicsDDF::CollisionObjectDesc*  m_DDF;
         dmVMath::Vector3*                   m_ShapeTranslation;
         dmVMath::Quat*                      m_ShapeRotation;
@@ -59,7 +57,8 @@ namespace dmGameSystem
         CollisionObjectResource       m_BaseResource;
         TileGridResource*             m_TileGridResource;
         dmPhysics::HCollisionShape2D* m_Shapes2D;
-        bool                          m_TileGrid;
+        uint32_t                      m_TileGridShapeCount : 31;
+        uint32_t                      m_TileGrid   : 1;
     };
 }
 

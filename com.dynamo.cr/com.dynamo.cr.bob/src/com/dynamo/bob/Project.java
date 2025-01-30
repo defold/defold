@@ -413,7 +413,7 @@ public class Project {
         {".buffer", ".bufferc"},
         {".mesh", ".meshc"},
         {".collectionproxy", ".collectionproxyc"},
-        {".collisionobject", ".collisionobjectc"},
+        // {".collisionobject", ".collisionobjectc"},
         {".particlefx", ".particlefxc"},
         {".gui", ".guic"},
         {".model", ".modelc"},
