@@ -21,7 +21,7 @@
             [util.digest :as digest])
   (:import [clojure.lang Named]
            [com.defold.util IDigestable]
-           [java.io OutputStreamWriter Writer]))
+           [java.io BufferedWriter OutputStreamWriter Writer]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -205,7 +205,7 @@
 
   java.util.Map
   (digest! [value writer opts]
-    (if (satisfies? resource/Resource value)
+    (if (resource/resource? value)
       (digest-resource! value writer opts)
       (digest-map! value writer opts)))
 
@@ -232,7 +232,7 @@
    (sha1-hash object nil))
   (^String [object opts]
    (with-open [digest-output-stream (digest/make-digest-output-stream "SHA-1")
-               writer (OutputStreamWriter. digest-output-stream)]
+               writer (BufferedWriter. (OutputStreamWriter. digest-output-stream))]
      (digest! object writer opts)
      (.flush writer)
      (digest/completed-stream->hex digest-output-stream))))
