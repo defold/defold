@@ -1173,8 +1173,8 @@
           pivot-pos (rect->absolute-pivot-pos rect)
           scale (scene-tools/scale-factor camera viewport (Vector3d. (first pivot-pos) (second pivot-pos) 0.0))
           world-transform (scene-tools/manip-world-transform reference-renderable manip-space scale)
-          absolute-pivot-pos (mapv #(/ ^double % scale) (rect->absolute-pivot-pos rect))
-          vertices (pivot-handle absolute-pivot-pos)
+          adjusted-pivot-pos (mapv #(/ ^double % scale) pivot-pos)
+          vertices (pivot-handle adjusted-pivot-pos)
           inv-view (doto (c/camera-view-matrix camera) (.invert))
           renderables [(scene-tools/gen-manip-renderable _node-id :move-pivot manip-space world-rotation world-transform (AxisAngle4d.) vertices colors/defold-turquoise inv-view)]]
       {pass/manipulator renderables
