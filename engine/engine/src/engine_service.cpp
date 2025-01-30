@@ -306,7 +306,7 @@ namespace dmEngineService
             }
             else if (strcmp(key, "CONNECTION_MODE") == 0)
             {
-                return ((EngineState*)user_data)->m_ConnectionAppMode;
+                return ((EngineState*)user_data)->m_ConnectionAppMode ? "true" : "false";
             }
             else
             {

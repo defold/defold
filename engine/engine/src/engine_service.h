@@ -62,7 +62,7 @@ namespace dmEngineService
 
     struct EngineState
     {
-        const char*    m_ConnectionAppMode;
+        bool   m_ConnectionAppMode;
     };
 
     void InitState(HEngineService engine_service, EngineState* state);
