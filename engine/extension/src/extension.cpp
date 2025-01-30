@@ -83,6 +83,73 @@ bool ExtensionRegisterCallback(ExtensionCallbackType callback_type, FExtensionCa
     return dmExtension::RegisterCallback((dmExtension::CallbackType)callback_type, (dmExtension::FCallback)func);
 }
 
+static void EnsureSize(dmHashTable64<void*>* tbl)
+{
+    if (tbl->Full())
+    {
+        tbl->OffsetCapacity(4);
+    }
+}
+
+static int SetContext(dmHashTable64<void*>* contexts, dmhash_t name_hash, void* context)
+{
+    assert(contexts);
+    EnsureSize(contexts);
+
+    if (context)
+        contexts->Put(name_hash, context);
+    else
+        contexts->Erase(name_hash);
+    return 0;
+}
+
+static int SetContext(dmHashTable64<void*>* contexts, const char* name, void* context)
+{
+    return SetContext(contexts, dmHashString64(name), context);
+}
+
+static void* GetContext(dmHashTable64<void*>* contexts, dmhash_t name_hash)
+{
+    void** pcontext = contexts->Get(name_hash);
+    if (pcontext != 0)
+    {
+        return *pcontext;
+    }
+    return 0;
+}
+
+int ExtensionSetContextToAppParams(ExtensionAppParams* params, const char* name, void* context)
+{
+    return SetContext(params->m_Contexts, name, context);
+}
+
+void* ExtensionGetContextFromAppParams(ExtensionAppParams* params, dmhash_t name_hash)
+{
+    return GetContext(params->m_Contexts, name_hash);
+}
+
+void* ExtensionGetContextFromAppParamsByName(ExtensionAppParams* params, const char* name)
+{
+    return GetContext(params->m_Contexts, dmHashString64(name));
+}
+
+int ExtensionSetContextToParams(ExtensionParams* params, const char* name, void* context)
+{
+    return SetContext(params->m_Contexts, name, context);
+}
+
+void* ExtensionGetContextFromParams(ExtensionParams* params, dmhash_t name_hash)
+{
+    return GetContext(params->m_Contexts, name_hash);
+}
+
+void* ExtensionGetContextFromParamsByName(ExtensionParams* params, const char* name)
+{
+    return GetContext(params->m_Contexts, dmHashString64(name));
+}
+
+
+
 #if defined(__cplusplus)
 } // extern "C"
 #endif

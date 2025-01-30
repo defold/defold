@@ -26,27 +26,49 @@ extern "C"
 // test potential problems with dead stripping of symbols
 
 int g_TestAppInitCount = 0;
+int g_TestInitCount = 0;
+int g_TestUpdateCount = 0;
 int g_TestAppEventCount = 0;
+int g_TestContextCount = 0;
+
+static int g_LibContext = 0;
 
 static dmExtension::Result AppInitializeTest(dmExtension::AppParams* params)
 {
+    int* engine = (int*)ExtensionGetContextFromAppParamsByName(params, "engine");
+    assert(engine != 0);
+    assert(*engine == 1337);
+
+    ExtensionSetContextToAppParams(params, "lib", &g_LibContext);
+    int* libctx = (int*)ExtensionGetContextFromAppParamsByName(params, "lib");
+    assert(libctx == &g_LibContext);
+    *libctx = 1976;
+
     g_TestAppInitCount++;
     return dmExtension::RESULT_OK;
 }
 
 static dmExtension::Result AppFinalizeTest(dmExtension::AppParams* params)
 {
+    int* libctx = (int*)ExtensionGetContextFromAppParamsByName(params, "lib");
+    assert(libctx == &g_LibContext);
+    *libctx = 1976;
+
+    ExtensionSetContextToAppParams(params, "lib", 0);
+
     g_TestAppInitCount--;
     return dmExtension::RESULT_OK;
 }
 
 static dmExtension::Result InitializeTest(dmExtension::Params* params)
 {
+    g_TestInitCount++;
     return dmExtension::RESULT_OK;
 }
 
 static dmExtension::Result UpdateTest(dmExtension::Params* params)
 {
+    g_TestUpdateCount++;
     return dmExtension::RESULT_OK;
 }
 
@@ -60,6 +82,7 @@ void OnEventTest(dmExtension::Params* params, const dmExtension::Event* event)
 
 static dmExtension::Result FinalizeTest(dmExtension::Params* params)
 {
+    g_TestInitCount--;
     return dmExtension::RESULT_OK;
 }
 
