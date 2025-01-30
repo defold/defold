@@ -59,7 +59,7 @@
                           {:field-value field-value :field-path field-path})))
         (let [fused-path (field-value->fused-path field-value ::not-found)]
           (if (identical? ::not-found fused-path)
-            (throw (ex-info "deps-resources is missing a referenced source-resource. Ensure it is among the dep-build-targets."
+            (throw (ex-info "dep-resources is missing a referenced source-resource. Ensure it is among the dep-build-targets."
                             {:field-value field-value
                              :field-path field-path
                              :deps-by-source field-value->fused-path}))
