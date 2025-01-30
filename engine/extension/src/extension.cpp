@@ -14,6 +14,7 @@
 
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
+#include <dlib/hashtable.h>
 #include <dlib/static_assert.h>
 #include <dmsdk/extension/extension.h>
 
@@ -83,6 +84,11 @@ bool ExtensionRegisterCallback(ExtensionCallbackType callback_type, FExtensionCa
     return dmExtension::RegisterCallback((dmExtension::CallbackType)callback_type, (dmExtension::FCallback)func);
 }
 
+struct ExtensionParamsImpl
+{
+    dmHashTable64<void*> m_Contexts;
+};
+
 static void EnsureSize(dmHashTable64<void*>* tbl)
 {
     if (tbl->Full())
@@ -99,7 +105,11 @@ static int SetContext(dmHashTable64<void*>* contexts, dmhash_t name_hash, void* 
     if (context)
         contexts->Put(name_hash, context);
     else
-        contexts->Erase(name_hash);
+    {
+        void** pvalue = contexts->Get(name_hash);
+        if (pvalue)
+            contexts->Erase(name_hash);
+    }
     return 0;
 }
 
@@ -118,34 +128,60 @@ static void* GetContext(dmHashTable64<void*>* contexts, dmhash_t name_hash)
     return 0;
 }
 
-int ExtensionSetContextToAppParams(ExtensionAppParams* params, const char* name, void* context)
+void ExtensionAppParamsInitialize(ExtensionAppParams* app_params)
 {
-    return SetContext(params->m_Contexts, name, context);
+    memset(app_params, 0, sizeof(*app_params));
+    app_params->m_Impl = new ExtensionParamsImpl;
+    memset(app_params->m_Impl, 0, sizeof(*app_params->m_Impl));
 }
 
-void* ExtensionGetContextFromAppParams(ExtensionAppParams* params, dmhash_t name_hash)
+void ExtensionAppParamsFinalize(ExtensionAppParams* app_params)
 {
-    return GetContext(params->m_Contexts, name_hash);
+    delete app_params->m_Impl;
+    app_params->m_Impl = 0;
 }
 
-void* ExtensionGetContextFromAppParamsByName(ExtensionAppParams* params, const char* name)
+void ExtensionParamsInitialize(ExtensionParams* params)
 {
-    return GetContext(params->m_Contexts, dmHashString64(name));
+    memset(params, 0, sizeof(*params));
+    params->m_Impl = new ExtensionParamsImpl;
+    memset(params->m_Impl, 0, sizeof(*params->m_Impl));
 }
 
-int ExtensionSetContextToParams(ExtensionParams* params, const char* name, void* context)
+void ExtensionParamsFinalize(ExtensionParams* params)
 {
-    return SetContext(params->m_Contexts, name, context);
+    delete params->m_Impl;
+    params->m_Impl = 0;
 }
 
-void* ExtensionGetContextFromParams(ExtensionParams* params, dmhash_t name_hash)
+int ExtensionAppParamsSetContext(ExtensionAppParams* params, const char* name, void* context)
 {
-    return GetContext(params->m_Contexts, name_hash);
+    return SetContext(&params->m_Impl->m_Contexts, name, context);
 }
 
-void* ExtensionGetContextFromParamsByName(ExtensionParams* params, const char* name)
+void* ExtensionAppParamsGetContext(ExtensionAppParams* params, dmhash_t name_hash)
 {
-    return GetContext(params->m_Contexts, dmHashString64(name));
+    return GetContext(&params->m_Impl->m_Contexts, name_hash);
+}
+
+void* ExtensionAppParamsGetContextByName(ExtensionAppParams* params, const char* name)
+{
+    return GetContext(&params->m_Impl->m_Contexts, dmHashString64(name));
+}
+
+int ExtensionParamsSetContext(ExtensionParams* params, const char* name, void* context)
+{
+    return SetContext(&params->m_Impl->m_Contexts, name, context);
+}
+
+void* ExtensionParamsGetContext(ExtensionParams* params, dmhash_t name_hash)
+{
+    return GetContext(&params->m_Impl->m_Contexts, name_hash);
+}
+
+void* ExtensionParamsGetContextByName(ExtensionParams* params, const char* name)
+{
+    return GetContext(&params->m_Impl->m_Contexts, dmHashString64(name));
 }
 
 

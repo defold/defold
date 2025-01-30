@@ -20,7 +20,6 @@
 
 #include <dmsdk/dlib/align.h> // DM_ALIGNED
 #include <dmsdk/dlib/configfile.h>
-#include <dlib/hashtable.h>
 
 #if defined(__cplusplus)
 extern "C" {
@@ -102,7 +101,8 @@ typedef enum ExtensionCallbackType
 typedef struct ExtensionAppParams
 {
     HConfigFile m_ConfigFile; // Deprecated. Here for backwards compatibility
-    dmHashTable64<void*>* m_Contexts;
+
+    struct ExtensionParamsImpl* m_Impl;
 } ExtensionAppParams;
 
 /*#
@@ -115,11 +115,12 @@ typedef struct ExtensionAppParams
  */
 typedef struct ExtensionParams
 {
-    HConfigFile         m_ConfigFile;   // Deprecated. Use m_Contexts instead
-    HResourceFactory    m_ResourceFactory;
-    lua_State*          m_L;
+    // NOTE: we'd like to hide these implementation details, in favor of gettin teh contexts
+    HConfigFile         m_ConfigFile;       //!< Deprecated. Use m_Contexts instead
+    HResourceFactory    m_ResourceFactory;  //!< Deprecated. Use m_Contexts instead
+    lua_State*          m_L;                //!< Deprecated. Use m_Contexts instead
 
-    dmHashTable64<void*>* m_Contexts;
+    struct ExtensionParamsImpl* m_Impl;
 } ExtensionParams;
 
 typedef struct ExtensionEvent
@@ -127,62 +128,92 @@ typedef struct ExtensionEvent
     enum ExtensionEventID m_Event;
 } ExtensionEvent;
 
+/*#
+ * Initializes an extension app params struct
+ * NOTE: this is an opaque struct, do not use it's members directly!
+ * @name ExtensionAppParamsInitialize
+ * @param app_params [type:ExtensionAppParams*] the params
+ */
+void ExtensionAppParamsInitialize(ExtensionAppParams* app_params);
+
+/*#
+ * Finalizes an extension app params struct (deallocates internal memory)
+ * @name ExtensionAppParamsFinalize
+ * @param app_params [type:ExtensionAppParams*] the params
+ */
+void ExtensionAppParamsFinalize(ExtensionAppParams* params);
+
+
+/*#
+ * Initializes an extension params struct
+ * NOTE: this is an opaque struct, do not use it's members directly!
+ * @name ExtensionParamsInitialize
+ * @param app_params [type:ExtensionParams*] the params
+ */
+void ExtensionParamsInitialize(ExtensionParams* app_params);
+
+/*#
+ * Finalizes an extension  params struct (deallocates internal memory)
+ * @name ExtensionParamsFinalize
+ * @param app_params [type:ExtensionParams*] the params
+ */
+void ExtensionParamsFinalize(ExtensionParams* params);
 
 /*#
  * Sets a context using a specified name
- * @name ExtensionSetContextToAppParams
+ * @name ExtensionAppParamsSetContext
  * @param params [type:ExtensionAppParams] the params
  * @param name [type:const char*] the context name
  * @param context [type:void*] the context
  * @return result [type:int] 0 if successful
  */
-int ExtensionSetContextToAppParams(ExtensionAppParams* params, const char* name, void* context);
+int ExtensionAppParamsSetContext(ExtensionAppParams* params, const char* name, void* context);
 
 /*#
  * Gets a context using a specified name
- * @name ExtensionGetContextFromAppParamsByName
+ * @name ExtensionAppParamsGetContextByName
  * @param params [type:ExtensionAppParams] the params
  * @param name [type:const char*] the context name
  * @return context [type:void*] The context, if it exists
  */
-void* ExtensionGetContextFromAppParamsByName(ExtensionAppParams* params, const char* name);
+void* ExtensionAppParamsGetContextByName(ExtensionAppParams* params, const char* name);
 
 /*#
  * Gets a context using a specified name hash
- * @name ExtensionGetContextFromAppParams
+ * @name ExtensionAppParamsGetContext
  * @param params [type:ExtensionAppParams] the params
  * @param name_hash [type:dmhash_t] the context name hash
  * @return context [type:void*] The context, if it exists
  */
-void* ExtensionGetContextFromAppParams(ExtensionAppParams* params, dmhash_t name_hash);
+void* ExtensionAppParamsGetContext(ExtensionAppParams* params, dmhash_t name_hash);
 
 /*#
  * Sets a context using a specified name
- * @name ExtensionSetContextFromParams
+ * @name ExtensionParamsSetContext
  * @param params [type:ExtensionAppParams] the params
  * @param name [type:const char*] the context name
  * @param context [type:void*] the context
  * @return result [type:int] 0 if successful
  */
-int ExtensionSetContextToParams(ExtensionParams* params, const char* name, void* context);
+int ExtensionParamsSetContext(ExtensionParams* params, const char* name, void* context);
 
 /*#
  * Gets a context using a specified name
- * @name ExtensionGetContextFromParamsByName
+ * @name ExtensionParamsGetContextByName
  * @param params [type:ExtensionParams] the params
  * @param name [type:const char*] the context name
  * @return context [type:void*] The context, if it exists
  */
-void* ExtensionGetContextFromParamsByName(ExtensionParams* params, const char* name);
+void* ExtensionParamsGetContextByName(ExtensionParams* params, const char* name);
 
 /*#
  * Gets a context using a specified name hash
- * @name ExtensionGetContextFromParams
+ * @name ExtensionParamsGetContext
  * @param params [type:ExtensionParams] the params
  * @param name_hash [type:dmhash_t] the context name hash
  * @return context [type:void*] The context, if it exists
  */
-void* ExtensionGetContextFromParams(ExtensionParams* params, dmhash_t name_hash);
+void* ExtensionParamsGetContext(ExtensionParams* params, dmhash_t name_hash);
 
 
 

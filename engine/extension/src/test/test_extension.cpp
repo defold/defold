@@ -42,14 +42,11 @@ struct Initializer {
 
 TEST(dmExtension, Basic)
 {
-    dmHashTable64<void*> contexts;
-
     dmExtension::AppParams appparams;
-    appparams.m_Contexts = &contexts;
+    ExtensionAppParamsInitialize(&appparams);
 
     int engine_context = 1337;
-    ExtensionSetContextToAppParams(&appparams, "engine", &engine_context);
-    ASSERT_EQ(1, contexts.Size());
+    ExtensionAppParamsSetContext(&appparams, "engine", &engine_context);
 
     ASSERT_EQ(0, g_TestAppInitCount);
     ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::AppInitialize(&appparams));
@@ -58,12 +55,11 @@ TEST(dmExtension, Basic)
     ASSERT_NE((dmExtension::HExtension)0, extension);
     ASSERT_EQ((dmExtension::HExtension)0, dmExtension::GetNextExtension(extension));
 
-    ASSERT_EQ(2, contexts.Size()); // it registered its own context
-    ASSERT_NE((void*)0, ExtensionGetContextFromAppParamsByName(&appparams, "lib"));
-    ASSERT_NE((void*)0, ExtensionGetContextFromAppParams(&appparams, dmHashString64("lib")));
+    ASSERT_NE((void*)0, ExtensionAppParamsGetContextByName(&appparams, "lib"));
+    ASSERT_NE((void*)0, ExtensionAppParamsGetContext(&appparams, dmHashString64("lib")));
 
     dmExtension::Params params;
-    params.m_Contexts = &contexts;
+    ExtensionParamsInitialize(&params);
 
     ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::Initialize(&params));
     ASSERT_EQ(1, g_TestInitCount);
@@ -77,6 +73,8 @@ TEST(dmExtension, Basic)
     ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::Finalize(&params));
     ASSERT_EQ(0, g_TestInitCount);
 
+    ExtensionParamsFinalize(&params);
+
     dmExtension::Event event;
     event.m_Event = (ExtensionEventID)dmExtension::EVENT_ID_ACTIVATEAPP;
     dmExtension::DispatchEvent(&params, &event);
@@ -89,10 +87,10 @@ TEST(dmExtension, Basic)
     ASSERT_EQ(0, g_TestAppInitCount);
 
     // it deregistered its own context
-    ASSERT_EQ(1, contexts.Size());
-    ASSERT_EQ((void*)0, ExtensionGetContextFromAppParamsByName(&appparams, "lib"));
-    ASSERT_EQ((void*)0, ExtensionGetContextFromAppParams(&appparams, dmHashString64("lib")));
+    ASSERT_EQ((void*)0, ExtensionAppParamsGetContextByName(&appparams, "lib"));
+    ASSERT_EQ((void*)0, ExtensionAppParamsGetContext(&appparams, dmHashString64("lib")));
 
+    ExtensionAppParamsFinalize(&appparams);
 }
 
 int main(int argc, char **argv)

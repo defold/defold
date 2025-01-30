@@ -35,12 +35,12 @@ static int g_LibContext = 0;
 
 static dmExtension::Result AppInitializeTest(dmExtension::AppParams* params)
 {
-    int* engine = (int*)ExtensionGetContextFromAppParamsByName(params, "engine");
+    int* engine = (int*)ExtensionAppParamsGetContextByName(params, "engine");
     assert(engine != 0);
     assert(*engine == 1337);
 
-    ExtensionSetContextToAppParams(params, "lib", &g_LibContext);
-    int* libctx = (int*)ExtensionGetContextFromAppParamsByName(params, "lib");
+    ExtensionAppParamsSetContext(params, "lib", &g_LibContext);
+    int* libctx = (int*)ExtensionAppParamsGetContextByName(params, "lib");
     assert(libctx == &g_LibContext);
     *libctx = 1976;
 
@@ -50,11 +50,11 @@ static dmExtension::Result AppInitializeTest(dmExtension::AppParams* params)
 
 static dmExtension::Result AppFinalizeTest(dmExtension::AppParams* params)
 {
-    int* libctx = (int*)ExtensionGetContextFromAppParamsByName(params, "lib");
+    int* libctx = (int*)ExtensionAppParamsGetContextByName(params, "lib");
     assert(libctx == &g_LibContext);
     *libctx = 1976;
 
-    ExtensionSetContextToAppParams(params, "lib", 0);
+    ExtensionAppParamsSetContext(params, "lib", 0);
 
     g_TestAppInitCount--;
     return dmExtension::RESULT_OK;
