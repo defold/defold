@@ -46,6 +46,8 @@
 
 #outline {
   .tree-cell {
+    -fx-pref-width: 0;
+
     &.reference {
       .text {
         -fx-font-style: italic;
@@ -75,6 +77,31 @@
     &.child-error {
       @include colorize-disclosure-arrow(-df-error-severity-fatal-dim);
     }
+    
+    .anchor-pane {
+      -fx-background-color: transparent;
+    }
+
+    .visibility-toggle {
+      visibility: hidden;
+      -fx-padding: 0 2;
+      -fx-background-color: -df-background-light;
+      -fx-border-width: 0;
+
+      SVGPath {
+        -fx-fill: -df-text-dark;
+      }
+    }
+
+    &:selected {
+      .visibility-toggle {
+        -fx-background-color: -df-background-lighter;
+      }
+    }
+
+    .label {
+      -fx-text-overrun: leading-ellipsis;
+    }
 
     &.scene-visibility-hidden {
       .tree-disclosure-node {
@@ -87,6 +114,15 @@
       }
       .text {
         -fx-opacity: 40%;
+      }
+      .visibility-toggle {
+        visibility: visible;
+      }
+    }
+
+    &:hover {
+      .visibility-toggle {
+        visibility: visible;
       }
     }
   }

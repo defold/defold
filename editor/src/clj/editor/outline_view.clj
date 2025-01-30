@@ -26,8 +26,9 @@
            [javafx.collections FXCollections ObservableList]
            [javafx.event Event]
            [javafx.scene Node]
-           [javafx.scene.control SelectionMode TreeItem TreeView]
+           [javafx.scene.control SelectionMode TreeItem TreeView ToggleButton Label]
            [javafx.scene.input Clipboard DataFormat DragEvent MouseEvent TransferMode]
+           [javafx.scene.layout HBox AnchorPane]
            [javafx.util Callback]))
 
 (set! *warn-on-reflection* true)
@@ -472,12 +473,22 @@
                        (proxy-super setContextMenu nil)
                        (proxy-super setStyle nil))
                      (let [{:keys [label icon link color outline-error? outline-overridden? outline-reference? outline-show-link? parent-reference? child-error? child-overridden? scene-visibility]} item
-                           icon (if outline-error? "icons/32/Icons_E_02_error.png" icon)
+                           icon (-> (if outline-error? "icons/32/Icons_E_02_error.png" icon)
+                                    (icons/get-image-view 16))
                            show-link? (and (some? link)
                                            (or outline-reference? outline-show-link?))
-                           label (if show-link? (format "%s - %s" label (resource/resource->proj-path link)) label)]
-                       (proxy-super setText label)
-                       (proxy-super setGraphic (icons/get-image-view icon 16))
+                           label (Label. (if show-link? (format "%s - %s" label (resource/resource->proj-path link)) label))
+
+                           button (doto (ToggleButton.)
+                                    (ui/add-style! "visibility-toggle")
+                                    (.setOnAction (ui/event-handler e (ui/run-command (.getSource e) :hide-toggle-selected :workbench)))
+                                    (.setGraphic (doto (app-view/make-svg-icon-graphic (ui/load-svg-path "scene/images/eye_icon_eye_arrow.svg"))
+                                                   (.setId "eye-icon")))
+                                    (AnchorPane/setRightAnchor 0.0))
+                           h-box (HBox. 5 (ui/node-array [icon label]))
+                           pane (doto (AnchorPane. (ui/node-array [h-box (when scene-visibility button)]))
+                                  (ui/add-style! "anchor-pane"))]
+                       (proxy-super setGraphic pane)
                        (when-let [[r g b a] color]
                          (proxy-super setStyle (format "-fx-text-fill: rgba(%d, %d, %d %d);" (int (* 255 r)) (int (* 255 g)) (int (* 255 b))(int (* 255 a)))))
                        (if parent-reference?
