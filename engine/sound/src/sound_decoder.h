@@ -59,7 +59,7 @@ namespace dmSoundCodec
          * Fetch a chunk of PCM data from the decoder. The buffer will be filled as long as there is
          * enough data left in the compressed stream.
          */
-        Result (*m_DecodeStream)(HDecodeStream decoder, char* buffer, uint32_t buffer_size, uint32_t* decoded);
+        Result (*m_DecodeStream)(HDecodeStream decoder, char* buffer[], uint32_t buffer_size, uint32_t* decoded);
 
         /**
          * Seek to the beginning.

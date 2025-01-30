@@ -1169,8 +1169,24 @@ namespace dmSound
             {
                 uint32_t n = mixed_instance_FrameCount - frame_count; // if the result contains a fractional part and we don't ceil(), we'll end up with a smaller number. Later, when deciding the mix_count in Mix(), a smaller value (integer) will be produced. This will result in leaving a small gap in the mix buffer resulting in sound crackling when the chunk changes.
 
-                char* buffer = ((char*) decoder_temp) + new_frame_count * stride;
-                uint32_t buffer_size = n * stride;
+                char* buffer[SOUND_MAX_DECODE_CHANNELS];
+                uint32_t buffer_size;
+                if (info.m_BitsPerSample != 32 || (info.m_IsInterleaved && info.m_Channels != 1))
+                {
+                    // Output is non-float and/or interleaved and needs post output conversion
+                    buffer[0] = ((char*) decoder_temp) + new_frame_count * stride;
+                    buffer_size = n * stride;
+                }
+                else
+                {
+                    // Output fill be either single channel or non-interleaved in float format -> we can just have it delivered into our work buffers
+                    for(uint32_t c=0; c<info.m_Channels; ++c)
+                    {
+                        buffer[c] = (char*)(sound->GetDecoderBufferBase(c) + frame_count);
+                    }
+                    buffer_size = n * sizeof(float);
+                }
+
                 uint32_t decoded = 0;
                 if (!is_muted)
                 {
@@ -1179,7 +1195,12 @@ namespace dmSound
                 else
                 {
                     r = dmSoundCodec::Skip(sound->m_CodecContext, instance->m_Decoder, buffer_size, &decoded);
-                    memset(buffer, 0x00, decoded);
+//TODO: COULD WE NOT AVOID MIXING ANYTHING IN THIS CASE?
+                    uint32_t nc = info.m_IsInterleaved ? 1 : info.m_Channels;
+                    for(uint32_t c=0; c<nc; ++c)
+                    {
+                        memset(buffer[c], 0x00, decoded);
+                    }
                 }
 
                 if (r == dmSoundCodec::RESULT_OK)
@@ -1229,38 +1250,63 @@ namespace dmSound
 
         if (frame_count > 0)
         {
-//TODO: SHOULD GO AWAY ONCE DECODERS PLAY ALONG! (no longer output interleaved data in non-float)
+            // Any new data? Convert it as needed!
             if (new_frame_count > 0)
             {
-                // Convert from temp decoder output (interleaved) to per channel data (non-interleaved) & covert to float
-                const uint32_t nc = info.m_Channels;
-                if (info.m_BitsPerSample == 8)
+//FUNCTION? - EASIER TO READ!
+                // Yes. Interleaved?
+                if (!info.m_IsInterleaved)
                 {
-                    if (nc == 1)
-                    {
-                        ConvertFromS8(sound->GetDecoderBufferBase(0) + initial_frame_count, (int8_t*)decoder_temp, new_frame_count);
-                    }
-                    else
-                    {
-                        assert(nc == 2);
-                        float* out[] = {sound->GetDecoderBufferBase(0) + initial_frame_count,
-                                        sound->GetDecoderBufferBase(1) + initial_frame_count};
-                        DeinterleaveFromS8(out, (int8_t*)decoder_temp, new_frame_count);
-                    }
+                    // No...
+
+                    // For now we only support floats in this case
+                    // (in which case we have nothing more to process)
+                    assert(info.m_BitsPerSample == 32);
                 }
                 else
                 {
-                    assert(info.m_BitsPerSample == 16);
-                    if (nc == 1)
+                    // Yes, convert from temp decoder output (interleaved) to per channel data (non-interleaved) & convert to float as needed
+                    const uint32_t nc = info.m_Channels;
+                    if (info.m_BitsPerSample == 8)
                     {
-                        ConvertFromS16(sound->GetDecoderBufferBase(0) + initial_frame_count, (int16_t*)decoder_temp, new_frame_count);
+                        if (nc == 1)
+                        {
+                            ConvertFromS8(sound->GetDecoderBufferBase(0) + initial_frame_count, (int8_t*)decoder_temp, new_frame_count);
+                        }
+                        else
+                        {
+                            assert(nc == 2);
+                            float* out[] = {sound->GetDecoderBufferBase(0) + initial_frame_count,
+                                            sound->GetDecoderBufferBase(1) + initial_frame_count};
+                            DeinterleaveFromS8(out, (int8_t*)decoder_temp, new_frame_count);
+                        }
+                    }
+                    else if (info.m_BitsPerSample == 16)
+                    {
+                        assert(info.m_BitsPerSample == 16);
+                        if (nc == 1)
+                        {
+                            ConvertFromS16(sound->GetDecoderBufferBase(0) + initial_frame_count, (int16_t*)decoder_temp, new_frame_count);
+                        }
+                        else
+                        {
+                            assert(nc == 2);
+                            float* out[] = {sound->GetDecoderBufferBase(0) + initial_frame_count,
+                                            sound->GetDecoderBufferBase(1) + initial_frame_count};
+                            DeinterleaveFromS16(out, (int16_t*)decoder_temp, new_frame_count);
+                        }
                     }
                     else
                     {
-                        assert(nc == 2);
-                        float* out[] = {sound->GetDecoderBufferBase(0) + initial_frame_count,
-                                        sound->GetDecoderBufferBase(1) + initial_frame_count};
-                        DeinterleaveFromS16(out, (int16_t*)decoder_temp, new_frame_count);
+                        assert(info.m_BitsPerSample == 32);
+                        // We only need to convert anything if the output has more than one channel...
+                        if (nc != 1)
+                        {
+                            assert(nc == 2);
+                            float* out[] = {sound->GetDecoderBufferBase(0) + initial_frame_count,
+                                            sound->GetDecoderBufferBase(1) + initial_frame_count};
+                            Deinterleave(out, (float*)decoder_temp, new_frame_count);
+                        }
                     }
                 }
             }

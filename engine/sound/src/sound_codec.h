@@ -63,8 +63,10 @@ namespace dmSoundCodec
         uint32_t m_Size;
         /// Number of channels
         uint8_t  m_Channels;
-        /// Bites per sample
+        /// Bits per sample (32 is assmumed as float)
         uint8_t  m_BitsPerSample;
+        /// Interleaved data flag
+        bool m_IsInterleaved;
     };
 
     /**
@@ -128,7 +130,7 @@ namespace dmSoundCodec
      * @param decoded actual bytes decoded
      * @return RESULT_OK on success
      */
-    Result Decode(HCodecContext context, HDecoder decoder, char* buffer, uint32_t buffer_size, uint32_t* decoded);
+    Result Decode(HCodecContext context, HDecoder decoder, char* buffer[], uint32_t buffer_size, uint32_t* decoded);
 
     /**
      * Skip in stream

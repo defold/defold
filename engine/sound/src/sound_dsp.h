@@ -421,6 +421,32 @@ static inline void ConvertFromS8(float* out, const int8_t* in, uint32_t num)
 }
 
 // note: supports unaligned src & dest
+static inline void Deinterleave(float* out[], const float* in, uint32_t num)
+{
+    const vec4* vin = (const vec4*)in;
+    vec4* vout_l = (vec4*)out[0];
+    vec4* vout_r = (vec4*)out[1];
+    for(; num>3; num-=4)
+    {
+        vec4 in0 = _mm_loadu_ps((float*)vin++);
+        vec4 in1 = _mm_loadu_ps((float*)vin++);
+        in0 = _mm_shuffle_ps(in0, in0, _MM_SHUFFLE(3,1,2,0));     // L0L1R0R1
+        in1 = _mm_shuffle_ps(in1, in1, _MM_SHUFFLE(3,1,2,0));     // L2L3R2R3
+        _mm_storeu_ps((float*)vout_l++, _mm_shuffle_ps(in0, in1, _MM_SHUFFLE(1,0,1,0)));
+        _mm_storeu_ps((float*)vout_r++, _mm_shuffle_ps(in0, in1, _MM_SHUFFLE(3,2,3,2)));
+    }
+
+    float* out_l = (float*)vout_l;
+    float* out_r = (float*)vout_r;
+    in = (const float*)vin;
+    for(; num>0; --num)
+    {
+        *(out_l++) = *(in++);
+        *(out_r++) = *(in++);
+    }
+}
+
+// note: supports unaligned src & dest
 static inline void DeinterleaveFromS16(float* out[], const int16_t* in, uint32_t num)
 {
     vec4 zero = _mm_set1_ps(0.0);
@@ -644,6 +670,17 @@ static inline void ConvertFromS8(float* out, const int8_t* in, uint32_t num)
     for(; num>0; --num)
     {
         *(out++) = (float)*(in++);
+    }
+}
+
+static inline void Deinterleave(float* out[], const float* in, uint32_t num)
+{
+    float* out_l = out[0];
+    float* out_r = out[1];
+    for(; num>0; --num)
+    {
+        *(out_l++) = *(in++);
+        *(out_r++) = *(in++);
     }
 }
 
