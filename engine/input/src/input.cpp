@@ -716,7 +716,7 @@ namespace dmInput
                 for (uint32_t i = 0; i < triggers.Size(); ++i)
                 {
                     const MouseTrigger& trigger = triggers[i];
-                    float v = 0.0;
+                    float v = 0.0f;
                     switch (trigger.m_Input)
                     {
                     case dmInputDDF::MOUSE_WHEEL_UP:
@@ -726,7 +726,7 @@ namespace dmInput
                         v = (float) -(packet->m_Wheel - prev_packet->m_Wheel);
                         break;
                     default:
-                        v = dmHID::GetMouseButton(packet, MOUSE_BUTTON_MAP[trigger.m_Input]) ? 1.0 : 0.0;
+                        v = dmHID::GetMouseButton(packet, MOUSE_BUTTON_MAP[trigger.m_Input]) ? 1.0f : 0.0f;
                         break;
                     }
 
