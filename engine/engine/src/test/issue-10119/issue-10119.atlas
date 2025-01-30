@@ -1,0 +1,10 @@
+images {
+  image: "/builtins/assets/images/logo/logo_256.png"
+}
+images {
+  image: "/builtins/assets/images/logo/logo_blue_256.png"
+}
+images {
+  image: "/builtins/assets/images/logo/logo_blue_512.png"
+}
+extrude_borders: 2

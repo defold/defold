@@ -2505,8 +2505,6 @@ static void LogFrameBufferError(GLenum status)
         {
             // These should be null-terminated
             char* namespace_path = context.Namespace(i);
-            uint32_t namespace_path_len = strlen(namespace_path);
-
             if (namespace_path && strcmp(namespace_path, canonical_name_buffer) == 0)
             {
                 // Matching namespace found
