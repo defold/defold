@@ -1215,7 +1215,7 @@
         skip-engine (target-cannot-swap-engine? (targets/selected-target prefs))]
     (build-errors-view/clear-build-errors build-errors-view)
     (async-build! project
-                  :debug false
+                  :debug true
                   :build-engine (not skip-engine)
                   :prefs prefs
                   :render-progress! (make-render-task-progress :build)
