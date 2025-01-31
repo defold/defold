@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,6 +16,7 @@ package com.defold.extension.pipeline.texture;
 
 import com.dynamo.bob.pipeline.Texc;
 import com.dynamo.bob.pipeline.TexcLibraryJni;
+import com.dynamo.graphics.proto.Graphics;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 
 import java.util.HashMap;
@@ -26,31 +27,43 @@ import java.util.HashMap;
 public class TextureCompressorASTC implements ITextureCompressor {
 
     public static String TextureCompressorName = "ASTC";
+    private static final String TexturePresetQualityKey = "astc_quality";
+
+    public static String GetMigratedCompressionPreset(Graphics.TextureFormatAlternative.CompressionLevel level) {
+        if (level == null)
+            level = Graphics.TextureFormatAlternative.CompressionLevel.FAST;
+        return switch (level) {
+            case FAST -> "ASTC_QUALITY_10";
+            case NORMAL -> "ASTC_QUALITY_60";
+            case HIGH -> "ASTC_QUALITY_98";
+            case BEST -> "ASTC_QUALITY_100";
+        };
+    }
 
     public TextureCompressorASTC() {
 
         // Note: Quality levels are taken from astcenc.h
         {
-            TextureCompressorPreset preset = new TextureCompressorPreset("ASTC_FAST", "ASTC Fast (Quality=10.0)", TextureCompressorName);
-            preset.setOptionFloat("astc_quality", 10);
+            TextureCompressorPreset preset = new TextureCompressorPreset("ASTC_QUALITY_10", "Low (Quality=10.0)", TextureCompressorName);
+            preset.setOptionFloat(TexturePresetQualityKey, 10);
             TextureCompression.registerPreset(preset);
         }
 
         {
-            TextureCompressorPreset preset = new TextureCompressorPreset("ASTC_NORMAL", "ASTC Normal (Quality=60.0)", TextureCompressorName);
-            preset.setOptionFloat("astc_quality", 60);
+            TextureCompressorPreset preset = new TextureCompressorPreset("ASTC_QUALITY_60", "Medium (Quality=60.0)", TextureCompressorName);
+            preset.setOptionFloat(TexturePresetQualityKey, 60);
             TextureCompression.registerPreset(preset);
         }
 
         {
-            TextureCompressorPreset preset = new TextureCompressorPreset("ASTC_HIGH", "ASTC High (Quality=98.0)", TextureCompressorName);
-            preset.setOptionFloat("astc_quality", 98);
+            TextureCompressorPreset preset = new TextureCompressorPreset("ASTC_QUALITY_98", "High (Quality=98.0)", TextureCompressorName);
+            preset.setOptionFloat(TexturePresetQualityKey, 98);
             TextureCompression.registerPreset(preset);
         }
 
         {
-            TextureCompressorPreset preset = new TextureCompressorPreset("ASTC_BEST", "ASTC Best (Quality=100.0)", TextureCompressorName);
-            preset.setOptionFloat("astc_quality", 100);
+            TextureCompressorPreset preset = new TextureCompressorPreset("ASTC_QUALITY_100", "Highest (Quality=100.0)", TextureCompressorName);
+            preset.setOptionFloat(TexturePresetQualityKey, 100);
             TextureCompression.registerPreset(preset);
         }
     }
@@ -62,20 +75,32 @@ public class TextureCompressorASTC implements ITextureCompressor {
     private static final HashMap<TextureImage.TextureFormat, int[]> pixelFormatToBlockSize = new HashMap<>();
 
     static {
-        pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_4x4, new int[] {4,4});
-        pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_5x4, new int[] {5,4});
-        pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_5x5, new int[] {5,5});
-        pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_6x5, new int[] {6,5});
-        pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_6x6, new int[] {6,6});
-        pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_8x5, new int[] {8,5});
-        pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_8x6, new int[] {8,6});
-        pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_8x8, new int[] {8,8});
-        pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_10x5, new int[] {10,5});
-        pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_10x6, new int[] {10,6});
-        pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_10x8, new int[] {10,8});
-        pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_10x10, new int[] {10,10});
-        pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_12x10, new int[] {12,10});
-        pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_12x12, new int[] {12,12});
+        pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_4X4, new int[] {4,4});
+        pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_5X4, new int[] {5,4});
+        pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_5X5, new int[] {5,5});
+        pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_6X5, new int[] {6,5});
+        pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_6X6, new int[] {6,6});
+        pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_8X5, new int[] {8,5});
+        pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_8X6, new int[] {8,6});
+        pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_8X8, new int[] {8,8});
+        pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_10X5, new int[] {10,5});
+        pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_10X6, new int[] {10,6});
+        pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_10X8, new int[] {10,8});
+        pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_10X10, new int[] {10,10});
+        pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_12X10, new int[] {12,10});
+        pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_12X12, new int[] {12,12});
+    }
+
+    public boolean supportsTextureFormat(TextureImage.TextureFormat format) {
+        if (format == null) {
+            return false;
+        }
+        return pixelFormatToBlockSize.containsKey(format);
+    }
+
+    public boolean supportsTextureCompressorPreset(TextureCompressorPreset preset) {
+        Float f = preset.getOptionFloat(TexturePresetQualityKey);
+        return f != null;
     }
 
     public int getAlignedWidth(TextureImage.TextureFormat format, int width) {
@@ -118,7 +143,7 @@ public class TextureCompressorASTC implements ITextureCompressor {
         settings.outPixelFormat = Texc.PixelFormat.fromValue(params.getPixelFormatOut());
 
         // ASTC specifics
-        settings.qualityLevel = preset.getOptionFloat("astc_quality");
+        settings.qualityLevel = preset.getOptionFloat(TexturePresetQualityKey);
 
         return TexcLibraryJni.ASTCEncode(settings);
     }

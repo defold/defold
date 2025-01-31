@@ -108,9 +108,12 @@ def configure(conf):
     elif target_os == "win":
         conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'dbghelp.lib', 'dinput8.lib', 'dxguid.lib'])
 
-        # For Vulkan
         if waflib.Options.options.with_vulkan:
             conf.env.append_value('LINKFLAGS', ['vulkan-1.lib'])
+
+        if waflib.Options.options.with_dx12:
+            conf.env.append_value('LINKFLAGS', ['D3D12.lib', 'DXGI.lib', 'D3DCompiler.lib'])
+
     elif 'web' in target_os:
         pass
 

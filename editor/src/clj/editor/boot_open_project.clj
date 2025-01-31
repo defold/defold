@@ -1,20 +1,19 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.boot-open-project
-  (:require [cljfx.fx.v-box :as fx.v-box]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.asset-browser :as asset-browser]
             [editor.build-errors-view :as build-errors-view]
@@ -47,7 +46,6 @@
             [editor.scene-visibility :as scene-visibility]
             [editor.search-results-view :as search-results-view]
             [editor.shared-editor-settings :as shared-editor-settings]
-            [editor.sync :as sync]
             [editor.system :as system]
             [editor.targets :as targets]
             [editor.ui :as ui]
@@ -323,60 +321,31 @@
 
       ;; If sync was in progress when we shut down the editor we offer to resume the sync process.
       (let [git (g/node-value changes-view :git)]
-        (if (sync/flow-in-progress? git)
+        ;; If the project was just created, we automatically open the readme resource.
+        (when newly-created?
           (ui/run-later
-            (if-not (dialogs/make-confirmation-dialog
-                      {:title "Resume Sync?"
-                       :size :large
-                       :header {:fx/type fx.v-box/lifecycle
-                                :children [{:fx/type fxui/label
-                                            :variant :header
-                                            :text "The editor was shut down while synchronizing with the server"}
-                                           {:fx/type fxui/label
-                                            :text "Resume syncing or cancel and revert to the pre-sync state?"}]}
-                       :buttons [{:text "Cancel and Revert"
-                                  :cancel-button true
-                                  :result false}
-                                 {:text "Resume Sync"
-                                  :default-button true
-                                  :result true}]})
+            (when-some [readme-resource (workspace/find-resource workspace "/README.md")]
+              (open-resource readme-resource))))
 
-              ;; User chose to cancel sync.
-              (do (sync/interactive-cancel! (partial sync/cancel-flow-in-progress! git))
-                  (app-view/async-reload! app-view changes-view workspace []))
-
-              ;; User chose to resume sync.
-              (let [flow (sync/resume-flow git)]
-                (sync/open-sync-dialog flow prefs)
-                (app-view/async-reload! app-view changes-view workspace []))))
-
-          ;; A sync was not in progress.
-          (do
-            ;; If the project was just created, we automatically open the readme resource.
-            (when newly-created?
+        ;; Ensure .gitignore is configured to ignore build output and metadata files.
+        (let [gitignore-was-modified? (git/ensure-gitignore-configured! git)
+              internal-files-are-tracked? (git/internal-files-are-tracked? git)]
+          (if gitignore-was-modified?
+            (do (changes-view/refresh! changes-view)
+                (ui/run-later
+                  (dialogs/make-info-dialog
+                    {:title "Updated .gitignore File"
+                     :icon :icon/circle-info
+                     :header "Updated .gitignore file"
+                     :content {:fx/type fxui/label
+                               :style-class "dialog-content-padding"
+                               :text (str "The .gitignore file was automatically updated to ignore build output and metadata files.\n"
+                                          "You should include it along with your changes the next time you synchronize.")}})
+                  (when internal-files-are-tracked?
+                    (show-tracked-internal-files-warning!))))
+            (when internal-files-are-tracked?
               (ui/run-later
-                (when-some [readme-resource (workspace/find-resource workspace "/README.md")]
-                  (open-resource readme-resource))))
-
-            ;; Ensure .gitignore is configured to ignore build output and metadata files.
-            (let [gitignore-was-modified? (git/ensure-gitignore-configured! git)
-                  internal-files-are-tracked? (git/internal-files-are-tracked? git)]
-              (if gitignore-was-modified?
-                (do (changes-view/refresh! changes-view)
-                    (ui/run-later
-                      (dialogs/make-info-dialog
-                        {:title "Updated .gitignore File"
-                         :icon :icon/circle-info
-                         :header "Updated .gitignore file"
-                         :content {:fx/type fxui/label
-                                   :style-class "dialog-content-padding"
-                                   :text (str "The .gitignore file was automatically updated to ignore build output and metadata files.\n"
-                                              "You should include it along with your changes the next time you synchronize.")}})
-                      (when internal-files-are-tracked?
-                        (show-tracked-internal-files-warning!))))
-                (when internal-files-are-tracked?
-                  (ui/run-later
-                    (show-tracked-internal-files-warning!)))))))))
+                (show-tracked-internal-files-warning!)))))))
 
     (reset! the-root root)
     (ui/run-later (slog/smoke-log "stage-loaded"))

@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -22,7 +22,7 @@
             [internal.util :as util]
             [schema.core :as s]
             [util.array :as array]
-            [util.coll :refer [pair]]
+            [util.coll :as coll :refer [pair]]
             [util.debug-util :as du]
             [util.eduction :as e])
   (:import [internal.graph.types Arc]))
@@ -190,49 +190,57 @@
 (defn- mark-input-activated
   [ctx node-id input-label]
   ;; This gets called a lot, so we're trying to keep allocations to a minimum.
-  (let [basis (:basis ctx)
-        dirty-deps (-> (gt/node-by-id-at basis node-id)
-                       gt/node-type
-                       in/input-dependencies
-                       (get input-label))
-        nodes-affected (:nodes-affected ctx)]
-    (assoc ctx
-      :nodes-affected
-      (into nodes-affected
-            (map #(gt/endpoint node-id %))
-            dirty-deps))))
+  (if-not (:track-changes ctx)
+    ctx
+    (let [basis (:basis ctx)
+          dirty-deps (-> (gt/node-by-id-at basis node-id)
+                         gt/node-type
+                         in/input-dependencies
+                         (get input-label))
+          nodes-affected (:nodes-affected ctx)]
+      (assoc ctx
+        :nodes-affected
+        (into nodes-affected
+              (map #(gt/endpoint node-id %))
+              dirty-deps)))))
 
 (defn- mark-output-activated
   [ctx node-id output-label]
   ;; This gets called a lot, so we're trying to keep allocations to a minimum.
-  (let [nodes-affected (:nodes-affected ctx)]
-    (assoc ctx
-      :nodes-affected
-      (conj nodes-affected (gt/endpoint node-id output-label)))))
+  (if-not (:track-changes ctx)
+    ctx
+    (let [nodes-affected (:nodes-affected ctx)]
+      (assoc ctx
+        :nodes-affected
+        (conj nodes-affected (gt/endpoint node-id output-label))))))
 
 (defn- mark-outputs-activated
   [ctx node-id output-labels]
   ;; This gets called a lot, so we're trying to keep allocations to a minimum.
-  (let [nodes-affected (:nodes-affected ctx)]
-    (assoc ctx
-      :nodes-affected
-      (into nodes-affected
-            (map #(gt/endpoint node-id %))
-            output-labels))))
+  (if-not (:track-changes ctx)
+    ctx
+    (let [nodes-affected (:nodes-affected ctx)]
+      (assoc ctx
+        :nodes-affected
+        (into nodes-affected
+              (map #(gt/endpoint node-id %))
+              output-labels)))))
 
 (defn- mark-all-outputs-activated
   [ctx node-id]
   ;; This gets called a lot, so we're trying to keep allocations to a minimum.
-  (let [basis (:basis ctx)
-        output-labels (-> (gt/node-by-id-at basis node-id)
-                          gt/node-type
-                          in/output-labels)
-        nodes-affected (:nodes-affected ctx)]
-    (assoc ctx
-      :nodes-affected
-      (into nodes-affected
-            (map #(gt/endpoint node-id %))
-            output-labels))))
+  (if-not (:track-changes ctx)
+    ctx
+    (let [basis (:basis ctx)
+          output-labels (-> (gt/node-by-id-at basis node-id)
+                            gt/node-type
+                            in/output-labels)
+          nodes-affected (:nodes-affected ctx)]
+      (assoc ctx
+        :nodes-affected
+        (into nodes-affected
+              (map #(gt/endpoint node-id %))
+              output-labels)))))
 
 (defn- next-node-id [ctx graph-id]
   (is/next-node-id* (:node-id-generators ctx) graph-id))
@@ -384,9 +392,9 @@
                                      node-type (gt/node-type original-node)
                                      init-props (when init-props-fn
                                                   (init-props-fn basis original-node-id node-type))
-                                     properties (cond->> (properties-by-node-id original-node-id)
-                                                         (pos? (count init-props))
-                                                         (merge init-props))]
+                                     properties (coll/merge
+                                                  init-props
+                                                  (properties-by-node-id original-node-id))]
                                  (in/make-override-node override-id override-node-id node-type original-node-id properties)))
                              node-ids)
         override-node-ids (map gt/node-id override-nodes)
@@ -821,9 +829,8 @@
 
 (defmethod perform :update-graph-value
   [ctx {:keys [graph-id fn args]}]
-  (-> ctx
-      (update-in [:basis :graphs graph-id :graph-values] #(apply fn % args))
-      (update :graphs-modified conj graph-id)))
+  (cond-> (update-in ctx [:basis :graphs graph-id :graph-values] #(apply fn % args))
+          (:track-changes ctx) (update :graphs-modified conj graph-id)))
 
 (defmethod metrics-key :update-graph-value
   [{:keys [graph-id]}]
@@ -865,23 +872,26 @@
 
 (defn- apply-tx
   [ctx actions]
-  (loop [ctx ctx
-         actions actions]
-    (if (seq actions)
-      (if-let [action (first actions)]
-        (if (sequential? action)
-          (recur (apply-tx ctx action) (next actions))
-          (recur (-> (try
-                       (du/measuring (:metrics ctx) (:type action) (metrics-key action)
-                         (perform ctx action))
-                       (catch Exception e
-                         (when *tx-debug*
-                           (println (txerrstr ctx "Transaction failed on " action)))
-                         (throw e)))
-                     (update :completed conj action))
-                 (next actions)))
-        (recur ctx (next actions)))
-      ctx)))
+  (reduce
+    (fn [ctx action]
+      (cond
+        (nil? action)
+        ctx
+
+        (sequential? action)
+        (apply-tx ctx action)
+
+        :else
+        (-> (try
+              (du/measuring (:metrics ctx) (:type action) (metrics-key action)
+                (perform ctx action))
+              (catch Exception e
+                (when *tx-debug*
+                  (println (txerrstr ctx "Transaction failed on " action)))
+                (throw e)))
+            (update :completed-action-count inc))))
+    ctx
+    actions))
 
 (defn- mark-nodes-modified
   [{:keys [nodes-affected] :as ctx}]
@@ -906,12 +916,12 @@
   "Makes the transacted graph the new value of the world-state graph."
   [{:keys [nodes-modified graphs-modified tx-data-context] :as ctx}]
   (-> (select-keys ctx tx-report-keys)
-      (assoc :status (if (empty? (:completed ctx)) :empty :ok)
-             :graphs-modified (into graphs-modified (map gt/node-id->graph-id nodes-modified))
+      (assoc :status (if (zero? (:completed-action-count ctx)) :empty :ok)
+             :graphs-modified (into graphs-modified (map gt/node-id->graph-id) nodes-modified)
              :tx-data-context-map (deref tx-data-context))))
 
 (defn new-transaction-context
-  [basis node-id-generators override-id-generator tx-data-context-map metrics-collector]
+  [basis node-id-generators override-id-generator tx-data-context-map metrics-collector track-changes]
   {:pre [(map? tx-data-context-map)]}
   {:basis basis
    :nodes-affected #{}
@@ -925,11 +935,11 @@
    :successors-changed {}
    :node-id-generators node-id-generators
    :override-id-generator override-id-generator
-   :completed []
+   :completed-action-count 0
    :txid (new-txid)
    :tx-data-context (atom tx-data-context-map)
-   :deferred-setters []
-   :metrics metrics-collector})
+   :metrics metrics-collector
+   :track-changes track-changes})
 
 (defn- update-overrides
   [{:keys [override-nodes-affected-ordered] :as ctx}]

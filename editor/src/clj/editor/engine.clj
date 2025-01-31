@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,11 +15,11 @@
 (ns editor.engine
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
+            [clojure.data.json :as json]
             [editor.code.util :refer [split-lines]]
             [editor.engine.native-extensions :as native-extensions]
             [editor.fs :as fs]
             [editor.prefs :as prefs]
-            [editor.process :as process]
             [editor.process :as process]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -82,6 +82,15 @@
                                        height)})))
       (with-open [is (.getInputStream conn)]
         (ignore-all-output is))
+      (finally
+        (.disconnect conn)))))
+
+(defn get-engine-state! [target]
+  (let [uri (URI. (str (:url target) "/state"))
+        conn ^HttpURLConnection (get-connection uri)]
+    (try
+      (with-open [is (.getInputStream conn)]
+        (json/read-str (slurp is) :key-fn keyword))  ;; Read and return the response
       (finally
         (.disconnect conn)))))
 

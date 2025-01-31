@@ -1,10 +1,12 @@
 var LibrarySoundDevice = 
 {
    $DefoldSoundDevice: {
-      TryResumeAudio: function() {
-         var audioCtx = window._dmJSDeviceShared.audioCtx;
-         if (audioCtx !== undefined && audioCtx.state != "running") {
-             audioCtx.resume();
+       TryResumeAudio: function() {
+         if (window && window._dmJSDeviceShared) {
+           var audioCtx = window._dmJSDeviceShared.audioCtx;
+           if (audioCtx !== undefined && audioCtx.state != "running") {
+               audioCtx.resume();
+           }
          }
       }
    },

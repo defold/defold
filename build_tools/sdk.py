@@ -1,13 +1,13 @@
 #!/usr/bin/env python
-# Copyright 2020-2024 The Defold Foundation
+# Copyright 2020-2025 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -38,11 +38,11 @@ SDK_ROOT=os.path.join(DYNAMO_HOME, 'ext', 'SDKs')
 
 # A list of minimum versions here: https://developer.apple.com/support/xcode/
 
-VERSION_XCODE="15.4" # we also use this to match version on Github Actions
-VERSION_XCODE_CLANG="15.0.0"
-VERSION_MACOSX="14.5"
-VERSION_IPHONEOS="17.5"
-VERSION_IPHONESIMULATOR="17.5"
+VERSION_XCODE="16.2" # we also use this to match version on Github Actions
+VERSION_XCODE_CLANG="16.0.0"
+VERSION_MACOSX="15.2"
+VERSION_IPHONEOS="18.2"
+VERSION_IPHONESIMULATOR="18.2"
 MACOS_ASAN_PATH="usr/lib/clang/%s/lib/darwin/libclang_rt.asan_osx_dynamic.dylib"
 
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
@@ -61,9 +61,9 @@ PACKAGES_LINUX_ARM64_TOOLCHAIN="clang+llvm-16.0.0-aarch64-linux-gnu"
 # Android
 
 ANDROID_NDK_VERSION='25b'
-ANDROID_TARGET_API_LEVEL = 34
+ANDROID_TARGET_API_LEVEL = 35
 ANDROID_PACKAGE = "android-%s" % ANDROID_TARGET_API_LEVEL
-ANDROID_BUILD_TOOLS_VERSION = '34.0.0'
+ANDROID_BUILD_TOOLS_VERSION = '35.0.1'
 ANDROID_NDK_API_VERSION='19' # Android 4.4
 ANDROID_64_NDK_API_VERSION='21' # Android 5.0
 
@@ -117,10 +117,10 @@ defold_info['win10sdk']['version'] = VERSION_WINDOWS_SDK_10
 defold_info['win10sdk']['pattern'] = "Win32/%s" % PACKAGES_WIN32_SDK_10
 
 defold_info['x86_64-linux']['version'] = VERSION_LINUX_CLANG
-defold_info['x86_64-linux']['pattern'] = 'linux/clang-%s' % VERSION_LINUX_CLANG
+defold_info['x86_64-linux']['pattern'] = 'x86_64-linux/clang-%s' % VERSION_LINUX_CLANG
 
 defold_info['arm64-linux']['version'] = VERSION_LINUX_CLANG
-defold_info['arm64-linux']['pattern'] = 'linux/clang-%s' % VERSION_LINUX_CLANG
+defold_info['arm64-linux']['pattern'] = 'arm64-linux/clang-%s' % VERSION_LINUX_CLANG
 
 ## **********************************************************************************************
 

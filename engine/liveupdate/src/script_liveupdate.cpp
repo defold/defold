@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -378,6 +378,15 @@ namespace dmLiveUpdate
         return 1;
     }
 
+    static int Resource_IsBuiltWithExcludedFiles(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        bool result = dmLiveUpdate::IsBuiltWithExcludedFiles();
+        lua_pushboolean(L, result);
+        return 1;
+    }
+
     // ************************************************************************************
 
     static const luaL_reg Module_methods[] =
@@ -390,9 +399,10 @@ namespace dmLiveUpdate
         {"store_archive", dmLiveUpdate::Resource_StoreArchive},   // Store a .zip archive
 
 // New api
-        {"get_mounts",      dmLiveUpdate::Resource_GetMounts},      // Gets a list of the current mounts
-        {"add_mount",       dmLiveUpdate::Resource_AddMount},
-        {"remove_mount",    dmLiveUpdate::Resource_RemoveMount},
+        {"get_mounts",                      dmLiveUpdate::Resource_GetMounts},      // Gets a list of the current mounts
+        {"add_mount",                       dmLiveUpdate::Resource_AddMount},
+        {"remove_mount",                    dmLiveUpdate::Resource_RemoveMount},
+        {"is_built_with_excluded_files",    dmLiveUpdate::Resource_IsBuiltWithExcludedFiles},
 
         {0, 0}
     };

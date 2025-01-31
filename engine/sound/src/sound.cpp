@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -197,6 +197,7 @@ namespace dmSound
         float*   m_MixBuffer;
         float    m_SumSquaredMemory[SOUND_MAX_MIX_CHANNELS * GROUP_MEMORY_BUFFER_COUNT];
         float    m_PeakMemorySq[SOUND_MAX_MIX_CHANNELS * GROUP_MEMORY_BUFFER_COUNT];
+        uint16_t m_FrameCounts[GROUP_MEMORY_BUFFER_COUNT];
         int      m_NextMemorySlot;
     };
 
@@ -367,6 +368,7 @@ namespace dmSound
 
         sound->m_MixRate = device_info.m_MixRate;
         sound->m_DeviceFrameCount = device_info.m_FrameCount ? device_info.m_FrameCount : params->m_FrameCount;
+        sound->m_FrameCount = 0;
         sound->m_Instances.SetCapacity(max_instances);
         sound->m_Instances.SetSize(max_instances);
         sound->m_InstancesPool.SetCapacity(max_instances);
@@ -561,6 +563,16 @@ namespace dmSound
         return RESULT_OK;
     }
 
+    bool IsSoundDataValid(HSoundData sound_data)
+    {
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
+        if (sound_data->m_DataCallbacks.m_GetData)
+            return true;
+        if (sound_data->m_Data)
+            return true;
+        return false;
+    }
+
     uint32_t GetSoundResourceSize(HSoundData sound_data)
     {
         return sound_data->m_Size + sizeof(SoundData);
@@ -647,7 +659,7 @@ namespace dmSound
 
             dmSoundCodec::Result r = dmSoundCodec::NewDecoder(ss->m_CodecContext, codec_format, sound_data, &decoder);
             if (r != dmSoundCodec::RESULT_OK) {
-                dmLogError("Failed to decode sound (%d)", r);
+                dmLogError("Failed to decode sound %s: (%d)", dmHashReverseSafe64(sound_data->m_NameHash), r);
                 return RESULT_INVALID_STREAM_DATA;
             }
 
@@ -801,24 +813,32 @@ namespace dmSound
             return RESULT_NO_SUCH_GROUP;
         }
 
+        if (sound->m_FrameCount == 0)
+        {
+            *rms_left = 0;
+            *rms_right = 0;
+            return RESULT_OK;
+        }
+
         SoundGroup* g = &sound->m_Groups[*index];
         uint32_t rms_frames = (uint32_t) (sound->m_MixRate * window);
         int left = rms_frames;
         int ss_index = (g->m_NextMemorySlot - 1) % GROUP_MEMORY_BUFFER_COUNT;
         float sum_sq_left = 0;
         float sum_sq_right = 0;
-        int count = 0;
+        int total_frame_count = 0;
         while (left > 0) {
             sum_sq_left += g->m_SumSquaredMemory[2 * ss_index + 0];
             sum_sq_right += g->m_SumSquaredMemory[2 * ss_index + 1];
+            uint16_t frame_count = g->m_FrameCounts[ss_index];
 
-            left -= sound->m_FrameCount;
+            left -= frame_count;
+            total_frame_count += frame_count;
             ss_index = (ss_index - 1) % GROUP_MEMORY_BUFFER_COUNT;
-            count++;
         }
 
-        *rms_left = sqrtf(sum_sq_left / (float) (count * sound->m_FrameCount)) / 32767.0f;
-        *rms_right = sqrtf(sum_sq_right / (float) (count * sound->m_FrameCount)) / 32767.0f;
+        *rms_left = sqrtf(sum_sq_left / (float) (total_frame_count)) / 32767.0f;
+        *rms_right = sqrtf(sum_sq_right / (float) (total_frame_count)) / 32767.0f;
 
         return RESULT_OK;
     }
@@ -833,6 +853,13 @@ namespace dmSound
             return RESULT_NO_SUCH_GROUP;
         }
 
+        if (sound->m_FrameCount == 0)
+        {
+            *peak_left = 0;
+            *peak_right = 0;
+            return RESULT_OK;
+        }
+
         SoundGroup* g = &sound->m_Groups[*index];
         uint32_t rms_frames = (uint32_t) (sound->m_MixRate * window);
         int left = rms_frames;
@@ -842,8 +869,9 @@ namespace dmSound
         while (left > 0) {
             max_peak_left_sq = dmMath::Max(max_peak_left_sq, g->m_PeakMemorySq[2 * ss_index + 0]);
             max_peak_right_sq = dmMath::Max(max_peak_right_sq, g->m_PeakMemorySq[2 * ss_index + 1]);
+            uint16_t frame_count = g->m_FrameCounts[ss_index];
 
-            left -= sound->m_FrameCount;
+            left -= frame_count;
             ss_index = (ss_index - 1) % GROUP_MEMORY_BUFFER_COUNT;
         }
 
@@ -1224,7 +1252,6 @@ namespace dmSound
 
     static void MixInstance(const MixContext* mix_context, SoundInstance* instance) {
         SoundSystem* sound = g_SoundSystem;
-        uint32_t decoded = 0;
 
         dmSoundCodec::Info info;
         dmSoundCodec::GetInfo(sound->m_CodecContext, instance->m_Decoder, &info);
@@ -1247,18 +1274,19 @@ namespace dmSound
         bool is_muted = dmSound::IsMuted(instance);
 
         dmSoundCodec::Result r = dmSoundCodec::RESULT_OK;
-        uint32_t mixed_instance_FrameCount = ceilf(mix_context->m_FrameCount * dmMath::Max(1.0f, instance->m_Speed));
+        uint32_t mixed_instance_frame_count = ceilf(mix_context->m_FrameCount * dmMath::Max(1.0f, instance->m_Speed));
 
-        if (instance->m_FrameCount < mixed_instance_FrameCount && instance->m_Playing) {
+        if (instance->m_FrameCount < mixed_instance_frame_count && instance->m_Playing) {
 
             const uint32_t stride = info.m_Channels * (info.m_BitsPerSample / 8);
 
-            while(instance->m_FrameCount < mixed_instance_FrameCount && instance->m_EndOfStream == 0)
+            while(instance->m_FrameCount < mixed_instance_frame_count && instance->m_EndOfStream == 0)
             {
-                uint32_t n = mixed_instance_FrameCount - instance->m_FrameCount; // if the result contains a fractional part and we don't ceil(), we'll end up with a smaller number. Later, when deciding the mix_count in Mix(), a smaller value (integer) will be produced. This will result in leaving a small gap in the mix buffer resulting in sound crackling when the chunk changes.
+                uint32_t n = mixed_instance_frame_count - instance->m_FrameCount; // if the result contains a fractional part and we don't ceil(), we'll end up with a smaller number. Later, when deciding the mix_count in Mix(), a smaller value (integer) will be produced. This will result in leaving a small gap in the mix buffer resulting in sound crackling when the chunk changes.
 
                 char* buffer = ((char*) instance->m_Frames) + instance->m_FrameCount * stride;
                 uint32_t buffer_size = n * stride;
+                uint32_t decoded = 0;
                 if (!is_muted)
                 {
                     r = dmSoundCodec::Decode(sound->m_CodecContext, instance->m_Decoder, buffer, buffer_size, &decoded);
@@ -1277,7 +1305,6 @@ namespace dmSound
                         break; // Need to break as we're not progressing this sound instance
                     }
 
-                    assert(decoded % stride == 0);
                     instance->m_FrameCount += decoded / stride;
                 }
                 else if (r == dmSoundCodec::RESULT_END_OF_STREAM)
@@ -1307,26 +1334,26 @@ namespace dmSound
                     break;
                 }
             }
+        }
 
-            if (r != dmSoundCodec::RESULT_OK && r != dmSoundCodec::RESULT_END_OF_STREAM)
-            {
-                dmLogWarning("Unable to decode file '%s'. Result %d", GetSoundName(sound, instance), r);
-                instance->m_Playing = 0;
-                return;
-            }
+        if (r != dmSoundCodec::RESULT_OK && r != dmSoundCodec::RESULT_END_OF_STREAM)
+        {
+            dmLogWarning("Unable to decode file '%s': %s %d", GetSoundName(sound, instance), dmSoundCodec::ResultToString(r), r);
+            instance->m_Playing = 0;
+            return;
+        }
 
-            if (instance->m_FrameCount > 0)
-            {
-                Mix(mix_context, instance, &info);
-            }
+        if (instance->m_FrameCount > 0)
+        {
+            Mix(mix_context, instance, &info);
+        }
 
-            if (instance->m_FrameCount <= instance->m_Speed && instance->m_EndOfStream)
-            {
-                // NOTE: Due to round-off errors, e.g 32000 -> 44100,
-                // the last frame might be partially sampled and
-                // used in the *next* buffer. We truncate such scenarios to 0
-                instance->m_FrameCount = 0;
-            }
+        if (instance->m_FrameCount <= ceilf(instance->m_Speed) && instance->m_EndOfStream)
+        {
+            // NOTE: Due to round-off errors, e.g 32000 -> 44100,
+            // the last frame might be partially sampled and
+            // used in the *next* buffer. We truncate such scenarios to 0
+            instance->m_FrameCount = 0;
         }
     }
 
@@ -1357,11 +1384,13 @@ namespace dmSound
                     max_sq_left = dmMath::Max(max_sq_left, left_sq);
                     max_sq_right = dmMath::Max(max_sq_right, right_sq);
                 }
-                g->m_SumSquaredMemory[2 * g->m_NextMemorySlot + 0] = sum_sq_left;
-                g->m_SumSquaredMemory[2 * g->m_NextMemorySlot + 1] = sum_sq_right;
-                g->m_PeakMemorySq[2 * g->m_NextMemorySlot + 0] = max_sq_left;
-                g->m_PeakMemorySq[2 * g->m_NextMemorySlot + 1] = max_sq_right;
-                g->m_NextMemorySlot = (g->m_NextMemorySlot + 1) % GROUP_MEMORY_BUFFER_COUNT;
+                int memory_slot = g->m_NextMemorySlot;
+                g->m_FrameCounts[memory_slot] = frame_count;
+                g->m_SumSquaredMemory[2 * memory_slot + 0] = sum_sq_left;
+                g->m_SumSquaredMemory[2 * memory_slot + 1] = sum_sq_right;
+                g->m_PeakMemorySq[2 * memory_slot + 0] = max_sq_left;
+                g->m_PeakMemorySq[2 * memory_slot + 1] = max_sq_right;
+                g->m_NextMemorySlot = (memory_slot + 1) % GROUP_MEMORY_BUFFER_COUNT;
 
                 memset(g->m_MixBuffer, 0, frame_count * sizeof(float) * 2);
             }
@@ -1548,11 +1577,11 @@ namespace dmSound
         while (free_slots > 0) {
 
             // Get the number of frames available
-            sound->m_FrameCount = sound->m_DeviceFrameCount;
-            uint32_t frame_count = sound->m_FrameCount;
+            uint32_t frame_count = sound->m_DeviceFrameCount;
             if (sound->m_DeviceType->m_GetAvailableFrames)
                 frame_count = sound->m_DeviceType->m_GetAvailableFrames(sound->m_Device);
 
+            sound->m_FrameCount = frame_count;
             MixContext mix_context(current_buffer, total_buffers, frame_count);
             MixInstances(&mix_context);
 
@@ -1624,6 +1653,39 @@ namespace dmSound
         if (sound) {
             sound->m_HasWindowFocus = focus;
         }
+    }
+
+    const char* ResultToString(Result result)
+    {
+        switch(result)
+        {
+#define RESULT_CASE(_NAME) \
+    case _NAME: return #_NAME
+
+            RESULT_CASE(RESULT_OK);
+            RESULT_CASE(RESULT_PARTIAL_DATA);
+            RESULT_CASE(RESULT_OUT_OF_SOURCES);
+            RESULT_CASE(RESULT_EFFECT_NOT_FOUND);
+            RESULT_CASE(RESULT_OUT_OF_INSTANCES);
+            RESULT_CASE(RESULT_RESOURCE_LEAK);
+            RESULT_CASE(RESULT_OUT_OF_BUFFERS);
+            RESULT_CASE(RESULT_INVALID_PROPERTY);
+            RESULT_CASE(RESULT_UNKNOWN_SOUND_TYPE);
+            RESULT_CASE(RESULT_INVALID_STREAM_DATA);
+            RESULT_CASE(RESULT_OUT_OF_MEMORY);
+            RESULT_CASE(RESULT_UNSUPPORTED);
+            RESULT_CASE(RESULT_DEVICE_NOT_FOUND);
+            RESULT_CASE(RESULT_OUT_OF_GROUPS);
+            RESULT_CASE(RESULT_NO_SUCH_GROUP);
+            RESULT_CASE(RESULT_NOTHING_TO_PLAY);
+            RESULT_CASE(RESULT_INIT_ERROR);
+            RESULT_CASE(RESULT_FINI_ERROR);
+            RESULT_CASE(RESULT_NO_DATA);
+            RESULT_CASE(RESULT_END_OF_STREAM);
+            RESULT_CASE(RESULT_UNKNOWN_ERROR);
+            default: return "Unknown";
+        }
+#undef RESULT_CASE
     }
 
     // Unit tests

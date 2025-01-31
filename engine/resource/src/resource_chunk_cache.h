@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -25,6 +25,12 @@ struct ResourceCacheChunk
     uint32_t m_Size;
 };
 
+enum ResourceChunkCacheFlags
+{
+    RESOURCE_CHUNK_CACHE_DEFAULT     = 0,
+    RESOURCE_CHUNK_CACHE_NO_EVICT    = 1,
+};
+
 typedef struct ResourceChunkCache* HResourceChunkCache;
 
 HResourceChunkCache ResourceChunkCacheCreate(uint32_t max_memory);
@@ -35,12 +41,14 @@ void                ResourceChunkCacheDestroy(HResourceChunkCache cache);
 bool ResourceChunkCacheGet(HResourceChunkCache cache, dmhash_t path_hash, uint32_t offset, ResourceCacheChunk* out);
 
 // Stores a new resoruce chunk. Returns true if successful, false if the operation failed
-bool ResourceChunkCachePut(HResourceChunkCache cache, dmhash_t path_hash, ResourceCacheChunk* chunk);
+// Flags are a set of ResourceChunkCacheFlags
+bool ResourceChunkCachePut(HResourceChunkCache cache, dmhash_t path_hash, int flags, ResourceCacheChunk* chunk);
 
 // Returns true if the cache is full
 bool ResourceChunkCacheCanFit(HResourceChunkCache cache, uint32_t size);
 
 // Evicts the chunks until the requested size will fit
+// It will not evict chunks added with the no-evict flag
 bool ResourceChunkCacheEvictMemory(HResourceChunkCache cache, uint32_t size);
 
 // Evicts the chunks associated with path_hash

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -19,6 +19,7 @@ package com.defold.extension.pipeline.texture;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.pipeline.TextureGenerator;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 
 /**
@@ -42,9 +43,32 @@ public class TextureCompression {
 
     public static ITextureCompressor getCompressor(String name) {
         ITextureCompressor compressor = compressors.getOrDefault(name, null);
-        if (compressor == null)
-            logger.warning(String.format("No such compressor: '%s'", name));
+        if (compressor == null) {
+            // There should always be a default compressor availale.
+            if (name.equals(TextureCompressorUncompressed.TextureCompressorName)) {
+                compressor = new TextureCompressorUncompressed();
+                registerCompressor(compressor);
+            } else {
+                logger.warning(String.format("No such compressor: '%s'", name));
+            }
+        }
         return compressor;
+    }
+
+    // Called from the editor to show selectable compressors
+    public static String[] getInstalledCompressorNames() {
+        return compressors.keySet().toArray(new String[0]);
+    }
+
+    // Called from the editor to show selectable presets for a given compressor
+    public static String[] getPresetNamesForCompressor(String compressor) {
+        ArrayList<String> compressorPresets = new ArrayList<>();
+        for (TextureCompressorPreset preset : presets.values()) {
+            if (preset.getCompressorName().equals(compressor)) {
+                compressorPresets.add(preset.getName());
+            }
+        }
+        return compressorPresets.toArray(new String[0]);
     }
 
     public static void registerPreset(TextureCompressorPreset preset) {

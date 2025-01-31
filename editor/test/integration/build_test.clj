@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -32,9 +32,12 @@
             [integration.test-util :refer [with-loaded-project] :as test-util]
             [support.test-support :refer [with-clean-system]]
             [util.murmur :as murmur])
-  (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
+  (:import [com.dynamo.bob.pipeline CubemapBuilder]
+           [com.dynamo.bob.util TextureUtil]
+           [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
            [com.dynamo.gamesys.proto GameSystem$CollectionProxyDesc]
            [com.dynamo.gamesys.proto TextureSetProto$TextureSet]
+           [com.dynamo.graphics.proto Graphics$TextureImage]
            [com.dynamo.render.proto Font$FontMap Font$GlyphBank]
            [com.dynamo.particle.proto Particle$ParticleFX]
            [com.dynamo.gamesys.proto Sound$SoundDesc]
@@ -491,6 +494,18 @@
             build-results     (project-build project resource-node (g/make-evaluation-context))]
         (is (instance? internal.graph.error_values.ErrorValue (:error build-results)))))))
 
+(deftest build-cubemap
+  (testing "Building cubemap"
+    (with-build-results "/cubemap/cubemap.cubemap"
+      (let [content (get content-by-source "/cubemap/cubemap.cubemap")
+            desc (protobuf/pb->map-with-defaults (TextureUtil/textureResourceBytesToTextureImage content))
+            first-alternative (first (:alternatives desc))]
+        (is (= 6 (:count desc)))
+        (is (= :type-cubemap (:type desc)))
+        (is (= 6 (count (:mip-map-size-compressed first-alternative))))
+        ;; six sides, where each side is 2x2 RGBA
+        (is (= (* 6 2 2 4) (:data-size first-alternative)))))))
+
 (deftest build-font
   (testing "Building TTF font"
     (with-build-results "/fonts/score.font"
@@ -839,19 +854,12 @@
           (is (not (contains? br :error))))))))
 
 (deftest inexact-path-casing-produces-build-error
-  (with-loaded-project project-path
+  (with-loaded-project "test/resources/inexact_path_casing_project"
     (let [game-project-node (test-util/resource-node project "/game.project")
-          atlas-node (test-util/resource-node project "/background/background.atlas")
-          atlas-image-node (ffirst (g/sources-of atlas-node :image-resources))
-          image-resource (g/node-value atlas-image-node :image)
-          workspace (resource/workspace image-resource)
-          uppercase-image-path (string/upper-case (resource/proj-path image-resource))
-          uppercase-image-resource (workspace/resolve-workspace-resource workspace uppercase-image-path)]
-      (g/set-property! atlas-image-node :image uppercase-image-resource)
-      (let [build-error (:error (project-build project game-project-node (g/make-evaluation-context)))
-            error-message (some :message (tree-seq :causes :causes build-error))]
-        (is (g/error? build-error))
-        (is (= (str "The file '" uppercase-image-path "' could not be found.") error-message))))))
+          build-error (:error (project-build project game-project-node (g/make-evaluation-context)))
+          error-message (some :message (tree-seq :causes :causes build-error))]
+      (is (g/error? build-error))
+      (is (= "The file '/MAIN/BUTTON_CLOUDY.png' could not be found." error-message)))))
 
 (deftest build-process-detects-cyclic-lua-dependencies
   (with-loaded-project "test/resources/build_cyclic_lua_project"

@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -27,6 +27,7 @@
             [internal.util :as util]
             [potemkin.namespaces :as namespaces]
             [schema.core :as s]
+            [service.log :as log]
             [util.coll :as coll]
             [util.fn :as fn])
   (:import [internal.graph.error_values ErrorValue]
@@ -199,7 +200,8 @@
          override-id-generator (is/override-id-generator system)
          tx-data-context-map (or (:tx-data-context-map opts) {})
          metrics-collector (:metrics opts)
-         transaction-context (it/new-transaction-context basis id-generators override-id-generator tx-data-context-map metrics-collector)
+         track-changes (:track-changes opts true)
+         transaction-context (it/new-transaction-context basis id-generators override-id-generator tx-data-context-map metrics-collector track-changes)
          tx-result (it/transact* transaction-context txs)]
      (when (and (not (:dry-run opts))
                 (= :ok (:status tx-result)))
@@ -225,16 +227,6 @@
  "Returns a list of the node-ids added given a result from a transaction, (tx-result)."
   [tx-result]
   (:nodes-added tx-result))
-
-(defn is-added?
-  "Returns a boolean if a node was added as a result of a transaction given a tx-result and node."
-  [tx-result node-id]
-  (contains? (:nodes-added tx-result) node-id))
-
-(defn is-deleted?
-  "Returns a boolean if a node was delete as a result of a transaction given a tx-result and node."
-  [tx-result node-id]
-  (contains? (:nodes-deleted tx-result) node-id))
 
 (defn transaction-basis
   "Returns the final basis from the result of a transaction given a tx-result"
@@ -1557,7 +1549,10 @@
   "Set up the initial system including graphs, caches, and disposal queues"
   [config]
   (reset! *the-system* (is/make-system config))
-  (low-memory/add-callback! clear-system-cache!))
+  (low-memory/add-callback!
+    (fn low-memory-callback! []
+      (log/info :message "Clearing the system cache in desperation due to low-memory conditions.")
+      (clear-system-cache!))))
 
 (defn make-graph!
   "Create a new graph in the system with optional values of `:history` and `:volatility`. If no

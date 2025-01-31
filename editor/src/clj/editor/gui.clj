@@ -1,4 +1,4 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -6,7 +6,7 @@
 ;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -491,13 +491,14 @@
 ;; You might want to enable these before making drastic changes to Gui nodes.
 
 (s/def ^:private TNames [s/Str])
+(s/def ^:private TNameSet #{s/Str})
 (s/def ^:private TNameIntMap {s/Str s/Int})
 (def ^:private TNameIndices TNameIntMap)
 
-(s/def ^:private TMaterialInfo {(s/optional-key :max-page-count) s/Int})
+(s/def ^:private TMaterialInfo {(s/required-key :paged) s/Bool
+                                (s/optional-key :max-page-count) s/Int})
 
-(s/def ^:private TTextureInfo {(s/optional-key :anim-data) {s/Keyword s/Any}
-                               (s/optional-key :page-count) s/Int})
+(s/def ^:private TTextureInfo {(s/optional-key :anim-data) {s/Keyword s/Any}})
 
 (s/def ^:private TGuiResourceType (s/enum :font
                                           :layer
@@ -511,6 +512,7 @@
 (s/def ^:private TGuiResourceTextures s/Any #_{s/Str TextureLifecycle})
 (s/def ^:private TGuiResourceShaders s/Any #_{s/Str ShaderLifecycle})
 (s/def ^:private TGuiResourceMaterialInfos s/Any #_{s/Str TMaterialInfo})
+(s/def ^:private TGuiResourcePageCounts s/Any #_{s/Str (s/maybe s/Int)})
 (s/def ^:private TGuiResourceTextureInfos s/Any #_{s/Str TTextureInfo})
 (s/def ^:private TFontDatas s/Any #_{s/Str {s/Keyword s/Any}})
 (s/def ^:private TSpineSceneElementIds s/Any #_{s/Str {:spine-anim-ids (s/constrained #{s/Str} sorted?)
@@ -528,7 +530,7 @@
                                      (s/optional-key :particlefx-resource-names) TGuiResourceNames
                                      (s/optional-key :spine-scene-element-ids) TSpineSceneElementIds
                                      (s/optional-key :spine-scene-names) TGuiResourceNames
-                                     (s/optional-key :texture-names) TGuiResourceNames
+                                     (s/optional-key :texture-page-counts) TGuiResourcePageCounts
                                      (s/optional-key :texture-resource-names) TGuiResourceNames})
 (s/def ^:private TCostlyGuiSceneInfo {(s/optional-key :font-datas) TFontDatas
                                       (s/optional-key :font-shaders) TGuiResourceShaders
@@ -542,9 +544,11 @@
 (g/deftype GuiResourceNames TGuiResourceNames)
 
 (g/deftype ^:private Names TNames)
+(g/deftype ^:private NameSet TNameSet)
 (g/deftype ^:private GuiResourceTextures TGuiResourceTextures)
 (g/deftype ^:private GuiResourceShaders TGuiResourceShaders)
 (g/deftype ^:private GuiResourceMaterialInfos TGuiResourceMaterialInfos)
+(g/deftype ^:private GuiResourcePageCounts TGuiResourcePageCounts)
 (g/deftype ^:private GuiResourceTextureInfos TGuiResourceTextureInfos)
 (g/deftype ^:private FontDatas TFontDatas)
 (g/deftype ^:private SpineSceneElementIds TSpineSceneElementIds)
@@ -1251,13 +1255,12 @@
 
 (def ^:private validate-material-resource (partial validate-optional-gui-resource "Material '%s' does not exist in the scene" :material))
 
-(defn- validate-material-capabilities [_node-id material-infos material material-shader texture-infos texture]
-  (let [is-paged-material (shader/is-using-array-samplers? material-shader)
-        material-info (or (get material-infos material)
+(defn- validate-material-capabilities [_node-id material-infos material texture-page-counts texture]
+  (let [material-info (or (get material-infos material)
                           (get material-infos ""))
+        is-paged-material (:paged material-info)
         material-max-page-count (:max-page-count material-info)
-        texture-info (get texture-infos texture)
-        texture-page-count (:page-count texture-info)]
+        texture-page-count (get texture-page-counts texture)]
     (validation/prop-error :fatal _node-id :material shader/page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count "Texture")))
 
 (g/defnk produce-visual-base-node-msg [gui-base-node-msg ^:raw visible ^:raw blend-mode ^:raw adjust-mode ^:raw material ^:raw pivot ^:raw x-anchor ^:raw y-anchor]
@@ -1508,18 +1511,19 @@
                                  (let [material-infos (:material-infos basic-gui-scene-info)
                                        material-names (some-> material-infos keys)]
                                    (wrap-layout-property-edit-type material (optional-gui-resource-choicebox material-names)))))
-            (dynamic error (g/fnk [_node-id basic-gui-scene-info costly-gui-scene-info material material-shader texture]
+            (dynamic error (g/fnk [_node-id basic-gui-scene-info material texture]
                              (let [material-infos (:material-infos basic-gui-scene-info)
-                                   texture-infos (:texture-infos costly-gui-scene-info)]
+                                   texture-page-counts (:texture-page-counts basic-gui-scene-info)]
                                (or (validate-material-resource _node-id material-infos material)
-                                   (validate-material-capabilities _node-id material-infos material material-shader texture-infos texture)))))
+                                   (validate-material-capabilities _node-id material-infos material texture-page-counts texture)))))
             (value (layout-property-getter material))
             (set (layout-property-setter material)))
   (property texture g/Str (default (protobuf/default Gui$NodeDesc :texture))
             (value (layout-property-getter texture))
             (set (layout-property-setter texture))
             (dynamic edit-type (g/fnk [basic-gui-scene-info]
-                                 (let [texture-names (:texture-names basic-gui-scene-info)]
+                                 (let [texture-page-counts (:texture-page-counts basic-gui-scene-info)
+                                       texture-names (some-> texture-page-counts keys)]
                                    (wrap-layout-property-edit-type texture (optional-gui-resource-choicebox texture-names)
                                      (fn [{:keys [basis] :as evaluation-context} self prop-kw old-value new-value]
                                        ;; Clear any existing :manual-size override when
@@ -1536,8 +1540,8 @@
                                                         (= :texture-size (visible-size-property-label size-mode effective-new-value))))
                                                  (assoc :manual-size nil))))))))
             (dynamic error (g/fnk [_node-id basic-gui-scene-info texture]
-                             (let [texture-names (:texture-names basic-gui-scene-info)]
-                               (validate-texture-resource _node-id texture-names texture)))))
+                             (let [texture-page-counts (:texture-page-counts basic-gui-scene-info)]
+                               (validate-texture-resource _node-id texture-page-counts texture)))))
 
   (property clipping-mode g/Keyword (default (protobuf/default Gui$NodeDesc :clipping-mode))
             (dynamic edit-type (layout-property-edit-type clipping-mode (properties/->pb-choicebox Gui$NodeDesc$ClippingMode)))
@@ -1570,14 +1574,14 @@
                               manual-size
                               texture-size)))
   (output build-errors-shape-node g/Any
-          (g/fnk [_node-id basic-gui-scene-info build-errors-visual-node costly-gui-scene-info material material-shader texture]
+          (g/fnk [_node-id basic-gui-scene-info build-errors-visual-node material texture]
             (let [material-infos (:material-infos basic-gui-scene-info)
-                  texture-infos (:texture-infos costly-gui-scene-info)]
+                  texture-page-counts (:texture-page-counts basic-gui-scene-info)]
               (g/package-errors
                 _node-id
                 build-errors-visual-node ; Validates material name.
-                (validate-texture-resource _node-id texture-infos texture)
-                (validate-material-capabilities _node-id material-infos material material-shader texture-infos texture)))))
+                (validate-texture-resource _node-id texture-page-counts texture)
+                (validate-material-capabilities _node-id material-infos material texture-page-counts texture)))))
   (output own-build-errors g/Any (gu/passthrough build-errors-shape-node)))
 
 (defmethod update-gui-resource-reference [::ShapeNode :texture]
@@ -1944,11 +1948,11 @@
                                            (let [node-ids-by-id (g/node-value scene-node :node-ids evaluation-context)]
                                              (when (and (not (g/error-value? node-ids-by-id))
                                                         (coll/not-empty node-ids-by-id))
-                                               (comp properties-by-id
-                                                     (into {}
-                                                           (map (fn [[id node-id]]
-                                                                  (pair node-id id)))
-                                                           node-ids-by-id))))))
+                                               (into {}
+                                                     (keep (fn [[id node-id]]
+                                                             (when-some [properties (coll/not-empty (properties-by-id id))]
+                                                               (pair node-id properties))))
+                                                     node-ids-by-id)))))
                                        {})]
                                ;; TODO: Check if we can filter based on connection label instead of source-node-id to be able to share :traverse-fn with other overrides.
                                (g/override scene-node {:traverse-fn (g/make-override-traverse-fn
@@ -2138,49 +2142,60 @@
 (g/defnode InternalTextureNode
   (property name g/Str)
   (property gpu-texture TextureLifecycle)
-  (output texture-infos GuiResourceTextureInfos (g/fnk [name] (sorted-map name {:page-count texture/non-paged-page-count})))
+  (output texture-infos GuiResourceTextureInfos (g/fnk [name] (sorted-map name {})))
+  (output texture-page-counts GuiResourcePageCounts (g/fnk [name] {name nil})) ; Use a nil texture-page-count to disable validation against the material page count.
   (output texture-gpu-textures GuiResourceTextures (g/fnk [name gpu-texture] {name gpu-texture})))
 
-(g/defnk produce-texture-gpu-textures [_node-id anim-data name gpu-texture default-tex-params samplers]
+(g/defnk produce-texture-gpu-textures [_node-id texture-names gpu-texture default-tex-params samplers]
   ;; If the referenced texture-resource is missing, we don't return an entry.
   ;; This will cause every usage to fall back on the no-texture entry for "".
-  (when (and (some? anim-data) (some? gpu-texture))
+  (when (some? gpu-texture)
     (let [gpu-texture (let [params (material/sampler->tex-params (first samplers) default-tex-params)]
                         (texture/set-params gpu-texture params))]
-      ;; If the texture does not contain animations, we emit an entry for the "texture" name only.
-      (if (empty? anim-data)
-        {name gpu-texture}
-        (into {}
-              (map (fn [id]
-                     (pair (if id (format "%s/%s" name id) name)
-                           gpu-texture)))
-              (keys anim-data))))))
+      (into {}
+            (map (fn [texture-name]
+                   (pair texture-name gpu-texture)))
+            texture-names))))
 
-(g/defnk produce-texture-infos [anim-data name texture-page-count]
-  ;; The anim-data and the texture-page-count will be nil if the referenced
-  ;; texture is missing or defective.
-  (let [has-animations (not (coll/empty? anim-data))
-        texture-info (cond-> {}
-                             (some? texture-page-count) (assoc :page-count texture-page-count)
-                             has-animations (assoc :anim-data anim-data))]
+(definline ^:private make-texture-name [texture-name anim-id]
+  `(str ~texture-name \/ ~anim-id))
+
+(g/defnk produce-texture-infos [anim-data texture-names name]
+  ;; The anim-data may be nil if the referenced texture is missing or defective.
+  (let [has-animations (not (coll/empty? anim-data))]
     ;; If the texture does not contain animations, we emit an entry for the
     ;; "texture" name only.
     (if-not has-animations
-      (sorted-map name texture-info)
+      (sorted-map name {})
       (into (sorted-map)
             (map (fn [[anim-id anim-data]]
-                   (let [texture-id (if anim-id (format "%s/%s" name anim-id) name)
-                         texture-info (assoc texture-info :anim-data anim-data)]
-                     (pair texture-id texture-info))))
+                   ;; Use the existing texture-name string to save memory.
+                   (let [texture-name (if-not anim-id
+                                        name
+                                        (let [texture-name (make-texture-name name anim-id)]
+                                          (get texture-names texture-name texture-name)))
+                         texture-info {:anim-data anim-data}]
+                     (pair texture-name texture-info))))
             anim-data))))
 
 (g/defnk produce-texture-names [anim-ids name]
   ;; If the texture does not contain animations, we emit an entry for the
   ;; "texture" name only.
   (if (coll/empty? anim-ids)
-    [name]
-    (mapv #(format "%s/%s" name %)
+    (sorted-set name)
+    (into (sorted-set)
+          (map (fn [anim-id]
+                 (make-texture-name name anim-id)))
           anim-ids)))
+
+(g/defnk produce-texture-page-counts [texture-names texture-page-count]
+  ;; The texture-page-count can be nil, which will disable validation against
+  ;; the material page count. We still want an entry in the map since the keys
+  ;; are used to validate the texture names.
+  (into {}
+        (map (fn [texture-name]
+               (pair texture-name texture-page-count)))
+        texture-names))
 
 (g/defnode TextureNode
   (inherits outline/OutlineNode)
@@ -2207,10 +2222,10 @@
   (input name-counts NameCounts)
   (input default-tex-params g/Any)
   (input texture-resource resource/Resource)
-  (input image BufferedImage :substitute (constantly nil))
+  (input image BufferedImage :substitute nil)
   (input gpu-texture g/Any :substitute nil)
   (input texture-page-count g/Int :substitute nil)
-  (input anim-data g/Any :substitute (constantly nil))
+  (input anim-data g/Any :substitute nil)
   (input anim-ids g/Any :substitute nil)
   (input samplers [g/KeywordMap] :substitute (constantly []))
 
@@ -2230,7 +2245,8 @@
                            :texture (resource/resource->proj-path texture-resource))))
   (output texture-gpu-textures GuiResourceTextures :cached produce-texture-gpu-textures)
   (output texture-infos GuiResourceTextureInfos :cached produce-texture-infos)
-  (output texture-names Names :cached produce-texture-names)
+  (output texture-names NameSet :cached produce-texture-names)
+  (output texture-page-counts GuiResourcePageCounts :cached produce-texture-page-counts)
   (output build-errors g/Any (g/fnk [_node-id name name-counts texture]
                                (g/package-errors _node-id
                                                  (prop-unique-id-error _node-id :name name name-counts "Name")
@@ -2337,12 +2353,14 @@
                                                         ;; If the referenced material-resource is missing, we don't return an entry.
                                                         (when (some? material-shader)
                                                           {name material-shader})))
-  (output material-infos GuiResourceMaterialInfos (g/fnk [name material-max-page-count]
-                                                    ;; If the referenced material-resource is missing, material-max-page-count will be nil.
+  (output material-infos GuiResourceMaterialInfos (g/fnk [name material-max-page-count material-shader]
+                                                    ;; If the referenced material-resource is missing, material-max-page-count and material-shader will be nil.
                                                     ;; We still want an entry in the map, but we will not attempt to validate the page count against the texture.
-                                                    (let [material-info (if material-max-page-count
-                                                                          {:max-page-count material-max-page-count}
-                                                                          {})]
+                                                    ;; TODO: Depending on the material-shader here to figure out if the material is paged is a bit costly.
+                                                    (let [is-paged-material (and (some? material-shader)
+                                                                                 (shader/is-using-array-samplers? material-shader))
+                                                          material-info (cond-> {:paged is-paged-material}
+                                                                                material-max-page-count (assoc :max-page-count material-max-page-count))]
                                                       (sorted-map name material-info))))
   (output build-errors g/Any (g/fnk [_node-id name name-counts material]
                                (g/package-errors _node-id
@@ -2530,11 +2548,11 @@
      (g/connect texture :texture-infos self :texture-infos)
      (when (not internal?)
        (concat
-         (g/connect texture :texture-names self :texture-names)
          (g/connect texture :dep-build-targets self :dep-build-targets)
          (g/connect texture :pb-msg self :texture-msgs)
          (g/connect texture :build-errors textures-node :build-errors)
          (g/connect texture :node-outline textures-node :child-outlines)
+         (g/connect texture :texture-page-counts textures-node :texture-page-counts)
          (g/connect texture :name textures-node :names)
          (g/connect textures-node :name-counts texture :name-counts)
          (g/connect self :samplers texture :samplers)
@@ -2556,6 +2574,9 @@
   (output texture-resource-names GuiResourceNames :cached (g/fnk [names] (into (sorted-set) names)))
   (input build-errors g/Any :array)
   (output build-errors g/Any (gu/passthrough build-errors))
+  (input texture-page-counts g/Any :array)
+  (output texture-page-counts g/Any :cached (g/fnk [texture-page-counts]
+                                              (into {} cat texture-page-counts)))
   (output node-outline outline/OutlineData :cached
           (gen-outline-fnk "Textures" "Textures" 1 false [{:node-type TextureNode
                                                            :tx-attach-fn (gen-outline-node-tx-attach-fn attach-texture)}]))
@@ -3209,12 +3230,8 @@
             (into (sorted-set)
                   layout-names)))
 
-  (input texture-names Names :array)
-  (output texture-names GuiResourceNames :cached
-          (g/fnk [texture-names]
-            (into (sorted-set)
-                  cat
-                  texture-names)))
+  (input texture-page-counts GuiResourcePageCounts)
+  (output texture-page-counts GuiResourcePageCounts (gu/passthrough texture-page-counts))
 
   (input texture-resource-names GuiResourceNames)
   (input texture-gpu-textures GuiResourceTextures :array)
@@ -3310,7 +3327,7 @@
 
   (input aux-basic-gui-scene-info BasicGuiSceneInfo)
   (output own-basic-gui-scene-info BasicGuiSceneInfo :cached
-          (g/fnk [font-names layer->index layer-names layout-names material-infos particlefx-resource-names spine-scene-names texture-names texture-resource-names spine-scene-element-ids]
+          (g/fnk [font-names layer->index layer-names layout-names material-infos particlefx-resource-names spine-scene-names texture-page-counts texture-resource-names spine-scene-element-ids]
             {:font-names font-names
              :layer->index layer->index
              :layer-names layer-names
@@ -3319,7 +3336,7 @@
              :particlefx-resource-names particlefx-resource-names
              :spine-scene-element-ids (reduce coll/merge spine-scene-element-ids)
              :spine-scene-names spine-scene-names
-             :texture-names texture-names
+             :texture-page-counts texture-page-counts
              :texture-resource-names texture-resource-names}))
   (output basic-gui-scene-info BasicGuiSceneInfo :cached
           (g/fnk [aux-basic-gui-scene-info own-basic-gui-scene-info]
@@ -3385,6 +3402,17 @@
 (defn add-gui-node-handler [project {:keys [scene parent node-type custom-type]} select-fn]
   (add-gui-node! project scene parent node-type custom-type select-fn))
 
+(defn add-template-gui-node-handler [project {:keys [scene parent node-type custom-type]} select-fn]
+  (when-let [template-resources (resource-dialog/make (project/workspace project) project {:ext "gui"
+                                                                                           :accept-fn (fn [r] (not= r (g/node-value (node->gui-scene parent) :resource)))})]
+    (let [template-resource (first template-resources)
+          template-id (resource->id template-resource)
+          node-type-info (get-registered-node-type-info node-type custom-type)
+          default-props (:defaults node-type-info)
+          props (assoc default-props :template {:resource template-resource :overrides {}}
+                                     :id template-id)]
+    (add-gui-node-with-props! scene parent node-type custom-type props select-fn))))
+
 (defn- make-add-handler [scene parent label icon handler-fn user-data]
   {:label label :icon icon :command :add
    :user-data (merge {:handler-fn handler-fn :scene scene :parent parent} user-data)})
@@ -3411,8 +3439,11 @@
                                       node)]
                          (mapv (fn [info]
                                  (if-not (:deprecated info)
-                                   (make-add-handler scene parent (:display-name info) (:icon info)
-                                                     add-gui-node-handler (into {} info))))
+                                   (let [add-handler (if (= (:node-type info) :type-template)
+                                                       add-template-gui-node-handler
+                                                       add-gui-node-handler)]
+                                     (make-add-handler scene parent (:display-name info) (:icon info)
+                                                       add-handler (into {} info)))))
                                type-infos))
 
                        :else
@@ -3584,6 +3615,7 @@
                               no-texture [InternalTextureNode
                                           :name ""
                                           :gpu-texture @texture/white-pixel]]
+                    (g/connect textures-node :texture-page-counts self :texture-page-counts)
                     (g/connect textures-node :_node-id self :textures-node) ; for the tests :/
                     (g/connect textures-node :_node-id self :nodes)
                     (g/connect textures-node :build-errors self :build-errors)

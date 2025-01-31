@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -208,8 +208,9 @@
                       :smoke-test {:jvm-opts ["-Ddefold.smoke.log=true"]}
                       :cache-libraries {:jvm-opts ["-Ddefold.cache.libraries=true"]}
                       :reveal {:source-paths ["src/reveal"]
+                               :jvm-opts ["-Djol.magicFieldOffset=true" "-XX:+EnableDynamicAgentLoading"]
                                :injections [(require 'editor.reveal)]
-                               :dependencies [[vlaaad/reveal "1.3.280"]]}
+                               :dependencies [[vlaaad/reveal "1.3.284"]]}
                       :metrics {:jvm-opts ["-Ddefold.metrics=true"]}
                       :jamm {:dependencies [[com.github.jbellis/jamm "0.4.0"]]
                              :jvm-opts [~(str "-javaagent:"
@@ -224,6 +225,7 @@
                       :no-schemas {:jvm-opts ["-Ddefold.schema.check.disable=true"]}
                       :no-spec-asserts {:jvm-opts ["-Dclojure.spec.compile-asserts=false"]}
                       :performance [:no-decorated-exceptions :no-schemas :no-spec-asserts]
+                      :16gb {:jvm-opts ["-Xmx16g"]}
                       :x86_64-linux {:dependencies [[org.openjfx/javafx-base "23.0.1" :classifier "linux" :exclusions [org.openjfx/javafx-base]]
                                                     [org.openjfx/javafx-controls "23.0.1" :classifier "linux" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
                                                     [org.openjfx/javafx-graphics "23.0.1" :classifier "linux" :exclusions [org.openjfx/javafx-graphics org.openjfx/javafx-base]]
@@ -281,7 +283,7 @@
                                                     "-Ddefold.extension.simpledata.url=https://github.com/defold/extension-simpledata/archive/refs/tags/v1.1.0.zip"
                                                     "-Ddefold.extension.spine.url=https://github.com/defold/extension-spine/archive/refs/tags/3.6.4.zip"
                                                     "-Ddefold.extension.teal.url=https://github.com/defold/extension-teal/archive/main.zip"
-                                                    "-Ddefold.extension.texturepacker.url=https://github.com/defold/extension-texturepacker/archive/refs/tags/1.2.zip"
+                                                    "-Ddefold.extension.texturepacker.url=https://github.com/defold/extension-texturepacker/archive/refs/tags/2.1.zip"
                                                     "-Ddefold.unpack.path=tmp/unpack"
                                                     "-Ddefold.nrepl=true"
                                                     "-Ddefold.log.dir="
