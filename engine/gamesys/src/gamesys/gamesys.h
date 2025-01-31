@@ -79,14 +79,57 @@ namespace dmGameSystem
     // TODO: Move this?
     struct CollisionWorld;
     struct CollisionComponent;
+    struct ShapeInfo;
 
-    typedef void (*WakeupCollisionFn)(CollisionWorld* world, CollisionComponent* component);
-    typedef void (*RayCastFn)(CollisionWorld* world, const dmPhysics::RayCastRequest& request, dmArray<dmPhysics::RayCastResponse>& results);
+    typedef bool             (*IsEnabledFn)(CollisionWorld* world, CollisionComponent* component);
+    typedef void             (*WakeupCollisionFn)(CollisionWorld* world, CollisionComponent* component);
+    typedef void             (*RayCastFn)(CollisionWorld* world, const dmPhysics::RayCastRequest& request, dmArray<dmPhysics::RayCastResponse>& results);
+    typedef void             (*SetGravityFn)(CollisionWorld* world, const dmVMath::Vector3& gravity);
+    typedef dmVMath::Vector3 (*GetGravityFn)(CollisionWorld* world);
+    typedef void             (*SetCollisionFlipHFn)(CollisionWorld* world, CollisionComponent* component, bool flip);
+    typedef void             (*SetCollisionFlipVFn)(CollisionWorld* world, CollisionComponent* component, bool flip);
+    typedef dmhash_t         (*GetCollisionGroupFn)(CollisionWorld* world, CollisionComponent* component);
+    typedef bool             (*SetCollisionGroupFn)(CollisionWorld* world, CollisionComponent* component, dmhash_t group_hash);
+    typedef bool             (*GetCollisionMaskBitFn)(CollisionWorld* world, CollisionComponent* component, dmhash_t group_hash, bool* maskbit);
+    typedef bool             (*SetCollisionMaskBitFn)(CollisionWorld* world, CollisionComponent* component, dmhash_t group_hash, bool boolvalue);
+    typedef void             (*UpdateMassFn)(CollisionWorld* world, CollisionComponent* component, float mass);
+    typedef bool             (*GetShapeIndexFn)(CollisionWorld* world, CollisionComponent* component, dmhash_t shape_name_hash, uint32_t* index_out);
+    typedef bool             (*GetShapeFn)(CollisionWorld* world, CollisionComponent* component, uint32_t shape_ix, ShapeInfo* shape_info);
+    typedef bool             (*SetShapeFn)(CollisionWorld* world, CollisionComponent* component, uint32_t shape_ix, ShapeInfo* shape_info);
+
+    typedef dmPhysics::JointResult (*CreateJointFn)(CollisionWorld* world, CollisionComponent* component_a, dmhash_t id, const dmVMath::Point3& apos, CollisionComponent* component_b, const dmVMath::Point3& bpos, dmPhysics::JointType type, const dmPhysics::ConnectJointParams& joint_params);
+    typedef dmPhysics::JointResult (*DestroyJointFn)(CollisionWorld* world, CollisionComponent* component, dmhash_t id);
+    typedef dmPhysics::JointResult (*GetJointParamsFn)(CollisionWorld* world, CollisionComponent* component, dmhash_t id, dmPhysics::JointType& joint_type, dmPhysics::ConnectJointParams& joint_params);
+    typedef dmPhysics::JointResult (*GetJointTypeFn)(CollisionWorld* world, CollisionComponent* component, dmhash_t id, dmPhysics::JointType& joint_type);
+    typedef dmPhysics::JointResult (*SetJointParamsFn)(CollisionWorld* world, CollisionComponent* component, dmhash_t id, const dmPhysics::ConnectJointParams& joint_params);
+    typedef dmPhysics::JointResult (*GetJointReactionForceFn)(CollisionWorld* world, CollisionComponent* component, dmhash_t id, dmVMath::Vector3& force);
+    typedef dmPhysics::JointResult (*GetJointReactionTorqueFn)(CollisionWorld* world, CollisionComponent* component, dmhash_t id, float& torque);
 
     struct PhysicsAdapterFunctionTable
     {
-        WakeupCollisionFn m_WakeupCollision;
-        RayCastFn         m_RayCast;
+        IsEnabledFn              m_IsEnabled;
+        WakeupCollisionFn        m_WakeupCollision;
+        RayCastFn                m_RayCast;
+        SetGravityFn             m_SetGravity;
+        GetGravityFn             m_GetGravity;
+        SetCollisionFlipHFn      m_SetCollisionFlipH;
+        SetCollisionFlipVFn      m_SetCollisionFlipV;
+        GetCollisionGroupFn      m_GetCollisionGroup;
+        SetCollisionGroupFn      m_SetCollisionGroup;
+        GetCollisionMaskBitFn    m_GetCollisionMaskBit;
+        SetCollisionMaskBitFn    m_SetCollisionMaskBit;
+        UpdateMassFn             m_UpdateMass;
+        GetShapeIndexFn          m_GetShapeIndex;
+        GetShapeFn               m_GetShape;
+        SetShapeFn               m_SetShape;
+
+        CreateJointFn            m_CreateJoint;
+        DestroyJointFn           m_DestroyJoint;
+        GetJointParamsFn         m_GetJointParams;
+        GetJointTypeFn           m_GetJointType;
+        SetJointParamsFn         m_SetJointParams;
+        GetJointReactionForceFn  m_GetJointReactionForce;
+        GetJointReactionTorqueFn m_GetJointReactionTorque;
     };
 
     struct CollisionWorld
@@ -105,8 +148,6 @@ namespace dmGameSystem
         // Tracking initial state.
         uint8_t                       m_AddedToUpdate  : 1;
         uint8_t                       m_StartAsEnabled : 1;
-        uint8_t                       m_FlippedX       : 1; // set if it's been flipped
-        uint8_t                       m_FlippedY       : 1; // --||--
         uint8_t                       m_EventMask      : 3;
     };
 

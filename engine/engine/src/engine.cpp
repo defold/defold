@@ -1241,10 +1241,14 @@ namespace dmEngine
         debug_callbacks.m_InvScale = 1.0f / physics_params.m_Scale;
         debug_callbacks.m_DebugScale = dmConfigFile::GetFloat(engine->m_Config, "physics.debug_scale", 30.0f);
 
-        // if (engine->m_PhysicsContext.m_3D)
-        //     dmPhysics::SetDebugCallbacks3D(engine->m_PhysicsContext.m_Context3D, debug_callbacks);
-        // else
-        //     dmPhysics::SetDebugCallbacks2D(engine->m_PhysicsContext.m_Context2D, debug_callbacks);
+        if (engine->m_PhysicsContextBox2D.m_Context)
+        {
+            dmPhysics::SetDebugCallbacks2D(engine->m_PhysicsContextBox2D.m_Context, debug_callbacks);
+        }
+        if (engine->m_PhysicsContextBullet3D.m_Context)
+        {
+            dmPhysics::SetDebugCallbacks3D(engine->m_PhysicsContextBullet3D.m_Context, debug_callbacks);
+        }
 #endif
 
         engine->m_SpriteContext.m_RenderContext = engine->m_RenderContext;

@@ -54,13 +54,17 @@ namespace dmGameSystem
     static bool g_CollisionOverflowWarning   = false;
     static bool g_ContactOverflowWarning     = false;
 
-    static void GetWorldTransform(void* user_data, dmTransform::Transform& world_transform);
-    static void SetWorldTransform(void* user_data, const dmVMath::Point3& position, const dmVMath::Quat& rotation);
-
     struct JointEntry;
     struct JointEndPoint;
 
     struct CollisionComponentBox2D;
+    struct CollisionWorldBox2D;
+
+    static void GetWorldTransform(void* user_data, dmTransform::Transform& world_transform);
+    static void SetWorldTransform(void* user_data, const dmVMath::Point3& position, const dmVMath::Quat& rotation);
+    static void DeleteJoint(CollisionWorldBox2D* world, dmPhysics::HJoint joint);
+    static void DeleteJoint(CollisionWorldBox2D* world, JointEntry* joint_entry);
+
     struct CollisionWorldBox2D
     {
         CollisionWorld                    m_BaseWorld;
@@ -81,6 +85,9 @@ namespace dmGameSystem
         JointEntry*                   m_Joints;
         /// Linked list of joints TO this component.
         JointEndPoint*                m_JointEndPoints;
+        uint8_t                       m_FlippedX : 1; // set if it's been flipped
+        uint8_t                       m_FlippedY : 1; // --||--
+        uint8_t                                  : 6; // Unused
     };
 
     /// Joint entry that will keep track of joint connections from collision components.
@@ -357,6 +364,8 @@ namespace dmGameSystem
         component->m_Joints          = 0x0;
         component->m_JointEndPoints  = 0x0;
         component->m_Object2D        = 0;
+        component->m_FlippedX        = 0;
+        component->m_FlippedY        = 0;
 
         CollisionComponent* component_base = &component->m_BaseComponent;
         component_base->m_Resource         = (CollisionObjectResource*) params.m_Resource;
@@ -364,8 +373,6 @@ namespace dmGameSystem
         component_base->m_ComponentIndex   = params.m_ComponentIndex;
         component_base->m_AddedToUpdate    = false;
         component_base->m_StartAsEnabled   = true;
-        component_base->m_FlippedX         = 0;
-        component_base->m_FlippedY         = 0;
 
         CollisionWorldBox2D* world = (CollisionWorldBox2D*) params.m_World;
         if (!CreateCollisionObject(physics_context, world, params.m_Instance, component, false))
@@ -377,16 +384,8 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    struct CollisionComponent;
-    struct JointEndPoint;
-
-    // Forward declarations
-    static void DeleteJoint(CollisionWorldBox2D* world, dmPhysics::HJoint joint);
-    static void DeleteJoint(CollisionWorldBox2D* world, JointEntry* joint_entry);
-
     dmGameObject::CreateResult CompCollisionObjectBox2DDestroy(const dmGameObject::ComponentDestroyParams& params)
     {
-        PhysicsContextBox2D* physics_context = (PhysicsContextBox2D*)params.m_Context;
         CollisionComponentBox2D* component = (CollisionComponentBox2D*)*params.m_UserData;
         CollisionWorldBox2D* world = (CollisionWorldBox2D*)params.m_World;
 
@@ -1308,6 +1307,12 @@ namespace dmGameSystem
     }
 
     // Adapter functions
+    static bool IsEnabledBox2D(CollisionWorld* world, CollisionComponent* component)
+    {
+        CollisionComponentBox2D* _component = (CollisionComponentBox2D*) component;
+        return dmPhysics::IsEnabled2D(_component->m_Object2D);
+    }
+
     static void WakeupCollisionBox2D(CollisionWorld* _world, CollisionComponent* _component)
     {
         CollisionComponentBox2D* component = (CollisionComponentBox2D*) _component;
@@ -1319,13 +1324,6 @@ namespace dmGameSystem
         CollisionWorldBox2D* world = (CollisionWorldBox2D*)_world;
         dmPhysics::RayCast2D(world->m_World2D, request, results);
     }
-
-    void InstallBox2DPhysicsAdapter()
-    {
-        g_PhysicsAdapter.m_WakeupCollision = WakeupCollisionBox2D;
-        g_PhysicsAdapter.m_RayCast         = RayCastBox2D;
-    }
-
 
     static void DeleteJoint(CollisionWorldBox2D* world, JointEntry* joint_entry)
     {
@@ -1369,9 +1367,8 @@ namespace dmGameSystem
         dmPhysics::DeleteJoint2D(world->m_World2D, joint);
     }
 
-    /*
     // Find a JointEntry in the linked list of a collision component based on the joint id.
-    static JointEntry* FindJointEntry(CollisionWorldBox2D* world, CollisionComponent* component, dmhash_t id)
+    static JointEntry* FindJointEntry(CollisionWorldBox2D* world, CollisionComponentBox2D* component, dmhash_t id)
     {
         JointEntry* joint_entry = component->m_Joints;
         while (joint_entry)
@@ -1386,38 +1383,27 @@ namespace dmGameSystem
         return 0x0;
     }
 
-    inline bool IsJointsSupported(CollisionWorldBox2D* world)
-    {
-        if (world->m_3D)
-        {
-            dmLogError("joints are currently only available in 2D physics");
-            return false;
-        }
-        return true;
-    }
-
     // Connects a joint between two components, a JointEntry with the id must exist for this to succeed.
-    dmPhysics::JointResult CreateJoint(void* _world, void* _component_a, dmhash_t id, const dmVMath::Point3& apos, void* _component_b, const dmVMath::Point3& bpos, dmPhysics::JointType type, const dmPhysics::ConnectJointParams& joint_params)
+    static dmPhysics::JointResult CreateJointBox2D(CollisionWorld* _world, CollisionComponent* _component_a, dmhash_t id, const dmVMath::Point3& apos, CollisionComponent* _component_b, const dmVMath::Point3& bpos, dmPhysics::JointType type, const dmPhysics::ConnectJointParams& joint_params)
     {
-        CollisionWorldBox2D* world = (CollisionWorldBox2D*)_world;
-        if (!IsJointsSupported(world)) {
-            return dmPhysics::RESULT_NOT_SUPPORTED;
-        }
+        CollisionWorldBox2D* world = (CollisionWorldBox2D*) _world;
 
-        if (dmPhysics::IsWorldLocked(world->m_World)) {
+        if (dmPhysics::IsWorldLocked(world->m_World2D))
+        {
             return dmPhysics::RESULT_PHYSICS_WORLD_LOCKED;
         }
 
-        CollisionComponent* component_a = (CollisionComponent*)_component_a;
-        CollisionComponent* component_b = (CollisionComponent*)_component_b;
+        CollisionComponentBox2D* component_a = (CollisionComponentBox2D*)_component_a;
+        CollisionComponentBox2D* component_b = (CollisionComponentBox2D*)_component_b;
 
         // Check if there is already a joint with this id
         JointEntry* joint_entry = FindJointEntry(world, component_a, id);
-        if (joint_entry) {
+        if (joint_entry)
+        {
             return dmPhysics::RESULT_ID_EXISTS;
         }
 
-        dmPhysics::HJoint joint_handle = dmPhysics::CreateJoint2D(world->m_World, component_a->m_Object2D, apos, component_b->m_Object2D, bpos, type, joint_params);
+        dmPhysics::HJoint joint_handle = dmPhysics::CreateJoint2D(world->m_World2D, component_a->m_Object2D, apos, component_b->m_Object2D, bpos, type, joint_params);
 
         // NOTE: For the future, we might think about preallocating these structs
         // in batches (when needed) and store them in an object pool.
@@ -1441,14 +1427,11 @@ namespace dmGameSystem
         return dmPhysics::RESULT_OK;
     }
 
-    dmPhysics::JointResult DestroyJoint(void* _world, void* _component, dmhash_t id)
+    static dmPhysics::JointResult DestroyJointBox2D(CollisionWorld* _world, CollisionComponent* _component, dmhash_t id)
     {
         CollisionWorldBox2D* world = (CollisionWorldBox2D*)_world;
-        if (!IsJointsSupported(world)) {
-            return dmPhysics::RESULT_NOT_SUPPORTED;
-        }
+        CollisionComponentBox2D* component = (CollisionComponentBox2D*)_component;
 
-        CollisionComponent* component = (CollisionComponent*)_component;
         JointEntry* joint_entry = FindJointEntry(world, component, id);
         if (!joint_entry) {
             return dmPhysics::RESULT_ID_NOT_FOUND;
@@ -1461,12 +1444,17 @@ namespace dmGameSystem
         DeleteJoint(world, joint_entry);
 
         // Remove joint entry from list on component instance
-        if (component->m_Joints == joint_entry) {
+        if (component->m_Joints == joint_entry)
+        {
             component->m_Joints = joint_entry->m_Next;
-        } else {
+        }
+        else
+        {
             JointEntry* j = component->m_Joints;
-            while (j) {
-                if (j->m_Next == joint_entry) {
+            while (j)
+            {
+                if (j->m_Next == joint_entry)
+                {
                     j->m_Next = joint_entry->m_Next;
                     break;
                 }
@@ -1479,14 +1467,10 @@ namespace dmGameSystem
         return dmPhysics::RESULT_OK;
     }
 
-    dmPhysics::JointResult GetJointParams(void* _world, void* _component, dmhash_t id, dmPhysics::JointType& joint_type, dmPhysics::ConnectJointParams& joint_params)
+    static dmPhysics::JointResult GetJointParamsBox2D(CollisionWorld* _world, CollisionComponent* _component, dmhash_t id, dmPhysics::JointType& joint_type, dmPhysics::ConnectJointParams& joint_params)
     {
         CollisionWorldBox2D* world = (CollisionWorldBox2D*)_world;
-        if (!IsJointsSupported(world)) {
-            return dmPhysics::RESULT_NOT_SUPPORTED;
-        }
-
-        CollisionComponent* component = (CollisionComponent*)_component;
+        CollisionComponentBox2D* component = (CollisionComponentBox2D*)_component;
         JointEntry* joint_entry = FindJointEntry(world, component, id);
 
         if (!joint_entry) {
@@ -1498,21 +1482,18 @@ namespace dmGameSystem
         }
 
         joint_type = joint_entry->m_Type;
-        bool r = GetJointParams2D(world->m_World, joint_entry->m_Joint, joint_entry->m_Type, joint_params);
+        bool r = GetJointParams2D(world->m_World2D, joint_entry->m_Joint, joint_entry->m_Type, joint_params);
         return (r ? dmPhysics::RESULT_OK : dmPhysics::RESULT_UNKNOWN_ERROR);
     }
 
-    dmPhysics::JointResult GetJointType(void* _world, void* _component, dmhash_t id, dmPhysics::JointType& joint_type)
+    static dmPhysics::JointResult GetJointTypeBox2D(CollisionWorld* _world, CollisionComponent* _component, dmhash_t id, dmPhysics::JointType& joint_type)
     {
         CollisionWorldBox2D* world = (CollisionWorldBox2D*)_world;
-        if (!IsJointsSupported(world)) {
-            return dmPhysics::RESULT_NOT_SUPPORTED;
-        }
-
-        CollisionComponent* component = (CollisionComponent*)_component;
+        CollisionComponentBox2D* component = (CollisionComponentBox2D*)_component;
         JointEntry* joint_entry = FindJointEntry(world, component, id);
 
-        if (!joint_entry) {
+        if (!joint_entry)
+        {
             return dmPhysics::RESULT_ID_NOT_FOUND;
         }
 
@@ -1525,14 +1506,10 @@ namespace dmGameSystem
         return dmPhysics::RESULT_OK;
     }
 
-    dmPhysics::JointResult SetJointParams(void* _world, void* _component, dmhash_t id, const dmPhysics::ConnectJointParams& joint_params)
+    static dmPhysics::JointResult SetJointParamsBox2D(CollisionWorld* _world, CollisionComponent* _component, dmhash_t id, const dmPhysics::ConnectJointParams& joint_params)
     {
         CollisionWorldBox2D* world = (CollisionWorldBox2D*)_world;
-        if (!IsJointsSupported(world)) {
-            return dmPhysics::RESULT_NOT_SUPPORTED;
-        }
-
-        CollisionComponent* component = (CollisionComponent*)_component;
+        CollisionComponentBox2D* component = (CollisionComponentBox2D*)_component;
         JointEntry* joint_entry = FindJointEntry(world, component, id);
 
         if (!joint_entry) {
@@ -1543,18 +1520,14 @@ namespace dmGameSystem
             return dmPhysics::RESULT_NOT_CONNECTED;
         }
 
-        bool r = SetJointParams2D(world->m_World, joint_entry->m_Joint, joint_entry->m_Type, joint_params);
+        bool r = SetJointParams2D(world->m_World2D, joint_entry->m_Joint, joint_entry->m_Type, joint_params);
         return (r ? dmPhysics::RESULT_OK : dmPhysics::RESULT_UNKNOWN_ERROR);
     }
 
-    dmPhysics::JointResult GetJointReactionForce(void* _world, void* _component, dmhash_t id, dmVMath::Vector3& force)
+    static dmPhysics::JointResult GetJointReactionForceBox2D(CollisionWorld* _world, CollisionComponent* _component, dmhash_t id, dmVMath::Vector3& force)
     {
         CollisionWorldBox2D* world = (CollisionWorldBox2D*)_world;
-        if (!IsJointsSupported(world)) {
-            return dmPhysics::RESULT_NOT_SUPPORTED;
-        }
-
-        CollisionComponent* component = (CollisionComponent*)_component;
+        CollisionComponentBox2D* component = (CollisionComponentBox2D*)_component;
         JointEntry* joint_entry = FindJointEntry(world, component, id);
 
         if (!joint_entry) {
@@ -1565,18 +1538,14 @@ namespace dmGameSystem
             return dmPhysics::RESULT_NOT_CONNECTED;
         }
 
-        bool r = GetJointReactionForce2D(world->m_World, joint_entry->m_Joint, force, 1.0f / world->m_CurrentDT);
+        bool r = GetJointReactionForce2D(world->m_World2D, joint_entry->m_Joint, force, 1.0f / world->m_CurrentDT);
         return (r ? dmPhysics::RESULT_OK : dmPhysics::RESULT_UNKNOWN_ERROR);
     }
 
-    dmPhysics::JointResult GetJointReactionTorque(void* _world, void* _component, dmhash_t id, float& torque)
+    static dmPhysics::JointResult GetJointReactionTorqueBox2D(CollisionWorld* _world, CollisionComponent* _component, dmhash_t id, float& torque)
     {
         CollisionWorldBox2D* world = (CollisionWorldBox2D*)_world;
-        if (!IsJointsSupported(world)) {
-            return dmPhysics::RESULT_NOT_SUPPORTED;
-        }
-
-        CollisionComponent* component = (CollisionComponent*)_component;
+        CollisionComponentBox2D* component = (CollisionComponentBox2D*)_component;
         JointEntry* joint_entry = FindJointEntry(world, component, id);
 
         if (!joint_entry) {
@@ -1587,37 +1556,108 @@ namespace dmGameSystem
             return dmPhysics::RESULT_NOT_CONNECTED;
         }
 
-        bool r = GetJointReactionTorque2D(world->m_World, joint_entry->m_Joint, torque, 1.0f / world->m_CurrentDT);
-     return (r ? dmPhysics::RESULT_OK : dmPhysics::RESULT_UNKNOWN_ERROR);
+        bool r = GetJointReactionTorque2D(world->m_World2D, joint_entry->m_Joint, torque, 1.0f / world->m_CurrentDT);
+        return (r ? dmPhysics::RESULT_OK : dmPhysics::RESULT_UNKNOWN_ERROR);
     }
 
-    void SetGravity(void* _world, const dmVMath::Vector3& gravity)
+    static void SetGravityBox2D(CollisionWorld* _world, const dmVMath::Vector3& gravity)
     {
         CollisionWorldBox2D* world = (CollisionWorldBox2D*)_world;
-        if (world->m_3D)
-        {
-            dmPhysics::SetGravity3D(world->m_World3D, gravity);
-        }
-        else
-        {
-            dmPhysics::SetGravity2D(world->m_World, gravity);
-        }
+        dmPhysics::SetGravity2D(world->m_World2D, gravity);
     }
 
-    dmVMath::Vector3 GetGravity(void* _world)
+    static dmVMath::Vector3 GetGravityBox2D(CollisionWorld* _world)
     {
         CollisionWorldBox2D* world = (CollisionWorldBox2D*)_world;
-        if (world->m_3D)
+        return dmPhysics::GetGravity2D(world->m_World2D);
+    }
+
+    static void SetCollisionFlipHBox2D(CollisionWorld* _world, CollisionComponent* _component, bool flip)
+    {
+        CollisionComponentBox2D* component = (CollisionComponentBox2D*)_component;
+        if (component->m_FlippedX != flip)
         {
-            return dmPhysics::GetGravity3D(world->m_World3D);
+            dmPhysics::FlipH2D(component->m_Object2D);
         }
-        else
+        component->m_FlippedX = flip;
+    }
+
+    static void SetCollisionFlipVBox2D(CollisionWorld* _world, CollisionComponent* _component, bool flip)
+    {
+        CollisionComponentBox2D* component = (CollisionComponentBox2D*)_component;
+        if (component->m_FlippedY != flip)
         {
-            return dmPhysics::GetGravity2D(world->m_World);
+            dmPhysics::FlipV2D(component->m_Object2D);
+        }
+        component->m_FlippedY = flip;
+    }
+
+    static dmhash_t GetCollisionGroupBox2D(CollisionWorld* _world, CollisionComponent* _component)
+    {
+        CollisionComponentBox2D* component = (CollisionComponentBox2D*)_component;
+        uint16_t groupbit = dmPhysics::GetGroup2D(component->m_Object2D);
+        return GetLSBGroupHash(_world, groupbit);
+    }
+
+    // returns false if no such collision group has been registered
+    static bool SetCollisionGroupBox2D(CollisionWorld* _world, CollisionComponent* _component, dmhash_t group_hash)
+    {
+        CollisionWorldBox2D* world = (CollisionWorldBox2D*)_world;
+        CollisionComponentBox2D* component = (CollisionComponentBox2D*)_component;
+
+        uint16_t groupbit = GetGroupBitIndex(world, group_hash, true);
+        if (!groupbit)
+        {
+            return false; // error. No such group.
+        }
+
+        dmPhysics::SetGroup2D(component->m_Object2D, groupbit);
+        return true; // all good
+    }
+
+    // Updates 'maskbit' with the mask value. Returns false if no such collision group has been registered.
+    static bool GetCollisionMaskBitBox2D(CollisionWorld* _world, CollisionComponent* _component, dmhash_t group_hash, bool* maskbit)
+    {
+        CollisionWorldBox2D* world = (CollisionWorldBox2D*)_world;
+        CollisionComponentBox2D* component = (CollisionComponentBox2D*)_component;
+
+        uint16_t groupbit = GetGroupBitIndex(world, group_hash, true);
+        if (!groupbit) {
+            return false;
+        }
+
+        *maskbit = dmPhysics::GetMaskBit2D(component->m_Object2D, groupbit);
+        return true;
+    }
+
+    // returns false if no such collision group has been registered
+    static bool SetCollisionMaskBitBox2D(CollisionWorld* _world, CollisionComponent* _component, dmhash_t group_hash, bool boolvalue)
+    {
+        CollisionWorldBox2D* world = (CollisionWorldBox2D*)_world;
+        CollisionComponentBox2D* component = (CollisionComponentBox2D*)_component;
+
+        uint16_t groupbit = GetGroupBitIndex(world, group_hash, true);
+        if (!groupbit)
+        {
+            return false;
+        }
+
+        dmPhysics::SetMaskBit2D(component->m_Object2D, groupbit, boolvalue);
+        return true;
+    }
+
+    static void UpdateMassBox2D(CollisionWorld* _world, CollisionComponent* _component, float mass)
+    {
+        CollisionComponentBox2D* component = (CollisionComponentBox2D*)_component;
+
+        if(!dmPhysics::UpdateMass2D(component->m_Object2D, mass))
+        {
+            dmLogError("The Update Mass function can be used only for Dynamic objects with shape area > 0");
         }
     }
 
-    bool GetShapeIndex(void* _component, dmhash_t shape_name_hash, uint32_t* index_out)
+    // Can be shared
+    static bool GetShapeIndexBox2D(CollisionWorld* world, CollisionComponent* _component, dmhash_t shape_name_hash, uint32_t* index_out)
     {
         CollisionComponent* component = (CollisionComponent*) _component;
         uint32_t shape_count = component->m_Resource->m_DDF->m_EmbeddedCollisionShape.m_Shapes.m_Count;
@@ -1632,315 +1672,95 @@ namespace dmGameSystem
         return false;
     }
 
-    static inline dmPhysics::HCollisionShape3D GetShape3D(CollisionComponent* component, uint32_t shape_index)
-    {
-        if (component->m_ShapeBuffer)
-            return component->m_ShapeBuffer[shape_index];
-        return dmPhysics::GetCollisionShape3D(component->m_Object3D, shape_index);
-    }
-
-    bool GetShape(void* _world, void* _component, uint32_t shape_ix, ShapeInfo* shape_info)
+    static bool GetShapeBox2D(CollisionWorld* _world, CollisionComponent* _component, uint32_t shape_ix, ShapeInfo* shape_info)
     {
         CollisionWorldBox2D* world         = (CollisionWorldBox2D*)_world;
-        CollisionComponent* component = (CollisionComponent*) _component;
-        uint32_t shape_count          = component->m_Resource->m_ShapeCount;
+        CollisionComponentBox2D* component = (CollisionComponentBox2D*) _component;
+        uint32_t shape_count               = _component->m_Resource->m_ShapeCount;
 
         if (shape_ix >= shape_count)
         {
             return false;
         }
 
-        shape_info->m_Type = component->m_Resource->m_ShapeTypes[shape_ix];
+        shape_info->m_Type = _component->m_Resource->m_ShapeTypes[shape_ix];
 
-        if (world->m_3D)
+        dmPhysics::HCollisionShape2D shape2d = dmPhysics::GetCollisionShape2D(world->m_World2D, component->m_Object2D, shape_ix);
+
+        switch(shape_info->m_Type)
         {
-            dmPhysics::HCollisionShape3D shape3d = GetShape3D(component, shape_ix);
-
-            switch(shape_info->m_Type)
+            case dmPhysicsDDF::CollisionShape::TYPE_SPHERE:
             {
-                case dmPhysicsDDF::CollisionShape::TYPE_SPHERE:
-                {
-                    float sphere_radius;
-                    dmPhysics::GetCollisionShapeRadius3D(shape3d, &sphere_radius);
-                    shape_info->m_SphereDiameter = sphere_radius * 2.0f;
-                } break;
-                case dmPhysicsDDF::CollisionShape::TYPE_BOX:
-                {
-                    float half_extents[3];
-                    dmPhysics::GetCollisionShapeHalfBoxExtents3D(shape3d, half_extents);
-                    shape_info->m_BoxDimensions[0] = half_extents[0] * 2.0f;
-                    shape_info->m_BoxDimensions[1] = half_extents[1] * 2.0f;
-                    shape_info->m_BoxDimensions[2] = half_extents[2] * 2.0f;
-                } break;
-                case dmPhysicsDDF::CollisionShape::TYPE_CAPSULE:
-                {
-                    float radius, half_height;
-                    dmPhysics::GetCollisionShapeCapsuleRadiusHeight3D(shape3d, &radius, &half_height);
-                    shape_info->m_CapsuleDiameterHeight[0] = radius * 2.0f;
-                    shape_info->m_CapsuleDiameterHeight[1] = half_height * 2.0f;
-                } break;
-                default: assert(0);
-            }
-        }
-        else
-        {
-            dmPhysics::HCollisionShape2D shape2d = dmPhysics::GetCollisionShape2D(world->m_World, component->m_Object2D, shape_ix);
-
-            switch(shape_info->m_Type)
+                float sphere_radius;
+                dmPhysics::GetCollisionShapeRadius2D(world->m_World2D, shape2d, &sphere_radius);
+                shape_info->m_SphereDiameter = sphere_radius * 2.0f;
+            } break;
+            case dmPhysicsDDF::CollisionShape::TYPE_BOX:
             {
-                case dmPhysicsDDF::CollisionShape::TYPE_SPHERE:
-                {
-                    float sphere_radius;
-                    dmPhysics::GetCollisionShapeRadius2D(world->m_World, shape2d, &sphere_radius);
-                    shape_info->m_SphereDiameter = sphere_radius * 2.0f;
-                } break;
-                case dmPhysicsDDF::CollisionShape::TYPE_BOX:
-                {
-                    shape_info->m_BoxDimensions[0] = 0.0f;
-                    shape_info->m_BoxDimensions[1] = 0.0f;
-                    shape_info->m_BoxDimensions[2] = 1.0f;
-                    dmPhysics::GetCollisionShapeBoxDimensions2D(world->m_World, shape2d, component->m_Resource->m_ShapeRotation[shape_ix], shape_info->m_BoxDimensions[0], shape_info->m_BoxDimensions[1]);
-                } break;
-                default: assert(0);
-            }
+                shape_info->m_BoxDimensions[0] = 0.0f;
+                shape_info->m_BoxDimensions[1] = 0.0f;
+                shape_info->m_BoxDimensions[2] = 1.0f;
+                dmPhysics::GetCollisionShapeBoxDimensions2D(world->m_World2D, shape2d, _component->m_Resource->m_ShapeRotation[shape_ix], shape_info->m_BoxDimensions[0], shape_info->m_BoxDimensions[1]);
+            } break;
+            default: assert(0);
         }
         return true;
     }
 
-    static void ReplaceAndDeleteShape3D(dmPhysics::HContext3D context,
-        CollisionComponent* component,
-        dmPhysics::HCollisionShape3D old_shape,
-        dmPhysics::HCollisionShape3D new_shape,
-        uint32_t shape_index)
-    {
-        uint32_t shape_count = component->m_Resource->m_ShapeCount;
-
-        // The direction table is needed for component that has a box shape,
-        // because it is the only shape that currently needs to alter the shape hierarchy
-        // of a collision object.
-        if (!component->m_ShapeBuffer)
-        {
-            component->m_ShapeBuffer = new dmPhysics::HCollisionShape3D[shape_count];
-            uint32_t res = dmPhysics::GetCollisionShapes3D(component->m_Object3D, component->m_ShapeBuffer, shape_count);
-            assert(res == shape_count);
-        }
-
-        dmPhysics::ReplaceShape3D(context, old_shape, new_shape);
-        dmPhysics::ReplaceShape3D(component->m_Object3D, old_shape, new_shape);
-        dmPhysics::DeleteCollisionShape3D(old_shape);
-
-        component->m_ShapeBuffer[shape_index] = new_shape;
-    }
-
-    bool SetShape(void* _world, void* _component, uint32_t shape_ix, ShapeInfo* shape_info)
+    static bool SetShapeBox2D(CollisionWorld* _world, CollisionComponent* _component, uint32_t shape_ix, ShapeInfo* shape_info)
     {
         CollisionWorldBox2D* world         = (CollisionWorldBox2D*)_world;
-        CollisionComponent* component = (CollisionComponent*) _component;
-        uint32_t shape_count          = component->m_Resource->m_ShapeCount;
+        CollisionComponentBox2D* component = (CollisionComponentBox2D*) _component;
+        uint32_t shape_count               = _component->m_Resource->m_ShapeCount;
 
         if (shape_ix >= shape_count)
         {
             return false;
         }
 
-        if (world->m_3D)
+        dmPhysics::HCollisionShape2D shape2d = dmPhysics::GetCollisionShape2D(world->m_World2D, component->m_Object2D, shape_ix);
+
+        switch(shape_info->m_Type)
         {
-            dmPhysics::HCollisionShape3D shape3d = GetShape3D(component, shape_ix);
-
-            switch(shape_info->m_Type)
+            case dmPhysicsDDF::CollisionShape::TYPE_SPHERE:
             {
-                case dmPhysicsDDF::CollisionShape::TYPE_SPHERE:
-                {
-                    dmPhysics::SetCollisionShapeRadius3D(shape3d, shape_info->m_SphereDiameter * 0.5f);
-                } break;
-                case dmPhysicsDDF::CollisionShape::TYPE_BOX:
-                {
-                    dmPhysics::HCollisionShape3D new_shape = dmPhysics::NewBoxShape3D(dmPhysics::GetContext3D(world->m_World3D),
-                        dmVMath::Vector3(shape_info->m_BoxDimensions[0] * 0.5f,
-                                         shape_info->m_BoxDimensions[1] * 0.5f,
-                                         shape_info->m_BoxDimensions[2] * 0.5f));
-
-                    ReplaceAndDeleteShape3D(dmPhysics::GetContext3D(world->m_World3D), component, shape3d, new_shape, shape_ix);
-                } break;
-                case dmPhysicsDDF::CollisionShape::TYPE_CAPSULE:
-                {
-                    dmPhysics::HCollisionShape3D new_shape = dmPhysics::NewCapsuleShape3D(dmPhysics::GetContext3D(world->m_World3D),
-                        shape_info->m_CapsuleDiameterHeight[0] * 0.5f,
-                        shape_info->m_CapsuleDiameterHeight[1]);
-
-                    ReplaceAndDeleteShape3D(dmPhysics::GetContext3D(world->m_World3D), component, shape3d, new_shape, shape_ix);
-                } break;
-                default: assert(0);
-            }
-        }
-        else
-        {
-            dmPhysics::HCollisionShape2D shape2d = dmPhysics::GetCollisionShape2D(world->m_World, component->m_Object2D, shape_ix);
-
-            switch(shape_info->m_Type)
+                dmPhysics::SetCollisionShapeRadius2D(world->m_World2D, shape2d, shape_info->m_SphereDiameter * 0.5f);
+                dmPhysics::SynchronizeObject2D(world->m_World2D, component->m_Object2D);
+            } break;
+            case dmPhysicsDDF::CollisionShape::TYPE_BOX:
             {
-                case dmPhysicsDDF::CollisionShape::TYPE_SPHERE:
-                {
-                    dmPhysics::SetCollisionShapeRadius2D(world->m_World, shape2d, shape_info->m_SphereDiameter * 0.5f);
-                    dmPhysics::SynchronizeObject2D(world->m_World, component->m_Object2D);
-                } break;
-                case dmPhysicsDDF::CollisionShape::TYPE_BOX:
-                {
-                    dmPhysics::SetCollisionShapeBoxDimensions2D(world->m_World, shape2d, component->m_Resource->m_ShapeRotation[shape_ix], shape_info->m_BoxDimensions[0] * 0.5f, shape_info->m_BoxDimensions[1] * 0.5f);
-                } break;
-                default: assert(0);
-            }
+                dmPhysics::SetCollisionShapeBoxDimensions2D(world->m_World2D, shape2d, _component->m_Resource->m_ShapeRotation[shape_ix], shape_info->m_BoxDimensions[0] * 0.5f, shape_info->m_BoxDimensions[1] * 0.5f);
+            } break;
+            default: assert(0);
         }
 
         return true;
     }
 
-    dmhash_t CompCollisionObjectGetIdentifier(void* _component)
+    void InstallBox2DPhysicsAdapter()
     {
-        CollisionComponent* component = (CollisionComponent*)_component;
-        return dmGameObject::GetIdentifier(component->m_Instance);
+        g_PhysicsAdapter.m_IsEnabled              = IsEnabledBox2D;
+        g_PhysicsAdapter.m_WakeupCollision        = WakeupCollisionBox2D;
+        g_PhysicsAdapter.m_RayCast                = RayCastBox2D;
+        g_PhysicsAdapter.m_SetGravity             = SetGravityBox2D;
+        g_PhysicsAdapter.m_GetGravity             = GetGravityBox2D;
+        g_PhysicsAdapter.m_SetCollisionFlipH      = SetCollisionFlipHBox2D;
+        g_PhysicsAdapter.m_SetCollisionFlipV      = SetCollisionFlipVBox2D;
+        g_PhysicsAdapter.m_GetCollisionGroup      = GetCollisionGroupBox2D;
+        g_PhysicsAdapter.m_SetCollisionGroup      = SetCollisionGroupBox2D;
+        g_PhysicsAdapter.m_GetCollisionMaskBit    = GetCollisionMaskBitBox2D;
+        g_PhysicsAdapter.m_SetCollisionMaskBit    = SetCollisionMaskBitBox2D;
+        g_PhysicsAdapter.m_UpdateMass             = UpdateMassBox2D;
+        g_PhysicsAdapter.m_GetShapeIndex          = GetShapeIndexBox2D;
+        g_PhysicsAdapter.m_GetShape               = GetShapeBox2D;
+        g_PhysicsAdapter.m_SetShape               = SetShapeBox2D;
+
+        g_PhysicsAdapter.m_CreateJoint            = CreateJointBox2D;
+        g_PhysicsAdapter.m_DestroyJoint           = DestroyJointBox2D;
+        g_PhysicsAdapter.m_GetJointParams         = GetJointParamsBox2D;
+        g_PhysicsAdapter.m_GetJointType           = GetJointTypeBox2D;
+        g_PhysicsAdapter.m_SetJointParams         = SetJointParamsBox2D;
+        g_PhysicsAdapter.m_GetJointReactionForce  = GetJointReactionForceBox2D;
+        g_PhysicsAdapter.m_GetJointReactionTorque = GetJointReactionTorqueBox2D;
     }
-
-    bool IsCollision2D(void* _world)
-    {
-        CollisionWorldBox2D* world = (CollisionWorldBox2D*)_world;
-        return !world->m_3D;
-    }
-
-    void SetCollisionFlipH(void* _component, bool flip)
-    {
-        CollisionComponent* component = (CollisionComponent*)_component;
-        if (component->m_FlippedX != flip)
-            dmPhysics::FlipH2D(component->m_Object2D);
-        component->m_FlippedX = flip;
-    }
-
-    void SetCollisionFlipV(void* _component, bool flip)
-    {
-        CollisionComponent* component = (CollisionComponent*)_component;
-        if (component->m_FlippedY != flip)
-            dmPhysics::FlipV2D(component->m_Object2D);
-        component->m_FlippedY = flip;
-    }
-
-    void* GetCollisionWorldBox2DCallback(void* _world)
-    {
-        CollisionWorldBox2D* world = (CollisionWorldBox2D*)_world;
-        return world->m_CallbackInfo;
-    }
-
-    void SetCollisionWorldBox2DCallback(void* _world, void* callback_info)
-    {
-        CollisionWorldBox2D* world = (CollisionWorldBox2D*)_world;
-        world->m_CallbackInfo = callback_info;
-    }
-
-    dmhash_t GetCollisionGroup(void* _world, void* _component)
-    {
-        CollisionWorldBox2D* world = (CollisionWorldBox2D*)_world;
-        CollisionComponent* component = (CollisionComponent*)_component;
-
-        uint16_t groupbit;
-        if (world->m_3D)
-        {
-            groupbit = dmPhysics::GetGroup3D(component->m_Object3D);
-        } else
-        {
-            groupbit = dmPhysics::GetGroup2D(component->m_Object2D);
-        }
-        return GetLSBGroupHash(world, groupbit);
-    }
-
-    // returns false if no such collision group has been registered
-    bool SetCollisionGroup(void* _world, void* _component, dmhash_t group_hash)
-    {
-        CollisionWorldBox2D* world = (CollisionWorldBox2D*)_world;
-        CollisionComponent* component = (CollisionComponent*)_component;
-
-        uint16_t groupbit = GetGroupBitIndex(world, group_hash, true);
-        if (!groupbit)
-        {
-            return false; // error. No such group.
-        }
-
-        if (world->m_3D)
-        {
-            dmPhysics::SetGroup3D(world->m_World3D, component->m_Object3D, groupbit);
-        } else
-        {
-            dmPhysics::SetGroup2D(component->m_Object2D, groupbit);
-        }
-        return true; // all good
-    }
-
-    // Updates 'maskbit' with the mask value. Returns false if no such collision group has been registered.
-    bool GetCollisionMaskBit(void* _world, void* _component, dmhash_t group_hash, bool* maskbit)
-    {
-        CollisionWorldBox2D* world = (CollisionWorldBox2D*)_world;
-        CollisionComponent* component = (CollisionComponent*)_component;
-
-        uint16_t groupbit = GetGroupBitIndex(world, group_hash, true);
-        if (!groupbit) {
-            return false;
-        }
-
-        if (world->m_3D)
-        {
-            *maskbit = dmPhysics::GetMaskBit3D(component->m_Object3D, groupbit);
-        } else
-        {
-            *maskbit = dmPhysics::GetMaskBit2D(component->m_Object2D, groupbit);
-        }
-        return true;
-    }
-
-    // returns false if no such collision group has been registered
-    bool SetCollisionMaskBit(void* _world, void* _component, dmhash_t group_hash, bool boolvalue)
-    {
-        CollisionWorldBox2D* world = (CollisionWorldBox2D*)_world;
-        CollisionComponent* component = (CollisionComponent*)_component;
-
-        uint16_t groupbit = GetGroupBitIndex(world, group_hash, true);
-        if (!groupbit)
-        {
-            return false;
-        }
-
-        if (world->m_3D)
-        {
-            dmPhysics::SetMaskBit3D(world->m_World3D, component->m_Object3D, groupbit, boolvalue);
-        } else
-        {
-            dmPhysics::SetMaskBit2D(component->m_Object2D, groupbit, boolvalue);
-        }
-        return true;
-    }
-
-    void UpdateMass(void* _world, void* _component, float mass)
-    {
-        CollisionWorldBox2D* world = (CollisionWorldBox2D*)_world;
-        CollisionComponent* component = (CollisionComponent*)_component;
-
-        if (world->m_3D)
-        {
-            dmLogError("The Update Mass function has not been implemented for 3D yet");
-        }
-        else
-        {
-            if(!dmPhysics::UpdateMass2D(component->m_Object2D, mass))
-            {
-                dmLogError("The Update Mass function can be used only for Dynamic objects with shape area > 0");
-            }
-        }
-    }
-
-    void CompCollisionIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node)
-    {
-        assert(node->m_Type == dmGameObject::SCENE_NODE_TYPE_COMPONENT);
-        assert(node->m_ComponentType != 0);
-        pit->m_Node = node;
-        pit->m_Next = 0;
-        pit->m_FnIterateNext = CompCollisionIterPropertiesGetNext;
-    }
-    */
 }

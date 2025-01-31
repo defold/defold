@@ -75,18 +75,7 @@ namespace dmGameSystem
             if (index == 0)
             {
                 pit->m_Property.m_Type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_BOOLEAN;
-
-                assert(0);
-                /*
-                if (world->m_3D)
-                {
-                    pit->m_Property.m_Value.m_Bool = dmPhysics::IsEnabled3D(component->m_Object3D);
-                }
-                else
-                {
-                    pit->m_Property.m_Value.m_Bool = dmPhysics::IsEnabled2D(component->m_Object2D);
-                }
-                */
+                pit->m_Property.m_Value.m_Bool = world->m_AdapterFunctions->m_IsEnabled(world, component);
                 pit->m_Property.m_NameHash = dmHashString64("enabled");
             }
             return true;
@@ -157,6 +146,130 @@ namespace dmGameSystem
     {
         world->m_AdapterFunctions->m_RayCast(world, request, results);
     }
+
+    dmPhysics::JointResult CreateJoint(CollisionWorld* world, CollisionComponent* component_a, dmhash_t id, const dmVMath::Point3& apos, CollisionComponent* component_b, const dmVMath::Point3& bpos, dmPhysics::JointType type, const dmPhysics::ConnectJointParams& joint_params)
+    {
+        if (!world->m_AdapterFunctions->m_CreateJoint)
+        {
+            return dmPhysics::RESULT_NOT_SUPPORTED;
+        }
+        return world->m_AdapterFunctions->m_CreateJoint(world, component_a, id, apos, component_b, bpos, type, joint_params);
+    }
+
+    dmPhysics::JointResult DestroyJoint(CollisionWorld* world, CollisionComponent* component, dmhash_t id)
+    {
+        if (!world->m_AdapterFunctions->m_DestroyJoint)
+        {
+            return dmPhysics::RESULT_NOT_SUPPORTED;
+        }
+        return world->m_AdapterFunctions->m_DestroyJoint(world, component, id);
+    }
+
+    dmPhysics::JointResult GetJointParams(CollisionWorld* world, CollisionComponent* component, dmhash_t id, dmPhysics::JointType& joint_type, dmPhysics::ConnectJointParams& joint_params)
+    {
+        if (!world->m_AdapterFunctions->m_GetJointParams)
+        {
+            return dmPhysics::RESULT_NOT_SUPPORTED;
+        }
+        return world->m_AdapterFunctions->m_GetJointParams(world, component, id, joint_type, joint_params);
+    }
+
+    dmPhysics::JointResult GetJointType(CollisionWorld* world, CollisionComponent* component, dmhash_t id, dmPhysics::JointType& joint_type)
+    {
+        if (!world->m_AdapterFunctions->m_GetJointType)
+        {
+            return dmPhysics::RESULT_NOT_SUPPORTED;
+        }
+        return world->m_AdapterFunctions->m_GetJointType(world, component, id, joint_type);
+    }
+
+    dmPhysics::JointResult SetJointParams(CollisionWorld* world, CollisionComponent* component, dmhash_t id, const dmPhysics::ConnectJointParams& joint_params)
+    {
+        if (!world->m_AdapterFunctions->m_SetJointParams)
+        {
+            return dmPhysics::RESULT_NOT_SUPPORTED;
+        }
+        return world->m_AdapterFunctions->m_SetJointParams(world, component, id, joint_params);
+    }
+
+    dmPhysics::JointResult GetJointReactionForce(CollisionWorld* world, CollisionComponent* component, dmhash_t id, dmVMath::Vector3& force)
+    {
+        if (!world->m_AdapterFunctions->m_GetJointReactionForce)
+        {
+            return dmPhysics::RESULT_NOT_SUPPORTED;
+        }
+        return world->m_AdapterFunctions->m_GetJointReactionForce(world, component, id, force);
+    }
+
+    dmPhysics::JointResult GetJointReactionTorque(CollisionWorld* world, CollisionComponent* component, dmhash_t id, float& torque)
+    {
+        if (!world->m_AdapterFunctions->m_GetJointReactionTorque)
+        {
+            return dmPhysics::RESULT_NOT_SUPPORTED;
+        }
+        return world->m_AdapterFunctions->m_GetJointReactionTorque(world, component, id, torque);
+    }
+
+    void SetGravity(CollisionWorld* world, const dmVMath::Vector3& gravity)
+    {
+        world->m_AdapterFunctions->m_SetGravity(world, gravity);
+    }
+
+    dmVMath::Vector3 GetGravity(CollisionWorld* world)
+    {
+        return world->m_AdapterFunctions->m_GetGravity(world);
+    }
+
+    void SetCollisionFlipH(CollisionWorld* world, CollisionComponent* component, bool flip)
+    {
+        world->m_AdapterFunctions->m_SetCollisionFlipH(world, component, flip);
+    }
+
+    void SetCollisionFlipV(CollisionWorld* world, CollisionComponent* component, bool flip)
+    {
+        world->m_AdapterFunctions->m_SetCollisionFlipV(world, component, flip);
+    }
+
+    dmhash_t GetCollisionGroup(CollisionWorld* world, CollisionComponent* component)
+    {
+        return world->m_AdapterFunctions->m_GetCollisionGroup(world, component);
+    }
+
+    bool SetCollisionGroup(CollisionWorld* world, CollisionComponent* component, dmhash_t group_hash)
+    {
+        return world->m_AdapterFunctions->m_SetCollisionGroup(world, component, group_hash);
+    }
+
+    bool GetCollisionMaskBit(CollisionWorld* world, CollisionComponent* component, dmhash_t group_hash, bool* maskbit)
+    {
+        return world->m_AdapterFunctions->m_GetCollisionMaskBit(world, component, group_hash, maskbit);
+    }
+
+    bool SetCollisionMaskBit(CollisionWorld* world, CollisionComponent* component, dmhash_t group_hash, bool boolvalue)
+    {
+        return world->m_AdapterFunctions->m_SetCollisionMaskBit(world, component, group_hash, boolvalue);
+    }
+
+    void UpdateMass(CollisionWorld* world, CollisionComponent* component, float mass)
+    {
+        world->m_AdapterFunctions->m_UpdateMass(world, component, mass);
+    }
+
+    bool GetShapeIndex(CollisionWorld* world, CollisionComponent* component, dmhash_t shape_name_hash, uint32_t* index_out)
+    {
+        return world->m_AdapterFunctions->m_GetShapeIndex(world, component, shape_name_hash, index_out);
+    }
+
+    bool GetShape(CollisionWorld* world, CollisionComponent* component, uint32_t shape_ix, ShapeInfo* shape_info)
+    {
+        return world->m_AdapterFunctions->m_GetShape(world, component, shape_ix, shape_info);
+    }
+
+    bool SetShape(CollisionWorld* world, CollisionComponent* component, uint32_t shape_ix, ShapeInfo* shape_info)
+    {
+        return world->m_AdapterFunctions->m_SetShape(world, component, shape_ix, shape_info);
+    }
+
 }
 
 /*

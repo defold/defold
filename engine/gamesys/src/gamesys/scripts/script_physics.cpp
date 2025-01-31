@@ -706,12 +706,11 @@ namespace dmGameSystem
 
         dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
 
-        /*
-        void* comp_a = 0x0;
-        void* comp_world_a = 0x0;
+        CollisionComponent* comp_a = 0x0;
+        CollisionWorld* comp_world_a = 0x0;
         GetCollisionObject(L, 2, collection, &comp_a, &comp_world_a);
-        void* comp_b = 0x0;
-        void* comp_world_b = 0x0;
+        CollisionComponent* comp_b = 0x0;
+        CollisionWorld* comp_world_b = 0x0;
         GetCollisionObject(L, 5, collection, &comp_b, &comp_world_b);
 
         if (comp_world_a != comp_world_b) {
@@ -724,7 +723,6 @@ namespace dmGameSystem
         if (r != dmPhysics::RESULT_OK) {
             return DM_LUA_ERROR("could not create joint: %s (%d)", PhysicsResultString[r], r);
         }
-        */
 
         return 0;
 
@@ -749,9 +747,8 @@ namespace dmGameSystem
         dmhash_t joint_id = dmScript::CheckHashOrString(L, 2);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
 
-        /*
-        void* comp = 0x0;
-        void* comp_world = 0x0;
+        CollisionComponent* comp = 0x0;
+        CollisionWorld* comp_world = 0x0;
         GetCollisionObject(L, 1, collection, &comp, &comp_world);
 
         // Unpack type specific joint connection paramaters
@@ -759,7 +756,6 @@ namespace dmGameSystem
         if (r != dmPhysics::RESULT_OK) {
             return DM_LUA_ERROR("could not disconnect joint: %s (%d)", PhysicsResultString[r], r);
         }
-        */
 
         return 0;
     }
@@ -786,9 +782,8 @@ namespace dmGameSystem
         dmhash_t joint_id = dmScript::CheckHashOrString(L, 2);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
 
-        /*
-        void* comp = 0x0;
-        void* comp_world = 0x0;
+        CollisionComponent* comp = 0x0;
+        CollisionWorld* comp_world = 0x0;
         GetCollisionObject(L, 1, collection, &comp, &comp_world);
 
         dmPhysics::JointType joint_type;
@@ -873,7 +868,6 @@ namespace dmGameSystem
             default:
                 return false;
         }
-        */
 
         return 1;
     }
@@ -901,9 +895,8 @@ namespace dmGameSystem
         dmGameObject::HInstance instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
 
-        /*
-        void* comp = 0x0;
-        void* comp_world = 0x0;
+        CollisionComponent* comp = 0x0;
+        CollisionWorld* comp_world = 0x0;
         GetCollisionObject(L, 1, collection, &comp, &comp_world);
 
         dmPhysics::JointType joint_type;
@@ -919,7 +912,6 @@ namespace dmGameSystem
         if (r != dmPhysics::RESULT_OK) {
             return DM_LUA_ERROR("unable to set joint properties: %s (%d)", PhysicsResultString[r], r);
         }
-        */
 
         return 0;
     }
@@ -944,9 +936,8 @@ namespace dmGameSystem
         dmhash_t joint_id = dmScript::CheckHashOrString(L, 2);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
 
-        /*
-        void* comp = 0x0;
-        void* comp_world = 0x0;
+        CollisionComponent* comp = 0x0;
+        CollisionWorld* comp_world = 0x0;
         GetCollisionObject(L, 1, collection, &comp, &comp_world);
 
         dmVMath::Vector3 reaction_force(0.0f);
@@ -957,7 +948,6 @@ namespace dmGameSystem
         }
 
         dmScript::PushVector3(L, reaction_force);
-        */
 
         return 1;
     }
@@ -982,9 +972,8 @@ namespace dmGameSystem
         dmhash_t joint_id = dmScript::CheckHashOrString(L, 2);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
 
-        /*
-        void* comp = 0x0;
-        void* comp_world = 0x0;
+        CollisionComponent* comp = 0x0;
+        CollisionWorld* comp_world = 0x0;
         GetCollisionObject(L, 1, collection, &comp, &comp_world);
 
         float reaction_torque = 0.0f;
@@ -995,7 +984,6 @@ namespace dmGameSystem
         }
 
         lua_pushnumber(L, reaction_torque);
-        */
 
         return 1;
     }
@@ -1033,14 +1021,14 @@ namespace dmGameSystem
 
         dmGameObject::HInstance sender_instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
-        void* world = dmGameObject::GetWorld(collection, context->m_ComponentIndex);
+        CollisionWorld* world = (CollisionWorld*) dmGameObject::GetWorld(collection, context->m_ComponentIndex);
         if (world == 0x0)
         {
             return DM_LUA_ERROR("Physics world doesn't exist. Make sure you have at least one physics component in collection.");
         }
         dmVMath::Vector3 new_gravity( *dmScript::CheckVector3(L, 1) );
 
-        // dmGameSystem::SetGravity(world, new_gravity);
+        dmGameSystem::SetGravity(world, new_gravity);
 
         return 0;
     }
@@ -1080,14 +1068,14 @@ namespace dmGameSystem
 
         dmGameObject::HInstance sender_instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
-        void* world = dmGameObject::GetWorld(collection, context->m_ComponentIndex);
+        CollisionWorld* world = (CollisionWorld*) dmGameObject::GetWorld(collection, context->m_ComponentIndex);
         if (world == 0x0)
         {
             return DM_LUA_ERROR("Physics world doesn't exist. Make sure you have at least one physics component in collection.");
         }
 
-        // dmVMath::Vector3 gravity = dmGameSystem::GetGravity(world);
-        // dmScript::PushVector3(L, gravity);
+        dmVMath::Vector3 gravity = dmGameSystem::GetGravity(world);
+        dmScript::PushVector3(L, gravity);
 
         return 1;
     }
@@ -1098,26 +1086,28 @@ namespace dmGameSystem
 
         dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
 
-        /*
-        void* comp = 0x0;
-        void* comp_world = 0x0;
+        CollisionComponent* comp = 0x0;
+        CollisionWorld* comp_world = 0x0;
         GetCollisionObject(L, 1, collection, &comp, &comp_world);
 
+        // TODO: Not should what this check woudl be equivalent to now
+        /*
         if (!IsCollision2D(comp_world)) {
             return DM_LUA_ERROR("function only available in 2D physics");
         }
+        */
 
-        if (!comp) {
+        if (!comp)
+        {
             return DM_LUA_ERROR("couldn't find collision object"); // todo: add url
         }
 
         bool flip = lua_toboolean(L, 2);
 
         if (horizontal)
-            SetCollisionFlipH(comp, flip);
+            SetCollisionFlipH(comp_world, comp, flip);
         else
-            SetCollisionFlipV(comp, flip);
-        */
+            SetCollisionFlipV(comp_world, comp, flip);
 
         return 0;
     }
@@ -1214,16 +1204,14 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 0);
 
         dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
-        /*
-        void* comp = 0x0;
-        void* comp_world = 0x0;
+        CollisionComponent* comp = 0x0;
+        CollisionWorld* comp_world = 0x0;
         GetCollisionObject(L, 1, collection, &comp, &comp_world);
         dmhash_t group_id = dmScript::CheckHashOrString(L, 2);
 
         if (! dmGameSystem::SetCollisionGroup(comp_world, comp, group_id)) {
             return luaL_error(L, "Collision group not registered: %s.", dmHashReverseSafe64(group_id));
         }
-        */
 
         return 0;
     }
@@ -1246,15 +1234,13 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
 
-        /*
         dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
-        void* comp = 0x0;
-        void* comp_world = 0x0;
+        CollisionComponent* comp = 0x0;
+        CollisionWorld* comp_world = 0x0;
         GetCollisionObject(L, 1, collection, &comp, &comp_world);
 
         dmhash_t group_hash = dmGameSystem::GetCollisionGroup(comp_world, comp);
         dmScript::PushHash(L, group_hash);
-        */
 
         return 1;
     }
@@ -1280,9 +1266,8 @@ namespace dmGameSystem
 
         dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
 
-        /*
-        void* comp = 0x0;
-        void* comp_world = 0x0;
+        CollisionComponent* comp = 0x0;
+        CollisionWorld* comp_world = 0x0;
         GetCollisionObject(L, 1, collection, &comp, &comp_world);
         dmhash_t group_id = dmScript::CheckHashOrString(L, 2);
         bool boolvalue = dmScript::CheckBoolean(L, 3);
@@ -1290,7 +1275,6 @@ namespace dmGameSystem
         if (! dmGameSystem::SetCollisionMaskBit(comp_world, comp, group_id, boolvalue)) {
             return luaL_error(L, "Collision group not registered: %s.", dmHashReverseSafe64(group_id));
         }
-        */
 
         return 0;
     }
@@ -1317,10 +1301,8 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 1);
 
         dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
-
-        /*
-        void* comp = 0x0;
-        void* comp_world = 0x0;
+        CollisionComponent* comp = 0x0;
+        CollisionWorld* comp_world = 0x0;
         GetCollisionObject(L, 1, collection, &comp, &comp_world);
         dmhash_t group_id = dmScript::CheckHashOrString(L, 2);
 
@@ -1329,8 +1311,6 @@ namespace dmGameSystem
             return luaL_error(L, "Collision group not registered: %s.", dmHashReverseSafe64(group_id));
         }
         lua_pushboolean(L, (int) boolvalue);
-        */
-
         return 1;
     }
 
@@ -1406,12 +1386,11 @@ namespace dmGameSystem
         uint32_t shape_ix;
         dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
 
-        /*
-        void* comp       = 0x0;
-        void* comp_world = 0x0;
+        CollisionComponent* comp   = 0x0;
+        CollisionWorld* comp_world = 0x0;
         GetCollisionObject(L, 1, collection, &comp, &comp_world);
 
-        if (!dmGameSystem::GetShapeIndex(comp, shape_name_hash, &shape_ix))
+        if (!dmGameSystem::GetShapeIndex(comp_world, comp, shape_name_hash, &shape_ix))
         {
             return DM_LUA_ERROR("No shape with name '%s' found", dmHashReverseSafe64(shape_name_hash));
         }
@@ -1447,7 +1426,6 @@ namespace dmGameSystem
                 break;
             default:break;
         }
-        */
 
         return 1;
     }
@@ -1495,14 +1473,13 @@ namespace dmGameSystem
         uint32_t shape_ix;
         dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
 
-        /*
-        void* comp       = 0x0;
-        void* comp_world = 0x0;
+        CollisionComponent* comp   = 0x0;
+        CollisionWorld* comp_world = 0x0;
         GetCollisionObject(L, 1, collection, &comp, &comp_world);
 
         dmGameSystem::ShapeInfo shape_info = {};
 
-        if (!dmGameSystem::GetShapeIndex(comp, shape_name_hash, &shape_ix))
+        if (!dmGameSystem::GetShapeIndex(comp_world, comp, shape_name_hash, &shape_ix))
         {
             return DM_LUA_ERROR("No shape with name '%s' found", dmHashReverseSafe64(shape_name_hash));
         }
@@ -1560,7 +1537,6 @@ namespace dmGameSystem
         }
 
         lua_pop(L, 1); // args table
-        */
 
         return 0;
     }
@@ -1676,13 +1652,11 @@ namespace dmGameSystem
         dmGameObject::HInstance sender_instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
 
-        void* world = dmGameObject::GetWorld(collection, context->m_ComponentIndex);
+        CollisionWorld* world = (CollisionWorld*) dmGameObject::GetWorld(collection, context->m_ComponentIndex);
         if (world == 0x0)
         {
             return DM_LUA_ERROR("Physics world doesn't exist. Make sure you have at least one physics component in collection.");
         }
-
-        /*
 
         dmScript::LuaCallbackInfo* cbk = (dmScript::LuaCallbackInfo*)GetCollisionWorldCallback(world);
 
@@ -1709,7 +1683,6 @@ namespace dmGameSystem
         {
             return DM_LUA_ERROR("argument 1 to physics.set_listener() must be either nil or function");
         }
-        */
 
         return 0;
     }
@@ -1742,20 +1715,17 @@ namespace dmGameSystem
         dmGameObject::HInstance sender_instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
 
-        void* world = dmGameObject::GetWorld(collection, context->m_ComponentIndex);
+        CollisionWorld* world = (CollisionWorld*) dmGameObject::GetWorld(collection, context->m_ComponentIndex);
         if (world == 0x0)
         {
             return DM_LUA_ERROR("Physics world doesn't exist. Make sure you have at least one physics component in collection.");
         }
 
-        /*
-        void* comp = 0x0;
+        CollisionComponent* comp = 0x0;
         GetCollisionObject(L, 1, collection, &comp, &world);
 
         float mass = luaL_checknumber(L, 2);
         dmGameSystem::UpdateMass(world, comp, mass);
-
-        */
 
         return 0;
     }
