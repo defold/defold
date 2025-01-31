@@ -117,6 +117,16 @@ namespace dmGameSystem
         return GetGroupBitIndex(world, group_hash, false);
     }
 
+    void* GetCollisionWorldCallback(CollisionWorld* world)
+    {
+        return world->m_CallbackInfo;
+    }
+
+    void SetCollisionWorldCallback(CollisionWorld* world, void* callback_info)
+    {
+        world->m_CallbackInfo = callback_info;
+    }
+
     // Converts a collision mask bitfield to the respective group hash. Takes into account only the least significant bit.
     uint64_t GetLSBGroupHash(CollisionWorld* world, uint16_t mask)
     {
@@ -2068,18 +2078,6 @@ namespace dmGameSystem
         if (component->m_FlippedY != flip)
             dmPhysics::FlipV2D(component->m_Object2D);
         component->m_FlippedY = flip;
-    }
-
-    void* GetCollisionWorldCallback(void* _world)
-    {
-        CollisionWorld* world = (CollisionWorld*)_world;
-        return world->m_CallbackInfo;
-    }
-
-    void SetCollisionWorldCallback(void* _world, void* callback_info)
-    {
-        CollisionWorld* world = (CollisionWorld*)_world;
-        world->m_CallbackInfo = callback_info;
     }
 
     dmhash_t GetCollisionGroup(void* _world, void* _component)

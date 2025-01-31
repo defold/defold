@@ -55,6 +55,10 @@ namespace dmGameSystem
     void                    CompCollisionIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node);
     dmGameObject::HInstance CompCollisionObjectGetInstance(void* user_data);
 
+    void* GetCollisionWorldCallback(CollisionWorld* world);
+    void SetCollisionWorldCallback(CollisionWorld* world, void* callback_info);
+    void RunCollisionWorldCallback(void* callback_data, const dmDDF::Descriptor* desc, const char* data);
+
     // For script_physics.cpp
     void     RayCast(CollisionWorld* world, const dmPhysics::RayCastRequest& request, dmArray<dmPhysics::RayCastResponse>& results);
     uint64_t GetLSBGroupHash(CollisionWorld* world, uint16_t mask);
@@ -87,10 +91,6 @@ namespace dmGameSystem
     bool GetCollisionMaskBit(void* _world, void* _component, dmhash_t group_hash, bool* maskbit);
     bool SetCollisionMaskBit(void* _world, void* _component, dmhash_t group_hash, bool boolvalue);
     void UpdateMass(void* _world, void* _component, float mass);
-
-    void* GetCollisionWorldCallback(void* _world);
-    void SetCollisionWorldCallback(void* _world, void* callback_info);
-    void RunCollisionWorldCallback(void* callback_data, const dmDDF::Descriptor* desc, const char* data);
 
     bool GetShapeIndex(void* _component, dmhash_t shape_name_hash, uint32_t* index_out);
     bool GetShape(void* _world, void* _component, uint32_t shape_ix, ShapeInfo* shape_info);

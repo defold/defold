@@ -51,6 +51,8 @@ namespace dmGameSystem
     static PhysicsAdapterFunctionTable g_PhysicsAdapter;
     // TODO: Allow the SetWorldTransform to have a physics context which we can check instead!!
     static int g_NumPhysicsTransformsUpdated = 0;
+    static bool g_CollisionOverflowWarning   = false;
+    static bool g_ContactOverflowWarning     = false;
 
     static void GetWorldTransform(void* user_data, dmTransform::Transform& world_transform);
     static void SetWorldTransform(void* user_data, const dmVMath::Point3& position, const dmVMath::Quat& rotation);
@@ -101,9 +103,30 @@ namespace dmGameSystem
     /// Joint end point to keep track of joint connections to collision components.
     struct JointEndPoint
     {
-        JointEndPoint*      m_Next;
-        CollisionComponent* m_Owner;
-        JointEntry*         m_JointEntry;
+        JointEndPoint*           m_Next;
+        CollisionComponentBox2D* m_Owner;
+        JointEntry*              m_JointEntry;
+    };
+
+    struct CollisionUserData
+    {
+        CollisionWorldBox2D* m_World;
+        PhysicsContextBox2D* m_Context;
+        uint32_t             m_Count;
+    };
+
+    struct RayCastUserData
+    {
+        dmGameObject::HInstance m_Instance;
+        CollisionWorldBox2D*    m_World;
+    };
+
+    struct DispatchContext
+    {
+        PhysicsContextBox2D*    m_PhysicsContext;
+        dmGameObject::HRegister m_Register;
+        uint32_t                m_ComponentTypeIndex;
+        bool                    m_Success;
     };
 
     dmGameObject::CreateResult CompCollisionObjectBox2DNewWorld(const dmGameObject::ComponentNewWorldParams& params)
@@ -298,18 +321,20 @@ namespace dmGameSystem
                                                            resource_base->m_ShapeRotation,
                                                            resource_base->m_ShapeCount);
 
-        if (collision_object != 0x0)
+        if (collision_object == 0x0)
         {
-            if (component->m_Object2D != 0x0)
-            {
-                dmPhysics::DeleteCollisionObject2D(physics_world, component->m_Object2D);
-            }
-            component->m_Object2D = collision_object;
-
-            SetupEmptyTileGrid(world,component);
-            SetupTileGrid(world, component);
+            return false;
         }
-        return false;
+
+        if (component->m_Object2D != 0x0)
+        {
+            dmPhysics::DeleteCollisionObject2D(physics_world, component->m_Object2D);
+        }
+        component->m_Object2D = collision_object;
+
+        SetupEmptyTileGrid(world,component);
+        SetupTileGrid(world, component);
+        return true;
     }
 
     dmGameObject::CreateResult CompCollisionObjectBox2DCreate(const dmGameObject::ComponentCreateParams& params)
@@ -350,126 +375,8 @@ namespace dmGameSystem
         }
         *params.m_UserData = (uintptr_t)component;
         return dmGameObject::CREATE_RESULT_OK;
-
-        return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::CreateResult CompCollisionObjectBox2DDestroy(const dmGameObject::ComponentDestroyParams& params)
-    {
-        return dmGameObject::CREATE_RESULT_OK;
-    }
-
-    dmGameObject::CreateResult CompCollisionObjectBox2DFinal(const dmGameObject::ComponentFinalParams& params)
-    {
-        return dmGameObject::CREATE_RESULT_OK;
-    }
-    dmGameObject::CreateResult CompCollisionObjectBox2DAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params)
-    {
-        return dmGameObject::CREATE_RESULT_OK;
-    }
-    dmGameObject::UpdateResult CompCollisionObjectBox2DUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
-    {
-        return dmGameObject::UPDATE_RESULT_OK;
-    }
-    dmGameObject::UpdateResult CompCollisionObjectBox2DFixedUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
-    {
-        return dmGameObject::UPDATE_RESULT_OK;
-    }
-    dmGameObject::UpdateResult CompCollisionObjectBox2DPostUpdate(const dmGameObject::ComponentsPostUpdateParams& params)
-    {
-        return dmGameObject::UPDATE_RESULT_OK;
-    }
-    dmGameObject::UpdateResult CompCollisionObjectBox2DOnMessage(const dmGameObject::ComponentOnMessageParams& params)
-    {
-        return dmGameObject::UPDATE_RESULT_OK;
-    }
-
-    void* CompCollisionObjectBox2DGetComponent(const dmGameObject::ComponentGetParams& params)
-    {
-        return 0x0;
-    }
-
-    void CompCollisionObjectBox2DOnReload(const dmGameObject::ComponentOnReloadParams& params)
-    {
-
-    }
-
-    dmGameObject::PropertyResult CompCollisionObjectBox2DGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
-    {
-        return dmGameObject::PROPERTY_RESULT_OK;
-    }
-
-    dmGameObject::PropertyResult CompCollisionObjectBox2DSetProperty(const dmGameObject::ComponentSetPropertyParams& params)
-    {
-        return dmGameObject::PROPERTY_RESULT_OK;
-    }
-
-    // Internal script API
-    b2World* CompCollisionObjectGetBox2DWorld(dmGameObject::HComponentWorld _world)
-    {
-        CollisionWorldBox2D* world = (CollisionWorldBox2D*)_world;
-        return (b2World*) dmPhysics::GetWorldContext2D(world->m_World2D);
-    }
-
-    b2Body* CompCollisionObjectGetBox2DBody(dmGameObject::HComponent _component)
-    {
-        CollisionComponentBox2D* component = (CollisionComponentBox2D*)_component;
-        return (b2Body*) dmPhysics::GetCollisionObjectContext2D(component->m_Object2D);
-    }
-
-    // Internal functions
-    static void GetWorldTransform(void* user_data, dmTransform::Transform& world_transform)
-    {
-        if (!user_data)
-        {
-            return;
-        }
-
-        CollisionComponentBox2D* component = (CollisionComponentBox2D*)user_data;
-        dmGameObject::HInstance instance   = component->m_BaseComponent.m_Instance;
-        world_transform                    = dmGameObject::GetWorldTransform(instance);
-    }
-
-    static void SetWorldTransform(void* user_data, const dmVMath::Point3& position, const dmVMath::Quat& rotation)
-    {
-        if (!user_data)
-        {
-            return;
-        }
-
-        CollisionComponentBox2D* component = (CollisionComponentBox2D*)user_data;
-        dmGameObject::HInstance instance   = component->m_BaseComponent.m_Instance;
-
-        // Preserve z for 2D physics
-        dmVMath::Point3 p = dmGameObject::GetPosition(instance);
-        p.setX(position.getX());
-        p.setY(position.getY());
-        dmGameObject::SetPosition(instance, p);
-        dmGameObject::SetRotation(instance, rotation);
-        ++g_NumPhysicsTransformsUpdated;
-    }
-
-    // Adapter functions
-    static void WakeupCollisionBox2D(CollisionWorld* _world, CollisionComponent* _component)
-    {
-        CollisionComponentBox2D* component = (CollisionComponentBox2D*) _component;
-        dmPhysics::Wakeup2D(component->m_Object2D);
-    }
-
-    static void RayCastBox2D(CollisionWorld* _world, const dmPhysics::RayCastRequest& request, dmArray<dmPhysics::RayCastResponse>& results)
-    {
-        CollisionWorldBox2D* world = (CollisionWorldBox2D*)_world;
-        dmPhysics::RayCast2D(world->m_World2D, request, results);
-    }
-
-    void InstallBox2DPhysicsAdapter()
-    {
-        g_PhysicsAdapter.m_WakeupCollision = WakeupCollisionBox2D;
-        g_PhysicsAdapter.m_RayCast         = RayCastBox2D;
-    }
-
-
-    /*
     struct CollisionComponent;
     struct JointEndPoint;
 
@@ -477,79 +384,11 @@ namespace dmGameSystem
     static void DeleteJoint(CollisionWorldBox2D* world, dmPhysics::HJoint joint);
     static void DeleteJoint(CollisionWorldBox2D* world, JointEntry* joint_entry);
 
-    // Converts a collision mask bitfield to the respective group hash. Takes into account only the least significant bit.
-    uint64_t GetLSBGroupHash(void* _world, uint16_t mask)
-    {
-        if (mask > 0)
-        {
-            uint32_t index = 0;
-            while ((mask & 1) == 0)
-            {
-                mask >>= 1;
-                ++index;
-            }
-            CollisionWorldBox2D* world = (CollisionWorldBox2D*)_world;
-            return world->m_Groups[index];
-        }
-        return 0;
-    }
-
-    dmGameObject::CreateResult CompCollisionObjectCreate(const dmGameObject::ComponentCreateParams& params)
-    {
-        CollisionObjectResource* co_res = (CollisionObjectResource*)params.m_Resource;
-        if (co_res == 0x0 || co_res->m_DDF == 0x0)
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
-        if ((co_res->m_DDF->m_Mass == 0.0f && co_res->m_DDF->m_Type == dmPhysicsDDF::COLLISION_OBJECT_TYPE_DYNAMIC)
-            || (co_res->m_DDF->m_Mass > 0.0f && co_res->m_DDF->m_Type != dmPhysicsDDF::COLLISION_OBJECT_TYPE_DYNAMIC))
-        {
-            dmLogError("Invalid mass %f for shape type %d", co_res->m_DDF->m_Mass, co_res->m_DDF->m_Type);
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
-        }
-        PhysicsContextBox2D* physics_context = (PhysicsContextBox2D*)params.m_Context;
-        CollisionComponent* component = new CollisionComponent();
-        component->m_3D = (uint8_t) physics_context->m_3D;
-        component->m_Resource = (CollisionObjectResource*)params.m_Resource;
-        component->m_Instance = params.m_Instance;
-        component->m_Object2D = 0;
-        component->m_ComponentIndex = params.m_ComponentIndex;
-        component->m_AddedToUpdate = false;
-        component->m_StartAsEnabled = true;
-        component->m_Joints = 0x0;
-        component->m_JointEndPoints = 0x0;
-        component->m_FlippedX = 0;
-        component->m_FlippedY = 0;
-        component->m_ShapeBuffer = 0;
-
-        CollisionWorldBox2D* world = (CollisionWorldBox2D*)params.m_World;
-        if (!CreateCollisionObject(physics_context, world, params.m_Instance, component, false))
-        {
-            delete component;
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
-        }
-        *params.m_UserData = (uintptr_t)component;
-        return dmGameObject::CREATE_RESULT_OK;
-    }
-
-    void* CompCollisionObjectGetComponent(const dmGameObject::ComponentGetParams& params)
-    {
-        return (void*)params.m_UserData;
-    }
-
-    dmGameObject::CreateResult CompCollisionObjectFinal(const dmGameObject::ComponentFinalParams& params)
-    {
-        CollisionComponent* component = (CollisionComponent*)*params.m_UserData;
-        component->m_AddedToUpdate = false;
-        component->m_StartAsEnabled = true;
-        return dmGameObject::CREATE_RESULT_OK;
-    }
-
-    dmGameObject::CreateResult CompCollisionObjectDestroy(const dmGameObject::ComponentDestroyParams& params)
+    dmGameObject::CreateResult CompCollisionObjectBox2DDestroy(const dmGameObject::ComponentDestroyParams& params)
     {
         PhysicsContextBox2D* physics_context = (PhysicsContextBox2D*)params.m_Context;
-        CollisionComponent* component = (CollisionComponent*)*params.m_UserData;
+        CollisionComponentBox2D* component = (CollisionComponentBox2D*)*params.m_UserData;
         CollisionWorldBox2D* world = (CollisionWorldBox2D*)params.m_World;
-
-        delete[] component->m_ShapeBuffer;
 
         // Destroy joint ends
         JointEndPoint* joint_end = component->m_JointEndPoints;
@@ -578,29 +417,17 @@ namespace dmGameSystem
         }
         component->m_Joints = 0x0;
 
-        if (physics_context->m_3D)
+        if (component->m_Object2D != 0)
         {
-            if (component->m_Object3D != 0)
-            {
-                dmPhysics::HWorld3D physics_world = world->m_World3D;
-                dmPhysics::DeleteCollisionObject3D(physics_world, component->m_Object3D);
-                component->m_Object3D = 0;
-            }
-        }
-        else
-        {
-            if (component->m_Object2D != 0)
-            {
-                dmPhysics::HWorld2D physics_world = world->m_World;
-                dmPhysics::DeleteCollisionObject2D(physics_world, component->m_Object2D);
-                component->m_Object2D = 0;
-            }
+            dmPhysics::HWorld2D physics_world = world->m_World2D;
+            dmPhysics::DeleteCollisionObject2D(physics_world, component->m_Object2D);
+            component->m_Object2D = 0;
         }
 
         uint32_t num_components = world->m_Components.Size();
         for (uint32_t i = 0; i < num_components; ++i)
         {
-            CollisionComponent* c = world->m_Components[i];
+            CollisionComponentBox2D* c = world->m_Components[i];
             if (c == component)
             {
                 world->m_Components.EraseSwap(i);
@@ -612,12 +439,47 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    struct CollisionUserData
+    dmGameObject::CreateResult CompCollisionObjectBox2DFinal(const dmGameObject::ComponentFinalParams& params)
     {
-        CollisionWorldBox2D* m_World;
-        PhysicsContextBox2D* m_Context;
-        uint32_t m_Count;
-    };
+        CollisionComponent* component = (CollisionComponent*)*params.m_UserData;
+        component->m_AddedToUpdate = false;
+        component->m_StartAsEnabled = true;
+        return dmGameObject::CREATE_RESULT_OK;
+    }
+    dmGameObject::CreateResult CompCollisionObjectBox2DAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params)
+    {
+        CollisionWorldBox2D* world = (CollisionWorldBox2D*)params.m_World;
+        if (world == 0x0)
+        {
+            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+        }
+        if (world->m_Components.Full())
+        {
+            ShowFullBufferError("Collision object", PHYSICS_MAX_COLLISION_OBJECTS_KEY, world->m_Components.Capacity());
+            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+        }
+        CollisionComponentBox2D* component = (CollisionComponentBox2D*)*params.m_UserData;
+        assert(!component->m_BaseComponent.m_AddedToUpdate);
+
+        dmPhysics::SetEnabled2D(world->m_World2D, component->m_Object2D, component->m_BaseComponent.m_StartAsEnabled);
+        component->m_BaseComponent.m_AddedToUpdate = true;
+
+        world->m_Components.Push(component);
+        return dmGameObject::CREATE_RESULT_OK;
+    }
+
+    // TODO: We can probably move these functions to comp_collision_object.h/cpp
+
+    // Returns true if either of the components supports the flag(s)
+    static bool SupportsEvent(CollisionComponent* component, uint8_t event)
+    {
+        return (component->m_EventMask & event) == event;
+    }
+
+    static void RunPhysicsCallback(CollisionWorldBox2D* world, const dmDDF::Descriptor* desc, const char* data)
+    {
+        RunCollisionWorldCallback(world->m_CallbackInfo, desc, data);
+    }
 
     template <class DDFMessage>
     static void BroadCast(DDFMessage* ddf, dmGameObject::HInstance instance, dmhash_t instance_id, uint16_t component_index)
@@ -645,21 +507,10 @@ namespace dmGameSystem
         }
     }
 
-    static void RunPhysicsCallback(CollisionWorldBox2D* world, const dmDDF::Descriptor* desc, const char* data)
-    {
-        RunCollisionWorldBox2DCallback(world->m_CallbackInfo, desc, data);
-    }
-
-    // Returns true if either of the components supports the flag(s)
-    static bool SupportsEvent(CollisionComponent* component, uint8_t event)
-    {
-        return (component->m_EventMask & event) == event;
-    }
-
     static bool CollisionCallback(void* user_data_a, uint16_t group_a, void* user_data_b, uint16_t group_b, void* user_data)
     {
         CollisionUserData* cud = (CollisionUserData*)user_data;
-        if (cud->m_Count < cud->m_Context->m_MaxCollisionCount)
+        if (cud->m_Count < cud->m_Context->m_BaseContext.m_MaxCollisionCount)
         {
             CollisionWorldBox2D* world = cud->m_World;
 
@@ -677,8 +528,8 @@ namespace dmGameSystem
             dmGameObject::HInstance instance_b = component_b->m_Instance;
             dmhash_t instance_a_id = dmGameObject::GetIdentifier(instance_a);
             dmhash_t instance_b_id = dmGameObject::GetIdentifier(instance_b);
-            uint64_t group_hash_a = GetLSBGroupHash(world, group_a);
-            uint64_t group_hash_b = GetLSBGroupHash(world, group_b);
+            uint64_t group_hash_a = GetLSBGroupHash(&world->m_BaseWorld, group_a);
+            uint64_t group_hash_b = GetLSBGroupHash(&world->m_BaseWorld, group_b);
 
             if (world->m_CallbackInfo != 0x0)
             {
@@ -733,7 +584,7 @@ namespace dmGameSystem
     static bool ContactPointCallback(const dmPhysics::ContactPoint& contact_point, void* user_data)
     {
         CollisionUserData* cud = (CollisionUserData*)user_data;
-        if (cud->m_Count < cud->m_Context->m_MaxContactPointCount)
+        if (cud->m_Count < cud->m_Context->m_BaseContext.m_MaxContactPointCount)
         {
             CollisionWorldBox2D* world = cud->m_World;
 
@@ -753,8 +604,8 @@ namespace dmGameSystem
             dmhash_t instance_b_id = dmGameObject::GetIdentifier(instance_b);
             float mass_a = dmMath::Select(-contact_point.m_MassA, 0.0f, contact_point.m_MassA);
             float mass_b = dmMath::Select(-contact_point.m_MassB, 0.0f, contact_point.m_MassB);
-            uint64_t group_hash_a = GetLSBGroupHash(world, contact_point.m_GroupA);
-            uint64_t group_hash_b = GetLSBGroupHash(world, contact_point.m_GroupB);
+            uint64_t group_hash_a = GetLSBGroupHash(&world->m_BaseWorld, contact_point.m_GroupA);
+            uint64_t group_hash_b = GetLSBGroupHash(&world->m_BaseWorld, contact_point.m_GroupB);
 
             if (world->m_CallbackInfo != 0x0)
             {
@@ -832,9 +683,6 @@ namespace dmGameSystem
         }
     }
 
-    static bool g_CollisionOverflowWarning = false;
-    static bool g_ContactOverflowWarning = false;
-
     static void TriggerEnteredCallback(const dmPhysics::TriggerEnter& trigger_enter, void* user_data)
     {
         CollisionWorldBox2D* world = (CollisionWorldBox2D*)user_data;
@@ -851,8 +699,8 @@ namespace dmGameSystem
         dmhash_t instance_a_id = dmGameObject::GetIdentifier(instance_a);
         dmhash_t instance_b_id = dmGameObject::GetIdentifier(instance_b);
 
-        uint64_t group_hash_a = GetLSBGroupHash(world, trigger_enter.m_GroupA);
-        uint64_t group_hash_b = GetLSBGroupHash(world, trigger_enter.m_GroupB);
+        uint64_t group_hash_a = GetLSBGroupHash(&world->m_BaseWorld, trigger_enter.m_GroupA);
+        uint64_t group_hash_b = GetLSBGroupHash(&world->m_BaseWorld, trigger_enter.m_GroupB);
 
         if (world->m_CallbackInfo != 0x0)
         {
@@ -905,8 +753,8 @@ namespace dmGameSystem
         dmhash_t instance_a_id = dmGameObject::GetIdentifier(instance_a);
         dmhash_t instance_b_id = dmGameObject::GetIdentifier(instance_b);
 
-        uint64_t group_hash_a = GetLSBGroupHash(world, trigger_exit.m_GroupA);
-        uint64_t group_hash_b = GetLSBGroupHash(world, trigger_exit.m_GroupB);
+        uint64_t group_hash_a = GetLSBGroupHash(&world->m_BaseWorld, trigger_exit.m_GroupA);
+        uint64_t group_hash_b = GetLSBGroupHash(&world->m_BaseWorld, trigger_exit.m_GroupB);
 
         if (world->m_CallbackInfo != 0x0)
         {
@@ -943,12 +791,6 @@ namespace dmGameSystem
         BroadCast(&ddf, instance_b, instance_b_id, component_b->m_ComponentIndex);
     }
 
-    struct RayCastUserData
-    {
-        dmGameObject::HInstance m_Instance;
-        CollisionWorldBox2D* m_World;
-    };
-
     static void RayCastCallback(const dmPhysics::RayCastResponse& response, const dmPhysics::RayCastRequest& request, void* user_data)
     {
         dmGameObject::Result message_result = dmGameObject::RESULT_OK;
@@ -960,7 +802,7 @@ namespace dmGameSystem
 
             response_ddf.m_Fraction = response.m_Fraction;
             response_ddf.m_Id = dmGameObject::GetIdentifier(component->m_Instance);
-            response_ddf.m_Group = GetLSBGroupHash(world, response.m_CollisionObjectGroup);
+            response_ddf.m_Group = GetLSBGroupHash(&world->m_BaseWorld, response.m_CollisionObjectGroup);
             response_ddf.m_Position = response.m_Position;
             response_ddf.m_Normal = response.m_Normal;
             response_ddf.m_RequestId = request.m_UserId & 0xff;
@@ -994,15 +836,7 @@ namespace dmGameSystem
         }
     }
 
-    struct DispatchContext
-    {
-        PhysicsContextBox2D*         m_PhysicsContext;
-        dmGameObject::HRegister m_Register;
-        uint32_t                m_ComponentTypeIndex;
-        bool                    m_Success;
-    };
-
-    void DispatchCallback(dmMessage::Message* message, void* user_ptr)
+    static void DispatchCallback(dmMessage::Message* message, void* user_ptr)
     {
         DispatchContext* context = (DispatchContext*)user_ptr;
 
@@ -1039,47 +873,16 @@ namespace dmGameSystem
             request.m_UserId = (ddf->m_RequestId & 0xff);
             request.m_UserData = (void*)receiver;
             request.m_IgnoredUserData = 0;
-            if (world->m_3D)
-            {
-                dmPhysics::RequestRayCast3D(world->m_World3D, request);
-            }
-            else
-            {
-                dmPhysics::RequestRayCast2D(world->m_World, request);
-            }
-        }
-    }
 
-    dmGameObject::CreateResult CompCollisionObjectAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params) {
-        CollisionWorldBox2D* world = (CollisionWorldBox2D*)params.m_World;
-        if (world == 0x0)
-        {
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+            dmPhysics::RequestRayCast2D(world->m_World2D, request);
         }
-        if (world->m_Components.Full())
-        {
-            ShowFullBufferError("Collision object", PHYSICS_MAX_COLLISION_OBJECTS_KEY, world->m_Components.Capacity());
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
-        }
-        CollisionComponent* component = (CollisionComponent*)*params.m_UserData;
-        assert(!component->m_AddedToUpdate);
-
-        if (component->m_3D) {
-            dmPhysics::SetEnabled3D(world->m_World3D, component->m_Object3D, component->m_StartAsEnabled);
-        } else {
-            dmPhysics::SetEnabled2D(world->m_World, component->m_Object2D, component->m_StartAsEnabled);
-        }
-        component->m_AddedToUpdate = true;
-
-        world->m_Components.Push(component);
-        return dmGameObject::CREATE_RESULT_OK;
     }
 
     // This function will dispatch on the (global) physics socket, and will potentially handle messages belonging to other collections
     // than the current one being updated.
     //
     // TODO: Make a nicer solution for this, perhaps a per-collection physics socket
-    bool CompCollisionObjectDispatchPhysicsMessages(PhysicsContext *physics_context, CollisionWorldBox2D *world, dmGameObject::HCollection collection)
+    static bool CompCollisionObjectDispatchPhysicsMessages(PhysicsContextBox2D *physics_context, CollisionWorldBox2D *world, dmGameObject::HCollection collection)
     {
         DispatchContext dispatch_context;
         dispatch_context.m_PhysicsContext = physics_context;
@@ -1088,15 +891,7 @@ namespace dmGameSystem
         dispatch_context.m_Register = dmGameObject::GetRegister(collection);
 
         dmMessage::HSocket physics_socket;
-        if (physics_context->m_3D)
-        {
-            physics_socket = dmPhysics::GetSocket3D(physics_context->m_Context3D);
-        }
-        else
-        {
-            physics_socket = dmPhysics::GetSocket2D(physics_context->m_Context);
-
-        }
+        physics_socket = dmPhysics::GetSocket2D(physics_context->m_Context);
 
         dmMessage::Dispatch(physics_socket, DispatchCallback, (void*)&dispatch_context);
         return dispatch_context.m_Success;
@@ -1116,22 +911,14 @@ namespace dmGameSystem
             dmLogWarning("Failed to dispatch physics messages");
         }
 
-        if (physics_context->m_3D)
-        {
-            DM_PROFILE("StepWorld3D");
-            dmPhysics::StepWorld3D(world->m_World3D, *step_ctx);
-        }
-        else
-        {
-            DM_PROFILE("StepWorld2D");
-            dmPhysics::StepWorld2D(world->m_World, *step_ctx);
-        }
+        DM_PROFILE("StepWorld2D");
+        dmPhysics::StepWorld2D(world->m_World2D, *step_ctx);
 
-        if (collision_user_data->m_Count >= physics_context->m_MaxCollisionCount)
+        if (collision_user_data->m_Count >= physics_context->m_BaseContext.m_MaxCollisionCount)
         {
             if (!g_CollisionOverflowWarning)
             {
-                dmLogWarning("Maximum number of collisions (%d) reached, messages have been lost. Tweak \"%s\" in the game.project file.", physics_context->m_MaxCollisionCount, PHYSICS_MAX_COLLISIONS_KEY);
+                dmLogWarning("Maximum number of collisions (%d) reached, messages have been lost. Tweak \"%s\" in the game.project file.", physics_context->m_BaseContext.m_MaxCollisionCount, PHYSICS_MAX_COLLISIONS_KEY);
                 g_CollisionOverflowWarning = true;
             }
         }
@@ -1139,11 +926,11 @@ namespace dmGameSystem
         {
             g_CollisionOverflowWarning = false;
         }
-        if (contact_user_data->m_Count >= physics_context->m_MaxContactPointCount)
+        if (contact_user_data->m_Count >= physics_context->m_BaseContext.m_MaxContactPointCount)
         {
             if (!g_ContactOverflowWarning)
             {
-                dmLogWarning("Maximum number of contacts (%d) reached, messages have been lost. Tweak \"%s\" in the game.project file.", physics_context->m_MaxContactPointCount, PHYSICS_MAX_CONTACTS_KEY);
+                dmLogWarning("Maximum number of contacts (%d) reached, messages have been lost. Tweak \"%s\" in the game.project file.", physics_context->m_BaseContext.m_MaxContactPointCount, PHYSICS_MAX_CONTACTS_KEY);
                 g_ContactOverflowWarning = true;
             }
         }
@@ -1175,19 +962,20 @@ namespace dmGameSystem
             uint32_t num_components = world->m_Components.Size();
             for (uint32_t i = 0; i < num_components; ++i)
             {
-                CollisionComponent* c = world->m_Components[i];
-                TileGridResource* tile_grid_res = c->m_Resource->m_TileGridResource;
+                CollisionComponentBox2D* c = world->m_Components[i];
+                CollisionObjectResourceBox2D* resource = (CollisionObjectResourceBox2D*)c->m_BaseComponent.m_Resource;
+
+                TileGridResource* tile_grid_res = resource->m_TileGridResource;
                 if (tile_grid_res != 0x0 && tile_grid_res->m_Dirty)
                 {
-                    CollisionObjectResource* resource = c->m_Resource;
-                    dmPhysicsDDF::CollisionObjectDesc* ddf = resource->m_DDF;
+                    dmPhysicsDDF::CollisionObjectDesc* ddf = resource->m_BaseResource.m_DDF;
                     dmPhysics::CollisionObjectData data;
-                    SetCollisionObjectData(world, c, c->m_Resource, ddf, true, data);
-                    c->m_Mask = data.m_Mask;
+                    SetCollisionObjectData(world, c, resource, ddf, true, data);
+                    c->m_BaseComponent.m_Mask = data.m_Mask;
 
-                    dmPhysics::DeleteCollisionObject2D(world->m_World, c->m_Object2D);
+                    dmPhysics::DeleteCollisionObject2D(world->m_World2D, c->m_Object2D);
                     dmArray<dmPhysics::HCollisionShape2D>& shapes = resource->m_TileGridResource->m_GridShapes;
-                    c->m_Object2D = dmPhysics::NewCollisionObject2D(world->m_World, data, &shapes.Front(), shapes.Size());
+                    c->m_Object2D = dmPhysics::NewCollisionObject2D(world->m_World2D, data, &shapes.Front(), shapes.Size());
 
                     SetupEmptyTileGrid(world, c);
                     SetupTileGrid(world, c);
@@ -1216,43 +1004,37 @@ namespace dmGameSystem
         step_world_context.m_TriggerExitedUserData = world;
         step_world_context.m_RayCastCallback = RayCastCallback;
         step_world_context.m_RayCastUserData = world;
-        step_world_context.m_FixedTimeStep = physics_context->m_UseFixedTimestep;
-        step_world_context.m_MaxFixedTimeSteps = physics_context->m_MaxFixedTimesteps;
+        step_world_context.m_FixedTimeStep = physics_context->m_BaseContext.m_UseFixedTimestep;
+        step_world_context.m_MaxFixedTimeSteps = physics_context->m_BaseContext.m_MaxFixedTimesteps;
 
         step_world_context.m_DT = params.m_UpdateContext->m_DT;
 
         Step(world, physics_context, params.m_Collection, &step_world_context);
 
         // We only want to call this once per frame
-        if (physics_context->m_3D)
-            dmPhysics::SetDrawDebug3D(world->m_World3D, physics_context->m_Debug);
-        else
-            dmPhysics::SetDrawDebug2D(world->m_World, physics_context->m_Debug);
+        dmPhysics::SetDrawDebug2D(world->m_World2D, physics_context->m_BaseContext.m_Debug);
 
         DM_PROPERTY_ADD_U32(rmtp_CollisionObject, world->m_Components.Size());
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    dmGameObject::UpdateResult CompCollisionObjectUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
+    dmGameObject::UpdateResult CompCollisionObjectBox2DUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
-
         PhysicsContextBox2D* physics_context = (PhysicsContextBox2D*)params.m_Context;
-        if (physics_context->m_UseFixedTimestep)
+        if (physics_context->m_BaseContext.m_UseFixedTimestep)
             return dmGameObject::UPDATE_RESULT_OK; // Let the fixed update handle this
 
         return CompCollisionObjectUpdateInternal(params, update_result);
     }
-
-    dmGameObject::UpdateResult CompCollisionObjectFixedUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
+    dmGameObject::UpdateResult CompCollisionObjectBox2DFixedUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
         PhysicsContextBox2D* physics_context = (PhysicsContextBox2D*)params.m_Context;
-        if (!physics_context->m_UseFixedTimestep)
+        if (!physics_context->m_BaseContext.m_UseFixedTimestep)
             return dmGameObject::UPDATE_RESULT_OK; // Let the dynamic update handle this
 
         return CompCollisionObjectUpdateInternal(params, update_result);
     }
-
-    dmGameObject::UpdateResult CompCollisionObjectPostUpdate(const dmGameObject::ComponentsPostUpdateParams& params)
+    dmGameObject::UpdateResult CompCollisionObjectBox2DPostUpdate(const dmGameObject::ComponentsPostUpdateParams& params)
     {
         if (params.m_World == 0x0)
             return dmGameObject::UPDATE_RESULT_OK;
@@ -1267,14 +1049,14 @@ namespace dmGameSystem
 
         return dmGameObject::UPDATE_RESULT_OK;
     }
-
-    dmGameObject::UpdateResult CompCollisionObjectOnMessage(const dmGameObject::ComponentOnMessageParams& params)
+    dmGameObject::UpdateResult CompCollisionObjectBox2DOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
         PhysicsContextBox2D* physics_context = (PhysicsContextBox2D*)params.m_Context;
-        CollisionComponent* component = (CollisionComponent*) *params.m_UserData;
+        CollisionComponentBox2D* component = (CollisionComponentBox2D*) *params.m_UserData;
+        CollisionComponent* component_base = (CollisionComponent*) *params.m_UserData;
 
-        if (params.m_Message->m_Id == dmGameObjectDDF::Enable::m_DDFDescriptor->m_NameHash
-                || params.m_Message->m_Id == dmGameObjectDDF::Disable::m_DDFDescriptor->m_NameHash)
+        if (params.m_Message->m_Id == dmGameObjectDDF::Enable::m_DDFDescriptor->m_NameHash ||
+            params.m_Message->m_Id == dmGameObjectDDF::Disable::m_DDFDescriptor->m_NameHash)
         {
             bool enable = false;
             if (params.m_Message->m_Id == dmGameObjectDDF::Enable::m_DDFDescriptor->m_NameHash)
@@ -1283,49 +1065,27 @@ namespace dmGameSystem
             }
             CollisionWorldBox2D* world = (CollisionWorldBox2D*)params.m_World;
 
-            if (component->m_AddedToUpdate)
+            if (component_base->m_AddedToUpdate)
             {
-                if (physics_context->m_3D)
-                {
-                    dmPhysics::SetEnabled3D(world->m_World3D, component->m_Object3D, enable);
-                }
-                else
-                {
-                    dmPhysics::SetEnabled2D(world->m_World, component->m_Object2D, enable);
-                }
+                dmPhysics::SetEnabled2D(world->m_World2D, component->m_Object2D, enable);
             }
             else
             {
                 // Deferred controlling the enabled state. Objects are force disabled until
                 // they are added to update.
-                component->m_StartAsEnabled = enable;
+                component_base->m_StartAsEnabled = enable;
             }
         }
         else if (params.m_Message->m_Id == dmPhysicsDDF::ApplyForce::m_DDFDescriptor->m_NameHash)
         {
             dmPhysicsDDF::ApplyForce* af = (dmPhysicsDDF::ApplyForce*) params.m_Message->m_Data;
-            if (physics_context->m_3D)
-            {
-                dmPhysics::ApplyForce3D(physics_context->m_Context3D, component->m_Object3D, af->m_Force, af->m_Position);
-            }
-            else
-            {
-                dmPhysics::ApplyForce2D(physics_context->m_Context, component->m_Object2D, af->m_Force, af->m_Position);
-            }
+            dmPhysics::ApplyForce2D(physics_context->m_Context, component->m_Object2D, af->m_Force, af->m_Position);
         }
         else if (params.m_Message->m_Id == dmPhysicsDDF::RequestVelocity::m_DDFDescriptor->m_NameHash)
         {
             dmPhysicsDDF::VelocityResponse response;
-            if (physics_context->m_3D)
-            {
-                response.m_LinearVelocity = dmPhysics::GetLinearVelocity3D(physics_context->m_Context3D, component->m_Object3D);
-                response.m_AngularVelocity = dmPhysics::GetAngularVelocity3D(physics_context->m_Context3D, component->m_Object3D);
-            }
-            else
-            {
-                response.m_LinearVelocity = dmPhysics::GetLinearVelocity2D(physics_context->m_Context, component->m_Object2D);
-                response.m_AngularVelocity = dmPhysics::GetAngularVelocity2D(physics_context->m_Context, component->m_Object2D);
-            }
+            response.m_LinearVelocity = dmPhysics::GetLinearVelocity2D(physics_context->m_Context, component->m_Object2D);
+            response.m_AngularVelocity = dmPhysics::GetAngularVelocity2D(physics_context->m_Context, component->m_Object2D);
             dmhash_t message_id = dmPhysicsDDF::VelocityResponse::m_DDFDescriptor->m_NameHash;
             uintptr_t descriptor = (uintptr_t)dmPhysicsDDF::VelocityResponse::m_DDFDescriptor;
             uint32_t data_size = sizeof(dmPhysicsDDF::VelocityResponse);
@@ -1338,12 +1098,8 @@ namespace dmGameSystem
         }
         else if (params.m_Message->m_Id == dmPhysicsDDF::SetGridShapeHull::m_DDFDescriptor->m_NameHash)
         {
-            if (physics_context->m_3D)
-            {
-                dmLogError("Grid shape hulls can only be set for 2D physics.");
-                return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
-            }
-            if (component->m_Resource->m_TileGrid == 0)
+            CollisionObjectResourceBox2D* resource = (CollisionObjectResourceBox2D*) component->m_BaseComponent.m_Resource;
+            if (resource->m_TileGrid == 0)
             {
                 dmLogError("Hulls can only be set for collision objects with tile grids as shape.");
                 return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
@@ -1353,7 +1109,7 @@ namespace dmGameSystem
             uint32_t row = ddf->m_Row;
             uint32_t hull = ddf->m_Hull;
 
-            TileGridResource* tile_grid_resource = component->m_Resource->m_TileGridResource;
+            TileGridResource* tile_grid_resource = resource->m_TileGridResource;
 
             if (row >= tile_grid_resource->m_RowCount || column >= tile_grid_resource->m_ColumnCount)
             {
@@ -1383,14 +1139,14 @@ namespace dmGameSystem
             if (hull != ~0u)
             {
                 group = GetGroupBitIndex((CollisionWorldBox2D*)params.m_World, tile_grid_resource->m_TextureSet->m_HullCollisionGroups[hull], false);
-                mask = component->m_Mask;
+                mask = component->m_BaseComponent.m_Mask;
             }
             dmPhysics::SetCollisionObjectFilter(component->m_Object2D, ddf->m_Shape, child, group, mask);
         }
         else if(params.m_Message->m_Id == dmPhysicsDDF::EnableGridShapeLayer::m_DDFDescriptor->m_NameHash)
         {
-            assert(!physics_context->m_3D);
-            if (component->m_Resource->m_TileGrid == 0)
+            CollisionObjectResourceBox2D* resource = (CollisionObjectResourceBox2D*) component->m_BaseComponent.m_Resource;
+            if (resource->m_TileGrid == 0)
             {
                 dmLogError("Layer visibility can only be set on tile grids");
                 return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
@@ -1401,73 +1157,55 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    void CompCollisionObjectOnReload(const dmGameObject::ComponentOnReloadParams& params)
+    void* CompCollisionObjectBox2DGetComponent(const dmGameObject::ComponentGetParams& params)
+    {
+        return (void*) params.m_UserData;
+    }
+
+    void CompCollisionObjectBox2DOnReload(const dmGameObject::ComponentOnReloadParams& params)
     {
         PhysicsContextBox2D* physics_context = (PhysicsContextBox2D*)params.m_Context;
         CollisionWorldBox2D* world = (CollisionWorldBox2D*)params.m_World;
-        CollisionComponent* component = (CollisionComponent*)*params.m_UserData;
-        component->m_Resource = (CollisionObjectResource*)params.m_Resource;
-        component->m_AddedToUpdate = false;
-        component->m_StartAsEnabled = true;
+        CollisionComponentBox2D* component = (CollisionComponentBox2D*)*params.m_UserData;
+        component->m_BaseComponent.m_Resource = (CollisionObjectResource*)params.m_Resource;
+        component->m_BaseComponent.m_AddedToUpdate = false;
+        component->m_BaseComponent.m_StartAsEnabled = true;
         if (!CreateCollisionObject(physics_context, world, params.m_Instance, component, true))
         {
             dmLogError("%s", "Could not recreate collision object component, not reloaded.");
         }
     }
 
-    dmGameObject::PropertyResult CompCollisionObjectGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value) {
-        CollisionComponent* component = (CollisionComponent*)*params.m_UserData;
+    dmGameObject::PropertyResult CompCollisionObjectBox2DGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
+    {
+        CollisionComponentBox2D* component = (CollisionComponentBox2D*)*params.m_UserData;
         PhysicsContextBox2D* physics_context = (PhysicsContextBox2D*)params.m_Context;
         if (params.m_PropertyId == PROP_LINEAR_VELOCITY) {
-            if (physics_context->m_3D) {
-                out_value.m_Variant = dmGameObject::PropertyVar(dmPhysics::GetLinearVelocity3D(physics_context->m_Context3D, component->m_Object3D));
-            } else {
-                out_value.m_Variant = dmGameObject::PropertyVar(dmPhysics::GetLinearVelocity2D(physics_context->m_Context, component->m_Object2D));
-            }
+            out_value.m_Variant = dmGameObject::PropertyVar(dmPhysics::GetLinearVelocity2D(physics_context->m_Context, component->m_Object2D));
             return dmGameObject::PROPERTY_RESULT_OK;
         } else if (params.m_PropertyId == PROP_ANGULAR_VELOCITY) {
-            if (physics_context->m_3D) {
-                out_value.m_Variant = dmGameObject::PropertyVar(dmPhysics::GetAngularVelocity3D(physics_context->m_Context3D, component->m_Object3D));
-            } else {
-                out_value.m_Variant = dmGameObject::PropertyVar(dmPhysics::GetAngularVelocity2D(physics_context->m_Context, component->m_Object2D));
-            }
+            out_value.m_Variant = dmGameObject::PropertyVar(dmPhysics::GetAngularVelocity2D(physics_context->m_Context, component->m_Object2D));
             return dmGameObject::PROPERTY_RESULT_OK;
         } else if (params.m_PropertyId == PROP_MASS) {
-            if (physics_context->m_3D) {
-                out_value.m_Variant = dmGameObject::PropertyVar(dmPhysics::GetMass3D(component->m_Object3D));
-            } else {
-                out_value.m_Variant = dmGameObject::PropertyVar(dmPhysics::GetMass2D(component->m_Object2D));
-            }
+            out_value.m_Variant = dmGameObject::PropertyVar(dmPhysics::GetMass2D(component->m_Object2D));
             return dmGameObject::PROPERTY_RESULT_OK;
         } else if (params.m_PropertyId == PROP_BULLET) {
-            if (physics_context->m_3D) {
-                dmLogWarning("'bullet' property not supported in 3d physics mode");
-                return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
-            } else {
-                out_value.m_Variant = dmGameObject::PropertyVar(dmPhysics::IsBullet2D(component->m_Object2D));
-            }
+            out_value.m_Variant = dmGameObject::PropertyVar(dmPhysics::IsBullet2D(component->m_Object2D));
             return dmGameObject::PROPERTY_RESULT_OK;
         } else if (params.m_PropertyId == PROP_LINEAR_DAMPING) {
-            if (physics_context->m_3D) {
-                out_value.m_Variant = dmGameObject::PropertyVar(dmPhysics::GetLinearDamping3D(component->m_Object3D));
-            } else {
-                out_value.m_Variant = dmGameObject::PropertyVar(dmPhysics::GetLinearDamping2D(component->m_Object2D));
-            }
+            out_value.m_Variant = dmGameObject::PropertyVar(dmPhysics::GetLinearDamping2D(component->m_Object2D));
             return dmGameObject::PROPERTY_RESULT_OK;
         } else if (params.m_PropertyId == PROP_ANGULAR_DAMPING) {
-            if (physics_context->m_3D) {
-                out_value.m_Variant = dmGameObject::PropertyVar(dmPhysics::GetAngularDamping3D(component->m_Object3D));
-            } else {
-                out_value.m_Variant = dmGameObject::PropertyVar(dmPhysics::GetAngularDamping2D(component->m_Object2D));
-            }
+            out_value.m_Variant = dmGameObject::PropertyVar(dmPhysics::GetAngularDamping2D(component->m_Object2D));
             return dmGameObject::PROPERTY_RESULT_OK;
         } else {
             return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
         }
     }
 
-    dmGameObject::PropertyResult CompCollisionObjectSetProperty(const dmGameObject::ComponentSetPropertyParams& params) {
-        CollisionComponent* component = (CollisionComponent*)*params.m_UserData;
+    dmGameObject::PropertyResult CompCollisionObjectBox2DSetProperty(const dmGameObject::ComponentSetPropertyParams& params)
+    {
+        CollisionComponentBox2D* component = (CollisionComponentBox2D*)*params.m_UserData;
         PhysicsContextBox2D* physics_context = (PhysicsContextBox2D*)params.m_Context;
 
         if (params.m_PropertyId == PROP_LINEAR_VELOCITY)
@@ -1476,14 +1214,7 @@ namespace dmGameSystem
             {
                 return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
             }
-            if (physics_context->m_3D)
-            {
-                dmPhysics::SetLinearVelocity3D(physics_context->m_Context3D, component->m_Object3D, dmVMath::Vector3(params.m_Value.m_V4[0], params.m_Value.m_V4[1], params.m_Value.m_V4[2]));
-            }
-            else
-            {
-                dmPhysics::SetLinearVelocity2D(physics_context->m_Context, component->m_Object2D, dmVMath::Vector3(params.m_Value.m_V4[0], params.m_Value.m_V4[1], params.m_Value.m_V4[2]));
-            }
+            dmPhysics::SetLinearVelocity2D(physics_context->m_Context, component->m_Object2D, dmVMath::Vector3(params.m_Value.m_V4[0], params.m_Value.m_V4[1], params.m_Value.m_V4[2]));
             return dmGameObject::PROPERTY_RESULT_OK;
         }
         else if (params.m_PropertyId == PROP_ANGULAR_VELOCITY)
@@ -1492,14 +1223,7 @@ namespace dmGameSystem
             {
                 return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
             }
-            if (physics_context->m_3D)
-            {
-                dmPhysics::SetAngularVelocity3D(physics_context->m_Context3D, component->m_Object3D, dmVMath::Vector3(params.m_Value.m_V4[0], params.m_Value.m_V4[1], params.m_Value.m_V4[2]));
-            }
-            else
-            {
-                dmPhysics::SetAngularVelocity2D(physics_context->m_Context, component->m_Object2D, dmVMath::Vector3(params.m_Value.m_V4[0], params.m_Value.m_V4[1], params.m_Value.m_V4[2]));
-            }
+            dmPhysics::SetAngularVelocity2D(physics_context->m_Context, component->m_Object2D, dmVMath::Vector3(params.m_Value.m_V4[0], params.m_Value.m_V4[1], params.m_Value.m_V4[2]));
             return dmGameObject::PROPERTY_RESULT_OK;
         }
         else if (params.m_PropertyId == PROP_BULLET)
@@ -1508,15 +1232,7 @@ namespace dmGameSystem
             {
                 return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
             }
-            if (physics_context->m_3D)
-            {
-                dmLogWarning("'bullet' property not supported in 3d physics mode");
-                return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
-            }
-            else
-            {
-                dmPhysics::SetBullet2D(component->m_Object2D, params.m_Value.m_Bool);
-            }
+            dmPhysics::SetBullet2D(component->m_Object2D, params.m_Value.m_Bool);
             return dmGameObject::PROPERTY_RESULT_OK;
         }
         else if (params.m_PropertyId == PROP_LINEAR_DAMPING) {
@@ -1524,14 +1240,7 @@ namespace dmGameSystem
             {
                 return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
             }
-            if (physics_context->m_3D)
-            {
-                dmPhysics::SetLinearDamping3D(component->m_Object3D, params.m_Value.m_Number);
-            }
-            else
-            {
-                dmPhysics::SetLinearDamping2D(component->m_Object2D, params.m_Value.m_Number);
-            }
+            dmPhysics::SetLinearDamping2D(component->m_Object2D, params.m_Value.m_Number);
             return dmGameObject::PROPERTY_RESULT_OK;
         }
         else if (params.m_PropertyId == PROP_ANGULAR_DAMPING)
@@ -1540,14 +1249,7 @@ namespace dmGameSystem
             {
                 return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
             }
-            if (physics_context->m_3D)
-            {
-                dmPhysics::SetAngularDamping3D(component->m_Object3D, params.m_Value.m_Number);
-            }
-            else
-            {
-                dmPhysics::SetAngularDamping2D(component->m_Object2D, params.m_Value.m_Number);
-            }
+            dmPhysics::SetAngularDamping2D(component->m_Object2D, params.m_Value.m_Number);
             return dmGameObject::PROPERTY_RESULT_OK;
         }
         else if (params.m_PropertyId == PROP_MASS)
@@ -1560,11 +1262,114 @@ namespace dmGameSystem
         }
     }
 
-    uint16_t CompCollisionGetGroupBitIndex(void* world, uint64_t group_hash)
+    // Internal script API
+    b2World* CompCollisionObjectGetBox2DWorld(dmGameObject::HComponentWorld _world)
     {
-        return GetGroupBitIndex((CollisionWorldBox2D*)world, group_hash, false);
+        CollisionWorldBox2D* world = (CollisionWorldBox2D*)_world;
+        return (b2World*) dmPhysics::GetWorldContext2D(world->m_World2D);
     }
 
+    b2Body* CompCollisionObjectGetBox2DBody(dmGameObject::HComponent _component)
+    {
+        CollisionComponentBox2D* component = (CollisionComponentBox2D*)_component;
+        return (b2Body*) dmPhysics::GetCollisionObjectContext2D(component->m_Object2D);
+    }
+
+    // Internal functions
+    static void GetWorldTransform(void* user_data, dmTransform::Transform& world_transform)
+    {
+        if (!user_data)
+        {
+            return;
+        }
+
+        CollisionComponentBox2D* component = (CollisionComponentBox2D*)user_data;
+        dmGameObject::HInstance instance   = component->m_BaseComponent.m_Instance;
+        world_transform                    = dmGameObject::GetWorldTransform(instance);
+    }
+
+    static void SetWorldTransform(void* user_data, const dmVMath::Point3& position, const dmVMath::Quat& rotation)
+    {
+        if (!user_data)
+        {
+            return;
+        }
+
+        CollisionComponentBox2D* component = (CollisionComponentBox2D*)user_data;
+        dmGameObject::HInstance instance   = component->m_BaseComponent.m_Instance;
+
+        // Preserve z for 2D physics
+        dmVMath::Point3 p = dmGameObject::GetPosition(instance);
+        p.setX(position.getX());
+        p.setY(position.getY());
+        dmGameObject::SetPosition(instance, p);
+        dmGameObject::SetRotation(instance, rotation);
+        ++g_NumPhysicsTransformsUpdated;
+    }
+
+    // Adapter functions
+    static void WakeupCollisionBox2D(CollisionWorld* _world, CollisionComponent* _component)
+    {
+        CollisionComponentBox2D* component = (CollisionComponentBox2D*) _component;
+        dmPhysics::Wakeup2D(component->m_Object2D);
+    }
+
+    static void RayCastBox2D(CollisionWorld* _world, const dmPhysics::RayCastRequest& request, dmArray<dmPhysics::RayCastResponse>& results)
+    {
+        CollisionWorldBox2D* world = (CollisionWorldBox2D*)_world;
+        dmPhysics::RayCast2D(world->m_World2D, request, results);
+    }
+
+    void InstallBox2DPhysicsAdapter()
+    {
+        g_PhysicsAdapter.m_WakeupCollision = WakeupCollisionBox2D;
+        g_PhysicsAdapter.m_RayCast         = RayCastBox2D;
+    }
+
+
+    static void DeleteJoint(CollisionWorldBox2D* world, JointEntry* joint_entry)
+    {
+        assert(joint_entry);
+
+        DeleteJoint(world, joint_entry->m_Joint);
+        joint_entry->m_Joint = 0x0;
+
+        // Remove end point
+        assert(joint_entry->m_EndPoint);
+        JointEndPoint* end_point = joint_entry->m_EndPoint;
+        CollisionComponentBox2D* owner_component = end_point->m_Owner;
+
+        // Find and remove end point from previous component_b
+        bool removed = false;
+        JointEndPoint* end_point_prev = 0x0;
+        JointEndPoint* end_point_next = owner_component->m_JointEndPoints;
+        while (end_point_next) {
+            if (end_point_next == end_point)
+            {
+                if (end_point_prev) {
+                    end_point_prev->m_Next = end_point_next->m_Next;
+                } else {
+                    owner_component->m_JointEndPoints = end_point_next->m_Next;
+                }
+
+                removed = true;
+                break;
+            }
+            end_point_prev = end_point_next;
+            end_point_next = end_point_next->m_Next;
+        }
+
+        assert(removed);
+        delete end_point;
+    }
+
+    static void DeleteJoint(CollisionWorldBox2D* world, dmPhysics::HJoint joint)
+    {
+        assert(joint);
+        dmPhysics::DeleteJoint2D(world->m_World2D, joint);
+    }
+
+    /*
     // Find a JointEntry in the linked list of a collision component based on the joint id.
     static JointEntry* FindJointEntry(CollisionWorldBox2D* world, CollisionComponent* component, dmhash_t id)
     {
@@ -1740,51 +1545,6 @@ namespace dmGameSystem
 
         bool r = SetJointParams2D(world->m_World, joint_entry->m_Joint, joint_entry->m_Type, joint_params);
         return (r ? dmPhysics::RESULT_OK : dmPhysics::RESULT_UNKNOWN_ERROR);
-    }
-
-    static void DeleteJoint(CollisionWorldBox2D* world, JointEntry* joint_entry)
-    {
-        assert(joint_entry);
-
-        DeleteJoint(world, joint_entry->m_Joint);
-        joint_entry->m_Joint = 0x0;
-
-        // Remove end point
-        assert(joint_entry->m_EndPoint);
-        JointEndPoint* end_point = joint_entry->m_EndPoint;
-        CollisionComponent* owner_component = end_point->m_Owner;
-
-        // Find and remove end point from previous component_b
-        bool removed = false;
-        JointEndPoint* end_point_prev = 0x0;
-        JointEndPoint* end_point_next = owner_component->m_JointEndPoints;
-        while (end_point_next) {
-            if (end_point_next == end_point)
-            {
-                if (end_point_prev) {
-                    end_point_prev->m_Next = end_point_next->m_Next;
-                } else {
-                    owner_component->m_JointEndPoints = end_point_next->m_Next;
-                }
-
-                removed = true;
-                break;
-            }
-            end_point_prev = end_point_next;
-            end_point_next = end_point_next->m_Next;
-        }
-
-        assert(removed);
-        delete end_point;
-    }
-
-    static void DeleteJoint(CollisionWorldBox2D* world, dmPhysics::HJoint joint)
-    {
-        assert(joint);
-        if (!world->m_3D)
-        {
-            dmPhysics::DeleteJoint2D(world->m_World, joint);
-        }
     }
 
     dmPhysics::JointResult GetJointReactionForce(void* _world, void* _component, dmhash_t id, dmVMath::Vector3& force)
@@ -2172,36 +1932,6 @@ namespace dmGameSystem
                 dmLogError("The Update Mass function can be used only for Dynamic objects with shape area > 0");
             }
         }
-    }
-
-    static bool CompCollisionIterPropertiesGetNext(dmGameObject::SceneNodePropertyIterator* pit)
-    {
-        CollisionWorldBox2D* world = (CollisionWorldBox2D*)pit->m_Node->m_ComponentWorld;
-        CollisionComponent* component = (CollisionComponent*)pit->m_Node->m_Component;
-
-        uint64_t index = pit->m_Next++;
-
-        uint32_t num_bool_properties = 1;
-        if (index < num_bool_properties)
-        {
-            if (index == 0)
-            {
-                pit->m_Property.m_Type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_BOOLEAN;
-                if (world->m_3D)
-                {
-                    pit->m_Property.m_Value.m_Bool = dmPhysics::IsEnabled3D(component->m_Object3D);
-                }
-                else
-                {
-                    pit->m_Property.m_Value.m_Bool = dmPhysics::IsEnabled2D(component->m_Object2D);
-                }
-                pit->m_Property.m_NameHash = dmHashString64("enabled");
-            }
-            return true;
-        }
-        index -= num_bool_properties;
-
-        return false;
     }
 
     void CompCollisionIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node)

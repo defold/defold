@@ -92,6 +92,7 @@ namespace dmGameSystem
     struct CollisionWorld
     {
         PhysicsAdapterFunctionTable* m_AdapterFunctions;
+        void*                        m_CallbackInfo;
         uint64_t                     m_Groups[16];
     };
 
