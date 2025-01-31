@@ -1149,7 +1149,7 @@ namespace dmSound
         dmSoundCodec::GetInfo(sound->m_CodecContext, instance->m_Decoder, &info);
 
         // TODO: Move this check to the NewSoundInstance
-        bool correct_bit_depth = info.m_BitsPerSample == 16 || info.m_BitsPerSample == 8;
+        bool correct_bit_depth = info.m_BitsPerSample == 32 || info.m_BitsPerSample == 16 || info.m_BitsPerSample == 8;
         bool correct_num_channels = info.m_Channels == 1 || info.m_Channels == 2;
         if (!correct_bit_depth || !correct_num_channels) {
             dmLogError("Only mono/stereo with 8/16 bits per sample is supported (%s): %u bpp %u ch", GetSoundName(sound, instance), (uint32_t)info.m_BitsPerSample, (uint32_t)info.m_Channels);
@@ -1186,7 +1186,9 @@ namespace dmSound
         //
         if (frame_count < mixed_instance_frame_count && instance->m_Playing) {
 
-            const uint32_t stride = info.m_Channels * (info.m_BitsPerSample / 8);
+            bool is_direct_delivery = (info.m_BitsPerSample == 32 && (!info.m_IsInterleaved || info.m_Channels == 1));
+
+            const uint32_t stride = !is_direct_delivery ? (info.m_Channels * (info.m_BitsPerSample / 8)) : sizeof(float);
 
             while(frame_count < mixed_instance_frame_count)
             {
@@ -1194,11 +1196,10 @@ namespace dmSound
 
                 char* buffer[SOUND_MAX_DECODE_CHANNELS];
                 uint32_t buffer_size;
-                if (info.m_BitsPerSample != 32 || (info.m_IsInterleaved && info.m_Channels != 1))
+                if (!is_direct_delivery)
                 {
                     // Output is non-float and/or interleaved and needs post output conversion
                     buffer[0] = ((char*) decoder_temp) + new_frame_count * stride;
-                    buffer_size = n * stride;
                 }
                 else
                 {
@@ -1207,8 +1208,8 @@ namespace dmSound
                     {
                         buffer[c] = (char*)(sound->GetDecoderBufferBase(c) + frame_count);
                     }
-                    buffer_size = n * sizeof(float);
                 }
+                buffer_size = n * stride;
 
                 uint32_t decoded = 0;
                 if (!is_muted)
