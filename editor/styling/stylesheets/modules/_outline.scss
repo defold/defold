@@ -24,10 +24,7 @@
   &:filled {
     -fx-text-fill: $color;
 
-    &:hover {
-      -fx-text-fill: $active-color;
-    }
-
+    &:hover,
     &:selected {
       -fx-text-fill: $active-color;
     }
@@ -46,12 +43,7 @@
 
 #outline {
   .tree-cell {
-    &.reference {
-      .text {
-        -fx-font-style: italic;
-      }
-    }
-
+    &.reference,
     &.parent-reference {
       .text {
         -fx-font-style: italic;
@@ -91,9 +83,7 @@
         -fx-fill: -df-text-dark;
       }
 
-      &:hover, 
-      &:pressed, 
-      &:focused {
+      &:hover {
         SVGPath {
           -fx-fill: -df-text-light;
         }
@@ -104,10 +94,6 @@
       .visibility-toggle {
         -fx-background-color: -df-background-lighter;
       }
-    }
-
-    .label {
-      -fx-text-overrun: ellipsis;
     }
 
     &.scene-visibility-hidden {
@@ -127,7 +113,7 @@
       }
     }
 
-    &:hover {
+    &.renderable:hover {
       .visibility-toggle {
         visibility: visible;
       }
