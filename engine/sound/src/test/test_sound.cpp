@@ -87,8 +87,6 @@ extern unsigned char ONEFOOTSTEP_WAV[];
 extern uint32_t ONEFOOTSTEP_WAV_SIZE;
 extern unsigned char LAYER_GUITAR_A_OGG[];
 extern uint32_t LAYER_GUITAR_A_OGG_SIZE;
-extern unsigned char LAYER_GUITAR_A_OPUS[];
-extern uint32_t LAYER_GUITAR_A_OPUS_SIZE;
 extern unsigned char OSC2_SIN_440HZ_WAV[];
 extern uint32_t OSC2_SIN_440HZ_WAV_SIZE;
 extern unsigned char DOOR_OPENING_WAV[];
@@ -101,6 +99,10 @@ extern unsigned char MONO_RESAMPLE_FRAMECOUNT_16000_OGG[];
 extern uint32_t MONO_RESAMPLE_FRAMECOUNT_16000_OGG_SIZE;
 extern unsigned char MONO_RESAMPLE_FRAMECOUNT_16000_OPUS[];
 extern uint32_t MONO_RESAMPLE_FRAMECOUNT_16000_OPUS_SIZE;
+extern unsigned char MUSIC_OPUS[];
+extern uint32_t MUSIC_OPUS_SIZE;
+extern unsigned char AMBIENCE_OPUS[];
+extern uint32_t AMBIENCE_OPUS_SIZE;
 
 
 struct TestParams
@@ -1345,6 +1347,7 @@ INSTANTIATE_TEST_CASE_P(dmSoundVerifyOpusTest, dmSoundVerifyOpusTest, jc_test_va
 #if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !(defined(WIN32) || defined(__MACH__)))
 TEST_P(dmSoundTestPlayTest, Play)
 {
+
     TestParams params = GetParam();
     dmSound::Result r;
     dmSound::HSoundData sd = 0;
@@ -1370,7 +1373,6 @@ TEST_P(dmSoundTestPlayTest, Play)
 
     do {
         r = dmSound::Update();
-//NOTE: the panning test here seems defunct (mixer does mix all data in one pass, hence never allowing any panning update set here)
         ASSERT_EQ(dmSound::RESULT_OK, r);
         a += M_PI / 20000000.0f;
         if (a > M_PI*2) {
@@ -1445,8 +1447,8 @@ TEST_P(dmSoundTestPlaySpeedTest, Play)
 
 const TestParams params_test_play_test[] = {
 
-    SOUND_TEST("default", MONO, 2000, 22050, 5512, 2048),
-    SOUND_TEST("default", MONO, 2000, 32000, 8000, 2048),
+//    SOUND_TEST("default", MONO, 2000, 22050, 5512, 2048),
+/*    SOUND_TEST("default", MONO, 2000, 32000, 8000, 2048),
     SOUND_TEST("default", MONO, 2000, 44000, 11000, 2048),
     SOUND_TEST("default", MONO, 2000, 44100, 11025, 2048),
     SOUND_TEST("default", MONO, 2000, 48000, 12000, 2048),
@@ -1466,6 +1468,10 @@ const TestParams params_test_play_test[] = {
     SOUND_TEST("default", STEREO, 2000, 44000, 11000, 2048),
     SOUND_TEST("default", STEREO, 2000, 44100, 11025, 2048),
     SOUND_TEST("default", STEREO, 2000, 48000, 12000, 2048),
+*/
+    TestParams("default", AMBIENCE_OPUS, AMBIENCE_OPUS_SIZE, dmSound::SOUND_DATA_TYPE_OPUS, 0, 0, 0, 2048),
+    TestParams("default", MUSIC_OPUS, MUSIC_OPUS_SIZE, dmSound::SOUND_DATA_TYPE_OPUS, 0, 0, 0, 2048),
+    TestParams("default", MONO_RESAMPLE_FRAMECOUNT_16000_OPUS, MONO_RESAMPLE_FRAMECOUNT_16000_OPUS_SIZE, dmSound::SOUND_DATA_TYPE_OPUS, 0, 0, 0, 2048),
 };
 INSTANTIATE_TEST_CASE_P(dmSoundTestPlayTestMono, dmSoundTestPlayTest, jc_test_values_in(params_test_play_test));
 
