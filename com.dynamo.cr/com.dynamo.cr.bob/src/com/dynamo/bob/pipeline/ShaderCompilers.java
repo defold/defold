@@ -36,39 +36,42 @@ public class ShaderCompilers {
             boolean spirvSupported = true;
             boolean hlslSupported = platform == Platform.X86_64Win32;
 
-            switch(platform) {
-                case Arm64MacOS:
-                case X86_64MacOS: {
-                    if (shaderType != ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE) {
-                        shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
-                    }
-                } break;
-                case X86Win32:
-                case X86_64Win32:
-                case X86Linux:
-                case Arm64Linux:
-                case X86_64Linux: {
+            if (platform == Platform.Arm64MacOS ||
+                platform == Platform.X86_64MacOS) {
+                if (shaderType != ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE) {
+                    shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
+                }
+            }
+            else
+            if (platform == Platform.X86Win32 ||
+                platform == Platform.X86_64Win32 ||
+                platform == Platform.X86Linux ||
+                platform == Platform.Arm64Linux ||
+                platform == Platform.X86_64Linux) {
                     if (shaderType == ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE) {
                         shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM430);
                     } else {
                         shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM140);
                     }
-                } break;
-                case Arm64Ios:
-                case X86_64Ios: {
+            }
+            else
+            if (platform == Platform.Arm64Ios ||
+                platform == Platform.X86_64Ios) {
                     if (shaderType != ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE) {
                         shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
                     }
-                } break;
-                case Armv7Android:
-                case Arm64Android: {
+            }
+            else
+            if (platform == Platform.Armv7Android ||
+                platform == Platform.Arm64Android) {
                     if (shaderType != ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE) {
                         shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
                         shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
                     }
-                } break;
-                case JsWeb:
-                case WasmWeb: {
+            }
+            else
+            if (platform == Platform.JsWeb ||
+                platform == Platform.WasmWeb) {
                     if (shaderType != ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE) {
                         shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
                         shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
@@ -76,11 +79,13 @@ public class ShaderCompilers {
                     if (outputWGSLRequested)
                         shaderLanguages.add(ShaderDesc.Language.LANGUAGE_WGSL);
                     spirvSupported = false;
-                } break;
-                case Arm64NX64:
+            }
+            else
+            if (platform == Platform.Arm64NX64) {
                     outputSpirvRequested = true;
-                    break;
-                default: return null;
+            }
+            else {
+                return null;
             }
 
             if (spirvSupported && outputSpirvRequested) {

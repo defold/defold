@@ -177,7 +177,7 @@ public class GameProjectBuilder extends Builder {
             // If Bob is building for a specific platform, we need to
             // filter out any platform entries not relevant to the target platform.
             // (i.e. we don't want win32 specific profiles lingering in android bundles)
-            String targetPlatform = project.option("platform", "");
+            Platform targetPlatform = project.getPlatform();
 
             List<TextureProfile> newProfiles = new LinkedList<TextureProfile>();
             for (int i = 0; i < texProfilesBuilder.getProfilesCount(); i++) {
@@ -189,7 +189,7 @@ public class GameProjectBuilder extends Builder {
 
                 // Take only the platforms that matches the target platform
                 for (PlatformProfile platformProfile : profile.getPlatformsList()) {
-                    if (Platform.matchPlatformAgainstOS(targetPlatform, platformProfile.getOs())) {
+                    if (targetPlatform.matchesOS(platformProfile.getOs())) {
                         profileBuilder.addPlatforms(platformProfile);
                     }
                 }

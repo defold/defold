@@ -29,7 +29,7 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 
-@BundlerParams(platforms = {Platform.X86_64Linux})
+@BundlerParams(platforms = {"x86_64-linux", "arm64-linux"})
 public class LinuxBundler implements IBundler {
 
     @Override
@@ -72,7 +72,11 @@ public class LinuxBundler implements IBundler {
 
         // Copy executable
         File bundleExe = bundleExes.get(0);
-        File exeOut = new File(appDir, exeName + ".x86_64");
+        File exeOut;
+        if (platform.equals(Platform.X86_64Linux))
+            exeOut = new File(appDir, exeName + ".x86_64");
+        else
+            exeOut = new File(appDir, exeName + ".arm64");
         FileUtils.copyFile(bundleExe, exeOut);
         exeOut.setExecutable(true);
 

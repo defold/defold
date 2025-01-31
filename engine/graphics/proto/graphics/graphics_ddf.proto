@@ -274,6 +274,7 @@ message PlatformProfile
         OS_ID_SWITCH  = 7;
         OS_ID_PS4     = 8;
         OS_ID_PS5     = 9;
+        OS_ID_XBOX    = 10;
     }
 
     required OS os                              = 1;

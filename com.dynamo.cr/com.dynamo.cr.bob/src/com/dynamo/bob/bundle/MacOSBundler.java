@@ -31,7 +31,7 @@ import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.FileUtil;
 
-@BundlerParams(platforms = {Platform.X86_64MacOS, Platform.Arm64MacOS})
+@BundlerParams(platforms = {"x86_64-macos", "arm64-macos"})
 public class MacOSBundler implements IBundler {
     private static Logger logger = Logger.getLogger(MacOSBundler.class.getName());
     public static final String ICON_NAME = "icon.icns";

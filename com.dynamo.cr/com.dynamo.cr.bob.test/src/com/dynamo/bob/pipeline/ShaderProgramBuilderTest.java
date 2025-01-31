@@ -71,43 +71,28 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             "}\n";
 
     private static ShaderDesc.Language getPlatformGLSLLanguage() {
-        switch(Platform.getHostPlatform())
-        {
-            case Arm64MacOS:
-            case X86_64MacOS:
+        Platform platform = Platform.getHostPlatform();
+        if (platform == Platform.Arm64MacOS || platform == Platform.X86_64MacOS)
                 return ShaderDesc.Language.LANGUAGE_GLSL_SM330;
-            case X86_64Linux:
-            case X86_64Win32:
+        if (platform == Platform.X86_64Linux || platform == Platform.X86_64Win32)
                 return ShaderDesc.Language.LANGUAGE_GLSL_SM140;
-            default:break;
-        }
         return null;
     }
 
     private static int getPlatformGLSLVersion() {
-        switch(Platform.getHostPlatform())
-        {
-            case Arm64MacOS:
-            case X86_64MacOS:
+        Platform platform = Platform.getHostPlatform();
+        if (platform == Platform.Arm64MacOS || platform == Platform.X86_64MacOS)
                 return 330;
-            case X86_64Linux:
-            case X86_64Win32:
+        if (platform == Platform.X86_64Linux || platform == Platform.X86_64Win32)
                 return 140;
-            default:break;
-        }
         return 0;
     }
 
-    private static boolean isHostPlatformDesktop() {
-        switch(Platform.getHostPlatform())
-        {
-            case Arm64MacOS:
-            case X86_64MacOS:
-            case X86_64Linux:
-            case X86_64Win32:
-                return true;
-            default:break;
-        }
+    private static boolean isHostPlatformDesktop() { // This is strange, we're only running bob on desktop (host) platforms, and we're not comparing it to something
+        Platform platform = Platform.getHostPlatform();
+        if (platform == Platform.Arm64MacOS || platform == Platform.X86_64MacOS ||
+            platform == Platform.X86_64Linux || platform == Platform.X86_64Win32)
+            return true;
         return false;
     }
 
@@ -715,7 +700,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE, shaderDesc.getShaderType());
 
         // Compute not supported for OSX on GL contexts
-        if (Platform.getHostPlatform() == Platform.X86_64Win32 || Platform.getHostPlatform() == Platform.X86_64Win32) {
+        if (Platform.getHostPlatform().isWindows()) {
             ShaderDesc.Shader glslShader = getShaderByLanguage(shaderDesc, ShaderDesc.Language.LANGUAGE_GLSL_SM430);
             assertNotNull(glslShader);
             testOutput(expected, glslShader.getSource().toStringUtf8());
