@@ -1139,7 +1139,8 @@ namespace dmSound
         return false;
     }
 
-    static inline void MixInstance(const MixContext* mix_context, SoundInstance* instance) {
+    static inline void MixInstance(const MixContext* mix_context, SoundInstance* instance)
+    {
         SoundSystem* sound = g_SoundSystem;
 
         dmSoundCodec::Info info;
@@ -1382,12 +1383,13 @@ namespace dmSound
                 float max_sq_left;
                 float max_sq_right;
                 GatherPowerData(g->m_MixBuffer, frame_count, g->m_Gain.m_Current, sum_sq_left, sum_sq_right, max_sq_left, max_sq_right);
-                int next_memory_slot = g->m_NextMemorySlot; 
-                g->m_SumSquaredMemory[2 * next_memory_slot + 0] = sum_sq_left;
-                g->m_SumSquaredMemory[2 * next_memory_slot + 1] = sum_sq_right;
-                g->m_PeakMemorySq[2 * next_memory_slot + 0] = max_sq_left;
-                g->m_PeakMemorySq[2 * next_memory_slot + 1] = max_sq_right;
-                g->m_NextMemorySlot = (next_memory_slot + 1) % GROUP_MEMORY_BUFFER_COUNT;
+                int memory_slot = g->m_NextMemorySlot; 
+                g->m_FrameCounts[memory_slot] = frame_count;
+                g->m_SumSquaredMemory[2 * memory_slot + 0] = sum_sq_left;
+                g->m_SumSquaredMemory[2 * memory_slot + 1] = sum_sq_right;
+                g->m_PeakMemorySq[2 * memory_slot + 0] = max_sq_left;
+                g->m_PeakMemorySq[2 * memory_slot + 1] = max_sq_right;
+                g->m_NextMemorySlot = (memory_slot + 1) % GROUP_MEMORY_BUFFER_COUNT;
 
                 memset(g->m_MixBuffer[0], 0, frame_count * sizeof(float));
                 memset(g->m_MixBuffer[1], 0, frame_count * sizeof(float));
