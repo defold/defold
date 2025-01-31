@@ -118,7 +118,7 @@
    (:item (decorate hidden-node-outline-key-paths [] [] root (:outline-reference? root))))
   ([hidden-node-outline-key-paths node-id-path node-outline-key-path {:keys [node-id] :as item} parent-reference?]
    (let [node-id-path (conj node-id-path node-id)
-         renderable? (seq node-outline-key-path)
+         hideable? (seq node-outline-key-path)
          node-outline-key-path (if (empty? node-outline-key-path)
                                  [node-id]
                                  (if-some [node-outline-key (:node-outline-key item)]
@@ -132,7 +132,7 @@
                 :children (mapv :item data)
                 :child-error? (boolean (some :child-error? data))
                 :child-overridden? (boolean (some :child-overridden? data))
-                :renderable? renderable?
+                :hideable? hideable?
                 :scene-visibility (if (contains? hidden-node-outline-key-paths node-outline-key-path)
                                     :hidden
                                     :visible))]
@@ -503,7 +503,7 @@
                        (proxy-super setGraphic nil)
                        (proxy-super setContextMenu nil)
                        (proxy-super setStyle nil))
-                     (let [{:keys [label icon link color outline-error? outline-overridden? outline-reference? outline-show-link? parent-reference? child-error? child-overridden? scene-visibility renderable?]} item
+                     (let [{:keys [label icon link color outline-error? outline-overridden? outline-reference? outline-show-link? parent-reference? child-error? child-overridden? scene-visibility hideable?]} item
                            icon (if outline-error? "icons/32/Icons_E_02_error.png" icon)
                            show-link? (and (some? link)
                                            (or outline-reference? outline-show-link?))
@@ -533,7 +533,7 @@
                        (if child-overridden?
                          (ui/add-style! this "child-overridden")
                          (ui/remove-style! this "child-overridden"))
-                       (if renderable?
+                       (if hideable?
                          (ui/add-style! this "renderable")
                          (ui/remove-style! this "renderable"))
                        (if (= :hidden scene-visibility)
