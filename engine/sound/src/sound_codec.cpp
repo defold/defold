@@ -96,7 +96,7 @@ namespace dmSoundCodec
         decoder->m_DecoderInfo->m_GetStreamInfo(decoder->m_Stream, info);
     }
 
-    Result Decode(HCodecContext context, HDecoder decoder, char* buffer, uint32_t buffer_size, uint32_t* decoded)
+    Result Decode(HCodecContext context, HDecoder decoder, char* buffer[], uint32_t buffer_size, uint32_t* decoded)
     {
         DM_PROFILE(__FUNCTION__);
         assert(decoder);

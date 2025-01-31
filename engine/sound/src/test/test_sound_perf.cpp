@@ -74,7 +74,10 @@ public:
         for (unsigned int i=0;i<sizeof(m_UnCache);i++)
             m_UnCache[i] += junk;
 
-        char tmp[4096];
+        // Setup two output buffers (dummy) so we can support interleaved and non-interleaved data output
+        char tmp_l[4096*2];
+        char tmp_r[4096*2];
+        char* tmp_ptr[] = {tmp_l, tmp_r};
         dmSoundCodec::HDecodeStream stream;
 
         dmSound::HSoundData sd = 0;
@@ -83,6 +86,20 @@ public:
         const uint64_t time_beg = dmTime::GetMonotonicTime();
         ASSERT_EQ(decoder->m_OpenStream(sd, &stream), dmSoundCodec::RESULT_OK);
         const uint64_t time_open = dmTime::GetMonotonicTime();
+
+        // select output buffer size depending if we have int16_t or float data being produced (we are not interested in PCM8 here) to make sure we 'chunk' the decode the same for both
+
+        dmSoundCodec::Info info;
+        decoder->m_GetStreamInfo(stream, &info);
+
+        // Make sure we get half the buffers only if we decode to int16 not float (to keep chunking the same)
+        uint32_t out_size = sizeof(tmp_l) / (32 / info.m_BitsPerSample);
+        if (!info.m_IsInterleaved)
+        {
+            // Half the buffer size if we have non-interleaved data (as we use per channel buffers)
+            out_size /= info.m_Channels;
+            assert(info.m_Channels <= 2);
+        }
 
         uint64_t max_chunk_time = 0;
         uint64_t iterations = 0;
@@ -97,13 +114,13 @@ public:
             const uint64_t chunk_begin = dmTime::GetMonotonicTime();
 
             if (skip)
-                decoder->m_SkipInStream(stream, sizeof(tmp), &decoded);
+                decoder->m_SkipInStream(stream, out_size, &decoded);
             else
-                decoder->m_DecodeStream(stream, tmp, sizeof(tmp), &decoded);
+                decoder->m_DecodeStream(stream, tmp_ptr, out_size, &decoded);
 
-            total_decoded += decoded;
+            total_decoded += decoded * (info.m_IsInterleaved ? 1 : info.m_Channels);
 
-            if (decoded != sizeof(tmp))
+            if (decoded != out_size)
                 break;
 
             const uint64_t chunk_time = dmTime::GetMonotonicTime() - chunk_begin;
@@ -124,7 +141,7 @@ public:
         printf("[%s - %s (%s)] Total: %.3f s", decoder_name, test_name, (skip ? "SKIPPING" : "DECODING"), t2s * (time_done - time_beg));
         printf(" | Chunks: %u, max: %.3f ms, avg: %.3f ms", (int)iterations, t2ms * max_chunk_time, (time_done - time_open) * t2ms / float(iterations));
         printf(" | Output: %d Kb, %.1f s\n", (int)(total_decoded / 1024), audio_length);
-        printf("  * Per out second: %.3f ms", t2ms * (time_done - time_beg) / audio_length);
+        printf("  * Per out second: %.3f ms", t2ms * (time_done - time_open) / audio_length);
         printf(" | In %.1f kbps | Out: %.1f Kb/s\n", (float)size / (128.0f * audio_length), (float)bytes_per_second / 1024.0f);
 
         decoder->m_CloseStream(stream);
