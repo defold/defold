@@ -161,7 +161,6 @@ namespace dmGameSystem
         uint32_t m_MaxFixedTimesteps;
     };
 
-    // Maybe hide these in the implementations themselves?
     struct PhysicsContextBox2D
     {
         PhysicsContext        m_BaseContext;

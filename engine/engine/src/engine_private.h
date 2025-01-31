@@ -124,6 +124,7 @@ namespace dmEngine
         dmJobThread::HContext                       m_JobThreadContext;
         dmGraphics::HContext                        m_GraphicsContext;
         dmRender::HRenderContext                    m_RenderContext;
+        // TODO: These should just be a "PhsyicsContext" and not the specific type
         dmGameSystem::PhysicsContextBox2D           m_PhysicsContextBox2D;
         dmGameSystem::PhysicsContextBullet3D        m_PhysicsContextBullet3D;
         dmGameSystem::ParticleFXContext             m_ParticleFXContext;

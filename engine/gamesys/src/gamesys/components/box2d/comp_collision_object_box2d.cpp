@@ -69,7 +69,6 @@ namespace dmGameSystem
     {
         CollisionWorld                    m_BaseWorld;
         dmPhysics::HWorld2D               m_World2D;
-        void*                             m_CallbackInfo;
         float                             m_CurrentDT;    // Used to calculate joint reaction force and torque.
         float                             m_AccumTime;    // Time saved from last component type update
         uint8_t                           m_ComponentTypeIndex;
@@ -477,7 +476,7 @@ namespace dmGameSystem
 
     static void RunPhysicsCallback(CollisionWorldBox2D* world, const dmDDF::Descriptor* desc, const char* data)
     {
-        RunCollisionWorldCallback(world->m_CallbackInfo, desc, data);
+        RunCollisionWorldCallback(world->m_BaseWorld.m_CallbackInfo, desc, data);
     }
 
     template <class DDFMessage>
@@ -530,7 +529,7 @@ namespace dmGameSystem
             uint64_t group_hash_a = GetLSBGroupHash(&world->m_BaseWorld, group_a);
             uint64_t group_hash_b = GetLSBGroupHash(&world->m_BaseWorld, group_b);
 
-            if (world->m_CallbackInfo != 0x0)
+            if (world->m_BaseWorld.m_CallbackInfo != 0x0)
             {
                 dmPhysicsDDF::CollisionEvent ddf;
 
@@ -606,7 +605,7 @@ namespace dmGameSystem
             uint64_t group_hash_a = GetLSBGroupHash(&world->m_BaseWorld, contact_point.m_GroupA);
             uint64_t group_hash_b = GetLSBGroupHash(&world->m_BaseWorld, contact_point.m_GroupB);
 
-            if (world->m_CallbackInfo != 0x0)
+            if (world->m_BaseWorld.m_CallbackInfo != 0x0)
             {
                 dmPhysicsDDF::ContactPointEvent ddf;
                 ddf.m_AppliedImpulse = contact_point.m_AppliedImpulse;
@@ -701,7 +700,7 @@ namespace dmGameSystem
         uint64_t group_hash_a = GetLSBGroupHash(&world->m_BaseWorld, trigger_enter.m_GroupA);
         uint64_t group_hash_b = GetLSBGroupHash(&world->m_BaseWorld, trigger_enter.m_GroupB);
 
-        if (world->m_CallbackInfo != 0x0)
+        if (world->m_BaseWorld.m_CallbackInfo != 0x0)
         {
             dmPhysicsDDF::TriggerEvent ddf;
             ddf.m_Enter = 1;
@@ -755,7 +754,7 @@ namespace dmGameSystem
         uint64_t group_hash_a = GetLSBGroupHash(&world->m_BaseWorld, trigger_exit.m_GroupA);
         uint64_t group_hash_b = GetLSBGroupHash(&world->m_BaseWorld, trigger_exit.m_GroupB);
 
-        if (world->m_CallbackInfo != 0x0)
+        if (world->m_BaseWorld.m_CallbackInfo != 0x0)
         {
             dmPhysicsDDF::TriggerEvent ddf;
             ddf.m_Enter = 0;
@@ -806,7 +805,7 @@ namespace dmGameSystem
             response_ddf.m_Normal = response.m_Normal;
             response_ddf.m_RequestId = request.m_UserId & 0xff;
 
-            if (world->m_CallbackInfo != 0x0)
+            if (world->m_BaseWorld.m_CallbackInfo != 0x0)
             {
                 RunPhysicsCallback(world, dmPhysicsDDF::RayCastResponse::m_DDFDescriptor, (const char*)&response_ddf);
             }
@@ -819,7 +818,7 @@ namespace dmGameSystem
         {
             dmPhysicsDDF::RayCastMissed missed_ddf;
             missed_ddf.m_RequestId = request.m_UserId & 0xff;
-            if (world->m_CallbackInfo != 0x0)
+            if (world->m_BaseWorld.m_CallbackInfo != 0x0)
             {
                 RunPhysicsCallback(world, dmPhysicsDDF::RayCastMissed::m_DDFDescriptor, (const char*)&missed_ddf);
             }

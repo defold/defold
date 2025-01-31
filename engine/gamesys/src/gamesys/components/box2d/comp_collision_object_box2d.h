@@ -46,53 +46,9 @@ namespace dmGameSystem
     dmGameObject::PropertyResult CompCollisionObjectBox2DGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value);
     dmGameObject::PropertyResult CompCollisionObjectBox2DSetProperty(const dmGameObject::ComponentSetPropertyParams& params);
 
-    b2World* CompCollisionObjectGetBox2DWorld(dmGameObject::HComponentWorld _world);
-    b2Body* CompCollisionObjectGetBox2DBody(dmGameObject::HComponent _component);
-
-    /*
-    void                         CompCollisionIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node);
-
-    uint16_t CompCollisionGetGroupBitIndex(void* world, uint64_t group_hash);
-
-    // For script_physics.cpp
-    void RayCast(void* world, const dmPhysics::RayCastRequest& request, dmArray<dmPhysics::RayCastResponse>& results);
-    uint64_t GetLSBGroupHash(void* world, uint16_t mask);
-    dmhash_t CompCollisionObjectBox2DGetIdentifier(void* component);
-
-    dmPhysics::JointResult CreateJoint(void* _world, void* _component_a, dmhash_t id, const dmVMath::Point3& apos, void* _component_b, const dmVMath::Point3& bpos, dmPhysics::JointType type, const dmPhysics::ConnectJointParams& joint_params);
-    dmPhysics::JointResult DestroyJoint(void* _world, void* _component, dmhash_t id);
-    dmPhysics::JointResult GetJointParams(void* _world, void* _component, dmhash_t id, dmPhysics::JointType& joint_type, dmPhysics::ConnectJointParams& joint_params);
-    dmPhysics::JointResult GetJointType(void* _world, void* _component, dmhash_t id, dmPhysics::JointType& joint_type);
-    dmPhysics::JointResult SetJointParams(void* _world, void* _component, dmhash_t id, const dmPhysics::ConnectJointParams& joint_params);
-    dmPhysics::JointResult GetJointReactionForce(void* _world, void* _component, dmhash_t id, dmVMath::Vector3& force);
-    dmPhysics::JointResult GetJointReactionTorque(void* _world, void* _component, dmhash_t id, float& torque);
-
-    void SetGravity(void* world, const dmVMath::Vector3& gravity);
-    dmVMath::Vector3 GetGravity(void* _world);
-
-    bool IsCollision2D(void* _world);
-    void SetCollisionFlipH(void* _component, bool flip);
-    void SetCollisionFlipV(void* _component, bool flip);
-    void WakeupCollision(void* _world, void* _component);
-    dmhash_t GetCollisionGroup(void* _world, void* _component);
-    bool SetCollisionGroup(void* _world, void* _component, dmhash_t group_hash);
-    bool GetCollisionMaskBit(void* _world, void* _component, dmhash_t group_hash, bool* maskbit);
-    bool SetCollisionMaskBit(void* _world, void* _component, dmhash_t group_hash, bool boolvalue);
-    void UpdateMass(void* _world, void* _component, float mass);
-
-    void* GetCollisionWorldCallback(void* _world);
-    void SetCollisionWorldCallback(void* _world, void* callback_info);
-    void RunCollisionWorldCallback(void* callback_data, const dmDDF::Descriptor* desc, const char* data);
-
-    bool GetShapeIndex(void* _component, dmhash_t shape_name_hash, uint32_t* index_out);
-    bool GetShape(void* _world, void* _component, uint32_t shape_ix, ShapeInfo* shape_info);
-    bool SetShape(void* _world, void* _component, uint32_t shape_ix, ShapeInfo* shape_info);
-
     // For script_box2d.cpp
-    b2World* CompCollisionObjectBox2DGetBox2DWorld(dmGameObject::HComponentWorld world);
-    b2Body* CompCollisionObjectBox2DGetBox2DBody(dmGameObject::HComponent component);
-    dmGameObject::HInstance CompCollisionObjectBox2DGetInstance(void* _user_data);
-    */
+    b2World* CompCollisionObjectGetBox2DWorld(dmGameObject::HComponentWorld _world);
+    b2Body*  CompCollisionObjectGetBox2DBody(dmGameObject::HComponent _component);
 }
 
 #endif // DM_GAMESYS_COMP_COLLISION_OBJECT_BOX2D_H
