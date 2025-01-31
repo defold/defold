@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -377,10 +377,9 @@
     (g/cache-output-values! endpoint+cached-value-pairs)
     (log-cache-info! (g/cache) "Cached loaded save data in system cache.")))
 
-(defn- load-nodes-into-graph! [node-load-infos project progress-loading! resource-metrics transaction-metrics]
+(defn- load-nodes-into-graph! [node-load-infos project progress-loading! resource-metrics transact-opts]
   (let [tx-data (load-tx-data node-load-infos project progress-loading! resource-metrics)
-        tx-opts (du/when-metrics {:metrics transaction-metrics})
-        tx-result (g/transact tx-opts tx-data)
+        tx-result (g/transact transact-opts tx-data)
         basis (:basis tx-result)]
     ;; Return the set of migrated resource node ids, if any.
     (into #{}
@@ -408,7 +407,7 @@
 
 (declare workspace)
 
-(defn- load-nodes! [project node-ids render-progress! old-resource-node-dependencies resource-metrics transaction-metrics]
+(defn- load-nodes! [project node-ids render-progress! old-resource-node-dependencies resource-metrics transact-opts]
   (let [workspace (workspace project)
         old-resource-node-ids-by-proj-path (g/node-value project :nodes-by-resource-path)
 
@@ -426,26 +425,26 @@
 
     (store-loaded-disk-sha256-hashes! node-load-infos workspace)
     (store-loaded-source-values! node-load-infos)
-    (let [migrated-resource-node-ids (load-nodes-into-graph! node-load-infos project progress-loading! resource-metrics transaction-metrics)
+    (let [migrated-resource-node-ids (load-nodes-into-graph! node-load-infos project progress-loading! resource-metrics transact-opts)
           basis (g/now)
           migrated-proj-paths (into (sorted-set)
                                     (map #(resource/proj-path (resource-node/resource basis %)))
                                     migrated-resource-node-ids)]
-      (cache-loaded-save-data! node-load-infos project migrated-resource-node-ids)
-      (render-progress! progress/done)
 
       ;; Log any migrated proj-paths.
       ;; Disabled during tests to minimize log spam.
       (when (and (pos? (count migrated-proj-paths))
                  (not (Boolean/getBoolean "defold.tests")))
-        (log/info :message "Some files were migrated and will be saved in an updated format." :migrated-proj-paths migrated-proj-paths)))
-    node-load-infos))
+        (log/info :message "Some files were migrated and will be saved in an updated format." :migrated-proj-paths migrated-proj-paths))
 
-(defn- make-nodes! [project resources]
+      {:migrated-resource-node-ids migrated-resource-node-ids
+       :node-load-infos node-load-infos})))
+
+(defn- make-nodes! [project resources transact-opts]
   (let [project-graph (graph project)
         file-resources (filter #(= :file (resource/source-type %)) resources)]
     (g/tx-nodes-added
-      (g/transact
+      (g/transact transact-opts
         (for [[resource-type resources] (group-by resource/resource-type file-resources)
               :let [node-type (resource-type->node-type resource-type)]
               resource resources]
@@ -460,7 +459,7 @@
   ([project path-or-resource evaluation-context]
    (when-let [resource (cond
                          (string? path-or-resource) (workspace/find-resource (g/node-value project :workspace evaluation-context) path-or-resource evaluation-context)
-                         (satisfies? resource/Resource path-or-resource) path-or-resource
+                         (resource/resource? path-or-resource) path-or-resource
                          :else (assert false (str (type path-or-resource) " is neither a path nor a resource: " (pr-str path-or-resource))))]
      (let [nodes-by-resource-path (g/node-value project :nodes-by-resource-path evaluation-context)]
        (get nodes-by-resource-path (resource/proj-path resource))))))
@@ -498,20 +497,38 @@
    (let [process-metrics (du/make-metrics-collector)
          resource-metrics (du/make-metrics-collector)
          transaction-metrics (du/make-metrics-collector)
+
+         ;; We can disable change tracking on the initial load since we have
+         ;; nothing in the cache and will reset the undo history afterward.
+         change-tracked-transact false
+
+         transact-opts {:metrics transaction-metrics
+                        :track-changes change-tracked-transact}
+
          nodes (du/measuring process-metrics :make-new-nodes
-                 (make-nodes! project resources))]
+                 (make-nodes! project resources transact-opts))]
+
+     ;; When we're not tracking changes, we will not evict stale values from the
+     ;; system cache. This means subsequent graph queries won't see the changes
+     ;; from the transaction if a value was previously cached. To be on the safe
+     ;; side, we clear the cache after each transaction we perform with change
+     ;; tracking disabled.
+     (when-not change-tracked-transact
+       (g/clear-system-cache!))
 
      ;; Make sure the game.project node is property connected before loading
      ;; the resource nodes, since establishing these connections will
      ;; invalidate any dependent outputs in the cache.
      (when-let [game-project (get-resource-node project "/game.project")]
        (let [script-intel (script-intelligence project)]
-         (g/transact
+         (g/transact transact-opts
            (concat
              (g/connect script-intel :build-errors game-project :build-errors)
              (g/connect game-project :display-profiles-data project :display-profiles)
              (g/connect game-project :texture-profiles-data project :texture-profiles)
-             (g/connect game-project :settings-map project :settings)))))
+             (g/connect game-project :settings-map project :settings)))
+         (when-not change-tracked-transact
+           (g/clear-system-cache!))))
 
      ;; Load the resource nodes. Referenced nodes will be loaded prior to
      ;; nodes that refer to them, provided the :dependencies-fn reports the
@@ -521,8 +538,13 @@
      ;; texture profiles and image resources. We probably want to ensure the
      ;; texture profiles are loaded before anything that makes implicit use of
      ;; them to avoid potentially costly cache invalidation.
-     (du/measuring process-metrics :load-new-nodes
-       (load-nodes! project nodes render-progress! {} resource-metrics transaction-metrics))
+     (let [{:keys [migrated-resource-node-ids node-load-infos]}
+           (du/measuring process-metrics :load-new-nodes
+             (load-nodes! project nodes render-progress! {} resource-metrics transact-opts))]
+       (when-not change-tracked-transact
+         (g/clear-system-cache!))
+       (cache-loaded-save-data! node-load-infos project migrated-resource-node-ids)
+       (render-progress! progress/done))
      (du/when-metrics
        (reset! load-metrics-atom
                {:new-nodes-by-path (g/node-value project :nodes-by-resource-path)
@@ -633,15 +655,6 @@
     (g/redo! project-graph)
     (lsp/check-if-polled-resources-are-modified! (lsp/get-graph-lsp project-graph))))
 
-(def ^:private bundle-targets
-  (into []
-        (concat (when (os/is-mac-os?) [[:ios "iOS Application..."]]) ; macOS is required to sign iOS ipa.
-                [[:android "Android Application..."]
-                 [:macos   "macOS Application..."]
-                 [:windows "Windows Application..."]
-                 [:linux   "Linux Application..."]
-                 [:html5   "HTML5 Application..."]])))
-
 (handler/register-menu! ::menubar :editor.app-view/view
   [{:label "Project"
     :id ::project
@@ -654,11 +667,8 @@
                {:label "Rebuild HTML5"
                 :command :rebuild-html5}
                {:label "Bundle"
-                :children (mapv (fn [[platform label]]
-                                  {:label label
-                                   :command :bundle
-                                   :user-data {:platform platform}})
-                                bundle-targets)}
+                :id ::bundle
+                :command :bundle}
                {:label "Rebundle"
                 :command :rebundle}
                {:label "Fetch Libraries"
@@ -755,7 +765,7 @@
                                                      (dependencies-fn save-value))))))))
         resource->old-node (comp old-nodes-by-path resource/proj-path)
         new-nodes (du/measuring process-metrics :make-new-nodes
-                    (make-nodes! project (:new plan)))
+                    (make-nodes! project (:new plan) transact-opts))
         resource-path->new-node (g/with-auto-evaluation-context evaluation-context
                                   (into {}
                                         (map (fn [resource-node]
@@ -793,11 +803,15 @@
         (for [node (:delete plan)]
           (g/delete-node node))))
 
-    (du/measuring process-metrics :load-new-nodes
-      (load-nodes! project new-nodes render-progress! old-resource-node-dependencies resource-metrics transaction-metrics))
-
-    (du/measuring process-metrics :update-cache
-      (g/update-cache-from-evaluation-context! rn-dependencies-evaluation-context))
+    (let [{:keys [migrated-resource-node-ids node-load-infos]}
+          (du/measuring process-metrics :load-new-nodes
+            (load-nodes! project new-nodes render-progress! old-resource-node-dependencies resource-metrics transact-opts))]
+      (du/measuring process-metrics :update-cache-with-dependencies
+        ;; TODO: Investigate if we should even be doing this. Evaluates save-value output, but aren't they stale?
+        (g/update-cache-from-evaluation-context! rn-dependencies-evaluation-context))
+      (du/measuring process-metrics :update-cache-with-save-data
+        (cache-loaded-save-data! node-load-infos project migrated-resource-node-ids))
+      (render-progress! progress/done))
 
     (du/measuring process-metrics :transfer-outgoing-arcs
       (g/transact transact-opts
@@ -1052,7 +1066,7 @@
     (disconnect-from-inputs basis node consumer-node connections)))
 
 (defn- ensure-resource-node-created [tx-data-context-map project resource]
-  (assert (satisfies? resource/Resource resource))
+  (assert (resource/resource? resource))
   (if-some [[_ pending-resource-node-id] (find (:created-resource-nodes tx-data-context-map) resource)]
     [tx-data-context-map pending-resource-node-id nil]
     (let [graph-id (g/node-id->graph-id project)
@@ -1113,6 +1127,7 @@
 (defn make-project [graph workspace-id extensions]
   (let [plugin-graph (g/make-graph! :history false :volatility 2)
         code-preprocessors (workspace/code-preprocessors workspace-id)
+
         transpilers-id
         (first
           (g/tx-nodes-added

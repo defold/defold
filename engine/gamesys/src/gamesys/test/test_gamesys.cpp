@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -157,6 +157,33 @@ TEST_P(ResourceTest, TestPreload)
     void* resource;
     dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, resource_name);
     dmResource::Result r;
+
+    uint64_t stop_time = dmTime::GetMonotonicTime() + 30*10e6;
+    while (dmTime::GetMonotonicTime() < stop_time)
+    {
+        // Simulate running at 30fps
+        r = dmResource::UpdatePreloader(pr, 0, 0, 33*1000);
+        if (r != dmResource::RESULT_PENDING)
+            break;
+        dmTime::Sleep(33*1000);
+    }
+
+    ASSERT_EQ(dmResource::RESULT_OK, r);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, resource_name, &resource));
+
+    dmResource::DeletePreloader(pr);
+    dmResource::Release(m_Factory, resource);
+}
+
+TEST_P(ResourceTest, TestPreloadAsync)
+{
+    const char* resource_name = GetParam();
+    void* resource;
+    dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, resource_name);
+    dmResource::Result r;
+
+    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
+    null_context->m_UseAsyncTextureLoad   = 1;
 
     uint64_t stop_time = dmTime::GetMonotonicTime() + 30*10e6;
     while (dmTime::GetMonotonicTime() < stop_time)
@@ -400,7 +427,9 @@ TEST_F(ResourceTest, TestCreateTextureFromScript)
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
+    // Wait until all async operations are done
     ASSERT_TRUE(UpdateAndWaitUntilDone(scriptlibcontext, m_Collection, &m_UpdateContext, false, "async_test_done"));
+    ASSERT_TRUE(UpdateAndWaitUntilDone(scriptlibcontext, m_Collection, &m_UpdateContext, false, "async_basis_test_done"));
 
     // cleanup
     DeleteInstance(m_Collection, go);

@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -221,6 +221,7 @@
    (cond
      (empty? a) b
      (empty? b) a
+     (and (map? a) (supports-transient? a) (map? b)) (-> (reduce-kv assoc! (transient a) b) persistent! (with-meta (meta a)))
      :else (into a b)))
   ([a b & maps]
    (reduce merge
@@ -250,10 +251,10 @@
                      b)
              (persistent!)
              (with-meta (meta a)))
-         (reduce (fn [result [b-key b-value]]
-                   (assoc result b-key (merged-value b-key b-value)))
-                 a
-                 b)))))
+         (reduce-kv (fn [result b-key b-value]
+                      (assoc result b-key (merged-value b-key b-value)))
+                    a
+                    b)))))
   ([f a b & maps]
    (reduce #(merge-with f %1 %2)
            (merge-with f a b)
@@ -276,10 +277,10 @@
                    ::not-found b-value
                    (f b-key a-value b-value))))]
        (if (supports-transient? a)
-         (-> (reduce (fn [result [b-key b-value]]
-                       (assoc! result b-key (merged-value b-key b-value)))
-                     (transient a)
-                     b)
+         (-> (reduce-kv (fn [result b-key b-value]
+                          (assoc! result b-key (merged-value b-key b-value)))
+                        (transient a)
+                        b)
              (persistent!)
              (with-meta (meta a)))
          (reduce (fn [result [b-key b-value]]

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright 2020-2024 The Defold Foundation
+# Copyright 2020-2025 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -57,7 +57,17 @@ def xtea_decryptCTR(key, data, n=32):
     return data
 
 if __name__ == "__main__":
-    usage = '''usage: %prog [options] input
+    usage = '''usage: %prog [options] input output_dir
+
+    input - May be either a directory containing game.arc* files or
+            a json file containing path mappings using these keys
+
+                "game.projectc"
+                "game.dmanifest"
+                "game.arcd"
+                "game.arci"
+
+    output_dir - A directory where all unpacked files end up
 '''
     parser = optparse.OptionParser(usage)
 
@@ -67,9 +77,16 @@ if __name__ == "__main__":
 
     options, args = parser.parse_args()
 
+    if len(args) < 2:
+        parser.print_help()
+        sys.exit(1)
+
     resources = args[0]
-    output = args[1]
-    os.makedirs(output, 0o777, True)
+    if len(args) > 1:
+        output = args[1]
+        os.makedirs(output, 0o777, True)
+    else:
+        output = False
 
     if os.path.isdir(resources):
         with open(os.path.join(resources, "game.projectc"), "rb") as f:
@@ -99,8 +116,9 @@ if __name__ == "__main__":
             arcd = gather_pieces(os.path.dirname(resources), obj['content'], "game.arcd")
             arci = gather_pieces(os.path.dirname(resources), obj['content'], "game.arci")
 
-    with open(output + "/game.projectc", "wb") as o:
-        o.write(project)
+    if output:
+        with open(output + "/game.projectc", "wb") as o:
+            o.write(project)
 
     hash_map = {}
     ddf = resource.liveupdate_ddf_pb2.ManifestFile()
@@ -134,22 +152,29 @@ if __name__ == "__main__":
                     size = uncompressed_size
                 #print("Index found %s %d-%d" % (url, offset, size))
 
-                data = arcd[offset:offset+size]
-                try:
-                    if flags & 1:
-                        #print("encrypted")
-                        xtea_decryptCTR(bytearray(b'aQj8CScgNP4VsfXK'), data)
-                    if compressed_size != -1:
-                        if options.uncompress:
-                            data = lz4.block.decompress(data, uncompressed_size)
-                        else:
-                            url += ".lz4";
+                if output:
+                    data = arcd[offset:offset+size]
+                    try:
+                        if flags & 1:
+                            #print("encrypted")
+                            xtea_decryptCTR(bytearray(b'aQj8CScgNP4VsfXK'), data)
+                        if compressed_size != -1:
+                            if options.uncompress:
+                                data = lz4.block.decompress(data, uncompressed_size)
+                            else:
+                                url += ".lz4";
 
-                except Exception as e:
-                    print("Failed: ", e)
-                    print(traceback.format_exc())
+                    except Exception as e:
+                        print("Failed: ", e)
+                        print(traceback.format_exc())
 
-                output_file = output + url
-                os.makedirs(os.path.dirname(output_file), 0o777, True)
-                with open(output_file, "wb") as o:
-                    o.write(data)
+                    output_file = output + url
+                    os.makedirs(os.path.dirname(output_file), 0o777, True)
+                    with open(output_file, "wb") as o:
+                        o.write(data)
+                elif compressed_size != -1:
+                    print("Found %s %d-%d(%d) [Compressed%s]" % (url, offset, size, compressed_size, " Encrypted" if flags & 1 else ""))
+                else:
+                    print("Found %s %d-%d%s" % (url, offset, size, " [Encrypted]" if flags & 1 else ""))
+
+

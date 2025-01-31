@@ -1,4 +1,4 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -6,7 +6,7 @@
 ;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -2143,7 +2143,7 @@
   (property name g/Str)
   (property gpu-texture TextureLifecycle)
   (output texture-infos GuiResourceTextureInfos (g/fnk [name] (sorted-map name {})))
-  (output texture-page-counts GuiResourcePageCounts (g/fnk [name] (sorted-map name nil))) ; Use a nil texture-page-count to disable validation against the material page count.
+  (output texture-page-counts GuiResourcePageCounts (g/fnk [name] {name nil})) ; Use a nil texture-page-count to disable validation against the material page count.
   (output texture-gpu-textures GuiResourceTextures (g/fnk [name gpu-texture] {name gpu-texture})))
 
 (g/defnk produce-texture-gpu-textures [_node-id texture-names gpu-texture default-tex-params samplers]
@@ -2192,7 +2192,7 @@
   ;; The texture-page-count can be nil, which will disable validation against
   ;; the material page count. We still want an entry in the map since the keys
   ;; are used to validate the texture names.
-  (into (sorted-map)
+  (into {}
         (map (fn [texture-name]
                (pair texture-name texture-page-count)))
         texture-names))
@@ -2548,11 +2548,11 @@
      (g/connect texture :texture-infos self :texture-infos)
      (when (not internal?)
        (concat
-         (g/connect texture :texture-page-counts self :texture-page-counts)
          (g/connect texture :dep-build-targets self :dep-build-targets)
          (g/connect texture :pb-msg self :texture-msgs)
          (g/connect texture :build-errors textures-node :build-errors)
          (g/connect texture :node-outline textures-node :child-outlines)
+         (g/connect texture :texture-page-counts textures-node :texture-page-counts)
          (g/connect texture :name textures-node :names)
          (g/connect textures-node :name-counts texture :name-counts)
          (g/connect self :samplers texture :samplers)
@@ -2574,6 +2574,9 @@
   (output texture-resource-names GuiResourceNames :cached (g/fnk [names] (into (sorted-set) names)))
   (input build-errors g/Any :array)
   (output build-errors g/Any (gu/passthrough build-errors))
+  (input texture-page-counts g/Any :array)
+  (output texture-page-counts g/Any :cached (g/fnk [texture-page-counts]
+                                              (into {} cat texture-page-counts)))
   (output node-outline outline/OutlineData :cached
           (gen-outline-fnk "Textures" "Textures" 1 false [{:node-type TextureNode
                                                            :tx-attach-fn (gen-outline-node-tx-attach-fn attach-texture)}]))
@@ -3227,12 +3230,8 @@
             (into (sorted-set)
                   layout-names)))
 
-  (input texture-page-counts GuiResourcePageCounts :array)
-  (output texture-page-counts GuiResourcePageCounts :cached
-          (g/fnk [texture-page-counts]
-            (into (sorted-map)
-                  cat
-                  texture-page-counts)))
+  (input texture-page-counts GuiResourcePageCounts)
+  (output texture-page-counts GuiResourcePageCounts (gu/passthrough texture-page-counts))
 
   (input texture-resource-names GuiResourceNames)
   (input texture-gpu-textures GuiResourceTextures :array)
@@ -3616,6 +3615,7 @@
                               no-texture [InternalTextureNode
                                           :name ""
                                           :gpu-texture @texture/white-pixel]]
+                    (g/connect textures-node :texture-page-counts self :texture-page-counts)
                     (g/connect textures-node :_node-id self :textures-node) ; for the tests :/
                     (g/connect textures-node :_node-id self :nodes)
                     (g/connect textures-node :build-errors self :build-errors)

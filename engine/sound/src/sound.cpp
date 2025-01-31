@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -170,6 +170,7 @@ namespace dmSound
         float*   m_MixBuffer[SOUND_MAX_MIX_CHANNELS];
         float    m_SumSquaredMemory[SOUND_MAX_MIX_CHANNELS * GROUP_MEMORY_BUFFER_COUNT];
         float    m_PeakMemorySq[SOUND_MAX_MIX_CHANNELS * GROUP_MEMORY_BUFFER_COUNT];
+        uint16_t m_FrameCounts[GROUP_MEMORY_BUFFER_COUNT];
         int      m_NextMemorySlot;
     };
 
@@ -349,6 +350,7 @@ namespace dmSound
 
         sound->m_MixRate = device_info.m_MixRate;
         sound->m_DeviceFrameCount = device_info.m_FrameCount ? device_info.m_FrameCount : params->m_FrameCount;
+        sound->m_FrameCount = 0;
         sound->m_Instances.SetCapacity(max_instances);
         sound->m_Instances.SetSize(max_instances);
         sound->m_InstancesPool.SetCapacity(max_instances);
@@ -821,24 +823,32 @@ namespace dmSound
             return RESULT_NO_SUCH_GROUP;
         }
 
+        if (sound->m_FrameCount == 0)
+        {
+            *rms_left = 0;
+            *rms_right = 0;
+            return RESULT_OK;
+        }
+
         SoundGroup* g = &sound->m_Groups[*index];
         uint32_t rms_frames = (uint32_t) (sound->m_MixRate * window);
         int left = rms_frames;
         int ss_index = (g->m_NextMemorySlot - 1) % GROUP_MEMORY_BUFFER_COUNT;
         float sum_sq_left = 0;
         float sum_sq_right = 0;
-        int count = 0;
+        int total_frame_count = 0;
         while (left > 0) {
             sum_sq_left += g->m_SumSquaredMemory[2 * ss_index + 0];
             sum_sq_right += g->m_SumSquaredMemory[2 * ss_index + 1];
+            uint16_t frame_count = g->m_FrameCounts[ss_index];
 
-            left -= sound->m_FrameCount;
+            left -= frame_count;
+            total_frame_count += frame_count;
             ss_index = (ss_index - 1) % GROUP_MEMORY_BUFFER_COUNT;
-            count++;
         }
 
-        *rms_left = sqrtf(sum_sq_left / (float) (count * sound->m_FrameCount)) / 32767.0f;
-        *rms_right = sqrtf(sum_sq_right / (float) (count * sound->m_FrameCount)) / 32767.0f;
+        *rms_left = sqrtf(sum_sq_left / (float) (total_frame_count)) / 32767.0f;
+        *rms_right = sqrtf(sum_sq_right / (float) (total_frame_count)) / 32767.0f;
 
         return RESULT_OK;
     }
@@ -853,6 +863,13 @@ namespace dmSound
             return RESULT_NO_SUCH_GROUP;
         }
 
+        if (sound->m_FrameCount == 0)
+        {
+            *peak_left = 0;
+            *peak_right = 0;
+            return RESULT_OK;
+        }
+
         SoundGroup* g = &sound->m_Groups[*index];
         uint32_t rms_frames = (uint32_t) (sound->m_MixRate * window);
         int left = rms_frames;
@@ -862,8 +879,9 @@ namespace dmSound
         while (left > 0) {
             max_peak_left_sq = dmMath::Max(max_peak_left_sq, g->m_PeakMemorySq[2 * ss_index + 0]);
             max_peak_right_sq = dmMath::Max(max_peak_right_sq, g->m_PeakMemorySq[2 * ss_index + 1]);
+            uint16_t frame_count = g->m_FrameCounts[ss_index];
 
-            left -= sound->m_FrameCount;
+            left -= frame_count;
             ss_index = (ss_index - 1) % GROUP_MEMORY_BUFFER_COUNT;
         }
 
@@ -1241,6 +1259,7 @@ namespace dmSound
                     break;
                 }
             }
+        }
 
             if (r != dmSoundCodec::RESULT_OK && r != dmSoundCodec::RESULT_END_OF_STREAM)
             {
@@ -1538,11 +1557,11 @@ namespace dmSound
         while (free_slots > 0) {
 
             // Get the number of frames available
-            sound->m_FrameCount = sound->m_DeviceFrameCount;
-            uint32_t frame_count = sound->m_FrameCount;
+            uint32_t frame_count = sound->m_DeviceFrameCount;
             if (sound->m_DeviceType->m_GetAvailableFrames)
                 frame_count = sound->m_DeviceType->m_GetAvailableFrames(sound->m_Device);
 
+            sound->m_FrameCount = frame_count;
             MixContext mix_context(current_buffer, total_buffers, frame_count);
             MixInstances(&mix_context);
 

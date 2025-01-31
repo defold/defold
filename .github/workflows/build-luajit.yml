@@ -5,6 +5,9 @@ on:
 
 jobs:
   build-linux:
+    strategy:
+      matrix:
+        arch: [x86_64-linux] # arm64-linux
     runs-on: ubuntu-20.04
     steps:
     - name: Checkout repo
@@ -13,12 +16,46 @@ jobs:
     - name: Build
       run: |
         cd share/ext/luajit
-        ./build_luajit.sh x86_64-linux
+        ./build_luajit.sh ${{ matrix.arch }}
 
     - name: Archive results
       uses: actions/upload-artifact@v4
       with:
-        name: x86_64-linux-luajit-${{ github.sha }}
+        name: ${{ matrix.arch }}-luajit-${{ github.sha }}
+        path: |
+          ${{ github.workspace }}/share/ext/build/luajit*.tar.gz
+
+
+  build-linux-arm:
+    strategy:
+      matrix:
+        arch: [arm64-linux]
+    runs-on: ubuntu-24.04-arm
+    steps:
+      
+    - name: Add ARM64 architecture and install dependencies
+      run: |
+        sudo dpkg --add-architecture arm64
+        sudo apt update
+        sudo apt install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libc6-dev:arm64 build-essential
+
+    - name: Apply workaround for missing ARM headers
+      run: |
+        cd /usr/include/aarch64-linux-gnu
+        sudo cp -r . ..
+        
+    - name: Checkout repo
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+    - name: Build
+      run: |
+        cd share/ext/luajit
+        ./build_luajit.sh ${{ matrix.arch }}
+
+    - name: Archive results
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.arch }}-luajit-${{ github.sha }}
         path: |
           ${{ github.workspace }}/share/ext/build/luajit*.tar.gz
 
@@ -70,7 +107,7 @@ jobs:
   build-windows:
     strategy:
       matrix:
-        arch: [x64, amd64_x86]
+        arch: [x64, x86]
     runs-on: windows-latest
     steps:
     - name: Checkout repo
@@ -89,7 +126,7 @@ jobs:
       shell: cmd
       run: |
         cd share/ext/luajit
-        ./build_win32.bat
+        ./build_win32.bat ${{ matrix.arch }}
 
     - name: Archive results
       uses: actions/upload-artifact@v4

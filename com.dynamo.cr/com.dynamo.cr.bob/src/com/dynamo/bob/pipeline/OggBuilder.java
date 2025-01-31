@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -27,6 +27,7 @@ import com.dynamo.bob.CopyBuilder;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
 import com.dynamo.bob.Platform;
+import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 
@@ -63,4 +64,16 @@ public class OggBuilder extends CopyBuilder{
         return super.create(input);
     }
 
+    @Override
+    public void build(Task task) throws IOException {
+        super.build(task);
+
+        boolean soundStreaming = project.getProjectProperties().getBooleanValue("sound", "stream_enabled", false); // if no value set use old hardcoded path (backward compatability)
+        boolean compressSounds = soundStreaming ? false : true; // We want to be able to read directly from the files as-is (without compression)
+        for(IResource res : task.getOutputs()) {
+            if (!compressSounds) {
+                project.addOutputFlags(res.getAbsPath(), Project.OutputFlags.UNCOMPRESSED);
+            }
+        }
+    }
 }

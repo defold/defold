@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,6 +15,7 @@
 (ns editor.atlas
   (:require [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.camera :as c]
             [editor.colors :as colors]
             [editor.core :as core]
             [editor.defold-project :as project]
@@ -40,6 +41,7 @@
             [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
             [editor.scene-picking :as scene-picking]
+            [editor.scene-tools :as scene-tools]
             [editor.texture-set :as texture-set]
             [editor.types :as types]
             [editor.validation :as validation]
@@ -58,7 +60,7 @@
            [java.awt.image BufferedImage]
            [java.nio ByteBuffer]
            [java.util List]
-           [javax.vecmath Matrix4d Point3d Vector3d]))
+           [javax.vecmath AxisAngle4d Matrix4d Point3d Vector3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -856,7 +858,7 @@
   (output packed-page-images-generator g/Any   produce-packed-page-images-generator)
 
   (output packed-page-images [BufferedImage]   :cached (g/fnk [packed-page-images-generator] (call-generator packed-page-images-generator)))
-  
+
   (output texture-set-pb   g/Any               :cached produce-atlas-texture-set-pb)
 
   (output aabb             AABB                (g/fnk [layout-size layout-rects]
@@ -866,12 +868,12 @@
                                                      (types/->AABB (Point3d. 0 0 0) (Point3d. w h 0))))))
 
   (output gpu-texture      g/Any               :cached (g/fnk [_node-id packed-page-images texture-profile]
-                                                         (let [page-texture-images
+                                                         (let [page-texture-images+texture-bytes
                                                                (mapv #(tex-gen/make-preview-texture-image % texture-profile)
                                                                      packed-page-images)]
                                                            (texture/texture-images->gpu-texture
                                                              _node-id
-                                                             page-texture-images
+                                                             page-texture-images+texture-bytes
                                                              {:min-filter gl/nearest
                                                               :mag-filter gl/nearest}))))
 
@@ -978,19 +980,6 @@
       (make-image-nodes-in-atlas self image-msgs)
       (map (partial make-atlas-animation self)
            (:animations atlas)))))
-
-(defn register-resource-types [workspace]
-  (resource-node/register-ddf-resource-type workspace
-    :ext "atlas"
-    :label "Atlas"
-    :build-ext "a.texturesetc"
-    :node-type AtlasNode
-    :ddf-type AtlasProto$Atlas
-    :load-fn load-atlas
-    :icon atlas-icon
-    :icon-class :design
-    :view-types [:scene :text]
-    :view-opts {:scene {:grid false}}))
 
 (defn- selection->atlas [selection] (handler/adapt-single selection AtlasNode))
 (defn- selection->animation [selection] (handler/adapt-single selection AtlasAnimation))
@@ -1109,3 +1098,159 @@
                               node-child-index (.indexOf children node-id)]
                           (< node-child-index (dec (.size children)))))
   (run [selection] (move-node! (selection->image selection) 1)))
+
+(defn- snap-axis
+  [^double threshold ^double v]
+  (or (->> [0.0 0.5 1.0]
+           (some (fn [^double snap-value]
+                   (when (< (Math/abs (- v snap-value)) threshold)
+                     snap-value))))
+      v))
+
+(defn- updated-pivot
+  [rect ^Vector3d delta snap-enabled snap-threshold]
+  (let [{:keys [geometry ^double width ^double height]} rect
+        {:keys [rotated ^double pivot-x ^double pivot-y]} geometry
+        pivot-x (+ 0.5 pivot-x)
+        pivot-y (- 0.5 pivot-y)
+        delta-x (/ (cond-> ^double (.x delta) rotated -) width)
+        delta-y (/ ^double (.y delta) height)
+        pivot (if rotated
+                [(- pivot-x delta-y) (+ pivot-y delta-x)]
+                [(+ pivot-x delta-x) (- pivot-y delta-y)])]
+    (cond->> pivot
+      snap-enabled (mapv (partial snap-axis snap-threshold))
+      :always (mapv properties/round-scalar))))
+
+(defn- rect->absolute-pivot-pos
+  [rect]
+  (let [{:keys [geometry ^double x ^double y ^double width ^double height]} rect
+        {:keys [rotated ^double pivot-x ^double pivot-y]} geometry
+        absolute-pivot-x (* pivot-x (if rotated height width))
+        absolute-pivot-y (* pivot-y (if rotated width height))
+        x (+ x (if rotated (- width absolute-pivot-y) absolute-pivot-x))
+        y (+ y (- height (if rotated absolute-pivot-x absolute-pivot-y)))]
+    [x y 0.0]))
+
+(defn- pivot-handle
+  [position]
+  (concat
+    (scene-tools/vtx-add position (scene-tools/vtx-scale [7.0 7.0 1.0] (scene-tools/gen-circle 64)))
+    (scene-tools/vtx-add position (scene-tools/gen-point))))
+
+(defn- action->pos [action ^Vector3d manip-pos manip-dir]
+  (let [{:keys [world-pos world-dir]} action]
+    (math/line-plane-intersection world-pos world-dir manip-pos manip-dir)))
+
+(g/defnk produce-manip-delta
+  [selected-renderables manip-space start-action action]
+  (if (and start-action action)
+    (let [{:keys [world-rotation world-transform]} (peek selected-renderables)
+          manip-origin (math/translation world-transform)
+          manip-rotation (scene-tools/get-manip-rotation manip-space world-rotation)
+          lead-transform (doto (Matrix4d.) (.set manip-origin))
+          manip-dir (math/rotate manip-rotation (Vector3d. 0.0 0.0 1.0))
+          _ (.transform lead-transform manip-dir)
+          _ (.normalize manip-dir)
+          manip-pos (Point3d. (math/translation lead-transform))
+          [start-pos pos] (mapv #(action->pos % manip-pos manip-dir) [start-action action])]
+      (doto (Vector3d.) (.sub pos start-pos)))
+    (Vector3d. 0.0 0.0 0.0)))
+
+(defn- show-pivot? [selected-renderables]
+  (-> selected-renderables util/only :user-data :rect :geometry :pivot-x))
+
+(g/defnk produce-renderables [_node-id manip-space camera viewport selected-renderables manip-delta snap-enabled snap-threshold]
+  (if-not (show-pivot? selected-renderables)
+    {}
+    (let [reference-renderable (last selected-renderables)
+          {:keys [world-rotation]} reference-renderable
+          rect (-> reference-renderable :user-data :rect)
+          [pivot-x pivot-y] (updated-pivot rect manip-delta snap-enabled snap-threshold)
+          rect (-> rect
+                   (assoc-in [:geometry :pivot-x] pivot-x)
+                   (assoc-in [:geometry :pivot-y] pivot-y))
+          pivot-pos (rect->absolute-pivot-pos rect)
+          scale (scene-tools/scale-factor camera viewport (Vector3d. (first pivot-pos) (second pivot-pos) 0.0))
+          world-transform (scene-tools/manip-world-transform reference-renderable manip-space scale)
+          adjusted-pivot-pos (mapv #(/ ^double % scale) pivot-pos)
+          vertices (pivot-handle adjusted-pivot-pos)
+          inv-view (doto (c/camera-view-matrix camera) (.invert))
+          renderables [(scene-tools/gen-manip-renderable _node-id :move-pivot manip-space world-rotation world-transform (AxisAngle4d.) vertices colors/defold-turquoise inv-view)]]
+      {pass/manipulator renderables
+       pass/manipulator-selection renderables})))
+
+(g/defnk produce-scale [selected-renderables camera viewport]
+  (when (show-pivot? selected-renderables)
+    (let [pivot-pos (rect->absolute-pivot-pos (-> selected-renderables util/only :user-data :rect))]
+      (scene-tools/scale-factor camera viewport (Vector3d. (first pivot-pos) (second pivot-pos) 0.0)))))
+
+(defn handle-input [self action selection-data]
+  (case (:type action)
+    :mouse-pressed (if (first (get selection-data self))
+                     (do
+                       (g/transact
+                         (concat
+                           (g/set-property self :start-action action)
+                           (g/set-property self :action action)
+                           (g/set-property self :op-seq (gensym))))
+                       nil)
+                     action)
+    :mouse-released (if (g/node-value self :start-action)
+                      (let [selected-renderables (g/node-value self :selected-renderables)
+                            op-seq (g/node-value self :op-seq)
+                            manip-delta (g/node-value self :manip-delta)
+                            snap-enabled (g/node-value self :snap-enabled)
+                            snap-threshold (g/node-value self :snap-threshold)
+                            reference-renderable (last selected-renderables)
+                            rect (-> reference-renderable :user-data :rect)
+                            pivot (updated-pivot rect manip-delta snap-enabled snap-threshold)]
+                        (g/transact
+                          (concat
+                            (g/operation-label "Move pivot point")
+                            (g/operation-sequence op-seq)
+                            (g/set-property (:node-id reference-renderable) :pivot pivot)))
+                        (g/transact
+                          (g/set-property self :start-action nil))
+                        nil)
+                      action)
+    :mouse-moved (if (g/node-value self :start-action)
+                   (do
+                     (g/transact
+                       (g/set-property self :action action))
+                     nil)
+                   action)
+    action))
+
+(g/defnode AtlasToolController
+  (property prefs g/Any)
+  (property start-action g/Any)
+  (property action g/Any)
+  (property op-seq g/Any)
+
+  (input active-tool g/Keyword)
+  (input manip-space g/Keyword)
+  (input camera g/Any)
+  (input viewport g/Any)
+  (input selected-renderables g/Any)
+
+  (output scale g/Any :cached produce-scale)
+  (output snap-threshold g/Any :cached (g/fnk [scale] (cond-> 0.1 scale (* ^double scale))))
+  (output snap-enabled g/Bool :cached (g/fnk [start-action action] (and start-action (:shift action))))
+  (output manip-delta g/Any :cached produce-manip-delta)
+  (output renderables pass/RenderData :cached produce-renderables)
+  (output input-handler Runnable :cached (g/constantly handle-input))
+  (output info-text g/Str (g/constantly nil)))
+
+(defn register-resource-types [workspace]
+  (resource-node/register-ddf-resource-type workspace
+    :ext "atlas"
+    :label "Atlas"
+    :build-ext "a.texturesetc"
+    :node-type AtlasNode
+    :ddf-type AtlasProto$Atlas
+    :load-fn load-atlas
+    :icon atlas-icon
+    :icon-class :design
+    :view-types [:scene :text]
+    :view-opts {:scene {:tool-controller AtlasToolController}}))

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -87,16 +87,14 @@ public class SupportPath {
     // linux
 
     private static Path getLinuxSupportPath(String applicationName) {
-        final String userHome = System.getProperty("user.home");
-        if (userHome == null) {
-            return null;
-        }
-        final Path home = Paths.get(userHome);
-        if (Files.isDirectory(home)) {
-            return home.resolve("." + applicationName);
+        final String xdgStateHome = System.getenv("XDG_STATE_HOME");
+        if (xdgStateHome != null) {
+            // 1. $XDG_STATE_HOME
+            return Path.of(xdgStateHome, applicationName);
         }
 
-        return null;
+        // 2. ~/.local/state
+        return Path.of(System.getProperty("user.home"), ".local", "state", applicationName);
     }
 
     public static void main(String[] args) {

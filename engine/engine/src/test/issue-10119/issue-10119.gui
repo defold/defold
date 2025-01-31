@@ -1,0 +1,22 @@
+textures {
+  name: "mega"
+  texture: "/issue-10119/issue-10119.atlas"
+}
+nodes {
+  position {
+    x: 529.0
+    y: 336.0
+  }
+  scale {
+    x: 0.5
+    y: 0.5
+    z: 0.5
+  }
+  type: TYPE_BOX
+  texture: "mega/logo_blue_512"
+  id: "box"
+  inherit_alpha: true
+  size_mode: SIZE_MODE_AUTO
+}
+material: "/builtins/materials/gui.material"
+adjust_reference: ADJUST_REFERENCE_PARENT

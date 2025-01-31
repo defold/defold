@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -57,6 +57,7 @@ protected:
         params.m_Height = HEIGHT;
         params.m_Fullscreen = false;
         params.m_PrintDeviceInfo = false;
+        params.m_ContextAlphabits = 8;
 
         dmPlatform::OpenWindow(m_Window, params);
     }
@@ -75,6 +76,7 @@ TEST_F(dmPlatformTest, DoubleOpenWindow)
     params.m_Height = HEIGHT;
     params.m_Fullscreen = false;
     params.m_PrintDeviceInfo = false;
+    params.m_ContextAlphabits = 8;
 
     ASSERT_EQ(dmPlatform::PLATFORM_RESULT_WINDOW_ALREADY_OPENED, dmPlatform::OpenWindow(m_Window, params));
 }
@@ -94,6 +96,7 @@ TEST_F(dmPlatformTest, CloseOpenWindow)
     params.m_Height = HEIGHT;
     params.m_Fullscreen = false;
     params.m_PrintDeviceInfo = true;
+    params.m_ContextAlphabits = 8;
     dmLogSetLevel(LOG_SEVERITY_INFO);
 
     ASSERT_EQ(dmPlatform::PLATFORM_RESULT_OK, dmPlatform::OpenWindow(m_Window, params));

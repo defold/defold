@@ -710,7 +710,7 @@
    :path ["android" "minimum_sdk_version"]}
   {:type :integer,
    :help "the API Level that the application targets (android:targetSdkVersion)",
-   :default 34,
+   :default 35,
    :minimum 19,
    :path ["android" "target_sdk_version"]}
   {:type :string,
@@ -890,6 +890,10 @@
    :help "pause in seconds before retry file loading after error",
    :default 1.0,
    :path ["html5" "retry_time"]}
+  {:type :boolean,
+   :help "set to true if you want graphics context has transparent backdrop",
+   :default false,
+   :path ["html5" "transparent_graphics_context"]}
   {:type :resource,
    :filter "appmanifest",
    :preserve-extension true,

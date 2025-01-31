@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -30,6 +30,7 @@ dmResource::Result DoLoadResource(dmResource::HFactory factory, HRequest request
     result->m_LoadResult = dmResource::LoadResourceToBuffer(factory, request->m_CanonicalPath, request->m_Name, preload_size, &request->m_ResourceSize, &request->m_BufferSize, buffer);
     result->m_PreloadResult = dmResource::RESULT_PENDING;
     result->m_PreloadData   = 0;
+    result->m_IsBufferOwnershipTransferred = false;
 
     if (result->m_LoadResult == dmResource::RESULT_OK)
     {
@@ -46,14 +47,20 @@ dmResource::Result DoLoadResource(dmResource::HFactory factory, HRequest request
         if (request->m_PreloadInfo.m_CompleteFunction)
         {
             ResourcePreloadParams params;
-            params.m_Factory        = factory;
-            params.m_Context        = request->m_PreloadInfo.m_Context;
-            params.m_Buffer         = buffer->Begin();
-            params.m_BufferSize     = request->m_BufferSize;
-            params.m_FileSize       = request->m_ResourceSize;
-            params.m_IsBufferPartial= request->m_BufferSize != request->m_ResourceSize;
-            params.m_HintInfo       = &request->m_PreloadInfo.m_HintInfo;
-            params.m_PreloadData    = &result->m_PreloadData;
+            params.m_Factory                = factory;
+            params.m_Context                = request->m_PreloadInfo.m_Context;
+            params.m_Buffer                 = buffer->Begin();
+            params.m_BufferSize             = request->m_BufferSize;
+            params.m_FileSize               = request->m_ResourceSize;
+            params.m_IsBufferPartial        = request->m_BufferSize != request->m_ResourceSize;
+            params.m_IsBufferTransferrable  = 1;
+            params.m_Filename               = request->m_CanonicalPath;
+            params.m_HintInfo               = &request->m_PreloadInfo.m_HintInfo;
+
+            // out
+            params.m_PreloadData = &result->m_PreloadData;
+            params.m_IsBufferOwnershipTransferred = &result->m_IsBufferOwnershipTransferred;
+
             result->m_PreloadResult = (dmResource::Result)request->m_PreloadInfo.m_CompleteFunction(&params);
         }
         else

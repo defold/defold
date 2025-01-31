@@ -1,4 +1,4 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -31,6 +31,7 @@
   (:refer-clojure :exclude [read])
   (:require [clojure.java.io :as io])
   (:import [clojure.lang IReduceInit Named]
+           [java.net URI]
            [java.nio.charset StandardCharsets]
            [java.util List Map Set]
            [java.util.concurrent.locks ReentrantLock]
@@ -171,7 +172,8 @@
           (fn [^LuaTable acc k v]
             (cond-> acc (and (some? k) (some? v)) (doto (.hashset (->lua k) (->lua v)))))
           (LuaTable. 0 (count x))
-          x)))
+          x))
+  URI (->lua [x] (LuaString/valueOf (str x))))
 
 (extend-protocol ->Varargs
   ;; all lua values are singleton varargs

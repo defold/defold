@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -190,49 +190,57 @@
 (defn- mark-input-activated
   [ctx node-id input-label]
   ;; This gets called a lot, so we're trying to keep allocations to a minimum.
-  (let [basis (:basis ctx)
-        dirty-deps (-> (gt/node-by-id-at basis node-id)
-                       gt/node-type
-                       in/input-dependencies
-                       (get input-label))
-        nodes-affected (:nodes-affected ctx)]
-    (assoc ctx
-      :nodes-affected
-      (into nodes-affected
-            (map #(gt/endpoint node-id %))
-            dirty-deps))))
+  (if-not (:track-changes ctx)
+    ctx
+    (let [basis (:basis ctx)
+          dirty-deps (-> (gt/node-by-id-at basis node-id)
+                         gt/node-type
+                         in/input-dependencies
+                         (get input-label))
+          nodes-affected (:nodes-affected ctx)]
+      (assoc ctx
+        :nodes-affected
+        (into nodes-affected
+              (map #(gt/endpoint node-id %))
+              dirty-deps)))))
 
 (defn- mark-output-activated
   [ctx node-id output-label]
   ;; This gets called a lot, so we're trying to keep allocations to a minimum.
-  (let [nodes-affected (:nodes-affected ctx)]
-    (assoc ctx
-      :nodes-affected
-      (conj nodes-affected (gt/endpoint node-id output-label)))))
+  (if-not (:track-changes ctx)
+    ctx
+    (let [nodes-affected (:nodes-affected ctx)]
+      (assoc ctx
+        :nodes-affected
+        (conj nodes-affected (gt/endpoint node-id output-label))))))
 
 (defn- mark-outputs-activated
   [ctx node-id output-labels]
   ;; This gets called a lot, so we're trying to keep allocations to a minimum.
-  (let [nodes-affected (:nodes-affected ctx)]
-    (assoc ctx
-      :nodes-affected
-      (into nodes-affected
-            (map #(gt/endpoint node-id %))
-            output-labels))))
+  (if-not (:track-changes ctx)
+    ctx
+    (let [nodes-affected (:nodes-affected ctx)]
+      (assoc ctx
+        :nodes-affected
+        (into nodes-affected
+              (map #(gt/endpoint node-id %))
+              output-labels)))))
 
 (defn- mark-all-outputs-activated
   [ctx node-id]
   ;; This gets called a lot, so we're trying to keep allocations to a minimum.
-  (let [basis (:basis ctx)
-        output-labels (-> (gt/node-by-id-at basis node-id)
-                          gt/node-type
-                          in/output-labels)
-        nodes-affected (:nodes-affected ctx)]
-    (assoc ctx
-      :nodes-affected
-      (into nodes-affected
-            (map #(gt/endpoint node-id %))
-            output-labels))))
+  (if-not (:track-changes ctx)
+    ctx
+    (let [basis (:basis ctx)
+          output-labels (-> (gt/node-by-id-at basis node-id)
+                            gt/node-type
+                            in/output-labels)
+          nodes-affected (:nodes-affected ctx)]
+      (assoc ctx
+        :nodes-affected
+        (into nodes-affected
+              (map #(gt/endpoint node-id %))
+              output-labels)))))
 
 (defn- next-node-id [ctx graph-id]
   (is/next-node-id* (:node-id-generators ctx) graph-id))
@@ -821,9 +829,8 @@
 
 (defmethod perform :update-graph-value
   [ctx {:keys [graph-id fn args]}]
-  (-> ctx
-      (update-in [:basis :graphs graph-id :graph-values] #(apply fn % args))
-      (update :graphs-modified conj graph-id)))
+  (cond-> (update-in ctx [:basis :graphs graph-id :graph-values] #(apply fn % args))
+          (:track-changes ctx) (update :graphs-modified conj graph-id)))
 
 (defmethod metrics-key :update-graph-value
   [{:keys [graph-id]}]
@@ -910,11 +917,11 @@
   [{:keys [nodes-modified graphs-modified tx-data-context] :as ctx}]
   (-> (select-keys ctx tx-report-keys)
       (assoc :status (if (zero? (:completed-action-count ctx)) :empty :ok)
-             :graphs-modified (into graphs-modified (map gt/node-id->graph-id nodes-modified))
+             :graphs-modified (into graphs-modified (map gt/node-id->graph-id) nodes-modified)
              :tx-data-context-map (deref tx-data-context))))
 
 (defn new-transaction-context
-  [basis node-id-generators override-id-generator tx-data-context-map metrics-collector]
+  [basis node-id-generators override-id-generator tx-data-context-map metrics-collector track-changes]
   {:pre [(map? tx-data-context-map)]}
   {:basis basis
    :nodes-affected #{}
@@ -931,8 +938,8 @@
    :completed-action-count 0
    :txid (new-txid)
    :tx-data-context (atom tx-data-context-map)
-   :deferred-setters []
-   :metrics metrics-collector})
+   :metrics metrics-collector
+   :track-changes track-changes})
 
 (defn- update-overrides
   [{:keys [override-nodes-affected-ordered] :as ctx}]

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -40,10 +40,9 @@ namespace dmGraphics
     static GraphicsAdapterFunctionTable VulkanRegisterFunctionTable();
     static bool                         VulkanIsSupported();
     static HContext                     VulkanGetContext();
-    static const int8_t    g_vulkan_adapter_priority = 0;
     static GraphicsAdapter g_vulkan_adapter(ADAPTER_FAMILY_VULKAN);
 
-    DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterVulkan, &g_vulkan_adapter, VulkanIsSupported, VulkanRegisterFunctionTable, VulkanGetContext, g_vulkan_adapter_priority);
+    DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterVulkan, &g_vulkan_adapter, VulkanIsSupported, VulkanRegisterFunctionTable, VulkanGetContext, ADAPTER_FAMILY_PRIORITY_VULKAN);
 
     static const char* VkResultToStr(VkResult res);
     #define CHECK_VK_ERROR(result) \
@@ -142,18 +141,6 @@ namespace dmGraphics
     static inline bool IsTextureMemoryless(VulkanTexture* texture)
     {
         return texture->m_UsageFlags & VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
-    }
-
-    static inline uint32_t GetNextRenderTargetId()
-    {
-        static uint32_t next_id = 1;
-
-        // DM_RENDERTARGET_BACKBUFFER_ID is taken for the main framebuffer
-        if (next_id == DM_RENDERTARGET_BACKBUFFER_ID)
-        {
-            next_id = DM_RENDERTARGET_BACKBUFFER_ID + 1;
-        }
-        return next_id++;
     }
 
     static inline bool IsRenderTargetbound(VulkanContext* context, HRenderTarget rt)

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -47,6 +47,7 @@ namespace dmLoadQueue
         dmResource::Result m_LoadResult;
         dmResource::Result m_PreloadResult;
         void* m_PreloadData;
+        bool m_IsBufferOwnershipTransferred; // If true, the resource preloader has taken ownership of the data
     };
 
     HQueue CreateQueue(dmResource::HFactory factory);

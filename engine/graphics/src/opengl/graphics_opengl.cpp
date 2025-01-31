@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -410,10 +410,9 @@ static void LogFrameBufferError(GLenum status)
     static GraphicsAdapterFunctionTable OpenGLRegisterFunctionTable();
     static bool                         OpenGLIsSupported();
     static HContext                     OpenGLGetContext();
-    static int8_t          g_null_adapter_priority = 1;
     static GraphicsAdapter g_opengl_adapter(ADAPTER_FAMILY_OPENGL);
 
-    DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterOpenGL, &g_opengl_adapter, OpenGLIsSupported, OpenGLRegisterFunctionTable, OpenGLGetContext, g_null_adapter_priority);
+    DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterOpenGL, &g_opengl_adapter, OpenGLIsSupported, OpenGLRegisterFunctionTable, OpenGLGetContext, ADAPTER_FAMILY_PRIORITY_OPENGL);
 
     static void PostDeleteTextures(OpenGLContext*, bool);
     static bool OpenGLInitialize(HContext context, const ContextParams& params);
@@ -2506,8 +2505,6 @@ static void LogFrameBufferError(GLenum status)
         {
             // These should be null-terminated
             char* namespace_path = context.Namespace(i);
-            uint32_t namespace_path_len = strlen(namespace_path);
-
             if (namespace_path && strcmp(namespace_path, canonical_name_buffer) == 0)
             {
                 // Matching namespace found
