@@ -293,6 +293,7 @@ namespace dmSoundCodec
 
                             streamInfo->m_Info.m_Channels = opusHead[9];
                             streamInfo->m_Info.m_BitsPerSample = 16;
+                            streamInfo->m_Info.m_IsInterleaved  = true;
 
                             static const uint16_t rates[] = {8000, 12000, 16000, 24000, 48000, 0};
 
@@ -361,7 +362,7 @@ namespace dmSoundCodec
         return RESULT_OK;
     }
 
-    static Result OpusDecode(HDecodeStream stream, char* buffer, uint32_t buffer_size, uint32_t* decoded)
+    static Result OpusDecode(HDecodeStream stream, char* buffer[], uint32_t buffer_size, uint32_t* decoded)
     {
 //SAMPLE SCALE! (DO WE REALLY ENCOUNTER != 1.0?)
 //SIMD / PLATFORM SUPPORT (& profile)
@@ -410,7 +411,7 @@ namespace dmSoundCodec
 
                 // This might be called with a NULL buffer to avoid delivering data, so we need to check...
                 if (buffer) {
-                    memcpy((short*)buffer + done_frames * streamInfo->m_Info.m_Channels, streamInfo->m_LastOutput.Begin() + stride * streamInfo->m_LastOutputOffset, out_frames * stride);
+                    memcpy((short*)buffer[0] + done_frames * streamInfo->m_Info.m_Channels, streamInfo->m_LastOutput.Begin() + stride * streamInfo->m_LastOutputOffset, out_frames * stride);
                 }
 
                 done_frames += out_frames;
