@@ -1169,7 +1169,7 @@ namespace dmSound
 
         // Compute how many input samples we will need to produce the requested output samples
         uint64_t delta = (uint64_t)(((float)(info.m_Rate << RESAMPLE_FRACTION_BITS) / sound->m_MixRate) * instance->m_Speed);
-        uint32_t mixed_instance_FrameCount = (uint32_t)((instance->m_FrameFraction + mix_context->m_FrameCount * delta + ((1UL << RESAMPLE_FRACTION_BITS) - 1)) >> RESAMPLE_FRACTION_BITS) + SOUND_MAX_FUTURE;
+        uint32_t mixed_instance_frame_count = (uint32_t)((instance->m_FrameFraction + mix_context->m_FrameCount * delta + ((1UL << RESAMPLE_FRACTION_BITS) - 1)) >> RESAMPLE_FRACTION_BITS) + SOUND_MAX_FUTURE;
 
         // Compute initial amount of samples in temp buffer once we restore per instance state prior to actual mixing
         uint32_t initial_frame_count = (instance->m_FrameCount > SOUND_MAX_HISTORY) ? (instance->m_FrameCount - SOUND_MAX_HISTORY) : 0;
@@ -1181,13 +1181,13 @@ namespace dmSound
         //
         // Refill as needed...
         //
-        if (frame_count < mixed_instance_FrameCount && instance->m_Playing) {
+        if (frame_count < mixed_instance_frame_count && instance->m_Playing) {
 
             const uint32_t stride = info.m_Channels * (info.m_BitsPerSample / 8);
 
-            while(frame_count < mixed_instance_FrameCount)
+            while(frame_count < mixed_instance_frame_count)
             {
-                uint32_t n = mixed_instance_FrameCount - frame_count; // if the result contains a fractional part and we don't ceil(), we'll end up with a smaller number. Later, when deciding the mix_count in Mix(), a smaller value (integer) will be produced. This will result in leaving a small gap in the mix buffer resulting in sound crackling when the chunk changes.
+                uint32_t n = mixed_instance_frame_count - frame_count; // if the result contains a fractional part and we don't ceil(), we'll end up with a smaller number. Later, when deciding the mix_count in Mix(), a smaller value (integer) will be produced. This will result in leaving a small gap in the mix buffer resulting in sound crackling when the chunk changes.
 
                 char* buffer[SOUND_MAX_DECODE_CHANNELS];
                 uint32_t buffer_size;
@@ -1337,11 +1337,11 @@ namespace dmSound
             //
             // Ensure proper "future" data (close to end of stream)
             //
-            if (frame_count < mixed_instance_FrameCount)
+            if (frame_count < mixed_instance_frame_count)
             {
                 // We generated fewer samples then we asked for. Make sure we can still mix all "real" samples, by ensuring we have enough "future" sample values in any case
                 // (should only trigger at the end of samples)
-                uint32_t missing_frames = dmMath::Min(mixed_instance_FrameCount - frame_count, (uint32_t)SOUND_MAX_FUTURE);
+                uint32_t missing_frames = dmMath::Min(mixed_instance_frame_count - frame_count, (uint32_t)SOUND_MAX_FUTURE);
 
                 for(uint32_t c=0; c<info.m_Channels; ++c)
                 {
@@ -1383,11 +1383,12 @@ namespace dmSound
                 float max_sq_left;
                 float max_sq_right;
                 GatherPowerData(g->m_MixBuffer, frame_count, g->m_Gain.m_Current, sum_sq_left, sum_sq_right, max_sq_left, max_sq_right);
-                g->m_SumSquaredMemory[2 * g->m_NextMemorySlot + 0] = sum_sq_left;
-                g->m_SumSquaredMemory[2 * g->m_NextMemorySlot + 1] = sum_sq_right;
-                g->m_PeakMemorySq[2 * g->m_NextMemorySlot + 0] = max_sq_left;
-                g->m_PeakMemorySq[2 * g->m_NextMemorySlot + 1] = max_sq_right;
-                g->m_NextMemorySlot = (g->m_NextMemorySlot + 1) % GROUP_MEMORY_BUFFER_COUNT;
+                int next_memory_slot = g->m_NextMemorySlot; 
+                g->m_SumSquaredMemory[2 * next_memory_slot + 0] = sum_sq_left;
+                g->m_SumSquaredMemory[2 * next_memory_slot + 1] = sum_sq_right;
+                g->m_PeakMemorySq[2 * next_memory_slot + 0] = max_sq_left;
+                g->m_PeakMemorySq[2 * next_memory_slot + 1] = max_sq_right;
+                g->m_NextMemorySlot = (next_memory_slot + 1) % GROUP_MEMORY_BUFFER_COUNT;
 
                 memset(g->m_MixBuffer[0], 0, frame_count * sizeof(float));
                 memset(g->m_MixBuffer[1], 0, frame_count * sizeof(float));
