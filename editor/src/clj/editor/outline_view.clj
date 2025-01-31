@@ -28,7 +28,7 @@
            [javafx.scene Node]
            [javafx.scene.control SelectionMode TreeItem TreeView ToggleButton Label]
            [javafx.scene.input Clipboard DataFormat DragEvent MouseEvent TransferMode]
-           [javafx.scene.layout HBox AnchorPane]
+           [javafx.scene.layout AnchorPane HBox]
            [javafx.util Callback]))
 
 (set! *warn-on-reflection* true)
@@ -459,6 +459,15 @@
       (ui/cancel future)
       (ui/user-data! cell :future-expand nil))))
 
+(defn- visibility-toggled! [^MouseEvent event]
+  (let [^TreeCell cell (target (.getTarget event))
+        ^TreeView tree-view (.getTreeView cell) 
+        selection-model (.getSelectionModel tree-view)]
+    (.clearSelection selection-model)
+    (.select selection-model (.getRow tree-view (.getTreeItem cell)))
+    (ui/run-command (.getSource event) :hide-toggle-selected :workbench)
+    (.consume event)))
+
 (defn make-tree-cell
   [^TreeView tree-view drag-entered-handler drag-exited-handler]
   (let [cell (proxy [TreeCell] []
@@ -477,20 +486,27 @@
                                     (icons/get-image-view 16))
                            show-link? (and (some? link)
                                            (or outline-reference? outline-show-link?))
-                           label (Label. (if show-link? (format "%s - %s" label (resource/resource->proj-path link)) label))
-
-                           button (doto (ToggleButton.)
-                                    (ui/add-style! "visibility-toggle")
-                                    (.setOnAction (ui/event-handler e (ui/run-command (.getSource e) :hide-toggle-selected :workbench)))
-                                    (.setGraphic (doto (app-view/make-svg-icon-graphic (ui/load-svg-path "scene/images/eye_icon_eye_arrow.svg"))
-                                                   (.setId "eye-icon")))
-                                    (AnchorPane/setRightAnchor 0.0))
-                           h-box (HBox. 5 (ui/node-array [icon label]))
-                           pane (doto (AnchorPane. (ui/node-array [h-box (when scene-visibility button)]))
+                           text (if show-link? (format "%s - %s" label (resource/resource->proj-path link)) label)
+                           label (Label. text)
+                           has-visibility? true ; TODO: Implement visibility
+                           eye-icon-path (if (= :hidden scene-visibility)
+                                           "scene/images/eye_closed.svg"
+                                           "scene/images/eye_open.svg")
+                           eye-icon (app-view/make-svg-icon-graphic (ui/load-svg-path eye-icon-path))
+                           visibility-toggle (doto (ToggleButton.)
+                                               (ui/add-style! "visibility-toggle")
+                                               (.setGraphic eye-icon)
+                                               (ui/on-action! visibility-toggled!)
+                                               (AnchorPane/setRightAnchor 0.0))
+                           h-box (doto (HBox. 5 (ui/node-array [icon label]))
+                                   (.setPrefWidth 0)
+                                   (AnchorPane/setRightAnchor 0.0)
+                                   (AnchorPane/setLeftAnchor 0.0))
+                           pane (doto (AnchorPane. (ui/node-array (cond-> [h-box] has-visibility? (conj visibility-toggle))))
                                   (ui/add-style! "anchor-pane"))]
                        (proxy-super setGraphic pane)
                        (when-let [[r g b a] color]
-                         (proxy-super setStyle (format "-fx-text-fill: rgba(%d, %d, %d %d);" (int (* 255 r)) (int (* 255 g)) (int (* 255 b))(int (* 255 a)))))
+                         (proxy-super setStyle (format "-fx-text-fill: rgba(%d, %d, %d %d);" (int (* 255 r)) (int (* 255 g)) (int (* 255 b)) (int (* 255 a)))))
                        (if parent-reference?
                          (ui/add-style! this "parent-reference")
                          (ui/remove-style! this "parent-reference"))

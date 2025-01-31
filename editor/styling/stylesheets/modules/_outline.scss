@@ -46,8 +46,6 @@
 
 #outline {
   .tree-cell {
-    -fx-pref-width: 0;
-
     &.reference {
       .text {
         -fx-font-style: italic;
@@ -90,6 +88,14 @@
 
       SVGPath {
         -fx-fill: -df-text-dark;
+      }
+
+      &:hover, 
+      &:pressed, 
+      &:focused {
+        SVGPath {
+          -fx-fill: -df-text-light;
+        }
       }
     }
 
