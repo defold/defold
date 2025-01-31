@@ -99,9 +99,15 @@ namespace dmSoundCodec
 
     static void ConvertDecoderOutput(uint32_t channels, char *out[], uint32_t out_offset, float **data, uint32_t in_offset, uint32_t frames)
     {
+        // Copy out data from Vorbis internal buffer & scale it up from normalized representation to fit the mixer's expectations
         for(uint32_t c=0; c<channels; ++c)
         {
-            memcpy(out[c] + sizeof(float) * out_offset, data[c] + in_offset, frames * sizeof(float));
+            const float* src = data[c] + in_offset;
+            float* dest = (float*)out[c] + out_offset;
+            for(uint32_t i=0; i<frames; ++i)
+            {
+                *(dest++) = *(src++) * 32767.0f;
+            }
         }
     }
 
