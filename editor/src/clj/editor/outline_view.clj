@@ -460,7 +460,7 @@
       (ui/cancel future)
       (ui/user-data! cell :future-expand nil))))
 
-(defn- visibility-toggled! [^MouseEvent event]
+(defn- toggle-visibility! [^MouseEvent event]
   (let [^TreeCell cell (target (.getTarget event))
         ^TreeView tree-view (.getTreeView cell) 
         selection-model (.getSelectionModel tree-view)]
@@ -479,16 +479,16 @@
         image-view-icon (doto (ImageView.)
                           (.setFitWidth 16)
                           (.setFitHeight 16))
-        visibility-toggle (doto (ToggleButton.)
+        visibility-button (doto (ToggleButton.)
                             (ui/add-style! "visibility-toggle")
-                            (ui/on-action! visibility-toggled!)
+                            (ui/on-action! toggle-visibility!)
                             (AnchorPane/setRightAnchor 0.0))
         text-label (Label.)
         h-box (doto (HBox. 5 (ui/node-array [image-view-icon text-label]))
                 (.setPrefWidth 0)
                 (AnchorPane/setRightAnchor 0.0)
                 (AnchorPane/setLeftAnchor 0.0))
-        pane (doto (AnchorPane. (ui/node-array [h-box visibility-toggle]))
+        pane (doto (AnchorPane. (ui/node-array [h-box visibility-button]))
                (ui/add-style! "anchor-pane"))
         cell (proxy [TreeCell] []
                (updateItem [item empty]
@@ -506,10 +506,10 @@
                            show-link? (and (some? link)
                                            (or outline-reference? outline-show-link?))
                            text (if show-link? (format "%s - %s" label (resource/resource->proj-path link)) label)
-                           visibility-icon (if (= :hidden scene-visibility) eye-icon-open eye-icon-closed)]
+                           visibility-icon (if (= :hidden scene-visibility) eye-icon-closed eye-icon-open)]
                        (.setImage image-view-icon (icons/get-image icon))
                        (.setText text-label text)
-                       (.setGraphic visibility-toggle visibility-icon)
+                       (.setGraphic visibility-button visibility-icon)
                        (proxy-super setGraphic pane)
                        (when-let [[r g b a] color]
                          (proxy-super setStyle (format "-fx-text-fill: rgba(%d, %d, %d %d);" (int (* 255 r)) (int (* 255 g)) (int (* 255 b)) (int (* 255 a)))))

@@ -82,9 +82,10 @@
 
     .visibility-toggle {
       visibility: hidden;
-      -fx-padding: 0 2;
+      -fx-padding: 0 2px;
       -fx-background-color: -df-background-light;
       -fx-border-width: 0;
+      -fx-min-height: 16px;
 
       SVGPath {
         -fx-fill: -df-text-dark;
@@ -106,7 +107,7 @@
     }
 
     .label {
-      -fx-text-overrun: leading-ellipsis;
+      -fx-text-overrun: ellipsis;
     }
 
     &.scene-visibility-hidden {
