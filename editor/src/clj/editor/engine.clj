@@ -15,11 +15,11 @@
 (ns editor.engine
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
+            [clojure.data.json :as json]
             [editor.code.util :refer [split-lines]]
             [editor.engine.native-extensions :as native-extensions]
             [editor.fs :as fs]
             [editor.prefs :as prefs]
-            [editor.process :as process]
             [editor.process :as process]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -82,6 +82,15 @@
                                        height)})))
       (with-open [is (.getInputStream conn)]
         (ignore-all-output is))
+      (finally
+        (.disconnect conn)))))
+
+(defn get-engine-state! [target]
+  (let [uri (URI. (str (:url target) "/state"))
+        conn ^HttpURLConnection (get-connection uri)]
+    (try
+      (with-open [is (.getInputStream conn)]
+        (json/read-str (slurp is) :key-fn keyword))  ;; Read and return the response
       (finally
         (.disconnect conn)))))
 
