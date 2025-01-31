@@ -27,6 +27,7 @@
            [javafx.event Event]
            [javafx.scene Node]
            [javafx.scene.control SelectionMode TreeItem TreeView ToggleButton Label]
+           [javafx.scene.image ImageView]
            [javafx.scene.input Clipboard DataFormat DragEvent MouseEvent TransferMode]
            [javafx.scene.layout AnchorPane HBox]
            [javafx.util Callback]))
@@ -468,9 +469,28 @@
     (ui/run-command (.getSource event) :hide-toggle-selected :workbench)
     (.consume event)))
 
+(def eye-open-path (ui/load-svg-path "scene/images/eye_open.svg"))
+(def eye-closed-path (ui/load-svg-path "scene/images/eye_closed.svg"))
+
 (defn make-tree-cell
   [^TreeView tree-view drag-entered-handler drag-exited-handler]
-  (let [cell (proxy [TreeCell] []
+  (let [eye-icon-open (app-view/make-svg-icon-graphic eye-open-path)
+        eye-icon-closed (app-view/make-svg-icon-graphic eye-closed-path)
+        image-view-icon (doto (ImageView.)
+                          (.setFitWidth 16)
+                          (.setFitHeight 16))
+        visibility-toggle (doto (ToggleButton.)
+                            (ui/add-style! "visibility-toggle")
+                            (ui/on-action! visibility-toggled!)
+                            (AnchorPane/setRightAnchor 0.0))
+        text-label (Label.)
+        h-box (doto (HBox. 5 (ui/node-array [image-view-icon text-label]))
+                (.setPrefWidth 0)
+                (AnchorPane/setRightAnchor 0.0)
+                (AnchorPane/setLeftAnchor 0.0))
+        pane (doto (AnchorPane. (ui/node-array [h-box visibility-toggle]))
+               (ui/add-style! "anchor-pane"))
+        cell (proxy [TreeCell] []
                (updateItem [item empty]
                  (let [this ^TreeCell this]
                    (proxy-super updateItem item empty)
@@ -482,28 +502,14 @@
                        (proxy-super setContextMenu nil)
                        (proxy-super setStyle nil))
                      (let [{:keys [label icon link color outline-error? outline-overridden? outline-reference? outline-show-link? parent-reference? child-error? child-overridden? scene-visibility]} item
-                           icon (-> (if outline-error? "icons/32/Icons_E_02_error.png" icon)
-                                    (icons/get-image-view 16))
+                           icon (if outline-error? "icons/32/Icons_E_02_error.png" icon)
                            show-link? (and (some? link)
                                            (or outline-reference? outline-show-link?))
                            text (if show-link? (format "%s - %s" label (resource/resource->proj-path link)) label)
-                           label (Label. text)
-                           has-visibility? true ; TODO: Implement visibility
-                           eye-icon-path (if (= :hidden scene-visibility)
-                                           "scene/images/eye_closed.svg"
-                                           "scene/images/eye_open.svg")
-                           eye-icon (app-view/make-svg-icon-graphic (ui/load-svg-path eye-icon-path))
-                           visibility-toggle (doto (ToggleButton.)
-                                               (ui/add-style! "visibility-toggle")
-                                               (.setGraphic eye-icon)
-                                               (ui/on-action! visibility-toggled!)
-                                               (AnchorPane/setRightAnchor 0.0))
-                           h-box (doto (HBox. 5 (ui/node-array [icon label]))
-                                   (.setPrefWidth 0)
-                                   (AnchorPane/setRightAnchor 0.0)
-                                   (AnchorPane/setLeftAnchor 0.0))
-                           pane (doto (AnchorPane. (ui/node-array (cond-> [h-box] has-visibility? (conj visibility-toggle))))
-                                  (ui/add-style! "anchor-pane"))]
+                           visibility-icon (if (= :hidden scene-visibility) eye-icon-open eye-icon-closed)]
+                       (.setImage image-view-icon (icons/get-image icon))
+                       (.setText text-label text)
+                       (.setGraphic visibility-toggle visibility-icon)
                        (proxy-super setGraphic pane)
                        (when-let [[r g b a] color]
                          (proxy-super setStyle (format "-fx-text-fill: rgba(%d, %d, %d %d);" (int (* 255 r)) (int (* 255 g)) (int (* 255 b)) (int (* 255 a)))))
