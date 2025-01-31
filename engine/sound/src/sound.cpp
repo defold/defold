@@ -1259,7 +1259,6 @@ namespace dmSound
                     break;
                 }
             }
-        }
 
             if (r != dmSoundCodec::RESULT_OK && r != dmSoundCodec::RESULT_END_OF_STREAM)
             {
