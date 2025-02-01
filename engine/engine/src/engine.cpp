@@ -1495,6 +1495,10 @@ namespace dmEngine
         if (engine->m_EngineService)
         {
             dmEngineService::InitProfiler(engine->m_EngineService, engine->m_Factory, engine->m_Register);
+            
+            dmEngineService::EngineState state;  
+            state.m_ConnectionAppMode = engine->m_ConnectionAppMode;
+            dmEngineService::InitState(engine->m_EngineService, &state);
         }
 
         {

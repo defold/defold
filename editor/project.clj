@@ -208,8 +208,9 @@
                       :smoke-test {:jvm-opts ["-Ddefold.smoke.log=true"]}
                       :cache-libraries {:jvm-opts ["-Ddefold.cache.libraries=true"]}
                       :reveal {:source-paths ["src/reveal"]
+                               :jvm-opts ["-Djol.magicFieldOffset=true" "-XX:+EnableDynamicAgentLoading"]
                                :injections [(require 'editor.reveal)]
-                               :dependencies [[vlaaad/reveal "1.3.280"]]}
+                               :dependencies [[vlaaad/reveal "1.3.284"]]}
                       :metrics {:jvm-opts ["-Ddefold.metrics=true"]}
                       :jamm {:dependencies [[com.github.jbellis/jamm "0.4.0"]]
                              :jvm-opts [~(str "-javaagent:"
@@ -224,6 +225,7 @@
                       :no-schemas {:jvm-opts ["-Ddefold.schema.check.disable=true"]}
                       :no-spec-asserts {:jvm-opts ["-Dclojure.spec.compile-asserts=false"]}
                       :performance [:no-decorated-exceptions :no-schemas :no-spec-asserts]
+                      :16gb {:jvm-opts ["-Xmx16g"]}
                       :x86_64-linux {:dependencies [[org.openjfx/javafx-base "23.0.1" :classifier "linux" :exclusions [org.openjfx/javafx-base]]
                                                     [org.openjfx/javafx-controls "23.0.1" :classifier "linux" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
                                                     [org.openjfx/javafx-graphics "23.0.1" :classifier "linux" :exclusions [org.openjfx/javafx-graphics org.openjfx/javafx-base]]
