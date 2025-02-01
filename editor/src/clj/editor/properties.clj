@@ -517,8 +517,7 @@
                                        prop (cond-> prop
                                                     (not-every? nil? original-values)
                                                     (assoc :original-values original-values))]
-                                   (pair k prop))))
-                          )
+                                   (pair k prop)))))
                         visible-prop-colls)]
     {:properties coalesced
      :display-order (prune-display-order (first display-orders) (set (keys coalesced)))
