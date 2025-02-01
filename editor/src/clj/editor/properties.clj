@@ -457,6 +457,13 @@
 (defn visible? [property]
   (:visible property true))
 
+;; Return property, replacing function instances with function names for comparison
+(defn normalize-edit-type [property]
+  (reduce-kv (fn [m k v]
+               (assoc m k (if (fn? v) (class v) v)))
+             {}
+             property))
+
 (defn coalesce [properties]
   (let [node-ids (mapv :node-id properties)
         properties (mapv flatten-properties properties)
@@ -474,9 +481,11 @@
                           ;; Heuristic is to compare count and also type
                           (filter
                             (fn [e]
-                              (let [v (val e)]
+                              (let [v (val e)
+                                    edit-type (map property-edit-type v)
+                                    normalized-edit-type (map normalize-edit-type edit-type)]
                                 (and (= node-count (count v))
-                                     (apply = (map property-edit-type v))))))
+                                     (apply = normalized-edit-type)))))
                           ;; Coalesce into properties consumable by e.g. the properties view
                           (map (fn [[k v]]
                                  (let [prop {:key k
@@ -508,7 +517,8 @@
                                        prop (cond-> prop
                                                     (not-every? nil? original-values)
                                                     (assoc :original-values original-values))]
-                                   (pair k prop)))))
+                                   (pair k prop))))
+                          )
                         visible-prop-colls)]
     {:properties coalesced
      :display-order (prune-display-order (first display-orders) (set (keys coalesced)))
