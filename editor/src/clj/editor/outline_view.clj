@@ -501,13 +501,13 @@
                            show-link? (and (some? link)
                                            (or outline-reference? outline-show-link?))
                            text (if show-link? (format "%s - %s" label (resource/resource->proj-path link)) label)
-                           visibility-icon (if (= :hidden scene-visibility) eye-icon-closed eye-icon-open)]
+                           hidden? (= :hidden scene-visibility)
+                           visibility-icon (if hidden? eye-icon-closed eye-icon-open)]
                        (.setImage image-view-icon (icons/get-image icon))
                        (.setText text-label text)
                        (.setGraphic visibility-button visibility-icon)
                        (proxy-super setGraphic pane)
-                       (when hideable?
-                         (ui/on-click! visibility-button (partial toggle-visibility! node-outline-key-path)))
+                       (ui/on-click! visibility-button (partial toggle-visibility! node-outline-key-path))
                        (when-let [[r g b a] color]
                          (proxy-super setStyle (format "-fx-text-fill: rgba(%d, %d, %d %d);" (int (* 255 r)) (int (* 255 g)) (int (* 255 b)) (int (* 255 a)))))
                        (if parent-reference?
@@ -531,7 +531,7 @@
                        (if hideable?
                          (ui/add-style! this "hideable")
                          (ui/remove-style! this "hideable"))
-                       (if (= :hidden scene-visibility)
+                       (if hidden?
                          (ui/add-style! this "scene-visibility-hidden")
                          (ui/remove-style! this "scene-visibility-hidden")))))))]
     (doto cell

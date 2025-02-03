@@ -257,12 +257,13 @@
 
 (handler/defhandler :hide-toggle :workbench
   (active? [scene-visibility evaluation-context user-data]
-           (g/node-value scene-visibility :active-scene-resource-node))
+           (g/node-value scene-visibility :active-scene-resource-node evaluation-context))
   (run [scene-visibility user-data]
-       (g/with-auto-evaluation-context evaluation-context
-         (if (contains? (g/node-value scene-visibility :hidden-node-outline-key-paths evaluation-context) (:node-outline-key-path user-data))
-           (show-outline-name-paths! scene-visibility #{(vec (rest (:node-outline-key-path user-data)))})
-           (hide-outline-name-paths! scene-visibility #{(vec (rest (:node-outline-key-path user-data)))})))))
+       (let [{:keys [node-outline-key-path]} user-data
+             outline-name-paths #{(vec (rest node-outline-key-path))}]
+         (if (contains? (g/node-value scene-visibility :hidden-node-outline-key-paths) node-outline-key-path)
+           (show-outline-name-paths! scene-visibility outline-name-paths)
+           (hide-outline-name-paths! scene-visibility outline-name-paths)))))
 
 (handler/defhandler :show-last-hidden :workbench
   (active? [scene-visibility evaluation-context]
