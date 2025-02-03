@@ -1806,7 +1806,8 @@
                                                    (.add (.getChildren hbox) (icons/get-image-view (:icon menu-item) 16))
                                                    (.add (.getChildren hbox) cb)
                                                    hbox)
-                                                 (let [button (ToggleButton. (or (handler/label handler-ctx) (:label menu-item)))
+                                                 (let [button (doto (ToggleButton. (or (handler/label handler-ctx) (:label menu-item)))
+                                                                (tooltip! (:tooltip menu-item)))
                                                        graphic-fn (:graphic-fn menu-item)
                                                        icon (:icon menu-item)]
                                                    (cond
