@@ -12,32 +12,52 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_GAMESYS_COMP_COLLISION_OBJECT_H
-#define DM_GAMESYS_COMP_COLLISION_OBJECT_H
+#ifndef DM_GAMESYS_COMP_COLLISION_OBJECT_PRIVATE_H
+#define DM_GAMESYS_COMP_COLLISION_OBJECT_PRIVATE_H
 
-#include <gameobject/component.h>
-#include <dmsdk/dlib/vmath.h>
-
-// for scripting
-#include <stdint.h>
-#include <physics/physics.h>
+// #include <gameobject/component.h>
+// #include <dmsdk/dlib/vmath.h>
+// 
+// // for scripting
+// #include <stdint.h>
+// #include <physics/physics.h>
+// 
+// 
 #include <gamesys.h>
-
 #include <gamesys/physics_ddf.h>
 
 namespace dmGameSystem
 {
-    struct ShapeInfo
+    static const dmhash_t PROP_LINEAR_DAMPING   = dmHashString64("linear_damping");
+    static const dmhash_t PROP_ANGULAR_DAMPING  = dmHashString64("angular_damping");
+    static const dmhash_t PROP_LINEAR_VELOCITY  = dmHashString64("linear_velocity");
+    static const dmhash_t PROP_ANGULAR_VELOCITY = dmHashString64("angular_velocity");
+    static const dmhash_t PROP_MASS             = dmHashString64("mass");
+    static const dmhash_t PROP_BULLET           = dmHashString64("bullet");
+
+    enum EventMask
     {
-        union
-        {
-            float m_BoxDimensions[3];
-            float m_CapsuleDiameterHeight[2];
-            float m_SphereDiameter;
-        };
-        dmPhysicsDDF::CollisionShape::Type m_Type;
+        EVENT_MASK_COLLISION = 1 << 0,
+        EVENT_MASK_CONTACT   = 1 << 1,
+        EVENT_MASK_TRIGGER   = 1 << 2,
     };
 
+    struct CollisionUserData
+    {
+        CollisionWorld* m_World;
+        PhysicsContext* m_Context;
+        uint32_t        m_Count;
+    };
+
+    uint16_t GetGroupBitIndex(CollisionWorld* world, uint64_t group_hash, bool readonly);
+    bool ContactPointCallback(const dmPhysics::ContactPoint& contact_point, void* user_data);
+    bool CollisionCallback(void* user_data_a, uint16_t group_a, void* user_data_b, uint16_t group_b, void* user_data);
+    void TriggerEnteredCallback(const dmPhysics::TriggerEnter& trigger_enter, void* user_data);
+    void TriggerExitedCallback(const dmPhysics::TriggerExit& trigger_exit, void* user_data);
+    void RayCastCallback(const dmPhysics::RayCastResponse& response, const dmPhysics::RayCastRequest& request, void* user_data);
+    bool GetShapeIndexShared(CollisionWorld* world, CollisionComponent* _component, dmhash_t shape_name_hash, uint32_t* index_out);
+
+    /*
     void                    CompCollisionIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node);
     dmGameObject::HInstance CompCollisionObjectGetInstance(void* user_data);
 
@@ -78,6 +98,7 @@ namespace dmGameSystem
     dmPhysics::JointResult SetJointParams(CollisionWorld* world, CollisionComponent* component, dmhash_t id, const dmPhysics::ConnectJointParams& joint_params);
     dmPhysics::JointResult GetJointReactionForce(CollisionWorld* world, CollisionComponent* component, dmhash_t id, dmVMath::Vector3& force);
     dmPhysics::JointResult GetJointReactionTorque(CollisionWorld* world, CollisionComponent* component, dmhash_t id, float& torque);
+    */
 }
 
-#endif // DM_GAMESYS_COMP_COLLISION_OBJECT_H
+#endif // DM_GAMESYS_COMP_COLLISION_OBJECT_PRIVATE_H

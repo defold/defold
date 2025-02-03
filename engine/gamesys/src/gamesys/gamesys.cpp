@@ -99,10 +99,11 @@ namespace dmGameSystem
 
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
 
-        REGISTER_RESOURCE_TYPE("collectionproxyc", 0, 0, ResCollectionProxyCreate, 0, ResCollectionProxyDestroy, ResCollectionProxyRecreate);
+        // TODO: Move to extension
         REGISTER_RESOURCE_TYPE("collisionobject_box2dc", physics_context_box2d, 0, ResCollisionObjectBox2DCreate, 0, ResCollisionObjectBox2DDestroy, ResCollisionObjectBox2DRecreate);
-        // TODO
-        // REGISTER_RESOURCE_TYPE("collisionobject_bullet3ddc", physics_context_bullet3d, 0, ResCollisionObjectBullet3DCreate, 0, ResCollisionObjectBullet3DDestroy, ResCollisionObjectBullet3DRecreate);
+        REGISTER_RESOURCE_TYPE("collisionobject_bullet3dc", physics_context_bullet3d, 0, ResCollisionObjectBullet3DCreate, 0, ResCollisionObjectBullet3DDestroy, ResCollisionObjectBullet3DRecreate);
+
+        REGISTER_RESOURCE_TYPE("collectionproxyc", 0, 0, ResCollectionProxyCreate, 0, ResCollectionProxyDestroy, ResCollectionProxyRecreate);
         REGISTER_RESOURCE_TYPE("convexshapec", physics_context_box2d, 0, ResConvexShapeCreate, 0, ResConvexShapeDestroy, ResConvexShapeRecreate);
         REGISTER_RESOURCE_TYPE("particlefxc", 0, ResParticleFXPreload, ResParticleFXCreate, 0, ResParticleFXDestroy, ResParticleFXRecreate);
         REGISTER_RESOURCE_TYPE("texturec", graphics_context, ResTexturePreload, ResTextureCreate, ResTexturePostCreate, ResTextureDestroy, ResTextureRecreate);
@@ -230,7 +231,6 @@ namespace dmGameSystem
                 0, CompCollisionIterProperties,
                 1);
 
-        /*
         REGISTER_COMPONENT_TYPE("collisionobject_bullet3dc", 400, physics_context_bullet3d,
                 &CompCollisionObjectBullet3DNewWorld, &CompCollisionObjectBullet3DDeleteWorld,
                 &CompCollisionObjectBullet3DCreate, &CompCollisionObjectBullet3DDestroy, 0, &CompCollisionObjectBullet3DFinal, &CompCollisionObjectBullet3DAddToUpdate, CompCollisionObjectBullet3DGetComponent,
@@ -238,7 +238,6 @@ namespace dmGameSystem
                 &CompCollisionObjectBullet3DOnReload, CompCollisionObjectBullet3DGetProperty, CompCollisionObjectBullet3DSetProperty,
                 0, CompCollisionIterProperties,
                 1);
-        */
 
         REGISTER_COMPONENT_TYPE("camerac", 500, render_context,
                 &CompCameraNewWorld, &CompCameraDeleteWorld,

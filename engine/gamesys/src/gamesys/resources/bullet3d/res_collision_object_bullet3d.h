@@ -12,8 +12,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_GAMESYS_RES_COLLISION_OBJECT_BOX2D_H
-#define DM_GAMESYS_RES_COLLISION_OBJECT_BOX2D_H
+#ifndef DM_GAMESYS_RES_COLLISION_OBJECT_BULLET3D_H
+#define DM_GAMESYS_RES_COLLISION_OBJECT_BULLET3D_H
 
 #include <dmsdk/resource/resource.hpp>
 #include <dmsdk/gamesys/resources/res_collision_object.h>

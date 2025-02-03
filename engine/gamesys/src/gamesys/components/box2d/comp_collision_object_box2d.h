@@ -24,8 +24,6 @@
 
 #include <gamesys/physics_ddf.h>
 
-template <typename T> class dmArray;
-
 class b2World;
 class b2Body;
 

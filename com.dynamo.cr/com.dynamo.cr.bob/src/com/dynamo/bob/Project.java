@@ -62,6 +62,7 @@ import com.dynamo.bob.fs.FileSystemWalker;
 import com.dynamo.bob.fs.IFileSystem;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ZipMountPoint;
+import com.dynamo.bob.pipeline.*;
 import com.dynamo.bob.plugin.PluginScanner;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -82,10 +83,6 @@ import com.dynamo.bob.archive.publisher.ZipPublisher;
 import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.bundle.IBundler;
 import com.dynamo.bob.bundle.BundlerParams;
-import com.dynamo.bob.pipeline.ExtenderUtil;
-import com.dynamo.bob.pipeline.IShaderCompiler;
-import com.dynamo.bob.pipeline.ShaderCompilers;
-import com.dynamo.bob.pipeline.TextureGenerator;
 import com.defold.extension.pipeline.texture.TextureCompression;
 import com.defold.extension.pipeline.texture.ITextureCompressor;
 import com.dynamo.bob.plugin.IPlugin;
@@ -340,23 +337,38 @@ public class Project {
     @SuppressWarnings("unchecked")
     private void doScan(IClassScanner scanner, Set<String> classNames) {
         TimeProfiler.start("doScan");
-        boolean is_bob_light = getManifestInfo("is-bob-light") != null;
+        boolean isBobLight = getManifestInfo("is-bob-light") != null;
+
+        String physicsStr = StringUtil.toUpperCase(this.getProjectProperties().getStringValue("physics", "type", "2D"));
+        boolean isPhysics2D = physicsStr.equals("2D");
+        boolean isPhysics3D = physicsStr.equals("3D");
+
         for (String className : classNames) {
             // Ignore TexcLibrary to avoid it being loaded and initialized
             // We're also skipping some of the bundler classes, since we're only building content,
             // not doing bundling when using bob-light
             boolean skip = className.startsWith("com.dynamo.bob.TexcLibrary") ||
-                    (is_bob_light && className.startsWith("com.dynamo.bob.archive.publisher.AWSPublisher")) ||
-                    (is_bob_light && className.startsWith("com.dynamo.bob.pipeline.ExtenderUtil")) ||
-                    (is_bob_light && className.startsWith("com.dynamo.bob.bundle.BundleHelper"));
+                    (isBobLight && className.startsWith("com.dynamo.bob.archive.publisher.AWSPublisher")) ||
+                    (isBobLight && className.startsWith("com.dynamo.bob.pipeline.ExtenderUtil")) ||
+                    (isBobLight && className.startsWith("com.dynamo.bob.bundle.BundleHelper"));
             if (!skip) {
                 try {
                     Class<?> klass = Class.forName(className, true, scanner.getClassLoader());
                     BuilderParams builderParams = klass.getAnnotation(BuilderParams.class);
                     if (builderParams != null) {
                         for (String inExt : builderParams.inExts()) {
-                            extToBuilder.put(inExt, (Class<? extends Builder>) klass);
-                            inextToOutext.put(inExt, builderParams.outExt());
+                            boolean addBuilder = true;
+
+                            // This is a temporary workaround to direct the input ext to the correct output builder for physics
+                            if (inExt.equals(CollisionObjectBuilder.EXT_IN)) {
+                                addBuilder = isPhysics2D && klass.isAssignableFrom(CollisionObjectBox2DBuilder.class) ||
+                                        isPhysics3D && klass.isAssignableFrom(CollisionObjectBullet3DBuilder.class);
+                            }
+
+                            if (addBuilder) {
+                                extToBuilder.put(inExt, (Class<? extends Builder>) klass);
+                                inextToOutext.put(inExt, builderParams.outExt());
+                            }
                         }
 
                         ProtoParams protoParams = klass.getAnnotation(ProtoParams.class);

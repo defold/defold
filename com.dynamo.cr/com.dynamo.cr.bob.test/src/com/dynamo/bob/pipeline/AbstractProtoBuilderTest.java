@@ -156,24 +156,33 @@ public abstract class AbstractProtoBuilderTest {
         return this.project;
     }
 
-    protected List<Message> build(String file, String source) throws Exception {
+    protected Task getTask(String file, String source) throws Exception {
         addFile(file, source);
         project.setInputs(Collections.singletonList(file));
         List<TaskResult> results = project.build(new NullProgress(), "build");
-        List<Message> messages = new ArrayList<Message>();
         for (TaskResult result : results) {
             if (!result.isOk()) {
                 throw new CompileExceptionError(project.getResource(file), result.getLineNumber(), result.getMessage());
             }
-            Task task = result.getTask();
-            for (IResource output : task.getOutputs()) {
-                Message msg = ParseUtil.parse(output);
-                if (msg != null) {
-                    messages.add(msg);
-                }
+            return result.getTask();
+        }
+        return null;
+    }
+
+    protected List<Message> build(Task task) throws IOException {
+        List<Message> messages = new ArrayList<>();
+        for (IResource output : task.getOutputs()) {
+            Message msg = ParseUtil.parse(output);
+            if (msg != null) {
+                messages.add(msg);
             }
         }
         return messages;
+    }
+
+    protected List<Message> build(String file, String source) throws Exception {
+        Task task = getTask(file, source);
+        return build(task);
     }
 
     protected void clean() throws Exception {
