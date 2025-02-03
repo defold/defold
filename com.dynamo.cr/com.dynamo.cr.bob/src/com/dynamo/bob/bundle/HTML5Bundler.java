@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -404,6 +404,18 @@ public class HTML5Bundler implements IBundler {
                 logger.info("Using extender binary for WASM");
             }
             if(binsWasm != null) {
+                // Copy dwarf debug file if it is generated
+                String dwarfName = "dmengine.wasm.debug.wasm";
+                if (variant.equals(Bob.VARIANT_RELEASE)) {
+                    dwarfName = "dmengine_release.wasm.debug.wasm";
+                }
+                String dwarfZipDir = FilenameUtils.concat(project.getBinaryOutputDirectory(), Platform.WasmWeb.getExtenderPair());
+                File bundleDwarf = new File(dwarfZipDir, dwarfName);
+                if (bundleDwarf.exists()) {
+                    File dwarfOut = new File(appDir, enginePrefix + ".wasm.debug.wasm");
+                    FileUtils.copyFile(bundleDwarf, dwarfOut);
+                }
+
                 for (File bin : binsWasm) {
                     BundleHelper.throwIfCanceled(canceled);
                     String binExtension = FilenameUtils.getExtension(bin.getAbsolutePath());

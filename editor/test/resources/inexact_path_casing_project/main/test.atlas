@@ -1,0 +1,4 @@
+images {
+  image: "/MAIN/BUTTON_CLOUDY.png"
+}
+extrude_borders: 2

@@ -1,4 +1,4 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -124,9 +124,9 @@
               (remove lua/preinstalled-modules))
         (:requires lua-info)))
 
-(defn- script->bytecode [lines proj-path arch]
+(defn- script->bytecode [lines proj-path]
   (try
-    (luajit/bytecode (data/lines-reader lines) proj-path arch)
+    (luajit/bytecode (data/lines-reader lines) proj-path)
     (catch Exception e
       (let [{:keys [filename line message]} (ex-data e)]
         (g/map->error
@@ -206,7 +206,7 @@
   ;; We then strip go.property() declarations and recompile if needed.
   (let [lines (:lines user-data)
         proj-path (:proj-path user-data)
-        bytecode-or-error (script->bytecode lines proj-path :64-bit)]
+        bytecode-or-error (script->bytecode lines proj-path)]
     (g/precluding-errors
       [bytecode-or-error]
       (let [go-props (properties/build-go-props dep-resources (:go-props user-data))

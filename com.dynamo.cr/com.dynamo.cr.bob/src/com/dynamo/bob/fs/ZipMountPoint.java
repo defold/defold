@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -68,6 +68,11 @@ public class ZipMountPoint implements IMountPoint {
         }
 
         @Override
+        public void appendContent(byte[] content) throws IOException {
+            throw new IOException("Zip resources can't be written to.");
+        }
+
+        @Override
         public boolean exists() {
             return true;
         }
@@ -91,10 +96,6 @@ public class ZipMountPoint implements IMountPoint {
         public boolean isFile() {
             boolean isDir = entry.isDirectory();
             return !isDir;
-        }
-        @Override
-        public byte[] sha1() throws IOException {
-            return sha1(true);
         }
     }
 

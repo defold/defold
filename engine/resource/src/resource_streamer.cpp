@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -49,7 +49,7 @@ static int JobProcess(void* context, void* data)
     dmResource::Result result = dmResource::LoadResourceToBufferLocked(factory, job->m_CanonicalPath, job->m_Path, job->m_Offset, job->m_Size, &resource_size, &buffer_size, &job->m_Data);
     if (dmResource::RESULT_OK != result)
     {
-        dmLogError("Failed to read chunk (offset: %u, size: %u) from '%s'", job->m_Offset, job->m_Size, job->m_Path);
+        dmLogError("Failed to read chunk (offset: %u, size: %u) from '%s' (%s)", job->m_Offset, job->m_Size, job->m_Path, dmResource::ResultToString(result));
         return 0;
     }
     return 1;

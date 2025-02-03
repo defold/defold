@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -312,6 +312,11 @@
      (g/reset-undo! proj-graph)
      project)))
 
+(defn load-project-nodes! [project resource-node-ids]
+  (let [{:keys [migrated-resource-node-ids node-load-infos]}
+        (#'project/load-nodes! project resource-node-ids (constantly nil) {} nil nil)]
+    (#'project/cache-loaded-save-data! node-load-infos project migrated-resource-node-ids)))
+
 (defn project-node-resources [project]
   (g/with-auto-evaluation-context evaluation-context
     (sort-by resource/proj-path
@@ -561,7 +566,7 @@
 (defmacro with-ui-run-later-rebound
   [& forms]
   `(let [laters# (atom [])]
-     (with-redefs [ui/do-run-later (fn [f#] (swap! laters# conj f#))]
+     (with-redefs [ui/do-run-later (fn ~'fake-run-later [f#] (swap! laters# conj f#))]
        (let [result# (do ~@forms)]
          (doseq [f# @laters#] (f#))
          result#))))
@@ -1134,6 +1139,21 @@
     (fs/delete-directory! build-directory {:fail :silently})
     (:error build-result)))
 
+(defn resolve-build-dependencies
+  "Returns a flat list of dependent build targets"
+  [node-id project]
+  (let [ret (build/resolve-node-dependencies node-id project)]
+    (when-not (is (not (g/error-value? ret)))
+      (let [path (some-> (g/maybe-node-value node-id :resource) resource/proj-path)
+            cause (->> ret
+                       (tree-seq :causes :causes)
+                       (some :message))]
+        (throw (ex-info (str "Failed to build"
+                             (when path (str " " path))
+                             (when cause (str ": " cause)))
+                        {:error ret}))))
+    ret))
+
 (defn node-build-resource [node-id]
   (:resource (first (g/node-value node-id :build-targets))))
 
@@ -1608,3 +1628,21 @@
 
 (defmacro check-thrown-with-data! [expected-data-pred & body]
   `(is (~'thrown-with-data? ~expected-data-pred ~@body)))
+
+(defmethod test/assert-expr 'thrown-with-root-cause-msg? [msg [_ re & body :as form]]
+  `(try
+     (do ~@body)
+     (test/do-report {:type :fail :message ~msg :expected '~form :actual nil})
+     (catch Throwable e#
+       (let [^Throwable root# (loop [e# e#]
+                                (if-let [cause# (ex-cause e#)]
+                                  (recur cause#)
+                                  e#))
+             m# (.getMessage root#)]
+         (if (re-find ~re m#)
+           (test/do-report {:type :pass :message ~msg :expected '~form :actual e#})
+           (test/do-report {:type :fail, :message ~msg, :expected '~form :actual e#})))
+       e#)))
+
+(defmacro check-thrown-with-root-cause-msg! [re & body]
+  `(is (~'thrown-with-root-cause-msg? ~re ~@body)))

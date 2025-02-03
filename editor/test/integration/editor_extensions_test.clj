@@ -1,4 +1,4 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -309,7 +309,7 @@
         (is (= 2.5 (test-util/prop sprite-outline :playback-rate)))))))
 
 (deftest refresh-context-after-write-test
-  (test-util/with-loaded-project "test/resources/editor_extensions/refresh_context_project"
+  (test-util/with-scratch-project "test/resources/editor_extensions/refresh_context_project"
     (let [output (atom [])
           _ (reload-editor-scripts! project :display-output! #(swap! output conj [%1 %2]))
           handler+context (handler/active
@@ -396,7 +396,7 @@
       (test-initial-state!))))
 
 (deftest save-test
-  (test-util/with-loaded-project "test/resources/editor_extensions/save_test"
+  (test-util/with-scratch-project "test/resources/editor_extensions/save_test"
     (let [output (atom [])
           _ (reload-editor-scripts! project :display-output! #(swap! output conj [%1 %2]))
           handler+context (handler/active
@@ -726,3 +726,30 @@
       "/slash" "Invalid identifier character"
       "^hat" "Invalid identifier character"
       "%percent" "Invalid identifier character")))
+
+(deftest json-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/json_project"
+    (let [output (atom [])]
+      (reload-editor-scripts! project :display-output! #(swap! output conj [%1 %2]))
+      (run-edit-menu-test-command!)
+      ;; See test.editor_script: it prints various json encode/decode results
+      (is (= [[:out "Testing encoding..."]
+              [:out "json.encode(1) => 1"]
+              [:out "json.encode(\"foo\") => \"foo\""]
+              [:out "json.encode(nil) => null"]
+              [:out "json.encode(true) => true"]
+              [:out "json.encode({num = 1}) => {\"num\":1}"]
+              [:out "json.encode({bools = {true, false, true}}) => {\"bools\":[true,false,true]}"]
+              [:out "json.encode({empty_table_as_object = {}}) => {\"empty_table_as_object\":{}}"]
+              [:out "json.encode({[{\"object\"}] = {}}) => error"]
+              [:out "json.encode({fn = function() end}) => error"]
+              [:out "Testing decoding..."]
+              [:out "json.decode('1') => 1"]
+              [:out "json.decode('{\"a\":1}') => {a = 1}"]
+              [:out "json.decode('{\"null_is_omitted\": null}') => {}"]
+              [:out "json.decode('[false, true, null, 4, \"string\"]') => {false, true, nil, 4, \"string\"}"]
+              [:out "json.decode('{\"a\": [{\"b\": 4},42]}') => {a = {{b = 4}, 42}}"]
+              [:out "json.decode('true false \"string\" [] {}', {all = true}) => {true, false, \"string\", {}, {}}"]
+              [:out "json.decode('fals') => error"]
+              [:out "json.decode('true {', {all = true}) => error"]]
+             @output)))))

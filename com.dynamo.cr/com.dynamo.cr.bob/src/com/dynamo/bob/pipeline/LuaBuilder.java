@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -180,7 +180,7 @@ public abstract class LuaBuilder extends Builder {
         useLua51 = LUA51_PLATFORMS.contains(this.project.getPlatform());
         if (!useLua51 && luaJITExePath == null) {
             final Platform host = Platform.getHostPlatform();
-            luaJITExePath = Bob.getExe(host, host.is64bit() ? "luajit-64" : "luajit-32");
+            luaJITExePath = Bob.getExe(host, "luajit-64");
         }
 
         return taskBuilder.build();

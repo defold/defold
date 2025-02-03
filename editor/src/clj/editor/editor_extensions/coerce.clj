@@ -1,4 +1,4 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -403,3 +403,17 @@
                     m
                     (assoc m k v)))))))
         (failure x "is not a table")))))
+
+(defn recursive
+  "Create a recursive coercer that can refer to itself
+
+  Args:
+    coercer-fn    fn that produces the final coercer, will receive a reference
+                  coercer as an argument, the reference coercer should be used
+                  to refer to the coercer returned by the function"
+  [coercer-fn]
+  (let [vol (volatile! nil)
+        coerce-recursive ^{:schema {:type :any}} (fn coerce-recursive [vm x]
+                                                   (@vol vm x))]
+    (vreset! vol (coercer-fn coerce-recursive))
+    coerce-recursive))

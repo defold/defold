@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -13,6 +13,9 @@
 // specific language governing permissions and limitations under the License.
 
 #include "shaderc.h"
+
+#include "shaderc_private.h"
+
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/time.h>
@@ -143,15 +146,75 @@ TEST(Shaderc, ModifyBindings)
     options.m_Stage   = dmShaderc::SHADER_STAGE_VERTEX;
     options.m_Version = 460;
 
-    const char* dst = dmShaderc::Compile(shader_ctx, compiler, options);
-    ASSERT_NE((void*) 0, dst);
+    dmShaderc::ShaderCompileResult* dst = dmShaderc::Compile(shader_ctx, compiler, options);
+    ASSERT_NE((void*) 0, dst->m_Data.Begin());
 
-    ASSERT_NE((const char*) 0, FindFirstOccurance(dst, "layout(location = 3) in vec4 position;"));
-    ASSERT_NE((const char*) 0, FindFirstOccurance(dst, "layout(location = 4) in vec3 normal;"));
-    ASSERT_NE((const char*) 0, FindFirstOccurance(dst, "layout(location = 5) in vec2 tex_coord;"));
+    ASSERT_NE((const char*) 0, FindFirstOccurance((const char*) dst->m_Data.Begin(), "layout(location = 3) in vec4 position;"));
+    ASSERT_NE((const char*) 0, FindFirstOccurance((const char*) dst->m_Data.Begin(), "layout(location = 4) in vec3 normal;"));
+    ASSERT_NE((const char*) 0, FindFirstOccurance((const char*) dst->m_Data.Begin(), "layout(location = 5) in vec2 tex_coord;"));
 
-    ASSERT_NE((const char*) 0, FindFirstOccurance(dst, "layout(binding = 3, std140) uniform matrices"));
-    ASSERT_NE((const char*) 0, FindFirstOccurance(dst, "layout(binding = 4, std140) uniform extra"));
+    ASSERT_NE((const char*) 0, FindFirstOccurance((const char*) dst->m_Data.Begin(), "layout(binding = 3, std140) uniform matrices"));
+    ASSERT_NE((const char*) 0, FindFirstOccurance((const char*) dst->m_Data.Begin(), "layout(binding = 4, std140) uniform extra"));
+
+    dmShaderc::DeleteShaderCompiler(compiler);
+    dmShaderc::DeleteShaderContext(shader_ctx);
+}
+
+TEST(Shaderc, TestCompilerSPIRV)
+{
+    uint32_t data_size;
+    void* data = ReadFile("./build/src/test/data/simple.spv", &data_size);
+    ASSERT_NE((void*) 0, data);
+
+    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(data, data_size);
+    dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(shader_ctx, dmShaderc::SHADER_LANGUAGE_SPIRV);
+
+    dmShaderc::ShaderCompilerOptions options;
+    dmShaderc::ShaderCompileResult* dst = dmShaderc::Compile(shader_ctx, compiler, options);
+    ASSERT_NE((void*) 0, dst->m_Data.Begin());
+
+    ASSERT_EQ(data_size, dst->m_Data.Size());
+    ASSERT_EQ(0, memcmp(data, dst->m_Data.Begin(), data_size));
+
+    dmShaderc::DeleteShaderCompiler(compiler);
+    dmShaderc::DeleteShaderContext(shader_ctx);
+}
+
+TEST(Shaderc, ModifyBindingsSPIRV)
+{
+    uint32_t data_size;
+    void* data = ReadFile("./build/src/test/data/bindings.spv", &data_size);
+    ASSERT_NE((void*) 0, data);
+
+    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(data, data_size);
+    const dmShaderc::ShaderReflection* reflection = dmShaderc::GetReflection(shader_ctx);
+
+    dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(shader_ctx, dmShaderc::SHADER_LANGUAGE_SPIRV);
+
+    dmShaderc::SetResourceLocation(shader_ctx, compiler, dmHashString64("position"),  3);
+    dmShaderc::SetResourceLocation(shader_ctx, compiler, dmHashString64("normal"),    4);
+    dmShaderc::SetResourceLocation(shader_ctx, compiler, dmHashString64("tex_coord"), 5);
+
+    dmShaderc::ShaderCompilerOptions options = {};
+
+    dmShaderc::ShaderCompileResult* dst = dmShaderc::Compile(shader_ctx, compiler, options);
+    ASSERT_NE((void*) 0, dst->m_Data.Begin());
+
+    {
+        dmShaderc::HShaderContext spirv_shader_ctx = dmShaderc::NewShaderContext(dst->m_Data.Begin(), dst->m_Data.Size());
+        const dmShaderc::ShaderReflection* spirv_reflection = dmShaderc::GetReflection(spirv_shader_ctx);
+        ASSERT_NE((void*) 0, reflection);
+
+        const dmShaderc::ShaderResource* position  = GetShaderResourceByNameHash(spirv_reflection->m_Inputs, dmHashString64("position"));
+        const dmShaderc::ShaderResource* normal    = GetShaderResourceByNameHash(spirv_reflection->m_Inputs, dmHashString64("normal"));
+        const dmShaderc::ShaderResource* tex_coord = GetShaderResourceByNameHash(spirv_reflection->m_Inputs, dmHashString64("tex_coord"));
+
+        ASSERT_EQ(3, position->m_Location);
+        ASSERT_EQ(4, normal->m_Location);
+        ASSERT_EQ(5, tex_coord->m_Location);
+
+        dmShaderc::DeleteShaderContext(spirv_shader_ctx);
+    }
 
     dmShaderc::DeleteShaderCompiler(compiler);
     dmShaderc::DeleteShaderContext(shader_ctx);
@@ -390,7 +453,7 @@ TEST(Shaderc, Structs)
     dmShaderc::DeleteShaderContext(shader_ctx);
 }
 
-static int TestStandalone(const char* filename)
+static int TestStandalone(const char* filename, const char* compileTo = 0)
 {
     uint32_t data_size;
     void* data = ReadFile(filename, &data_size);
@@ -399,6 +462,26 @@ static int TestStandalone(const char* filename)
     const dmShaderc::ShaderReflection* reflection = dmShaderc::GetReflection(shader_ctx);
 
     dmShaderc::DebugPrintReflection(reflection);
+
+    if (compileTo)
+    {
+        if (strcmp(compileTo, "es100") == 0)
+        {
+            dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(shader_ctx, dmShaderc::SHADER_LANGUAGE_GLSL);
+            dmShaderc::ShaderCompilerOptions options;
+            options.m_Stage                      = dmShaderc::SHADER_STAGE_VERTEX;
+            options.m_Version                    = 100;
+            options.m_No420PackExtension         = 1;
+            options.m_GlslEmitUboAsPlainUniforms = 1;
+            options.m_GlslEs                     = 1;
+            options.m_EntryPoint                 = "main";
+
+            dmShaderc::ShaderCompileResult* dst = dmShaderc::Compile(shader_ctx, compiler, options);
+            dmLogInfo("%s", (const char*) dst->m_Data.Begin());
+
+            dmShaderc::DeleteShaderCompiler(compiler);
+        }
+    }
 
     dmShaderc::DeleteShaderContext(shader_ctx);
 
@@ -409,6 +492,11 @@ int main(int argc, char **argv)
 {
     if (argc > 1 && (strstr(argv[1], ".spv") != 0))
     {
+        if (argc > 2)
+        {
+            return TestStandalone(argv[1], argv[2]);
+        }
+
         return TestStandalone(argv[1]);
     }
 

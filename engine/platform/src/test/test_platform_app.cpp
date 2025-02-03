@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -144,6 +144,7 @@ static void* EngineCreate(int argc, char** argv)
     params.m_Height                 = 512;
     params.m_GraphicsApi            = dmPlatform::PLATFORM_GRAPHICS_API_OPENGL;
     params.m_Title                  = "Test app";
+    params.m_ContextAlphabits       = 8;
 
     engine->m_Window = dmPlatform::NewWindow();
 

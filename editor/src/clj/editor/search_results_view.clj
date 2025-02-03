@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -227,7 +227,7 @@
                         (.setExpanded true)))
   (ui/cell-factory! tree-view
                     (fn [item]
-                      (if (satisfies? resource/Resource item)
+                      (if (resource/resource? item)
                         {:text (resource/proj-path item)
                          :icon (workspace/resource-icon item)
                          :style (resource/style-classes item)}
@@ -249,7 +249,7 @@
 (defn- resolve-search-in-files-tree-view-selection [selection]
   (into []
         (keep (fn [item]
-                (if (satisfies? resource/Resource item)
+                (if (resource/resource? item)
                   (when (resource/exists? item)
                     [item {}])
                   (let [resource (:resource item)]

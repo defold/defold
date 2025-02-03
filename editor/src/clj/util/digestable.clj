@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -21,7 +21,7 @@
             [util.digest :as digest])
   (:import [clojure.lang Named]
            [com.defold.util IDigestable]
-           [java.io OutputStreamWriter Writer]))
+           [java.io BufferedWriter OutputStreamWriter Writer]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -205,7 +205,7 @@
 
   java.util.Map
   (digest! [value writer opts]
-    (if (satisfies? resource/Resource value)
+    (if (resource/resource? value)
       (digest-resource! value writer opts)
       (digest-map! value writer opts)))
 
@@ -232,7 +232,7 @@
    (sha1-hash object nil))
   (^String [object opts]
    (with-open [digest-output-stream (digest/make-digest-output-stream "SHA-1")
-               writer (OutputStreamWriter. digest-output-stream)]
+               writer (BufferedWriter. (OutputStreamWriter. digest-output-stream))]
      (digest! object writer opts)
      (.flush writer)
      (digest/completed-stream->hex digest-output-stream))))

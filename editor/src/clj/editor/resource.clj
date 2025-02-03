@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -52,7 +52,17 @@
   (openable? [this])
   (editable? [this]))
 
-(def resource? (partial satisfies? Resource))
+(def ^{:arglists '([x])} resource?
+  (let [cache (atom {})
+        not-found (Object.)]
+    (fn resource? [x]
+      (let [c (class x)
+            ret (@cache c not-found)]
+        (if (identical? not-found ret)
+          (let [ret (satisfies? Resource x)]
+            (swap! cache assoc c ret)
+            ret)
+          ret)))))
 
 (def placeholder-resource-type-ext "*")
 
@@ -61,10 +71,10 @@
 
 (defn- get-resource-type [workspace resource]
   (let [output-label (if (editable? resource) :resource-types :resource-types-non-editable)
-        resource-types (g/node-value workspace output-label)
+        resource-types (output-label (g/node-by-id workspace))
         ext (type-ext resource)]
-    (or (get resource-types ext)
-        (get resource-types placeholder-resource-type-ext))))
+    (or (resource-types ext)
+        (resource-types placeholder-resource-type-ext))))
 
 (defn openable-resource? [value]
   ;; A resource is considered openable if its kind can be opened. Typically this
@@ -72,7 +82,7 @@
   ;; that the resource does not have to be openable in the Defold Editor - an
   ;; external application could be assigned to handle it. Before opening, you
   ;; must also make sure the resource exists.
-  (and (satisfies? Resource value)
+  (and (resource? value)
        (openable? value)))
 
 (defn editor-openable-resource? [value]
@@ -80,6 +90,11 @@
   ;; opening, you must also make sure the resource exists.
   (and (openable-resource? value)
        (true? (:editor-openable (resource-type value)))))
+
+(defn has-view-type? [resource view-type]
+  {:pre [(keyword? view-type)]}
+  (boolean (some #(= view-type (:id %))
+                 (:view-types (resource-type resource)))))
 
 (defn- ->unix-seps ^String [^String path]
   (FilenameUtils/separatorsToUnix path))

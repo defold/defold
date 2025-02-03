@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -92,10 +92,9 @@ static GraphicsAdapterFunctionTable WebGPURegisterFunctionTable();
 static bool WebGPUIsSupported();
 static HContext WebGPUGetContext();
 static GraphicsAdapter g_webgpu_adapter(ADAPTER_FAMILY_WEBGPU);
-static const int8_t g_webgpu_adapter_priority = 0;
-static WebGPUContext* g_WebGPUContext         = NULL;
+static WebGPUContext* g_WebGPUContext = NULL;
 
-DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterWebGPU, &g_webgpu_adapter, WebGPUIsSupported, WebGPURegisterFunctionTable, WebGPUGetContext, g_webgpu_adapter_priority);
+DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterWebGPU, &g_webgpu_adapter, WebGPUIsSupported, WebGPURegisterFunctionTable, WebGPUGetContext, ADAPTER_FAMILY_PRIORITY_WEBGPU);
 
 static WGPUSampler WebGPUGetOrCreateSampler(WebGPUContext* context, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
 {
@@ -241,33 +240,33 @@ static WGPUTextureFormat WebGPUFormatFromTextureFormat(TextureFormat format)
             return WGPUTextureFormat_ETC2RGB8Unorm;
         case TEXTURE_FORMAT_RGBA_ETC2:
             return WGPUTextureFormat_ETC2RGBA8Unorm;
-        case TEXTURE_FORMAT_RGBA_ASTC_4x4:
+        case TEXTURE_FORMAT_RGBA_ASTC_4X4:
             return WGPUTextureFormat_ASTC4x4Unorm;
-        case TEXTURE_FORMAT_RGBA_ASTC_5x4:
+        case TEXTURE_FORMAT_RGBA_ASTC_5X4:
             return WGPUTextureFormat_ASTC5x4Unorm;
-        case TEXTURE_FORMAT_RGBA_ASTC_5x5:
+        case TEXTURE_FORMAT_RGBA_ASTC_5X5:
             return WGPUTextureFormat_ASTC5x5Unorm;
-        case TEXTURE_FORMAT_RGBA_ASTC_6x5:
+        case TEXTURE_FORMAT_RGBA_ASTC_6X5:
             return WGPUTextureFormat_ASTC6x5Unorm;
-        case TEXTURE_FORMAT_RGBA_ASTC_6x6:
+        case TEXTURE_FORMAT_RGBA_ASTC_6X6:
             return WGPUTextureFormat_ASTC6x6Unorm;
-        case TEXTURE_FORMAT_RGBA_ASTC_8x5:
+        case TEXTURE_FORMAT_RGBA_ASTC_8X5:
             return WGPUTextureFormat_ASTC8x5Unorm;
-        case TEXTURE_FORMAT_RGBA_ASTC_8x6:
+        case TEXTURE_FORMAT_RGBA_ASTC_8X6:
             return WGPUTextureFormat_ASTC8x6Unorm;
-        case TEXTURE_FORMAT_RGBA_ASTC_8x8:
+        case TEXTURE_FORMAT_RGBA_ASTC_8X8:
             return WGPUTextureFormat_ASTC8x8Unorm;
-        case TEXTURE_FORMAT_RGBA_ASTC_10x5:
+        case TEXTURE_FORMAT_RGBA_ASTC_10X5:
             return WGPUTextureFormat_ASTC10x5Unorm;
-        case TEXTURE_FORMAT_RGBA_ASTC_10x6:
+        case TEXTURE_FORMAT_RGBA_ASTC_10X6:
             return WGPUTextureFormat_ASTC10x6Unorm;
-        case TEXTURE_FORMAT_RGBA_ASTC_10x8:
+        case TEXTURE_FORMAT_RGBA_ASTC_10X8:
             return WGPUTextureFormat_ASTC10x8Unorm;
-        case TEXTURE_FORMAT_RGBA_ASTC_10x10:
+        case TEXTURE_FORMAT_RGBA_ASTC_10X10:
             return WGPUTextureFormat_ASTC10x10Unorm;
-        case TEXTURE_FORMAT_RGBA_ASTC_12x10:
+        case TEXTURE_FORMAT_RGBA_ASTC_12X10:
             return WGPUTextureFormat_ASTC12x10Unorm;
-        case TEXTURE_FORMAT_RGBA_ASTC_12x12:
+        case TEXTURE_FORMAT_RGBA_ASTC_12X12:
             return WGPUTextureFormat_ASTC12x12Unorm;
         case TEXTURE_FORMAT_RGB_BC1:
             return WGPUTextureFormat_Undefined;
@@ -313,20 +312,20 @@ static size_t WebGPUCompressedBlockWidth(TextureFormat format)
     {
     case TEXTURE_FORMAT_RGB_ETC1:           return 4;
     case TEXTURE_FORMAT_RGBA_ETC2:          return 4;
-    case TEXTURE_FORMAT_RGBA_ASTC_4x4:      return 4;
-    case TEXTURE_FORMAT_RGBA_ASTC_5x4:      return 5;
-    case TEXTURE_FORMAT_RGBA_ASTC_5x5:      return 5;
-    case TEXTURE_FORMAT_RGBA_ASTC_6x5:      return 6;
-    case TEXTURE_FORMAT_RGBA_ASTC_6x6:      return 6;
-    case TEXTURE_FORMAT_RGBA_ASTC_8x5:      return 8;
-    case TEXTURE_FORMAT_RGBA_ASTC_8x6:      return 8;
-    case TEXTURE_FORMAT_RGBA_ASTC_8x8:      return 8;
-    case TEXTURE_FORMAT_RGBA_ASTC_10x5:     return 10;
-    case TEXTURE_FORMAT_RGBA_ASTC_10x6:     return 10;
-    case TEXTURE_FORMAT_RGBA_ASTC_10x8:     return 10;
-    case TEXTURE_FORMAT_RGBA_ASTC_10x10:    return 10;
-    case TEXTURE_FORMAT_RGBA_ASTC_12x10:    return 12;
-    case TEXTURE_FORMAT_RGBA_ASTC_12x12:    return 12;
+    case TEXTURE_FORMAT_RGBA_ASTC_4X4:      return 4;
+    case TEXTURE_FORMAT_RGBA_ASTC_5X4:      return 5;
+    case TEXTURE_FORMAT_RGBA_ASTC_5X5:      return 5;
+    case TEXTURE_FORMAT_RGBA_ASTC_6X5:      return 6;
+    case TEXTURE_FORMAT_RGBA_ASTC_6X6:      return 6;
+    case TEXTURE_FORMAT_RGBA_ASTC_8X5:      return 8;
+    case TEXTURE_FORMAT_RGBA_ASTC_8X6:      return 8;
+    case TEXTURE_FORMAT_RGBA_ASTC_8X8:      return 8;
+    case TEXTURE_FORMAT_RGBA_ASTC_10X5:     return 10;
+    case TEXTURE_FORMAT_RGBA_ASTC_10X6:     return 10;
+    case TEXTURE_FORMAT_RGBA_ASTC_10X8:     return 10;
+    case TEXTURE_FORMAT_RGBA_ASTC_10X10:    return 10;
+    case TEXTURE_FORMAT_RGBA_ASTC_12X10:    return 12;
+    case TEXTURE_FORMAT_RGBA_ASTC_12X12:    return 12;
     case TEXTURE_FORMAT_RGB_BC1:            return 4;
     case TEXTURE_FORMAT_RGBA_BC3:           return 4;
     case TEXTURE_FORMAT_RGBA_BC7:           return 4;
@@ -341,20 +340,20 @@ static size_t WebGPUCompressedBlockByteSize(TextureFormat format)
     {
     case TEXTURE_FORMAT_RGB_ETC1:           return 8;
     case TEXTURE_FORMAT_RGBA_ETC2:          return 8;
-    case TEXTURE_FORMAT_RGBA_ASTC_4x4:      return 16;
-    case TEXTURE_FORMAT_RGBA_ASTC_5x4:      return 16;
-    case TEXTURE_FORMAT_RGBA_ASTC_5x5:      return 16;
-    case TEXTURE_FORMAT_RGBA_ASTC_6x5:      return 16;
-    case TEXTURE_FORMAT_RGBA_ASTC_6x6:      return 16;
-    case TEXTURE_FORMAT_RGBA_ASTC_8x5:      return 16;
-    case TEXTURE_FORMAT_RGBA_ASTC_8x6:      return 16;
-    case TEXTURE_FORMAT_RGBA_ASTC_8x8:      return 16;
-    case TEXTURE_FORMAT_RGBA_ASTC_10x5:     return 16;
-    case TEXTURE_FORMAT_RGBA_ASTC_10x6:     return 16;
-    case TEXTURE_FORMAT_RGBA_ASTC_10x8:     return 16;
-    case TEXTURE_FORMAT_RGBA_ASTC_10x10:    return 16;
-    case TEXTURE_FORMAT_RGBA_ASTC_12x10:    return 16;
-    case TEXTURE_FORMAT_RGBA_ASTC_12x12:    return 16;
+    case TEXTURE_FORMAT_RGBA_ASTC_4X4:      return 16;
+    case TEXTURE_FORMAT_RGBA_ASTC_5X4:      return 16;
+    case TEXTURE_FORMAT_RGBA_ASTC_5X5:      return 16;
+    case TEXTURE_FORMAT_RGBA_ASTC_6X5:      return 16;
+    case TEXTURE_FORMAT_RGBA_ASTC_6X6:      return 16;
+    case TEXTURE_FORMAT_RGBA_ASTC_8X5:      return 16;
+    case TEXTURE_FORMAT_RGBA_ASTC_8X6:      return 16;
+    case TEXTURE_FORMAT_RGBA_ASTC_8X8:      return 16;
+    case TEXTURE_FORMAT_RGBA_ASTC_10X5:     return 16;
+    case TEXTURE_FORMAT_RGBA_ASTC_10X6:     return 16;
+    case TEXTURE_FORMAT_RGBA_ASTC_10X8:     return 16;
+    case TEXTURE_FORMAT_RGBA_ASTC_10X10:    return 16;
+    case TEXTURE_FORMAT_RGBA_ASTC_12X10:    return 16;
+    case TEXTURE_FORMAT_RGBA_ASTC_12X12:    return 16;
     case TEXTURE_FORMAT_RGBA_BC3:           return 16;
     case TEXTURE_FORMAT_RGBA_BC7:           return 16;
     default:                                return 0;
@@ -446,6 +445,19 @@ static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams
     if (texture->m_MipMapCount == 1 && params.m_MipMap > 0)
         return;
 
+    if (texture->m_Texture && (texture->m_GraphicsFormat != params.m_Format ||
+                               (!params.m_SubUpdate && texture->m_Depth != params.m_Depth)))
+    { //must recreate texture
+        if (params.m_SubUpdate)
+        {
+            dmLogError("Cannot receate texture for subdata %d vs %d", texture->m_GraphicsFormat, params.m_Format);
+        }
+        else
+        {
+            wgpuTextureRelease(texture->m_Texture);
+            texture->m_Texture = NULL;
+        }
+    }
     {
         WGPUImageCopyTexture dest = {};
         dest.mipLevel             = params.m_MipMap;
@@ -494,7 +506,7 @@ static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams
 
             dest.texture = texture->m_Texture;
             layout.bytesPerRow = extent.width;
-            if(IsTextureFormatCompressed(params.m_Format))
+            if (IsTextureFormatCompressed(params.m_Format))
             {
                 layout.bytesPerRow = ceil(float(layout.bytesPerRow) / WebGPUCompressedBlockWidth(params.m_Format)) * WebGPUCompressedBlockByteSize(params.m_Format);
             }
@@ -503,7 +515,10 @@ static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams
                 layout.bytesPerRow *= ceil(GetTextureFormatBitsPerPixel(params.m_Format) / 8.0f);
             }
             extent.depthOrArrayLayers = depth;
-            wgpuQueueWriteTexture(g_WebGPUContext->m_Queue, &dest, params.m_Data, layout.bytesPerRow * layout.rowsPerImage * depth, &layout, &extent);
+            if (const size_t dataSize = params.m_DataSize ? params.m_DataSize : layout.bytesPerRow * layout.rowsPerImage * depth)
+            {
+                wgpuQueueWriteTexture(g_WebGPUContext->m_Queue, &dest, params.m_Data, dataSize, &layout, &extent);
+            }
         }
     }
 
@@ -1004,20 +1019,20 @@ static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams&
     context->m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_LUMINANCE_ALPHA;
     if (wgpuAdapterHasFeature(context->m_Adapter, WGPUFeatureName_TextureCompressionASTC))
     {
-        context->m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ASTC_4x4;
-        context->m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ASTC_5x4;
-        context->m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ASTC_5x5;
-        context->m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ASTC_6x5;
-        context->m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ASTC_6x6;
-        context->m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ASTC_8x5;
-        context->m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ASTC_8x6;
-        context->m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ASTC_8x8;
-        context->m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ASTC_10x5;
-        context->m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ASTC_10x6;
-        context->m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ASTC_10x8;
-        context->m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ASTC_10x10;
-        context->m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ASTC_12x10;
-        context->m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ASTC_12x12;
+        context->m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ASTC_4X4;
+        context->m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ASTC_5X4;
+        context->m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ASTC_5X5;
+        context->m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ASTC_6X5;
+        context->m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ASTC_6X6;
+        context->m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ASTC_8X5;
+        context->m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ASTC_8X6;
+        context->m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ASTC_8X8;
+        context->m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ASTC_10X5;
+        context->m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ASTC_10X6;
+        context->m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ASTC_10X8;
+        context->m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ASTC_10X10;
+        context->m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ASTC_12X10;
+        context->m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ASTC_12X12;
     }
     if (wgpuAdapterHasFeature(context->m_Adapter, WGPUFeatureName_TextureCompressionBC))
     {
@@ -1222,7 +1237,7 @@ static void WebGPUGetDefaultTextureFilters(HContext _context, TextureFilter& out
 
 static void WebGPUCreateCommandEncoder(WebGPUContext* context)
 {
-    if(!context->m_CommandEncoder)
+    if (!context->m_CommandEncoder)
     {
         context->m_CommandEncoder = wgpuDeviceCreateCommandEncoder(context->m_Device, NULL);
     }

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -410,10 +410,9 @@ static void LogFrameBufferError(GLenum status)
     static GraphicsAdapterFunctionTable OpenGLRegisterFunctionTable();
     static bool                         OpenGLIsSupported();
     static HContext                     OpenGLGetContext();
-    static int8_t          g_null_adapter_priority = 1;
     static GraphicsAdapter g_opengl_adapter(ADAPTER_FAMILY_OPENGL);
 
-    DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterOpenGL, &g_opengl_adapter, OpenGLIsSupported, OpenGLRegisterFunctionTable, OpenGLGetContext, g_null_adapter_priority);
+    DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterOpenGL, &g_opengl_adapter, OpenGLIsSupported, OpenGLRegisterFunctionTable, OpenGLGetContext, ADAPTER_FAMILY_PRIORITY_OPENGL);
 
     static void PostDeleteTextures(OpenGLContext*, bool);
     static bool OpenGLInitialize(HContext context, const ContextParams& params);
@@ -1352,7 +1351,7 @@ static void LogFrameBufferError(GLenum status)
 #if defined (__EMSCRIPTEN__)
         // Workaround for some old phones which don't work with ASTC in glCompressedTexImage3D
         // see https://github.com/defold/defold/issues/8030
-        if (context->m_IsGles3Version && OpenGLIsTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_4x4)) {
+        if (context->m_IsGles3Version && OpenGLIsTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_4X4)) {
             unsigned char fakeZeroBuffer[] = {
                 0x63, 0xae, 0x88, 0xc8, 0xa6, 0x0b, 0x45, 0x35, 0x8d, 0x27, 0x7c, 0xb5,0x63,
                 0x2a, 0xcc, 0x90, 0x01, 0x04, 0x04, 0x01, 0x04, 0x04, 0x01, 0x04, 0x04, 0x01,
@@ -1366,7 +1365,7 @@ static void LogFrameBufferError(GLenum status)
             GLint err = glGetError();
             if (err != 0)
             {
-                context->m_TextureFormatSupport &= ~(1 << TEXTURE_FORMAT_RGBA_ASTC_4x4);
+                context->m_TextureFormatSupport &= ~(1 << TEXTURE_FORMAT_RGBA_ASTC_4X4);
             }
             glDeleteTextures(1, &texture);
         }
@@ -2506,8 +2505,6 @@ static void LogFrameBufferError(GLenum status)
         {
             // These should be null-terminated
             char* namespace_path = context.Namespace(i);
-            uint32_t namespace_path_len = strlen(namespace_path);
-
             if (namespace_path && strcmp(namespace_path, canonical_name_buffer) == 0)
             {
                 // Matching namespace found
@@ -4079,20 +4076,20 @@ static void LogFrameBufferError(GLenum status)
         case TEXTURE_FORMAT_RG_ETC2:            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RG11_EAC; break;
         case TEXTURE_FORMAT_RGBA_ETC2:          gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA8_ETC2_EAC; break;
 
-        case TEXTURE_FORMAT_RGBA_ASTC_4x4:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR; break;
-        case TEXTURE_FORMAT_RGBA_ASTC_5x4:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_5x4_KHR; break;
-        case TEXTURE_FORMAT_RGBA_ASTC_5x5:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_5x5_KHR; break;
-        case TEXTURE_FORMAT_RGBA_ASTC_6x5:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_6x5_KHR; break;
-        case TEXTURE_FORMAT_RGBA_ASTC_6x6:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_6x6_KHR; break;
-        case TEXTURE_FORMAT_RGBA_ASTC_8x5:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_8x5_KHR; break;
-        case TEXTURE_FORMAT_RGBA_ASTC_8x6:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_8x6_KHR; break;
-        case TEXTURE_FORMAT_RGBA_ASTC_8x8:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_8x8_KHR; break;
-        case TEXTURE_FORMAT_RGBA_ASTC_10x5:     gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_10x5_KHR; break;
-        case TEXTURE_FORMAT_RGBA_ASTC_10x6:     gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_10x6_KHR; break;
-        case TEXTURE_FORMAT_RGBA_ASTC_10x8:     gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_10x8_KHR; break;
-        case TEXTURE_FORMAT_RGBA_ASTC_10x10:    gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_10x10_KHR; break;
-        case TEXTURE_FORMAT_RGBA_ASTC_12x10:    gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_12x10_KHR; break;
-        case TEXTURE_FORMAT_RGBA_ASTC_12x12:    gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_12x12_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_4X4:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_5X4:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_5x4_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_5X5:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_5x5_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_6X5:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_6x5_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_6X6:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_6x6_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_8X5:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_8x5_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_8X6:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_8x6_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_8X8:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_8x8_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_10X5:     gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_10x5_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_10X6:     gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_10x6_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_10X8:     gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_10x8_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_10X10:    gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_10x10_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_12X10:    gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_12x10_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_12X12:    gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_12x12_KHR; break;
 
         case TEXTURE_FORMAT_RGB_BC1:            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_DXT1; break;
         case TEXTURE_FORMAT_RGBA_BC3:           gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_DXT5; break;
@@ -4336,20 +4333,20 @@ static void LogFrameBufferError(GLenum status)
             case TEXTURE_FORMAT_R_ETC2:
             case TEXTURE_FORMAT_RG_ETC2:
             case TEXTURE_FORMAT_RGBA_ETC2:
-            case TEXTURE_FORMAT_RGBA_ASTC_4x4:
-            case TEXTURE_FORMAT_RGBA_ASTC_5x4:
-            case TEXTURE_FORMAT_RGBA_ASTC_5x5:
-            case TEXTURE_FORMAT_RGBA_ASTC_6x5:
-            case TEXTURE_FORMAT_RGBA_ASTC_6x6:
-            case TEXTURE_FORMAT_RGBA_ASTC_8x5:
-            case TEXTURE_FORMAT_RGBA_ASTC_8x6:
-            case TEXTURE_FORMAT_RGBA_ASTC_8x8:
-            case TEXTURE_FORMAT_RGBA_ASTC_10x5:
-            case TEXTURE_FORMAT_RGBA_ASTC_10x6:
-            case TEXTURE_FORMAT_RGBA_ASTC_10x8:
-            case TEXTURE_FORMAT_RGBA_ASTC_10x10:
-            case TEXTURE_FORMAT_RGBA_ASTC_12x10:
-            case TEXTURE_FORMAT_RGBA_ASTC_12x12:
+            case TEXTURE_FORMAT_RGBA_ASTC_4X4:
+            case TEXTURE_FORMAT_RGBA_ASTC_5X4:
+            case TEXTURE_FORMAT_RGBA_ASTC_5X5:
+            case TEXTURE_FORMAT_RGBA_ASTC_6X5:
+            case TEXTURE_FORMAT_RGBA_ASTC_6X6:
+            case TEXTURE_FORMAT_RGBA_ASTC_8X5:
+            case TEXTURE_FORMAT_RGBA_ASTC_8X6:
+            case TEXTURE_FORMAT_RGBA_ASTC_8X8:
+            case TEXTURE_FORMAT_RGBA_ASTC_10X5:
+            case TEXTURE_FORMAT_RGBA_ASTC_10X6:
+            case TEXTURE_FORMAT_RGBA_ASTC_10X8:
+            case TEXTURE_FORMAT_RGBA_ASTC_10X10:
+            case TEXTURE_FORMAT_RGBA_ASTC_12X10:
+            case TEXTURE_FORMAT_RGBA_ASTC_12X12:
             case TEXTURE_FORMAT_RGB_BC1:
             case TEXTURE_FORMAT_RGBA_BC3:
             case TEXTURE_FORMAT_R_BC4:

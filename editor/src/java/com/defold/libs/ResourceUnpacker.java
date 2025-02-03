@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -114,8 +114,6 @@ public class ResourceUnpacker {
                     if (Platform.matchPlatformAgainstOS(platform.getPair(), OS.OS_ID_WINDOWS)) {
                         unpackResourceFile("libexec/" + platform.getPair() + "/dmengine.exe", unpackPath.resolve(platform.getPair()).resolve("bin"), true, true);
                         unpackResourceFile("libexec/" + platform.getPair() + "/luajit-64.exe", unpackPath.resolve(platform.getPair()).resolve("bin"), true, true);
-                        unpackResourceFile("lib/" + platform.getPair() + "/wrap_oal.dll", unpackPath.resolve(platform.getPair()).resolve("bin"), false, true);
-                        unpackResourceFile("lib/" + platform.getPair() + "/OpenAL32.dll", unpackPath.resolve(platform.getPair()).resolve("bin"), false, true);
                     }
                     else {
                         unpackResourceFile("libexec/" + platform.getPair() + "/luajit-64", unpackPath.resolve(platform.getPair()).resolve("bin"), true, true);
