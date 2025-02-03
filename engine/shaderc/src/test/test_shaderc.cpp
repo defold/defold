@@ -453,7 +453,7 @@ TEST(Shaderc, Structs)
     dmShaderc::DeleteShaderContext(shader_ctx);
 }
 
-static int TestStandalone(const char* filename)
+static int TestStandalone(const char* filename, const char* compileTo = 0)
 {
     uint32_t data_size;
     void* data = ReadFile(filename, &data_size);
@@ -462,6 +462,26 @@ static int TestStandalone(const char* filename)
     const dmShaderc::ShaderReflection* reflection = dmShaderc::GetReflection(shader_ctx);
 
     dmShaderc::DebugPrintReflection(reflection);
+
+    if (compileTo)
+    {
+        if (strcmp(compileTo, "es100") == 0)
+        {
+            dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(shader_ctx, dmShaderc::SHADER_LANGUAGE_GLSL);
+            dmShaderc::ShaderCompilerOptions options;
+            options.m_Stage                      = dmShaderc::SHADER_STAGE_VERTEX;
+            options.m_Version                    = 100;
+            options.m_No420PackExtension         = 1;
+            options.m_GlslEmitUboAsPlainUniforms = 1;
+            options.m_GlslEs                     = 1;
+            options.m_EntryPoint                 = "main";
+
+            dmShaderc::ShaderCompileResult* dst = dmShaderc::Compile(shader_ctx, compiler, options);
+            dmLogInfo("%s", (const char*) dst->m_Data.Begin());
+
+            dmShaderc::DeleteShaderCompiler(compiler);
+        }
+    }
 
     dmShaderc::DeleteShaderContext(shader_ctx);
 
@@ -472,6 +492,11 @@ int main(int argc, char **argv)
 {
     if (argc > 1 && (strstr(argv[1], ".spv") != 0))
     {
+        if (argc > 2)
+        {
+            return TestStandalone(argv[1], argv[2]);
+        }
+
         return TestStandalone(argv[1]);
     }
 

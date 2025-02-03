@@ -445,6 +445,19 @@ static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams
     if (texture->m_MipMapCount == 1 && params.m_MipMap > 0)
         return;
 
+    if (texture->m_Texture && (texture->m_GraphicsFormat != params.m_Format ||
+                               (!params.m_SubUpdate && texture->m_Depth != params.m_Depth)))
+    { //must recreate texture
+        if (params.m_SubUpdate)
+        {
+            dmLogError("Cannot receate texture for subdata %d vs %d", texture->m_GraphicsFormat, params.m_Format);
+        }
+        else
+        {
+            wgpuTextureRelease(texture->m_Texture);
+            texture->m_Texture = NULL;
+        }
+    }
     {
         WGPUImageCopyTexture dest = {};
         dest.mipLevel             = params.m_MipMap;
@@ -493,7 +506,7 @@ static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams
 
             dest.texture = texture->m_Texture;
             layout.bytesPerRow = extent.width;
-            if(IsTextureFormatCompressed(params.m_Format))
+            if (IsTextureFormatCompressed(params.m_Format))
             {
                 layout.bytesPerRow = ceil(float(layout.bytesPerRow) / WebGPUCompressedBlockWidth(params.m_Format)) * WebGPUCompressedBlockByteSize(params.m_Format);
             }
@@ -502,7 +515,10 @@ static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams
                 layout.bytesPerRow *= ceil(GetTextureFormatBitsPerPixel(params.m_Format) / 8.0f);
             }
             extent.depthOrArrayLayers = depth;
-            wgpuQueueWriteTexture(g_WebGPUContext->m_Queue, &dest, params.m_Data, layout.bytesPerRow * layout.rowsPerImage * depth, &layout, &extent);
+            if (const size_t dataSize = params.m_DataSize ? params.m_DataSize : layout.bytesPerRow * layout.rowsPerImage * depth)
+            {
+                wgpuQueueWriteTexture(g_WebGPUContext->m_Queue, &dest, params.m_Data, dataSize, &layout, &extent);
+            }
         }
     }
 
@@ -1221,7 +1237,7 @@ static void WebGPUGetDefaultTextureFilters(HContext _context, TextureFilter& out
 
 static void WebGPUCreateCommandEncoder(WebGPUContext* context)
 {
-    if(!context->m_CommandEncoder)
+    if (!context->m_CommandEncoder)
     {
         context->m_CommandEncoder = wgpuDeviceCreateCommandEncoder(context->m_Device, NULL);
     }

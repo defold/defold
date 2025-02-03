@@ -82,8 +82,11 @@ if __name__ == "__main__":
         sys.exit(1)
 
     resources = args[0]
-    output = args[1]
-    os.makedirs(output, 0o777, True)
+    if len(args) > 1:
+        output = args[1]
+        os.makedirs(output, 0o777, True)
+    else:
+        output = False
 
     if os.path.isdir(resources):
         with open(os.path.join(resources, "game.projectc"), "rb") as f:
@@ -113,8 +116,9 @@ if __name__ == "__main__":
             arcd = gather_pieces(os.path.dirname(resources), obj['content'], "game.arcd")
             arci = gather_pieces(os.path.dirname(resources), obj['content'], "game.arci")
 
-    with open(output + "/game.projectc", "wb") as o:
-        o.write(project)
+    if output:
+        with open(output + "/game.projectc", "wb") as o:
+            o.write(project)
 
     hash_map = {}
     ddf = resource.liveupdate_ddf_pb2.ManifestFile()
@@ -148,22 +152,29 @@ if __name__ == "__main__":
                     size = uncompressed_size
                 #print("Index found %s %d-%d" % (url, offset, size))
 
-                data = arcd[offset:offset+size]
-                try:
-                    if flags & 1:
-                        #print("encrypted")
-                        xtea_decryptCTR(bytearray(b'aQj8CScgNP4VsfXK'), data)
-                    if compressed_size != -1:
-                        if options.uncompress:
-                            data = lz4.block.decompress(data, uncompressed_size)
-                        else:
-                            url += ".lz4";
+                if output:
+                    data = arcd[offset:offset+size]
+                    try:
+                        if flags & 1:
+                            #print("encrypted")
+                            xtea_decryptCTR(bytearray(b'aQj8CScgNP4VsfXK'), data)
+                        if compressed_size != -1:
+                            if options.uncompress:
+                                data = lz4.block.decompress(data, uncompressed_size)
+                            else:
+                                url += ".lz4";
 
-                except Exception as e:
-                    print("Failed: ", e)
-                    print(traceback.format_exc())
+                    except Exception as e:
+                        print("Failed: ", e)
+                        print(traceback.format_exc())
 
-                output_file = output + url
-                os.makedirs(os.path.dirname(output_file), 0o777, True)
-                with open(output_file, "wb") as o:
-                    o.write(data)
+                    output_file = output + url
+                    os.makedirs(os.path.dirname(output_file), 0o777, True)
+                    with open(output_file, "wb") as o:
+                        o.write(data)
+                elif compressed_size != -1:
+                    print("Found %s %d-%d(%d) [Compressed%s]" % (url, offset, size, compressed_size, " Encrypted" if flags & 1 else ""))
+                else:
+                    print("Found %s %d-%d%s" % (url, offset, size, " [Encrypted]" if flags & 1 else ""))
+
+

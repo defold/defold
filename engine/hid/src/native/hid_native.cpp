@@ -262,6 +262,7 @@ namespace dmHID
                         packet.m_Buttons[i / 32] &= ~mask;
                 }
                 int32_t wheel = dmPlatform::GetMouseWheel(context->m_Window);
+
                 if (context->m_FlipScrollDirection)
                 {
                     wheel *= -1;

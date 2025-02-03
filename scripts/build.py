@@ -1299,7 +1299,7 @@ class Configuration(object):
                 add_missing(plf[1], "package '%s' could not be found" % (luajit_path))
             else:
                 self._extract(luajit_path, luajit_dir)
-                for name in ('luajit-32', 'luajit-64'):
+                for name in ('luajit-64'):
                     luajit_exe = format_exes(name, plf[0])[0]
                     src = join(luajit_dir, 'bin/%s/%s' % (plf[0], luajit_exe))
                     if not os.path.exists(src):

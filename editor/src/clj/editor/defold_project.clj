@@ -459,7 +459,7 @@
   ([project path-or-resource evaluation-context]
    (when-let [resource (cond
                          (string? path-or-resource) (workspace/find-resource (g/node-value project :workspace evaluation-context) path-or-resource evaluation-context)
-                         (satisfies? resource/Resource path-or-resource) path-or-resource
+                         (resource/resource? path-or-resource) path-or-resource
                          :else (assert false (str (type path-or-resource) " is neither a path nor a resource: " (pr-str path-or-resource))))]
      (let [nodes-by-resource-path (g/node-value project :nodes-by-resource-path evaluation-context)]
        (get nodes-by-resource-path (resource/proj-path resource))))))
@@ -1066,7 +1066,7 @@
     (disconnect-from-inputs basis node consumer-node connections)))
 
 (defn- ensure-resource-node-created [tx-data-context-map project resource]
-  (assert (satisfies? resource/Resource resource))
+  (assert (resource/resource? resource))
   (if-some [[_ pending-resource-node-id] (find (:created-resource-nodes tx-data-context-map) resource)]
     [tx-data-context-map pending-resource-node-id nil]
     (let [graph-id (g/node-id->graph-id project)

@@ -56,6 +56,8 @@ namespace dmEngineService
 
     static const char INFO_TEMPLATE[] =
     "{\"version\": \"${ENGINE_VERSION}\", \"platform\": \"${ENGINE_PLATFORM}\", \"sha1\": \"${ENGINE_SHA1}\"}";
+    static const char STATE_TEMPLATE[] =
+    "{\"connection_mode\": ${CONNECTION_MODE}}";
 
     static const char INTERNAL_SERVER_ERROR[] = "(500) Internal server error";
     const char* const FOURCC_RESOURCES = "RESS";
@@ -208,6 +210,14 @@ namespace dmEngineService
             dmWebServer::Send(request, service->m_InfoJson, strlen(service->m_InfoJson));
         }
 
+        static void StateHandler(void* user_data, dmWebServer::Request* request)
+        {
+            EngineService* service = (EngineService*) user_data;
+            dmWebServer::SetStatusCode(request, 200);
+            dmWebServer::Send(request, service->m_StateJson, strlen(service->m_StateJson));
+        }
+        
+
         // This is equivalent to what SSDP is doing when serving the UPNP descriptor through its own http server
         // See ssdp.cpp#ReplaceHttpHostVar
         static const char* ReplaceHttpHostVar(void *user_data, const char *key)
@@ -293,6 +303,10 @@ namespace dmEngineService
             else if (strcmp(key, "ENGINE_PLATFORM") == 0)
             {
                 return dmEngineVersion::PLATFORM;
+            }
+            else if (strcmp(key, "CONNECTION_MODE") == 0)
+            {
+                return ((EngineState*)user_data)->m_ConnectionAppMode ? "true" : "false";
             }
             else
             {
@@ -453,6 +467,11 @@ namespace dmEngineService
             upnp_params.m_Userdata = this;
             dmWebServer::AddHandler(web_server, "/upnp", &upnp_params);
 
+            dmWebServer::HandlerParams state_params;
+            state_params.m_Handler = StateHandler;
+            state_params.m_Userdata = this;
+            dmWebServer::AddHandler(web_server, "/state", &state_params);
+
             // Redirects from old profiler to the new
             if (web_server_redirect)
             {
@@ -488,6 +507,10 @@ namespace dmEngineService
             }
         }
 
+        void FillState(EngineState* state)
+        {
+            dmTemplate::Format(state, m_StateJson, sizeof(m_StateJson), STATE_TEMPLATE, ReplaceCallback);
+        }
 
         dmWebServer::HServer m_WebServer;
         dmWebServer::HServer m_WebServerRedirect; // A redirect from 8002 to the engine service
@@ -502,6 +525,7 @@ namespace dmEngineService
         dmSSDP::HSSDP        m_SSDP;
 
         char                 m_InfoJson[sizeof(INFO_TEMPLATE) + 512]; // 512 is rather arbitrary :-)
+        char                 m_StateJson[sizeof(STATE_TEMPLATE) + 512]; // 512 is rather arbitrary :-)
 
         dmProfile::HProfile  m_Profile;
     };
@@ -917,5 +941,9 @@ namespace dmEngineService
         profile_params.m_Userdata = 0;
         dmWebServer::AddHandler(engine_service->m_WebServer, "/", &profile_params);
     }
-}
 
+     void InitState(HEngineService engine_service, EngineState* state)
+     {
+        engine_service->FillState(state);
+     }
+}

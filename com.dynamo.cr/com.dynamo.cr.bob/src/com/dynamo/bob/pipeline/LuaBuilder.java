@@ -180,7 +180,7 @@ public abstract class LuaBuilder extends Builder {
         useLua51 = LUA51_PLATFORMS.contains(this.project.getPlatform());
         if (!useLua51 && luaJITExePath == null) {
             final Platform host = Platform.getHostPlatform();
-            luaJITExePath = Bob.getExe(host, host.is64bit() ? "luajit-64" : "luajit-32");
+            luaJITExePath = Bob.getExe(host, "luajit-64");
         }
 
         return taskBuilder.build();

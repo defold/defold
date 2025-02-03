@@ -78,7 +78,7 @@
 
 ; Rendering
 
-(defn- scale-factor [camera viewport ^Tuple3d reference-point]
+(defn scale-factor [camera viewport ^Tuple3d reference-point]
   (let [offset-point (doto (Point3d.) (.add reference-point (c/camera-right-vector camera)))
         screen-point-a (c/camera-project camera viewport reference-point)
         screen-point-b (c/camera-project camera viewport offset-point)]
@@ -108,7 +108,8 @@
     :scale-xy [0.0 0.0 1.0]
     :scale-xz [0.0 1.0 0.0]
     :scale-yz [1.0 0.0 0.0]
-    :scale-uniform [0.0 0.0 1.0]))
+    :scale-uniform [0.0 0.0 1.0]
+    :move-pivot [0.0 0.0 1.0]))
 
 (defn- manip->normal
   ^Vector3d [manip ^Quat4d rotation]
@@ -126,7 +127,7 @@
         (:move-xy :move-xz :move-yz :scale-xy :scale-xz :scale-yz) (> (Math/abs (.z dir)) 0.06)
         true))))
 
-(defn- get-manip-rotation
+(defn get-manip-rotation
   ^Quat4d [manip-space manip-world-rotation]
   (case manip-space
     :local manip-world-rotation
@@ -161,10 +162,10 @@
 (defn- vtx-apply [f vs & args]
   (map (fn [[mode vs]] [mode (map (fn [v] (apply map f v args)) vs)]) vs))
 
-(defn- vtx-scale [s vs]
+(defn vtx-scale [s vs]
   (vtx-apply * vs s))
 
-(defn- vtx-add [p vs]
+(defn vtx-add [p vs]
   (vtx-apply + vs p))
 
 (defn- vtx-rot [^AxisAngle4d r vs]
@@ -182,7 +183,7 @@
                                       [0.0 (Math/cos angle) (Math/sin angle)]) (range (inc sub-divs))))]
     [[GL/GL_TRIANGLES (mapcat (fn [p] (mapcat #(conj % p) circle)) [tip origin])]]))
 
-(defn- gen-point []
+(defn gen-point []
   [[GL/GL_POINTS [[0.0 0.0 0.0]]]])
 
 (defn- gen-line []
@@ -210,7 +211,7 @@
       (vtx-rot (AxisAngle4d. (Vector3d. 0 1 0) (* 0.5 Math/PI)) mirror-sides)
       (vtx-rot (AxisAngle4d. (Vector3d. 1 0 0) (* 0.5 Math/PI)) mirror-sides))))
 
-(defn- gen-circle [segs]
+(defn gen-circle [segs]
   [[GL/GL_LINES (reduce concat (partition 2 1 (map #(let [angle (* 2.0 Math/PI (/ (double %) segs))]
                                                      [(Math/cos angle) (Math/sin angle) 0.0]) (range (inc segs)))))]])
 
@@ -336,7 +337,7 @@
      :scale-x scale :scale-y scale :scale-z scale
      :scale-uniform scale-uniform}))
 
-(defn- gen-manip-renderable [id manip manip-space manip-world-rotation ^Matrix4d manip-world-transform ^AxisAngle4d rotation vertices color ^Matrix4d inv-view]
+(defn gen-manip-renderable [id manip manip-space manip-world-rotation ^Matrix4d manip-world-transform ^AxisAngle4d rotation vertices color ^Matrix4d inv-view]
   (let [vertices-by-mode (reduce (fn [m [mode vs]] (merge-with concat m {mode vs})) {} vertices)
         vertex-buffers (mapv (fn [[mode vs]]
                                (let [count (count vs)]
@@ -378,7 +379,7 @@
 (defn supported-manip-spaces [active-tool]
   (get-in transform-tools [active-tool :manip-spaces]))
 
-(defn- manip-world-transform [reference-renderable manip-space ^double scale-factor]
+(defn manip-world-transform [reference-renderable manip-space ^double scale-factor]
   (let [world-translation ^Vector3d (:world-translation reference-renderable)
         world-rotation ^Matrix3d (case manip-space
                                    :local (doto (Matrix3d.) (.set ^Quat4d (:world-rotation reference-renderable)))
