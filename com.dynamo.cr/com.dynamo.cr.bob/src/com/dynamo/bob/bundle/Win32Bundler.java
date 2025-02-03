@@ -30,7 +30,7 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 
-@BundlerParams(platforms = {"x86_64-win32", "win32"})
+@BundlerParams(platforms = {"x86_64-win32", "x86-win32"})
 public class Win32Bundler implements IBundler {
 
     @Override
