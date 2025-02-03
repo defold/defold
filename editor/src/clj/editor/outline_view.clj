@@ -463,14 +463,9 @@
       (ui/cancel future)
       (ui/user-data! cell :future-expand nil))))
 
-(defn- toggle-visibility! [^MouseEvent event]
-  (let [^TreeCell cell (target (.getTarget event))
-        ^TreeView tree-view (.getTreeView cell)
-        selection-model (.getSelectionModel tree-view)]
-    (.clearSelection selection-model)
-    (.select selection-model (.getRow tree-view (.getTreeItem cell)))
-    (ui/run-command (.getSource event) :hide-toggle-selected :workbench)
-    (.consume event)))
+(defn- toggle-visibility! [node-outline-key-path ^MouseEvent event]
+  (ui/run-command (.getSource event) :hide-toggle {:node-outline-key-path node-outline-key-path})
+  (.consume event))
 
 (def eye-open-path (ui/load-svg-path "scene/images/eye_open.svg"))
 (def eye-closed-path (ui/load-svg-path "scene/images/eye_closed.svg"))
@@ -479,12 +474,9 @@
   [^TreeView tree-view drag-entered-handler drag-exited-handler]
   (let [eye-icon-open (app-view/make-svg-icon-graphic eye-open-path)
         eye-icon-closed (app-view/make-svg-icon-graphic eye-closed-path)
-        image-view-icon (doto (ImageView.)
-                          (.setFitWidth 16)
-                          (.setFitHeight 16))
+        image-view-icon (ImageView.)
         visibility-button (doto (ToggleButton.)
                             (ui/add-style! "visibility-toggle")
-                            (ui/on-click! toggle-visibility!)
                             (AnchorPane/setRightAnchor 0.0))
         text-label (Label.)
         h-box (doto (HBox. 5 (ui/node-array [image-view-icon text-label]))
@@ -492,7 +484,7 @@
                 (AnchorPane/setRightAnchor 0.0)
                 (AnchorPane/setLeftAnchor 0.0))
         pane (doto (AnchorPane. (ui/node-array [h-box visibility-button]))
-               (ui/add-style! "anchor-pane"))
+               (.setStyle "-fx-background-color: transparent"))
         cell (proxy [TreeCell] []
                (updateItem [item empty]
                  (let [this ^TreeCell this]
@@ -504,7 +496,7 @@
                        (proxy-super setGraphic nil)
                        (proxy-super setContextMenu nil)
                        (proxy-super setStyle nil))
-                     (let [{:keys [label icon link color outline-error? outline-overridden? outline-reference? outline-show-link? parent-reference? child-error? child-overridden? scene-visibility hideable?]} item
+                     (let [{:keys [label icon link color outline-error? outline-overridden? outline-reference? outline-show-link? parent-reference? child-error? child-overridden? scene-visibility hideable? node-outline-key-path]} item
                            icon (if outline-error? "icons/32/Icons_E_02_error.png" icon)
                            show-link? (and (some? link)
                                            (or outline-reference? outline-show-link?))
@@ -513,6 +505,9 @@
                        (.setImage image-view-icon (icons/get-image icon))
                        (.setText text-label text)
                        (.setGraphic visibility-button visibility-icon)
+                       (proxy-super setGraphic pane)
+                       (when hideable?
+                         (ui/on-click! visibility-button (partial toggle-visibility! node-outline-key-path)))
                        (when-let [[r g b a] color]
                          (proxy-super setStyle (format "-fx-text-fill: rgba(%d, %d, %d %d);" (int (* 255 r)) (int (* 255 g)) (int (* 255 b)) (int (* 255 a)))))
                        (if parent-reference?
@@ -538,8 +533,7 @@
                          (ui/remove-style! this "hideable"))
                        (if (= :hidden scene-visibility)
                          (ui/add-style! this "scene-visibility-hidden")
-                         (ui/remove-style! this "scene-visibility-hidden"))
-                       (proxy-super setGraphic pane))))))]
+                         (ui/remove-style! this "scene-visibility-hidden")))))))]
     (doto cell
       (.setOnDragEntered drag-entered-handler)
       (.setOnDragExited drag-exited-handler))))

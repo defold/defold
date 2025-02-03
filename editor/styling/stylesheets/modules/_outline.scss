@@ -67,10 +67,15 @@
     &.child-error {
       @include colorize-disclosure-arrow(-df-error-severity-fatal-dim);
     }
-    
-    .anchor-pane {
-      -fx-background-color: transparent;
+
+    .label {
+      -fx-min-width: 40px;
     }
+
+    .image-view {
+      -fx-fit-height: 16px;
+      -fx-fit-width: 16px;
+    } 
 
     .visibility-toggle {
       visibility: hidden;
