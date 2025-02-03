@@ -59,6 +59,13 @@ namespace dmEngineService
         dmResource::HFactory      m_Factory;
         dmGameObject::HRegister   m_Regist;
     };
+
+    struct EngineState
+    {
+        bool   m_ConnectionAppMode;
+    };
+
+    void InitState(HEngineService engine_service, EngineState* state);
 }
 
 #endif // DM_ENGINE_SERVICE

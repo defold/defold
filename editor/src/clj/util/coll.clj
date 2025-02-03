@@ -221,6 +221,7 @@
    (cond
      (empty? a) b
      (empty? b) a
+     (and (map? a) (supports-transient? a) (map? b)) (-> (reduce-kv assoc! (transient a) b) persistent! (with-meta (meta a)))
      :else (into a b)))
   ([a b & maps]
    (reduce merge
@@ -250,10 +251,10 @@
                      b)
              (persistent!)
              (with-meta (meta a)))
-         (reduce (fn [result [b-key b-value]]
-                   (assoc result b-key (merged-value b-key b-value)))
-                 a
-                 b)))))
+         (reduce-kv (fn [result b-key b-value]
+                      (assoc result b-key (merged-value b-key b-value)))
+                    a
+                    b)))))
   ([f a b & maps]
    (reduce #(merge-with f %1 %2)
            (merge-with f a b)
@@ -276,10 +277,10 @@
                    ::not-found b-value
                    (f b-key a-value b-value))))]
        (if (supports-transient? a)
-         (-> (reduce (fn [result [b-key b-value]]
-                       (assoc! result b-key (merged-value b-key b-value)))
-                     (transient a)
-                     b)
+         (-> (reduce-kv (fn [result b-key b-value]
+                          (assoc! result b-key (merged-value b-key b-value)))
+                        (transient a)
+                        b)
              (persistent!)
              (with-meta (meta a)))
          (reduce (fn [result [b-key b-value]]

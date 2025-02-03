@@ -18,7 +18,7 @@
             [internal.node :as in]
             [internal.util :as util]
             [util.coll :as coll :refer [pair]])
-  (:import [clojure.lang IPersistentSet]
+  (:import [clojure.lang IPersistentSet Indexed]
            [com.github.benmanes.caffeine.cache Cache Caffeine]
            [internal.graph.types Arc Endpoint]
            [java.util ArrayList]
@@ -563,10 +563,15 @@
   (into '() (take-while some? (iterate (partial override-original basis) node-id))))
 
 (defn override-of [graph node-id override-id]
-  (some (fn [override-node-id]
-          (when (= override-id (gt/override-id (node-id->node graph override-node-id)))
-            override-node-id))
-        (overrides graph node-id)))
+  (let [^Indexed os (overrides graph node-id)
+        n (count os)]
+    (loop [i 0]
+      (if (= i n)
+        nil
+        (let [override-node-id (.nth os i)]
+          (if (= override-id (gt/override-id (node-id->node graph override-node-id)))
+            override-node-id
+            (recur (inc i))))))))
 
 (defn- node-id->arcs [graph node-id arc-kw]
   (into [] cat (vals (-> graph (get arc-kw) (get node-id)))))

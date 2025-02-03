@@ -474,6 +474,9 @@ Macros currently mean no foreseeable performance gain, however."
 
 (def get-field-value-paths-fn (fn/memoize get-field-value-paths-fn-raw))
 
+(defn get-field-value-paths [pb-map pb-class]
+  ((get-field-value-paths-fn (resource-field-path-specs pb-class)) pb-map))
+
 (defn- make-pb->clj-fn [fields]
   (fn pb->clj [pb]
     (->> fields

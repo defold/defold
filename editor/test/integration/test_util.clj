@@ -1139,6 +1139,21 @@
     (fs/delete-directory! build-directory {:fail :silently})
     (:error build-result)))
 
+(defn resolve-build-dependencies
+  "Returns a flat list of dependent build targets"
+  [node-id project]
+  (let [ret (build/resolve-node-dependencies node-id project)]
+    (when-not (is (not (g/error-value? ret)))
+      (let [path (some-> (g/maybe-node-value node-id :resource) resource/proj-path)
+            cause (->> ret
+                       (tree-seq :causes :causes)
+                       (some :message))]
+        (throw (ex-info (str "Failed to build"
+                             (when path (str " " path))
+                             (when cause (str ": " cause)))
+                        {:error ret}))))
+    ret))
+
 (defn node-build-resource [node-id]
   (:resource (first (g/node-value node-id :build-targets))))
 
@@ -1613,3 +1628,21 @@
 
 (defmacro check-thrown-with-data! [expected-data-pred & body]
   `(is (~'thrown-with-data? ~expected-data-pred ~@body)))
+
+(defmethod test/assert-expr 'thrown-with-root-cause-msg? [msg [_ re & body :as form]]
+  `(try
+     (do ~@body)
+     (test/do-report {:type :fail :message ~msg :expected '~form :actual nil})
+     (catch Throwable e#
+       (let [^Throwable root# (loop [e# e#]
+                                (if-let [cause# (ex-cause e#)]
+                                  (recur cause#)
+                                  e#))
+             m# (.getMessage root#)]
+         (if (re-find ~re m#)
+           (test/do-report {:type :pass :message ~msg :expected '~form :actual e#})
+           (test/do-report {:type :fail, :message ~msg, :expected '~form :actual e#})))
+       e#)))
+
+(defmacro check-thrown-with-root-cause-msg! [re & body]
+  `(is (~'thrown-with-root-cause-msg? ~re ~@body)))
