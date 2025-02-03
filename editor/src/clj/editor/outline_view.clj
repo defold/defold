@@ -20,6 +20,7 @@
             [editor.icons :as icons]
             [editor.outline :as outline]
             [editor.resource :as resource]
+            [editor.scene-visibility :as scene-visibility]
             [editor.types :as types]
             [editor.ui :as ui])
   (:import [com.defold.control TreeCell]
@@ -114,17 +115,16 @@
               (ui/scroll-to-item! tree-view first-item))))))))
 
 (defn- decorate
-  ([hidden-node-outline-key-paths root]
-   (:item (decorate hidden-node-outline-key-paths [] [] root (:outline-reference? root))))
-  ([hidden-node-outline-key-paths node-id-path node-outline-key-path {:keys [node-id] :as item} parent-reference?]
+  ([hidden-node-outline-key-paths root outline-name-paths]
+   (:item (decorate hidden-node-outline-key-paths [] [] root (:outline-reference? root) outline-name-paths)))
+  ([hidden-node-outline-key-paths node-id-path node-outline-key-path {:keys [node-id] :as item} parent-reference? outline-name-paths]
    (let [node-id-path (conj node-id-path node-id)
-         hideable? (seq node-outline-key-path)
          node-outline-key-path (if (empty? node-outline-key-path)
                                  [node-id]
                                  (if-some [node-outline-key (:node-outline-key item)]
                                    (conj node-outline-key-path node-outline-key)
                                    node-outline-key-path))
-         data (mapv #(decorate hidden-node-outline-key-paths node-id-path node-outline-key-path % (or parent-reference? (:outline-reference? item))) (:children item))
+         data (mapv #(decorate hidden-node-outline-key-paths node-id-path node-outline-key-path % (or parent-reference? (:outline-reference? item)) outline-name-paths) (:children item))
          item (assoc item
                 :node-id-path node-id-path
                 :node-outline-key-path node-outline-key-path
@@ -132,7 +132,7 @@
                 :children (mapv :item data)
                 :child-error? (boolean (some :child-error? data))
                 :child-overridden? (boolean (some :child-overridden? data))
-                :hideable? hideable?
+                :hideable? (contains? outline-name-paths (rest node-outline-key-path))
                 :scene-visibility (if (contains? hidden-node-outline-key-paths node-outline-key-path)
                                     :hidden
                                     :visible))]
@@ -141,14 +141,14 @@
       :child-overridden? (or (:child-overridden? item) (:outline-overridden? item))})))
 
 (g/defnk produce-tree-root
-  [active-outline active-resource-node open-resource-nodes raw-tree-view hidden-node-outline-key-paths]
+  [active-outline active-resource-node open-resource-nodes raw-tree-view hidden-node-outline-key-paths outline-name-paths]
   (let [resource-node-set (set open-resource-nodes)
         root-cache (or (ui/user-data raw-tree-view ::root-cache) {})
         [root outline old-hidden-node-outline-key-paths] (get root-cache active-resource-node)
         new-root (if (or (not= outline active-outline)
                          (not= old-hidden-node-outline-key-paths hidden-node-outline-key-paths)
                          (and (nil? root) (nil? outline)))
-                   (sync-tree root (tree-item (decorate hidden-node-outline-key-paths active-outline)))
+                   (sync-tree root (tree-item (decorate hidden-node-outline-key-paths active-outline outline-name-paths)))
                    root)
         new-cache (assoc (map-filter (fn [[resource-node _]]
                                        (contains? resource-node-set resource-node))
@@ -202,6 +202,7 @@
   (input open-resource-nodes g/Any :substitute [])
   (input selection g/Any :substitute [])
   (input hidden-node-outline-key-paths types/NodeOutlineKeyPaths)
+  (input outline-name-paths scene-visibility/OutlineNamePaths)
 
   (output root TreeItem :cached produce-tree-root)
   (output tree-view TreeView :cached update-tree-view)
@@ -534,8 +535,8 @@
                          (ui/add-style! this "child-overridden")
                          (ui/remove-style! this "child-overridden"))
                        (if hideable?
-                         (ui/add-style! this "renderable")
-                         (ui/remove-style! this "renderable"))
+                         (ui/add-style! this "hideable")
+                         (ui/remove-style! this "hideable"))
                        (if (= :hidden scene-visibility)
                          (ui/add-style! this "scene-visibility-hidden")
                          (ui/remove-style! this "scene-visibility-hidden")))))))]
