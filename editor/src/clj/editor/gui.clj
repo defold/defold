@@ -483,6 +483,9 @@
    (fn [target source]
      (let [node-tree (node->gui-scene target)
            taken-id-names (g/node-value target target-name-key)]
+       ;; Note: We update the name before attaching the node to make sure the
+       ;; update-gui-resource-references call in the property setter does not
+       ;; treat this as a rename refactoring.
        (concat
          (g/update-property source :name outline/resolve-id taken-id-names)
          (attach-fn node-tree target source))))))
@@ -634,24 +637,29 @@
   (when (and (not (empty? old-name))
              (not (empty? new-name)))
     (let [basis (:basis evaluation-context)
-          owner-gui-scene (core/scope-of-type basis gui-resource-node-id GuiSceneNode)
-          gui-scenes (tree-seq
-                       any?
-                       (fn [gui-scene]
-                         (->> gui-scene
-                              (g/overrides basis)
-                              (e/remove
-                                (fn [ov-gui-scene]
-                                  (-> ov-gui-scene
-                                      (g/valid-node-value :aux-gui-resource-type-names evaluation-context)
-                                      (get gui-resource-type)
-                                      (contains? old-name))))))
-                       owner-gui-scene)]
-      (coll/transfer gui-scenes []
-        (mapcat #(g/valid-node-value % :node-ids evaluation-context))
-        (map val)
-        (keep (fn [gui-node]
-                (update-gui-resource-reference gui-resource-type evaluation-context gui-node old-name new-name)))))))
+          owner-gui-scene (core/scope-of-type basis gui-resource-node-id GuiSceneNode)]
+      ;; Note: We can be without an owner-gui-scene if the gui resource isn't
+      ;; attached yet. For example, if it is on the clipboard and about to be
+      ;; pasted into a gui scene.
+      (when owner-gui-scene
+        (let [gui-scenes
+              (tree-seq
+                any?
+                (fn [gui-scene]
+                  (->> gui-scene
+                       (g/overrides basis)
+                       (e/remove
+                         (fn [ov-gui-scene]
+                           (-> ov-gui-scene
+                               (g/valid-node-value :aux-gui-resource-type-names evaluation-context)
+                               (get gui-resource-type)
+                               (contains? old-name))))))
+                owner-gui-scene)]
+          (coll/transfer gui-scenes []
+            (mapcat #(g/valid-node-value % :node-ids evaluation-context))
+            (map val)
+            (keep (fn [gui-node]
+                    (update-gui-resource-reference gui-resource-type evaluation-context gui-node old-name new-name)))))))))
 
 (defn- update-gui-resource-reference-impl [rename-fn evaluation-context node-id prop-kw old-name new-name]
   (let [basis (:basis evaluation-context)]
