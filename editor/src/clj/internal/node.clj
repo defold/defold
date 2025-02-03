@@ -401,7 +401,7 @@
   [basis cache initial-invalidate-counters]
   (assert (gt/basis? basis))
   (assert (c/cache? cache))
-  (assert (map? initial-invalidate-counters))
+  (assert (gt/endpoint-map? initial-invalidate-counters))
   {:basis basis
    :cache cache ; cache from the system
    :initial-invalidate-counters initial-invalidate-counters

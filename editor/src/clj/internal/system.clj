@@ -102,6 +102,7 @@
 
 (defn- bump-invalidate-counters
   [invalidate-map endpoints]
+  {:pre [(gt/endpoint-map? invalidate-map)]}
   (persistent!
     (reduce
       (fn [m endpoint]
@@ -112,7 +113,7 @@
 
 (defn invalidate-outputs
   "Invalidate the given outputs and _everything_ that could be
-  affected by them. Outputs are specified as a seq of Endpoints
+  affected by them. Outputs are specified as a seq of endpoints
   for both the argument and return value."
   [system outputs]
   (assert (every? gt/endpoint? outputs))
@@ -199,7 +200,7 @@
 (defn- next-available-graph-id
   [system]
   (let [used (into #{} (keys (graphs system)))]
-    (first (drop-while used (range 0 gt/MAX-GROUP-ID)))))
+    (first (drop-while used (range 0 (bit-shift-left 1 gt/GID-BITS))))))
 
 (defn next-node-id*
   [id-generators graph-id]
@@ -251,7 +252,7 @@
          :id-generators {}
          :override-id-generator (integer-counter)
          :cache cache
-         :invalidate-counters {}
+         :invalidate-counters (gt/endpoint-map)
          :user-data {}}
         (attach-graph initial-graph))))
 

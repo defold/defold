@@ -75,7 +75,7 @@
            [editor.resource FileResource MemoryResource ZipResource]
            [editor.types AABB]
            [editor.workspace BuildResource]
-           [internal.graph.types Arc Endpoint]
+           [internal.graph.types Arc]
            [java.beans BeanInfo Introspector MethodDescriptor PropertyDescriptor]
            [java.lang.reflect Modifier]
            [java.nio ByteBuffer]
@@ -992,18 +992,6 @@
      :max-elapsed-nanoseconds max-elapsed-nanoseconds
      :attempt-frequencies attempt-frequencies}))
 
-(defn endpoint-interner-stats []
-  ;; Trigger a GC and give it a moment to clear out unused weak references.
-  (System/gc)
-  (Thread/sleep 500)
-  (weak-interner-stats gt/endpoint-interner))
-
-(defn interned-endpoints []
-  ;; Trigger a GC and give it a moment to clear out unused weak references.
-  (System/gc)
-  (Thread/sleep 500)
-  (weak-interner-values gt/endpoint-interner))
-
 (defn scene-cache-stats-by-context-id
   "Returns a sorted map where the keys are scene cache context ids mapped to a
   sorted map of cache-ids, to the number of entries in the context cache for that
@@ -1143,10 +1131,7 @@
 
             graph-pprint-handlers
             {(namespaced-class-symbol Arc)
-             (partial object-data-pprint-handler nil (juxt gt/source-id gt/source-label gt/target-id gt/target-label))
-
-             (namespaced-class-symbol Endpoint)
-             (partial object-data-pprint-handler nil (juxt g/endpoint-node-id g/endpoint-label))}
+             (partial object-data-pprint-handler nil (juxt gt/source-id gt/source-label gt/target-id gt/target-label))}
 
             java-pprint-handlers
             {(namespaced-class-symbol Class)

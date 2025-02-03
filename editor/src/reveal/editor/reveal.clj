@@ -34,7 +34,7 @@
            [editor.code.data Cursor CursorRange]
            [editor.resource FileResource ZipResource]
            [editor.workspace BuildResource]
-           [internal.graph.types Endpoint]
+           [internal.graph.types]
            [javafx.scene Parent]))
 
 (set! *warn-on-reflection* true)
@@ -147,7 +147,7 @@
       (node-id-sf ec node-id))))
 
 (r/defaction ::defold:successors [x]
-  (when (instance? Endpoint x)
+  (when (g/endpoint? x)
     (let [ec (g/make-evaluation-context)
           basis (:basis ec)]
       (when (endpoint-successors basis x)
@@ -186,14 +186,6 @@
 (r/defaction ::defold:watch [_ {::keys [node-id+label]}]
   (when node-id+label
     #(apply watch-all node-id+label)))
-
-(r/defstream Endpoint [endpoint]
-  (r/horizontal
-    (r/raw-string "#g/endpoint [" {:fill :object})
-    (r/stream (g/endpoint-node-id endpoint))
-    r/separator
-    (r/stream (g/endpoint-label endpoint))
-    (r/raw-string "]" {:fill :object})))
 
 (defn- read-file-resource [str-expr]
   `(workspace/resolve-workspace-resource (dev/workspace) ~str-expr))

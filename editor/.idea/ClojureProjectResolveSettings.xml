@@ -11,6 +11,7 @@
     <item key="dynamo.graph/defnk" resolves-as="clojure.core/defn" />
     <item key="dynamo.graph/defnode" resolves-as="clojure.core/def" />
     <item key="editor.git-test/with-git" resolves-as="clojure.core/let" />
+    <item key="clojure.core.cache/defcache" resolves-as="clojure.core/defrecord" />
     <currentScheme>PROJECT</currentScheme>
   </component>
 </project>

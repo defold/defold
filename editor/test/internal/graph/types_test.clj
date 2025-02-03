@@ -42,29 +42,29 @@
                (.compareTo (gt/endpoint 0 :a)
                            "")))
 
+  ;; Note: Ascending node ids will have a corresponding effect on order, but
+  ;; labels are not guaranteed to be ordered semantically. If you sort a bunch
+  ;; of endpoints, endpoints related to a particular node will be grouped
+  ;; together, but the label order within the nodes won't reflect their names.
   (is (neg? (.compareTo (gt/endpoint 0 :a)
                         (gt/endpoint 1 :a))))
   (is (zero? (.compareTo (gt/endpoint 0 :a)
                          (gt/endpoint 0 :a))))
   (is (pos? (.compareTo (gt/endpoint 1 :a)
                         (gt/endpoint 0 :a))))
-  (is (neg? (.compareTo (gt/endpoint 1 :a)
-                        (gt/endpoint 1 :b))))
   (is (zero? (.compareTo (gt/endpoint 1 :a)
                          (gt/endpoint 1 :a))))
-  (is (pos? (.compareTo (gt/endpoint 1 :b)
-                        (gt/endpoint 1 :a))))
 
-  (is (= [(gt/endpoint 0 :a)
-          (gt/endpoint 0 :b)
-          (gt/endpoint 1 :a)
-          (gt/endpoint 1 :b)]
+  (is (= [(gt/endpoint 0 :first)
+          (gt/endpoint 0 :second)
+          (gt/endpoint 1 :first)
+          (gt/endpoint 1 :second)]
          (vec (into (sorted-set)
-                    [(gt/endpoint 1 :b)
-                     (gt/endpoint 0 :b)
-                     (gt/endpoint 1 :a)
-                     (gt/endpoint 0 :a)
-                     (gt/endpoint 1 :b)
-                     (gt/endpoint 0 :b)
-                     (gt/endpoint 1 :a)
-                     (gt/endpoint 0 :a)])))))
+                    [(gt/endpoint 1 :second)
+                     (gt/endpoint 0 :second)
+                     (gt/endpoint 1 :first)
+                     (gt/endpoint 0 :first)
+                     (gt/endpoint 1 :second)
+                     (gt/endpoint 0 :second)
+                     (gt/endpoint 1 :first)
+                     (gt/endpoint 0 :first)])))))

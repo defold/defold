@@ -20,7 +20,7 @@
 
 (set! *warn-on-reflection* true)
 
-(def ^:dynamic *cache-debug* nil)
+(defonce ^:private empty-base (gt/endpoint-map))
 
 (defprotocol CacheExtensions
   (seed [this base retain-arg] "Replace the contents of the cache with base. Potentially faster than calling one-by-one. The retain-arg will be supplied as the first argument to a present retain predicate for this run.")
@@ -52,7 +52,7 @@
   (miss-many [this _kvs _retain-arg] this)
   (evict-many [this _ks] this))
 
-(def null-cache (NullCache. {}))
+(def null-cache (NullCache. empty-base))
 
 ;; ----------------------------------------
 ;; Basic unlimited cache implementation
@@ -301,13 +301,13 @@
          (or (nil? retain?) (ifn? retain?))]}
   (cond
     (= -1 limit) ; Unlimited cache.
-    (cc/basic-cache-factory {})
+    (cc/basic-cache-factory empty-base)
 
     (zero? limit) ; No cache.
     null-cache
 
     (pos? limit) ; Limited cache that evicts the least recently used entry when full.
-    (retaining-lru-cache-factory {} :threshold limit :retain? retain?)
+    (retaining-lru-cache-factory empty-base :threshold limit :retain? retain?)
 
     :else
     (throw (ex-info (str "Invalid limit: " limit)
@@ -315,7 +315,7 @@
 
 (defn cache-clear
   [cache]
-  (cc/seed cache {}))
+  (cc/seed cache empty-base))
 
 (defn cache-hit
   [cache ks]

@@ -36,7 +36,7 @@
 
 (set! *warn-on-reflection* true)
 
-(namespaces/import-vars [internal.graph.types node-id->graph-id node->graph-id sources targets connected? dependencies Node node-id node-id? produce-value node-by-id-at endpoint endpoint-node-id endpoint-label])
+(namespaces/import-vars [internal.graph.types node-id->graph-id node->graph-id sources targets connected? dependencies Node node-id node-id? produce-value node-by-id-at endpoint endpoint? endpoint-node-id endpoint-label])
 
 (namespaces/import-vars [internal.graph.error-values ->error error-aggregate error-fatal error-fatal? error-info error-info? error-message error-package? error-warning error-warning? error-value? error? flatten-errors map->error package-errors precluding-errors unpack-errors worse-than package-if-error])
 
@@ -119,7 +119,7 @@
     nil))
 
 (defn endpoint-invalidated-pred
-  "Return a predicate function that takes an Endpoint and returns a boolean
+  "Return a predicate function that takes an endpoint and returns a boolean
   signalling if it has been invalidated since the supplied
   snapshot-invalidate-counters based on the system-invalidate-counters. If
   snapshot-invalidate-counters is nil, returns fn/constantly-false. If
@@ -128,8 +128,8 @@
   ([snapshot-invalidate-counters]
    (endpoint-invalidated-pred snapshot-invalidate-counters (invalidate-counters)))
   ([snapshot-invalidate-counters system-invalidate-counters]
-   {:pre [(or (nil? snapshot-invalidate-counters) (map? snapshot-invalidate-counters))
-          (map? system-invalidate-counters)]}
+   {:pre [(or (nil? snapshot-invalidate-counters) (gt/endpoint-map? snapshot-invalidate-counters))
+          (gt/endpoint-map? system-invalidate-counters)]}
    (if (or (nil? snapshot-invalidate-counters)
            (identical? snapshot-invalidate-counters system-invalidate-counters))
      fn/constantly-false
@@ -1046,7 +1046,7 @@
 
 (defn invalidate-outputs!
   "Invalidate the given outputs and _everything_ that could be
-  affected by them. Outputs are specified as a seq of Endpoints
+  affected by them. Outputs are specified as a seq of endpoints
   for both the argument and return value."
   ([outputs]
    (when-not (coll/empty? outputs)

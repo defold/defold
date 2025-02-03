@@ -14,7 +14,7 @@
 
 (ns util.weak-interner-test
   (:require [clojure.test :refer :all]
-            [internal.graph.types :as gt])
+            [util.coll :refer [pair]])
   (:import [com.defold.util WeakInterner]))
 
 (deftest constructor-test
@@ -27,42 +27,42 @@
 
 (deftest interning-test
   (let [weak-interner (WeakInterner. 16)
-        interned-endpoint (.intern weak-interner (gt/->Endpoint 12345 :label))]
-    (is (= interned-endpoint (gt/->Endpoint 12345 :label)))
-    (is (identical? interned-endpoint (.intern weak-interner (gt/->Endpoint 12345 :label))))))
+        interned-value (.intern weak-interner (pair 12345 :label))]
+    (is (= interned-value (pair 12345 :label)))
+    (is (identical? interned-value (.intern weak-interner (pair 12345 :label))))))
 
 (deftest growth-test
   (let [weak-interner (WeakInterner. 0)
-        first-endpoint (.intern weak-interner (gt/->Endpoint 1 :first))
-        second-endpoint (.intern weak-interner (gt/->Endpoint 2 :second))
-        third-endpoint (.intern weak-interner (gt/->Endpoint 3 :third))]
-    (is (identical? first-endpoint (.intern weak-interner (gt/->Endpoint 1 :first))))
-    (is (identical? second-endpoint (.intern weak-interner (gt/->Endpoint 2 :second))))
-    (is (identical? third-endpoint (.intern weak-interner (gt/->Endpoint 3 :third))))))
+        first-value (.intern weak-interner (pair 1 :first))
+        second-value (.intern weak-interner (pair 2 :second))
+        third-value (.intern weak-interner (pair 3 :third))]
+    (is (identical? first-value (.intern weak-interner (pair 1 :first))))
+    (is (identical? second-value (.intern weak-interner (pair 2 :second))))
+    (is (identical? third-value (.intern weak-interner (pair 3 :third))))))
 
 (deftest cleanup-test
   (let [weak-interner (WeakInterner. 4)
         references-atom (atom {})]
-    (swap! references-atom assoc :first-endpoint (.intern weak-interner (gt/->Endpoint 1 :first)))
-    (swap! references-atom assoc :second-endpoint (.intern weak-interner (gt/->Endpoint 2 :second)))
-    (let [{:keys [first-endpoint second-endpoint]} @references-atom
-          first-id (System/identityHashCode first-endpoint)
-          second-id (System/identityHashCode second-endpoint)]
-      (is (= first-id (System/identityHashCode (.intern weak-interner (gt/->Endpoint 1 :first)))))
-      (is (= second-id (System/identityHashCode (.intern weak-interner (gt/->Endpoint 2 :second)))))
+    (swap! references-atom assoc :first-value (.intern weak-interner (pair 1 :first)))
+    (swap! references-atom assoc :second-value (.intern weak-interner (pair 2 :second)))
+    (let [{:keys [first-value second-value]} @references-atom
+          first-id (System/identityHashCode first-value)
+          second-id (System/identityHashCode second-value)]
+      (is (= first-id (System/identityHashCode (.intern weak-interner (pair 1 :first)))))
+      (is (= second-id (System/identityHashCode (.intern weak-interner (pair 2 :second)))))
       (reset! references-atom {})
       (System/gc)
-      (is (not= first-id (System/identityHashCode (.intern weak-interner (gt/->Endpoint 1 :first)))))
-      (is (not= second-id (System/identityHashCode (.intern weak-interner (gt/->Endpoint 2 :second))))))))
+      (is (not= first-id (System/identityHashCode (.intern weak-interner (pair 1 :first)))))
+      (is (not= second-id (System/identityHashCode (.intern weak-interner (pair 2 :second))))))))
 
 (deftest multi-threaded-access-test
   (let [weak-interner (WeakInterner. 0)
 
-        interned-endpoints-by-node-id
+        interned-values-by-node-id
         (->> (repeatedly 1000000 #(long (rand-int 100)))
-             (pmap #(.intern weak-interner (gt/->Endpoint % :label)))
+             (pmap #(.intern weak-interner (pair % :label)))
              (vec)
-             (group-by gt/endpoint-node-id))]
+             (group-by key))]
 
-    (doseq [[first-endpoint & remaining-endpoints] (vals interned-endpoints-by-node-id)]
-      (is (every? #(identical? first-endpoint %) remaining-endpoints)))))
+    (doseq [[first-value & remaining-values] (vals interned-values-by-node-id)]
+      (is (every? #(identical? first-value %) remaining-values)))))

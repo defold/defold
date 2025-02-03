@@ -13,12 +13,22 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns internal.graph.types
-  (:import [clojure.lang IHashEq Keyword Murmur3 Util]
-           [com.defold.util WeakInterner]
-           [java.io Writer]))
+  (:require [clojure.data.int-map-fixed :as int-map])
+  (:import [clojure.data.int_map_fixed PersistentIntMap]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
+
+(defmacro ^:private bits->mask [bits]
+  `(dec (bit-shift-left 1 ~bits)))
+
+;; We currently do not use the sign bit, but presumably we could.
+(def ^:const NID-BITS 25) ; Support 33554432 total nodes per graph.
+(def ^:const NID-MASK (bits->mask NID-BITS))
+(def ^:const GID-BITS 6) ; Support 64 total graphs.
+(def ^:const GID-MASK (bits->mask GID-BITS))
+(def ^:const NODE-ID-BITS (+ GID-BITS NID-BITS))
+(def ^:const NODE-ID-MASK (bits->mask NODE-ID-BITS))
 
 (defrecord Arc [source-id source-label target-id target-label])
 
@@ -29,58 +39,51 @@
 (defn target-label [^Arc arc] (.target-label arc))
 (defn target [^Arc arc] [(.target-id arc) (.target-label arc)])
 
-(definline node-id-hash [node-id]
-  `(Murmur3/hashLong ~node-id))
+(def ^:const ENDPOINT-NODE-ID-BITS NODE-ID-BITS)
+(def ^:const ENDPOINT-NODE-ID-MASK NODE-ID-MASK)
+(def ^:const ENDPOINT-LABEL-BITS Integer/SIZE)
+(def ^:const ENDPOINT-LABEL-MASK (bits->mask ENDPOINT-LABEL-BITS))
+(def ^:const ENDPOINT-BITS (+ ENDPOINT-NODE-ID-BITS ENDPOINT-LABEL-BITS))
 
-(deftype Endpoint [^long node-id ^Keyword label]
-  Comparable
-  (compareTo [_ that]
-    (let [^Endpoint that that
-          node-id-comparison (Long/compare node-id (.-node-id that))]
-      (if (zero? node-id-comparison)
-        (.compareTo label (.-label that))
-        node-id-comparison)))
-  IHashEq
-  (hasheq [_]
-    (Util/hashCombine
-      (node-id-hash node-id)
-      (.hasheq label)))
-  Object
-  (toString [_]
-    (str "#g/endpoint [" node-id " " label "]"))
-  (hashCode [_]
-    (Util/hashCombine
-      (node-id-hash node-id)
-      (.hasheq label)))
-  (equals [this that]
-    (or (identical? this that)
-        (and (instance? Endpoint that)
-             (= node-id (.-node-id ^Endpoint that))
-             (identical? label (.-label ^Endpoint that))))))
+(assert (<= ENDPOINT-BITS Long/SIZE) "Endpoint size exceeds size of long.")
 
-(defmethod print-method Endpoint [^Endpoint ep ^Writer writer]
-  (.write writer "#g/endpoint [")
-  (.write writer (str (.-node-id ep)))
-  (.write writer " ")
-  (.write writer (str (.-label ep)))
-  (.write writer "]"))
+(defonce ^:private endpoint-label-bits-lookup-atom (atom (int-map/int-map)))
 
-(defonce ^WeakInterner endpoint-interner (WeakInterner. 65536))
+(defn- endpoint-label-bits
+  ^long [label]
+  {:pre [(keyword? label)]}
+  ;; Wasteful in terms of the number of bits used, but simple.
+  (let [label-bits (bit-and (long (hash label)) ENDPOINT-LABEL-MASK)]
+    (when-not (contains? @endpoint-label-bits-lookup-atom label-bits)
+      (swap! endpoint-label-bits-lookup-atom assoc label-bits label))
+    label-bits))
 
-(definline endpoint [node-id label]
-  `(.intern endpoint-interner (->Endpoint ~node-id ~label)))
+(defn endpoint
+  ^long [^long node-id label]
+  {:pre [(keyword? label)]}
+  (let [label-bits (endpoint-label-bits label)]
+    (bit-or
+      (bit-shift-left node-id ENDPOINT-LABEL-BITS)
+      (bit-and label-bits ENDPOINT-LABEL-MASK))))
 
-(defn- read-endpoint [[node-id-expr label-expr]]
-  `(endpoint ~node-id-expr ~label-expr))
+(defn endpoint-node-id
+  ^long [^long endpoint]
+  (bit-and
+    (bit-shift-right endpoint ENDPOINT-LABEL-BITS)
+    ENDPOINT-NODE-ID-MASK))
 
-(definline endpoint-node-id [endpoint]
-  `(.-node-id ~(with-meta endpoint {:tag `Endpoint})))
-
-(definline endpoint-label [endpoint]
-  `(.-label ~(with-meta endpoint {:tag `Endpoint})))
+(defn endpoint-label [^long endpoint]
+  (let [label-bits (bit-and endpoint ENDPOINT-LABEL-MASK)]
+    (get @endpoint-label-bits-lookup-atom label-bits)))
 
 (defn endpoint? [x]
-  (instance? Endpoint x))
+  (and (instance? Long x)
+       (some? (endpoint-label x))))
+
+(def endpoint-map int-map/int-map)
+
+(defn endpoint-map? [value]
+  (instance? PersistentIntMap value))
 
 (defn node-id? [v] (integer? v))
 
@@ -136,30 +139,34 @@
 ;; ID helpers
 ;; ---------------------------------------------------------------------------
 
-(def ^:const NID-BITS                                56)
-(def ^:const NID-MASK                  0xffffffffffffff)
-(def ^:const NID-SIGN-EXTEND         -72057594037927936) ;; as a signed long
-(def ^:const GID-BITS                                 7)
-(def ^:const GID-MASK                              0x7f)
-(def ^:const MAX-GROUP-ID                           254)
-
-(defn make-node-id ^long [^long gid ^long nid]
+(defn make-node-id
+  ^long [^long gid ^long nid]
   (bit-or
-   (bit-shift-left gid NID-BITS)
-   (bit-and nid 0xffffffffffffff)))
+    (bit-shift-left gid NID-BITS)
+    (bit-and nid NID-MASK)))
 
-(defn node-id->graph-id ^long [^long node-id]
-  (bit-and (bit-shift-right node-id NID-BITS) GID-MASK))
+(defn node-id->graph-id
+  ^long [^long node-id]
+  (bit-and
+    (bit-shift-right node-id NID-BITS)
+    GID-MASK))
 
-(defn node-id->nid ^long [^long node-id]
+(defn node-id->nid
+  ^long [^long node-id]
   (bit-and node-id NID-MASK))
 
-(defn node->graph-id ^long [node] (node-id->graph-id (node-id node)))
+(defn node->graph-id
+  ^long [node]
+  (node-id->graph-id (node-id node)))
 
-(defn make-override-id ^long [^long gid ^long oid]
+(defn make-override-id
+  ^long [^long gid ^long oid]
   (bit-or
-   (bit-shift-left gid NID-BITS)
-   (bit-and oid 0xffffffffffffff)))
+    (bit-shift-left gid NID-BITS)
+    (bit-and oid NID-MASK)))
 
-(defn override-id->graph-id ^long [^long override-id]
-  (bit-and (bit-shift-right override-id NID-BITS) GID-MASK))
+(defn override-id->graph-id
+  ^long [^long override-id]
+  (bit-and
+    (bit-shift-right override-id NID-BITS)
+    GID-MASK))
