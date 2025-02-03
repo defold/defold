@@ -158,7 +158,7 @@
       (test-util/with-prop [pie :perimeter-vertices 1001]
         (is (g/error-fatal? (test-util/prop-error pie :perimeter-vertices)))))))
 
-(deftest gui-textures
+(deftest gui-textures-test
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/logic/main.gui")
           outline (g/node-value node-id :node-outline)
@@ -201,9 +201,9 @@
 (defn- build-targets-deps [gui-scene-node]
   (map :node-id (:deps (first (g/node-value gui-scene-node :build-targets)))))
 
-(deftest gui-fonts
+(deftest gui-fonts-test
   (test-util/with-loaded-project
-    (let [gui-scene-node   (test-util/resource-node project "/logic/main.gui")
+    (let [gui-scene-node (test-util/resource-node project "/logic/main.gui")
           outline (g/node-value gui-scene-node :node-outline)
           gui-font-node (get-in outline [:children 3 :children 0 :node-id])
           old-font (font-resource-node project gui-font-node)
@@ -261,7 +261,7 @@
          (map #(g/node-value % :id))
          vec)))
 
-(deftest gui-layers
+(deftest gui-layers-test
   (test-util/with-loaded-project
     (let [[node-id view] (test-util/open-scene-view! project app-view "/gui/layers.gui" 16 16)]
       (is (= ["box" "pie" "box1" "text"] (render-order view)))
@@ -575,6 +575,56 @@
       (is (= (get options-by-label "Default") (test-util/handler-state :set-gui-layout [context] nil)))
       (g/set-property! node-id :visible-layout "Landscape")
       (is (= (get options-by-label "Landscape") (test-util/handler-state :set-gui-layout [context] nil))))))
+
+(deftest paste-gui-resource-test
+  (test-util/with-loaded-project "test/resources/gui_project"
+    (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))
+          scene (test-util/resource-node project "/gui/resources/button.gui")
+
+          check!
+          (fn check! [resource-name gui-resources-node-fn shape-name shape-resource-prop-kw expected-resource-choices]
+            (testing (format "Pasting %s resource" resource-name)
+              (let [resources-node (gui-resources-node-fn scene)
+                    resource-node (gui-resource-node gui-resources-node-fn scene resource-name)
+                    shape-node (gui-node scene shape-name)]
+                (is (some? resources-node))
+                (is (some? resource-node))
+                (is (some? shape-node))
+                (let [shape-resource-before (g/node-value shape-node shape-resource-prop-kw)]
+                  (with-open [_ (make-restore-point!)]
+                    (test-util/outline-duplicate! project resources-node [0])
+                    (is (= shape-resource-before (g/node-value shape-node shape-resource-prop-kw))
+                        "Shape should still refer to the original resource name.")
+                    (is (= expected-resource-choices
+                           (property-value-choices shape-node shape-resource-prop-kw))
+                        "The pasted resource should get a unique name among the selectable resources."))))))]
+      (check!
+        "button_font" gui-fonts "text" :font
+        ["button_font"
+         "button_font1"])
+      (check!
+        "button_layer" gui-layers "box" :layer
+        [""
+         "button_layer"
+         "button_layer1"])
+      (check!
+        "button_material" gui-materials "box" :material
+        [""
+         "button_material"
+         "button_material1"])
+      (check!
+        "button_particlefx" gui-particlefx-resources "particlefx" :particlefx
+        ["button_particlefx"
+         "button_particlefx1"])
+      (check!
+        "button_spinescene" gui-spine-scenes "spine" :spine-scene
+        ["button_spinescene"
+         "button_spinescene1"])
+      (check!
+        "button_texture" gui-textures "box" :texture
+        [""
+         "button_texture/button_striped"
+         "button_texture1/button_striped"]))))
 
 (deftest rename-referenced-gui-resource
   (test-util/with-loaded-project
