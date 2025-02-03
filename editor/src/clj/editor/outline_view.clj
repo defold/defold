@@ -513,7 +513,6 @@
                        (.setImage image-view-icon (icons/get-image icon))
                        (.setText text-label text)
                        (.setGraphic visibility-button visibility-icon)
-                       (proxy-super setGraphic pane)
                        (when-let [[r g b a] color]
                          (proxy-super setStyle (format "-fx-text-fill: rgba(%d, %d, %d %d);" (int (* 255 r)) (int (* 255 g)) (int (* 255 b)) (int (* 255 a)))))
                        (if parent-reference?
@@ -539,7 +538,8 @@
                          (ui/remove-style! this "hideable"))
                        (if (= :hidden scene-visibility)
                          (ui/add-style! this "scene-visibility-hidden")
-                         (ui/remove-style! this "scene-visibility-hidden")))))))]
+                         (ui/remove-style! this "scene-visibility-hidden"))
+                       (proxy-super setGraphic pane))))))]
     (doto cell
       (.setOnDragEntered drag-entered-handler)
       (.setOnDragExited drag-exited-handler))))
