@@ -1309,7 +1309,6 @@ namespace dmSound
                     }
                     else if (info.m_BitsPerSample == 16)
                     {
-                        assert(info.m_BitsPerSample == 16);
                         if (nc == 1)
                         {
                             ConvertFromS16(sound->GetDecoderBufferBase(0) + initial_frame_count, (int16_t*)decoder_temp, new_frame_count);

@@ -38,8 +38,8 @@ namespace dmSound
         const float* c = &_pfb[pi];
 
 #if defined(__SSE4_1__)
-        vec4 taps0 = _mm_loadu_ps(&frames[-3])
-        vec4 taps1 = _mm_loadu_ps(&frames[ 1])
+        vec4 taps0 = _mm_loadu_ps(&frames[-3]);
+        vec4 taps1 = _mm_loadu_ps(&frames[ 1]);
         return (_mm_dp_ps(taps0, *(const vec4*)&c[0], 0xf1) + _mm_dp_ps(taps1, *(const vec4*)&c[4], 0xf1))[0];      // at least on intel: 11 cycles latency, but good throughput -> shuffles and adds are rather FAST, without hiding the latency the old code could be comparable in speed!
         // ^^^ WebASM EMULATES THE DOT! --> "emulated with SIMD mul+add+setzero+2xblend"!!
         // (same true for NEON dot product)
