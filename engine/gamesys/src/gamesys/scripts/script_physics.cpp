@@ -1090,13 +1090,6 @@ namespace dmGameSystem
         CollisionWorld* comp_world = 0x0;
         GetCollisionObject(L, 1, collection, &comp, &comp_world);
 
-        // TODO: Not should what this check woudl be equivalent to now
-        /*
-        if (!IsCollision2D(comp_world)) {
-            return DM_LUA_ERROR("function only available in 2D physics");
-        }
-        */
-
         if (!comp)
         {
             return DM_LUA_ERROR("couldn't find collision object"); // todo: add url
@@ -1104,6 +1097,8 @@ namespace dmGameSystem
 
         bool flip = lua_toboolean(L, 2);
 
+        // TODO:
+        // I think these functions should return a "result" instead
         if (horizontal)
             SetCollisionFlipH(comp_world, comp, flip);
         else
