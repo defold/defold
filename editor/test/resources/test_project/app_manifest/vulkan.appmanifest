@@ -31,7 +31,7 @@ platforms:
     arm64-linux:
         context:
             excludeLibs: ["graphics"]
-            excludeSymbols: ["GraphicsAdapterOpenGL"]
+            excludeSymbols: ["GraphicsAdapterOpenGLES"]
             symbols: ["GraphicsAdapterVulkan"]
             libs: ["graphics_vulkan","X11-xcb"]
             dynamicLibs: ["vulkan"]

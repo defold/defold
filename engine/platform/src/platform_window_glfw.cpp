@@ -276,6 +276,7 @@ namespace dmPlatform
         switch(params.m_GraphicsApi)
         {
             case PLATFORM_GRAPHICS_API_OPENGL:
+            case PLATFORM_GRAPHICS_API_OPENGLES:
                 res = OpenWindowOpenGL(window, params);
                 break;
             case PLATFORM_GRAPHICS_API_WEBGPU:

@@ -106,6 +106,8 @@ namespace dmGraphics
             return ADAPTER_FAMILY_NULL;
         if (dmStrCaseCmp("opengl", adapter_name) == 0)
             return ADAPTER_FAMILY_OPENGL;
+        if (dmStrCaseCmp("opengles", adapter_name) == 0)
+            return ADAPTER_FAMILY_OPENGLES;
         if (dmStrCaseCmp("vulkan", adapter_name) == 0)
             return ADAPTER_FAMILY_VULKAN;
         if (dmStrCaseCmp("webgpu", adapter_name) == 0)
@@ -127,6 +129,7 @@ namespace dmGraphics
             GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_NONE);
             GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_NULL);
             GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_OPENGL);
+            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_OPENGLES);
             GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_VULKAN);
             GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_VENDOR);
             GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_WEBGPU);
