@@ -115,7 +115,7 @@ typedef struct ExtensionAppParams
  */
 typedef struct ExtensionParams
 {
-    // NOTE: we'd like to hide these implementation details, in favor of gettin teh contexts
+    // NOTE: we'd like to hide these implementation details, in favor of getting the contexts
     HConfigFile         m_ConfigFile;       //!< Deprecated. Use m_Contexts instead
     HResourceFactory    m_ResourceFactory;  //!< Deprecated. Use m_Contexts instead
     lua_State*          m_L;                //!< Deprecated. Use m_Contexts instead

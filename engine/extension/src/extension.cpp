@@ -20,6 +20,51 @@
 
 #include "extension.h"
 
+struct ExtensionParamsImpl
+{
+    dmHashTable64<void*> m_Contexts;
+};
+
+static void EnsureSize(dmHashTable64<void*>* tbl)
+{
+    if (tbl->Full())
+    {
+        tbl->OffsetCapacity(4);
+    }
+}
+
+static int SetContext(dmHashTable64<void*>* contexts, dmhash_t name_hash, void* context)
+{
+    assert(contexts);
+    EnsureSize(contexts);
+
+    if (context)
+        contexts->Put(name_hash, context);
+    else
+    {
+        void** pvalue = contexts->Get(name_hash);
+        if (pvalue)
+            contexts->Erase(name_hash);
+    }
+    return 0;
+}
+
+static int SetContext(dmHashTable64<void*>* contexts, const char* name, void* context)
+{
+    return SetContext(contexts, dmHashString64(name), context);
+}
+
+static void* GetContext(dmHashTable64<void*>* contexts, dmhash_t name_hash)
+{
+    void** pcontext = contexts->Get(name_hash);
+    if (pcontext != 0)
+    {
+        return *pcontext;
+    }
+    return 0;
+}
+
+
 #if defined(__cplusplus)
 extern "C" {
 #endif
@@ -82,50 +127,6 @@ void ExtensionRegister(void* _desc,
 bool ExtensionRegisterCallback(ExtensionCallbackType callback_type, FExtensionCallback func)
 {
     return dmExtension::RegisterCallback((dmExtension::CallbackType)callback_type, (dmExtension::FCallback)func);
-}
-
-struct ExtensionParamsImpl
-{
-    dmHashTable64<void*> m_Contexts;
-};
-
-static void EnsureSize(dmHashTable64<void*>* tbl)
-{
-    if (tbl->Full())
-    {
-        tbl->OffsetCapacity(4);
-    }
-}
-
-static int SetContext(dmHashTable64<void*>* contexts, dmhash_t name_hash, void* context)
-{
-    assert(contexts);
-    EnsureSize(contexts);
-
-    if (context)
-        contexts->Put(name_hash, context);
-    else
-    {
-        void** pvalue = contexts->Get(name_hash);
-        if (pvalue)
-            contexts->Erase(name_hash);
-    }
-    return 0;
-}
-
-static int SetContext(dmHashTable64<void*>* contexts, const char* name, void* context)
-{
-    return SetContext(contexts, dmHashString64(name), context);
-}
-
-static void* GetContext(dmHashTable64<void*>* contexts, dmhash_t name_hash)
-{
-    void** pcontext = contexts->Get(name_hash);
-    if (pcontext != 0)
-    {
-        return *pcontext;
-    }
-    return 0;
 }
 
 void ExtensionAppParamsInitialize(ExtensionAppParams* app_params)
