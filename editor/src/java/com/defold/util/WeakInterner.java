@@ -63,6 +63,7 @@ public final class WeakInterner<T> {
 
     /**
      * Constructs a new WeakInterner with the specified initial capacity and a load factor of 0.75.
+     *
      * @param initialCapacity The initial number of values we can intern before growing the internal storage.
      */
     public WeakInterner(final int initialCapacity) {
@@ -71,6 +72,7 @@ public final class WeakInterner<T> {
 
     /**
      * Constructs a new WeakInterner with the specified initial capacity and load factor.
+     *
      * @param initialCapacity The initial number of values we can intern before growing the internal storage.
      * @param loadFactor The ratio of accepted occupancy before growing the internal storage.
      */
@@ -89,8 +91,37 @@ public final class WeakInterner<T> {
     }
 
     /**
+     * Returns an immutable list containing all the live values currently in the
+     * WeakInterner. This can be used during development to inspect its
+     * contents. It is not recommended to invoke this method for purposes other
+     * than debugging.
+     *
+     * @return An unmodifiable list containing all the live values.
+     */
+    public synchronized List<Object> getValues() {
+        // Obtain a cleaned hash table, ensuring anything in the stale entries
+        // queue has been processed before we start to iterate through entries.
+        final Entry<T>[] hashTable = getHashTable();
+        final ArrayList<Object> liveValues = new ArrayList<>(count);
+
+        for (Entry<T> entry : hashTable) {
+            if (entry != null && entry != removedSentinelEntry) {
+                final Object value = entry.get();
+
+                if (value != null) {
+                    liveValues.add(value);
+                }
+            }
+        }
+
+        liveValues.trimToSize();
+        return Collections.unmodifiableList(liveValues);
+    }
+
+    /**
      * Returns a nested map of details about the internals of the WeakInterner.
      * This can be used during development to inspect resource allocation, etc.
+     *
      * @return A nested unmodifiable map with details about the WeakInterner.
      */
     public synchronized Map<String, Object> getDebugInfo() {
@@ -146,6 +177,7 @@ public final class WeakInterner<T> {
      * canonical representation of a value instead of many duplicate instances.
      * Values are retained as WeakReferences, and storage will be reclaimed once
      * the canonical values are no longer reachable outside the WeakInterner.
+     *
      * @param value The immutable value to intern.
      * @return The canonical representation of the supplied value.
      */

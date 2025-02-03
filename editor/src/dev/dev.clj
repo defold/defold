@@ -945,6 +945,9 @@
                          value)))))
         (.getDebugInfo weak-interner)))
 
+(definline weak-interner-values [^WeakInterner weak-interner]
+  `(.getValues ~(with-meta weak-interner {:tag `WeakInterner})))
+
 (defn weak-interner-stats [^WeakInterner weak-interner]
   (let [info (weak-interner-info weak-interner)
         hash-table (:hash-table info)
@@ -994,6 +997,12 @@
   (System/gc)
   (Thread/sleep 500)
   (weak-interner-stats gt/endpoint-interner))
+
+(defn interned-endpoints []
+  ;; Trigger a GC and give it a moment to clear out unused weak references.
+  (System/gc)
+  (Thread/sleep 500)
+  (weak-interner-values gt/endpoint-interner))
 
 (defn scene-cache-stats-by-context-id
   "Returns a sorted map where the keys are scene cache context ids mapped to a
