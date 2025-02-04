@@ -62,10 +62,10 @@ public class CollisionObjectTest extends AbstractProtoBuilderTest {
     public void testSelectBox2DBuilder() throws Exception {
         this.getProject().getProjectProperties().putStringValue("physics", "type", "2D");
 
-        Task task = getTask("/empty.collisionobject", collisionObjectInput);
-        assertTrue(task.getBuilder().getClass().isAssignableFrom(CollisionObjectBox2DBuilder.class));
+        List<Task> tasks = getTasks("/empty.collisionobject", collisionObjectInput);
+        assertTrue(tasks.get(0).getBuilder().getClass().isAssignableFrom(CollisionObjectBox2DBuilder.class));
 
-        List<Message> outputs = build(task);
+        List<Message> outputs = build(tasks);
         assertEquals(1, outputs.size());
     }
 
@@ -73,10 +73,10 @@ public class CollisionObjectTest extends AbstractProtoBuilderTest {
     public void testSelectBullet3DBuilder() throws Exception {
         this.getProject().getProjectProperties().putStringValue("physics", "type", "3D");
 
-        Task task = getTask("/empty.collisionobject", collisionObjectInput);
-        assertTrue(task.getBuilder().getClass().isAssignableFrom(CollisionObjectBullet3DBuilder.class));
+        List<Task> tasks = getTasks("/empty.collisionobject", collisionObjectInput);
+        assertTrue(tasks.get(0).getBuilder().getClass().isAssignableFrom(CollisionObjectBullet3DBuilder.class));
 
-        List<Message> outputs = build(task);
+        List<Message> outputs = build(tasks);
         assertEquals(1, outputs.size());
     }
 }

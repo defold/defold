@@ -425,7 +425,6 @@ public class Project {
         {".buffer", ".bufferc"},
         {".mesh", ".meshc"},
         {".collectionproxy", ".collectionproxyc"},
-        // {".collisionobject", ".collisionobjectc"},
         {".particlefx", ".particlefxc"},
         {".gui", ".guic"},
         {".model", ".modelc"},
