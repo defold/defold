@@ -158,6 +158,8 @@ namespace dmEngine
             ExtensionParamsSetContext(&m_Params, "factory", engine->m_Factory);
             ExtensionParamsSetContext(&m_Params, "graphics", engine->m_GraphicsContext);
             ExtensionParamsSetContext(&m_Params, "render", engine->m_RenderContext);
+            if (engine->m_HttpCache)
+                ExtensionParamsSetContext(&m_Params, "http_cache", engine->m_HttpCache);
         }
         ~ScopedExtensionParams()
         {
@@ -324,6 +326,7 @@ namespace dmEngine
         m_ModelContext.m_MaxModelCount = 0;
         m_AccumFrameTime = 0;
         m_PreviousFrameTime = dmTime::GetMonotonicTime();
+        m_HttpCache = 0;
     }
 
     HEngine New(dmEngineService::HEngineService engine_service)
@@ -448,6 +451,9 @@ namespace dmEngine
 
         ScopedExtensionAppParams app_params(engine);
         dmExtension::AppFinalize(app_params);
+
+        if (http_service->m_HttpCache)
+            dmHttpCache::Close(http_service->m_HttpCache);
 
         dmBuffer::DeleteContext();
 
@@ -1051,6 +1057,34 @@ namespace dmEngine
         dmGameSystem::OnWindowCreated(physical_width, physical_height);
 
         SetUpdateFrequency(engine, dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 0));
+
+        int http_cache_enabled = dmConfigFile::GetInt(engine->m_Config, "network.http_cache_enabled", 1);
+        engine->m_HttpCache = 0;
+#if !defined(DM_NO_HTTP_CACHE)
+        if (http_cache_enabled)
+        {
+            char path[1024];
+            dmHttpCache::NewParams cache_params;
+            dmSys::Result sys_result = dmSys::GetApplicationSupportPath("defold", path, sizeof(path));
+            if (sys_result == dmSys::RESULT_OK)
+            {
+                dmStrlCat(path, "/http-cache", sizeof(path));
+                cache_params.m_Path = path;
+                dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &engine->m_HttpCache);
+                if (cache_r != dmHttpCache::RESULT_OK)
+                {
+                    dmLogWarning("Unable to open http cache (%d)", cache_r);
+                }
+            }
+            else
+            {
+                dmLogWarning("Unable to locate application support path for \"%s\": (%d)", "defold", sys_result);
+            }
+        }
+#else
+        dmLogWarning("Http cache disabled");
+#endif
+
 
         const uint32_t max_resources = dmConfigFile::GetInt(engine->m_Config, dmResource::MAX_RESOURCES_KEY, 1024);
         dmResource::NewFactoryParams params;

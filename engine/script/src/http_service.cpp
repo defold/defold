@@ -401,31 +401,7 @@ namespace dmHttpService
     {
         HttpService* service = new HttpService;
 
-        if (params->m_UseHttpCache)
-        {
-            dmHttpCache::NewParams cache_params;
-            char path[1024];
-            dmSys::Result sys_result = dmSys::GetApplicationSupportPath("defold", path, sizeof(path));
-            if (sys_result == dmSys::RESULT_OK)
-            {
-                // NOTE: The other cache (streaming) is called /cache
-                dmStrlCat(path, "/http-cache", sizeof(path));
-                cache_params.m_Path = path;
-                dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &service->m_HttpCache);
-                if (cache_r != dmHttpCache::RESULT_OK)
-                {
-                    dmLogWarning("Unable to open http cache (%d)", cache_r);
-                }
-            }
-            else
-            {
-                dmLogWarning("Unable to locate application support path for \"%s\": (%d)", "defold", sys_result);
-            }
-        }
-        else
-        {
-            dmLogWarning("Http cache disabled");
-        }
+        service->m_HttpCache = params->m_HttpCache;
 
         int threadcount = params->m_ThreadCount;
 #if defined(__NX__)
@@ -510,8 +486,6 @@ namespace dmHttpService
         }
 
         dmMessage::DeleteSocket(http_service->m_Socket);
-        if (http_service->m_HttpCache)
-            dmHttpCache::Close(http_service->m_HttpCache);
         delete http_service;
     }
 

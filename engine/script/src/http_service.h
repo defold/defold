@@ -26,14 +26,14 @@ namespace dmHttpService
     struct Params
     {
     	Params()
-        : m_ReportProgressCallback(0)
+        : m_HttpCache(0)
+        , m_ReportProgressCallback(0)
         , m_ThreadCount(4)
-        , m_UseHttpCache(1)
     	{}
 
+        dmHttpCache::HCache    m_HttpCache;
         ReportProgressCallback m_ReportProgressCallback;
     	uint32_t               m_ThreadCount  : 4;
-        uint32_t               m_UseHttpCache : 1;
     };
 
     HHttpService New(const Params* params);

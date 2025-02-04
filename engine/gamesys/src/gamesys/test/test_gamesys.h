@@ -23,7 +23,7 @@
 
 #include <sound/sound.h>
 #include <gameobject/component.h>
-#include <extension/extension.h>
+#include <extension/extension.hpp>
 #include <physics/physics.h>
 #include <rig/rig.h>
 
@@ -542,9 +542,14 @@ void GamesysTest<T>::SetUp()
 
     dmResource::RegisterTypes(m_Factory, &m_Contexts);
 
+    dmConfigFile::LoadFromBuffer(0, 0, 0, 0, &m_Config);
+
     ExtensionAppParamsInitialize(&m_AppParams);
     ExtensionParamsInitialize(&m_Params);
-    m_Params.m_L = dmScript::GetLuaState(m_ScriptContext);;
+
+    m_Params.m_L = dmScript::GetLuaState(m_ScriptContext);
+    ExtensionParamsSetContext(&m_Params, "lua", dmScript::GetLuaState(m_ScriptContext));
+    ExtensionParamsSetContext(&m_Params, "config", m_Config);
 
     dmExtension::AppInitialize(&m_AppParams);
     dmExtension::Initialize(&m_Params);
@@ -622,9 +627,6 @@ void GamesysTest<T>::SetUp()
     dmResource::Get(m_Factory, "/input/valid.gamepadsc", (void**)&m_GamepadMapsDDF);
     ASSERT_NE((void*)0, m_GamepadMapsDDF);
     dmInput::RegisterGamepads(m_InputContext, m_GamepadMapsDDF);
-
-
-    dmConfigFile::LoadFromBuffer(0, 0, 0, 0, &m_Config);
 
     dmGameObject::ComponentTypeCreateCtx component_create_ctx;
     SetupComponentCreateContext(component_create_ctx);
