@@ -14,7 +14,7 @@
 
 #include <assert.h>
 
-#include <dmsdk/extension/extension_gen.hpp>
+#include <dmsdk/extension/extension.hpp>
 
 namespace dmGamesystem
 {
