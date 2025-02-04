@@ -113,7 +113,7 @@ namespace dmHttpClient
 
         // Headers
         int      m_ContentLength;
-        char     m_ETag[64];
+        char     m_ETag[dmHttpCache::MAX_TAG_LEN];
         uint32_t m_Chunked : 1;
         uint32_t m_CloseConnection : 1;
         uint32_t m_MaxAge;
@@ -564,7 +564,7 @@ if (sock_res != dmSocket::RESULT_OK)\
         }
         if (!client->m_IgnoreCache && client->m_HttpCache)
         {
-            char etag[64];
+            char etag[dmHttpCache::MAX_TAG_LEN];
             dmHttpCache::Result cache_result = dmHttpCache::GetETag(client->m_HttpCache, client->m_URI, etag, sizeof(etag));
             if (cache_result == dmHttpCache::RESULT_OK)
             {
@@ -755,7 +755,7 @@ bail:
         }
         dmHttpCache::Result cache_result;
 
-        char cache_etag[64];
+        char cache_etag[dmHttpCache::MAX_TAG_LEN];
         cache_etag[0] = '\0';
         cache_result = dmHttpCache::GetETag(client->m_HttpCache, client->m_URI, cache_etag, sizeof(cache_etag));
 
@@ -776,7 +776,7 @@ bail:
             // to perform this verification.
             if (strcmp(cache_etag, response->m_ETag) != 0)
             {
-                dmLogFatal("ETag mismatch (%s vs %s)", cache_etag, response->m_ETag);
+                dmLogError("ETag mismatch (%s vs %s)", cache_etag, response->m_ETag);
                 return RESULT_IO_ERROR;
             }
         }
