@@ -24,13 +24,6 @@
 
 namespace dmGameSystem
 {
-    /*
-    CollisionObjectResource::CollisionObjectResource()
-    {
-        memset(this, 0, sizeof(CollisionObjectResource));
-    }
-    */
-
     static dmPhysics::HCollisionShape2D Create2DShape(dmPhysics::HContext2D context, const dmPhysicsDDF::CollisionShape* collision_shape, uint32_t shape_index)
     {
         const dmPhysicsDDF::CollisionShape::Shape* shape = &collision_shape->m_Shapes[shape_index];
@@ -249,6 +242,7 @@ range_error:
         PhysicsContextBox2D* physics_context = (PhysicsContextBox2D*) params->m_Context;
         ReleaseResources(physics_context, params->m_Factory, collision_object);
         delete collision_object;
+        return dmResource::RESULT_OK;
     }
 
     dmResource::Result ResCollisionObjectBox2DRecreate(const dmResource::ResourceRecreateParams* params)
