@@ -393,17 +393,18 @@ message ShaderDesc
         optional uint32         set                = 7;
         optional uint32         binding            = 8;
         optional uint32         element_count      = 9;
+        optional uint32         stage_flags        = 10; // 0x1=vert, 0x2=frag, 0x4=compute
 
         oneof BindingInfo
         {
             // Uniform buffer block size
-            uint32 block_size = 10;
+            uint32 block_size = 11;
             // Sampler object index
             // Since we split combined samplers into
             // a texture + sampler object we need to
             // keep track of which of the textures
             // the sampler originally is pointing to.
-            uint32 sampler_texture_index = 11;
+            uint32 sampler_texture_index = 12;
         }
     }
 
@@ -419,13 +420,12 @@ message ShaderDesc
 
     message Shader
     {
-        required Language language              = 1;
-        optional bytes    source                = 2;
-        optional string   name                  = 3;
-        optional bool     variant_texture_array = 4 [default = false];
+        required bytes      source                = 1;
+        required ShaderType shader_type           = 2;
+        required Language   language              = 3;
+        optional bool       variant_texture_array = 4 [default = false];
     }
 
     repeated Shader shaders              = 1;
-    required ShaderReflection reflection = 2;
-    required ShaderType shader_type      = 3;
+    optional ShaderReflection reflection = 2;
 }

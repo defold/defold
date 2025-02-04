@@ -1729,24 +1729,24 @@ static void WebGPUEnableVertexDeclaration(HContext _context, HVertexDeclaration 
 
     context->m_CurrentVertexDeclaration[binding_index] = &context->m_VertexDeclaration[binding_index];
 
-    uint32_t stream_ix  = 0;
-    uint32_t num_inputs = program->m_VertexModule->m_ShaderMeta.m_Inputs.Size();
+    uint32_t stream_ix = 0;
+    uint32_t num_inputs = program->m_BaseProgram.m_ShaderMeta.m_Inputs.Size();
 
     for (int i = 0; i < declaration->m_StreamCount; ++i)
     {
         for (int j = 0; j < num_inputs; ++j)
         {
-            ShaderResourceBinding& input = program->m_VertexModule->m_ShaderMeta.m_Inputs[j];
+            ShaderResourceBinding& input = program->m_BaseProgram.m_ShaderMeta.m_Inputs[j];
 
-            if (input.m_NameHash == declaration->m_Streams[i].m_NameHash)
+            if (input.m_StageFlags & SHADER_STAGE_FLAG_VERTEX && input.m_NameHash == declaration->m_Streams[i].m_NameHash)
             {
                 VertexDeclaration::Stream& stream = context->m_VertexDeclaration[binding_index].m_Streams[stream_ix];
-                stream.m_NameHash                 = input.m_NameHash;
-                stream.m_Location                 = input.m_Binding;
-                stream.m_Type                     = declaration->m_Streams[i].m_Type;
-                stream.m_Offset                   = declaration->m_Streams[i].m_Offset;
-                stream.m_Size                     = declaration->m_Streams[i].m_Size;
-                stream.m_Normalize                = declaration->m_Streams[i].m_Normalize;
+                stream.m_NameHash  = input.m_NameHash;
+                stream.m_Location  = input.m_Binding;
+                stream.m_Type      = declaration->m_Streams[i].m_Type;
+                stream.m_Offset    = declaration->m_Streams[i].m_Offset;
+                stream.m_Size      = declaration->m_Streams[i].m_Size;
+                stream.m_Normalize = declaration->m_Streams[i].m_Normalize;
                 stream_ix++;
 
                 context->m_VertexDeclaration[binding_index].m_StreamCount++;
@@ -1999,23 +1999,28 @@ static void WebGPUDispatchCompute(HContext _context, uint32_t group_count_x, uin
     wgpuComputePassEncoderDispatchWorkgroups(context->m_CurrentComputePass.m_Encoder, group_count_x, group_count_y, group_count_z);
 }
 
-static bool WebGPUCreateShaderModuleFromDDF(WebGPUContext* context, WebGPUShaderModule* shader, ShaderDesc* ddf)
+static bool WebGPUCreateShaderModuleFromDDF(WebGPUContext* context, WebGPUShaderModule* shader, ShaderDesc::Shader* ddf)
 {
     TRACE_CALL;
-    ShaderDesc::Shader* ddf_shader = GetShaderProgram(context, ddf);
     {
+        char* tmpMemoryBuffer = (char*) malloc(ddf->m_Source.m_Count + 1);
+        memcpy(tmpMemoryBuffer, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
+        tmpMemoryBuffer[ddf->m_Source.m_Count] = '\0';
+
         WGPUShaderModuleDescriptor shader_desc = {};
-        WGPUShaderModuleWGSLDescriptor wgsl    = { { shader_desc.nextInChain, WGPUSType_ShaderModuleWGSLDescriptor }, (const char*)ddf_shader->m_Source.m_Data };
+        WGPUShaderModuleWGSLDescriptor wgsl    = { { shader_desc.nextInChain, WGPUSType_ShaderModuleWGSLDescriptor }, (const char*) tmpMemoryBuffer };
         shader_desc.nextInChain                = (WGPUChainedStruct*)&wgsl;
         shader->m_Module                       = wgpuDeviceCreateShaderModule(context->m_Device, &shader_desc);
+
+        free(tmpMemoryBuffer);
     }
     {
         HashState64 shader_hash_state;
         dmHashInit64(&shader_hash_state, false);
-        dmHashUpdateBuffer64(&shader_hash_state, ddf_shader->m_Source.m_Data, (uint32_t)ddf_shader->m_Source.m_Count);
+        dmHashUpdateBuffer64(&shader_hash_state, ddf->m_Source.m_Data, (uint32_t)ddf->m_Source.m_Count);
         shader->m_Hash = dmHashFinal64(&shader_hash_state);
     }
-    CreateShaderMeta(&ddf->m_Reflection, &shader->m_ShaderMeta);
+    // JG: This will never return false?
     return true;
 }
 
@@ -2024,36 +2029,27 @@ static void WebGPUDestroyShader(WebGPUShaderModule* shader)
     TRACE_CALL;
     wgpuShaderModuleRelease(shader->m_Module);
     shader->m_Module = NULL;
-    DestroyShaderMeta(shader->m_ShaderMeta);
 }
 
-static HComputeProgram WebGPUNewComputeProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
+static inline WGPUShaderStageFlags GetShaderStageFlags(uint8_t flag_bits)
 {
-    TRACE_CALL;
-    WebGPUShaderModule* shader = new WebGPUShaderModule;
-    memset(shader, 0, sizeof(*shader));
-    WebGPUCreateShaderModuleFromDDF((WebGPUContext*)context, shader, ddf);
-    return (HComputeProgram)shader;
-}
-
-static bool WebGPUReloadShader(WebGPUShaderModule* shader, ShaderDesc* ddf)
-{
-    TRACE_CALL;
-    ShaderDesc::Shader* ddf_shader = GetShaderProgram((HContext)g_WebGPUContext, ddf);
-    if (ddf_shader == NULL)
-        return false;
-
-    WebGPUShaderModule tmp_shader;
-    if (WebGPUCreateShaderModuleFromDDF(g_WebGPUContext, &tmp_shader, ddf))
+    WGPUShaderStageFlags bits = 0;
+    if (flag_bits & SHADER_STAGE_FLAG_VERTEX)
     {
-        WebGPUDestroyShader(shader);
-        memcpy(shader, &tmp_shader, sizeof(*shader));
-        return true;
+        bits |= WGPUShaderStage_Vertex;
     }
-    return false;
+    if (flag_bits & SHADER_STAGE_FLAG_FRAGMENT)
+    {
+        bits |= WGPUShaderStage_Fragment;
+    }
+    if (flag_bits & SHADER_STAGE_FLAG_COMPUTE)
+    {
+        bits |= WGPUShaderStage_Compute;
+    }
+    return bits;
 }
 
-static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* program, dmArray<ShaderResourceBinding>& resources, dmArray<ShaderResourceTypeInfo>& stage_type_infos, WGPUBindGroupLayoutEntry bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT], WGPUShaderStage stage_flag, ProgramResourceBindingsInfo& info)
+static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* program, dmArray<ShaderResourceBinding>& resources, dmArray<ShaderResourceTypeInfo>& stage_type_infos, WGPUBindGroupLayoutEntry bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT], ProgramResourceBindingsInfo& info)
 {
     TRACE_CALL;
     for (int i = 0; i < resources.Size(); ++i)
@@ -2077,14 +2073,14 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
                     switch (res.m_Type.m_ShaderType)
                     {
                         case ShaderDesc::SHADER_TYPE_SAMPLER:
-                            if (stage_flag == WGPUShaderStage_Compute)
+                            if (res.m_StageFlags & WGPUShaderStage_Compute)
                                 binding.sampler.type = WGPUSamplerBindingType_NonFiltering;
                             else
                                 binding.sampler.type = WGPUSamplerBindingType_Filtering;
                             break;
                         case ShaderDesc::SHADER_TYPE_TEXTURE_CUBE:
                             binding.texture.viewDimension = WGPUTextureViewDimension_Cube;
-                            if (stage_flag == WGPUShaderStage_Compute)
+                            if (res.m_StageFlags & WGPUShaderStage_Compute)
                                 binding.texture.sampleType = WGPUTextureSampleType_UnfilterableFloat;
                             else
                                 binding.texture.sampleType = WGPUTextureSampleType_Float;
@@ -2097,13 +2093,13 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
                             break;
                         case ShaderDesc::SHADER_TYPE_TEXTURE2D_ARRAY:
                             binding.texture.viewDimension = WGPUTextureViewDimension_2DArray;
-                            if (stage_flag == WGPUShaderStage_Compute)
+                            if (res.m_StageFlags & WGPUShaderStage_Compute)
                                 binding.texture.sampleType = WGPUTextureSampleType_UnfilterableFloat;
                             else
                                 binding.texture.sampleType = WGPUTextureSampleType_Float;
                             break;
                         default:
-                            if (stage_flag == WGPUShaderStage_Compute)
+                            if (res.m_StageFlags & WGPUShaderStage_Compute)
                                 binding.texture.sampleType = WGPUTextureSampleType_UnfilterableFloat;
                             else
                                 binding.texture.sampleType = WGPUTextureSampleType_Float;
@@ -2126,8 +2122,7 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
                     binding.buffer.type          = WGPUBufferBindingType_Uniform;
 
                     assert(res.m_Type.m_UseTypeIndex);
-                    program_resource_binding.m_DataOffset         = info.m_UniformDataSize;
-                    program_resource_binding.m_DynamicOffsetIndex = info.m_UniformBufferCount;
+                    program_resource_binding.m_DataOffset = info.m_UniformDataSize;
 
                     info.m_UniformBufferCount++;
                     info.m_UniformDataSize        += res.m_BindingInfo.m_BlockSize;
@@ -2142,16 +2137,16 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
             info.m_MaxBinding = dmMath::Max(info.m_MaxBinding, (uint32_t)(res.m_Binding + 1));
         }
 
-        binding.visibility |= stage_flag;
+        binding.visibility |= GetShaderStageFlags(res.m_StageFlags);
     }
 }
 
-static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* program, WebGPUShaderModule* module, WGPUBindGroupLayoutEntry bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT], WGPUShaderStage stage_flag, ProgramResourceBindingsInfo& info)
+static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* program, WGPUBindGroupLayoutEntry bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT], ProgramResourceBindingsInfo& info)
 {
     TRACE_CALL;
-    WebGPUUpdateBindGroupLayouts(context, program, module->m_ShaderMeta.m_UniformBuffers, module->m_ShaderMeta.m_TypeInfos, bindings, stage_flag, info);
-    WebGPUUpdateBindGroupLayouts(context, program, module->m_ShaderMeta.m_StorageBuffers, module->m_ShaderMeta.m_TypeInfos, bindings, stage_flag, info);
-    WebGPUUpdateBindGroupLayouts(context, program, module->m_ShaderMeta.m_Textures, module->m_ShaderMeta.m_TypeInfos, bindings, stage_flag, info);
+    WebGPUUpdateBindGroupLayouts(context, program, program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers, program->m_BaseProgram.m_ShaderMeta.m_TypeInfos, bindings, info);
+    WebGPUUpdateBindGroupLayouts(context, program, program->m_BaseProgram.m_ShaderMeta.m_StorageBuffers, program->m_BaseProgram.m_ShaderMeta.m_TypeInfos, bindings, info);
+    WebGPUUpdateBindGroupLayouts(context, program, program->m_BaseProgram.m_ShaderMeta.m_Textures, program->m_BaseProgram.m_ShaderMeta.m_TypeInfos, bindings, info);
 }
 
 static void WebGPUUpdateProgramLayouts(WebGPUContext* context, WebGPUProgram* program)
@@ -2161,16 +2156,8 @@ static void WebGPUUpdateProgramLayouts(WebGPUContext* context, WebGPUProgram* pr
     // update layouts
     ProgramResourceBindingsInfo binding_info                                     = {};
     WGPUBindGroupLayoutEntry bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT] = {};
-    if (program->m_ComputeModule)
-    {
-        WebGPUUpdateBindGroupLayouts(context, program, program->m_ComputeModule, bindings, WGPUShaderStage_Compute, binding_info);
-    }
-    else
-    {
-        assert(program->m_VertexModule && program->m_FragmentModule);
-        WebGPUUpdateBindGroupLayouts(context, program, program->m_VertexModule, bindings, WGPUShaderStage_Vertex, binding_info);
-        WebGPUUpdateBindGroupLayouts(context, program, program->m_FragmentModule, bindings, WGPUShaderStage_Fragment, binding_info);
-    }
+
+    WebGPUUpdateBindGroupLayouts(context, program, bindings, binding_info);
 
     // fill in program
     program->m_UniformData = new uint8_t[binding_info.m_UniformDataSize];
@@ -2223,8 +2210,15 @@ static void WebGPUCreateGraphicsProgram(WebGPUContext* context, WebGPUProgram* p
     {
         HashState64 program_hash;
         dmHashInit64(&program_hash, false);
-        for (uint32_t i = 0; i < vertex_module->m_ShaderMeta.m_Inputs.Size(); i++)
-            dmHashUpdateBuffer64(&program_hash, &vertex_module->m_ShaderMeta.m_Inputs[i].m_Binding, sizeof(vertex_module->m_ShaderMeta.m_Inputs[i].m_Binding));
+
+        for (uint32_t i=0; i < program->m_BaseProgram.m_ShaderMeta.m_Inputs.Size(); i++)
+        {
+            if (program->m_BaseProgram.m_ShaderMeta.m_Inputs[i].m_StageFlags & SHADER_STAGE_FLAG_VERTEX)
+            {
+                dmHashUpdateBuffer64(&program_hash, &program->m_BaseProgram.m_ShaderMeta.m_Inputs[i].m_Binding, sizeof(program->m_BaseProgram.m_ShaderMeta.m_Inputs[i].m_Binding));
+            }
+        }
+
         dmHashUpdateBuffer64(&program_hash, &vertex_module->m_Hash, sizeof(vertex_module->m_Hash));
         dmHashUpdateBuffer64(&program_hash, &fragment_module->m_Hash, sizeof(fragment_module->m_Hash));
         program->m_Hash = dmHashFinal64(&program_hash);
@@ -2232,28 +2226,46 @@ static void WebGPUCreateGraphicsProgram(WebGPUContext* context, WebGPUProgram* p
     WebGPUUpdateProgramLayouts(context, program);
 }
 
-static HProgram WebGPUNewProgramFromCompute(HContext context, HComputeProgram compute_program)
+static HProgram WebGPUNewProgram(HContext _context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
 {
     TRACE_CALL;
-    WebGPUProgram* program = new WebGPUProgram;
-    WebGPUCreateComputeProgram((WebGPUContext*)context, program, (WebGPUShaderModule*)compute_program);
-    return (HProgram)program;
-}
 
-static void WebGPUDeleteComputeProgram(HComputeProgram prog)
-{
-    TRACE_CALL;
-    WebGPUShaderModule* shader = (WebGPUShaderModule*)prog;
-    WebGPUDestroyShader(shader);
-    delete shader;
-}
+    ShaderDesc::Shader* ddf_vp = 0x0;
+    ShaderDesc::Shader* ddf_fp = 0x0;
+    ShaderDesc::Shader* ddf_cp = 0x0;
 
-static HProgram WebGPUNewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
-{
-    TRACE_CALL;
+    if (!GetShaderProgram(_context, ddf, &ddf_vp, &ddf_fp, &ddf_cp))
+    {
+        return 0;
+    }
+
     WebGPUProgram* program = new WebGPUProgram;
-    WebGPUCreateGraphicsProgram((WebGPUContext*)context, program, (WebGPUShaderModule*)vertex_program, (WebGPUShaderModule*)fragment_program);
-    return (HProgram)program;
+    WebGPUContext* context = (WebGPUContext*) _context;
+
+    CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram.m_ShaderMeta);
+
+    if (ddf_cp)
+    {
+        WebGPUShaderModule* compute_module = new WebGPUShaderModule;
+        memset(compute_module, 0, sizeof(WebGPUShaderModule));
+
+        WebGPUCreateShaderModuleFromDDF(context, compute_module, ddf_cp);
+        WebGPUCreateComputeProgram(context, program, compute_module);
+    }
+    else
+    {
+        WebGPUShaderModule* vertex_module = new WebGPUShaderModule;
+        memset(vertex_module, 0, sizeof(WebGPUShaderModule));
+
+        WebGPUShaderModule* fragment_module = new WebGPUShaderModule;
+        memset(fragment_module, 0, sizeof(WebGPUShaderModule));
+
+        WebGPUCreateShaderModuleFromDDF(context, vertex_module, ddf_vp);
+        WebGPUCreateShaderModuleFromDDF(context, fragment_module, ddf_fp);
+        WebGPUCreateGraphicsProgram(context, program, vertex_module, fragment_module);
+    }
+
+    return (HProgram) program;
 }
 
 static void WebGPUDestroyProgram(WebGPUContext* context, WebGPUProgram* program)
@@ -2289,52 +2301,6 @@ static void WebGPUDeleteProgram(HContext context, HProgram _program)
     delete program;
 }
 
-static HVertexProgram WebGPUNewVertexProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
-{
-    TRACE_CALL;
-    WebGPUShaderModule* shader = new WebGPUShaderModule;
-    memset(shader, 0, sizeof(*shader));
-    WebGPUCreateShaderModuleFromDDF((WebGPUContext*)context, shader, ddf);
-    return (HComputeProgram)shader;
-}
-
-static HFragmentProgram WebGPUNewFragmentProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
-{
-    TRACE_CALL;
-    WebGPUShaderModule* shader = new WebGPUShaderModule;
-    memset(shader, 0, sizeof(*shader));
-    WebGPUCreateShaderModuleFromDDF((WebGPUContext*)context, shader, ddf);
-    return (HComputeProgram)shader;
-}
-
-static bool WebGPUReloadVertexProgram(HVertexProgram prog, ShaderDesc* ddf)
-{
-    TRACE_CALL;
-    return WebGPUReloadShader((WebGPUShaderModule*)prog, ddf);
-}
-
-static bool WebGPUReloadFragmentProgram(HFragmentProgram prog, ShaderDesc* ddf)
-{
-    TRACE_CALL;
-    return WebGPUReloadShader((WebGPUShaderModule*)prog, ddf);
-}
-
-static void WebGPUDeleteVertexProgram(HVertexProgram program)
-{
-    TRACE_CALL;
-    WebGPUShaderModule* shader = (WebGPUShaderModule*)program;
-    WebGPUDestroyShader(shader);
-    delete shader;
-}
-
-static void WebGPUDeleteFragmentProgram(HFragmentProgram program)
-{
-    TRACE_CALL;
-    WebGPUShaderModule* shader = (WebGPUShaderModule*)program;
-    WebGPUDestroyShader(shader);
-    delete shader;
-}
-
 static ShaderDesc::Language WebGPUGetProgramLanguage(HProgram program)
 {
     TRACE_CALL;
@@ -2362,51 +2328,93 @@ static void WebGPUDisableProgram(HContext _context)
     context->m_CurrentProgram = NULL;
 }
 
-static bool WebGPUReloadProgramGraphics(HContext _context, HProgram _program, HVertexProgram vertex_program, HFragmentProgram fragment_program)
+static bool WebGPUReloadProgram(HContext _context, HProgram _program, ShaderDesc* ddf)
 {
     TRACE_CALL;
+
+    ShaderDesc::Shader* ddf_vp = 0x0;
+    ShaderDesc::Shader* ddf_fp = 0x0;
+    ShaderDesc::Shader* ddf_cp = 0x0;
+
+    if (!GetShaderProgram(_context, ddf, &ddf_vp, &ddf_fp, &ddf_cp))
+    {
+        return 0;
+    }
+
     WebGPUContext* context = (WebGPUContext*)_context;
     WebGPUProgram* program = (WebGPUProgram*)_program;
     WebGPUDestroyProgram(context, program);
-    WebGPUCreateGraphicsProgram(context, program, (WebGPUShaderModule*)vertex_program, (WebGPUShaderModule*)fragment_program);
-    return true;
-}
 
-static bool WebGPUReloadProgramCompute(HContext _context, HProgram _program, HComputeProgram compute_program)
-{
-    TRACE_CALL;
-    WebGPUContext* context = (WebGPUContext*)_context;
-    WebGPUProgram* program = (WebGPUProgram*)_program;
-    WebGPUDestroyProgram(context, program);
-    WebGPUCreateComputeProgram(context, program, (WebGPUShaderModule*)compute_program);
-    return true;
-}
+    DestroyShaderMeta(program->m_BaseProgram.m_ShaderMeta);
 
-static bool WebGPUReloadComputeProgram(HComputeProgram prog, ShaderDesc* ddf)
-{
-    TRACE_CALL;
-    return WebGPUReloadShader((WebGPUShaderModule*)prog, ddf);
+    if (ddf_cp)
+    {
+        WebGPUShaderModule tmp_shader;
+        if (!WebGPUCreateShaderModuleFromDDF(context, &tmp_shader, ddf_cp))
+            return false;
+
+        WebGPUDestroyShader(program->m_ComputeModule);
+        memcpy(program->m_ComputeModule, &tmp_shader, sizeof(*program->m_ComputeModule));
+    }
+    else
+    {
+        WebGPUShaderModule tmp_shader_vs;
+        if (!WebGPUCreateShaderModuleFromDDF(context, &tmp_shader_vs, ddf_vp))
+            return false;
+
+        WebGPUShaderModule tmp_shader_fs;
+        if (!WebGPUCreateShaderModuleFromDDF(context, &tmp_shader_fs, ddf_fp))
+            return false;
+
+        WebGPUDestroyShader(program->m_VertexModule);
+        memcpy(program->m_VertexModule, &tmp_shader_vs, sizeof(*program->m_VertexModule));
+
+        WebGPUDestroyShader(program->m_FragmentModule);
+        memcpy(program->m_FragmentModule, &tmp_shader_fs, sizeof(*program->m_FragmentModule));
+    }
+
+    CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram.m_ShaderMeta);
+
+    return true;
 }
 
 static uint32_t WebGPUGetAttributeCount(HProgram _program)
 {
     TRACE_CALL;
     WebGPUProgram* program = (WebGPUProgram*)_program;
-    return program->m_VertexModule->m_ShaderMeta.m_Inputs.Size();
+    uint32_t num_vx_inputs = 0;
+    for (int i = 0; i < program->m_BaseProgram.m_ShaderMeta.m_Inputs.Size(); ++i)
+    {
+        if (program->m_BaseProgram.m_ShaderMeta.m_Inputs[i].m_StageFlags & SHADER_STAGE_FLAG_VERTEX)
+        {
+            num_vx_inputs++;
+        }
+    }
+    return num_vx_inputs;
 }
 
 static void WebGPUGetAttribute(HProgram _program, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location)
 {
     TRACE_CALL;
     WebGPUProgram* program = (WebGPUProgram*)_program;
-    assert(index < program->m_VertexModule->m_ShaderMeta.m_Inputs.Size());
-    ShaderResourceBinding& attr = program->m_VertexModule->m_ShaderMeta.m_Inputs[index];
-
-    *name_hash     = attr.m_NameHash;
-    *type          = ShaderDataTypeToGraphicsType(attr.m_Type.m_ShaderType);
-    *num_values    = 1;
-    *location      = attr.m_Binding;
-    *element_count = GetShaderTypeSize(attr.m_Type.m_ShaderType) / sizeof(float);
+    
+    uint32_t input_ix = 0;
+    for (int i = 0; i < program->m_BaseProgram.m_ShaderMeta.m_Inputs.Size(); ++i)
+    {
+        if (program->m_BaseProgram.m_ShaderMeta.m_Inputs[i].m_StageFlags & SHADER_STAGE_FLAG_VERTEX)
+        {
+            if (input_ix == index)
+            {
+                ShaderResourceBinding& attr = program->m_BaseProgram.m_ShaderMeta.m_Inputs[i];
+                *name_hash                  = attr.m_NameHash;
+                *type                       = ShaderDataTypeToGraphicsType(attr.m_Type.m_ShaderType);
+                *num_values                 = 1;
+                *location                   = attr.m_Binding;
+                *element_count              = GetShaderTypeSize(attr.m_Type.m_ShaderType) / sizeof(float);
+            }
+            input_ix++;
+        }
+    }
 }
 
 static void WebGPUSetConstantV4(HContext _context, const Vector4* data, int count, HUniformLocation base_location)
