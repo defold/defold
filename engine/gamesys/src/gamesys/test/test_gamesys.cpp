@@ -2692,14 +2692,14 @@ TEST_P(GroupAndMask3DTest, GroupAndMaskTest )
     lua_setglobal(L, "collision_expected");
 
     // Note, body2 should get spawned before body1. body1 contains script code and init() function of that code is run when it's spawned thus missing body2.
-    const char* path_body2_go = "/collision_object/groupmask_body2.goc";
+    const char* path_body2_go = "/collision_object/groupmask_body2_bullet3d.goc";
     dmhash_t hash_body2_go = dmHashString64("/body2-go");
     // place this body standing on the base with its center at (20,5)
     dmGameObject::HInstance body2_go = Spawn(m_Factory, m_Collection, path_body2_go, hash_body2_go, 0, Point3(30,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, body2_go);
 
     // two dynamic 'body' objects will get spawned and placed apart
-    const char* path_body1_go = "/collision_object/groupmask_body1.goc";
+    const char* path_body1_go = "/collision_object/groupmask_body1_bullet3d.goc";
     dmhash_t hash_body1_go = dmHashString64("/body1-go");
     // place this body standing on the base with its center at (5,5)
     dmGameObject::HInstance body1_go = Spawn(m_Factory, m_Collection, path_body1_go, hash_body1_go, 0, Point3(5,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
@@ -3324,16 +3324,20 @@ INSTANTIATE_TEST_CASE_P(CollectionProxy, ComponentTest, jc_test_values_in(valid_
 
 /* Collision Object */
 
-const char* valid_collision_object_resources[] = {"/collision_object/valid.collisionobjectc",
-                                                  "/collision_object/valid_tilegrid.collisionobjectc",
-                                                  "/collision_object/embedded_shapes.collisionobjectc" };
+const char* valid_collision_object_resources[] = {"/collision_object/valid.collisionobject_box2dc",
+                                                  "/collision_object/valid_tilegrid.collisionobject_box2dc",
+                                                  "/collision_object/embedded_shapes.collisionobject_box2dc",
+                                                  "/collision_object/valid.collisionobject_bullet3dc",
+                                                  "/collision_object/embedded_shapes.collisionobject_bullet3dc"};
 
 INSTANTIATE_TEST_CASE_P(CollisionObject, ResourceTest, jc_test_values_in(valid_collision_object_resources));
 
 ResourceFailParams invalid_collision_object_resources[] =
 {
-    {"/collision_object/valid.collisionobjectc", "/collision_object/missing.collisionobjectc"},
-    {"/collision_object/embedded_shapes.collisionobjectc", "/collision_object/invalid_embedded_shapes.collisionobjectc"},
+    {"/collision_object/valid.collisionobject_box2dc", "/collision_object/missing.collisionobject_box2dc"},
+    {"/collision_object/embedded_shapes.collisionobject_box2dc", "/collision_object/invalid_embedded_shapes.collisionobject_box2dc"},
+    {"/collision_object/valid.collisionobject_bullet3dc", "/collision_object/missing.collisionobject_bullet3dc"},
+    {"/collision_object/embedded_shapes.collisionobject_bullet3dc", "/collision_object/invalid_embedded_shapes.collisionobject_bullet3dc"},
 };
 INSTANTIATE_TEST_CASE_P(CollisionObject, ResourceFailTest, jc_test_values_in(invalid_collision_object_resources));
 
@@ -3348,10 +3352,11 @@ INSTANTIATE_TEST_CASE_P(CollisionObject, ComponentFailTest, jc_test_values_in(in
 
 /* Convex Shape */
 
+/*
 const char* valid_cs_resources[] =
 {
     "/convex_shape/box.convexshapec",
-    /*"/convex_shape/capsule.convexshapec",*/ // Temporarily disabling capsule since we are more interested in 2D atm
+    //"/convex_shape/capsule.convexshapec", // Temporarily disabling capsule since we are more interested in 2D atm
     "/convex_shape/hull.convexshapec",
     "/convex_shape/sphere.convexshapec",
 };
@@ -3365,6 +3370,7 @@ ResourceFailParams invalid_cs_resources[] =
     {"/convex_shape/sphere.convexshapec", "/convex_shape/invalid_sphere.convexshapec"},
 };
 INSTANTIATE_TEST_CASE_P(ConvexShape, ResourceFailTest, jc_test_values_in(invalid_cs_resources));
+*/
 
 /* Font map */
 
@@ -3830,20 +3836,20 @@ INSTANTIATE_TEST_CASE_P(DrawCount, DrawCountTest, jc_test_values_in(draw_count_p
 
 ScriptComponentTestParams script_component_test_params[] =
 {
-    // file,                            comp type,          comp name
-    {"/camera/test_comp.goc",           "camerac",          "camera"},
-    {"/factory/test_comp.goc",          "factoryc",         "factory"},
-    {"/label/test_comp.goc",            "labelc",           "label"},
-    {"/light/test_comp.goc",            "lightc",           "light"},
-    {"/mesh/test_comp.goc",             "meshc",            "mesh"},
-    {"/model/test_comp.goc",            "modelc",           "model"},
-    {"/particlefx/test_comp.goc",       "particlefxc",      "particlefx"},
-    {"/sound/test_comp.goc",            "soundc",           "sound"},
-    {"/sprite/test_comp.goc",           "spritec",          "sprite"},
-    {"/tilegrid/test_comp.goc",         "tilemapc",         "tilemap"},
-    {"/collision_object/test_comp.goc", "collisionobjectc", "collisionobject"},
-    {"/collection_proxy/test_comp.goc", "collectionproxyc", "collectionproxy"},
-    {"/collection_factory/test_comp.goc", "collectionfactoryc", "collectionfactory"},
+    // file,                              comp type,                comp name
+    {"/camera/test_comp.goc",             "camerac",                "camera"},
+    {"/factory/test_comp.goc",            "factoryc",               "factory"},
+    {"/label/test_comp.goc",              "labelc",                 "label"},
+    {"/light/test_comp.goc",              "lightc",                 "light"},
+    {"/mesh/test_comp.goc",               "meshc",                  "mesh"},
+    {"/model/test_comp.goc",              "modelc",                 "model"},
+    {"/particlefx/test_comp.goc",         "particlefxc",            "particlefx"},
+    {"/sound/test_comp.goc",              "soundc",                 "sound"},
+    {"/sprite/test_comp.goc",             "spritec",                "sprite"},
+    {"/tilegrid/test_comp.goc",           "tilemapc",               "tilemap"},
+    {"/collision_object/test_comp.goc",   "collisionobject_box2dc", "collisionobject"},
+    {"/collection_proxy/test_comp.goc",   "collectionproxyc",       "collectionproxy"},
+    {"/collection_factory/test_comp.goc", "collectionfactoryc",     "collectionfactory"},
 };
 
 INSTANTIATE_TEST_CASE_P(ScriptComponent, ScriptComponentTest, jc_test_values_in(script_component_test_params));

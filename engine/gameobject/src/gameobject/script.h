@@ -39,6 +39,21 @@ namespace dmGameObject
      */
     void GetComponentFromLua(lua_State* L, int index, HCollection collection, const char* component_ext, dmGameObject::HComponent* out_user_data, dmMessage::URL* out_url, dmGameObject::HComponentWorld* world);
 
+    /*#
+     * Get component user data from lua-argument. This function is typically used from lua-bindings
+     * and can only be used from protected lua-calls as luaL_error might be invoked
+     * @name GetComponentFromLua
+     * @param L lua-state
+     * @param index index to argument
+     * @param collection in which to search
+     * @param component_exts when specified, the call will fail if the found component does not have any of the specified extensions
+     * @param num_exts number of extensions
+     * @param user_data will be overwritten component user-data output if available
+     * @param url will be overwritten with a URL to the component when specified
+     * @param world world associated when specified
+     */
+    void GetComponentFromLua(lua_State* L, int index, HCollection collection, const char** component_exts, uint32_t num_exts, dmGameObject::HComponent* out_component, dmMessage::URL* url, dmGameObject::HComponentWorld* out_world);
+
     /**
      * Get current game object instance from the lua state, if any.
      * The lua state has an instance while the script callbacks are being run on the state.

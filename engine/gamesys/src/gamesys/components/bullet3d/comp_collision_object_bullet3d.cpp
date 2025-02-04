@@ -44,6 +44,7 @@ namespace dmGameSystem
     static bool g_CollisionOverflowWarning   = false;
     static bool g_ContactOverflowWarning     = false;
 
+    static void InstallBullet3DPhysicsAdapter();
     static void GetWorldTransform(void* user_data, dmTransform::Transform& world_transform);
     static void SetWorldTransform(void* user_data, const dmVMath::Point3& position, const dmVMath::Quat& rotation);
 
@@ -95,6 +96,8 @@ namespace dmGameSystem
             *params.m_World = 0x0;
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
+
+        InstallBullet3DPhysicsAdapter();
 
         CollisionWorldBullet3D* world = new CollisionWorldBullet3D();
         memset(world, 0, sizeof(CollisionWorldBullet3D));
@@ -856,7 +859,7 @@ namespace dmGameSystem
         return true;
     }
 
-    void InstallBullet3DPhysicsAdapter()
+    static void InstallBullet3DPhysicsAdapter()
     {
         if (g_PhysicsAdapter)
         {

@@ -82,42 +82,6 @@ def transform_collectionproxy(task, msg):
     msg.collection = msg.collection.replace('.collection', '.collectionc')
     return msg
 
-def transform_collisionobject(task, msg):
-    import physics_ddf_pb2
-    import google.protobuf.text_format
-    import ddf.ddf_math_pb2
-    import dlib
-    if msg.type != physics_ddf_pb2.COLLISION_OBJECT_TYPE_DYNAMIC:
-        msg.mass = 0
-
-    # Merge convex shape resource with collision object
-    # NOTE: Special case for tilegrid resources. They are left as is
-    if msg.collision_shape and not (msg.collision_shape.endswith('.tilegrid') or msg.collision_shape.endswith('.tilemap')):
-        p = os.path.join(task.generator.content_root, msg.collision_shape[1:])
-        convex_msg = physics_ddf_pb2.ConvexShape()
-        with open(p, 'rb') as in_f:
-            google.protobuf.text_format.Merge(in_f.read(), convex_msg)
-            shape = msg.embedded_collision_shape.shapes.add()
-            shape.shape_type = convex_msg.shape_type
-            shape.position.x = shape.position.y = shape.position.z = 0
-            shape.rotation.x = shape.rotation.y = shape.rotation.z = 0
-            shape.rotation.w = 1
-            shape.index = len(msg.embedded_collision_shape.data)
-            shape.count = len(convex_msg.data)
-
-            for x in convex_msg.data:
-                msg.embedded_collision_shape.data.append(x)
-
-        msg.collision_shape = ''
-
-    for x in msg.embedded_collision_shape.shapes:
-        x.id_hash = dlib.dmHashBuffer64(x.id)
-
-    msg.collision_shape = msg.collision_shape.replace('.convexshape', '.convexshapec')
-    msg.collision_shape = msg.collision_shape.replace('.tilemap', '.tilemapc')
-    msg.collision_shape = msg.collision_shape.replace('.tilegrid', '.tilemapc')
-    return msg
-
 def transform_particlefx(task, msg):
     for emitter in msg.emitters:
         emitter.material = emitter.material.replace('.material', '.materialc')
@@ -128,7 +92,6 @@ def transform_gameobject(task, msg):
     for c in msg.components:
         c.component = c.component.replace('.camera', '.camerac')
         c.component = c.component.replace('.collectionproxy', '.collectionproxyc')
-        c.component = c.component.replace('.collisionobject', '.collisionobjectc')
         c.component = c.component.replace('.particlefx', '.particlefxc')
         c.component = c.component.replace('.gui', '.guic')
         c.component = c.component.replace('.model', '.modelc')
@@ -144,6 +107,16 @@ def transform_gameobject(task, msg):
         c.component = c.component.replace('.tilesource', '.t.texturesetc')
         c.component = c.component.replace('.tilemap', '.tilemapc')
         c.component = c.component.replace('.tilegrid', '.tilemapc')
+
+        print("c.component", c.component)
+
+        if c.component.endswith('collisionobject'):
+            c.component = c.component.replace('.collisionobject', '.collisionobject_box2dc')
+        elif c.component.endswith('collisionobject_bullet3d'):
+            c.component = c.component.replace('.collisionobject_bullet3d', '.collisionobject_bullet3dc')
+        elif c.component.endswith('collisionobject_box2d'):
+            c.component = c.component.replace('.collisionobject_box2d', '.collisionobject_box2dc')
+
         transform_properties(c.properties, c.property_decls)
     return msg
 
@@ -514,11 +487,71 @@ def gofile(self, node):
             stderr_lock.release()
         return 1
 
+
+def compile_collisionobject(task):
+    import physics_ddf_pb2
+    import google.protobuf.text_format
+    import ddf.ddf_math_pb2
+    import dlib
+    msg = physics_ddf_pb2.CollisionObjectDesc()
+    with open(task.inputs[0].srcpath(), 'rb') as in_f:
+        google.protobuf.text_format.Merge(in_f.read(), msg)
+
+    if msg.type != physics_ddf_pb2.COLLISION_OBJECT_TYPE_DYNAMIC:
+        msg.mass = 0
+
+    # Merge convex shape resource with collision object
+    # NOTE: Special case for tilegrid resources. They are left as is
+    if msg.collision_shape and not (msg.collision_shape.endswith('.tilegrid') or msg.collision_shape.endswith('.tilemap')):
+        p = os.path.join(task.generator.content_root, msg.collision_shape[1:])
+        convex_msg = physics_ddf_pb2.ConvexShape()
+        with open(p, 'rb') as in_f:
+            google.protobuf.text_format.Merge(in_f.read(), convex_msg)
+            shape = msg.embedded_collision_shape.shapes.add()
+            shape.shape_type = convex_msg.shape_type
+            shape.position.x = shape.position.y = shape.position.z = 0
+            shape.rotation.x = shape.rotation.y = shape.rotation.z = 0
+            shape.rotation.w = 1
+            shape.index = len(msg.embedded_collision_shape.data)
+            shape.count = len(convex_msg.data)
+
+            for x in convex_msg.data:
+                msg.embedded_collision_shape.data.append(x)
+
+        msg.collision_shape = ''
+
+    for x in msg.embedded_collision_shape.shapes:
+        x.id_hash = dlib.dmHashBuffer64(x.id)
+
+    msg.collision_shape = msg.collision_shape.replace('.convexshape', '.convexshapec')
+    msg.collision_shape = msg.collision_shape.replace('.tilemap', '.tilemapc')
+    msg.collision_shape = msg.collision_shape.replace('.tilegrid', '.tilemapc')
+
+    for x in task.outputs:
+        with open(x.abspath(), 'wb') as out_f:
+            out_f.write(msg.SerializeToString())
+
+    return 0
+
+task = waflib.Task.task_factory('collisionobject',
+                                func    = compile_collisionobject,
+                                color   = 'PINK')
+
+@extension('.collisionobject')
+def collisionobjectfile(self, node):
+    task = self.create_task('collisionobject')
+    task.set_inputs(node)
+    out_box2d = node.change_ext('.collisionobject_box2dc')
+    out_bullet3d = node.change_ext('.collisionobject_bullet3dc')
+    task.set_outputs([out_box2d, out_bullet3d])
+
+
 proto_compile_task('collection', 'gameobject_ddf_pb2', 'CollectionDesc', '.collection', '.collectionc', transform_collection)
 proto_compile_task('collectionproxy', 'gamesys_ddf_pb2', 'CollectionProxyDesc', '.collectionproxy', '.collectionproxyc', transform_collectionproxy)
 proto_compile_task('particlefx', 'particle.particle_ddf_pb2', 'particle_ddf_pb2.ParticleFX', '.particlefx', '.particlefxc', transform_particlefx)
 proto_compile_task('convexshape',  'physics_ddf_pb2', 'ConvexShape', '.convexshape', '.convexshapec')
-proto_compile_task('collisionobject',  'physics_ddf_pb2', 'CollisionObjectDesc', '.collisionobject', '.collisionobjectc', transform_collisionobject)
+#proto_compile_task('collisionobject',  'physics_ddf_pb2', 'CollisionObjectDesc', '.collisionobject', '.collisionobject_box2dc', transform_collisionobject)
+#proto_compile_task('collisionobject',  'physics_ddf_pb2', 'CollisionObjectDesc', '.collisionobject', '.collisionobject_bullet3dc', transform_collisionobject)
 proto_compile_task('gui',  'gui_ddf_pb2', 'SceneDesc', '.gui', '.guic', transform_gui)
 proto_compile_task('camera', 'camera_ddf_pb2', 'CameraDesc', '.camera', '.camerac')
 proto_compile_task('input_binding', 'input_ddf_pb2', 'InputBinding', '.input_binding', '.input_bindingc')

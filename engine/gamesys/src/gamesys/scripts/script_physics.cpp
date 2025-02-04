@@ -527,8 +527,13 @@ namespace dmGameSystem
     // Helper to get collisionobject component and world.
     static void GetCollisionObject(lua_State* L, int indx, dmGameObject::HCollection collection, CollisionComponent** comp, CollisionWorld** comp_world)
     {
+        const char* exts[] = {
+            COLLISION_OBJECT_BOX2D_EXT,
+            COLLISION_OBJECT_BULLET3D_EXT,
+        };
+
         dmMessage::URL receiver;
-        dmGameObject::GetComponentFromLua(L, indx, collection, COLLISION_OBJECT_EXT, (void**) comp, &receiver, (void**) comp_world);
+        dmGameObject::GetComponentFromLua(L, indx, collection, exts, 2, (void**) comp, &receiver, (void**) comp_world);
     }
 
     static int GetTableField(lua_State* L, int table_index, const char* table_field, int expected_type)
@@ -1812,6 +1817,13 @@ namespace dmGameSystem
 
         lua_pop(L, 1);
 
+        const char* collision_object_ext = COLLISION_OBJECT_BOX2D_EXT;
+        if (context.m_ConfigFile)
+        {
+            const char* physics_type = dmConfigFile::GetString(context.m_ConfigFile, "physics.type", "2D");
+            collision_object_ext = strcmp(physics_type, "2D") == 0 ? COLLISION_OBJECT_BOX2D_EXT : COLLISION_OBJECT_BULLET3D_EXT;
+        }
+
         bool result = true;
 
         PhysicsScriptContext* physics_context = new PhysicsScriptContext();
@@ -1823,10 +1835,10 @@ namespace dmGameSystem
         HResourceType co_resource_type;
         if (result)
         {
-            dmResource::Result fact_result = dmResource::GetTypeFromExtension(context.m_Factory, COLLISION_OBJECT_EXT, &co_resource_type);
+            dmResource::Result fact_result = dmResource::GetTypeFromExtension(context.m_Factory, collision_object_ext, &co_resource_type);
             if (fact_result != dmResource::RESULT_OK)
             {
-                dmLogError("Unable to get resource type for '%s': %d.", COLLISION_OBJECT_EXT, fact_result);
+                dmLogError("Unable to get resource type for '%s': %d.", collision_object_ext, fact_result);
                 result = false;
             }
         }
@@ -1835,7 +1847,7 @@ namespace dmGameSystem
             dmGameObject::ComponentType* co_component_type = dmGameObject::FindComponentType(context.m_Register, co_resource_type, &physics_context->m_ComponentIndex);
             if (co_component_type == 0x0)
             {
-                dmLogError("Could not find component type '%s'.", COLLISION_OBJECT_EXT);
+                dmLogError("Could not find component type '%s'.", collision_object_ext);
                 result = false;
             }
         }

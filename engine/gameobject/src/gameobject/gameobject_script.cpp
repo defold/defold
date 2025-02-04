@@ -424,7 +424,17 @@ namespace dmGameObject
         return instance;
     }
 
-    void GetComponentFromLua(lua_State* L, int index, HCollection collection, const char* component_ext, dmGameObject::HComponent* out_component, dmMessage::URL* url, dmGameObject::HComponentWorld* out_world)
+    static inline void FillExtensionTypeStr(const char** exts, uint32_t num_exts, char* buf, size_t buf_len)
+    {
+        for (int i = 0; i < num_exts; ++i)
+        {
+            dmStrlCat(buf, exts[i], buf_len);
+            if (i < num_exts - 1)
+                dmStrlCat(buf, ", ", buf_len);
+        }
+    }
+
+    void GetComponentFromLua(lua_State* L, int index, HCollection collection, const char** component_exts, uint32_t num_exts, dmGameObject::HComponent* out_component, dmMessage::URL* url, dmGameObject::HComponentWorld* out_world)
     {
         dmMessage::URL sender;
         if (dmScript::GetURL(L, &sender))
@@ -447,7 +457,7 @@ namespace dmGameObject
             dmGameObject::HComponentWorld world;
             uint32_t component_type_index;
             dmGameObject::Result result = dmGameObject::GetComponent(instance, receiver.m_Fragment, &component_type_index, out_component, &world);
-            if ((component_ext != 0x0 || *out_component != 0x0) && result != dmGameObject::RESULT_OK)
+            if ((component_exts != 0x0 || *out_component != 0x0) && result != dmGameObject::RESULT_OK)
             {
                 char buffer[128];
                 luaL_error(L, "The component could not be found: '%s'", dmScript::UrlToString(&receiver, buffer, sizeof(buffer)));
@@ -459,19 +469,49 @@ namespace dmGameObject
                 *out_world = world;
             }
 
-            if (component_ext != 0x0)
+            if (component_exts != 0x0 && num_exts > 0)
             {
-                HResourceType resource_type;
-                dmResource::Result resource_res = dmResource::GetTypeFromExtension(dmGameObject::GetFactory(instance->m_Collection->m_HCollection), component_ext, &resource_type);
-                if (resource_res != dmResource::RESULT_OK)
+                bool type_found = false;
+                bool type_match = false;
+                ComponentType* type = &dmGameObject::GetRegister(instance->m_Collection->m_HCollection)->m_ComponentTypes[component_type_index];
+
+                for (int i = 0; i < num_exts; ++i)
                 {
-                    luaL_error(L, "Component type '%s' not found", component_ext);
+                    HResourceType resource_type;
+                    dmResource::Result resource_res = dmResource::GetTypeFromExtension(dmGameObject::GetFactory(instance->m_Collection->m_HCollection), component_exts[i], &resource_type);
+
+                    if (resource_res != dmResource::RESULT_OK)
+                    {
+                        continue;
+                    }
+
+                    type_found = true;
+
+                    if (type->m_ResourceType != resource_type)
+                    {
+                        continue;
+                    }
+
+                    // Take first found
+                    type_match = true;
+                    break;
+                }
+
+                if (!type_found)
+                {
+                    char ext_type_str[1024] = {};
+                    FillExtensionTypeStr(component_exts, num_exts, ext_type_str, sizeof(ext_type_str));
+
+                    luaL_error(L, "Component types '%s' not found", ext_type_str);
                     return; // Actually never reached
                 }
-                ComponentType* type = &dmGameObject::GetRegister(instance->m_Collection->m_HCollection)->m_ComponentTypes[component_type_index];
-                if (type->m_ResourceType != resource_type)
+
+                if (!type_match)
                 {
-                    luaL_error(L, "Component expected to be of type '%s' but was '%s'", component_ext, type->m_Name);
+                    char ext_type_str[1024] = {};
+                    FillExtensionTypeStr(component_exts, num_exts, ext_type_str, sizeof(ext_type_str));
+
+                    luaL_error(L, "Component expected to be of type(s) '%s' but was '%s'", ext_type_str, type->m_Name);
                     return; // Actually never reached
                 }
             }
@@ -485,6 +525,11 @@ namespace dmGameObject
             luaL_error(L, "function called is not available from this script-type.");
             return; // Actually never reached
         }
+    }
+
+    void GetComponentFromLua(lua_State* L, int index, HCollection collection, const char* component_ext, dmGameObject::HComponent* out_component, dmMessage::URL* url, dmGameObject::HComponentWorld* out_world)
+    {
+        return GetComponentFromLua(L, index, collection, &component_ext, 1, out_component, url, out_world);
     }
 
     HInstance GetInstanceFromLua(lua_State* L) {
