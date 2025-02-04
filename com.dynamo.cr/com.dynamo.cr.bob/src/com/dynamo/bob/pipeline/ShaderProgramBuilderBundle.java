@@ -14,9 +14,7 @@
 
 package com.dynamo.bob.pipeline;
 
-import com.dynamo.bob.Builder;
 import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 
 import java.io.*;
@@ -24,7 +22,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
 
-public class ShaderProgramBuilderBundle extends Builder {
+public class ShaderProgramBuilderBundle {
     public static final String EXT = ".shbundle";
     public static final String EXT_OUT = ".shbundlec";
 
@@ -105,36 +103,5 @@ public class ShaderProgramBuilderBundle extends Builder {
 
     public static ModuleBundle createBundle() {
         return new ModuleBundle();
-    }
-
-    @Override
-    public Task create(IResource input) throws IOException, CompileExceptionError {
-        // I don't think this should happen?
-        System.out.println("\nShaderProgramBuilderBundle.create");
-        System.out.println(input.getPath());
-
-        Task.TaskBuilder taskBuilder = Task.newBuilder(this)
-                .setName(params.name())
-                .addInput(input)
-                .addOutput(input.changeExt(params.outExt()));
-
-        return taskBuilder.build();
-    }
-
-    @Override
-    public void build(Task task) throws CompileExceptionError, IOException {
-        System.out.println("ShaderProgramBuilderBundle.build");
-        System.out.println(task.firstInput().getPath());
-
-        IResource vsRes = task.input(0);
-        IResource fsRes = task.input(1);
-
-        BuilderUtil.checkResource(this.project, vsRes, "Vertex program", vsRes.getPath());
-        BuilderUtil.checkResource(this.project, fsRes, "Fragment program", fsRes.getPath());
-
-        ModuleBundle modules = new ModuleBundle();
-        modules.addModule(vsRes.getPath());
-        modules.addModule(fsRes.getPath());
-        task.output(0).setContent(modules.toByteArray());
     }
 }
