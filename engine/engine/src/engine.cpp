@@ -448,8 +448,8 @@ namespace dmEngine
         ScopedExtensionAppParams app_params(engine);
         dmExtension::AppFinalize(app_params);
 
-        if (http_service->m_HttpCache)
-            dmHttpCache::Close(http_service->m_HttpCache);
+        if (engine->m_HttpCache)
+            dmHttpCache::Close(engine->m_HttpCache);
 
         dmBuffer::DeleteContext();
 

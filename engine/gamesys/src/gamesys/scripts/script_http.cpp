@@ -23,6 +23,7 @@
 #include <ddf/ddf.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
+#include <dlib/http_cache.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/uri.h>
