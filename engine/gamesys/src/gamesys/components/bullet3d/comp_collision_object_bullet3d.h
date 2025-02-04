@@ -26,7 +26,6 @@
 
 namespace dmGameSystem
 {
-    // DONE
     dmGameObject::CreateResult   CompCollisionObjectBullet3DNewWorld(const dmGameObject::ComponentNewWorldParams& params);
     dmGameObject::CreateResult   CompCollisionObjectBullet3DDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params);
     dmGameObject::CreateResult   CompCollisionObjectBullet3DCreate(const dmGameObject::ComponentCreateParams& params);
