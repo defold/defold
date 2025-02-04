@@ -1806,7 +1806,8 @@
                                                    (.add (.getChildren hbox) (icons/get-image-view (:icon menu-item) 16))
                                                    (.add (.getChildren hbox) cb)
                                                    hbox)
-                                                 (let [button (ToggleButton. (or (handler/label handler-ctx) (:label menu-item)))
+                                                 (let [button (doto (ToggleButton. (or (handler/label handler-ctx) (:label menu-item)))
+                                                                (tooltip! (:tooltip menu-item)))
                                                        graphic-fn (:graphic-fn menu-item)
                                                        icon (:icon menu-item)]
                                                    (cond
@@ -1827,9 +1828,9 @@
                             (user-data! child ::command command))
                           (user-data! child ::menu-user-data user-data)
                           child)))
-           children (if (instance? Separator (last children))
-                      (butlast children)
-                      children)]
+           children (cond-> children
+                      (instance? Separator (last children)) butlast
+                      (instance? Separator (first children)) rest)]
        (doseq [child children]
          (.add (.getChildren control) child))))))
 

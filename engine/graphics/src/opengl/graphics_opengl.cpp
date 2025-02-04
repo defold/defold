@@ -2627,8 +2627,11 @@ static void LogFrameBufferError(GLenum status)
                 uniform_location = (HUniformLocation) glGetUniformLocation(program_handle, uniform_name_buffer);
             }
 
+            char* uniform_name = GetBaseUniformName(uniform_name_buffer, uniform_name_length);
+            uniform_name_length = strlen(uniform_name);
+
             // These are temporary strings, we need copies of them.
-            char* canonical_name = GetConstructedCanonicalName(canonical_paths_ctx, uniform_name_buffer, uniform_name_length, canonical_name_buffer, sizeof(canonical_name_buffer));
+            char* canonical_name = GetConstructedCanonicalName(canonical_paths_ctx, uniform_name, uniform_name_length, canonical_name_buffer, sizeof(canonical_name_buffer));
             assert(canonical_name != 0);
 
             Uniform& uniform   = program->m_BaseProgram.m_Uniforms[i];
