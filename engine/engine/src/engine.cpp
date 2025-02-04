@@ -40,7 +40,7 @@
 #include <dlib/thread.h>
 #include <dlib/time.h>
 #include <graphics/graphics.h>
-#include <extension/extension.h>
+#include <extension/extension.hpp>
 #include <gamesys/gamesys.h>
 #include <gamesys/model_ddf.h>
 #include <gamesys/physics_ddf.h>

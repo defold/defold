@@ -25,7 +25,7 @@
 
 #include "components/comp_collision_object.h"
 
-#include <extension/extension.h>
+#include <extension/extension.hpp>
 
 #include "script_box2d.h"
 

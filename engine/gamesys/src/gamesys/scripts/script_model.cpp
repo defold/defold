@@ -26,7 +26,7 @@
 
 #include <gamesys/gamesys_ddf.h>
 #include <gamesys/model_ddf.h>
-#include <extension/extension.h>
+#include <extension/extension.hpp>
 
 extern "C"
 {
