@@ -2,18 +2,18 @@
 
 @mixin colorize-icon($color, $active-color) {
   &:filled {
-    & > .image-view {
+    & > .anchor-pane > .h-box > .image-view {
       -fx-effect: innershadow(gaussian, $color, 20, 1.0, 0, 0);
     }
 
     &:hover {
-      & > .image-view {
+      & > .anchor-pane > .h-box > .image-view {
         -fx-effect: innershadow(gaussian, $active-color, 20, 1.0, 0, 0);
       }
     }
 
     &:selected {
-      & > .image-view {
+      & > .anchor-pane > .h-box > .image-view {
         -fx-effect: innershadow(gaussian, $active-color, 20, 1.0, 0, 0);;
       }
     }
@@ -77,6 +77,14 @@
       -fx-fit-width: 16px;
     } 
 
+    .anchor-pane {
+      -fx-background-color: transparent;
+    }
+
+    .h-box {
+      -fx-pref-width: 0;
+    }
+
     .visibility-toggle {
       visibility: hidden;
       -fx-padding: 0 2px;
@@ -107,7 +115,7 @@
           -fx-opacity: 40%;
         }
       }
-      & > .image-view {
+      & > .anchor-pane > .h-box > .image-view {
         -fx-opacity: 40%;
       }
       .text {

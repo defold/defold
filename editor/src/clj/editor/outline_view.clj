@@ -480,11 +480,11 @@
                             (AnchorPane/setRightAnchor 0.0))
         text-label (Label.)
         h-box (doto (HBox. 5 (ui/node-array [image-view-icon text-label]))
-                (.setPrefWidth 0)
+                (ui/add-style! "h-box")
                 (AnchorPane/setRightAnchor 0.0)
                 (AnchorPane/setLeftAnchor 0.0))
         pane (doto (AnchorPane. (ui/node-array [h-box visibility-button]))
-               (.setStyle "-fx-background-color: transparent"))
+               (ui/add-style! "anchor-pane"))
         cell (proxy [TreeCell] []
                (updateItem [item empty]
                  (let [this ^TreeCell this]
