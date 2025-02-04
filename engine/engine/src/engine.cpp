@@ -120,6 +120,7 @@ namespace dmEngine
         ScopedExtensionAppParams(HEngine engine)
         {
             ExtensionAppParamsInitialize(&m_AppParams);
+            m_AppParams.m_ConfigFile = engine->m_Config;
             ExtensionAppParamsSetContext(&m_AppParams, "config", engine->m_Config);
             dmWebServer::HServer webserver = dmEngineService::GetWebServer(engine->m_EngineService);
             ExtensionAppParamsSetContext(&m_AppParams, "webserver", webserver);
