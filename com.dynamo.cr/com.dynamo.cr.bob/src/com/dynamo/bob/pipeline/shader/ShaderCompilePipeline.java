@@ -253,6 +253,9 @@ public class ShaderCompilePipeline {
             return;
         }
 
+        ShaderModule vertexModule = null;
+        ShaderModule fragmentModule = null;
+
         // Generate SPIR-V for each module
         for (ShaderModule module : this.shaderModules) {
             String baseName = this.pipelineName + "." + shaderTypeToSpirvStage(module.desc.type);
@@ -280,6 +283,62 @@ public class ShaderCompilePipeline {
 
             module.spirvContext = ShadercJni.NewShaderContext(FileUtils.readFileToByteArray(fileOutSpvOpt));
             module.spirvReflector = new SPIRVReflector(module.spirvContext, module.desc.type);
+
+            if (module.desc.type == ShaderDesc.ShaderType.SHADER_TYPE_VERTEX) {
+                vertexModule = module;
+            } else if (module.desc.type == ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT) {
+                fragmentModule = module;
+            }
+        }
+
+        // Potentially post-fix the modules so they are compatible in runtime
+        if (vertexModule != null && fragmentModule != null) {
+            long compilerFs = 0;
+
+            for (Shaderc.ShaderResource output : vertexModule.spirvReflector.getOutputs()) {
+                for (Shaderc.ShaderResource input : fragmentModule.spirvReflector.getInputs()) {
+                    if (output.name.equals(input.name) && output.location != input.location) {
+                        // Location mismatch!
+                        if (compilerFs == 0) {
+                            compilerFs = ShadercJni.NewShaderCompiler(fragmentModule.spirvContext, Shaderc.ShaderLanguage.SHADER_LANGUAGE_SPIRV.getValue());
+                        }
+                        ShadercJni.SetResourceLocation(fragmentModule.spirvContext, compilerFs, input.nameHash, output.location);
+                    }
+                }
+            }
+
+            for (Shaderc.ShaderResource vsUbo : vertexModule.spirvReflector.getUBOs()) {
+                for (Shaderc.ShaderResource fsUbo : fragmentModule.spirvReflector.getUBOs()) {
+                    if (vsUbo.name.equals(fsUbo.name) && (vsUbo.binding != fsUbo.binding || vsUbo.set != fsUbo.set)) {
+                        // We can merge these resources!
+                        if (compilerFs == 0) {
+                            compilerFs = ShadercJni.NewShaderCompiler(fragmentModule.spirvContext, Shaderc.ShaderLanguage.SHADER_LANGUAGE_SPIRV.getValue());
+                        }
+                        ShadercJni.SetResourceBinding(fragmentModule.spirvContext, compilerFs, vsUbo.nameHash, vsUbo.binding);
+                        ShadercJni.SetResourceSet(fragmentModule.spirvContext, compilerFs, vsUbo.nameHash, vsUbo.set);
+                    }
+                }
+            }
+
+            if (compilerFs != 0) {
+                Shaderc.ShaderCompilerOptions opts = new Shaderc.ShaderCompilerOptions();
+                opts.entryPoint = "main";
+
+                byte[] remappedSpv = ShadercJni.Compile(fragmentModule.spirvContext, compilerFs, opts);
+                long remappedSpvContext = ShadercJni.NewShaderContext(remappedSpv);
+
+                ShadercJni.DeleteShaderCompiler(compilerFs);
+                ShadercJni.DeleteShaderContext(fragmentModule.spirvContext);
+
+                String baseName = this.pipelineName + "." + shaderTypeToSpirvStage(fragmentModule.desc.type);
+                File remappedSpvFile = File.createTempFile(baseName, ".remapped.spv");
+                FileUtil.deleteOnExit(remappedSpvFile);
+                FileUtils.writeByteArrayToFile(remappedSpvFile, remappedSpv);
+
+                fragmentModule.spirvContext = remappedSpvContext;
+                fragmentModule.spirvReflector = new SPIRVReflector(remappedSpvContext, fragmentModule.desc.type);
+                fragmentModule.spirvFile = remappedSpvFile;
+            }
         }
     }
 

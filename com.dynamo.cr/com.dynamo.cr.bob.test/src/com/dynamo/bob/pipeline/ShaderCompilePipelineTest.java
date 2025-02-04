@@ -15,7 +15,7 @@
 package com.dynamo.bob.pipeline;
 
 import static com.dynamo.bob.pipeline.ShaderProgramBuilder.resourceTypeToShaderDataType;
-import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.*;
 
 import java.util.ArrayList;
 
@@ -132,6 +132,151 @@ public class ShaderCompilePipelineTest {
         }
 
         ShaderCompilePipeline.destroyShaderPipeline(pipelineFragment);
+    }
+
+    private ArrayList<ShaderCompilePipeline.ShaderModuleDesc> toShaderDescs(String vsShader, String fsShader) {
+        ShaderCompilePipeline.ShaderModuleDesc vsDesc = new ShaderCompilePipeline.ShaderModuleDesc();
+        vsDesc.source = vsShader;
+        vsDesc.type = ShaderDesc.ShaderType.SHADER_TYPE_VERTEX;
+
+        ShaderCompilePipeline.ShaderModuleDesc fsDesc = new ShaderCompilePipeline.ShaderModuleDesc();
+        fsDesc.source = fsShader;
+        fsDesc.type = ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT;
+
+        ArrayList<ShaderCompilePipeline.ShaderModuleDesc> shaderModuleDescs = new ArrayList<>();
+        shaderModuleDescs.add(vsDesc);
+        shaderModuleDescs.add(fsDesc);
+        return shaderModuleDescs;
+    }
+
+    @Test
+    public void testRemapResourceBindings() throws Exception {
+        String vsShader =
+                """
+                #version 140
+                in highp vec4 position;
+                in mediump vec2 texcoord0;
+                out mediump vec2 var_texcoord0;
+                uniform vs_uniforms { highp mat4 view_proj; };
+                uniform shared_uniforms { vec4 tint; };  
+                void main()
+                {
+                    gl_Position = view_proj * vec4(position.xyz + tint.x, 1.0);
+                    var_texcoord0 = texcoord0;
+                }
+                """;
+
+        String fsShader =
+                """
+                #version 140
+                in mediump vec2 var_texcoord0;
+                out vec4 out_fragColor;
+                uniform shared_uniforms { vec4 tint; };
+                void main()
+                {
+                    out_fragColor = tint;
+                }
+                """;
+
+        ArrayList<ShaderCompilePipeline.ShaderModuleDesc> shaderModuleDescs = toShaderDescs(vsShader, fsShader);
+
+        ShaderCompilePipeline pipeline = new ShaderCompilePipeline("testRemapping");
+        ShaderCompilePipeline.createShaderPipeline(pipeline, shaderModuleDescs, new ShaderCompilePipeline.Options());
+
+        SPIRVReflector reflectorVs = pipeline.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX);
+        SPIRVReflector reflectorFs = pipeline.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT);
+
+        Shaderc.ShaderResource sharedUBOvs = getShaderResource(reflectorVs, "shared_uniforms");
+        assertNotNull(sharedUBOvs);
+        Shaderc.ShaderResource sharedUBOfs = getShaderResource(reflectorFs, "shared_uniforms");
+        assertNotNull(sharedUBOfs);
+
+        assertEquals(sharedUBOvs.binding, sharedUBOfs.binding);
+        assertEquals(sharedUBOvs.set, sharedUBOfs.set);
+
+        ShaderCompilePipeline.destroyShaderPipeline(pipeline);
+    }
+
+    private Shaderc.ShaderResource getShaderResource(SPIRVReflector reflector, String name) {
+        for (Shaderc.ShaderResource input : reflector.getInputs()) {
+            if (input.name.equals(name))
+                return input;
+        }
+        for (Shaderc.ShaderResource output : reflector.getOutputs()) {
+            if (output.name.equals(name))
+                return output;
+        }
+        for (Shaderc.ShaderResource ubo : reflector.getUBOs()) {
+            if (ubo.name.equals(name))
+                return ubo;
+        }
+        for (Shaderc.ShaderResource tex : reflector.getTextures()) {
+            if (tex.name.equals(name))
+                return tex;
+        }
+        for (Shaderc.ShaderResource ssbo : reflector.getSsbos()) {
+            if (ssbo.name.equals(name))
+                return ssbo;
+        }
+        return null;
+    }
+
+    @Test
+    public void testRemapInputOutputs() throws Exception {
+        String vsShader =
+                 """
+                #version 140
+                in vec3 position;
+                in vec2 texcoord0;
+                in vec4 color;
+                out vec2 var_texcoord0;
+                out vec4 var_color;
+                out vec3 var_position;          
+                void main()
+                {
+                    var_position = position;
+                    var_texcoord0 = texcoord0;
+                    var_color = vec4(color.rgb * color.a, color.a);
+                    gl_Position = vec4(position.xyz, 1.0);
+                }                    
+                """;
+
+        String fsShader =
+                """
+                #version 140
+                in vec2 var_texcoord0;
+                in vec3 var_position;
+                in vec4 var_color;
+                out vec4 colorOut;
+                void main()
+                {
+                    colorOut = vec4(var_texcoord0.st, 0, 0) + vec4(var_position, 0) + var_color;
+                }
+                """;
+
+        ArrayList<ShaderCompilePipeline.ShaderModuleDesc> shaderModuleDescs = toShaderDescs(vsShader, fsShader);
+
+        ShaderCompilePipeline pipeline = new ShaderCompilePipeline("testRemapping");
+        ShaderCompilePipeline.createShaderPipeline(pipeline, shaderModuleDescs, new ShaderCompilePipeline.Options());
+
+        SPIRVReflector reflectorVs = pipeline.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX);
+        SPIRVReflector reflectorFs = pipeline.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT);
+
+        for (Shaderc.ShaderResource output : reflectorVs.getOutputs()) {
+            Shaderc.ShaderResource other = null;
+
+            for (Shaderc.ShaderResource input : reflectorFs.getInputs()) {
+                if (output.name.equals(input.name)) {
+                    other = input;
+                    break;
+                }
+            }
+
+            assertNotNull(other);
+            assertEquals(output.location, other.location);
+        }
+
+        ShaderCompilePipeline.destroyShaderPipeline(pipeline);
     }
 
     @Test
