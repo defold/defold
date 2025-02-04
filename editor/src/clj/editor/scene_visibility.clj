@@ -260,10 +260,12 @@
            (g/node-value scene-visibility :active-scene-resource-node evaluation-context))
   (run [scene-visibility user-data]
        (let [{:keys [node-outline-key-path]} user-data
-             outline-name-paths #{(vec (rest node-outline-key-path))}]
+             outline-name-paths (g/node-value scene-visibility :outline-name-paths)
+             name-path-child? #(iutil/seq-starts-with? % (rest node-outline-key-path))
+             name-paths-to-toggle (set (filter name-path-child? outline-name-paths))]
          (if (contains? (g/node-value scene-visibility :hidden-node-outline-key-paths) node-outline-key-path)
-           (show-outline-name-paths! scene-visibility outline-name-paths)
-           (hide-outline-name-paths! scene-visibility outline-name-paths)))))
+           (show-outline-name-paths! scene-visibility name-paths-to-toggle)
+           (hide-outline-name-paths! scene-visibility name-paths-to-toggle)))))
 
 (handler/defhandler :show-last-hidden :workbench
   (active? [scene-visibility evaluation-context]
