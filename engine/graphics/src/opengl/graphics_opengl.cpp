@@ -2210,6 +2210,25 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
+    static inline char* GetBaseUniformName(char* str, uint32_t len)
+    {
+        char* ptr = str;
+        for (int i = len - 1; i >= 0; i--)
+        {
+            // For arrays, OpenGL returns the name as `name[0]`
+            if (ptr[i] == '[')
+            {
+                ptr[i] = 0;
+            }
+            else if (ptr[i] == '.')
+            {
+                return &ptr[i+1];
+            }
+        }
+
+        return str;
+    }
+
     static inline int FindNamespace(char* str, uint32_t len)
     {
         // Look for the first dot in the string
