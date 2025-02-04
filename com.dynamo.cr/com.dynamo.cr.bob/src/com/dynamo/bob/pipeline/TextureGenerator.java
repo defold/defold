@@ -111,6 +111,51 @@ public class TextureGenerator {
         return image;
     }
 
+    private static TextureFormat pickUncompressedFormat(TextureFormat targetFormat) {
+        switch (targetFormat) {
+            // Luminance formats
+            case TEXTURE_FORMAT_R_BC4:
+                return TextureFormat.TEXTURE_FORMAT_LUMINANCE;
+
+            // Alpha formats
+            case TEXTURE_FORMAT_RG_BC5:
+                return TextureFormat.TEXTURE_FORMAT_LUMINANCE_ALPHA;
+
+            // RGB formats
+            case TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:
+            case TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:
+            case TEXTURE_FORMAT_RGB_ETC1:
+            case TEXTURE_FORMAT_RGB_16BPP:
+            case TEXTURE_FORMAT_RGB_BC1:
+                return TextureFormat.TEXTURE_FORMAT_RGB;
+
+            // RGBA formats
+            case TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:
+            case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:
+            case TEXTURE_FORMAT_RGBA_16BPP:
+            case TEXTURE_FORMAT_RGBA_ETC2:
+            case TEXTURE_FORMAT_RGBA_ASTC_4X4:
+            case TEXTURE_FORMAT_RGBA_BC3:
+            case TEXTURE_FORMAT_RGBA_BC7:
+            case TEXTURE_FORMAT_RGBA_ASTC_5X4:
+            case TEXTURE_FORMAT_RGBA_ASTC_5X5:
+            case TEXTURE_FORMAT_RGBA_ASTC_6X5:
+            case TEXTURE_FORMAT_RGBA_ASTC_6X6:
+            case TEXTURE_FORMAT_RGBA_ASTC_8X5:
+            case TEXTURE_FORMAT_RGBA_ASTC_8X6:
+            case TEXTURE_FORMAT_RGBA_ASTC_8X8:
+            case TEXTURE_FORMAT_RGBA_ASTC_10X5:
+            case TEXTURE_FORMAT_RGBA_ASTC_10X6:
+            case TEXTURE_FORMAT_RGBA_ASTC_10X8:
+            case TEXTURE_FORMAT_RGBA_ASTC_10X10:
+            case TEXTURE_FORMAT_RGBA_ASTC_12X10:
+            case TEXTURE_FORMAT_RGBA_ASTC_12X12:
+                return TextureFormat.TEXTURE_FORMAT_RGBA;
+            default: break;
+        }
+        return targetFormat;
+    }
+
     // pickOptimalFormat will try to pick a texture format with the same number of channels as componentCount,
     // while still using a texture format within the same "family".
     private static TextureFormat pickOptimalFormat(int componentCount, TextureFormat targetFormat) {
@@ -592,6 +637,7 @@ public class TextureGenerator {
                     } else {
                         // If there has been no compression requested, we still need to produce alternatives since
                         // there are other settings that control how textures are produced (e.g pixel format)
+                        textureFormat = pickUncompressedFormat(textureFormat);
                         compressionType = TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT;
                         textureCompressor = compressionTypeToTextureCompressor(compressionType);
                         textureCompressorPreset = compressionLevelToTextureCompressorPreset(compressionType, TextureFormatAlternative.CompressionLevel.NORMAL);

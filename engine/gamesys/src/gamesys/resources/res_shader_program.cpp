@@ -12,19 +12,19 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "res_compute_shader.h"
+#include "res_shader_program.h"
 #include <graphics/graphics.h>
 #include <dlib/log.h>
 
 namespace dmGameSystem
 {
-    static dmResource::Result AcquireResources(dmGraphics::HContext context, dmResource::HFactory factory, const char* filename, dmGraphics::ShaderDesc* ddf, dmGraphics::HComputeProgram* program)
+    static dmResource::Result AcquireResources(dmGraphics::HContext context, dmResource::HFactory factory, const char* filename, dmGraphics::ShaderDesc* ddf, dmGraphics::HProgram* program)
     {
         char error_buffer[1024] = {};
-        dmGraphics::HComputeProgram prog = dmGraphics::NewComputeProgram(context, ddf, error_buffer, sizeof(error_buffer));
+        dmGraphics::HProgram prog = dmGraphics::NewProgram(context, ddf, error_buffer, sizeof(error_buffer));
         if (prog == 0)
         {
-            dmLogError("Failed to create compute shader '%s': %s", filename, error_buffer);
+            dmLogError("Failed to create shader program '%s': %s", filename, error_buffer);
             return dmResource::RESULT_FORMAT_ERROR;
         }
         *program = prog;
@@ -32,7 +32,7 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResComputeShaderPreload(const dmResource::ResourcePreloadParams* params)
+    dmResource::Result ResShaderProgramPreload(const dmResource::ResourcePreloadParams* params)
     {
         dmGraphics::ShaderDesc* ddf;
         dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &ddf);
@@ -44,29 +44,29 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResComputeShaderCreate(const dmResource::ResourceCreateParams* params)
+    dmResource::Result ResShaderProgramCreate(const dmResource::ResourceCreateParams* params)
     {
-        dmGraphics::ShaderDesc* ddf         = (dmGraphics::ShaderDesc*) params->m_PreloadData;
-        dmGraphics::HComputeProgram resource = 0x0;
-        dmResource::Result r                = AcquireResources((dmGraphics::HContext) params->m_Context, params->m_Factory, params->m_Filename, ddf, &resource);
-        dmDDF::FreeMessage(ddf);
+        dmGraphics::ShaderDesc* ddf = (dmGraphics::ShaderDesc*)params->m_PreloadData;
+        dmGraphics::HProgram resource = 0x0;
+        dmResource::Result r = AcquireResources((dmGraphics::HContext) params->m_Context, params->m_Factory, params->m_Filename, ddf, &resource);
         if (r == dmResource::RESULT_OK)
         {
-            dmResource::SetResource(params->m_Resource, (void*)resource);
+            dmResource::SetResource(params->m_Resource, (void*) resource);
         }
+        dmDDF::FreeMessage(ddf);
         return r;
     }
 
-    dmResource::Result ResComputeShaderDestroy(const dmResource::ResourceDestroyParams* params)
+    dmResource::Result ResShaderProgramDestroy(const dmResource::ResourceDestroyParams* params)
     {
-        dmGraphics::HComputeProgram resource = (dmGraphics::HComputeProgram) dmResource::GetResource(params->m_Resource);
-        dmGraphics::DeleteComputeProgram(resource);
+        dmGraphics::HProgram resource = (dmGraphics::HProgram) dmResource::GetResource(params->m_Resource);
+        dmGraphics::DeleteProgram((dmGraphics::HContext) params->m_Context, resource);
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResComputeShaderRecreate(const dmResource::ResourceRecreateParams* params)
+    dmResource::Result ResShaderProgramRecreate(const dmResource::ResourceRecreateParams* params)
     {
-        dmGraphics::HComputeProgram resource = (dmGraphics::HComputeProgram) dmResource::GetResource(params->m_Resource);
+        dmGraphics::HProgram resource = (dmGraphics::HProgram)dmResource::GetResource(params->m_Resource);
         if (resource == 0)
         {
             return dmResource::RESULT_FORMAT_ERROR;
@@ -80,7 +80,7 @@ namespace dmGameSystem
         }
 
         dmResource::Result res = dmResource::RESULT_OK;
-        if(!dmGraphics::ReloadComputeProgram(resource, ddf))
+        if(!dmGraphics::ReloadProgram((dmGraphics::HContext) params->m_Context, resource, ddf))
         {
             res = dmResource::RESULT_FORMAT_ERROR;
         }
