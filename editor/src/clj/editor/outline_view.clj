@@ -472,8 +472,8 @@
 
 (defn make-tree-cell
   [^TreeView tree-view drag-entered-handler drag-exited-handler]
-  (let [eye-icon-open (app-view/make-svg-icon-graphic eye-open-path)
-        eye-icon-closed (app-view/make-svg-icon-graphic eye-closed-path)
+  (let [eye-icon-open (icons/make-svg-icon-graphic eye-open-path)
+        eye-icon-closed (icons/make-svg-icon-graphic eye-closed-path)
         image-view-icon (ImageView.)
         visibility-button (doto (ToggleButton.)
                             (ui/add-style! "visibility-toggle")

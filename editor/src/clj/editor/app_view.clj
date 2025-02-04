@@ -101,7 +101,7 @@
            [javafx.scene.input Clipboard ClipboardContent MouseEvent MouseButton]
            [javafx.scene.layout AnchorPane GridPane HBox Region StackPane]
            [javafx.scene.paint Color]
-           [javafx.scene.shape Ellipse SVGPath]
+           [javafx.scene.shape Ellipse]
            [javafx.scene.text Font]
            [javafx.stage Screen Stage WindowEvent]
            [org.luaj.vm2 LuaError]))
@@ -480,15 +480,10 @@
 (def ^:private perspective-icon-svg-path
   (ui/load-svg-path "scene/images/perspective_icon.svg"))
 
-(defn make-svg-icon-graphic
-  ^SVGPath [^SVGPath icon-template]
-  (doto (SVGPath.)
-    (.setContent (.getContent icon-template))))
-
 (defn- make-visibility-settings-graphic []
   (doto (StackPane.)
     (.setId "visibility-settings-graphic")
-    (ui/children! [(doto (make-svg-icon-graphic eye-icon-svg-path)
+    (ui/children! [(doto (icons/make-svg-icon-graphic eye-icon-svg-path)
                      (.setId "eye-icon"))
                    (doto (Ellipse. 3.0 3.0)
                      (.setId "active-indicator"))])))
@@ -507,7 +502,7 @@
     :icon "icons/45/Icons_T_04_Scale.png"
     :command :scale-tool}
    {:id :perspective-camera
-    :graphic-fn (partial make-svg-icon-graphic perspective-icon-svg-path)
+    :graphic-fn (partial icons/make-svg-icon-graphic perspective-icon-svg-path)
     :command :toggle-perspective-camera}
    {:id :visibility-settings
     :graphic-fn make-visibility-settings-graphic
