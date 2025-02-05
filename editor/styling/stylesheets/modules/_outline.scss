@@ -2,19 +2,19 @@
 
 @mixin colorize-icon($color, $active-color) {
   &:filled {
-    & > .anchor-pane > .h-box > .image-view {
+    > .anchor-pane > .h-box > .image-view {
       -fx-effect: innershadow(gaussian, $color, 20, 1.0, 0, 0);
     }
 
     &:hover {
-      & > .anchor-pane > .h-box > .image-view {
+      > .anchor-pane > .h-box > .image-view {
         -fx-effect: innershadow(gaussian, $active-color, 20, 1.0, 0, 0);
       }
     }
 
     &:selected {
-      & > .anchor-pane > .h-box > .image-view {
-        -fx-effect: innershadow(gaussian, $active-color, 20, 1.0, 0, 0);;
+      > .anchor-pane > .h-box > .image-view {
+        -fx-effect: innershadow(gaussian, $active-color, 20, 1.0, 0, 0);
       }
     }
   }
@@ -43,6 +43,8 @@
 
 #outline {
   .tree-cell {
+    @include colorize-icon(-df-text-dark, -df-text);
+
     &.reference,
     &.parent-reference {
       .text {
@@ -69,10 +71,10 @@
     }
 
     .label {
-      -fx-min-width: 40px;
+      -fx-min-width: 100px;
     }
 
-    .image-view {
+    > .anchor-pane > .h-box > .image-view {
       -fx-fit-height: 16px;
       -fx-fit-width: 16px;
     } 
@@ -115,7 +117,7 @@
           -fx-opacity: 40%;
         }
       }
-      & > .anchor-pane > .h-box > .image-view {
+      > .anchor-pane > .h-box > .image-view {
         -fx-opacity: 40%;
       }
       .text {
