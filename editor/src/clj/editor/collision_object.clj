@@ -501,11 +501,10 @@
             (assoc shape :id-hash shape-id-hash)))
         shapes))
 
-; is-2d (= "2D" project-physics-type)
-
 (g/defnk produce-build-targets
-  [_node-id resource save-value collision-shape dep-build-targets mass type project-physics-type shapes id-counts]
-  (let [collision-object-ext (if (= "2D" project-physics-type)
+  [_node-id resource save-value collision-shape dep-build-targets mass type project-settings shapes id-counts]
+  (let [project-physics-type (project-physics-type project-settings)
+        collision-object-ext (if (= "2D" project-physics-type)
                                collision-object-box2d-ext
                                collision-object-bullet3d-ext)
         dep-build-targets (flatten dep-build-targets)
