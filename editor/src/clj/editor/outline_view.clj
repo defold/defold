@@ -464,8 +464,7 @@
       (ui/user-data! cell :future-expand nil))))
 
 (defn- toggle-visibility! [node-outline-key-path ^MouseEvent event]
-  (ui/run-command (.getSource event) :hide-toggle {:node-outline-key-path node-outline-key-path})
-  (.consume event))
+  (ui/run-command (.getSource event) :hide-toggle {:node-outline-key-path node-outline-key-path}))
 
 (def eye-open-path (ui/load-svg-path "scene/images/eye_open.svg"))
 (def eye-closed-path (ui/load-svg-path "scene/images/eye_closed.svg"))
@@ -477,6 +476,7 @@
         image-view-icon (ImageView.)
         visibility-button (doto (ToggleButton.)
                             (ui/add-style! "visibility-toggle")
+                            (.addEventFilter MouseEvent/MOUSE_PRESSED ui/ignore-event-filter)
                             (AnchorPane/setRightAnchor 0.0))
         text-label (Label.)
         h-box (doto (HBox. 5 (ui/node-array [image-view-icon text-label]))
