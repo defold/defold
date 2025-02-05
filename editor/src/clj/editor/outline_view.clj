@@ -505,9 +505,10 @@
                            visibility-icon (if hidden? eye-icon-closed eye-icon-open)]
                        (.setImage image-view-icon (icons/get-image icon))
                        (.setText text-label text)
-                       (.setGraphic visibility-button visibility-icon)
+                       (doto visibility-button
+                         (.setGraphic visibility-icon)
+                         (ui/on-click! (partial toggle-visibility! node-outline-key-path)))
                        (proxy-super setGraphic pane)
-                       (ui/on-click! visibility-button (partial toggle-visibility! node-outline-key-path))
                        (when-let [[r g b a] color]
                          (proxy-super setStyle (format "-fx-text-fill: rgba(%d, %d, %d %d);" (int (* 255 r)) (int (* 255 g)) (int (* 255 b)) (int (* 255 a)))))
                        (if parent-reference?
