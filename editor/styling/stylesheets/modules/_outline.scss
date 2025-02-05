@@ -70,10 +70,6 @@
       @include colorize-disclosure-arrow(-df-error-severity-fatal-dim);
     }
 
-    .label {
-      -fx-min-width: 100px;
-    }
-
     > .anchor-pane > .h-box > .image-view {
       -fx-fit-height: 16px;
       -fx-fit-width: 16px;
@@ -84,12 +80,12 @@
     }
 
     .h-box {
-      -fx-pref-width: 0;
+      -fx-padding: 0 22px 0 0;
     }
 
     .visibility-toggle {
       visibility: hidden;
-      -fx-padding: 0 2px;
+      -fx-padding: 0 4px;
       -fx-background-color: -df-background-light;
       -fx-border-width: 0;
       -fx-min-height: 16px;

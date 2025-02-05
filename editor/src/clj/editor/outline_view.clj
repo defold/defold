@@ -26,8 +26,9 @@
   (:import [com.defold.control TreeCell]
            [javafx.collections FXCollections ObservableList]
            [javafx.event Event]
+           [javafx.geometry Orientation]
            [javafx.scene Node]
-           [javafx.scene.control SelectionMode TreeItem TreeView ToggleButton Label]
+           [javafx.scene.control ScrollBar SelectionMode TreeItem TreeView ToggleButton Label]
            [javafx.scene.image ImageView]
            [javafx.scene.input Clipboard DataFormat DragEvent MouseEvent TransferMode]
            [javafx.scene.layout AnchorPane HBox]
@@ -466,6 +467,16 @@
 (defn- toggle-visibility! [node-outline-key-path ^MouseEvent event]
   (ui/run-command (.getSource event) :hide-toggle {:node-outline-key-path node-outline-key-path}))
 
+(def toggle-offset 5.0)
+
+(defn add-scroll-listeners!
+  [visibility-button ^TreeView tree-view]
+  (when-let [^ScrollBar scrollbar (->> (.lookupAll tree-view ".scroll-bar")
+                                       (some #(when (= (.getOrientation %) Orientation/HORIZONTAL) %)))]
+    (ui/observe (.valueProperty scrollbar) (fn [_ _ new-v] (AnchorPane/setRightAnchor visibility-button (- (.getMax scrollbar) new-v toggle-offset))))
+    (ui/observe (.maxProperty scrollbar) (fn [_ _ new-v] (AnchorPane/setRightAnchor visibility-button (- new-v (.getValue scrollbar) toggle-offset))))
+    (ui/observe (.visibleProperty scrollbar) (fn [_ _ visible?] (when-not visible? (AnchorPane/setRightAnchor visibility-button (- toggle-offset)))))))
+
 (def eye-open-path (ui/load-svg-path "scene/images/eye_open.svg"))
 (def eye-closed-path (ui/load-svg-path "scene/images/eye_closed.svg"))
 
@@ -477,7 +488,7 @@
         visibility-button (doto (ToggleButton.)
                             (ui/add-style! "visibility-toggle")
                             (.addEventFilter MouseEvent/MOUSE_PRESSED ui/ignore-event-filter)
-                            (AnchorPane/setRightAnchor 0.0))
+                            (AnchorPane/setRightAnchor (- toggle-offset)))
         text-label (Label.)
         h-box (doto (HBox. 5 (ui/node-array [image-view-icon text-label]))
                 (ui/add-style! "h-box")
@@ -485,6 +496,7 @@
                 (AnchorPane/setLeftAnchor 0.0))
         pane (doto (AnchorPane. (ui/node-array [h-box visibility-button]))
                (ui/add-style! "anchor-pane"))
+        _ (add-scroll-listeners! visibility-button tree-view)
         cell (proxy [TreeCell] []
                (updateItem [item empty]
                  (let [this ^TreeCell this]
