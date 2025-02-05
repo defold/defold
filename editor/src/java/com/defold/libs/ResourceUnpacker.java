@@ -111,7 +111,7 @@ public class ResourceUnpacker {
                     unpackResourceFile("libexec/" + platform.getPair() + "/liboggz" + platform.getLibSuffix(), unpackPath);
                     unpackResourceFile("libexec/" + platform.getPair() + "/oggz-validate" + platform.getExeSuffixes()[0], unpackPath, true, false);
 
-                    if (Platform.matchPlatformAgainstOS(platform.getPair(), OS.OS_ID_WINDOWS)) {
+                    if (platform.isWindows()) {
                         unpackResourceFile("libexec/" + platform.getPair() + "/dmengine.exe", unpackPath.resolve(platform.getPair()).resolve("bin"), true, true);
                         unpackResourceFile("libexec/" + platform.getPair() + "/luajit-64.exe", unpackPath.resolve(platform.getPair()).resolve("bin"), true, true);
                     }

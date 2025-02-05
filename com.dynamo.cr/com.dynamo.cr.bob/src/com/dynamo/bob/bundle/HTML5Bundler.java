@@ -48,7 +48,7 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 
-@BundlerParams(platforms = {Platform.JsWeb, Platform.WasmWeb})
+@BundlerParams(platforms = {"js-web", "wasm-web"})
 public class HTML5Bundler implements IBundler {
     private static Logger logger = Logger.getLogger(HTML5Bundler.class.getName());
 
