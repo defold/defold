@@ -44,6 +44,9 @@
 
 (def collision-object-icon "icons/32/Icons_49-Collision-object.png")
 
+(def collision-object-box2d-ext "collisionobject_box2dc")
+(def collision-object-bullet3d-ext "collisionobject_bullet3dc")
+
 (g/deftype ^:private NameCounts {s/Str s/Int})
 
 (def shape-type-ui
@@ -498,9 +501,14 @@
             (assoc shape :id-hash shape-id-hash)))
         shapes))
 
+; is-2d (= "2D" project-physics-type)
+
 (g/defnk produce-build-targets
   [_node-id resource save-value collision-shape dep-build-targets mass type project-physics-type shapes id-counts]
-  (let [dep-build-targets (flatten dep-build-targets)
+  (let [collision-object-ext (if (= "2D" project-physics-type)
+                               collision-object-box2d-ext
+                               collision-object-bullet3d-ext)
+        dep-build-targets (flatten dep-build-targets)
         convex-shape (when (and collision-shape (= "convexshape" (resource/type-ext collision-shape)))
                        (get-in (first dep-build-targets) [:user-data :pb]))
         pb-msg (if convex-shape
@@ -536,7 +544,7 @@
                  shapes)]
       [(bt/with-content-hash
          {:node-id _node-id
-          :resource (workspace/make-build-resource resource)
+          :resource (workspace/make-build-resource resource nil collision-object-ext)
           :build-fn build-collision-object
           :user-data {:pb-msg pb-msg
                       :dep-resources dep-resources}
