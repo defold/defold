@@ -759,6 +759,40 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
     }
 
     @Test
+    public void testIncludeExistingShaderVersions() throws Exception {
+        String shaderSrc =
+                """
+                #version 140
+                out vec4 color;
+                
+                uniform ubo_1
+                {
+                    vec4 tint_1;
+                };
+                
+                uniform ubo_2
+                {
+                    vec4 tint_2;
+                };
+                
+                void main() {
+                    color = tint_1 + tint_2;
+                }
+                """;
+
+        getProject().getProjectProperties().putBooleanValue("shader", "output_glsl140", true);
+
+        ShaderDesc shaderDesc = addAndBuildShaderDesc("/test_shader_140.fp", shaderSrc, "/test_shader_140.shbundle");
+        ShaderDesc.Shader shader = getShaderByLanguage(shaderDesc, ShaderDesc.Language.LANGUAGE_GLSL_SM140);
+        assertNotNull(shader);
+
+        String buildShaderSrc = new String(shader.getSource().toByteArray());
+        assertEquals(shaderSrc, buildShaderSrc);
+
+        getProject().getProjectProperties().putBooleanValue("shader", "output_glsl140", false);
+    }
+
+    @Test
     public void testShaderCompilePipelines() throws Exception {
         String shaderNewPipeline =
             """
