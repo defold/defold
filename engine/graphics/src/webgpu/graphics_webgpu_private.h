@@ -60,7 +60,6 @@ namespace dmGraphics
 
     struct WebGPUShaderModule
     {
-        ShaderMeta       m_ShaderMeta;
         WGPUShaderModule m_Module = NULL;
         uint64_t         m_Hash;
     };
