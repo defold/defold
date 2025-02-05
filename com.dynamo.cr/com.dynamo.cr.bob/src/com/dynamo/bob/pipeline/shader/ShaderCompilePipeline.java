@@ -294,7 +294,7 @@ public class ShaderCompilePipeline {
 
         boolean isLanguageGLSL = shaderLanguageIsGLSL(shaderLanguage);
 
-        if (isLanguageGLSL && module.shaderInfo.version == version) {
+        if (isLanguageGLSL && module.shaderInfo != null && module.shaderInfo.version == version) {
             // The input shader is already valid GLSL code in the output version we are trying to produce,
             // no need to crosscompile!
             return module.desc.source.getBytes();
