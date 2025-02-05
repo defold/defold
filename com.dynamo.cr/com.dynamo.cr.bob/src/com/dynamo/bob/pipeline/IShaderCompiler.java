@@ -15,10 +15,19 @@
 package com.dynamo.bob.pipeline;
 
 import java.io.IOException;
+import java.io.Serializable;
+import java.util.ArrayList;
 
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.pipeline.shader.ShaderCompilePipeline;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
 public interface IShaderCompiler {
-    ShaderProgramBuilder.ShaderCompileResult compile(String shaderSource, ShaderDesc.ShaderType shaderType, String resourceOutputPath, boolean outputSpirv, boolean outputHlsl, boolean outputWGSL) throws IOException, CompileExceptionError;
+    class CompileOptions implements Serializable {
+        public ArrayList<ShaderDesc.Language> forceIncludeShaderLanguages = new ArrayList<>();
+        public int maxPageCount;
+        public boolean forceSplitSamplers;
+    };
+
+    ShaderProgramBuilder.ShaderCompileResult compile(ArrayList<ShaderCompilePipeline.ShaderModuleDesc> shaderModules, String resourceOutputPath, CompileOptions options) throws IOException, CompileExceptionError;
 }

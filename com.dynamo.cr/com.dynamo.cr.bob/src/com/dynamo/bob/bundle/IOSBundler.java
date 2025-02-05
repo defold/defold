@@ -54,7 +54,7 @@ import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
 import com.dynamo.bob.util.FileUtil;
 
-@BundlerParams(platforms = {Platform.Arm64Ios, Platform.X86_64Ios})
+@BundlerParams(platforms = {"arm64-ios", "x86_64-ios"})
 public class IOSBundler implements IBundler {
     private static Logger logger = Logger.getLogger(IOSBundler.class.getName());
 

@@ -23,12 +23,10 @@ namespace dmRender
      * Initialize debug render system
      * @param render_context Render context
      * @param max_vertex_count Max vertex count (per type)
-     * @param vp_desc VertexProgram shader desc
-     * @param vp_desc_size VertexProgram shader desc size
-     * @param fp_desc FragmentProgram shader desc
-     * @param fp_desc_size FragmentProgram shader desc size
+     * @param sp_desc ShaderProgram shader desc
+     * @param sp_desc_size ShaderProgram shader desc size
      */
-	void InitializeDebugRenderer(HRenderContext render_context, uint32_t max_vertex_count, const void* vp_desc, uint32_t vp_desc_size, const void* fp_desc, uint32_t fp_desc_size);
+	void InitializeDebugRenderer(HRenderContext render_context, uint32_t max_vertex_count, const void* sp_desc, uint32_t sp_desc_size);
 
     /**
      * Finalize debug render system

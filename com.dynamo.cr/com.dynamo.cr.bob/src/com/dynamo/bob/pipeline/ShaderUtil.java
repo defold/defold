@@ -16,10 +16,7 @@ package com.dynamo.bob.pipeline;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintWriter;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Locale;
-import java.util.Scanner;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -57,7 +54,7 @@ public class ShaderUtil {
         {
             public String         source;
             public String[]       arraySamplers = new String[0];
-            public SPIRVReflector reflector = null;
+            public SPIRVReflector reflector = new SPIRVReflector();
 
             public GLSLCompileResult() {}
 

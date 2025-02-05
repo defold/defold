@@ -12,21 +12,20 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_GAMESYS_RES_VERTEX_PROGRAM_H
-#define DM_GAMESYS_RES_VERTEX_PROGRAM_H
+#ifndef DM_GAMESYS_RES_SHADER_PROGRAM_H
+#define DM_GAMESYS_RES_SHADER_PROGRAM_H
 
-#include <dmsdk/resource/resource.hpp>
-#include <dmsdk/gamesys/resources/res_vertex_program.h>
+#include <dmsdk/resource/resource.h>
 
 namespace dmGameSystem
 {
-    dmResource::Result ResVertexProgramPreload(const dmResource::ResourcePreloadParams* params);
+    dmResource::Result ResShaderProgramPreload(const dmResource::ResourcePreloadParams* params);
 
-    dmResource::Result ResVertexProgramCreate(const dmResource::ResourceCreateParams* params);
+    dmResource::Result ResShaderProgramCreate(const dmResource::ResourceCreateParams* params);
 
-    dmResource::Result ResVertexProgramDestroy(const dmResource::ResourceDestroyParams* params);
+    dmResource::Result ResShaderProgramDestroy(const dmResource::ResourceDestroyParams* params);
 
-    dmResource::Result ResVertexProgramRecreate(const dmResource::ResourceRecreateParams* params);
+    dmResource::Result ResShaderProgramRecreate(const dmResource::ResourceRecreateParams* params);
 }
 
-#endif // DM_GAMESYS_RES_VERTEX_PROGRAM_H
+#endif // DM_GAMESYS_RES_SHADER_PROGRAM_H
