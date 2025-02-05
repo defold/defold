@@ -45,6 +45,8 @@
   .tree-cell {
     @include colorize-icon(-df-text-dark, -df-text);
 
+    -fx-padding: 3px 0 3px 3px; 
+
     &.reference,
     &.parent-reference {
       .text {

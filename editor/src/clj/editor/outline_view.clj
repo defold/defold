@@ -467,15 +467,13 @@
 (defn- toggle-visibility! [node-outline-key-path ^MouseEvent event]
   (ui/run-command (.getSource event) :hide-toggle {:node-outline-key-path node-outline-key-path}))
 
-(def toggle-offset 5.0)
-
 (defn add-scroll-listeners!
   [visibility-button ^TreeView tree-view]
   (when-let [^ScrollBar scrollbar (->> (.lookupAll tree-view ".scroll-bar")
                                        (some #(when (= (.getOrientation %) Orientation/HORIZONTAL) %)))]
-    (ui/observe (.valueProperty scrollbar) (fn [_ _ new-v] (AnchorPane/setRightAnchor visibility-button (- (.getMax scrollbar) new-v toggle-offset))))
-    (ui/observe (.maxProperty scrollbar) (fn [_ _ new-v] (AnchorPane/setRightAnchor visibility-button (- new-v (.getValue scrollbar) toggle-offset))))
-    (ui/observe (.visibleProperty scrollbar) (fn [_ _ visible?] (when-not visible? (AnchorPane/setRightAnchor visibility-button (- toggle-offset)))))))
+    (ui/observe (.valueProperty scrollbar) (fn [_ _ new-v] (AnchorPane/setRightAnchor visibility-button (- (.getMax scrollbar) new-v))))
+    (ui/observe (.maxProperty scrollbar) (fn [_ _ new-v] (AnchorPane/setRightAnchor visibility-button (- new-v (.getValue scrollbar)))))
+    (ui/observe (.visibleProperty scrollbar) (fn [_ _ visible?] (when-not visible? (AnchorPane/setRightAnchor visibility-button 0.0))))))
 
 (def eye-open-path (ui/load-svg-path "scene/images/eye_open.svg"))
 (def eye-closed-path (ui/load-svg-path "scene/images/eye_closed.svg"))
@@ -488,7 +486,7 @@
         visibility-button (doto (ToggleButton.)
                             (ui/add-style! "visibility-toggle")
                             (.addEventFilter MouseEvent/MOUSE_PRESSED ui/ignore-event-filter)
-                            (AnchorPane/setRightAnchor (- toggle-offset)))
+                            (AnchorPane/setRightAnchor 0.0))
         text-label (Label.)
         h-box (doto (HBox. 5 (ui/node-array [image-view-icon text-label]))
                 (ui/add-style! "h-box")
