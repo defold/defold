@@ -59,7 +59,6 @@
 #include <script/sys_ddf.h>
 #include <liveupdate/liveupdate.h>
 
-#include "extension.h"
 #include "engine_service.h"
 #include "engine_version.h"
 #include "physics_debug_render.h"
@@ -70,10 +69,8 @@
 
 // Embedded resources
 // Unfortunately, the draw_line et. al are used in production code
-extern unsigned char DEBUG_VPC[];
-extern uint32_t DEBUG_VPC_SIZE;
-extern unsigned char DEBUG_FPC[];
-extern uint32_t DEBUG_FPC_SIZE;
+extern unsigned char DEBUG_SPC[];
+extern uint32_t      DEBUG_SPC_SIZE;
 
 #if !defined(DM_RELEASE)
     extern unsigned char BUILTINS_ARCD[];
@@ -114,6 +111,69 @@ namespace dmEngine
 #define SYSTEM_SOCKET_NAME "@system"
 
     dmEngineService::HEngineService g_EngineService = 0;
+
+    struct ScopedExtensionAppParams
+    {
+        ExtensionAppParams m_AppParams;
+        ScopedExtensionAppParams(HEngine engine)
+        {
+            ExtensionAppParamsInitialize(&m_AppParams);
+            m_AppParams.m_ConfigFile = engine->m_Config;
+            ExtensionAppParamsSetContext(&m_AppParams, "config", engine->m_Config);
+            dmWebServer::HServer webserver = dmEngineService::GetWebServer(engine->m_EngineService);
+            ExtensionAppParamsSetContext(&m_AppParams, "webserver", webserver);
+            ExtensionAppParamsSetContext(&m_AppParams, "register", engine->m_Register);
+            ExtensionAppParamsSetContext(&m_AppParams, "hid", engine->m_HidContext);
+        }
+        ~ScopedExtensionAppParams()
+        {
+            ExtensionAppParamsFinalize(&m_AppParams);
+        }
+
+        operator ExtensionAppParams* ()
+        {
+            return &m_AppParams;
+        }
+    };
+
+    struct ScopedExtensionParams
+    {
+        HEngine         m_Engine;
+        ExtensionParams m_Params;
+        ScopedExtensionParams(HEngine engine)
+        : m_Engine(engine)
+        {
+            ExtensionParamsInitialize(&m_Params);
+            m_Params.m_ConfigFile = engine->m_Config;
+            m_Params.m_ResourceFactory = engine->m_Factory;
+            SetLuaContext(engine->m_SharedScriptContext ? engine->m_SharedScriptContext : engine->m_GOScriptContext);
+
+            ExtensionParamsSetContext(&m_Params, "config", engine->m_Config);
+            dmWebServer::HServer webserver = dmEngineService::GetWebServer(engine->m_EngineService);
+            ExtensionParamsSetContext(&m_Params, "webserver", webserver);
+            ExtensionParamsSetContext(&m_Params, "register", engine->m_Register);
+            ExtensionParamsSetContext(&m_Params, "hid", engine->m_HidContext);
+            ExtensionParamsSetContext(&m_Params, "factory", engine->m_Factory);
+            ExtensionParamsSetContext(&m_Params, "graphics", engine->m_GraphicsContext);
+            ExtensionParamsSetContext(&m_Params, "render", engine->m_RenderContext);
+        }
+        ~ScopedExtensionParams()
+        {
+            ExtensionParamsFinalize(&m_Params);
+        }
+        void SetLuaContext(dmScript::HContext script_context)
+        {
+            m_Params.m_L = dmScript::GetLuaState(script_context);
+            ExtensionParamsSetContext(&m_Params, "script", script_context);
+            ExtensionParamsSetContext(&m_Params, "lua", m_Params.m_L);
+        }
+
+        operator ExtensionParams* ()
+        {
+            return &m_Params;
+        }
+    };
+
 
     static void OnWindowResize(void* user_data, uint32_t width, uint32_t height)
     {
@@ -166,13 +226,11 @@ namespace dmEngine
     static void OnWindowFocus(void* user_data, uint32_t focus)
     {
         Engine* engine = (Engine*)user_data;
-        dmExtension::Params params;
-        params.m_ConfigFile      = engine->m_Config;
-        params.m_ResourceFactory = engine->m_Factory;
-        params.m_L               = 0;
+        ScopedExtensionParams params(engine);
+
         dmExtension::Event event;
         event.m_Event = focus ? EXTENSION_EVENT_ID_ACTIVATEAPP : EXTENSION_EVENT_ID_DEACTIVATEAPP;
-        dmExtension::DispatchEvent( &params, &event );
+        dmExtension::DispatchEvent( params, &event );
 
         dmGameSystem::OnWindowFocus(focus != 0);
     }
@@ -185,13 +243,11 @@ namespace dmEngine
         // on some platforms both events will arrive when regaining focus
         engine->m_PreviousFrameTime = dmTime::GetMonotonicTime(); // we might have stalled for a long time
 
-        dmExtension::Params params;
-        params.m_ConfigFile = engine->m_Config;
-        params.m_ResourceFactory = engine->m_Factory;
-        params.m_L          = 0;
+        ScopedExtensionParams params(engine);
+
         dmExtension::Event event;
         event.m_Event = iconify ? EXTENSION_EVENT_ID_ICONIFYAPP : EXTENSION_EVENT_ID_DEICONIFYAPP;
-        dmExtension::DispatchEvent( &params, &event );
+        dmExtension::DispatchEvent( params, &event );
 
         dmGameSystem::OnWindowIconify(iconify != 0);
     }
@@ -276,17 +332,11 @@ namespace dmEngine
     void Delete(HEngine engine)
     {
         {
-            dmExtension::Params params;
-            params.m_ConfigFile = engine->m_Config;
-            params.m_ResourceFactory = engine->m_Factory;
-            if (engine->m_SharedScriptContext) {
-                params.m_L = dmScript::GetLuaState(engine->m_SharedScriptContext);
-            } else {
-                params.m_L = dmScript::GetLuaState(engine->m_GOScriptContext);
-            }
+            ScopedExtensionParams params(engine);
+
             dmExtension::Event event;
             event.m_Event = EXTENSION_EVENT_ID_ENGINE_DELETE;
-            dmExtension::DispatchEvent( &params, &event );
+            dmExtension::DispatchEvent( params, &event );
         }
 
         if (engine->m_MainCollection)
@@ -394,12 +444,8 @@ namespace dmEngine
                 dmPhysics::DeleteContext2D(engine->m_PhysicsContext.m_Context2D);
         }
 
-        dmEngine::ExtensionAppParams app_params;
-        app_params.m_ConfigFile = engine->m_Config;
-        app_params.m_WebServer = dmEngineService::GetWebServer(engine->m_EngineService);
-        app_params.m_GameObjectRegister = engine->m_Register;
-        app_params.m_HIDContext = engine->m_HidContext;
-        dmExtension::AppFinalize((dmExtension::AppParams*)&app_params);
+        ScopedExtensionAppParams app_params(engine);
+        dmExtension::AppFinalize(app_params);
 
         dmBuffer::DeleteContext();
 
@@ -828,13 +874,8 @@ namespace dmEngine
 #endif
         engine->m_HidContext = dmHID::NewContext(new_hid_params);
 
-        dmEngine::ExtensionAppParams app_params;
-        app_params.m_ConfigFile = engine->m_Config;
-        app_params.m_WebServer = dmEngineService::GetWebServer(engine->m_EngineService);
-        app_params.m_GameObjectRegister = engine->m_Register;
-        app_params.m_HIDContext = engine->m_HidContext;
-
-        dmExtension::Result er = dmExtension::AppInitialize((dmExtension::AppParams*)&app_params);
+        ScopedExtensionAppParams app_params(engine);
+        dmExtension::Result er = dmExtension::AppInitialize(app_params);
         if (er != dmExtension::RESULT_OK) {
             dmLogFatal("Failed to initialize extensions (%d)", er);
             return false;
@@ -1056,11 +1097,17 @@ namespace dmEngine
         script_params.m_ConfigFile      = engine->m_Config;
         script_params.m_GraphicsContext = engine->m_GraphicsContext;
 
+
+        ScopedExtensionParams extension_params(engine);
+
         bool shared = dmConfigFile::GetInt(engine->m_Config, "script.shared_state", 0);
         if (shared)
         {
             engine->m_SharedScriptContext = dmScript::NewContext(script_params);
             dmScript::Initialize(engine->m_SharedScriptContext);
+            extension_params.SetLuaContext(engine->m_SharedScriptContext);
+            dmExtension::Initialize(extension_params);
+
             engine->m_GOScriptContext = engine->m_SharedScriptContext;
             engine->m_RenderScriptContext = engine->m_SharedScriptContext;
             engine->m_GuiScriptContext = engine->m_SharedScriptContext;
@@ -1071,10 +1118,19 @@ namespace dmEngine
         {
             engine->m_GOScriptContext = dmScript::NewContext(script_params);
             dmScript::Initialize(engine->m_GOScriptContext);
+            extension_params.SetLuaContext(engine->m_GOScriptContext);
+            dmExtension::Initialize(extension_params);
+
             engine->m_RenderScriptContext = dmScript::NewContext(script_params);
             dmScript::Initialize(engine->m_RenderScriptContext);
+            extension_params.SetLuaContext(engine->m_RenderScriptContext);
+            dmExtension::Initialize(extension_params);
+
             engine->m_GuiScriptContext = dmScript::NewContext(script_params);
             dmScript::Initialize(engine->m_GuiScriptContext);
+            extension_params.SetLuaContext(engine->m_GuiScriptContext);
+            dmExtension::Initialize(extension_params);
+
             module_script_contexts.SetCapacity(3);
             module_script_contexts.Push(engine->m_GOScriptContext);
             module_script_contexts.Push(engine->m_RenderScriptContext);
@@ -1112,10 +1168,8 @@ namespace dmEngine
         render_params.m_CommandBufferSize = 1024;
         render_params.m_ScriptContext = engine->m_RenderScriptContext;
 #if !defined(DM_RELEASE)
-        render_params.m_VertexShaderDesc = ::DEBUG_VPC;
-        render_params.m_VertexShaderDescSize = ::DEBUG_VPC_SIZE;
-        render_params.m_FragmentShaderDesc = ::DEBUG_FPC;
-        render_params.m_FragmentShaderDescSize = ::DEBUG_FPC_SIZE;
+        render_params.m_ShaderProgramDesc = ::DEBUG_SPC;
+        render_params.m_ShaderProgramDescSize = ::DEBUG_SPC_SIZE;
         render_params.m_MaxDebugVertexCount = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_debug_vertices", 10000);
 #else
         render_params.m_MaxDebugVertexCount = 0;
@@ -1502,17 +1556,11 @@ namespace dmEngine
         }
 
         {
-            dmExtension::Params params;
-            params.m_ConfigFile = engine->m_Config;
-            params.m_ResourceFactory = engine->m_Factory;
-            if (engine->m_SharedScriptContext) {
-                params.m_L = dmScript::GetLuaState(engine->m_SharedScriptContext);
-            } else {
-                params.m_L = dmScript::GetLuaState(engine->m_GOScriptContext);
-            }
+            ScopedExtensionParams params(engine);
+
             dmExtension::Event event;
             event.m_Event = EXTENSION_EVENT_ID_ENGINE_INITIALIZED;
-            dmExtension::DispatchEvent( &params, &event );
+            dmExtension::DispatchEvent( params, &event );
         }
 
         engine->m_PreviousFrameTime = dmTime::GetMonotonicTime();
@@ -1692,29 +1740,39 @@ bail:
                     script_lib_context.m_Factory  = engine->m_Factory;
                     script_lib_context.m_Register = engine->m_Register;
 
+                    ScopedExtensionParams extension_params(engine);
+
                     if (engine->m_SharedScriptContext)
                     {
                         script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_SharedScriptContext);
                         dmGameSystem::UpdateScriptLibs(script_lib_context);
                         dmScript::Update(engine->m_SharedScriptContext);
+                        extension_params.SetLuaContext(engine->m_SharedScriptContext);
+                        dmExtension::Update(extension_params);
                     }
-                     else
-                     {
+                    else
+                    {
                         if (engine->m_GOScriptContext)
                         {
                             script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GOScriptContext);
                             dmGameSystem::UpdateScriptLibs(script_lib_context);
                             dmScript::Update(engine->m_GOScriptContext);
+                            extension_params.SetLuaContext(engine->m_GOScriptContext);
+                            dmExtension::Update(extension_params);
                         }
                         if (engine->m_RenderScriptContext)
                         {
                             dmScript::Update(engine->m_RenderScriptContext);
+                            extension_params.SetLuaContext(engine->m_RenderScriptContext);
+                            dmExtension::Update(extension_params);
                         }
                         if (engine->m_GuiScriptContext)
                         {
                             script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GuiScriptContext);
                             dmGameSystem::UpdateScriptLibs(script_lib_context);
                             dmScript::Update(engine->m_GuiScriptContext);
+                            extension_params.SetLuaContext(engine->m_GuiScriptContext);
+                            dmExtension::Update(extension_params);
                         }
                     }
                 }
@@ -1771,15 +1829,8 @@ bail:
                     // Call pre render functions for extensions, if available.
                     // We do it here before we render rest of the frame
                     // if any extension wants to render on under of the game.
-                    dmExtension::Params ext_params;
-                    ext_params.m_ConfigFile = engine->m_Config;
-                    ext_params.m_ResourceFactory = engine->m_Factory;
-                    if (engine->m_SharedScriptContext) {
-                        ext_params.m_L = dmScript::GetLuaState(engine->m_SharedScriptContext);
-                    } else {
-                        ext_params.m_L = dmScript::GetLuaState(engine->m_GOScriptContext);
-                    }
-                    dmExtension::PreRender(&ext_params);
+                    ScopedExtensionParams ext_params(engine);
+                    dmExtension::PreRender(ext_params);
 
                     // Make the render list that will be used later.
                     dmRender::RenderListBegin(engine->m_RenderContext);
@@ -1852,15 +1903,8 @@ bail:
                 // Don't do this while iconified
                 if (!dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_ICONIFIED))
                 {
-                    dmExtension::Params ext_params;
-                    ext_params.m_ConfigFile = engine->m_Config;
-                    ext_params.m_ResourceFactory = engine->m_Factory;
-                    if (engine->m_SharedScriptContext) {
-                        ext_params.m_L = dmScript::GetLuaState(engine->m_SharedScriptContext);
-                    } else {
-                        ext_params.m_L = dmScript::GetLuaState(engine->m_GOScriptContext);
-                    }
-                    dmExtension::PostRender(&ext_params);
+                    ScopedExtensionParams ext_params(engine);
+                    dmExtension::PostRender(ext_params);
                 }
 
                 if (engine->m_UseSwVSync && engine->m_UpdateFrequency > 0)

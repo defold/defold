@@ -490,21 +490,28 @@
 
 (handler/register-menu! :toolbar
   [{:id :select
+    :tooltip "Select tool"
     :icon "icons/45/Icons_T_01_Select.png"
     :command :select-tool}
    {:id :move
+    :tooltip "Move tool"
     :icon "icons/45/Icons_T_02_Move.png"
     :command :move-tool}
    {:id :rotate
+    :tooltip "Rotate tool"
     :icon "icons/45/Icons_T_03_Rotate.png"
     :command :rotate-tool}
    {:id :scale
+    :tooltip "Scale tool"
     :icon "icons/45/Icons_T_04_Scale.png"
     :command :scale-tool}
+   {:label :separator}
    {:id :perspective-camera
+    :tooltip "Perspective camera"
     :graphic-fn (partial icons/make-svg-icon-graphic perspective-icon-svg-path)
     :command :toggle-perspective-camera}
    {:id :visibility-settings
+    :tooltip "Visibility settings"
     :graphic-fn make-visibility-settings-graphic
     :command :show-visibility-settings}])
 

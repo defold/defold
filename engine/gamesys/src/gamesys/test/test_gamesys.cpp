@@ -728,8 +728,7 @@ TEST_F(ComponentTest, CameraTest)
 TEST_F(ComponentTest, ReloadInvalidMaterial)
 {
     const char path_material[] = "/material/valid.materialc";
-    const char path_frag[] = "/fragment_program/valid.fpc";
-    const char path_vert[] = "/vertex_program/valid.vpc";
+    const char path_shader[] = "/material/shader_16853236849430612714.spc";
     void* resource;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path_material, &resource));
 
@@ -737,19 +736,19 @@ TEST_F(ComponentTest, ReloadInvalidMaterial)
     dmGraphics::SetForceVertexReloadFail(true);
 
     // Reload, validate fail
-    ASSERT_NE(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, path_vert, 0));
+    ASSERT_NE(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, path_shader, 0));
 
     // Modify resource with correction
     dmGraphics::SetForceVertexReloadFail(false);
 
     // Reload, validate success
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, path_vert, 0));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, path_shader, 0));
 
     // Same as above but for fragment shader
     dmGraphics::SetForceFragmentReloadFail(true);
-    ASSERT_NE(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, path_frag, 0));
+    ASSERT_NE(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, path_shader, 0));
     dmGraphics::SetForceFragmentReloadFail(false);
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, path_frag, 0));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, path_shader, 0));
 
     dmResource::Release(m_Factory, resource);
 }
@@ -3378,16 +3377,6 @@ ResourceFailParams invalid_font_resources[] =
 };
 INSTANTIATE_TEST_CASE_P(FontMap, ResourceFailTest, jc_test_values_in(invalid_font_resources));
 
-/* Fragment Program */
-
-const char* valid_fp_resources[] = {"/fragment_program/valid.fpc"};
-INSTANTIATE_TEST_CASE_P(FragmentProgram, ResourceTest, jc_test_values_in(valid_fp_resources));
-
-ResourceFailParams invalid_fp_resources[] =
-{
-    {"/fragment_program/valid.fpc", "/fragment_program/missing.fpc"},
-};
-INSTANTIATE_TEST_CASE_P(FragmentProgram, ResourceFailTest, jc_test_values_in(invalid_fp_resources));
 
 /* Gui Script */
 
@@ -3678,17 +3667,6 @@ ResourceFailParams invalid_texture_resources[] =
     {"/texture/valid_png.texturec", "/texture/missing.texturec"},
 };
 INSTANTIATE_TEST_CASE_P(Texture, ResourceFailTest, jc_test_values_in(invalid_texture_resources));
-
-/* Vertex Program */
-
-const char* valid_vp_resources[] = {"/vertex_program/valid.vpc"};
-INSTANTIATE_TEST_CASE_P(VertexProgram, ResourceTest, jc_test_values_in(valid_vp_resources));
-
-ResourceFailParams invalid_vp_resources[] =
-{
-    {"/vertex_program/valid.vpc", "/vertex_program/missing.vpc"},
-};
-INSTANTIATE_TEST_CASE_P(VertexProgram, ResourceFailTest, jc_test_values_in(invalid_vp_resources));
 
 /* Label */
 
@@ -5594,8 +5572,8 @@ TEST_F(SysTest, LoadBufferASync)
 TEST_F(ShaderTest, Compute)
 {
     dmGraphics::ShaderDesc* ddf;
-    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessageFromFile("build/src/gamesys/test/shader/valid.cpc", dmGraphics::ShaderDesc::m_DDFDescriptor, (void**) &ddf));
-    ASSERT_EQ(dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE, ddf->m_ShaderType);
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessageFromFile("build/src/gamesys/test/shader/valid.cp.spc", dmGraphics::ShaderDesc::m_DDFDescriptor, (void**) &ddf));
+    ASSERT_EQ(dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE, ddf->m_Shaders[0].m_ShaderType);
     ASSERT_NE(0, ddf->m_Shaders.m_Count);
 
     dmGraphics::ShaderDesc::Shader* compute_shader = 0;
@@ -5637,10 +5615,7 @@ TEST_F(ShaderTest, ComputeResource)
 
     dmRender::HComputeProgram compute_program = compute_program_res->m_Program;
 
-    dmGraphics::HComputeProgram graphics_compute_shader = dmRender::GetComputeProgramShader(compute_program);
-    ASSERT_NE((dmGraphics::HComputeProgram) 0, graphics_compute_shader);
-
-    dmGraphics::HProgram graphics_compute_program  = dmRender::GetComputeProgram(compute_program);
+    dmGraphics::HProgram graphics_compute_program = dmRender::GetComputeProgram(compute_program);
     ASSERT_EQ(9, dmGraphics::GetUniformCount(graphics_compute_program));
 
     dmRender::HConstant ca, cb, cc, cd;
