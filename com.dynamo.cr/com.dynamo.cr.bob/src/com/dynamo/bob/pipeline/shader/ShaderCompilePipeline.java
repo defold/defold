@@ -48,9 +48,9 @@ public class ShaderCompilePipeline {
     protected static class ShaderModule {
         ShaderModuleDesc desc;
         public File spirvFile;
-
         protected SPIRVReflector spirvReflector = null;
         protected long spirvContext = 0;
+        protected ShaderUtil.Common.GLSLShaderInfo shaderInfo;
 
         public ShaderModule(ShaderModuleDesc desc) {
             this.desc = desc;
@@ -277,9 +277,9 @@ public class ShaderCompilePipeline {
             generateSPIRvOptimized(module.desc.resourcePath, fileOutSpv.getAbsolutePath(), fileOutSpvOpt.getAbsolutePath());
 
             module.spirvFile = fileOutSpvOpt;
-
             module.spirvContext = ShadercJni.NewShaderContext(FileUtils.readFileToByteArray(fileOutSpvOpt));
             module.spirvReflector = new SPIRVReflector(module.spirvContext, module.desc.type);
+            module.shaderInfo = ShaderUtil.Common.getShaderInfo(module.desc.source);
         }
     }
 
@@ -292,9 +292,17 @@ public class ShaderCompilePipeline {
         ShaderModule module = getShaderModule(shaderType);
         assert module != null;
 
-        if (shaderLanguage == ShaderDesc.Language.LANGUAGE_SPIRV) {
+        boolean isLanguageGLSL = shaderLanguageIsGLSL(shaderLanguage);
+
+        if (isLanguageGLSL && module.shaderInfo.version == version) {
+            // The input shader is already valid GLSL code in the output version we are trying to produce,
+            // no need to crosscompile!
+            return module.desc.source.getBytes();
+        } else if (shaderLanguage == ShaderDesc.Language.LANGUAGE_SPIRV) {
+            // We have already produced SPIR-v for the input module, no need to crosscompile
             return FileUtils.readFileToByteArray(module.spirvFile);
         } else if (shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL) {
+            // TODO: Move this into the crosscompile function, since we are actually crosscompiling.
             String shaderTypeStr = shaderTypeToSpirvStage(shaderType);
             String versionStr    = "v" + version;
 
@@ -308,7 +316,7 @@ public class ShaderCompilePipeline {
 
             // JG: spirv-cross renames samplers for GLSL based shaders, so we have to run a second pass to force renaming them back.
             //     There doesn't seem to be a simpler way to do this in spirv-cross from what I can understand.
-            if (shaderLanguageIsGLSL(shaderLanguage)) {
+            if (isLanguageGLSL) {
                 bytes = remapTextureSamplers(module.spirvReflector.getTextures(), new String(bytes));
             }
 
