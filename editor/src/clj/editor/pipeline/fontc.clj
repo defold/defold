@@ -580,7 +580,7 @@
     (+ (* sdf-limit-value (- 1.0 edge)) edge)))
 
 (defn- draw-ttf-distance-field [{^int glyph-ascent :ascent
-                                 ^double glyph-left-bearing :left-bearing
+                                 glyph-left-bearing :left-bearing
                                  ^GlyphVector glyph-vector :vector
                                  :as glyph}
                                 padding
@@ -592,13 +592,14 @@
                                 edge
                                 shadow-blur
                                 shadow-alpha]
-  (let [^int padding padding
-        ^double outline-width outline-width
-        ^double sdf-spread sdf-spread
-        ^double sdf-shadow-spread sdf-shadow-spread
-        ^double edge edge
-        ^double shadow-alpha shadow-alpha
-        ^double sdf-outline sdf-outline
+  (let [glyph-left-bearing (double glyph-left-bearing)
+        ^int padding padding
+        outline-width (double outline-width)
+        sdf-spread (double sdf-spread)
+        sdf-shadow-spread (double sdf-shadow-spread)
+        edge (double edge)
+        shadow-alpha (double shadow-alpha)
+        sdf-outline (double sdf-outline)
         ^int channel-count channel-count
         ^int shadow-blur shadow-blur
         {^int width :width ^int height :height} (pad-wh padding (glyph-wh glyph))
@@ -720,26 +721,31 @@
         glyph-data-bank (make-glyph-data-bank glyph-extents)
         layer-mask (font-desc->layer-mask font-desc)
         is-monospaced (check-monospaced semi-glyphs)]
-    (doall
-      (pmap (fn [[semi-glyph glyph-extents]]
-              (let [{:keys [^bytes field]} (draw-ttf-distance-field semi-glyph padding channel-count outline-width sdf-outline sdf-spread sdf-shadow-spread edge shadow-blur shadow-alpha)
-                    {:keys [image-wh glyph-cell-wh ^int glyph-data-size ^int glyph-data-offset]} glyph-extents
-                    ^int image-width (:width image-wh)
-                    ^int image-height (:height image-wh)
-                    row-size (* (int (:width glyph-cell-wh)) channel-count)]
-                (Arrays/fill glyph-data-bank glyph-data-offset (+ glyph-data-offset row-size) (unchecked-byte 0))
-                (doseq [^int y (range image-height)]
-                  (let [y-offset (+ glyph-data-offset
-                                    row-size
-                                    (* y row-size))]
-                    (aset glyph-data-bank y-offset (unchecked-byte 0))
-                    (System/arraycopy field (+ (* y image-width channel-count) 0) glyph-data-bank (+ y-offset channel-count) (* image-width channel-count))
-                    (aset glyph-data-bank (+ (+ y-offset channel-count) (* image-width channel-count)) (unchecked-byte 0))))
-                (let [last-y-offset (- (+ glyph-data-offset glyph-data-size) row-size)]
-                  (Arrays/fill glyph-data-bank last-y-offset (+ last-y-offset row-size) (unchecked-byte 0)))))
-            (sequence positive-glyph-extent-pairs-xf
-                      semi-glyphs
-                      glyph-extents)))
+    (dorun
+      (pmap
+        (fn [batch]
+          (run! (fn [[semi-glyph glyph-extents]]
+                  (let [{:keys [^bytes field]} (draw-ttf-distance-field semi-glyph padding channel-count outline-width sdf-outline sdf-spread sdf-shadow-spread edge shadow-blur shadow-alpha)
+                        {:keys [image-wh glyph-cell-wh ^int glyph-data-size ^int glyph-data-offset]} glyph-extents
+                        ^int image-width (:width image-wh)
+                        ^int image-height (:height image-wh)
+                        row-size (* (int (:width glyph-cell-wh)) channel-count)]
+                    (Arrays/fill glyph-data-bank glyph-data-offset (+ glyph-data-offset row-size) (unchecked-byte 0))
+                    (doseq [^int y (range image-height)]
+                      (let [y-offset (+ glyph-data-offset
+                                        row-size
+                                        (* y row-size))]
+                        (aset glyph-data-bank y-offset (unchecked-byte 0))
+                        (System/arraycopy field (+ (* y image-width channel-count) 0) glyph-data-bank (+ y-offset channel-count) (* image-width channel-count))
+                        (aset glyph-data-bank (+ (+ y-offset channel-count) (* image-width channel-count)) (unchecked-byte 0))))
+                    (let [last-y-offset (- (+ glyph-data-offset glyph-data-size) row-size)]
+                      (Arrays/fill glyph-data-bank last-y-offset (+ last-y-offset row-size) (unchecked-byte 0)))))
+                batch))
+        (sequence (comp
+                    positive-glyph-extent-pairs-xf
+                    (partition-all 100))
+                  semi-glyphs
+                  glyph-extents)))
 
     (merge
       (get-font-map-props font-desc)
