@@ -307,7 +307,7 @@ static dmResourceProvider::Result ReadFilePartial(dmResourceProvider::HArchiveIn
 {
     HttpProviderContext* archive = (HttpProviderContext*)_archive;
     (void)path_hash;
-
+printf("%s: %s: %s - %u - %u\n", __FILE__, __FUNCTION__, path, offset, size);
     dmResourceProvider::Result result = GetRequestFromUri((HttpProviderContext*)archive, "GET", path, offset, size, nread, buffer);
     if (result != dmResourceProvider::RESULT_OK)
     {
@@ -326,5 +326,5 @@ static void SetupArchiveLoaderHttp(dmResourceProvider::ArchiveLoader* loader)
     loader->m_ReadFilePartial   = ReadFilePartial;
 }
 
-DM_DECLARE_ARCHIVE_LOADER(ResourceProviderHttp, "http", SetupArchiveLoaderHttp);
+DM_DECLARE_ARCHIVE_LOADER(ResourceProviderHttp, "http", SetupArchiveLoaderHttp, 0, 0);
 }

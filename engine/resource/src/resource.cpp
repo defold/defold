@@ -93,6 +93,8 @@ struct ResourceFactory
     // m_BuiltinsManifest, m_Manifest
     dmMutex::HMutex                              m_LoadMutex;
 
+    dmHttpCache::HCache                          m_HttpCache;
+
     // dmResource::Get recursion depth
     uint32_t                                     m_RecursionDepth;
     // List of resources currently in dmResource::Get call-stack
@@ -226,6 +228,8 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         return 0;
     }
 
+    factory->m_HttpCache = params->m_HttpCache;
+
     factory->m_Mounts = 0;
 
     // Mount the base archive, regardless of the liveupdate.mounts
@@ -241,6 +245,11 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         {"dmanif", "archive", true},
         {"file", "file", true},
     };
+
+    dmResourceProvider::ArchiveLoaderParams archive_loader_params;
+    archive_loader_params.m_Factory = factory;
+    archive_loader_params.m_HttpCache = params->m_HttpCache;
+    dmResourceProvider::InitializeLoaders(&archive_loader_params);
 
     dmJobThread::JobThreadCreationParams job_thread_create_param;
     job_thread_create_param.m_ThreadNames[0] = "ResourceJobThread";
@@ -380,6 +389,16 @@ void DeleteFactory(HFactory factory)
         factory->m_JobThreadContext = 0;
     }
 
+    ReleaseBuiltinsArchive(factory);
+
+    if (factory->m_Mounts)
+        dmResourceMounts::Destroy(factory->m_Mounts);
+
+    dmResourceProvider::ArchiveLoaderParams archive_loader_params;
+    archive_loader_params.m_Factory = factory;
+    archive_loader_params.m_HttpCache = 0;
+    dmResourceProvider::FinalizeLoaders(&archive_loader_params);
+
     if (factory->m_Socket)
     {
         dmMessage::DeleteSocket(factory->m_Socket);
@@ -388,11 +407,6 @@ void DeleteFactory(HFactory factory)
     {
         dmMutex::Delete(factory->m_LoadMutex);
     }
-
-    ReleaseBuiltinsArchive(factory);
-
-    if (factory->m_Mounts)
-        dmResourceMounts::Destroy(factory->m_Mounts);
 
     if (factory->m_Resources && !factory->m_Resources->Empty())
     {

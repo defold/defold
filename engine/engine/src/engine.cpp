@@ -1090,14 +1090,11 @@ namespace dmEngine
         dmResource::NewFactoryParams params;
         params.m_MaxResources = max_resources;
         params.m_Flags = 0;
+        params.m_HttpCache = engine->m_HttpCache;
 
         if (dLib::IsDebugMode())
         {
             params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
-
-            int32_t http_cache = dmConfigFile::GetInt(engine->m_Config, "resource.http_cache", 1);
-            if (http_cache)
-                params.m_Flags |= RESOURCE_FACTORY_FLAGS_HTTP_CACHE;
         }
 
         int32_t liveupdate_enable = dmConfigFile::GetInt(engine->m_Config, "liveupdate.enabled", 1);
