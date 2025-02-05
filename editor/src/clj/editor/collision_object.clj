@@ -477,6 +477,7 @@
         pb-msg (cond-> (:pb-msg user-data)
                  shape (assoc :collision-shape (resource/proj-path shape)))]
     {:resource resource
+     :collision-object-ext (:collision-object-ext user-data)
      :content (protobuf/map->bytes Physics$CollisionObjectDesc pb-msg)}))
 
 (defn- merge-convex-shape [collision-shape convex-shape]
@@ -546,7 +547,8 @@
           :resource (workspace/make-build-resource resource nil collision-object-ext)
           :build-fn build-collision-object
           :user-data {:pb-msg pb-msg
-                      :dep-resources dep-resources}
+                      :dep-resources dep-resources
+                      :collision-object-ext collision-object-ext}
           :deps dep-build-targets})])))
 
 (g/defnk produce-collision-group-color
