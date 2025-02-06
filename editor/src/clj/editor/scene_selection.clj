@@ -24,6 +24,7 @@
   (:import [editor.types Rect]
            [java.lang Runnable Math]
            [com.jogamp.opengl GL2]
+           [javafx.scene Node]
            [javax.vecmath Point2i Point3d Matrix4d]))
 
 (set! *warn-on-reflection* true)
@@ -140,8 +141,10 @@
                            (g/set-property self :prev-selection (g/node-value self :selection))))
                        (select self op-seq mode toggle?)
                        (when contextual?
-                         (-> (ui/init-context-menu! ::scene-selection-menu (.getScene (:target action)))
-                             (.show (:target action) (:screen-x action) (:screen-y action))))
+                         (let [node ^Node (:target action)
+                               scene ^Scene (.getScene node)
+                               context-menu (ui/init-context-menu! ::scene-selection-menu scene)]
+                           (.show context-menu node ^double (:screen-x action) ^double  (:screen-y action))))
                        nil)
       :mouse-released (do
                         (g/transact
