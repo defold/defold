@@ -1,6 +1,7 @@
+# Building MoltenVK
 
-
-NOTE 2025-02-06: For now we have to build using an alternative rooute, the information below is not accurate.
+NOTE!
+2025-02-06: For now we have to build using an alternative rooute, the information below is not accurate.
 
 # Vulkan SDK
 
@@ -39,7 +40,7 @@ Current packages are built from SHA: 1474891fd7d98bdae144460fce2202c66098db03 (s
 
 You need to fetch the external dependencies
 
-    ./fetchDependencies
+    ./fetchDependencies --macos --ios --iossim
 
 ## x86_64-macos
 
@@ -59,7 +60,7 @@ You need to fetch the external dependencies
     cp ./Package/Release/MoltenVK/static/MoltenVK.xcframework/macos-arm64_x86_64/libMoltenVK.a lib/arm64-macos
     lipo -thin arm64 lib/arm64-macos/libMoltenVK.a -o lib/arm64-macos/libMoltenVK.a
     lipo -info lib/arm64-macos/libMoltenVK.a
-    tar czvf MoltenVK-1474891-arm64-macos.tar.gz lib
+    tar czvf moltenvk-1474891-arm64-macos.tar.gz lib
 
 ## arm64-ios
 
