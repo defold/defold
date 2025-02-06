@@ -1090,6 +1090,11 @@ namespace dmGameSystem
         CollisionWorld* comp_world = 0x0;
         GetCollisionObject(L, 1, collection, &comp, &comp_world);
 
+        if (GetPhysicsEngineType(comp_world) != PHYSICS_ENGINE_BOX2D)
+        {
+            return DM_LUA_ERROR("function only available in 2D physics");
+        }
+
         if (!comp)
         {
             return DM_LUA_ERROR("couldn't find collision object"); // todo: add url

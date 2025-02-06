@@ -901,4 +901,12 @@ namespace dmGameSystem
         return world->m_AdapterFunctions->m_SetShape(world, component, shape_ix, shape_info);
     }
 
+    PhysicsEngineType GetPhysicsEngineType(CollisionWorld* world)
+    {
+        if (!world->m_AdapterFunctions->m_GetPhysicsEngineType)
+        {
+            return PHYSICS_ENGINE_NONE;
+        }
+        return world->m_AdapterFunctions->m_GetPhysicsEngineType(world);
+    }
 }

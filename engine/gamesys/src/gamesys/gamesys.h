@@ -76,26 +76,33 @@ namespace dmGameSystem
         uint32_t                    m_Subpixels : 1;
     };
 
-    // TODO: Move this?
+    enum PhysicsEngineType
+    {
+        PHYSICS_ENGINE_NONE,
+        PHYSICS_ENGINE_BOX2D,
+        PHYSICS_ENGINE_BULLET3D,
+    };
+
     struct CollisionWorld;
     struct CollisionComponent;
     struct ShapeInfo;
 
-    typedef bool             (*IsEnabledFn)(CollisionWorld* world, CollisionComponent* component);
-    typedef void             (*WakeupCollisionFn)(CollisionWorld* world, CollisionComponent* component);
-    typedef void             (*RayCastFn)(CollisionWorld* world, const dmPhysics::RayCastRequest& request, dmArray<dmPhysics::RayCastResponse>& results);
-    typedef void             (*SetGravityFn)(CollisionWorld* world, const dmVMath::Vector3& gravity);
-    typedef dmVMath::Vector3 (*GetGravityFn)(CollisionWorld* world);
-    typedef void             (*SetCollisionFlipHFn)(CollisionWorld* world, CollisionComponent* component, bool flip);
-    typedef void             (*SetCollisionFlipVFn)(CollisionWorld* world, CollisionComponent* component, bool flip);
-    typedef dmhash_t         (*GetCollisionGroupFn)(CollisionWorld* world, CollisionComponent* component);
-    typedef bool             (*SetCollisionGroupFn)(CollisionWorld* world, CollisionComponent* component, dmhash_t group_hash);
-    typedef bool             (*GetCollisionMaskBitFn)(CollisionWorld* world, CollisionComponent* component, dmhash_t group_hash, bool* maskbit);
-    typedef bool             (*SetCollisionMaskBitFn)(CollisionWorld* world, CollisionComponent* component, dmhash_t group_hash, bool boolvalue);
-    typedef void             (*UpdateMassFn)(CollisionWorld* world, CollisionComponent* component, float mass);
-    typedef bool             (*GetShapeIndexFn)(CollisionWorld* world, CollisionComponent* component, dmhash_t shape_name_hash, uint32_t* index_out);
-    typedef bool             (*GetShapeFn)(CollisionWorld* world, CollisionComponent* component, uint32_t shape_ix, ShapeInfo* shape_info);
-    typedef bool             (*SetShapeFn)(CollisionWorld* world, CollisionComponent* component, uint32_t shape_ix, ShapeInfo* shape_info);
+    typedef bool              (*IsEnabledFn)(CollisionWorld* world, CollisionComponent* component);
+    typedef void              (*WakeupCollisionFn)(CollisionWorld* world, CollisionComponent* component);
+    typedef void              (*RayCastFn)(CollisionWorld* world, const dmPhysics::RayCastRequest& request, dmArray<dmPhysics::RayCastResponse>& results);
+    typedef void              (*SetGravityFn)(CollisionWorld* world, const dmVMath::Vector3& gravity);
+    typedef dmVMath::Vector3  (*GetGravityFn)(CollisionWorld* world);
+    typedef void              (*SetCollisionFlipHFn)(CollisionWorld* world, CollisionComponent* component, bool flip);
+    typedef void              (*SetCollisionFlipVFn)(CollisionWorld* world, CollisionComponent* component, bool flip);
+    typedef dmhash_t          (*GetCollisionGroupFn)(CollisionWorld* world, CollisionComponent* component);
+    typedef bool              (*SetCollisionGroupFn)(CollisionWorld* world, CollisionComponent* component, dmhash_t group_hash);
+    typedef bool              (*GetCollisionMaskBitFn)(CollisionWorld* world, CollisionComponent* component, dmhash_t group_hash, bool* maskbit);
+    typedef bool              (*SetCollisionMaskBitFn)(CollisionWorld* world, CollisionComponent* component, dmhash_t group_hash, bool boolvalue);
+    typedef void              (*UpdateMassFn)(CollisionWorld* world, CollisionComponent* component, float mass);
+    typedef bool              (*GetShapeIndexFn)(CollisionWorld* world, CollisionComponent* component, dmhash_t shape_name_hash, uint32_t* index_out);
+    typedef bool              (*GetShapeFn)(CollisionWorld* world, CollisionComponent* component, uint32_t shape_ix, ShapeInfo* shape_info);
+    typedef bool              (*SetShapeFn)(CollisionWorld* world, CollisionComponent* component, uint32_t shape_ix, ShapeInfo* shape_info);
+    typedef PhysicsEngineType (*GetPhysicsEngineTypeFn)(CollisionWorld* world);
 
     typedef dmPhysics::JointResult (*CreateJointFn)(CollisionWorld* world, CollisionComponent* component_a, dmhash_t id, const dmVMath::Point3& apos, CollisionComponent* component_b, const dmVMath::Point3& bpos, dmPhysics::JointType type, const dmPhysics::ConnectJointParams& joint_params);
     typedef dmPhysics::JointResult (*DestroyJointFn)(CollisionWorld* world, CollisionComponent* component, dmhash_t id);
@@ -122,6 +129,7 @@ namespace dmGameSystem
         GetShapeIndexFn          m_GetShapeIndex;
         GetShapeFn               m_GetShape;
         SetShapeFn               m_SetShape;
+        GetPhysicsEngineTypeFn   m_GetPhysicsEngineType;
 
         CreateJointFn            m_CreateJoint;
         DestroyJointFn           m_DestroyJoint;
@@ -149,12 +157,6 @@ namespace dmGameSystem
         uint8_t                       m_AddedToUpdate  : 1;
         uint8_t                       m_StartAsEnabled : 1;
         uint8_t                       m_EventMask      : 3;
-    };
-
-    enum PhysicsEngineType
-    {
-        PHYSICS_ENGINE_BOX2D,
-        PHYSICS_ENGINE_BULLET3D,
     };
 
     struct PhysicsContext

@@ -1309,6 +1309,11 @@ namespace dmGameSystem
         return true;
     }
 
+    static PhysicsEngineType GetPhysicsEngineTypeBox2D(CollisionWorld* _world)
+    {
+        return PhysicsEngineType::PHYSICS_ENGINE_BOX2D;
+    }
+
     static void InstallBox2DPhysicsAdapter()
     {
         if (g_PhysicsAdapter)
@@ -1339,5 +1344,6 @@ namespace dmGameSystem
         g_PhysicsAdapter->m_SetJointParams         = SetJointParamsBox2D;
         g_PhysicsAdapter->m_GetJointReactionForce  = GetJointReactionForceBox2D;
         g_PhysicsAdapter->m_GetJointReactionTorque = GetJointReactionTorqueBox2D;
+        g_PhysicsAdapter->m_GetPhysicsEngineType   = GetPhysicsEngineTypeBox2D;
     }
 }

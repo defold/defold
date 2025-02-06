@@ -854,6 +854,11 @@ namespace dmGameSystem
         return true;
     }
 
+    static PhysicsEngineType GetPhysicsEngineTypeBullet3D(CollisionWorld* _world)
+    {
+        return PhysicsEngineType::PHYSICS_ENGINE_BULLET3D;
+    }
+
     static void InstallBullet3DPhysicsAdapter()
     {
         if (g_PhysicsAdapter)
@@ -874,6 +879,7 @@ namespace dmGameSystem
         g_PhysicsAdapter->m_GetShapeIndex          = GetShapeIndexShared;
         g_PhysicsAdapter->m_GetShape               = GetShapeBullet3D;
         g_PhysicsAdapter->m_SetShape               = SetShapeBullet3D;
+        g_PhysicsAdapter->m_GetPhysicsEngineType   = GetPhysicsEngineTypeBullet3D;
 
         // Unimplemented functions:
         //g_PhysicsAdapter->m_SetCollisionFlipH      = SetCollisionFlipHBullet3D;

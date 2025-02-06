@@ -47,6 +47,7 @@ namespace dmGameSystem
     void TriggerEnteredCallback(const dmPhysics::TriggerEnter& trigger_enter, void* user_data);
     void TriggerExitedCallback(const dmPhysics::TriggerExit& trigger_exit, void* user_data);
     void RayCastCallback(const dmPhysics::RayCastResponse& response, const dmPhysics::RayCastRequest& request, void* user_data);
-    bool GetShapeIndexShared(CollisionWorld* world, CollisionComponent* _component, dmhash_t shape_name_hash, uint32_t* index_out);}
+    bool GetShapeIndexShared(CollisionWorld* world, CollisionComponent* _component, dmhash_t shape_name_hash, uint32_t* index_out);
+}
 
 #endif // DM_GAMESYS_COMP_COLLISION_OBJECT_PRIVATE_H
