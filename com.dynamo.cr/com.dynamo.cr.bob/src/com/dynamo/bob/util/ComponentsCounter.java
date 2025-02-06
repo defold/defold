@@ -160,7 +160,7 @@ public class ComponentsCounter {
         return type.equals("factory") || type.equals("collectionfactory");
     }
 
-    private static Boolean isCompCounterStorage(String path) {
+    public static Boolean isCompCounterStorage(String path) {
         return path.endsWith(EXT_GO) || path.endsWith(EXT_COL);
     }
 
@@ -349,16 +349,6 @@ public class ComponentsCounter {
             ComponenTypeDesc.Builder componentTypeDesc = ComponenTypeDesc.newBuilder();
             componentTypeDesc.setNameHash(MurmurHash.hash64(entry.getKey())).setMaxCount(entry.getValue());
             builder.addComponentTypes(componentTypeDesc);
-        }
-    }
-
-    public static void excludeCounterPaths(Set<IResource> resources) {
-        Iterator<IResource> iterator = resources.iterator();
-        while (iterator.hasNext()) {
-            IResource resource = iterator.next();
-            if (isCompCounterStorage(resource.getAbsPath())) {
-                iterator.remove();
-            }
         }
     }
 }

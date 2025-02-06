@@ -34,8 +34,14 @@ def package_bob(self):
 
         run.env_command(dict(os.environ), ['jar', 'umf', extra_manifest_path, bob])
 
+def remap_material_output(msg):
+    if msg.vertex_program == "/materials/debug.vp" and msg.fragment_program == "/materials/debug.fp":
+        return "debug.spc"
+    return None
+
 def build(bld):
-    obj = bld(source = bld.path.ant_glob('materials/*'))
+    obj = bld(source = bld.path.ant_glob('materials/*', excl = ['materials/*.fp', 'materials/*.vp']),
+              remap_material_output = remap_material_output)
 
     bld(features='barchive',
        source_root='default/content',
@@ -49,7 +55,7 @@ def build(bld):
            'builtins/materials/**/*',
            'builtins/graphics/**/*',
            'builtins/scripts/**/*'],
-           excl = ['**/*.ttf', '**/*.texture_profiles', '**/LICENSE']),
+           excl = ['**/*.ttf', '**/*.texture_profiles', '**/LICENSE', '**/*.vp', '**/*.fp', '**/*.cp']),
        use_compression=True)
 
     for d in ['fonts', 'input', 'render', 'materials', 'graphics', 'scripts', 'docs', 'ca-certificates']:

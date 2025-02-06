@@ -23,6 +23,7 @@
 
 #include <sound/sound.h>
 #include <gameobject/component.h>
+#include <extension/extension.h>
 #include <physics/physics.h>
 #include <rig/rig.h>
 
@@ -138,6 +139,8 @@ protected:
     dmRig::HRigContext m_RigContext;
     dmGameObject::ModuleContext m_ModuleContext;
     dmHashTable64<void*> m_Contexts;
+    ExtensionAppParams  m_AppParams;
+    ExtensionParams     m_Params;
 };
 
 class ScriptBaseTest : public GamesysTest<const char*>
@@ -540,6 +543,13 @@ void GamesysTest<T>::SetUp()
 
     dmResource::RegisterTypes(m_Factory, &m_Contexts);
 
+    ExtensionAppParamsInitialize(&m_AppParams);
+    ExtensionParamsInitialize(&m_Params);
+    m_Params.m_L = dmScript::GetLuaState(m_ScriptContext);;
+
+    dmExtension::AppInitialize(&m_AppParams);
+    dmExtension::Initialize(&m_Params);
+
     dmRender::RenderContextParams render_params;
     render_params.m_MaxRenderTypes = 10;
     render_params.m_MaxInstances = 1000;
@@ -664,6 +674,12 @@ void GamesysTest<T>::TearDown()
     dmGameObject::ComponentTypeCreateCtx component_create_ctx;
     SetupComponentCreateContext(component_create_ctx);
     dmGameObject::DestroyRegisteredComponentTypes(&component_create_ctx);
+
+    dmExtension::Finalize(&m_Params);
+    dmExtension::AppFinalize(&m_AppParams);
+
+    ExtensionParamsFinalize(&m_Params);
+    ExtensionAppParamsFinalize(&m_AppParams);
 
     dmGui::DeleteContext(m_GuiContext, m_ScriptContext);
     dmRender::DeleteRenderContext(m_RenderContext, m_ScriptContext);

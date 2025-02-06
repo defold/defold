@@ -23,15 +23,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.Set;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.*;
 
+import com.dynamo.bob.fs.ResourceUtil;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
@@ -73,6 +67,8 @@ import com.dynamo.rig.proto.Rig.Skeleton;
 import com.dynamo.rig.proto.Rig.RigScene;
 import com.dynamo.rig.proto.Rig.AnimationSet;
 
+import static com.dynamo.bob.util.ComponentsCounter.isCompCounterStorage;
+
 @BuilderParams(name = "GameProjectBuilder", inExts = ".project", outExt = "")
 public class GameProjectBuilder extends Builder {
 
@@ -84,6 +80,9 @@ public class GameProjectBuilder extends Builder {
             {"input", "game_binding", "/input/game.input_bindingc"},
             {"input", "gamepads", "/builtins/input/default.gamepadsc"},
             {"display", "display_profiles", "/builtins/render/default.display_profilesc"}};
+
+    static final String[] UNSUPPORTED_ARCHIVE_EXT = new String[] {".vp", ".fp" };
+
     static String[] gameProjectDependencies;
 
     private static final Logger logger = Logger.getLogger(GameProjectBuilder.class.getName());
@@ -118,8 +117,7 @@ public class GameProjectBuilder extends Builder {
         // These should to be setup in the corresponding builder!
         ProtoBuilder.addMessageClass(".animationsetc", AnimationSet.class);
         ProtoBuilder.addMessageClass(".fontc", FontMap.class);
-        ProtoBuilder.addMessageClass(".fpc", ShaderDesc.class);
-        ProtoBuilder.addMessageClass(".vpc", ShaderDesc.class);
+        ProtoBuilder.addMessageClass(".spc", ShaderDesc.class);
         ProtoBuilder.addMessageClass(".meshsetc", MeshSet.class);
         ProtoBuilder.addMessageClass(".rigscenec", RigScene.class);
         ProtoBuilder.addMessageClass(".skeletonc", Skeleton.class);
@@ -177,7 +175,7 @@ public class GameProjectBuilder extends Builder {
             // If Bob is building for a specific platform, we need to
             // filter out any platform entries not relevant to the target platform.
             // (i.e. we don't want win32 specific profiles lingering in android bundles)
-            String targetPlatform = project.option("platform", "");
+            Platform targetPlatform = project.getPlatform();
 
             List<TextureProfile> newProfiles = new LinkedList<TextureProfile>();
             for (int i = 0; i < texProfilesBuilder.getProfilesCount(); i++) {
@@ -189,7 +187,7 @@ public class GameProjectBuilder extends Builder {
 
                 // Take only the platforms that matches the target platform
                 for (PlatformProfile platformProfile : profile.getPlatformsList()) {
-                    if (Platform.matchPlatformAgainstOS(targetPlatform, platformProfile.getOs())) {
+                    if (targetPlatform.matchesOS(platformProfile.getOs())) {
                         profileBuilder.addPlatforms(platformProfile);
                     }
                 }
@@ -384,6 +382,20 @@ public class GameProjectBuilder extends Builder {
         properties.putStringValue("project", "title_as_file_name", fileNameTitle);
     }
 
+    private boolean isUnsupportedArchiveFileType(String path) {
+        String ext = ResourceUtil.getExt(path);
+        for (String unsupportedExt : UNSUPPORTED_ARCHIVE_EXT) {
+            if (ext.equals(unsupportedExt)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void excludeUnsupportedArchiveFileTypes(Set<IResource> resources) {
+        resources.removeIf(resource -> isCompCounterStorage(resource.getAbsPath()) || isUnsupportedArchiveFileType(resource.getAbsPath()));
+    }
+
     @Override
     public void build(Task task) throws CompileExceptionError, IOException {
         FileInputStream archiveIndexInputStream = null;
@@ -415,7 +427,8 @@ public class GameProjectBuilder extends Builder {
                 for (IResource resource : task.getOutputs()) {
                     resources.remove(resource);
                 }
-                ComponentsCounter.excludeCounterPaths(resources);
+
+                excludeUnsupportedArchiveFileTypes(resources);
 
                 TimeProfiler.start("Create excluded resources");
                 logger.info("Creation of the excluded resources list.");
