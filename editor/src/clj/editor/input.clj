@@ -84,5 +84,6 @@
                :meta (.isMetaDown mouse-event)
                :control (.isControlDown mouse-event)
                :click-count (.getClickCount mouse-event)
+               :target (.getTarget mouse-event)
                :screen-x (.getScreenX mouse-event)
                :screen-y (.getScreenY mouse-event))))))

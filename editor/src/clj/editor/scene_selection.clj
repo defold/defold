@@ -140,8 +140,8 @@
                            (g/set-property self :prev-selection (g/node-value self :selection))))
                        (select self op-seq mode toggle?)
                        (when contextual?
-                         (-> (ui/init-context-menu! ::scene-selection-menu (.getScene (:parent action)))
-                             (.show (:parent action) (:screen-x action) (:screen-y action))))
+                         (-> (ui/init-context-menu! ::scene-selection-menu (.getScene (:target action)))
+                             (.show (:target action) (:screen-x action) (:screen-y action))))
                        nil)
       :mouse-released (do
                         (g/transact

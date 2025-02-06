@@ -1295,7 +1295,6 @@
                             (try
                               (profiler/profile "input-event" -1
                                 (let [action (augment-action view-id (i/action-from-jfx e))
-                                      action (assoc action :parent parent)
                                       x (:x action)
                                       y (:y action)
                                       pos [x y 0.0]
