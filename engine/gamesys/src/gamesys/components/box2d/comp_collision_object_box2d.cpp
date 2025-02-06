@@ -781,11 +781,6 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    void* CompCollisionObjectBox2DGetComponent(const dmGameObject::ComponentGetParams& params)
-    {
-        return (void*) params.m_UserData;
-    }
-
     void CompCollisionObjectBox2DOnReload(const dmGameObject::ComponentOnReloadParams& params)
     {
         PhysicsContextBox2D* physics_context = (PhysicsContextBox2D*)params.m_Context;

@@ -549,11 +549,6 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    void* CompCollisionObjectBullet3DGetComponent(const dmGameObject::ComponentGetParams& params)
-    {
-        return (void*)params.m_UserData;
-    }
-
     void CompCollisionObjectBullet3DOnReload(const dmGameObject::ComponentOnReloadParams& params)
     {
         PhysicsContextBullet3D* physics_context = (PhysicsContextBullet3D*)params.m_Context;

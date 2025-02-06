@@ -108,11 +108,10 @@ ordinary paths."
      (when (fs/below-directory? file project-directory)
        (resource/file->proj-path project-directory file)))))
 
-(defrecord BuildResource [resource prefix custom-ext]
+(defrecord BuildResource [resource prefix]
   resource/Resource
   (children [this] nil)
-  (ext [this] (or custom-ext
-                  (:build-ext (resource/resource-type this) "unknown")))
+  (ext [this] (:build-ext (resource/resource-type this) "unknown"))
   (resource-type [this] (resource/resource-type resource))
   (source-type [this] (resource/source-type resource))
   (read-only? [this] false)
@@ -161,12 +160,10 @@ ordinary paths."
 
 (defn make-build-resource
   ([source-resource]
-   (make-build-resource source-resource nil nil))
+   (make-build-resource source-resource nil))
   ([source-resource prefix]
-   (make-build-resource source-resource prefix nil))
-  ([source-resource prefix custom-ext]
    {:pre [(source-resource? source-resource)]}
-   (BuildResource. source-resource prefix custom-ext)))
+   (BuildResource. source-resource prefix)))
 
 (defn counterpart-build-resource
   "Given a BuildResource, returns its editable or non-editable counterpart if

@@ -284,13 +284,7 @@ public class ParseUtil {
                 return null;
             }
         });
-        parseMap.put("collisionobject_box2dc", new IParser() {
-            @Override
-            public Message parse(byte[] content) throws InvalidProtocolBufferException {
-                return Physics.CollisionObjectDesc.parseFrom(content);
-            }
-        });
-        parseMap.put("collisionobject_bullet3dc", new IParser() {
+        parseMap.put("collisionobject", new IParser() {
             @Override
             public Message parse(byte[] content) throws InvalidProtocolBufferException {
                 return Physics.CollisionObjectDesc.parseFrom(content);

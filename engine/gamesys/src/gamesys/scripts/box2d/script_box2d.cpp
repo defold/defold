@@ -81,7 +81,7 @@ namespace dmGameSystem
 
     static void GetCollisionObject(lua_State* L, int index, dmGameObject::HCollection collection, dmMessage::URL* url, dmGameObject::HComponent* comp, void** comp_world)
     {
-        dmGameObject::GetComponentFromLua(L, index, collection, COLLISION_OBJECT_BOX2D_EXT, comp, url, comp_world);
+        dmGameObject::GetComponentFromLua(L, index, collection, COLLISION_OBJECT_EXT, comp, url, comp_world);
     }
 
     static int B2D_GetWorld(lua_State* L)
@@ -89,7 +89,7 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 1);
 
         dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
-        uint32_t component_type_index = dmGameObject::GetComponentTypeIndex(collection, COLLISION_OBJECT_BOX2D_EXT_HASH);
+        uint32_t component_type_index = dmGameObject::GetComponentTypeIndex(collection, COLLISION_OBJECT_EXT_HASH);
         void* comp_world = dmGameObject::GetWorld(collection, component_type_index);
         b2World* world = dmGameSystem::CompCollisionObjectGetBox2DWorld(comp_world);
 

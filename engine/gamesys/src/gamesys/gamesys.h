@@ -151,14 +151,21 @@ namespace dmGameSystem
         uint8_t                       m_EventMask      : 3;
     };
 
+    enum PhysicsEngineType
+    {
+        PHYSICS_ENGINE_BOX2D,
+        PHYSICS_ENGINE_BULLET3D,
+    };
+
     struct PhysicsContext
     {
-        uint32_t m_MaxCollisionCount;
-        uint32_t m_MaxCollisionObjectCount;
-        uint32_t m_MaxContactPointCount;
-        bool     m_Debug;
-        bool     m_UseFixedTimestep;
-        uint32_t m_MaxFixedTimesteps;
+        uint32_t          m_MaxCollisionCount;
+        uint32_t          m_MaxCollisionObjectCount;
+        uint32_t          m_MaxContactPointCount;
+        bool              m_Debug;
+        bool              m_UseFixedTimestep;
+        uint32_t          m_MaxFixedTimesteps;
+        PhysicsEngineType m_PhysicsType;
     };
 
     struct PhysicsContextBox2D
@@ -272,14 +279,12 @@ namespace dmGameSystem
     dmResource::Result RegisterResourceTypes(dmResource::HFactory factory,
         dmRender::HRenderContext render_context,
         dmInput::HContext input_context,
-        PhysicsContextBox2D* physics_context_box2d,
-        PhysicsContextBullet3D* physics_context_bullet3d);
+        PhysicsContext* physics_context);
 
     dmGameObject::Result RegisterComponentTypes(dmResource::HFactory factory,
                                                   dmGameObject::HRegister regist,
                                                   dmRender::HRenderContext render_context,
-                                                  PhysicsContextBox2D* physics_context_box2d,
-                                                  PhysicsContextBullet3D* physics_context_bullet3d,
+                                                  PhysicsContext* physics_context,
                                                   ParticleFXContext* emitter_context,
                                                   SpriteContext* sprite_context,
                                                   CollectionProxyContext* collection_proxy_context,

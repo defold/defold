@@ -25,7 +25,6 @@ import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.reflect.Array;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -34,7 +33,6 @@ import java.net.HttpURLConnection;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URI;
-import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.FileTime;
 import java.text.ParseException;
 import java.util.*;
@@ -97,7 +95,6 @@ import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 
 import com.dynamo.bob.cache.ResourceCache;
 import org.codehaus.jackson.JsonNode;
-import org.codehaus.jackson.JsonProcessingException;
 import org.codehaus.jackson.map.ObjectMapper;
 
 /**
@@ -339,10 +336,6 @@ public class Project {
         TimeProfiler.start("doScan");
         boolean isBobLight = getManifestInfo("is-bob-light") != null;
 
-        String physicsStr = StringUtil.toUpperCase(this.getProjectProperties().getStringValue("physics", "type", "2D"));
-        boolean isPhysics2D = physicsStr.equals("2D");
-        boolean isPhysics3D = physicsStr.equals("3D");
-
         for (String className : classNames) {
             // Ignore TexcLibrary to avoid it being loaded and initialized
             // We're also skipping some of the bundler classes, since we're only building content,
@@ -357,22 +350,8 @@ public class Project {
                     BuilderParams builderParams = klass.getAnnotation(BuilderParams.class);
                     if (builderParams != null) {
                         for (String inExt : builderParams.inExts()) {
-                            boolean addBuilder = true;
-
-                            // This is a temporary workaround to direct the input ext to the correct output builder for physics
-                            // Eventually these should have their own resource input types
-                            if (inExt.equals(CollisionObjectBuilder.EXT_IN)) {
-                                addBuilder = isPhysics2D && klass.isAssignableFrom(CollisionObjectBox2DBuilder.class) ||
-                                        isPhysics3D && klass.isAssignableFrom(CollisionObjectBullet3DBuilder.class);
-                            } else if (inExt.equals(ProtoBuilders.convexShapeExts)) {
-                                addBuilder = isPhysics2D && klass.isAssignableFrom(ProtoBuilders.ConvexShapeBox2DBuilder.class) ||
-                                        isPhysics3D && klass.isAssignableFrom(ProtoBuilders.ConvexShapeBullet3DBuilder.class);
-                            }
-
-                            if (addBuilder) {
-                                extToBuilder.put(inExt, (Class<? extends Builder>) klass);
-                                inextToOutext.put(inExt, builderParams.outExt());
-                            }
+                            extToBuilder.put(inExt, (Class<? extends Builder>) klass);
+                            inextToOutext.put(inExt, builderParams.outExt());
                         }
 
                         ProtoParams protoParams = klass.getAnnotation(ProtoParams.class);
@@ -429,6 +408,7 @@ public class Project {
         {".buffer", ".bufferc"},
         {".mesh", ".meshc"},
         {".collectionproxy", ".collectionproxyc"},
+        {".collisionobject", ".collisionobjectc"},
         {".particlefx", ".particlefxc"},
         {".gui", ".guic"},
         {".model", ".modelc"},

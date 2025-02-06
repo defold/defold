@@ -255,8 +255,10 @@ namespace dmEngine
         m_Register = dmGameObject::NewRegister();
         m_InputBuffer.SetCapacity(64);
         m_ResourceTypeContexts.SetCapacity(31, 64);
-        m_PhysicsContextBox2D.m_Context = 0x0,
+        m_PhysicsContextBox2D.m_Context = 0x0;
+        m_PhysicsContextBox2D.m_BaseContext.m_PhysicsType = dmGameSystem::PHYSICS_ENGINE_BOX2D;
         m_PhysicsContextBullet3D.m_Context = 0x0;
+        m_PhysicsContextBullet3D.m_BaseContext.m_PhysicsType = dmGameSystem::PHYSICS_ENGINE_BULLET3D;
         m_GuiContext = 0x0;
         m_SpriteContext.m_RenderContext = 0x0;
         m_SpriteContext.m_MaxSpriteCount = 0;
@@ -1214,15 +1216,19 @@ namespace dmEngine
         physics_params.m_ContactImpulseLimit = dmConfigFile::GetFloat(engine->m_Config, "physics.contact_impulse_limit", 0.0f);
         physics_params.m_AllowDynamicTransforms = dmConfigFile::GetInt(engine->m_Config, "physics.allow_dynamic_transforms", 1) ? 1 : 0;
 
+        dmGameSystem::PhysicsContext* physics_context = 0;
+
         if (dmStrCaseCmp(physics_type, "3D") == 0)
         {
             engine->m_PhysicsContextBullet3D.m_Context = dmPhysics::NewContext3D(physics_params);
             SetupPhysicsContextParams(&engine->m_PhysicsContextBullet3D.m_BaseContext, engine->m_Config);
+            physics_context = &engine->m_PhysicsContextBullet3D.m_BaseContext;
         }
         else if (dmStrCaseCmp(physics_type, "2D") == 0)
         {
             engine->m_PhysicsContextBox2D.m_Context = dmPhysics::NewContext2D(physics_params);
             SetupPhysicsContextParams(&engine->m_PhysicsContextBox2D.m_BaseContext, engine->m_Config);
+            physics_context = &engine->m_PhysicsContextBox2D.m_BaseContext;
         }
         else
         {
@@ -1308,11 +1314,11 @@ namespace dmEngine
         if (fact_result != dmResource::RESULT_OK)
             goto bail;
 
-        fact_result = dmGameSystem::RegisterResourceTypes(engine->m_Factory, engine->m_RenderContext, engine->m_InputContext, &engine->m_PhysicsContextBox2D, &engine->m_PhysicsContextBullet3D);
+        fact_result = dmGameSystem::RegisterResourceTypes(engine->m_Factory, engine->m_RenderContext, engine->m_InputContext, physics_context);
         if (fact_result != dmResource::RESULT_OK)
             goto bail;
 
-        go_result = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, &engine->m_PhysicsContextBox2D, &engine->m_PhysicsContextBullet3D, &engine->m_ParticleFXContext, &engine->m_SpriteContext,
+        go_result = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, physics_context, &engine->m_ParticleFXContext, &engine->m_SpriteContext,
                                                                                                 &engine->m_CollectionProxyContext, &engine->m_FactoryContext, &engine->m_CollectionFactoryContext,
                                                                                                 &engine->m_ModelContext, &engine->m_LabelContext, &engine->m_TilemapContext);
         if (go_result != dmGameObject::RESULT_OK)

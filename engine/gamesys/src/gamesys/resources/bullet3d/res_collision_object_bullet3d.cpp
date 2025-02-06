@@ -23,13 +23,6 @@
 
 namespace dmGameSystem
 {
-    /*
-    CollisionObjectResource::CollisionObjectResource()
-    {
-        memset(this, 0, sizeof(CollisionObjectResource));
-    }
-    */
-
     static dmPhysics::HCollisionShape2D Create3DShape(dmPhysics::HContext3D context, const dmPhysicsDDF::CollisionShape* collision_shape, uint32_t shape_index)
     {
         const dmPhysicsDDF::CollisionShape::Shape* shape = &collision_shape->m_Shapes[shape_index];

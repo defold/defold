@@ -58,6 +58,7 @@ public class CollisionObjectTest extends AbstractProtoBuilderTest {
         addTestFiles();
     }
 
+    /*
     @Test
     public void testSelectBox2DBuilder() throws Exception {
         this.getProject().getProjectProperties().putStringValue("physics", "type", "2D");
@@ -79,4 +80,5 @@ public class CollisionObjectTest extends AbstractProtoBuilderTest {
         List<Message> outputs = build(tasks);
         assertEquals(1, outputs.size());
     }
+     */
 }

@@ -39,7 +39,6 @@ namespace dmGameSystem
     dmGameObject::UpdateResult   CompCollisionObjectBox2DFixedUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result);
     dmGameObject::UpdateResult   CompCollisionObjectBox2DPostUpdate(const dmGameObject::ComponentsPostUpdateParams& params);
     dmGameObject::UpdateResult   CompCollisionObjectBox2DOnMessage(const dmGameObject::ComponentOnMessageParams& params);
-    void*                        CompCollisionObjectBox2DGetComponent(const dmGameObject::ComponentGetParams& params);
     void                         CompCollisionObjectBox2DOnReload(const dmGameObject::ComponentOnReloadParams& params);
     dmGameObject::PropertyResult CompCollisionObjectBox2DGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value);
     dmGameObject::PropertyResult CompCollisionObjectBox2DSetProperty(const dmGameObject::ComponentSetPropertyParams& params);

@@ -606,12 +606,21 @@ void GamesysTest<T>::SetUp()
     m_PhysicsContextBox2D.m_BaseContext.m_MaxCollisionCount = 64;
     m_PhysicsContextBox2D.m_BaseContext.m_MaxContactPointCount = 128;
     m_PhysicsContextBox2D.m_BaseContext.m_MaxCollisionObjectCount = 512;
+    m_PhysicsContextBox2D.m_BaseContext.m_PhysicsType = dmGameSystem::PHYSICS_ENGINE_BOX2D;
 
     m_PhysicsContextBullet3D.m_BaseContext.m_MaxCollisionCount = 64;
     m_PhysicsContextBullet3D.m_BaseContext.m_MaxContactPointCount = 128;
     m_PhysicsContextBullet3D.m_BaseContext.m_MaxCollisionObjectCount = 512;
+    m_PhysicsContextBullet3D.m_BaseContext.m_PhysicsType = dmGameSystem::PHYSICS_ENGINE_BULLET3D;
 
-    dmResource::Result r = dmGameSystem::RegisterResourceTypes(m_Factory, m_RenderContext, m_InputContext, &m_PhysicsContextBox2D, &m_PhysicsContextBullet3D);
+    dmGameSystem::PhysicsContext* physics_context = &m_PhysicsContextBox2D.m_BaseContext;
+
+    if (this->m_projectOptions.m_3D)
+    {
+        physics_context = &m_PhysicsContextBullet3D.m_BaseContext;
+    }
+
+    dmResource::Result r = dmGameSystem::RegisterResourceTypes(m_Factory, m_RenderContext, m_InputContext, physics_context);
     ASSERT_EQ(dmResource::RESULT_OK, r);
 
     dmResource::Get(m_Factory, "/input/valid.gamepadsc", (void**)&m_GamepadMapsDDF);
@@ -625,7 +634,7 @@ void GamesysTest<T>::SetUp()
     SetupComponentCreateContext(component_create_ctx);
     dmGameObject::CreateRegisteredComponentTypes(&component_create_ctx);
 
-    assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, &m_PhysicsContextBox2D, &m_PhysicsContextBullet3D, &m_ParticleFXContext, &m_SpriteContext,
+    assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, physics_context, &m_ParticleFXContext, &m_SpriteContext,
                                                                                                     &m_CollectionProxyContext, &m_FactoryContext, &m_CollectionFactoryContext,
                                                                                                     &m_ModelContext, &m_LabelContext, &m_TilemapContext));
 

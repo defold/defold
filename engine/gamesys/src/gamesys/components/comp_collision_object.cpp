@@ -15,6 +15,9 @@
 #include "comp_collision_object.h"
 #include "comp_collision_object_private.h"
 
+#include "box2d/comp_collision_object_box2d.h"
+#include "bullet3d/comp_collision_object_bullet3d.h"
+
 #include "gamesys.h"
 
 #include <gameobject/gameobject_ddf.h>
@@ -32,6 +35,192 @@ namespace dmGameSystem
     const char* PHYSICS_USE_FIXED_TIMESTEP          = "physics.use_fixed_timestep";
     /// Config key for using max updates during a single step
     const char* PHYSICS_MAX_FIXED_TIMESTEPS         = "physics.max_fixed_timesteps";
+
+    dmGameObject::CreateResult CompCollisionObjectNewWorld(const dmGameObject::ComponentNewWorldParams& params)
+    {
+        PhysicsContext* physics_context = (PhysicsContext*) params.m_Context;
+        if (physics_context->m_PhysicsType == PHYSICS_ENGINE_BOX2D)
+        {
+            return CompCollisionObjectBox2DNewWorld(params);
+        }
+        else if (physics_context->m_PhysicsType == PHYSICS_ENGINE_BULLET3D)
+        {
+            return CompCollisionObjectBullet3DNewWorld(params);
+        }
+        return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+    }
+
+    dmGameObject::CreateResult CompCollisionObjectDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
+    {
+        PhysicsContext* physics_context = (PhysicsContext*) params.m_Context;
+        if (physics_context->m_PhysicsType == PHYSICS_ENGINE_BOX2D)
+        {
+            return CompCollisionObjectBox2DDeleteWorld(params);
+        }
+        else if (physics_context->m_PhysicsType == PHYSICS_ENGINE_BULLET3D)
+        {
+            return CompCollisionObjectBullet3DDeleteWorld(params);
+        }
+        return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+    }
+
+    dmGameObject::CreateResult CompCollisionObjectCreate(const dmGameObject::ComponentCreateParams& params)
+    {
+        PhysicsContext* physics_context = (PhysicsContext*) params.m_Context;
+        if (physics_context->m_PhysicsType == PHYSICS_ENGINE_BOX2D)
+        {
+            return CompCollisionObjectBox2DCreate(params);
+        }
+        else if (physics_context->m_PhysicsType == PHYSICS_ENGINE_BULLET3D)
+        {
+            return CompCollisionObjectBullet3DCreate(params);
+        }
+        return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+    }
+
+    dmGameObject::CreateResult CompCollisionObjectDestroy(const dmGameObject::ComponentDestroyParams& params)
+    {
+        PhysicsContext* physics_context = (PhysicsContext*) params.m_Context;
+        if (physics_context->m_PhysicsType == PHYSICS_ENGINE_BOX2D)
+        {
+            return CompCollisionObjectBox2DDestroy(params);
+        }
+        else if (physics_context->m_PhysicsType == PHYSICS_ENGINE_BULLET3D)
+        {
+            return CompCollisionObjectBullet3DDestroy(params);
+        }
+        return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+    }
+
+    dmGameObject::CreateResult CompCollisionObjectFinal(const dmGameObject::ComponentFinalParams& params)
+    {
+        PhysicsContext* physics_context = (PhysicsContext*) params.m_Context;
+        if (physics_context->m_PhysicsType == PHYSICS_ENGINE_BOX2D)
+        {
+            return CompCollisionObjectBox2DFinal(params);
+        }
+        else if (physics_context->m_PhysicsType == PHYSICS_ENGINE_BULLET3D)
+        {
+            return CompCollisionObjectBullet3DFinal(params);
+        }
+        return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+    }
+
+    dmGameObject::CreateResult CompCollisionObjectAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params)
+    {
+        PhysicsContext* physics_context = (PhysicsContext*) params.m_Context;
+        if (physics_context->m_PhysicsType == PHYSICS_ENGINE_BOX2D)
+        {
+            return CompCollisionObjectBox2DAddToUpdate(params);
+        }
+        else if (physics_context->m_PhysicsType == PHYSICS_ENGINE_BULLET3D)
+        {
+            return CompCollisionObjectBullet3DAddToUpdate(params);
+        }
+        return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+    }
+
+    dmGameObject::UpdateResult CompCollisionObjectUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
+    {
+        PhysicsContext* physics_context = (PhysicsContext*) params.m_Context;
+        if (physics_context->m_PhysicsType == PHYSICS_ENGINE_BOX2D)
+        {
+            return CompCollisionObjectBox2DUpdate(params, update_result);
+        }
+        else if (physics_context->m_PhysicsType == PHYSICS_ENGINE_BULLET3D)
+        {
+            return CompCollisionObjectBullet3DUpdate(params, update_result);
+        }
+        return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+    }
+
+    dmGameObject::UpdateResult CompCollisionObjectFixedUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
+    {
+        PhysicsContext* physics_context = (PhysicsContext*) params.m_Context;
+        if (physics_context->m_PhysicsType == PHYSICS_ENGINE_BOX2D)
+        {
+            return CompCollisionObjectBox2DFixedUpdate(params, update_result);
+        }
+        else if (physics_context->m_PhysicsType == PHYSICS_ENGINE_BULLET3D)
+        {
+            return CompCollisionObjectBullet3DFixedUpdate(params, update_result);
+        }
+        return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+    }
+
+    dmGameObject::UpdateResult CompCollisionObjectPostUpdate(const dmGameObject::ComponentsPostUpdateParams& params)
+    {
+        PhysicsContext* physics_context = (PhysicsContext*) params.m_Context;
+        if (physics_context->m_PhysicsType == PHYSICS_ENGINE_BOX2D)
+        {
+            return CompCollisionObjectBox2DPostUpdate(params);
+        }
+        else if (physics_context->m_PhysicsType == PHYSICS_ENGINE_BULLET3D)
+        {
+            return CompCollisionObjectBullet3DPostUpdate(params);
+        }
+        return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+    }
+
+    dmGameObject::UpdateResult CompCollisionObjectOnMessage(const dmGameObject::ComponentOnMessageParams& params)
+    {
+        PhysicsContext* physics_context = (PhysicsContext*) params.m_Context;
+        if (physics_context->m_PhysicsType == PHYSICS_ENGINE_BOX2D)
+        {
+            return CompCollisionObjectBox2DOnMessage(params);
+        }
+        else if (physics_context->m_PhysicsType == PHYSICS_ENGINE_BULLET3D)
+        {
+            return CompCollisionObjectBullet3DOnMessage(params);
+        }
+        return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+    }
+
+    void* CompCollisionObjectGetComponent(const dmGameObject::ComponentGetParams& params)
+    {
+        return (void*) params.m_UserData;
+    }
+
+    void CompCollisionObjectOnReload(const dmGameObject::ComponentOnReloadParams& params)
+    {
+        PhysicsContext* physics_context = (PhysicsContext*) params.m_Context;
+        if (physics_context->m_PhysicsType == PHYSICS_ENGINE_BOX2D)
+        {
+            CompCollisionObjectBox2DOnReload(params);
+        }
+        else if (physics_context->m_PhysicsType == PHYSICS_ENGINE_BULLET3D)
+        {
+            CompCollisionObjectBullet3DOnReload(params);
+        }
+    }
+
+    dmGameObject::PropertyResult CompCollisionObjectGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
+    {
+        PhysicsContext* physics_context = (PhysicsContext*) params.m_Context;
+        if (physics_context->m_PhysicsType == PHYSICS_ENGINE_BOX2D)
+        {
+            return CompCollisionObjectBox2DGetProperty(params, out_value);
+        }
+        else if (physics_context->m_PhysicsType == PHYSICS_ENGINE_BULLET3D)
+        {
+            return CompCollisionObjectBullet3DGetProperty(params, out_value);
+        }
+        return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+    }
+
+    dmGameObject::PropertyResult CompCollisionObjectSetProperty(const dmGameObject::ComponentSetPropertyParams& params)
+    {
+        PhysicsContext* physics_context = (PhysicsContext*) params.m_Context;
+        if (physics_context->m_PhysicsType == PHYSICS_ENGINE_BOX2D)
+        {
+            return CompCollisionObjectBox2DSetProperty(params);
+        }
+        else if (physics_context->m_PhysicsType == PHYSICS_ENGINE_BULLET3D)
+        {
+            return CompCollisionObjectBullet3DSetProperty(params);
+        }
+        return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+    }
 
     // Looks into world->m_Groups index for the speficied group_hash. It returns its position as
     // bit index (a uint16_t with n-th bit set). If the hash is not found and we're in readonly mode

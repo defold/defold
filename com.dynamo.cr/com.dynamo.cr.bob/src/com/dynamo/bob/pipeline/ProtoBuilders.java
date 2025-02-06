@@ -63,7 +63,6 @@ public class ProtoBuilders {
 
     private static String[][] textureSrcExts = {{".png", ".texturec"}, {".jpg", ".texturec"}, {".tga", ".texturec"}, {".cubemap", ".texturec"}, {".render_target", ".render_targetc"}};
     private static String[][] renderResourceExts = {{".render_target", ".render_targetc"}, {".material", ".materialc"}, {".compute", ".computec"}};
-    public static String convexShapeExts = ".convexshape";
 
     public static String getTextureSetExt(String str) throws Exception {
         Map<String, String> types = TextureUtil.getAtlasFileTypes();
@@ -159,42 +158,9 @@ public class ProtoBuilders {
         }
     }
 
-    public static class ConvexShapeBuilder extends ProtoBuilder<ConvexShape.Builder> {
-        protected String getExtraCacheKey() { return ""; }
-
-        @Override
-        public Task create(IResource input) throws IOException, CompileExceptionError {
-            Task.TaskBuilder taskBuilder = Task.newBuilder(this)
-                    .setName(params.name())
-                    .addInput(input)
-                    .addOutput(input.changeExt(params.outExt()));
-
-            taskBuilder.addExtraCacheKey(getExtraCacheKey());
-            createSubTasks(getSrcBuilder(input), taskBuilder);
-
-            System.out.println("Extra cache key? " + getExtraCacheKey());
-
-            return taskBuilder.build();
-        }
-    }
-
     @ProtoParams(srcClass = ConvexShape.class, messageClass = ConvexShape.class)
-    @BuilderParams(name="ConvexShapeBox2D", inExts=".convexshape", outExt=".convexshape_box2dc")
-    public static class ConvexShapeBox2DBuilder extends ConvexShapeBuilder {
-        @Override
-        protected String getExtraCacheKey() {
-            return "box2d";
-        }
-    }
-
-    @ProtoParams(srcClass = ConvexShape.class, messageClass = ConvexShape.class)
-    @BuilderParams(name="ConvexShapeBullet3D", inExts=".convexshape", outExt=".convexshape_bullet3dc")
-    public static class ConvexShapeBullet3DBuilder extends ConvexShapeBuilder {
-        @Override
-        protected String getExtraCacheKey() {
-            return "box3d";
-        }
-    }
+    @BuilderParams(name="ConvexShape", inExts=".convexshape", outExt=".convexshapec")
+    public static class ConvexShapeBuilder extends ProtoBuilder<ConvexShape.Builder> {}
 
     @ProtoParams(srcClass = CameraDesc.class, messageClass = CameraDesc.class)
     @BuilderParams(name="Camera", inExts=".camera", outExt=".camerac")

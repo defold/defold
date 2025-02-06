@@ -36,7 +36,6 @@ namespace dmGameSystem
     dmGameObject::UpdateResult   CompCollisionObjectBullet3DFixedUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result);
     dmGameObject::UpdateResult   CompCollisionObjectBullet3DPostUpdate(const dmGameObject::ComponentsPostUpdateParams& params);
     dmGameObject::UpdateResult   CompCollisionObjectBullet3DOnMessage(const dmGameObject::ComponentOnMessageParams& params);
-    void*                        CompCollisionObjectBullet3DGetComponent(const dmGameObject::ComponentGetParams& params);
     void                         CompCollisionObjectBullet3DOnReload(const dmGameObject::ComponentOnReloadParams& params);
     dmGameObject::PropertyResult CompCollisionObjectBullet3DGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value);
     dmGameObject::PropertyResult CompCollisionObjectBullet3DSetProperty(const dmGameObject::ComponentSetPropertyParams& params);
