@@ -112,7 +112,55 @@ public:
         dmHttpClientTest* self = (dmHttpClientTest*) user_data;
         char scale[128];
         dmSnPrintf(scale, sizeof(scale), "%d", self->m_XScale);
-        return dmHttpClient::WriteHeader(response, "X-Scale", scale);
+        self->m_Headers["X-Scale"] = std::string(scale);
+
+        // Let's use the m_Headers for writing as well.
+        std::map<std::string, std::string>::iterator it;
+        for (it = self->m_Headers.begin(); it != self->m_Headers.end(); it++)
+        {
+            dmHttpClient::Result result = dmHttpClient::WriteHeader(response, it->first.c_str(), it->second.c_str());
+            if (result != dmHttpClient::RESULT_OK)
+            {
+                dmLogError("Failed to write header '%s=%s'", it->first.c_str(), it->second.c_str());
+                return result;
+            }
+
+        }
+
+        self->m_Headers.clear(); // Prepare for receiving
+        return dmHttpClient::RESULT_OK;
+    }
+
+    dmHttpClient::Result HttpGet(const char* url)
+    {
+        m_StatusCode = -1;
+        m_Content.clear();
+        m_Headers.clear();
+        return dmHttpClient::Get(m_Client, url);
+    }
+
+    dmHttpClient::Result HttpGetPartial(const char* url, int start, int end)
+    {
+        m_StatusCode = -1;
+        m_Content.clear();
+        m_Headers.clear();
+
+        if (start >= 0 && end > start)
+        {
+            char buf[128];
+            dmSnPrintf(buf, sizeof(buf), "bytes=%d-%d", start, end);
+            m_Headers["Range"] = std::string(buf);
+        }
+
+        return dmHttpClient::Get(m_Client, url);
+    }
+
+    dmHttpClient::Result HttpPost(const char* url)
+    {
+        m_StatusCode = -1;
+        m_Content.clear();
+        m_Headers.clear();
+        return dmHttpClient::Post(m_Client, url);
     }
 
     void CreateFile(const char* path, const char* content)
@@ -194,7 +242,6 @@ public:
         ASSERT_EQ(dmURI::RESULT_OK, parse_r);
 
         SetupTestData();
-
 
         dmHttpClient::NewParams params;
         params.m_Userdata = this;
@@ -443,10 +490,8 @@ TEST_P(dmHttpClientTest, Simple)
 
     for (int i = 0; i < NUM_ITERATIONS; ++i)
     {
-        m_Content = "";
         dmSnPrintf(buf, sizeof(buf), "/add/%d/1000", i);
-        dmHttpClient::Result r;
-        r = dmHttpClient::Get(m_Client, buf);
+        dmHttpClient::Result r = HttpGet(buf);
         ASSERT_EQ(dmHttpClient::RESULT_OK, r);
         ASSERT_EQ(1000 + i, strtol(m_Content.c_str(), 0, 10));
     }
@@ -541,10 +586,8 @@ TEST_P(dmHttpClientTest, NoKeepAlive)
 
     for (int i = 0; i < NUM_ITERATIONS; ++i)
     {
-        m_Content = "";
         dmSnPrintf(buf, sizeof(buf), "/no-keep-alive");
-        dmHttpClient::Result r;
-        r = dmHttpClient::Get(m_Client, buf);
+        dmHttpClient::Result r = HttpGet(buf);
         ASSERT_EQ(dmHttpClient::RESULT_OK, r);
         ASSERT_STREQ("will close connection now.", m_Content.c_str());
     }
@@ -557,10 +600,8 @@ TEST_P(dmHttpClientTest, CustomRequestHeaders)
     m_XScale = 123;
     for (int i = 0; i < NUM_ITERATIONS; ++i)
     {
-        m_Content = "";
         dmSnPrintf(buf, sizeof(buf), "/add/%d/1000", i);
-        dmHttpClient::Result r;
-        r = dmHttpClient::Get(m_Client, buf);
+        dmHttpClient::Result r = HttpGet(buf);
         ASSERT_EQ(dmHttpClient::RESULT_OK, r);
         ASSERT_EQ((1000 + i) * m_XScale, strtol(m_Content.c_str(), 0, 10));
     }
@@ -570,17 +611,14 @@ TEST_P(dmHttpClientTest, ServerTimeout)
 {
     for (int i = 0; i < 3; ++i)
     {
-        dmHttpClient::Result r;
-        m_Content = "";
-        r = dmHttpClient::Get(m_Client, "/add/10/20");
+        dmHttpClient::Result r = HttpGet("/add/10/20");
         ASSERT_EQ(dmHttpClient::RESULT_OK, r);
         ASSERT_EQ(30, strtol(m_Content.c_str(), 0, 10));
 
         // NOTE: MaxIdleTime is set to 500ms, see TestHttpServer.cpp line 300
         dmTime::Sleep(1000 * 550);
 
-        m_Content = "";
-        r = dmHttpClient::Get(m_Client, "/add/100/20");
+        r = HttpGet("/add/100/20");
         ASSERT_EQ(dmHttpClient::RESULT_OK, r);
         ASSERT_EQ(120, strtol(m_Content.c_str(), 0, 10));
     }
@@ -609,17 +647,15 @@ TEST_P(dmHttpClientTest, ClientTimeout)
     {
         dmHttpClient::Result r;
         m_StatusCode = -1;
-        m_Content = "";
         dmSnPrintf(buf, sizeof(buf), "/sleep/%d", sleep_time_ms); // milliseconds
-        r = dmHttpClient::Get(m_Client, buf);
+        r = HttpGet(buf);
         ASSERT_NE(dmHttpClient::RESULT_OK, r);
         ASSERT_NE(dmHttpClient::RESULT_NOT_200_OK, r);
         ASSERT_EQ(-1, m_StatusCode);
         ASSERT_EQ(dmSocket::RESULT_WOULDBLOCK, dmHttpClient::GetLastSocketResult(m_Client));
 
-        m_Content = "";
         dmSnPrintf(buf, sizeof(buf), "/add/%d/1000", i);
-        r = dmHttpClient::Get(m_Client, buf);
+        r = HttpGet(buf);
         ASSERT_EQ(dmHttpClient::RESULT_OK, r);
         ASSERT_EQ(1000 + i, strtol(m_Content.c_str(), 0, 10));
         ASSERT_EQ(200, m_StatusCode);
@@ -632,9 +668,7 @@ TEST_P(dmHttpClientTest, ServerClose)
     dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_MAX_GET_RETRIES, 1);
     for (int i = 0; i < 10; ++i)
     {
-        dmHttpClient::Result r;
-        m_Content = "";
-        r = dmHttpClient::Get(m_Client, "/close");
+        dmHttpClient::Result r = HttpGet("/close");
         ASSERT_NE(dmHttpClient::RESULT_OK, r);
         dmSocket::Result sock_r = dmHttpClient::GetLastSocketResult(m_Client);
         ASSERT_TRUE(r == dmHttpClient::RESULT_UNEXPECTED_EOF || sock_r == dmSocket::RESULT_CONNRESET || sock_r == dmSocket::RESULT_PIPE);
@@ -686,14 +720,14 @@ TEST_P(dmHttpClientTest, ClientThreadedShutdown)
         // shutdown thread. If it managed to get the conneciton it will set gotit to true.
         dmThread::Thread thr = dmThread::New(&ShutdownThread, 65536, &ctx, "cts");
         dmSnPrintf(buf, sizeof(buf), "/sleep/%d", sleep_time_ms);
-        dmHttpClient::Result r = dmHttpClient::Get(m_Client, buf);
+        dmHttpClient::Result r = HttpGet(buf);
         ASSERT_NE(dmHttpClient::RESULT_OK, r);
 
         // Wait until no connections are open
         dmThread::Join(thr);
 
         // Pool shut down; must fail.
-        r = dmHttpClient::Get(m_Client, "/sleep/10000");
+        r = HttpGet("/sleep/10000");
         ASSERT_NE(dmHttpClient::RESULT_OK, r);
 
         dmHttpClient::ReopenConnectionPool();
@@ -705,7 +739,7 @@ TEST_P(dmHttpClientTest, ClientThreadedShutdown)
     ASSERT_EQ(1, dmAtomicGet32(&ctx.m_GotIt));
 
     // Reopened so should succeed.
-    dmHttpClient::Result r = dmHttpClient::Get(m_Client, "/sleep/10");
+    dmHttpClient::Result r = r = HttpGet("/sleep/10");
     ASSERT_EQ(dmHttpClient::RESULT_OK, r);
 }
 
@@ -721,9 +755,7 @@ TEST_P(dmHttpClientTest, ContentSizes)
         {
             dmSnPrintf(buf, sizeof(buf), "/arb/%d", i + primes[j]);
 
-            dmHttpClient::Result r;
-            m_Content = "";
-            r = dmHttpClient::Get(m_Client, buf);
+            dmHttpClient::Result r = HttpGet(buf);
             ASSERT_EQ(dmHttpClient::RESULT_OK, r);
             ASSERT_EQ(i + primes[j], m_Content.size());
             for (uint32_t k = 0; k < i + primes[j]; ++k)
@@ -740,9 +772,7 @@ TEST_P(dmHttpClientTest, LargeFile)
 
     int n = 1024 * 1024 + 59;
     dmSnPrintf(buf, sizeof(buf), "/arb/%d", n);
-    dmHttpClient::Result r;
-    m_Content = "";
-    r = dmHttpClient::Get(m_Client, buf);
+    dmHttpClient::Result r = HttpGet(buf);
     ASSERT_EQ(dmHttpClient::RESULT_OK, r);
     ASSERT_EQ((uint32_t) n, m_Content.size());
 
@@ -758,9 +788,7 @@ TEST_P(dmHttpClientTest, TestHeaders)
 
     int n = 123;
     dmSnPrintf(buf, sizeof(buf), "/arb/%d", n);
-    dmHttpClient::Result r;
-    m_Content = "";
-    r = dmHttpClient::Get(m_Client, buf);
+    dmHttpClient::Result r = HttpGet(buf);
     ASSERT_EQ(dmHttpClient::RESULT_OK, r);
     ASSERT_EQ((uint32_t) n, m_Content.size());
     ASSERT_STREQ("123", m_Headers["Content-Length"].c_str());
@@ -770,10 +798,7 @@ TEST_P(dmHttpClientTest, Test404)
 {
     for (int i = 0; i < 17; ++i)
     {
-        dmHttpClient::Result r;
-        m_Content = "";
-        m_StatusCode = -1;
-        r = dmHttpClient::Get(m_Client, "/does_not_exists");
+        dmHttpClient::Result r = HttpGet("/does_not_exists");
         ASSERT_EQ(dmHttpClient::RESULT_NOT_200_OK, r);
         ASSERT_EQ(404, m_StatusCode);
     }
@@ -793,10 +818,7 @@ TEST_P(dmHttpClientTest, Post)
             m_ToPost.append((char*)buf);
         }
 
-        dmHttpClient::Result r;
-        m_Content = "";
-        m_StatusCode = -1;
-        r = dmHttpClient::Post(m_Client, "/post");
+        dmHttpClient::Result r = HttpPost("/post");
         ASSERT_EQ(dmHttpClient::RESULT_OK, r);
         ASSERT_EQ(200, m_StatusCode);
         ASSERT_EQ(sum, atoi(m_Content.c_str()));
@@ -817,12 +839,7 @@ TEST_P(dmHttpClientTest, PostLarge)
             sum += buf[0];
         }
 
-        dmHttpClient::Result r;
-        m_Content = "";
-        m_StatusCode = -1;
-        printf("m_ToPost: len: %lu\n", m_ToPost.size());
-
-        r = dmHttpClient::Post(m_Client, "/post");
+        dmHttpClient::Result r = HttpPost("/post");
         printf("POST'ing to %s://%s%s\n", m_URI.m_Scheme, m_URI.m_Location, m_URI.m_Path);
         ASSERT_EQ(dmHttpClient::RESULT_OK, r);
         ASSERT_EQ(200, m_StatusCode);
@@ -848,9 +865,7 @@ TEST_P(dmHttpClientTest, Cache)
 
     for (int i = 0; i < NUM_ITERATIONS; ++i)
     {
-        m_Content = "";
-        dmHttpClient::Result r;
-        r = dmHttpClient::Get(m_Client, "/cached/0");
+        dmHttpClient::Result r = HttpGet("/cached/0");
         if (r == dmHttpClient::RESULT_OK)
         {
             ASSERT_EQ(200, m_StatusCode);
@@ -892,8 +907,7 @@ TEST_P(dmHttpClientTest, MaxAgeCache)
     m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port, strcmp(m_URI.m_Scheme, "https") == 0, 0);
     ASSERT_NE((void*) 0, m_Client);
 
-    dmHttpClient::Result r;
-    r = dmHttpClient::Get(m_Client, "/max-age-cached");
+    dmHttpClient::Result r = HttpGet("/max-age-cached");
     ASSERT_TRUE((r == dmHttpClient::RESULT_OK && m_StatusCode == 200) || (r == dmHttpClient::RESULT_NOT_200_OK && m_StatusCode == 304));
     std::string val = m_Content;
 
@@ -901,16 +915,14 @@ TEST_P(dmHttpClientTest, MaxAgeCache)
     // Ensure next ms
     dmTime::Sleep(1U);
 
-    m_Content = "";
-    r = dmHttpClient::Get(m_Client, "/max-age-cached");
+    r = HttpGet("/max-age-cached");
     ASSERT_TRUE((r == dmHttpClient::RESULT_OK && m_StatusCode == 200) || (r == dmHttpClient::RESULT_NOT_200_OK && m_StatusCode == 304));
     ASSERT_STREQ(m_Content.c_str(), val.c_str());
 
     // max-age is 1 second
     dmTime::Sleep(1000000U);
 
-    m_Content = "";
-    r = dmHttpClient::Get(m_Client, "/max-age-cached");
+    r = HttpGet("/max-age-cached");
     ASSERT_TRUE((r == dmHttpClient::RESULT_OK && m_StatusCode == 200) || (r == dmHttpClient::RESULT_NOT_200_OK && m_StatusCode == 304));
     ASSERT_STRNE(m_Content.c_str(), val.c_str());
 
@@ -929,8 +941,7 @@ TEST_P(dmHttpClientTest, PathWithSpaces)
     snprintf(buf, 128, "/echo/%s", message);
     dmURI::Encode(buf, uri, sizeof(uri), 0);
 
-    m_Content = "";
-    dmHttpClient::Result r = dmHttpClient::Get(m_Client, uri);
+    dmHttpClient::Result r = HttpGet(uri);
     ASSERT_EQ(dmHttpClient::RESULT_OK, r);
     ASSERT_STREQ(message, m_Content.c_str());
 }
@@ -1028,18 +1039,50 @@ INSTANTIATE_TEST_CASE_P(dmHttpClientTestSSL, dmHttpClientTestSSL, jc_test_values
 class dmHttpClientTestCache : public dmHttpClientTest
 {
 public:
-    void GetFiles(bool check_content)
+    void GetFiles(bool check_content, bool partial)
     {
-        char buf[512];
+        std::string expected_data[4] = {
+            std::string("You will find this data in a.txt and d.txt"),
+            std::string("Some data in file b"),
+            std::string("Some data in file c"),
+            std::string("You will find this data in a.txt and d.txt")
+        };
+
+        const char* names[4] = {
+            "/tmp/http_files/a.txt",
+            "/tmp/http_files/b.txt",
+            "/tmp/http_files/c.txt",
+            "/tmp/http_files/d.txt",
+        } ;
+
         for (int i = 0; i < 100; ++i)
         {
-            m_Content = "";
+            int idx = i % 4;
+            const char* name = names[idx];
+            const char* expected = expected_data[idx].c_str();
+
+            uint32_t offset = 0;
+            uint32_t size = strlen(expected);
+            if (partial)
+            {
+                offset = rand() % (size/2);
+                size = rand() % (size - offset);
+                if (size == 0)
+                    size = 1;
+            }
+
             dmHttpClient::Result r;
-            snprintf(buf, sizeof(buf), "/tmp/http_files/%c.txt", 'a' + (i % 4));
-            r = dmHttpClient::Get(m_Client, buf);
+            if (partial)
+                r = HttpGetPartial(name, offset, offset+size-1);
+            else
+                r = HttpGet(name);
+
             if (r == dmHttpClient::RESULT_OK)
             {
-                ASSERT_EQ(200, m_StatusCode);
+                if (partial)
+                    ASSERT_EQ(206, m_StatusCode);
+                else
+                    ASSERT_EQ(200, m_StatusCode);
             }
             else
             {
@@ -1049,16 +1092,18 @@ public:
 
             if (check_content)
             {
-                if (i % 4 == 0)
-                    ASSERT_EQ(std::string("You will find this data in a.txt and d.txt"), m_Content);
-                else if (i % 4 == 1)
-                    ASSERT_EQ(std::string("Some data in file b"), m_Content);
-                else if (i % 4 == 2)
-                    ASSERT_EQ(std::string("Some data in file c"), m_Content);
-                else if (i % 4 == 3)
-                    ASSERT_EQ(std::string("You will find this data in a.txt and d.txt"), m_Content);
+                if (partial)
+                {
+                    const char* expected_partial = &expected[offset];
+                    printf("EXPECTED: %.*s", size, expected_partial);
+                    printf("CONTENT: %s  %u", m_Content.c_str(), (uint32_t)m_Content.size());
+                    //ASSERT_EQ(size, m_Content.size());
+                    ASSERT_ARRAY_EQ_LEN(expected_partial, m_Content.c_str(), size);
+                }
                 else
-                    ASSERT_TRUE(false);
+                {
+                    ASSERT_STREQ(expected, m_Content.c_str());
+                }
             }
         }
     }
@@ -1080,7 +1125,8 @@ TEST_P(dmHttpClientTestCache, DirectFromCache)
     m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port);
     ASSERT_NE((void*) 0, m_Client);
 
-    GetFiles(true);
+    // Full files
+    GetFiles(true, false);
 
     dmHttpClient::Statistics stats;
     dmHttpClient::GetStatistics(m_Client, &stats);
@@ -1091,7 +1137,7 @@ TEST_P(dmHttpClientTestCache, DirectFromCache)
 
     // Change consistency police to "trust-cache". All files are retrieved and should therefore be already verified
     dmHttpCache::SetConsistencyPolicy(params.m_HttpCache, dmHttpCache::CONSISTENCY_POLICY_TRUST_CACHE);
-    GetFiles(true);
+    GetFiles(true, false);
     dmHttpClient::GetStatistics(m_Client, &stats);
     // Should be equivalent to above
     ASSERT_EQ(100U, stats.m_Responses - stats.m_Reconnections);
@@ -1123,7 +1169,7 @@ TEST_P(dmHttpClientTestCache, TrustCacheNoValidate)
     // Change consistency police to "trust-cache". After the first four files are files should be directly retrieved from the cache.
     dmHttpCache::SetConsistencyPolicy(params.m_HttpCache, dmHttpCache::CONSISTENCY_POLICY_TRUST_CACHE);
 
-    GetFiles(true);
+    GetFiles(true, false);
 
     dmHttpClient::Statistics stats;
     dmHttpClient::GetStatistics(m_Client, &stats);
@@ -1157,7 +1203,7 @@ TEST_P(dmHttpClientTestCache, BatchValidateCache)
     ASSERT_NE((void*) 0, m_Client);
 
     // Warmup cache
-    GetFiles(true);
+    GetFiles(true, false);
 
     // Reopen
     dmHttpClient::Delete(m_Client);
@@ -1175,7 +1221,7 @@ TEST_P(dmHttpClientTestCache, BatchValidateCache)
     // Change consistency police to "trust-cache". After the first four files are files should be directly retrieved from the cache.
     dmHttpCache::SetConsistencyPolicy(params.m_HttpCache, dmHttpCache::CONSISTENCY_POLICY_TRUST_CACHE);
 
-    GetFiles(true);
+    GetFiles(true, false);
     dmHttpClient::Statistics stats;
     dmHttpClient::GetStatistics(m_Client, &stats);
     // Zero responses, all direct from cache
@@ -1194,7 +1240,7 @@ TEST_P(dmHttpClientTestCache, BatchValidateCache)
     fwrite("foo", 1, 3, a_file);
     fclose(a_file);
 
-    GetFiles(true);
+    GetFiles(true, false);
     dmHttpClient::GetStatistics(m_Client, &stats);
     // Zero responses, all direct from cache
     ASSERT_EQ(0U, stats.m_Responses);
@@ -1211,7 +1257,7 @@ TEST_P(dmHttpClientTestCache, BatchValidateCache)
 
     // Change policy
     dmHttpCache::SetConsistencyPolicy(params.m_HttpCache, dmHttpCache::CONSISTENCY_POLICY_VERIFY);
-    GetFiles(false);
+    GetFiles(false, false);
     dmHttpClient::GetStatistics(m_Client, &stats);
     // Zero responses, all direct from cache
     // NOTE: m_Responses is increased for every request. Therefore we must compensate for potential re-connections
