@@ -157,24 +157,16 @@ public abstract class AbstractProtoBuilderTest {
         return this.project;
     }
 
-    protected List<Task> getTasks(String file, String source) throws Exception {
+    protected List<Message> build(String file, String source) throws Exception {
         addFile(file, source);
         project.setInputs(Collections.singletonList(file));
         List<TaskResult> results = project.build(new NullProgress(), "build");
-        List<Task> resultTasks = new ArrayList<>();
+        List<Message> messages = new ArrayList<Message>();
         for (TaskResult result : results) {
             if (!result.isOk()) {
                 throw new CompileExceptionError(project.getResource(file), result.getLineNumber(), result.getMessage());
             }
-            resultTasks.add(result.getTask());
-        }
-        return resultTasks;
-    }
-
-    protected List<Message> build(List<Task> tasks) throws IOException {
-        List<Message> messages = new ArrayList<>();
-
-        for (Task task : tasks) {
+            Task task = result.getTask();
             for (IResource output : task.getOutputs()) {
                 Message msg = ParseUtil.parse(output);
                 if (msg != null) {
@@ -183,11 +175,6 @@ public abstract class AbstractProtoBuilderTest {
             }
         }
         return messages;
-    }
-
-    protected List<Message> build(String file, String source) throws Exception {
-        List<Task> tasks = getTasks(file, source);
-        return build(tasks);
     }
 
     protected void clean() throws Exception {

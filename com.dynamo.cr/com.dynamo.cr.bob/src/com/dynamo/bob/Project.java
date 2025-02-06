@@ -25,6 +25,7 @@ import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Array;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -33,6 +34,7 @@ import java.net.HttpURLConnection;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URI;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.FileTime;
 import java.text.ParseException;
 import java.util.*;
@@ -60,7 +62,6 @@ import com.dynamo.bob.fs.FileSystemWalker;
 import com.dynamo.bob.fs.IFileSystem;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ZipMountPoint;
-import com.dynamo.bob.pipeline.*;
 import com.dynamo.bob.plugin.PluginScanner;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -81,6 +82,10 @@ import com.dynamo.bob.archive.publisher.ZipPublisher;
 import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.bundle.IBundler;
 import com.dynamo.bob.bundle.BundlerParams;
+import com.dynamo.bob.pipeline.ExtenderUtil;
+import com.dynamo.bob.pipeline.IShaderCompiler;
+import com.dynamo.bob.pipeline.ShaderCompilers;
+import com.dynamo.bob.pipeline.TextureGenerator;
 import com.defold.extension.pipeline.texture.TextureCompression;
 import com.defold.extension.pipeline.texture.ITextureCompressor;
 import com.dynamo.bob.plugin.IPlugin;
@@ -95,6 +100,7 @@ import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 
 import com.dynamo.bob.cache.ResourceCache;
 import org.codehaus.jackson.JsonNode;
+import org.codehaus.jackson.JsonProcessingException;
 import org.codehaus.jackson.map.ObjectMapper;
 
 /**
@@ -334,16 +340,15 @@ public class Project {
     @SuppressWarnings("unchecked")
     private void doScan(IClassScanner scanner, Set<String> classNames) {
         TimeProfiler.start("doScan");
-        boolean isBobLight = getManifestInfo("is-bob-light") != null;
-
+        boolean is_bob_light = getManifestInfo("is-bob-light") != null;
         for (String className : classNames) {
             // Ignore TexcLibrary to avoid it being loaded and initialized
             // We're also skipping some of the bundler classes, since we're only building content,
             // not doing bundling when using bob-light
             boolean skip = className.startsWith("com.dynamo.bob.TexcLibrary") ||
-                    (isBobLight && className.startsWith("com.dynamo.bob.archive.publisher.AWSPublisher")) ||
-                    (isBobLight && className.startsWith("com.dynamo.bob.pipeline.ExtenderUtil")) ||
-                    (isBobLight && className.startsWith("com.dynamo.bob.bundle.BundleHelper"));
+                    (is_bob_light && className.startsWith("com.dynamo.bob.archive.publisher.AWSPublisher")) ||
+                    (is_bob_light && className.startsWith("com.dynamo.bob.pipeline.ExtenderUtil")) ||
+                    (is_bob_light && className.startsWith("com.dynamo.bob.bundle.BundleHelper"));
             if (!skip) {
                 try {
                     Class<?> klass = Class.forName(className, true, scanner.getClassLoader());

@@ -21,7 +21,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import com.dynamo.bob.util.TextureUtil;
-import com.dynamo.gamesys.proto.Physics;
 import org.apache.commons.io.FilenameUtils;
 
 import com.dynamo.bob.fs.IResource;
@@ -270,12 +269,6 @@ public class ParseUtil {
             @Override
             public Message parse(byte[] content) throws InvalidProtocolBufferException {
                 return null;
-            }
-        });
-        parseMap.put("collisionobject", new IParser() {
-            @Override
-            public Message parse(byte[] content) throws InvalidProtocolBufferException {
-                return Physics.CollisionObjectDesc.parseFrom(content);
             }
         });
     }
