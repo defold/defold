@@ -21,14 +21,7 @@ public class CollisionObjectBuilder extends ProtoBuilder<CollisionObjectDesc.Bui
 
     public static final String EXT_IN = ".collisionobject";
 
-    private void ValidateShapeTypes(List<CollisionShape.Shape> shapeList, IResource resource, String physicsTypeStr) throws IOException, CompileExceptionError {
-        for(Shape shape : shapeList) {
-            if(shape.getShapeType() == Type.TYPE_CAPSULE) {
-                if(physicsTypeStr.contains("2D")) {
-                    throw new CompileExceptionError(resource, 0, BobNLS.bind(Messages.CollisionObjectBuilder_MISMATCHING_SHAPE_PHYSICS_TYPE, "Capsule", physicsTypeStr ));
-                }
-            }
-        }
+    protected void ValidateShapeTypes(List<CollisionShape.Shape> shapeList, IResource resource, String physicsTypeStr) throws IOException, CompileExceptionError {
     }
 
     @Override
@@ -44,6 +37,7 @@ public class CollisionObjectBuilder extends ProtoBuilder<CollisionObjectDesc.Bui
         if(messageBuilder.hasEmbeddedCollisionShape()) {
             ValidateShapeTypes(messageBuilder.getEmbeddedCollisionShape().getShapesList(), resource, physicsTypeStr);
         }
+
         if (messageBuilder.hasCollisionShape() && !messageBuilder.getCollisionShape().isEmpty() && !(messageBuilder.getCollisionShape().endsWith(".tilegrid") || messageBuilder.getCollisionShape().endsWith(".tilemap"))) {
             IResource shapeResource = project.getResource(messageBuilder.getCollisionShape().substring(1));
             ConvexShape.Builder cb = ConvexShape.newBuilder();
@@ -69,7 +63,6 @@ public class CollisionObjectBuilder extends ProtoBuilder<CollisionObjectDesc.Bui
             shapeBuilder.setIdHash(MurmurHash.hash64(shapeBuilder.getId()));
         }
 
-        messageBuilder.setCollisionShape(BuilderUtil.replaceExt(messageBuilder.getCollisionShape(), ".convexshape", ".convexshapec"));
         messageBuilder.setCollisionShape(BuilderUtil.replaceExt(messageBuilder.getCollisionShape(), ".tilegrid", ".tilemapc"));
         messageBuilder.setCollisionShape(BuilderUtil.replaceExt(messageBuilder.getCollisionShape(), ".tilemap", ".tilemapc"));
         return messageBuilder;

@@ -360,9 +360,13 @@ public class Project {
                             boolean addBuilder = true;
 
                             // This is a temporary workaround to direct the input ext to the correct output builder for physics
+                            // Eventually these should have their own resource input types
                             if (inExt.equals(CollisionObjectBuilder.EXT_IN)) {
                                 addBuilder = isPhysics2D && klass.isAssignableFrom(CollisionObjectBox2DBuilder.class) ||
                                         isPhysics3D && klass.isAssignableFrom(CollisionObjectBullet3DBuilder.class);
+                            } else if (inExt.equals(ProtoBuilders.convexShapeExts)) {
+                                addBuilder = isPhysics2D && klass.isAssignableFrom(ProtoBuilders.ConvexShapeBox2DBuilder.class) ||
+                                        isPhysics3D && klass.isAssignableFrom(ProtoBuilders.ConvexShapeBullet3DBuilder.class);
                             }
 
                             if (addBuilder) {
