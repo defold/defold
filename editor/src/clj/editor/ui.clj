@@ -1424,21 +1424,25 @@
   (defn set-show-relative-to-window! [context-menu x]
     (.invoke method context-menu (into-array Object [(boolean x)]))))
 
+(defn init-context-menu! [menu-location ^Scene scene]
+  (let [menu-items (g/with-auto-or-fake-evaluation-context evaluation-context
+                     (make-menu-items scene (handler/realize-menu menu-location) (contexts scene false) (or (user-data scene :command->shortcut) {}) evaluation-context))
+        cm (make-context-menu menu-items)]
+    (doto (.getItems cm)
+      (refresh-separator-visibility)
+      (refresh-menu-item-styles))
+      ;; Required for autohide to work when the event originates from the anchor/source node
+      ;; See RT-15160 and Control.java
+    (set-show-relative-to-window! cm true)
+    cm))
+
 (defn- show-context-menu! [menu-location ^ContextMenuEvent event]
   (when-not (.isConsumed event)
     (.consume event)
     (let [node ^Node (.getTarget event)
-          scene ^Scene (.getScene node)
-          menu-items (g/with-auto-or-fake-evaluation-context evaluation-context
-                       (make-menu-items scene (handler/realize-menu menu-location) (contexts scene false) (or (user-data scene :command->shortcut) {}) evaluation-context))
-          cm (make-context-menu menu-items)]
-      (doto (.getItems cm)
-        (refresh-separator-visibility)
-        (refresh-menu-item-styles))
-      ;; Required for autohide to work when the event originates from the anchor/source node
-      ;; See RT-15160 and Control.java
-      (set-show-relative-to-window! cm true)
-      (.show cm node (.getScreenX event) (.getScreenY event)))))
+          scene ^Scene (.getScene node)]
+      (-> (init-context-menu! menu-location scene)
+          (.show node (.getScreenX event) (.getScreenY event))))))
 
 (defn register-context-menu
   "Register a context menu listener on a control for the menu location
