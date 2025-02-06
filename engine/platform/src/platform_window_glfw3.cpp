@@ -19,7 +19,7 @@
 #include "platform_window_glfw3_private.h"
 #include "platform_window_opengl.h"
 
-#include <glfw/glfw3.h>
+#include <GLFW/glfw3.h>
 
 #include <dlib/platform.h>
 #include <dlib/log.h>

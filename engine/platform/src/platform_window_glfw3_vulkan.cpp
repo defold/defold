@@ -13,7 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #define GLFW_INCLUDE_VULKAN
-#include <glfw/glfw3.h>
+#include <GLFW/glfw3.h>
 
 #include "platform_window.h"
 #include "platform_window_glfw3_private.h"
