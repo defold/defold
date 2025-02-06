@@ -21,6 +21,8 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.regex.*;
 import java.util.Enumeration;
+import java.util.List;
+import java.util.ArrayList;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -63,6 +65,18 @@ class TestSslSocketConnector extends ServerConnector
     }
 }
 
+class Range
+{
+    public long start;
+    public long end;
+    public long length;
+    public Range(long start, long end, long length) {
+        this.start = start;
+        this.end = end;
+        this.length = length;
+    }
+}
+
 public class TestHttpServer extends AbstractHandler
 {
     // Max number of retries when starting the server.
@@ -80,7 +94,7 @@ public class TestHttpServer extends AbstractHandler
     }
 
     private void sendFile(String target, HttpServletResponse response) throws IOException {
-        Reader r = new FileReader(target.substring(1));
+        Reader r = new FileReader(target);
         char[] buf = new char[1024 * 128];
         int n = r.read(buf);
         if (n > 0) {
@@ -89,6 +103,47 @@ public class TestHttpServer extends AbstractHandler
         // NOTE: We flush here to force chunked encoding
         response.getWriter().flush();
         r.close();
+    }
+
+    public static void copyStream(InputStream input, OutputStream output, long start, long size) throws IOException
+    {
+        input.skip(start);
+        byte[] buffer = new byte[1024];
+        int bytesRead;
+        long toCopy = size;
+        while ((bytesRead = input.read(buffer)) != -1)
+        {
+            if (toCopy < bytesRead)
+                bytesRead = (int)toCopy;
+
+            output.write(buffer, 0, bytesRead);
+            toCopy -= bytesRead;
+        }
+    }
+    private void sendFile(File file, Range range, HttpServletResponse response) throws IOException {
+        long size = range.end - range.start + 1;
+        boolean partial = size != range.length;
+
+        if (partial) {
+            response.setHeader("Content-Range", String.format("bytes %d-%d/%d", range.start, range.end, range.length));
+        }
+        response.setHeader("Content-Length", String.valueOf(range.length));
+
+        InputStream is = new BufferedInputStream(new FileInputStream(file));
+        OutputStream os = response.getOutputStream();
+
+        //IOUtils.copyLarge(is, os, range.start, range.end-range.start+1);
+        copyStream(is, os, range.start, size);
+        os.flush();
+
+        System.out.printf("WROTE: %d-%d/%d  size: %d\n", range.start, range.end, range.length, size);
+
+        if (partial)
+        {
+        System.out.printf("WROTE: SC_PARTIAL_CONTENT\n");
+            response.setStatus(HttpServletResponse.SC_PARTIAL_CONTENT); // 206.
+        }
+        System.out.printf("WROTE: done!\n");
     }
 
     private static char convertDigit(int value) {
@@ -130,15 +185,72 @@ public class TestHttpServer extends AbstractHandler
         }
     }
 
-    // private void debugHeaders(HttpServletRequest request) {
-    //     System.out.printf("HEADERS:\n");
-    //     Enumeration headerNames = request.getHeaderNames();
-    //     while (headerNames.hasMoreElements()) {
-    //         String key = (String) headerNames.nextElement();
-    //         String value = request.getHeader(key);
-    //         System.out.printf("HEADER:  %s: %s\n", key, value);
-    //     }
-    // }
+    private void debugHeaders(HttpServletRequest request) {
+        System.out.printf("HEADERS:\n");
+        Enumeration headerNames = request.getHeaderNames();
+        while (headerNames.hasMoreElements()) {
+            String key = (String) headerNames.nextElement();
+            String value = request.getHeader(key);
+            System.out.printf("HEADER:  %s: %s\n", key, value);
+        }
+    }
+
+    // https://gist.github.com/jneira/cf33844230f1ae4c22bf4a82d28d12c0
+    List<Range> parseRanges(HttpServletRequest request, long length, HttpServletResponse response) throws IOException {
+        Range full = new Range(0, length - 1, length);
+        List<Range> ranges = new ArrayList<>();
+
+        // Validate and process Range and If-Range headers.
+        String range = request.getHeader("Range");
+        if (range == null)
+        {
+            ranges.add(full);
+            return ranges;
+        }
+
+        // Range header should match format "bytes=n-n,n-n,n-n...". If not, then return 416.
+        if (!range.matches("^bytes=\\d*-\\d*(,\\d*-\\d*)*$")) {
+            response.setHeader("Content-Range", "bytes */" + length); // Required in 416.
+            response.sendError(HttpServletResponse.SC_REQUESTED_RANGE_NOT_SATISFIABLE);
+            return null;
+        }
+
+        if (ranges.isEmpty()) {
+            for (String part : range.substring(6).split(",")) {
+                // Assuming a file with length of 100, the following examples returns bytes at:
+                // 50-80 (50 to 80), 40- (40 to length=100), -20 (length-20=80 to length=100).
+
+                System.out.printf("part: '%s'\n", part);
+                String startStr = part.substring(0, part.indexOf("-"));
+                String endStr = part.substring(part.indexOf("-")+1);
+                System.out.printf("startStr: '%s'\n", startStr);
+                System.out.printf("endStr: '%s'\n", endStr);
+                long start = Integer.parseInt(startStr);
+                long end = endStr.length() > 0 ? Integer.parseInt(endStr) : length;
+                //long start = Range.sublong(part, 0, part.indexOf("-"));
+                //long end = Range.sublong(part, part.indexOf("-") + 1, part.length());
+                System.out.printf("RANGE: %d-%d/%d\n", start, end, length);
+
+                if (start == -1) {
+                    start = length - end;
+                    end = length - 1;
+                } else if (end == -1 || end > length - 1) {
+                    end = length - 1;
+                }
+
+                // Check if Range is syntactically valid. If not, then return 416.
+                if (start > end) {
+                    response.setHeader("Content-Range", "bytes */" + length); // Required in 416.
+                    response.sendError(HttpServletResponse.SC_REQUESTED_RANGE_NOT_SATISFIABLE);
+                    return ranges;
+                }
+
+                ranges.add(new Range(start, end, length));
+            }
+            return ranges;
+        }
+        return null;
+    }
 
     public void handle(String target,
                        Request baseRequest,
@@ -224,7 +336,12 @@ public class TestHttpServer extends AbstractHandler
         }
         else if (target.startsWith("/tmp/http_files"))
         {
-            String tag = String.format("W/\"" + calculateSHA1(new File(target.substring(1))) + "\"");
+            debugHeaders(request);
+
+            File contentFile = new File(target.substring(1));
+            List<Range> ranges = parseRanges(request, contentFile.length(), response);
+
+            String tag = String.format("W/\"" + calculateSHA1(contentFile) + "\"");
             response.setHeader(HttpHeader.ETAG.asString(), tag);
             int status = HttpServletResponse.SC_OK;
 
@@ -239,7 +356,10 @@ public class TestHttpServer extends AbstractHandler
             response.setStatus(status);
             baseRequest.setHandled(true);
             if (status == HttpServletResponse.SC_OK) {
-                sendFile(target, response);
+                if (ranges != null && ranges.size() > 0) {
+                    Range range = ranges.get(0); // Currently we only support one range request
+                    sendFile(contentFile, range, response);
+                }
             }
         }
 
@@ -275,7 +395,7 @@ public class TestHttpServer extends AbstractHandler
             // For dmConfigFile test
             response.setStatus(HttpServletResponse.SC_OK);
             baseRequest.setHandled(true);
-            sendFile(target, response);
+            sendFile(target.substring(1), response);
         }
         else if (target.equals("/post")) {
             baseRequest.setHandled(true);
@@ -400,6 +520,7 @@ public class TestHttpServer extends AbstractHandler
             //     }
             };
             resourceHandler.setResourceBase(".");
+            resourceHandler.setAcceptRanges(true);
             handlerList.addHandler(resourceHandler);
             server.setHandler(handlerList);
 
