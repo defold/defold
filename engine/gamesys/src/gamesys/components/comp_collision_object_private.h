@@ -15,14 +15,6 @@
 #ifndef DM_GAMESYS_COMP_COLLISION_OBJECT_PRIVATE_H
 #define DM_GAMESYS_COMP_COLLISION_OBJECT_PRIVATE_H
 
-// #include <gameobject/component.h>
-// #include <dmsdk/dlib/vmath.h>
-// 
-// // for scripting
-// #include <stdint.h>
-// #include <physics/physics.h>
-// 
-// 
 #include <gamesys.h>
 #include <gamesys/physics_ddf.h>
 
@@ -55,50 +47,6 @@ namespace dmGameSystem
     void TriggerEnteredCallback(const dmPhysics::TriggerEnter& trigger_enter, void* user_data);
     void TriggerExitedCallback(const dmPhysics::TriggerExit& trigger_exit, void* user_data);
     void RayCastCallback(const dmPhysics::RayCastResponse& response, const dmPhysics::RayCastRequest& request, void* user_data);
-    bool GetShapeIndexShared(CollisionWorld* world, CollisionComponent* _component, dmhash_t shape_name_hash, uint32_t* index_out);
-
-    /*
-    void                    CompCollisionIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node);
-    dmGameObject::HInstance CompCollisionObjectGetInstance(void* user_data);
-
-    void* GetCollisionWorldCallback(CollisionWorld* world);
-    void SetCollisionWorldCallback(CollisionWorld* world, void* callback_info);
-    void RunCollisionWorldCallback(void* callback_data, const dmDDF::Descriptor* desc, const char* data);
-
-    // For script_physics.cpp
-    uint64_t GetLSBGroupHash(CollisionWorld* world, uint16_t mask);
-    dmhash_t CompCollisionObjectGetIdentifier(CollisionComponent* component);
-    uint16_t CompCollisionGetGroupBitIndex(CollisionWorld* world, uint64_t group_hash);
-
-    // Adapter API
-    bool                   IsEnabled(CollisionWorld* world, CollisionComponent* component);
-    void                   WakeupCollision(CollisionWorld* world, CollisionComponent* component);
-    void                   RayCast(CollisionWorld* world, const dmPhysics::RayCastRequest& request, dmArray<dmPhysics::RayCastResponse>& results);
-    void                   SetGravity(CollisionWorld* world, const dmVMath::Vector3& gravity);
-    dmVMath::Vector3       GetGravity(CollisionWorld* world);
-
-    // bool                    IsCollision2D(CollisionWorld* world); // TODO: AdapterFamily or AdapterType?
-    void                    SetCollisionFlipH(CollisionWorld* world, CollisionComponent* component, bool flip);
-    void                    SetCollisionFlipV(CollisionWorld* world, CollisionComponent* component, bool flip);
-    void                    WakeupCollision(CollisionWorld* world, CollisionComponent* component);
-    dmhash_t                GetCollisionGroup(CollisionWorld* world, CollisionComponent* component);
-    bool                    SetCollisionGroup(CollisionWorld* world, CollisionComponent* component, dmhash_t group_hash);
-    bool                    GetCollisionMaskBit(CollisionWorld* world, CollisionComponent* component, dmhash_t group_hash, bool* maskbit);
-    bool                    SetCollisionMaskBit(CollisionWorld* world, CollisionComponent* component, dmhash_t group_hash, bool boolvalue);
-    void                    UpdateMass(CollisionWorld* world, CollisionComponent* component, float mass);
-    bool                    GetShapeIndex(CollisionWorld* world, CollisionComponent* component, dmhash_t shape_name_hash, uint32_t* index_out);
-    bool                    GetShape(CollisionWorld* world, CollisionComponent* component, uint32_t shape_ix, ShapeInfo* shape_info);
-    bool                    SetShape(CollisionWorld* world, CollisionComponent* component, uint32_t shape_ix, ShapeInfo* shape_info);
-
-    // Adapter API joints
-    dmPhysics::JointResult CreateJoint(CollisionWorld* world, CollisionComponent* component_a, dmhash_t id, const dmVMath::Point3& apos, CollisionComponent* component_b, const dmVMath::Point3& bpos, dmPhysics::JointType type, const dmPhysics::ConnectJointParams& joint_params);
-    dmPhysics::JointResult DestroyJoint(CollisionWorld* world, CollisionComponent* component, dmhash_t id);
-    dmPhysics::JointResult GetJointParams(CollisionWorld* world, CollisionComponent* component, dmhash_t id, dmPhysics::JointType& joint_type, dmPhysics::ConnectJointParams& joint_params);
-    dmPhysics::JointResult GetJointType(CollisionWorld* world, CollisionComponent* component, dmhash_t id, dmPhysics::JointType& joint_type);
-    dmPhysics::JointResult SetJointParams(CollisionWorld* world, CollisionComponent* component, dmhash_t id, const dmPhysics::ConnectJointParams& joint_params);
-    dmPhysics::JointResult GetJointReactionForce(CollisionWorld* world, CollisionComponent* component, dmhash_t id, dmVMath::Vector3& force);
-    dmPhysics::JointResult GetJointReactionTorque(CollisionWorld* world, CollisionComponent* component, dmhash_t id, float& torque);
-    */
-}
+    bool GetShapeIndexShared(CollisionWorld* world, CollisionComponent* _component, dmhash_t shape_name_hash, uint32_t* index_out);}
 
 #endif // DM_GAMESYS_COMP_COLLISION_OBJECT_PRIVATE_H

@@ -555,19 +555,44 @@ void GamesysTest<T>::SetUp()
     input_params.m_RepeatInterval = 0.1f;
     m_InputContext = dmInput::NewContext(input_params);
 
+    dmGameSystem::PhysicsContext* physics_context = 0;
+
     memset(&m_PhysicsContextBox2D, 0, sizeof(m_PhysicsContextBox2D));
-    m_PhysicsContextBox2D.m_BaseContext.m_MaxCollisionCount = this->m_projectOptions.m_MaxCollisionCount;
-    m_PhysicsContextBox2D.m_BaseContext.m_MaxContactPointCount = this->m_projectOptions.m_MaxContactPointCount;
-    m_PhysicsContextBox2D.m_BaseContext.m_MaxCollisionObjectCount = this->m_projectOptions.m_MaxCollisionObjectCount;
-
-    dmPhysics::NewContextParams context2DParams = dmPhysics::NewContextParams();
-    context2DParams.m_Scale = this->m_projectOptions.m_Scale;
-    context2DParams.m_VelocityThreshold = this->m_projectOptions.m_VelocityThreshold;
-    m_PhysicsContextBox2D.m_Context = dmPhysics::NewContext2D(context2DParams);
-
     memset(&m_PhysicsContextBullet3D, 0, sizeof(m_PhysicsContextBullet3D));
-    m_PhysicsContextBullet3D.m_BaseContext = m_PhysicsContextBox2D.m_BaseContext;
-    m_PhysicsContextBullet3D.m_Context = dmPhysics::NewContext3D(dmPhysics::NewContextParams());
+
+    if (this->m_projectOptions.m_3D)
+    {
+        m_PhysicsContextBullet3D.m_BaseContext.m_MaxCollisionCount = this->m_projectOptions.m_MaxCollisionCount;
+        m_PhysicsContextBullet3D.m_BaseContext.m_MaxContactPointCount = this->m_projectOptions.m_MaxContactPointCount;
+        m_PhysicsContextBullet3D.m_BaseContext.m_MaxCollisionObjectCount = this->m_projectOptions.m_MaxCollisionObjectCount;
+
+        m_PhysicsContextBullet3D.m_BaseContext.m_MaxCollisionCount = 64;
+        m_PhysicsContextBullet3D.m_BaseContext.m_MaxContactPointCount = 128;
+        m_PhysicsContextBullet3D.m_BaseContext.m_MaxCollisionObjectCount = 512;
+        m_PhysicsContextBullet3D.m_BaseContext.m_PhysicsType = dmGameSystem::PHYSICS_ENGINE_BULLET3D;
+
+        m_PhysicsContextBullet3D.m_Context = dmPhysics::NewContext3D(dmPhysics::NewContextParams());
+
+        physics_context = &m_PhysicsContextBullet3D.m_BaseContext;
+    }
+    else
+    {
+        m_PhysicsContextBox2D.m_BaseContext.m_MaxCollisionCount = this->m_projectOptions.m_MaxCollisionCount;
+        m_PhysicsContextBox2D.m_BaseContext.m_MaxContactPointCount = this->m_projectOptions.m_MaxContactPointCount;
+        m_PhysicsContextBox2D.m_BaseContext.m_MaxCollisionObjectCount = this->m_projectOptions.m_MaxCollisionObjectCount;
+
+        m_PhysicsContextBox2D.m_BaseContext.m_MaxCollisionCount = 64;
+        m_PhysicsContextBox2D.m_BaseContext.m_MaxContactPointCount = 128;
+        m_PhysicsContextBox2D.m_BaseContext.m_MaxCollisionObjectCount = 512;
+        m_PhysicsContextBox2D.m_BaseContext.m_PhysicsType = dmGameSystem::PHYSICS_ENGINE_BOX2D;
+
+        dmPhysics::NewContextParams context2DParams = dmPhysics::NewContextParams();
+        context2DParams.m_Scale = this->m_projectOptions.m_Scale;
+        context2DParams.m_VelocityThreshold = this->m_projectOptions.m_VelocityThreshold;
+        m_PhysicsContextBox2D.m_Context = dmPhysics::NewContext2D(context2DParams);
+
+        physics_context = &m_PhysicsContextBox2D.m_BaseContext;
+    }
 
     m_ParticleFXContext.m_Factory = m_Factory;
     m_ParticleFXContext.m_RenderContext = m_RenderContext;
@@ -602,23 +627,6 @@ void GamesysTest<T>::SetUp()
     m_ModelContext.m_MaxModelCount = 128;
 
     dmBuffer::NewContext(); // ???
-
-    m_PhysicsContextBox2D.m_BaseContext.m_MaxCollisionCount = 64;
-    m_PhysicsContextBox2D.m_BaseContext.m_MaxContactPointCount = 128;
-    m_PhysicsContextBox2D.m_BaseContext.m_MaxCollisionObjectCount = 512;
-    m_PhysicsContextBox2D.m_BaseContext.m_PhysicsType = dmGameSystem::PHYSICS_ENGINE_BOX2D;
-
-    m_PhysicsContextBullet3D.m_BaseContext.m_MaxCollisionCount = 64;
-    m_PhysicsContextBullet3D.m_BaseContext.m_MaxContactPointCount = 128;
-    m_PhysicsContextBullet3D.m_BaseContext.m_MaxCollisionObjectCount = 512;
-    m_PhysicsContextBullet3D.m_BaseContext.m_PhysicsType = dmGameSystem::PHYSICS_ENGINE_BULLET3D;
-
-    dmGameSystem::PhysicsContext* physics_context = &m_PhysicsContextBox2D.m_BaseContext;
-
-    if (this->m_projectOptions.m_3D)
-    {
-        physics_context = &m_PhysicsContextBullet3D.m_BaseContext;
-    }
 
     dmResource::Result r = dmGameSystem::RegisterResourceTypes(m_Factory, m_RenderContext, m_InputContext, physics_context);
     ASSERT_EQ(dmResource::RESULT_OK, r);
