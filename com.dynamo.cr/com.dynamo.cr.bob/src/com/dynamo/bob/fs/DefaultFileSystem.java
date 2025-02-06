@@ -88,7 +88,7 @@ public class DefaultFileSystem extends AbstractFileSystem<DefaultFileSystem, Def
     @SuppressWarnings("unchecked")
     @Override
     public void loadCache() {
-        cache = new HashMap<String, DefaultFileSystem.CacheEntry>();
+        cache = new ConcurrentHashMap<String, CacheEntry>();
         String fileName = FilenameUtils.concat(FilenameUtils.concat(this.rootDirectory, this.buildDirectory), "digest_cache");
         ObjectInputStream is = null;
         try {
