@@ -144,7 +144,7 @@
                          (let [node ^Node (:target action)
                                scene ^Scene (.getScene node)
                                context-menu (ui/init-context-menu! ::scene-selection-menu scene)]
-                           (.show context-menu node ^double (:screen-x action) ^double  (:screen-y action))))
+                           (.show context-menu node ^double (:screen-x action) ^double (:screen-y action))))
                        nil)
       :mouse-released (do
                         (g/transact
