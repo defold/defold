@@ -12,19 +12,19 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_GAMESYS_CONVEX_SHAPE_H
-#define DM_GAMESYS_CONVEX_SHAPE_H
+#ifndef DM_GAMESYS_CONVEX_SHAPE_BULLET3D_H
+#define DM_GAMESYS_CONVEX_SHAPE_BULLET3D_H
 
 #include <dmsdk/resource/resource.hpp>
 #include <dmsdk/gamesys/resources/res_convex_shape.h>
 
 namespace dmGameSystem
 {
-    dmResource::Result ResConvexShapeCreate(const dmResource::ResourceCreateParams* params);
+    dmResource::Result ResConvexShapeBullet3DCreate(const dmResource::ResourceCreateParams* params);
 
-    dmResource::Result ResConvexShapeDestroy(const dmResource::ResourceDestroyParams* params);
+    dmResource::Result ResConvexShapeBullet3DDestroy(const dmResource::ResourceDestroyParams* params);
 
-    dmResource::Result ResConvexShapeRecreate(const dmResource::ResourceRecreateParams* params);
+    dmResource::Result ResConvexShapeBullet3DRecreate(const dmResource::ResourceRecreateParams* params);
 }
 
-#endif // DM_GAMESYS_CONVEX_SHAPE_H
+#endif // DM_GAMESYS_CONVEX_SHAPE_BULLET3D_H

@@ -25,11 +25,7 @@
 #include <render/render.h>
 #include <dmsdk/resource/resource.h>
 
-#include "resources/box2d/res_collision_object_box2d.h"
-#include "resources/bullet3d/res_collision_object_bullet3d.h"
-
 #include "resources/res_collection_proxy.h"
-#include "resources/res_convex_shape.h"
 #include "resources/res_particlefx.h"
 #include "resources/res_texture.h"
 #include "resources/res_vertex_program.h"
@@ -62,10 +58,6 @@
 #include "resources/res_label.h"
 #include "resources/res_glyph_bank.h"
 
-
-#include "components/box2d/comp_collision_object_box2d.h"
-#include "components/bullet3d/comp_collision_object_bullet3d.h"
-
 #include "components/comp_private.h"
 #include "components/comp_collection_proxy.h"
 #include "components/comp_collision_object.h"
@@ -80,6 +72,14 @@
 #include "components/comp_sprite.h"
 #include "components/comp_tilegrid.h"
 #include "components/comp_label.h"
+
+#include "resources/box2d/res_collision_object_box2d.h"
+#include "resources/box2d/res_convex_shape_box2d.h"
+#include "components/box2d/comp_collision_object_box2d.h"
+
+#include "resources/bullet3d/res_collision_object_bullet3d.h"
+#include "resources/bullet3d/res_convex_shape_bullet3d.h"
+#include "components/bullet3d/comp_collision_object_bullet3d.h"
 
 DM_PROPERTY_GROUP(rmtp_Components, "Gameobject Components");
 
@@ -102,9 +102,10 @@ namespace dmGameSystem
         // TODO: Move to extension
         REGISTER_RESOURCE_TYPE("collisionobject_box2dc", physics_context_box2d, 0, ResCollisionObjectBox2DCreate, 0, ResCollisionObjectBox2DDestroy, ResCollisionObjectBox2DRecreate);
         REGISTER_RESOURCE_TYPE("collisionobject_bullet3dc", physics_context_bullet3d, 0, ResCollisionObjectBullet3DCreate, 0, ResCollisionObjectBullet3DDestroy, ResCollisionObjectBullet3DRecreate);
+        REGISTER_RESOURCE_TYPE("convexshape_box2dc", physics_context_box2d, 0, ResConvexShapeBox2DCreate, 0, ResConvexShapeBox2DDestroy, ResConvexShapeBox2DRecreate);
+        REGISTER_RESOURCE_TYPE("convexshape_bullet3dc", physics_context_bullet3d, 0, ResConvexShapeBullet3DCreate, 0, ResConvexShapeBullet3DDestroy, ResConvexShapeBullet3DRecreate);
 
         REGISTER_RESOURCE_TYPE("collectionproxyc", 0, 0, ResCollectionProxyCreate, 0, ResCollectionProxyDestroy, ResCollectionProxyRecreate);
-        REGISTER_RESOURCE_TYPE("convexshapec", physics_context_box2d, 0, ResConvexShapeCreate, 0, ResConvexShapeDestroy, ResConvexShapeRecreate);
         REGISTER_RESOURCE_TYPE("particlefxc", 0, ResParticleFXPreload, ResParticleFXCreate, 0, ResParticleFXDestroy, ResParticleFXRecreate);
         REGISTER_RESOURCE_TYPE("texturec", graphics_context, ResTexturePreload, ResTextureCreate, ResTexturePostCreate, ResTextureDestroy, ResTextureRecreate);
         REGISTER_RESOURCE_TYPE("vpc", graphics_context, ResVertexProgramPreload, ResVertexProgramCreate, 0, ResVertexProgramDestroy, ResVertexProgramRecreate);

@@ -108,8 +108,6 @@ def transform_gameobject(task, msg):
         c.component = c.component.replace('.tilemap', '.tilemapc')
         c.component = c.component.replace('.tilegrid', '.tilemapc')
 
-        print("c.component", c.component)
-
         if c.component.endswith('collisionobject'):
             c.component = c.component.replace('.collisionobject', '.collisionobject_box2dc')
         elif c.component.endswith('collisionobject_bullet3d'):
@@ -523,7 +521,14 @@ def compile_collisionobject(task):
     for x in msg.embedded_collision_shape.shapes:
         x.id_hash = dlib.dmHashBuffer64(x.id)
 
-    msg.collision_shape = msg.collision_shape.replace('.convexshape', '.convexshapec')
+    convex_shape_ext_out = '.convexshape'
+
+    if task.outputs[0].srcpath().endswith('.collisionobject_box2dc'):
+        convex_shape_ext_out += '_box2dc'
+    elif task.outputs[0].srcpath().endswith('.collisionobject_bullet3dc'):
+        convex_shape_ext_out += '_bullet3dc'
+
+    msg.collision_shape = msg.collision_shape.replace('.convexshape', convex_shape_ext_out)
     msg.collision_shape = msg.collision_shape.replace('.tilemap', '.tilemapc')
     msg.collision_shape = msg.collision_shape.replace('.tilegrid', '.tilemapc')
 
@@ -546,10 +551,36 @@ def collisionobjectfile(self, node):
     task.set_outputs([out_box2d, out_bullet3d])
 
 
+def compile_convexshape(task):
+    import physics_ddf_pb2
+    import google.protobuf.text_format
+    msg = physics_ddf_pb2.ConvexShape()
+    with open(task.inputs[0].srcpath(), 'rb') as in_f:
+        google.protobuf.text_format.Merge(in_f.read(), msg)
+
+    for x in task.outputs:
+        with open(x.abspath(), 'wb') as out_f:
+            out_f.write(msg.SerializeToString())
+
+    return 0
+
+task = waflib.Task.task_factory('convexshape',
+                                func    = compile_convexshape,
+                                color   = 'PINK')
+
+@extension('.convexshape')
+def convexshapefile(self, node):
+    task = self.create_task('convexshape')
+    task.set_inputs(node)
+    out_box2d = node.change_ext('.convexshape_box2dc')
+    out_bullet3d = node.change_ext('.convexshape_bullet3dc')
+    task.set_outputs([out_box2d, out_bullet3d])
+
+
 proto_compile_task('collection', 'gameobject_ddf_pb2', 'CollectionDesc', '.collection', '.collectionc', transform_collection)
 proto_compile_task('collectionproxy', 'gamesys_ddf_pb2', 'CollectionProxyDesc', '.collectionproxy', '.collectionproxyc', transform_collectionproxy)
 proto_compile_task('particlefx', 'particle.particle_ddf_pb2', 'particle_ddf_pb2.ParticleFX', '.particlefx', '.particlefxc', transform_particlefx)
-proto_compile_task('convexshape',  'physics_ddf_pb2', 'ConvexShape', '.convexshape', '.convexshapec')
+#proto_compile_task('convexshape',  'physics_ddf_pb2', 'ConvexShape', '.convexshape', '.convexshapec')
 #proto_compile_task('collisionobject',  'physics_ddf_pb2', 'CollisionObjectDesc', '.collisionobject', '.collisionobject_box2dc', transform_collisionobject)
 #proto_compile_task('collisionobject',  'physics_ddf_pb2', 'CollisionObjectDesc', '.collisionobject', '.collisionobject_bullet3dc', transform_collisionobject)
 proto_compile_task('gui',  'gui_ddf_pb2', 'SceneDesc', '.gui', '.guic', transform_gui)

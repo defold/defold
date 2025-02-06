@@ -3352,25 +3352,33 @@ INSTANTIATE_TEST_CASE_P(CollisionObject, ComponentFailTest, jc_test_values_in(in
 
 /* Convex Shape */
 
-/*
 const char* valid_cs_resources[] =
 {
-    "/convex_shape/box.convexshapec",
-    //"/convex_shape/capsule.convexshapec", // Temporarily disabling capsule since we are more interested in 2D atm
-    "/convex_shape/hull.convexshapec",
-    "/convex_shape/sphere.convexshapec",
+    "/convex_shape/box.convexshape_box2dc",
+    //"/convex_shape/capsule.convexshape_box2dc", // Temporarily disabling capsule since we are more interested in 2D atm
+    "/convex_shape/hull.convexshape_box2dc",
+    "/convex_shape/sphere.convexshape_box2dc",
+
+    "/convex_shape/box.convexshape_bullet3dc",
+    "/convex_shape/capsule.convexshape_bullet3dc",
+    "/convex_shape/hull.convexshape_bullet3dc",
+    "/convex_shape/sphere.convexshape_bullet3dc",
 };
 INSTANTIATE_TEST_CASE_P(ConvexShape, ResourceTest, jc_test_values_in(valid_cs_resources));
 
 ResourceFailParams invalid_cs_resources[] =
 {
-    {"/convex_shape/box.convexshapec", "/convex_shape/invalid_box.convexshapec"},
-    {"/convex_shape/capsule.convexshapec", "/convex_shape/invalid_capsule.convexshapec"},
-    {"/convex_shape/hull.convexshapec", "/convex_shape/invalid_hull.convexshapec"},
-    {"/convex_shape/sphere.convexshapec", "/convex_shape/invalid_sphere.convexshapec"},
+    {"/convex_shape/box.convexshape_box2dc", "/convex_shape/invalid_box.convexshape_box2dc"},
+    //{"/convex_shape/capsule.convexshape_box2dc", "/convex_shape/invalid_capsule.convexshape_box2dc"},
+    {"/convex_shape/hull.convexshape_box2dc", "/convex_shape/invalid_hull.convexshape_box2dc"},
+    {"/convex_shape/sphere.convexshape_box2dc", "/convex_shape/invalid_sphere.convexshape_box2dc"},
+
+    {"/convex_shape/box.convexshape_bullet3dc", "/convex_shape/invalid_box.convexshape_bullet3dc"},
+    {"/convex_shape/capsule.convexshape_bullet3dc", "/convex_shape/invalid_capsule.convexshape_bullet3dc"},
+    {"/convex_shape/hull.convexshape_bullet3dc", "/convex_shape/invalid_hull.convexshape_bullet3dc"},
+    {"/convex_shape/sphere.convexshape_bullet3dc", "/convex_shape/invalid_sphere.convexshape_bullet3dc"},
 };
 INSTANTIATE_TEST_CASE_P(ConvexShape, ResourceFailTest, jc_test_values_in(invalid_cs_resources));
-*/
 
 /* Font map */
 
