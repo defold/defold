@@ -24,7 +24,7 @@
   (:import [editor.types Rect]
            [java.lang Runnable Math]
            [com.jogamp.opengl GL2]
-           [javafx.scene Node]
+           [javafx.scene Node Scene]
            [javax.vecmath Point2i Point3d Matrix4d]))
 
 (set! *warn-on-reflection* true)
