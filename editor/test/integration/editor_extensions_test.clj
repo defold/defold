@@ -32,7 +32,8 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
-            [support.test-support :as test-support])
+            [support.test-support :as test-support]
+            [util.diff :as diff])
   (:import [org.luaj.vm2 LuaError]))
 
 (set! *warn-on-reflection* true)
@@ -753,3 +754,74 @@
               [:out "json.decode('fals') => error"]
               [:out "json.decode('true {', {all = true}) => error"]]
              @output)))))
+
+(def expected-pprint-output
+  "scalars:
+1
+true
+<function: print>
+\"string\"
+empty:
+{} --[[0x0]]
+array only:
+{ --[[0x1]]
+  1,
+  2,
+  3,
+  \"a\"
+}
+hash only:
+{ --[[0x2]]
+  a = 1,
+  b = 2
+}
+array and hash:
+{ --[[0x3]]
+  1,
+  2,
+  a = 3,
+  b = 4
+}
+non-identifier keys:
+{ --[[0x4]]
+  [\"foo-bar\"] = 1
+}
+circular refs:
+{ --[[0x5]]
+  1,
+  2,
+  circular_ref = <table: 0x5>
+}
+nesting:
+{ --[[0x6]]
+  1,
+  false,
+  { --[[0x7]]
+    a = 1
+  },
+  { --[[0x8]]
+    [{ --[[0x9]]
+      \"table\",
+      \"key\"
+    }] = 1
+  },
+  \"a\"
+}
+")
+
+(deftest pprint-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/pprint-test"
+    (let [out (StringBuilder.)]
+      (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+      (run-edit-menu-test-command!)
+      (let [hash->stable-id (volatile! {})
+            actual (string/replace
+                     (str out)
+                     #"0x[0-9a-f]+"
+                     (fn [s]
+                       (if-let [id (@hash->stable-id s)]
+                         id
+                         (let [id ((vswap! hash->stable-id #(assoc % s (str "0x" (count %)))) s)]
+                           id))))]
+        (is (= actual expected-pprint-output)
+            (string/join "\n" (diff/make-diff-output-lines actual expected-pprint-output 3)))))))

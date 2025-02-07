@@ -262,7 +262,12 @@
           :description "Encode Lua value to JSON string"
           :parameters [{:name "value"
                         :types ["any"]
-                        :doc "any lua value that may be represented as JSON"}]}]
+                        :doc "any lua value that may be represented as JSON"}]}
+         {:name "pprint"
+          :type :function
+          :description "Pretty-print a Lua value"
+          :parameters [{:name "value"
+                        :types ["any"]}]}]
         (when-not (System/getProperty "defold.version")
           ;; Dev-only docs
           [{:name "editor.bundle.abort_message"
