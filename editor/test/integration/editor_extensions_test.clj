@@ -819,9 +819,7 @@ nesting:
                      (str out)
                      #"0x[0-9a-f]+"
                      (fn [s]
-                       (if-let [id (@hash->stable-id s)]
-                         id
-                         (let [id ((vswap! hash->stable-id #(assoc % s (str "0x" (count %)))) s)]
-                           id))))]
+                       (or (@hash->stable-id s)
+                           ((vswap! hash->stable-id #(assoc % s (str "0x" (count %)))) s))))]
         (is (= actual expected-pprint-output)
             (string/join "\n" (diff/make-diff-output-lines actual expected-pprint-output 3)))))))
