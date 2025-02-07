@@ -172,7 +172,7 @@ PACKAGES_WIN32=[
     "luajit-2.1.0-a4f56a4",
     "glut-3.7.6",
     "bullet-2.77",
-    #"vulkan-v1.4.307",
+    "vulkan-v1.4.307",
     "glfw-3.4"]
 
 PACKAGES_WIN32_64=[
@@ -184,7 +184,7 @@ PACKAGES_WIN32_64=[
     "glslang-42d9adf5",
     "spirv-cross-9040e0d2",
     "spirv-tools-d24a39a7",
-    #"vulkan-v1.4.307",
+    "vulkan-v1.4.307",
     "lipo-9ffdea2",
     "glfw-3.4",
     "tint-22b958",
@@ -198,7 +198,7 @@ PACKAGES_LINUX_X86_64=[
     "glslang-ba5c010c",
     "spirv-cross-9040e0d2",
     "spirv-tools-d24a39a7",
-    #"vulkan-v1.4.307",
+    "vulkan-v1.4.307",
     "tremolo-b0cb4d1",
     "lipo-9ffdea2",
     "glfw-3.4",
@@ -213,7 +213,7 @@ PACKAGES_LINUX_ARM64=[
     "glslang-2fed4fc0",
     "spirv-cross-9040e0d2",
     "spirv-tools-4fab7435",
-    #"vulkan-v1.4.307",
+    "vulkan-v1.4.307",
     "tremolo-b0cb4d1",
     "lipo-abb8ab1",
     "glfw-3.4",
