@@ -15,11 +15,11 @@
 #include <dlib/time.h>
 #include <dlib/log.h>
 
-#include <GLFW/glfw3.h>
+#include <glfw/glfw3.h>
 
 #define GLFW_EXPOSE_NATIVE_WIN32
 #define GLFW_EXPOSE_NATIVE_WGL
-#include <GLFW/glfw3native.h>
+#include <glfw/glfw3native.h>
 
 #include "platform_window_glfw3_private.h"
 #include "platform_window_win32.h"
