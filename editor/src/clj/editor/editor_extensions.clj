@@ -48,10 +48,11 @@
             [util.eduction :as e])
   (:import [com.dynamo.bob Platform]
            [com.dynamo.bob.bundle BundleHelper]
-           [java.io PushbackReader]
+           [java.io PrintStream PushbackReader]
            [java.net URI]
            [java.nio.file FileAlreadyExistsException Files NotDirectoryException Path]
-           [org.luaj.vm2 LuaError LuaString Prototype]))
+           [java.util HashSet]
+           [org.luaj.vm2 LuaError LuaFunction LuaString LuaTable LuaValue Prototype]))
 
 (set! *warn-on-reflection* true)
 
@@ -424,6 +425,84 @@
   (rt/lua-fn ext-project-binary-name [{:keys [rt]} lua-string]
     (BundleHelper/projectNameToBinaryName (rt/->clj rt coerce/string lua-string))))
 
+(def ext-pprint
+  (let [write-indent! (fn write-indent! [^PrintStream out ^long indent]
+                        (loop [i 0]
+                          (when-not (= i indent)
+                            (.print out "  ")
+                            (recur (inc i)))))]
+    (rt/lua-fn ext-pprint [{:keys [rt]} & lua-values]
+      (let [out (rt/stdout rt)]
+        (run! (fn pprint
+                ([v]
+                 (pprint v 0 (HashSet.))
+                 (.println out))
+                ([^LuaValue v ^long indent ^HashSet seen]
+                 (condp instance? v
+                   LuaTable (if (.add seen v)
+                              (let [array-length (.rawlen v)
+                                    empty (and (zero? array-length)
+                                               (.isnil (.arg1 (.next v LuaValue/NIL))))]
+                                (if empty
+                                  ;; for empty tables, print identity after closing brace
+                                  (doto out
+                                    (.print "{} --[[0x")
+                                    (.print (Integer/toHexString (.hashCode v)))
+                                    (.print "]]"))
+                                  (do (.print out "{ --[[0x")
+                                      (.print out (Integer/toHexString (.hashCode v)))
+                                      (.println out "]]")
+                                      (let [indent (inc indent)]
+                                        ;; write array part
+                                        (when (pos? array-length)
+                                          (loop [i 1]
+                                            (when-not (< array-length i)
+                                              (write-indent! out indent)
+                                              (pprint (.get v i) indent seen)
+                                              (when-not (= i array-length)
+                                                (.println out ","))
+                                              (recur (inc i)))))
+                                        ;; write hash part
+                                        (loop [prev-k LuaValue/NIL
+                                               prefix-with-comma (pos? array-length)]
+                                          (let [kv-varargs (.next v prev-k)
+                                                k (.arg1 kv-varargs)]
+                                            (when-not (.isnil k)
+                                              ;; skip array keys
+                                              (if (and (.isint k) (<= (.toint k) array-length))
+                                                (recur k prefix-with-comma)
+                                                (do
+                                                  (when prefix-with-comma
+                                                    (.println out ","))
+                                                  (write-indent! out indent)
+                                                  (if (and (.isstring k)
+                                                           (re-matches #"^[a-zA-Z_][a-zA-Z0-9_]*$" (str k)))
+                                                    (.print out (str k))
+                                                    (do
+                                                      (.print out "[")
+                                                      (pprint k indent seen)
+                                                      (.print out "]")))
+                                                  (.print out " = ")
+                                                  (pprint (.arg kv-varargs 2) indent seen)
+                                                  ;; wrap `true` in boolean so that the loop compiles, otherwise it complains
+                                                  ;; about java.lang.Boolean not matching primitive boolean ¯\_(ツ)_/¯
+                                                  (recur k (boolean true))))))))
+                                      (.println out)
+                                      (write-indent! out indent)
+                                      (.print out "}"))))
+                              ;; write previously seen table
+                              (doto out
+                                (.print "<table: 0x")
+                                (.print (Integer/toHexString (.hashCode v)))
+                                (.print ">")))
+                   LuaFunction (doto out
+                                 (.print "<")
+                                 (.print (str v))
+                                 (.print ">"))
+                   LuaString (.print out (pr-str (str v)))
+                   (.print out (str v)))))
+              lua-values)))))
+
 ;; endregion
 
 ;; region language servers
@@ -696,7 +775,8 @@
                            "remove" (make-ext-remove-file-fn project-path reload-resources!)
                            "rename" nil
                            "setlocale" nil
-                           "tmpname" nil}})
+                           "tmpname" nil}
+                     "pprint" ext-pprint})
           _ (rt/invoke-immediate rt (rt/bind rt prelude-prototype) evaluation-context)
           new-state (re-create-ext-state
                       (assoc opts
