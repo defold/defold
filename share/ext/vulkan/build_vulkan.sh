@@ -99,53 +99,53 @@ readonly HEADERSINSTALLDIR=${BUILDDIR}/headers
 # extra platform specific flags
 #-DCMAKE_OSX_ARCHITECTURES=${MACOS_ARCHS} \
 
-#mkdir -p ${BUILDDIR}/headers
-#pushd ${BUILDDIR}/headers
-#
-#    cmake -G "Unix Makefiles" \
-#        -DCMAKE_BUILD_TYPE=Release \
-#        -DCMAKE_C_COMPILER=${CC} \
-#        -DCMAKE_CXX_COMPILER=${CXX} \
-#        -DCMAKE_C_FLAGS="${FLAGS} ${CFLAGS}" \
-#        -DCMAKE_CXX_FLAGS="${FLAGS} ${CXXFLAGS}" \
-#        ${HEADERSDIR}
-#    cmake --build . --config Release
-#    cmake --install . --config Release --prefix ${INSTALLDIR}
-#popd
+mkdir -p ${BUILDDIR}/headers
+pushd ${BUILDDIR}/headers
+
+    cmake -G "Unix Makefiles" \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_C_COMPILER=${CC} \
+        -DCMAKE_CXX_COMPILER=${CXX} \
+        -DCMAKE_C_FLAGS="${FLAGS} ${CFLAGS}" \
+        -DCMAKE_CXX_FLAGS="${FLAGS} ${CXXFLAGS}" \
+        ${HEADERSDIR}
+    cmake --build . --config Release
+    cmake --install . --config Release --prefix ${INSTALLDIR}
+popd
 
 
-#mkdir -p ${BUILDDIR}/loader
-#pushd ${BUILDDIR}/loader
-#
-#    cmake -G "Unix Makefiles" \
-#        -DCMAKE_BUILD_TYPE=Release \
-#        -DCMAKE_C_COMPILER=${CC} \
-#        -DCMAKE_CXX_COMPILER=${CXX} \
-#        -DCMAKE_C_FLAGS="${FLAGS} ${CFLAGS}" \
-#        -DUPDATE_DEPS=ON \
-#        -DBUILD_TESTS=OFF \
-#        ${LOADERDIR}
-#    cmake --build . --config Release
-#    cmake --install . --config Release --prefix ${INSTALLDIR}
-#
-#popd
+mkdir -p ${BUILDDIR}/loader
+pushd ${BUILDDIR}/loader
+
+    cmake -G "Unix Makefiles" \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_C_COMPILER=${CC} \
+        -DCMAKE_CXX_COMPILER=${CXX} \
+        -DCMAKE_C_FLAGS="${FLAGS} ${CFLAGS}" \
+        -DUPDATE_DEPS=ON \
+        -DBUILD_TESTS=OFF \
+        ${LOADERDIR}
+    cmake --build . --config Release
+    cmake --install . --config Release --prefix ${INSTALLDIR}
+
+popd
 
 
-#mkdir -p ${BUILDDIR}/validation
-#pushd ${BUILDDIR}/validation
-#
-#    cmake -G "Unix Makefiles" \
-#        -DCMAKE_BUILD_TYPE=Release \
-#        -DCMAKE_C_COMPILER=${CC} \
-#        -DCMAKE_CXX_COMPILER=${CXX} \
-#        -DCMAKE_C_FLAGS="${FLAGS} ${CFLAGS}" \
-#        -DUPDATE_DEPS=ON \
-#        -DBUILD_TESTS=OFF \
-#        ${CMAKE_VALIDATION_FLAGS} \
-#        ${VALIDATIONDIR}
-#    cmake --build . --config Release
-#    cmake --install . --config Release --prefix ${INSTALLDIR}
-#popd
+mkdir -p ${BUILDDIR}/validation
+pushd ${BUILDDIR}/validation
+
+    cmake -G "Unix Makefiles" \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_C_COMPILER=${CC} \
+        -DCMAKE_CXX_COMPILER=${CXX} \
+        -DCMAKE_C_FLAGS="${FLAGS} ${CFLAGS}" \
+        -DUPDATE_DEPS=ON \
+        -DBUILD_TESTS=OFF \
+        ${CMAKE_VALIDATION_FLAGS} \
+        ${VALIDATIONDIR}
+    cmake --build . --config Release
+    cmake --install . --config Release --prefix ${INSTALLDIR}
+popd
 
 
 echo "**************************************************"
