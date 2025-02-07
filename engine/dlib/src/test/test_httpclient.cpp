@@ -124,7 +124,6 @@ public:
                 dmLogError("Failed to write header '%s=%s'", it->first.c_str(), it->second.c_str());
                 return result;
             }
-
         }
 
         self->m_Headers.clear(); // Prepare for receiving
@@ -136,7 +135,7 @@ public:
         m_StatusCode = -1;
         m_Content.clear();
         m_Headers.clear();
-        return dmHttpClient::Get(m_Client, url);
+        return dmHttpClient::Get(m_Client, url, 0);
     }
 
     dmHttpClient::Result HttpGetPartial(const char* url, int start, int end)
@@ -145,14 +144,13 @@ public:
         m_Content.clear();
         m_Headers.clear();
 
-        if (start >= 0 && end > start)
+        char headers[512] = "";
+        if (start >= 0 && end >= start)
         {
-            char buf[128];
-            dmSnPrintf(buf, sizeof(buf), "bytes=%d-%d", start, end);
-            m_Headers["Range"] = std::string(buf);
+            dmSnPrintf(headers, sizeof(headers), "Range: bytes=%d-%d\r\n", start, end);
         }
 
-        return dmHttpClient::Get(m_Client, url);
+        return dmHttpClient::Get(m_Client, url, headers);
     }
 
     dmHttpClient::Result HttpPost(const char* url)
@@ -1039,7 +1037,7 @@ INSTANTIATE_TEST_CASE_P(dmHttpClientTestSSL, dmHttpClientTestSSL, jc_test_values
 class dmHttpClientTestCache : public dmHttpClientTest
 {
 public:
-    void GetFiles(bool check_content, bool partial)
+    void GetFiles(bool check_content, bool partial, uint32_t count)
     {
         std::string expected_data[4] = {
             std::string("You will find this data in a.txt and d.txt"),
@@ -1053,52 +1051,71 @@ public:
             "/tmp/http_files/b.txt",
             "/tmp/http_files/c.txt",
             "/tmp/http_files/d.txt",
-        } ;
+        };
 
-        for (int i = 0; i < 100; ++i)
+        // we want to make the same requests each time
+        uint32_t offsets[4];
+        uint32_t sizes[4];
+
+        if (partial)
+        {
+            for (int i = 0; i < 4; ++i)
+            {
+                int idx = i % 4;
+                const char* expected = expected_data[idx].c_str();
+                // avoid rand() as we want deterministic ranges (which will affect the cache keys!)
+                // between runs
+                uint32_t size = strlen(expected);
+                uint32_t offset = size / 3;
+                size = (size - offset) / 2;
+                if (size == 0)
+                    size = 1;
+                offsets[idx] = offset;
+                sizes[idx] = size;
+            }
+        }
+
+        for (int i = 0; i < (int)count; ++i)
         {
             int idx = i % 4;
             const char* name = names[idx];
             const char* expected = expected_data[idx].c_str();
 
-            uint32_t offset = 0;
-            uint32_t size = strlen(expected);
-            if (partial)
-            {
-                offset = rand() % (size/2);
-                size = rand() % (size - offset);
-                if (size == 0)
-                    size = 1;
-            }
-
             dmHttpClient::Result r;
             if (partial)
-                r = HttpGetPartial(name, offset, offset+size-1);
-            else
-                r = HttpGet(name);
-
-            if (r == dmHttpClient::RESULT_OK)
             {
-                if (partial)
+                uint32_t end = offsets[idx] + sizes[idx] - 1;
+                r = HttpGetPartial(name, offsets[idx], end);
+
+                if (r == dmHttpClient::RESULT_PARTIAL_CONTENT)
+                {
                     ASSERT_EQ(206, m_StatusCode);
-                else
-                    ASSERT_EQ(200, m_StatusCode);
+                }
             }
             else
             {
-                ASSERT_EQ(dmHttpClient::RESULT_NOT_200_OK, r);
-                ASSERT_EQ(304, m_StatusCode);
+                r = HttpGet(name);
+
+                if (r == dmHttpClient::RESULT_OK)
+                {
+                    ASSERT_EQ(200, m_StatusCode);
+                }
+                else
+                {
+                    ASSERT_EQ(dmHttpClient::RESULT_NOT_200_OK, r);
+                    ASSERT_EQ(304, m_StatusCode);
+                }
+
             }
 
             if (check_content)
             {
                 if (partial)
                 {
-                    const char* expected_partial = &expected[offset];
-                    printf("EXPECTED: %.*s", size, expected_partial);
-                    printf("CONTENT: %s  %u", m_Content.c_str(), (uint32_t)m_Content.size());
-                    //ASSERT_EQ(size, m_Content.size());
-                    ASSERT_ARRAY_EQ_LEN(expected_partial, m_Content.c_str(), size);
+                    uint32_t sz = sizes[idx];
+                    const char* expected_partial = &expected[offsets[idx]];
+                    ASSERT_EQ(sz, m_Content.size());
+                    ASSERT_ARRAY_EQ_LEN(expected_partial, m_Content.c_str(), sz);
                 }
                 else
                 {
@@ -1106,6 +1123,11 @@ public:
                 }
             }
         }
+    }
+
+    void GetFiles(bool check_content, bool partial)
+    {
+        GetFiles(check_content, partial, 100);
     }
 };
 
@@ -1125,26 +1147,37 @@ TEST_P(dmHttpClientTestCache, DirectFromCache)
     m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port);
     ASSERT_NE((void*) 0, m_Client);
 
-    // Full files
-    GetFiles(true, false);
+    uint32_t count = 50;
+    uint32_t iter = 1;
+    for (uint32_t i = 0; i < iter; ++i)
+    {
+        bool partial = i > 0;
+        GetFiles(true, partial, count);
+    }
 
     dmHttpClient::Statistics stats;
     dmHttpClient::GetStatistics(m_Client, &stats);
     // NOTE: m_Responses is increased for every request. Therefore we must compensate for potential re-connections
-    ASSERT_EQ(100U, stats.m_Responses - stats.m_Reconnections);
-    ASSERT_EQ(96U, stats.m_CachedResponses);
+    ASSERT_EQ(count*iter, stats.m_Responses - stats.m_Reconnections);
+    ASSERT_EQ((count-4U)*iter, stats.m_CachedResponses);
     ASSERT_EQ(0U, stats.m_DirectFromCache);
 
     // Change consistency police to "trust-cache". All files are retrieved and should therefore be already verified
     dmHttpCache::SetConsistencyPolicy(params.m_HttpCache, dmHttpCache::CONSISTENCY_POLICY_TRUST_CACHE);
-    GetFiles(true, false);
+
+    for (uint32_t i = 0; i < iter; ++i)
+    {
+        bool partial = i > 0;
+        GetFiles(true, partial, count);
+    }
+
     dmHttpClient::GetStatistics(m_Client, &stats);
+
+    ASSERT_EQ(count*iter, stats.m_Responses - stats.m_Reconnections);
     // Should be equivalent to above
-    ASSERT_EQ(100U, stats.m_Responses - stats.m_Reconnections);
-    // Should be equivalent to above
-    ASSERT_EQ(96U, stats.m_CachedResponses);
+    ASSERT_EQ((count-4U)*iter, stats.m_CachedResponses);
     // All files directly from cache
-    ASSERT_EQ(100U, stats.m_DirectFromCache);
+    ASSERT_EQ(count*iter, stats.m_DirectFromCache);
 
     cache_r = dmHttpCache::Close(params.m_HttpCache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);

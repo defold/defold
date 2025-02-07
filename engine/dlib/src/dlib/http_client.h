@@ -218,6 +218,16 @@ namespace dmHttpClient
     Result Get(HClient client, const char* path);
 
     /**
+     * HTTP GET-request with automatic retry
+     * @param client Client handle
+     * @param path Path part of URI
+     * @param headers Headers specific for this request. E.g. "Range: bytes=0-1023\r\nSome Header: Hello"
+     *  Note that the WriteHeaders callback is still invoked
+     * @return RESULT_OK on success
+     */
+    Result Get(HClient client, const char* path, const char* headers);
+
+    /**
      * HTTP POST-request
      * @param client Client handle
      * @param path Path part of URI
