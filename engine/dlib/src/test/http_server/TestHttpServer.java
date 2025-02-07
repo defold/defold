@@ -93,16 +93,20 @@ public class TestHttpServer extends AbstractHandler
         super();
     }
 
-    private void sendFile(String target, HttpServletResponse response) throws IOException {
-        Reader r = new FileReader(target);
-        char[] buf = new char[1024 * 128];
-        int n = r.read(buf);
-        if (n > 0) {
-            response.getWriter().print(new String(buf, 0, n));
+    public static void digestStreamRange(MessageDigest md, InputStream input, long start, long size) throws IOException
+    {
+        input.skip(start);
+        byte[] buffer = new byte[1024];
+        int bytesRead;
+        long toCopy = size;
+        while ((bytesRead = input.read(buffer)) != -1)
+        {
+            if (toCopy < bytesRead)
+                bytesRead = (int)toCopy;
+
+            md.update(buffer, 0, bytesRead);
+            toCopy -= bytesRead;
         }
-        // NOTE: We flush here to force chunked encoding
-        response.getWriter().flush();
-        r.close();
     }
 
     public static void copyStream(InputStream input, OutputStream output, long start, long size) throws IOException
@@ -120,30 +124,25 @@ public class TestHttpServer extends AbstractHandler
             toCopy -= bytesRead;
         }
     }
+
+    private void sendFile(String target, HttpServletResponse response) throws IOException {
+        Reader r = new FileReader(target);
+        char[] buf = new char[1024 * 128];
+        int n = r.read(buf);
+        if (n > 0) {
+            response.getWriter().print(new String(buf, 0, n));
+        }
+        // NOTE: We flush here to force chunked encoding
+        response.getWriter().flush();
+        r.close();
+    }
+
     private void sendFile(File file, Range range, HttpServletResponse response) throws IOException {
         long size = range.end - range.start + 1;
-        boolean partial = size != range.length;
-
-        if (partial) {
-            response.setHeader("Content-Range", String.format("bytes %d-%d/%d", range.start, range.end, range.length));
-        }
-        response.setHeader("Content-Length", String.valueOf(range.length));
-
         InputStream is = new BufferedInputStream(new FileInputStream(file));
         OutputStream os = response.getOutputStream();
-
-        //IOUtils.copyLarge(is, os, range.start, range.end-range.start+1);
         copyStream(is, os, range.start, size);
         os.flush();
-
-        System.out.printf("WROTE: %d-%d/%d  size: %d\n", range.start, range.end, range.length, size);
-
-        if (partial)
-        {
-        System.out.printf("WROTE: SC_PARTIAL_CONTENT\n");
-            response.setStatus(HttpServletResponse.SC_PARTIAL_CONTENT); // 206.
-        }
-        System.out.printf("WROTE: done!\n");
     }
 
     private static char convertDigit(int value) {
@@ -164,18 +163,21 @@ public class TestHttpServer extends AbstractHandler
         return (sb.toString());
     }
 
-    private static String calculateSHA1(File file) throws IOException {
+    private static String calculateSHA1(File file, List<Range> ranges) throws IOException {
         try {
             MessageDigest md = MessageDigest.getInstance("SHA-1");
-            BufferedInputStream is = new BufferedInputStream(
-                    new FileInputStream(file));
-            byte[] buffer = new byte[1024];
-            int n = is.read(buffer);
-            while (n != -1) {
-                md.update(buffer, 0, n);
-                n = is.read(buffer);
+
+            BufferedInputStream is = new BufferedInputStream(new FileInputStream(file));
+
+            Range first_range = ranges.get(0);
+            long size = first_range.end - first_range.start + 1;
+
+            for (Range range : ranges) {
+                digestStreamRange(md, is, range.start, range.end - range.start + 1);
             }
+
             is.close();
+
             return toHex(md.digest());
 
         } catch (IOException e) {
@@ -183,6 +185,12 @@ public class TestHttpServer extends AbstractHandler
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private static String calculateSHA1(File file) throws IOException {
+        List<Range> ranges = new ArrayList<>();
+        ranges.add(new Range(0, file.length()-1,file.length()));
+        return calculateSHA1(file, ranges);
     }
 
     private void debugHeaders(HttpServletRequest request) {
@@ -223,13 +231,8 @@ public class TestHttpServer extends AbstractHandler
                 System.out.printf("part: '%s'\n", part);
                 String startStr = part.substring(0, part.indexOf("-"));
                 String endStr = part.substring(part.indexOf("-")+1);
-                System.out.printf("startStr: '%s'\n", startStr);
-                System.out.printf("endStr: '%s'\n", endStr);
                 long start = Integer.parseInt(startStr);
                 long end = endStr.length() > 0 ? Integer.parseInt(endStr) : length;
-                //long start = Range.sublong(part, 0, part.indexOf("-"));
-                //long end = Range.sublong(part, part.indexOf("-") + 1, part.length());
-                System.out.printf("RANGE: %d-%d/%d\n", start, end, length);
 
                 if (start == -1) {
                     start = length - end;
@@ -336,26 +339,41 @@ public class TestHttpServer extends AbstractHandler
         }
         else if (target.startsWith("/tmp/http_files"))
         {
-            debugHeaders(request);
+            //debugHeaders(request);
 
             File contentFile = new File(target.substring(1));
             List<Range> ranges = parseRanges(request, contentFile.length(), response);
 
-            String tag = String.format("W/\"" + calculateSHA1(contentFile) + "\"");
+            Range first_range = ranges.get(0);
+            long size = first_range.end - first_range.start + 1;
+            boolean partial = size != first_range.length;
+
+            String tag = String.format("W/\"" + calculateSHA1(contentFile, ranges) + "\"");
             response.setHeader(HttpHeader.ETAG.asString(), tag);
-            int status = HttpServletResponse.SC_OK;
+            int status = partial ? HttpServletResponse.SC_PARTIAL_CONTENT : HttpServletResponse.SC_OK;
 
             String ifNoneMatch = request.getHeader(HttpHeader.IF_NONE_MATCH.asString());
             if (ifNoneMatch != null) {
+                Range range = ranges.get(0);
                 if (ifNoneMatch.equals(tag)) {
                     baseRequest.setHandled(true);
                     status = HttpStatus.NOT_MODIFIED_304;
                 }
             }
 
+            if (status != HttpStatus.NOT_MODIFIED_304)
+            {
+                if (partial) {
+                    response.setHeader("Content-Range", String.format("bytes %d-%d/%d", first_range.start, first_range.end, first_range.length));
+                    response.setHeader("Content-Length", String.format("%d", size));
+                } else {
+                    response.setHeader("Content-Length", String.valueOf(first_range.length));
+                }
+            }
+
             response.setStatus(status);
             baseRequest.setHandled(true);
-            if (status == HttpServletResponse.SC_OK) {
+            if (status == HttpServletResponse.SC_OK || status == HttpServletResponse.SC_PARTIAL_CONTENT) {
                 if (ranges != null && ranges.size() > 0) {
                     Range range = ranges.get(0); // Currently we only support one range request
                     sendFile(contentFile, range, response);
