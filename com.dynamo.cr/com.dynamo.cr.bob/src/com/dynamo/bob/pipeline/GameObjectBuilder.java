@@ -69,10 +69,10 @@ public class GameObjectBuilder extends ProtoBuilder<PrototypeDesc.Builder> {
         List<ComponentDesc> newList = new ArrayList<GameObject.ComponentDesc>();
 
         for (ComponentDesc componentDesc : lst) {
-            // Convert .wav and .ogg resource component to an embedded sound
+            // Convert .wav, .opus and .ogg resource component to an embedded sound
             // Should be fixed in the editor, see https://github.com/defold/defold/issues/4959
             String comp = componentDesc.getComponent();
-            if (comp.endsWith(".wav") || comp.endsWith(".ogg")) {
+            if (comp.endsWith(".wav") || comp.endsWith(".ogg") || comp.endsWith(".opus")) {
                 SoundDesc.Builder sd = SoundDesc.newBuilder().setSound(comp);
                 EmbeddedComponentDesc ec = EmbeddedComponentDesc.newBuilder()
                     .setId(componentDesc.getId())
