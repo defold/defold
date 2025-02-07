@@ -80,11 +80,13 @@ namespace dmSoundCodec
         return src[0] | ((uint32_t)src[1] << 8) | ((uint32_t)src[2] << 16) | ((uint32_t)src[3] << 24);
     }
 
+/*
     static uint64_t Read64Bit(const uint8_t* src)
     {
         return            src[0]        | ((uint64_t)src[1] <<  8) | ((uint64_t)src[2] << 16) | ((uint64_t)src[3] << 24) |
                ((uint64_t)src[4] << 32) | ((uint64_t)src[5] << 40) | ((uint64_t)src[6] << 48) | ((uint64_t)src[7] << 56);
     }
+*/
 
     static bool ReadPageHeader(Decodestream_info *stream_info, dmSound::HSoundData sound_data, uint8_t& flags, uint32_t& stream_serial, uint32_t& page_size, uint8_t& num_page_segments, uint8_t lacing_table[255])
     {
