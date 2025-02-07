@@ -267,7 +267,8 @@
           :type :function
           :description "Pretty-print a Lua value"
           :parameters [{:name "value"
-                        :types ["any"]}]}]
+                        :types ["any"]
+                        :doc "any lua value to pretty-print"}]}]
         (when-not (System/getProperty "defold.version")
           ;; Dev-only docs
           [{:name "editor.bundle.abort_message"
