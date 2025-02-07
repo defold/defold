@@ -13,27 +13,9 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.input
-  (:require [dynamo.graph :as g]
-            [schema.core :as s])
-  (:import [com.defold.editor Start UIUtil]
-           [com.jogamp.opengl.util.awt TextRenderer]
-           [editor.types Camera AABB Region]
-           [java.awt Font]
-           [java.awt.image BufferedImage]
-           [javafx.application Platform]
-           [javafx.collections FXCollections ObservableList]
-           [javafx.embed.swing SwingFXUtils]
-           [javafx.event ActionEvent EventHandler EventType]
-           [javafx.fxml FXMLLoader]
-           [javafx.scene Scene Node Parent]
-           [javafx.scene.control Button TitledPane TextArea TreeItem Menu MenuItem MenuBar Tab ProgressBar]
-           [javafx.scene.image Image ImageView WritableImage PixelWriter]
-           [javafx.scene.input InputEvent MouseEvent MouseButton ScrollEvent]
-           [javafx.scene.layout AnchorPane StackPane HBox Priority]
-           [javafx.stage Stage FileChooser]
-           [java.io File]
-           [java.lang Runnable System]
-           [javax.vecmath Point3d Matrix4d Vector4d Matrix3d Vector3d]))
+  (:require [schema.core :as s])
+  (:import [javafx.event EventType]
+           [javafx.scene.input InputEvent MouseEvent MouseButton ScrollEvent]))
 
 (set! *warn-on-reflection* true)
 
