@@ -470,7 +470,7 @@
 (defn add-scroll-listeners!
   [visibility-button ^TreeView tree-view]
   (when-let [^ScrollBar scrollbar (->> (.lookupAll tree-view ".scroll-bar")
-                                       (some #(when (= (.getOrientation %) Orientation/HORIZONTAL) %)))]
+                                       (some #(when (= (.getOrientation ^ScrollBar %) Orientation/HORIZONTAL) %)))]
     (ui/observe (.valueProperty scrollbar) (fn [_ _ new-v] (AnchorPane/setRightAnchor visibility-button (- (.getMax scrollbar) new-v))))
     (ui/observe (.maxProperty scrollbar) (fn [_ _ new-v] (AnchorPane/setRightAnchor visibility-button (- new-v (.getValue scrollbar)))))
     (ui/observe (.visibleProperty scrollbar) (fn [_ _ visible?] (when-not visible? (AnchorPane/setRightAnchor visibility-button 0.0))))))
