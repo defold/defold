@@ -473,7 +473,9 @@
                                        (some #(when (= (.getOrientation ^ScrollBar %) Orientation/HORIZONTAL) %)))]
     (ui/observe (.valueProperty scrollbar) (fn [_ _ new-v] (AnchorPane/setRightAnchor visibility-button (- (.getMax scrollbar) new-v))))
     (ui/observe (.maxProperty scrollbar) (fn [_ _ new-v] (AnchorPane/setRightAnchor visibility-button (- new-v (.getValue scrollbar)))))
-    (ui/observe (.visibleProperty scrollbar) (fn [_ _ visible?] (when-not visible? (AnchorPane/setRightAnchor visibility-button 0.0))))))
+    (ui/observe (.visibleProperty scrollbar) (fn [_ _ visible?] (if visible?
+                                                                  (AnchorPane/setRightAnchor visibility-button (.getMax scrollbar))
+                                                                  (AnchorPane/setRightAnchor visibility-button 0.0))))))
 
 (def eye-open-path (ui/load-svg-path "scene/images/eye_open.svg"))
 (def eye-closed-path (ui/load-svg-path "scene/images/eye_closed.svg"))
