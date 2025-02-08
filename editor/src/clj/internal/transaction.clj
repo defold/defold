@@ -308,7 +308,12 @@
             (mark-all-outputs-activated node-id)
             (update :basis gt/delete-node node-id)
             (assoc-in [:nodes-deleted node-id] node)
-            (update :nodes-added (partial filterv #(not= node-id %)))))
+            (update :nodes-added (let [deleted-node-id (long node-id)]
+                                   (fn [nodes-added]
+                                     (into (coll/empty-with-meta nodes-added)
+                                           (remove (fn [^long added-node-id]
+                                                     (= deleted-node-id added-node-id)))
+                                           nodes-added))))))
       ctx)))
 
 (defn- ctx-delete-node [ctx node-id]
@@ -895,7 +900,9 @@
 
 (defn- mark-nodes-modified
   [{:keys [nodes-affected] :as ctx}]
-  (assoc ctx :nodes-modified (into #{} (map gt/endpoint-node-id) nodes-affected)))
+  (assoc ctx :nodes-modified (into gt/empty-node-id-set
+                                   (map gt/endpoint-node-id)
+                                   nodes-affected)))
 
 (defn- map-vals-bargs
   [m f]
@@ -924,15 +931,15 @@
   [basis node-id-generators override-id-generator tx-data-context-map metrics-collector track-changes]
   {:pre [(map? tx-data-context-map)]}
   {:basis basis
-   :nodes-affected #{}
-   :nodes-added []
-   :nodes-modified #{}
-   :nodes-deleted {}
-   :outputs-modified #{}
-   :graphs-modified #{}
-   :override-nodes-affected-seen #{}
-   :override-nodes-affected-ordered []
-   :successors-changed {}
+   :nodes-affected gt/empty-endpoint-set
+   :nodes-added gt/empty-node-id-vector
+   :nodes-modified gt/empty-node-id-set
+   :nodes-deleted gt/empty-node-id-map ; TODO: Could this be a node-id-set?
+   :outputs-modified gt/empty-endpoint-set
+   :graphs-modified gt/empty-graph-id-set
+   :override-nodes-affected-seen gt/empty-node-id-set
+   :override-nodes-affected-ordered gt/empty-node-id-vector
+   :successors-changed gt/empty-node-id-map
    :node-id-generators node-id-generators
    :override-id-generator override-id-generator
    :completed-action-count 0
@@ -955,9 +962,10 @@
 
 (defn- trace-dependencies
   [ctx]
-  ;; at this point, :outputs-modified contains [node-id output] pairs.
-  ;; afterwards, it will have the transitive closure of all [node-id output] pairs
-  ;; reachable from the original collection.
+  ;; At this point, :nodes-affected is a set of all output endpoints that have
+  ;; been directly affected by the transaction changes.
+  ;; We now follow these outputs recursively to obtain a sequence of all the
+  ;; outputs that depend on them in the entire graph.
   (du/measuring (:metrics ctx) :trace-dependencies
     (let [outputs-modified (gt/dependencies (:basis ctx) (:nodes-affected ctx))]
       (assoc ctx :outputs-modified outputs-modified))))

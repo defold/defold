@@ -207,8 +207,6 @@
     ->Camel_Snake_Case_String
     (str/replace "_" " ")))
 
-(def safe-inc (fnil inc 0))
-
 (defn collify
   [val-or-coll]
   (if (and (coll? val-or-coll) (not (map? val-or-coll))) val-or-coll [val-or-coll]))

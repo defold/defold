@@ -405,22 +405,22 @@
   {:basis basis
    :cache cache ; cache from the system
    :initial-invalidate-counters initial-invalidate-counters
-   :local (atom {}) ; local cache for :cached outputs produced during node-value, will likely populate system cache later on
-   :local-temp (atom {}) ; local (weak) cache for non-:cached outputs produced during node-value, never used to populate system cache
-   :hits (atom [])
-   :in-production #{}
+   :local (atom gt/empty-endpoint-map) ; local cache for :cached outputs produced during node-value, will likely populate system cache later on
+   :local-temp (atom gt/empty-endpoint-map) ; local (weak) cache for non-:cached outputs produced during node-value, never used to populate system cache
+   :hits (atom gt/empty-endpoint-vector)
+   :in-production gt/empty-endpoint-set
    :tx-data-context (atom {})})
 
 (defn custom-evaluation-context
   [options]
   (validate-evaluation-context-options options)
   (cond-> (assoc options
-                 :local (atom {})
-                 :hits (atom [])
-                 :in-production #{})
+                 :local (atom gt/empty-endpoint-map)
+                 :hits (atom gt/empty-endpoint-vector)
+                 :in-production gt/empty-endpoint-set)
 
           (not (:no-local-temp options))
-          (assoc :local-temp (atom {}))
+          (assoc :local-temp (atom gt/empty-endpoint-map))
 
           (not (contains? options :tx-data-context))
           (assoc :tx-data-context (atom {}))))
@@ -434,13 +434,13 @@
   [evaluation-context cache-entry-pred]
   (let [unfiltered-hits @(:hits evaluation-context)
         unfiltered-local @(:local evaluation-context)
-        filtered-hits (into []
+        filtered-hits (into gt/empty-endpoint-vector
                             (filter (fn [endpoint]
                                       (cache-entry-pred (gt/endpoint-node-id endpoint)
                                                         (gt/endpoint-label endpoint)
                                                         evaluation-context)))
                             unfiltered-hits)
-        filtered-local (into {}
+        filtered-local (into gt/empty-endpoint-map
                              (filter (fn [e]
                                        (let [endpoint (key e)]
                                          (cache-entry-pred (gt/endpoint-node-id endpoint)

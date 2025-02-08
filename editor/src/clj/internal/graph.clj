@@ -376,7 +376,7 @@
   []
   {:nodes {}
    :sarcs {}
-   :successors {}
+   :successors gt/empty-node-id-map
    :tarcs {}
    :tx-id 0})
 
@@ -827,7 +827,7 @@
       (.build)))
 
 (defn- basis-dependencies [basis endpoints]
-  (assert (every? gt/endpoint? endpoints))
+  {:pre [(gt/packed-endpoint-seq? endpoints)]}
   (if (coll/empty? endpoints)
     #{}
     (let [graph-id->node-successor-map
@@ -868,7 +868,9 @@
                           (into [] future->tasks-xf (.invokeAll pool tasks)))]
                     (when (pos? (count next-tasks))
                       (recur next-tasks))))
-                (.keySet all-endpoints)))))))
+                ;; Save some memory by compacting into primitives.
+                (into gt/empty-endpoint-set
+                      (.keySet all-endpoints))))))))
 
 (defrecord MultigraphBasis [graphs]
   gt/IBasis
@@ -1123,7 +1125,7 @@
         ;; We must refresh all outputs for which an Arc was introduced. In
         ;; addition to being invalidated, we will update successors for these
         ;; outputs outside this function.
-        outputs-to-refresh (into []
+        outputs-to-refresh (into gt/empty-endpoint-vector
                                  (mapcat (fn [[source-id external-arcs-by-source-label]]
                                            (if-some [old-arcs-by-source-label (old-sarcs source-id)]
                                              (keep (fn [[source-label external-arcs]]
@@ -1158,15 +1160,19 @@
         [new-successors removed-successor-entries] (r/fold
                                                      (fn combinef
                                                        ([]
-                                                        (pair {} []))
+                                                        (pair gt/empty-node-id-map
+                                                              gt/empty-node-id-vector))
                                                        ([[new-successors-1 removed-successor-entries-1] [new-successors-2 removed-successor-entries-2]]
-                                                        (pair (into new-successors-1 new-successors-2) (into removed-successor-entries-1 removed-successor-entries-2))))
+                                                        (pair (coll/merge new-successors-1 new-successors-2)
+                                                              (into removed-successor-entries-1 removed-successor-entries-2))))
                                                      (fn reducef
                                                        ([]
-                                                        (pair {} []))
+                                                        (pair gt/empty-node-id-map
+                                                              gt/empty-node-id-vector))
                                                        ([[new-acc remove-acc] [node-id labels old-node-successors]]
                                                         (let [new-node-successors (when-some [node (gt/node-by-id-at basis node-id)]
-                                                                                    (let [node-type (gt/node-type node)
+                                                                                    (let [deps (LongArrayList.)
+                                                                                          node-type (gt/node-type node)
                                                                                           deps-by-label (in/input-dependencies node-type)
                                                                                           overrides (node-id->overrides node-id)
                                                                                           labels (or labels (in/output-labels node-type))
@@ -1176,8 +1182,7 @@
                                                                                                              (fn [_ _ label]
                                                                                                                (arcs-by-source-label label)))
                                                                                                            (fn [basis node-id label]
-                                                                                                             (gt/arcs-by-source basis node-id label)))
-                                                                                          deps (LongArrayList.)]
+                                                                                                             (gt/arcs-by-source basis node-id label)))]
                                                                                       (reduce (fn [new-node-successors label]
                                                                                                 (let [dep-labels (get deps-by-label label)
                                                                                                       outgoing-arcs (arcs-by-source basis node-id label)]
@@ -1209,8 +1214,10 @@
                                                                                               old-node-successors
                                                                                               labels)))]
                                                           (if (pos? (count new-node-successors))
-                                                            (pair (assoc new-acc node-id new-node-successors) remove-acc)
-                                                            (pair new-acc (conj remove-acc node-id))))))
+                                                            (pair (assoc new-acc node-id new-node-successors)
+                                                                  remove-acc)
+                                                            (pair new-acc
+                                                                  (conj remove-acc node-id))))))
                                                      changes+old-node-successors)]
     (persistent!
       (reduce dissoc!

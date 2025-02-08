@@ -41,6 +41,7 @@
             [editor.texture.engine :as texture.engine]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
+            [internal.graph.types :as gt]
             [internal.java :as java]
             [internal.util :as iutil]
             [schema.core :as s]
@@ -845,15 +846,18 @@
         (du/if-metrics
           (doseq [node-id (:invalidate-outputs plan)]
             (du/measuring resource-metrics (resource/proj-path (resource-node/resource basis node-id)) :invalidate-outputs
-              (g/invalidate-outputs! (mapv (fn [[_ src-label]]
-                                             (g/endpoint node-id src-label))
-                                           (g/explicit-outputs basis node-id)))))
-          (g/invalidate-outputs! (into []
-                                       (mapcat (fn [node-id]
-                                                 (map (fn [[_ src-label]]
-                                                        (g/endpoint node-id src-label))
-                                                      (g/explicit-outputs basis node-id))))
-                                       (:invalidate-outputs plan))))))
+              (g/invalidate-outputs!
+                (coll/transfer
+                  (g/explicit-outputs basis node-id) gt/empty-endpoint-vector
+                  (map (fn [[_ src-label]]
+                         (g/endpoint node-id src-label)))))))
+          (g/invalidate-outputs!
+            (coll/transfer
+              (:invalidate-outputs plan) gt/empty-endpoint-vector
+              (mapcat (fn [node-id]
+                        (e/map (fn [[_ src-label]]
+                                 (g/endpoint node-id src-label))
+                               (g/explicit-outputs basis node-id)))))))))
 
     ;; restore overridden properties.
     (du/measuring process-metrics :restore-overridden-properties

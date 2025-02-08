@@ -28,6 +28,7 @@
             [editor.workspace :as workspace]
             [internal.graph.types :as gt]
             [internal.util :as util]
+            [util.array :as array]
             [util.coll :as coll :refer [pair]]
             [util.digest :as digest]))
 
@@ -99,7 +100,7 @@
 
 (defn set-source-value! [node-id source-value]
   (g/user-data! node-id :source-value source-value)
-  (g/invalidate-outputs! [(g/endpoint node-id :source-value)]))
+  (g/invalidate-outputs! (array/of-longs (g/endpoint node-id :source-value))))
 
 (defn merge-source-values! [node-id+source-value-pairs]
   (let [[invalidated-endpoints

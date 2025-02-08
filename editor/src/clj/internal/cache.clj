@@ -20,7 +20,9 @@
 
 (set! *warn-on-reflection* true)
 
-(defonce ^:private empty-base (gt/endpoint-map))
+;; Note: The LRU cache will use a PriorityMap of boxed endpoints to tick
+;; counters in addition to this map of primitive endpoints to values.
+(defonce ^:private empty-base gt/empty-endpoint-map)
 
 (defprotocol CacheExtensions
   (seed [this base retain-arg] "Replace the contents of the cache with base. Potentially faster than calling one-by-one. The retain-arg will be supplied as the first argument to a present retain predicate for this run.")

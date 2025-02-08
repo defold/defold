@@ -20,6 +20,9 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
+(defn- long-arrays-equal? [^longs a ^longs b]
+  (Arrays/equals a b))
+
 (defn- object-arrays-equal? [^"[Ljava.lang.Object;" a ^"[Ljava.lang.Object;" b]
   (Arrays/equals a b))
 
@@ -30,3 +33,11 @@
         (is (object-arrays-equal?
               (object-array expected-items)
               (apply array/of expected-items)))))))
+
+(deftest of-longs-test
+  (let [items (into (vector-of :long) (range 20))]
+    (dotimes [length (count items)]
+      (let [expected-items (take length items)]
+        (is (long-arrays-equal?
+              (long-array expected-items)
+              (apply array/of-longs expected-items)))))))

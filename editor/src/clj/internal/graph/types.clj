@@ -14,7 +14,8 @@
 
 (ns internal.graph.types
   (:require [clojure.data.int-map-fixed :as int-map])
-  (:import [clojure.data.int_map_fixed PersistentIntMap]))
+  (:import [clojure.core Vec]
+           [clojure.data.int_map_fixed PersistentIntMap PersistentIntSet]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -60,7 +61,6 @@
 
 (defn endpoint
   ^long [^long node-id label]
-  {:pre [(keyword? label)]}
   (let [label-bits (endpoint-label-bits label)]
     (bit-or
       (bit-shift-left node-id ENDPOINT-LABEL-BITS)
@@ -73,17 +73,67 @@
     ENDPOINT-NODE-ID-MASK))
 
 (defn endpoint-label [^long endpoint]
-  (let [label-bits (bit-and endpoint ENDPOINT-LABEL-MASK)]
-    (get @endpoint-label-bits-lookup-atom label-bits)))
+  (let [label-bits (bit-and endpoint ENDPOINT-LABEL-MASK)
+        label (get @endpoint-label-bits-lookup-atom label-bits)]
+    (assert (keyword? label) "Not an endpoint.")
+    label))
 
-(defn endpoint? [x]
-  (and (instance? Long x)
-       (some? (endpoint-label x))))
+(defn endpoint? [value]
+  (and (instance? Long value)
+       (let [label-bits (bit-and (long value) ENDPOINT-LABEL-MASK)]
+         (contains? @endpoint-label-bits-lookup-atom label-bits))))
 
-(def endpoint-map int-map/int-map)
+(def ^:private empty-long-array (long-array 0))
+(def ^:private empty-long-map (int-map/int-map))
+(def ^:private empty-long-set (int-map/int-set))
+(def ^:private empty-long-vector (vector-of :long))
 
-(defn endpoint-map? [value]
+(defn- long-array? [value]
+  (instance? long/1 value))
+
+(defn- long-map? [value]
   (instance? PersistentIntMap value))
+
+(defn- long-set? [value]
+  (instance? PersistentIntSet value))
+
+(def long-vector?
+  (let [long-vector-array-manager (.-am ^Vec empty-long-vector)]
+    (fn long-vector? [^Vec value]
+      (and (instance? Vec value)
+           (identical? long-vector-array-manager (.-am value))))))
+
+(def empty-endpoint-array empty-long-array)
+(def empty-endpoint-map empty-long-map)
+(def empty-endpoint-set empty-long-set)
+(def empty-endpoint-vector empty-long-vector)
+(def empty-graph-id-array empty-long-array)
+(def empty-graph-id-map empty-long-map)
+(def empty-graph-id-set empty-long-set)
+(def empty-graph-id-vector empty-long-vector)
+(def empty-node-id-array empty-long-array)
+(def empty-node-id-map empty-long-map)
+(def empty-node-id-set empty-long-set)
+(def empty-node-id-vector empty-long-vector)
+
+(def endpoint-array? long-array?)
+(def endpoint-map? long-map?)
+(def endpoint-set? long-set?)
+(def endpoint-vector? long-vector?)
+(def graph-id-array? long-array?)
+(def graph-id-map? long-map?)
+(def graph-id-set? long-set?)
+(def graph-id-vector? long-vector?)
+(def node-id-array? long-array?)
+(def node-id-map? long-map?)
+(def node-id-set? long-set?)
+(def node-id-vector? long-vector?)
+
+(defn packed-endpoint-seq? [value]
+  (or (nil? value)
+      (endpoint-array? value)
+      (endpoint-set? value)
+      (endpoint-vector? value)))
 
 (defn node-id? [v] (integer? v))
 

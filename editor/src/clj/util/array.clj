@@ -18,7 +18,8 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(def ^"[Ljava.lang.Object;" empty-object-array (Array/newInstance Object 0))
+(def ^"[J" empty-long-array (long-array 0))
+(def ^"[Ljava.lang.Object;" empty-object-array (object-array 0))
 
 (defn of
   (^"[Ljava.lang.Object;" [] empty-object-array)
@@ -88,6 +89,79 @@
                  (Array/set 7 h))]
      (reduce (fn [^long index item]
                (Array/set array index item)
+               (inc index))
+             (- length more-count)
+             more)
+     array)))
+
+(defn of-longs
+  (^longs [] empty-long-array)
+  (^longs [^long a]
+   (doto (long-array 1)
+     (Array/setLong 0 a)))
+  (^longs [^long a ^long b]
+   (doto (long-array 2)
+     (Array/setLong 0 a)
+     (Array/setLong 1 b)))
+  (^longs [^long a ^long b ^long c]
+   (doto (long-array 3)
+     (Array/setLong 0 a)
+     (Array/setLong 1 b)
+     (Array/setLong 2 c)))
+  (^longs [^long a ^long b ^long c ^long d]
+   (doto (long-array 4)
+     (Array/setLong 0 a)
+     (Array/setLong 1 b)
+     (Array/setLong 2 c)
+     (Array/setLong 3 d)))
+  (^longs [a b c d e]
+   (doto (long-array 5)
+     (Array/setLong 0 a)
+     (Array/setLong 1 b)
+     (Array/setLong 2 c)
+     (Array/setLong 3 d)
+     (Array/setLong 4 e)))
+  (^longs [a b c d e f]
+   (doto (long-array 6)
+     (Array/setLong 0 a)
+     (Array/setLong 1 b)
+     (Array/setLong 2 c)
+     (Array/setLong 3 d)
+     (Array/setLong 4 e)
+     (Array/setLong 5 f)))
+  (^longs [a b c d e f g]
+   (doto (long-array 7)
+     (Array/setLong 0 a)
+     (Array/setLong 1 b)
+     (Array/setLong 2 c)
+     (Array/setLong 3 d)
+     (Array/setLong 4 e)
+     (Array/setLong 5 f)
+     (Array/setLong 6 g)))
+  (^longs [a b c d e f g h]
+   (doto (long-array 8)
+     (Array/setLong 0 a)
+     (Array/setLong 1 b)
+     (Array/setLong 2 c)
+     (Array/setLong 3 d)
+     (Array/setLong 4 e)
+     (Array/setLong 5 f)
+     (Array/setLong 6 g)
+     (Array/setLong 7 h)))
+  (^longs [a b c d e f g h & more]
+   (let [more-count (count more)
+         length (+ 8 more-count)
+         array (doto (long-array (int length))
+                 (Array/setLong 0 a)
+                 (Array/setLong 1 b)
+                 (Array/setLong 2 c)
+                 (Array/setLong 3 d)
+                 (Array/setLong 4 e)
+                 (Array/setLong 5 f)
+                 (Array/setLong 6 g)
+                 (Array/setLong 7 h))]
+     (reduce (fn [^long index ^long item]
+               (Array/setLong array index item)
                (inc index))
              (- length more-count)
              more)
