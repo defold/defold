@@ -946,11 +946,11 @@ bail:
                 }
             }
         }
-        else // "Regular" transfer, single chunk
+        else
         {
-            int to_transfer = response->m_ContentLength;
+            // "Regular" transfer, single chunk
             assert(response->m_ContentOffset != -1);
-            r = DoTransfer(client, response, to_transfer, client->m_HttpContent, true, method);
+            r = DoTransfer(client, response, response->m_ContentLength, client->m_HttpContent, true, method);
         }
 
         return r;
