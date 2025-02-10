@@ -170,6 +170,7 @@ namespace dmHttpClient
     {
         char*               m_Hostname;
         char                m_URI[dmURI::MAX_URI_LEN];
+        char                m_CacheKey[dmURI::MAX_URI_LEN];
         dmSocket::Result    m_SocketResult;
 
         void*               m_Userdata;
@@ -189,12 +190,7 @@ namespace dmHttpClient
         uint16_t            m_Port;
         uint16_t            m_IgnoreCache:1;
         uint16_t            m_ChunkedTransfer:1;
-        uint16_t            m_PartialRequest:1;  // 1 if it is a partial request
         int*                m_CancelFlag;
-
-        char*               m_Headers;
-        int32_t             m_PartialStart; // -1 if not set
-        int32_t             m_PartialEnd;   // -1 if not set
 
         // Used both for reading header and content. NOTE: Extra byte for null-termination
         char                m_Buffer[BUFFER_SIZE + 1];
@@ -282,10 +278,6 @@ namespace dmHttpClient
         client->m_Port = port;
         client->m_IgnoreCache = params->m_HttpCache != 0 ? 0 : 1;
         client->m_CancelFlag = cancelflag;
-        client->m_Headers = 0;
-        client->m_PartialRequest = 0;
-        client->m_PartialStart = 0;
-        client->m_PartialEnd = 0;
 
         return client;
     }
@@ -321,7 +313,6 @@ namespace dmHttpClient
     void Delete(HClient client)
     {
         free(client->m_Hostname);
-        free(client->m_Headers);
         delete client;
     }
 
@@ -555,16 +546,6 @@ namespace dmHttpClient
         return RESULT_OK;
     }
 
-    static const char* GetCacheUri(HClient client, char* buffer, uint32_t buffer_size)
-    {
-        // TODO: Replace with the header itself! (as it may contain multiple ranges!)
-        if (client->m_PartialRequest)
-            dmSnPrintf(buffer, buffer_size, "%s=%d-%d", client->m_URI, client->m_PartialStart, client->m_PartialEnd);
-        else
-            dmSnPrintf(buffer, buffer_size, "%s", client->m_URI);
-        return buffer;
-    }
-
 #define HTTP_CLIENT_SENDALL_AND_BAIL(s) \
 sock_res = SendAll(response, s, strlen(s));\
 if (sock_res != dmSocket::RESULT_OK)\
@@ -587,6 +568,7 @@ if (sock_res != dmSocket::RESULT_OK)\
         HTTP_CLIENT_SENDALL_AND_BAIL("Host: ");
         HTTP_CLIENT_SENDALL_AND_BAIL(client->m_Hostname);
         HTTP_CLIENT_SENDALL_AND_BAIL("\r\n");
+
         if (client->m_HttpWriteHeaders) {
             Result header_result = client->m_HttpWriteHeaders(response, client->m_Userdata);
             if (header_result != RESULT_OK) {
@@ -596,22 +578,14 @@ if (sock_res != dmSocket::RESULT_OK)\
 
         if (!client->m_IgnoreCache && client->m_HttpCache)
         {
-            char cache_uri[dmURI::MAX_URI_LEN];
-            GetCacheUri(client, cache_uri, sizeof(cache_uri));
-
             char etag[dmHttpCache::MAX_TAG_LEN] = "";
-            dmHttpCache::Result cache_result = dmHttpCache::GetETag(client->m_HttpCache, cache_uri, etag, sizeof(etag));
+            dmHttpCache::Result cache_result = dmHttpCache::GetETag(client->m_HttpCache, client->m_CacheKey, etag, sizeof(etag));
             if (cache_result == dmHttpCache::RESULT_OK)
             {
                 HTTP_CLIENT_SENDALL_AND_BAIL("If-None-Match: ");
                 HTTP_CLIENT_SENDALL_AND_BAIL(etag);
                 HTTP_CLIENT_SENDALL_AND_BAIL("\r\n");
             }
-        }
-
-        if (client->m_Headers)
-        {
-            HTTP_CLIENT_SENDALL_AND_BAIL(client->m_Headers);
         }
 
         if (strcmp(method, "POST") == 0 || strcmp(method, "PUT") == 0 || strcmp(method, "PATCH") == 0) {
@@ -795,12 +769,9 @@ bail:
         }
         dmHttpCache::Result cache_result;
 
-        char cache_uri[dmURI::MAX_URI_LEN];
-        GetCacheUri(client, cache_uri, sizeof(cache_uri));
-
         char cache_etag[dmHttpCache::MAX_TAG_LEN];
         cache_etag[0] = '\0';
-        cache_result = dmHttpCache::GetETag(client->m_HttpCache, cache_uri, cache_etag, sizeof(cache_etag));
+        cache_result = dmHttpCache::GetETag(client->m_HttpCache, client->m_CacheKey, cache_etag, sizeof(cache_etag));
 
         if (cache_result != dmHttpCache::RESULT_OK)
         {
@@ -827,7 +798,7 @@ bail:
         FILE* file = 0;
         uint32_t file_size = 0;
         uint64_t checksum;
-        cache_result = dmHttpCache::Get(client->m_HttpCache, cache_uri, cache_etag, &file, &file_size, &checksum);
+        cache_result = dmHttpCache::Get(client->m_HttpCache, client->m_CacheKey, cache_etag, &file, &file_size, &checksum);
         if (cache_result == dmHttpCache::RESULT_OK)
         {
             // If the request is a "HEAD" request, and the URI is cached (i.e the file exists),
@@ -848,14 +819,14 @@ bail:
                 }
                 while (nread > 0);
             }
-            dmHttpCache::Release(client->m_HttpCache, cache_uri, cache_etag, file);
+            dmHttpCache::Release(client->m_HttpCache, client->m_CacheKey, cache_etag, file);
         }
         else
         {
             return RESULT_IO_ERROR;
         }
 
-        dmHttpCache::SetVerified(client->m_HttpCache, cache_uri, true);
+        dmHttpCache::SetVerified(client->m_HttpCache, client->m_CacheKey, true);
 
         return RESULT_OK;
     }
@@ -1019,9 +990,7 @@ bail:
             bool is_ok = response.m_Status == 200 || response.m_Status == 206;
             if (!client->m_IgnoreCache && client->m_HttpCache && !method_is_head && is_ok)
             {
-                char cache_uri[dmURI::MAX_URI_LEN];
-                GetCacheUri(client, cache_uri, sizeof(cache_uri));
-                dmHttpCache::Begin(client->m_HttpCache, cache_uri, response.m_ETag, response.m_MaxAge, &response.m_CacheCreator);
+                dmHttpCache::Begin(client->m_HttpCache, client->m_CacheKey, response.m_ETag, response.m_MaxAge, &response.m_CacheCreator);
             }
 
             r = HandleResponse(client, path, method, &response);
@@ -1123,10 +1092,7 @@ bail:
         uint32_t file_size = 0;
         uint64_t checksum;
 
-        char cache_uri[dmURI::MAX_URI_LEN];
-        GetCacheUri(client, cache_uri, sizeof(cache_uri));
-
-        dmHttpCache::Result cache_result = dmHttpCache::Get(client->m_HttpCache, cache_uri, info->m_ETag, &file, &file_size, &checksum);
+        dmHttpCache::Result cache_result = dmHttpCache::Get(client->m_HttpCache, client->m_CacheKey, info->m_ETag, &file, &file_size, &checksum);
         if (cache_result == dmHttpCache::RESULT_OK)
         {
             // NOTE: We have an extra byte for null-termination so no buffer overrun here.
@@ -1138,7 +1104,7 @@ bail:
                 client->m_HttpContent(&response, client->m_Userdata, 304, client->m_Buffer, nread, file_size, "GET");
             }
             while (nread > 0);
-            dmHttpCache::Release(client->m_HttpCache, cache_uri, info->m_ETag, file);
+            dmHttpCache::Release(client->m_HttpCache, client->m_CacheKey, info->m_ETag, file);
             return RESULT_NOT_200_OK;
         }
         else
@@ -1185,27 +1151,23 @@ bail:
         return true;
     }
 
+    Result SetCacheKey(HClient client, const char* key)
+    {
+        uint32_t n = dmSnPrintf(client->m_CacheKey, sizeof(client->m_CacheKey), "%s", key);
+        if (n < sizeof(client->m_CacheKey))
+            return RESULT_OK;
+        return RESULT_INVAL;
+    }
+
+    Result GetURI(HClient client, const char* path, char* uri, uint32_t uri_length)
+    {
+        dmSnPrintf(uri, uri_length, "%s://%s:%d%s", client->m_Secure ? "https" : "http", client->m_Hostname, (int) client->m_Port, path);
+    }
+
     Result Get(HClient client, const char* path, const char* headers)
     {
-        dmSnPrintf(client->m_URI, sizeof(client->m_URI), "%s://%s:%d%s", client->m_Secure ? "https" : "http", client->m_Hostname, (int) client->m_Port, path);
+        GetURI(client, path, client->m_URI, sizeof(client->m_URI));
         client->m_RequestStart = dmTime::GetMonotonicTime();
-
-        client->m_Headers = 0;
-        if (headers)
-        {
-            // Make sure it ends with a "\r\n", so that it's easier to send
-            int headers_len = strlen(headers);
-            client->m_Headers = (char*)malloc(headers_len + 2 + 1); // add extra 2 for the end tag
-            memcpy(client->m_Headers, headers, headers_len+1);
-            if (client->m_Headers[headers_len-2] != '\r' && client->m_Headers[headers_len-1] != '\n') // if the last one isn't an end tag, let's add it
-            {
-                client->m_Headers[headers_len+0] = '\r';
-                client->m_Headers[headers_len+1] = '\n';
-                client->m_Headers[headers_len+2] = '\0';
-            }
-
-            client->m_PartialRequest = GetPartialRequestFromHeader(client->m_Headers, &client->m_PartialStart, &client->m_PartialEnd);
-        }
 
         Result r;
 
@@ -1214,9 +1176,7 @@ bail:
             dmHttpCache::ConsistencyPolicy policy = dmHttpCache::GetConsistencyPolicy(client->m_HttpCache);
             dmHttpCache::EntryInfo info;
 
-            char cache_uri[dmURI::MAX_URI_LEN];
-            GetCacheUri(client, cache_uri, sizeof(cache_uri));
-            dmHttpCache::Result cache_r = dmHttpCache::GetInfo(client->m_HttpCache, cache_uri, &info);
+            dmHttpCache::Result cache_r = dmHttpCache::GetInfo(client->m_HttpCache, client->m_CacheKey, &info);
             if (cache_r == dmHttpCache::RESULT_OK) {
                 bool ok_etag = info.m_Verified && policy == dmHttpCache::CONSISTENCY_POLICY_TRUST_CACHE;
                 if ((ok_etag || info.m_Valid)) {

@@ -23,6 +23,7 @@ import java.util.regex.*;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.stream.Collectors;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -199,8 +200,25 @@ public class TestHttpServer extends AbstractHandler
         while (headerNames.hasMoreElements()) {
             String key = (String) headerNames.nextElement();
             String value = request.getHeader(key);
-            System.out.printf("HEADER:  %s: %s\n", key, value);
+            System.out.printf("HEADER:  '%s: %s'\n", key, value);
         }
+    }
+
+    static private String dumpResponse(HttpServletResponse resp){
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("Response Status = [" + resp.getStatus() + "], ");
+        String headers = resp.getHeaderNames().stream()
+                        .map(headerName -> headerName + " : " + resp.getHeaders(headerName) )
+                        .collect(Collectors.joining(", "));
+
+        if (headers.isEmpty()) {
+            sb.append("Response headers: NONE,");
+        } else {
+            sb.append("Response headers: "+headers+",");
+        }
+
+        return sb.toString();
     }
 
     // https://gist.github.com/jneira/cf33844230f1ae4c22bf4a82d28d12c0
@@ -228,7 +246,6 @@ public class TestHttpServer extends AbstractHandler
                 // Assuming a file with length of 100, the following examples returns bytes at:
                 // 50-80 (50 to 80), 40- (40 to length=100), -20 (length-20=80 to length=100).
 
-                System.out.printf("part: '%s'\n", part);
                 String startStr = part.substring(0, part.indexOf("-"));
                 String endStr = part.substring(part.indexOf("-")+1);
                 long start = Integer.parseInt(startStr);
@@ -373,6 +390,10 @@ public class TestHttpServer extends AbstractHandler
 
             response.setStatus(status);
             baseRequest.setHandled(true);
+
+            // String s = dumpResponse(response);
+            // System.out.printf("RESPONSE: '%s'\n", s);
+
             if (status == HttpServletResponse.SC_OK || status == HttpServletResponse.SC_PARTIAL_CONTENT) {
                 if (ranges != null && ranges.size() > 0) {
                     Range range = ranges.get(0); // Currently we only support one range request

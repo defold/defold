@@ -135,7 +135,8 @@ public:
         m_StatusCode = -1;
         m_Content.clear();
         m_Headers.clear();
-        return dmHttpClient::Get(m_Client, url, 0);
+        dmHttpClient::SetCacheKey(m_Client, url);
+        return dmHttpClient::Get(m_Client, url);
     }
 
     dmHttpClient::Result HttpGetPartial(const char* url, int start, int end)
@@ -144,13 +145,18 @@ public:
         m_Content.clear();
         m_Headers.clear();
 
-        char headers[512] = "";
         if (start >= 0 && end >= start)
         {
-            dmSnPrintf(headers, sizeof(headers), "Range: bytes=%d-%d\r\n", start, end);
+            char range[512] = "";
+            dmSnPrintf(range, sizeof(range), "bytes=%d-%d", start, end);
+            m_Headers["Range"] = range;
+
+            char cache_key[1024] = "";
+            dmSnPrintf(cache_key, sizeof(cache_key), "%s=%s", url, range);
+            dmHttpClient::SetCacheKey(m_Client, cache_key);
         }
 
-        return dmHttpClient::Get(m_Client, url, headers);
+        return dmHttpClient::Get(m_Client, url);
     }
 
     dmHttpClient::Result HttpPost(const char* url)
@@ -1114,8 +1120,8 @@ public:
                 {
                     uint32_t sz = sizes[idx];
                     const char* expected_partial = &expected[offsets[idx]];
-                    ASSERT_EQ(sz, m_Content.size());
                     ASSERT_ARRAY_EQ_LEN(expected_partial, m_Content.c_str(), sz);
+                    ASSERT_EQ(sz, (uint32_t)m_Content.size());
                 }
                 else
                 {
@@ -1140,6 +1146,11 @@ TEST_P(dmHttpClientTestCache, DirectFromCache)
     params.m_Userdata = this;
     params.m_HttpContent = dmHttpClientTest::HttpContent;
     params.m_HttpHeader = dmHttpClientTest::HttpHeader;
+
+    params.m_HttpSendContentLength = dmHttpClientTest::HttpSendContentLength;
+    params.m_HttpWrite = dmHttpClientTest::HttpWrite;
+    params.m_HttpWriteHeaders = dmHttpClientTest::HttpWriteHeaders;
+
     dmHttpCache::NewParams cache_params;
     cache_params.m_Path = m_CacheDir;
     dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &params.m_HttpCache);
@@ -1148,7 +1159,7 @@ TEST_P(dmHttpClientTestCache, DirectFromCache)
     ASSERT_NE((void*) 0, m_Client);
 
     uint32_t count = 50;
-    uint32_t iter = 1;
+    uint32_t iter = 2;
     for (uint32_t i = 0; i < iter; ++i)
     {
         bool partial = i > 0;
