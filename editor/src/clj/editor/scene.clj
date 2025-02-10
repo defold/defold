@@ -40,6 +40,7 @@
             [editor.scene-shapes :as scene-shapes]
             [editor.scene-text :as scene-text]
             [editor.scene-tools :as scene-tools]
+            [editor.scene-visibility :as scene-visibility]
             [editor.system :as system]
             [editor.types :as types]
             [editor.ui :as ui]
@@ -380,7 +381,7 @@
                           (some selection-set node-id-path) :parent-selected) ; Child nodes appear dimly selected if their parent is selected.
         visible? (and parent-shows-children
                       (:visible-self? renderable true)
-                      (not (contains? hidden-node-outline-key-paths node-outline-key-path))
+                      (not (scene-visibility/hidden-outline-key-path? hidden-node-outline-key-paths node-outline-key-path))
                       (not-any? (partial contains? hidden-renderable-tags) (:tags renderable)))
         aabb ^AABB (if visible? (:aabb scene geom/null-aabb) geom/null-aabb)
         flat-renderable (-> scene

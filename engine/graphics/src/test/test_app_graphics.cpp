@@ -249,11 +249,9 @@ struct ComputeTest : ITest
         AddShaderTypeMember(&compute_desc, type_info, "color", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC4);
         AddShaderResource(&compute_desc, "buf", 0, 0, 0, BINDING_TYPE_UNIFORM_BUFFER);
 
-        dmGraphics::HComputeProgram compute_program = dmGraphics::NewComputeProgram(engine->m_GraphicsContext, &compute_desc, 0, 0);
+        m_Program = dmGraphics::NewProgram(engine->m_GraphicsContext, &compute_desc, 0, 0);
 
         DeleteShaderDesc(&compute_desc);
-
-        m_Program = dmGraphics::NewProgram(engine->m_GraphicsContext, compute_program);
 
         m_UniformLoc = GetUniformLocation(m_Program, "buf");
     }

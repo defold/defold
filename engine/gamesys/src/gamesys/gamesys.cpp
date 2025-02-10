@@ -26,19 +26,17 @@
 #include <dmsdk/resource/resource.h>
 
 #include "resources/res_collection_proxy.h"
-#include "resources/res_collision_object.h"
-#include "resources/res_convex_shape.h"
 #include "resources/res_particlefx.h"
 #include "resources/res_texture.h"
-#include "resources/res_vertex_program.h"
-#include "resources/res_fragment_program.h"
+#include "resources/res_shader_program.h"
 #include "resources/res_font.h"
 #include "resources/res_model.h"
 #include "resources/res_buffer.h"
 #include "resources/res_mesh.h"
 #include "resources/res_material.h"
 #include "resources/res_compute.h"
-#include "resources/res_compute_shader.h"
+#include "resources/res_collision_object.h"
+#include "resources/res_convex_shape.h"
 #include "resources/res_gui.h"
 #include "resources/res_sound.h"
 #include "resources/res_camera.h"
@@ -93,20 +91,20 @@ namespace dmGameSystem
 
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
 
-        REGISTER_RESOURCE_TYPE("collectionproxyc", 0, 0, ResCollectionProxyCreate, 0, ResCollectionProxyDestroy, ResCollectionProxyRecreate);
-        REGISTER_RESOURCE_TYPE("collisionobjectc", physics_context, 0, ResCollisionObjectCreate, 0, ResCollisionObjectDestroy, ResCollisionObjectRecreate);
+
         REGISTER_RESOURCE_TYPE("convexshapec", physics_context, 0, ResConvexShapeCreate, 0, ResConvexShapeDestroy, ResConvexShapeRecreate);
+        REGISTER_RESOURCE_TYPE("collisionobjectc", physics_context, 0, ResCollisionObjectCreate, 0, ResCollisionObjectDestroy, ResCollisionObjectRecreate);
+        REGISTER_RESOURCE_TYPE("collectionproxyc", 0, 0, ResCollectionProxyCreate, 0, ResCollectionProxyDestroy, ResCollectionProxyRecreate);
         REGISTER_RESOURCE_TYPE("particlefxc", 0, ResParticleFXPreload, ResParticleFXCreate, 0, ResParticleFXDestroy, ResParticleFXRecreate);
         REGISTER_RESOURCE_TYPE("texturec", graphics_context, ResTexturePreload, ResTextureCreate, ResTexturePostCreate, ResTextureDestroy, ResTextureRecreate);
-        REGISTER_RESOURCE_TYPE("vpc", graphics_context, ResVertexProgramPreload, ResVertexProgramCreate, 0, ResVertexProgramDestroy, ResVertexProgramRecreate);
-        REGISTER_RESOURCE_TYPE("fpc", graphics_context, ResFragmentProgramPreload, ResFragmentProgramCreate, 0, ResFragmentProgramDestroy, ResFragmentProgramRecreate);
+        REGISTER_RESOURCE_TYPE("spc", graphics_context, ResShaderProgramPreload, ResShaderProgramCreate, 0, ResShaderProgramDestroy, ResShaderProgramRecreate);
         REGISTER_RESOURCE_TYPE("fontc", render_context, ResFontPreload, ResFontCreate, 0, ResFontDestroy, ResFontRecreate);
         REGISTER_RESOURCE_TYPE("bufferc", graphics_context, ResBufferPreload, ResBufferCreate, 0, ResBufferDestroy, ResBufferRecreate);
         REGISTER_RESOURCE_TYPE("meshc", graphics_context, ResMeshPreload, ResMeshCreate, 0, ResMeshDestroy, ResMeshRecreate);
         REGISTER_RESOURCE_TYPE("modelc", graphics_context, ResModelPreload, ResModelCreate, 0, ResModelDestroy, ResModelRecreate);
         REGISTER_RESOURCE_TYPE("materialc", render_context, ResMaterialPreload, ResMaterialCreate, 0, ResMaterialDestroy, ResMaterialRecreate);
         REGISTER_RESOURCE_TYPE("computec", render_context, ResComputePreload, ResComputeCreate, 0, ResComputeDestroy, ResComputeRecreate);
-        REGISTER_RESOURCE_TYPE("cpc", graphics_context, ResComputeShaderPreload, ResComputeShaderCreate, 0, ResComputeShaderDestroy, ResComputeShaderRecreate);
+
         // guic: res_gui.cpp
         // gui_scriptc: res_gui_script.cpp
         REGISTER_RESOURCE_TYPE("glyph_bankc", 0, ResGlyphBankPreload, ResGlyphBankCreate, 0, ResGlyphBankDestroy, ResGlyphBankRecreate);

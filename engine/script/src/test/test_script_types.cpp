@@ -16,10 +16,36 @@
 #include "test_script.h"
 
 #include <testmain/testmain.h>
+#include <extension/extension.hpp>
 #include <dlib/log.h>
 
 class ScriptTypesTest : public dmScriptTest::ScriptTest
 {
+    ExtensionAppParams  m_AppParams;
+    ExtensionParams     m_Params;
+
+    virtual void SetUp() override
+    {
+        dmScriptTest::ScriptTest::SetUp();
+
+        ExtensionAppParamsInitialize(&m_AppParams);
+        ExtensionParamsInitialize(&m_Params);
+        m_Params.m_L = this->L;
+
+        dmExtension::AppInitialize(&m_AppParams);
+        dmExtension::Initialize(&m_Params);
+    }
+
+    virtual void TearDown() override
+    {
+        dmExtension::Finalize(&m_Params);
+        dmExtension::AppFinalize(&m_AppParams);
+
+        ExtensionParamsFinalize(&m_Params);
+        ExtensionAppParamsFinalize(&m_AppParams);
+
+        dmScriptTest::ScriptTest::TearDown();
+    }
 };
 
 TEST_F(ScriptTypesTest, TestTypes)

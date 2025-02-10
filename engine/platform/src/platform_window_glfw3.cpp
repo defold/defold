@@ -116,8 +116,8 @@ namespace dmPlatform
     static void OnMouseScroll(GLFWwindow* glfw_window, double xoffset, double yoffset)
     {
         HWindow window = (HWindow) glfwGetWindowUserPointer(glfw_window);
-        window->m_MouseScrollX = xoffset;
-        window->m_MouseScrollY = yoffset;
+        window->m_MouseScrollX += xoffset;
+        window->m_MouseScrollY += yoffset;
     }
 
     static void OnJoystick(int id, int event)
@@ -357,8 +357,6 @@ namespace dmPlatform
 
     void PollEvents(HWindow window)
     {
-        window->m_MouseScrollX = 0.0;
-        window->m_MouseScrollY = 0.0;
         glfwPollEvents();
     }
 
@@ -455,6 +453,7 @@ namespace dmPlatform
             case WINDOW_STATE_SAMPLE_COUNT: return window->m_Samples;
             case WINDOW_STATE_HIGH_DPI:     return window->m_HighDPI;
             case WINDOW_STATE_AUX_CONTEXT:  return window->m_AuxWindow ? 1 : 0;
+            default: break;
         }
 
         return glfwGetWindowAttrib(window->m_Window, WindowStateToGLFW(state));
@@ -481,7 +480,7 @@ namespace dmPlatform
 
     int32_t GetMouseWheel(HWindow window)
     {
-        return (int32_t) window->m_MouseScrollY;
+        return (int32_t) round(window->m_MouseScrollY);
     }
 
     int32_t GetMouseButton(HWindow window, int32_t button)

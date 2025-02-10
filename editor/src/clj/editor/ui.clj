@@ -1424,21 +1424,25 @@
   (defn set-show-relative-to-window! [context-menu x]
     (.invoke method context-menu (into-array Object [(boolean x)]))))
 
+(defn init-context-menu! ^ContextMenu [menu-location ^Scene scene]
+  (let [menu-items (g/with-auto-or-fake-evaluation-context evaluation-context
+                     (make-menu-items scene (handler/realize-menu menu-location) (contexts scene false) (or (user-data scene :command->shortcut) {}) evaluation-context))
+        cm (make-context-menu menu-items)]
+    (doto (.getItems cm)
+      (refresh-separator-visibility)
+      (refresh-menu-item-styles))
+    ;; Required for autohide to work when the event originates from the anchor/source node
+    ;; See RT-15160 and Control.java
+    (set-show-relative-to-window! cm true)
+    cm))
+
 (defn- show-context-menu! [menu-location ^ContextMenuEvent event]
   (when-not (.isConsumed event)
     (.consume event)
     (let [node ^Node (.getTarget event)
           scene ^Scene (.getScene node)
-          menu-items (g/with-auto-or-fake-evaluation-context evaluation-context
-                       (make-menu-items scene (handler/realize-menu menu-location) (contexts scene false) (or (user-data scene :command->shortcut) {}) evaluation-context))
-          cm (make-context-menu menu-items)]
-      (doto (.getItems cm)
-        (refresh-separator-visibility)
-        (refresh-menu-item-styles))
-      ;; Required for autohide to work when the event originates from the anchor/source node
-      ;; See RT-15160 and Control.java
-      (set-show-relative-to-window! cm true)
-      (.show cm node (.getScreenX event) (.getScreenY event)))))
+          context-menu (init-context-menu! menu-location scene)]
+      (.show context-menu node (.getScreenX event) (.getScreenY event)))))
 
 (defn register-context-menu
   "Register a context menu listener on a control for the menu location
@@ -1806,7 +1810,8 @@
                                                    (.add (.getChildren hbox) (icons/get-image-view (:icon menu-item) 16))
                                                    (.add (.getChildren hbox) cb)
                                                    hbox)
-                                                 (let [button (ToggleButton. (or (handler/label handler-ctx) (:label menu-item)))
+                                                 (let [button (doto (ToggleButton. (or (handler/label handler-ctx) (:label menu-item)))
+                                                                (tooltip! (:tooltip menu-item)))
                                                        graphic-fn (:graphic-fn menu-item)
                                                        icon (:icon menu-item)]
                                                    (cond
@@ -1827,9 +1832,9 @@
                             (user-data! child ::command command))
                           (user-data! child ::menu-user-data user-data)
                           child)))
-           children (if (instance? Separator (last children))
-                      (butlast children)
-                      children)]
+           children (cond-> children
+                      (instance? Separator (last children)) butlast
+                      (instance? Separator (first children)) rest)]
        (doseq [child children]
          (.add (.getChildren control) child))))))
 

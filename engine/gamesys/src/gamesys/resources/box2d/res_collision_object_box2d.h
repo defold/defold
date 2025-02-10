@@ -12,9 +12,18 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DMSDK_GAMESYS_RES_VERTEX_PROGRAM_H
-#define DMSDK_GAMESYS_RES_VERTEX_PROGRAM_H
+#ifndef DM_GAMESYS_RES_COLLISION_OBJECT_BOX2D_H
+#define DM_GAMESYS_RES_COLLISION_OBJECT_BOX2D_H
 
-// Resource is an instance of dmGraphics::HVertexProgram
+#include <dmsdk/resource/resource.hpp>
+#include <dmsdk/gamesys/resources/res_collision_object.h>
 
-#endif // DMSDK_GAMESYS_RES_VERTEX_PROGRAM_H
+namespace dmGameSystem
+{
+    dmResource::Result ResCollisionObjectBox2DCreate(const dmResource::ResourceCreateParams* params);
+
+    dmResource::Result ResCollisionObjectBox2DDestroy(const dmResource::ResourceDestroyParams* params);
+
+    dmResource::Result ResCollisionObjectBox2DRecreate(const dmResource::ResourceRecreateParams* params);
+}
+#endif

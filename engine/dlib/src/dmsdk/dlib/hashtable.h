@@ -186,6 +186,33 @@ public:
     }
 
     /**
+     * Set hashtable capacity. New capacity must be greater or equal to current capacity
+     * @name SetCapacity
+     * @param capacity Capacity. capacity < 0xffffffff
+     */
+    void SetCapacity(uint32_t capacity)
+    {
+        uint32_t size = (capacity * 2) / 3;
+        if (size == 0)
+            size = 1;
+        SetCapacity(size, capacity);
+    }
+
+    /*# hashtable offset capacity
+     *
+     * Relative change of capacity
+     * Equivalent to SetCapacity(Capacity() + offset).
+     * Only allowed for auto-allocated hash tables and will result in a new dynamic allocation
+     *
+     * @name OffsetCapacity
+     * @param offset [type:uint32_t] relative amount of elements to change the capacity
+     */
+    void OffsetCapacity(int32_t offset)
+    {
+        SetCapacity(Capacity() + offset);
+    }
+
+    /**
      * Swaps the contents of two hash tables
      * @name Swap
      * @param other [type: dmHashTable<KEY, T>&] the other table

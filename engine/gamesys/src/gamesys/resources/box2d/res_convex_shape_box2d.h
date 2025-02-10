@@ -12,21 +12,19 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_GAMESYS_RES_FRAGMENT_PROGRAM_H
-#define DM_GAMESYS_RES_FRAGMENT_PROGRAM_H
+#ifndef DM_GAMESYS_CONVEX_SHAPE_BOX2D_H
+#define DM_GAMESYS_CONVEX_SHAPE_BOX2D_H
 
-#include <dmsdk/resource/resource.h>
-#include <dmsdk/gamesys/resources/res_fragment_program.h>
+#include <dmsdk/resource/resource.hpp>
+#include <dmsdk/gamesys/resources/res_convex_shape.h>
 
 namespace dmGameSystem
 {
-    dmResource::Result ResFragmentProgramPreload(const dmResource::ResourcePreloadParams* params);
+    dmResource::Result ResConvexShapeBox2DCreate(const dmResource::ResourceCreateParams* params);
 
-    dmResource::Result ResFragmentProgramCreate(const dmResource::ResourceCreateParams* params);
+    dmResource::Result ResConvexShapeBox2DDestroy(const dmResource::ResourceDestroyParams* params);
 
-    dmResource::Result ResFragmentProgramDestroy(const dmResource::ResourceDestroyParams* params);
-
-    dmResource::Result ResFragmentProgramRecreate(const dmResource::ResourceRecreateParams* params);
+    dmResource::Result ResConvexShapeBox2DRecreate(const dmResource::ResourceRecreateParams* params);
 }
 
-#endif // DM_GAMESYS_RES_FRAGMENT_PROGRAM_H
+#endif // DM_GAMESYS_CONVEX_SHAPE_BOX2D_H
