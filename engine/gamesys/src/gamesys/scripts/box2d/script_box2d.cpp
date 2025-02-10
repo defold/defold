@@ -14,8 +14,11 @@
 
 #include <stdio.h>
 
-#include <Box2D/Dynamics/b2Body.h>
-#include <Box2D/Dynamics/Joints/b2Joint.h>
+
+#include <box2d/box2d.h>
+
+// #include <Box2D/Dynamics/b2Body.h>
+// #include <Box2D/Dynamics/Joints/b2Joint.h>
 
 #include <dlib/log.h>
 #include <gameobject/script.h>
@@ -48,7 +51,9 @@ namespace dmGameSystem
     b2Vec2 CheckVec2(lua_State* L, int index, float scale)
     {
         dmVMath::Vector3* v = dmScript::CheckVector3(L, index);
-        return b2Vec2(v->getX() * scale, v->getY() * scale);
+        // return b2Vec2(v->getX() * scale, v->getY() * scale);
+        b2Vec2 b2v;
+        return b2v;
     }
 
     dmVMath::Vector3 FromB2(const b2Vec2& p, float inv_scale)
@@ -112,7 +117,9 @@ namespace dmGameSystem
         b2Body* body = dmGameSystem::CompCollisionObjectGetBox2DBody(component);
 
         if (body)
-            PushBody(L, body, collection, url.m_Path);
+        {
+            // PushBody(L, body, collection, url.m_Path);
+        }
         else
             lua_pushnil(L);
         return 1;

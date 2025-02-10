@@ -15,7 +15,7 @@
 #ifndef DM_PHYSICS_2D_H
 #define DM_PHYSICS_2D_H
 
-#include <Box2D/Dynamics/b2World.h>
+#include <box2d/box2d.h>
 
 #include <dlib/array.h>
 #include <dlib/hashtable.h>
@@ -27,6 +27,7 @@
 
 namespace dmPhysics
 {
+    /*
     class ContactListener : public b2ContactListener
     {
     public:
@@ -41,6 +42,7 @@ namespace dmPhysics
         /// Temporary context to be set before each stepping of the world
         const StepWorldContext* m_TempStepWorldContext;
     };
+    */
 
     struct World2D
     {
@@ -48,10 +50,10 @@ namespace dmPhysics
 
         OverlapCache                m_TriggerOverlaps;
         HContext2D                  m_Context;
-        b2World                     m_World;
+        b2WorldId                   m_WorldId;
         dmArray<RayCastRequest>     m_RayCastRequests;
-        DebugDraw2D                 m_DebugDraw;
-        ContactListener             m_ContactListener;
+        // DebugDraw2D                 m_DebugDraw;
+        // ContactListener             m_ContactListener;
         GetWorldTransformCallback   m_GetWorldTransformCallback;
         SetWorldTransformCallback   m_SetWorldTransformCallback;
         uint8_t                     m_AllowDynamicTransforms:1;
@@ -79,12 +81,16 @@ namespace dmPhysics
 
     inline void ToB2(const dmVMath::Point3& p0, b2Vec2& p1, float scale)
     {
-        p1.Set(p0.getX() * scale, p0.getY() * scale);
+        // p1.Set(p0.getX() * scale, p0.getY() * scale);
+        p1.x = p0.getX() * scale;
+        p1.y = p0.getY() * scale;
     }
 
     inline void ToB2(const dmVMath::Vector3& p0, b2Vec2& p1, float scale)
     {
-        p1.Set(p0.getX() * scale, p0.getY() * scale);
+        // p1.Set(p0.getX() * scale, p0.getY() * scale);
+        p1.x = p0.getX() * scale;
+        p1.y = p0.getY() * scale;
     }
 
     inline void FromB2(const b2Vec2& p0, dmVMath::Vector3& p1, float inv_scale)
@@ -105,14 +111,16 @@ namespace dmPhysics
     {
         b2Vec2 pp = p;
         pp *= scale;
-        return b2Mul(t, pp);
+        // return b2Mul(t, pp);
+        return b2TransformPoint(t, pp);
     }
 
     inline b2Vec2 FromTransformScaleB2(const b2Transform& t, float inv_scale, const b2Vec2& p)
     {
         b2Vec2 pp = p;
         pp *= inv_scale;
-        return b2MulT(t, pp);
+        // return b2MulT(t, pp);
+        return b2InvTransformPoint(t, pp);
     }
 }
 

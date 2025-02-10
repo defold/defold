@@ -17,7 +17,9 @@
 
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/dlib/vmath.h>
-#include <Box2D/Common/b2Math.h>
+// #include <Box2D/Common/b2Math.h>
+
+#include <box2d/math_functions.h>
 
 namespace dmGameObject
 {
@@ -34,8 +36,8 @@ namespace dmGameSystem
 
     void    PushWorld(struct lua_State* L, class b2World* world);
 
-    void            PushBody(struct lua_State* L, class b2Body* body, dmGameObject::HCollection collection, dmhash_t gameobject_id);
-    class b2Body*   CheckBody(lua_State* L, int index);
+    void            PushBody(struct lua_State* L, struct b2BodyId* body, dmGameObject::HCollection collection, dmhash_t gameobject_id);
+    struct b2BodyId* CheckBody(lua_State* L, int index);
 
     void    ScriptBox2DInitializeBody(struct lua_State* L);
 }

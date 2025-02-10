@@ -20,6 +20,7 @@
 
 namespace dmPhysics
 {
+    /*
     DebugDraw2D::DebugDraw2D(DebugCallbacks* callbacks)
     : m_Callbacks(callbacks)
     {
@@ -168,4 +169,5 @@ namespace dmPhysics
             DrawSolidPolygon(v, 3, color);
         }
     }
+    */
 }

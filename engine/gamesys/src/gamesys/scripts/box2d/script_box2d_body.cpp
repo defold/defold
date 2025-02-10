@@ -14,8 +14,11 @@
 
 #include <stdio.h>
 
-#include <Box2D/Dynamics/b2Body.h>
-#include <Box2D/Dynamics/Joints/b2Joint.h>
+
+#include <box2d/box2d.h>
+
+// #include <Box2D/Dynamics/b2Body.h>
+// #include <Box2D/Dynamics/Joints/b2Joint.h>
 
 #include <dlib/log.h>
 #include <gameobject/script.h>
@@ -43,17 +46,17 @@ namespace dmGameSystem
 
     struct B2DLuaBody
     {
-        b2Body*                   m_Body;
+        b2BodyId*                 m_Body;
         dmGameObject::HCollection m_Collection;
         dmhash_t                  m_InstanceId;
     };
 
-    void PushBody(lua_State* L, b2Body* body, dmGameObject::HCollection collection, dmhash_t instance_id)
+    void PushBody(lua_State* L, b2BodyId* body, dmGameObject::HCollection collection, dmhash_t instance_id)
     {
         B2DLuaBody* luabody = (B2DLuaBody*)lua_newuserdata(L, sizeof(B2DLuaBody));
-        luabody->m_Body = body;
-        luabody->m_Collection = collection;
-        luabody->m_InstanceId = instance_id;
+        // luabody->m_Body = body;
+        // luabody->m_Collection = collection;
+        // luabody->m_InstanceId = instance_id;
         luaL_getmetatable(L, BOX2D_TYPE_NAME_BODY);
         lua_setmetatable(L, -2);
     }
@@ -76,370 +79,371 @@ namespace dmGameSystem
         return 0;
     }
 
-    b2Body* CheckBody(lua_State* L, int index)
+    b2BodyId* CheckBody(lua_State* L, int index)
     {
         B2DLuaBody* luabody = CheckBodyInternal(L, index);
         VerifyBodyInternal(L, luabody);
-        return luabody->m_Body;
+        // return luabody->m_Body;
+        return 0;
     }
 
-    static b2Body* ToBody(lua_State* L, int index)
+    static b2BodyId* ToBody(lua_State* L, int index)
     {
-        return (b2Body*)dmScript::ToUserType(L, index, TYPE_HASH_BODY);
+        return (b2BodyId*)dmScript::ToUserType(L, index, TYPE_HASH_BODY);
     }
 
     static int Body_GetPosition(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        b2Body* body = CheckBody(L, 1);
-        dmScript::PushVector3(L, FromB2(body->GetPosition(), GetInvPhysicsScale()));
+        b2BodyId* body = CheckBody(L, 1);
+        // // dmScript::PushVector3(L, FromB2(body->GetPosition(), GetInvPhysicsScale()));
         return 1;
     }
 
     static int Body_SetTransform(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        b2Body* body = CheckBody(L, 1);
+        b2BodyId* body = CheckBody(L, 1);
         b2Vec2 position = CheckVec2(L, 2, GetPhysicsScale());
         float angle = luaL_checknumber(L, 3);
-        body->SetTransform(position, angle);
+        // // body->SetTransform(position, angle);
         return 0;
     }
 
     static int Body_ApplyForce(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        b2Body* body = CheckBody(L, 1);
+        b2BodyId* body = CheckBody(L, 1);
         b2Vec2 force = CheckVec2(L, 2, GetPhysicsScale());
         b2Vec2 position = CheckVec2(L, 3, GetPhysicsScale());
-        body->ApplyForce(force, position);
+        // body->ApplyForce(force, position);
         return 0;
     }
 
     static int Body_ApplyForceToCenter(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        b2Body* body = CheckBody(L, 1);
+        b2BodyId* body = CheckBody(L, 1);
         b2Vec2 force = CheckVec2(L, 2, GetPhysicsScale());
-        body->ApplyForceToCenter(force);
+        // body->ApplyForceToCenter(force);
         return 0;
     }
 
     static int Body_ApplyTorque(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        b2Body* body = CheckBody(L, 1);
-        body->ApplyTorque(luaL_checknumber(L, 2));
+        b2BodyId* body = CheckBody(L, 1);
+        // body->ApplyTorque(luaL_checknumber(L, 2));
         return 0;
     }
 
     static int Body_ApplyLinearImpulse(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        b2Body* body = CheckBody(L, 1);
+        b2BodyId* body = CheckBody(L, 1);
         b2Vec2 impulse = CheckVec2(L, 2, GetPhysicsScale());
         b2Vec2 position = CheckVec2(L, 3, GetPhysicsScale()); // position relative center of body
-        body->ApplyLinearImpulse(impulse, position);
+        // body->ApplyLinearImpulse(impulse, position);
         return 0;
     }
 
     static int Body_ApplyAngularImpulse(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        b2Body* body = CheckBody(L, 1);
-        body->ApplyAngularImpulse(luaL_checknumber(L, 2));
+        b2BodyId* body = CheckBody(L, 1);
+        // body->ApplyAngularImpulse(luaL_checknumber(L, 2));
         return 0;
     }
 
     static int Body_GetMass(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        b2Body* body = CheckBody(L, 1);
-        lua_pushnumber(L, body->GetMass());
+        b2BodyId* body = CheckBody(L, 1);
+        // lua_pushnumber(L, body->GetMass());
         return 1;
     }
 
     static int Body_GetInertia(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        b2Body* body = CheckBody(L, 1);
-        lua_pushnumber(L, body->GetInertia());
+        b2BodyId* body = CheckBody(L, 1);
+        // lua_pushnumber(L, body->GetInertia());
         return 1;
     }
 
     static int Body_GetAngle(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        b2Body* body = CheckBody(L, 1);
-        lua_pushnumber(L, body->GetAngle());
+        b2BodyId* body = CheckBody(L, 1);
+        // lua_pushnumber(L, body->GetAngle());
         return 1;
     }
 
     static int Body_GetWorldCenter(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        b2Body* body = CheckBody(L, 1);
-        dmScript::PushVector3(L, FromB2(body->GetWorldCenter(), GetInvPhysicsScale()));
+        b2BodyId* body = CheckBody(L, 1);
+        // dmScript::PushVector3(L, FromB2(body->GetWorldCenter(), GetInvPhysicsScale()));
         return 1;
     }
 
     static int Body_GetLocalCenter(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        b2Body* body = CheckBody(L, 1);
-        dmScript::PushVector3(L, FromB2(body->GetLocalCenter(), GetInvPhysicsScale()));
+        b2BodyId* body = CheckBody(L, 1);
+        // dmScript::PushVector3(L, FromB2(body->GetLocalCenter(), GetInvPhysicsScale()));
         return 1;
     }
 
     static int Body_GetForce(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        b2Body* body = CheckBody(L, 1);
-        dmScript::PushVector3(L, FromB2(body->GetForce(), GetInvPhysicsScale()));
+        b2BodyId* body = CheckBody(L, 1);
+        // dmScript::PushVector3(L, FromB2(body->GetForce(), GetInvPhysicsScale()));
         return 1;
     }
 
     static int Body_GetLinearVelocity(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        b2Body* body = CheckBody(L, 1);
-        dmScript::PushVector3(L, FromB2(body->GetLinearVelocity(), GetInvPhysicsScale()));
+        b2BodyId* body = CheckBody(L, 1);
+        // dmScript::PushVector3(L, FromB2(body->GetLinearVelocity(), GetInvPhysicsScale()));
         return 1;
     }
 
     static int Body_SetLinearVelocity(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        b2Body* body = CheckBody(L, 1);
+        b2BodyId* body = CheckBody(L, 1);
         b2Vec2 velocity = CheckVec2(L, 2, GetPhysicsScale());
-        body->SetLinearVelocity(velocity);
+        // body->SetLinearVelocity(velocity);
         return 0;
     }
 
     static int Body_GetAngularVelocity(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        b2Body* body = CheckBody(L, 1);
-        lua_pushnumber(L, body->GetAngularVelocity());
+        b2BodyId* body = CheckBody(L, 1);
+        // lua_pushnumber(L, body->GetAngularVelocity());
         return 1;
     }
 
     static int Body_SetAngularVelocity(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        b2Body* body = CheckBody(L, 1);
-        body->SetAngularVelocity(luaL_checknumber(L, 2));
+        b2BodyId* body = CheckBody(L, 1);
+        // body->SetAngularVelocity(luaL_checknumber(L, 2));
         return 0;
     }
 
     static int Body_GetLinearDamping(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        b2Body* body = CheckBody(L, 1);
-        lua_pushnumber(L, body->GetLinearDamping());
+        b2BodyId* body = CheckBody(L, 1);
+        // lua_pushnumber(L, body->GetLinearDamping());
         return 1;
     }
 
     static int Body_SetLinearDamping(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        b2Body* body = CheckBody(L, 1);
-        body->SetLinearDamping(luaL_checknumber(L, 2));
+        b2BodyId* body = CheckBody(L, 1);
+        // body->SetLinearDamping(luaL_checknumber(L, 2));
         return 0;
     }
 
     static int Body_GetAngularDamping(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        b2Body* body = CheckBody(L, 1);
-        lua_pushnumber(L, body->GetAngularDamping());
+        b2BodyId* body = CheckBody(L, 1);
+        // lua_pushnumber(L, body->GetAngularDamping());
         return 1;
     }
 
     static int Body_SetAngularDamping(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        b2Body* body = CheckBody(L, 1);
-        body->SetAngularDamping(luaL_checknumber(L, 2));
+        b2BodyId* body = CheckBody(L, 1);
+        // body->SetAngularDamping(luaL_checknumber(L, 2));
         return 0;
     }
 
     static int Body_GetGravityScale(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        b2Body* body = CheckBody(L, 1);
-        lua_pushnumber(L, body->GetGravityScale());
+        b2BodyId* body = CheckBody(L, 1);
+        // lua_pushnumber(L, body->GetGravityScale());
         return 1;
     }
 
     static int Body_SetGravityScale(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        b2Body* body = CheckBody(L, 1);
-        body->SetGravityScale(luaL_checknumber(L, 2));
+        b2BodyId* body = CheckBody(L, 1);
+        // body->SetGravityScale(luaL_checknumber(L, 2));
         return 0;
     }
 
     static int Body_GetType(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        b2Body* body = CheckBody(L, 1);
-        lua_pushnumber(L, body->GetType());
+        b2BodyId* body = CheckBody(L, 1);
+        // lua_pushnumber(L, body->GetType());
         return 1;
     }
 
     static int Body_SetType(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        b2Body* body = CheckBody(L, 1);
-        body->SetType((b2BodyType)luaL_checknumber(L, 2));
+        b2BodyId* body = CheckBody(L, 1);
+        // body->SetType((b2BodyType)luaL_checknumber(L, 2));
         return 0;
     }
 
     static int Body_IsBullet(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        b2Body* body = CheckBody(L, 1);
-        lua_pushboolean(L, body->IsBullet());
+        b2BodyId* body = CheckBody(L, 1);
+        // lua_pushboolean(L, body->IsBullet());
         return 1;
     }
 
     static int Body_SetBullet(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        b2Body* body = CheckBody(L, 1);
+        b2BodyId* body = CheckBody(L, 1);
         bool enable = lua_toboolean(L, 2);
-        body->SetBullet(enable);
+        // body->SetBullet(enable);
         return 0;
     }
 
     static int Body_IsAwake(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        b2Body* body = CheckBody(L, 1);
-        lua_pushboolean(L, body->IsAwake());
+        b2BodyId* body = CheckBody(L, 1);
+        // lua_pushboolean(L, body->IsAwake());
         return 1;
     }
 
     static int Body_SetAwake(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        b2Body* body = CheckBody(L, 1);
+        b2BodyId* body = CheckBody(L, 1);
         bool enable = lua_toboolean(L, 2);
-        body->SetAwake(enable);
+        // body->SetAwake(enable);
         return 0;
     }
 
     static int Body_IsFixedRotation(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        b2Body* body = CheckBody(L, 1);
-        lua_pushboolean(L, body->IsFixedRotation());
+        b2BodyId* body = CheckBody(L, 1);
+        // lua_pushboolean(L, body->IsFixedRotation());
         return 1;
     }
 
     static int Body_SetFixedRotation(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        b2Body* body = CheckBody(L, 1);
+        b2BodyId* body = CheckBody(L, 1);
         bool enable = lua_toboolean(L, 2);
-        body->SetFixedRotation(enable);
+        // body->SetFixedRotation(enable);
         return 0;
     }
 
     static int Body_IsSleepingAllowed(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        b2Body* body = CheckBody(L, 1);
-        lua_pushboolean(L, body->IsSleepingAllowed());
+        b2BodyId* body = CheckBody(L, 1);
+        // lua_pushboolean(L, body->IsSleepingAllowed());
         return 1;
     }
 
     static int Body_SetSleepingAllowed(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        b2Body* body = CheckBody(L, 1);
+        b2BodyId* body = CheckBody(L, 1);
         bool enable = lua_toboolean(L, 2);
-        body->SetSleepingAllowed(enable);
+        // body->SetSleepingAllowed(enable);
         return 0;
     }
 
     static int Body_IsActive(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        b2Body* body = CheckBody(L, 1);
-        lua_pushboolean(L, body->IsActive());
+        b2BodyId* body = CheckBody(L, 1);
+        // lua_pushboolean(L, body->IsActive());
         return 1;
     }
 
     static int Body_SetActive(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        b2Body* body = CheckBody(L, 1);
+        b2BodyId* body = CheckBody(L, 1);
         bool enable = lua_toboolean(L, 2);
-        body->SetActive(enable);
+        // body->SetActive(enable);
         return 0;
     }
 
     static int Body_GetWorldPoint(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        b2Body* body = CheckBody(L, 1);
+        b2BodyId* body = CheckBody(L, 1);
         b2Vec2 p = CheckVec2(L, 1, GetPhysicsScale());
-        dmScript::PushVector3(L, FromB2(body->GetWorldPoint(p), GetInvPhysicsScale()));
+        // dmScript::PushVector3(L, FromB2(body->GetWorldPoint(p), GetInvPhysicsScale()));
         return 1;
     }
 
     static int Body_GetWorldVector(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        b2Body* body = CheckBody(L, 1);
+        b2BodyId* body = CheckBody(L, 1);
         b2Vec2 p = CheckVec2(L, 1, GetPhysicsScale());
-        dmScript::PushVector3(L, FromB2(body->GetWorldVector(p), GetInvPhysicsScale()));
+        // dmScript::PushVector3(L, FromB2(body->GetWorldVector(p), GetInvPhysicsScale()));
         return 1;
     }
 
     static int Body_GetLocalPoint(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        b2Body* body = CheckBody(L, 1);
+        b2BodyId* body = CheckBody(L, 1);
         b2Vec2 p = CheckVec2(L, 1, GetPhysicsScale());
-        dmScript::PushVector3(L, FromB2(body->GetLocalPoint(p), GetInvPhysicsScale()));
+        // dmScript::PushVector3(L, FromB2(body->GetLocalPoint(p), GetInvPhysicsScale()));
         return 1;
     }
 
     static int Body_GetLocalVector(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        b2Body* body = CheckBody(L, 1);
+        b2BodyId* body = CheckBody(L, 1);
         b2Vec2 p = CheckVec2(L, 1, GetPhysicsScale());
-        dmScript::PushVector3(L, FromB2(body->GetLocalVector(p), GetInvPhysicsScale()));
+        // dmScript::PushVector3(L, FromB2(body->GetLocalVector(p), GetInvPhysicsScale()));
         return 1;
     }
 
     static int Body_GetLinearVelocityFromWorldPoint(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        b2Body* body = CheckBody(L, 1);
+        b2BodyId* body = CheckBody(L, 1);
         b2Vec2 p = CheckVec2(L, 1, GetPhysicsScale());
-        dmScript::PushVector3(L, FromB2(body->GetLinearVelocityFromWorldPoint(p), GetInvPhysicsScale()));
+        // dmScript::PushVector3(L, FromB2(body->GetLinearVelocityFromWorldPoint(p), GetInvPhysicsScale()));
         return 1;
     }
 
     static int Body_GetLinearVelocityFromLocalPoint(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        b2Body* body = CheckBody(L, 1);
+        b2BodyId* body = CheckBody(L, 1);
         b2Vec2 p = CheckVec2(L, 1, GetPhysicsScale());
-        dmScript::PushVector3(L, FromB2(body->GetLinearVelocityFromLocalPoint(p), GetInvPhysicsScale()));
+        // dmScript::PushVector3(L, FromB2(body->GetLinearVelocityFromLocalPoint(p), GetInvPhysicsScale()));
         return 1;
     }
 
     static int Body_GetWorld(lua_State *L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        b2Body* body = CheckBody(L, 1);
-        PushWorld(L, body->GetWorld());
+        b2BodyId* body = CheckBody(L, 1);
+        // PushWorld(L, body->GetWorld());
         return 1;
     }
 
@@ -449,10 +453,13 @@ namespace dmGameSystem
         B2DLuaBody* luabody = CheckBodyInternal(L, 1);
         VerifyBodyInternal(L, luabody);
 
-        b2Body* next = luabody->m_Body->GetNext();
-        if (next)
+        // b2BodyId* next = luabody->m_Body->GetNext();
+        // if (next)
+        if (false)
         {
-            void* next_user_data = next->GetUserData(); // The component. See CompCollisionObjectCreate in comp_collision_object.cpp
+            // void* next_user_data = next->GetUserData(); // The component. See CompCollisionObjectCreate in comp_collision_object.cpp
+
+            void* next_user_data= 0; 
 
             dmGameObject::HInstance instance = 0;
             if (next_user_data)
@@ -466,7 +473,7 @@ namespace dmGameSystem
                 id = dmGameObject::GetIdentifier(instance);
             }
 
-            PushBody(L, next, luabody->m_Collection, id);
+            // PushBody(L, next, luabody->m_Collection, id);
         }
         else
         {
@@ -478,22 +485,22 @@ namespace dmGameSystem
     static int Body_Dump(lua_State *L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        b2Body* body = CheckBody(L, 1);
-        body->Dump();
+        b2BodyId* body = CheckBody(L, 1);
+        // body->Dump();
         return 0;
     }
 
     static int Body_tostring(lua_State *L)
     {
-        b2Body* body = CheckBody(L, 1);
+        b2BodyId* body = CheckBody(L, 1);
         lua_pushfstring(L, "Box2D.%s = %p", BOX2D_TYPE_NAME_BODY, body);
         return 1;
     }
 
     static int Body_eq(lua_State *L)
     {
-        b2Body* a = ToBody(L, 1);
-        b2Body* b = ToBody(L, 2);
+        b2BodyId* a = ToBody(L, 1);
+        b2BodyId* b = ToBody(L, 2);
         lua_pushboolean(L, a && b && a == b);
         return 1;
     }

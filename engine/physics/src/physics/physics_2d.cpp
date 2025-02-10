@@ -22,8 +22,8 @@
 #include <dlib/math.h>
 #include <dlib/profile.h>
 
-#include <Box2D/Box2D.h>
-#include <Box2D/Dynamics/Contacts/b2ContactSolver.h>
+#include <box2d/box2d.h>
+// #include <box2d/Dynamics/Contacts/b2ContactSolver.h>
 
 #include "physics_2d.h"
 
@@ -34,7 +34,7 @@ namespace dmPhysics
     Context2D::Context2D()
     : m_Worlds()
     , m_DebugCallbacks()
-    , m_Gravity(0.0f, -10.0f)
+    //, m_Gravity(0.0f, -10.0f)
     , m_Socket(0)
     , m_Scale(1.0f)
     , m_InvScale(1.0f)
@@ -44,16 +44,17 @@ namespace dmPhysics
     , m_TriggerOverlapCapacity(0)
     , m_AllowDynamicTransforms(0)
     {
-
+        m_Gravity.x = 0.0f;
+        m_Gravity.y = -10.0f;
     }
 
     World2D::World2D(HContext2D context, const NewWorldParams& params)
     : m_TriggerOverlaps(context->m_TriggerOverlapCapacity)
     , m_Context(context)
-    , m_World(context->m_Gravity)
+    //, m_World(context->m_Gravity)
     , m_RayCastRequests()
-    , m_DebugDraw(&context->m_DebugCallbacks)
-    , m_ContactListener(this)
+    //, m_DebugDraw(&context->m_DebugCallbacks)
+    //, m_ContactListener(this)
     , m_GetWorldTransformCallback(params.m_GetWorldTransformCallback)
     , m_SetWorldTransformCallback(params.m_SetWorldTransformCallback)
     , m_AllowDynamicTransforms(context->m_AllowDynamicTransforms)
@@ -62,6 +63,7 @@ namespace dmPhysics
         OverlapCacheInit(&m_TriggerOverlaps);
     }
 
+    /*
     class ProcessRayCastResultCallback2D : public b2RayCastCallback
     {
     public:
@@ -87,7 +89,7 @@ namespace dmPhysics
         /// @param normal the normal vector at the point of intersection
         /// @return -1 to filter, 0 to terminate, fraction to clip the ray for
         /// closest hit, 1 to continue
-        virtual float32 ReportFixture(b2Fixture* fixture, int32 index, const b2Vec2& point, const b2Vec2& normal, float32 fraction);
+        virtual float ReportFixture(b2Fixture* fixture, int32_t index, const b2Vec2& point, const b2Vec2& normal, float fraction);
 
         HContext2D                  m_Context;
         RayCastResponse             m_Response;
@@ -100,8 +102,10 @@ namespace dmPhysics
         uint16_t                m_ReturnAllResults:1;
         uint16_t                :15;
     };
+    */
 
-    float32 ProcessRayCastResultCallback2D::ReportFixture(b2Fixture* fixture, int32_t index, const b2Vec2& point, const b2Vec2& normal, float32 fraction)
+    /*
+    float ProcessRayCastResultCallback2D::ReportFixture(b2Fixture* fixture, int32_t index, const b2Vec2& point, const b2Vec2& normal, float fraction)
     {
         // Never hit triggers
         if (fixture->IsSensor())
@@ -131,7 +135,9 @@ namespace dmPhysics
         else
             return -1.f;
     }
+    */
 
+    /*
     ContactListener::ContactListener(HWorld2D world)
     : m_World(world)
     {
@@ -148,7 +154,7 @@ namespace dmPhysics
             {
                 // verify that the impulse is large enough to be reported
                 float max_impulse = 0.0f;
-                for (int32 i = 0; i < impulse->count; ++i)
+                for (int32_t i = 0; i < impulse->count; ++i)
                 {
                     max_impulse = dmMath::Max(max_impulse, impulse->normalImpulses[i]);
                 }
@@ -174,8 +180,8 @@ namespace dmPhysics
                     b2WorldManifold world_manifold;
                     contact->GetWorldManifold(&world_manifold);
                     float inv_scale = m_World->m_Context->m_InvScale;
-                    int32 n_p = dmMath::Min(contact->GetManifold()->pointCount, impulse->count);
-                    for (int32 i = 0; i < n_p; ++i)
+                    int32_t n_p = dmMath::Min(contact->GetManifold()->pointCount, impulse->count);
+                    for (int32_t i = 0; i < n_p; ++i)
                     {
                         ContactPoint cp;
                         FromB2(world_manifold.points[i], cp.m_PositionA, inv_scale);
@@ -202,6 +208,7 @@ namespace dmPhysics
     {
         m_TempStepWorldContext = context;
     }
+    */
 
     HContext2D NewContext2D(const NewContextParams& params)
     {
@@ -221,7 +228,9 @@ namespace dmPhysics
         context->m_TriggerOverlapCapacity = params.m_TriggerOverlapCapacity;
         context->m_VelocityThreshold = params.m_VelocityThreshold;
         context->m_AllowDynamicTransforms = params.m_AllowDynamicTransforms;
-        b2ContactSolver::setVelocityThreshold(params.m_VelocityThreshold * params.m_Scale); // overrides fixed b2_velocityThreshold in b2Settings.h. Includes compensation for the scale factor so that velocityThreshold corresponds to the velocity values used in the game.
+
+        // b2ContactSolver::setVelocityThreshold(params.m_VelocityThreshold * params.m_Scale); // overrides fixed b2_velocityThreshold in b2Settings.h. Includes compensation for the scale factor so that velocityThreshold corresponds to the velocity values used in the game.
+
         dmMessage::Result result = dmMessage::NewSocket(PHYSICS_SOCKET_NAME, &context->m_Socket);
         if (result != dmMessage::RESULT_OK && result != dmMessage::RESULT_SOCKET_EXISTS)
         {
@@ -258,9 +267,10 @@ namespace dmPhysics
             return 0x0;
         }
         World2D* world = new World2D(context, params);
-        world->m_World.SetDebugDraw(&world->m_DebugDraw);
-        world->m_World.SetContactListener(&world->m_ContactListener);
-        world->m_World.SetContinuousPhysics(false);
+
+        // world->m_World.SetDebugDraw(&world->m_DebugDraw);
+        // world->m_World.SetContactListener(&world->m_ContactListener);
+        // world->m_World.SetContinuousPhysics(false);
 
         context->m_Worlds.Push(world);
         return world;
@@ -276,7 +286,7 @@ namespace dmPhysics
 
     void* GetWorldContext2D(HWorld2D world)
     {
-        return (void*)&world->m_World;
+        return (void*)&world->m_WorldId;
     }
 
     void* GetCollisionObjectContext2D(HCollisionObject2D collision_object)
@@ -284,48 +294,54 @@ namespace dmPhysics
         return (void*) collision_object;
     }
 
-    static void UpdateOverlapCache(OverlapCache* cache, HContext2D context, b2Contact* contact_list, const StepWorldContext& step_context);
+    // static void UpdateOverlapCache(OverlapCache* cache, HContext2D context, b2Contact* contact_list, const StepWorldContext& step_context);
 
     static inline b2Vec2 FlipPoint(b2Vec2 p, float horizontal, float vertical)
     {
-        return b2Vec2(p.x * horizontal, p.y * vertical);
+        p.x *= horizontal;
+        p.y *= vertical;
+        return p;
+        // return b2Vec2(p.x * horizontal, p.y * vertical);
     }
 
-    static void FlipPolygon(b2PolygonShape* shape, float horizontal, float vertical)
+    static void FlipPolygon(b2Polygon* shape, float horizontal, float vertical)
     {
-        shape->m_centroid = FlipPoint(shape->m_centroid, horizontal, vertical);
-        int count = shape->m_vertexCount;
+        shape->centroid = FlipPoint(shape->centroid, horizontal, vertical);
+        int count = shape->count;
 
         for (int i = 0; i < count; ++i)
         {
-            shape->m_vertices[i] = FlipPoint(shape->m_vertices[i], horizontal, vertical);
-            shape->m_verticesOriginal[i] = FlipPoint(shape->m_verticesOriginal[i], horizontal, vertical);
+            shape->vertices[i] = FlipPoint(shape->vertices[i], horizontal, vertical);
+            // shape->m_verticesOriginal[i] = FlipPoint(shape->m_verticesOriginal[i], horizontal, vertical);
         }
 
         // Switch the winding of the polygon
         for (int i = 0; i < count/2; ++i)
         {
             b2Vec2 tmp;
-            tmp = shape->m_vertices[i];
-            shape->m_vertices[i] = shape->m_vertices[count-i-1];
-            shape->m_vertices[count-i-1] = tmp;
+            tmp = shape->vertices[i];
+            shape->vertices[i] = shape->vertices[count-i-1];
+            shape->vertices[count-i-1] = tmp;
 
-            tmp = shape->m_verticesOriginal[i];
-            shape->m_verticesOriginal[i] = shape->m_verticesOriginal[count-i-1];
-            shape->m_verticesOriginal[count-i-1] = tmp;
+            // tmp = shape->m_verticesOriginal[i];
+            // shape->m_verticesOriginal[i] = shape->m_verticesOriginal[count-i-1];
+            // shape->m_verticesOriginal[count-i-1] = tmp;
         }
 
         // Recalculate the normals
         for (int i = 0; i < count; ++i)
         {
-            b2Vec2 n = shape->m_vertices[(i+1)%count] - shape->m_vertices[i];
-            n.Normalize();
-            shape->m_normals[i] = b2Vec2(n.y, -n.x);
+            b2Vec2 n = b2Normalize(shape->vertices[(i+1)%count] - shape->vertices[i]);
+
+            // n.Normalize();
+            shape->normals[i].x = n.y; //  = b2Vec2(n.y, -n.x);
+            shape->normals[i].y = -n.x;
         }
     }
 
     static void FlipBody(HCollisionObject2D collision_object, float horizontal, float vertical)
     {
+        /*
         b2Body* body = (b2Body*) collision_object;
         b2Fixture* fixture = body->GetFixtureList();
         while (fixture)
@@ -339,7 +355,7 @@ namespace dmPhysics
                 circle_shape->m_creationP = FlipPoint(circle_shape->m_creationP, horizontal, vertical);
             }
             break;
-            case b2Shape::e_polygon:    FlipPolygon((b2PolygonShape*)shape, horizontal, vertical); break;
+            case b2Shape::e_polygon:    FlipPolygon((b2Polygon*)shape, horizontal, vertical); break;
             case b2Shape::e_edge:       // Currently unsupported by the engine
             case b2Shape::e_chain:
             default:
@@ -348,6 +364,7 @@ namespace dmPhysics
             fixture = fixture->GetNext();
         }
         body->SetAwake(true);
+        */
     }
 
     void FlipH2D(HCollisionObject2D collision_object)
@@ -362,7 +379,8 @@ namespace dmPhysics
 
     bool IsWorldLocked(HWorld2D world)
     {
-        return world->m_World.IsLocked();
+        return false;
+        // return world->m_World.IsLocked();
     }
 
     static inline float GetUniformScale2D(dmTransform::Transform& transform)
@@ -371,6 +389,7 @@ namespace dmPhysics
         return dmMath::Min(v[0], v[1]);
     }
 
+    /*
     static void UpdateScale(HWorld2D world, b2Body* body)
     {
         dmTransform::Transform world_transform;
@@ -399,12 +418,12 @@ namespace dmPhysics
                 circle_shape->m_p.Set(p.x * object_scale, p.y * object_scale);
             }
             else if (fix->GetShape()->GetType() == b2Shape::e_polygon) {
-                b2PolygonShape* pshape = (b2PolygonShape*)shape;
+                b2Polygon* pshape = (b2Polygon*)shape;
                 float s = object_scale / shape->m_creationScale;
                 for( int i = 0; i < b2_maxPolygonVertices; ++i)
                 {
                     b2Vec2 p = pshape->m_verticesOriginal[i];
-                    pshape->m_vertices[i].Set(p.x * s, p.y * s);
+                    pshape->vertices[i].Set(p.x * s, p.y * s);
                 }
             }
 
@@ -416,6 +435,7 @@ namespace dmPhysics
             body->SetAwake(true);
         }
     }
+    */
 
     void StepWorld2D(HWorld2D world, const StepWorldContext& step_context)
     {
@@ -430,6 +450,8 @@ namespace dmPhysics
         if (world->m_GetWorldTransformCallback)
         {
             DM_PROFILE("UpdateKinematic");
+
+            /*
             for (b2Body* body = world->m_World.GetBodyList(); body; body = body->GetNext())
             {
                 bool retrieve_gameworld_transform = world->m_AllowDynamicTransforms && body->GetType() != b2_staticBody;
@@ -468,9 +490,12 @@ namespace dmPhysics
                     UpdateScale(world, body);
                 }
             }
+            */
         }
         {
             DM_PROFILE("StepSimulation");
+
+            /*
             world->m_ContactListener.SetStepWorldContext(&step_context);
             world->m_World.Step(dt, 10, 10);
             float inv_scale = world->m_Context->m_InvScale;
@@ -488,12 +513,15 @@ namespace dmPhysics
                     }
                 }
             }
+            */
         }
         // Perform requested ray casts
         uint32_t size = world->m_RayCastRequests.Size();
         if (size > 0)
         {
             DM_PROFILE("RayCasts");
+
+            /*
             ProcessRayCastResultCallback2D callback;
             callback.m_Context = world->m_Context;
             for (uint32_t i = 0; i < size; ++i)
@@ -509,12 +537,15 @@ namespace dmPhysics
                 world->m_World.RayCast(&callback, from, to);
                 (*step_context.m_RayCastCallback)(callback.m_Response, request, step_context.m_RayCastUserData);
             }
+            */
             world->m_RayCastRequests.SetSize(0);
         }
         // Report sensor collisions
         if (step_context.m_CollisionCallback)
         {
             DM_PROFILE("CollisionCallbacks");
+
+            /*
             for (b2Contact* contact = world->m_World.GetContactList(); contact; contact = contact->GetNext())
             {
                 b2Fixture* fixture_a = contact->GetFixtureA();
@@ -530,12 +561,15 @@ namespace dmPhysics
                                                 step_context.m_CollisionUserData);
                 }
             }
+            */
         }
-        UpdateOverlapCache(&world->m_TriggerOverlaps, context, world->m_World.GetContactList(), step_context);
 
-        world->m_World.DrawDebugData();
+        //UpdateOverlapCache(&world->m_TriggerOverlaps, context, world->m_World.GetContactList(), step_context);
+
+        //world->m_World.DrawDebugData();
     }
 
+    /*
     void UpdateOverlapCache(OverlapCache* cache, HContext2D context, b2Contact* contact_list, const StepWorldContext& step_context)
     {
         DM_PROFILE("TriggerCallbacks");
@@ -551,7 +585,7 @@ namespace dmPhysics
             {
                 float max_distance = 0.0f;
                 b2Manifold* manifold = contact->GetManifold();
-                for (int32 i = 0; i < manifold->pointCount; ++i)
+                for (int32_t i = 0; i < manifold->pointCount; ++i)
                 {
                     max_distance = dmMath::Max(max_distance, manifold->points[i].distance);
                 }
@@ -576,37 +610,46 @@ namespace dmPhysics
         prune_data.m_TriggerExitedUserData = step_context.m_TriggerExitedUserData;
         OverlapCachePrune(cache, prune_data);
     }
+    */
 
     void SetDrawDebug2D(HWorld2D world, bool draw_debug)
     {
         int flags = 0;
+        /*
         if (draw_debug)
         {
             flags = b2Draw::e_jointBit | b2Draw::e_pairBit | b2Draw::e_shapeBit;
         }
 
         world->m_DebugDraw.SetFlags(flags);
+        */
     }
 
     HCollisionShape2D NewCircleShape2D(HContext2D context, float radius)
     {
+        /*
         b2CircleShape* shape = new b2CircleShape();
         shape->m_p = b2Vec2(0.0f, 0.0f);
         shape->m_radius = radius * context->m_Scale;
         return shape;
+        */
+        return 0;
     }
 
     HCollisionShape2D NewBoxShape2D(HContext2D context, const Vector3& half_extents)
     {
-        b2PolygonShape* shape = new b2PolygonShape();
         float scale = context->m_Scale;
-        shape->SetAsBox(half_extents.getX() * scale, half_extents.getY() * scale);
+        b2Polygon box = b2MakeBox(half_extents.getX() * scale, half_extents.getY() * scale);
+
+        b2Polygon* shape = new b2Polygon();
+        memcpy(shape, &box, sizeof(b2Polygon));
         return shape;
     }
 
     HCollisionShape2D NewPolygonShape2D(HContext2D context, const float* vertices, uint32_t vertex_count)
     {
-        b2PolygonShape* shape = new b2PolygonShape();
+        /*
+        b2Polygon* shape = new b2Polygon();
         float scale = context->m_Scale;
         const uint32_t elem_count = vertex_count * 2;
         float* v = new float[elem_count];
@@ -617,11 +660,14 @@ namespace dmPhysics
         shape->Set((b2Vec2*)v, vertex_count);
         delete [] v;
         return shape;
+        */
+        return 0;
     }
 
     HHullSet2D NewHullSet2D(HContext2D context, const float* vertices, uint32_t vertex_count,
                             const HullDesc* hulls, uint32_t hull_count)
     {
+        /*
         assert(sizeof(HullDesc) == sizeof(const b2HullSet::Hull));
         // NOTE: We cast HullDesc* to const b2HullSet::Hull* here
         // We assume that they have the same physical layout
@@ -629,11 +675,13 @@ namespace dmPhysics
         b2HullSet* hull_set = new b2HullSet((const b2Vec2*) vertices, vertex_count,
                              (const b2HullSet::Hull*) hulls, hull_count);
         return hull_set;
+        */
+        return 0;
     }
 
     void DeleteHullSet2D(HHullSet2D hull_set)
     {
-        delete (b2HullSet*) hull_set;
+        // delete (b2HullSet*) hull_set;
     }
 
     HCollisionShape2D NewGridShape2D(HContext2D context, HHullSet2D hull_set,
@@ -641,14 +689,18 @@ namespace dmPhysics
                                      uint32_t cell_width, uint32_t cell_height,
                                      uint32_t row_count, uint32_t column_count)
     {
+        /*
         float scale = context->m_Scale;
         b2Vec2 p;
         ToB2(position, p, scale);
         return new b2GridShape((b2HullSet*) hull_set, p, cell_width * scale, cell_height * scale, row_count, column_count);
+        */
+        return 0;
     }
 
     void ClearGridShapeHulls(HCollisionObject2D collision_object)
     {
+        /*
         b2Body* body = (b2Body*) collision_object;
         b2Fixture* fixture = body->GetFixtureList();
         while (fixture != 0x0)
@@ -660,8 +712,10 @@ namespace dmPhysics
             }
             fixture = fixture->GetNext();
         }
+        */
     }
 
+    /*
     static inline b2Fixture* GetFixture(b2Body* body, uint32_t index)
     {
         b2Fixture* fixture = body->GetFixtureList();
@@ -681,9 +735,11 @@ namespace dmPhysics
         }
         return (b2GridShape*) fixture->GetShape();
     }
+    */
 
     bool SetGridShapeHull(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t row, uint32_t column, uint32_t hull, HullFlags flags)
     {
+        /*
         b2Body* body = (b2Body*) collision_object;
         b2GridShape* grid_shape = GetGridShape(body, shape_index);
         if (grid_shape == 0)
@@ -696,10 +752,14 @@ namespace dmPhysics
         f.m_Rotate90 = flags.m_Rotate90;
         grid_shape->SetCellHull(body, row, column, hull, f);
         return true;
+        */
+
+        return false;
     }
 
     bool SetGridShapeEnable(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t enable)
     {
+        /*
         b2Body* body = (b2Body*) collision_object;
         b2Fixture* fixture = GetFixture(body, shape_index);
         if (fixture == 0)
@@ -718,22 +778,26 @@ namespace dmPhysics
             body->PurgeContacts(fixture);
         }
         return true;
+        */
+        return false;
     }
 
     void SetCollisionObjectFilter(HCollisionObject2D collision_shape,
                                   uint32_t shape, uint32_t child,
                                   uint16_t group, uint16_t mask)
     {
+        /*
         b2Fixture* fixture = GetFixture((b2Body*) collision_shape, shape);
         b2Filter filter = fixture->GetFilterData(child);
         filter.categoryBits = group;
         filter.maskBits = mask;
         fixture->SetFilterData(filter, child);
+        */
     }
 
     void DeleteCollisionShape2D(HCollisionShape2D shape)
     {
-        delete (b2Shape*)shape;
+        // delete (b2Shape*)shape;
     }
 
     HCollisionObject2D NewCollisionObject2D(HWorld2D world, const CollisionObjectData& data, HCollisionShape2D* shapes, uint32_t shape_count)
@@ -770,6 +834,7 @@ namespace dmPhysics
      *  c = (1 - 2 * q.z * q.z, 2 * q.z * q.w)
      *
      */
+    /*
     static b2Shape* TransformCopyShape(HContext2D context,
                                        const b2Shape* shape,
                                        const Vector3& translation,
@@ -819,12 +884,12 @@ namespace dmPhysics
 
         case b2Shape::e_polygon:
         {
-            const b2PolygonShape* poly_shape = (const b2PolygonShape*) shape;
-            b2PolygonShape* poly_shape_prim = new b2PolygonShape(*poly_shape);
+            const b2Polygon* poly_shape = (const b2Polygon*) shape;
+            b2Polygon* poly_shape_prim = new b2Polygon(*poly_shape);
 
             b2Vec2 tmp[b2_maxPolygonVertices];
-            int32 n = poly_shape->GetVertexCount();
-            for (int32 i = 0; i < n; ++i)
+            int32_t n = poly_shape->GetVertexCount();
+            for (int32_t i = 0; i < n; ++i)
             {
                 tmp[i] = TransformScaleB2(transform, scale, poly_shape->GetVertex(i));
             }
@@ -853,7 +918,9 @@ namespace dmPhysics
             ret->m_creationScale = scale;
         return ret;
     }
+    */
 
+    /*
     static void FreeShape(const b2Shape* shape)
     {
         switch(shape->m_type)
@@ -874,7 +941,7 @@ namespace dmPhysics
 
         case b2Shape::e_polygon:
         {
-            b2PolygonShape* poly_shape = (b2PolygonShape*) shape;
+            b2Polygon* poly_shape = (b2Polygon*) shape;
             delete poly_shape;
         }
         break;
@@ -891,6 +958,7 @@ namespace dmPhysics
             break;
         }
     }
+    */
 
     /*
      * NOTE: In order to support shape transform we create a copy of shapes using the function TransformCopyShape() above
@@ -936,7 +1004,9 @@ namespace dmPhysics
                 Point3 position = Point3(world_transform.GetTranslation());
                 Quat rotation = Quat(world_transform.GetRotation());
                 ToB2(position, def.position, context->m_Scale);
-                def.angle = atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()), 1.0f - 2.0f * (rotation.getY() * rotation.getY() + rotation.getZ() * rotation.getZ()));
+
+                // def.angle = atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()), 1.0f - 2.0f * (rotation.getY() * rotation.getY() + rotation.getZ() * rotation.getZ()));
+
                 scale = GetUniformScale2D(world_transform);
             }
             else
@@ -960,6 +1030,8 @@ namespace dmPhysics
         def.linearDamping = data.m_LinearDamping;
         def.angularDamping = data.m_AngularDamping;
         def.fixedRotation = data.m_LockedRotation;
+
+        /*
         def.bullet = data.m_Bullet;
         def.active = data.m_Enabled;
         b2Body* body = world->m_World.CreateBody(&def);
@@ -993,6 +1065,8 @@ namespace dmPhysics
         }
         UpdateMass2D(body, data.m_Mass);
         return body;
+        */
+        return 0;
     }
 
     void DeleteCollisionObject2D(HWorld2D world, HCollisionObject2D collision_object)
@@ -1001,8 +1075,9 @@ namespace dmPhysics
         // When the next-pointer is cleared etc. Beware! :-)
         // DestroyBody() should be enough in general but we have to run over all fixtures in order to free allocated shapes
         // See comment above about shapes and transforms
-
         OverlapCacheRemove(&world->m_TriggerOverlaps, collision_object);
+
+        /*
         b2Body* body = (b2Body*)collision_object;
         b2Fixture* fixture = body->GetFixtureList();
         while (fixture)
@@ -1016,10 +1091,12 @@ namespace dmPhysics
             fixture = save_next;
         }
         world->m_World.DestroyBody(body);
+        */
     }
 
     uint32_t GetCollisionShapes2D(HCollisionObject2D collision_object, HCollisionShape2D* out_buffer, uint32_t buffer_size)
     {
+        /*
         b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
         uint32_t i;
         for (i = 0; i < buffer_size && fixture != 0x0; ++i)
@@ -1028,10 +1105,13 @@ namespace dmPhysics
             fixture = fixture->GetNext();
         }
         return i;
+        */
+        return 0;
     }
 
     HCollisionShape2D GetCollisionShape2D(HWorld2D world, HCollisionObject2D collision_object, uint32_t shape_index)
     {
+        /*
         b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
         uint32_t i = 0;
         while(i <= shape_index && fixture)
@@ -1041,45 +1121,53 @@ namespace dmPhysics
             fixture = fixture->GetNext();
             i++;
         }
+        */
         return 0;
     }
 
     void GetCollisionShapeRadius2D(HWorld2D world, HCollisionShape2D _shape, float* radius)
     {
+        /*
         b2Shape* shape = (b2Shape*) _shape;
         *radius = shape->m_radius * world->m_Context->m_InvScale;
+        */
     }
 
     void SetCollisionShapeRadius2D(HWorld2D world, HCollisionShape2D _shape, float radius)
     {
+        /*
         b2Shape* shape = (b2Shape*) _shape;
         shape->m_radius = radius * world->m_Context->m_Scale;
         shape->m_creationScale = shape->m_radius;
+        */
     }
 
     void SynchronizeObject2D(HWorld2D world, HCollisionObject2D collision_object)
     {
-        ((b2Body*)collision_object)->SynchronizeFixtures();
+        // ((b2Body*)collision_object)->SynchronizeFixtures();
     }
 
     void SetCollisionShapeBoxDimensions2D(HWorld2D world, HCollisionShape2D _shape, Quat rotation, float w, float h)
     {
+        /*
         b2Shape* shape = (b2Shape*) _shape;
         if (shape->m_type == b2Shape::e_polygon)
         {
             float angle = atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()), 1.0f - 2.0f * (rotation.getY() * rotation.getY() + rotation.getZ() * rotation.getZ()));
-            b2PolygonShape* polygon_shape = (b2PolygonShape*) _shape;
+            b2Polygon* polygon_shape = (b2Polygon*) _shape;
             float scale = world->m_Context->m_Scale;
-            polygon_shape->SetAsBox(w * scale, h * scale, polygon_shape->m_centroid, angle);
-            for (int32 i = 0; i < polygon_shape->m_vertexCount; ++i)
+            polygon_shape->SetAsBox(w * scale, h * scale, polygon_shape->centroid, angle);
+            for (int32_t i = 0; i < polygon_shape->count; ++i)
             {
-                polygon_shape->m_verticesOriginal[i] = polygon_shape->m_vertices[i];
+                polygon_shape->m_verticesOriginal[i] = polygon_shape->vertices[i];
             }
         }
+        */
     }
 
     void GetCollisionShapeBoxDimensions2D(HWorld2D world, HCollisionShape2D _shape, Quat rotation, float& w, float& h)
     {
+        /*
         b2Shape* shape = (b2Shape*) _shape;
         if (shape->m_type == b2Shape::e_polygon)
         {
@@ -1088,7 +1176,7 @@ namespace dmPhysics
             b2Rot r;
             r.SetComplex(1 - 2 * rotation.getZ() * rotation.getZ(), 2 * rotation.getZ() * rotation.getW());
             b2Transform transform(t, r);
-            b2PolygonShape* polygon_shape = (b2PolygonShape*) _shape;
+            b2Polygon* polygon_shape = (b2Polygon*) _shape;
             b2Vec2* vertices = polygon_shape->m_vertices;
             float min_x = INT32_MAX,
               min_y = INT32_MAX,
@@ -1106,16 +1194,17 @@ namespace dmPhysics
             w = (max_x - min_x);
             h = (max_y - min_y);
         }
+        */
     }
 
     void SetCollisionObjectUserData2D(HCollisionObject2D collision_object, void* user_data)
     {
-        ((b2Body*)collision_object)->SetUserData(user_data);
+        // ((b2Body*)collision_object)->SetUserData(user_data);
     }
 
     void* GetCollisionObjectUserData2D(HCollisionObject2D collision_object)
     {
-        return ((b2Body*)collision_object)->GetUserData();
+        return 0; // return ((b2Body*)collision_object)->GetUserData();
     }
 
     void ApplyForce2D(HContext2D context, HCollisionObject2D collision_object, const Vector3& force, const Point3& position)
@@ -1125,60 +1214,83 @@ namespace dmPhysics
         ToB2(force, b2_force, scale);
         b2Vec2 b2_position;
         ToB2(position, b2_position, scale);
-        ((b2Body*)collision_object)->ApplyForce(b2_force, b2_position);
+        // ((b2Body*)collision_object)->ApplyForce(b2_force, b2_position);
     }
 
     Vector3 GetTotalForce2D(HContext2D context, HCollisionObject2D collision_object)
     {
+        /*
         const b2Vec2& b2_force = ((b2Body*)collision_object)->GetForce();
         Vector3 force;
         FromB2(b2_force, force, context->m_InvScale);
         return force;
+        */
+
+        Vector3 f;
+        return f;
     }
 
     Point3 GetWorldPosition2D(HContext2D context, HCollisionObject2D collision_object)
     {
+        /*
         const b2Vec2& b2_position = ((b2Body*)collision_object)->GetPosition();
         Point3 position;
         FromB2(b2_position, position, context->m_InvScale);
         return position;
+        */
+        Point3 p;
+        return p;
     }
 
     Quat GetWorldRotation2D(HContext2D context, HCollisionObject2D collision_object)
     {
-        float rotation = ((b2Body*)collision_object)->GetAngle();
-        return Quat::rotationZ(rotation);
+        // float rotation = ((b2Body*)collision_object)->GetAngle();
+        // return Quat::rotationZ(rotation);
+        Quat q;
+        return q;
     }
 
     Vector3 GetLinearVelocity2D(HContext2D context, HCollisionObject2D collision_object)
     {
+        /*
         b2Vec2 b2_lin_vel = ((b2Body*)collision_object)->GetLinearVelocity();
         Vector3 lin_vel;
         FromB2(b2_lin_vel, lin_vel, context->m_InvScale);
         return lin_vel;
+        */
+
+        Vector3 v;
+        return v;
     }
 
     Vector3 GetAngularVelocity2D(HContext2D context, HCollisionObject2D collision_object)
     {
+        /*
         float ang_vel = ((b2Body*)collision_object)->GetAngularVelocity();
         return Vector3(0.0f, 0.0f, ang_vel);
+        */
+
+        Vector3 v;
+        return v;
     }
 
     void SetLinearVelocity2D(HContext2D context, HCollisionObject2D collision_object, const Vector3& velocity)
     {
+        /*
         b2Vec2 b2_velocity;
         ToB2(velocity, b2_velocity, context->m_Scale);
         ((b2Body*)collision_object)->SetLinearVelocity(b2_velocity);
+        */
     }
 
     void SetAngularVelocity2D(HContext2D context, HCollisionObject2D collision_object, const Vector3& velocity)
     {
-        ((b2Body*)collision_object)->SetAngularVelocity(velocity.getZ());
+        // ((b2Body*)collision_object)->SetAngularVelocity(velocity.getZ());
     }
 
     bool IsEnabled2D(HCollisionObject2D collision_object)
     {
-        return ((b2Body*)collision_object)->IsActive();
+        return false; // return ((b2Body*)collision_object)->IsActive();
     }
 
     void SetEnabled2D(HWorld2D world, HCollisionObject2D collision_object, bool enabled)
@@ -1188,6 +1300,8 @@ namespace dmPhysics
         // Avoid multiple adds/removes
         if (prev_enabled == enabled)
             return;
+
+        /*
         b2Body* body = ((b2Body*)collision_object);
         body->SetActive(enabled);
         if (enabled)
@@ -1210,65 +1324,74 @@ namespace dmPhysics
             // Reset state
             body->SetAwake(false);
         }
+        */
     }
 
     bool IsSleeping2D(HCollisionObject2D collision_object)
     {
+        /*
         b2Body* body = ((b2Body*)collision_object);
         return !body->IsAwake();
+        */
+        return false;
     }
 
     void Wakeup2D(HCollisionObject2D collision_object)
     {
-        b2Body* body = ((b2Body*)collision_object);
-        body->SetAwake(true);
+        // b2Body* body = ((b2Body*)collision_object);
+        // body->SetAwake(true);
     }
 
     void SetLockedRotation2D(HCollisionObject2D collision_object, bool locked_rotation) {
-        b2Body* body = ((b2Body*)collision_object);
-        body->SetFixedRotation(locked_rotation);
-        if (locked_rotation) {
-            body->SetAngularVelocity(0.0f);
-        }
+        // b2Body* body = ((b2Body*)collision_object);
+        // body->SetFixedRotation(locked_rotation);
+        // if (locked_rotation) {
+        //     body->SetAngularVelocity(0.0f);
+        // }
     }
 
     float GetLinearDamping2D(HCollisionObject2D collision_object) {
-        b2Body* body = ((b2Body*)collision_object);
-        return body->GetLinearDamping();
+        // b2Body* body = ((b2Body*)collision_object);
+        // return body->GetLinearDamping();
+        return 0.0f;
     }
 
     void SetLinearDamping2D(HCollisionObject2D collision_object, float linear_damping) {
-        b2Body* body = ((b2Body*)collision_object);
-        body->SetLinearDamping(linear_damping);
+        // b2Body* body = ((b2Body*)collision_object);
+        // body->SetLinearDamping(linear_damping);
     }
 
     float GetAngularDamping2D(HCollisionObject2D collision_object) {
-        b2Body* body = ((b2Body*)collision_object);
-        return body->GetAngularDamping();
+        // b2Body* body = ((b2Body*)collision_object);
+        // return body->GetAngularDamping();
+        return 0.0f;
     }
 
     void SetAngularDamping2D(HCollisionObject2D collision_object, float angular_damping) {
-        b2Body* body = ((b2Body*)collision_object);
-        body->SetAngularDamping(angular_damping);
+        // b2Body* body = ((b2Body*)collision_object);
+        // body->SetAngularDamping(angular_damping);
     }
 
     float GetMass2D(HCollisionObject2D collision_object) {
-        b2Body* body = ((b2Body*)collision_object);
-        return body->GetMass();
+        // b2Body* body = ((b2Body*)collision_object);
+        // return body->GetMass();
+        return 0.0f;
     }
 
     bool IsBullet2D(HCollisionObject2D collision_object)
     {
-        b2Body* body = ((b2Body*)collision_object);
-        return body->IsBullet();
+        // b2Body* body = ((b2Body*)collision_object);
+        // return body->IsBullet();
+        return false;
     }
 
     void SetBullet2D(HCollisionObject2D collision_object, bool value) {
-        b2Body* body = ((b2Body*)collision_object);
-        body->SetBullet(value);
+        // b2Body* body = ((b2Body*)collision_object);
+        // body->SetBullet(value);
     }
 
     void SetGroup2D(HCollisionObject2D collision_object, uint16_t groupbit) {
+        /*
         b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
         while (fixture) {
             // do sth with the fixture
@@ -1279,9 +1402,11 @@ namespace dmPhysics
             }
             fixture = fixture->GetNext();   // NOTE: No guard condition in loop. Assumes proper state of Box2D fixture list.
         }
+        */
     }
 
     uint16_t GetGroup2D(HCollisionObject2D collision_object) {
+        /*
         b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
         if (fixture) {
             if (fixture->GetType() != b2Shape::e_grid) {
@@ -1289,11 +1414,13 @@ namespace dmPhysics
                 return filter.categoryBits;
             }
         }
+        */
         return 0;
     }
 
     // updates a specific group bit of a collision object's current mask
     void SetMaskBit2D(HCollisionObject2D collision_object, uint16_t groupbit, bool boolvalue) {
+        /*
         b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
         while (fixture) {
             // do sth with the fixture
@@ -1307,9 +1434,11 @@ namespace dmPhysics
             }
             fixture = fixture->GetNext();
         }
+        */
     }
 
     bool UpdateMass2D(HCollisionObject2D collision_object, float mass) {
+        /*
         b2Body* body = (b2Body*)collision_object;
         if (body->GetType() != b2_dynamicBody) {
             return false;
@@ -1335,9 +1464,12 @@ namespace dmPhysics
         }
         body->ResetMassData();
         return true;
+        */
+        return false;
     }
 
     bool GetMaskBit2D(HCollisionObject2D collision_object, uint16_t groupbit) {
+        /*
         b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
         if (fixture) {
             if (fixture->GetType() != b2Shape::e_grid) {
@@ -1345,6 +1477,8 @@ namespace dmPhysics
                 return !!(filter.maskBits & groupbit);
             }
         }
+        return false;
+        */
         return false;
     }
 
@@ -1392,6 +1526,8 @@ namespace dmPhysics
         }
 
         float scale = world->m_Context->m_Scale;
+
+        /*
         ProcessRayCastResultCallback2D query;
         query.m_Request = &request;
         query.m_ReturnAllResults = request.m_ReturnAllResults;
@@ -1418,21 +1554,24 @@ namespace dmPhysics
         {
             qsort(results.Begin(), results.Size(), sizeof(dmPhysics::RayCastResponse), (int(*)(const void*, const void*))Sort_RayCastResponse);
         }
+        */
     }
 
     void SetGravity2D(HWorld2D world, const Vector3& gravity)
     {
         b2Vec2 gravity_b;
         ToB2(gravity, gravity_b, world->m_Context->m_Scale);
-        world->m_World.SetGravity(gravity_b);
+        // world->m_World.SetGravity(gravity_b);
     }
 
     Vector3 GetGravity2D(HWorld2D world)
     {
-        b2Vec2 gravity_b = world->m_World.GetGravity();
-        Vector3 gravity;
-        FromB2(gravity_b, gravity, world->m_Context->m_InvScale);
-        return gravity;
+        // b2Vec2 gravity_b = world->m_World.GetGravity();
+        // Vector3 gravity;
+        // FromB2(gravity_b, gravity, world->m_Context->m_InvScale);
+        // return gravity;
+
+        return Vector3(0.0f, 0.0f, 0.0f);
     }
 
     void SetDebugCallbacks2D(HContext2D context, const DebugCallbacks& callbacks)
@@ -1444,6 +1583,7 @@ namespace dmPhysics
     {
         for (uint32_t i = 0; i < context->m_Worlds.Size(); ++i)
         {
+            /*
             for (b2Body* body = context->m_Worlds[i]->m_World.GetBodyList(); body; body = body->GetNext())
             {
                 b2Fixture* fixture = body->GetFixtureList();
@@ -1496,6 +1636,7 @@ namespace dmPhysics
                 }
                 UpdateMass2D(body, mass);
             }
+            */
         }
     }
 
@@ -1506,6 +1647,8 @@ namespace dmPhysics
         ToB2(pos_a, pa, scale);
         b2Vec2 pb;
         ToB2(pos_b, pb, scale);
+
+        /*
 
         b2Joint* joint = 0x0;
         b2Body* b2_obj_a = (b2Body*)obj_a;
@@ -1618,12 +1761,15 @@ namespace dmPhysics
         }
 
         return joint;
+        */
+        return 0;
     }
 
     bool SetJointParams2D(HWorld2D world, HJoint joint, dmPhysics::JointType type, const ConnectJointParams& params)
     {
         float scale = world->m_Context->m_Scale;
 
+        /*
         switch (type)
         {
             case dmPhysics::JOINT_TYPE_SPRING:
@@ -1682,12 +1828,15 @@ namespace dmPhysics
         }
 
         return true;
+        */
+        return false;
     }
 
     bool GetJointParams2D(HWorld2D world, HJoint _joint, dmPhysics::JointType type, ConnectJointParams& params)
     {
         float inv_scale = world->m_Context->m_InvScale;
 
+        /*
         b2Joint* joint = (b2Joint*)_joint;
         params.m_CollideConnected = joint->GetCollideConnected();
 
@@ -1778,21 +1927,26 @@ namespace dmPhysics
         }
 
         return true;
+        */
+
+        return false;
     }
 
     void DeleteJoint2D(HWorld2D world, HJoint _joint)
     {
         assert(_joint);
-        world->m_World.DestroyJoint((b2Joint*)_joint);
+        // world->m_World.DestroyJoint((b2Joint*)_joint);
     }
 
     bool GetJointReactionForce2D(HWorld2D world, HJoint _joint, Vector3& force, float inv_dt)
     {
         float inv_scale = world->m_Context->m_InvScale;
 
+        /*
         b2Joint* joint = (b2Joint*)_joint;
         b2Vec2 bv2 = joint->GetReactionForce(inv_dt);
         FromB2(bv2, force, inv_scale);
+        */
 
         return true;
     }
@@ -1800,9 +1954,10 @@ namespace dmPhysics
     bool GetJointReactionTorque2D(HWorld2D world, HJoint _joint, float& torque, float inv_dt)
     {
         float inv_scale = world->m_Context->m_InvScale;
-
+        /*
         b2Joint* joint = (b2Joint*)_joint;
         torque = joint->GetReactionTorque(inv_dt) * inv_scale;
+        */
         return true;
     }
 }

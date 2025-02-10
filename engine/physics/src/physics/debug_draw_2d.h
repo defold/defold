@@ -15,12 +15,13 @@
 #ifndef PHYSICS_DEBUG_DRAW_2D_H
 #define PHYSICS_DEBUG_DRAW_2D_H
 
-#include "Box2D/Box2D.h"
+#include "box2d/box2d.h"
 
 #include "physics.h"
 
 namespace dmPhysics
 {
+    /*
     class DebugDraw2D : public b2Draw
     {
     public:
@@ -53,6 +54,7 @@ namespace dmPhysics
     private:
         DebugCallbacks* m_Callbacks;
     };
+    */
 }
 
 #endif // PHYSICS_DEBUG_DRAW_2D_H
