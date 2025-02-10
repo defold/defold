@@ -602,7 +602,7 @@ class Configuration(object):
         if target_platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
             # macOS SDK
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_MACOS_SDK), join(sdkfolder, sdk.PACKAGES_MACOS_SDK))
-            download_sdk(self,'%s/%s.darwin.tar.gz' % (self.package_path, sdk.PACKAGES_XCODE_TOOLCHAIN), join(sdkfolder, sdk.PACKAGES_XCODE_TOOLCHAIN))
+            download_sdk(self,'%s/%s.darwin.tar.gz' % (self.package_path, sdk.PACKAGES_XCODE_TOOLCHAIN), sdkfolder, force_extract=True)
 
         if target_platform in ('arm64-ios', 'x86_64-ios'):
             # iOS SDK
@@ -1299,7 +1299,7 @@ class Configuration(object):
                 add_missing(plf[1], "package '%s' could not be found" % (luajit_path))
             else:
                 self._extract(luajit_path, luajit_dir)
-                for name in ('luajit-32', 'luajit-64'):
+                for name in ('luajit-64'):
                     luajit_exe = format_exes(name, plf[0])[0]
                     src = join(luajit_dir, 'bin/%s/%s' % (plf[0], luajit_exe))
                     if not os.path.exists(src):

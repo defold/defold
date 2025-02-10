@@ -295,7 +295,7 @@ namespace dmGameSystem
         body->SetType((b2BodyType)luaL_checknumber(L, 2));
         return 0;
     }
-    
+
     static int Body_IsBullet(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
@@ -453,7 +453,7 @@ namespace dmGameSystem
         if (next)
         {
             void* next_user_data = next->GetUserData(); // The component. See CompCollisionObjectCreate in comp_collision_object.cpp
-            
+
             dmGameObject::HInstance instance = 0;
             if (next_user_data)
             {

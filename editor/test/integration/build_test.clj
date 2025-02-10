@@ -665,7 +665,7 @@
                        "/main/blob.tilemap"
                        "/collisionobject/tile_map.collisionobject"
                        "/collisionobject/convex_shape.collisionobject"]
-          exp-exts    ["vpc" "fpc" "texturec"]]
+          exp-exts    ["spc" "texturec"]]
       (when (contains? build-results :error)
          (log-errors (:error build-results)))
       (is (not (contains? build-results :error)))
@@ -854,19 +854,12 @@
           (is (not (contains? br :error))))))))
 
 (deftest inexact-path-casing-produces-build-error
-  (with-loaded-project project-path
+  (with-loaded-project "test/resources/inexact_path_casing_project"
     (let [game-project-node (test-util/resource-node project "/game.project")
-          atlas-node (test-util/resource-node project "/background/background.atlas")
-          atlas-image-node (ffirst (g/sources-of atlas-node :image-resources))
-          image-resource (g/node-value atlas-image-node :image)
-          workspace (resource/workspace image-resource)
-          uppercase-image-path (string/upper-case (resource/proj-path image-resource))
-          uppercase-image-resource (workspace/resolve-workspace-resource workspace uppercase-image-path)]
-      (g/set-property! atlas-image-node :image uppercase-image-resource)
-      (let [build-error (:error (project-build project game-project-node (g/make-evaluation-context)))
-            error-message (some :message (tree-seq :causes :causes build-error))]
-        (is (g/error? build-error))
-        (is (= (str "The file '" uppercase-image-path "' could not be found.") error-message))))))
+          build-error (:error (project-build project game-project-node (g/make-evaluation-context)))
+          error-message (some :message (tree-seq :causes :causes build-error))]
+      (is (g/error? build-error))
+      (is (= "The file '/MAIN/BUTTON_CLOUDY.png' could not be found." error-message)))))
 
 (deftest build-process-detects-cyclic-lua-dependencies
   (with-loaded-project "test/resources/build_cyclic_lua_project"

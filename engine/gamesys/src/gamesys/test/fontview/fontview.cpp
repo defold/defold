@@ -23,8 +23,7 @@
 #include "../../gamesys.h"
 
 #include "../../resources/res_font.h"
-#include "../../resources/res_fragment_program.h"
-#include "../../resources/res_vertex_program.h"
+#include "../../resources/res_shader_program.h"
 #include "../../resources/res_material.h"
 
 #include <dmsdk/resource/resource.h>
@@ -129,9 +128,10 @@ namespace dmFontView
             context->m_Window = dmPlatform::NewWindow();
 
             dmPlatform::WindowParams window_params = {};
-            window_params.m_Width           = 960;
-            window_params.m_Height          = 540;
-            window_params.m_Title           = "FontView";
+            window_params.m_Width            = 960;
+            window_params.m_Height           = 540;
+            window_params.m_Title            = "FontView";
+            window_params.m_ContextAlphabits = 8;
 
             dmPlatform::OpenWindow(context->m_Window, window_params);
 
@@ -174,8 +174,7 @@ namespace dmFontView
             }\
 
             REGISTER_RESOURCE_TYPE("fontc", 0, dmGameSystem::ResFontCreate, 0, dmGameSystem::ResFontDestroy, dmGameSystem::ResFontRecreate);
-            REGISTER_RESOURCE_TYPE("vpc", dmGameSystem::ResVertexProgramPreload, dmGameSystem::ResVertexProgramCreate, 0, dmGameSystem::ResVertexProgramDestroy, dmGameSystem::ResVertexProgramRecreate);
-            REGISTER_RESOURCE_TYPE("fpc", dmGameSystem::ResFragmentProgramPreload, dmGameSystem::ResFragmentProgramCreate, 0, dmGameSystem::ResFragmentProgramDestroy, dmGameSystem::ResFragmentProgramRecreate);
+            REGISTER_RESOURCE_TYPE("spc", dmGameSystem::ResShaderProgramPreload, dmGameSystem::ResShaderProgramCreate, 0, dmGameSystem::ResShaderProgramDestroy, dmGameSystem::ResShaderProgramRecreate);
             REGISTER_RESOURCE_TYPE("materialc", 0, dmGameSystem::ResMaterialCreate, 0, dmGameSystem::ResMaterialDestroy, 0);
 
     #undef REGISTER_RESOURCE_TYPE

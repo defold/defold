@@ -98,10 +98,10 @@
            [javafx.scene Parent Scene]
            [javafx.scene.control Label MenuBar SplitPane Tab TabPane TabPane$TabClosingPolicy TabPane$TabDragPolicy Tooltip]
            [javafx.scene.image Image ImageView]
-           [javafx.scene.input Clipboard ClipboardContent]
+           [javafx.scene.input Clipboard ClipboardContent MouseEvent MouseButton]
            [javafx.scene.layout AnchorPane GridPane HBox Region StackPane]
            [javafx.scene.paint Color]
-           [javafx.scene.shape Ellipse SVGPath]
+           [javafx.scene.shape Ellipse]
            [javafx.scene.text Font]
            [javafx.stage Screen Stage WindowEvent]
            [org.luaj.vm2 LuaError]))
@@ -480,36 +480,38 @@
 (def ^:private perspective-icon-svg-path
   (ui/load-svg-path "scene/images/perspective_icon.svg"))
 
-(defn make-svg-icon-graphic
-  ^SVGPath [^SVGPath icon-template]
-  (doto (SVGPath.)
-    (.setContent (.getContent icon-template))))
-
 (defn- make-visibility-settings-graphic []
   (doto (StackPane.)
     (.setId "visibility-settings-graphic")
-    (ui/children! [(doto (make-svg-icon-graphic eye-icon-svg-path)
+    (ui/children! [(doto (icons/make-svg-icon-graphic eye-icon-svg-path)
                      (.setId "eye-icon"))
                    (doto (Ellipse. 3.0 3.0)
                      (.setId "active-indicator"))])))
 
 (handler/register-menu! :toolbar
   [{:id :select
+    :tooltip "Select tool"
     :icon "icons/45/Icons_T_01_Select.png"
     :command :select-tool}
    {:id :move
+    :tooltip "Move tool"
     :icon "icons/45/Icons_T_02_Move.png"
     :command :move-tool}
    {:id :rotate
+    :tooltip "Rotate tool"
     :icon "icons/45/Icons_T_03_Rotate.png"
     :command :rotate-tool}
    {:id :scale
+    :tooltip "Scale tool"
     :icon "icons/45/Icons_T_04_Scale.png"
     :command :scale-tool}
+   {:label :separator}
    {:id :perspective-camera
-    :graphic-fn (partial make-svg-icon-graphic perspective-icon-svg-path)
+    :tooltip "Perspective camera"
+    :graphic-fn (partial icons/make-svg-icon-graphic perspective-icon-svg-path)
     :command :toggle-perspective-camera}
    {:id :visibility-settings
+    :tooltip "Visibility settings"
     :graphic-fn make-visibility-settings-graphic
     :command :show-visibility-settings}])
 
@@ -649,13 +651,16 @@
 
 (def ^:private render-task-progress-ui-inflight (ref false))
 
+(def status-bar-delay
+  (delay (.. (ui/main-stage) (getScene) (getRoot) (lookup "#status-bar"))))
+
 (defn- render-task-progress-ui! []
   (let [task-progress-snapshot (ref nil)]
     (dosync
       (ref-set render-task-progress-ui-inflight false)
       (ref-set task-progress-snapshot
                (into {} (map (juxt first (comp deref second))) app-task-progress)))
-    (let [status-bar (.. (ui/main-stage) (getScene) (getRoot) (lookup "#status-bar"))
+    (let [status-bar @status-bar-delay
           [key progress] (->> app-task-ui-priority
                               (map (juxt identity @task-progress-snapshot))
                               (filter (comp (complement progress/done?) second))
@@ -1212,7 +1217,7 @@
         skip-engine (target-cannot-swap-engine? (targets/selected-target prefs))]
     (build-errors-view/clear-build-errors build-errors-view)
     (async-build! project
-                  :debug false
+                  :debug true
                   :build-engine (not skip-engine)
                   :prefs prefs
                   :render-progress! (make-render-task-progress :build)
@@ -1870,6 +1875,16 @@ If you do not specifically require different script states, consider changing th
 (defn- tab->view-type [^Tab tab]
   (some-> tab (ui/user-data ::view-type) :id))
 
+(let [TabHeaderSkin (Class/forName "javafx.scene.control.skin.TabPaneSkin$TabHeaderSkin")
+      getTab (.getDeclaredMethod TabHeaderSkin "getTab" (into-array Class []))]
+  (.setAccessible getTab true)
+  (defn- handle-tab-pane-mouse-pressed! 
+    [^TabPane tab-pane ^MouseEvent event]
+    (when (= MouseButton/SECONDARY (.getButton event))
+      (when-let [node (ui/closest-node-where #(instance? TabHeaderSkin %) (.getTarget event))]
+        (->> (.invoke getTab node (into-array Object []))
+             (.select (.getSelectionModel tab-pane)))))))
+
 (defn- configure-editor-tab-pane! [^TabPane tab-pane ^Scene app-scene app-view]
   (.setTabClosingPolicy tab-pane TabPane$TabClosingPolicy/ALL_TABS)
   (.setTabDragPolicy tab-pane TabPane$TabDragPolicy/REORDER)
@@ -1893,6 +1908,7 @@ If you do not specifically require different script states, consider changing th
                 (when (< 1 (count tab-panes))
                   (.remove tab-panes tab-pane)
                   (.requestFocus ^TabPane (.get tab-panes 0)))))))))
+  (.addEventFilter tab-pane MouseEvent/MOUSE_PRESSED (ui/event-handler event (handle-tab-pane-mouse-pressed! tab-pane event)))
   (ui/register-tab-pane-context-menu tab-pane ::tab-menu))
 
 (defn- handle-focus-owner-change! [app-view app-scene new-focus-owner]

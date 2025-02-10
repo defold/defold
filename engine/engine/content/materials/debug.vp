@@ -1,9 +1,15 @@
-uniform mediump mat4 view_proj;
+#version 140
 
-varying lowp vec4 var_color;
+in mediump vec4 position;
+in mediump vec4 color;
 
-attribute mediump vec4 position;
-attribute lowp vec4 color;
+uniform vs_uniforms
+{
+    mediump mat4 view_proj;
+};
+
+
+out mediump vec4 var_color;
 
 void main()
 {

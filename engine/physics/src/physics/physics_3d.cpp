@@ -292,7 +292,7 @@ namespace dmPhysics
         context->m_TriggerOverlapCapacity = params.m_TriggerOverlapCapacity;
         context->m_AllowDynamicTransforms = params.m_AllowDynamicTransforms;
         dmMessage::Result result = dmMessage::NewSocket(PHYSICS_SOCKET_NAME, &context->m_Socket);
-        if (result != dmMessage::RESULT_OK)
+        if (result != dmMessage::RESULT_OK && result != dmMessage::RESULT_SOCKET_EXISTS)
         {
             dmLogFatal("Could not create socket '%s'.", PHYSICS_SOCKET_NAME);
             DeleteContext3D(context);

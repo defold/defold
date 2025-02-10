@@ -118,13 +118,12 @@ namespace dmHttpService
         uint32_t bytes_received = 0;
         if (!method_is_head)
         {
-            uint32_t resize_to = (uint32_t) dmMath::Max((int32_t) content_data_size, content_length);
-
-            if (r.Capacity() < resize_to)
+            // do we have enough room to fit the content? if not, grow the array
+            uint32_t left = r.Capacity() - r.Size();
+            if (content_data_size > left)
             {
-                r.SetCapacity(resize_to);
+                r.OffsetCapacity(content_data_size - left);
             }
-
             r.PushArray((char*) content_data, content_data_size);
             bytes_received = r.Size();
         }

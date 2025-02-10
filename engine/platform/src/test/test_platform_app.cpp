@@ -144,6 +144,7 @@ static void* EngineCreate(int argc, char** argv)
     params.m_Height                 = 512;
     params.m_GraphicsApi            = dmPlatform::PLATFORM_GRAPHICS_API_OPENGL;
     params.m_Title                  = "Test app";
+    params.m_ContextAlphabits       = 8;
 
     engine->m_Window = dmPlatform::NewWindow();
 
