@@ -154,11 +154,11 @@
 
   (output outline-name-paths OutlineNamePaths :cached (g/fnk [active-scene] (set (scene-outline-name-paths active-scene))))
 
-  (output selected-outline-name-paths OutlineNamePaths (g/fnk [outline-selection]
-                                                         (set (into [] (keep outline-selection-entry->outline-name-path) outline-selection))))
+  (output selected-outline-name-paths OutlineNamePaths :cached (g/fnk [outline-selection]
+                                                                 (set (into [] (keep outline-selection-entry->outline-name-path) outline-selection))))
 
-  (output unselected-outline-name-paths OutlineNamePaths (g/fnk [selected-outline-name-paths outline-name-paths]
-                                                           (set/difference outline-name-paths selected-outline-name-paths)))
+  (output unselected-outline-name-paths OutlineNamePaths :cached (g/fnk [selected-outline-name-paths outline-name-paths]
+                                                                   (set/difference outline-name-paths selected-outline-name-paths)))
   
   (output unselected-hideable-outline-name-paths OutlineNamePaths :cached (g/fnk [hidden-outline-name-paths unselected-outline-name-paths]
                                                                             (not-empty (set/difference unselected-outline-name-paths hidden-outline-name-paths))))
@@ -252,7 +252,7 @@
            (g/node-value scene-visibility :active-scene-resource-node evaluation-context))
   (run [scene-visibility user-data]
        (let [{:keys [node-outline-key-path]} user-data
-             name-paths-to-toggle #{(vec (rest node-outline-key-path))}]
+             name-paths-to-toggle #{(subvec node-outline-key-path 1)}]
          (if (contains? (g/node-value scene-visibility :hidden-node-outline-key-paths) node-outline-key-path)
            (show-outline-name-paths! scene-visibility name-paths-to-toggle)
            (hide-outline-name-paths! scene-visibility name-paths-to-toggle)))))
