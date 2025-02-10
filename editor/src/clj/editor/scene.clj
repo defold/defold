@@ -28,6 +28,7 @@
             [editor.input :as i]
             [editor.math :as math]
             [editor.pose :as pose]
+            [editor.prefs]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.render :as render]
@@ -1476,7 +1477,7 @@
                                                                                    (g/operation-sequence op-seq)
                                                                                    (g/operation-label "Select")
                                                                                    (select-fn selection))))]
-                   camera          [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic identity {:fov-x 1000 :fov-y 1000}))]
+                   camera          [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic identity {:fov-x 1000 :fov-y 1000})) :pan-on-mouse-wheel (editor.prefs/get prefs [:scene :pan-on-mouse-wheel])]
                    grid            grid-type
                    tool-controller [tool-controller-type :prefs prefs]
                    rulers          [rulers/Rulers]]

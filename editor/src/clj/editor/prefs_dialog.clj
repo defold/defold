@@ -108,6 +108,8 @@
                     {:label "Engine Arguments" :type :string :key [:run :engine-arguments]  :multi-line true
                      :prompt-value "One argument per line"
                      :tooltip "Arguments that will be passed to the dmengine executables when the editor builds and runs.\n Use one argument per line. For example:\n--config=bootstrap.main_collection=/my dir/1.collectionc\n--verbose\n--graphics-adapter=vulkan"}]}
+           {:name "Scene"
+            :prefs [{:label "Pan on mouse wheel when 2d view is active" :type :boolean :key [:scene :pan-on-mouse-wheel]}]}
            {:name "Code"
             :prefs [{:label "Custom Editor" :type :string :key [:code :custom-editor]}
                     {:label "Open File" :type :string :key [:code :open-file]}

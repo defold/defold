@@ -160,7 +160,9 @@
            :engine-arguments {:type :string :scope :project}}}
     :scene {:type :object
             :properties
-            {:move-whole-pixels {:type :boolean :default true}}}
+            {:move-whole-pixels {:type :boolean :default true}
+             :pan-on-mouse-wheel {:type :boolean
+                                   :label "Pan on mouse wheel when 2d view is active"}}}
     :dev {:type :object
           :properties
           {:custom-engine {:type :any}}}

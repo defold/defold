@@ -635,16 +635,19 @@
                    (get movements-enabled (camera-movement action) :idle)
                    (:movement ui-state))
         camera (g/node-value self :camera)
+        pan-on-mouse-wheel (g/node-value self :pan-on-mouse-wheel)
+        pan (and (cond-> pan-on-mouse-wheel
+                   control not)
+                 (camera-2d? camera))
         [scale-x scale-y] (scale-factor camera viewport)
         filter-fn (or (:filter-fn camera) identity)
         camera (cond-> camera
-                 (and (= type :scroll)
-                      (not control)
-                      (contains? movements-enabled :dolly))
-                 (dolly (* -0.002 delta-y))
-
-                 (and (= type :scroll) control (camera-2d? camera))
-                 (camera-move (* delta-x scale-x) (* delta-y scale-y) 0.0)
+                 (= type :scroll)
+                 (cond->
+                   (and (contains? movements-enabled :dolly) (not pan))
+                   (dolly (* -0.002 delta-y))
+                   pan
+                   (camera-move (* delta-x scale-x) (* delta-y scale-y) 0.0))
 
                  (and (= type :mouse-moved)
                       (not (= :idle movement)))
@@ -656,7 +659,7 @@
                    (= :tumble movement)
                    (tumble last-x last-y x y))
 
-                 true
+                 :always
                  filter-fn)]
     (g/set-property! self :local-camera camera)
     (case type
@@ -675,6 +678,7 @@
       action)))
 
 (g/defnode CameraController
+  (property pan-on-mouse-wheel g/Bool)
   (property name g/Keyword (default :local-camera))
   (property local-camera Camera)
   (property movements-enabled g/Any (default #{:dolly :track :tumble}))
