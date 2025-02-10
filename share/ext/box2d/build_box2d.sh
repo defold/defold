@@ -21,7 +21,12 @@ PLATFORM=$1
 PWD=$(pwd)
 BUILD_DIR=${PWD}/build/${PLATFORM}
 
-BOX2D_URL=https://github.com/erincatto/box2d/archive/refs/tags/v3.0.0.zip
+readonly PRODUCT=box2d
+readonly VERSION=v3.0.0
+readonly PACKAGE_NAME=${PRODUCT}-${VERSION}-${PLATFORM}.tar.gz
+readonly HEADERS_PACKAGE_NAME=${PRODUCT}-${VERSION}-common.tar.gz
+
+readonly BOX2D_URL=https://github.com/erincatto/box2d/archive/refs/tags/${VERSION}.zip
 readonly BOX2D_DIR=$(realpath ./box2d)
 
 if [ -z "$PLATFORM" ]; then
@@ -97,7 +102,16 @@ pushd $BUILD_DIR
 cmake ${CMAKE_FLAGS} $BOX2D_DIR
 cmake --build . --config Release -j 8
 
-mkdir -p ./bin/$PLATFORM
+mkdir -p ./lib/$PLATFORM
+mkdir -p ./include
+
+cp -v ./src/*.a ./lib/$PLATFORM
+
+tar cfvz ${PACKAGE_NAME} lib
+
+cp -v -r ${BOX2D_DIR}/include/box2d ./include
+
+tar cfvz ${HEADERS_PACKAGE_NAME} include
 
 #EXE_SUFFIX=
 #case $PLATFORM in
