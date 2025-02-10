@@ -311,10 +311,10 @@ namespace dmEngine
         m_Register = dmGameObject::NewRegister();
         m_InputBuffer.SetCapacity(64);
         m_ResourceTypeContexts.SetCapacity(31, 64);
-
-        m_PhysicsContext.m_Context3D = 0x0; // it'a union
-        m_PhysicsContext.m_Debug = false;
-        m_PhysicsContext.m_3D = false;
+        m_PhysicsContextBox2D.m_Context = 0x0;
+        m_PhysicsContextBox2D.m_BaseContext.m_PhysicsType = dmGameSystem::PHYSICS_ENGINE_BOX2D;
+        m_PhysicsContextBullet3D.m_Context = 0x0;
+        m_PhysicsContextBullet3D.m_BaseContext.m_PhysicsType = dmGameSystem::PHYSICS_ENGINE_BULLET3D;
         m_GuiContext = 0x0;
         m_SpriteContext.m_RenderContext = 0x0;
         m_SpriteContext.m_MaxSpriteCount = 0;
@@ -436,13 +436,11 @@ namespace dmEngine
         if (engine->m_SystemSocket)
             dmMessage::DeleteSocket(engine->m_SystemSocket);
 
-        if (engine->m_PhysicsContext.m_Context3D)
-        {
-            if (engine->m_PhysicsContext.m_3D)
-                dmPhysics::DeleteContext3D(engine->m_PhysicsContext.m_Context3D);
-            else
-                dmPhysics::DeleteContext2D(engine->m_PhysicsContext.m_Context2D);
-        }
+        if (engine->m_PhysicsContextBox2D.m_Context)
+            dmPhysics::DeleteContext2D(engine->m_PhysicsContextBox2D.m_Context);
+
+        if (engine->m_PhysicsContextBullet3D.m_Context)
+            dmPhysics::DeleteContext3D(engine->m_PhysicsContextBullet3D.m_Context);
 
         ScopedExtensionAppParams app_params(engine);
         dmExtension::AppFinalize(app_params);
@@ -672,6 +670,17 @@ namespace dmEngine
                 ResourceTypeSetStreaming(type, sound_streaming_preload_size);
             }
         }
+    }
+
+    static void SetupPhysicsContextParams(dmGameSystem::PhysicsContext* physics, dmConfigFile::HConfig config)
+    {
+        physics->m_MaxCollisionObjectCount = dmConfigFile::GetInt(config, dmGameSystem::PHYSICS_MAX_COLLISION_OBJECTS_KEY, 128);
+        physics->m_MaxCollisionCount = dmConfigFile::GetInt(config, dmGameSystem::PHYSICS_MAX_COLLISIONS_KEY, 64);
+        physics->m_MaxContactPointCount = dmConfigFile::GetInt(config, dmGameSystem::PHYSICS_MAX_CONTACTS_KEY, 128);
+        physics->m_UseFixedTimestep = dmConfigFile::GetInt(config, dmGameSystem::PHYSICS_USE_FIXED_TIMESTEP, 1) ? 1 : 0;
+        physics->m_MaxFixedTimesteps = dmConfigFile::GetInt(config, dmGameSystem::PHYSICS_MAX_FIXED_TIMESTEPS, 2);
+        // TODO: Should move inside the ifdef release? Is this usable without the debug callbacks?
+        physics->m_Debug = (bool) dmConfigFile::GetInt(config, "physics.debug", 0);
     }
 
     /*
@@ -1260,29 +1269,27 @@ namespace dmEngine
         }
         physics_params.m_ContactImpulseLimit = dmConfigFile::GetFloat(engine->m_Config, "physics.contact_impulse_limit", 0.0f);
         physics_params.m_AllowDynamicTransforms = dmConfigFile::GetInt(engine->m_Config, "physics.allow_dynamic_transforms", 1) ? 1 : 0;
+
+        dmGameSystem::PhysicsContext* physics_context = 0;
+
         if (dmStrCaseCmp(physics_type, "3D") == 0)
         {
-            engine->m_PhysicsContext.m_3D = true;
-            engine->m_PhysicsContext.m_Context3D = dmPhysics::NewContext3D(physics_params);
+            engine->m_PhysicsContextBullet3D.m_Context = dmPhysics::NewContext3D(physics_params);
+            SetupPhysicsContextParams(&engine->m_PhysicsContextBullet3D.m_BaseContext, engine->m_Config);
+            physics_context = &engine->m_PhysicsContextBullet3D.m_BaseContext;
         }
         else if (dmStrCaseCmp(physics_type, "2D") == 0)
         {
-            engine->m_PhysicsContext.m_3D = false;
-            engine->m_PhysicsContext.m_Context2D = dmPhysics::NewContext2D(physics_params);
+            engine->m_PhysicsContextBox2D.m_Context = dmPhysics::NewContext2D(physics_params);
+            SetupPhysicsContextParams(&engine->m_PhysicsContextBox2D.m_BaseContext, engine->m_Config);
+            physics_context = &engine->m_PhysicsContextBox2D.m_BaseContext;
         }
         else
         {
             dmLogWarning("Unsupported physics type '%s'. Defaults to 2D", physics_type);
-            engine->m_PhysicsContext.m_3D = false;
-            engine->m_PhysicsContext.m_Context2D = dmPhysics::NewContext2D(physics_params);
+            engine->m_PhysicsContextBox2D.m_Context = dmPhysics::NewContext2D(physics_params);
+            SetupPhysicsContextParams(&engine->m_PhysicsContextBox2D.m_BaseContext, engine->m_Config);
         }
-        engine->m_PhysicsContext.m_MaxCollisionObjectCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::PHYSICS_MAX_COLLISION_OBJECTS_KEY, 128);
-        engine->m_PhysicsContext.m_MaxCollisionCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::PHYSICS_MAX_COLLISIONS_KEY, 64);
-        engine->m_PhysicsContext.m_MaxContactPointCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::PHYSICS_MAX_CONTACTS_KEY, 128);
-        engine->m_PhysicsContext.m_UseFixedTimestep = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::PHYSICS_USE_FIXED_TIMESTEP, 1) ? 1 : 0;
-        engine->m_PhysicsContext.m_MaxFixedTimesteps = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::PHYSICS_MAX_FIXED_TIMESTEPS, 2);
-        // TODO: Should move inside the ifdef release? Is this usable without the debug callbacks?
-        engine->m_PhysicsContext.m_Debug = (bool) dmConfigFile::GetInt(engine->m_Config, "physics.debug", 0);
 
 #if !defined(DM_RELEASE)
         dmPhysics::DebugCallbacks debug_callbacks;
@@ -1293,10 +1300,15 @@ namespace dmEngine
         debug_callbacks.m_Scale = physics_params.m_Scale;
         debug_callbacks.m_InvScale = 1.0f / physics_params.m_Scale;
         debug_callbacks.m_DebugScale = dmConfigFile::GetFloat(engine->m_Config, "physics.debug_scale", 30.0f);
-        if (engine->m_PhysicsContext.m_3D)
-            dmPhysics::SetDebugCallbacks3D(engine->m_PhysicsContext.m_Context3D, debug_callbacks);
-        else
-            dmPhysics::SetDebugCallbacks2D(engine->m_PhysicsContext.m_Context2D, debug_callbacks);
+
+        if (engine->m_PhysicsContextBox2D.m_Context)
+        {
+            dmPhysics::SetDebugCallbacks2D(engine->m_PhysicsContextBox2D.m_Context, debug_callbacks);
+        }
+        if (engine->m_PhysicsContextBullet3D.m_Context)
+        {
+            dmPhysics::SetDebugCallbacks3D(engine->m_PhysicsContextBullet3D.m_Context, debug_callbacks);
+        }
 #endif
 
         engine->m_SpriteContext.m_RenderContext = engine->m_RenderContext;
@@ -1356,11 +1368,11 @@ namespace dmEngine
         if (fact_result != dmResource::RESULT_OK)
             goto bail;
 
-        fact_result = dmGameSystem::RegisterResourceTypes(engine->m_Factory, engine->m_RenderContext, engine->m_InputContext, &engine->m_PhysicsContext);
+        fact_result = dmGameSystem::RegisterResourceTypes(engine->m_Factory, engine->m_RenderContext, engine->m_InputContext, physics_context);
         if (fact_result != dmResource::RESULT_OK)
             goto bail;
 
-        go_result = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, &engine->m_PhysicsContext, &engine->m_ParticleFXContext, &engine->m_SpriteContext,
+        go_result = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, physics_context, &engine->m_ParticleFXContext, &engine->m_SpriteContext,
                                                                                                 &engine->m_CollectionProxyContext, &engine->m_FactoryContext, &engine->m_CollectionFactoryContext,
                                                                                                 &engine->m_ModelContext, &engine->m_LabelContext, &engine->m_TilemapContext);
         if (go_result != dmGameObject::RESULT_OK)
@@ -1459,20 +1471,29 @@ namespace dmEngine
         script_lib_context.m_JobThread       = engine->m_JobThreadContext;
         script_lib_context.m_ConfigFile      = engine->m_Config;
 
-        if (engine->m_SharedScriptContext) {
+        if (engine->m_SharedScriptContext)
+        {
             script_lib_context.m_ScriptContext = engine->m_SharedScriptContext;
             script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_SharedScriptContext);
             if (!dmGameSystem::InitializeScriptLibs(script_lib_context))
+            {
                 goto bail;
-        } else {
+            }
+        }
+        else
+        {
             script_lib_context.m_ScriptContext = engine->m_GOScriptContext;
             script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GOScriptContext);
             if (!dmGameSystem::InitializeScriptLibs(script_lib_context))
+            {
                 goto bail;
+            }
             script_lib_context.m_ScriptContext = engine->m_GuiScriptContext;
             script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GuiScriptContext);
             if (!dmGameSystem::InitializeScriptLibs(script_lib_context))
+            {
                 goto bail;
+            }
         }
 
         // setup streaming for resource types, before we load the first collection
@@ -2099,7 +2120,8 @@ bail:
             {
                 if(dLib::IsDebugMode())
                 {
-                    self->m_PhysicsContext.m_Debug = !self->m_PhysicsContext.m_Debug;
+                    self->m_PhysicsContextBox2D.m_BaseContext.m_Debug = !self->m_PhysicsContextBox2D.m_BaseContext.m_Debug;
+                    self->m_PhysicsContextBullet3D.m_BaseContext.m_Debug = !self->m_PhysicsContextBullet3D.m_BaseContext.m_Debug;
                 }
             }
             else if (descriptor == dmSystemDDF::StartRecord::m_DDFDescriptor) // "start_record"

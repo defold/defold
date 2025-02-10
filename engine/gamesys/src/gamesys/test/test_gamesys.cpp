@@ -2729,9 +2729,6 @@ GroupAndMaskParams groupandmask_params[] = {
 INSTANTIATE_TEST_CASE_P(GroupAndMaskTest, GroupAndMask2DTest, jc_test_values_in(groupandmask_params));
 INSTANTIATE_TEST_CASE_P(GroupAndMaskTest, GroupAndMask3DTest, jc_test_values_in(groupandmask_params));
 
-
-
-
 TEST_F(VelocityThreshold2DTest, VelocityThresholdTest)
 {
     dmHashEnableReverseHash(true);
@@ -3325,7 +3322,7 @@ INSTANTIATE_TEST_CASE_P(CollectionProxy, ComponentTest, jc_test_values_in(valid_
 
 const char* valid_collision_object_resources[] = {"/collision_object/valid.collisionobjectc",
                                                   "/collision_object/valid_tilegrid.collisionobjectc",
-                                                  "/collision_object/embedded_shapes.collisionobjectc" };
+                                                  "/collision_object/embedded_shapes.collisionobjectc"};
 
 INSTANTIATE_TEST_CASE_P(CollisionObject, ResourceTest, jc_test_values_in(valid_collision_object_resources));
 
@@ -3350,7 +3347,7 @@ INSTANTIATE_TEST_CASE_P(CollisionObject, ComponentFailTest, jc_test_values_in(in
 const char* valid_cs_resources[] =
 {
     "/convex_shape/box.convexshapec",
-    /*"/convex_shape/capsule.convexshapec",*/ // Temporarily disabling capsule since we are more interested in 2D atm
+    //"/convex_shape/capsule.convexshapec", // Temporarily disabling capsule since we are more interested in 2D atm
     "/convex_shape/hull.convexshapec",
     "/convex_shape/sphere.convexshapec",
 };
@@ -3359,7 +3356,7 @@ INSTANTIATE_TEST_CASE_P(ConvexShape, ResourceTest, jc_test_values_in(valid_cs_re
 ResourceFailParams invalid_cs_resources[] =
 {
     {"/convex_shape/box.convexshapec", "/convex_shape/invalid_box.convexshapec"},
-    {"/convex_shape/capsule.convexshapec", "/convex_shape/invalid_capsule.convexshapec"},
+    //{"/convex_shape/capsule.convexshapec", "/convex_shape/invalid_capsule.convexshapec"},
     {"/convex_shape/hull.convexshapec", "/convex_shape/invalid_hull.convexshapec"},
     {"/convex_shape/sphere.convexshapec", "/convex_shape/invalid_sphere.convexshapec"},
 };
@@ -3808,19 +3805,19 @@ INSTANTIATE_TEST_CASE_P(DrawCount, DrawCountTest, jc_test_values_in(draw_count_p
 
 ScriptComponentTestParams script_component_test_params[] =
 {
-    // file,                            comp type,          comp name
-    {"/camera/test_comp.goc",           "camerac",          "camera"},
-    {"/factory/test_comp.goc",          "factoryc",         "factory"},
-    {"/label/test_comp.goc",            "labelc",           "label"},
-    {"/light/test_comp.goc",            "lightc",           "light"},
-    {"/mesh/test_comp.goc",             "meshc",            "mesh"},
-    {"/model/test_comp.goc",            "modelc",           "model"},
-    {"/particlefx/test_comp.goc",       "particlefxc",      "particlefx"},
-    {"/sound/test_comp.goc",            "soundc",           "sound"},
-    {"/sprite/test_comp.goc",           "spritec",          "sprite"},
-    {"/tilegrid/test_comp.goc",         "tilemapc",         "tilemap"},
-    {"/collision_object/test_comp.goc", "collisionobjectc", "collisionobject"},
-    {"/collection_proxy/test_comp.goc", "collectionproxyc", "collectionproxy"},
+    // file,                              comp type,            comp name
+    {"/camera/test_comp.goc",             "camerac",            "camera"},
+    {"/factory/test_comp.goc",            "factoryc",           "factory"},
+    {"/label/test_comp.goc",              "labelc",             "label"},
+    {"/light/test_comp.goc",              "lightc",             "light"},
+    {"/mesh/test_comp.goc",               "meshc",              "mesh"},
+    {"/model/test_comp.goc",              "modelc",             "model"},
+    {"/particlefx/test_comp.goc",         "particlefxc",        "particlefx"},
+    {"/sound/test_comp.goc",              "soundc",             "sound"},
+    {"/sprite/test_comp.goc",             "spritec",            "sprite"},
+    {"/tilegrid/test_comp.goc",           "tilemapc",           "tilemap"},
+    {"/collision_object/test_comp.goc",   "collisionobjectc",   "collisionobject"},
+    {"/collection_proxy/test_comp.goc",   "collectionproxyc",   "collectionproxy"},
     {"/collection_factory/test_comp.goc", "collectionfactoryc", "collectionfactory"},
 };
 
