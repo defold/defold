@@ -70,43 +70,28 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             "}\n";
 
     private static ShaderDesc.Language getPlatformGLSLLanguage() {
-        switch(Platform.getHostPlatform())
-        {
-            case Arm64MacOS:
-            case X86_64MacOS:
+        Platform platform = Platform.getHostPlatform();
+        if (platform == Platform.Arm64MacOS || platform == Platform.X86_64MacOS)
                 return ShaderDesc.Language.LANGUAGE_GLSL_SM330;
-            case X86_64Linux:
-            case X86_64Win32:
+        if (platform == Platform.X86_64Linux || platform == Platform.X86_64Win32)
                 return ShaderDesc.Language.LANGUAGE_GLSL_SM140;
-            default:break;
-        }
         return null;
     }
 
     private static int getPlatformGLSLVersion() {
-        switch(Platform.getHostPlatform())
-        {
-            case Arm64MacOS:
-            case X86_64MacOS:
+        Platform platform = Platform.getHostPlatform();
+        if (platform == Platform.Arm64MacOS || platform == Platform.X86_64MacOS)
                 return 330;
-            case X86_64Linux:
-            case X86_64Win32:
+        if (platform == Platform.X86_64Linux || platform == Platform.X86_64Win32)
                 return 140;
-            default:break;
-        }
         return 0;
     }
 
-    private static boolean isHostPlatformDesktop() {
-        switch(Platform.getHostPlatform())
-        {
-            case Arm64MacOS:
-            case X86_64MacOS:
-            case X86_64Linux:
-            case X86_64Win32:
-                return true;
-            default:break;
-        }
+    private static boolean isHostPlatformDesktop() { // This is strange, we're only running bob on desktop (host) platforms, and we're not comparing it to something
+        Platform platform = Platform.getHostPlatform();
+        if (platform == Platform.Arm64MacOS || platform == Platform.X86_64MacOS ||
+            platform == Platform.X86_64Linux || platform == Platform.X86_64Win32)
+            return true;
         return false;
     }
 
@@ -700,7 +685,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE, shaderDesc.getShaders(0).getShaderType());
 
         // Compute not supported for OSX on GL contexts
-        if (Platform.getHostPlatform() == Platform.X86_64Win32 || Platform.getHostPlatform() == Platform.X86_64Win32) {
+        if (Platform.getHostPlatform().isWindows()) {
             ShaderDesc.Shader glslShader = getShaderByLanguage(shaderDesc, ShaderDesc.Language.LANGUAGE_GLSL_SM430);
             assertNotNull(glslShader);
             testOutput(expected, glslShader.getSource().toStringUtf8());
@@ -771,6 +756,40 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             didFail = true;
         }
         assertTrue(didFail);
+    }
+
+    @Test
+    public void testIncludeExistingShaderVersions() throws Exception {
+        String shaderSrc =
+                """
+                #version 140
+                out vec4 color;
+                
+                uniform ubo_1
+                {
+                    vec4 tint_1;
+                };
+                
+                uniform ubo_2
+                {
+                    vec4 tint_2;
+                };
+                
+                void main() {
+                    color = tint_1 + tint_2;
+                }
+                """;
+
+        getProject().getProjectProperties().putBooleanValue("shader", "output_glsl140", true);
+
+        ShaderDesc shaderDesc = addAndBuildShaderDesc("/test_shader_140.fp", shaderSrc, "/test_shader_140.shbundle");
+        ShaderDesc.Shader shader = getShaderByLanguage(shaderDesc, ShaderDesc.Language.LANGUAGE_GLSL_SM140);
+        assertNotNull(shader);
+
+        String buildShaderSrc = new String(shader.getSource().toByteArray());
+        assertEquals(shaderSrc, buildShaderSrc);
+
+        getProject().getProjectProperties().putBooleanValue("shader", "output_glsl140", false);
     }
 
     @Test

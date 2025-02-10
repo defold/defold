@@ -15,7 +15,7 @@
 #include <stdlib.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
-#include "../extension.h"
+#include "../extension.hpp"
 #include "test_extension.h"
 #include <dlib/hashtable.h>
 

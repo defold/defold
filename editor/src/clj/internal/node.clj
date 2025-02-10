@@ -287,10 +287,9 @@
 ;;; ----------------------------------------
 ;;; Construction support
 
-(defrecord NodeImpl [node-type]
+(defrecord NodeImpl [_node-id node-type]
   gt/Node
-  (node-id [this]
-    (:_node-id this))
+  (node-id [_] _node-id)
 
   (node-type [_]
     node-type)
@@ -364,7 +363,7 @@
                (args-without-properties node-type-ref args)
                ", but those don't exist on nodes of type "
                (:k node-type-ref)))
-  (merge (->NodeImpl node-type-ref)
+  (merge (->NodeImpl nil node-type-ref)
          (defaults node-type-ref)
          args))
 

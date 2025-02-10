@@ -848,8 +848,8 @@ public class Project {
                 logWarning("Bundler class '%s' has no BundlerParams", klass.getName());
                 continue;
             }
-            for (Platform supportedPlatform : bundlerParams.platforms()) {
-                if (supportedPlatform == platform)
+            for (String supportedPlatform : bundlerParams.platforms()) {
+                if (platform.matchesPair(supportedPlatform))
                     return klass;
             }
         }
@@ -907,8 +907,8 @@ public class Project {
             if (bundlerParams == null) {
                 continue;
             }
-            for (Platform supportedPlatform : bundlerParams.platforms()) {
-                if (supportedPlatform == platform)
+            for (String supportedPlatform : bundlerParams.platforms()) {
+                if (platform.matchesPair(supportedPlatform))
                     return klass;
             }
         }

@@ -54,7 +54,7 @@ import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.util.Exec.Result;
 import com.dynamo.bob.util.TimeProfiler;
 
-@BundlerParams(platforms = {Platform.Armv7Android, Platform.Arm64Android})
+@BundlerParams(platforms = {"armv7-android", "arm64-android"})
 public class AndroidBundler implements IBundler {
     private static Logger logger = Logger.getLogger(AndroidBundler.class.getName());
 
