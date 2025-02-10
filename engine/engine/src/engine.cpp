@@ -1065,9 +1065,9 @@ namespace dmEngine
 
         SetUpdateFrequency(engine, dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 0));
 
-        int http_cache_enabled = dmConfigFile::GetInt(engine->m_Config, "network.http_cache_enabled", 1);
         engine->m_HttpCache = 0;
 #if !defined(DM_NO_HTTP_CACHE)
+        int http_cache_enabled = dmConfigFile::GetInt(engine->m_Config, "network.http_cache_enabled", 1);
         if (http_cache_enabled)
         {
             char path[1024];
@@ -1088,8 +1088,6 @@ namespace dmEngine
                 dmLogWarning("Unable to locate application support path for \"%s\": (%d)", "defold", sys_result);
             }
         }
-#else
-        dmLogWarning("Http cache disabled");
 #endif
 
 
