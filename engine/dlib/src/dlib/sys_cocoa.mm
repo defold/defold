@@ -163,24 +163,11 @@ namespace dmSys
 
     Result OpenURL(const char* url, const char* target)
     {
-        NSString* ns_url = [NSString stringWithUTF8String:url];
-        NSURL* nsURL = [NSURL URLWithString:ns_url];
-
-        __block Result result = RESULT_UNKNOWN;
-        dispatch_semaphore_t sema = dispatch_semaphore_create(0);
-
-        [[UIApplication sharedApplication] openURL:nsURL
-                                           options:@{}
-                                 completionHandler:^(BOOL success) {
-            result = success ? RESULT_OK : RESULT_UNKNOWN;
-            dispatch_semaphore_signal(sema);
-        }];
-
-        if (dispatch_semaphore_wait(sema, dispatch_time(DISPATCH_TIME_NOW, 0.1 * NSEC_PER_SEC)) != 0) {
-            return RESULT_UNKNOWN;
-        }
-
-        return result;
+        NSString* ns_str = [NSString stringWithUTF8String:url];
+        NSURL* ns_url = [NSURL URLWithString:ns_str];
+        UIApplication *app = [UIApplication sharedApplication];
+        [app openURL:ns_url options:@{} completionHandler:nil];
+        return [app canOpenURL:ns_url] ? RESULT_OK : RESULT_UNKNOWN;
     }
 
     void GetSystemInfo(struct SystemInfo* info)
