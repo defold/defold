@@ -15,6 +15,7 @@
 
 #include "modelimporter.h"
 #include <dlib/dstrings.h>
+#include <dlib/log.h>
 #include <dlib/time.h>
 #include <string.h>
 
@@ -50,6 +51,11 @@ static dmModelImporter::Scene* LoadScene(const char* path, dmModelImporter::Opti
         *c = 0;
 
     dmModelImporter::Scene* scene = dmModelImporter::LoadFromBuffer(&options, suffix, mem, file_size);
+    if (!scene)
+    {
+        dmLogError("Failed to load scene '%s'", path);
+        return 0;
+    }
 
     if (dmModelImporter::NeedsResolve(scene))
     {
