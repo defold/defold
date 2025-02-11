@@ -1123,7 +1123,10 @@ bail:
 
     Result GetURI(HClient client, const char* path, char* uri, uint32_t uri_length)
     {
-        dmSnPrintf(uri, uri_length, "%s://%s:%d%s", client->m_Secure ? "https" : "http", client->m_Hostname, (int) client->m_Port, path);
+        uint32_t n = dmSnPrintf(uri, uri_length, "%s://%s:%d%s", client->m_Secure ? "https" : "http", client->m_Hostname, (int) client->m_Port, path);
+        if (n < uri_length)
+            return RESULT_OK;
+        return RESULT_INVAL;
     }
 
     Result Get(HClient client, const char* path)
