@@ -12,10 +12,11 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_HTTP_SERVICE
-#define DM_HTTP_SERVICE
+#ifndef DM_HTTP_SERVICE_H
+#define DM_HTTP_SERVICE_H
 
 #include <stdint.h>
+#include <dlib/http_cache.h>
 
 namespace dmHttpService
 {
@@ -43,4 +44,4 @@ namespace dmHttpService
 }  // namespace dmHttpService
 
 
-#endif // #ifndef DM_HTTP_SERVICE
+#endif // #ifndef DM_HTTP_SERVICE_H
