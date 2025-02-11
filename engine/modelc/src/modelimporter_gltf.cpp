@@ -792,8 +792,6 @@ static void LoadPrimitives(Scene* scene, Model* model, cgltf_data* gltf_data, cg
 
         //printf("primitive_type: %s\n", getPrimitiveTypeStr(prim->type));
 
-        ReadAccessorUint32ToArray(prim->indices, 1, mesh->m_Indices);
-
         for (uint32_t a = 0; a < prim->attributes_count; ++a)
         {
             cgltf_attribute* attribute = &prim->attributes[a];
@@ -898,6 +896,24 @@ static void LoadPrimitives(Scene* scene, Model* model, cgltf_data* gltf_data, cg
 
             uint32_t size = mesh->m_VertexCount * mesh->m_TexCoords0NumComponents;
             InitSize(mesh->m_TexCoords0, size, size);
+        }
+
+        if (prim->indices)
+        {
+            ReadAccessorUint32ToArray(prim->indices, 1, mesh->m_Indices);
+        }
+        else
+        {
+            // for now, we only support triangles
+            assert(prim->type == cgltf_primitive_type_triangles);
+
+            uint32_t num_vertices = mesh->m_Positions.Size() / 3;
+            mesh->m_Indices.SetCapacity(num_vertices);
+            mesh->m_Indices.SetSize(num_vertices);
+            for (uint32_t i = 0; i < num_vertices; ++i)
+            {
+                mesh->m_Indices[i] = i;
+            }
         }
     }
 }
