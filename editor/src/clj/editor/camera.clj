@@ -388,9 +388,9 @@
   [^Camera camera ^Camera prev-camera ^Region viewport [^double x ^double y]]
   (let [focus ^Vector4d (:focus-point camera)
         point (camera-project camera viewport (Point3d. (.x focus) (.y focus) (.z focus)))
-        screen-z (.z point)
-        world (camera-unproject camera viewport x y screen-z)
-        delta (camera-unproject prev-camera viewport x y screen-z)]
+        prev-point (camera-project prev-camera viewport (Point3d. (.x focus) (.y focus) (.z focus)))
+        world (camera-unproject camera viewport x y (.z point))
+        delta (camera-unproject prev-camera viewport x y (.z prev-point))]
     (.sub delta world)
     (assoc (camera-move camera (.x delta) (.y delta) (.z delta))
            :focus-point (doto focus (.add delta)))))
