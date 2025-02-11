@@ -1126,7 +1126,7 @@ bail:
         dmSnPrintf(uri, uri_length, "%s://%s:%d%s", client->m_Secure ? "https" : "http", client->m_Hostname, (int) client->m_Port, path);
     }
 
-    Result Get(HClient client, const char* path, const char* headers)
+    Result Get(HClient client, const char* path)
     {
         GetURI(client, path, client->m_URI, sizeof(client->m_URI));
         client->m_RequestStart = dmTime::GetMonotonicTime();
@@ -1178,11 +1178,6 @@ bail:
             }
         }
         return r;
-    }
-
-    Result Get(HClient client, const char* path)
-    {
-        return Get(client, path, 0);
     }
 
     Result Post(HClient client, const char* path)
