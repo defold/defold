@@ -53,7 +53,7 @@ namespace dmPhysics
     , m_Context(context)
     //, m_World(context->m_Gravity)
     , m_RayCastRequests()
-    //, m_DebugDraw(&context->m_DebugCallbacks)
+    , m_DebugDraw(&context->m_DebugCallbacks)
     //, m_ContactListener(this)
     , m_GetWorldTransformCallback(params.m_GetWorldTransformCallback)
     , m_SetWorldTransformCallback(params.m_SetWorldTransformCallback)
@@ -65,6 +65,8 @@ namespace dmPhysics
         b2WorldDef worldDef = b2DefaultWorldDef();
         worldDef.gravity = context->m_Gravity;
         m_WorldId = b2CreateWorld(&worldDef);
+
+        m_Bodies.SetCapacity(32);
     }
 
     /*
@@ -455,69 +457,88 @@ namespace dmPhysics
         {
             DM_PROFILE("UpdateKinematic");
 
-            /*
-            for (b2Body* body = world->m_World.GetBodyList(); body; body = body->GetNext())
+            //for (b2Body* body = world->m_World.GetBodyList(); body; body = body->GetNext())
+            for (int i=0; i < world->m_Bodies.Size(); ++i)
             {
-                bool retrieve_gameworld_transform = world->m_AllowDynamicTransforms && body->GetType() != b2_staticBody;
+                b2BodyId body_id = world->m_Bodies[i];
+                b2BodyType body_type = b2Body_GetType(body_id);
+
+                bool retrieve_gameworld_transform = world->m_AllowDynamicTransforms && body_type != b2_staticBody;
 
                 // translate & rotation
-                if (retrieve_gameworld_transform || body->GetType() == b2_kinematicBody)
+                if (retrieve_gameworld_transform || body_type == b2_kinematicBody)
                 {
-                    Point3 old_position = GetWorldPosition2D(context, body);
+                    void* body_user_data = b2Body_GetUserData(body_id);
+
+                    Point3 old_position = GetWorldPosition2D(context, &body_id);
                     dmTransform::Transform world_transform;
-                    (*world->m_GetWorldTransformCallback)(body->GetUserData(), world_transform);
+                    (*world->m_GetWorldTransformCallback)(body_user_data, world_transform);
                     Point3 position = Point3(world_transform.GetTranslation());
                     // Ignore z-component
                     position.setZ(0.0f);
                     Quat rotation = world_transform.GetRotation();
                     float dp = distSqr(old_position, position);
                     float angle = atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()), 1.0f - 2.0f * (rotation.getY() * rotation.getY() + rotation.getZ() * rotation.getZ()));
-                    float old_angle = body->GetAngle();
+
+                    b2Rot rot = b2Body_GetRotation(body_id);
+                    float old_angle = b2Rot_GetAngle(rot);
                     float da = old_angle - angle;
 
                     if (dp > POS_EPSILON || fabsf(da) > ROT_EPSILON)
                     {
                         b2Vec2 b2_position;
                         ToB2(position, b2_position, scale);
-                        body->SetTransform(b2_position, angle);
-                        body->SetSleepingAllowed(false);
+
+                        b2Rot b2_rot = b2MakeRot(angle);
+                        b2Body_SetTransform(body_id, b2_position, b2_rot);
+                        b2Body_EnableSleep(body_id, false);
+
+                        //body->SetTransform(b2_position, angle);
+                        //body->SetSleepingAllowed(false);
                     }
                     else
                     {
-                        body->SetSleepingAllowed(true);
+                        b2Body_EnableSleep(body_id, true);
+
+                        //body->SetSleepingAllowed(true);
                     }
                 }
 
                 // Scaling
                 if(retrieve_gameworld_transform)
                 {
-                    UpdateScale(world, body);
+                    //UpdateScale(world, body_id);
                 }
             }
-            */
         }
         {
             DM_PROFILE("StepSimulation");
 
-            /*
-            world->m_ContactListener.SetStepWorldContext(&step_context);
-            world->m_World.Step(dt, 10, 10);
+            // world->m_ContactListener.SetStepWorldContext(&step_context);
+            // world->m_World.Step(dt, 10, 10);
+
+            b2World_Step(world->m_WorldId, dt, 10);
+
             float inv_scale = world->m_Context->m_InvScale;
             // Update transforms of dynamic bodies
             if (world->m_SetWorldTransformCallback)
             {
-                for (b2Body* body = world->m_World.GetBodyList(); body; body = body->GetNext())
+                //for (b2Body* body = world->m_World.GetBodyList(); body; body = body->GetNext())
+                for (int i=0; i < world->m_Bodies.Size(); ++i)
                 {
-                    if (body->GetType() == b2_dynamicBody && body->IsActive())
+                    b2BodyId body_id = world->m_Bodies[i];
+                    b2BodyType body_type = b2Body_GetType(body_id);
+
+                    if (body_type == b2_dynamicBody && b2Body_IsEnabled(body_id))
                     {
                         Point3 position;
-                        FromB2(body->GetPosition(), position, inv_scale);
-                        Quat rotation = Quat::rotationZ(body->GetAngle());
-                        (*world->m_SetWorldTransformCallback)(body->GetUserData(), position, rotation);
+                        FromB2(b2Body_GetPosition(body_id), position, inv_scale);
+                        b2Rot rot = b2Body_GetRotation(body_id);
+                        Quat rotation = Quat::rotationZ(b2Rot_GetAngle(rot));
+                        (*world->m_SetWorldTransformCallback)(b2Body_GetUserData(body_id), position, rotation);
                     }
                 }
             }
-            */
         }
         // Perform requested ray casts
         uint32_t size = world->m_RayCastRequests.Size();
@@ -571,6 +592,8 @@ namespace dmPhysics
         //UpdateOverlapCache(&world->m_TriggerOverlaps, context, world->m_World.GetContactList(), step_context);
 
         //world->m_World.DrawDebugData();
+
+        b2World_Draw(world->m_WorldId, &world->m_DebugDraw.m_DebugDraw);
     }
 
     /*
@@ -1103,6 +1126,15 @@ namespace dmPhysics
             //(void)fixture;
         }
 
+        // TODO: Reuse old slots
+        // if (world->m_Bodies.Full())
+        // {
+        //     world->m_Bodies.OffsetCapacity(32);
+        // }
+
+        world->m_Bodies.Push(bodyId);
+
+        // TODO: Don't return the raw pointer
         b2BodyId* id = new b2BodyId();
         *id = bodyId;
 
@@ -1273,14 +1305,11 @@ namespace dmPhysics
 
     Point3 GetWorldPosition2D(HContext2D context, HCollisionObject2D collision_object)
     {
-        /*
-        const b2Vec2& b2_position = ((b2Body*)collision_object)->GetPosition();
+        b2BodyId* body_id = (b2BodyId*) collision_object;
+        b2Vec2 b2_position = b2Body_GetPosition(*body_id);
         Point3 position;
         FromB2(b2_position, position, context->m_InvScale);
         return position;
-        */
-        Point3 p;
-        return p;
     }
 
     Quat GetWorldRotation2D(HContext2D context, HCollisionObject2D collision_object)
@@ -1331,7 +1360,8 @@ namespace dmPhysics
 
     bool IsEnabled2D(HCollisionObject2D collision_object)
     {
-        return false; // return ((b2Body*)collision_object)->IsActive();
+        b2BodyId* body_id = (b2BodyId*) collision_object;
+        return b2Body_IsEnabled(*body_id);
     }
 
     void SetEnabled2D(HWorld2D world, HCollisionObject2D collision_object, bool enabled)
@@ -1342,45 +1372,46 @@ namespace dmPhysics
         if (prev_enabled == enabled)
             return;
 
-        /*
-        b2Body* body = ((b2Body*)collision_object);
-        body->SetActive(enabled);
+        b2BodyId* body_id = (b2BodyId*) collision_object;
+
+        b2Body_Enable(*body_id);
+        // body->SetActive(enabled);
         if (enabled)
         {
-            body->SetAwake(true);
+            b2Body_SetAwake(*body_id, true);
+            // body->SetAwake(true);
+
             if (world->m_GetWorldTransformCallback)
             {
                 dmTransform::Transform world_transform;
-                (*world->m_GetWorldTransformCallback)(body->GetUserData(), world_transform);
+                (*world->m_GetWorldTransformCallback)(b2Body_GetUserData(*body_id), world_transform);
                 Point3 position = Point3(world_transform.GetTranslation());
                 Quat rotation = Quat(world_transform.GetRotation());
                 float angle = atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()), 1.0f - 2.0f * (rotation.getY() * rotation.getY() + rotation.getZ() * rotation.getZ()));
                 b2Vec2 b2_position;
                 ToB2(position, b2_position, world->m_Context->m_Scale);
-                body->SetTransform(b2_position, angle);
+
+                b2Rot b2_rot = b2MakeRot(angle);
+                b2Body_SetTransform(*body_id, b2_position, b2_rot);
             }
         }
         else
         {
             // Reset state
-            body->SetAwake(false);
+            b2Body_SetAwake(*body_id, false);
         }
-        */
     }
 
     bool IsSleeping2D(HCollisionObject2D collision_object)
     {
-        /*
-        b2Body* body = ((b2Body*)collision_object);
-        return !body->IsAwake();
-        */
-        return false;
+        b2BodyId* body_id = (b2BodyId*) collision_object;
+        return b2Body_IsAwake(*body_id);
     }
 
     void Wakeup2D(HCollisionObject2D collision_object)
     {
-        // b2Body* body = ((b2Body*)collision_object);
-        // body->SetAwake(true);
+        b2BodyId* body_id = (b2BodyId*) collision_object;
+        b2Body_SetAwake(*body_id, true);
     }
 
     void SetLockedRotation2D(HCollisionObject2D collision_object, bool locked_rotation) {
@@ -1602,17 +1633,15 @@ namespace dmPhysics
     {
         b2Vec2 gravity_b;
         ToB2(gravity, gravity_b, world->m_Context->m_Scale);
-        // world->m_World.SetGravity(gravity_b);
+        b2World_SetGravity(world->m_WorldId, gravity_b);
     }
 
     Vector3 GetGravity2D(HWorld2D world)
     {
-        // b2Vec2 gravity_b = world->m_World.GetGravity();
-        // Vector3 gravity;
-        // FromB2(gravity_b, gravity, world->m_Context->m_InvScale);
-        // return gravity;
-
-        return Vector3(0.0f, 0.0f, 0.0f);
+        b2Vec2 gravity_b = b2World_GetGravity(world->m_WorldId);
+        Vector3 gravity;
+        FromB2(gravity_b, gravity, world->m_Context->m_InvScale);
+        return gravity;
     }
 
     void SetDebugCallbacks2D(HContext2D context, const DebugCallbacks& callbacks)

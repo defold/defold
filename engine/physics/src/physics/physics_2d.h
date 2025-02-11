@@ -52,10 +52,13 @@ namespace dmPhysics
         HContext2D                  m_Context;
         b2WorldId                   m_WorldId;
         dmArray<RayCastRequest>     m_RayCastRequests;
-        // DebugDraw2D                 m_DebugDraw;
+        DebugDraw2D                 m_DebugDraw;
         // ContactListener             m_ContactListener;
         GetWorldTransformCallback   m_GetWorldTransformCallback;
         SetWorldTransformCallback   m_SetWorldTransformCallback;
+
+        dmArray<b2BodyId>           m_Bodies;
+
         uint8_t                     m_AllowDynamicTransforms:1;
         uint8_t                     :7;
     };

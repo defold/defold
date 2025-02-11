@@ -20,20 +20,15 @@
 
 namespace dmPhysics
 {
-    /*
-    DebugDraw2D::DebugDraw2D(DebugCallbacks* callbacks)
-    : m_Callbacks(callbacks)
+    static void DrawPolygon(const b2Vec2* vertices, int vertexCount, b2HexColor color, void* context)
     {
+        DebugDraw2D* debug_draw_2d = (DebugDraw2D*)context;
 
-    }
-
-    void DebugDraw2D::DrawPolygon(const b2Vec2* vertices, int32 vertexCount, const b2Color& color)
-    {
-        if (m_Callbacks->m_DrawLines)
+        if (debug_draw_2d->m_Callbacks->m_DrawLines)
         {
             const uint32_t MAX_SEGMENT_COUNT = 16;
             dmVMath::Point3 points[MAX_SEGMENT_COUNT*2];
-            float inv_scale = m_Callbacks->m_InvScale;
+            float inv_scale = debug_draw_2d->m_Callbacks->m_InvScale;
             uint32_t segment_count = dmMath::Min(MAX_SEGMENT_COUNT, (uint32_t)vertexCount);
             for (uint32_t i = 0; i < segment_count; ++i)
             {
@@ -41,10 +36,164 @@ namespace dmPhysics
                 uint32_t j = (i + 1) % segment_count;
                 FromB2(vertices[j], points[2*i + 1], inv_scale);
             }
-            (*m_Callbacks->m_DrawLines)(points, segment_count * 2, dmVMath::Vector4(color.r, color.g, color.b, m_Callbacks->m_Alpha), m_Callbacks->m_UserData);
+
+            // Extract RGB components
+            float r = ((color >> 16) & 0xFF) / 255.0f;
+            float g = ((color >> 8) & 0xFF) / 255.0f;
+            float b = (color & 0xFF) / 255.0f;
+
+            (*debug_draw_2d->m_Callbacks->m_DrawLines)(points, segment_count * 2, dmVMath::Vector4(r, g, b, debug_draw_2d->m_Callbacks->m_Alpha), debug_draw_2d->m_Callbacks->m_UserData);
         }
     }
 
+    static void DrawSolidPolygon( b2Transform transform, const b2Vec2* vertices, int vertexCount, float radius, b2HexColor color, void* context )
+    {
+
+    }
+
+    static void DrawCircle( b2Vec2 center, float radius, b2HexColor color, void* context )
+    {
+
+    }
+
+    static void DrawSolidCircle( b2Transform transform, float radius, b2HexColor color, void* context )
+    {
+
+    }
+
+    static void DrawCapsule( b2Vec2 p1, b2Vec2 p2, float radius, b2HexColor color, void* context )
+    {
+
+    }
+
+    static void DrawSolidCapsule( b2Vec2 p1, b2Vec2 p2, float radius, b2HexColor color, void* context )
+    {
+
+    }
+
+    static void DrawSegment( b2Vec2 p1, b2Vec2 p2, b2HexColor color, void* context )
+    {
+
+    }
+
+    static void DrawTransform( b2Transform transform, void* context )
+    {
+
+    }
+
+    static void DrawPoint( b2Vec2 p, float size, b2HexColor color, void* context )
+    {
+
+    }
+
+    static void DrawString( b2Vec2 p, const char* s, void* context )
+    {
+
+    }
+
+
+    DebugDraw2D::DebugDraw2D(DebugCallbacks* callbacks)
+    : m_Callbacks(callbacks)
+    {
+        m_DebugDraw.DrawPolygon          = DrawPolygon;
+        m_DebugDraw.DrawSolidPolygon     = DrawSolidPolygon;
+        m_DebugDraw.DrawCircle           = DrawCircle;
+        m_DebugDraw.DrawSolidCircle      = DrawSolidCircle;
+        m_DebugDraw.DrawCapsule          = DrawCapsule;
+        m_DebugDraw.DrawSolidCapsule     = DrawSolidCapsule;
+        m_DebugDraw.DrawSegment          = DrawSegment;
+        m_DebugDraw.DrawTransform        = DrawTransform;
+        m_DebugDraw.DrawPoint            = DrawPoint;
+        m_DebugDraw.DrawString           = DrawString;
+        m_DebugDraw.drawShapes           = true;
+        m_DebugDraw.drawJoints           = true;
+        m_DebugDraw.drawJointExtras      = true;
+        m_DebugDraw.drawAABBs            = true;
+        m_DebugDraw.drawMass             = true;
+        m_DebugDraw.drawContacts         = true;
+        m_DebugDraw.drawGraphColors      = true;
+        m_DebugDraw.drawContactNormals   = true;
+        m_DebugDraw.drawContactImpulses  = true;
+        m_DebugDraw.drawFrictionImpulses = true;
+        m_DebugDraw.context              = this;
+    }
+
+    /*
+    typedef struct b2DebugDraw
+    {
+        /// Draw a closed polygon provided in CCW order.
+        void ( *DrawPolygon )( const b2Vec2* vertices, int vertexCount, b2HexColor color, void* context );
+
+        /// Draw a solid closed polygon provided in CCW order.
+        void ( *DrawSolidPolygon )( b2Transform transform, const b2Vec2* vertices, int vertexCount, float radius, b2HexColor color,
+                                    void* context );
+
+        /// Draw a circle.
+        void ( *DrawCircle )( b2Vec2 center, float radius, b2HexColor color, void* context );
+
+        /// Draw a solid circle.
+        void ( *DrawSolidCircle )( b2Transform transform, float radius, b2HexColor color, void* context );
+
+        /// Draw a capsule.
+        void ( *DrawCapsule )( b2Vec2 p1, b2Vec2 p2, float radius, b2HexColor color, void* context );
+
+        /// Draw a solid capsule.
+        void ( *DrawSolidCapsule )( b2Vec2 p1, b2Vec2 p2, float radius, b2HexColor color, void* context );
+
+        /// Draw a line segment.
+        void ( *DrawSegment )( b2Vec2 p1, b2Vec2 p2, b2HexColor color, void* context );
+
+        /// Draw a transform. Choose your own length scale.
+        void ( *DrawTransform )( b2Transform transform, void* context );
+
+        /// Draw a point.
+        void ( *DrawPoint )( b2Vec2 p, float size, b2HexColor color, void* context );
+
+        /// Draw a string.
+        void ( *DrawString )( b2Vec2 p, const char* s, void* context );
+
+        /// Bounds to use if restricting drawing to a rectangular region
+        b2AABB drawingBounds;
+
+        /// Option to restrict drawing to a rectangular region. May suffer from unstable depth sorting.
+        bool useDrawingBounds;
+
+        /// Option to draw shapes
+        bool drawShapes;
+
+        /// Option to draw joints
+        bool drawJoints;
+
+        /// Option to draw additional information for joints
+        bool drawJointExtras;
+
+        /// Option to draw the bounding boxes for shapes
+        bool drawAABBs;
+
+        /// Option to draw the mass and center of mass of dynamic bodies
+        bool drawMass;
+
+        /// Option to draw contact points
+        bool drawContacts;
+
+        /// Option to visualize the graph coloring used for contacts and joints
+        bool drawGraphColors;
+
+        /// Option to draw contact normals
+        bool drawContactNormals;
+
+        /// Option to draw contact normal impulses
+        bool drawContactImpulses;
+
+        /// Option to draw contact friction impulses
+        bool drawFrictionImpulses;
+
+        /// User context that is passed as an argument to drawing callback functions
+        void* context;
+    } b2DebugDraw;
+    */
+
+    /*
     void DebugDraw2D::DrawSolidPolygon(const b2Vec2* vertices, int32 vertexCount, const b2Color& color)
     {
         if (m_Callbacks->m_DrawTriangles)
