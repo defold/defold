@@ -1328,21 +1328,38 @@ static void LoadChannel(NodeAnimation* node_animation, cgltf_animation_channel* 
     cgltf_accessor* accessor_times = channel->sampler->input;
     cgltf_accessor* accessor = channel->sampler->output;
 
+    uint32_t key_count = accessor_times->count;
+
+    // 1 for 1xf32, 4 for 4xf32
     uint32_t num_components = (uint32_t)cgltf_num_components(accessor->type);
+    // number of items per time step
+    uint32_t num_items = accessor->count / key_count;
 
     bool all_identical = true;
 
     float time_min = FLT_MAX;
     float time_max = -FLT_MAX;
 
-    KeyFrame* key_frames = new KeyFrame[accessor_times->count];
-    memset(key_frames, 0, sizeof(KeyFrame)*accessor_times->count);
-    for (uint32_t i = 0; i < accessor->count; ++i)
+    const uint32_t max_num_values = sizeof(KeyFrame::m_Value)/sizeof(float);
+    uint32_t num_values = num_items * num_components;
+    if (num_values > max_num_values)
+    {
+        dmLogWarning("Channel has input count %u and output count %u."
+                     "This yields %u items x %u components = %u"
+                     "which is larger than max count %u", (uint32_t)accessor_times->count, (uint32_t)accessor->count,
+                                                         num_items, num_components, num_values,
+                                                         max_num_values);
+        num_values = max_num_values;
+    }
+
+    KeyFrame* key_frames = new KeyFrame[key_count];
+    memset(key_frames, 0, sizeof(KeyFrame)*key_count);
+    for (uint32_t i = 0; i < key_count; ++i)
     {
         cgltf_accessor_read_float(accessor_times, i, &key_frames[i].m_Time, 1);
-        cgltf_accessor_read_float(accessor, i, key_frames[i].m_Value, num_components);
+        cgltf_accessor_read_float(accessor, i, key_frames[i].m_Value, num_values);
 
-        if (all_identical && !AreEqual(key_frames[0].m_Value, key_frames[i].m_Value, num_components, 0.0001f))
+        if (all_identical && !AreEqual(key_frames[0].m_Value, key_frames[i].m_Value, num_values, 0.0001f))
         {
             all_identical = false;
         }
@@ -1353,7 +1370,6 @@ static void LoadChannel(NodeAnimation* node_animation, cgltf_animation_channel* 
     node_animation->m_StartTime = 0.0f;
     node_animation->m_EndTime = time_max - time_min;
 
-    uint32_t key_count = accessor->count;
     if (all_identical)
     {
         key_count = 1;
