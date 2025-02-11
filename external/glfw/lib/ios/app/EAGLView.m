@@ -311,6 +311,7 @@ int  _glfwPlatformOpenWindowOpenGL( int width, int height,
 
     _glfwWin.context = g_glContext;
     _glfwWin.aux_context = g_glAuxContext;
+    _glfwWin.clientAPI = GLFW_OPENGL_API;
 
     _glfwWin.frameBuffer = [g_EAGLView getViewFramebuffer];
     return GL_TRUE;
