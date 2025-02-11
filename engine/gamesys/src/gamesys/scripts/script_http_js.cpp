@@ -33,6 +33,8 @@
 #include "script_http.h"
 #include <script/http_service.h>
 
+#include <extension/extension.hpp>
+
 extern "C"
 {
 #include <lua/lauxlib.h>
@@ -248,10 +250,13 @@ namespace dmGameSystem
         {0, 0}
     };
 
-    void ScriptHttpRegister(const ScriptLibContext& context)
+    static dmExtension::Result ScriptHttpInitialize(dmExtension::Params* params)
     {
-        lua_State* L = dmScript::GetLuaState(context.m_ScriptContext);
-        dmConfigFile::HConfig config_file = dmScript::GetConfigFile(context.m_ScriptContext);
+        lua_State* L = dmExtension::GetContextAsType<lua_State*>(params, "lua");
+        assert(L != 0);
+
+        dmConfigFile::HConfig config_file = dmExtension::GetContextAsType<dmConfigFile::HConfig>(params, "config");
+        assert(config_file != 0);
 
         int top = lua_gettop(L);
 
@@ -265,7 +270,14 @@ namespace dmGameSystem
         luaL_register(L, "http", HTTP_COMP_FUNCTIONS);
         lua_pop(L, 1);
         assert(top == lua_gettop(L));
+
+        return dmExtension::RESULT_OK;
     }
 
-    void ScriptHttpFinalize(const ScriptLibContext& context) { }
+    static dmExtension::Result ScriptHttpFinalize(dmExtension::Params* params)
+    {
+        return dmExtension::RESULT_OK;
+    }
+
+    DM_DECLARE_EXTENSION(ScriptHttp, "ScriptHttp", 0, 0, ScriptHttpInitialize, 0, 0, ScriptHttpFinalize);
 }
