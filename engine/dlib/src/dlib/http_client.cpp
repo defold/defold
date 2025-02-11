@@ -1113,44 +1113,6 @@ bail:
         }
     }
 
-    static bool GetPartialRequestFromHeader(const char* headers, int32_t* start, int32_t* end)
-    {
-        const char* range_name = "Range: bytes=";
-        const char* header = headers ? strstr(headers, range_name) : 0;
-
-        *start = -1;
-        *end = -1;
-
-        if (!header)
-            return false;
-
-        header = header + strlen(range_name);
-        const char* header_end_str = strstr(header, "\r\n");
-
-        char buffer[128];
-        uint32_t len = header_end_str ? (header_end_str - header) : strlen(header);
-        len = dmMath::Min((uint32_t)sizeof(buffer)-1, len);
-
-        memcpy(buffer, header, len);
-        buffer[len] = 0;
-
-        // At this point, the result is of the formats "123-456" or "123-"
-        char* end_str = strstr(buffer, "-");
-        if (end_str)
-        {
-            *end_str++ = 0; // skip the "-", and null it out
-
-            if (*end_str != 0) // it is now either the start of the value or '\0'
-                *end = atoi(end_str);
-        }
-
-        // we read this _after_ the "-" was set to '\0'
-        if (buffer[0] != 0)
-            *start = atoi(buffer);
-
-        return true;
-    }
-
     Result SetCacheKey(HClient client, const char* key)
     {
         uint32_t n = dmSnPrintf(client->m_CacheKey, sizeof(client->m_CacheKey), "%s", key);
