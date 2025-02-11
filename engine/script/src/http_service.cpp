@@ -235,7 +235,8 @@ namespace dmHttpService
     {
         // Headers are either 0, of a list of strings "header1: value\nheader2: value\n"
         const char* current = (const char*)worker->m_Request->m_Headers;
-        while (current != 0)
+        const char* headers_end = current + worker->m_Request->m_HeadersLength;
+        while (current < headers_end)
         {
             const char* end = strchr(current, '\n');
             uint32_t length = end - current;
