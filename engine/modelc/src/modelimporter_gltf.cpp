@@ -1398,7 +1398,7 @@ static void LoadChannel(NodeAnimation* node_animation, cgltf_animation_channel* 
     }
 }
 
-static uint32_t CountAnimatedNodes(cgltf_animation* animation, dmHashTable64<uint32_t>& node_to_index)
+static uint32_t CountAnimatedNodes(Scene* scene, cgltf_data* gltf_data, cgltf_animation* animation, dmHashTable64<uint32_t>& node_to_index)
 {
     node_to_index.SetCapacity((32*2)/3, 32);
 
@@ -1410,8 +1410,8 @@ static uint32_t CountAnimatedNodes(cgltf_animation* animation, dmHashTable64<uin
             node_to_index.SetCapacity((new_capacity*2)/3, new_capacity);
         }
 
-        const char* node_name = animation->channels[i].target_node->name;
-        dmhash_t node_name_hash = dmHashString64(node_name);
+        Node* target_node = TranslateNode(animation->channels[i].target_node, gltf_data, scene);
+        dmhash_t node_name_hash = dmHashString64(target_node->m_Name);
 
         uint32_t* prev_index = node_to_index.Get(node_name_hash);
         if (prev_index == 0)
@@ -1441,7 +1441,7 @@ static void LoadAnimations(Scene* scene, cgltf_data* gltf_data)
         // Here we want to create a many individual tracks for different bones (name.type): "a.rot", "b.rot", "a.pos", "b.scale"...
         // into a list of tracks that holds all 3 types: [a: {rot, pos, scale}, b: {rot, pos, scale}...]
         dmHashTable64<uint32_t> node_name_to_index;
-        uint32_t node_animations_count = CountAnimatedNodes(gltf_animation, node_name_to_index);
+        uint32_t node_animations_count = CountAnimatedNodes(scene, gltf_data, gltf_animation, node_name_to_index);
 
         InitSize(animation->m_NodeAnimations, node_animations_count, node_animations_count);
 
