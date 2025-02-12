@@ -1032,7 +1032,7 @@ struct BoneInfoSortPred
     }
 };
 
-static void CopyBone(Bone* src, Bone* dst)
+static void CopyBone(Bone* dst, Bone* src)
 {
     // While it's not a POD type, we copy all data as-is
     // We aren't running a destructor on the stale data
