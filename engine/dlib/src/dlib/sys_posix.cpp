@@ -599,7 +599,7 @@ namespace dmSys
 
 
 // NOTE: iOS/Mac implementation in sys_cocoa.mm
-#if !defined(__MACH__) && !defined(DM_PLATFORM_IOS)
+#if !defined(__MACH__) && !defined(DM_PLATFORM_IOS) && !defined(__ANDROID__)
     Result GetHomePath(char* path, uint32_t path_len)
     {
         const char* home = NULL;
@@ -634,6 +634,60 @@ namespace dmSys
             return RESULT_INVAL;
 
         return RESULT_OK;
+    }
+#elif defined(__ANDROID__)
+    Result GetHomePath(char* path, uint32_t path_len)
+    {
+        dmAndroid::ThreadAttacher thread;
+        JNIEnv* env = thread.GetEnv();
+        if (!env)
+        {
+            return RESULT_UNKNOWN;
+        }
+
+        jclass activity_class = env->FindClass("android/app/NativeActivity");
+        jobject activity_obj = thread.GetActivity()->clazz;
+
+        jstring path_obj = NULL;
+
+        // First, try getDataDir() (API 24+)
+        jmethodID get_data_dir_method = env->GetMethodID(activity_class, "getDataDir", "()Ljava/io/File;");
+        if (get_data_dir_method) {
+            jobject data_dir_obj = env->CallObjectMethod(activity_obj, get_data_dir_method);
+            if (data_dir_obj) {
+                jclass file_class = env->FindClass("java/io/File");
+                jmethodID getPathMethod = env->GetMethodID(file_class, "getPath", "()Ljava/lang/String;");
+                path_obj = (jstring) env->CallObjectMethod(data_dir_obj, getPathMethod);
+            }
+        }
+
+        // Fallback: Use getApplicationInfo().dataDir (works on all Android versions)
+        if (!path_obj) {
+            jmethodID get_app_info_method = env->GetMethodID(activity_class, "getApplicationInfo", "()Landroid/content/pm/ApplicationInfo;");
+            jobject app_info_obj = env->CallObjectMethod(activity_obj, get_app_info_method);
+
+            if (app_info_obj) {
+                jclass app_info_class = env->FindClass("android/content/pm/ApplicationInfo");
+                jfieldID data_dir_field = env->GetFieldID(app_info_class, "dataDir", "Ljava/lang/String;");
+                path_obj = (jstring) env->GetObjectField(app_info_obj, data_dir_field);
+            }
+        }
+
+        Result res = RESULT_UNKNOWN;
+
+        if (path_obj) {
+            const char* dataDir = env->GetStringUTFChars(path_obj, NULL);
+
+            if (dmStrlCpy(path, dataDir, path_len) >= path_len) {
+                res = RESULT_INVAL;
+            } else {
+                res = RESULT_OK;
+            }
+
+            env->ReleaseStringUTFChars(path_obj, dataDir);
+        }
+
+        return res;
     }
 #endif
 
