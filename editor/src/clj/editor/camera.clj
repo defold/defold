@@ -385,6 +385,7 @@
       :focus-point (doto focus (.add delta)))))
 
 (defn pan-at-pointer-position
+  "Pans the camera so that the focus point is at the same position as it was before `dolly`."
   [^Camera camera ^Camera prev-camera ^Region viewport [^double x ^double y]]
   (let [focus ^Vector4d (:focus-point camera)
         point (camera-project camera viewport (Point3d. (.x focus) (.y focus) (.z focus)))
