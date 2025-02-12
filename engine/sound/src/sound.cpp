@@ -866,6 +866,8 @@ namespace dmSound
             sum_sq_left += g->m_SumSquaredMemory[2 * ss_index + 0];
             sum_sq_right += g->m_SumSquaredMemory[2 * ss_index + 1];
             uint16_t frame_count = g->m_FrameCounts[ss_index];
+            if (frame_count == 0)
+                break;
 
             left -= frame_count;
             total_frame_count += frame_count;
@@ -905,6 +907,8 @@ namespace dmSound
             max_peak_left_sq = dmMath::Max(max_peak_left_sq, g->m_PeakMemorySq[2 * ss_index + 0]);
             max_peak_right_sq = dmMath::Max(max_peak_right_sq, g->m_PeakMemorySq[2 * ss_index + 1]);
             uint16_t frame_count = g->m_FrameCounts[ss_index];
+            if (frame_count == 0)
+                break;
 
             left -= frame_count;
             ss_index = (ss_index - 1) % GROUP_MEMORY_BUFFER_COUNT;
