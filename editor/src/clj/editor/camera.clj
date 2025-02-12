@@ -525,7 +525,7 @@
     :perspective (camera-perspective-frame-aabb camera aabb)))
 
 (defn camera-orthographic-realign ^Camera
-  [^Camera camera ^Region viewport ^AABB aabb]
+  [^Camera camera]
   (assert (= :orthographic (:type camera)))
   (let [focus ^Vector4d (:focus-point camera)
         delta ^Vector4d (doto (Vector4d. ^Point3d (:position camera))

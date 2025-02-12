@@ -1000,7 +1000,8 @@
                       (g/set-property camera-node :local-camera cam))))
                 (fn []
                   (g/transact
-                    (g/set-property camera-node :local-camera end-camera)))))
+                    (g/set-property camera-node :local-camera end-camera))
+                    (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true))))
     (g/transact
       (g/set-property camera-node :local-camera end-camera)))
   nil)
@@ -1034,11 +1035,9 @@
 
 
 (defn realign-camera [view animate?]
-  (let [aabb (fudge-empty-aabb (g/node-value view :selected-aabb))
-        camera (view->camera view)
-        viewport (g/node-value view :viewport)
+  (let [camera (view->camera view)
         local-cam (g/node-value camera :local-camera)
-        end-camera (c/camera-orthographic-realign (c/camera-ensure-orthographic local-cam) viewport aabb)]
+        end-camera (c/camera-orthographic-realign (c/camera-ensure-orthographic local-cam))]
     (set-camera! camera local-cam end-camera animate?)))
 
 (defn set-camera-type! [view projection-type]
@@ -1077,11 +1076,28 @@
          (some-> (active-scene-view app-view)
                  (g/node-value :camera-type)
                  (= (:camera-type user-data)))))
+(defn- camera-mode-2d?
+  [app-view]
+  (-> (active-scene-view app-view)
+      (view->camera)
+      (g/node-value :local-camera)
+      (c/mode-2d?)))
+
+(handler/defhandler :toggle-2d-mode :workbench
+  (active? [app-view evaluation-context]
+           (active-scene-view app-view evaluation-context))
+  (run [app-view]
+       (if (camera-mode-2d? app-view)
+         ()
+         (-> (active-scene-view app-view)
+             (realign-camera false))))
+  (state [app-view] (camera-mode-2d? app-view)))
 
 ;; Used in the scene view tool bar.
 (handler/defhandler :toggle-perspective-camera :workbench
   (active? [app-view evaluation-context]
            (active-scene-view app-view evaluation-context))
+  (enabled? [app-view] (not (camera-mode-2d? app-view)))
   (run [app-view]
        (when-some [view (active-scene-view app-view)]
          (set-camera-type! view

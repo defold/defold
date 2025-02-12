@@ -480,6 +480,9 @@
 (def ^:private perspective-icon-svg-path
   (ui/load-svg-path "scene/images/perspective_icon.svg"))
 
+(def ^:private mode-2d-svg-path
+  (ui/load-svg-path "scene/images/2d-mode.svg"))
+
 (defn- make-visibility-settings-graphic []
   (doto (StackPane.)
     (.setId "visibility-settings-graphic")
@@ -506,6 +509,10 @@
     :icon "icons/45/Icons_T_04_Scale.png"
     :command :scale-tool}
    {:label :separator}
+   {:id :2d-mode
+    :tooltip "2d mode"
+    :graphic-fn (partial icons/make-svg-icon-graphic mode-2d-svg-path)
+    :command :toggle-2d-mode}
    {:id :perspective-camera
     :tooltip "Perspective camera"
     :graphic-fn (partial icons/make-svg-icon-graphic perspective-icon-svg-path)
