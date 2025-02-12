@@ -311,7 +311,9 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         dmMessage::DeleteSocket(socket);
         return 0;
     }
-
+    char app_home_path[1024];
+    dmSys::GetHomePath(app_home_path, sizeof(app_home_path));
+    dmLogInfo("GetHomePath `%s`", app_home_path);
     if (factory->m_BaseArchiveMount)
     {
         if (params->m_Flags & RESOURCE_FACTORY_FLAGS_LIVE_UPDATE_MOUNTS_ON_START)

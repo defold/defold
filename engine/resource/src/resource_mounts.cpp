@@ -251,7 +251,7 @@ static dmResource::Result LoadMount(HContext ctx, int priority, const char* name
 
 const char* UriTeplateReplacer(void* user_data, const char* key)
 {
-    if (strcmp(key, "SAVE_PATH") == 0)
+    if (strcmp(key, "HOME_PATH") == 0)
     {
         return (const char* )user_data;
     }
@@ -282,8 +282,8 @@ dmResource::Result LoadMounts(HContext ctx, const char* app_support_path)
         return result;
     }
 
-    char app_save_path[1024];
-    dmSys::GetApplicationSavePath("", app_save_path, sizeof(app_save_path));
+    char app_home_path[1024];
+    dmSys::GetHomePath(app_home_path, sizeof(app_home_path));
 
     uint32_t size = entries.Size();
     for (uint32_t i = 0; i < size; ++i)
@@ -292,7 +292,7 @@ dmResource::Result LoadMounts(HContext ctx, const char* app_support_path)
 
         dmLogError("Load Before '%s'", entry.m_Uri);
         char uri[1024];
-        dmTemplate::Result tr = dmTemplate::Format((void*)app_save_path, uri, sizeof(uri), entry.m_Uri, UriTeplateReplacer);
+        dmTemplate::Result tr = dmTemplate::Format((void*)app_home_path, uri, sizeof(uri), entry.m_Uri, UriTeplateReplacer);
         if (tr != dmTemplate::RESULT_OK)
         {
             dmLogError("Error formating liveupdate mount Uri `%s` response (%d)", entry.m_Uri, tr);
@@ -319,8 +319,8 @@ dmResource::Result SaveMounts(HContext ctx, const char* app_support_path)
 
     dmArray<MountFileEntry> entries;
 
-    char app_save_path[1024];
-    dmSys::GetApplicationSavePath("", app_save_path, sizeof(app_save_path));
+    char app_home_path[1024];
+    dmSys::Result app_path_result = dmSys::GetHomePath(app_home_path, sizeof(app_home_path));
 
     uint32_t size = ctx->m_Mounts.Size();
     for (uint32_t i = 0; i < size; ++i)
@@ -343,21 +343,28 @@ dmResource::Result SaveMounts(HContext ctx, const char* app_support_path)
 
         MountFileEntry entry;
         entry.m_Name = strdup(mount.m_Name);
-        dmLogError("Save Before '%s'", uri_str);
-        char* save_path = strstr(uri_str, app_save_path);
-        if (save_path)
-        {
-            size_t before_len = save_path - uri_str + 1;
-            char before[1024];
-            dmStrlCpy(before, uri_str, before_len);
-            before[before_len] = '\0';
 
-            char uricopy[1024];
-            const char* rest = save_path + strlen(app_save_path);
-            dmSnPrintf(uricopy, sizeof(uricopy), "%s${SAVE_PATH}%s", before, rest);
-            memcpy(uri_str, uricopy, sizeof(uri_str));
+        dmLogError("Save Before '%s'", uri_str);
+
+        if (app_path_result == dmSys::RESULT_OK)
+        {
+            char* save_path = strstr(uri_str, app_home_path);
+            if (save_path)
+            {
+                size_t before_len = save_path - uri_str + 1;
+                char before[1024];
+                dmStrlCpy(before, uri_str, before_len);
+                before[before_len] = '\0';
+
+                char uricopy[1024];
+                const char* rest = save_path + strlen(app_home_path);
+                dmSnPrintf(uricopy, sizeof(uricopy), "%s${HOME_PATH}%s", before, rest);
+                memcpy(uri_str, uricopy, sizeof(uri_str));
+            }
         }
+
         dmLogError("Save After '%s'", uri_str);
+
         entry.m_Uri = strdup(uri_str);
         entry.m_Priority = mount.m_Priority;
 

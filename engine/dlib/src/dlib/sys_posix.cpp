@@ -595,7 +595,11 @@ namespace dmSys
 
         return RESULT_OK;
     }
+#endif
 
+
+// NOTE: iOS/Mac implementation in sys_cocoa.mm
+#if !defined(__MACH__) && !defined(DM_PLATFORM_IOS)
     Result GetHomePath(char* path, uint32_t path_len)
     {
         const char* home = NULL;
@@ -632,8 +636,6 @@ namespace dmSys
         return RESULT_OK;
     }
 #endif
-
-
 
     void FillTimeZone(struct SystemInfo* info)
     {
