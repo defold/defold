@@ -384,6 +384,19 @@
     (assoc (camera-move camera (.x delta) (.y delta) (.z delta))
       :focus-point (doto focus (.add delta)))))
 
+(defn pan-at-pointer-position
+  "Pans the camera so that the focus point is at the same position as it was before `dolly`."
+  [^Camera camera ^Camera prev-camera ^Region viewport [^double x ^double y]]
+  (let [focus ^Vector4d (:focus-point camera)
+        focus-point-3d (Point3d. (.x focus) (.y focus) (.z focus))
+        point (camera-project camera viewport focus-point-3d)
+        prev-point (camera-project prev-camera viewport focus-point-3d)
+        world (camera-unproject camera viewport x y (.z point))
+        delta (camera-unproject prev-camera viewport x y (.z prev-point))]
+    (.sub delta world)
+    (assoc (camera-move camera (.x delta) (.y delta) (.z delta))
+           :focus-point (doto focus (.add delta)))))
+
 (defn tumble
   [^Camera camera last-x last-y evt-x evt-y]
   (let [rate 0.005
@@ -611,34 +624,44 @@
         (set-extents fov-x fov-y z-near z-far)
         filter-fn)))
 
-(defn handle-input [self action user-data]
-  (let [viewport                   (g/node-value self :viewport)
-        movements-enabled          (g/node-value self :movements-enabled)
-        ui-state                   (or (g/user-data self ::ui-state) {:movement :idle})
-        {:keys [last-x last-y]}    ui-state
-        {:keys [x y type delta-y]} action
-        movement                   (if (= type :mouse-pressed)
-                                     (get movements-enabled (camera-movement action) :idle)
-                                     (:movement ui-state))
-        camera                     (g/node-value self :camera)
-        filter-fn                  (or (:filter-fn camera) identity)
-        camera                     (cond-> camera
-                                     (and (= type :scroll)
-                                          (contains? movements-enabled :dolly))
-                                     (dolly (* -0.002 delta-y))
+(defn mode-2d? [camera]
+  (and (= 1.0 (some-> camera camera-view-matrix (.getElement 2 2)))
+       (= :orthographic (:type camera))))
 
-                                     (and (= type :mouse-moved)
-                                          (not (= :idle movement)))
-                                     (cond->
-                                       (= :dolly movement)
-                                       (dolly (* -0.002 (- y last-y)))
-                                       (= :track movement)
-                                       (track viewport last-x last-y x y)
-                                       (= :tumble movement)
-                                       (tumble last-x last-y x y))
+(defn handle-input [self action _user-data]
+  (let [viewport (g/node-value self :viewport)
+        movements-enabled (g/node-value self :movements-enabled)
+        ui-state (or (g/user-data self ::ui-state) {:movement :idle})
+        {:keys [last-x last-y]} ui-state
+        {:keys [x y type delta-y alt]} action
+        movement (if (= type :mouse-pressed)
+                   (get movements-enabled (camera-movement action) :idle)
+                   (:movement ui-state))
+        camera (g/node-value self :camera)
+        is-mode-2d (mode-2d? camera)
+        filter-fn (:filter-fn camera)
+        camera (cond-> camera
+                 (and (= type :scroll)
+                      (contains? movements-enabled :dolly))
+                 (cond->
+                   :always
+                   (dolly (* -0.002 delta-y))
+                   (or (and is-mode-2d (not alt))
+                       (and (not is-mode-2d) alt))
+                   (pan-at-pointer-position camera viewport [x y]))
 
-                                     true
-                                     filter-fn)]
+                 (and (= type :mouse-moved)
+                      (not (= :idle movement)))
+                 (cond->
+                   (= :dolly movement)
+                   (dolly (* -0.002 (- y last-y)))
+                   (= :track movement)
+                   (track viewport last-x last-y x y)
+                   (= :tumble movement)
+                   (tumble last-x last-y x y))
+
+                 filter-fn
+                 filter-fn)]
     (g/set-property! self :local-camera camera)
     (case type
       :scroll (if (contains? movements-enabled :dolly) nil action)
