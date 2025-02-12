@@ -598,42 +598,10 @@ namespace dmSys
 #endif
 
 
-// NOTE: iOS/Mac implementation in sys_cocoa.mm
-#if !defined(__MACH__) && !defined(DM_PLATFORM_IOS) && !defined(__ANDROID__)
+#if defined(__EMSCRIPTEN__)
     Result GetHomePath(char* path, uint32_t path_len)
     {
-        const char* home = NULL;
-
-    #ifdef _WIN32
-        char home_path[MAX_PATH];
-        if (SUCCEEDED(SHGetFolderPathA(NULL, CSIDL_PROFILE, NULL, 0, home_path)))
-        {
-            home = home_path;
-        }
-        else
-        {
-            return RESULT_INVAL;
-        }
-    #else
-        home = getenv("HOME");
-        if (!home)
-        {
-            struct passwd *pw = getpwuid(getuid());
-            if (pw)
-            {
-                home = pw->pw_dir;
-            }
-            else
-            {
-                return RESULT_INVAL;
-            }
-        }
-    #endif
-
-        if (dmStrlCpy(path, home, path_len) >= path_len)
-            return RESULT_INVAL;
-
-        return RESULT_OK;
+        return GetApplicationSupportPath("", path, path_len);
     }
 #elif defined(__ANDROID__)
     Result GetHomePath(char* path, uint32_t path_len)
@@ -688,6 +656,43 @@ namespace dmSys
         }
 
         return res;
+    }
+// NOTE: iOS/Mac implementation in sys_cocoa.mm
+#elif !defined(__MACH__) && !defined(DM_PLATFORM_IOS)
+    Result GetHomePath(char* path, uint32_t path_len)
+    {
+        const char* home = NULL;
+
+    #ifdef _WIN32
+        char home_path[MAX_PATH];
+        if (SUCCEEDED(SHGetFolderPathA(NULL, CSIDL_PROFILE, NULL, 0, home_path)))
+        {
+            home = home_path;
+        }
+        else
+        {
+            return RESULT_INVAL;
+        }
+    #else
+        home = getenv("HOME");
+        if (!home)
+        {
+            struct passwd *pw = getpwuid(getuid());
+            if (pw)
+            {
+                home = pw->pw_dir;
+            }
+            else
+            {
+                return RESULT_INVAL;
+            }
+        }
+    #endif
+
+        if (dmStrlCpy(path, home, path_len) >= path_len)
+            return RESULT_INVAL;
+
+        return RESULT_OK;
     }
 #endif
 
