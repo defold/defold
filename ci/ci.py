@@ -151,6 +151,9 @@ def install(args):
         call("update-alternatives --display clang")
         call("update-alternatives --display clang++")
 
+        call("wget http://security.ubuntu.com/ubuntu/pool/universe/n/ncurses/libtinfo5_6.3-2ubuntu0.1_amd64.deb")
+        call("apt install ./libtinfo5_6.3-2ubuntu0.1_amd64.deb")
+
         clang_priority = 200 # GA runner has clang at prio 100, so let's add a higher prio
         clang_version = 16
         clang_path = "/usr/bin"
