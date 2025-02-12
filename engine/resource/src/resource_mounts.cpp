@@ -290,7 +290,6 @@ dmResource::Result LoadMounts(HContext ctx, const char* app_support_path)
     {
         MountFileEntry& entry = entries[i];
 
-        dmLogError("Load Before '%s'", entry.m_Uri);
         char uri[1024];
         dmTemplate::Result tr = dmTemplate::Format((void*)app_home_path, uri, sizeof(uri), entry.m_Uri, UriTeplateReplacer);
         if (tr != dmTemplate::RESULT_OK)
@@ -298,7 +297,6 @@ dmResource::Result LoadMounts(HContext ctx, const char* app_support_path)
             dmLogError("Error formating liveupdate mount Uri `%s` response (%d)", entry.m_Uri, tr);
             return dmResource::RESULT_INVALID_DATA;
         }
-        dmLogError("Load After '%s'", uri);
 
         DM_RESOURCE_DBG_LOG(2, "  mounting: '%s' %d '%s'\n", entry.m_Name, entry.m_Priority, uri);
         LoadMount(ctx, entry.m_Priority, entry.m_Name, uri, true);
@@ -344,8 +342,6 @@ dmResource::Result SaveMounts(HContext ctx, const char* app_support_path)
         MountFileEntry entry;
         entry.m_Name = strdup(mount.m_Name);
 
-        dmLogError("Save Before '%s'", uri_str);
-
         if (app_path_result == dmSys::RESULT_OK)
         {
             char* save_path = strstr(uri_str, app_home_path);
@@ -362,8 +358,6 @@ dmResource::Result SaveMounts(HContext ctx, const char* app_support_path)
                 memcpy(uri_str, uricopy, sizeof(uri_str));
             }
         }
-
-        dmLogError("Save After '%s'", uri_str);
 
         entry.m_Uri = strdup(uri_str);
         entry.m_Priority = mount.m_Priority;
