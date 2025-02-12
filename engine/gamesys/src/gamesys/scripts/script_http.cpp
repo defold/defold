@@ -87,11 +87,14 @@ namespace dmGameSystem
      *
      * - [type:number] `status`: the status of the response
      * - [type:string] `response`: the response data (if not saved on disc)
-     * - [type:table] `headers`: all the returned headers
+     * - [type:table] `headers`: all the returned headers (if status is 200 or 206)
      * - [type:string] `path`: the stored path (if saved to disc)
      * - [type:string] `error`: if any unforeseen errors occurred (e.g. file I/O)
      * - [type:number] `bytes_received`: the amount of bytes received/sent for a request, only if option `report_progress` is true
      * - [type:number] `bytes_total`: the total amount of bytes for a request, only if option `report_progress` is true
+     * - [type:number] `range_start`: the start offset into the requested file
+     * - [type:number] `range_end`: the end offset into the requested file (inclusive)
+     * - [type:number] `document_size`: the full size of the requested file
      *
      * @param [headers] [type:table] optional table with custom headers
      * @param [post_data] [type:string] optional data to send

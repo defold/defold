@@ -76,6 +76,9 @@ public:
     std::string m_ToPost;
     int m_StatusCode;
     int m_XScale;
+    uint32_t m_RangeStart;
+    uint32_t m_RangeEnd;
+    uint32_t m_DocumentSize;
     dmURI::Parts m_URI;
     char m_CacheDir[256];
 
@@ -85,10 +88,15 @@ public:
         self->m_Headers[key] = value;
     }
 
-    static void HttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length, const char* method)
+    static void HttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length,
+                            uint32_t range_start, uint32_t range_end, uint32_t document_size,
+                            const char* method)
     {
         dmHttpClientTest* self = (dmHttpClientTest*) user_data;
         self->m_StatusCode = status_code;
+        self->m_RangeStart = range_start;
+        self->m_RangeEnd = range_end;
+        self->m_DocumentSize = document_size;
         self->m_Content.append((const char*) content_data, content_data_size);
     }
 
@@ -133,6 +141,9 @@ public:
     dmHttpClient::Result HttpGet(const char* url)
     {
         m_StatusCode = -1;
+        m_RangeStart = 0xFFFFFFFF;
+        m_RangeEnd = 0xFFFFFFFF;
+        m_DocumentSize = 0xFFFFFFFF;
         m_Content.clear();
         m_Headers.clear();
         dmHttpClient::SetCacheKey(m_Client, url);
@@ -142,6 +153,9 @@ public:
     dmHttpClient::Result HttpGetPartial(const char* url, int start, int end)
     {
         m_StatusCode = -1;
+        m_RangeStart = 0xFFFFFFFF;
+        m_RangeEnd = 0xFFFFFFFF;
+        m_DocumentSize = 0xFFFFFFFF;
         m_Content.clear();
         m_Headers.clear();
 
@@ -162,6 +176,9 @@ public:
     dmHttpClient::Result HttpPost(const char* url)
     {
         m_StatusCode = -1;
+        m_RangeStart = 0xFFFFFFFF;
+        m_RangeEnd = 0xFFFFFFFF;
+        m_DocumentSize = 0xFFFFFFFF;
         m_Content.clear();
         m_Headers.clear();
         return dmHttpClient::Post(m_Client, url);
@@ -504,6 +521,9 @@ TEST_P(dmHttpClientTest, Simple)
 struct HttpStressHelper
 {
     int m_StatusCode;
+    uint32_t m_RangeStart;
+    uint32_t m_RangeEnd;
+    uint32_t m_DocumentSize;
     std::string m_Content;
     dmHttpClient::HClient m_Client;
 
@@ -511,6 +531,9 @@ struct HttpStressHelper
     {
         bool secure = strcmp(uri.m_Scheme, "https") == 0;
         m_StatusCode = 0;
+        m_RangeStart = 0xFFFFFFFF;
+        m_RangeEnd = 0xFFFFFFFF;
+        m_DocumentSize = 0xFFFFFFFF;
         dmHttpClient::NewParams params;
         params.m_Userdata = this;
         params.m_HttpContent = HttpStressHelper::HttpContent;
@@ -522,10 +545,15 @@ struct HttpStressHelper
         dmHttpClient::Delete(m_Client);
     }
 
-    static void HttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length, const char* method)
+    static void HttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length,
+                                uint32_t range_start, uint32_t range_end, uint32_t document_size,
+                                const char* method)
     {
         HttpStressHelper* self = (HttpStressHelper*) user_data;
         self->m_StatusCode = status_code;
+        self->m_RangeStart = range_start;
+        self->m_RangeEnd = range_end;
+        self->m_DocumentSize = document_size;
         self->m_Content.append((const char*) content_data, content_data_size);
     }
 };
@@ -1116,16 +1144,25 @@ public:
 
             if (check_content)
             {
+                uint32_t document_size = (uint32_t)strlen(expected);
                 if (partial)
                 {
                     uint32_t sz = sizes[idx];
                     const char* expected_partial = &expected[offsets[idx]];
                     ASSERT_ARRAY_EQ_LEN(expected_partial, m_Content.c_str(), sz);
                     ASSERT_EQ(sz, (uint32_t)m_Content.size());
+
+                    uint32_t end = offsets[idx] + sizes[idx] - 1;
+                    ASSERT_EQ(offsets[idx], m_RangeStart);
+                    ASSERT_EQ(end, m_RangeEnd);
+                    ASSERT_EQ(document_size, m_DocumentSize);
                 }
                 else
                 {
                     ASSERT_STREQ(expected, m_Content.c_str());
+                    ASSERT_EQ(0U, m_RangeStart);
+                    ASSERT_EQ(document_size-1, m_RangeEnd);
+                    ASSERT_EQ(document_size, m_DocumentSize);
                 }
             }
         }

@@ -45,7 +45,7 @@ public:
     {
         dmHttpCache::Result r;
         dmHttpCache::HCacheCreator cache_creator;
-        r = dmHttpCache::Begin(cache, uri, etag, 0, &cache_creator);
+        r = dmHttpCache::Begin(cache, uri, etag, 0, 0, 0, 0, &cache_creator);
         if (r != dmHttpCache::RESULT_OK)
             return r;
         r = dmHttpCache::Add(cache, cache_creator, content, content_len);
@@ -59,7 +59,7 @@ public:
     {
         dmHttpCache::Result r;
         dmHttpCache::HCacheCreator cache_creator;
-        r = dmHttpCache::Begin(cache, uri, "", max_age, &cache_creator);
+        r = dmHttpCache::Begin(cache, uri, "", max_age, 0, 0, 0, &cache_creator);
         if (r != dmHttpCache::RESULT_OK)
             return r;
         r = dmHttpCache::Add(cache, cache_creator, content, content_len);
@@ -69,11 +69,15 @@ public:
         return r;
     }
 
-    dmHttpCache::Result Get(dmHttpCache::HCache cache, const char* uri, const char* etag, void** content, uint64_t* checksum, uint32_t* size_out = 0)
+    dmHttpCache::Result Get(dmHttpCache::HCache cache, const char* uri, const char* etag, void** content, uint64_t* checksum, uint32_t* size_out = 0,
+                                uint32_t* range_start_out = 0, uint32_t* range_end_out = 0, uint32_t* document_size_out = 0)
     {
         FILE* f = 0;
         dmHttpCache::Result r;
-        r = dmHttpCache::Get(cache, uri, etag, &f, 0, checksum);
+        uint32_t range_start;
+        uint32_t range_end;
+        uint32_t document_size;
+        r = dmHttpCache::Get(cache, uri, etag, &f, 0, checksum, &range_start, &range_end, &document_size);
         if (r != dmHttpCache::RESULT_OK)
             return r;
 
@@ -90,6 +94,12 @@ public:
         *content = buffer;
         if (size_out)
             *size_out = size;
+        if (range_start_out)
+            *range_start_out = range_start;
+        if (range_end_out)
+            *range_end_out = range_end;
+        if (document_size_out)
+            *document_size_out = document_size;
         dmHttpCache::Release(cache, uri, etag, f);
 
         return dmHttpCache::RESULT_OK;
@@ -179,7 +189,7 @@ TEST_F(dmHttpCacheTest, SetError)
 
     // Start cache entry creation
     dmHttpCache::HCacheCreator cache_creator;
-    r = dmHttpCache::Begin(cache, "uri", "etag", 0, &cache_creator);
+    r = dmHttpCache::Begin(cache, "uri", "etag", 0, 0, 0, 0, &cache_creator);
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
     r = dmHttpCache::Add(cache, cache_creator, "data", strlen("data"));
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
@@ -387,7 +397,10 @@ TEST_F(dmHttpCacheTest, UpdateReadlocked)
 
     FILE* file;
     uint64_t checksum;
-    r = dmHttpCache::Get(cache, "uri", "etag", &file, 0, &checksum);
+    uint32_t range_start;
+    uint32_t range_end;
+    uint32_t document_size;
+    r = dmHttpCache::Get(cache, "uri", "etag", &file, 0, &checksum, &range_start, &range_end, &document_size);
     ASSERT_EQ(dmHashString64("data"), checksum);
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
 
@@ -412,12 +425,15 @@ TEST_F(dmHttpCacheTest, GetWriteLocked)
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
 
     dmHttpCache::HCacheCreator cache_creator;
-    r = dmHttpCache::Begin(cache, "uri", "etag", 0, &cache_creator);
+    r = dmHttpCache::Begin(cache, "uri", "etag", 0, 0, 0, 0, &cache_creator);
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
 
     FILE* file;
     uint64_t checksum;
-    r = dmHttpCache::Get(cache, "uri", "etag", &file, 0, &checksum);
+    uint32_t range_start;
+    uint32_t range_end;
+    uint32_t document_size;
+    r = dmHttpCache::Get(cache, "uri", "etag", &file, 0, &checksum, &range_start, &range_end, &document_size);
     ASSERT_EQ(dmHttpCache::RESULT_LOCKED, r);
 
     dmHttpCache::Add(cache, cache_creator, "data", 4);
@@ -444,11 +460,11 @@ TEST_F(dmHttpCacheTest, DoublePut)
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
 
     dmHttpCache::HCacheCreator cache_creator1;
-    r = dmHttpCache::Begin(cache, "uri", "etag", 0, &cache_creator1);
+    r = dmHttpCache::Begin(cache, "uri", "etag", 0, 0, 0, 0, &cache_creator1);
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
 
     dmHttpCache::HCacheCreator cache_creator2;
-    r = dmHttpCache::Begin(cache, "uri", "etag2", 0, &cache_creator2);
+    r = dmHttpCache::Begin(cache, "uri", "etag2", 0, 0, 0, 0, &cache_creator2);
     ASSERT_EQ(dmHttpCache::RESULT_LOCKED, r);
 
     dmHttpCache::Add(cache, cache_creator1, "data", 4);
@@ -476,13 +492,19 @@ TEST_F(dmHttpCacheTest, PartialUpdate)
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
 
     dmHttpCache::HCacheCreator cache_creator;
-    r = dmHttpCache::Begin(cache, "uri", "etag", 0, &cache_creator);
+    r = dmHttpCache::Begin(cache, "uri", "etag", 0, 8,9,10, &cache_creator);
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
 
     FILE* file;
     uint64_t checksum;
-    r = dmHttpCache::Get(cache, "uri", "etag", &file, 0, &checksum);
+    uint32_t range_start;
+    uint32_t range_end;
+    uint32_t document_size;
+    r = dmHttpCache::Get(cache, "uri", "etag", &file, 0, &checksum, &range_start, &range_end, &document_size);
     ASSERT_EQ(dmHttpCache::RESULT_LOCKED, r);
+    ASSERT_EQ(8U, range_start);
+    ASSERT_EQ(9U, range_end);
+    ASSERT_EQ(10U, document_size);
 
     dmHttpCache::Add(cache, cache_creator, "data", 4);
 

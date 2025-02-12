@@ -214,6 +214,8 @@ static dmResourceProvider::Result GetRequestFromUri(HttpProviderContext* archive
         archive->m_ChunkedRequest   = 1;
     }
 
+    bool get_file_size = strcmp(method, "HEAD") == 0;
+
     // // Always verify cache for reloaded resources
     // if (factory->m_HttpCache)
     //     dmHttpCache::SetConsistencyPolicy(factory->m_HttpCache, dmHttpCache::CONSISTENCY_POLICY_VERIFY);
@@ -225,7 +227,7 @@ static dmResourceProvider::Result GetRequestFromUri(HttpProviderContext* archive
     dmHttpClient::GetURI(archive->m_HttpClient, path, cache_key, sizeof(cache_key));
 
     // Make the cache key the same (see http_service.cpp)
-    if (INVALID_CHUNK_VALUE != offset && INVALID_CHUNK_VALUE != size)
+    if (!get_file_size && INVALID_CHUNK_VALUE != offset && INVALID_CHUNK_VALUE != size)
     {
         char range[256];
         dmSnPrintf(range, sizeof(range), "=bytes=%u-%u", offset, offset+size-1);
@@ -264,8 +266,6 @@ static dmResourceProvider::Result GetRequestFromUri(HttpProviderContext* archive
     }
 
     printf("HTTP RESULT: %d - %s - %s\n", archive->m_HttpStatus, method, cache_key);
-
-    bool get_file_size = strcmp(method, "HEAD") == 0;
 
     if (get_file_size)
     {
