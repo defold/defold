@@ -388,8 +388,9 @@
   "Pans the camera so that the focus point is at the same position as it was before `dolly`."
   [^Camera camera ^Camera prev-camera ^Region viewport [^double x ^double y]]
   (let [focus ^Vector4d (:focus-point camera)
-        point (camera-project camera viewport (Point3d. (.x focus) (.y focus) (.z focus)))
-        prev-point (camera-project prev-camera viewport (Point3d. (.x focus) (.y focus) (.z focus)))
+        focus-point-3d (Point3d. (.x focus) (.y focus) (.z focus))
+        point (camera-project camera viewport focus-point-3d)
+        prev-point (camera-project prev-camera viewport focus-point-3d)
         world (camera-unproject camera viewport x y (.z point))
         delta (camera-unproject prev-camera viewport x y (.z prev-point))]
     (.sub delta world)
@@ -638,7 +639,7 @@
                    (:movement ui-state))
         camera (g/node-value self :camera)
         is-mode-2d (mode-2d? camera)
-        filter-fn (or (:filter-fn camera) identity)
+        filter-fn (:filter-fn camera)
         camera (cond-> camera
                  (and (= type :scroll)
                       (contains? movements-enabled :dolly))
@@ -659,7 +660,7 @@
                    (= :tumble movement)
                    (tumble last-x last-y x y))
 
-                 :always
+                 filter-fn
                  filter-fn)]
     (g/set-property! self :local-camera camera)
     (case type
