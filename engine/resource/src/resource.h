@@ -19,6 +19,7 @@
 #include <dlib/array.h>
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
+#include <dlib/http_cache.h>
 #include <dlib/mutex.h>
 
 struct ResourceDescriptor;
@@ -68,11 +69,6 @@ namespace dmResource
      * Enable resource reloading support. Both over files and http.
      */
     #define RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT (1 << 0)
-
-    /**
-     * Enable HTTP cache
-     */
-    #define RESOURCE_FACTORY_FLAGS_HTTP_CACHE     (1 << 2)
 
     /**
      * Enable Live update
@@ -138,6 +134,8 @@ namespace dmResource
         EmbeddedResource m_ArchiveIndex;
         EmbeddedResource m_ArchiveData;
         EmbeddedResource m_ArchiveManifest;
+
+        dmHttpCache::HCache m_HttpCache;
 
         uint32_t m_Reserved[5];
 

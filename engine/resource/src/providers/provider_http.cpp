@@ -326,5 +326,5 @@ static void SetupArchiveLoaderHttp(dmResourceProvider::ArchiveLoader* loader)
     loader->m_ReadFilePartial   = ReadFilePartial;
 }
 
-DM_DECLARE_ARCHIVE_LOADER(ResourceProviderHttp, "http", SetupArchiveLoaderHttp);
+DM_DECLARE_ARCHIVE_LOADER(ResourceProviderHttp, "http", SetupArchiveLoaderHttp, 0, 0);
 }
