@@ -237,6 +237,19 @@ namespace dmSys
      */
     Result GetLogPath(char* path, uint32_t path_len);
 
+    /**
+     * Get path to home directory.
+     * Platform notes:
+     * <ul>
+     * <li>iOS: In iOS, the home directory is the application’s sandbox directory
+     * <li>MacOs: In macOS, it’s the application’s sandbox directory, or the current user’s home directory if the application isn’t in a sandbox
+     * </ul>
+     * @param path
+     * @param path_len
+     * @return
+     */
+    Result GetHomePath(char* path, uint32_t path_len);
+
 
     /**
      * Get system information

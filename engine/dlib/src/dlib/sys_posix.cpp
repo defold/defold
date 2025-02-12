@@ -32,6 +32,7 @@
 #include "dirent.h"
 #else
 #include <dirent.h>
+#include <pwd.h>
 #endif
 
 #ifdef _WIN32
@@ -590,6 +591,42 @@ namespace dmSys
     Result GetLogPath(char* path, uint32_t path_len)
     {
         if (dmStrlCpy(path, ".", path_len) >= path_len)
+            return RESULT_INVAL;
+
+        return RESULT_OK;
+    }
+
+    Result GetHomePath(char* path, uint32_t path_len)
+    {
+        const char* home = NULL;
+
+    #ifdef _WIN32
+        char home_path[MAX_PATH];
+        if (SUCCEEDED(SHGetFolderPathA(NULL, CSIDL_PROFILE, NULL, 0, home_path)))
+        {
+            home = home_path;
+        }
+        else
+        {
+            return RESULT_INVAL;
+        }
+    #else
+        home = getenv("HOME");
+        if (!home)
+        {
+            struct passwd *pw = getpwuid(getuid());
+            if (pw)
+            {
+                home = pw->pw_dir;
+            }
+            else
+            {
+                return RESULT_INVAL;
+            }
+        }
+    #endif
+
+        if (dmStrlCpy(path, home, path_len) >= path_len)
             return RESULT_INVAL;
 
         return RESULT_OK;

@@ -93,6 +93,17 @@ namespace dmSys
         }
     }
 
+    Result GetHomePath(char* path, uint32_t path_len)
+    {
+        NSString* p = NSHomeDirectory();
+        const char* s = [p UTF8String];
+
+        if (dmStrlCpy(path, s, path_len) >= path_len)
+            return RESULT_INVAL;
+
+        return RESULT_OK;
+    }
+
 #if defined(DM_PLATFORM_IOS)
 
     static NetworkConnectivity g_NetworkConnectivity = NETWORK_DISCONNECTED;
