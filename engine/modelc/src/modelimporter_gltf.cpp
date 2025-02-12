@@ -905,14 +905,19 @@ static void LoadPrimitives(Scene* scene, Model* model, cgltf_data* gltf_data, cg
         else
         {
             // for now, we only support triangles
-            assert(prim->type == cgltf_primitive_type_triangles);
-
-            uint32_t num_vertices = mesh->m_Positions.Size() / 3;
-            mesh->m_Indices.SetCapacity(num_vertices);
-            mesh->m_Indices.SetSize(num_vertices);
-            for (uint32_t i = 0; i < num_vertices; ++i)
+            if(prim->type == cgltf_primitive_type_triangles)
             {
-                mesh->m_Indices[i] = i;
+                uint32_t num_vertices = mesh->m_Positions.Size() / 3;
+                mesh->m_Indices.SetCapacity(num_vertices);
+                mesh->m_Indices.SetSize(num_vertices);
+                for (uint32_t i = 0; i < num_vertices; ++i)
+                {
+                    mesh->m_Indices[i] = i;
+                }
+            }
+            else if (prim->type == cgltf_primitive_type_points)
+            {
+                dmLogWarning("Primitive in mesh %s uses point type which we don't support.", mesh->m_Name);
             }
         }
     }
