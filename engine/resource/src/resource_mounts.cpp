@@ -283,7 +283,7 @@ dmResource::Result LoadMounts(HContext ctx, const char* app_support_path)
     }
 
     char app_home_path[1024];
-    dmSys::GetHomePath(app_home_path, sizeof(app_home_path));
+    dmSys::Result app_path_result = dmSys::GetHomePath(app_home_path, sizeof(app_home_path));
 
     uint32_t size = entries.Size();
     for (uint32_t i = 0; i < size; ++i)
@@ -291,13 +291,16 @@ dmResource::Result LoadMounts(HContext ctx, const char* app_support_path)
         MountFileEntry& entry = entries[i];
 
         char uri[1024];
-        dmTemplate::Result tr = dmTemplate::Format((void*)app_home_path, uri, sizeof(uri), entry.m_Uri, UriTeplateReplacer);
-        if (tr != dmTemplate::RESULT_OK)
+        if (app_path_result == dmSys::RESULT_OK)
         {
-            dmLogError("Error formating liveupdate mount Uri `%s` response (%d)", entry.m_Uri, tr);
-            return dmResource::RESULT_INVALID_DATA;
+            dmTemplate::Result tr = dmTemplate::Format((void*)app_home_path, uri, sizeof(uri), entry.m_Uri, UriTeplateReplacer);
+            if (tr != dmTemplate::RESULT_OK)
+            {
+                dmLogError("Error formating liveupdate mount Uri `%s` response (%d)", entry.m_Uri, tr);
+                return dmResource::RESULT_INVALID_DATA;
+            }
         }
-
+        
         DM_RESOURCE_DBG_LOG(2, "  mounting: '%s' %d '%s'\n", entry.m_Name, entry.m_Priority, uri);
         LoadMount(ctx, entry.m_Priority, entry.m_Name, uri, true);
     }
