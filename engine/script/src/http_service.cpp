@@ -245,7 +245,7 @@ namespace dmHttpService
                 if (length < buffer_length)
                 {
                     memcpy(buffer, current, length);
-                    buffer[length-1] = 0;
+                    buffer[length] = 0;
                     return buffer;
                 }
             }
@@ -320,7 +320,7 @@ namespace dmHttpService
             const char* range_header = FindHeader(worker, "Range:", header_buffer, sizeof(header_buffer));
             if (range_header)
             {
-                // If we find a range header, let's use it to append to the
+                // If we find a range header, let's use it to append to the cache key
                 range_header += strlen("Range:");
                 while(*range_header == ' ')
                     ++range_header;
