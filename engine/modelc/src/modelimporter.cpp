@@ -270,7 +270,7 @@ bool NeedsResolve(Scene* scene)
     for (uint32_t i = 0; i < scene->m_Buffers.Size(); ++i)
     {
         if (!scene->m_Buffers[i].m_Buffer)
-            return true;;
+            return true;
     }
     return false;
 }

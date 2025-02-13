@@ -23,6 +23,8 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
+int g_AssertMode = 1; // 1 for unit tests
+
 static void* BufferResolveUri(const char* dirname, const char* uri, uint32_t* file_size)
 {
     char path[512];
@@ -63,6 +65,8 @@ static dmModelImporter::Scene* LoadScene(const char* path, dmModelImporter::Opti
         {
             if (scene->m_Buffers[i].m_Buffer)
                 continue;
+            if (!scene->m_Buffers[i].m_Uri)
+                continue;
 
             uint32_t buffermem_size = 0;
             void* buffermem = BufferResolveUri(dirname, scene->m_Buffers[i].m_Uri, &buffermem_size);
@@ -70,7 +74,23 @@ static dmModelImporter::Scene* LoadScene(const char* path, dmModelImporter::Opti
             free(buffermem);
         }
 
-        assert(!dmModelImporter::NeedsResolve(scene));
+        bool still_needs_resolve = dmModelImporter::NeedsResolve(scene);
+        if (still_needs_resolve)
+        {
+            dmLogError("There are still unresolved buffers");
+        }
+
+        if (g_AssertMode)
+        {
+            assert(!still_needs_resolve);
+        }
+
+        if (still_needs_resolve)
+        {
+            dmModelImporter::DestroyScene(scene);
+            free(mem);
+            return 0;
+        }
     }
 
     bool result = dmModelImporter::LoadFinalize(scene);
@@ -299,6 +319,7 @@ TEST(ModelSkinnedTopNodes, MultipleModels)
 
 static int TestStandalone(const char* path)
 {
+    g_AssertMode = 0;
     uint64_t tstart = dmTime::GetMonotonicTime();
 
     dmModelImporter::Options options;

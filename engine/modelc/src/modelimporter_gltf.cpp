@@ -399,11 +399,9 @@ static char* DuplicateObjectName(T* object)
 template <>
 char* DuplicateObjectName<>(cgltf_buffer* object)
 {
-    if (object->name)
-        return strdup(object->name);
     if (object->uri)
         return strdup(object->uri);
-    assert(false && "buffer has no name");
+    // embedded buffers doesn't have to have a valid uri.
     return 0;
 }
 
