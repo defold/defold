@@ -1061,11 +1061,13 @@
   (-> (or (g/node-value camera :cached-3d-camera)
           (c/tumble (g/node-value camera :local-camera) 200.0 -100.0))))
 
-(defmulti realign-camera (fn [view _animate?] (if (-> (view->camera view)
-                                                      (g/node-value :local-camera)
-                                                      (c/mode-2d?))
-                                                :2d
-                                                :3d)))
+(defn- camera-2d?
+  [view]
+  (some-> (view->camera view)
+          (g/node-value :local-camera)
+          (c/mode-2d?)))
+
+(defmulti realign-camera (fn [view _animate?] (if (camera-2d? view) :2d :3d)))
 
 (defmethod realign-camera :2d
   [view animate?]
@@ -1082,8 +1084,7 @@
   [view animate?]
   (let [camera (view->camera view)
         local-cam (g/node-value camera :local-camera)]
-    (g/transact 
-     (g/set-property camera :cached-3d-camera local-cam))
+    (g/transact (g/set-property camera :cached-3d-camera local-cam))
     (when (= (:type local-cam) :perspective)
       (set-camera-type! view :orthographic))
     (let [local-cam (g/node-value camera :local-camera)
@@ -1099,13 +1100,6 @@
                 (not (empty? selected)))))
   (run [app-view] (some-> (active-scene-view app-view)
                           (frame-selection true))))
-
-(defn- camera-2d?
-  [app-view]
-  (some-> (active-scene-view app-view)
-          (view->camera)
-          (g/node-value :local-camera)
-          (c/mode-2d?)))
 
 (defn- camera-animating?
   [app-view]
@@ -1137,13 +1131,13 @@
   (enabled? [app-view] (not (camera-animating? app-view)))
   (run [app-view] (some-> (active-scene-view app-view) 
                           (realign-camera true)))
-  (state [app-view] (camera-2d? app-view)))
+  (state [app-view] (camera-2d? (active-scene-view app-view))))
 
 ;; Used in the scene view tool bar.
 (handler/defhandler :toggle-perspective-camera :workbench
   (active? [app-view evaluation-context]
            (active-scene-view app-view evaluation-context))
-  (enabled? [app-view] (and (not (camera-2d? app-view))
+  (enabled? [app-view] (and (not (camera-2d? (active-scene-view app-view)))
                             (not (camera-animating? app-view))))
   (run [app-view]
        (when-some [view (active-scene-view app-view)]
@@ -1154,7 +1148,7 @@
   (state [app-view]
          (when-let [scene (active-scene-view app-view)]
            (= :perspective
-              (if (or (camera-2d? app-view)
+              (if (or (camera-2d? (active-scene-view app-view))
                       (camera-animating? app-view))
                 (-> (view->camera scene)
                     (g/node-value :cached-3d-camera)
