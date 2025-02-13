@@ -17,6 +17,8 @@
 #include <dlib/profile.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
+#include <dlib/job_thread.h>
+#include <dlib/thread.h>
 
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
@@ -121,6 +123,7 @@ namespace dmGraphics
         m_Width                   = params.m_Width;
         m_Height                  = params.m_Height;
         m_SwapInterval            = params.m_SwapInterval;
+        m_JobThread               = params.m_JobThread;
 
         // We need to have some sort of valid default filtering
         if (m_DefaultTextureMinFilter == TEXTURE_FILTER_DEFAULT)
@@ -933,6 +936,19 @@ namespace dmGraphics
         }
     }
 
+    static void CreateSetTextureAsyncResources(VulkanContext* context)
+    {
+        InitializeSetTextureAsyncState(context->m_SetTextureAsyncState);
+
+        VkSemaphoreCreateInfo vk_create_semaphore_info = {};
+        vk_create_semaphore_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+        vkCreateSemaphore(context->m_LogicalDevice.m_Device, &vk_create_semaphore_info, 0, &context->m_SetTextureAsyncSemaphore);
+
+        VkFenceCreateInfo vk_create_fence_info = {};
+        vk_create_fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+        vkCreateFence(context->m_LogicalDevice.m_Device, &vk_create_fence_info, 0, &context->m_SetTextureAsyncFence);
+    }
+
     bool InitializeVulkan(HContext _context)
     {
         VulkanContext* context = (VulkanContext*) _context;
@@ -1112,6 +1128,12 @@ namespace dmGraphics
         context->m_PipelineCache.SetCapacity(32,64);
         context->m_TextureSamplers.SetCapacity(4);
 
+        context->m_AsyncProcessingSupport = context->m_JobThread != 0x0 && dmThread::PlatformHasThreadSupport();
+        if (context->m_AsyncProcessingSupport)
+        {
+            CreateSetTextureAsyncResources(context);
+        }
+
         // Create framebuffers, default renderpass etc.
         res = CreateMainRenderingResources(context);
         if (res != VK_SUCCESS)
@@ -1225,11 +1247,15 @@ bail:
         VulkanContext* context = (VulkanContext*) _context;
         if (context != 0x0)
         {
+            dmAtomicStore32(&context->m_DeleteContextRequested, 1);
+
             if (context->m_Instance != VK_NULL_HANDLE)
             {
                 vkDestroyInstance(context->m_Instance, 0);
                 context->m_Instance = VK_NULL_HANDLE;
             }
+
+            ResetSetTextureAsyncState(context->m_SetTextureAsyncState);
 
             delete context;
             g_VulkanContext = 0x0;
@@ -3569,6 +3595,7 @@ bail:
         tex->m_MipMapCount    = params.m_MipMapCount;
         tex->m_UsageFlags     = GetVulkanUsageFromHints(params.m_UsageHintBits);
         tex->m_UsageHintFlags = params.m_UsageHintBits;
+        tex->m_DataState      = 0;
 
         for (int i = 0; i < DM_ARRAY_SIZE(tex->m_ImageLayout); ++i)
         {
@@ -3623,6 +3650,40 @@ bail:
         return offset;
     }
 
+    static void CopyToTextureWithStageBuffer(VulkanContext* context, VkCommandBuffer cmd_buffer, DeviceBuffer* stage_buffer, VulkanTexture* texture, const TextureParams& params, uint32_t tex_data_size, const void* tex_data_ptr)
+    {
+        VkResult res = WriteToDeviceBuffer(context->m_LogicalDevice.m_Device, tex_data_size, 0, tex_data_ptr, stage_buffer);
+        CHECK_VK_ERROR(res);
+
+        uint32_t slice_size = tex_data_size / texture->m_Depth;
+
+        // NOTE: We should check max layer count in the device properties!
+        VkBufferImageCopy* vk_copy_regions = new VkBufferImageCopy[texture->m_Depth];
+        for (int i = 0; i < texture->m_Depth; ++i)
+        {
+            VkBufferImageCopy& vk_copy_region = vk_copy_regions[i];
+            vk_copy_region.bufferOffset                    = i * slice_size;
+            vk_copy_region.bufferRowLength                 = 0;
+            vk_copy_region.bufferImageHeight               = 0;
+            vk_copy_region.imageOffset.x                   = params.m_X;
+            vk_copy_region.imageOffset.y                   = params.m_Y;
+            vk_copy_region.imageOffset.z                   = 0;
+            vk_copy_region.imageExtent.width               = params.m_Width;
+            vk_copy_region.imageExtent.height              = params.m_Height;
+            vk_copy_region.imageExtent.depth               = 1;
+            vk_copy_region.imageSubresource.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+            vk_copy_region.imageSubresource.mipLevel       = params.m_MipMap;
+            vk_copy_region.imageSubresource.baseArrayLayer = i;
+            vk_copy_region.imageSubresource.layerCount     = 1;
+        }
+
+        vkCmdCopyBufferToImage(cmd_buffer, stage_buffer->m_Handle.m_Buffer,
+            texture->m_Handle.m_Image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            texture->m_Depth, vk_copy_regions);
+
+        delete[] vk_copy_regions;
+    }
+
     static void CopyToTexture(VulkanContext* context, const TextureParams& params,
         bool useStageBuffer, uint32_t texDataSize, void* texDataPtr, VulkanTexture* textureOut)
     {
@@ -3668,15 +3729,6 @@ bail:
             vk_submit_info.commandBufferCount = 1;
             vk_submit_info.pCommandBuffers    = &vk_command_buffer;
 
-            DeviceBuffer stage_buffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
-
-            res = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, vk_device, texDataSize,
-                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stage_buffer);
-            CHECK_VK_ERROR(res);
-
-            res = WriteToDeviceBuffer(vk_device, texDataSize, 0, texDataPtr, &stage_buffer);
-            CHECK_VK_ERROR(res);
-
             // Transition image to transfer dst for the mipmap level we are uploading
             res = TransitionImageLayout(vk_device,
                 context->m_LogicalDevice.m_CommandPool,
@@ -3686,6 +3738,15 @@ bail:
                 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                 params.m_MipMap,
                 layer_count);
+            CHECK_VK_ERROR(res);
+
+            DeviceBuffer stage_buffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+
+            res = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, vk_device, texDataSize,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stage_buffer);
+            CHECK_VK_ERROR(res);
+
+            res = WriteToDeviceBuffer(vk_device, texDataSize, 0, texDataPtr, &stage_buffer);
             CHECK_VK_ERROR(res);
 
             // NOTE: We should check max layer count in the device properties!
@@ -3982,14 +4043,181 @@ bail:
         VulkanSetTextureInternal(tex, params);
     }
 
+    static VkCommandBuffer BeginSingleTimeCommands(VkDevice device, VkCommandPool cmd_pool)
+    {
+        VkCommandBufferAllocateInfo alloc_info = {};
+        alloc_info.sType                       = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        alloc_info.level                       = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        alloc_info.commandPool                 = cmd_pool;
+        alloc_info.commandBufferCount          = 1;
+
+        VkCommandBuffer cmd_buffer;
+        vkAllocateCommandBuffers(device, &alloc_info, &cmd_buffer);
+
+        VkCommandBufferBeginInfo begin_info = {};
+        begin_info.sType                    = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        begin_info.flags                    = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+        vkBeginCommandBuffer(cmd_buffer, &begin_info);
+
+        return cmd_buffer;
+    }
+
+    static int AsyncProcessCallback(void* _context, void* data)
+    {
+        VulkanContext* context     = (VulkanContext*) _context;
+        uint16_t param_array_index = (uint16_t) (size_t) data;
+        SetTextureAsyncParams ap   = GetSetTextureAsyncParams(context->m_SetTextureAsyncState, param_array_index);
+
+        if (dmAtomicGet32(&context->m_DeleteContextRequested))
+        {
+            return 0;
+        }
+
+        VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, ap.m_Texture);
+
+        // Async texture uploading
+        {
+            VkSemaphore semaphore;
+            VkFence fence;
+            VkCommandBuffer cmd_buffer = BeginSingleTimeCommands(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPoolWorker);
+
+            TransitionImageLayout(cmd_buffer, tex, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, ap.m_Params.m_MipMap, tex->m_Depth);
+
+            DeviceBuffer stage_buffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+            VkResult res = CreateDeviceBuffer(
+                context->m_PhysicalDevice.m_Device,
+                context->m_LogicalDevice.m_Device, ap.m_Params.m_DataSize,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stage_buffer);
+            CHECK_VK_ERROR(res);
+
+            CopyToTextureWithStageBuffer(context, cmd_buffer, &stage_buffer, tex, ap.m_Params, ap.m_Params.m_DataSize, ap.m_Params.m_Data);
+
+            TransitionImageLayout(cmd_buffer, tex, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, ap.m_Params.m_MipMap, tex->m_Depth);
+
+            vkEndCommandBuffer(cmd_buffer);
+
+            VkSemaphoreCreateInfo vk_create_semaphore_info = {};
+            vk_create_semaphore_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+            vkCreateSemaphore(context->m_LogicalDevice.m_Device, &vk_create_semaphore_info, 0, &semaphore);
+
+            VkFenceCreateInfo vk_create_fence_info = {};
+            vk_create_fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+            vkCreateFence(context->m_LogicalDevice.m_Device, &vk_create_fence_info, 0, &fence);
+
+            VkSubmitInfo submit_info         = {};
+            submit_info.sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+            submit_info.commandBufferCount   = 1;
+            submit_info.pCommandBuffers      = &cmd_buffer;
+            submit_info.signalSemaphoreCount = 1;
+            submit_info.pSignalSemaphores    = &semaphore;
+
+            vkQueueSubmit(context->m_LogicalDevice.m_GraphicsQueue, 1, &submit_info, fence);
+            vkWaitForFences(context->m_LogicalDevice.m_Device, 1, &fence, VK_TRUE, UINT64_MAX);
+            vkFreeCommandBuffers(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPoolWorker, 1, &cmd_buffer);
+
+            DestroyDeviceBuffer(context->m_LogicalDevice.m_Device, &stage_buffer.m_Handle);
+        }
+
+        int32_t data_state = dmAtomicGet32(&tex->m_DataState);
+        data_state &= ~(1<<ap.m_Params.m_MipMap);
+        dmAtomicStore32(&tex->m_DataState, data_state);
+
+        tex->m_DataState  &= ~(1<<ap.m_Params.m_MipMap);
+
+        return 0;
+    }
+
+    // Called on thread where we update (which should be the main thread)
+    static void AsyncCompleteCallback(void* _context, void* data, int result)
+    {
+        VulkanContext* context     = (VulkanContext*) _context;
+        uint16_t param_array_index = (uint16_t) (size_t) data;
+        SetTextureAsyncParams ap   = GetSetTextureAsyncParams(context->m_SetTextureAsyncState, param_array_index);
+
+        if (ap.m_Callback)
+        {
+            ap.m_Callback(ap.m_Texture, ap.m_UserData);
+        }
+
+        ReturnSetTextureAsyncIndex(context->m_SetTextureAsyncState, param_array_index);
+    }
+
+    static void PrepareTextureForUploading(VulkanContext* context, VulkanTexture* texture, const TextureParams& params)
+    {
+        // If texture hasn't been used yet or if it has been changed
+        if (texture->m_Destroyed || texture->m_Handle.m_Image == VK_NULL_HANDLE)
+        {
+            VkImageTiling vk_image_tiling           = VK_IMAGE_TILING_OPTIMAL;
+            VkImageUsageFlags vk_usage_flags        = VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+            VkFormatFeatureFlags vk_format_features = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
+            VkMemoryPropertyFlags vk_memory_type    = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+            VkFormat vk_format                      = GetVulkanFormatFromTextureFormat(params.m_Format);
+            uint16_t tex_layer_count                = dmMath::Max(texture->m_Depth, params.m_Depth);
+
+            vk_usage_flags |= texture->m_UsageFlags;
+
+            if (IsTextureMemoryless(texture))
+            {
+                vk_memory_type |= VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT;
+            }
+
+            // Check this format for optimal layout support
+            if (GetSupportedTilingFormat(context->m_PhysicalDevice.m_Device, &vk_format, 1, vk_image_tiling, vk_format_features) == VK_FORMAT_UNDEFINED)
+            {
+                // Linear doesn't support mipmapping (for MoltenVK only?)
+                vk_image_tiling        = VK_IMAGE_TILING_LINEAR;
+                texture->m_MipMapCount = 1;
+            }
+
+            VkResult res = CreateTexture2D(context->m_PhysicalDevice.m_Device,
+                context->m_LogicalDevice.m_Device,
+                texture->m_Width,
+                texture->m_Height,
+                tex_layer_count,
+                texture->m_MipMapCount,
+                VK_SAMPLE_COUNT_1_BIT,
+                vk_format,
+                vk_image_tiling,
+                vk_usage_flags,
+                vk_memory_type,
+                VK_IMAGE_ASPECT_COLOR_BIT,
+                texture);
+            CHECK_VK_ERROR(res);
+
+            texture->m_GraphicsFormat = params.m_Format;
+            texture->m_MipMapCount    = dmMath::Max(texture->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
+            texture->m_Depth          = tex_layer_count;
+
+            // Not thread safe, but no-one should be touching the texture right now anyway
+            VulkanSetTextureParamsInternal(texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, 1.0f);
+        }
+    }
+
     static void VulkanSetTextureAsync(HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data)
     {
-        // Async texture loading is not supported in Vulkan, defaulting to syncronous loading until then
         VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
-        VulkanSetTextureInternal(tex, params);
-        if (callback)
+
+        if (g_VulkanContext->m_AsyncProcessingSupport)
         {
-            callback(texture, user_data);
+            PrepareTextureForUploading(g_VulkanContext, tex, params);
+
+            tex->m_DataState          |= 1<<params.m_MipMap;
+            uint16_t param_array_index = PushSetTextureAsyncState(g_VulkanContext->m_SetTextureAsyncState, texture, params, callback, user_data);
+
+            dmJobThread::PushJob(g_VulkanContext->m_JobThread,
+                AsyncProcessCallback,
+                AsyncCompleteCallback,
+                (void*) g_VulkanContext,
+                (void*) (uintptr_t) param_array_index);
+        } 
+        else
+        {
+            VulkanSetTextureInternal(tex, params);
+            if (callback)
+            {
+                callback(texture, user_data);
+            }
         }
     }
 
@@ -4118,7 +4346,13 @@ bail:
 
     static uint32_t VulkanGetTextureStatusFlags(HTexture texture)
     {
-        return 0;
+        VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
+        uint32_t flags     = TEXTURE_STATUS_OK;
+        if(tex && dmAtomicGet32(&tex->m_DataState))
+        {
+            flags |= TEXTURE_STATUS_DATA_PENDING;
+        }
+        return flags;
     }
 
     static void VulkanReadPixels(HContext _context, void* buffer, uint32_t buffer_size)
