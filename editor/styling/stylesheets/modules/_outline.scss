@@ -109,7 +109,7 @@
       }
     }
 
-    &.scene-visibility-hidden {
+    &.hidden-parent {
       .tree-disclosure-node {
         .arrow {
           -fx-opacity: 40%;
@@ -121,6 +121,9 @@
       .text {
         -fx-opacity: 40%;
       }
+    }
+
+    &.scene-visibility-hidden {
       .visibility-toggle {
         visibility: visible;
       }

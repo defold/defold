@@ -19,7 +19,7 @@
 
 #include <dlib/log.h>
 #include <dlib/image.h>
-#include <extension/extension.h>
+#include <extension/extension.hpp>
 
 #include "script_buffer.h"
 

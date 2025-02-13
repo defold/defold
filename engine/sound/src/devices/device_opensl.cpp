@@ -23,6 +23,7 @@
 #include <dlib/profile.h>
 #include <dmsdk/dlib/android.h>
 #include "sound.h"
+#include "sound_private.h"
 
 #include <SLES/OpenSLES.h>
 
@@ -199,9 +200,9 @@ namespace dmDeviceOpenSL
 
         jclass sound_class = dmAndroid::LoadClass(env, "com.defold.sound.Sound");
 
-        jmethodID get_sample_rate = env->GetStaticMethodID(sound_class, "getSampleRate", "(Landroid/content/Context;)I");
+        jmethodID get_sample_rate = env->GetStaticMethodID(sound_class, "getSampleRate", "(Landroid/content/Context;I)I");
         assert(get_sample_rate);
-        jint sample_rate = env->CallStaticIntMethod(sound_class, get_sample_rate, thread.GetActivity()->clazz);
+        jint sample_rate = env->CallStaticIntMethod(sound_class, get_sample_rate, thread.GetActivity()->clazz, 44100);
 
         env->DeleteLocalRef(sound_class);
 
@@ -237,6 +238,13 @@ namespace dmDeviceOpenSL
         // Actual initalization starts here.
 
         const int rate = GetSampleRate();
+        const int samples_per_second = rate * 1000;
+
+        uint32_t frame_count = params->m_FrameCount;
+        if (frame_count == 0)
+        {
+            frame_count = dmSound::GetDefaultFrameCount(samples_per_second);
+        }
 
         SLresult res = slCreateEngine(&sl, 1, options, 0, NULL, NULL);
         if (CheckAndPrintError(res))
@@ -265,7 +273,7 @@ namespace dmDeviceOpenSL
         SLDataFormat_PCM format;
         format.formatType = SL_DATAFORMAT_PCM;
         format.numChannels = 2;
-        format.samplesPerSec = rate * 1000;
+        format.samplesPerSec = samples_per_second;
         format.bitsPerSample = 16;
         // TODO: Correct?
         format.containerSize = 16;
@@ -316,8 +324,8 @@ namespace dmDeviceOpenSL
         opensl->m_Playing.SetSize(params->m_BufferCount);
 
         for (uint32_t i = 0; i < params->m_BufferCount; ++i) {
-            uint32_t n = params->m_FrameCount * sizeof(uint16_t) * 2;
-            Buffer b(malloc(n), params->m_FrameCount);
+            uint32_t n = frame_count * sizeof(uint16_t) * 2;
+            Buffer b(malloc(n), frame_count);
             opensl->m_Free.Push(b);
         }
 
