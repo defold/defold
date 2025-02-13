@@ -20,7 +20,7 @@
 #include <dlib/http_cache.h>
 #include <dlib/uri.h>
 
-#include <resource/resource.h>
+#include "../resource.h"
 
 namespace dmResource
 {
