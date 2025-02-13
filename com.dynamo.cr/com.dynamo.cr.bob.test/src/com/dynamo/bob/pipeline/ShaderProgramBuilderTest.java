@@ -70,12 +70,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             "}\n";
 
     private static ShaderDesc.Language getPlatformGLSLLanguage() {
-        Platform platform = Platform.getHostPlatform();
-        if (platform == Platform.Arm64MacOS || platform == Platform.X86_64MacOS)
-                return ShaderDesc.Language.LANGUAGE_GLSL_SM330;
-        if (platform == Platform.X86_64Linux || platform == Platform.X86_64Win32)
-                return ShaderDesc.Language.LANGUAGE_GLSL_SM140;
-        return null;
+        return ShaderDesc.Language.LANGUAGE_GLSL_SM330;
     }
 
     private static int getPlatformGLSLVersion() {
@@ -520,8 +515,8 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         String source;
         String expected;
 
-        source = ShaderUtil.Common.compileGLSL("", ShaderDesc.ShaderType.SHADER_TYPE_VERTEX, ShaderDesc.Language.LANGUAGE_GLSL_SM140, true, false, false);
-        expected =  "#version 140\n" +
+        source = ShaderUtil.Common.compileGLSL("", ShaderDesc.ShaderType.SHADER_TYPE_VERTEX, ShaderDesc.Language.LANGUAGE_GLSL_SM330, true, false, false);
+        expected =  "#version 330\n" +
                     "#ifndef GL_ES\n" +
                     "#define lowp\n" +
                     "#define mediump\n" +
@@ -533,8 +528,8 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
         source = "#extension GL_OES_standard_derivatives : enable\n" +
                  "varying highp vec2 var_texcoord0;";
-        source = ShaderUtil.Common.compileGLSL(source, ShaderDesc.ShaderType.SHADER_TYPE_VERTEX, ShaderDesc.Language.LANGUAGE_GLSL_SM140, true, false, false);
-        expected =  "#version 140\n" +
+        source = ShaderUtil.Common.compileGLSL(source, ShaderDesc.ShaderType.SHADER_TYPE_VERTEX, ShaderDesc.Language.LANGUAGE_GLSL_SM330, true, false, false);
+        expected =  "#version 330\n" +
                     "#extension GL_OES_standard_derivatives : enable\n" +
                     "\n" +
                     "#ifndef GL_ES\n" +
@@ -756,40 +751,6 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             didFail = true;
         }
         assertTrue(didFail);
-    }
-
-    @Test
-    public void testIncludeExistingShaderVersions() throws Exception {
-        String shaderSrc =
-                """
-                #version 140
-                out vec4 color;
-                
-                uniform ubo_1
-                {
-                    vec4 tint_1;
-                };
-                
-                uniform ubo_2
-                {
-                    vec4 tint_2;
-                };
-                
-                void main() {
-                    color = tint_1 + tint_2;
-                }
-                """;
-
-        getProject().getProjectProperties().putBooleanValue("shader", "output_glsl140", true);
-
-        ShaderDesc shaderDesc = addAndBuildShaderDesc("/test_shader_140.fp", shaderSrc, "/test_shader_140.shbundle");
-        ShaderDesc.Shader shader = getShaderByLanguage(shaderDesc, ShaderDesc.Language.LANGUAGE_GLSL_SM140);
-        assertNotNull(shader);
-
-        String buildShaderSrc = new String(shader.getSource().toByteArray());
-        assertEquals(shaderSrc, buildShaderSrc);
-
-        getProject().getProjectProperties().putBooleanValue("shader", "output_glsl140", false);
     }
 
     @Test
