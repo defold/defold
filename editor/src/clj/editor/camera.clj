@@ -681,6 +681,8 @@
 (g/defnode CameraController
   (property name g/Keyword (default :local-camera))
   (property local-camera Camera)
+  (property cached-3d-camera Camera)
+  (property animating g/Bool)
   (property movements-enabled g/Any (default #{:dolly :track :tumble}))
 
   (input scene-aabb AABB)

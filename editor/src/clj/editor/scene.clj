@@ -1000,8 +1000,9 @@
                       (g/set-property camera-node :local-camera cam))))
                 (fn []
                   (g/transact
-                    (g/set-property camera-node :local-camera end-camera))
-                    (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true))))
+                    [(g/set-property camera-node :local-camera end-camera)
+                     (g/set-property camera-node :animating false)])
+                     (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true))))
     (g/transact
       (g/set-property camera-node :local-camera end-camera)))
   nil)
@@ -1033,13 +1034,6 @@
          end-camera (c/camera-frame-aabb local-cam viewport aabb)]
      (set-camera! camera local-cam end-camera animate?))))
 
-
-(defn realign-camera [view animate?]
-  (let [camera (view->camera view)
-        local-cam (g/node-value camera :local-camera)
-        end-camera (c/camera-orthographic-realign (c/camera-ensure-orthographic local-cam))]
-    (set-camera! camera local-cam end-camera animate?)))
-
 (defn set-camera-type! [view projection-type]
   (let [camera-controller (view->camera view)
         old-camera (g/node-value camera-controller :local-camera)
@@ -1050,6 +1044,25 @@
                          :perspective (c/camera-orthographic->perspective old-camera c/fov-y-35mm-full-frame))]
         (set-camera! camera-controller old-camera new-camera false)))))
 
+(defn realign-camera [view animate?]
+  (let [camera (view->camera view)
+        local-cam (g/node-value camera :local-camera)]
+    (when (and animate? )
+      (g/transact
+       (g/set-property camera :animating true)))
+    (if (c/mode-2d? local-cam)
+      (let [cached-3d-camera (g/node-value camera :cached-3d-camera)]
+        (when (= (:type cached-3d-camera) :perspective)
+          (set-camera-type! view :perspective))
+        (set-camera! camera (g/node-value camera :local-camera) cached-3d-camera animate?))
+      (do (g/transact
+           (g/set-property camera :cached-3d-camera local-cam))
+          (when (= (:type local-cam) :perspective)
+            (set-camera-type! view :orthographic))
+          (let [local-cam (g/node-value camera :local-camera)
+                end-camera (c/camera-orthographic-realign local-cam)]
+            (set-camera! camera local-cam end-camera animate?))))))
+
 (handler/defhandler :frame-selection :global
   (active? [app-view evaluation-context]
            (active-scene-view app-view evaluation-context))
@@ -1057,14 +1070,28 @@
             (when-let [view (active-scene-view app-view evaluation-context)]
               (let [selected (g/node-value view :selection evaluation-context)]
                 (not (empty? selected)))))
-  (run [app-view] (when-let [view (active-scene-view app-view)]
-                    (frame-selection view true))))
+  (run [app-view] (some-> (active-scene-view app-view)
+                          (frame-selection true))))
+
+(defn- camera-mode-2d?
+  [app-view]
+  (some-> (active-scene-view app-view)
+          (view->camera)
+          (g/node-value :local-camera)
+          (c/mode-2d?)))
+
+(defn- camera-animating?
+  [app-view]
+  (some-> (active-scene-view app-view)
+          (view->camera)
+          (g/node-value :animating)))
 
 (handler/defhandler :realign-camera :global
   (active? [app-view evaluation-context]
            (active-scene-view app-view evaluation-context))
-  (run [app-view] (when-let [view (active-scene-view app-view)]
-                    (realign-camera view true))))
+  (enabled? [app-view] (not (camera-animating? app-view)))
+  (run [app-view] (some-> (active-scene-view app-view)
+                          (realign-camera true))))
 
 (handler/defhandler :set-camera-type :global
   (active? [app-view evaluation-context]
@@ -1076,28 +1103,20 @@
          (some-> (active-scene-view app-view)
                  (g/node-value :camera-type)
                  (= (:camera-type user-data)))))
-(defn- camera-mode-2d?
-  [app-view]
-  (-> (active-scene-view app-view)
-      (view->camera)
-      (g/node-value :local-camera)
-      (c/mode-2d?)))
 
 (handler/defhandler :toggle-2d-mode :workbench
   (active? [app-view evaluation-context]
            (active-scene-view app-view evaluation-context))
-  (run [app-view]
-       (if (camera-mode-2d? app-view)
-         ()
-         (-> (active-scene-view app-view)
-             (realign-camera false))))
+  (enabled? [app-view] (not (camera-animating? app-view)))
+  (run [app-view] (realign-camera (active-scene-view app-view) true))
   (state [app-view] (camera-mode-2d? app-view)))
 
 ;; Used in the scene view tool bar.
 (handler/defhandler :toggle-perspective-camera :workbench
   (active? [app-view evaluation-context]
            (active-scene-view app-view evaluation-context))
-  (enabled? [app-view] (not (camera-mode-2d? app-view)))
+  (enabled? [app-view] (and (not (camera-mode-2d? app-view))
+                            (not (camera-animating? app-view))))
   (run [app-view]
        (when-some [view (active-scene-view app-view)]
          (set-camera-type! view
@@ -1105,9 +1124,15 @@
                              :orthographic :perspective
                              :perspective :orthographic))))
   (state [app-view]
-         (some-> (active-scene-view app-view)
-                 (g/node-value :camera-type)
-                 (= :perspective))))
+         (= :perspective
+            (if (or (camera-mode-2d? app-view)
+                    (camera-animating? app-view))
+              (some-> (active-scene-view app-view)
+                      (view->camera)
+                      (g/node-value :cached-3d-camera)
+                      :type)
+              (some-> (active-scene-view app-view)
+                      (g/node-value :camera-type))))))
 
 (defn- set-manip-space! [app-view manip-space]
   (assert (contains? #{:local :world} manip-space))
