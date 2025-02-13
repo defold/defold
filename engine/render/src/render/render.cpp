@@ -709,9 +709,11 @@ namespace dmRender
     void SetTextureBindingByHash(dmRender::HRenderContext render_context, dmhash_t sampler_hash, dmGraphics::HTexture texture)
     {
         uint32_t num_bindings = render_context->m_TextureBindTable.Size();
+
+        // First pass
+        // Check if the the sampler is already bound to this texture, if so we reuse or unbind the current binding
         for (int i = 0; i < num_bindings; ++i)
         {
-            // The sampler is already bound to this texture, reuse or unbind the current binding
             if (render_context->m_TextureBindTable[i].m_Samplerhash == sampler_hash)
             {
                 if (texture == 0)
@@ -721,8 +723,19 @@ namespace dmRender
                 render_context->m_TextureBindTable[i].m_Texture = texture;
                 return;
             }
-            // Take an empty slot if we can find one
-            else if (render_context->m_TextureBindTable[i].m_Texture == 0)
+        }
+
+        // If we are unassigning the sampler, but it wasn't found we can exit here.
+        if (texture == 0)
+        {
+            return;
+        }
+
+        // Second pass
+        // We try to find the first empty slot in the list
+        for (int i = 0; i < num_bindings; ++i)
+        {
+            if (render_context->m_TextureBindTable[i].m_Texture == 0)
             {
                 render_context->m_TextureBindTable[i].m_Texture     = texture;
                 render_context->m_TextureBindTable[i].m_Samplerhash = sampler_hash;
