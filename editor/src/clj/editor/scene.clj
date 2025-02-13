@@ -992,6 +992,7 @@
 (defn set-camera! [camera-node start-camera end-camera animate?]
   (if animate?
     (let [duration 0.5]
+      (g/transact (g/set-property camera-node :animating true))
       (ui/anim! duration
                 (fn [^double t]
                   (let [t (- (* t t 3) (* t t t 2))
@@ -1002,7 +1003,7 @@
                   (g/transact
                     [(g/set-property camera-node :local-camera end-camera)
                      (g/set-property camera-node :animating false)])
-                     (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true))))
+                  (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true))))
     (g/transact
       (g/set-property camera-node :local-camera end-camera)))
   nil)
@@ -1047,17 +1048,13 @@
 (defn realign-camera [view animate?]
   (let [camera (view->camera view)
         local-cam (g/node-value camera :local-camera)]
-    (when animate?
-      (g/transact
-       (g/set-property camera :animating true)))
     (if (c/mode-2d? local-cam)
       (let [cached-3d-camera (or (g/node-value camera :cached-3d-camera)
                                  (c/tumble local-cam 200.0 -100.0))]
         (when (= (:type cached-3d-camera) :perspective)
           (set-camera-type! view :perspective))
         (set-camera! camera (g/node-value camera :local-camera) cached-3d-camera animate?))
-      (do (g/transact
-           (g/set-property camera :cached-3d-camera local-cam))
+      (do (g/transact (g/set-property camera :cached-3d-camera local-cam))
           (when (= (:type local-cam) :perspective)
             (set-camera-type! view :orthographic))
           (let [local-cam (g/node-value camera :local-camera)
