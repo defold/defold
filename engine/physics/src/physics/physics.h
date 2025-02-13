@@ -1410,8 +1410,8 @@ namespace dmPhysics
     void DeleteJoint2D(HWorld2D world, HJoint joint);
     bool GetJointReactionForce2D(HWorld2D world, HJoint joint, dmVMath::Vector3& force, float inv_dt);
     bool GetJointReactionTorque2D(HWorld2D world, HJoint joint, float& torque, float inv_dt);
-    void FlipH2D(HCollisionObject2D collision_object);
-    void FlipV2D(HCollisionObject2D collision_object);
+    void FlipH2D(HWorld2D world, HCollisionObject2D collision_object);
+    void FlipV2D(HWorld2D world, HCollisionObject2D collision_object);
     bool IsWorldLocked(HWorld2D world);
 
     void              ReplaceShape3D(HCollisionObject3D object, HCollisionShape3D old_shape, HCollisionShape3D new_shape);

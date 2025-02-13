@@ -1165,7 +1165,8 @@ namespace dmGameSystem
         CollisionComponentBox2D* component = (CollisionComponentBox2D*)_component;
         if (component->m_FlippedX != flip)
         {
-            dmPhysics::FlipH2D(component->m_Object2D);
+            CollisionWorldBox2D* world = (CollisionWorldBox2D*)_world;
+            dmPhysics::FlipH2D(world->m_World2D, component->m_Object2D);
         }
         component->m_FlippedX = flip;
     }
@@ -1175,7 +1176,8 @@ namespace dmGameSystem
         CollisionComponentBox2D* component = (CollisionComponentBox2D*)_component;
         if (component->m_FlippedY != flip)
         {
-            dmPhysics::FlipV2D(component->m_Object2D);
+            CollisionWorldBox2D* world = (CollisionWorldBox2D*)_world;
+            dmPhysics::FlipV2D(world->m_World2D, component->m_Object2D);
         }
         component->m_FlippedY = flip;
     }
