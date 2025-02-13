@@ -23,6 +23,8 @@
 #include <dlib/profile.h>
 
 #include <box2d/box2d.h>
+#include <box2d/src/world.h>
+
 // #include <box2d/Dynamics/Contacts/b2ContactSolver.h>
 
 #include "physics_2d.h"
@@ -67,6 +69,8 @@ namespace dmPhysics
         m_WorldId = b2CreateWorld(&worldDef);
 
         m_Bodies.SetCapacity(32);
+
+        m_ShapeIdToShapeData.SetCapacity(32, 64);
     }
 
     /*
@@ -278,6 +282,12 @@ namespace dmPhysics
         // world->m_World.SetContactListener(&world->m_ContactListener);
         // world->m_World.SetContinuousPhysics(false);
 
+        // From box2d docs:
+        /// Enable/disable continuous collision between dynamic and static bodies. Generally you should keep continuous
+        /// collision enabled to prevent fast moving objects from going through static objects. The performance gain from
+        /// disabling continuous collision is minor.
+        b2World_EnableContinuous(world->m_WorldId, true);
+
         context->m_Worlds.Push(world);
         return world;
     }
@@ -307,7 +317,6 @@ namespace dmPhysics
         p.x *= horizontal;
         p.y *= vertical;
         return p;
-        // return b2Vec2(p.x * horizontal, p.y * vertical);
     }
 
     static void FlipPolygon(b2Polygon* shape, float horizontal, float vertical)
@@ -358,7 +367,7 @@ namespace dmPhysics
             {
                 b2CircleShape* circle_shape = (b2CircleShape*)shape;
                 circle_shape->m_p = FlipPoint(circle_shape->m_p, horizontal, vertical);
-                circle_shape->m_creationP = FlipPoint(circle_shape->m_creationP, horizontal, vertical);
+                circle_shape->m_creationPosition = FlipPoint(circle_shape->m_creationPosition, horizontal, vertical);
             }
             break;
             case b2Shape::e_polygon:    FlipPolygon((b2Polygon*)shape, horizontal, vertical); break;
@@ -386,7 +395,25 @@ namespace dmPhysics
     bool IsWorldLocked(HWorld2D world)
     {
         return false;
-        // return world->m_World.IsLocked();
+        // Why wouldn't this work? getting unresolved linkage
+        // b2World* world_raw = b2GetWorldFromId(world->m_WorldId);
+        // return world_raw->locked;
+    }
+
+    static ShapeData* ShapeIdToShapeData(HWorld2D world, b2ShapeId shape_id)
+    {
+        uint64_t opaque_id;
+        memcpy(&opaque_id, &shape_id, sizeof(shape_id));
+
+        return *world->m_ShapeIdToShapeData.Get(opaque_id);
+    }
+
+    static void PutShapeIdToShapeData(HWorld2D world, b2ShapeId shape_id, ShapeData* shape_data)
+    {
+        uint64_t opaque_id;
+        memcpy(&opaque_id, &shape_id, sizeof(shape_id));
+
+        world->m_ShapeIdToShapeData.Put(opaque_id, shape_data);
     }
 
     static inline float GetUniformScale2D(dmTransform::Transform& transform)
@@ -395,14 +422,14 @@ namespace dmPhysics
         return dmMath::Min(v[0], v[1]);
     }
 
-    static void UpdateScale(HWorld2D world, b2BodyId* body_id)
+    static void UpdateScale(HWorld2D world, b2BodyId body_id)
     {
         dmTransform::Transform world_transform;
-        (*world->m_GetWorldTransformCallback)(b2Body_GetUserData(*body_id), world_transform);
+        (*world->m_GetWorldTransformCallback)(b2Body_GetUserData(body_id), world_transform);
 
         float object_scale = GetUniformScale2D(world_transform);
 
-        int shape_count = b2Body_GetShapeCount(*body_id);
+        int shape_count = b2Body_GetShapeCount(body_id);
 
         if (world->m_GetShapeScratchBuffer.Capacity() < shape_count)
         {
@@ -410,29 +437,31 @@ namespace dmPhysics
             world->m_GetShapeScratchBuffer.SetSize(shape_count);
         }
 
-        b2Body_GetShapes(*body_id, world->m_GetShapeScratchBuffer.Begin(), world->m_GetShapeScratchBuffer.Size());
+        b2Body_GetShapes(body_id, world->m_GetShapeScratchBuffer.Begin(), world->m_GetShapeScratchBuffer.Size());
         bool allow_sleep = true;
 
         for (int i = 0; i < shape_count; ++i)
         {
             b2ShapeId shape_id = world->m_GetShapeScratchBuffer[i];
 
-            if (shape->m_lastScale == object_scale )
+            ShapeData* shape_data = ShapeIdToShapeData(world, shape_id);
+
+            if (shape_data->m_LastScale == object_scale)
             {
                 break;
             }
 
             b2ShapeType shape_type = b2Shape_GetType(shape_id);
 
-            shape->m_lastScale = object_scale;
+            shape_data->m_LastScale = object_scale;
             allow_sleep = false;
 
-            if (shape_type == b2_circleShape) {
+            if (shape_type == b2_circleShape)
+            {
                 // creation scale for circles, is the initial radius
                 b2Circle circle_shape = b2Shape_GetCircle(shape_id);
-                circle_shape.radius = circle_shape.m_creationScale * object_scale;
-
-                b2Vec2 p = circle_shape.m_creationP;
+                circle_shape.radius   = shape_data->m_CreationScale * object_scale;
+                b2Vec2 p              = shape_data->m_CreationPosition;
                 circle_shape.center.x = p.x * object_scale;
                 circle_shape.center.y = p.y * object_scale;
 
@@ -442,54 +471,23 @@ namespace dmPhysics
             {
                 b2Polygon pshape = b2Shape_GetPolygon(shape_id);
 
-                /*
-                float s = object_scale / shape->m_creationScale;
+                PolygonShapeData* polygon_shape_data = (PolygonShapeData*) shape_data;
+
+                float s = object_scale / shape_data->m_CreationScale;
                 for( int i = 0; i < b2_maxPolygonVertices; ++i)
                 {
-                    b2Vec2 p = pshape->m_verticesOriginal[i];
-                    pshape->vertices[i].Set(p.x * s, p.y * s);
+                    b2Vec2 p = polygon_shape_data->m_VerticesOriginal[i];
+                    pshape.vertices[i].x = p.x * s;
+                    pshape.vertices[i].y = p.y * s;
                 }
-                */
+
+                b2Shape_SetPolygon(shape_id, &pshape);
             }
         }
-
-        /*
-        b2Fixture* fix = body->GetFixtureList();
-        while( fix )
-        {
-            b2Shape* shape = fix->GetShape();
-            if (shape->m_lastScale == object_scale )
-            {
-                break;
-            }
-            shape->m_lastScale = object_scale;
-            allow_sleep = false;
-
-            if (fix->GetShape()->GetType() == b2Shape::e_circle) {
-                // creation scale for circles, is the initial radius
-                b2CircleShape* circle_shape = (b2CircleShape*)shape;
-                circle_shape->m_radius = circle_shape->m_creationScale * object_scale;
-
-                b2Vec2 p = circle_shape->m_creationP;
-                circle_shape->m_p.Set(p.x * object_scale, p.y * object_scale);
-            }
-            else if (fix->GetShape()->GetType() == b2Shape::e_polygon) {
-                b2Polygon* pshape = (b2Polygon*)shape;
-                float s = object_scale / shape->m_creationScale;
-                for( int i = 0; i < b2_maxPolygonVertices; ++i)
-                {
-                    b2Vec2 p = pshape->m_verticesOriginal[i];
-                    pshape->vertices[i].Set(p.x * s, p.y * s);
-                }
-            }
-
-            fix = fix->GetNext();
-        }
-        */
 
         if (!allow_sleep)
         {
-            b2Body_SetAwake(*body_id, true);
+            b2Body_SetAwake(body_id, true);
         }
     }
 
@@ -542,15 +540,10 @@ namespace dmPhysics
                         b2Rot b2_rot = b2MakeRot(angle);
                         b2Body_SetTransform(body_id, b2_position, b2_rot);
                         b2Body_EnableSleep(body_id, false);
-
-                        //body->SetTransform(b2_position, angle);
-                        //body->SetSleepingAllowed(false);
                     }
                     else
                     {
                         b2Body_EnableSleep(body_id, true);
-
-                        //body->SetSleepingAllowed(true);
                     }
                 }
 
@@ -619,6 +612,8 @@ namespace dmPhysics
         if (step_context.m_CollisionCallback)
         {
             DM_PROFILE("CollisionCallbacks");
+
+            b2ContactEvents contact_events = b2World_GetContactEvents(world->m_WorldId);
 
             /*
             for (b2Contact* contact = world->m_World.GetContactList(); contact; contact = contact->GetNext())
@@ -702,50 +697,49 @@ namespace dmPhysics
         */
     }
 
-    struct ShapeData
-    {
-        union
-        {
-            b2Polygon m_Polygon;
-            b2Circle  m_Circle;
-        };
-        b2ShapeType m_Type;
-    };
-
     HCollisionShape2D NewCircleShape2D(HContext2D context, float radius)
     {
-        ShapeData* shape_data = new ShapeData();
-        shape_data->m_Type = b2_circleShape;
+        float scale = context->m_Scale;
+        CircleShapeData* shape_data = new CircleShapeData();
+        shape_data->m_ShapeDataBase.m_Type = b2_circleShape;
+        shape_data->m_ShapeDataBase.m_CreationScale = radius * scale;
         shape_data->m_Circle.center = {0.0f, 0.0f};
-        shape_data->m_Circle.radius = radius * context->m_Scale;
+        shape_data->m_Circle.radius = radius * scale;
         return shape_data;
     }
 
     HCollisionShape2D NewBoxShape2D(HContext2D context, const Vector3& half_extents)
     {
         float scale = context->m_Scale;
-        ShapeData* shape_data = new ShapeData();
-        shape_data->m_Type = b2_polygonShape;
+        PolygonShapeData* shape_data = new PolygonShapeData();
+        shape_data->m_ShapeDataBase.m_Type = b2_polygonShape;
+        shape_data->m_ShapeDataBase.m_CreationScale = scale;
         shape_data->m_Polygon = b2MakeBox(half_extents.getX() * scale, half_extents.getY() * scale);
+
+        memcpy(shape_data->m_VerticesOriginal, shape_data->m_Polygon.vertices, sizeof(shape_data->m_Polygon.vertices));
+
         return shape_data;
     }
 
     HCollisionShape2D NewPolygonShape2D(HContext2D context, const float* vertices, uint32_t vertex_count)
     {
-        /*
-        b2Polygon* shape = new b2Polygon();
         float scale = context->m_Scale;
-        const uint32_t elem_count = vertex_count * 2;
-        float* v = new float[elem_count];
-        for (uint32_t i = 0; i < elem_count; ++i)
+
+        PolygonShapeData* shape_data = new PolygonShapeData();
+
+        // b2Polygon* shape = new b2Polygon();
+        b2Vec2* v = new b2Vec2[vertex_count];
+        for (uint32_t i = 0; i < vertex_count; ++i)
         {
-            v[i] = vertices[i] * scale;
+            v[i].x = vertices[i * 2] * scale;
+            v[i].y = vertices[i * 2 + 1] * scale;
         }
-        shape->Set((b2Vec2*)v, vertex_count);
+
+        b2Hull polygon_hull = b2ComputeHull(v, vertex_count);
+        shape_data->m_Polygon = b2MakePolygon(&polygon_hull, 1.0f);
+
         delete [] v;
-        return shape;
-        */
-        return 0;
+        return shape_data;
     }
 
     HHullSet2D NewHullSet2D(HContext2D context, const float* vertices, uint32_t vertex_count,
@@ -953,7 +947,7 @@ namespace dmPhysics
                 if (context->m_AllowDynamicTransforms)
                 {
                     // circle_shape_prim->m_creationScale = circle_shape_prim->radius;
-                    // circle_shape_prim->m_creationP = b2Vec2(transform.p.x / scale, transform.p.y / scale);
+                    // circle_shape_prim->m_creationPosition = b2Vec2(transform.p.x / scale, transform.p.y / scale);
                 }
                 circle_shape_prim->radius *= scale;
                 ret = circle_shape_prim;
@@ -1135,7 +1129,7 @@ namespace dmPhysics
         Vector3 zero_vec3 = Vector3(0);
 
         for (uint32_t i = 0; i < shape_count; ++i) {
-            // Add shapes in reverse order. The fixture list in the body
+            // Add shapes in reverse order. The fixture li st in the body
             // is a single linked list and cells are prepended.
             uint32_t reverse_i = shape_count - i - 1;
             ShapeData* s = (ShapeData*) shapes[reverse_i];
@@ -1159,18 +1153,24 @@ namespace dmPhysics
             f_def.restitution = data.m_Restitution;
             f_def.isSensor = data.m_Type == COLLISION_OBJECT_TYPE_TRIGGER;
 
-            b2ShapeId shapeId;
+            b2ShapeId shape_id;
 
             switch (s->m_Type)
             {
-            case b2_circleShape:
-                shapeId = b2CreateCircleShape(bodyId, &f_def, (const b2Circle*) s);
-                break;
-            case b2_polygonShape:
-                shapeId = b2CreatePolygonShape(bodyId, &f_def, (const b2Polygon*) s);
-                break;
+                case b2_circleShape:
+                {
+                    CircleShapeData* c = (CircleShapeData*) s;
+                    shape_id = b2CreateCircleShape(bodyId, &f_def, &c->m_Circle);
+                } break;
+                case b2_polygonShape:
+                {
+                    PolygonShapeData* p = (PolygonShapeData*) s;
+                    shape_id = b2CreatePolygonShape(bodyId, &f_def, &p->m_Polygon);
+                } break;
             default:assert(0);
             }
+
+            PutShapeIdToShapeData(world, shape_id, s);
 
             //b2Fixture* fixture = body->CreateFixture(&f_def);
             //(void)fixture;
@@ -1464,52 +1464,52 @@ namespace dmPhysics
         b2Body_SetAwake(*body_id, true);
     }
 
-    void SetLockedRotation2D(HCollisionObject2D collision_object, bool locked_rotation) {
-        // b2Body* body = ((b2Body*)collision_object);
-        // body->SetFixedRotation(locked_rotation);
-        // if (locked_rotation) {
-        //     body->SetAngularVelocity(0.0f);
-        // }
+    void SetLockedRotation2D(HCollisionObject2D collision_object, bool locked_rotation)
+    {
+        b2BodyId* body_id = (b2BodyId*) collision_object;
+        b2Body_SetFixedRotation(*body_id, locked_rotation);
     }
 
-    float GetLinearDamping2D(HCollisionObject2D collision_object) {
-        // b2Body* body = ((b2Body*)collision_object);
-        // return body->GetLinearDamping();
-        return 0.0f;
+    float GetLinearDamping2D(HCollisionObject2D collision_object)
+    {
+        b2BodyId* body_id = (b2BodyId*) collision_object;
+        return b2Body_GetLinearDamping(*body_id);
     }
 
-    void SetLinearDamping2D(HCollisionObject2D collision_object, float linear_damping) {
-        // b2Body* body = ((b2Body*)collision_object);
-        // body->SetLinearDamping(linear_damping);
+    void SetLinearDamping2D(HCollisionObject2D collision_object, float linear_damping)
+    {
+        b2BodyId* body_id = (b2BodyId*) collision_object;
+        b2Body_SetLinearDamping(*body_id, linear_damping);
     }
 
-    float GetAngularDamping2D(HCollisionObject2D collision_object) {
-        // b2Body* body = ((b2Body*)collision_object);
-        // return body->GetAngularDamping();
-        return 0.0f;
+    float GetAngularDamping2D(HCollisionObject2D collision_object)
+    {
+        b2BodyId* body_id = (b2BodyId*) collision_object;
+        return b2Body_GetAngularDamping(*body_id);
     }
 
-    void SetAngularDamping2D(HCollisionObject2D collision_object, float angular_damping) {
-        // b2Body* body = ((b2Body*)collision_object);
-        // body->SetAngularDamping(angular_damping);
+    void SetAngularDamping2D(HCollisionObject2D collision_object, float angular_damping)
+    {
+        b2BodyId* body_id = (b2BodyId*) collision_object;
+        b2Body_SetAngularDamping(*body_id, angular_damping);
     }
 
-    float GetMass2D(HCollisionObject2D collision_object) {
-        // b2Body* body = ((b2Body*)collision_object);
-        // return body->GetMass();
-        return 0.0f;
+    float GetMass2D(HCollisionObject2D collision_object)
+    {
+        b2BodyId* body_id = (b2BodyId*) collision_object;
+        return b2Body_GetMass(*body_id);
     }
 
     bool IsBullet2D(HCollisionObject2D collision_object)
     {
-        // b2Body* body = ((b2Body*)collision_object);
-        // return body->IsBullet();
-        return false;
+        b2BodyId* body_id = (b2BodyId*) collision_object;
+        return b2Body_IsBullet(*body_id);
     }
 
-    void SetBullet2D(HCollisionObject2D collision_object, bool value) {
-        // b2Body* body = ((b2Body*)collision_object);
-        // body->SetBullet(value);
+    void SetBullet2D(HCollisionObject2D collision_object, bool value)
+    {
+        b2BodyId* body_id = (b2BodyId*) collision_object;
+        b2Body_SetBullet(*body_id, value);
     }
 
     void SetGroup2D(HCollisionObject2D collision_object, uint16_t groupbit) {
@@ -1635,6 +1635,68 @@ namespace dmPhysics
         return diff < 0 ? -1 : 1;
     }
 
+    struct RayCastContext
+    {
+        RayCastContext()
+        {
+            memset(this, 0, sizeof(RayCastContext));
+            m_CollisionMask = (uint16_t)~0u;
+            m_CollisionGroup = (uint16_t)~0u;
+        }
+
+        HContext2D                m_Context;
+        RayCastResponse           m_Response;
+        dmArray<RayCastResponse>* m_Results;
+        uint16_t                  m_CollisionMask;
+        uint16_t                  m_CollisionGroup;
+        void*                     m_IgnoredUserData;
+        uint8_t                   m_ReturnAllResults : 1;
+    };
+
+    static float cast_ray_cb(b2ShapeId shape_id, b2Vec2 point, b2Vec2 normal, float fraction, void* context )
+    {
+        // Return value controls ray behavior:
+        // -1: ignore this intersection
+        // 0: terminate ray immediately
+        // fraction: clip ray to this point
+        // 1: continue ray to full length
+
+        RayCastContext* ctx = (RayCastContext*) context;
+
+        b2Filter shape_filter = b2Shape_GetFilter(shape_id);
+
+        if (b2Shape_IsSensor(shape_id))
+        {
+            return -1.f;
+        }
+        if (b2Shape_GetUserData(shape_id) == ctx->m_IgnoredUserData)
+        {
+            return -1.f;
+        }
+        else if ((shape_filter.categoryBits & ctx->m_CollisionMask) && (shape_filter.maskBits & ctx->m_CollisionGroup))
+        {
+            ctx->m_Response.m_Hit = 1;
+            ctx->m_Response.m_Fraction = fraction;
+            ctx->m_Response.m_CollisionObjectGroup = shape_filter.categoryBits;
+            ctx->m_Response.m_CollisionObjectUserData = b2Shape_GetUserData(shape_id);
+            FromB2(normal, ctx->m_Response.m_Normal, 1.0f); // Don't scale normal
+            FromB2(point, ctx->m_Response.m_Position, ctx->m_Context->m_InvScale);
+
+            // Returning fraction means we're splitting the search area, effectively returning the closest ray
+            // By returning 1, we're make sure each hit is reported.
+            if (ctx->m_ReturnAllResults)
+            {
+                if (ctx->m_Results->Full())
+                    ctx->m_Results->OffsetCapacity(32);
+                ctx->m_Results->Push(ctx->m_Response);
+                return 1.0f;
+            }
+            return fraction;
+        }
+        else
+            return -1.f;
+    }
+
     void RayCast2D(HWorld2D world, const RayCastRequest& request, dmArray<RayCastResponse>& results)
     {
         DM_PROFILE("RayCast2D");
@@ -1649,34 +1711,38 @@ namespace dmPhysics
 
         float scale = world->m_Context->m_Scale;
 
-        /*
-        ProcessRayCastResultCallback2D query;
-        query.m_Request = &request;
-        query.m_ReturnAllResults = request.m_ReturnAllResults;
-        query.m_Context = world->m_Context;
-        query.m_Results = &results;
         b2Vec2 from;
         ToB2(from2d, from, scale);
         b2Vec2 to;
         ToB2(to2d, to, scale);
-        query.m_IgnoredUserData = request.m_IgnoredUserData;
-        query.m_CollisionMask = request.m_Mask;
-        query.m_Response.m_Hit = 0;
-        world->m_World.RayCast(&query, from, to);
 
-        if (!request.m_ReturnAllResults) {
-            if (query.m_Response.m_Hit)
+        RayCastContext context;
+        context.m_CollisionMask    = request.m_Mask;
+        context.m_IgnoredUserData  = request.m_IgnoredUserData;
+        context.m_Context          = world->m_Context;
+        context.m_Results          = &results;
+        context.m_ReturnAllResults = request.m_ReturnAllResults;
+
+        b2QueryFilter filter = b2DefaultQueryFilter();
+
+        b2World_CastRay(world->m_WorldId, from, to, filter, cast_ray_cb, &context);
+
+        if (!request.m_ReturnAllResults)
+        {
+            if (context.m_Response.m_Hit)
             {
                 if (results.Full())
+                {
                     results.OffsetCapacity(1);
+                }
                 results.SetSize(1);
-                results[0] = query.m_Response;
+                results[0] = context.m_Response;
             }
-        } else
+        }
+        else
         {
             qsort(results.Begin(), results.Size(), sizeof(dmPhysics::RayCastResponse), (int(*)(const void*, const void*))Sort_RayCastResponse);
         }
-        */
     }
 
     void SetGravity2D(HWorld2D world, const Vector3& gravity)

@@ -44,6 +44,27 @@ namespace dmPhysics
     };
     */
 
+    struct ShapeData
+    {
+        b2ShapeType m_Type;
+        b2Vec2      m_CreationPosition;
+        float       m_CreationScale;
+        float       m_LastScale;
+    };
+
+    struct CircleShapeData
+    {
+        ShapeData m_ShapeDataBase;
+        b2Circle  m_Circle;
+    };
+
+    struct PolygonShapeData
+    {
+        ShapeData m_ShapeDataBase;
+        b2Vec2    m_VerticesOriginal[b2_maxPolygonVertices];
+        b2Polygon m_Polygon;
+    };
+
     struct World2D
     {
         World2D(HContext2D context, const NewWorldParams& params);
@@ -59,6 +80,8 @@ namespace dmPhysics
 
         dmArray<b2BodyId>           m_Bodies;
         dmArray<b2ShapeId>          m_GetShapeScratchBuffer;
+
+        dmHashTable64<ShapeData*>   m_ShapeIdToShapeData;
 
         uint8_t                     m_AllowDynamicTransforms:1;
         uint8_t                     :7;
