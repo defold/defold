@@ -26,8 +26,7 @@
             [editor.scene :as scene]
             [editor.workspace :as workspace]
             [internal.util :as util]
-            [service.log :as log]
-            [util.fn :as fn])
+            [service.log :as log])
   (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc]
            [java.io StringReader]
            [javax.vecmath Matrix4d]))
@@ -225,7 +224,6 @@
 (defn game-object-build-target [source-resource host-resource-node-id component-instance-datas component-build-targets]
   {:pre [(workspace/source-resource? source-resource)
          (g/node-id? host-resource-node-id)
-         (vector? component-instance-datas)
          (vector? component-build-targets)]}
   ;; Extract the :component-instance-datas from the component build targets so
   ;; that overrides can be embedded in the resulting game object binary. We also

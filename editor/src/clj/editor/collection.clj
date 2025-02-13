@@ -824,6 +824,7 @@
     :node-type CollectionNode
     :ddf-type GameObject$CollectionDesc
     :load-fn load-collection
+    :allow-unloaded-use true
     :dependencies-fn (collection-common/make-collection-dependencies-fn #(workspace/get-resource-type workspace :editable "go"))
     :sanitize-fn (partial sanitize-collection workspace)
     :string-encode-fn (partial string-encode-collection workspace)

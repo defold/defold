@@ -128,6 +128,7 @@ ordinary paths."
   (resource-hash [this] (resource/resource-hash resource))
   (openable? [this] false)
   (editable? [this] false)
+  (loaded? [this] false)
 
   io/IOFactory
   (make-input-stream [this opts] (io/make-input-stream (File. (resource/abs-path this)) opts))
@@ -315,10 +316,16 @@ ordinary paths."
                         it is opened in the editor. Currently only supported by
                         code editor resource nodes, and only for file types that
                         do not interact with any other nodes in the graph.
+    :allow-unloaded-use Allow references to .defunload:ed resources of this type
+                        from loaded resources. Basically, this is a declaration
+                        that the associated :node-type is well-behaved when
+                        referenced despite its :load-fn never have been invoked.
+                        This involves producing valid build-targets, scene data,
+                        or whatever might be required by the referencing nodes.
     :auto-connect-save-data?    whether changes to the resource are saved
                                 to disc (this can also be enabled in load-fn)
                                 when there is a :write-fn, default true"
-  [workspace & {:keys [textual? language editable ext build-ext node-type load-fn dependencies-fn search-fn search-value-fn source-value-fn read-fn write-fn icon icon-class view-types view-opts tags tag-opts template test-info label stateless? lazy-loaded auto-connect-save-data?]}]
+  [workspace & {:keys [textual? language editable ext build-ext node-type load-fn dependencies-fn search-fn search-value-fn source-value-fn read-fn write-fn icon icon-class view-types view-opts tags tag-opts template test-info label stateless? lazy-loaded allow-unloaded-use auto-connect-save-data?]}]
   {:pre [(or (nil? icon-class) (resource/icon-class->style-class icon-class))]}
   (let [editable (if (nil? editable) true (boolean editable))
         textual (true? textual?)
@@ -346,6 +353,7 @@ ordinary paths."
                        :label label
                        :stateless? (if (nil? stateless?) (nil? load-fn) stateless?)
                        :lazy-loaded (boolean lazy-loaded)
+                       :allow-unloaded-use (boolean allow-unloaded-use)
                        :auto-connect-save-data? (and editable
                                                      (some? write-fn)
                                                      (not (false? auto-connect-save-data?)))}

@@ -334,7 +334,8 @@
     (workspace [_])
     (resource-hash [_])
     (openable? [_] false)
-    (editable? [_] false)))
+    (editable? [_] false)
+    (loaded? [_] false)))
 
 (g/defnode TextureBinding
   (property sampler g/Str) ; Required protobuf field.

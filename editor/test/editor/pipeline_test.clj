@@ -217,7 +217,8 @@
   (workspace [_])
   (resource-hash [_] (hash proj-path))
   (openable? [_] false)
-  (editable? [_] false))
+  (editable? [_] false)
+  (loaded? [_] false))
 
 (defn- build-resource [proj-path]
   (workspace/make-build-resource (->TestResource proj-path)))

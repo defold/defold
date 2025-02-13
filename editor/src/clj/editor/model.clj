@@ -309,7 +309,8 @@
     (workspace [_])
     (resource-hash [_])
     (openable? [_] false)
-    (editable? [_] false)))
+    (editable? [_] false)
+    (loaded? [_] false)))
 
 (g/defnk produce-model-properties [_node-id _declared-properties material-binding-infos mesh-material-ids]
   (let [model-node-id _node-id

@@ -2400,7 +2400,8 @@ If you do not specifically require different script states, consider changing th
   (enabled? [app-view selection evaluation-context]
             (when-let [r (context-resource-file app-view selection evaluation-context)]
               (and (resource/abs-path r)
-                   (resource/exists? r))))
+                   (resource/exists? r)
+                   (resource/loaded? r))))
   (run [selection app-view prefs workspace project] (when-let [r (context-resource-file app-view selection)]
                                                       (doseq [resource (resource-dialog/make workspace project {:title "Dependencies" :selection :multiple :ok-label "Open" :filter (format "deps:%s" (resource/proj-path r))})]
                                                         (open-resource app-view prefs workspace project resource)))))
@@ -2508,29 +2509,31 @@ If you do not specifically require different script states, consider changing th
 
 
 (defn- gen-tooltip [workspace project app-view resource]
-  (let [resource-type (resource/resource-type resource)
-        view-type (or (first (:view-types resource-type)) (workspace/get-view-type workspace :text))]
-    (when-let [make-preview-fn (:make-preview-fn view-type)]
-      {:fx/type fx.tooltip/lifecycle
-       :graphic {:fx/type fx.image-view/lifecycle
-                 :scale-y -1}
-       :on-showing (fn [^Event e]
-                     (let [^Tooltip tooltip (.getSource e)
-                           image-view ^ImageView (.getGraphic tooltip)]
-                       (when-not (.getImage image-view)
-                         (let [resource-node (project/get-resource-node project resource)
-                               view-graph (g/make-graph! :history false :volatility 2)
-                               select-fn (partial select app-view)
-                               opts (assoc ((:id view-type) (:view-opts resource-type))
-                                      :app-view app-view
-                                      :select-fn select-fn
-                                      :project project
-                                      :workspace workspace)
-                               preview (make-preview-fn view-graph resource-node opts 256 256)]
-                           (.setImage image-view ^Image (g/node-value preview :image))
-                           (when-some [dispose-preview-fn (:dispose-preview-fn view-type)]
-                             (dispose-preview-fn preview))
-                           (g/delete-graph! view-graph)))))})))
+  (when (resource/loaded? resource)
+    (let [resource-type (resource/resource-type resource)
+          view-type (or (first (:view-types resource-type))
+                        (workspace/get-view-type workspace :text))]
+      (when-let [make-preview-fn (:make-preview-fn view-type)]
+        {:fx/type fx.tooltip/lifecycle
+         :graphic {:fx/type fx.image-view/lifecycle
+                   :scale-y -1}
+         :on-showing (fn [^Event e]
+                       (let [^Tooltip tooltip (.getSource e)
+                             image-view ^ImageView (.getGraphic tooltip)]
+                         (when-not (.getImage image-view)
+                           (let [resource-node (project/get-resource-node project resource)
+                                 view-graph (g/make-graph! :history false :volatility 2)
+                                 select-fn (partial select app-view)
+                                 opts (assoc ((:id view-type) (:view-opts resource-type))
+                                        :app-view app-view
+                                        :select-fn select-fn
+                                        :project project
+                                        :workspace workspace)
+                                 preview (make-preview-fn view-graph resource-node opts 256 256)]
+                             (.setImage image-view ^Image (g/node-value preview :image))
+                             (when-some [dispose-preview-fn (:dispose-preview-fn view-type)]
+                               (dispose-preview-fn preview))
+                             (g/delete-graph! view-graph)))))}))))
 
 (def ^:private open-assets-term-prefs-key [:open-assets :term])
 

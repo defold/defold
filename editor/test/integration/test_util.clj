@@ -87,6 +87,16 @@
 
 (def ^:private ^:const system-cache-size 1000)
 
+;; String urls that will be added as library dependencies to our test project.
+;; These extensions register additional protobuf resource types that we want to
+;; cover in our tests.
+(def sanctioned-extension-urls
+  (mapv #(System/getProperty %)
+        ["defold.extension.rive.url"
+         "defold.extension.simpledata.url"
+         "defold.extension.spine.url"
+         "defold.extension.texturepacker.url"]))
+
 (defn number-type-preserving? [a b]
   (assert (or (number? a) (vector? a) (instance? Curve a) (instance? CurveSpread a)))
   (assert (or (number? b) (vector? b) (instance? Curve b) (instance? CurveSpread b)))
@@ -297,6 +307,27 @@
          (workspace/install-validated-libraries! workspace))
     (workspace/resource-sync! workspace [] progress/null-render-progress!)))
 
+(defn distinct-resource-types-by-editability
+  ([workspace]
+   (distinct-resource-types-by-editability workspace fn/constantly-true))
+  ([workspace resource-type-predicate]
+   (let [editable-protobuf-resource-types
+         (into (sorted-map)
+               (filter (fn [[_ext editable-resource-type]]
+                         (resource-type-predicate editable-resource-type)))
+               (workspace/get-resource-type-map workspace :editable))
+
+         distinctly-non-editable-protobuf-resource-types
+         (into (sorted-map)
+               (filter (fn [[ext non-editable-resource-type]]
+                         (and (resource-type-predicate non-editable-resource-type)
+                              (not (identical? non-editable-resource-type
+                                               (editable-protobuf-resource-types ext))))))
+               (workspace/get-resource-type-map workspace :non-editable))]
+
+     {:editable (mapv val editable-protobuf-resource-types)
+      :non-editable (mapv val distinctly-non-editable-protobuf-resource-types)})))
+
 (defn setup-project!
   ([workspace]
    (let [proj-graph (g/make-graph! :history true :volatility 1)
@@ -319,7 +350,7 @@
              (map (comp #(g/node-value % :resource evaluation-context) first)
                   (g/sources-of project :node-id+resources)))))
 
-(defrecord FakeFileResource [workspace root ^File file children exists? source-type read-only? content]
+(defrecord FakeFileResource [workspace root ^File file children exists? source-type read-only? loaded? content]
   resource/Resource
   (children [this] children)
   (ext [this] (FilenameUtils/getExtension (.getPath file)))
@@ -335,6 +366,7 @@
   (resource-hash [this] (hash (resource/proj-path this)))
   (openable? [this] (= :file source-type))
   (editable? [this] true)
+  (loaded? [_this] loaded?)
 
   io/IOFactory
   (make-input-stream  [this opts] (io/make-input-stream content opts))
@@ -345,13 +377,14 @@
 (defn make-fake-file-resource
   ([workspace root file content]
    (make-fake-file-resource workspace root file content nil))
-  ([workspace root file content {:keys [children exists? source-type read-only?]
+  ([workspace root file content {:keys [children exists? source-type read-only? loaded?]
                                  :or {children nil
                                       exists? true
                                       source-type :file
-                                      read-only? false}
+                                      read-only? false
+                                      loaded? true}
                                  :as opts}]
-   (FakeFileResource. workspace root file children exists? source-type read-only? content)))
+   (FakeFileResource. workspace root file children exists? source-type read-only? loaded? content)))
 
 (defn resource-node [project path]
   (project/get-resource-node project path))

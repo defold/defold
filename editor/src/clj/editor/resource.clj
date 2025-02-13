@@ -50,7 +50,8 @@
   (workspace [this])
   (resource-hash [this])
   (openable? [this])
-  (editable? [this]))
+  (editable? [this])
+  (loaded? [this]))
 
 (def ^{:arglists '([x])} resource?
   (let [cache (atom {})
@@ -132,7 +133,26 @@
 ;; The same logic implemented in Project.java.
 ;; If you change something here, please change it there as well
 ;; Search for excluedFilesAndFoldersEntries.
-;; root -> pred if project path (string starting with /) is ignored
+(defn lines->proj-path-patterns-pred
+  "Returns a predicate that takes a proj-path and returns true if it starts with
+  or matches one of the proj-paths listed among the lines, typically the
+  contents of something like a .defignore file."
+  [lines]
+  (let [prefixes (when lines
+                   (coll/transfer lines []
+                     (filter #(string/starts-with? % "/"))
+                     (distinct)))]
+    (if (zero? (count prefixes))
+      fn/constantly-false
+      (fn matched-proj-path? [proj-path]
+        (boolean (coll/some #(string/starts-with? proj-path %)
+                            prefixes))))))
+
+(defn- read-proj-path-patterns-pred [^File proj-path-patterns-file]
+  (lines->proj-path-patterns-pred
+    (when (.isFile proj-path-patterns-file)
+      (string/split-lines (slurp proj-path-patterns-file)))))
+
 (defn defignore-pred [^File root]
   (let [defignore-file (io/file root ".defignore")
         defignore-path (.getCanonicalPath defignore-file)
@@ -140,17 +160,18 @@
         {:keys [mtime pred]} (get @defignore-cache defignore-path)]
     (if (= mtime latest-mtime)
       pred
-      (let [pred (if (.isFile defignore-file)
-                   (let [prefixes (into []
-                                        (comp
-                                          (filter #(string/starts-with? % "/"))
-                                          (distinct))
-                                        (string/split-lines (slurp defignore-file)))]
-                     (fn ignored-path? [path]
-                       (boolean (some #(string/starts-with? path %) prefixes))))
-                   fn/constantly-false)]
+      (let [pred (read-proj-path-patterns-pred defignore-file)]
         (swap! defignore-cache assoc defignore-path {:mtime latest-mtime :pred pred})
         pred))))
+
+(defn- defunload-pred-raw [^File root]
+  ;; Contrary to .defignore, we only read the .defunload file once and cache it
+  ;; for the entire lifetime of the application. You'll have to restart the
+  ;; editor for any changes to take effect.
+  (let [defunload-file (io/file root ".defunload")]
+    (read-proj-path-patterns-pred defunload-file)))
+
+(def defunload-pred (fn/memoize defunload-pred-raw))
 
 (def ^:dynamic *defignore-pred* nil)
 
@@ -198,8 +219,16 @@
   (resource-name [this] name)
   (workspace [this] workspace)
   (resource-hash [this] (hash (proj-path this)))
-  (openable? [this] (= :file source-type))
-  (editable? [this] editable)
+  (openable? [this]
+    (and (= :file source-type)
+         (if (:editor-openable (resource-type this))
+           (loaded? this)
+           true)))
+  (editable? [_this] editable)
+  (loaded? [_this]
+    (let [project-directory (io/file root)
+          unloaded-proj-path? (defunload-pred project-directory)]
+      (not (unloaded-proj-path? project-path))))
 
   io/IOFactory
   (make-input-stream  [this opts] (io/make-input-stream (io/file this) opts))
@@ -265,6 +294,7 @@
   (resource-hash [this] (hash data))
   (openable? [this] false)
   (editable? [this] editable)
+  (loaded? [_this] true)
 
   io/IOFactory
   (make-input-stream  [this opts] (io/make-input-stream (IOUtils/toInputStream ^String (:data this)) opts))
@@ -316,8 +346,17 @@
   (resource-name [this] name)
   (workspace [this] workspace)
   (resource-hash [this] (hash (proj-path this)))
-  (openable? [this] (= :file (source-type this)))
+  (openable? [this]
+    (and (= :file (source-type this))
+         (if (:editor-openable (resource-type this))
+           (loaded? this)
+           true)))
   (editable? [this] true)
+  (loaded? [this]
+    (let [project-directory (io/file (g/node-value workspace :root))
+          unloaded-proj-path? (defunload-pred project-directory)
+          proj-path (proj-path this)]
+      (not (unloaded-proj-path? proj-path))))
 
   io/IOFactory
   (make-input-stream  [this opts] (make-zip-resource-input-stream this))

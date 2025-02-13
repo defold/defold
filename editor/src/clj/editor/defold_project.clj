@@ -384,9 +384,25 @@
     (log-cache-info! (g/cache) "Cached loaded save data in system cache.")))
 
 (defn read-nodes [node-id+resource-pairs render-progress! old-resource-node-ids-by-proj-path old-resource-node-dependencies resource-metrics]
-  (-> node-id+resource-pairs
-      (read-node-load-infos render-progress! resource-metrics)
-      (sort-node-load-infos-for-loading old-resource-node-ids-by-proj-path old-resource-node-dependencies)))
+  (let [unloaded-proj-path?
+        (some-> node-id+resource-pairs
+                (first)
+                (second)
+                (resource/workspace)
+                (workspace/project-path)
+                (resource/defunload-pred))
+
+        loaded-node-id+resource-pairs
+        (if (nil? unloaded-proj-path?)
+          node-id+resource-pairs
+          (coll/transfer node-id+resource-pairs []
+            (remove (fn [[_node-id resource]]
+                      (let [proj-path (resource/proj-path resource)]
+                        (unloaded-proj-path? proj-path))))))]
+
+    (-> loaded-node-id+resource-pairs
+        (read-node-load-infos render-progress! resource-metrics)
+        (sort-node-load-infos-for-loading old-resource-node-ids-by-proj-path old-resource-node-dependencies))))
 
 (declare workspace)
 

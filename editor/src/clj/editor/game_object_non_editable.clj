@@ -226,7 +226,7 @@
     (game-object-common/embedded-component-instance-data build-resource embedded-component-desc pose)))
 
 (defn prototype-desc->component-instance-datas [prototype-desc embedded-component-desc->build-resource proj-path->build-target]
-  {:pre [(map? prototype-desc)]} ; GameObject$PrototypeDesc in map format.
+  {:pre [(or (nil? prototype-desc) (map? prototype-desc))]} ; GameObject$PrototypeDesc in map format.
   (-> []
       (into (map #(component-desc->component-instance-data % proj-path->build-target))
             (:components prototype-desc))
@@ -305,7 +305,8 @@
             (make-embedded-component-desc->build-resource embedded-component-build-targets embedded-component-resource-data->index)
 
             component-instance-datas
-            (prototype-desc->component-instance-datas prototype-desc embedded-component-desc->build-resource proj-path->build-target)
+            (when prototype-desc
+              (prototype-desc->component-instance-datas prototype-desc embedded-component-desc->build-resource proj-path->build-target))
 
             component-build-targets
             (into referenced-component-build-targets
@@ -389,6 +390,7 @@
     :sanitize-fn (partial sanitize-non-editable-game-object workspace)
     :string-encode-fn (partial string-encode-non-editable-game-object workspace)
     :load-fn load-non-editable-game-object
+    :allow-unloaded-use true
     :icon game-object-common/game-object-icon
     :icon-class :design
     :view-types [:scene :text]

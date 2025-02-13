@@ -446,6 +446,7 @@
     :sanitize-fn (partial sanitize-non-editable-collection workspace)
     :string-encode-fn (partial string-encode-non-editable-collection workspace)
     :load-fn load-non-editable-collection
+    :allow-unloaded-use true
     :icon collection-common/collection-icon
     :icon-class :design
     :view-types [:scene :text]
