@@ -123,15 +123,6 @@ def setup_keychain(args):
 def get_github_token():
     return os.environ.get('SERVICES_GITHUB_TOKEN', None)
 
-def setup_steam_config(args):
-    print("Setting up Steam config")
-    system = platform.system()
-    steam_config_path = "~/.local/share/Steam/config"
-    os.makedirs(steam_config_path)
-    steam_config_file = os.path.abspath(os.path.join(steam_config_path, "config.vdf"))
-    b64decode_to_file(args.steam_config_b64, steam_config_file)
-    print("Wrote config to", steam_config_file)
-
 def install_linux(args):
     host_platform = platform_from_host()
 
@@ -216,23 +207,7 @@ def install_linux(args):
     ]
     aptget(" ".join(packages))
 
-    if args.steam_config_b64:
-        # for steamcmd
-        # https://github.com/steamcmd/docker/blob/master/dockerfiles/ubuntu-22/Dockerfile#L15C5-L16C62
-        # https://github.com/game-ci/steam-deploy
-        call("sudo dpkg --add-architecture i386")
-        call("sudo apt-get update", failonerror=False)
-        # accept license agreement
-        call("echo steam steam/question select 'I AGREE' | sudo debconf-set-selections")
-        call("echo steam steam/license note '' | sudo debconf-set-selections")
-        packages = [
-            "lib32z1",
-            "steamcmd",
-            "lib32gcc1",
-            "hfsprogs"   # for mounting DMG files
-        ]
-        aptget(" ".join(packages))
-        setup_steam_config(args)
+
 def install_macos(args):
     if args.keychain_cert:
         setup_keychain(args)
@@ -514,7 +489,6 @@ def main(argv):
     parser.add_argument('--github-token', dest='github_token', help='GitHub authentication token when releasing to GitHub')
     parser.add_argument('--github-target-repo', dest='github_target_repo', help='GitHub target repo when releasing artefacts')
     parser.add_argument('--github-sha1', dest='github_sha1', help='A specific sha1 to use in github operations')
-    parser.add_argument("--steam-config-b64", dest="steam_config_b64", help="String containing Steam config (vdf) encoded as base 64")
 
     args = parser.parse_args()
 
