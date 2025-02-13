@@ -58,6 +58,7 @@ namespace dmPhysics
         SetWorldTransformCallback   m_SetWorldTransformCallback;
 
         dmArray<b2BodyId>           m_Bodies;
+        dmArray<b2ShapeId>          m_GetShapeScratchBuffer;
 
         uint8_t                     m_AllowDynamicTransforms:1;
         uint8_t                     :7;

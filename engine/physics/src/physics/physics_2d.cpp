@@ -395,16 +395,66 @@ namespace dmPhysics
         return dmMath::Min(v[0], v[1]);
     }
 
-    /*
-    static void UpdateScale(HWorld2D world, b2Body* body)
+    static void UpdateScale(HWorld2D world, b2BodyId* body_id)
     {
         dmTransform::Transform world_transform;
-        (*world->m_GetWorldTransformCallback)(body->GetUserData(), world_transform);
+        (*world->m_GetWorldTransformCallback)(b2Body_GetUserData(*body_id), world_transform);
 
         float object_scale = GetUniformScale2D(world_transform);
 
-        b2Fixture* fix = body->GetFixtureList();
+        int shape_count = b2Body_GetShapeCount(*body_id);
+
+        if (world->m_GetShapeScratchBuffer.Capacity() < shape_count)
+        {
+            world->m_GetShapeScratchBuffer.SetCapacity(shape_count);
+            world->m_GetShapeScratchBuffer.SetSize(shape_count);
+        }
+
+        b2Body_GetShapes(*body_id, world->m_GetShapeScratchBuffer.Begin(), world->m_GetShapeScratchBuffer.Size());
         bool allow_sleep = true;
+
+        for (int i = 0; i < shape_count; ++i)
+        {
+            b2ShapeId shape_id = world->m_GetShapeScratchBuffer[i];
+
+            if (shape->m_lastScale == object_scale )
+            {
+                break;
+            }
+
+            b2ShapeType shape_type = b2Shape_GetType(shape_id);
+
+            shape->m_lastScale = object_scale;
+            allow_sleep = false;
+
+            if (shape_type == b2_circleShape) {
+                // creation scale for circles, is the initial radius
+                b2Circle circle_shape = b2Shape_GetCircle(shape_id);
+                circle_shape.radius = circle_shape.m_creationScale * object_scale;
+
+                b2Vec2 p = circle_shape.m_creationP;
+                circle_shape.center.x = p.x * object_scale;
+                circle_shape.center.y = p.y * object_scale;
+
+                b2Shape_SetCircle(shape_id, &circle_shape);
+            }
+            else if (shape_type == b2_polygonShape)
+            {
+                b2Polygon pshape = b2Shape_GetPolygon(shape_id);
+
+                /*
+                float s = object_scale / shape->m_creationScale;
+                for( int i = 0; i < b2_maxPolygonVertices; ++i)
+                {
+                    b2Vec2 p = pshape->m_verticesOriginal[i];
+                    pshape->vertices[i].Set(p.x * s, p.y * s);
+                }
+                */
+            }
+        }
+
+        /*
+        b2Fixture* fix = body->GetFixtureList();
         while( fix )
         {
             b2Shape* shape = fix->GetShape();
@@ -435,13 +485,13 @@ namespace dmPhysics
 
             fix = fix->GetNext();
         }
+        */
 
         if (!allow_sleep)
         {
-            body->SetAwake(true);
+            b2Body_SetAwake(*body_id, true);
         }
     }
-    */
 
     void StepWorld2D(HWorld2D world, const StepWorldContext& step_context)
     {
@@ -507,7 +557,7 @@ namespace dmPhysics
                 // Scaling
                 if(retrieve_gameworld_transform)
                 {
-                    //UpdateScale(world, body_id);
+                    UpdateScale(world, body_id);
                 }
             }
         }
