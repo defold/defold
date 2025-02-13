@@ -473,7 +473,8 @@ static inline void DeinterleaveFromS8(float* out[], const int8_t* in, uint32_t n
         uint32_t pi = ((frac_pos >> (RESAMPLE_FRACTION_BITS - 11)) << 3) & (2047 << 3); // 8 tabs, 2048 (11 fractional bits) banks
         const float* c = &_pfb[pi];
 
-#if defined(__SSE4_1__)
+//TODO: RTCD needed to make selection (outside inner loop), so we don't demand SSE4.1
+#if 0 //defined(__SSE4_1__)
         vec4 taps0 = _mm_loadu_ps(&frames[-3]);
         vec4 taps1 = _mm_loadu_ps(&frames[ 1]);
         return (_mm_dp_ps(taps0, *(const vec4*)&c[0], 0xf1) + _mm_dp_ps(taps1, *(const vec4*)&c[4], 0xf1))[0];      // at least on intel: 11 cycles latency, but good throughput -> shuffles and adds are rather FAST, without hiding the latency the old code could be comparable in speed!

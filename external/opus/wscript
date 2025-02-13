@@ -66,8 +66,6 @@ def build(bld):
                                        'silk/interpolate.c',
                                        'silk/LP_variable_cutoff.c',
                                        'silk/NLSF_decode.c',
-                                       'silk/NSQ.c',
-                                       'silk/NSQ_del_dec.c',
                                        'silk/PLC.c',
                                        'silk/shell_coder.c',
                                        'silk/tables_gain.c',
@@ -77,10 +75,8 @@ def build(bld):
                                        'silk/tables_other.c',
                                        'silk/tables_pitch_lag.c',
                                        'silk/tables_pulses_per_block.c',
-                                       'silk/VAD.c',
                                        'silk/control_audio_bandwidth.c',
                                        'silk/quant_LTP_gains.c',
-                                       'silk/VQ_WMat_EC.c',
                                        'silk/HP_variable_cutoff.c',
                                        'silk/NLSF_encode.c',
                                        'silk/NLSF_VQ.c',
@@ -126,15 +122,41 @@ def build(bld):
                                        'silk/stereo_find_predictor.c',
                                        'silk/stereo_quant_pred.c',
                                        'silk/LPC_fit.c',
+                                       'silk/NSQ.c',
+                                       'silk/NSQ_del_dec.c',
+                                       'silk/VAD.c',
+                                       'silk/VQ_WMat_EC.c',
+                                        ])
+
+    x86_simd_source_files =  bld.path.ant_glob(['celt/x86/celt_lpc_sse4_1.c',
+                                       'celt/x86/pitch_avx.c',
+                                       'celt/x86/pitch_sse2.c',
+                                       'celt/x86/pitch_sse4_1.c',
+                                       'celt/x86/pitch_sse.c',
+                                       'celt/x86/vq_sse2.c',
+                                       'celt/x86/x86_celt_map.c',
+                                       'celt/x86/x86cpu.c',
+
+                                       'silk/x86/x86_silk_map.c',
+                                       'silk/x86/NSQ_del_dec_sse4_1.c',
+                                       'silk/x86/NSQ_sse4_1.c',
+                                       'silk/x86/VAD_sse4_1.c',
+                                       'silk/x86/VQ_WMat_EC_sse4_1.c',
                                        ])
 
+    simd_defs = []
+    if bld.env.PLATFORM in ('x86_64-win32', 'x86_64-linux', 'x86_64-macos'):
+        simd_defs = simd_defs + ['OPUS_HAVE_RTCD', 'OPUS_X86_MAY_HAVE_SSE', 'OPUS_X86_MAY_HAVE_SSE2', 'OPUS_X86_MAY_HAVE_SSE4_1', 'CPU_INFO_BY_C'];
+        source_files = source_files + x86_simd_source_files
+    elif bld.env.PLATFORM in ('wasm-web', 'js-web'):
+        simd_defs = simd_defs + ['OPUS_X86_MAY_HAVE_SSE', 'OPUS_X86_MAY_HAVE_SSE2', 'OPUS_X86_MAY_HAVE_SSE4_1', 'OPUS_X86_PRESUME_SSE', 'OPUS_X86_PRESUME_SSE2', 'OPUS_X86_PRESUME_SSE4_1'];
+        source_files = source_files + x86_simd_source_files
 
     opus_decoder    = bld.stlib(features = 'c cxx',
                                 source    = source_files,
-                                defines   = ['NDEBUG', 'OPUS_BUILD', 'VAR_ARRAYS'],
-                                includes  = ['include', 'celt', 'silk', 'silk/float', 'silk/fixed'],
+                                defines   = ['NDEBUG', 'OPUS_BUILD', 'VAR_ARRAYS'] + simd_defs,
+                                includes  = ['include', 'celt', 'silk', 'silk/float', 'silk/fixed', '.'],
                                 target    = 'opus')
-
 
     if bld.env.PLATFORM in ('win32', 'x86_64-win32'):
         bld.env.STLIB_ST         = 'lib%s.lib'
