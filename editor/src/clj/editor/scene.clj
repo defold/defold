@@ -1061,7 +1061,13 @@
   (-> (or (g/node-value camera :cached-3d-camera)
           (c/tumble (g/node-value camera :local-camera) 200.0 -100.0))))
 
-(defn- camera-2d->3d!
+(defmulti realign-camera (fn [view _animate?] (if (-> (view->camera view)
+                                                      (g/node-value :local-camera)
+                                                      (c/mode-2d?))
+                                                :2d
+                                                :3d)))
+
+(defmethod realign-camera :2d
   [view animate?]
   (let [camera (view->camera view)
         local-cam (g/node-value camera :local-camera)
@@ -1072,7 +1078,7 @@
       (set-camera-type! view :perspective))
     (set-camera! camera (g/node-value camera :local-camera) cached-3d-camera animate?)))
 
-(defn- camera-3d->2d!
+(defmethod realign-camera :3d
   [view animate?]
   (let [camera (view->camera view)
         local-cam (g/node-value camera :local-camera)]
@@ -1083,12 +1089,6 @@
     (let [local-cam (g/node-value camera :local-camera)
           end-camera (c/camera-orthographic-realign local-cam)]
       (set-camera! camera local-cam end-camera animate?))))
-
-(defn realign-camera [view animate?]
-  (let [camera (view->camera view)
-        local-cam (g/node-value camera :local-camera)
-        realign (if (c/mode-2d? local-cam) camera-2d->3d! camera-3d->2d!)]
-    (realign view animate?)))
 
 (handler/defhandler :frame-selection :global
   (active? [app-view evaluation-context]
