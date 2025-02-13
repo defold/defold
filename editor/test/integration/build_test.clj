@@ -32,23 +32,21 @@
             [integration.test-util :refer [with-loaded-project] :as test-util]
             [support.test-support :refer [with-clean-system]]
             [util.murmur :as murmur])
-  (:import [com.dynamo.bob.pipeline CubemapBuilder]
-           [com.dynamo.bob.util TextureUtil]
+  (:import [com.dynamo.bob.util TextureUtil]
            [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
            [com.dynamo.gamesys.proto GameSystem$CollectionProxyDesc]
            [com.dynamo.gamesys.proto TextureSetProto$TextureSet]
-           [com.dynamo.graphics.proto Graphics$TextureImage]
-           [com.dynamo.render.proto Font$FontMap Font$GlyphBank]
-           [com.dynamo.particle.proto Particle$ParticleFX]
+           [com.dynamo.gamesys.proto Gui$SceneDesc]
+           [com.dynamo.lua.proto Lua$LuaModule]
            [com.dynamo.gamesys.proto Sound$SoundDesc]
-           [com.dynamo.rig.proto Rig$RigScene Rig$Skeleton Rig$AnimationSet Rig$MeshSet]
+           [com.dynamo.particle.proto Particle$ParticleFX]
            [com.dynamo.gamesys.proto ModelProto$Model]
            [com.dynamo.gamesys.proto Physics$CollisionObjectDesc]
            [com.dynamo.gamesys.proto Label$LabelDesc]
-           [com.dynamo.lua.proto Lua$LuaModule]
-           [com.dynamo.gamesys.proto Gui$SceneDesc]
+           [com.dynamo.render.proto Font$FontMap Font$GlyphBank]
+           [com.dynamo.rig.proto Rig$AnimationSet Rig$MeshSet Rig$RigScene Rig$Skeleton]
            [java.io ByteArrayOutputStream File]
-           [org.apache.commons.io FilenameUtils IOUtils]))
+           [org.apache.commons.io IOUtils]))
 
 (def project-path "test/resources/build_project/SideScroller")
 
@@ -68,7 +66,7 @@
                         "collectionc" GameObject$CollectionDesc})
 
 (defn- target [path targets]
-  (let [ext (FilenameUtils/getExtension path)
+  (let [ext (resource/filename->type-ext path)
         pb-class (get target-pb-classes ext)]
     (when (nil? pb-class)
       (throw (ex-info (str "No target-pb-classes entry for extension \"" ext "\", path \"" path "\".")
@@ -418,7 +416,7 @@
       (let [content    (get content-by-source path)
             desc       (protobuf/bytes->map-with-defaults GameObject$PrototypeDesc content)
             sound-path (get-in desc [:components 0 :component])
-            ext        (FilenameUtils/getExtension sound-path)]
+            ext        (resource/filename->type-ext sound-path)]
         (is (= ext "soundc"))
         (let [sound-desc (protobuf/bytes->map-with-defaults Sound$SoundDesc (content-by-target sound-path))]
           (is (contains? content-by-target (:sound sound-desc))))))))

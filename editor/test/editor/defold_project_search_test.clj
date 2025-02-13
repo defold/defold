@@ -155,6 +155,7 @@
                                      (when-some [save-data (g/node-value node-id :save-data)]
                                        (:resource save-data))))
                              (remove resource/internal?)
+                             (filter resource/loaded?)
                              (filter resource/textual?)
                              (map resource/proj-path))
                        (g/node-value project :node-id+resources))
