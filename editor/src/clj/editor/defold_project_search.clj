@@ -95,7 +95,8 @@
                       (string/replace #" " "")
                       (string/split #",")))]
     (fn search-resource? [resource]
-      (and (resource-matches-library-setting? resource search-libraries)
+      (and (resource/loaded? resource)
+           (resource-matches-library-setting? resource search-libraries)
            (resource-matches-file-ext? resource file-ext-patterns)))))
 
 (defn- start-search-thread [report-error! search-data-future resource-type->matches-fn search-resource? produce-fn]

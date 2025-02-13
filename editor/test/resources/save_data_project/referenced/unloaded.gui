@@ -1,0 +1,3 @@
+script: "/checked.gui_script"
+material: "/checked.material"
+adjust_reference: ADJUST_REFERENCE_PARENT

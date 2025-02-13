@@ -149,11 +149,38 @@
                                             icon)
                                           header-desc]})))))))
 
+(defn content-text-area [props]
+  (-> props
+      (assoc :fx/type fxui/text-area)
+      (fxui/add-style-classes "text-area-with-dialog-content-padding")
+      (fxui/provide-defaults
+        :pref-row-count (max 3 (count (string/split (:text props "") #"\n" 10)))
+        :variant :borderless
+        :editable false)))
+
+(defn- coerce-dialog-content [content]
+  (cond
+    (:fx/type content)
+    content
+
+    (map? content)
+    (assoc content :fx/type content-text-area)
+
+    (string? content)
+    {:fx/type content-text-area :text content}))
+
 (defn make-confirmation-dialog
   "Shows a dialog and blocks current thread until users selects one option.
 
-  `props` is a prop map for `editor.dialogs/dialog-stage`, but instead of
-  `:footer` you use `:buttons`
+  `props` is a prop map to configure the dialog, supports all options from
+  `editor.dialogs/dialog-stage` with these changes:
+  - instead of `:footer` you use `:buttons`.
+  - `:content` can be:
+    * fx description (a map with `:fx/type` key) - used as is
+    * prop map (map without `:fx/type` key) for `editor.fxui/text-area` -
+      readonly by default to allow user select and copy text, `:text` prop is
+      required
+    * string - text for readonly text area
 
   Additional keys:
   - `:buttons` (optional) - a coll of button descriptions. Button
@@ -171,16 +198,9 @@
   (fxui/show-dialog-and-await-result!
     :event-handler (fn [state event]
                      (assoc state ::fxui/result (:result event)))
-    :description (assoc props :fx/type confirmation-dialog)))
-
-(defn- info-dialog-text-area [props]
-  (-> props
-      (assoc :fx/type fxui/text-area)
-      (fxui/add-style-classes "text-area-with-dialog-content-padding")
-      (fxui/provide-defaults
-        :pref-row-count (max 3 (count (string/split (:text props "") #"\n" 10)))
-        :variant :borderless
-        :editable false)))
+    :description (-> props
+                     (assoc :fx/type confirmation-dialog)
+                     (update :content coerce-dialog-content))))
 
 (def ^String indented-bullet
   ;; "  * " (NO-BREAK SPACE, NO-BREAK SPACE, BULLET, NO-BREAK SPACE)
@@ -194,26 +214,10 @@
 
   `props` is a map to configure the dialog, supports all options from
   `editor.dialogs/make-confirmation-dialog` with these changes:
-  - `:buttons` have a close button by default
-  - `:content` can be:
-    * fx description (a map with `:fx/type` key) - used as is
-    * prop map (map without `:fx/type` key) for `editor.fxui/text-area` -
-      readonly by default to allow user select and copy text, `:text` prop is
-      required
-    * string - text for readonly text area"
+  - `:buttons` have a close button by default"
   [props]
   (make-confirmation-dialog
     (-> props
-        (update :content (fn [content]
-                           (cond
-                             (:fx/type content)
-                             content
-
-                             (map? content)
-                             (assoc content :fx/type info-dialog-text-area)
-
-                             (string? content)
-                             {:fx/type info-dialog-text-area :text content})))
         (fxui/provide-defaults :buttons [{:text "Close"
                                           :cancel-button true
                                           :default-button true}]))))
@@ -369,7 +373,7 @@
                        {:fx/type fxui/label
                         :variant :header
                         :text "An error occurred"}]}
-   :content {:fx/type info-dialog-text-area
+   :content {:fx/type content-text-area
              :text (messages ex-map)}
    :footer {:fx/type fx.v-box/lifecycle
             :style-class "spacing-smaller"
@@ -467,7 +471,7 @@
                     {:fx/type fxui/label
                      :text "You can continue with scene editing disabled."}))}
      :icon :icon/circle-sad
-     :content {:fx/type info-dialog-text-area
+     :content {:fx/type content-text-area
                :text support-error}
      :buttons [{:text "Quit"
                 :cancel-button true
@@ -1044,7 +1048,7 @@
                         :content (let [str (string/join "\n" log)]
                                    {:fx/type ext-with-selection-props
                                     :props {:selection [(count str) (count str)]}
-                                    :desc {:fx/type info-dialog-text-area
+                                    :desc {:fx/type content-text-area
                                            :pref-row-count 20
                                            :text str}})
                         :footer {:fx/type dialog-buttons

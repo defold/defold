@@ -27,3 +27,4 @@ pom.xml.asc
 /preflight-report.txt
 /.calva
 /.lsp
+/defunload-issues.txt

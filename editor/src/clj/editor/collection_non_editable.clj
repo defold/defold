@@ -47,7 +47,7 @@
             referenced-component-build-targets
             resource-property-build-targets)))
 
-(defn- any-instance-desc->pose [{:keys [position rotation scale3] :as any-instance-desc}]
+(defn- any-instance-desc->pose [{:keys [position rotation scale3] :as _any-instance-desc}]
   ;; GameObject$InstanceDesc, GameObject$EmbeddedInstanceDesc, or GameObject$CollectionInstanceDesc in map format.
   (let [scale (or scale3 scene/default-scale)]
     (pose/make position rotation scale)))
@@ -446,6 +446,7 @@
     :sanitize-fn (partial sanitize-non-editable-collection workspace)
     :string-encode-fn (partial string-encode-non-editable-collection workspace)
     :load-fn load-non-editable-collection
+    :allow-unloaded-use true
     :icon collection-common/collection-icon
     :icon-class :design
     :view-types [:scene :text]

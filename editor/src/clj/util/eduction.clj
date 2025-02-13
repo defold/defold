@@ -13,7 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns util.eduction
-  (:refer-clojure :exclude [cat concat dedupe distinct drop drop-while filter interpose keep keep-indexed map map-indexed mapcat partition-all partition-by random-sample remove replace take take-nth take-while])
+  (:refer-clojure :exclude [cat concat conj cons dedupe distinct drop drop-while filter interpose keep keep-indexed map map-indexed mapcat partition-all partition-by random-sample remove replace take take-nth take-while])
   (:require [util.array :as array]))
 
 (set! *warn-on-reflection* true)
@@ -45,6 +45,29 @@
    (->Eduction
      clojure.core/cat
      (apply array/of a b c d more))))
+
+(defn conj
+  ([] empty-eduction)
+  ([coll] coll)
+  ([coll item]
+   (->Eduction
+     clojure.core/cat
+     (array/of
+       coll
+       (array/of item))))
+  ([coll item & more]
+   (->Eduction
+     clojure.core/cat
+     (array/of
+       coll
+       (array/of item)
+       (object-array more)))))
+
+(defn cons [item coll]
+  (->Eduction
+    clojure.core/cat
+    (array/of (array/of item)
+              coll)))
 
 (definline dedupe [coll]
   `(->Eduction

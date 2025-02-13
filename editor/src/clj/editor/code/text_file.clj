@@ -81,6 +81,9 @@
    {:ext "defignore"
     :label "Defignore"
     :icon "icons/32/Icons_11-Script-general.png"}
+   {:ext "defunload"
+    :label "Defunload"
+    :icon "icons/32/Icons_11-Script-general.png"}
    {:ext "zig"
     :language "zig"
     :label "Zig"

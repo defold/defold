@@ -17,6 +17,7 @@
   ordinary paths."
   (:require [clojure.java.io :as io]
             [clojure.set :as set]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.code.preprocessors :as code.preprocessors]
             [editor.code.resource :as code.resource]
@@ -24,6 +25,7 @@
             [editor.code.transpilers :as code.transpilers]
             [editor.collision-groups :as collision-groups]
             [editor.core :as core]
+            [editor.dialogs :as dialogs]
             [editor.game-project-core :as gpc]
             [editor.gl :as gl]
             [editor.graph-util :as gu]
@@ -40,7 +42,9 @@
             [editor.texture.engine :as texture.engine]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
+            [internal.cache :as c]
             [internal.java :as java]
+            [internal.util :as util]
             [internal.util :as iutil]
             [schema.core :as s]
             [service.log :as log]
@@ -291,50 +295,56 @@
                   (g/callback stop-resource-metrics-load-timer! proj-path)))))))
       (g/callback render-progress! (progress/make-indeterminate "Finalizing...")))))
 
-(defn read-node-load-infos [node-id+resource-pairs render-progress! resource-metrics]
-  (let [node-count (count node-id+resource-pairs)]
+(defn read-node-load-infos [node-id+resource-pairs ^long progress-size render-progress! resource-metrics]
+  {:pre [(or (nil? node-id+resource-pairs) (counted? node-id+resource-pairs))]}
+  (let [progress-fn
+        (if (pos? progress-size)
+          (fn progress-fn [progress-message ^long node-index]
+            (progress/make progress-message progress-size (inc node-index)))
+          (fn indeterminate-progress-fn [progress-message ^long _node-index]
+            (progress/make-indeterminate progress-message)))]
     (into []
           (map-indexed
             (fn [^long node-index [node-id resource]]
               (let [proj-path (resource/proj-path resource)
                     progress-message (str "Reading " proj-path)
-                    progress (progress/make progress-message node-count (inc node-index))]
+                    progress (progress-fn progress-message node-index)]
                 (render-progress! progress)
                 (read-node-load-info node-id resource resource-metrics))))
           node-id+resource-pairs)))
 
-(defn- disk-sha256s-by-node-id [node-load-infos]
-  (into {}
-        (keep (fn [{:keys [resource] :as node-load-info}]
-                (when (and (resource/file-resource? resource)
-                           (resource/stateful? resource))
-                  (let [{:keys [disk-sha256 node-id]} node-load-info]
-                    (pair node-id disk-sha256)))))
-        node-load-infos))
+(defn- store-loaded-node-info! [node-load-infos workspace]
+  (let [[loaded-resource-node-ids
+         disk-sha256s-by-node-id
+         node-id+source-value-pairs]
+        (util/into-multiple
+          [[] {} []]
+          [(map :node-id)
+           (keep (fn [{:keys [resource] :as node-load-info}]
+                   (when (and (resource/file-resource? resource)
+                              (resource/stateful? resource))
+                     (let [{:keys [disk-sha256 node-id]} node-load-info]
+                       (pair node-id disk-sha256)))))
+           (keep (fn [{:keys [node-id read-error resource source-value] :as _node-load-info}]
+                   ;; The source-value output will never be evaluated for
+                   ;; non-editable or stateless resources, so there is no
+                   ;; need to store their entries.
+                   (when (and (some? source-value)
+                              (resource/editable? resource)
+                              (resource/stateful? resource))
+                     (pair node-id
+                           (or read-error
+                               (let [resource-type (resource/resource-type resource)]
+                                 ;; Note: Here, source-value is whatever was
+                                 ;; returned by the read-fn, so it's
+                                 ;; technically a save-value.
+                                 (resource-node/save-value->source-value source-value resource-type)))))))]
+          node-load-infos)]
 
-(defn store-loaded-disk-sha256-hashes! [node-load-infos workspace]
-  (let [disk-sha256s-by-node-id (disk-sha256s-by-node-id node-load-infos)]
     (g/transact
-      (workspace/merge-disk-sha256s workspace disk-sha256s-by-node-id))))
-
-(defn store-loaded-source-values! [node-load-infos]
-  (let [node-id+source-value-pairs
-        (into []
-              (keep (fn [{:keys [node-id read-error resource source-value] :as _node-load-info}]
-                      ;; The source-value output will never be evaluated for
-                      ;; non-editable or stateless resources, so there is no
-                      ;; need to store their entries.
-                      (when (and (some? source-value)
-                                 (resource/editable? resource)
-                                 (resource/stateful? resource))
-                        (pair node-id
-                              (or read-error
-                                  (let [resource-type (resource/resource-type resource)]
-                                    ;; Note: Here, source-value is whatever was
-                                    ;; returned by the read-fn, so it's
-                                    ;; technically a save-value.
-                                    (resource-node/save-value->source-value source-value resource-type)))))))
-              node-load-infos)]
+      (concat
+        (workspace/register-loaded-resource-node-ids workspace loaded-resource-node-ids)
+        (workspace/merge-disk-sha256s workspace disk-sha256s-by-node-id)))
 
     (resource-node/merge-source-values! node-id+source-value-pairs)))
 
@@ -383,17 +393,221 @@
     (g/cache-output-values! endpoint+cached-value-pairs)
     (log-cache-info! (g/cache) "Cached loaded save data in system cache.")))
 
-(defn read-nodes [node-id+resource-pairs render-progress! old-resource-node-ids-by-proj-path old-resource-node-dependencies resource-metrics]
-  (-> node-id+resource-pairs
-      (read-node-load-infos render-progress! resource-metrics)
-      (sort-node-load-infos-for-loading old-resource-node-ids-by-proj-path old-resource-node-dependencies)))
+(defn ^:dynamic report-defunload-issues! [unsafe-dependency-proj-paths-by-referencing-proj-path loaded-supplemental-proj-paths]
+  {:pre [(not-empty unsafe-dependency-proj-paths-by-referencing-proj-path)
+         (not-empty loaded-supplemental-proj-paths)]}
+  (let [report-file (resource/defunload-issues-file)
+        report-file-path (.getPath report-file)
+
+        dialog-preamble-lines
+        ["One or more resources have unsafe references to resources unloaded by `.defunload` patterns."
+         "Please fix the patterns in the `.defunload` file to avoid loading unwanted resources."
+         ""
+         "The full report has been written to:"
+         report-file-path
+         ""]
+
+        report-lines
+        (coll/transfer unsafe-dependency-proj-paths-by-referencing-proj-path []
+          (map (fn [[referencing-proj-path unsafe-dependency-proj-paths]]
+                 (e/cons
+                   (format "%s - refers to unloaded resources:" referencing-proj-path)
+                   (e/map dialogs/indent-with-bullet unsafe-dependency-proj-paths))))
+          (interpose [""])
+          cat)]
+
+    ;; Append report to defunload issues file.
+    (with-open [writer (io/writer report-file :append true)]
+      (binding [*out* writer
+                *flush-on-newline* false]
+        (println (format "Found %d resources with unsafe references to unloaded resources."
+                         (count unsafe-dependency-proj-paths-by-referencing-proj-path)))
+        (newline)
+        (doseq [line report-lines]
+          (println (string/replace line dialogs/indented-bullet "  * ")))
+        (newline)
+        (println "As a result, we were forced to load these unwanted resources:")
+        (doseq [proj-path (sort loaded-supplemental-proj-paths)]
+          (println (str "  * " proj-path)))
+        (newline)))
+
+    ;; Show warning dialog.
+    (ui/run-later
+      (let [result
+            (dialogs/make-confirmation-dialog
+              {:title "Revise .defunload Patterns"
+               :size :large
+               :icon :icon/triangle-error
+               :always-on-top true
+               :header "Found unsafe references to unloaded resources."
+               :content (string/join "\n" (e/concat dialog-preamble-lines report-lines))
+               :buttons [{:text "Ignore"
+                          :result false}
+                         {:text (str "Open Report")
+                          :result true}]})]
+        (when result
+          (ui/open-file report-file))))
+
+    (log/warn :message "Loaded resources contain unsafe references to unloaded resources. Please fix `.defunload` patterns to avoid loading unwanted resources." :report-file-path report-file-path)))
+
+(defn read-nodes [new-node-id+resource-pairs render-progress! old-resource-node-ids-by-proj-path old-resource-node-dependencies resource-metrics]
+  (let [workspace
+        (some-> new-node-id+resource-pairs
+                first
+                second
+                resource/workspace)
+
+        unloaded-proj-path?
+        (if-not workspace
+          fn/constantly-false
+          (-> workspace
+              workspace/project-path
+              resource/defunload-pred)) ; Returns fn/constantly-false if there is no .defunload file in the project.
+
+        node-load-infos
+        (if (identical? fn/constantly-false unloaded-proj-path?)
+          ;; Resources cannot be flagged as unloaded. We can safely proceed to
+          ;; load all the new resources without considering what has been loaded
+          ;; before.
+          (read-node-load-infos new-node-id+resource-pairs (count new-node-id+resource-pairs) render-progress! resource-metrics)
+
+          ;; Resources may be unloaded. Check that we don't have unsafe
+          ;; references to any unloaded resources from the loaded resources, as
+          ;; these may cause issues for the editor. Create a report of which
+          ;; unloaded resources were referenced by loaded resources, and show a
+          ;; warning dialog to the user. Then, proceed to load the unsafely
+          ;; referenced resources even though they match some defunload pattern.
+          ;; This process is recursive, as these files can unsafely reference
+          ;; new resources that will need to be loaded, and so on.
+          (let [basis (g/now)
+
+                property-evaluation-context
+                (g/make-evaluation-context {:basis basis :cache c/null-cache})
+
+                [new-node-id+resource-pairs-by-proj-path
+                 desired-node-id+resource-pairs]
+                (->> new-node-id+resource-pairs
+                     (e/map (fn [node-id+resource-pair]
+                              (let [resource (val node-id+resource-pair)
+                                    proj-path (resource/proj-path resource)]
+                                (pair proj-path node-id+resource-pair))))
+                     (iutil/into-multiple
+                       (pair {}
+                             [])
+                       (pair identity
+                             (keep (fn [[proj-path node-id+resource-pair]]
+                                     (when-not (unloaded-proj-path? proj-path)
+                                       node-id+resource-pair))))))
+
+                safe-dependency-proj-path?
+                (let [proj-path->resource-type-delay
+                      (delay
+                        (let [editable-proj-path?
+                              (g/node-value workspace :editable-proj-path? property-evaluation-context)
+
+                              editable->type-ext->resource-type
+                              (into {}
+                                    (map #(resource/resource-types-by-type-ext basis workspace %))
+                                    (pair true false))]
+
+                          (fn proj-path->resource-type [^String proj-path]
+                            (let [editable (editable-proj-path? proj-path)
+                                  type-ext (resource/filename->type-ext proj-path)
+                                  type-ext->resource-type (editable->type-ext->resource-type editable)]
+                              (or (type-ext->resource-type type-ext)
+                                  (type-ext->resource-type resource/placeholder-resource-type-ext))))))]
+
+                  (fn safe-dependency-proj-path? [proj-path]
+                    ;; If the proj-path does not match a defunload pattern, it
+                    ;; is always safe to reference as a dependency. If it does
+                    ;; match a defunload pattern, it might still be safe to
+                    ;; reference if its resource type allows unloaded use.
+                    (or (not (unloaded-proj-path? proj-path))
+                        (let [resource-type
+                              (or (when-let [[_ resource] (new-node-id+resource-pairs-by-proj-path proj-path)]
+                                    (resource/resource-type resource))
+                                  (when-let [node-id (old-resource-node-ids-by-proj-path proj-path)]
+                                    (->> node-id
+                                         (resource-node/resource basis)
+                                         (resource/resource-type)))
+                                  (let [proj-path->resource-type @proj-path->resource-type-delay]
+                                    (proj-path->resource-type proj-path)))]
+                          (:allow-unloaded-use resource-type)))))
+
+                previously-loaded-resource-node-id?
+                (workspace/loaded-resource-node-ids workspace property-evaluation-context)
+
+                proj-path->old-unloaded-node-id+resource-pair
+                (fn proj-path->old-unloaded-node-id+resource-pair [proj-path]
+                  (when-some [old-resource-node-id (old-resource-node-ids-by-proj-path proj-path)]
+                    (when-not (previously-loaded-resource-node-id? old-resource-node-id)
+                      (let [resource (resource-node/resource basis old-resource-node-id)]
+                        (pair old-resource-node-id resource)))))
+
+                desired-node-load-infos
+                (read-node-load-infos desired-node-id+resource-pairs (count desired-node-id+resource-pairs) render-progress! resource-metrics)
+
+                unsafe-dependency-proj-paths-by-referencing-proj-path
+                (coll/transfer desired-node-load-infos (sorted-map)
+                  (keep (fn [{:keys [dependency-proj-paths resource]}]
+                          (let [referencing-proj-path (resource/proj-path resource)]
+                            (when-not (unloaded-proj-path? referencing-proj-path)
+                              (let [unsafe-dependency-proj-paths
+                                    (into (sorted-set)
+                                          (remove safe-dependency-proj-path?)
+                                          dependency-proj-paths)]
+                                (when-not (coll/empty? unsafe-dependency-proj-paths)
+                                  (pair referencing-proj-path
+                                        unsafe-dependency-proj-paths))))))))
+
+                [loaded-node-load-infos loaded-supplemental-proj-paths]
+                (loop [required-dependency-proj-paths (into #{}
+                                                            (mapcat val)
+                                                            unsafe-dependency-proj-paths-by-referencing-proj-path)
+                       loaded-supplemental-proj-paths required-dependency-proj-paths
+                       loaded-node-load-infos desired-node-load-infos]
+                  (if (coll/empty? required-dependency-proj-paths)
+                    [loaded-node-load-infos loaded-supplemental-proj-paths]
+                    (let [supplemental-node-id+resource-pairs
+                          (sort
+                            (coll/transfer required-dependency-proj-paths []
+                              (keep (fn [required-dependency-proj-path]
+                                      ;; Note: If we don't find a match for the
+                                      ;; proj-path anywhere, it refers to a file
+                                      ;; that does not exist. It will eventually
+                                      ;; become a defective node in the graph as
+                                      ;; we process the :load-fn of the
+                                      ;; referencing resource.
+                                      (or (new-node-id+resource-pairs-by-proj-path required-dependency-proj-path)
+                                          (proj-path->old-unloaded-node-id+resource-pair required-dependency-proj-path))))))
+
+                          supplemental-node-load-infos
+                          (read-node-load-infos supplemental-node-id+resource-pairs 0 render-progress! resource-metrics)
+
+                          supplemental-required-dependency-proj-paths
+                          (coll/transfer supplemental-node-load-infos #{}
+                            (mapcat :dependency-proj-paths)
+                            (remove (fn [dependency-proj-path]
+                                      (or (contains? loaded-supplemental-proj-paths dependency-proj-path)
+                                          (safe-dependency-proj-path? dependency-proj-path)))))]
+
+                      (recur supplemental-required-dependency-proj-paths
+                             (into loaded-supplemental-proj-paths supplemental-required-dependency-proj-paths)
+                             (e/concat loaded-node-load-infos supplemental-node-load-infos)))))]
+
+            ;; Write a report of any unsafe references to unloaded resources.
+            (when-not (coll/empty? unsafe-dependency-proj-paths-by-referencing-proj-path)
+              (report-defunload-issues! unsafe-dependency-proj-paths-by-referencing-proj-path loaded-supplemental-proj-paths))
+
+            loaded-node-load-infos))]
+
+    (sort-node-load-infos-for-loading node-load-infos old-resource-node-ids-by-proj-path old-resource-node-dependencies)))
 
 (declare workspace)
 
 (defn load-nodes! [project prelude-tx-data node-load-infos render-progress! resource-metrics transact-opts]
   (let [workspace (workspace project)]
-    (store-loaded-disk-sha256-hashes! node-load-infos workspace)
-    (store-loaded-source-values! node-load-infos)
+    (store-loaded-node-info! node-load-infos workspace)
     (let [{:keys [basis] :as tx-result}
           (g/transact transact-opts
             (e/concat

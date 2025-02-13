@@ -701,7 +701,7 @@
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Font$FontTextureFormat))))
   (property render-mode g/Keyword (default (protobuf/default Font$FontDesc :render-mode))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Font$FontRenderMode))))
-  (property size g/Int ; Required protobuf field.
+  (property size g/Int (default (protobuf/required-default Font$FontDesc :size))
             (dynamic visible output-format-defold-or-distance-field?)
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-zero-or-below? size)))
   (property antialias g/Bool (default (protobuf/int->boolean (protobuf/default Font$FontDesc :antialias)))
