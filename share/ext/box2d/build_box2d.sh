@@ -104,12 +104,15 @@ cmake --build . --config Release -j 8
 
 mkdir -p ./lib/$PLATFORM
 mkdir -p ./include
+mkdir -p ./include/box2d
+mkdir -p ./include/box2d/src
 
 cp -v ./src/*.a ./lib/$PLATFORM
 
 tar cfvz ${PACKAGE_NAME} lib
 
 cp -v -r ${BOX2D_DIR}/include/box2d ./include
+cp -v -r ${BOX2D_DIR}/src/*.h ./include/box2d/src
 
 tar cfvz ${HEADERS_PACKAGE_NAME} include
 
