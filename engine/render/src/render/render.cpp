@@ -709,6 +709,7 @@ namespace dmRender
     void SetTextureBindingByHash(dmRender::HRenderContext render_context, dmhash_t sampler_hash, dmGraphics::HTexture texture)
     {
         uint32_t num_bindings = render_context->m_TextureBindTable.Size();
+        int32_t first_free_index = -1;
 
         // First pass
         // Check if the the sampler is already bound to this texture, if so we reuse or unbind the current binding
@@ -723,6 +724,11 @@ namespace dmRender
                 render_context->m_TextureBindTable[i].m_Texture = texture;
                 return;
             }
+            // Store the free index for later
+            else if (render_context->m_TextureBindTable[i].m_Texture == 0 && first_free_index == -1)
+            {
+                first_free_index = i;
+            }
         }
 
         // If we are unassigning the sampler, but it wasn't found we can exit here.
@@ -731,24 +737,20 @@ namespace dmRender
             return;
         }
 
-        // Second pass
-        // We try to find the first empty slot in the list
-        for (int i = 0; i < num_bindings; ++i)
+        // Take the first free index we found
+        if (first_free_index != -1)
         {
-            if (render_context->m_TextureBindTable[i].m_Texture == 0)
-            {
-                render_context->m_TextureBindTable[i].m_Texture     = texture;
-                render_context->m_TextureBindTable[i].m_Samplerhash = sampler_hash;
-                return;
-            }
+            render_context->m_TextureBindTable[first_free_index].m_Texture     = texture;
+            render_context->m_TextureBindTable[first_free_index].m_Samplerhash = sampler_hash;
+            return;
         }
 
+        // Otherwise, we add a new binding to the end of the list
         if (render_context->m_TextureBindTable.Full())
         {
             render_context->m_TextureBindTable.OffsetCapacity(4);
         }
 
-        // Otherwise, we add a new binding to the end of the list
         TextureBinding new_binding;
         new_binding.m_Samplerhash = sampler_hash;
         new_binding.m_Texture     = texture;
