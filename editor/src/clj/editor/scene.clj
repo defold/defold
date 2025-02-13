@@ -1045,21 +1045,50 @@
                          :perspective (c/camera-orthographic->perspective old-camera c/fov-y-35mm-full-frame))]
         (set-camera! camera-controller old-camera new-camera false)))))
 
-(defn realign-camera [view animate?]
+(defn- move-3d-camera-to-2d-camera
+  [^Camera camera-3d ^Camera camera-2d viewport]
+  (let [focus-2d ^Vector4d (:focus-point camera-2d)
+        focus-3d ^Vector4d (:focus-point camera-3d)
+        point-2d (c/camera-project camera-2d viewport (Point3d. (.x focus-2d) (.y focus-2d) (.z focus-2d)))
+        point-3d (c/camera-project camera-2d viewport (Point3d. (.x focus-3d) (.y focus-3d) (.z focus-3d)))
+        world (c/camera-unproject camera-3d viewport (.x point-3d) (.y point-3d) (.z point-3d))
+        delta (c/camera-unproject camera-2d viewport (.x point-2d) (.y point-2d) (.z point-2d))]
+    (.sub delta world)
+    (c/camera-move camera-3d (.x delta) (.y delta) (.z delta))))
+
+(defn- get-3d-camera
+  [camera]
+  (-> (or (g/node-value camera :cached-3d-camera)
+          (c/tumble (g/node-value camera :local-camera) 200.0 -100.0))))
+
+(defn- camera-2d->3d!
+  [view animate?]
+  (let [camera (view->camera view)
+        local-cam (g/node-value camera :local-camera)
+        viewport (g/node-value view :viewport)
+        cached-3d-camera (-> (get-3d-camera camera)
+                             (move-3d-camera-to-2d-camera local-cam viewport))]
+    (when (= (:type cached-3d-camera) :perspective)
+      (set-camera-type! view :perspective))
+    (set-camera! camera (g/node-value camera :local-camera) cached-3d-camera animate?)))
+
+(defn- camera-3d->2d!
+  [view animate?]
   (let [camera (view->camera view)
         local-cam (g/node-value camera :local-camera)]
-    (if (c/mode-2d? local-cam)
-      (let [cached-3d-camera (or (g/node-value camera :cached-3d-camera)
-                                 (c/tumble local-cam 200.0 -100.0))]
-        (when (= (:type cached-3d-camera) :perspective)
-          (set-camera-type! view :perspective))
-        (set-camera! camera (g/node-value camera :local-camera) cached-3d-camera animate?))
-      (do (g/transact (g/set-property camera :cached-3d-camera local-cam))
-          (when (= (:type local-cam) :perspective)
-            (set-camera-type! view :orthographic))
-          (let [local-cam (g/node-value camera :local-camera)
-                end-camera (c/camera-orthographic-realign local-cam)]
-            (set-camera! camera local-cam end-camera animate?))))))
+    (g/transact 
+     (g/set-property camera :cached-3d-camera local-cam))
+    (when (= (:type local-cam) :perspective)
+      (set-camera-type! view :orthographic))
+    (let [local-cam (g/node-value camera :local-camera)
+          end-camera (c/camera-orthographic-realign local-cam)]
+      (set-camera! camera local-cam end-camera animate?))))
+
+(defn realign-camera [view animate?]
+  (let [camera (view->camera view)
+        local-cam (g/node-value camera :local-camera)
+        realign (if (c/mode-2d? local-cam) camera-2d->3d! camera-3d->2d!)]
+    (realign view animate?)))
 
 (handler/defhandler :frame-selection :global
   (active? [app-view evaluation-context]
