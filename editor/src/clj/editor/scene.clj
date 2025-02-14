@@ -989,24 +989,28 @@
   (run [app-view] (when-let [view (active-scene-view app-view)]
                     (stop-handler view))))
 
-(defn set-camera! [camera-node start-camera end-camera animate?]
-  (if animate?
-    (let [duration 0.5]
-      (g/transact (g/set-property camera-node :animating true))
-      (ui/anim! duration
-                (fn [^double t]
-                  (let [t (- (* t t 3) (* t t t 2))
-                        cam (c/interpolate start-camera end-camera t)]
-                    (g/transact
-                      (g/set-property camera-node :local-camera cam))))
-                (fn []
-                  (g/transact
-                    [(g/set-property camera-node :local-camera end-camera)
-                     (g/set-property camera-node :animating false)])
-                  (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true))))
-    (g/transact
-      (g/set-property camera-node :local-camera end-camera)))
-  nil)
+(defn set-camera!
+  ([camera-node start-camera end-camera animate?]
+   (set-camera! camera-node start-camera end-camera animate? nil))
+  ([camera-node start-camera end-camera animate? on-animation-end]
+   (if animate?
+     (let [duration 0.5]
+       (g/transact (g/set-property camera-node :animating true))
+       (ui/anim! duration
+                 (fn [^double t]
+                   (let [t (- (* t t 3) (* t t t 2))
+                         cam (c/interpolate start-camera end-camera t)]
+                     (g/transact
+                       (g/set-property camera-node :local-camera cam))))
+                 (fn []
+                   (g/transact
+                     [(g/set-property camera-node :local-camera end-camera)
+                      (g/set-property camera-node :animating false)])
+                   (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
+                   (on-animation-end))))
+     (g/transact
+       (g/set-property camera-node :local-camera end-camera)))
+   nil))
 
 (defn- fudge-empty-aabb
   ^AABB [^AABB aabb]
@@ -1075,21 +1079,27 @@
         local-cam (g/node-value camera :local-camera)
         viewport (g/node-value view :viewport)
         cached-3d-camera (-> (get-3d-camera camera)
-                             (move-3d-camera-to-2d-camera local-cam viewport))]
-    (when (= (:type cached-3d-camera) :perspective)
-      (set-camera-type! view :perspective))
-    (set-camera! camera (g/node-value camera :local-camera) cached-3d-camera animate?)))
+                             (move-3d-camera-to-2d-camera local-cam viewport))
+        local-cam (cond-> local-cam
+                    (= (:type cached-3d-camera) :perspective)
+                    (c/camera-orthographic->perspective c/fov-y-35mm-full-frame))]
+    (set-camera! camera local-cam cached-3d-camera animate?)))
 
 (defmethod realign-camera :3d
   [view animate?]
   (let [camera (view->camera view)
         local-cam (g/node-value camera :local-camera)]
     (g/transact (g/set-property camera :cached-3d-camera local-cam))
-    (when (= (:type local-cam) :perspective)
-      (set-camera-type! view :orthographic))
-    (let [local-cam (g/node-value camera :local-camera)
-          end-camera (c/camera-orthographic-realign local-cam)]
-      (set-camera! camera local-cam end-camera animate?))))
+    (let [end-camera (cond-> local-cam
+                       (= (:type local-cam) :perspective)
+                       (c/camera-perspective->orthographic)
+
+                       :always
+                       (c/camera-orthographic-realign)
+
+                       (= (:type local-cam) :perspective)
+                       (c/camera-orthographic->perspective c/fov-y-35mm-full-frame))]
+      (set-camera! camera local-cam end-camera animate? #(set-camera-type! view :orthographic)))))
 
 (handler/defhandler :frame-selection :global
   (active? [app-view evaluation-context]
