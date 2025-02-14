@@ -337,22 +337,44 @@
   root-id)
 
 (defn- flag-all-successors-changed [ctx node-ids]
-  (let [successors (get ctx :successors-changed)]
-    (assoc ctx :successors-changed (reduce (fn [successors node-id]
-                                             (assoc successors node-id nil))
-                                           successors
-                                           node-ids))))
+  (let [successors-changed (:successors-changed ctx)
+        affected-node-ids (filterv #(get successors-changed % ::not-found) node-ids)]
+    (if (coll/empty? affected-node-ids)
+      ctx
+      (assoc ctx
+        :successors-changed
+        (persistent!
+          (reduce
+            (fn [successors-changed node-id]
+              (assoc! successors-changed node-id nil))
+            (transient successors-changed)
+            affected-node-ids))))))
 
 (defn- flag-successors-changed [ctx changes]
-  (let [successors (get ctx :successors-changed)]
-    (assoc ctx :successors-changed (reduce (fn [successors [node-id label]]
-                                             (let [node-succ (get successors node-id ::not-found)]
-                                               (case node-succ
-                                                 nil successors ; Found nil - all successors already flagged as changed.
-                                                 ::not-found (assoc successors node-id #{label})
-                                                 (assoc successors node-id (conj node-succ label)))))
-                                           successors
-                                           changes))))
+  (let [successors-changed (:successors-changed ctx)
+
+        affected-node-id+label-pairs
+        (filterv (fn [[node-id label]]
+                   (let [old-affected-node-labels (get successors-changed node-id ::not-found)]
+                     (case old-affected-node-labels
+                       nil false ; Found nil - all node labels already flagged as changed. We can skip this pair.
+                       ::not-found true ; Nothing is flagged for this node yet. We should process this pair.
+                       (not (contains? old-affected-node-labels label))))) ; Process this pair if the label has not been flagged for the node yet.
+                 changes)]
+
+    (if (coll/empty? affected-node-id+label-pairs)
+      ctx
+      (assoc ctx
+        :successors-changed
+        (persistent!
+          (reduce
+            (fn [successors-changed [node-id label]]
+              (assoc! successors-changed
+                node-id (if-let [old-affected-node-labels (get successors-changed node-id)]
+                          (conj old-affected-node-labels label)
+                          #{label})))
+            (transient successors-changed)
+            affected-node-id+label-pairs))))))
 
 (defn- ctx-override-node [ctx original-node-id override-node-id]
   (assert (= (gt/node-id->graph-id original-node-id) (gt/node-id->graph-id override-node-id))
@@ -410,7 +432,7 @@
     (as-> ctx ctx'
       (apply-tx ctx' (concat new-override-nodes-tx-data
                              new-override-tx-data))
-      (apply-tx ctx' (init-fn (in/custom-evaluation-context {:basis (:basis ctx')})
+      (apply-tx ctx' (init-fn (in/custom-evaluation-context {:basis (:basis ctx') :tx-data-context (:tx-data-context ctx')})
                               original-node-id->override-node-id)))))
 
 (defmethod metrics-key :override
@@ -427,8 +449,8 @@
 (defn- ctx-make-override-nodes [ctx override-id node-ids init-props-fn]
   (reduce (fn [ctx node-id]
             (let [basis (:basis ctx)]
-              (if (some #(= override-id (node-id->override-id basis %))
-                        (ig/get-overrides basis node-id))
+              (if (coll/some #(= override-id (node-id->override-id basis %))
+                             (ig/get-overrides basis node-id))
                 ctx
                 (let [graph-id (gt/node-id->graph-id node-id)
                       original-node (gt/node-by-id-at basis node-id)
@@ -637,6 +659,7 @@
 (defn- ctx-add-node [ctx node]
   (let [basis-after (gt/add-node (:basis ctx) node)
         node-id (gt/node-id node)]
+    (assert (gt/node-id? node-id))
     (-> ctx
         (assoc :basis basis-after)
         (apply-defaults node)
@@ -955,9 +978,10 @@
 
 (defn- trace-dependencies
   [ctx]
-  ;; at this point, :outputs-modified contains [node-id output] pairs.
-  ;; afterwards, it will have the transitive closure of all [node-id output] pairs
-  ;; reachable from the original collection.
+  ;; At this point, :nodes-affected is a set of all output Endpoints that have
+  ;; been directly affected by the transaction changes.
+  ;; We now follow these outputs recursively to obtain a sequence of all the
+  ;; outputs that depend on them in the entire graph.
   (du/measuring (:metrics ctx) :trace-dependencies
     (let [outputs-modified (gt/dependencies (:basis ctx) (:nodes-affected ctx))]
       (assoc ctx :outputs-modified outputs-modified))))
