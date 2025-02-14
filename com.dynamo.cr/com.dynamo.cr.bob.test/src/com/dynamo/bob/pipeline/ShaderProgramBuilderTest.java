@@ -74,20 +74,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
     }
 
     private static int getPlatformGLSLVersion() {
-        Platform platform = Platform.getHostPlatform();
-        if (platform == Platform.Arm64MacOS || platform == Platform.X86_64MacOS)
-                return 330;
-        if (platform == Platform.X86_64Linux || platform == Platform.X86_64Win32)
-                return 140;
-        return 0;
-    }
-
-    private static boolean isHostPlatformDesktop() { // This is strange, we're only running bob on desktop (host) platforms, and we're not comparing it to something
-        Platform platform = Platform.getHostPlatform();
-        if (platform == Platform.Arm64MacOS || platform == Platform.X86_64MacOS ||
-            platform == Platform.X86_64Linux || platform == Platform.X86_64Win32)
-            return true;
-        return false;
+        return 330;
     }
 
     private void doTest(boolean expectSpirv) throws Exception {
@@ -97,7 +84,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         assertNotNull(shader.getShaders(0).getSource());
         assertEquals(getPlatformGLSLLanguage(), shader.getShaders(0).getLanguage());
 
-        if (expectSpirv && isHostPlatformDesktop()) {
+        if (expectSpirv) {
             assertEquals(2, shader.getShadersCount());
             assertNotNull(shader.getShaders(1).getSource());
             assertEquals(ShaderDesc.Language.LANGUAGE_SPIRV, shader.getShaders(1).getLanguage());
@@ -110,7 +97,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         assertNotNull(shader.getShaders(0).getSource());
         assertEquals(getPlatformGLSLLanguage(), shader.getShaders(0).getLanguage());
 
-        if (expectSpirv && isHostPlatformDesktop()) {
+        if (expectSpirv) {
             assertEquals(2, shader.getShadersCount());
             assertNotNull(shader.getShaders(1).getSource());
             assertEquals(ShaderDesc.Language.LANGUAGE_SPIRV, shader.getShaders(1).getLanguage());
@@ -122,13 +109,11 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
         // Test GLES vp
         if (expectSpirv) {
-            if (isHostPlatformDesktop()) {
-                // If we have requested Spir-V, we have to test a ready-made ES3 version
-                // Since we will not process the input shader if the #version preprocessor exists
-                assertEquals(2, shader.getShadersCount());
-                assertNotNull(shader.getShaders(1).getSource());
-                assertEquals(ShaderDesc.Language.LANGUAGE_SPIRV, shader.getShaders(1).getLanguage());
-            }
+            // If we have requested Spir-V, we have to test a ready-made ES3 version
+            // Since we will not process the input shader if the #version preprocessor exists
+            assertEquals(2, shader.getShadersCount());
+            assertNotNull(shader.getShaders(1).getSource());
+            assertEquals(ShaderDesc.Language.LANGUAGE_SPIRV, shader.getShaders(1).getLanguage());
         } else {
             assertEquals(1, shader.getShadersCount());
         }
@@ -137,11 +122,9 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
         // Test GLES fp
         if (expectSpirv) {
-            if (isHostPlatformDesktop()) {
-                assertEquals(2, shader.getShadersCount());
-                assertNotNull(shader.getShaders(1).getSource());
-                assertEquals(ShaderDesc.Language.LANGUAGE_SPIRV, shader.getShaders(1).getLanguage());
-            }
+            assertEquals(2, shader.getShadersCount());
+            assertNotNull(shader.getShaders(1).getSource());
+            assertEquals(ShaderDesc.Language.LANGUAGE_SPIRV, shader.getShaders(1).getLanguage());
         } else {
             assertEquals(1, shader.getShadersCount());
         }
@@ -354,48 +337,45 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
         // Note that we rely on using "output_wgsl" here to make sure the samplers are split,
         // but since we only build shaders for the host platform no actual WGSL shaders will be built!
-        if (isHostPlatformDesktop())
-        {
-            IShaderCompiler.CompileOptions compileOptions = new IShaderCompiler.CompileOptions();
-            compileOptions.forceSplitSamplers = true;
+        IShaderCompiler.CompileOptions compileOptions = new IShaderCompiler.CompileOptions();
+        compileOptions.forceSplitSamplers = true;
 
-            ShaderProgramBuilderBundle.ModuleBundle modules = createShaderModules(new String[] {"/reflection_3.fp"}, compileOptions);
-            ShaderDesc shaderDesc = addAndBuildShaderDescs(modules, new String[] {fs_sampler_type_src}, "/reflection_3.shbundle");
+        ShaderProgramBuilderBundle.ModuleBundle modules = createShaderModules(new String[] {"/reflection_3.fp"}, compileOptions);
+        ShaderDesc shaderDesc = addAndBuildShaderDescs(modules, new String[] {fs_sampler_type_src}, "/reflection_3.shbundle");
 
-            assertTrue(shaderDesc.getShadersCount() > 0);
-            assertNotNull(getShaderByLanguage(shaderDesc, ShaderDesc.Language.LANGUAGE_SPIRV));
+        assertTrue(shaderDesc.getShadersCount() > 0);
+        assertNotNull(getShaderByLanguage(shaderDesc, ShaderDesc.Language.LANGUAGE_SPIRV));
 
-            ShaderDesc.ShaderReflection r = shaderDesc.getReflection();
-            debugPrintShaderReflection("Reflection Test 3 - Split texture/samplers", r);
+        ShaderDesc.ShaderReflection r = shaderDesc.getReflection();
+        debugPrintShaderReflection("Reflection Test 3 - Split texture/samplers", r);
 
-            // 8 texture units + 3 samplers
-            assertEquals(11, r.getTexturesCount());
-            validateResourceBindingWithKnownType(r.getTextures(0), "sampler_2d",                 ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE2D);
-            validateResourceBindingWithKnownType(r.getTextures(1), "sampler_2d_separated",       ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER);
-            validateResourceBindingWithKnownType(r.getTextures(2), "sampler_2d_array",           ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE2D_ARRAY);
-            validateResourceBindingWithKnownType(r.getTextures(3), "sampler_2d_array_separated", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER);
-            validateResourceBindingWithKnownType(r.getTextures(4), "sampler_cube",               ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE_CUBE);
-            validateResourceBindingWithKnownType(r.getTextures(5), "sampler_cube_separated",     ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER);
+        // 8 texture units + 3 samplers
+        assertEquals(11, r.getTexturesCount());
+        validateResourceBindingWithKnownType(r.getTextures(0), "sampler_2d",                 ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE2D);
+        validateResourceBindingWithKnownType(r.getTextures(1), "sampler_2d_separated",       ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER);
+        validateResourceBindingWithKnownType(r.getTextures(2), "sampler_2d_array",           ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE2D_ARRAY);
+        validateResourceBindingWithKnownType(r.getTextures(3), "sampler_2d_array_separated", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER);
+        validateResourceBindingWithKnownType(r.getTextures(4), "sampler_cube",               ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE_CUBE);
+        validateResourceBindingWithKnownType(r.getTextures(5), "sampler_cube_separated",     ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER);
 
-            // Test that the constructed samplers have a valid connection to it's texture unit
-            assertTrue(r.getTextures(1).hasSamplerTextureIndex());
-            assertEquals(0, r.getTextures(1).getSamplerTextureIndex());
-            assertTrue(r.getTextures(3).hasSamplerTextureIndex());
-            assertEquals(2, r.getTextures(3).getSamplerTextureIndex());
-            assertTrue(r.getTextures(5).hasSamplerTextureIndex());
-            assertEquals(4, r.getTextures(5).getSamplerTextureIndex());
+        // Test that the constructed samplers have a valid connection to it's texture unit
+        assertTrue(r.getTextures(1).hasSamplerTextureIndex());
+        assertEquals(0, r.getTextures(1).getSamplerTextureIndex());
+        assertTrue(r.getTextures(3).hasSamplerTextureIndex());
+        assertEquals(2, r.getTextures(3).getSamplerTextureIndex());
+        assertTrue(r.getTextures(5).hasSamplerTextureIndex());
+        assertEquals(4, r.getTextures(5).getSamplerTextureIndex());
 
-            //TODO:
-            //validateResourceBindingWithKnownType(shader.getTextures(2), "sampler_buffer",   ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_);
-            validateResourceBindingWithKnownType(r.getTextures(6), "texture_2d",       ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE2D);
-            validateResourceBindingWithKnownType(r.getTextures(7), "utexture_2d",      ShaderDesc.ShaderDataType.SHADER_TYPE_UTEXTURE2D);
-            validateResourceBindingWithKnownType(r.getTextures(8), "uimage_2d",        ShaderDesc.ShaderDataType.SHADER_TYPE_UIMAGE2D);
-            validateResourceBindingWithKnownType(r.getTextures(9), "image_2d",         ShaderDesc.ShaderDataType.SHADER_TYPE_IMAGE2D);
-            validateResourceBindingWithKnownType(r.getTextures(10), "sampler_name",    ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER);
+        //TODO:
+        //validateResourceBindingWithKnownType(shader.getTextures(2), "sampler_buffer",   ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_);
+        validateResourceBindingWithKnownType(r.getTextures(6), "texture_2d",       ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE2D);
+        validateResourceBindingWithKnownType(r.getTextures(7), "utexture_2d",      ShaderDesc.ShaderDataType.SHADER_TYPE_UTEXTURE2D);
+        validateResourceBindingWithKnownType(r.getTextures(8), "uimage_2d",        ShaderDesc.ShaderDataType.SHADER_TYPE_UIMAGE2D);
+        validateResourceBindingWithKnownType(r.getTextures(9), "image_2d",         ShaderDesc.ShaderDataType.SHADER_TYPE_IMAGE2D);
+        validateResourceBindingWithKnownType(r.getTextures(10), "sampler_name",    ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER);
 
-            // The non-constructed sampler shouldn't have any reference to a texture
-            assertFalse(r.getTextures(10).hasSamplerTextureIndex());
-        }
+        // The non-constructed sampler shouldn't have any reference to a texture
+        assertFalse(r.getTextures(10).hasSamplerTextureIndex());
     }
 
     @Test
