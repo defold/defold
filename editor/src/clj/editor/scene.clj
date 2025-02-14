@@ -1060,8 +1060,8 @@
 
 (defn- get-3d-camera
   [camera]
-  (-> (or (g/node-value camera :cached-3d-camera)
-          (c/tumble (g/node-value camera :local-camera) 200.0 -100.0))))
+  (or (g/node-value camera :cached-3d-camera)
+      (c/tumble (g/node-value camera :local-camera) 200.0 -100.0)))
 
 (defn- camera-2d?
   [view]
