@@ -1348,7 +1348,7 @@ If you do not specifically require different script states, consider changing th
                                (let [url (format "http://localhost:%d%s/index.html" (http-server/port web-server) bob/html5-url-prefix)]
                                  (if (prefs/get prefs [:build :open-html5-build])
                                    (ui/open-url url)
-                                   (console/append-console-entry! nil (format "INFO:The game is available at %s" url))))
+                                   (console/append-console-entry! nil (format "INFO: The game is available at %s" url))))
                                (.close out))))))
 
 (handler/defhandler :rebuild-html5 :global
