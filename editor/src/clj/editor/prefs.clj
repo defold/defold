@@ -126,7 +126,7 @@
             :properties
             {:lint-code {:type :boolean :default true :label "Lint Code on Build"}
              :texture-compression {:type :boolean}
-             :open-html5-build {:type :boolean :default true :label "Open browser after `Build HTML5`"}}}
+             :open-html5-build {:type :boolean :default true :label "Open Browser After `Build HTML5`"}}}
     :bundle {:type :object
              :scope :project
              :properties
