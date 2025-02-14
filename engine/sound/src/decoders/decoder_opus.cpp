@@ -268,6 +268,7 @@ namespace dmSoundCodec
         stream_info->m_lacing_tableIndex = 256;
         stream_info->m_PacketOffset = 0;
         stream_info->m_Decoder = NULL;
+        stream_info->m_SkipBytes = 0;
 
         // Prefetch some data right away...
         uint32_t read_size;
@@ -386,7 +387,6 @@ namespace dmSoundCodec
 
     static Result OpusDecode(HDecodeStream stream, char* buffer[], uint32_t buffer_size, uint32_t* decoded)
     {
-//SIMD / PLATFORM SUPPORT (& profile)
         Decodestream_info *stream_info = (Decodestream_info *) stream;
 
         DM_PROFILE(__FUNCTION__);
@@ -470,6 +470,7 @@ namespace dmSoundCodec
         stream_info->m_lacing_tableIndex = 256;
         stream_info->m_PacketOffset = 0;
         stream_info->m_Decoder = NULL;
+        stream_info->m_SkipBytes = 0;
         stream_info->m_PacketOffset = 0;
         stream_info->m_bEOS = false;
         stream_info->m_DecodeSamplePos = 0;
