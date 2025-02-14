@@ -557,6 +557,19 @@ static dmGraphics::HTexture MakeDummyTexture(dmGraphics::HContext context, uint3
     return texture;
 }
 
+static inline int CountSamplersInTextureBindTable(dmRender::HRenderContext context, dmhash_t sampler_name)
+{
+    int c = 0;
+    for (int i = 0; i < context->m_TextureBindTable.Size(); ++i)
+    {
+        if (context->m_TextureBindTable[i].m_Samplerhash == sampler_name)
+        {
+            c++;
+        }
+    }
+    return c;
+}
+
 TEST_F(dmRenderTest, TestEnableTextureByHash)
 {
     const char* shader_src = "uniform lowp sampler2D texture_sampler_1;\n"
@@ -701,6 +714,24 @@ TEST_F(dmRenderTest, TestEnableTextureByHash)
     dmRender::DrawRenderList(m_Context, 0, 0, 0);
     ASSERT_EQ(1, m_Context->m_TextureBindTable.Size());
     ASSERT_EQ(test_texture_0, m_Context->m_TextureBindTable[0].m_Texture);
+
+    // Reset bind table
+    m_Context->m_TextureBindTable.SetSize(0);
+
+    // Test binding and unbinding in different order, each sampler can only have one entry in the list
+    SetTextureBindingByHash(m_Context, texture_sampler_1_hash, textures[0]);
+    SetTextureBindingByHash(m_Context, texture_sampler_2_hash, textures[0]);
+
+    ASSERT_EQ(1, CountSamplersInTextureBindTable(m_Context, texture_sampler_1_hash));
+    ASSERT_EQ(1, CountSamplersInTextureBindTable(m_Context, texture_sampler_2_hash));
+
+    // Unbinding the first sampler will clear up one slot
+    SetTextureBindingByHash(m_Context, texture_sampler_1_hash, 0);
+    SetTextureBindingByHash(m_Context, texture_sampler_2_hash, textures[1]);
+
+    // The second sampler should just be present once in the table
+    ASSERT_EQ(0, CountSamplersInTextureBindTable(m_Context, texture_sampler_1_hash));
+    ASSERT_EQ(1, CountSamplersInTextureBindTable(m_Context, texture_sampler_2_hash));
 
     dmGraphics::DeleteTexture(test_texture_0);
     dmGraphics::DeleteTexture(test_texture_1);
