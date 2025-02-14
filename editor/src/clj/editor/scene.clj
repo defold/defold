@@ -1007,7 +1007,7 @@
                      [(g/set-property camera-node :local-camera end-camera)
                       (g/set-property camera-node :animating false)])
                    (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
-                   (on-animation-end))))
+                   (when on-animation-end (on-animation-end)))))
      (g/transact
        (g/set-property camera-node :local-camera end-camera)))
    nil))
@@ -1049,16 +1049,14 @@
                          :perspective (c/camera-orthographic->perspective old-camera c/fov-y-35mm-full-frame))]
         (set-camera! camera-controller old-camera new-camera false)))))
 
-(defn- move-3d-camera-to-2d-camera
-  [^Camera camera-3d ^Camera camera-2d viewport]
-  (let [focus-2d ^Vector4d (:focus-point camera-2d)
-        focus-3d ^Vector4d (:focus-point camera-3d)
-        point-2d (c/camera-project camera-2d viewport (Point3d. (.x focus-2d) (.y focus-2d) (.z focus-2d)))
-        point-3d (c/camera-project camera-3d viewport (Point3d. (.x focus-3d) (.y focus-3d) (.z focus-3d)))
-        world (c/camera-unproject camera-3d viewport (.x point-3d) (.y point-3d) (.z point-3d))
-        delta (c/camera-unproject camera-2d viewport (.x point-2d) (.y point-2d) (.z point-2d))]
+(defn- sync-camera-position
+  [^Camera camera-a ^Camera camera-b viewport]
+  (let [focus ^Vector4d (:focus-point camera-b)
+        point (c/camera-project camera-b viewport (Point3d. (.x focus) (.y focus) (.z focus)))
+        world (c/camera-unproject camera-a viewport (.x point) (.y point) (.z point))
+        delta (c/camera-unproject camera-b viewport (.x point) (.y point) (.z point))]
     (.sub delta world)
-    (c/camera-move camera-3d (.x delta) (.y delta) (.z delta))))
+    (c/camera-move camera-a (.x delta) (.y delta) (.z delta))))
 
 (defn- get-3d-camera
   [camera]
@@ -1079,7 +1077,7 @@
         local-cam (g/node-value camera-node :local-camera)
         viewport (g/node-value view :viewport)
         camera-3d (-> (get-3d-camera camera-node)
-                      (move-3d-camera-to-2d-camera local-cam viewport))
+                      (sync-camera-position local-cam viewport))
         local-cam (cond-> local-cam
                     (= (:type camera-3d) :perspective)
                     (c/camera-orthographic->perspective c/fov-y-35mm-full-frame))]
