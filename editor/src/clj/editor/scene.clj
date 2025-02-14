@@ -1145,15 +1145,8 @@
                            (case (g/node-value view :camera-type)
                              :orthographic :perspective
                              :perspective :orthographic))))
-  (state [app-view]
-         (when-let [scene (active-scene-view app-view)]
-           (= :perspective
-              (if (or (camera-2d? (active-scene-view app-view))
-                      (camera-animating? app-view))
-                (-> (view->camera scene)
-                    (g/node-value :cached-3d-camera)
-                    :type)
-                (g/node-value scene :camera-type))))))
+  (state [app-view] (= :perspective (-> (active-scene-view app-view)
+                                        (g/node-value :camera-type)))))
 
 (defn- set-manip-space! [app-view manip-space]
   (assert (contains? #{:local :world} manip-space))
