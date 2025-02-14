@@ -24,7 +24,7 @@ env:
 
 jobs:
   build-editor:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps: [
       {
         name: 'Checkout',
@@ -76,7 +76,7 @@ jobs:
 
   sign-editor-windows:
     needs: [build-editor]
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         platform: [x86_64-win32]
@@ -114,7 +114,7 @@ jobs:
 
   release:
     needs: [sign-editor-macos, sign-editor-windows]
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps: [
       {
         name: 'Checkout',
