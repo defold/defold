@@ -412,7 +412,6 @@ namespace dmHttpCache
         return RESULT_OK;
     }
 
-    //Result Begin(HCache cache, const char* uri, const char* etag, uint32_t max_age, HCacheCreator* cache_creator)
     Result Begin(HCache cache, const char* uri, const char* etag, uint32_t max_age,
                 uint32_t range_start, uint32_t range_end, uint32_t document_size, HCacheCreator* cache_creator)
     {

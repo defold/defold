@@ -41,11 +41,14 @@ class dmHttpCacheTest : public jc_test_base_class
     }
 
 public:
-    dmHttpCache::Result Put(dmHttpCache::HCache cache, const char* uri, const char* etag, const void* content, uint32_t content_len)
+    dmHttpCache::Result Put(dmHttpCache::HCache cache, const char* uri, const char* etag, const void* content, uint32_t content_len,
+                            uint32_t range_start = 0xFFFFFFFF,
+                            uint32_t range_end = 0xFFFFFFFF,
+                            uint32_t document_size = 0xFFFFFFFF)
     {
         dmHttpCache::Result r;
         dmHttpCache::HCacheCreator cache_creator;
-        r = dmHttpCache::Begin(cache, uri, etag, 0, 0, 0, 0, &cache_creator);
+        r = dmHttpCache::Begin(cache, uri, etag, 0, range_start, range_end, document_size, &cache_creator);
         if (r != dmHttpCache::RESULT_OK)
             return r;
         r = dmHttpCache::Add(cache, cache_creator, content, content_len);
@@ -55,11 +58,14 @@ public:
         return r;
     }
 
-    dmHttpCache::Result Put(dmHttpCache::HCache cache, const char* uri, uint32_t max_age, const void* content, uint32_t content_len)
+    dmHttpCache::Result Put(dmHttpCache::HCache cache, const char* uri, uint32_t max_age, const void* content, uint32_t content_len,
+                            uint32_t range_start = 0xFFFFFFFF,
+                            uint32_t range_end = 0xFFFFFFFF,
+                            uint32_t document_size = 0xFFFFFFFF)
     {
         dmHttpCache::Result r;
         dmHttpCache::HCacheCreator cache_creator;
-        r = dmHttpCache::Begin(cache, uri, "", max_age, 0, 0, 0, &cache_creator);
+        r = dmHttpCache::Begin(cache, uri, "", max_age, range_start, range_end, document_size, &cache_creator);
         if (r != dmHttpCache::RESULT_OK)
             return r;
         r = dmHttpCache::Add(cache, cache_creator, content, content_len);
@@ -496,17 +502,19 @@ TEST_F(dmHttpCacheTest, PartialUpdate)
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
 
     FILE* file;
-    uint64_t checksum;
-    uint32_t range_start;
-    uint32_t range_end;
-    uint32_t document_size;
+    uint64_t checksum = 0;
+    uint32_t range_start = 0xFFFFFFFF;
+    uint32_t range_end = 0xFFFFFFFF;
+    uint32_t document_size = 0xFFFFFFFF;
     r = dmHttpCache::Get(cache, "uri", "etag", &file, 0, &checksum, &range_start, &range_end, &document_size);
     ASSERT_EQ(dmHttpCache::RESULT_LOCKED, r);
-    ASSERT_EQ(8U, range_start);
-    ASSERT_EQ(9U, range_end);
-    ASSERT_EQ(10U, document_size);
+    ASSERT_EQ(0, checksum);
+    ASSERT_EQ(0xFFFFFFFF, range_start);
+    ASSERT_EQ(0xFFFFFFFF, range_end);
+    ASSERT_EQ(0xFFFFFFFF, document_size);
 
-    dmHttpCache::Add(cache, cache_creator, "data", 4);
+    r = dmHttpCache::Add(cache, cache_creator, "data", 4);
+    ASSERT_EQ(dmHttpCache::RESULT_OK, r);
 
     // Close and reopen
     r = dmHttpCache::Close(cache);
@@ -515,7 +523,7 @@ TEST_F(dmHttpCacheTest, PartialUpdate)
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
 
     void* buffer = 0;
-    r = Get(cache, "uri", "etag", &buffer, &checksum);
+    r = Get(cache, "uri", "etag", &buffer, &checksum, &range_start, &range_end, &document_size);
     ASSERT_EQ(dmHttpCache::RESULT_NO_ENTRY, r);
 
     r = dmHttpCache::Close(cache);
@@ -643,13 +651,13 @@ TEST_F(dmHttpCacheTest, PutGet)
     const char* data1 = "data1";
     const char* data2 = "data2";
     const char* data3 = "data3";
-    r = Put(cache, "uri1", "etag1", data1, strlen(data1));
+    r = Put(cache, "uri1", "etag1", data1, strlen(data1), 10, 11, 12);
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
 
-    r = Put(cache, "uri2", "etag2", data2, strlen(data2));
+    r = Put(cache, "uri2", "etag2", data2, strlen(data2), 20, 21, 22);
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
 
-    r = Put(cache, "uri3", "etag3", data3, strlen(data3));
+    r = Put(cache, "uri3", "etag3", data3, strlen(data3), 30, 31, 32);
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
 
     // Get etags
@@ -668,7 +676,7 @@ TEST_F(dmHttpCacheTest, PutGet)
 
     // Replace uri1
     const char* data1_prim = "data1_prim";
-    r = Put(cache, "uri1", "etag1_prim", data1_prim, strlen(data1_prim));
+    r = Put(cache, "uri1", "etag1_prim", data1_prim, strlen(data1_prim), 100, 101, 102);
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
 
     // Get etags again
@@ -685,34 +693,46 @@ TEST_F(dmHttpCacheTest, PutGet)
     ASSERT_STREQ("etag3", tag_buffer);
 
     // Redundant set
-    r = Put(cache, "uri1", "etag1_prim", data1_prim, strlen(data1_prim));
+    r = Put(cache, "uri1", "etag1_prim", data1_prim, strlen(data1_prim), 1001,1002,1003);
     ASSERT_EQ(dmHttpCache::RESULT_ALREADY_CACHED, r);
 
-    r = Put(cache, "uri2", "etag2", data2, strlen(data2));
+    r = Put(cache, "uri2", "etag2", data2, strlen(data2), 2001,2002,2003);
     ASSERT_EQ(dmHttpCache::RESULT_ALREADY_CACHED, r);
 
-    r = Put(cache, "uri3", "etag3", data3, strlen(data3));
+    r = Put(cache, "uri3", "etag3", data3, strlen(data3), 3001,3002,3003);
     ASSERT_EQ(dmHttpCache::RESULT_ALREADY_CACHED, r);
 
     // Get content
     void* buffer = 0;
-    uint64_t checksum;
-    r = Get(cache, "uri1", "etag1_prim", &buffer, &checksum);
+    uint64_t checksum = 0;
+    uint32_t range_start = 0xFFFFFFFF;
+    uint32_t range_end = 0xFFFFFFFF;
+    uint32_t document_size = 0xFFFFFFFF;
+    r = Get(cache, "uri1", "etag1_prim", &buffer, &checksum, 0, &range_start, &range_end, &document_size);
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
     ASSERT_EQ(dmHashString64(data1_prim), checksum);
+    ASSERT_EQ(100, range_start);
+    ASSERT_EQ(101, range_end);
+    ASSERT_EQ(102, document_size);
     ASSERT_TRUE(memcmp(data1_prim, buffer, strlen(data1_prim)) == 0);
     free(buffer);
 
-    r = Get(cache, "uri2", "etag2", &buffer, &checksum);
+    r = Get(cache, "uri2", "etag2", &buffer, &checksum, 0, &range_start, &range_end, &document_size);
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
     ASSERT_EQ(dmHashString64(data2), checksum);
     ASSERT_TRUE(memcmp(data2, buffer, strlen(data2)) == 0);
+    ASSERT_EQ(20, range_start);
+    ASSERT_EQ(21, range_end);
+    ASSERT_EQ(22, document_size);
     free(buffer);
 
-    r = Get(cache, "uri3", "etag3", &buffer, &checksum);
+    r = Get(cache, "uri3", "etag3", &buffer, &checksum, 0, &range_start, &range_end, &document_size);
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
     ASSERT_EQ(dmHashString64(data3), checksum);
     ASSERT_TRUE(memcmp(data3, buffer, strlen(data3)) == 0);
+    ASSERT_EQ(30, range_start);
+    ASSERT_EQ(31, range_end);
+    ASSERT_EQ(32, document_size);
     free(buffer);
 
     // No entry test

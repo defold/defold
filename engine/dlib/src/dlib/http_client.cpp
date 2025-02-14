@@ -1003,6 +1003,14 @@ bail:
         }
         else
         {
+            // Let's make the range values valid, even if it might not be a ranged request
+            if (response.m_DocumentSize == 0xFFFFFFFF)
+            {
+                response.m_DocumentSize = response.m_ContentLength;
+                response.m_RangeStart = 0;
+                response.m_RangeEnd = response.m_DocumentSize-1;
+            }
+
             // Non-cached response
             bool is_ok = response.m_Status == 200 || response.m_Status == 206;
             if (!client->m_IgnoreCache && client->m_HttpCache && !method_is_head && is_ok)
