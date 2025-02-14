@@ -273,7 +273,7 @@ TEST(ModelCrashtest, FindSkinCrash)
     ASSERT_NE((dmModelImporter::Scene*)0, scene);
 
     ASSERT_EQ(1, scene->m_Buffers.Size());
-    ASSERT_STREQ("buffer_0", scene->m_Buffers[0].m_Uri);
+    ASSERT_EQ(0U, scene->m_Buffers[0].m_Uri);
 
     ASSERT_EQ(1, scene->m_Skins.Size());
     ASSERT_STREQ("skin_0", scene->m_Skins[0].m_Name);
