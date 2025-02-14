@@ -1054,7 +1054,7 @@
   (let [focus-2d ^Vector4d (:focus-point camera-2d)
         focus-3d ^Vector4d (:focus-point camera-3d)
         point-2d (c/camera-project camera-2d viewport (Point3d. (.x focus-2d) (.y focus-2d) (.z focus-2d)))
-        point-3d (c/camera-project camera-2d viewport (Point3d. (.x focus-3d) (.y focus-3d) (.z focus-3d)))
+        point-3d (c/camera-project camera-3d viewport (Point3d. (.x focus-3d) (.y focus-3d) (.z focus-3d)))
         world (c/camera-unproject camera-3d viewport (.x point-3d) (.y point-3d) (.z point-3d))
         delta (c/camera-unproject camera-2d viewport (.x point-2d) (.y point-2d) (.z point-2d))]
     (.sub delta world)
@@ -1075,31 +1075,27 @@
 
 (defmethod realign-camera :2d
   [view animate?]
-  (let [camera (view->camera view)
-        local-cam (g/node-value camera :local-camera)
+  (let [camera-node (view->camera view)
+        local-cam (g/node-value camera-node :local-camera)
         viewport (g/node-value view :viewport)
-        cached-3d-camera (-> (get-3d-camera camera)
-                             (move-3d-camera-to-2d-camera local-cam viewport))
+        camera-3d (-> (get-3d-camera camera-node)
+                      (move-3d-camera-to-2d-camera local-cam viewport))
         local-cam (cond-> local-cam
-                    (= (:type cached-3d-camera) :perspective)
+                    (= (:type camera-3d) :perspective)
                     (c/camera-orthographic->perspective c/fov-y-35mm-full-frame))]
-    (set-camera! camera local-cam cached-3d-camera animate?)))
+    (set-camera! camera-node local-cam camera-3d animate?)))
 
 (defmethod realign-camera :3d
   [view animate?]
-  (let [camera (view->camera view)
-        local-cam (g/node-value camera :local-camera)]
-    (g/transact (g/set-property camera :cached-3d-camera local-cam))
+  (let [camera-node (view->camera view)
+        local-cam (g/node-value camera-node :local-camera)
+        is-perspective (= (:type local-cam) :perspective)]
+    (g/transact (g/set-property camera-node :cached-3d-camera local-cam))
     (let [end-camera (cond-> local-cam
-                       (= (:type local-cam) :perspective)
-                       (c/camera-perspective->orthographic)
-
-                       :always
-                       (c/camera-orthographic-realign)
-
-                       (= (:type local-cam) :perspective)
-                       (c/camera-orthographic->perspective c/fov-y-35mm-full-frame))]
-      (set-camera! camera local-cam end-camera animate? #(set-camera-type! view :orthographic)))))
+                       is-perspective c/camera-perspective->orthographic
+                       :always c/camera-orthographic-realign
+                       is-perspective (c/camera-orthographic->perspective c/fov-y-35mm-full-frame))]
+      (set-camera! camera-node local-cam end-camera animate? #(set-camera-type! view :orthographic)))))
 
 (handler/defhandler :frame-selection :global
   (active? [app-view evaluation-context]
