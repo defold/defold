@@ -349,6 +349,8 @@ namespace dmPhysics
         uint64_t opaque_id;
         memcpy(&opaque_id, &shape_id, sizeof(shape_id));
 
+        shape_data->m_ShapeId = shape_id;
+
         world->m_ShapeIdToShapeData.Put(opaque_id, shape_data);
     }
 
@@ -877,8 +879,6 @@ namespace dmPhysics
         r.c = 1 - 2 * rotation.getZ() * rotation.getZ();
         r.s = 2 * rotation.getZ() * rotation.getW();
 
-        // r.SetComplex(1 - 2 * rotation.getZ() * rotation.getZ(), 2 * rotation.getZ() * rotation.getW());
-
         b2Transform transform; // (t, r);
         transform.q = r;
         transform.p = t;
@@ -1191,35 +1191,28 @@ namespace dmPhysics
 
     HCollisionShape2D GetCollisionShape2D(HWorld2D world, HCollisionObject2D collision_object, uint32_t shape_index)
     {
-        /*
-        b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
-        uint32_t i = 0;
-        while(i <= shape_index && fixture)
-        {
-            if (i == shape_index)
-                return fixture->GetShape();
-            fixture = fixture->GetNext();
-            i++;
-        }
-        */
-        return 0;
+        b2BodyId* id = (b2BodyId*) collision_object;
+        dmArray<b2ShapeId>& shapes = GetShapeBuffer(world, *id);
+        b2ShapeId shape_id = shapes[shape_index];
+        return ShapeIdToShapeData(world, shape_id);
     }
 
     void GetCollisionShapeRadius2D(HWorld2D world, HCollisionShape2D _shape, float* radius)
     {
-        /*
-        b2Shape* shape = (b2Shape*) _shape;
-        *radius = shape->m_radius * world->m_Context->m_InvScale;
-        */
+        CircleShapeData* shape = (CircleShapeData*) _shape;
+        assert(shape->m_ShapeDataBase.m_Type == b2_circleShape);
+        *radius = shape->m_Circle.radius * world->m_Context->m_InvScale;
     }
 
     void SetCollisionShapeRadius2D(HWorld2D world, HCollisionShape2D _shape, float radius)
     {
-        /*
-        b2Shape* shape = (b2Shape*) _shape;
-        shape->m_radius = radius * world->m_Context->m_Scale;
-        shape->m_creationScale = shape->m_radius;
-        */
+        CircleShapeData* shape = (CircleShapeData*) _shape;
+        assert(shape->m_ShapeDataBase.m_Type == b2_circleShape);
+
+        shape->m_Circle.radius = radius * world->m_Context->m_Scale;
+        shape->m_ShapeDataBase.m_CreationScale = shape->m_Circle.radius;
+
+        b2Shape_SetCircle(shape->m_ShapeDataBase.m_ShapeId, &shape->m_Circle);
     }
 
     void SynchronizeObject2D(HWorld2D world, HCollisionObject2D collision_object)

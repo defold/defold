@@ -46,6 +46,7 @@ namespace dmPhysics
 
     struct ShapeData
     {
+        b2ShapeId   m_ShapeId;
         b2ShapeType m_Type;
         b2Vec2      m_CreationPosition;
         float       m_CreationScale;
