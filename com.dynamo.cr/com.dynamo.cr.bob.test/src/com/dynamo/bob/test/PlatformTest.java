@@ -72,7 +72,12 @@ public class PlatformTest {
     @Test
     public void testPlatformMatching() {
 
-        // assertTrue(Platform.matchPlatformAgainstOS("",               PlatformProfile.OS.OS_ID_GENERIC));
+        assertTrue(Platform.X86Win32.matchesOS(PlatformProfile.OS.OS_ID_GENERIC));
+        assertTrue(Platform.X86_64MacOS.matchesOS(PlatformProfile.OS.OS_ID_GENERIC));
+        assertTrue(Platform.X86_64Ios.matchesOS(PlatformProfile.OS.OS_ID_GENERIC));
+        assertTrue(Platform.X86_64Linux.matchesOS(PlatformProfile.OS.OS_ID_GENERIC));
+        assertTrue(Platform.Arm64Android.matchesOS(PlatformProfile.OS.OS_ID_GENERIC));
+        assertTrue(Platform.WasmWeb.matchesOS(PlatformProfile.OS.OS_ID_GENERIC));
 
         assertTrue(Platform.X86Win32.matchesOS(PlatformProfile.OS.OS_ID_WINDOWS));
         assertTrue(Platform.X86_64Win32.matchesOS(PlatformProfile.OS.OS_ID_WINDOWS));

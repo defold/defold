@@ -224,6 +224,9 @@ public class Platform {
     }
 
     public boolean matchesOS(PlatformProfile.OS os) {
+        if (os.equals(OS.OS_ID_GENERIC)) {
+            return true;
+        }
         return this.osID.equals(os);
     }
 
