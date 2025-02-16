@@ -83,7 +83,6 @@ namespace dmSound
         uint32_t m_MaxSoundData;
         uint32_t m_MaxSources;
         uint32_t m_MaxBuffers;
-        uint32_t m_BufferSize;
         uint32_t m_FrameCount;
         uint32_t m_MaxInstances;
         bool     m_UseThread;
@@ -102,6 +101,10 @@ namespace dmSound
     Result Update();
     // Pauses the (threaded) sound system
     Result Pause(bool pause);
+
+    // returns the audio device mix rate (48000, 44100 etc)
+    // Only valid after successful initialization
+    uint32_t GetMixRate();
 
     const char* ResultToString(Result result);
 

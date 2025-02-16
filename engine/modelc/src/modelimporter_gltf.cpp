@@ -1624,7 +1624,7 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
 
     for (cgltf_size i = 0; i < data->buffers_count; ++i)
     {
-        scene->m_Buffers[i].m_Uri = CreateObjectName(data->buffers, "buffer", i);
+        scene->m_Buffers[i].m_Uri = CreateObjectName(&data->buffers[i], "buffer", i);
         scene->m_Buffers[i].m_Buffer = (uint8_t*)data->buffers[i].data;
         scene->m_Buffers[i].m_BufferCount = data->buffers[i].size;
     }

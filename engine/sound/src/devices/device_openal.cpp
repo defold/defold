@@ -73,7 +73,24 @@ namespace dmDeviceOpenAL
             return dmSound::RESULT_UNKNOWN_ERROR;
         }
 
-        al_context = alcCreateContext(al_device, 0);
+        // Since the alcGetIntegerv(al_device, ALC_FREQUENCY, ...) is giving me bogus... /MAWE
+        ALCint frequencies[] = {48000, 44100};
+        ALCint frequency = 0;
+        for (int i = 0; i < DM_ARRAY_SIZE(frequencies); ++i)
+        {
+            ALCint attrs[] = {
+                ALC_FREQUENCY, frequencies[i],
+                0 // sentinel
+            };
+
+            al_context = alcCreateContext(al_device, attrs);
+            if (al_context)
+            {
+                frequency = frequencies[i];
+                break;
+            }
+        }
+
         if (al_context == 0) {
             dmLogError("Failed to create OpenAL context");
             alcCloseDevice(al_device);
@@ -106,7 +123,7 @@ namespace dmDeviceOpenAL
         alGenSources(1, &openal->m_Source);
         CheckAndPrintError();
 
-        openal->m_MixRate = 44100;
+        openal->m_MixRate = frequency;
 
         *device = openal;
 

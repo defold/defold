@@ -231,6 +231,29 @@ namespace dmHttpService
         }
     }
 
+    static const char* FindHeader(Worker* worker, const char* header, char* buffer, uint32_t buffer_length)
+    {
+        // Headers are either 0, of a list of strings "header1: value\nheader2: value\n"
+        const char* current = (const char*)worker->m_Request->m_Headers;
+        const char* headers_end = current + worker->m_Request->m_HeadersLength;
+        while (current < headers_end)
+        {
+            const char* end = strchr(current, '\n');
+            uint32_t length = end - current;
+            if (strstr(current, header) == current)
+            {
+                if (length < buffer_length)
+                {
+                    memcpy(buffer, current, length);
+                    buffer[length-1] = 0;
+                    return buffer;
+                }
+            }
+            current += length+1;
+        }
+        return 0;
+    }
+
     void HandleRequest(Worker* worker, const dmMessage::URL* requester, uintptr_t userdata1, uintptr_t userdata2, dmHttpDDF::HttpRequest* request)
     {
         dmURI::Parts url;
@@ -289,6 +312,22 @@ namespace dmHttpService
             dmHttpClient::SetOptionInt(worker->m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, request->m_Timeout);
             dmHttpClient::SetOptionInt(worker->m_Client, dmHttpClient::OPTION_REQUEST_IGNORE_CACHE, request->m_IgnoreCache);
             dmHttpClient::SetOptionInt(worker->m_Client, dmHttpClient::OPTION_REQUEST_CHUNKED_TRANSFER, request->m_ChunkedTransfer);
+
+            char cache_key[dmURI::MAX_URI_LEN];
+            dmHttpClient::GetURI(worker->m_Client, url.m_Path, cache_key, sizeof(cache_key));
+
+            char header_buffer[256];
+            const char* range_header = FindHeader(worker, "Range:", header_buffer, sizeof(header_buffer));
+            if (range_header)
+            {
+                // If we find a range header, let's use it to append to the
+                range_header += strlen("Range:");
+                while(*range_header == ' ')
+                    ++range_header;
+                dmStrlCat(cache_key, "=", sizeof(cache_key));
+                dmStrlCat(cache_key, range_header, sizeof(cache_key));// "=bytes=%d-%d"
+            }
+            dmHttpClient::SetCacheKey(worker->m_Client, cache_key);
 
             dmHttpClient::Result r = dmHttpClient::Request(worker->m_Client, request->m_Method, url.m_Path);
 
@@ -401,31 +440,7 @@ namespace dmHttpService
     {
         HttpService* service = new HttpService;
 
-        if (params->m_UseHttpCache)
-        {
-            dmHttpCache::NewParams cache_params;
-            char path[1024];
-            dmSys::Result sys_result = dmSys::GetApplicationSupportPath("defold", path, sizeof(path));
-            if (sys_result == dmSys::RESULT_OK)
-            {
-                // NOTE: The other cache (streaming) is called /cache
-                dmStrlCat(path, "/http-cache", sizeof(path));
-                cache_params.m_Path = path;
-                dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &service->m_HttpCache);
-                if (cache_r != dmHttpCache::RESULT_OK)
-                {
-                    dmLogWarning("Unable to open http cache (%d)", cache_r);
-                }
-            }
-            else
-            {
-                dmLogWarning("Unable to locate application support path for \"%s\": (%d)", "defold", sys_result);
-            }
-        }
-        else
-        {
-            dmLogWarning("Http cache disabled");
-        }
+        service->m_HttpCache = params->m_HttpCache;
 
         int threadcount = params->m_ThreadCount;
 #if defined(__NX__)
@@ -510,8 +525,6 @@ namespace dmHttpService
         }
 
         dmMessage::DeleteSocket(http_service->m_Socket);
-        if (http_service->m_HttpCache)
-            dmHttpCache::Close(http_service->m_HttpCache);
         delete http_service;
     }
 

@@ -15,7 +15,7 @@
 #ifndef DMSDK_SDK_H
 #define DMSDK_SDK_H
 
-#include <dmsdk/extension/extension.h>
+#include <dmsdk/extension/extension.hpp>
 #include <dmsdk/engine/extension.h>
 #include <dmsdk/script.h> // references both script/script.h and gamesys/script.h
 #include <dmsdk/lua/luaconf.h>
@@ -40,7 +40,6 @@
 #include <dmsdk/dlib/vmath.h>
 
 // Generated apis
-#include <dmsdk/extension/extension_gen.hpp>
 #include <dmsdk/dlib/configfile_gen.hpp>
 
 #endif // DMSDK_SDK_H

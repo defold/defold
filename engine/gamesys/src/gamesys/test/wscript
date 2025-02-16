@@ -75,7 +75,8 @@ def build(bld):
                         'ResourceTypeOgg',
                         'ResourceTypeWav',
                         'GraphicsAdapterNull',
-                        'ScriptImageExt']
+                        'ScriptImageExt',
+                        'ScriptHttp']
 
     embed_source = ['resource/booster_on_sfx.wav', 'resource/layer_guitar_a.ogg']
 
@@ -100,7 +101,8 @@ def build(bld):
     if not 'web' in bld.env['PLATFORM']:
         if platform_supports_feature(bld.env.PLATFORM, 'test_script_http', {}):
             bld.program(features = 'cxx test',
-                        includes = '..',
+                        includes = '../../../src ../../../proto .',
+                        exported_symbols = exported_symbols,
                         use = 'TESTMAIN DMGLFW GAMEOBJECT DDF RESOURCE PHYSICS RENDER GRAPHICS_GAMESYS_TEST SOCKET APP PROFILE_NULL SCRIPT LUA EXTENSION INPUT PLATFORM_NULL HID_NULL PARTICLE RIG GUI SOUND_NULL LIVEUPDATE DLIB TEST_SCRIPT gamesys gamesys_rig_null gamesys_model_null',
                         source = 'test_script_http.cpp http/test_http.lua.raw http/test_http_timeout.lua.raw'.split(),
                         target = 'test_script_http')

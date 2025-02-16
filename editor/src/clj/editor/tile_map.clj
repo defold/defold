@@ -486,7 +486,7 @@
                     :passes [pass/transparent pass/selection]}})))
 
 (g/defnk produce-layer-outline
-  [_node-id id z]
+  [_node-id id z visible]
   {:node-id _node-id
    :node-outline-key id
    :label id
