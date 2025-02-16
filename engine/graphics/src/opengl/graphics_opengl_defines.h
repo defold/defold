@@ -17,7 +17,7 @@
 
 #if defined(__linux__) && !defined(ANDROID)
 
-#if defined(__aarch64__)
+#if defined(DM_GRAPHICS_USE_OPENGLES)
 #define GL_GLEXT_PROTOTYPES
 #include <GLES3/gl3.h>
 #include <GLES2/gl2ext.h>
