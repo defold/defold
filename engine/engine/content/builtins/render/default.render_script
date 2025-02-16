@@ -241,8 +241,8 @@ function update(self)
     render.set_projection(camera_gui.proj)
 
     render.enable_state(graphics.STATE_STENCIL_TEST)
-    render.draw(predicates.gui, camera_gui.frustum)
-    render.draw(predicates.debug_text, camera_gui.frustum)
+    render.draw(predicates.gui, camera_gui.options)
+    render.draw(predicates.debug_text, camera_gui.options)
     render.disable_state(graphics.STATE_STENCIL_TEST)
     render.disable_state(graphics.STATE_BLEND)
 end
