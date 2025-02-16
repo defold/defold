@@ -1507,12 +1507,24 @@ namespace dmPhysics
         */
     }
 
-    bool UpdateMass2D(HCollisionObject2D collision_object, float mass) {
-        /*
-        b2Body* body = (b2Body*)collision_object;
-        if (body->GetType() != b2_dynamicBody) {
+    bool UpdateMass2D(HCollisionObject2D collision_object, float mass)
+    {
+        b2BodyId* body_id = (b2BodyId*) collision_object;
+
+        if (b2Body_GetType(*body_id) != b2_dynamicBody) {
             return false;
         }
+
+        b2MassData mass_data = b2Body_GetMassData(*body_id);
+        mass_data.mass = mass;
+
+        // TODO: We don't have an area here. Original code checked area of shapes
+
+        b2Body_SetMassData(*body_id, mass_data);
+
+        return true;
+
+        /*
         b2Fixture* fixture = body->GetFixtureList();
         float total_area = 0.0f;
         while (fixture) {
@@ -1535,7 +1547,6 @@ namespace dmPhysics
         body->ResetMassData();
         return true;
         */
-        return false;
     }
 
     bool GetMaskBit2D(HCollisionObject2D collision_object, uint16_t groupbit) {
