@@ -1056,7 +1056,15 @@
         world (c/camera-unproject camera-a viewport (.x point) (.y point) (.z point))
         delta (c/camera-unproject camera-b viewport (.x point) (.y point) (.z point))]
     (.sub delta world)
-    (c/camera-move camera-a (.x delta) (.y delta) (.z delta))))
+    (cond-> camera-a
+      :always
+      (-> (c/camera-ensure-orthographic)
+          (c/camera-move (.x delta) (.y delta) (.z delta))
+          (assoc :fov-x (:fov-x camera-b)
+                 :fov-y (:fov-y camera-b)))
+
+      (= (:type camera-a) :perspective)
+      (c/camera-orthographic->perspective c/fov-y-35mm-full-frame))))
 
 (defn- get-3d-camera
   [camera]
