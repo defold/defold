@@ -17,8 +17,10 @@ package com.dynamo.bob.pipeline;
 import static com.dynamo.bob.pipeline.ShaderProgramBuilder.resourceTypeToShaderDataType;
 import static org.junit.Assert.*;
 
+import java.io.IOException;
 import java.util.ArrayList;
 
+import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.pipeline.shader.ShaderCompilePipelineLegacy;
 import org.junit.Test;
 
@@ -195,6 +197,95 @@ public class ShaderCompilePipelineTest {
         assertEquals(sharedUBOvs.set, sharedUBOfs.set);
 
         ShaderCompilePipeline.destroyShaderPipeline(pipeline);
+    }
+
+    @Test
+    public void testAreTypesEqual() throws IOException, CompileExceptionError {
+        String vsShader =
+                """
+                #version 430
+                in highp vec4 position;
+                struct nested
+                {
+                    float nested;
+                };
+                uniform equal
+                {
+                    float value;
+                    nested value_nested;
+                };
+                uniform not_equal
+                {
+                    vec4 tint;
+                    vec4 tint_not_in_fs;
+                };
+                struct not_equal_nested
+                {
+                    float nested;
+                    float not_in_fs;
+                };
+                uniform not_equal_two
+                {
+                    not_equal_nested value_nested_two;
+                };
+                void main()
+                {
+                    gl_Position = vec4(position.xyz + tint.xyz + tint_not_in_fs.xyz, 1.0 + value + value_nested_two.nested);
+                }
+                """;
+
+        String fsShader =
+                """
+                #version 430
+                out vec4 out_fragColor;
+               
+                struct nested
+                {
+                    float nested;
+                };
+                uniform equal
+                {
+                    float value;
+                    nested value_nested;
+                };
+                uniform not_equal
+                {
+                    vec4 tint;
+                };
+                struct not_equal_nested
+                {
+                    float nested;
+                };
+                uniform not_equal_two
+                {
+                    not_equal_nested value_nested_two;
+                };
+                void main()
+                {
+                    out_fragColor = tint;
+                    out_fragColor.a = value + value_nested_two.nested;
+                }
+                """;
+
+        ArrayList<ShaderCompilePipeline.ShaderModuleDesc> shaderModuleDescs = toShaderDescs(vsShader, fsShader);
+
+        ShaderCompilePipeline pipeline = new ShaderCompilePipeline("testCompareTypes");
+        ShaderCompilePipeline.createShaderPipeline(pipeline, shaderModuleDescs, new ShaderCompilePipeline.Options());
+
+        SPIRVReflector reflectorVs = pipeline.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX);
+        SPIRVReflector reflectorFs = pipeline.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT);
+
+        assertTrue(SPIRVReflector.AreResourceTypesEqual(reflectorVs, reflectorFs, "equal"));
+        assertFalse(SPIRVReflector.AreResourceTypesEqual(reflectorVs, reflectorFs, "not_equal"));
+        assertFalse(SPIRVReflector.AreResourceTypesEqual(reflectorVs, reflectorFs, "not_equal_two"));
+
+        // The "equal" ubos should be merged, i.e they should have the same binding + set
+        Shaderc.ShaderResource equalUboA = getShaderResource(reflectorVs, "equal");
+        Shaderc.ShaderResource equalUboB = getShaderResource(reflectorFs, "equal");
+        assert equalUboA != null;
+        assert equalUboB != null;
+        assertEquals(equalUboA.binding, equalUboB.binding);
+        assertEquals(equalUboA.set, equalUboB.set);
     }
 
     private Shaderc.ShaderResource getShaderResource(SPIRVReflector reflector, String name) {

@@ -1,4 +1,4 @@
-<// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -309,13 +309,19 @@ public class ShaderCompilePipeline {
 
             for (Shaderc.ShaderResource vsUbo : vertexModule.spirvReflector.getUBOs()) {
                 for (Shaderc.ShaderResource fsUbo : fragmentModule.spirvReflector.getUBOs()) {
-                    if (vsUbo.name.equals(fsUbo.name) && (vsUbo.binding != fsUbo.binding || vsUbo.set != fsUbo.set)) {
+                    if (vsUbo.name.equals(fsUbo.name) &&
+                            (vsUbo.binding != fsUbo.binding || vsUbo.set != fsUbo.set) &&
+                            // The types must also match
+                            (SPIRVReflector.AreResourceTypesEqual(vertexModule.spirvReflector, fragmentModule.spirvReflector, vsUbo.name))) {
                         // We can merge these resources!
                         if (compilerFs == 0) {
                             compilerFs = ShadercJni.NewShaderCompiler(fragmentModule.spirvContext, Shaderc.ShaderLanguage.SHADER_LANGUAGE_SPIRV.getValue());
                         }
                         ShadercJni.SetResourceBinding(fragmentModule.spirvContext, compilerFs, vsUbo.nameHash, vsUbo.binding);
                         ShadercJni.SetResourceSet(fragmentModule.spirvContext, compilerFs, vsUbo.nameHash, vsUbo.set);
+
+                        // TODO: We need to be able to modify the shader stage flags for the resources here, since they
+                        //       have now been merged, and thus visible in both stages.
                     }
                 }
             }
@@ -338,6 +344,20 @@ public class ShaderCompilePipeline {
                 fragmentModule.spirvContext = remappedSpvContext;
                 fragmentModule.spirvReflector = new SPIRVReflector(remappedSpvContext, fragmentModule.desc.type);
                 fragmentModule.spirvFile = remappedSpvFile;
+            }
+
+            ArrayList<Shaderc.ResourceTypeInfo> mergedTypes = new ArrayList<>();
+            for (Shaderc.ResourceTypeInfo vsType : vertexModule.spirvReflector.getTypes()) {
+                if (SPIRVReflector.AreResourceTypesEqual(vertexModule.spirvReflector, fragmentModule.spirvReflector, vsType.name)) {
+                    // We can merge these types, but we need to adjust any current resources that are using them
+
+                    /*
+                    ArrayList<Shaderc.ShaderResource> allResourcesUsingType = fragmentModule.spirvReflector.getResourcesByTypeName(vsType.name);
+                    for (Shaderc.ShaderResource shaderResource : allResourcesUsingType) {
+                        shaderResource.stage
+                    }
+                    */
+                }
             }
         }
     }

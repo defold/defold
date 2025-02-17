@@ -14,6 +14,7 @@
 
 package com.dynamo.bob.pipeline.shader;
 
+import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.pipeline.Shaderc;
 import com.dynamo.bob.pipeline.ShadercJni;
 import com.dynamo.graphics.proto.Graphics;
@@ -52,6 +53,40 @@ public class SPIRVReflector {
 
     public Graphics.ShaderDesc.ShaderType getShaderStage() {
         return this.shaderStage;
+    }
+
+    private static Shaderc.ResourceTypeInfo getResourceTypeInfo(ArrayList<Shaderc.ResourceTypeInfo> types, String typeName) throws CompileExceptionError {
+        for (Shaderc.ResourceTypeInfo type : types) {
+            if (type.name.equals(typeName)) {
+                return type;
+            }
+        }
+        throw new CompileExceptionError("Type " + typeName + " not found");
+    }
+    
+    public static boolean AreResourceTypesEqual(SPIRVReflector reflectionA, SPIRVReflector reflectionB, String typeName) throws CompileExceptionError {
+        Shaderc.ResourceTypeInfo typeA = getResourceTypeInfo(reflectionA.getTypes(), typeName);
+        Shaderc.ResourceTypeInfo typeB = getResourceTypeInfo(reflectionB.getTypes(), typeName);
+
+        if (!typeA.name.equals(typeB.name))
+            return false;
+        if (typeA.members.length != typeB.members.length)
+            return false;
+        for (int i=0; i < typeA.members.length; i++) {
+            if (!typeA.members[i].name.equals(typeB.members[i].name))
+                return false;
+            // The actual type index might differ, so we can't compare those.
+            if (typeA.members[i].type.useTypeIndex != typeB.members[i].type.useTypeIndex)
+                return false;
+            if (typeA.members[i].type.useTypeIndex)  {
+                // Follow type information for sub types recursively
+                Shaderc.ResourceTypeInfo subTypeA = reflectionA.getTypes().get(typeA.members[i].type.typeIndex);
+                if (!AreResourceTypesEqual(reflectionA, reflectionB, subTypeA.name))
+                    return false;
+            } else if (typeA.members[i].type.baseType != typeB.members[i].type.baseType)
+                return false;
+        }
+        return true;
     }
 
     public ArrayList<Shaderc.ResourceTypeInfo> getTypes() {
