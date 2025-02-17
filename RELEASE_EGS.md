@@ -4,7 +4,7 @@
 
 1. [Install](https://dev.epicgames.com/docs/epic-games-store/publishing-tools/uploading-binaries/bpt-instructions-170) `BuildPatchTool` on your local machine. 
 
-1. Export the Client Secret (Dev Portal under Your Product > Product Settings > General tab > Build Patch Tool Credentials) as an environment variable named `DEFOLD_EGS_BPT_CLIENT_SECRET`
+1. Export the EGS Client Secret (Dev Portal under Your Product > Product Settings > General tab > Build Patch Tool Credentials) as an environment variable named `DEFOLD_EGS_BPT_CLIENT_SECRET`
 
 ## Release
 
