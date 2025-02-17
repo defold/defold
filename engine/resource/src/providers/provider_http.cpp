@@ -267,8 +267,6 @@ static dmResourceProvider::Result GetRequestFromUri(HttpProviderContext* archive
         }
     }
 
-    printf("HTTP RESULT: %d - %s - %s\n", archive->m_HttpStatus, method, cache_key);
-
     if (get_file_size)
     {
         *buffer_length = archive->m_HttpContentLength;
@@ -325,7 +323,6 @@ static dmResourceProvider::Result ReadFilePartial(dmResourceProvider::HArchiveIn
 {
     HttpProviderContext* archive = (HttpProviderContext*)_archive;
     (void)path_hash;
-printf("%s: %s: %s - %u - %u\n", __FILE__, __FUNCTION__, path, offset, size);
     dmResourceProvider::Result result = GetRequestFromUri((HttpProviderContext*)archive, "GET", path, offset, size, nread, buffer);
     if (result != dmResourceProvider::RESULT_OK)
     {
@@ -337,8 +334,6 @@ printf("%s: %s: %s - %u - %u\n", __FILE__, __FUNCTION__, path, offset, size);
 static dmResourceProvider::Result InitializeArchiveLoaderHttp(dmResourceProvider::ArchiveLoaderParams* params, dmResourceProvider::ArchiveLoader* loader)
 {
     g_HttpCache = params->m_HttpCache;
-printf("%s: %s: HTTP CACHE: %p\n", __FILE__, __FUNCTION__, g_HttpCache);
-
     return dmResourceProvider::RESULT_OK;
 }
 
