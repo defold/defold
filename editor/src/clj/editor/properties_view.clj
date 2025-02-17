@@ -34,7 +34,7 @@
            [javafx.geometry Insets Point2D]
            [javafx.scene Node Parent]
            [javafx.scene.control Button CheckBox ColorPicker Control Label Slider TextArea TextField TextInputControl ToggleButton Tooltip]
-           [javafx.scene.input MouseEvent]
+           [javafx.scene.input MouseEvent MouseDragEvent]
            [javafx.scene.layout AnchorPane ColumnConstraints GridPane HBox Pane Priority Region VBox]
            [javafx.scene.paint Color]
            [javafx.util Duration]))
@@ -163,11 +163,12 @@
                     (when-let [v (field-expression/to-int (.getText text))]
                       (let [property (property-fn)]
                         (properties/set-values! property (repeat v))
-                        (update-prop-fn nil))))]
+                        (update-prop-fn nil))))
+        drag-update-fn (fn [v update-val] (properties/round-scalar (+ v update-val)))]
     (customize! text update-fn cancel-fn)
     (when-let [style-class (script-property-type->style-class (:script-property-type edit-type))]
       (add-style-class! text style-class))
-    [text update-ui-fn]))
+    [text update-ui-fn drag-update-fn]))
 
 (defmethod create-property-control! g/Num [edit-type _ property-fn]
   (let [text-field (TextField.)
@@ -183,11 +184,12 @@
                           num (parse-num (.getText text-field) old-num)]
                       (if (and num (not= num old-num))
                         (properties/set-values! property (repeat num))
-                        (cancel-fn nil))))]
+                        (cancel-fn nil))))
+        drag-update-fn (fn [v update-val] (properties/round-scalar (+ v update-val)))]
     (customize! text-field update-fn cancel-fn)
     (when-let [style-class (script-property-type->style-class (:script-property-type edit-type))]
       (add-style-class! text-field style-class))
-    [text-field update-ui-fn]))
+    [text-field update-ui-fn drag-update-fn]))
 
 (defmethod create-property-control! g/Bool [_ _ property-fn]
   (let [check (CheckBox.)
@@ -212,6 +214,26 @@
                         ctrls))
     box))
 
+(defn- handle-label-mouse-drag! [control property update-fn ^MouseDragEvent event]
+  (.consume event)
+  (let [{:keys [key node-ids]} property
+        update-val (cond-> 1
+                     (.isShiftDown event) (* 10.0)
+                     (neg? (.getX event)) -)]
+    (g/transact
+     (for [node-id node-ids]
+       (concat (g/operation-sequence (str "drag-property-" key))
+               (g/update-property node-id key update-fn update-val))))
+
+    (.setText control (str (g/node-value (first node-ids) key)))))
+
+(defn- make-label-draggable
+  [^Label label event-handler]
+  (doto label
+    (ui/add-style! "draggable")
+    (.addEventHandler MouseEvent/MOUSE_DRAGGED
+                      (ui/event-handler event (event-handler event)))))
+
 (defn- create-multi-text-field! [labels property-fn]
   (let [text-fields (mapv (fn [_] (TextField.)) labels)
         box (doto (GridPane.)
@@ -219,13 +241,18 @@
         get-fns (mapv (fn [index]
                         #(nth % index))
                       (range (count text-fields)))
-        update-ui-fn (partial update-multi-text-fn text-fields field-expression/format-number get-fns)]
+        update-ui-fn (partial update-multi-text-fn text-fields field-expression/format-number get-fns)
+        drag-update-fn (fn [index]
+                         (fn [v update-val]
+                           (update v index #(properties/round-scalar (+ % update-val)))))]
     (dorun
       (map
         (fn [index ^TextField text-field ^String label-text]
           (let [children (if (seq label-text)
                            [(doto (Label. label-text)
-                              (.setMinWidth Region/USE_PREF_SIZE))
+                              (.setMinWidth Region/USE_PREF_SIZE)
+                              (make-label-draggable (partial handle-label-mouse-drag! text-field (property-fn) (drag-update-fn index))))
+                            
                             text-field]
                            [text-field])
                 comp (doto (create-grid-pane children)
@@ -747,7 +774,7 @@
   (let [^Label label (doto (create-property-label (properties/label property) key (properties/tooltip property))
                        (ui/context! :property (assoc context :property property) (->SelectionProvider original-node-ids))
                        (ui/register-context-menu ::properties-menu true))
-        [^Node control update-ctrl-fn] (create-property-control! (:edit-type property) context
+        [^Node control update-ctrl-fn drag-update-fn] (create-property-control! (:edit-type property) context
                                                                  (fn [] (property-fn key)))
         reset-btn (doto (Button. nil (jfx/get-image-view "icons/32/Icons_S_02_Reset.png"))
                     (.setFocusTraversable false)
@@ -784,6 +811,9 @@
                          (update-ctrl-fn (properties/values property)
                                          (properties/validation-message property)
                                          (properties/read-only? property))))]
+    
+    (when drag-update-fn
+      (make-label-draggable label (partial handle-label-mouse-drag! control property drag-update-fn)))
 
     (update-label-box (properties/overridden? property))
 

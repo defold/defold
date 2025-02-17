@@ -11,6 +11,14 @@
             }
         }
     }
+
+    .label.draggable {
+        -fx-cursor: h-resize;
+
+        &:hover {
+            -fx-text-fill: -df-text-selected;
+        }
+    }
 }
 @mixin script-property-text-field-icon-template($icon) {
   -fx-background-image: url('icons/32/Icons_#{$icon}.png');
