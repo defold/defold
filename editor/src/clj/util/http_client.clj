@@ -19,6 +19,8 @@
            [java.net.http HttpClient HttpClient$Redirect HttpRequest HttpRequest$BodyPublishers HttpRequest$Builder HttpResponse HttpResponse$BodyHandlers]
            [java.util List]))
 
+(set! *warn-on-reflection* true)
+
 (def ^:private ^HttpClient client
   (-> (HttpClient/newBuilder)
       (.followRedirects HttpClient$Redirect/NORMAL)
@@ -44,7 +46,7 @@
   (-> client
       (.sendAsync
         (-> (HttpRequest/newBuilder (URI. url))
-            (as-> $ (reduce-kv HttpRequest$Builder/.header $ headers))
+            (as-> $ ^HttpRequest$Builder (reduce-kv HttpRequest$Builder/.header $ headers))
             (.method method (cond
                               (nil? body) (HttpRequest$BodyPublishers/noBody)
                               (string? body) (HttpRequest$BodyPublishers/ofString body)
