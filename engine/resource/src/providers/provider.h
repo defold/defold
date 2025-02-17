@@ -17,7 +17,10 @@
 
 #include <stdint.h>
 #include <dlib/hash.h>
+#include <dlib/http_cache.h>
 #include <dlib/uri.h>
+
+#include "../resource.h"
 
 namespace dmResource
 {
@@ -77,13 +80,28 @@ namespace dmResourceProvider
 
 
     // Plugin API
+    struct ArchiveLoaderParams
+    {
+        dmResource::HFactory    m_Factory;
+        dmHttpCache::HCache     m_HttpCache;
+    };
+
+    typedef void (*FRegisterLoader)(ArchiveLoader*);
+    typedef Result (*FInitializeLoader)(ArchiveLoaderParams*, ArchiveLoader*);
+    typedef Result (*FFinalizeLoader)(ArchiveLoaderParams*, ArchiveLoader*);
 
     // Internal
-    void Register(ArchiveLoader* loader, uint32_t size, const char* name, void (*setup_fn)(ArchiveLoader*));
+    void Register(ArchiveLoader* loader, uint32_t size, const char* name,
+                    FRegisterLoader register_fn,
+                    FInitializeLoader initialize_fn,
+                    FFinalizeLoader finalize_fn);
+
+    Result InitializeLoaders(ArchiveLoaderParams*);
+    Result FinalizeLoaders(ArchiveLoaderParams*);
 
     // Extension declaration helper. Internal
-    #define DM_REGISTER_ARCHIVE_LOADER(symbol, desc, desc_size, name, setup_fn) extern "C" void symbol () { \
-        dmResourceProvider::Register((struct dmResourceProvider::ArchiveLoader*) &desc, desc_size, name, setup_fn); \
+    #define DM_REGISTER_ARCHIVE_LOADER(symbol, desc, desc_size, name, register_fn, initialize_fn, finalize_fn) extern "C" void symbol () { \
+        dmResourceProvider::Register((struct dmResourceProvider::ArchiveLoader*) &desc, desc_size, name, register_fn, initialize_fn, finalize_fn); \
     }
 
     // Archive loader desc bytesize declaration
@@ -92,9 +110,9 @@ namespace dmResourceProvider
     #define DM_RESOURCE_PROVIDER_PASTE_SYMREG2(x, y) DM_RESOURCE_PROVIDER_PASTE_SYMREG(x, y)
 
     // public
-    #define DM_DECLARE_ARCHIVE_LOADER(symbol, name, setup_fn) \
+    #define DM_DECLARE_ARCHIVE_LOADER(symbol, name, register_fn, initialize_fn, finalize_fn) \
         uint8_t DM_ALIGNED(16) DM_RESOURCE_PROVIDER_PASTE_SYMREG2(symbol, __LINE__)[dmResourceProvider::g_ExtensionDescBufferSize]; \
-        DM_REGISTER_ARCHIVE_LOADER(symbol, DM_RESOURCE_PROVIDER_PASTE_SYMREG2(symbol, __LINE__), sizeof(DM_RESOURCE_PROVIDER_PASTE_SYMREG2(symbol, __LINE__)), name, setup_fn);
+        DM_REGISTER_ARCHIVE_LOADER(symbol, DM_RESOURCE_PROVIDER_PASTE_SYMREG2(symbol, __LINE__), sizeof(DM_RESOURCE_PROVIDER_PASTE_SYMREG2(symbol, __LINE__)), name, register_fn, initialize_fn, finalize_fn);
 }
 
 #endif // DM_RESOURCE_PROVIDER_H

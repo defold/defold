@@ -35,7 +35,7 @@ namespace dmHttpCache
     // Magic file header for index file
     const uint32_t MAGIC = 0xCAAAAAAC;
     // Current index file version
-    const uint32_t VERSION = 7;
+    const uint32_t VERSION = 8;
 
     // Maximum number of cache entry creations in flight
     const uint32_t MAX_CACHE_CREATORS = 16;
@@ -73,18 +73,16 @@ namespace dmHttpCache
     struct FileEntry
     {
         uint64_t m_UriHash;
-        // ETag string
-        char     m_ETag[MAX_TAG_LEN];
-        // Path string
-        char     m_URI[MAX_URI_LEN];
+        char     m_ETag[MAX_TAG_LEN];   // ETag string
+        char     m_URI[MAX_URI_LEN];    // cache key (e.g. url + range)
         // The content hash is the hash of URI and ETag.
         uint64_t m_IdentifierHash;
-        // Last accessed time
-        uint64_t m_LastAccessed;
-        // Expires
+        uint64_t m_LastAccessed;    // Last accessed time
         uint64_t m_Expires;
-        // Checksum
         uint64_t m_Checksum;
+        uint32_t m_RangeStart;      // The bytes range start
+        uint32_t m_RangeEnd;        // The bytes range end (inclusive)
+        uint32_t m_DocumentSize;    // The actual document size
     };
 
     /*
@@ -260,6 +258,9 @@ namespace dmHttpCache
                             e.m_Info.m_LastAccessed = entries[i].m_LastAccessed;
                             e.m_Info.m_Expires = entries[i].m_Expires;
                             e.m_Info.m_Checksum = entries[i].m_Checksum;
+                            e.m_Info.m_RangeStart = entries[i].m_RangeStart;
+                            e.m_Info.m_RangeEnd = entries[i].m_RangeEnd;
+                            e.m_Info.m_DocumentSize = entries[i].m_DocumentSize;
                             c->m_CacheTable.Put(entries[i].m_UriHash, e);
                         }
                         else
@@ -312,6 +313,9 @@ namespace dmHttpCache
         file_entry.m_LastAccessed = entry->m_Info.m_LastAccessed;
         file_entry.m_Expires = entry->m_Info.m_Expires;
         file_entry.m_Checksum = entry->m_Info.m_Checksum;
+        file_entry.m_RangeStart = entry->m_Info.m_RangeStart;
+        file_entry.m_RangeEnd = entry->m_Info.m_RangeEnd;
+        file_entry.m_DocumentSize = entry->m_Info.m_DocumentSize;
 
         dmHashUpdateBuffer64(&context->m_HashState, &file_entry, sizeof(file_entry));
         size_t n_written = fwrite(&file_entry, 1, sizeof(file_entry), context->m_File);
@@ -408,7 +412,8 @@ namespace dmHttpCache
         return RESULT_OK;
     }
 
-    Result Begin(HCache cache, const char* uri, const char* etag, uint32_t max_age, HCacheCreator* cache_creator)
+    Result Begin(HCache cache, const char* uri, const char* etag, uint32_t max_age,
+                uint32_t range_start, uint32_t range_end, uint32_t document_size, HCacheCreator* cache_creator)
     {
         dmMutex::ScopedLock lock(cache->m_Mutex);
         *cache_creator = 0;
@@ -465,6 +470,9 @@ namespace dmHttpCache
         entry->m_Info.m_URI = dmPoolAllocator::Duplicate(cache->m_StringAllocator, uri);
         entry->m_Info.m_IdentifierHash = identifier_hash;
         entry->m_Info.m_LastAccessed = dmTime::GetTime();
+        entry->m_Info.m_RangeStart = range_start;
+        entry->m_Info.m_RangeEnd = range_end;
+        entry->m_Info.m_DocumentSize = document_size;
         if (max_age > 0) {
             entry->m_Info.m_Expires = dmTime::GetTime() + max_age * 1000000U;
         } else {
@@ -666,7 +674,8 @@ namespace dmHttpCache
         }
     }
 
-    Result Get(HCache cache, const char* uri, const char* etag, FILE** file, uint32_t* file_size, uint64_t* checksum)
+    Result Get(HCache cache, const char* uri, const char* etag, FILE** file, uint32_t* file_size, uint64_t* checksum,
+                uint32_t* range_start, uint32_t* range_end, uint32_t* document_size)
     {
         dmMutex::ScopedLock lock(cache->m_Mutex);
 
@@ -703,6 +712,11 @@ namespace dmHttpCache
                 *file = f;
                 entry->m_ReadLockCount++;
                 *checksum = entry->m_Info.m_Checksum;
+
+                *range_start = entry->m_Info.m_RangeStart;
+                *range_end = entry->m_Info.m_RangeEnd;
+                *document_size = entry->m_Info.m_DocumentSize;
+
                 return RESULT_OK;
             }
             else

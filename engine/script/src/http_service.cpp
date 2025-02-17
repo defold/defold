@@ -55,6 +55,9 @@ namespace dmHttpService
         dmHttpDDF::HttpRequest*   m_Request;
         const char*           m_Filepath;
         int                   m_Status;
+        uint32_t              m_RangeStart;
+        uint32_t              m_RangeEnd;
+        uint32_t              m_DocumentSize;
         uintptr_t             m_ResponseUserData1;
         uintptr_t             m_ResponseUserData2;
         dmArray<char>         m_Response;
@@ -102,10 +105,16 @@ namespace dmHttpService
     }
 
     // Called from the http thread(s)
-    void HttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length, const char* method)
+    void HttpContent(dmHttpClient::HResponse response, void* user_data, int status_code,
+                    const void* content_data, uint32_t content_data_size, int32_t content_length,
+                    uint32_t range_start, uint32_t range_end, uint32_t document_size,
+                    const char* method)
     {
         Worker* worker = (Worker*) user_data;
         worker->m_Status = status_code;
+        worker->m_RangeStart = range_start;
+        worker->m_RangeEnd = range_end;
+        worker->m_DocumentSize = document_size;
         dmArray<char>& r = worker->m_Response;
         bool method_is_head = method && strcmp(method, "HEAD") == 0;
 
@@ -209,12 +218,18 @@ namespace dmHttpService
                              const char* headers, uint32_t headers_length,
                              const char* response, uint32_t response_length,
                              const char* url,
-                             const char* filepath)
+                             const char* filepath,
+                             uint32_t range_start,
+                             uint32_t range_end,
+                             uint32_t document_size)
     {
         dmHttpDDF::HttpResponse resp;
         resp.m_Status = status;
         resp.m_HeadersLength = headers_length;
         resp.m_ResponseLength = response_length;
+        resp.m_RangeStart = range_start;
+        resp.m_RangeEnd = range_end;
+        resp.m_DocumentSize = document_size;
 
         resp.m_Headers = (uint64_t) malloc(headers_length);
         memcpy((void*) resp.m_Headers, headers, headers_length);
@@ -245,7 +260,7 @@ namespace dmHttpService
                 if (length < buffer_length)
                 {
                     memcpy(buffer, current, length);
-                    buffer[length-1] = 0;
+                    buffer[length] = 0;
                     return buffer;
                 }
             }
@@ -262,7 +277,7 @@ namespace dmHttpService
         dmURI::Result ur =  dmURI::Parse(request->m_Url, &url);
         if (ur != dmURI::RESULT_OK)
         {
-            SendResponse(requester, 0, 0, 0, 0, 0, 0, 0, worker->m_Request->m_Url, 0);
+            SendResponse(requester, 0, 0, 0, 0, 0, 0, 0, worker->m_Request->m_Url, 0, 0, 0, 0);
             return;
         }
         if (url.m_Path[0] == '\0') {
@@ -298,6 +313,9 @@ namespace dmHttpService
         worker->m_Headers.SetSize(0);
         worker->m_Headers.SetCapacity(DEFAULT_HEADER_BUFFER_SIZE);
         worker->m_Filepath = request->m_Path;
+        worker->m_RangeStart = 0;
+        worker->m_RangeEnd = 0;
+        worker->m_DocumentSize = 0;
 
         if (request->m_ReportProgress)
         {
@@ -320,7 +338,7 @@ namespace dmHttpService
             const char* range_header = FindHeader(worker, "Range:", header_buffer, sizeof(header_buffer));
             if (range_header)
             {
-                // If we find a range header, let's use it to append to the
+                // If we find a range header, let's use it to append to the cache key
                 range_header += strlen("Range:");
                 while(*range_header == ' ')
                     ++range_header;
@@ -332,15 +350,18 @@ namespace dmHttpService
             dmHttpClient::Result r = dmHttpClient::Request(worker->m_Client, request->m_Method, url.m_Path);
 
             if (r == dmHttpClient::RESULT_OK || r == dmHttpClient::RESULT_NOT_200_OK) {
-                SendResponse(requester, userdata1, userdata2, worker->m_Status, worker->m_Headers.Begin(), worker->m_Headers.Size(), worker->m_Response.Begin(), worker->m_Response.Size(), request->m_Url, worker->m_Filepath);
+                SendResponse(requester, userdata1, userdata2, worker->m_Status, worker->m_Headers.Begin(), worker->m_Headers.Size(), worker->m_Response.Begin(), worker->m_Response.Size(), request->m_Url, worker->m_Filepath,
+                                    worker->m_RangeStart, worker->m_RangeEnd, worker->m_DocumentSize);
             } else {
                 // TODO: Error codes to lua?
                 dmLogError("HTTP request to '%s' failed (http result: %d  socket result: %d)", request->m_Url, r, GetLastSocketResult(worker->m_Client));
-                SendResponse(requester, userdata1, userdata2, 0, worker->m_Headers.Begin(), worker->m_Headers.Size(), worker->m_Response.Begin(), worker->m_Response.Size(), request->m_Url, worker->m_Filepath);
+                SendResponse(requester, userdata1, userdata2, 0, worker->m_Headers.Begin(), worker->m_Headers.Size(), worker->m_Response.Begin(), worker->m_Response.Size(), request->m_Url, worker->m_Filepath,
+                                worker->m_RangeStart, worker->m_RangeEnd, worker->m_DocumentSize);
             }
         } else {
             // TODO: Error codes to lua?
-            SendResponse(requester, userdata1, userdata2, 0, worker->m_Headers.Begin(), worker->m_Headers.Size(), worker->m_Response.Begin(), worker->m_Response.Size(), request->m_Url, worker->m_Filepath);
+            SendResponse(requester, userdata1, userdata2, 0, worker->m_Headers.Begin(), worker->m_Headers.Size(), worker->m_Response.Begin(), worker->m_Response.Size(), request->m_Url, worker->m_Filepath,
+                            worker->m_RangeStart, worker->m_RangeEnd, worker->m_DocumentSize);
             dmLogError("Unable to create HTTP connection to '%s'. No route to host?", request->m_Url);
         }
     }
