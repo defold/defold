@@ -1352,8 +1352,11 @@ If you do not specifically require different script states, consider changing th
                            render-build-error! bob-commands bob-args project changes-view
                            (fn [successful?]
                              (when successful?
-                               (ui/open-url (format "http://localhost:%d%s/index.html" (http-server/port web-server) bob/html5-url-prefix)))
-                             (.close out)))))
+                               (let [url (format "http://localhost:%d%s/index.html" (http-server/port web-server) bob/html5-url-prefix)]
+                                 (if (prefs/get prefs [:build :open-html5-build])
+                                   (ui/open-url url)
+                                   (console/append-console-entry! nil (format "INFO: The game is available at %s" url))))
+                               (.close out))))))
 
 (handler/defhandler :rebuild-html5 :global
   (run [project prefs web-server build-errors-view changes-view main-stage tool-tab-pane]
