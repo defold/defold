@@ -90,7 +90,6 @@ public class ShaderCompilePipeline {
     private static Integer shaderLanguageToVersion(ShaderDesc.Language shaderLanguage) {
         return switch (shaderLanguage) {
             case LANGUAGE_GLSL_SM120 -> 120;
-            case LANGUAGE_GLSL_SM140 -> 140;
             case LANGUAGE_GLES_SM100 -> 100;
             case LANGUAGE_GLES_SM300 -> 300;
             case LANGUAGE_GLSL_SM330 -> 330;
@@ -102,7 +101,6 @@ public class ShaderCompilePipeline {
 
     protected static boolean shaderLanguageIsGLSL(ShaderDesc.Language shaderLanguage) {
         return shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM120 ||
-               shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM140 ||
                shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100 ||
                shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300 ||
                shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM330 ||
@@ -292,13 +290,7 @@ public class ShaderCompilePipeline {
         ShaderModule module = getShaderModule(shaderType);
         assert module != null;
 
-        boolean isLanguageGLSL = shaderLanguageIsGLSL(shaderLanguage);
-
-        if (isLanguageGLSL && module.shaderInfo != null && module.shaderInfo.version == version) {
-            // The input shader is already valid GLSL code in the output version we are trying to produce,
-            // no need to crosscompile!
-            return module.desc.source.getBytes();
-        } else if (shaderLanguage == ShaderDesc.Language.LANGUAGE_SPIRV) {
+        if (shaderLanguage == ShaderDesc.Language.LANGUAGE_SPIRV) {
             // We have already produced SPIR-v for the input module, no need to crosscompile
             return FileUtils.readFileToByteArray(module.spirvFile);
         } else if (shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL) {
@@ -316,7 +308,7 @@ public class ShaderCompilePipeline {
 
             // JG: spirv-cross renames samplers for GLSL based shaders, so we have to run a second pass to force renaming them back.
             //     There doesn't seem to be a simpler way to do this in spirv-cross from what I can understand.
-            if (isLanguageGLSL) {
+            if (shaderLanguageIsGLSL(shaderLanguage)) {
                 bytes = remapTextureSamplers(module.spirvReflector.getTextures(), new String(bytes));
             }
 

@@ -52,7 +52,7 @@ public class ShaderCompilers {
                     if (isComputeType) {
                         shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM430);
                     } else {
-                        shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM140);
+                        shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
                     }
             }
             else
