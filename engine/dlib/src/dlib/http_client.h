@@ -210,6 +210,24 @@ namespace dmHttpClient
     dmSocket::Result GetLastSocketResult(HClient client);
 
     /**
+     * Get full http uri given the client and a path
+     * @param client Client handle
+     * @param path the path
+     * @param uri the buffer to receive the uri
+     * @param uri_length the buffer length
+     * @return RESULT_OK on success
+     */
+    Result GetURI(HClient client, const char* path, char* uri, uint32_t uri_length);
+
+    /**
+     * Set HTTP request key
+     * @param client Client handle
+     * @param key The key to use for lookups in the http cache
+     * @return RESULT_OK on success
+     */
+    Result SetCacheKey(HClient client, const char* key);
+
+    /**
      * HTTP GET-request with automatic retry
      * @param client Client handle
      * @param path Path part of URI

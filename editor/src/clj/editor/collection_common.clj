@@ -149,12 +149,12 @@
   ;; for more info.
   (let [build-target-go-props (partial properties/build-target-go-props
                                        proj-path->resource-property-build-target)
-        component-property-infos (map (comp build-target-go-props :properties)
-                                      (:component-properties instance-desc-with-go-props))
-        component-go-props (map first component-property-infos)
-        component-property-descs (map #(protobuf/assign-repeated %1 :properties %2)
-                                      (:component-properties instance-desc-with-go-props)
-                                      component-go-props)
+        component-property-infos (mapv (comp build-target-go-props :properties)
+                                       (:component-properties instance-desc-with-go-props))
+        component-go-props (mapv first component-property-infos)
+        component-property-descs (mapv #(protobuf/assign-repeated %1 :properties %2)
+                                       (:component-properties instance-desc-with-go-props)
+                                       component-go-props)
         go-prop-dep-build-targets (into []
                                         (comp (mapcat second)
                                               (util/distinct-by (comp resource/proj-path :resource)))

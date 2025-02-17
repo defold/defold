@@ -163,16 +163,11 @@ namespace dmSys
 
     Result OpenURL(const char* url, const char* target)
     {
-        NSString* ns_url = [NSString stringWithUTF8String: url];
-        BOOL ret = [[UIApplication sharedApplication] openURL:[NSURL URLWithString: ns_url]];
-        if (ret == YES)
-        {
-            return RESULT_OK;
-        }
-        else
-        {
-            return RESULT_UNKNOWN;
-        }
+        NSString* ns_str = [NSString stringWithUTF8String:url];
+        NSURL* ns_url = [NSURL URLWithString:ns_str];
+        UIApplication *app = [UIApplication sharedApplication];
+        [app openURL:ns_url options:@{} completionHandler:nil];
+        return [app canOpenURL:ns_url] ? RESULT_OK : RESULT_UNKNOWN;
     }
 
     void GetSystemInfo(struct SystemInfo* info)

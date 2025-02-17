@@ -16,7 +16,7 @@
 #include "test_script.h"
 
 #include <testmain/testmain.h>
-#include <extension/extension.h>
+#include <extension/extension.hpp>
 #include <dlib/log.h>
 
 class ScriptTypesTest : public dmScriptTest::ScriptTest
