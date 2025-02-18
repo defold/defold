@@ -60,20 +60,6 @@ namespace dmRender
         }
     }
 
-    static void InitFontmap(uint32_t num_channels, dmGraphics::TextureParams& tex_params)
-    {
-        uint32_t data_size = tex_params.m_Width * tex_params.m_Height * num_channels;
-        tex_params.m_Data = malloc(data_size);
-        tex_params.m_DataSize = data_size;
-        memset((void*)tex_params.m_Data, 0, tex_params.m_DataSize);
-    }
-
-    static void CleanupFontmap(dmGraphics::TextureParams& tex_params)
-    {
-        free((void*)tex_params.m_Data);
-        tex_params.m_DataSize = 0;
-    }
-
     // Font maps have no mips, so we need to make sure we use a supported min filter
     static dmGraphics::TextureFilter ConvertMinTextureFilter(dmGraphics::TextureFilter filter)
     {
@@ -162,9 +148,14 @@ namespace dmRender
         }
         font_map->m_Texture = dmGraphics::NewTexture(graphics_context, tex_create_params);
 
-        InitFontmap(font_map->m_CacheChannels, tex_params);
+        uint32_t data_size = tex_params.m_Width * tex_params.m_Height * font_map->m_CacheChannels;
+        tex_params.m_Data = malloc(data_size);
+        tex_params.m_DataSize = data_size;
+        memset((void*)tex_params.m_Data, 0, tex_params.m_DataSize);
+
         dmGraphics::SetTexture(font_map->m_Texture, tex_params);
-        CleanupFontmap(tex_params);
+
+        free((void*)tex_params.m_Data);
     }
 
     void SetFontMap(HFontMap font_map, dmRender::HRenderContext render_context, dmGraphics::HContext graphics_context, FontMapParams& params)
