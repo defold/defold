@@ -218,16 +218,16 @@ namespace dmPhysics
         m_DebugDraw.DrawTransform        = DrawTransform;
         m_DebugDraw.DrawPoint            = DrawPoint;
         m_DebugDraw.DrawString           = DrawString;
-        m_DebugDraw.drawShapes           = true;
-        m_DebugDraw.drawJoints           = true;
-        m_DebugDraw.drawJointExtras      = true;
-        m_DebugDraw.drawAABBs            = true;
-        m_DebugDraw.drawMass             = true;
-        m_DebugDraw.drawContacts         = true;
-        m_DebugDraw.drawGraphColors      = true;
-        m_DebugDraw.drawContactNormals   = true;
-        m_DebugDraw.drawContactImpulses  = true;
-        m_DebugDraw.drawFrictionImpulses = true;
+        m_DebugDraw.drawShapes           = false;
+        m_DebugDraw.drawJoints           = false;
+        m_DebugDraw.drawJointExtras      = false;
+        m_DebugDraw.drawAABBs            = false;
+        m_DebugDraw.drawMass             = false;
+        m_DebugDraw.drawContacts         = false;
+        m_DebugDraw.drawGraphColors      = false;
+        m_DebugDraw.drawContactNormals   = false;
+        m_DebugDraw.drawContactImpulses  = false;
+        m_DebugDraw.drawFrictionImpulses = false;
         m_DebugDraw.context              = this;
     }
 

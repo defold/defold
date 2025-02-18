@@ -719,12 +719,10 @@ namespace dmPhysics
 
     void SetDrawDebug2D(HWorld2D world, bool draw_debug)
     {
-        /*
         world->m_DebugDraw.m_DebugDraw.drawJoints          = draw_debug;
         world->m_DebugDraw.m_DebugDraw.drawShapes          = draw_debug;
         world->m_DebugDraw.m_DebugDraw.drawContactNormals  = draw_debug;
         world->m_DebugDraw.m_DebugDraw.drawContactImpulses = draw_debug;
-        */
     }
 
     HCollisionShape2D NewCircleShape2D(HContext2D context, float radius)
@@ -1003,24 +1001,6 @@ namespace dmPhysics
                 ret = (ShapeData*) poly_shape_prim;
             } break;
 
-            /*
-        case b2Shape::e_edge:
-        {
-            const b2EdgeShape* edge_shape = (const b2EdgeShape*) shape;
-            b2EdgeShape* edge_shape_prim = new b2EdgeShape(*edge_shape);
-            if (edge_shape_prim->m_hasVertex0)
-                edge_shape_prim->m_vertex0 = TransformScaleB2(transform, scale, edge_shape->m_vertex0);
-
-            edge_shape_prim->m_vertex1 = TransformScaleB2(transform, scale, edge_shape->m_vertex1);
-            edge_shape_prim->m_vertex2 = TransformScaleB2(transform, scale, edge_shape->m_vertex2);
-
-            if (edge_shape_prim->m_hasVertex3)
-                edge_shape_prim->m_vertex3 = TransformScaleB2(transform, scale, edge_shape->m_vertex3);
-
-            ret = edge_shape_prim;
-        } break;
-        */
-
         /*
         case b2Shape::e_grid:
         {
@@ -1065,13 +1045,6 @@ namespace dmPhysics
             break;
 
         /*
-        case b2Shape::e_edge:
-        {
-            b2EdgeShape* edge_shape = (b2EdgeShape*) shape;
-            delete edge_shape;
-        }
-        break;
-
         case b2Shape::e_grid:
         {
             b2GridShape* grid_shape = (b2GridShape*) shape;
@@ -1192,8 +1165,6 @@ namespace dmPhysics
 
             b2ShapeId shape_id;
 
-            PolygonShapeData* p_tmp = 0;
-
             switch (s->m_Type)
             {
                 case b2_circleShape:
@@ -1205,7 +1176,6 @@ namespace dmPhysics
                 {
                     PolygonShapeData* p = (PolygonShapeData*) s;
                     shape_id = b2CreatePolygonShape(bodyId, &f_def, &p->m_Polygon);
-                    p_tmp = p;
                 } break;
                 default:assert(0);
             }
@@ -1937,7 +1907,7 @@ namespace dmPhysics
         {
             case dmPhysics::JOINT_TYPE_SPRING:
                 {
-                    b2DistanceJointDef jointDef;
+                    b2DistanceJointDef jointDef = b2DefaultDistanceJointDef();
                     jointDef.bodyIdA          = *b2_obj_a;
                     jointDef.bodyIdB          = *b2_obj_b;
                     jointDef.localAnchorA     = pa;
@@ -1966,11 +1936,11 @@ namespace dmPhysics
                 break;
             case dmPhysics::JOINT_TYPE_HINGE:
                 {
-                    b2RevoluteJointDef jointDef;
+                    b2RevoluteJointDef jointDef = b2DefaultRevoluteJointDef();
                     jointDef.bodyIdA          = *b2_obj_a;
                     jointDef.bodyIdB          = *b2_obj_b;
-                    jointDef.localAnchorA     = pa;
-                    jointDef.localAnchorB     = pb;
+                    jointDef.localAnchorA     = pa; // b2Body_GetLocalPoint(jointDef.bodyIdA, pivot);?
+                    jointDef.localAnchorB     = pb; // b2Body_GetLocalPoint(jointDef.bodyIdA, pivot);?
                     jointDef.referenceAngle   = params.m_HingeJointParams.m_ReferenceAngle;
                     jointDef.lowerAngle       = params.m_HingeJointParams.m_LowerAngle;
                     jointDef.upperAngle       = params.m_HingeJointParams.m_UpperAngle;
@@ -1984,7 +1954,7 @@ namespace dmPhysics
                 break;
             case dmPhysics::JOINT_TYPE_SLIDER:
                 {
-                    b2PrismaticJointDef jointDef;
+                    b2PrismaticJointDef jointDef = b2DefaultPrismaticJointDef();
                     jointDef.bodyIdA          = *b2_obj_a;
                     jointDef.bodyIdB          = *b2_obj_b;
                     jointDef.localAnchorA     = pa;
@@ -2006,7 +1976,7 @@ namespace dmPhysics
                 break;
             case dmPhysics::JOINT_TYPE_WELD:
                 {
-                    b2WeldJointDef jointDef;
+                    b2WeldJointDef jointDef   = b2DefaultWeldJointDef();
                     jointDef.bodyIdA          = *b2_obj_a;
                     jointDef.bodyIdB          = *b2_obj_b;
                     jointDef.localAnchorA     = pa;
@@ -2022,9 +1992,9 @@ namespace dmPhysics
                 break;
             case dmPhysics::JOINT_TYPE_WHEEL:
                 {
-                    b2WheelJointDef jointDef;
-                    jointDef.bodyIdA            = *b2_obj_a;
-                    jointDef.bodyIdB            = *b2_obj_b;
+                    b2WheelJointDef jointDef  = b2DefaultWheelJointDef();
+                    jointDef.bodyIdA          = *b2_obj_a;
+                    jointDef.bodyIdB          = *b2_obj_b;
                     jointDef.localAnchorA     = pa;
                     jointDef.localAnchorB     = pb;
                     b2Vec2 axis;
