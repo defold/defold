@@ -26,7 +26,8 @@ readonly VERSION=v3.0.0
 readonly PACKAGE_NAME=${PRODUCT}-${VERSION}-${PLATFORM}.tar.gz
 readonly HEADERS_PACKAGE_NAME=${PRODUCT}-${VERSION}-common.tar.gz
 
-readonly BOX2D_URL=https://github.com/erincatto/box2d/archive/refs/tags/${VERSION}.zip
+#readonly BOX2D_URL=https://github.com/erincatto/box2d/archive/refs/tags/${VERSION}.zip
+readonly BOX2D_URL=https://github.com/erincatto/box2d/archive/refs/heads/main.zip
 readonly BOX2D_DIR=$(realpath ./box2d)
 
 if [ -z "$PLATFORM" ]; then
@@ -73,7 +74,8 @@ CMAKE_FLAGS="-DBOX2D_BUILD_DOCS=OFF ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DBOX2D_SAMPLES=OFF ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DBOX2D_UNIT_TESTS=OFF ${CMAKE_FLAGS}"
 
-#CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Release ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Debug ${CMAKE_FLAGS}"
+
 #CMAKE_FLAGS="-DCMAKE_OSX_DEPLOYMENT_TARGET=${OSX_MIN_SDK_VERSION} ${CMAKE_FLAGS}"
 #CMAKE_FLAGS="-DSHADERC_SKIP_TESTS=ON ${CMAKE_FLAGS}"
 #CMAKE_FLAGS="-DSHADERC_SKIP_EXAMPLES=ON ${CMAKE_FLAGS}"
@@ -100,7 +102,9 @@ mkdir -p ${BUILD_DIR}
 pushd $BUILD_DIR
 
 cmake ${CMAKE_FLAGS} $BOX2D_DIR
-cmake --build . --config Release -j 8
+
+#cmake --build . --config Release -j 8
+cmake --build . --config Debug -j 8
 
 mkdir -p ./lib/$PLATFORM
 mkdir -p ./include

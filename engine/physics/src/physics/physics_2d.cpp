@@ -376,7 +376,8 @@ namespace dmPhysics
         // Recalculate the normals
         for (int i = 0; i < count; ++i)
         {
-            b2Vec2 n = b2Normalize(shape->m_Polygon.vertices[(i+1)%count] - shape->m_Polygon.vertices[i]);
+            b2Vec2 v = b2Sub(shape->m_Polygon.vertices[(i+1)%count], shape->m_Polygon.vertices[i]);
+            b2Vec2 n = b2Normalize(v);
 
             shape->m_Polygon.normals[i].x = n.y;
             shape->m_Polygon.normals[i].y = -n.x;
@@ -487,7 +488,7 @@ namespace dmPhysics
                 PolygonShapeData* polygon_shape_data = (PolygonShapeData*) shape_data;
 
                 float s = object_scale / shape_data->m_CreationScale;
-                for( int i = 0; i < b2_maxPolygonVertices; ++i)
+                for( int i = 0; i < B2_MAX_POLYGON_VERTICES; ++i)
                 {
                     b2Vec2 p = polygon_shape_data->m_VerticesOriginal[i];
                     pshape.vertices[i].x = p.x * s;
@@ -627,6 +628,30 @@ namespace dmPhysics
 
         b2ContactEvents contact_events = b2World_GetContactEvents(world->m_WorldId);
 
+        if (contact_events.beginCount > 0)
+        {
+            dmLogInfo("contact_events.beginCount %d", contact_events.beginCount);
+        }
+        if (contact_events.endCount > 0)
+        {
+            dmLogInfo("contact_events.endCount %d", contact_events.endCount);
+        }
+        if (contact_events.hitCount > 0)
+        {
+            dmLogInfo("contact_events.hitCount %d", contact_events.hitCount);
+        }
+
+        b2SensorEvents sensor_events = b2World_GetSensorEvents(world->m_WorldId);
+
+        if (sensor_events.beginCount > 0)
+        {
+            dmLogInfo("sensor_events.beginCount %d", sensor_events.beginCount);
+        }
+        if (sensor_events.endCount > 0)
+        {
+            dmLogInfo("sensor_events.endCount %d", sensor_events.endCount);
+        }
+
         // Report sensor collisions
         if (step_context.m_CollisionCallback)
         {
@@ -645,13 +670,11 @@ namespace dmPhysics
 
                     if (b2Shape_IsSensor(shapeIdA) || b2Shape_IsSensor(shapeIdB))
                     {
-                        continue;
+                        step_context.m_CollisionCallback(
+                            b2Shape_GetUserData(shapeIdA), b2Shape_GetFilter(shapeIdA).categoryBits,
+                            b2Shape_GetUserData(shapeIdB), b2Shape_GetFilter(shapeIdB).categoryBits,
+                            step_context.m_CollisionUserData);
                     }
-
-                    step_context.m_CollisionCallback(
-                        b2Shape_GetUserData(shapeIdA), b2Shape_GetFilter(shapeIdA).categoryBits,
-                        b2Shape_GetUserData(shapeIdB), b2Shape_GetFilter(shapeIdB).categoryBits,
-                        step_context.m_CollisionUserData);
                 }
             }
         }
@@ -680,7 +703,7 @@ namespace dmPhysics
                 b2ShapeId shapeIdA = event.shapeIdA;
                 b2ShapeId shapeIdB = event.shapeIdB;
 
-                if (b2Shape_IsSensor(shapeIdA) || b2Shape_IsSensor(shapeIdB))
+                if (!(b2Shape_IsSensor(shapeIdA) || b2Shape_IsSensor(shapeIdB)))
                 {
                     continue;
                 }
@@ -719,10 +742,10 @@ namespace dmPhysics
 
     void SetDrawDebug2D(HWorld2D world, bool draw_debug)
     {
-        world->m_DebugDraw.m_DebugDraw.drawJoints          = draw_debug;
-        world->m_DebugDraw.m_DebugDraw.drawShapes          = draw_debug;
-        world->m_DebugDraw.m_DebugDraw.drawContactNormals  = draw_debug;
-        world->m_DebugDraw.m_DebugDraw.drawContactImpulses = draw_debug;
+        world->m_DebugDraw.m_DebugDraw.drawJoints          = true; // draw_debug;
+        world->m_DebugDraw.m_DebugDraw.drawShapes          = true; // draw_debug;
+        world->m_DebugDraw.m_DebugDraw.drawContactNormals  = true; // draw_debug;
+        world->m_DebugDraw.m_DebugDraw.drawContactImpulses = true; // draw_debug;
     }
 
     HCollisionShape2D NewCircleShape2D(HContext2D context, float radius)
@@ -883,6 +906,13 @@ namespace dmPhysics
         dmArray<b2ShapeId>& shapes = GetShapeBuffer(world, *body_id);
         b2ShapeId shape_id = shapes[shape];
 
+        b2Filter filter = b2Shape_GetFilter(shape_id);
+        filter.categoryBits = group;
+        filter.maskBits = mask;
+        b2Shape_SetFilter(shape_id, filter);
+
+        // Child nonsense here?
+
         /*
         b2Fixture* fixture = GetFixture((b2Body*) collision_shape, shape);
         b2Filter filter = fixture->GetFilterData(child);
@@ -988,7 +1018,7 @@ namespace dmPhysics
                 PolygonShapeData* poly_shape_prim = new PolygonShapeData;
                 memcpy(poly_shape_prim, poly_shape, sizeof(PolygonShapeData));
 
-                b2Vec2 tmp[b2_maxPolygonVertices] = {};
+                b2Vec2 tmp[B2_MAX_POLYGON_VERTICES] = {};
                 int32_t n = poly_shape->m_Polygon.count;
                 for (int32_t i = 0; i < n; ++i)
                 {
@@ -1030,7 +1060,7 @@ namespace dmPhysics
         {
             case b2_circleShape:
             {
-                b2DestroyShape(shape->m_ShapeId);
+                b2DestroyShape(shape->m_ShapeId, false);
                 CircleShapeData* circle_shape = (CircleShapeData*) shape;
                 delete circle_shape;
             }
@@ -1038,7 +1068,7 @@ namespace dmPhysics
 
             case b2_polygonShape:
             {
-                b2DestroyShape(shape->m_ShapeId);
+                b2DestroyShape(shape->m_ShapeId, false);
                 PolygonShapeData* poly_shape = (PolygonShapeData*) shape;
                 delete poly_shape;
             }
@@ -1162,6 +1192,8 @@ namespace dmPhysics
             f_def.friction = data.m_Friction;
             f_def.restitution = data.m_Restitution;
             f_def.isSensor = data.m_Type == COLLISION_OBJECT_TYPE_TRIGGER;
+            f_def.enableContactEvents = true;
+            f_def.enableHitEvents = true;
 
             b2ShapeId shape_id;
 
@@ -2096,8 +2128,8 @@ namespace dmPhysics
             case dmPhysics::JOINT_TYPE_SPRING:
                 {
                     params.m_SpringJointParams.m_Length =  b2DistanceJoint_GetLength(*joint_raw); // typed_joint->GetLength() * inv_scale;
-                    params.m_SpringJointParams.m_FrequencyHz = b2DistanceJoint_GetHertz(*joint_raw);
-                    params.m_SpringJointParams.m_DampingRatio = b2DistanceJoint_GetDampingRatio(*joint_raw);
+                    params.m_SpringJointParams.m_FrequencyHz = b2DistanceJoint_GetSpringHertz(*joint_raw);
+                    params.m_SpringJointParams.m_DampingRatio = b2DistanceJoint_GetSpringDampingRatio(*joint_raw);
                 }
                 break;
             case dmPhysics::JOINT_TYPE_FIXED:

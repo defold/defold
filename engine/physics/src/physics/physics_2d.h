@@ -62,7 +62,7 @@ namespace dmPhysics
     struct PolygonShapeData
     {
         ShapeData m_ShapeDataBase;
-        b2Vec2    m_VerticesOriginal[b2_maxPolygonVertices];
+        b2Vec2    m_VerticesOriginal[B2_MAX_POLYGON_VERTICES];
         b2Polygon m_Polygon;
     };
 
