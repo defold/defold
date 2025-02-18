@@ -265,10 +265,11 @@
           (let [drag-update-fn (fn [v update-val]
                                  (update v index #(properties/round-scalar (+ % update-val))))
                 children (if (seq label-text)
-                           [(doto (Label. label-text)
-                              (.setMinWidth Region/USE_PREF_SIZE)
-                              (make-label-draggable! (partial handle-label-drag-event! property-fn drag-update-fn update-ui-fn)))
-                            text-field]
+                           (let [label (doto (Label. label-text)
+                                         (.setMinWidth Region/USE_PREF_SIZE))]
+                             (when (properties/read-only? (property-fn))
+                               (make-label-draggable! label (partial handle-label-drag-event! property-fn drag-update-fn update-ui-fn)))
+                             [label text-field])
                            [text-field])
                 comp (doto (create-grid-pane children)
                        (GridPane/setConstraints index 0)
