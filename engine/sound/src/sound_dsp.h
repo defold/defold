@@ -247,8 +247,8 @@ static inline void ApplyClampedGain(float* out[], float* in[], uint32_t num, flo
     for(; num>3; num-=4)
     {
         vec4 sc_clamped = wasm_f32x4_pmin(wasm_f32x4_pmax(sc, zero), one);
-        *(vout_l++) = *(vin_l++) * sc_clamped;
-        *(vout_r++) = *(vin_r++) * sc_clamped;
+        *(vout_l++) += *(vin_l++) * sc_clamped;
+        *(vout_r++) += *(vin_r++) * sc_clamped;
         sc += scd;
     }
 
@@ -260,8 +260,8 @@ static inline void ApplyClampedGain(float* out[], float* in[], uint32_t num, flo
     for(; num>0; --num)
     {
         float scale_clamped = dmMath::Clamp(scale, 0.0f, 1.0f);
-        *(out_l++) = *(in_l++) * scale_clamped;
-        *(out_r++) = *(in_r++) * scale_clamped;
+        *(out_l++) += *(in_l++) * scale_clamped;
+        *(out_r++) += *(in_r++) * scale_clamped;
         scale += scale_delta;
     }
 }
@@ -692,8 +692,8 @@ static inline void ApplyClampedGain(float* out[], float* in[], uint32_t num, flo
     for(; num>3; num-=4)
     {
         vec4 sc_clamped = _mm_min_ps(_mm_max_ps(sc, zero), one);
-        *(vout_l++) = *(vin_l++) * sc_clamped;
-        *(vout_r++) = *(vin_r++) * sc_clamped;
+        *(vout_l++) += *(vin_l++) * sc_clamped;
+        *(vout_r++) += *(vin_r++) * sc_clamped;
         sc += scd;
     }
 
@@ -705,8 +705,8 @@ static inline void ApplyClampedGain(float* out[], float* in[], uint32_t num, flo
     for(; num>0; --num)
     {
         float scale_clamped = dmMath::Clamp(scale, 0.0f, 1.0f);
-        *(out_l++) = *(in_l++) * scale_clamped;
-        *(out_r++) = *(in_r++) * scale_clamped;
+        *(out_l++) += *(in_l++) * scale_clamped;
+        *(out_r++) += *(in_r++) * scale_clamped;
         scale += scale_delta;
     }
 }
@@ -1052,8 +1052,8 @@ static inline void ApplyClampedGain(float* out[], float* in[], uint32_t num, flo
         float scale_clamped = dmMath::Clamp(scale, 0.0f, 1.0f);
         float sl = *(in_l++);
         float sr = *(in_r++);
-        *(out_l++) = sl * scale_clamped;
-        *(out_r++) = sr * scale_clamped;
+        *(out_l++) += sl * scale_clamped;
+        *(out_r++) += sr * scale_clamped;
         scale += scale_delta;
     }
 }

@@ -1350,7 +1350,7 @@ namespace dmSound
                     uint32_t fc = frame_count;
                     for(uint32_t mi=missing_frames; mi > 0; --mi)
                     {
-                        decoder_output_buffer[fc] = last;
+                        decoder_output_buffer[fc++] = last;
                     }
                 }
                 frame_count += missing_frames;
