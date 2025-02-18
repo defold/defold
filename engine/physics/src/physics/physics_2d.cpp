@@ -142,6 +142,72 @@ namespace dmPhysics
     }
     */
 
+    struct HullSet
+    {
+        struct Hull
+        {
+            uint16_t m_Index;
+            uint16_t m_Count;
+        };
+
+        HullSet(const b2Vec2* vertices, uint32_t vertex_count,
+                  const Hull* hulls, uint32_t hull_count)
+        {
+            uint32_t vertices_size = vertex_count * sizeof(vertices[0]);
+            m_Vertices = (b2Vec2*) malloc(vertices_size);
+            memcpy(m_Vertices, vertices, vertices_size);
+            m_VertexCount = vertex_count;
+
+            uint32_t hulls_size = hull_count * sizeof(hulls[0]);
+            m_Hulls = (Hull*) malloc(hulls_size);
+            memcpy(m_Hulls, hulls, hulls_size);
+            m_HullCount = hull_count;
+        }
+
+        ~HullSet()
+        {
+            free(m_Vertices);
+            free(m_Hulls);
+        }
+
+        b2Vec2*   m_Vertices;
+        Hull*     m_Hulls;
+        uint32_t  m_VertexCount;
+        uint32_t  m_HullCount;
+
+    private:
+        HullSet(const HullSet&);
+        HullSet& operator=(const HullSet&);
+    };
+
+    struct RayCastContext
+    {
+        RayCastContext()
+        {
+            memset(this, 0, sizeof(RayCastContext));
+            m_CollisionMask = (uint16_t)~0u;
+            m_CollisionGroup = (uint16_t)~0u;
+        }
+
+        HContext2D                m_Context;
+        RayCastResponse           m_Response;
+        dmArray<RayCastResponse>* m_Results;
+        uint16_t                  m_CollisionMask;
+        uint16_t                  m_CollisionGroup;
+        void*                     m_IgnoredUserData;
+        uint8_t                   m_ReturnAllResults : 1;
+    };
+
+    static float cast_ray_cb(b2ShapeId shape_id, b2Vec2 point, b2Vec2 normal, float fraction, void* context );
+
+    template <typename T>
+    static inline uint64_t ToOpaqueHandle(T id)
+    {
+        uint64_t opaque_id;
+        memcpy(&opaque_id, &id, sizeof(id));
+        return opaque_id;
+    }
+
     HContext2D NewContext2D(const NewContextParams& params)
     {
         if (params.m_Scale < MIN_SCALE || params.m_Scale > MAX_SCALE)
@@ -232,25 +298,45 @@ namespace dmPhysics
         return (void*) collision_object;
     }
 
-    static dmArray<b2ShapeId>& GetShapeBuffer(HWorld2D world, b2BodyId body_id)
+    static dmArray<b2ContactData>& GetContactsBuffer(HWorld2D world, b2BodyId id)
     {
-        int shape_count = b2Body_GetShapeCount(body_id);
-
-        if (world->m_GetShapeScratchBuffer.Capacity() < shape_count)
+        int num_contacts = b2Body_GetContactCapacity(id);
+        if (world->m_GetContactsScratchBuffer.Capacity() < num_contacts)
         {
-            world->m_GetShapeScratchBuffer.SetCapacity(shape_count);
-            world->m_GetShapeScratchBuffer.SetSize(shape_count);
+            world->m_GetContactsScratchBuffer.SetCapacity(num_contacts);
         }
 
-        b2Body_GetShapes(body_id, world->m_GetShapeScratchBuffer.Begin(), world->m_GetShapeScratchBuffer.Size());
+        if (num_contacts > 0)
+        {
+            num_contacts = b2Body_GetContactData(id, world->m_GetContactsScratchBuffer.Begin(), num_contacts);
+        }
+
+        world->m_GetContactsScratchBuffer.SetSize(num_contacts);
+
+        return world->m_GetContactsScratchBuffer;
+    }
+
+    static dmArray<b2ShapeId>& GetShapeBuffer(HWorld2D world, b2BodyId body_id)
+    {
+        int num_shapes = b2Body_GetShapeCount(body_id);
+
+        if (world->m_GetShapeScratchBuffer.Capacity() < num_shapes)
+        {
+            world->m_GetShapeScratchBuffer.SetCapacity(num_shapes);
+        }
+
+        world->m_GetShapeScratchBuffer.SetSize(num_shapes);
+
+        if (num_shapes > 0)
+        {
+            num_shapes = b2Body_GetShapes(body_id, world->m_GetShapeScratchBuffer.Begin(), num_shapes);
+        }
         return world->m_GetShapeScratchBuffer;
     }
 
     static ShapeData* ShapeIdToShapeData(HWorld2D world, b2ShapeId shape_id)
     {
-        uint64_t opaque_id;
-        memcpy(&opaque_id, &shape_id, sizeof(shape_id));
-
+        uint64_t opaque_id = ToOpaqueHandle(shape_id);
         return *world->m_ShapeIdToShapeData.Get(opaque_id);
     }
 
@@ -346,11 +432,8 @@ namespace dmPhysics
 
     static void PutShapeIdToShapeData(HWorld2D world, b2ShapeId shape_id, ShapeData* shape_data)
     {
-        uint64_t opaque_id;
-        memcpy(&opaque_id, &shape_id, sizeof(shape_id));
-
+        uint64_t opaque_id = ToOpaqueHandle(shape_id);
         shape_data->m_ShapeId = shape_id;
-
         world->m_ShapeIdToShapeData.Put(opaque_id, shape_data);
     }
 
@@ -484,11 +567,11 @@ namespace dmPhysics
                 }
             }
         }
+        // Step simulation
         {
             DM_PROFILE("StepSimulation");
 
             // world->m_ContactListener.SetStepWorldContext(&step_context);
-            // world->m_World.Step(dt, 10, 10);
 
             b2World_Step(world->m_WorldId, dt, 10);
 
@@ -518,9 +601,11 @@ namespace dmPhysics
         {
             DM_PROFILE("RayCasts");
 
-            /*
-            ProcessRayCastResultCallback2D callback;
-            callback.m_Context = world->m_Context;
+            RayCastContext ray_cast_context;
+            ray_cast_context.m_Context = world->m_Context;
+
+            b2QueryFilter filter = b2DefaultQueryFilter();
+
             for (uint32_t i = 0; i < size; ++i)
             {
                 RayCastRequest& request = world->m_RayCastRequests[i];
@@ -528,13 +613,15 @@ namespace dmPhysics
                 ToB2(request.m_From, from, scale);
                 b2Vec2 to;
                 ToB2(request.m_To, to, scale);
-                callback.m_IgnoredUserData = request.m_IgnoredUserData;
-                callback.m_CollisionMask = request.m_Mask;
-                callback.m_Response.m_Hit = 0;
-                world->m_World.RayCast(&callback, from, to);
-                (*step_context.m_RayCastCallback)(callback.m_Response, request, step_context.m_RayCastUserData);
+
+                ray_cast_context.m_IgnoredUserData = request.m_IgnoredUserData;
+                ray_cast_context.m_CollisionMask = request.m_Mask;
+                ray_cast_context.m_Response.m_Hit = 0;
+
+                b2World_CastRay(world->m_WorldId, from, to, filter, cast_ray_cb, &ray_cast_context);
+                (*step_context.m_RayCastCallback)(ray_cast_context.m_Response, request, step_context.m_RayCastUserData);
             }
-            */
+
             world->m_RayCastRequests.SetSize(0);
         }
 
@@ -545,23 +632,28 @@ namespace dmPhysics
         {
             DM_PROFILE("CollisionCallbacks");
 
-            /*
-            for (b2Contact* contact = world->m_World.GetContactList(); contact; contact = contact->GetNext())
+            for (int i=0; i < world->m_Bodies.Size(); ++i)
             {
-                b2Fixture* fixture_a = contact->GetFixtureA();
-                b2Fixture* fixture_b = contact->GetFixtureB();
-                if (contact->IsTouching() && (fixture_a->IsSensor() || fixture_b->IsSensor()))
+                b2BodyId id = world->m_Bodies[i];
+                dmArray<b2ContactData>& contacts = GetContactsBuffer(world, id);
+
+                for (int j = 0; j < contacts.Size(); ++j)
                 {
-                    int32_t index_a = contact->GetChildIndexA();
-                    int32_t index_b = contact->GetChildIndexB();
-                    step_context.m_CollisionCallback(fixture_a->GetUserData(),
-                                                fixture_a->GetFilterData(index_a).categoryBits,
-                                                fixture_b->GetUserData(),
-                                                fixture_b->GetFilterData(index_b).categoryBits,
-                                                step_context.m_CollisionUserData);
+                    b2ContactData event = contacts[j];
+                    b2ShapeId shapeIdA = event.shapeIdA;
+                    b2ShapeId shapeIdB = event.shapeIdB;
+
+                    if (b2Shape_IsSensor(shapeIdA) || b2Shape_IsSensor(shapeIdB))
+                    {
+                        continue;
+                    }
+
+                    step_context.m_CollisionCallback(
+                        b2Shape_GetUserData(shapeIdA), b2Shape_GetFilter(shapeIdA).categoryBits,
+                        b2Shape_GetUserData(shapeIdB), b2Shape_GetFilter(shapeIdB).categoryBits,
+                        step_context.m_CollisionUserData);
                 }
             }
-            */
         }
 
         UpdateOverlapCache(&world->m_TriggerOverlaps, context, world, contact_events, step_context);
@@ -580,19 +672,11 @@ namespace dmPhysics
         for (int i=0; i < world->m_Bodies.Size(); ++i)
         {
             b2BodyId id = world->m_Bodies[i];
+            dmArray<b2ContactData>& contacts = GetContactsBuffer(world, id);
 
-            int num_contacts = b2Body_GetContactCapacity(id);
-            if (world->m_GetContactsScratchBuffer.Capacity() < num_contacts)
+            for (int j = 0; j < contacts.Size(); ++j)
             {
-                world->m_GetContactsScratchBuffer.SetCapacity(num_contacts);
-                world->m_GetContactsScratchBuffer.SetSize(num_contacts);
-            }
-
-            b2Body_GetContactData(id, world->m_GetContactsScratchBuffer.Begin(), num_contacts);
-
-            for (int j = 0; j < num_contacts; ++j)
-            {
-                b2ContactData event = world->m_GetContactsScratchBuffer[j];
+                b2ContactData event = contacts[j];
                 b2ShapeId shapeIdA = event.shapeIdA;
                 b2ShapeId shapeIdB = event.shapeIdB;
 
@@ -619,13 +703,8 @@ namespace dmPhysics
 
                     add_data.m_UserDataA = b2Body_GetUserData(body_a);
                     add_data.m_UserDataB = b2Body_GetUserData(body_b);
-
-                    /* what to do about this nonsense?
-                    int32_t index_a = contact->GetChildIndexA();
-                    int32_t index_b = contact->GetChildIndexB();
-                    add_data.m_GroupA = fixture_a->GetFilterData(index_a).categoryBits;
-                    add_data.m_GroupB = fixture_b->GetFilterData(index_b).categoryBits;
-                    */
+                    add_data.m_GroupA = b2Shape_GetFilter(shapeIdA).categoryBits;
+                    add_data.m_GroupB = b2Shape_GetFilter(shapeIdB).categoryBits;
 
                     OverlapCacheAdd(cache, add_data);
                 }
@@ -640,14 +719,11 @@ namespace dmPhysics
 
     void SetDrawDebug2D(HWorld2D world, bool draw_debug)
     {
-        int flags = 0;
         /*
-        if (draw_debug)
-        {
-            flags = b2Draw::e_jointBit | b2Draw::e_pairBit | b2Draw::e_shapeBit;
-        }
-
-        world->m_DebugDraw.SetFlags(flags);
+        world->m_DebugDraw.m_DebugDraw.drawJoints          = draw_debug;
+        world->m_DebugDraw.m_DebugDraw.drawShapes          = draw_debug;
+        world->m_DebugDraw.m_DebugDraw.drawContactNormals  = draw_debug;
+        world->m_DebugDraw.m_DebugDraw.drawContactImpulses = draw_debug;
         */
     }
 
@@ -699,21 +775,18 @@ namespace dmPhysics
     HHullSet2D NewHullSet2D(HContext2D context, const float* vertices, uint32_t vertex_count,
                             const HullDesc* hulls, uint32_t hull_count)
     {
-        /*
-        assert(sizeof(HullDesc) == sizeof(const b2HullSet::Hull));
-        // NOTE: We cast HullDesc* to const b2HullSet::Hull* here
+        assert(sizeof(HullDesc) == sizeof(const HullSet::Hull));
+        // NOTE: We cast HullDesc* to const HullSet::Hull* here
         // We assume that they have the same physical layout
         // NOTE: No scaling of the vertices here since they are already assumed to be in a virtual "unit-space"
-        b2HullSet* hull_set = new b2HullSet((const b2Vec2*) vertices, vertex_count,
-                             (const b2HullSet::Hull*) hulls, hull_count);
+        HullSet* hull_set = new HullSet((const b2Vec2*) vertices, vertex_count,
+                             (const HullSet::Hull*) hulls, hull_count);
         return hull_set;
-        */
-        return 0;
     }
 
     void DeleteHullSet2D(HHullSet2D hull_set)
     {
-        // delete (b2HullSet*) hull_set;
+        delete (HullSet*) hull_set;
     }
 
     HCollisionShape2D NewGridShape2D(HContext2D context, HHullSet2D hull_set,
@@ -725,7 +798,7 @@ namespace dmPhysics
         float scale = context->m_Scale;
         b2Vec2 p;
         ToB2(position, p, scale);
-        return new b2GridShape((b2HullSet*) hull_set, p, cell_width * scale, cell_height * scale, row_count, column_count);
+        return new b2GridShape((HullSet*) hull_set, p, cell_width * scale, cell_height * scale, row_count, column_count);
         */
         return 0;
     }
@@ -748,16 +821,6 @@ namespace dmPhysics
     }
 
     /*
-    static inline b2Fixture* GetFixture(b2Body* body, uint32_t index)
-    {
-        b2Fixture* fixture = body->GetFixtureList();
-        for (uint32_t i = 0; i < index && fixture != 0x0; ++i)
-        {
-            fixture = fixture->GetNext();
-        }
-        return fixture;
-    }
-
     static inline b2GridShape* GetGridShape(b2Body* body, uint32_t index)
     {
         b2Fixture* fixture = GetFixture(body, index);
@@ -814,10 +877,14 @@ namespace dmPhysics
         return false;
     }
 
-    void SetCollisionObjectFilter(HCollisionObject2D collision_shape,
+    void SetCollisionObjectFilter(HWorld2D world, HCollisionObject2D collision_object,
                                   uint32_t shape, uint32_t child,
                                   uint16_t group, uint16_t mask)
     {
+        b2BodyId* body_id = (b2BodyId*) collision_object;
+        dmArray<b2ShapeId>& shapes = GetShapeBuffer(world, *body_id);
+        b2ShapeId shape_id = shapes[shape];
+
         /*
         b2Fixture* fixture = GetFixture((b2Body*) collision_shape, shape);
         b2Filter filter = fixture->GetFilterData(child);
@@ -827,9 +894,21 @@ namespace dmPhysics
         */
     }
 
-    void DeleteCollisionShape2D(HCollisionShape2D shape)
+    void DeleteCollisionShape2D(HCollisionShape2D _shape)
     {
-        // delete (b2Shape*)shape;
+        ShapeData* shape = (ShapeData*) _shape;
+
+        switch (shape->m_Type)
+        {
+            case b2_circleShape:
+                delete (CircleShapeData*) shape;
+                break;
+            case b2_polygonShape:
+                delete (PolygonShapeData*) shape;
+                break;
+            default:
+                assert(false);
+        }
     }
 
     HCollisionObject2D NewCollisionObject2D(HWorld2D world, const CollisionObjectData& data, HCollisionShape2D* shapes, uint32_t shape_count)
@@ -894,6 +973,7 @@ namespace dmPhysics
 
                 circle_shape_prim->m_ShapeDataBase.m_Type = shape->m_Type;
                 circle_shape_prim->m_Circle.center        = TransformScaleB2(transform, scale, circle_shape->m_Circle.center);
+                circle_shape_prim->m_Circle.radius        = circle_shape->m_Circle.radius;
 
                 if (context->m_AllowDynamicTransforms)
                 {
@@ -908,9 +988,9 @@ namespace dmPhysics
             {
                 PolygonShapeData* poly_shape = (PolygonShapeData*) shape;
                 PolygonShapeData* poly_shape_prim = new PolygonShapeData;
-                poly_shape_prim->m_ShapeDataBase.m_Type = shape->m_Type;
+                memcpy(poly_shape_prim, poly_shape, sizeof(PolygonShapeData));
 
-                b2Vec2 tmp[b2_maxPolygonVertices];
+                b2Vec2 tmp[b2_maxPolygonVertices] = {};
                 int32_t n = poly_shape->m_Polygon.count;
                 for (int32_t i = 0; i < n; ++i)
                 {
@@ -918,7 +998,7 @@ namespace dmPhysics
                 }
 
                 b2Hull polygon_hull = b2ComputeHull(tmp, n);
-                poly_shape_prim->m_Polygon = b2MakePolygon(&polygon_hull, 1.0f);
+                poly_shape_prim->m_Polygon = b2MakePolygon(&polygon_hull, 0.0f);
 
                 ret = (ShapeData*) poly_shape_prim;
             } break;
@@ -964,29 +1044,31 @@ namespace dmPhysics
         return ret;
     }
 
-    /*
-    static void FreeShape(const b2Shape* shape)
+    static void FreeShape(ShapeData* shape)
     {
-        switch(shape->m_type)
+        switch(shape->m_Type)
         {
-        case b2Shape::e_circle:
-        {
-            b2CircleShape* circle_shape = (b2CircleShape*) shape;
-            delete circle_shape;
-        }
-        break;
+            case b2_circleShape:
+            {
+                b2DestroyShape(shape->m_ShapeId);
+                CircleShapeData* circle_shape = (CircleShapeData*) shape;
+                delete circle_shape;
+            }
+            break;
 
+            case b2_polygonShape:
+            {
+                b2DestroyShape(shape->m_ShapeId);
+                PolygonShapeData* poly_shape = (PolygonShapeData*) shape;
+                delete poly_shape;
+            }
+            break;
+
+        /*
         case b2Shape::e_edge:
         {
             b2EdgeShape* edge_shape = (b2EdgeShape*) shape;
             delete edge_shape;
-        }
-        break;
-
-        case b2Shape::e_polygon:
-        {
-            b2Polygon* poly_shape = (b2Polygon*) shape;
-            delete poly_shape;
         }
         break;
 
@@ -996,13 +1078,13 @@ namespace dmPhysics
             delete grid_shape;
         }
         break;
+        */
 
         default:
             // pass
             break;
         }
     }
-    */
 
     /*
      * NOTE: In order to support shape transform we create a copy of shapes using the function TransformCopyShape() above
@@ -1110,6 +1192,8 @@ namespace dmPhysics
 
             b2ShapeId shape_id;
 
+            PolygonShapeData* p_tmp = 0;
+
             switch (s->m_Type)
             {
                 case b2_circleShape:
@@ -1121,6 +1205,7 @@ namespace dmPhysics
                 {
                     PolygonShapeData* p = (PolygonShapeData*) s;
                     shape_id = b2CreatePolygonShape(bodyId, &f_def, &p->m_Polygon);
+                    p_tmp = p;
                 } break;
                 default:assert(0);
             }
@@ -1128,11 +1213,10 @@ namespace dmPhysics
             PutShapeIdToShapeData(world, shape_id, s);
         }
 
-        // TODO: Reuse old slots
-        // if (world->m_Bodies.Full())
-        // {
-        //     world->m_Bodies.OffsetCapacity(32);
-        // }
+        if (world->m_Bodies.Full())
+        {
+            world->m_Bodies.OffsetCapacity(32);
+        }
 
         world->m_Bodies.Push(bodyId);
 
@@ -1140,7 +1224,7 @@ namespace dmPhysics
         b2BodyId* id = new b2BodyId();
         *id = bodyId;
 
-        UpdateMass2D(id, data.m_Mass);
+        UpdateMass2D(world, id, data.m_Mass);
         return id;
     }
 
@@ -1152,41 +1236,48 @@ namespace dmPhysics
         // See comment above about shapes and transforms
 
         b2BodyId* id = (b2BodyId*) collision_object;
-        uint64_t opaque_id;
-        memcpy(&opaque_id, id, sizeof(*id));
+        uint64_t opaque_id = ToOpaqueHandle(*id);
 
         OverlapCacheRemove(&world->m_TriggerOverlaps, opaque_id);
 
-        /*
-        b2Body* body = (b2Body*)collision_object;
-        b2Fixture* fixture = body->GetFixtureList();
-        while (fixture)
-        {
-            // We must save next fixture. The next pointer is set to null in DestoryFixture()
-            b2Fixture* save_next = fixture->GetNext();
+        b2BodyId* body_id = (b2BodyId*) collision_object;
 
-            b2Shape* shape = fixture->GetShape();
-            body->DestroyFixture(fixture);
-            FreeShape(shape); // NOTE: shape can't be freed prior to DestroyFixture
-            fixture = save_next;
+        dmArray<b2ShapeId>& shapes = GetShapeBuffer(world, *body_id);
+
+        for (int i = 0; i < shapes.Size(); ++i)
+        {
+            ShapeData* shape = ShapeIdToShapeData(world, shapes[i]);
+            FreeShape(shape);
+
+            uint64_t opaque_shape_id = ToOpaqueHandle(shapes[i]);
+            world->m_ShapeIdToShapeData.Erase(opaque_shape_id);
         }
-        world->m_World.DestroyBody(body);
-        */
+
+        b2DestroyBody(*id);
+
+        uint32_t num_bodies = world->m_Bodies.Size();
+        for (int i = 0; i < num_bodies; ++i)
+        {
+            uint64_t opaque_id_other = ToOpaqueHandle(world->m_Bodies[i]);
+            if (opaque_id == opaque_id_other)
+            {
+                world->m_Bodies.EraseSwap(i);
+                break;
+            }
+        }
     }
 
-    uint32_t GetCollisionShapes2D(HCollisionObject2D collision_object, HCollisionShape2D* out_buffer, uint32_t buffer_size)
+    uint32_t GetCollisionShapes2D(HWorld2D world, HCollisionObject2D collision_object, HCollisionShape2D* out_buffer, uint32_t buffer_size)
     {
-        /*
-        b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
-        uint32_t i;
-        for (i = 0; i < buffer_size && fixture != 0x0; ++i)
+        b2BodyId* id = (b2BodyId*) collision_object;
+        dmArray<b2ShapeId>& shapes = GetShapeBuffer(world, *id);
+
+        uint32_t size = dmMath::Min(buffer_size, shapes.Size());
+        for (uint32_t i = 0; i < size; ++i)
         {
-            out_buffer[i] = fixture->GetShape();
-            fixture = fixture->GetNext();
+            out_buffer[i] = ShapeIdToShapeData(world, shapes[i]);
         }
-        return i;
-        */
-        return 0;
+        return size;
     }
 
     HCollisionShape2D GetCollisionShape2D(HWorld2D world, HCollisionObject2D collision_object, uint32_t shape_index)
@@ -1222,41 +1313,56 @@ namespace dmPhysics
 
     void SetCollisionShapeBoxDimensions2D(HWorld2D world, HCollisionShape2D _shape, Quat rotation, float w, float h)
     {
-        /*
-        b2Shape* shape = (b2Shape*) _shape;
-        if (shape->m_type == b2Shape::e_polygon)
+        ShapeData* shape = (ShapeData*) _shape;
+
+        if (shape->m_Type == b2_polygonShape)
         {
             float angle = atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()), 1.0f - 2.0f * (rotation.getY() * rotation.getY() + rotation.getZ() * rotation.getZ()));
-            b2Polygon* polygon_shape = (b2Polygon*) _shape;
             float scale = world->m_Context->m_Scale;
-            polygon_shape->SetAsBox(w * scale, h * scale, polygon_shape->centroid, angle);
-            for (int32_t i = 0; i < polygon_shape->count; ++i)
+
+            PolygonShapeData* polygon = (PolygonShapeData*) shape;
+            b2Vec2 centroid = polygon->m_Polygon.centroid;
+            polygon->m_Polygon = b2MakeBox(w * scale, h * scale);
+
+            b2Transform transform;
+            transform.p = centroid;
+            transform.q = b2MakeRot(angle);
+
+            for (int i = 0; i < polygon->m_Polygon.count; ++i)
             {
-                polygon_shape->m_verticesOriginal[i] = polygon_shape->vertices[i];
+                polygon->m_Polygon.vertices[i] = b2TransformPoint(transform, polygon->m_Polygon.vertices[i]);
+                polygon->m_Polygon.normals[i] = b2RotateVector(transform.q, polygon->m_Polygon.normals[i]);
             }
+
+            memcpy(polygon->m_VerticesOriginal, polygon->m_Polygon.vertices, sizeof(b2Vec2) * polygon->m_Polygon.count);
         }
-        */
     }
 
     void GetCollisionShapeBoxDimensions2D(HWorld2D world, HCollisionShape2D _shape, Quat rotation, float& w, float& h)
     {
-        /*
-        b2Shape* shape = (b2Shape*) _shape;
-        if (shape->m_type == b2Shape::e_polygon)
+        ShapeData* shape = (ShapeData*) _shape;
+
+        if (shape->m_Type == b2_polygonShape)
         {
             b2Vec2 t;
             ToB2(Vector3(0), t, world->m_Context->m_Scale);
             b2Rot r;
-            r.SetComplex(1 - 2 * rotation.getZ() * rotation.getZ(), 2 * rotation.getZ() * rotation.getW());
-            b2Transform transform(t, r);
-            b2Polygon* polygon_shape = (b2Polygon*) _shape;
-            b2Vec2* vertices = polygon_shape->m_vertices;
+
+            r.c = 1 - 2 * rotation.getZ() * rotation.getZ();
+            r.s = 2 * rotation.getX() * rotation.getY();
+
+            b2Transform transform;
+            transform.p = t;
+            transform.q = r;
+
+            PolygonShapeData* polygon_shape = (PolygonShapeData*) shape;
+            b2Vec2* vertices = polygon_shape->m_Polygon.vertices;
             float min_x = INT32_MAX,
-              min_y = INT32_MAX,
-              max_x = -INT32_MAX,
-              max_y = -INT32_MAX;
+                  min_y = INT32_MAX,
+                  max_x = -INT32_MAX,
+                  max_y = -INT32_MAX;
             float inv_scale = world->m_Context->m_InvScale;
-            for (int i = 0; i < polygon_shape->GetVertexCount(); i += 1)
+            for (int i = 0; i < polygon_shape->m_Polygon.count; i += 1)
             {
                 b2Vec2 v1 = FromTransformScaleB2(transform, inv_scale, vertices[i]);
                 min_x = dmMath::Min(min_x, v1.x);
@@ -1267,7 +1373,6 @@ namespace dmPhysics
             w = (max_x - min_x);
             h = (max_y - min_y);
         }
-        */
     }
 
     void SetCollisionObjectUserData2D(HCollisionObject2D collision_object, void* user_data)
@@ -1460,54 +1565,91 @@ namespace dmPhysics
         b2Body_SetBullet(*body_id, value);
     }
 
-    void SetGroup2D(HCollisionObject2D collision_object, uint16_t groupbit) {
-        /*
-        b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
-        while (fixture) {
-            // do sth with the fixture
-            if (fixture->GetType() != b2Shape::e_grid) {
-                b2Filter filter = fixture->GetFilterData(0); // all non-grid shapes have only one filter item indexed at position 0
+    void SetGroup2D(HWorld2D world, HCollisionObject2D collision_object, uint16_t groupbit)
+    {
+        b2BodyId* body_id = (b2BodyId*) collision_object;
+        dmArray<b2ShapeId>& shapes = GetShapeBuffer(world, *body_id);
+
+        for (int i = 0; i < shapes.Size(); ++i)
+        {
+            b2ShapeId shape_id = shapes[i];
+
+            // TODO: Grid shape..
+            // ShapeData* shape = ShapeIdToShapeData(world, shape_id);
+            // if (shape->m_Type != )
+            {
+                b2Filter filter = b2Shape_GetFilter(shape_id);
                 filter.categoryBits = groupbit;
-                fixture->SetFilterData(filter, 0);
+                b2Shape_SetFilter(shape_id, filter);
             }
-            fixture = fixture->GetNext();   // NOTE: No guard condition in loop. Assumes proper state of Box2D fixture list.
         }
-        */
     }
 
-    uint16_t GetGroup2D(HCollisionObject2D collision_object) {
-        /*
-        b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
-        if (fixture) {
-            if (fixture->GetType() != b2Shape::e_grid) {
-                b2Filter filter = fixture->GetFilterData(0);
-                return filter.categoryBits;
+    uint16_t GetGroup2D(HWorld2D world, HCollisionObject2D collision_object)
+    {
+        b2BodyId* body_id = (b2BodyId*) collision_object;
+        dmArray<b2ShapeId>& shapes = GetShapeBuffer(world, *body_id);
+
+        for (int i = 0; i < shapes.Size(); ++i)
+        {
+            b2ShapeId shape_id = shapes[i];
+
+            // TODO: Grid shape..
+            // ShapeData* shape = ShapeIdToShapeData(world, shape_id);
+            // if (shape->m_Type != )
+            {
+                return b2Shape_GetFilter(shape_id).categoryBits;
             }
         }
-        */
         return 0;
     }
 
     // updates a specific group bit of a collision object's current mask
-    void SetMaskBit2D(HCollisionObject2D collision_object, uint16_t groupbit, bool boolvalue) {
-        /*
-        b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
-        while (fixture) {
-            // do sth with the fixture
-            if (fixture->GetType() != b2Shape::e_grid) {
-                b2Filter filter = fixture->GetFilterData(0); // all non-grid shapes have only one filter item indexed at position 0
+    void SetMaskBit2D(HWorld2D world, HCollisionObject2D collision_object, uint16_t groupbit, bool boolvalue)
+    {
+        b2BodyId* body_id = (b2BodyId*) collision_object;
+        dmArray<b2ShapeId>& shapes = GetShapeBuffer(world, *body_id);
+
+        for (int i = 0; i < shapes.Size(); ++i)
+        {
+            b2ShapeId shape_id = shapes[i];
+
+            // TODO: Grid shape..
+            // ShapeData* shape = ShapeIdToShapeData(world, shape_id);
+            // if (shape->m_Type != )
+            {
+                b2Filter filter = b2Shape_GetFilter(shape_id); // fixture->GetFilterData(0); // all non-grid shapes have only one filter item indexed at position 0
                 if (boolvalue)
                     filter.maskBits |= groupbit;
                 else
                     filter.maskBits &= ~groupbit;
-                fixture->SetFilterData(filter, 0);
+
+                b2Shape_SetFilter(shape_id, filter);
             }
-            fixture = fixture->GetNext();
         }
-        */
     }
 
-    bool UpdateMass2D(HCollisionObject2D collision_object, float mass)
+    bool GetMaskBit2D(HWorld2D world, HCollisionObject2D collision_object, uint16_t groupbit)
+    {
+        b2BodyId* body_id = (b2BodyId*) collision_object;
+        dmArray<b2ShapeId>& shapes = GetShapeBuffer(world, *body_id);
+
+        for (int i = 0; i < shapes.Size(); ++i)
+        {
+            b2ShapeId shape_id = shapes[i];
+
+            // TODO: Grid shape..
+            // ShapeData* shape = ShapeIdToShapeData(world, shape_id);
+            // if (shape->m_Type != )
+            {
+                b2Filter filter = b2Shape_GetFilter(shape_id);
+                return !!(filter.maskBits & groupbit);
+            }
+        }
+        return false;
+    }
+
+    bool UpdateMass2D(HWorld2D world, HCollisionObject2D collision_object, float mass)
     {
         b2BodyId* body_id = (b2BodyId*) collision_object;
 
@@ -1549,20 +1691,6 @@ namespace dmPhysics
         */
     }
 
-    bool GetMaskBit2D(HCollisionObject2D collision_object, uint16_t groupbit) {
-        /*
-        b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
-        if (fixture) {
-            if (fixture->GetType() != b2Shape::e_grid) {
-                b2Filter filter = fixture->GetFilterData(0);
-                return !!(filter.maskBits & groupbit);
-            }
-        }
-        return false;
-        */
-        return false;
-    }
-
     void RequestRayCast2D(HWorld2D world, const RayCastRequest& request)
     {
         if (!world->m_RayCastRequests.Full())
@@ -1593,24 +1721,6 @@ namespace dmPhysics
             return 0;
         return diff < 0 ? -1 : 1;
     }
-
-    struct RayCastContext
-    {
-        RayCastContext()
-        {
-            memset(this, 0, sizeof(RayCastContext));
-            m_CollisionMask = (uint16_t)~0u;
-            m_CollisionGroup = (uint16_t)~0u;
-        }
-
-        HContext2D                m_Context;
-        RayCastResponse           m_Response;
-        dmArray<RayCastResponse>* m_Results;
-        uint16_t                  m_CollisionMask;
-        uint16_t                  m_CollisionGroup;
-        void*                     m_IgnoredUserData;
-        uint8_t                   m_ReturnAllResults : 1;
-    };
 
     static float cast_ray_cb(b2ShapeId shape_id, b2Vec2 point, b2Vec2 normal, float fraction, void* context )
     {
@@ -1726,8 +1836,33 @@ namespace dmPhysics
 
     void ReplaceShape2D(HContext2D context, HCollisionShape2D old_shape, HCollisionShape2D new_shape)
     {
+        ShapeData* old_shape_data = (ShapeData*) old_shape;
+        ShapeData* new_shape_data = (ShapeData*) new_shape;
+
+        uint64_t old_shape_h = ToOpaqueHandle(old_shape_data->m_ShapeId);
+
         for (uint32_t i = 0; i < context->m_Worlds.Size(); ++i)
         {
+            World2D* world = context->m_Worlds[i];
+
+            for (int j = 0; j < world->m_Bodies.Size(); ++j)
+            {
+                b2BodyId body_id = world->m_Bodies[j];
+
+                dmArray<b2ShapeId>& shapes = GetShapeBuffer(world, body_id);
+
+                for (int s = 0; s < shapes.Size(); ++s)
+                {
+                    uint64_t shape_h = ToOpaqueHandle(shapes[s]);
+
+                    if (shape_h == old_shape_h)
+                    {
+                        // Err not sure what to do here
+                        assert(0);
+                    }
+                }
+            }
+
             /*
             for (b2Body* body = context->m_Worlds[i]->m_World.GetBodyList(); body; body = body->GetNext())
             {
@@ -1793,45 +1928,47 @@ namespace dmPhysics
         b2Vec2 pb;
         ToB2(pos_b, pb, scale);
 
-        /*
+        b2BodyId* b2_obj_a = (b2BodyId*) obj_a;
+        b2BodyId* b2_obj_b = (b2BodyId*) obj_b;
 
-        b2Joint* joint = 0x0;
-        b2Body* b2_obj_a = (b2Body*)obj_a;
-        b2Body* b2_obj_b = (b2Body*)obj_b;
+        b2JointId joint = {};
 
         switch (type)
         {
             case dmPhysics::JOINT_TYPE_SPRING:
                 {
                     b2DistanceJointDef jointDef;
-                    jointDef.bodyA            = b2_obj_a;
-                    jointDef.bodyB            = b2_obj_b;
+                    jointDef.bodyIdA          = *b2_obj_a;
+                    jointDef.bodyIdB          = *b2_obj_b;
                     jointDef.localAnchorA     = pa;
                     jointDef.localAnchorB     = pb;
                     jointDef.length           = params.m_SpringJointParams.m_Length * scale;
-                    jointDef.frequencyHz      = params.m_SpringJointParams.m_FrequencyHz;
+                    jointDef.hertz            = params.m_SpringJointParams.m_FrequencyHz;
                     jointDef.dampingRatio     = params.m_SpringJointParams.m_DampingRatio;
                     jointDef.collideConnected = params.m_CollideConnected;
-                    joint = world->m_World.CreateJoint(&jointDef);
+
+                    joint = b2CreateDistanceJoint(world->m_WorldId, &jointDef);
                 }
                 break;
             case dmPhysics::JOINT_TYPE_FIXED:
                 {
+                    /*
                     b2RopeJointDef jointDef;
-                    jointDef.bodyA            = b2_obj_a;
-                    jointDef.bodyB            = b2_obj_b;
+                    jointDef.bodyIdA            = *b2_obj_a;
+                    jointDef.bodyIdB            = *b2_obj_b;
                     jointDef.localAnchorA     = pa;
                     jointDef.localAnchorB     = pb;
                     jointDef.maxLength        = params.m_FixedJointParams.m_MaxLength * scale;
                     jointDef.collideConnected = params.m_CollideConnected;
                     joint = world->m_World.CreateJoint(&jointDef);
+                    */
                 }
                 break;
             case dmPhysics::JOINT_TYPE_HINGE:
                 {
                     b2RevoluteJointDef jointDef;
-                    jointDef.bodyA            = b2_obj_a;
-                    jointDef.bodyB            = b2_obj_b;
+                    jointDef.bodyIdA          = *b2_obj_a;
+                    jointDef.bodyIdB          = *b2_obj_b;
                     jointDef.localAnchorA     = pa;
                     jointDef.localAnchorB     = pb;
                     jointDef.referenceAngle   = params.m_HingeJointParams.m_ReferenceAngle;
@@ -1842,14 +1979,14 @@ namespace dmPhysics
                     jointDef.enableLimit      = params.m_HingeJointParams.m_EnableLimit;
                     jointDef.enableMotor      = params.m_HingeJointParams.m_EnableMotor;
                     jointDef.collideConnected = params.m_CollideConnected;
-                    joint = world->m_World.CreateJoint(&jointDef);
+                    joint = b2CreateRevoluteJoint(world->m_WorldId, &jointDef);
                 }
                 break;
             case dmPhysics::JOINT_TYPE_SLIDER:
                 {
                     b2PrismaticJointDef jointDef;
-                    jointDef.bodyA            = b2_obj_a;
-                    jointDef.bodyB            = b2_obj_b;
+                    jointDef.bodyIdA          = *b2_obj_a;
+                    jointDef.bodyIdB          = *b2_obj_b;
                     jointDef.localAnchorA     = pa;
                     jointDef.localAnchorB     = pb;
                     b2Vec2 axis;
@@ -1864,28 +2001,30 @@ namespace dmPhysics
                     jointDef.maxMotorForce    = params.m_SliderJointParams.m_MaxMotorForce * scale;
                     jointDef.motorSpeed       = params.m_SliderJointParams.m_MotorSpeed;
                     jointDef.collideConnected = params.m_CollideConnected;
-                    joint = world->m_World.CreateJoint(&jointDef);
+                    joint = b2CreatePrismaticJoint(world->m_WorldId, &jointDef);
                 }
                 break;
             case dmPhysics::JOINT_TYPE_WELD:
                 {
                     b2WeldJointDef jointDef;
-                    jointDef.bodyA            = b2_obj_a;
-                    jointDef.bodyB            = b2_obj_b;
+                    jointDef.bodyIdA          = *b2_obj_a;
+                    jointDef.bodyIdB          = *b2_obj_b;
                     jointDef.localAnchorA     = pa;
                     jointDef.localAnchorB     = pb;
                     jointDef.referenceAngle   = params.m_WeldJointParams.m_ReferenceAngle;
-                    jointDef.frequencyHz      = params.m_WeldJointParams.m_FrequencyHz;
-                    jointDef.dampingRatio     = params.m_WeldJointParams.m_DampingRatio;
-                    jointDef.collideConnected = params.m_CollideConnected;
-                    joint = world->m_World.CreateJoint(&jointDef);
+                    jointDef.linearHertz      = params.m_WeldJointParams.m_FrequencyHz;
+                    // todo: angularHertz?
+                    jointDef.linearDampingRatio = params.m_WeldJointParams.m_DampingRatio;
+                    // todo: angularDampingRatio?
+                    jointDef.collideConnected   = params.m_CollideConnected;
+                    joint = b2CreateWeldJoint(world->m_WorldId, &jointDef);
                 }
                 break;
             case dmPhysics::JOINT_TYPE_WHEEL:
                 {
                     b2WheelJointDef jointDef;
-                    jointDef.bodyA            = b2_obj_a;
-                    jointDef.bodyB            = b2_obj_b;
+                    jointDef.bodyIdA            = *b2_obj_a;
+                    jointDef.bodyIdB            = *b2_obj_b;
                     jointDef.localAnchorA     = pa;
                     jointDef.localAnchorB     = pb;
                     b2Vec2 axis;
@@ -1895,77 +2034,77 @@ namespace dmPhysics
                     jointDef.maxMotorTorque   = params.m_WheelJointParams.m_MaxMotorTorque;
                     jointDef.motorSpeed       = params.m_WheelJointParams.m_MotorSpeed;
                     jointDef.enableMotor      = params.m_WheelJointParams.m_EnableMotor;
-                    jointDef.frequencyHz      = params.m_WheelJointParams.m_FrequencyHz;
+                    jointDef.hertz            = params.m_WheelJointParams.m_FrequencyHz;
                     jointDef.dampingRatio     = params.m_WheelJointParams.m_DampingRatio;
                     jointDef.collideConnected = params.m_CollideConnected;
-                    joint = world->m_World.CreateJoint(&jointDef);
+
+                    joint = b2CreateWheelJoint(world->m_WorldId, &jointDef);
                 }
                 break;
             default:
                 return 0x0;
         }
 
-        return joint;
-        */
-        return 0;
+        // TODO: I think we can pack/unpack this into uintptr + void instead
+        b2JointId* joint_raw = new b2JointId();
+        *joint_raw = joint;
+
+        return joint_raw;
     }
 
     bool SetJointParams2D(HWorld2D world, HJoint joint, dmPhysics::JointType type, const ConnectJointParams& params)
     {
         float scale = world->m_Context->m_Scale;
 
-        /*
+        b2JointId* joint_raw = (b2JointId*) joint;
+
         switch (type)
         {
             case dmPhysics::JOINT_TYPE_SPRING:
                 {
-                    b2DistanceJoint* typed_joint = (b2DistanceJoint*)joint;
-                    typed_joint->SetLength(params.m_SpringJointParams.m_Length * scale);
-                    typed_joint->SetFrequency(params.m_SpringJointParams.m_FrequencyHz);
-                    typed_joint->SetDampingRatio(params.m_SpringJointParams.m_DampingRatio);
+                    b2DistanceJoint_SetLength(*joint_raw, params.m_SpringJointParams.m_Length * scale);
+                    b2DistanceJoint_SetSpringHertz(*joint_raw, params.m_SpringJointParams.m_FrequencyHz);
+                    b2DistanceJoint_SetSpringDampingRatio(*joint_raw, params.m_SpringJointParams.m_DampingRatio);
                 }
                 break;
             case dmPhysics::JOINT_TYPE_FIXED:
                 {
-                    b2RopeJoint* typed_joint = (b2RopeJoint*)joint;
-                    typed_joint->SetMaxLength(params.m_FixedJointParams.m_MaxLength * scale);
+                    // I think this is a distance joint?
+                    // b2DistanceJoint_SetLengthRange( b2JointId jointId, float minLength, float maxLength );
+                    // typed_joint->SetMaxLength(params.m_FixedJointParams.m_MaxLength * scale);
                 }
                 break;
             case dmPhysics::JOINT_TYPE_HINGE:
                 {
-                    b2RevoluteJoint* typed_joint = (b2RevoluteJoint*)joint;
-                    typed_joint->SetLimits(params.m_HingeJointParams.m_LowerAngle, params.m_HingeJointParams.m_UpperAngle);
-                    typed_joint->SetMaxMotorTorque(params.m_HingeJointParams.m_MaxMotorTorque * scale);
-                    typed_joint->SetMotorSpeed(params.m_HingeJointParams.m_MotorSpeed);
-                    typed_joint->EnableLimit(params.m_HingeJointParams.m_EnableLimit);
-                    typed_joint->EnableMotor(params.m_HingeJointParams.m_EnableMotor);
+                    b2RevoluteJoint_SetLimits(*joint_raw, params.m_HingeJointParams.m_LowerAngle, params.m_HingeJointParams.m_UpperAngle);
+                    b2RevoluteJoint_SetMaxMotorTorque(*joint_raw, params.m_HingeJointParams.m_MaxMotorTorque * scale);
+                    b2RevoluteJoint_SetMotorSpeed(*joint_raw, params.m_HingeJointParams.m_MotorSpeed);
+                    b2RevoluteJoint_EnableLimit(*joint_raw, params.m_HingeJointParams.m_EnableLimit);
+                    b2RevoluteJoint_EnableMotor(*joint_raw, params.m_HingeJointParams.m_EnableMotor);
                 }
                 break;
             case dmPhysics::JOINT_TYPE_SLIDER:
                 {
-                    b2PrismaticJoint* typed_joint = (b2PrismaticJoint*)joint;
-                    typed_joint->EnableLimit(params.m_SliderJointParams.m_EnableLimit);
-                    typed_joint->SetLimits(params.m_SliderJointParams.m_LowerTranslation * scale, params.m_SliderJointParams.m_UpperTranslation * scale);
-                    typed_joint->EnableMotor(params.m_SliderJointParams.m_EnableMotor);
-                    typed_joint->SetMaxMotorForce(params.m_SliderJointParams.m_MaxMotorForce * scale);
-                    typed_joint->SetMotorSpeed(params.m_SliderJointParams.m_MotorSpeed);
+                    b2PrismaticJoint_EnableLimit(*joint_raw, params.m_SliderJointParams.m_EnableLimit);
+                    b2PrismaticJoint_SetLimits(*joint_raw, params.m_SliderJointParams.m_LowerTranslation * scale, params.m_SliderJointParams.m_UpperTranslation * scale);
+                    b2PrismaticJoint_EnableMotor(*joint_raw, params.m_SliderJointParams.m_EnableMotor);
+                    b2PrismaticJoint_SetMaxMotorForce(*joint_raw, params.m_SliderJointParams.m_MaxMotorForce * scale);
+                    b2PrismaticJoint_SetMotorSpeed(*joint_raw, params.m_SliderJointParams.m_MotorSpeed);
                 }
                 break;
             case dmPhysics::JOINT_TYPE_WELD:
                 {
-                    b2WeldJoint* typed_joint = (b2WeldJoint*)joint;
-                    typed_joint->SetFrequency(params.m_WeldJointParams.m_FrequencyHz);
-                    typed_joint->SetDampingRatio(params.m_WeldJointParams.m_DampingRatio);
+                    b2WeldJoint_SetLinearHertz(*joint_raw, params.m_WeldJointParams.m_FrequencyHz);
+                    b2WeldJoint_SetLinearDampingRatio(*joint_raw, params.m_WeldJointParams.m_DampingRatio);
                 }
                 break;
             case dmPhysics::JOINT_TYPE_WHEEL:
                 {
-                    b2WheelJoint* typed_joint = (b2WheelJoint*)joint;
-                    typed_joint->SetMaxMotorTorque(params.m_WheelJointParams.m_MaxMotorTorque * scale);
-                    typed_joint->SetMotorSpeed(params.m_WheelJointParams.m_MotorSpeed);
-                    typed_joint->EnableMotor(params.m_WheelJointParams.m_EnableMotor);
-                    typed_joint->SetSpringFrequencyHz(params.m_WheelJointParams.m_FrequencyHz);
-                    typed_joint->SetSpringDampingRatio(params.m_WheelJointParams.m_DampingRatio);
+                    b2WheelJoint_SetMaxMotorTorque(*joint_raw, params.m_WheelJointParams.m_MaxMotorTorque);
+                    b2WheelJoint_SetMotorSpeed(*joint_raw, params.m_WheelJointParams.m_MotorSpeed);
+                    b2WheelJoint_EnableMotor(*joint_raw, params.m_WheelJointParams.m_EnableMotor);
+                    b2WheelJoint_SetSpringHertz(*joint_raw, params.m_WheelJointParams.m_FrequencyHz);
+                    b2WheelJoint_SetSpringDampingRatio(*joint_raw, params.m_WheelJointParams.m_DampingRatio);
                 }
                 break;
             default:
@@ -1973,98 +2112,89 @@ namespace dmPhysics
         }
 
         return true;
-        */
-        return false;
     }
 
     bool GetJointParams2D(HWorld2D world, HJoint _joint, dmPhysics::JointType type, ConnectJointParams& params)
     {
         float inv_scale = world->m_Context->m_InvScale;
 
-        /*
-        b2Joint* joint = (b2Joint*)_joint;
-        params.m_CollideConnected = joint->GetCollideConnected();
+        b2JointId* joint_raw = (b2JointId*)_joint;
+        params.m_CollideConnected = b2Joint_GetCollideConnected(*joint_raw);
 
         switch (type)
         {
             case dmPhysics::JOINT_TYPE_SPRING:
                 {
-                    b2DistanceJoint* typed_joint = (b2DistanceJoint*)joint;
-                    params.m_SpringJointParams.m_Length = typed_joint->GetLength() * inv_scale;
-                    params.m_SpringJointParams.m_FrequencyHz = typed_joint->GetFrequency();
-                    params.m_SpringJointParams.m_DampingRatio = typed_joint->GetDampingRatio();
+                    params.m_SpringJointParams.m_Length =  b2DistanceJoint_GetLength(*joint_raw); // typed_joint->GetLength() * inv_scale;
+                    params.m_SpringJointParams.m_FrequencyHz = b2DistanceJoint_GetHertz(*joint_raw);
+                    params.m_SpringJointParams.m_DampingRatio = b2DistanceJoint_GetDampingRatio(*joint_raw);
                 }
                 break;
             case dmPhysics::JOINT_TYPE_FIXED:
                 {
-                    b2RopeJoint* typed_joint = (b2RopeJoint*)joint;
-                    params.m_FixedJointParams.m_MaxLength = typed_joint->GetMaxLength() * inv_scale;
+                    // params.m_FixedJointParams.m_MaxLength = typed_joint->GetMaxLength() * inv_scale;
                 }
                 break;
             case dmPhysics::JOINT_TYPE_HINGE:
                 {
-                    b2RevoluteJoint* typed_joint = (b2RevoluteJoint*)joint;
-
-                    params.m_HingeJointParams.m_ReferenceAngle = typed_joint->GetReferenceAngle();
-                    params.m_HingeJointParams.m_LowerAngle = typed_joint->GetLowerLimit();
-                    params.m_HingeJointParams.m_UpperAngle = typed_joint->GetUpperLimit();
-                    params.m_HingeJointParams.m_MaxMotorTorque = typed_joint->GetMaxMotorTorque() * inv_scale;
-                    params.m_HingeJointParams.m_MotorSpeed = typed_joint->GetMotorSpeed();
-                    params.m_HingeJointParams.m_EnableLimit = typed_joint->IsLimitEnabled();
-                    params.m_HingeJointParams.m_EnableMotor = typed_joint->IsMotorEnabled();
+                    params.m_HingeJointParams.m_ReferenceAngle = b2RevoluteJoint_GetAngle(*joint_raw);
+                    params.m_HingeJointParams.m_LowerAngle = b2RevoluteJoint_GetLowerLimit(*joint_raw);
+                    params.m_HingeJointParams.m_UpperAngle = b2RevoluteJoint_GetUpperLimit(*joint_raw);
+                    params.m_HingeJointParams.m_MaxMotorTorque = b2RevoluteJoint_GetMaxMotorTorque(*joint_raw) * inv_scale;
+                    params.m_HingeJointParams.m_MotorSpeed = b2RevoluteJoint_GetMotorSpeed(*joint_raw);
+                    params.m_HingeJointParams.m_EnableLimit = b2RevoluteJoint_IsLimitEnabled(*joint_raw);
+                    params.m_HingeJointParams.m_EnableMotor = b2RevoluteJoint_IsMotorEnabled(*joint_raw);
 
                     // Read only properties
-                    params.m_HingeJointParams.m_JointAngle = typed_joint->GetJointAngle();
-                    params.m_HingeJointParams.m_JointSpeed = typed_joint->GetJointSpeed();
+                    // params.m_HingeJointParams.m_JointAngle = typed_joint->GetJointAngle();
+                    // params.m_HingeJointParams.m_JointSpeed = typed_joint->GetJointSpeed();
                 }
                 break;
             case dmPhysics::JOINT_TYPE_SLIDER:
                 {
-                    b2PrismaticJoint* typed_joint = (b2PrismaticJoint*)joint;
+                    // b2Vec2 axis = typed_joint->GetLocalAxisA();
+                    // params.m_SliderJointParams.m_LocalAxisA[0] = axis.x;
+                    // params.m_SliderJointParams.m_LocalAxisA[1] = axis.y;
+                    // params.m_SliderJointParams.m_LocalAxisA[2] = 0.0f;
 
-                    b2Vec2 axis = typed_joint->GetLocalAxisA();
-                    params.m_SliderJointParams.m_LocalAxisA[0] = axis.x;
-                    params.m_SliderJointParams.m_LocalAxisA[1] = axis.y;
-                    params.m_SliderJointParams.m_LocalAxisA[2] = 0.0f;
-                    params.m_SliderJointParams.m_ReferenceAngle = typed_joint->GetReferenceAngle();
-                    params.m_SliderJointParams.m_EnableLimit = typed_joint->IsLimitEnabled();
-                    params.m_SliderJointParams.m_LowerTranslation = typed_joint->GetLowerLimit() * inv_scale;
-                    params.m_SliderJointParams.m_UpperTranslation = typed_joint->GetUpperLimit() * inv_scale;
-                    params.m_SliderJointParams.m_EnableMotor = typed_joint->IsMotorEnabled();
-                    params.m_SliderJointParams.m_MaxMotorForce = typed_joint->GetMaxMotorForce() * inv_scale;
-                    params.m_SliderJointParams.m_MotorSpeed = typed_joint->GetMotorSpeed();
+                    // params.m_SliderJointParams.m_ReferenceAngle =   // typed_joint->GetReferenceAngle();
+                    params.m_SliderJointParams.m_EnableLimit = b2PrismaticJoint_IsLimitEnabled(*joint_raw);
+                    params.m_SliderJointParams.m_LowerTranslation = b2PrismaticJoint_GetLowerLimit(*joint_raw) * inv_scale;
+                    params.m_SliderJointParams.m_UpperTranslation = b2PrismaticJoint_GetUpperLimit(*joint_raw) * inv_scale;
+                    params.m_SliderJointParams.m_EnableMotor = b2PrismaticJoint_IsMotorEnabled(*joint_raw);
+                    params.m_SliderJointParams.m_MaxMotorForce = b2PrismaticJoint_GetMaxMotorForce(*joint_raw) * inv_scale;
+                    params.m_SliderJointParams.m_MotorSpeed = b2PrismaticJoint_GetMotorSpeed(*joint_raw);
 
                     // Read only properties
-                    params.m_SliderJointParams.m_JointTranslation = typed_joint->GetJointTranslation();
-                    params.m_SliderJointParams.m_JointSpeed = typed_joint->GetJointSpeed();
+                    // params.m_SliderJointParams.m_JointTranslation = typed_joint->GetJointTranslation();
+                    // params.m_SliderJointParams.m_JointSpeed = typed_joint->GetJointSpeed();
                 }
                 break;
             case dmPhysics::JOINT_TYPE_WELD:
                 {
-                    b2WeldJoint* typed_joint = (b2WeldJoint*)joint;
-                    params.m_WeldJointParams.m_FrequencyHz = typed_joint->GetFrequency();
-                    params.m_WeldJointParams.m_DampingRatio = typed_joint->GetDampingRatio();
+                    params.m_WeldJointParams.m_FrequencyHz = b2WeldJoint_GetLinearHertz(*joint_raw);
+                    params.m_WeldJointParams.m_DampingRatio = b2WeldJoint_GetLinearDampingRatio(*joint_raw);
 
                     // Read only properties
-                    params.m_WeldJointParams.m_ReferenceAngle = typed_joint->GetReferenceAngle();
+                    // params.m_WeldJointParams.m_ReferenceAngle = typed_joint->GetReferenceAngle();
                 }
                 break;
             case dmPhysics::JOINT_TYPE_WHEEL:
                 {
-                    b2WheelJoint* typed_joint = (b2WheelJoint*)joint;
-                    b2Vec2 axis = typed_joint->GetLocalAxisA();
-                    params.m_WheelJointParams.m_LocalAxisA[0] = axis.x;
-                    params.m_WheelJointParams.m_LocalAxisA[1] = axis.y;
-                    params.m_WheelJointParams.m_LocalAxisA[2] = 0.0f;
-                    params.m_WheelJointParams.m_MaxMotorTorque = typed_joint->GetMaxMotorTorque() * inv_scale;
-                    params.m_WheelJointParams.m_MotorSpeed = typed_joint->GetMotorSpeed();
-                    params.m_WheelJointParams.m_EnableMotor = typed_joint->IsMotorEnabled();
-                    params.m_WheelJointParams.m_FrequencyHz = typed_joint->GetSpringFrequencyHz();
-                    params.m_WheelJointParams.m_DampingRatio = typed_joint->GetSpringDampingRatio();
+                    // b2Vec2 axis = typed_joint->GetLocalAxisA();
+                    // params.m_WheelJointParams.m_LocalAxisA[0] = axis.x;
+                    // params.m_WheelJointParams.m_LocalAxisA[1] = axis.y;
+                    // params.m_WheelJointParams.m_LocalAxisA[2] = 0.0f;
+
+                    params.m_WheelJointParams.m_MaxMotorTorque = b2WheelJoint_GetMaxMotorTorque(*joint_raw) * inv_scale;
+                    params.m_WheelJointParams.m_MotorSpeed = b2WheelJoint_GetMotorSpeed(*joint_raw);
+                    params.m_WheelJointParams.m_EnableMotor = b2WheelJoint_IsMotorEnabled(*joint_raw);
+                    params.m_WheelJointParams.m_FrequencyHz = b2WheelJoint_GetSpringHertz(*joint_raw);
+                    params.m_WheelJointParams.m_DampingRatio = b2WheelJoint_GetSpringDampingRatio(*joint_raw);
 
                     // Read only properties
-                    params.m_WheelJointParams.m_JointTranslation = typed_joint->GetJointTranslation();
-                    params.m_WheelJointParams.m_JointSpeed = typed_joint->GetJointSpeed();
+                    // params.m_WheelJointParams.m_JointTranslation = typed_joint->GetJointTranslation();
+                    // params.m_WheelJointParams.m_JointSpeed = typed_joint->GetJointSpeed();
                 }
                 break;
             default:
@@ -2072,37 +2202,34 @@ namespace dmPhysics
         }
 
         return true;
-        */
-
-        return false;
     }
 
     void DeleteJoint2D(HWorld2D world, HJoint _joint)
     {
         assert(_joint);
-        // world->m_World.DestroyJoint((b2Joint*)_joint);
+        b2JointId* joint_raw = (b2JointId*)_joint;
+        b2DestroyJoint(*joint_raw);
+        delete joint_raw;
     }
 
+    // NOTE: inv_dt is not used. It is calculated from the last step + substep time inside box2d
     bool GetJointReactionForce2D(HWorld2D world, HJoint _joint, Vector3& force, float inv_dt)
     {
         float inv_scale = world->m_Context->m_InvScale;
+        b2JointId* joint_raw = (b2JointId*)_joint;
 
-        /*
-        b2Joint* joint = (b2Joint*)_joint;
-        b2Vec2 bv2 = joint->GetReactionForce(inv_dt);
+        b2Vec2 bv2 = b2Joint_GetConstraintForce(*joint_raw);
         FromB2(bv2, force, inv_scale);
-        */
-
         return true;
     }
 
+    // NOTE: inv_dt is not used. It is calculated from the last step + substep time inside box2d
     bool GetJointReactionTorque2D(HWorld2D world, HJoint _joint, float& torque, float inv_dt)
     {
         float inv_scale = world->m_Context->m_InvScale;
-        /*
-        b2Joint* joint = (b2Joint*)_joint;
-        torque = joint->GetReactionTorque(inv_dt) * inv_scale;
-        */
+        b2JointId* joint_raw = (b2JointId*)_joint;
+
+        torque = b2Joint_GetConstraintTorque(*joint_raw) * inv_scale;
         return true;
     }
 }

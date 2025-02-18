@@ -285,7 +285,7 @@ namespace dmGameSystem
                         dmPhysics::SetGridShapeHull(component->m_Object2D, i, cell_y, cell_x, tile, flags);
                         uint32_t child = cell_x + tile_grid_resource->m_ColumnCount * cell_y;
                         uint16_t group = GetGroupBitIndex(&world->m_BaseWorld, texture_set_resource->m_HullCollisionGroups[tile], false);
-                        dmPhysics::SetCollisionObjectFilter(component->m_Object2D, i, child, group, component->m_BaseComponent.m_Mask);
+                        dmPhysics::SetCollisionObjectFilter(world->m_World2D, component->m_Object2D, i, child, group, component->m_BaseComponent.m_Mask);
                     }
                 }
 
@@ -678,6 +678,7 @@ namespace dmGameSystem
         PhysicsContextBox2D* physics_context = (PhysicsContextBox2D*)params.m_Context;
         CollisionComponentBox2D* component = (CollisionComponentBox2D*) *params.m_UserData;
         CollisionComponent* component_base = (CollisionComponent*) *params.m_UserData;
+        CollisionWorldBox2D* world = (CollisionWorldBox2D*)params.m_World;
 
         if (params.m_Message->m_Id == dmGameObjectDDF::Enable::m_DDFDescriptor->m_NameHash ||
             params.m_Message->m_Id == dmGameObjectDDF::Disable::m_DDFDescriptor->m_NameHash)
@@ -687,7 +688,6 @@ namespace dmGameSystem
             {
                 enable = true;
             }
-            CollisionWorldBox2D* world = (CollisionWorldBox2D*)params.m_World;
 
             if (component_base->m_AddedToUpdate)
             {
@@ -765,7 +765,7 @@ namespace dmGameSystem
                 group = GetGroupBitIndex((CollisionWorld*)params.m_World, tile_grid_resource->m_TextureSet->m_HullCollisionGroups[hull], false);
                 mask = component->m_BaseComponent.m_Mask;
             }
-            dmPhysics::SetCollisionObjectFilter(component->m_Object2D, ddf->m_Shape, child, group, mask);
+            dmPhysics::SetCollisionObjectFilter(world->m_World2D, component->m_Object2D, ddf->m_Shape, child, group, mask);
         }
         else if(params.m_Message->m_Id == dmPhysicsDDF::EnableGridShapeLayer::m_DDFDescriptor->m_NameHash)
         {
@@ -1185,7 +1185,8 @@ namespace dmGameSystem
     static dmhash_t GetCollisionGroupBox2D(CollisionWorld* _world, CollisionComponent* _component)
     {
         CollisionComponentBox2D* component = (CollisionComponentBox2D*)_component;
-        uint16_t groupbit = dmPhysics::GetGroup2D(component->m_Object2D);
+        CollisionWorldBox2D* world = (CollisionWorldBox2D*)_world;
+        uint16_t groupbit = dmPhysics::GetGroup2D(world->m_World2D, component->m_Object2D);
         return GetLSBGroupHash(_world, groupbit);
     }
 
@@ -1201,7 +1202,7 @@ namespace dmGameSystem
             return false; // error. No such group.
         }
 
-        dmPhysics::SetGroup2D(component->m_Object2D, groupbit);
+        dmPhysics::SetGroup2D(world->m_World2D, component->m_Object2D, groupbit);
         return true; // all good
     }
 
@@ -1216,7 +1217,7 @@ namespace dmGameSystem
             return false;
         }
 
-        *maskbit = dmPhysics::GetMaskBit2D(component->m_Object2D, groupbit);
+        *maskbit = dmPhysics::GetMaskBit2D(world->m_World2D, component->m_Object2D, groupbit);
         return true;
     }
 
@@ -1232,15 +1233,16 @@ namespace dmGameSystem
             return false;
         }
 
-        dmPhysics::SetMaskBit2D(component->m_Object2D, groupbit, boolvalue);
+        dmPhysics::SetMaskBit2D(world->m_World2D, component->m_Object2D, groupbit, boolvalue);
         return true;
     }
 
     static void UpdateMassBox2D(CollisionWorld* _world, CollisionComponent* _component, float mass)
     {
+        CollisionWorldBox2D* world = (CollisionWorldBox2D*)_world;
         CollisionComponentBox2D* component = (CollisionComponentBox2D*)_component;
 
-        if(!dmPhysics::UpdateMass2D(component->m_Object2D, mass))
+        if(!dmPhysics::UpdateMass2D(world->m_World2D, component->m_Object2D, mass))
         {
             dmLogError("The Update Mass function can be used only for Dynamic objects with shape area > 0");
         }

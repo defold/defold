@@ -101,7 +101,7 @@ namespace dmPhysics
         return false;
     }
 
-    void SetCollisionObjectFilter(HCollisionObject2D collision_object,
+    void SetCollisionObjectFilter(HWorld2D world, HCollisionObject2D collision_object,
                                   uint32_t shape, uint32_t child,
                                   uint16_t group, uint16_t mask)
     {
