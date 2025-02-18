@@ -58,8 +58,12 @@ namespace dmPhysics
     {
         m_RayCastRequests.SetCapacity(context->m_RayCastLimit);
 
-        b2WorldDef worldDef = b2DefaultWorldDef();
-        worldDef.gravity = context->m_Gravity;
+        b2WorldDef worldDef         = b2DefaultWorldDef();
+        worldDef.gravity            = context->m_Gravity;
+
+        // These values have changed, I think. It's in meter per second now, and our default values is like 1.0f
+        // worldDef.maximumLinearSpeed = context->m_VelocityThreshold * context->m_Scale;
+
         m_WorldId = b2CreateWorld(&worldDef);
 
         m_Bodies.SetCapacity(32);
@@ -151,9 +155,6 @@ namespace dmPhysics
         context->m_TriggerOverlapCapacity = params.m_TriggerOverlapCapacity;
         context->m_VelocityThreshold = params.m_VelocityThreshold;
         context->m_AllowDynamicTransforms = params.m_AllowDynamicTransforms;
-
-        // TODO! It's likely we need to modify source for this..
-        // b2ContactSolver::setVelocityThreshold(params.m_VelocityThreshold * params.m_Scale); // overrides fixed b2_velocityThreshold in b2Settings.h. Includes compensation for the scale factor so that velocityThreshold corresponds to the velocity values used in the game.
 
         dmMessage::Result result = dmMessage::NewSocket(PHYSICS_SOCKET_NAME, &context->m_Socket);
         if (result != dmMessage::RESULT_OK && result != dmMessage::RESULT_SOCKET_EXISTS)
@@ -555,6 +556,7 @@ namespace dmPhysics
                 ray_cast_context.m_CollisionMask = request.m_Mask;
                 ray_cast_context.m_Response.m_Hit = 0;
 
+                filter.maskBits = request.m_Mask;
                 b2World_CastRay(world->m_WorldId, from, to, filter, cast_ray_cb, &ray_cast_context);
                 (*step_context.m_RayCastCallback)(ray_cast_context.m_Response, request, step_context.m_RayCastUserData);
             }
@@ -725,10 +727,10 @@ namespace dmPhysics
 
     void SetDrawDebug2D(HWorld2D world, bool draw_debug)
     {
-        world->m_DebugDraw.m_DebugDraw.drawJoints          = true; // draw_debug;
-        world->m_DebugDraw.m_DebugDraw.drawShapes          = true; // draw_debug;
-        world->m_DebugDraw.m_DebugDraw.drawContactNormals  = true; // draw_debug;
-        world->m_DebugDraw.m_DebugDraw.drawContactImpulses = true; // draw_debug;
+        // world->m_DebugDraw.m_DebugDraw.drawJoints          = draw_debug;
+        // world->m_DebugDraw.m_DebugDraw.drawShapes          = draw_debug;
+        // world->m_DebugDraw.m_DebugDraw.drawContactNormals  = draw_debug;
+        // world->m_DebugDraw.m_DebugDraw.drawContactImpulses = draw_debug;
     }
 
     HCollisionShape2D NewCircleShape2D(HContext2D context, float radius)
@@ -1767,6 +1769,9 @@ namespace dmPhysics
         b2Vec2 to;
         ToB2(to2d, to, scale);
 
+        // Box2d V3 requires a translation vector, not a point
+        b2Vec2 translate = b2Sub(to, from);
+
         RayCastContext context;
         context.m_CollisionMask    = request.m_Mask;
         context.m_IgnoredUserData  = request.m_IgnoredUserData;
@@ -1775,8 +1780,10 @@ namespace dmPhysics
         context.m_ReturnAllResults = request.m_ReturnAllResults;
 
         b2QueryFilter filter = b2DefaultQueryFilter();
+        filter.maskBits = request.m_Mask;
+        filter.categoryBits = (uint64_t) -1; // This will search for all groups, but we could expose a more narrow search if needed!
 
-        b2World_CastRay(world->m_WorldId, from, to, filter, cast_ray_cb, &context);
+        b2World_CastRay(world->m_WorldId, from, translate, filter, cast_ray_cb, &context);
 
         if (!request.m_ReturnAllResults)
         {

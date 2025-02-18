@@ -215,7 +215,7 @@ namespace dmPhysics
         m_DebugDraw.drawShapes           = false;
         m_DebugDraw.drawJoints           = false;
         m_DebugDraw.drawJointExtras      = false;
-        m_DebugDraw.drawAABBs            = false;
+        m_DebugDraw.drawAABBs            = true;
         m_DebugDraw.drawMass             = false;
         m_DebugDraw.drawContacts         = false;
         m_DebugDraw.drawGraphColors      = false;
