@@ -955,7 +955,7 @@
             (value (layout-property-getter rotation))
             (set (layout-property-setter rotation)))
   (property scale types/Vec3 (default scene/default-scale)
-            (dynamic edit-type (layout-property-edit-type scale {:type types/Vec3}
+            (dynamic edit-type (layout-property-edit-type scale {:type types/Vec3 :precision 0.1}
                                  (fn [evaluation-context self prop-kw old-value new-value]
                                    {:scale (some-> new-value scene/non-zeroify-scale)})))
             (value (layout-property-getter scale))

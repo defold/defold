@@ -220,24 +220,25 @@
 (defn- handle-label-drag-event! [property-fn drag-update-fn update-ui-fn ^MouseDragEvent event]
   (.consume event)
   (let [property (property-fn)
-        {:keys [key node-ids]} (property-fn)
+        {:keys [key node-ids edit-type]} (property-fn)
         [x y] [(.getX event) (.getY event)]
         [prev-x prev-y] @label-drag-position
         delta-x (- x prev-x)
         delta-y (- prev-y y)
         max-delta (if (> (abs delta-x) (abs delta-y)) delta-x delta-y)
-        update-val (cond-> 1
+        update-val (cond-> (or (:precision edit-type) 1.0)
                      (.isShiftDown event) (* 10.0)
                      (.isControlDown event) (* 0.1)
                      (neg? max-delta) -)]
-    (g/transact
-      (for [node-id node-ids]
-        (concat (g/operation-sequence @label-drag-op-seq)
-                (g/update-property node-id key drag-update-fn update-val))))
-    (reset! label-drag-position [x y])
-    (update-ui-fn [(g/node-value (first node-ids) key)]
-                  (properties/validation-message property)
-                  (properties/read-only? property))))
+    (when (> (abs max-delta) 1)
+      (g/transact
+        (for [node-id node-ids]
+          (concat (g/operation-sequence @label-drag-op-seq)
+                  (g/update-property node-id key drag-update-fn update-val))))
+      (reset! label-drag-position [x y])
+      (update-ui-fn [(g/node-value (first node-ids) key)]
+                    (properties/validation-message property)
+                    (properties/read-only? property)))))
 
 (defn handle-label-press-event!
   [^MouseEvent event]
