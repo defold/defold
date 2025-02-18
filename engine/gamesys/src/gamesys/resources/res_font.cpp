@@ -415,6 +415,7 @@ namespace dmGameSystem
         glyph->m_DataSize = imagedatasize;
         glyph->m_DataImageWidth = inglyph->m_Width;
         glyph->m_DataImageHeight = inglyph->m_Height;
+        glyph->m_DataImageChannels = inglyph->m_Channels;
         font->m_DynamicGlyphs.Put(codepoint, glyph);
 
         dmResource::SetResourceSize(font->m_Resource, GetResourceSize(font));
