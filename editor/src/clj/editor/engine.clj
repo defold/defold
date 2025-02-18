@@ -33,7 +33,7 @@
 
 (set! *warn-on-reflection* true)
 
-(def ^:const timeout 2000)
+(def ^:const timeout 10000)
 
 (defn- get-connection [^URI uri]
   (doto ^HttpURLConnection (.openConnection (.toURL uri))
