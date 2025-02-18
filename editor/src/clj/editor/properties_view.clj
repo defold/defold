@@ -217,9 +217,10 @@
 (def label-drag-position (atom nil))
 (def label-drag-op-seq (atom nil))
 
-(defn- handle-label-drag-event! [property update-fn update-ui-fn ^MouseDragEvent event]
+(defn- handle-label-drag-event! [property-fn drag-update-fn update-ui-fn ^MouseDragEvent event]
   (.consume event)
-  (let [{:keys [key node-ids]} property
+  (let [property (property-fn)
+        {:keys [key node-ids]} (property-fn)
         [x y] [(.getX event) (.getY event)]
         [prev-x prev-y] @label-drag-position
         delta-x (- x prev-x)
@@ -230,9 +231,9 @@
                      (.isControlDown event) (* 0.1)
                      (neg? max-delta) -)]
     (g/transact
-     (for [node-id node-ids]
-       (concat (g/operation-sequence @label-drag-op-seq)
-               (g/update-property node-id key update-fn update-val))))
+      (for [node-id node-ids]
+        (concat (g/operation-sequence @label-drag-op-seq)
+                (g/update-property node-id key drag-update-fn update-val))))
     (reset! label-drag-position [x y])
     (update-ui-fn [(g/node-value (first node-ids) key)]
                   (properties/validation-message property)
@@ -266,7 +267,7 @@
                 children (if (seq label-text)
                            [(doto (Label. label-text)
                               (.setMinWidth Region/USE_PREF_SIZE)
-                              (make-label-draggable! (partial handle-label-drag-event! (property-fn) drag-update-fn update-ui-fn)))
+                              (make-label-draggable! (partial handle-label-drag-event! property-fn drag-update-fn update-ui-fn)))
                             text-field]
                            [text-field])
                 comp (doto (create-grid-pane children)
@@ -827,7 +828,7 @@
                                          (properties/read-only? property))))]
     
     (when (and drag-update-fn (not (:read-only? property)))
-      (make-label-draggable! label (partial handle-label-drag-event! property drag-update-fn update-ctrl-fn)))
+      (make-label-draggable! label (partial handle-label-drag-event! (fn [] property) drag-update-fn update-ctrl-fn)))
 
     (update-label-box (properties/overridden? property))
 
