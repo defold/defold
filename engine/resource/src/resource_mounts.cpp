@@ -249,7 +249,7 @@ static dmResource::Result LoadMount(HContext ctx, int priority, const char* name
     return dmResource::RESULT_OK;
 }
 
-const char* UriTeplateReplacer(void* user_data, const char* key)
+const char* UriTemplateReplacer(void* user_data, const char* key)
 {
     if (strcmp(key, "HOME_PATH") == 0)
     {
@@ -282,7 +282,7 @@ dmResource::Result LoadMounts(HContext ctx, const char* app_support_path)
         return result;
     }
 
-    char app_home_path[1024];
+    char app_home_path[DMPATH_MAX_PATH];
     dmSys::Result app_path_result = dmSys::GetHomePath(app_home_path, sizeof(app_home_path));
 
     uint32_t size = entries.Size();
@@ -290,10 +290,10 @@ dmResource::Result LoadMounts(HContext ctx, const char* app_support_path)
     {
         MountFileEntry& entry = entries[i];
 
-        char uri[1024];
+        char uri[DMPATH_MAX_PATH];
         if (app_path_result == dmSys::RESULT_OK)
         {
-            dmTemplate::Result tr = dmTemplate::Format((void*)app_home_path, uri, sizeof(uri), entry.m_Uri, UriTeplateReplacer);
+            dmTemplate::Result tr = dmTemplate::Format((void*)app_home_path, uri, sizeof(uri), entry.m_Uri, UriTemplateReplacer);
             if (tr != dmTemplate::RESULT_OK)
             {
                 dmLogError("Error formating liveupdate mount Uri `%s` response (%d)", entry.m_Uri, tr);
@@ -320,7 +320,7 @@ dmResource::Result SaveMounts(HContext ctx, const char* app_support_path)
 
     dmArray<MountFileEntry> entries;
 
-    char app_home_path[1024];
+    char app_home_path[DMPATH_MAX_PATH];
     dmSys::Result app_path_result = dmSys::GetHomePath(app_home_path, sizeof(app_home_path));
 
     uint32_t size = ctx->m_Mounts.Size();
@@ -336,7 +336,7 @@ dmResource::Result SaveMounts(HContext ctx, const char* app_support_path)
         dmURI::Parts uri;
         dmResourceProvider::GetUri(mount.m_Archive, &uri);
 
-        char uri_str[1024];
+        char uri_str[DMPATH_MAX_PATH];
         if (uri.m_Location[0] == '\0')
             dmSnPrintf(uri_str, sizeof(uri_str), "%s:%s", uri.m_Scheme, uri.m_Path);
         else
@@ -351,11 +351,11 @@ dmResource::Result SaveMounts(HContext ctx, const char* app_support_path)
             if (save_path)
             {
                 size_t before_len = save_path - uri_str + 1;
-                char before[1024];
+                char before[DMPATH_MAX_PATH];
                 dmStrlCpy(before, uri_str, before_len);
                 before[before_len] = '\0';
 
-                char uricopy[1024];
+                char uricopy[DMPATH_MAX_PATH];
                 const char* rest = save_path + strlen(app_home_path);
                 dmSnPrintf(uricopy, sizeof(uricopy), "%s${HOME_PATH}%s", before, rest);
                 memcpy(uri_str, uricopy, sizeof(uri_str));
