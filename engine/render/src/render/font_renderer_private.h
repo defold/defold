@@ -44,6 +44,7 @@ namespace dmRender
         , m_NameHash(0)
         , m_GetGlyph(0)
         , m_GetGlyphData(0)
+        , m_GetFontMetrics(0)
         , m_ShadowX(0.0f)
         , m_ShadowY(0.0f)
         , m_MaxAscent(0.0f)
@@ -82,6 +83,7 @@ namespace dmRender
         }
 
         void*                   m_UserData; // The font map resources (see res_font.cpp)
+        dmGraphics::HContext    m_GraphicsContext; // Used to recreate textures
         HFontRenderBackend      m_FontRenderBackend;
         dmGraphics::HTexture    m_Texture;
         HMaterial               m_Material;
@@ -89,6 +91,7 @@ namespace dmRender
 
         FGetGlyph               m_GetGlyph;
         FGetGlyphData           m_GetGlyphData;
+        FGetFontMetrics         m_GetFontMetrics;
 
         float                   m_ShadowX;
         float                   m_ShadowY;

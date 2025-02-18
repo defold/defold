@@ -51,7 +51,12 @@ static dmRender::FontGlyph* GetGlyph(uint32_t utf8, void* user_ctx)
     return &glyphs[utf8];
 }
 
-static void* GetGlyphData(uint32_t codepoint, void* user_ctx, uint32_t* out_size, uint32_t* out_compression, uint32_t* out_width, uint32_t* out_height)
+static void* GetGlyphData(uint32_t codepoint, void* user_ctx, uint32_t* out_size, uint32_t* out_compression, uint32_t* out_width, uint32_t* out_height, uint32_t* out_channels)
+{
+    return 0;
+}
+
+static uint32_t GetFontMetrics(void* user_ctx, dmRender::FontMetrics* metrics)
 {
     return 0;
 }
@@ -105,6 +110,7 @@ protected:
         font_map_params.m_MaxDescent = 1;
         font_map_params.m_GetGlyph = GetGlyph;
         font_map_params.m_GetGlyphData = GetGlyphData;
+        font_map_params.m_GetFontMetrics = GetFontMetrics;
 
         m_SystemFontMap = dmRender::NewFontMap(m_Context, m_GraphicsContext, font_map_params);
 
@@ -148,6 +154,7 @@ TEST_F(dmRenderTest, TestFontMapTextureFiltering)
 
     bitmap_font_map_params.m_GetGlyph = GetGlyph;
     bitmap_font_map_params.m_GetGlyphData = GetGlyphData;
+    bitmap_font_map_params.m_GetFontMetrics = GetFontMetrics;
 
     bitmap_font_map = dmRender::NewFontMap(m_Context, m_GraphicsContext, bitmap_font_map_params);
     ASSERT_TRUE(VerifyFontMapMinFilter(bitmap_font_map, dmGraphics::TEXTURE_FILTER_LINEAR));
