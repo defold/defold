@@ -69,79 +69,6 @@ namespace dmPhysics
         m_ShapeIdToShapeData.SetCapacity(32, 64);
     }
 
-    /*
-    ContactListener::ContactListener(HWorld2D world)
-    : m_World(world)
-    {
-
-    }
-
-    void ContactListener::PostSolve(b2Contact* contact, const b2ContactImpulse* impulse)
-    {
-        CollisionCallback collision_callback = m_TempStepWorldContext->m_CollisionCallback;
-        ContactPointCallback contact_point_callback = m_TempStepWorldContext->m_ContactPointCallback;
-        if (collision_callback != 0x0 || contact_point_callback != 0x0)
-        {
-            if (contact->IsTouching())
-            {
-                // verify that the impulse is large enough to be reported
-                float max_impulse = 0.0f;
-                for (int32_t i = 0; i < impulse->count; ++i)
-                {
-                    max_impulse = dmMath::Max(max_impulse, impulse->normalImpulses[i]);
-                }
-                // early out if the impulse is too small to be reported
-                if (max_impulse < m_World->m_Context->m_ContactImpulseLimit)
-                    return;
-
-                b2Fixture* fixture_a = contact->GetFixtureA();
-                b2Fixture* fixture_b = contact->GetFixtureB();
-                int32_t index_a = contact->GetChildIndexA();
-                int32_t index_b = contact->GetChildIndexB();
-
-                if (collision_callback)
-                {
-                    collision_callback(fixture_a->GetUserData(),
-                                       fixture_a->GetFilterData(index_a).categoryBits,
-                                       fixture_b->GetUserData(),
-                                       fixture_b->GetFilterData(index_b).categoryBits,
-                                       m_TempStepWorldContext->m_CollisionUserData);
-                }
-                if (contact_point_callback)
-                {
-                    b2WorldManifold world_manifold;
-                    contact->GetWorldManifold(&world_manifold);
-                    float inv_scale = m_World->m_Context->m_InvScale;
-                    int32_t n_p = dmMath::Min(contact->GetManifold()->pointCount, impulse->count);
-                    for (int32_t i = 0; i < n_p; ++i)
-                    {
-                        ContactPoint cp;
-                        FromB2(world_manifold.points[i], cp.m_PositionA, inv_scale);
-                        FromB2(world_manifold.points[i], cp.m_PositionB, inv_scale);
-                        cp.m_UserDataA = fixture_a->GetBody()->GetUserData();
-                        cp.m_UserDataB = fixture_b->GetBody()->GetUserData();
-                        FromB2(world_manifold.normal, cp.m_Normal, 1.0f); // Don't scale normal
-                        b2Vec2 rv = fixture_b->GetBody()->GetLinearVelocity() - fixture_a->GetBody()->GetLinearVelocity();
-                        FromB2(rv, cp.m_RelativeVelocity, inv_scale);
-                        cp.m_Distance = contact->GetManifold()->points[i].distance * inv_scale;
-                        cp.m_AppliedImpulse = impulse->normalImpulses[i] * inv_scale;
-                        cp.m_MassA = fixture_a->GetBody()->GetMass();
-                        cp.m_MassB = fixture_b->GetBody()->GetMass();
-                        cp.m_GroupA = fixture_a->GetFilterData(index_a).categoryBits;
-                        cp.m_GroupB = fixture_b->GetFilterData(index_b).categoryBits;
-                        contact_point_callback(cp, m_TempStepWorldContext->m_ContactPointUserData);
-                    }
-                }
-            }
-        }
-    }
-
-    void ContactListener::SetStepWorldContext(const StepWorldContext* context)
-    {
-        m_TempStepWorldContext = context;
-    }
-    */
-
     struct HullSet
     {
         struct Hull
@@ -334,13 +261,31 @@ namespace dmPhysics
         return world->m_GetShapeScratchBuffer;
     }
 
+    static dmArray<b2ShapeId>& GetSensorOverlapBuffer(HWorld2D world, b2ShapeId shapeId)
+    {
+        int num_overlaps = b2Shape_GetSensorCapacity(shapeId);
+
+        if (world->m_GetSensorOverlapsScratchBuffer.Capacity() < num_overlaps)
+        {
+            world->m_GetSensorOverlapsScratchBuffer.SetCapacity(num_overlaps);
+        }
+
+        world->m_GetSensorOverlapsScratchBuffer.SetSize(num_overlaps);
+
+        if (num_overlaps > 0)
+        {
+            num_overlaps = b2Shape_GetSensorOverlaps(shapeId, world->m_GetSensorOverlapsScratchBuffer.Begin(), num_overlaps);
+        }
+        return world->m_GetSensorOverlapsScratchBuffer;
+    }
+
     static ShapeData* ShapeIdToShapeData(HWorld2D world, b2ShapeId shape_id)
     {
         uint64_t opaque_id = ToOpaqueHandle(shape_id);
         return *world->m_ShapeIdToShapeData.Get(opaque_id);
     }
 
-    static void UpdateOverlapCache(OverlapCache* cache, HContext2D context, HWorld2D world, b2ContactEvents contact_events, const StepWorldContext& step_context);
+    static void UpdateOverlapCache(OverlapCache* cache, HContext2D context, HWorld2D world, b2SensorEvents sensor_events, const StepWorldContext& step_context);
 
     static inline b2Vec2 FlipPoint(b2Vec2 p, float horizontal, float vertical)
     {
@@ -627,117 +572,173 @@ namespace dmPhysics
         }
 
         b2ContactEvents contact_events = b2World_GetContactEvents(world->m_WorldId);
-
-        if (contact_events.beginCount > 0)
-        {
-            dmLogInfo("contact_events.beginCount %d", contact_events.beginCount);
-        }
-        if (contact_events.endCount > 0)
-        {
-            dmLogInfo("contact_events.endCount %d", contact_events.endCount);
-        }
-        if (contact_events.hitCount > 0)
-        {
-            dmLogInfo("contact_events.hitCount %d", contact_events.hitCount);
-        }
-
         b2SensorEvents sensor_events = b2World_GetSensorEvents(world->m_WorldId);
 
-        if (sensor_events.beginCount > 0)
-        {
-            dmLogInfo("sensor_events.beginCount %d", sensor_events.beginCount);
-        }
-        if (sensor_events.endCount > 0)
-        {
-            dmLogInfo("sensor_events.endCount %d", sensor_events.endCount);
-        }
-
-        // Report sensor collisions
         if (step_context.m_CollisionCallback)
         {
             DM_PROFILE("CollisionCallbacks");
-
             for (int i=0; i < world->m_Bodies.Size(); ++i)
             {
-                b2BodyId id = world->m_Bodies[i];
-                dmArray<b2ContactData>& contacts = GetContactsBuffer(world, id);
+                b2BodyId body_id = world->m_Bodies[i];
+                dmArray<b2ShapeId>& shapes = GetShapeBuffer(world, body_id);
 
-                for (int j = 0; j < contacts.Size(); ++j)
+                for (int j=0; j < shapes.Size(); ++j)
                 {
-                    b2ContactData event = contacts[j];
-                    b2ShapeId shapeIdA = event.shapeIdA;
-                    b2ShapeId shapeIdB = event.shapeIdB;
+                    b2ShapeId shapeIdA = shapes[j];
 
-                    if (b2Shape_IsSensor(shapeIdA) || b2Shape_IsSensor(shapeIdB))
+                    if (b2Shape_IsSensor(shapeIdA))
                     {
-                        step_context.m_CollisionCallback(
-                            b2Shape_GetUserData(shapeIdA), b2Shape_GetFilter(shapeIdA).categoryBits,
-                            b2Shape_GetUserData(shapeIdB), b2Shape_GetFilter(shapeIdB).categoryBits,
-                            step_context.m_CollisionUserData);
+                        dmArray<b2ShapeId>& overlaps = GetSensorOverlapBuffer(world, shapeIdA);
+
+                        // Trigger collision callbacks for overlapping sensors
+                        for (int k=0; k < overlaps.Size(); ++k)
+                        {
+                            b2ShapeId shapeIdB = overlaps[k];
+                            step_context.m_CollisionCallback(
+                                b2Shape_GetUserData(shapeIdA), b2Shape_GetFilter(shapeIdA).categoryBits,
+                                b2Shape_GetUserData(shapeIdB), b2Shape_GetFilter(shapeIdB).categoryBits,
+                                step_context.m_CollisionUserData);
+                        }
                     }
                 }
             }
         }
 
-        UpdateOverlapCache(&world->m_TriggerOverlaps, context, world, contact_events, step_context);
+        // Report sensor enter/exit callbacks
+        {
+            DM_PROFILE("TriggerCallbacks");
+
+            for (int i = 0; i < sensor_events.beginCount; ++i)
+            {
+                b2ShapeId shapeIdA = sensor_events.beginEvents[i].sensorShapeId;
+                b2ShapeId shapeIdB = sensor_events.beginEvents[i].visitorShapeId;
+
+                TriggerEnter data;
+                data.m_UserDataA = b2Shape_GetUserData(shapeIdA);
+                data.m_UserDataB = b2Shape_GetUserData(shapeIdB);
+                data.m_GroupA    = b2Shape_GetFilter(shapeIdA).categoryBits;
+                data.m_GroupB    = b2Shape_GetFilter(shapeIdB).categoryBits;
+
+                step_context.m_TriggerEnteredCallback(data, step_context.m_TriggerExitedUserData);
+            }
+
+            for (int i = 0; i < sensor_events.endCount; ++i)
+            {
+                b2ShapeId shapeIdA = sensor_events.endEvents[i].sensorShapeId;
+                b2ShapeId shapeIdB = sensor_events.endEvents[i].visitorShapeId;
+
+                TriggerExit data;
+                data.m_UserDataA = b2Shape_GetUserData(shapeIdA);
+                data.m_UserDataB = b2Shape_GetUserData(shapeIdB);
+                data.m_GroupA    = b2Shape_GetFilter(shapeIdA).categoryBits;
+                data.m_GroupB    = b2Shape_GetFilter(shapeIdB).categoryBits;
+
+                step_context.m_TriggerExitedCallback(data, step_context.m_TriggerExitedUserData);
+            }
+        }
+
+        // UpdateOverlapCache(&world->m_TriggerOverlaps, context, world, sensor_events, step_context);
 
         b2World_Draw(world->m_WorldId, &world->m_DebugDraw.m_DebugDraw);
     }
 
-    void UpdateOverlapCache(OverlapCache* cache, HContext2D context, HWorld2D world, b2ContactEvents contact_events, const StepWorldContext& step_context)
+    /*
+    void ContactListener::PostSolve(b2Contact* contact, const b2ContactImpulse* impulse)
     {
+        CollisionCallback collision_callback = m_TempStepWorldContext->m_CollisionCallback;
+        ContactPointCallback contact_point_callback = m_TempStepWorldContext->m_ContactPointCallback;
+        if (collision_callback != 0x0 || contact_point_callback != 0x0)
+        {
+            if (contact->IsTouching())
+            {
+                // verify that the impulse is large enough to be reported
+                float max_impulse = 0.0f;
+                for (int32_t i = 0; i < impulse->count; ++i)
+                {
+                    max_impulse = dmMath::Max(max_impulse, impulse->normalImpulses[i]);
+                }
+                // early out if the impulse is too small to be reported
+                if (max_impulse < m_World->m_Context->m_ContactImpulseLimit)
+                    return;
+
+                b2Fixture* fixture_a = contact->GetFixtureA();
+                b2Fixture* fixture_b = contact->GetFixtureB();
+                int32_t index_a = contact->GetChildIndexA();
+                int32_t index_b = contact->GetChildIndexB();
+
+                if (collision_callback)
+                {
+                    collision_callback(fixture_a->GetUserData(),
+                                       fixture_a->GetFilterData(index_a).categoryBits,
+                                       fixture_b->GetUserData(),
+                                       fixture_b->GetFilterData(index_b).categoryBits,
+                                       m_TempStepWorldContext->m_CollisionUserData);
+                }
+                if (contact_point_callback)
+                {
+                    b2WorldManifold world_manifold;
+                    contact->GetWorldManifold(&world_manifold);
+                    float inv_scale = m_World->m_Context->m_InvScale;
+                    int32_t n_p = dmMath::Min(contact->GetManifold()->pointCount, impulse->count);
+                    for (int32_t i = 0; i < n_p; ++i)
+                    {
+                        ContactPoint cp;
+                        FromB2(world_manifold.points[i], cp.m_PositionA, inv_scale);
+                        FromB2(world_manifold.points[i], cp.m_PositionB, inv_scale);
+                        cp.m_UserDataA = fixture_a->GetBody()->GetUserData();
+                        cp.m_UserDataB = fixture_b->GetBody()->GetUserData();
+                        FromB2(world_manifold.normal, cp.m_Normal, 1.0f); // Don't scale normal
+                        b2Vec2 rv = fixture_b->GetBody()->GetLinearVelocity() - fixture_a->GetBody()->GetLinearVelocity();
+                        FromB2(rv, cp.m_RelativeVelocity, inv_scale);
+                        cp.m_Distance = contact->GetManifold()->points[i].distance * inv_scale;
+                        cp.m_AppliedImpulse = impulse->normalImpulses[i] * inv_scale;
+                        cp.m_MassA = fixture_a->GetBody()->GetMass();
+                        cp.m_MassB = fixture_b->GetBody()->GetMass();
+                        cp.m_GroupA = fixture_a->GetFilterData(index_a).categoryBits;
+                        cp.m_GroupB = fixture_b->GetFilterData(index_b).categoryBits;
+                        contact_point_callback(cp, m_TempStepWorldContext->m_ContactPointUserData);
+                    }
+                }
+            }
+        }
+    }
+    */
+
+    void UpdateOverlapCache(OverlapCache* cache, HContext2D context, HWorld2D world, b2SensorEvents sensor_events, const StepWorldContext& step_context)
+    {
+        /*
         DM_PROFILE("TriggerCallbacks");
         OverlapCacheReset(cache);
         OverlapCacheAddData add_data;
         add_data.m_TriggerEnteredCallback = step_context.m_TriggerEnteredCallback;
         add_data.m_TriggerEnteredUserData = step_context.m_TriggerEnteredUserData;
 
-        for (int i=0; i < world->m_Bodies.Size(); ++i)
+        // Note: We used to check distance here, but since triggers aren't contact events we can't do that.
+        //       Plus, the "context->m_TriggerEnterLimit" seems to always be zero.
+        for (int i = 0; i < sensor_events.beginCount; ++i)
         {
-            b2BodyId id = world->m_Bodies[i];
-            dmArray<b2ContactData>& contacts = GetContactsBuffer(world, id);
+            b2ShapeId shapeIdA = sensor_events.beginEvents[i].sensorShapeId;
+            b2ShapeId shapeIdB = sensor_events.beginEvents[i].visitorShapeId;
 
-            for (int j = 0; j < contacts.Size(); ++j)
-            {
-                b2ContactData event = contacts[j];
-                b2ShapeId shapeIdA = event.shapeIdA;
-                b2ShapeId shapeIdB = event.shapeIdB;
+            b2BodyId body_a = b2Shape_GetBody(shapeIdA);
+            b2BodyId body_b = b2Shape_GetBody(shapeIdB);
 
-                if (!(b2Shape_IsSensor(shapeIdA) || b2Shape_IsSensor(shapeIdB)))
-                {
-                    continue;
-                }
+            memcpy(&add_data.m_ObjectA, &body_a, sizeof(body_a));
+            memcpy(&add_data.m_ObjectB, &body_b, sizeof(body_b));
 
-                float max_distance = 0.0f;
-                b2Manifold* manifold = &event.manifold;
+            add_data.m_UserDataA = b2Body_GetUserData(body_a);
+            add_data.m_UserDataB = b2Body_GetUserData(body_b);
+            add_data.m_GroupA = b2Shape_GetFilter(shapeIdA).categoryBits;
+            add_data.m_GroupB = b2Shape_GetFilter(shapeIdB).categoryBits;
 
-                for (int32_t i = 0; i < manifold->pointCount; ++i)
-                {
-                    max_distance = dmMath::Max(max_distance, manifold->points[i].separation);
-                }
-
-                if (max_distance >= context->m_TriggerEnterLimit)
-                {
-                    b2BodyId body_a = b2Shape_GetBody(shapeIdA);
-                    b2BodyId body_b = b2Shape_GetBody(shapeIdB);
-
-                    memcpy(&add_data.m_ObjectA, &body_a, sizeof(body_a));
-                    memcpy(&add_data.m_ObjectB, &body_b, sizeof(body_b));
-
-                    add_data.m_UserDataA = b2Body_GetUserData(body_a);
-                    add_data.m_UserDataB = b2Body_GetUserData(body_b);
-                    add_data.m_GroupA = b2Shape_GetFilter(shapeIdA).categoryBits;
-                    add_data.m_GroupB = b2Shape_GetFilter(shapeIdB).categoryBits;
-
-                    OverlapCacheAdd(cache, add_data);
-                }
-            }
+            OverlapCacheAdd(cache, add_data);
         }
 
         OverlapCachePruneData prune_data;
         prune_data.m_TriggerExitedCallback = step_context.m_TriggerExitedCallback;
         prune_data.m_TriggerExitedUserData = step_context.m_TriggerExitedUserData;
         OverlapCachePrune(cache, prune_data);
+        */
     }
 
     void SetDrawDebug2D(HWorld2D world, bool draw_debug)
@@ -1183,20 +1184,18 @@ namespace dmPhysics
                 s = TransformCopyShape(context, s, zero_vec3, Quat::identity(), scale);
             }
 
-            b2ShapeDef f_def = b2DefaultShapeDef();
-            f_def.userData = data.m_UserData;
+            b2ShapeDef f_def          = b2DefaultShapeDef();
+            f_def.userData            = data.m_UserData;
             f_def.filter.categoryBits = data.m_Group;
-            f_def.filter.maskBits = data.m_Mask;
-            //f_def.shape = s;
-            f_def.density = 1.0f;
-            f_def.friction = data.m_Friction;
-            f_def.restitution = data.m_Restitution;
-            f_def.isSensor = data.m_Type == COLLISION_OBJECT_TYPE_TRIGGER;
+            f_def.filter.maskBits     = data.m_Mask;
+            f_def.density             = 1.0f;
+            f_def.friction            = data.m_Friction;
+            f_def.restitution         = data.m_Restitution;
+            f_def.isSensor            = data.m_Type == COLLISION_OBJECT_TYPE_TRIGGER;
             f_def.enableContactEvents = true;
-            f_def.enableHitEvents = true;
+            f_def.enableHitEvents     = true;
 
-            b2ShapeId shape_id;
-
+            b2ShapeId shape_id = {};
             switch (s->m_Type)
             {
                 case b2_circleShape:

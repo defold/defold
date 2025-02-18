@@ -82,6 +82,7 @@ namespace dmPhysics
         dmArray<b2BodyId>           m_Bodies;
         dmArray<b2ShapeId>          m_GetShapeScratchBuffer;
         dmArray<b2ContactData>      m_GetContactsScratchBuffer;
+        dmArray<b2ShapeId>          m_GetSensorOverlapsScratchBuffer;
 
         dmHashTable64<ShapeData*>   m_ShapeIdToShapeData;
 
