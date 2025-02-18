@@ -154,10 +154,10 @@
   (let [text (TextField.)
         update-ui-fn (partial update-text-fn text field-expression/format-int)
         update-prop-fn (fn [_]
-                      (let [property (property-fn)]
-                        (update-ui-fn (properties/values property)
-                                      (properties/validation-message property)
-                                      (properties/read-only? property))))
+                         (let [property (property-fn)]
+                           (update-ui-fn (properties/values property)
+                                         (properties/validation-message property)
+                                         (properties/read-only? property))))
         cancel-fn update-prop-fn
         update-fn (fn [_]
                     (when-let [v (field-expression/to-int (.getText text))]
@@ -825,7 +825,7 @@
                                          (properties/validation-message property)
                                          (properties/read-only? property))))]
     
-    (when drag-update-fn
+    (when (and drag-update-fn (not (:read-only? property)))
       (make-label-draggable label (partial handle-label-drag-event! control property drag-update-fn)))
 
     (update-label-box (properties/overridden? property))
