@@ -29,9 +29,18 @@ namespace dmRender
     // Old typedef, used internally. We want to migrate towards HFont
     typedef struct FontMap* HFontMap;
 
+    struct FontMetrics
+    {
+        float m_MaxAscent;
+        float m_MaxDescent;
+        uint32_t m_MaxWidth;   // The widest one in terms of texels
+        uint32_t m_MaxHeight;  // The tallest one in terms of texels
+    };
+
     typedef dmRenderDDF::GlyphBank::Glyph FontGlyph;
-    typedef FontGlyph* (*FGetGlyph)(uint32_t codepoint, void* user_ctx);
-    typedef void*  (*FGetGlyphData)(uint32_t codepoint, void* user_ctx, uint32_t* out_size, uint32_t* out_compression, uint32_t* out_width, uint32_t* out_height);
+    typedef FontGlyph*  (*FGetGlyph)(uint32_t codepoint, void* user_ctx);
+    typedef void*       (*FGetGlyphData)(uint32_t codepoint, void* user_ctx, uint32_t* out_size, uint32_t* out_compression, uint32_t* out_width, uint32_t* out_height, uint32_t* out_channels);
+    typedef uint32_t    (*FGetFontMetrics)(void* user_ctx, FontMetrics* metrics); // returns number of glyphs
 
     /**
      * Font map parameters supplied to NewFontMap
@@ -43,6 +52,7 @@ namespace dmRender
 
         FGetGlyph       m_GetGlyph;
         FGetGlyphData   m_GetGlyphData;
+        FGetFontMetrics m_GetFontMetrics;
 
         dmhash_t        m_NameHash;
 
