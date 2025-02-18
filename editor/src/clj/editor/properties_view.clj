@@ -214,25 +214,38 @@
                         ctrls))
     box))
 
-(defn- handle-label-mouse-drag! [control property update-fn ^MouseDragEvent event]
+(def label-drag-position (atom nil))
+(def label-drag-op-seq (atom nil))
+
+(defn- handle-label-drag-event! [control property update-fn ^MouseDragEvent event]
   (.consume event)
   (let [{:keys [key node-ids]} property
+        [prev-x prev-y] @label-drag-position
+        delta-x (- (.getX event) prev-x)
+        delta-y (- prev-y (.getY event))
+        max-delta (if (> (abs delta-x) (abs delta-y)) delta-x delta-y)
         update-val (cond-> 1
                      (.isShiftDown event) (* 10.0)
-                     (neg? (.getX event)) -)]
+                     (.isControlDown event) (* 0.1)
+                     (neg? max-delta) -)]
     (g/transact
      (for [node-id node-ids]
-       (concat (g/operation-sequence (str "drag-property-" key))
+       (concat (g/operation-sequence @label-drag-op-seq)
                (g/update-property node-id key update-fn update-val))))
-
+    (reset! label-drag-position [(.getX event) (.getY event)])
     (.setText control (str (g/node-value (first node-ids) key)))))
+
+(defn handle-label-press-event!
+  [^MouseEvent event]
+  (reset! label-drag-op-seq (gensym))
+  (reset! label-drag-position [(.getX event) (.getY event)]))
 
 (defn- make-label-draggable
   [^Label label event-handler]
   (doto label
     (ui/add-style! "draggable")
-    (.addEventHandler MouseEvent/MOUSE_DRAGGED
-                      (ui/event-handler event (event-handler event)))))
+    (.addEventHandler MouseEvent/MOUSE_DRAGGED (ui/event-handler event (event-handler event)))
+    (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (handle-label-press-event! event)))))
 
 (defn- create-multi-text-field! [labels property-fn]
   (let [text-fields (mapv (fn [_] (TextField.)) labels)
@@ -251,7 +264,7 @@
           (let [children (if (seq label-text)
                            [(doto (Label. label-text)
                               (.setMinWidth Region/USE_PREF_SIZE)
-                              (make-label-draggable (partial handle-label-mouse-drag! text-field (property-fn) (drag-update-fn index))))
+                              (make-label-draggable (partial handle-label-drag-event! text-field (property-fn) (drag-update-fn index))))
                             
                             text-field]
                            [text-field])
@@ -813,7 +826,7 @@
                                          (properties/read-only? property))))]
     
     (when drag-update-fn
-      (make-label-draggable label (partial handle-label-mouse-drag! control property drag-update-fn)))
+      (make-label-draggable label (partial handle-label-drag-event! control property drag-update-fn)))
 
     (update-label-box (properties/overridden? property))
 
