@@ -217,12 +217,13 @@
 (def label-drag-position (atom nil))
 (def label-drag-op-seq (atom nil))
 
-(defn- handle-label-drag-event! [control property update-fn ^MouseDragEvent event]
+(defn- handle-label-drag-event! [property update-fn update-ui-fn ^MouseDragEvent event]
   (.consume event)
   (let [{:keys [key node-ids]} property
+        [x y] [(.getX event) (.getY event)]
         [prev-x prev-y] @label-drag-position
-        delta-x (- (.getX event) prev-x)
-        delta-y (- prev-y (.getY event))
+        delta-x (- x prev-x)
+        delta-y (- prev-y y)
         max-delta (if (> (abs delta-x) (abs delta-y)) delta-x delta-y)
         update-val (cond-> 1
                      (.isShiftDown event) (* 10.0)
@@ -232,15 +233,17 @@
      (for [node-id node-ids]
        (concat (g/operation-sequence @label-drag-op-seq)
                (g/update-property node-id key update-fn update-val))))
-    (reset! label-drag-position [(.getX event) (.getY event)])
-    (.setText control (str (g/node-value (first node-ids) key)))))
+    (reset! label-drag-position [x y])
+    (update-ui-fn [(g/node-value (first node-ids) key)]
+                  (properties/validation-message property)
+                  (properties/read-only? property))))
 
 (defn handle-label-press-event!
   [^MouseEvent event]
   (reset! label-drag-op-seq (gensym))
   (reset! label-drag-position [(.getX event) (.getY event)]))
 
-(defn- make-label-draggable
+(defn- make-label-draggable!
   [^Label label event-handler]
   (doto label
     (ui/add-style! "draggable")
@@ -254,18 +257,16 @@
         get-fns (mapv (fn [index]
                         #(nth % index))
                       (range (count text-fields)))
-        update-ui-fn (partial update-multi-text-fn text-fields field-expression/format-number get-fns)
-        drag-update-fn (fn [index]
-                         (fn [v update-val]
-                           (update v index #(properties/round-scalar (+ % update-val)))))]
+        update-ui-fn (partial update-multi-text-fn text-fields field-expression/format-number get-fns)]
     (dorun
       (map
         (fn [index ^TextField text-field ^String label-text]
-          (let [children (if (seq label-text)
+          (let [drag-update-fn (fn [v update-val]
+                                 (update v index #(properties/round-scalar (+ % update-val))))
+                children (if (seq label-text)
                            [(doto (Label. label-text)
                               (.setMinWidth Region/USE_PREF_SIZE)
-                              (make-label-draggable (partial handle-label-drag-event! text-field (property-fn) (drag-update-fn index))))
-                            
+                              (make-label-draggable! (partial handle-label-drag-event! (property-fn) drag-update-fn update-ui-fn)))
                             text-field]
                            [text-field])
                 comp (doto (create-grid-pane children)
@@ -826,7 +827,7 @@
                                          (properties/read-only? property))))]
     
     (when (and drag-update-fn (not (:read-only? property)))
-      (make-label-draggable label (partial handle-label-drag-event! control property drag-update-fn)))
+      (make-label-draggable! label (partial handle-label-drag-event! property drag-update-fn update-ctrl-fn)))
 
     (update-label-box (properties/overridden? property))
 
