@@ -1,3 +1,17 @@
+diff --git a/include/box2d/collision.h b/include/box2d/collision.h
+index c00946c..9b97e91 100644
+--- a/include/box2d/collision.h
++++ b/include/box2d/collision.h
+@@ -21,7 +21,8 @@ typedef struct b2Hull b2Hull;
+ 
+ /// The maximum number of vertices on a convex polygon. Changing this affects performance even if you
+ /// don't use more vertices.
+-#define B2_MAX_POLYGON_VERTICES 8
++// DEFOLD EDIT: This used to be 8
++#define B2_MAX_POLYGON_VERTICES 16
+ 
+ /// Low level ray cast input data
+ typedef struct b2RayCastInput
 diff --git a/src/body.c b/src/body.c
 index 286954f..0582083 100644
 --- a/src/body.c

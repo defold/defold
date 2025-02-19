@@ -199,7 +199,6 @@ namespace dmPhysics
 
     }
 
-
     DebugDraw2D::DebugDraw2D(DebugCallbacks* callbacks)
     : m_Callbacks(callbacks)
     {
@@ -212,16 +211,19 @@ namespace dmPhysics
         m_DebugDraw.DrawTransform        = DrawTransform;
         m_DebugDraw.DrawPoint            = DrawPoint;
         m_DebugDraw.DrawString           = DrawString;
-        m_DebugDraw.drawShapes           = false;
-        m_DebugDraw.drawJoints           = false;
-        m_DebugDraw.drawJointExtras      = false;
-        m_DebugDraw.drawAABBs            = true;
-        m_DebugDraw.drawMass             = false;
-        m_DebugDraw.drawContacts         = false;
-        m_DebugDraw.drawGraphColors      = false;
-        m_DebugDraw.drawContactNormals   = false;
-        m_DebugDraw.drawContactImpulses  = false;
-        m_DebugDraw.drawFrictionImpulses = false;
+
+        // Debug!
+        const bool force_flag = false;
+        m_DebugDraw.drawShapes           = force_flag;
+        m_DebugDraw.drawJoints           = force_flag;
+        m_DebugDraw.drawJointExtras      = force_flag;
+        m_DebugDraw.drawAABBs            = force_flag;
+        m_DebugDraw.drawMass             = force_flag;
+        m_DebugDraw.drawContacts         = force_flag;
+        m_DebugDraw.drawGraphColors      = force_flag;
+        m_DebugDraw.drawContactNormals   = force_flag;
+        m_DebugDraw.drawContactImpulses  = force_flag;
+        m_DebugDraw.drawFrictionImpulses = force_flag;
         m_DebugDraw.context              = this;
     }
 }

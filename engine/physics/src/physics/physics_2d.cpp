@@ -67,8 +67,6 @@ namespace dmPhysics
         m_WorldId = b2CreateWorld(&worldDef);
 
         m_Bodies.SetCapacity(32);
-
-        m_ShapeIdToShapeData.SetCapacity(32, 64);
     }
 
     struct HullSet
@@ -239,24 +237,6 @@ namespace dmPhysics
         return world->m_GetContactsScratchBuffer;
     }
 
-    static dmArray<b2ShapeId>& GetShapeBuffer(HWorld2D world, b2BodyId body_id)
-    {
-        int num_shapes = b2Body_GetShapeCount(body_id);
-
-        if (world->m_GetShapeScratchBuffer.Capacity() < num_shapes)
-        {
-            world->m_GetShapeScratchBuffer.SetCapacity(num_shapes);
-        }
-
-        world->m_GetShapeScratchBuffer.SetSize(num_shapes);
-
-        if (num_shapes > 0)
-        {
-            num_shapes = b2Body_GetShapes(body_id, world->m_GetShapeScratchBuffer.Begin(), num_shapes);
-        }
-        return world->m_GetShapeScratchBuffer;
-    }
-
     static dmArray<b2ShapeId>& GetSensorOverlapBuffer(HWorld2D world, b2ShapeId shapeId)
     {
         int num_overlaps = b2Shape_GetSensorCapacity(shapeId);
@@ -273,12 +253,6 @@ namespace dmPhysics
             num_overlaps = b2Shape_GetSensorOverlaps(shapeId, world->m_GetSensorOverlapsScratchBuffer.Begin(), num_overlaps);
         }
         return world->m_GetSensorOverlapsScratchBuffer;
-    }
-
-    static ShapeData* ShapeIdToShapeData(HWorld2D world, b2ShapeId shape_id)
-    {
-        uint64_t opaque_id = ToOpaqueHandle(shape_id);
-        return *world->m_ShapeIdToShapeData.Get(opaque_id);
     }
 
     static inline b2Vec2 FlipPoint(b2Vec2 p, float horizontal, float vertical)
@@ -327,12 +301,9 @@ namespace dmPhysics
     {
         Body* body = (Body*) collision_object;
 
-        const dmArray<b2ShapeId>& shape_buffer = GetShapeBuffer(world, body->m_BodyId);
-        for (int i = 0; i < shape_buffer.Size(); ++i)
+        for (int i = 0; i < body->m_ShapeCount; ++i)
         {
-            b2ShapeId shape_id = shape_buffer[i];
-            ShapeData* shape_data = ShapeIdToShapeData(world, shape_id);
-
+            ShapeData* shape_data = body->m_Shapes[i];
             switch(shape_data->m_Type)
             {
                 case SHAPE_TYPE_CIRCLE:
@@ -370,34 +341,24 @@ namespace dmPhysics
         // return world_raw->locked;
     }
 
-    static void PutShapeIdToShapeData(HWorld2D world, b2ShapeId shape_id, ShapeData* shape_data)
-    {
-        uint64_t opaque_id = ToOpaqueHandle(shape_id);
-        shape_data->m_ShapeId = shape_id;
-        world->m_ShapeIdToShapeData.Put(opaque_id, shape_data);
-    }
-
     static inline float GetUniformScale2D(dmTransform::Transform& transform)
     {
         const float* v = transform.GetScalePtr();
         return dmMath::Min(v[0], v[1]);
     }
 
-    static void UpdateScale(HWorld2D world, b2BodyId body_id)
+    static void UpdateScale(HWorld2D world, Body* body)
     {
         dmTransform::Transform world_transform;
-        (*world->m_GetWorldTransformCallback)(b2Body_GetUserData(body_id), world_transform);
+        (*world->m_GetWorldTransformCallback)(b2Body_GetUserData(body->m_BodyId), world_transform);
 
         float object_scale = GetUniformScale2D(world_transform);
-
-        const dmArray<b2ShapeId>& shape_buffer = GetShapeBuffer(world, body_id);
         bool allow_sleep = true;
 
-        for (int i = 0; i < shape_buffer.Size(); ++i)
+        for (int i = 0; i < body->m_ShapeCount; ++i)
         {
-            b2ShapeId shape_id = shape_buffer[i];
-
-            ShapeData* shape_data = ShapeIdToShapeData(world, shape_id);
+            ShapeData* shape_data = body->m_Shapes[i];
+            b2ShapeId shape_id = shape_data->m_ShapeId;
 
             if (shape_data->m_LastScale == object_scale)
             {
@@ -440,7 +401,7 @@ namespace dmPhysics
 
         if (!allow_sleep)
         {
-            b2Body_SetAwake(body_id, true);
+            b2Body_SetAwake(body->m_BodyId, true);
         }
     }
 
@@ -458,10 +419,10 @@ namespace dmPhysics
         {
             DM_PROFILE("UpdateKinematic");
 
-            //for (b2Body* body = world->m_World.GetBodyList(); body; body = body->GetNext())
             for (int i=0; i < world->m_Bodies.Size(); ++i)
             {
-                b2BodyId body_id = world->m_Bodies[i];
+                Body* body = world->m_Bodies[i];
+                b2BodyId body_id = body->m_BodyId;
                 b2BodyType body_type = b2Body_GetType(body_id);
 
                 bool retrieve_gameworld_transform = world->m_AllowDynamicTransforms && body_type != b2_staticBody;
@@ -503,7 +464,7 @@ namespace dmPhysics
                 // Scaling
                 if(retrieve_gameworld_transform)
                 {
-                    UpdateScale(world, body_id);
+                    UpdateScale(world, body);
                 }
             }
         }
@@ -519,7 +480,8 @@ namespace dmPhysics
             {
                 for (int i=0; i < world->m_Bodies.Size(); ++i)
                 {
-                    b2BodyId body_id = world->m_Bodies[i];
+                    Body* body = world->m_Bodies[i];
+                    b2BodyId body_id = body->m_BodyId;
                     b2BodyType body_type = b2Body_GetType(body_id);
 
                     if (body_type == b2_dynamicBody && b2Body_IsEnabled(body_id))
@@ -571,12 +533,11 @@ namespace dmPhysics
             DM_PROFILE("CollisionCallbacks");
             for (int i=0; i < world->m_Bodies.Size(); ++i)
             {
-                b2BodyId body_id = world->m_Bodies[i];
-                dmArray<b2ShapeId>& shapes = GetShapeBuffer(world, body_id);
+                Body* body = world->m_Bodies[i];
 
-                for (int j=0; j < shapes.Size(); ++j)
+                for (int j=0; j < body->m_ShapeCount; ++j)
                 {
-                    b2ShapeId shapeIdA = shapes[j];
+                    b2ShapeId shapeIdA = body->m_Shapes[j]->m_ShapeId;
                     if (!b2Shape_IsValid(shapeIdA))
                     {
                         continue;
@@ -676,7 +637,8 @@ namespace dmPhysics
 
             for (int i = 0; i < world->m_Bodies.Size(); ++i)
             {
-                b2BodyId body_id = world->m_Bodies[i];
+                Body* body = world->m_Bodies[i];
+                b2BodyId body_id = body->m_BodyId;
                 dmArray<b2ContactData>& contacts = GetContactsBuffer(world, body_id);
 
                 for (int j = 0; j < contacts.Size(); ++j)
@@ -813,6 +775,34 @@ namespace dmPhysics
         delete (HullSet*) hull_set;
     }
 
+    // These values are from the original Box2D implementation, I think the newer version has different constants.
+    // i.e B2_LINEAR_SLOP
+
+    /// A small length used as a collision and constraint tolerance. Usually it is
+    /// chosen to be numerically significant, but visually insignificant.
+    #define b2_linearSlop           0.005f
+    /// The radius of the polygon/edge shape skin. This should not be modified. Making
+    /// this smaller means polygons will have an insufficient buffer for continuous collision.
+    /// Making it larger may create artifacts for vertex collision.
+    #define b2_polygonRadius        (2.0f * b2_linearSlop)
+
+    static inline void InitializeGridSHapeData(GridShapeData* shape_data)
+    {
+        uint32_t cell_count = shape_data->m_RowCount * shape_data->m_ColumnCount;
+        uint32_t size       = sizeof(GridShapeData::Cell) * cell_count;
+        shape_data->m_Cells = (GridShapeData::Cell*) malloc(size);
+        // This will set all Cell#m_Index to 0xffffffff to indicate free cells
+        memset(shape_data->m_Cells, 0xff, size);
+
+        size = sizeof(HullFlags) * cell_count;
+        shape_data->m_CellFlags = (HullFlags*) malloc(size);
+        memset(shape_data->m_CellFlags, 0x0, size);
+
+        size = sizeof(b2ShapeId) * cell_count;
+        shape_data->m_CellPolygonShapes = (b2ShapeId*) malloc(size);
+        memset(shape_data->m_CellPolygonShapes, 0x0, size);
+    }
+
     HCollisionShape2D NewGridShape2D(HContext2D context, HHullSet2D hull_set,
                                      const Point3& position,
                                      uint32_t cell_width, uint32_t cell_height,
@@ -826,67 +816,205 @@ namespace dmPhysics
         shape_data->m_ShapeDataBase.m_Type = SHAPE_TYPE_GRID;
 
         shape_data->m_Position    = p;
-        shape_data->m_HullSet     = hull_set;
+        shape_data->m_HullSet     = (HullSet*) hull_set;
         shape_data->m_CellWidth   = cell_width * scale;
         shape_data->m_CellHeight  = cell_height * scale;
         shape_data->m_RowCount    = row_count;
         shape_data->m_ColumnCount = column_count;
+        shape_data->m_Radius      = b2_polygonRadius;
+
+        InitializeGridSHapeData(shape_data);
 
         return shape_data;
     }
 
     void ClearGridShapeHulls(HCollisionObject2D collision_object)
     {
-        /*
-        b2Body* body = (b2Body*) collision_object;
-        b2Fixture* fixture = body->GetFixtureList();
-        while (fixture != 0x0)
+        Body* body = (Body*) collision_object;
+
+        for (int i = 0; i < body->m_ShapeCount; ++i)
         {
-            if (fixture->GetShape()->GetType() == b2Shape::e_grid)
+            if (body->m_Shapes[i]->m_Type == SHAPE_TYPE_GRID)
             {
-                b2GridShape* grid_shape = (b2GridShape*) fixture->GetShape();
-                grid_shape->ClearCellData();
+                GridShapeData* grid_shape = (GridShapeData*) body->m_Shapes[i];
+
+                uint32_t cellCount = grid_shape->m_RowCount * grid_shape->m_ColumnCount;
+                memset(grid_shape->m_Cells, B2GRIDSHAPE_EMPTY_CELL, sizeof(GridShapeData::Cell) * cellCount);
+                memset(grid_shape->m_CellFlags, 0x0, sizeof(HullFlags) * cellCount);
             }
-            fixture = fixture->GetNext();
         }
-        */
     }
 
-    /*
-    static inline b2GridShape* GetGridShape(b2Body* body, uint32_t index)
+    static inline GridShapeData* GetGridShapeData(Body* body, uint32_t index)
     {
-        b2Fixture* fixture = GetFixture(body, index);
-        if (fixture == 0 || fixture->GetShape()->GetType() != b2Shape::e_grid)
+        if (index >= body->m_ShapeCount)
         {
             return 0;
         }
-        return (b2GridShape*) fixture->GetShape();
+
+        ShapeData* shape_data = body->m_Shapes[index];
+        if (shape_data == 0 || shape_data->m_Type != SHAPE_TYPE_GRID)
+        {
+            return 0;
+        }
+        return (GridShapeData*) shape_data;
     }
-    */
+
+    static int GetGridCellVertices(GridShapeData* shape_data, int index, b2Vec2* vertices)
+    {
+        // TODO: SHould the shape data have an "enabled" flag?
+        // if (!m_enabled)
+        //     return false;
+
+        const GridShapeData::Cell& cell = shape_data->m_Cells[index];
+        if (cell.m_Index == B2GRIDSHAPE_EMPTY_CELL)
+        {
+            return 0;
+        }
+
+        const HullSet::Hull& hull = shape_data->m_HullSet->m_Hulls[cell.m_Index];
+        assert(hull.m_Count <= B2_MAX_POLYGON_VERTICES);
+
+        int row = index / shape_data->m_ColumnCount;
+        int col = index - (shape_data->m_ColumnCount * row);
+
+        float halfWidth = shape_data->m_CellWidth * shape_data->m_ColumnCount * 0.5f;
+        float halfHeight = shape_data->m_CellHeight * shape_data->m_RowCount * 0.5f;
+
+        b2Vec2 t = {shape_data->m_CellWidth * col - halfWidth, shape_data->m_CellHeight * row - halfHeight};
+        t.x += shape_data->m_CellWidth * 0.5f;
+        t.y += shape_data->m_CellHeight * 0.5f;
+        t += shape_data->m_Position;
+
+        const HullFlags& flags = shape_data->m_CellFlags[index];
+        float xScale = flags.m_FlipHorizontal ? -1.0f : 1.0f;
+        float yScale = flags.m_FlipVertical ? -1.0f : 1.0f;
+        float tmpX = 0.0;
+
+        for (uint32_t i = 0; i < hull.m_Count; ++i)
+        {
+            vertices[i] = shape_data->m_HullSet->m_Vertices[hull.m_Index + i];
+            if (flags.m_Rotate90)
+            {
+                // Clockwise rotation (x, y) -> (y, -x)
+                // Also tile isn't necessary a square, that's why we should swap width and height
+                // We apply flip before rotation, which means scale is part of size and should be swapped as well
+                tmpX = vertices[i].x;
+                vertices[i].x = vertices[i].y * (yScale * shape_data->m_CellWidth);
+                vertices[i].y = -1 * tmpX * (xScale * shape_data->m_CellHeight);
+            }
+            else
+            {
+                vertices[i].x *= xScale * shape_data->m_CellWidth;
+                vertices[i].y *= yScale * shape_data->m_CellHeight;
+            }
+            vertices[i] += t;
+        }
+
+        // Reverse order when single flipped
+        if (flags.m_FlipHorizontal != flags.m_FlipVertical)
+        {
+            uint16_t halfCount = hull.m_Count / 2;
+            for (uint32_t i = 0; i < halfCount; ++i)
+            {
+                b2Vec2& v1 = vertices[i];
+                b2Vec2& v2 = vertices[hull.m_Count - 1 - i];
+                b2Vec2 tmp = v1;
+                v1 = v2;
+                v2 = tmp;
+            }
+        }
+
+        return hull.m_Count;
+    }
+
+    static void EnsureGridShapePolygonShapes(b2BodyId body_id, b2ShapeDef* def, GridShapeData* shape_data)
+    {
+        const uint32_t cell_count = shape_data->m_RowCount * shape_data->m_ColumnCount;
+
+        for (int i = 0; i < cell_count; ++i)
+        {
+            if (shape_data->m_Cells[i].m_Index == B2GRIDSHAPE_EMPTY_CELL)
+            {
+                continue;
+            }
+
+            HullSet::Hull& hull = shape_data->m_HullSet->m_Hulls[shape_data->m_Cells[i].m_Index];
+            assert(hull.m_Count <= B2_MAX_POLYGON_VERTICES);
+
+            b2Vec2 vertices[B2_MAX_POLYGON_VERTICES];
+            uint32_t count = GetGridCellVertices(shape_data, i, vertices);
+
+            b2Hull polygon_hull = b2ComputeHull(vertices, count);
+            b2Polygon polygon = b2MakePolygon(&polygon_hull, shape_data->m_Radius);
+
+            shape_data->m_CellPolygonShapes[i] = b2CreatePolygonShape(body_id, def, &polygon);
+        }
+    }
 
     bool SetGridShapeHull(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t row, uint32_t column, uint32_t hull, HullFlags flags)
     {
-        /*
-        b2Body* body = (b2Body*) collision_object;
-        b2GridShape* grid_shape = GetGridShape(body, shape_index);
-        if (grid_shape == 0)
+        Body* body = (Body*) collision_object;
+        GridShapeData* shape_data = GetGridShapeData(body, shape_index);
+
+        if (shape_data == 0)
         {
             return false;
         }
-        b2GridShape::CellFlags f;
-        f.m_FlipHorizontal = flags.m_FlipHorizontal;
-        f.m_FlipVertical = flags.m_FlipVertical;
-        f.m_Rotate90 = flags.m_Rotate90;
-        grid_shape->SetCellHull(body, row, column, hull, f);
-        return true;
-        */
 
-        return false;
+        HullFlags f = {};
+        f.m_FlipHorizontal = flags.m_FlipHorizontal;
+        f.m_FlipVertical   = flags.m_FlipVertical;
+        f.m_Rotate90       = flags.m_Rotate90;
+
+        uint32_t index = row * shape_data->m_ColumnCount + column;
+        assert(index < shape_data->m_RowCount * shape_data->m_ColumnCount);
+
+        GridShapeData::Cell* cell = &shape_data->m_Cells[index];
+        cell->m_Index = hull;
+        shape_data->m_CellFlags[index] = flags;
+
+        // treat cells with an empty hull as an empty cell
+        if (hull != B2GRIDSHAPE_EMPTY_CELL)
+        {
+            HullSet::Hull& h = shape_data->m_HullSet->m_Hulls[hull];
+            if (h.m_Count == 0)
+            {
+                cell->m_Index = B2GRIDSHAPE_EMPTY_CELL;
+
+                // TODO: Remove polygon if needed
+            }
+        }
+
+        EnsureGridShapePolygonShapes(body->m_BodyId, &shape_data->m_ShapeDef, shape_data);
+
+        return true;
     }
 
     bool SetGridShapeEnable(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t enable)
     {
         // b2BodyId* body_id = (b2BodyId*) collision_object;
+
+        Body* body = (Body*) collision_object;
+        GridShapeData* shape_data = GetGridShapeData(body, shape_index);
+        if (shape_data == 0)
+        {
+            return false;
+        }
+
+        /*
+        const uint32_t cell_count = shape_data->m_RowCount * shape_data->m_ColumnCount;
+
+        for (int i = 0; i < cell_count; ++i)
+        {
+            if (shape_data->m_Cells[i].m_Index == B2GRIDSHAPE_EMPTY_CELL)
+            {
+                continue;
+            }
+        }
+        */
+
+        // TODO: Iterate polygons and enable them
 
         /*
         b2Body* body = (b2Body*) collision_object;
@@ -915,26 +1043,30 @@ namespace dmPhysics
                                   uint32_t shape, uint32_t child,
                                   uint16_t group, uint16_t mask)
     {
-        // b2BodyId* body_id = (b2BodyId*) collision_object;
         Body* body = (Body*) collision_object;
+        if (shape >= body->m_ShapeCount)
+        {
+            return;
+        }
 
-        dmArray<b2ShapeId>& shapes = GetShapeBuffer(world, body->m_BodyId);
-        b2ShapeId shape_id = shapes[shape];
+        ShapeData* shape_data = body->m_Shapes[shape];
 
-        b2Filter filter = b2Shape_GetFilter(shape_id);
-        filter.categoryBits = group;
-        filter.maskBits = mask;
-        b2Shape_SetFilter(shape_id, filter);
+        if (shape_data->m_Type == SHAPE_TYPE_GRID)
+        {
+            GridShapeData* grid_shape = (GridShapeData*) shape_data;
 
-        // Child nonsense here?
-
-        /*
-        b2Fixture* fixture = GetFixture((b2Body*) collision_shape, shape);
-        b2Filter filter = fixture->GetFilterData(child);
-        filter.categoryBits = group;
-        filter.maskBits = mask;
-        fixture->SetFilterData(filter, child);
-        */
+            b2Filter filter = b2Shape_GetFilter(grid_shape->m_CellPolygonShapes[child]);
+            filter.categoryBits = group;
+            filter.maskBits = mask;
+            b2Shape_SetFilter(grid_shape->m_CellPolygonShapes[child], filter);
+        }
+        else
+        {
+            b2Filter filter = b2Shape_GetFilter(shape_data->m_ShapeId);
+            filter.categoryBits = group;
+            filter.maskBits = mask;
+            b2Shape_SetFilter(shape_data->m_ShapeId, filter);
+        }
     }
 
     void DeleteCollisionShape2D(HCollisionShape2D _shape)
@@ -1008,7 +1140,7 @@ namespace dmPhysics
         transform.q = r;
         transform.p = t;
 
-        ShapeData* ret = 0;
+        ShapeData* ret = (ShapeData*) shape;
 
         switch(shape->m_Type)
         {
@@ -1029,7 +1161,6 @@ namespace dmPhysics
                 circle_shape_prim->m_Circle.radius *= scale;
                 ret = (ShapeData*) circle_shape_prim;
             } break;
-
             case SHAPE_TYPE_POLYGON:
             {
                 PolygonShapeData* poly_shape = (PolygonShapeData*) shape;
@@ -1048,29 +1179,17 @@ namespace dmPhysics
 
                 ret = (ShapeData*) poly_shape_prim;
             } break;
-
             case SHAPE_TYPE_GRID:
             {
                 GridShapeData* grid_shape = (GridShapeData*) shape;
                 GridShapeData* grid_shape_prim = new GridShapeData;
                 memcpy(grid_shape_prim, grid_shape, sizeof(GridShapeData));
 
+                InitializeGridSHapeData(grid_shape_prim);
+
                 ret = (ShapeData*) grid_shape_prim;
             } break;
-
-        /*
-        case b2Shape::e_grid:
-        {
-            const b2GridShape* grid_shape = (const b2GridShape*) shape;
-            b2GridShape* grid_shape_prim = new b2GridShape(grid_shape->m_hullSet, TransformScaleB2(transform, scale, grid_shape->m_position),
-                    grid_shape->m_cellWidth * scale, grid_shape->m_cellHeight * scale, grid_shape->m_rowCount, grid_shape->m_columnCount);
-            ret = grid_shape_prim;
-        } break;
-        */
-
-        default:
-            ret = (ShapeData*) shape;
-            break;
+            default: break;
         }
 
         if (shape->m_Type != SHAPE_TYPE_CIRCLE)
@@ -1103,7 +1222,8 @@ namespace dmPhysics
 
             case SHAPE_TYPE_GRID:
             {
-                b2DestroyShape(shape->m_ShapeId, false);
+                // b2DestroyShape(shape->m_ShapeId, false);
+                // TODO
                 GridShapeData* grid_shape = (GridShapeData*) shape;
                 delete grid_shape;
             } break;
@@ -1223,31 +1343,29 @@ namespace dmPhysics
             f_def.enableContactEvents = true;
             f_def.enableHitEvents     = true;
 
-            b2ShapeId shape_id = {};
             switch (s->m_Type)
             {
                 case SHAPE_TYPE_CIRCLE:
                 {
                     CircleShapeData* c = (CircleShapeData*) s;
-                    shape_id = b2CreateCircleShape(bodyId, &f_def, &c->m_Circle);
+                    s->m_ShapeId = b2CreateCircleShape(bodyId, &f_def, &c->m_Circle);
                 } break;
                 case SHAPE_TYPE_POLYGON:
                 {
                     PolygonShapeData* p = (PolygonShapeData*) s;
-                    shape_id = b2CreatePolygonShape(bodyId, &f_def, &p->m_Polygon);
+                    s->m_ShapeId = b2CreatePolygonShape(bodyId, &f_def, &p->m_Polygon);
                 } break;
                 case SHAPE_TYPE_GRID:
                 {
                     GridShapeData* g = (GridShapeData*) s;
-                    // TODO
-                    // shape_id = b2CreateGridShape(bodyId, &f_def, &g->m_Grid);
+
+                    // Grid polygons are created later, so we need to store the definition for later.
+                    memcpy(&g->m_ShapeDef, &f_def, sizeof(b2ShapeDef));
                 } break;
                 default:assert(0);
             }
 
             body->m_Shapes[i] = s;
-
-            PutShapeIdToShapeData(world, shape_id, s);
         }
 
         if (world->m_Bodies.Full())
@@ -1255,7 +1373,7 @@ namespace dmPhysics
             world->m_Bodies.OffsetCapacity(32);
         }
 
-        world->m_Bodies.Push(bodyId);
+        world->m_Bodies.Push(body);
 
         UpdateMass2D(world, body, data.m_Mass);
         return body;
@@ -1271,15 +1389,9 @@ namespace dmPhysics
         Body* body = (Body*) collision_object;
         uint64_t opaque_id = ToOpaqueHandle(body->m_BodyId);
 
-        dmArray<b2ShapeId>& shapes = GetShapeBuffer(world, body->m_BodyId);
-
-        for (int i = 0; i < shapes.Size(); ++i)
+        for (int i = 0; i < body->m_ShapeCount; ++i)
         {
-            ShapeData* shape = ShapeIdToShapeData(world, shapes[i]);
-            FreeShape(shape);
-
-            uint64_t opaque_shape_id = ToOpaqueHandle(shapes[i]);
-            world->m_ShapeIdToShapeData.Erase(opaque_shape_id);
+            FreeShape(body->m_Shapes[i]);
         }
 
         b2DestroyBody(body->m_BodyId);
@@ -1287,7 +1399,8 @@ namespace dmPhysics
         uint32_t num_bodies = world->m_Bodies.Size();
         for (int i = 0; i < num_bodies; ++i)
         {
-            uint64_t opaque_id_other = ToOpaqueHandle(world->m_Bodies[i]);
+            Body* other = world->m_Bodies[i];
+            uint64_t opaque_id_other = ToOpaqueHandle(other->m_BodyId);
             if (opaque_id == opaque_id_other)
             {
                 world->m_Bodies.EraseSwap(i);
@@ -1299,12 +1412,11 @@ namespace dmPhysics
     uint32_t GetCollisionShapes2D(HWorld2D world, HCollisionObject2D collision_object, HCollisionShape2D* out_buffer, uint32_t buffer_size)
     {
         Body* body = (Body*) collision_object;
-        dmArray<b2ShapeId>& shapes = GetShapeBuffer(world, body->m_BodyId);
 
-        uint32_t size = dmMath::Min(buffer_size, shapes.Size());
+        uint32_t size = dmMath::Min(buffer_size, (uint32_t) body->m_ShapeCount);
         for (uint32_t i = 0; i < size; ++i)
         {
-            out_buffer[i] = ShapeIdToShapeData(world, shapes[i]);
+            out_buffer[i] = body->m_Shapes[i];
         }
         return size;
     }
@@ -1312,9 +1424,7 @@ namespace dmPhysics
     HCollisionShape2D GetCollisionShape2D(HWorld2D world, HCollisionObject2D collision_object, uint32_t shape_index)
     {
         Body* body = (Body*) collision_object;
-        dmArray<b2ShapeId>& shapes = GetShapeBuffer(world, body->m_BodyId);
-        b2ShapeId shape_id = shapes[shape_index];
-        return ShapeIdToShapeData(world, shape_id);
+        return body->m_Shapes[shape_index];
     }
 
     void GetCollisionShapeRadius2D(HWorld2D world, HCollisionShape2D _shape, float* radius)
@@ -1598,19 +1708,15 @@ namespace dmPhysics
     void SetGroup2D(HWorld2D world, HCollisionObject2D collision_object, uint16_t groupbit)
     {
         Body* body = (Body*) collision_object;
-        dmArray<b2ShapeId>& shapes = GetShapeBuffer(world, body->m_BodyId);
 
-        for (int i = 0; i < shapes.Size(); ++i)
+        for (int i = 0; i < body->m_ShapeCount; ++i)
         {
-            b2ShapeId shape_id = shapes[i];
-
-            // TODO: Grid shape..
-            // ShapeData* shape = ShapeIdToShapeData(world, shape_id);
-            // if (shape->m_Type != )
+            ShapeData* shape_data = body->m_Shapes[i];
+            if (shape_data->m_Type != SHAPE_TYPE_GRID)
             {
-                b2Filter filter = b2Shape_GetFilter(shape_id);
+                b2Filter filter = b2Shape_GetFilter(shape_data->m_ShapeId);
                 filter.categoryBits = groupbit;
-                b2Shape_SetFilter(shape_id, filter);
+                b2Shape_SetFilter(shape_data->m_ShapeId, filter);
             }
         }
     }
@@ -1618,17 +1724,13 @@ namespace dmPhysics
     uint16_t GetGroup2D(HWorld2D world, HCollisionObject2D collision_object)
     {
         Body* body = (Body*) collision_object;
-        dmArray<b2ShapeId>& shapes = GetShapeBuffer(world, body->m_BodyId);
 
-        for (int i = 0; i < shapes.Size(); ++i)
+        for (int i = 0; i < body->m_ShapeCount; ++i)
         {
-            b2ShapeId shape_id = shapes[i];
-
-            // TODO: Grid shape..
-            // ShapeData* shape = ShapeIdToShapeData(world, shape_id);
-            // if (shape->m_Type != )
+            ShapeData* shape_data = body->m_Shapes[i];
+            if (shape_data->m_Type != SHAPE_TYPE_GRID)
             {
-                return b2Shape_GetFilter(shape_id).categoryBits;
+                return b2Shape_GetFilter(shape_data->m_ShapeId).categoryBits;
             }
         }
         return 0;
@@ -1638,23 +1740,20 @@ namespace dmPhysics
     void SetMaskBit2D(HWorld2D world, HCollisionObject2D collision_object, uint16_t groupbit, bool boolvalue)
     {
         Body* body = (Body*) collision_object;
-        dmArray<b2ShapeId>& shapes = GetShapeBuffer(world, body->m_BodyId);
 
-        for (int i = 0; i < shapes.Size(); ++i)
+        for (int i = 0; i < body->m_ShapeCount; ++i)
         {
-            b2ShapeId shape_id = shapes[i];
+            ShapeData* shape_data = body->m_Shapes[i];
 
-            // TODO: Grid shape..
-            // ShapeData* shape = ShapeIdToShapeData(world, shape_id);
-            // if (shape->m_Type != )
+            if (shape_data->m_Type != SHAPE_TYPE_GRID)
             {
-                b2Filter filter = b2Shape_GetFilter(shape_id); // all non-grid shapes have only one filter item indexed at position 0
+                b2Filter filter = b2Shape_GetFilter(shape_data->m_ShapeId); // all non-grid shapes have only one filter item indexed at position 0
                 if (boolvalue)
                     filter.maskBits |= groupbit;
                 else
                     filter.maskBits &= ~groupbit;
 
-                b2Shape_SetFilter(shape_id, filter);
+                b2Shape_SetFilter(shape_data->m_ShapeId, filter);
             }
         }
     }
@@ -1662,17 +1761,13 @@ namespace dmPhysics
     bool GetMaskBit2D(HWorld2D world, HCollisionObject2D collision_object, uint16_t groupbit)
     {
         Body* body = (Body*) collision_object;
-        dmArray<b2ShapeId>& shapes = GetShapeBuffer(world, body->m_BodyId);
-
-        for (int i = 0; i < shapes.Size(); ++i)
+        for (int i = 0; i < body->m_ShapeCount; ++i)
         {
-            b2ShapeId shape_id = shapes[i];
+            ShapeData* shape_data = body->m_Shapes[i];
 
-            // TODO: Grid shape..
-            // ShapeData* shape = ShapeIdToShapeData(world, shape_id);
-            // if (shape->m_Type != )
+            if (shape_data->m_Type != SHAPE_TYPE_GRID)
             {
-                b2Filter filter = b2Shape_GetFilter(shape_id);
+                b2Filter filter = b2Shape_GetFilter(shape_data->m_ShapeId);
                 return !!(filter.maskBits & groupbit);
             }
         }
@@ -1883,13 +1978,11 @@ namespace dmPhysics
 
             for (int j = 0; j < world->m_Bodies.Size(); ++j)
             {
-                b2BodyId body_id = world->m_Bodies[j];
+                Body* body = world->m_Bodies[j];
 
-                dmArray<b2ShapeId>& shapes = GetShapeBuffer(world, body_id);
-
-                for (int s = 0; s < shapes.Size(); ++s)
+                for (int s = 0; s < body->m_ShapeCount; ++s)
                 {
-                    uint64_t shape_h = ToOpaqueHandle(shapes[s]);
+                    uint64_t shape_h = ToOpaqueHandle(body->m_Shapes[s]->m_ShapeId);
 
                     if (shape_h == old_shape_h)
                     {
