@@ -1091,6 +1091,7 @@ namespace dmSound
         {
             assert(channels == 2);
             MixScaledStereoToStereo(mix_buffer, g_SoundSystem->GetDecoderBufferBase(0), g_SoundSystem->GetDecoderBufferBase(1), mix_buffer_count, scale_l[0], scale_r[0], scale_dl[0], scale_dr[0],
+                                                                                                                                                  scale_l[1], scale_r[1], scale_dl[1], scale_dr[1]);
         }
 
         SaveTempBufferState(instance, avail_framecount, mix_buffer_count, channels);
@@ -1117,6 +1118,7 @@ namespace dmSound
         {
             assert(channels == 2);
             frac = MixAndResampleStereoToStero_Polyphase(mix_buffer, g_SoundSystem->GetDecoderBufferBase(0), g_SoundSystem->GetDecoderBufferBase(1), mix_buffer_count, frac, delta, scale_l[0], scale_r[0], scale_dl[0], scale_dr[0],
+                                                                                                                                                                                    scale_l[1], scale_r[1], scale_dl[1], scale_dr[1]);
         }
 
         uint32_t next_index = (uint32_t)(frac >> RESAMPLE_FRACTION_BITS);

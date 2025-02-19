@@ -83,15 +83,22 @@ static inline void MixScaledMonoToStereo(float* out[], const float* in, uint32_t
     }
 }
 
-static inline void MixScaledStereoToStereo_MonoPan(float* out[], const float* in_l, const float* in_r, uint32_t num, float scale_l, float scale_r, float scale_delta_l, float scale_delta_r)
+static inline void MixScaledStereoToStereo(float* out[], const float* in_l, const float* in_r, uint32_t num, float scale_l0, float scale_r0, float scale_delta_l0, float scale_delta_r0,
+                                                                                                                     float scale_l1, float scale_r1, float scale_delta_l1, float scale_delta_r1)
 {
     // setup ramps
-    vec4 scld = wasm_f32x4_splat(scale_delta_l);
-    vec4 scrd = wasm_f32x4_splat(scale_delta_r);
-    vec4 scl  = wasm_f32x4_splat(scale_l) + scld * wasm_f32x4_make(0.0f, 1.0f, 2.0f, 3.0f);
-    vec4 scr  = wasm_f32x4_splat(scale_r) + scrd * wasm_f32x4_make(0.0f, 1.0f, 2.0f, 3.0f);
-    scld *= 4.0f;
-    scrd *= 4.0f;
+    vec4 scld0 = wasm_f32x4_splat(scale_delta_l0);
+    vec4 scrd0 = wasm_f32x4_splat(scale_delta_r0);
+    vec4 scld1 = wasm_f32x4_splat(scale_delta_l1);
+    vec4 scrd1 = wasm_f32x4_splat(scale_delta_r1);
+    vec4 scl0  = wasm_f32x4_splat(scale_l0) + scld0 * wasm_f32x4_make(0.0f, 1.0f, 2.0f, 3.0f);
+    vec4 scr0  = wasm_f32x4_splat(scale_r0) + scrd0 * wasm_f32x4_make(0.0f, 1.0f, 2.0f, 3.0f);
+    vec4 scl1  = wasm_f32x4_splat(scale_l1) + scld1 * wasm_f32x4_make(0.0f, 1.0f, 2.0f, 3.0f);
+    vec4 scr1  = wasm_f32x4_splat(scale_r1) + scrd1 * wasm_f32x4_make(0.0f, 1.0f, 2.0f, 3.0f);
+    scld0 *= 4.0f;
+    scrd0 *= 4.0f;
+    scld1 *= 4.0f;
+    scrd1 *= 4.0f;
 
     // vectorized mix
     vec4* vl = (vec4*)out[0];
@@ -102,26 +109,32 @@ static inline void MixScaledStereoToStereo_MonoPan(float* out[], const float* in
     {
         vec4 sl = *(vin_l++);
         vec4 sr = *(vin_r++);
-        *(vl++) += sl * scl;
-        *(vr++) += sr * scr;
-        scl += scld;
-        scr += scrd;
+        *(vl++) += sl * scl0 + sr * scl1;
+        *(vr++) += sl * scr0 + sr * scr1;
+        scl0 += scld0;
+        scr0 += scrd0;
+        scl1 += scld1;
+        scr1 += scrd1;
     }
     // process any remaining samples
     float* fl = (float*)vl;
     float* fr = (float*)vr;
     float* fin_l = (float*)vin_l;
     float* fin_r = (float*)vin_r;
-    scale_l = scl[0];
-    scale_r = scr[0];
+    scale_l0 = scl0[0];
+    scale_r0 = scr0[0];
+    scale_l1 = scl1[0];
+    scale_r1 = scr1[0];
     for(; num>0; --num)
     {
         float sl = *(fin_l++);
         float sr = *(fin_r++);
-        *(fl++) += sl * scale_l;
-        *(fr++) += sr * scale_r;
-        scale_l += scale_delta_l;
-        scale_r += scale_delta_r;
+        *(fl++) += sl * scale_l0 + sr * scale_l1;
+        *(fr++) += sl * scale_r0 + sr * scale_r1;
+        scale_l0 += scale_delta_l0;
+        scale_r0 += scale_delta_r0;
+        scale_l1 += scale_delta_l1;
+        scale_r1 += scale_delta_r1;
     }
 }
 
@@ -174,15 +187,22 @@ static inline uint64_t MixAndResampleMonoToStero_Polyphase(float* out[], const f
     return frac;
 }
 
-static inline uint64_t MixAndResampleStereoToStero_Polyphase_MonoPan(float* out[], const float* in_l, const float* in_r, uint32_t num, uint64_t frac, uint64_t delta, float scale_l, float scale_r, float scale_delta_l, float scale_delta_r)
+static inline uint64_t MixAndResampleStereoToStero_Polyphase(float* out[], const float* in_l, const float* in_r, uint32_t num, uint64_t frac, uint64_t delta, float scale_l0, float scale_r0, float scale_delta_l0, float scale_delta_r0,
+                                                                                                                                                              float scale_l1, float scale_r1, float scale_delta_l1, float scale_delta_r1)
 {
     // setup ramps
-    vec4 scld = wasm_f32x4_splat(scale_delta_l);
-    vec4 scrd = wasm_f32x4_splat(scale_delta_r);
-    vec4 scl  = wasm_f32x4_splat(scale_l) + scld * wasm_f32x4_make(0.0f, 1.0f, 2.0f, 3.0f);
-    vec4 scr  = wasm_f32x4_splat(scale_r) + scrd * wasm_f32x4_make(0.0f, 1.0f, 2.0f, 3.0f);
-    scld *= 4.0f;
-    scrd *= 4.0f;
+    vec4 scld0 = wasm_f32x4_splat(scale_delta_l0);
+    vec4 scrd0 = wasm_f32x4_splat(scale_delta_r0);
+    vec4 scld1 = wasm_f32x4_splat(scale_delta_l1);
+    vec4 scrd1 = wasm_f32x4_splat(scale_delta_r1);
+    vec4 scl0  = wasm_f32x4_splat(scale_l0) + scld0 * wasm_f32x4_make(0.0f, 1.0f, 2.0f, 3.0f);
+    vec4 scr0  = wasm_f32x4_splat(scale_r0) + scrd0 * wasm_f32x4_make(0.0f, 1.0f, 2.0f, 3.0f);
+    vec4 scl1  = wasm_f32x4_splat(scale_l1) + scld1 * wasm_f32x4_make(0.0f, 1.0f, 2.0f, 3.0f);
+    vec4 scr1  = wasm_f32x4_splat(scale_r1) + scrd1 * wasm_f32x4_make(0.0f, 1.0f, 2.0f, 3.0f);
+    scld0 *= 4.0f;
+    scrd0 *= 4.0f;
+    scld1 *= 4.0f;
+    scrd1 *= 4.0f;
 
     // vectorized mix
     vec4* vl = (vec4*)out[0];
@@ -204,25 +224,31 @@ static inline uint64_t MixAndResampleStereoToStero_Polyphase_MonoPan(float* out[
         vec4 sl = wasm_f32x4_make(s0l, s1l, s2l, s3l);
         vec4 sr = wasm_f32x4_make(s0r, s1r, s2r, s3r);
 
-        *(vl++) += sl * scl;
-        *(vr++) += sr * scr;
-        scl += scld;
-        scr += scrd;
+        *(vl++) += sl * scl0 + sr * scl1;
+        *(vr++) += sl * scr0 + sr * scr1;
+        scl0 += scld0;
+        scr0 += scrd0;
+        scl1 += scld1;
+        scr1 += scrd1;
     }
     // process any remaining samples
     float* fl = (float*)vl;
     float* fr = (float*)vr;
-    scale_l = scl[0];
-    scale_r = scr[1];
+    scale_l0 = scl0[0];
+    scale_r0 = scr0[1];
+    scale_l1 = scl1[0];
+    scale_r1 = scr1[1];
     for(; num>0; --num)
     {
         float sl = FilterSampleFIR8(&in_l[frac >> RESAMPLE_FRACTION_BITS], frac);
         float sr = FilterSampleFIR8(&in_r[frac >> RESAMPLE_FRACTION_BITS], frac);
 
-        *(fl++) += sl * scale_l;
-        *(fr++) += sr * scale_r;
-        scale_l += scale_delta_l;
-        scale_r += scale_delta_r;
+        *(fl++) += sl * scale_l0 + sr * scale_l1;
+        *(fr++) += sl * scale_r0 + sr * scale_r1;
+        scale_l0 += scale_delta_l0;
+        scale_r0 += scale_delta_r0;
+        scale_l1 += scale_delta_l1;
+        scale_r1 += scale_delta_r1;
 
         frac += delta;
     }
