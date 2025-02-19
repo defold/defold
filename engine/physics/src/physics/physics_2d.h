@@ -27,28 +27,18 @@
 
 namespace dmPhysics
 {
-    /*
-    class ContactListener : public b2ContactListener
+    enum ShapeType
     {
-    public:
-        ContactListener(HWorld2D world);
-
-        virtual void PostSolve(b2Contact* contact, const b2ContactImpulse* impulse);
-
-        void SetStepWorldContext(const StepWorldContext* context);
-
-    private:
-        HWorld2D m_World;
-        /// Temporary context to be set before each stepping of the world
-        const StepWorldContext* m_TempStepWorldContext;
+        SHAPE_TYPE_CIRCLE,
+        SHAPE_TYPE_POLYGON,
+        SHAPE_TYPE_GRID,
     };
-    */
 
     struct ShapeData
     {
         b2ShapeId   m_ShapeId;
-        b2ShapeType m_Type;
         b2Vec2      m_CreationPosition;
+        ShapeType   m_Type;
         float       m_CreationScale;
         float       m_LastScale;
     };
@@ -66,6 +56,37 @@ namespace dmPhysics
         b2Polygon m_Polygon;
     };
 
+    struct GridShapeData
+    {
+        struct Cell
+        {
+            // Index to hull in hull-set
+            uint32_t m_Index;
+        };
+        struct CellFlags
+        {
+            uint8_t m_FlipHorizontal : 1;
+            uint8_t m_FlipVertical   : 1;
+            uint8_t m_Rotate90       : 1;
+            uint8_t                  : 5;
+        };
+
+        ShapeData  m_ShapeDataBase;
+        HHullSet2D m_HullSet;
+        b2Vec2     m_Position;
+        float      m_CellWidth;
+        float      m_CellHeight;
+        uint32_t   m_RowCount;
+        uint32_t   m_ColumnCount;
+    };
+
+    struct Body
+    {
+        b2BodyId    m_BodyId;
+        ShapeData** m_Shapes;
+        uint8_t     m_ShapeCount;
+    };
+
     struct World2D
     {
         World2D(HContext2D context, const NewWorldParams& params);
@@ -75,11 +96,12 @@ namespace dmPhysics
         b2WorldId                   m_WorldId;
         dmArray<RayCastRequest>     m_RayCastRequests;
         DebugDraw2D                 m_DebugDraw;
-        // ContactListener             m_ContactListener;
         GetWorldTransformCallback   m_GetWorldTransformCallback;
         SetWorldTransformCallback   m_SetWorldTransformCallback;
 
         dmArray<b2BodyId>           m_Bodies;
+
+        // TODO: I think we can merge these into a single buffer of bytes
         dmArray<b2ShapeId>          m_GetShapeScratchBuffer;
         dmArray<b2ContactData>      m_GetContactsScratchBuffer;
         dmArray<b2ShapeId>          m_GetSensorOverlapsScratchBuffer;

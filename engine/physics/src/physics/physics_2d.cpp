@@ -325,9 +325,9 @@ namespace dmPhysics
 
     static void FlipBody(HWorld2D world, HCollisionObject2D collision_object, float horizontal, float vertical)
     {
-        b2BodyId* body_id = (b2BodyId*) collision_object;
+        Body* body = (Body*) collision_object;
 
-        const dmArray<b2ShapeId>& shape_buffer = GetShapeBuffer(world, *body_id);
+        const dmArray<b2ShapeId>& shape_buffer = GetShapeBuffer(world, body->m_BodyId);
         for (int i = 0; i < shape_buffer.Size(); ++i)
         {
             b2ShapeId shape_id = shape_buffer[i];
@@ -335,21 +335,21 @@ namespace dmPhysics
 
             switch(shape_data->m_Type)
             {
-                case b2_polygonShape:
-                {
-                    FlipPolygon((PolygonShapeData*) shape_data, horizontal, vertical);
-                } break;
-                case b2_circleShape:
+                case SHAPE_TYPE_CIRCLE:
                 {
                     CircleShapeData* circle_shape = (CircleShapeData*) shape_data;
                     circle_shape->m_Circle.center = FlipPoint(circle_shape->m_Circle.center, horizontal, vertical);
                     circle_shape->m_ShapeDataBase.m_CreationPosition = FlipPoint(circle_shape->m_ShapeDataBase.m_CreationPosition, horizontal, vertical);
                 } break;
+                case SHAPE_TYPE_POLYGON:
+                {
+                    FlipPolygon((PolygonShapeData*) shape_data, horizontal, vertical);
+                } break;
                 default: break;
             }
         }
 
-        b2Body_SetAwake(*body_id, true);
+        b2Body_SetAwake(body->m_BodyId, true);
     }
 
     void FlipH2D(HWorld2D world, HCollisionObject2D collision_object)
@@ -648,6 +648,7 @@ namespace dmPhysics
             }
         }
 
+    #if 0
         b2ContactEvents contact_events = b2World_GetContactEvents(world->m_WorldId);
 
         if (contact_events.beginCount > 0)
@@ -664,6 +665,7 @@ namespace dmPhysics
         {
             dmLogInfo("Contact hit events: %d", contact_events.hitCount);
         }
+    #endif
 
         // Post-solve callbacks
         if (step_context.m_CollisionCallback || step_context.m_ContactPointCallback)
@@ -754,7 +756,7 @@ namespace dmPhysics
     {
         float scale = context->m_Scale;
         CircleShapeData* shape_data = new CircleShapeData();
-        shape_data->m_ShapeDataBase.m_Type = b2_circleShape;
+        shape_data->m_ShapeDataBase.m_Type = SHAPE_TYPE_CIRCLE;
         shape_data->m_ShapeDataBase.m_CreationScale = radius * scale;
         shape_data->m_Circle.center = {0.0f, 0.0f};
         shape_data->m_Circle.radius = radius * scale;
@@ -765,7 +767,7 @@ namespace dmPhysics
     {
         float scale = context->m_Scale;
         PolygonShapeData* shape_data = new PolygonShapeData();
-        shape_data->m_ShapeDataBase.m_Type = b2_polygonShape;
+        shape_data->m_ShapeDataBase.m_Type = SHAPE_TYPE_POLYGON;
         shape_data->m_ShapeDataBase.m_CreationScale = scale;
         shape_data->m_Polygon = b2MakeBox(half_extents.getX() * scale, half_extents.getY() * scale);
 
@@ -780,7 +782,6 @@ namespace dmPhysics
 
         PolygonShapeData* shape_data = new PolygonShapeData();
 
-        // b2Polygon* shape = new b2Polygon();
         b2Vec2* v = new b2Vec2[vertex_count];
         for (uint32_t i = 0; i < vertex_count; ++i)
         {
@@ -817,13 +818,21 @@ namespace dmPhysics
                                      uint32_t cell_width, uint32_t cell_height,
                                      uint32_t row_count, uint32_t column_count)
     {
-        /*
         float scale = context->m_Scale;
         b2Vec2 p;
         ToB2(position, p, scale);
-        return new b2GridShape((HullSet*) hull_set, p, cell_width * scale, cell_height * scale, row_count, column_count);
-        */
-        return 0;
+
+        GridShapeData* shape_data = new GridShapeData();
+        shape_data->m_ShapeDataBase.m_Type = SHAPE_TYPE_GRID;
+
+        shape_data->m_Position    = p;
+        shape_data->m_HullSet     = hull_set;
+        shape_data->m_CellWidth   = cell_width * scale;
+        shape_data->m_CellHeight  = cell_height * scale;
+        shape_data->m_RowCount    = row_count;
+        shape_data->m_ColumnCount = column_count;
+
+        return shape_data;
     }
 
     void ClearGridShapeHulls(HCollisionObject2D collision_object)
@@ -877,6 +886,8 @@ namespace dmPhysics
 
     bool SetGridShapeEnable(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t enable)
     {
+        // b2BodyId* body_id = (b2BodyId*) collision_object;
+
         /*
         b2Body* body = (b2Body*) collision_object;
         b2Fixture* fixture = GetFixture(body, shape_index);
@@ -904,8 +915,10 @@ namespace dmPhysics
                                   uint32_t shape, uint32_t child,
                                   uint16_t group, uint16_t mask)
     {
-        b2BodyId* body_id = (b2BodyId*) collision_object;
-        dmArray<b2ShapeId>& shapes = GetShapeBuffer(world, *body_id);
+        // b2BodyId* body_id = (b2BodyId*) collision_object;
+        Body* body = (Body*) collision_object;
+
+        dmArray<b2ShapeId>& shapes = GetShapeBuffer(world, body->m_BodyId);
         b2ShapeId shape_id = shapes[shape];
 
         b2Filter filter = b2Shape_GetFilter(shape_id);
@@ -930,11 +943,14 @@ namespace dmPhysics
 
         switch (shape->m_Type)
         {
-            case b2_circleShape:
+            case SHAPE_TYPE_CIRCLE:
                 delete (CircleShapeData*) shape;
                 break;
-            case b2_polygonShape:
+            case SHAPE_TYPE_POLYGON:
                 delete (PolygonShapeData*) shape;
+                break;
+            case SHAPE_TYPE_GRID:
+                delete (GridShapeData*) shape;
                 break;
             default:
                 assert(false);
@@ -996,7 +1012,7 @@ namespace dmPhysics
 
         switch(shape->m_Type)
         {
-            case b2_circleShape:
+            case SHAPE_TYPE_CIRCLE:
             {
                 CircleShapeData* circle_shape      = (CircleShapeData*) shape;
                 CircleShapeData* circle_shape_prim = new CircleShapeData;
@@ -1014,7 +1030,7 @@ namespace dmPhysics
                 ret = (ShapeData*) circle_shape_prim;
             } break;
 
-            case b2_polygonShape:
+            case SHAPE_TYPE_POLYGON:
             {
                 PolygonShapeData* poly_shape = (PolygonShapeData*) shape;
                 PolygonShapeData* poly_shape_prim = new PolygonShapeData;
@@ -1033,6 +1049,15 @@ namespace dmPhysics
                 ret = (ShapeData*) poly_shape_prim;
             } break;
 
+            case SHAPE_TYPE_GRID:
+            {
+                GridShapeData* grid_shape = (GridShapeData*) shape;
+                GridShapeData* grid_shape_prim = new GridShapeData;
+                memcpy(grid_shape_prim, grid_shape, sizeof(GridShapeData));
+
+                ret = (ShapeData*) grid_shape_prim;
+            } break;
+
         /*
         case b2Shape::e_grid:
         {
@@ -1048,7 +1073,7 @@ namespace dmPhysics
             break;
         }
 
-        if (shape->m_Type != b2_circleShape)
+        if (shape->m_Type != SHAPE_TYPE_CIRCLE)
         {
             ret->m_CreationScale = scale;
         }
@@ -1060,7 +1085,7 @@ namespace dmPhysics
     {
         switch(shape->m_Type)
         {
-            case b2_circleShape:
+            case SHAPE_TYPE_CIRCLE:
             {
                 b2DestroyShape(shape->m_ShapeId, false);
                 CircleShapeData* circle_shape = (CircleShapeData*) shape;
@@ -1068,7 +1093,7 @@ namespace dmPhysics
             }
             break;
 
-            case b2_polygonShape:
+            case SHAPE_TYPE_POLYGON:
             {
                 b2DestroyShape(shape->m_ShapeId, false);
                 PolygonShapeData* poly_shape = (PolygonShapeData*) shape;
@@ -1076,15 +1101,12 @@ namespace dmPhysics
             }
             break;
 
-        /*
-        case b2Shape::e_grid:
-        {
-            b2GridShape* grid_shape = (b2GridShape*) shape;
-            delete grid_shape;
-        }
-        break;
-        */
-
+            case SHAPE_TYPE_GRID:
+            {
+                b2DestroyShape(shape->m_ShapeId, false);
+                GridShapeData* grid_shape = (GridShapeData*) shape;
+                delete grid_shape;
+            } break;
         default:
             // pass
             break;
@@ -1167,6 +1189,11 @@ namespace dmPhysics
 
         b2BodyId bodyId = b2CreateBody(world->m_WorldId, &def);
 
+        Body* body = new Body();
+        body->m_BodyId = bodyId;
+        body->m_Shapes = (ShapeData**) malloc(shape_count * sizeof(ShapeData*));
+        body->m_ShapeCount = shape_count;
+
         // b2Body* body = world->m_World.CreateBody(&def);
         Vector3 zero_vec3 = Vector3(0);
 
@@ -1199,18 +1226,26 @@ namespace dmPhysics
             b2ShapeId shape_id = {};
             switch (s->m_Type)
             {
-                case b2_circleShape:
+                case SHAPE_TYPE_CIRCLE:
                 {
                     CircleShapeData* c = (CircleShapeData*) s;
                     shape_id = b2CreateCircleShape(bodyId, &f_def, &c->m_Circle);
                 } break;
-                case b2_polygonShape:
+                case SHAPE_TYPE_POLYGON:
                 {
                     PolygonShapeData* p = (PolygonShapeData*) s;
                     shape_id = b2CreatePolygonShape(bodyId, &f_def, &p->m_Polygon);
                 } break;
+                case SHAPE_TYPE_GRID:
+                {
+                    GridShapeData* g = (GridShapeData*) s;
+                    // TODO
+                    // shape_id = b2CreateGridShape(bodyId, &f_def, &g->m_Grid);
+                } break;
                 default:assert(0);
             }
+
+            body->m_Shapes[i] = s;
 
             PutShapeIdToShapeData(world, shape_id, s);
         }
@@ -1222,12 +1257,8 @@ namespace dmPhysics
 
         world->m_Bodies.Push(bodyId);
 
-        // TODO: Don't return the raw pointer
-        b2BodyId* id = new b2BodyId();
-        *id = bodyId;
-
-        UpdateMass2D(world, id, data.m_Mass);
-        return id;
+        UpdateMass2D(world, body, data.m_Mass);
+        return body;
     }
 
     void DeleteCollisionObject2D(HWorld2D world, HCollisionObject2D collision_object)
@@ -1237,12 +1268,10 @@ namespace dmPhysics
         // DestroyBody() should be enough in general but we have to run over all fixtures in order to free allocated shapes
         // See comment above about shapes and transforms
 
-        b2BodyId* id = (b2BodyId*) collision_object;
-        uint64_t opaque_id = ToOpaqueHandle(*id);
+        Body* body = (Body*) collision_object;
+        uint64_t opaque_id = ToOpaqueHandle(body->m_BodyId);
 
-        b2BodyId* body_id = (b2BodyId*) collision_object;
-
-        dmArray<b2ShapeId>& shapes = GetShapeBuffer(world, *body_id);
+        dmArray<b2ShapeId>& shapes = GetShapeBuffer(world, body->m_BodyId);
 
         for (int i = 0; i < shapes.Size(); ++i)
         {
@@ -1253,7 +1282,7 @@ namespace dmPhysics
             world->m_ShapeIdToShapeData.Erase(opaque_shape_id);
         }
 
-        b2DestroyBody(*id);
+        b2DestroyBody(body->m_BodyId);
 
         uint32_t num_bodies = world->m_Bodies.Size();
         for (int i = 0; i < num_bodies; ++i)
@@ -1269,8 +1298,8 @@ namespace dmPhysics
 
     uint32_t GetCollisionShapes2D(HWorld2D world, HCollisionObject2D collision_object, HCollisionShape2D* out_buffer, uint32_t buffer_size)
     {
-        b2BodyId* id = (b2BodyId*) collision_object;
-        dmArray<b2ShapeId>& shapes = GetShapeBuffer(world, *id);
+        Body* body = (Body*) collision_object;
+        dmArray<b2ShapeId>& shapes = GetShapeBuffer(world, body->m_BodyId);
 
         uint32_t size = dmMath::Min(buffer_size, shapes.Size());
         for (uint32_t i = 0; i < size; ++i)
@@ -1282,8 +1311,8 @@ namespace dmPhysics
 
     HCollisionShape2D GetCollisionShape2D(HWorld2D world, HCollisionObject2D collision_object, uint32_t shape_index)
     {
-        b2BodyId* id = (b2BodyId*) collision_object;
-        dmArray<b2ShapeId>& shapes = GetShapeBuffer(world, *id);
+        Body* body = (Body*) collision_object;
+        dmArray<b2ShapeId>& shapes = GetShapeBuffer(world, body->m_BodyId);
         b2ShapeId shape_id = shapes[shape_index];
         return ShapeIdToShapeData(world, shape_id);
     }
@@ -1291,14 +1320,14 @@ namespace dmPhysics
     void GetCollisionShapeRadius2D(HWorld2D world, HCollisionShape2D _shape, float* radius)
     {
         CircleShapeData* shape = (CircleShapeData*) _shape;
-        assert(shape->m_ShapeDataBase.m_Type == b2_circleShape);
+        assert(shape->m_ShapeDataBase.m_Type == SHAPE_TYPE_CIRCLE);
         *radius = shape->m_Circle.radius * world->m_Context->m_InvScale;
     }
 
     void SetCollisionShapeRadius2D(HWorld2D world, HCollisionShape2D _shape, float radius)
     {
         CircleShapeData* shape = (CircleShapeData*) _shape;
-        assert(shape->m_ShapeDataBase.m_Type == b2_circleShape);
+        assert(shape->m_ShapeDataBase.m_Type == SHAPE_TYPE_CIRCLE);
 
         shape->m_Circle.radius = radius * world->m_Context->m_Scale;
         shape->m_ShapeDataBase.m_CreationScale = shape->m_Circle.radius;
@@ -1316,7 +1345,7 @@ namespace dmPhysics
     {
         ShapeData* shape = (ShapeData*) _shape;
 
-        if (shape->m_Type == b2_polygonShape)
+        if (shape->m_Type == SHAPE_TYPE_POLYGON)
         {
             float angle = atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()), 1.0f - 2.0f * (rotation.getY() * rotation.getY() + rotation.getZ() * rotation.getZ()));
             float scale = world->m_Context->m_Scale;
@@ -1343,7 +1372,7 @@ namespace dmPhysics
     {
         ShapeData* shape = (ShapeData*) _shape;
 
-        if (shape->m_Type == b2_polygonShape)
+        if (shape->m_Type == SHAPE_TYPE_POLYGON)
         {
             b2Vec2 t;
             ToB2(Vector3(0), t, world->m_Context->m_Scale);
@@ -1378,14 +1407,14 @@ namespace dmPhysics
 
     void SetCollisionObjectUserData2D(HCollisionObject2D collision_object, void* user_data)
     {
-        b2BodyId* id = (b2BodyId*) collision_object;
-        b2Body_SetUserData(*id, user_data);
+        Body* body = (Body*) collision_object;
+        b2Body_SetUserData(body->m_BodyId, user_data);
     }
 
     void* GetCollisionObjectUserData2D(HCollisionObject2D collision_object)
     {
-        b2BodyId* id = (b2BodyId*) collision_object;
-        return b2Body_GetUserData(*id);
+        Body* body = (Body*) collision_object;
+        return b2Body_GetUserData(body->m_BodyId);
     }
 
     void ApplyForce2D(HContext2D context, HCollisionObject2D collision_object, const Vector3& force, const Point3& position)
@@ -1396,8 +1425,8 @@ namespace dmPhysics
         b2Vec2 b2_position;
         ToB2(position, b2_position, scale);
 
-        b2BodyId* id = (b2BodyId*) collision_object;
-        b2Body_ApplyForce(*id, b2_force, b2_position, true);
+        Body* body = (Body*) collision_object;
+        b2Body_ApplyForce(body->m_BodyId, b2_force, b2_position, true);
     }
 
     Vector3 GetTotalForce2D(HContext2D context, HCollisionObject2D collision_object)
@@ -1415,8 +1444,8 @@ namespace dmPhysics
 
     Point3 GetWorldPosition2D(HContext2D context, HCollisionObject2D collision_object)
     {
-        b2BodyId* body_id = (b2BodyId*) collision_object;
-        b2Vec2 b2_position = b2Body_GetPosition(*body_id);
+        Body* body = (Body*) collision_object;
+        b2Vec2 b2_position = b2Body_GetPosition(body->m_BodyId);
         Point3 position;
         FromB2(b2_position, position, context->m_InvScale);
         return position;
@@ -1424,16 +1453,16 @@ namespace dmPhysics
 
     Quat GetWorldRotation2D(HContext2D context, HCollisionObject2D collision_object)
     {
-        b2BodyId* id = (b2BodyId*) collision_object;
-        b2Rot rot = b2Body_GetRotation(*id);
+        Body* body = (Body*) collision_object;
+        b2Rot rot = b2Body_GetRotation(body->m_BodyId);
         float angle = b2Rot_GetAngle(rot);
         return Quat::rotationZ(angle);
     }
 
     Vector3 GetLinearVelocity2D(HContext2D context, HCollisionObject2D collision_object)
     {
-        b2BodyId* id = (b2BodyId*) collision_object;
-        b2Vec2 b2_lin_vel = b2Body_GetLinearVelocity(*id);
+        Body* body = (Body*) collision_object;
+        b2Vec2 b2_lin_vel = b2Body_GetLinearVelocity(body->m_BodyId);
 
         Vector3 lin_vel;
         FromB2(b2_lin_vel, lin_vel, context->m_InvScale);
@@ -1442,29 +1471,29 @@ namespace dmPhysics
 
     Vector3 GetAngularVelocity2D(HContext2D context, HCollisionObject2D collision_object)
     {
-        b2BodyId* id = (b2BodyId*) collision_object;
-        float ang_vel = b2Body_GetAngularVelocity(*id);
+        Body* body = (Body*) collision_object;
+        float ang_vel = b2Body_GetAngularVelocity(body->m_BodyId);
         return Vector3(0.0f, 0.0f, ang_vel);
     }
 
     void SetLinearVelocity2D(HContext2D context, HCollisionObject2D collision_object, const Vector3& velocity)
     {
-        b2BodyId* id = (b2BodyId*) collision_object;
+        Body* body = (Body*) collision_object;
         b2Vec2 b2_velocity;
         ToB2(velocity, b2_velocity, context->m_Scale);
-        b2Body_SetLinearVelocity(*id, b2_velocity);
+        b2Body_SetLinearVelocity(body->m_BodyId, b2_velocity);
     }
 
     void SetAngularVelocity2D(HContext2D context, HCollisionObject2D collision_object, const Vector3& velocity)
     {
-        b2BodyId* id = (b2BodyId*) collision_object;
-        b2Body_SetAngularVelocity(*id, velocity.getZ());
+        Body* body = (Body*) collision_object;
+        b2Body_SetAngularVelocity(body->m_BodyId, velocity.getZ());
     }
 
     bool IsEnabled2D(HCollisionObject2D collision_object)
     {
-        b2BodyId* body_id = (b2BodyId*) collision_object;
-        return b2Body_IsEnabled(*body_id);
+        Body* body = (Body*) collision_object;
+        return b2Body_IsEnabled(body->m_BodyId);
     }
 
     void SetEnabled2D(HWorld2D world, HCollisionObject2D collision_object, bool enabled)
@@ -1477,18 +1506,18 @@ namespace dmPhysics
             return;
         }
 
-        b2BodyId* body_id = (b2BodyId*) collision_object;
+        Body* body = (Body*) collision_object;
 
-        b2Body_Enable(*body_id);
+        b2Body_Enable(body->m_BodyId);
 
         if (enabled)
         {
-            b2Body_SetAwake(*body_id, true);
+            b2Body_SetAwake(body->m_BodyId, true);
 
             if (world->m_GetWorldTransformCallback)
             {
                 dmTransform::Transform world_transform;
-                (*world->m_GetWorldTransformCallback)(b2Body_GetUserData(*body_id), world_transform);
+                (*world->m_GetWorldTransformCallback)(b2Body_GetUserData(body->m_BodyId), world_transform);
                 Point3 position = Point3(world_transform.GetTranslation());
                 Quat rotation = Quat(world_transform.GetRotation());
                 float angle = atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()), 1.0f - 2.0f * (rotation.getY() * rotation.getY() + rotation.getZ() * rotation.getZ()));
@@ -1496,80 +1525,80 @@ namespace dmPhysics
                 ToB2(position, b2_position, world->m_Context->m_Scale);
 
                 b2Rot b2_rot = b2MakeRot(angle);
-                b2Body_SetTransform(*body_id, b2_position, b2_rot);
+                b2Body_SetTransform(body->m_BodyId, b2_position, b2_rot);
             }
         }
         else
         {
             // Reset state
-            b2Body_SetAwake(*body_id, false);
+            b2Body_SetAwake(body->m_BodyId, false);
         }
     }
 
     bool IsSleeping2D(HCollisionObject2D collision_object)
     {
-        b2BodyId* body_id = (b2BodyId*) collision_object;
-        return b2Body_IsAwake(*body_id);
+        Body* body = (Body*) collision_object;
+        return b2Body_IsAwake(body->m_BodyId);
     }
 
     void Wakeup2D(HCollisionObject2D collision_object)
     {
-        b2BodyId* body_id = (b2BodyId*) collision_object;
-        b2Body_SetAwake(*body_id, true);
+        Body* body = (Body*) collision_object;
+        b2Body_SetAwake(body->m_BodyId, true);
     }
 
     void SetLockedRotation2D(HCollisionObject2D collision_object, bool locked_rotation)
     {
-        b2BodyId* body_id = (b2BodyId*) collision_object;
-        b2Body_SetFixedRotation(*body_id, locked_rotation);
+        Body* body = (Body*) collision_object;
+        b2Body_SetFixedRotation(body->m_BodyId, locked_rotation);
     }
 
     float GetLinearDamping2D(HCollisionObject2D collision_object)
     {
-        b2BodyId* body_id = (b2BodyId*) collision_object;
-        return b2Body_GetLinearDamping(*body_id);
+        Body* body = (Body*) collision_object;
+        return b2Body_GetLinearDamping(body->m_BodyId);
     }
 
     void SetLinearDamping2D(HCollisionObject2D collision_object, float linear_damping)
     {
-        b2BodyId* body_id = (b2BodyId*) collision_object;
-        b2Body_SetLinearDamping(*body_id, linear_damping);
+        Body* body = (Body*) collision_object;
+        b2Body_SetLinearDamping(body->m_BodyId, linear_damping);
     }
 
     float GetAngularDamping2D(HCollisionObject2D collision_object)
     {
-        b2BodyId* body_id = (b2BodyId*) collision_object;
-        return b2Body_GetAngularDamping(*body_id);
+        Body* body = (Body*) collision_object;
+        return b2Body_GetAngularDamping(body->m_BodyId);
     }
 
     void SetAngularDamping2D(HCollisionObject2D collision_object, float angular_damping)
     {
-        b2BodyId* body_id = (b2BodyId*) collision_object;
-        b2Body_SetAngularDamping(*body_id, angular_damping);
+        Body* body = (Body*) collision_object;
+        b2Body_SetAngularDamping(body->m_BodyId, angular_damping);
     }
 
     float GetMass2D(HCollisionObject2D collision_object)
     {
-        b2BodyId* body_id = (b2BodyId*) collision_object;
-        return b2Body_GetMass(*body_id);
+        Body* body = (Body*) collision_object;
+        return b2Body_GetMass(body->m_BodyId);
     }
 
     bool IsBullet2D(HCollisionObject2D collision_object)
     {
-        b2BodyId* body_id = (b2BodyId*) collision_object;
-        return b2Body_IsBullet(*body_id);
+        Body* body = (Body*) collision_object;
+        return b2Body_IsBullet(body->m_BodyId);
     }
 
     void SetBullet2D(HCollisionObject2D collision_object, bool value)
     {
-        b2BodyId* body_id = (b2BodyId*) collision_object;
-        b2Body_SetBullet(*body_id, value);
+        Body* body = (Body*) collision_object;
+        b2Body_SetBullet(body->m_BodyId, value);
     }
 
     void SetGroup2D(HWorld2D world, HCollisionObject2D collision_object, uint16_t groupbit)
     {
-        b2BodyId* body_id = (b2BodyId*) collision_object;
-        dmArray<b2ShapeId>& shapes = GetShapeBuffer(world, *body_id);
+        Body* body = (Body*) collision_object;
+        dmArray<b2ShapeId>& shapes = GetShapeBuffer(world, body->m_BodyId);
 
         for (int i = 0; i < shapes.Size(); ++i)
         {
@@ -1588,8 +1617,8 @@ namespace dmPhysics
 
     uint16_t GetGroup2D(HWorld2D world, HCollisionObject2D collision_object)
     {
-        b2BodyId* body_id = (b2BodyId*) collision_object;
-        dmArray<b2ShapeId>& shapes = GetShapeBuffer(world, *body_id);
+        Body* body = (Body*) collision_object;
+        dmArray<b2ShapeId>& shapes = GetShapeBuffer(world, body->m_BodyId);
 
         for (int i = 0; i < shapes.Size(); ++i)
         {
@@ -1608,8 +1637,8 @@ namespace dmPhysics
     // updates a specific group bit of a collision object's current mask
     void SetMaskBit2D(HWorld2D world, HCollisionObject2D collision_object, uint16_t groupbit, bool boolvalue)
     {
-        b2BodyId* body_id = (b2BodyId*) collision_object;
-        dmArray<b2ShapeId>& shapes = GetShapeBuffer(world, *body_id);
+        Body* body = (Body*) collision_object;
+        dmArray<b2ShapeId>& shapes = GetShapeBuffer(world, body->m_BodyId);
 
         for (int i = 0; i < shapes.Size(); ++i)
         {
@@ -1632,8 +1661,8 @@ namespace dmPhysics
 
     bool GetMaskBit2D(HWorld2D world, HCollisionObject2D collision_object, uint16_t groupbit)
     {
-        b2BodyId* body_id = (b2BodyId*) collision_object;
-        dmArray<b2ShapeId>& shapes = GetShapeBuffer(world, *body_id);
+        Body* body = (Body*) collision_object;
+        dmArray<b2ShapeId>& shapes = GetShapeBuffer(world, body->m_BodyId);
 
         for (int i = 0; i < shapes.Size(); ++i)
         {
@@ -1652,18 +1681,19 @@ namespace dmPhysics
 
     bool UpdateMass2D(HWorld2D world, HCollisionObject2D collision_object, float mass)
     {
-        b2BodyId* body_id = (b2BodyId*) collision_object;
+        // // b2BodyId* body_id = (b2BodyId*) collision_object;
+        Body* body = (Body*) collision_object;
 
-        if (b2Body_GetType(*body_id) != b2_dynamicBody) {
+        if (b2Body_GetType(body->m_BodyId) != b2_dynamicBody) {
             return false;
         }
 
-        b2MassData mass_data = b2Body_GetMassData(*body_id);
+        b2MassData mass_data = b2Body_GetMassData(body->m_BodyId);
         mass_data.mass = mass;
 
         // TODO: We don't have an area here. Original code checked area of shapes
 
-        b2Body_SetMassData(*body_id, mass_data);
+        b2Body_SetMassData(body->m_BodyId, mass_data);
 
         return true;
 
