@@ -164,7 +164,7 @@
                       (let [property (property-fn)]
                         (properties/set-values! property (repeat v))
                         (update-prop-fn nil))))
-        drag-update-fn (fn [v update-val] (properties/round-scalar (+ v update-val)))]
+        drag-update-fn (fn [v update-val] (int (+ v update-val)))]
     (customize! text update-fn cancel-fn)
     (when-let [style-class (script-property-type->style-class (:script-property-type edit-type))]
       (add-style-class! text style-class))
@@ -221,24 +221,29 @@
   (.consume event)
   (let [property (property-fn)
         {:keys [key node-ids edit-type]} (property-fn)
+        {:keys [precision from-type to-type]} edit-type
         [x y] [(.getX event) (.getY event)]
         [prev-x prev-y] @label-drag-position
         delta-x (- x prev-x)
         delta-y (- prev-y y)
         max-delta (if (> (abs delta-x) (abs delta-y)) delta-x delta-y)
-        update-val (cond-> (or (:precision edit-type) 1.0)
+        update-val (cond-> (or precision 1.0)
                      (.isShiftDown event) (* 10.0)
                      (.isControlDown event) (* 0.1)
                      (neg? max-delta) -)]
+    (reset! label-drag-position [x y])
     (when (> (abs max-delta) 1)
       (g/transact
         (for [node-id node-ids]
-          (concat (g/operation-sequence @label-drag-op-seq)
-                  (g/update-property node-id key drag-update-fn update-val))))
-      (reset! label-drag-position [x y])
-      (update-ui-fn [(g/node-value (first node-ids) key)]
-                    (properties/validation-message property)
-                    (properties/read-only? property)))))
+          (let [current-value (cond-> (g/node-value node-id key) to-type to-type)
+                new-value (cond-> (drag-update-fn current-value update-val) from-type from-type)]
+            (concat (g/operation-sequence @label-drag-op-seq)
+                    (g/set-property node-id key new-value)))))
+      (when (apply = (properties/values property))
+        (update-ui-fn [(cond-> (g/node-value (first node-ids) key)
+                         to-type to-type)]
+                      (properties/validation-message property)
+                      (properties/read-only? property))))))
 
 (defn handle-label-press-event!
   [^MouseEvent event]
@@ -246,10 +251,10 @@
   (reset! label-drag-position [(.getX event) (.getY event)]))
 
 (defn- make-label-draggable!
-  [^Label label event-handler]
+  [^Label label drag-event-handler]
   (doto label
     (ui/add-style! "draggable")
-    (.addEventHandler MouseEvent/MOUSE_DRAGGED (ui/event-handler event (event-handler event)))
+    (.addEventHandler MouseEvent/MOUSE_DRAGGED (ui/event-handler event (drag-event-handler event)))
     (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (handle-label-press-event! event)))))
 
 (defn- create-multi-text-field! [labels property-fn]
