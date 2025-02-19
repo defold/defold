@@ -231,7 +231,6 @@
                      (.isShiftDown event) (* 10.0)
                      (.isControlDown event) (* 0.1)
                      (neg? max-delta) -)]
-    (reset! label-drag-position [x y])
     (when (> (abs max-delta) 1)
       (g/transact
         (for [node-id node-ids]
@@ -242,6 +241,7 @@
                             (:max edit-type) (min (:max edit-type)))]
             (concat (g/operation-sequence @label-drag-op-seq)
                     (g/set-property node-id key new-value)))))
+      (reset! label-drag-position [x y])
       (when (apply = (properties/values property))
         (update-ui-fn [(cond-> (g/node-value (first node-ids) key)
                          to-type to-type)]
