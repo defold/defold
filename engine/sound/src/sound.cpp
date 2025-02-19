@@ -1078,13 +1078,8 @@ namespace dmSound
         }
         else
         {
-#if 1
-// "old-style" stereo panning
             assert(channels == 2);
             MixScaledStereoToStereo_MonoPan(mix_buffer, g_SoundSystem->GetDecoderBufferBase(0), g_SoundSystem->GetDecoderBufferBase(1), mix_buffer_count, scale_l, scale_r, scale_dl, scale_dr);
-#else
-        // [...] proper version? (panning & N-channel)
-#endif
         }
 
         SaveTempBufferState(instance, avail_framecount, mix_buffer_count, channels);
@@ -1108,13 +1103,8 @@ namespace dmSound
         }
         else
         {
-#if 1
-// "old-style" stereo panning
             assert(channels == 2);
             frac = MixAndResampleStereoToStero_Polyphase_MonoPan(mix_buffer, g_SoundSystem->GetDecoderBufferBase(0), g_SoundSystem->GetDecoderBufferBase(1), mix_buffer_count, frac, delta, scale_l, scale_r, scale_dl, scale_dr);
-#else
-        // "propper" version
-#endif
         }
 
         uint32_t next_index = (uint32_t)(frac >> RESAMPLE_FRACTION_BITS);
@@ -1317,7 +1307,6 @@ namespace dmSound
             //
             if (new_frame_count > 0)
             {
-//FUNCTION? - EASIER TO READ!
                 // Yes. Interleaved?
                 if (!info.m_IsInterleaved)
                 {
