@@ -120,6 +120,15 @@ namespace dmSound
         return ramp_length / total_samples;
     }
 
+    void GetRampDelta(uint32_t num_channels, float from[], float delta[], const MixContext* mix_context, const Value value[], uint32_t total_samples)
+    {
+        for(uint32_t c=0; c<num_channels; ++c) {
+            float ramp_length = (value[c].m_Current - value[c].m_Prev) / mix_context->m_TotalBuffers;
+            from[c] = value[c].m_Prev + ramp_length * mix_context->m_CurrentBuffer;
+            delta[c] = ramp_length / total_samples;
+        }
+    }
+
     struct SoundDataCallbacks
     {
         void*               m_Context;
@@ -148,8 +157,8 @@ namespace dmSound
 
         Value       m_Gain;     // default: 1.0f
         Value       m_Pan;      // 0 = -45deg left, 1 = 45 deg right
-        Value       m_ScaleL;
-        Value       m_ScaleR;
+        Value       m_ScaleL[SOUND_MAX_DECODE_CHANNELS];
+        Value       m_ScaleR[SOUND_MAX_DECODE_CHANNELS];
         float       m_Speed;    // 1.0 = normal speed, 0.5 = half speed, 2.0 = double speed
         uint64_t    m_FrameFraction;
 
@@ -158,7 +167,9 @@ namespace dmSound
         uint8_t     m_Looping : 1;
         uint8_t     m_EndOfStream : 1;
         uint8_t     m_Playing : 1;
-        uint8_t     : 5;
+        uint8_t     m_ScaleDirty : 1;
+        uint8_t     m_ScaleInit : 1;
+        uint8_t     : 3;
         int8_t      m_Loopcounter; // if set to 3, there will be 3 loops effectively playing the sound 4 times.
     };
 
@@ -375,7 +386,6 @@ namespace dmSound
             instance->m_Index = 0xffff;
             instance->m_SoundDataIndex = 0xffff;
             // memory to keep around history / future sample state
-            // (history, 1 sample left-over for fractional access, future)
             for (uint32_t c = 0; c < SOUND_MAX_DECODE_CHANNELS; ++c)
             {
                 instance->m_Frames[c] = (float*)malloc(SOUND_INSTANCE_STATEFRAMECOUNT * sizeof(float));
@@ -715,8 +725,13 @@ namespace dmSound
         si->m_Index = index;
         si->m_Gain.Reset(1.0f);
         si->m_Pan.Reset(0.5f);
-        si->m_ScaleL.Reset(0.70711f);
-        si->m_ScaleR.Reset(0.70711f);
+        for(uint32_t c=0; c<SOUND_MAX_DECODE_CHANNELS; ++c)
+        {
+            si->m_ScaleL[c].Reset(0.70711f);
+            si->m_ScaleR[c].Reset(0.70711f);
+        }
+        si->m_ScaleDirty = 1;
+        si->m_ScaleInit = 1;
         si->m_Looping = 0;
         si->m_EndOfStream = 0;
         si->m_Playing = 0;
@@ -1003,12 +1018,9 @@ namespace dmSound
             case PARAMETER_GAIN:
                 {
                     sound_instance->m_Gain.Set(dmMath::Max(0.0f, value.getX()), reset);
-
-                    float gain = sound_instance->m_Gain.m_Current;
-                    float rs, ls;
-                    GetPanScale(sound_instance->m_Pan.m_Current, &ls, &rs);
-                    sound_instance->m_ScaleL.Set(ls * gain, reset);
-                    sound_instance->m_ScaleR.Set(rs * gain, reset);
+                    // Trigger volume scale updates as soon as we know how many channels the instance has
+                    // (we might not have that info initially)
+                    sound_instance->m_ScaleDirty = 1;
                 }
                 break;
             case PARAMETER_PAN:
@@ -1016,12 +1028,9 @@ namespace dmSound
                     float pan = dmMath::Max(-1.0f, dmMath::Min(1.0f, value.getX()));
                     pan = (pan + 1.0f) * 0.5f; // map [-1,1] to [0,1] for easier calculations later
                     sound_instance->m_Pan.Set(pan, reset);
-
-                    float gain = sound_instance->m_Gain.m_Current;
-                    float rs, ls;
-                    GetPanScale(sound_instance->m_Pan.m_Current, &ls, &rs);
-                    sound_instance->m_ScaleL.Set(ls * gain, reset);
-                    sound_instance->m_ScaleR.Set(rs * gain, reset);
+                    // Trigger volume scale updates as soon as we know how many channels the instance has
+                    // (we might not have that info initially)
+                    sound_instance->m_ScaleDirty = 1;
                 }
                 break;
             case PARAMETER_SPEED:
@@ -1071,23 +1080,20 @@ namespace dmSound
 
         PrepTempBufferState(instance, channels);
 
-        float scale_l, scale_r;
-        float scale_dl = GetRampDelta(scale_l, mix_context, &instance->m_ScaleL, mix_buffer_count);
-        float scale_dr = GetRampDelta(scale_r, mix_context, &instance->m_ScaleR, mix_buffer_count);
+        float scale_l[SOUND_MAX_DECODE_CHANNELS], scale_r[SOUND_MAX_DECODE_CHANNELS];
+        float scale_dl[SOUND_MAX_DECODE_CHANNELS], scale_dr[SOUND_MAX_DECODE_CHANNELS];
+        GetRampDelta(channels, scale_l, scale_dl, mix_context, instance->m_ScaleL, mix_buffer_count);
+        GetRampDelta(channels, scale_r, scale_dr, mix_context, instance->m_ScaleR, mix_buffer_count);
 
         if (channels == 1)
         {
-            MixScaledMonoToStereo(mix_buffer, g_SoundSystem->GetDecoderBufferBase(0), mix_buffer_count, scale_l, scale_r, scale_dl, scale_dr);
+            MixScaledMonoToStereo(mix_buffer, g_SoundSystem->GetDecoderBufferBase(0), mix_buffer_count, scale_l[0], scale_r[0], scale_dl[0], scale_dr[0]);
         }
         else
         {
-#if 1
-// "old-style" stereo panning
             assert(channels == 2);
-            MixScaledStereoToStereo_MonoPan(mix_buffer, g_SoundSystem->GetDecoderBufferBase(0), g_SoundSystem->GetDecoderBufferBase(1), mix_buffer_count, scale_l, scale_r, scale_dl, scale_dr);
-#else
-        // [...] proper version? (panning & N-channel)
-#endif
+            MixScaledStereoToStereo(mix_buffer, g_SoundSystem->GetDecoderBufferBase(0), g_SoundSystem->GetDecoderBufferBase(1), mix_buffer_count, scale_l[0], scale_r[0], scale_dl[0], scale_dr[0],
+                                                                                                                                                  scale_l[1], scale_r[1], scale_dl[1], scale_dr[1]);
         }
 
         SaveTempBufferState(instance, avail_framecount, mix_buffer_count, channels);
@@ -1099,25 +1105,22 @@ namespace dmSound
 
         PrepTempBufferState(instance, channels);
 
-        float scale_l, scale_r;
-        float scale_dl = GetRampDelta(scale_l, mix_context, &instance->m_ScaleL, mix_buffer_count);
-        float scale_dr = GetRampDelta(scale_r, mix_context, &instance->m_ScaleR, mix_buffer_count);
+        float scale_l[SOUND_MAX_DECODE_CHANNELS], scale_r[SOUND_MAX_DECODE_CHANNELS];
+        float scale_dl[SOUND_MAX_DECODE_CHANNELS], scale_dr[SOUND_MAX_DECODE_CHANNELS];
+        GetRampDelta(channels, scale_l, scale_dl, mix_context, instance->m_ScaleL, mix_buffer_count);
+        GetRampDelta(channels, scale_r, scale_dr, mix_context, instance->m_ScaleR, mix_buffer_count);
 
         uint64_t frac = instance->m_FrameFraction;
 
         if (channels == 1)
         {
-            frac = MixAndResampleMonoToStero_Polyphase(mix_buffer, g_SoundSystem->GetDecoderBufferBase(0), mix_buffer_count, frac, delta, scale_l, scale_r, scale_dl, scale_dr);
+            frac = MixAndResampleMonoToStero_Polyphase(mix_buffer, g_SoundSystem->GetDecoderBufferBase(0), mix_buffer_count, frac, delta, scale_l[0], scale_r[0], scale_dl[0], scale_dr[0]);
         }
         else
         {
-#if 1
-// "old-style" stereo panning
             assert(channels == 2);
-            frac = MixAndResampleStereoToStero_Polyphase_MonoPan(mix_buffer, g_SoundSystem->GetDecoderBufferBase(0), g_SoundSystem->GetDecoderBufferBase(1), mix_buffer_count, frac, delta, scale_l, scale_r, scale_dl, scale_dr);
-#else
-        // "propper" version
-#endif
+            frac = MixAndResampleStereoToStero_Polyphase(mix_buffer, g_SoundSystem->GetDecoderBufferBase(0), g_SoundSystem->GetDecoderBufferBase(1), mix_buffer_count, frac, delta, scale_l[0], scale_r[0], scale_dl[0], scale_dr[0],
+                                                                                                                                                                                    scale_l[1], scale_r[1], scale_dl[1], scale_dr[1]);
         }
 
         uint32_t next_index = (uint32_t)(frac >> RESAMPLE_FRACTION_BITS);
@@ -1128,6 +1131,43 @@ namespace dmSound
 
     static inline void MixResample(const MixContext* mix_context, SoundInstance* instance, const dmSoundCodec::Info* info, uint64_t delta, float* mix_buffer[], uint32_t mix_buffer_count, uint32_t avail_framecount)
     {
+        // Make sure to update the mixing scale values...
+        if (instance->m_ScaleDirty != 0) {
+            instance->m_ScaleDirty = 0;
+
+            bool reset = (instance->m_ScaleInit != 0);
+            instance->m_ScaleInit = 0;
+
+            float gain = instance->m_Gain.m_Current;
+
+            if (info->m_Channels == 1) {
+                float rs, ls;
+                GetPanScale(instance->m_Pan.m_Current, &ls, &rs);
+                instance->m_ScaleL[0].Set(ls * gain, reset);
+                instance->m_ScaleR[0].Set(rs * gain, reset);
+            }
+            else {
+                assert(info->m_Channels == 2);
+
+#if defined(SOUND_USE_LEGACY_STEREO_PAN) && (SOUND_USE_LEGACY_STEREO_PAN != 0)
+                float rs, ls;
+                GetPanScale(instance->m_Pan.m_Current, &ls, &rs);
+                instance->m_ScaleL[0].Set(ls * gain, reset);
+                instance->m_ScaleR[0].Set(0.0f, reset);
+                instance->m_ScaleL[1].Set(0.0f, reset);
+                instance->m_ScaleR[1].Set(rs * gain, reset);
+#else
+                float rs, ls;
+                GetPanScale(dmMath::Max(0.0f, instance->m_Pan.m_Current - 0.5f), &ls, &rs);
+                instance->m_ScaleL[0].Set(ls * gain, reset);
+                instance->m_ScaleR[0].Set(rs * gain, reset);
+                GetPanScale(dmMath::Min(instance->m_Pan.m_Current + 0.5f, 1.0f), &ls, &rs);
+                instance->m_ScaleL[1].Set(ls * gain, reset);
+                instance->m_ScaleR[1].Set(rs * gain, reset);
+#endif
+            }
+        }
+
         // 1:1 output only if:
         // - rate is mixrate (including speed factor!) -> delta = 1.0
         // - sampling is not at a fractional position
@@ -1320,7 +1360,6 @@ namespace dmSound
             //
             if (new_frame_count > 0)
             {
-//FUNCTION? - EASIER TO READ!
                 // Yes. Interleaved?
                 if (!info.m_IsInterleaved)
                 {
@@ -1512,8 +1551,10 @@ namespace dmSound
             if (instance->m_Playing || instance->m_FrameCount > 0) {
                 instance->m_Gain.Step();
                 instance->m_Pan.Step();
-                instance->m_ScaleL.Step();
-                instance->m_ScaleR.Step();
+                for(uint32_t c=0; c<SOUND_MAX_DECODE_CHANNELS; ++c) {
+                    instance->m_ScaleL[c].Step();
+                    instance->m_ScaleR[c].Step();
+                }
             }
         }
     }
