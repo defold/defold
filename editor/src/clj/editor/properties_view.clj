@@ -474,17 +474,25 @@
     [box update-ui-fn]))
 
 (defmethod create-property-control! types/Color [edit-type _ property-fn]
-  (let [color-picker (doto (ColorPicker.)
-                       (.setPrefWidth Double/MAX_VALUE))
+  (let [wrapper (doto (HBox.)
+                  (.setPrefWidth Double/MAX_VALUE))
+        text (doto (TextField.)
+               (GridPane/setHgrow Priority/ALWAYS))
+        color-picker (doto (ColorPicker.)
+                       (GridPane/setHgrow Priority/NEVER))
         update-ui-fn  (fn [values message read-only?]
                         (let [v (properties/unify-values values)]
                           (if (nil? v)
-                            (.setValue color-picker nil)
-                            (let [[r g b a] v]
-                              (.setValue color-picker (Color. r g b a)))))
+                            (do (.setValue color-picker nil)
+                                (.setText text nil))
+                            (let [[r g b a] v
+                                  color (Color. r g b a)]
+                              (.setValue color-picker color)
+                              (update-text-fn text str values message read-only?))))
                         (update-field-message [color-picker] message)
                         (ui/editable! color-picker (not read-only?)))]
-
+    (HBox/setHgrow text Priority/ALWAYS)
+    (ui/children! wrapper [text color-picker])
     (ui/on-action!
       color-picker
       (fn [_]
@@ -504,8 +512,9 @@
                              old-alphas (map #(nth % 3) old-values)]
                          (mapv #(assoc new-value 3 %) old-alphas))
                        (repeat new-value))]
+          (.setText text (.toString c))
           (properties/set-values! property values))))
-    [color-picker update-ui-fn]))
+    [wrapper update-ui-fn]))
 
 (defmethod create-property-control! :choicebox [{:keys [options]} _ property-fn]
   (let [combo-box (fuzzy-combo-box/make options)
