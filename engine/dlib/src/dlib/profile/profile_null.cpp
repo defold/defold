@@ -193,3 +193,127 @@ namespace dmProfile
 
 } // namespace dmProfile
 
+
+dmProfilePropertyIdx dmProfileCreatePropertyGroup(const char* name, const char* desc, dmProfilePropertyIdx* parentidx)
+{
+    return DM_PROFILE_PROPERTY_INVALID_IDX;
+}
+
+dmProfilePropertyIdx dmProfileCreatePropertyBool(const char* name, const char* desc, int value, uint32_t flags, dmProfilePropertyIdx* parentidx)
+{
+    return DM_PROFILE_PROPERTY_INVALID_IDX;
+}
+
+dmProfilePropertyIdx dmProfileCreatePropertyS32(const char* name, const char* desc, int32_t value, uint32_t flags, dmProfilePropertyIdx* parentidx)
+{
+    return DM_PROFILE_PROPERTY_INVALID_IDX;
+}
+
+dmProfilePropertyIdx dmProfileCreatePropertyU32(const char* name, const char* desc, uint32_t value, uint32_t flags, dmProfilePropertyIdx* parentidx)
+{
+    return DM_PROFILE_PROPERTY_INVALID_IDX;
+}
+
+dmProfilePropertyIdx dmProfileCreatePropertyF32(const char* name, const char* desc, float value, uint32_t flags, dmProfilePropertyIdx* parentidx)
+{
+    return DM_PROFILE_PROPERTY_INVALID_IDX;
+}
+
+dmProfilePropertyIdx dmProfileCreatePropertyS64(const char* name, const char* desc, int64_t value, uint32_t flags, dmProfilePropertyIdx* parentidx)
+{
+    return DM_PROFILE_PROPERTY_INVALID_IDX;
+}
+
+dmProfilePropertyIdx dmProfileCreatePropertyU64(const char* name, const char* desc, uint64_t value, uint32_t flags, dmProfilePropertyIdx* parentidx)
+{
+    return DM_PROFILE_PROPERTY_INVALID_IDX;
+}
+
+dmProfilePropertyIdx dmProfileCreatePropertyF64(const char* name, const char* desc, double value, uint32_t flags, dmProfilePropertyIdx* parentidx)
+{
+    return DM_PROFILE_PROPERTY_INVALID_IDX;
+}
+
+void dmProfilePropertySetBool(dmProfilePropertyIdx idx, int v)
+{
+    (void)idx;
+    (void)v;
+}
+
+void dmProfilePropertySetS32(dmProfilePropertyIdx idx, int32_t v)
+{
+    (void)idx;
+    (void)v;
+}
+
+void dmProfilePropertySetU32(dmProfilePropertyIdx idx, uint32_t v)
+{
+    (void)idx;
+    (void)v;
+}
+
+void dmProfilePropertySetF32(dmProfilePropertyIdx idx, float v)
+{
+    (void)idx;
+    (void)v;
+}
+
+void dmProfilePropertySetS64(dmProfilePropertyIdx idx, int64_t v)
+{
+    (void)idx;
+    (void)v;
+}
+
+void dmProfilePropertySetU64(dmProfilePropertyIdx idx, uint64_t v)
+{
+    (void)idx;
+    (void)v;
+}
+
+void dmProfilePropertySetF64(dmProfilePropertyIdx idx, double v)
+{
+    (void)idx;
+    (void)v;
+}
+
+void dmProfilePropertyAddS32(dmProfilePropertyIdx idx, int32_t v)
+{
+    (void)idx;
+    (void)v;
+}
+
+void dmProfilePropertyAddU32(dmProfilePropertyIdx idx, uint32_t v)
+{
+    (void)idx;
+    (void)v;
+}
+
+void dmProfilePropertyAddF32(dmProfilePropertyIdx idx, float v)
+{
+    (void)idx;
+    (void)v;
+}
+
+void dmProfilePropertyAddS64(dmProfilePropertyIdx idx, int64_t v)
+{
+    (void)idx;
+    (void)v;
+}
+
+void dmProfilePropertyAddU64(dmProfilePropertyIdx idx, uint64_t v)
+{
+    (void)idx;
+    (void)v;
+}
+
+void dmProfilePropertyAddF64(dmProfilePropertyIdx idx, double v)
+{
+    (void)idx;
+    (void)v;
+}
+
+void dmProfilePropertyReset(dmProfilePropertyIdx idx)
+{
+    (void)idx;
+}
+
