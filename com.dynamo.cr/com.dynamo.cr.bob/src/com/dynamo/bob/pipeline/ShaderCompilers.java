@@ -46,7 +46,6 @@ public class ShaderCompilers {
             else
             if (platform == Platform.X86Win32 ||
                 platform == Platform.X86_64Win32 ||
-                platform == Platform.X86Linux ||
                 platform == Platform.Arm64Linux ||
                 platform == Platform.X86_64Linux) {
                     if (isComputeType) {
