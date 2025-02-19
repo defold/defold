@@ -62,8 +62,8 @@ static inline void MixScaledMonoToStereo(float* out[], const float* in, uint32_t
     for(; num>3; num-=4)
     {
         vec4 s = *(vin++);
-        *(vl++) = s * scl;
-        *(vr++) = s * scr;
+        *(vl++) += s * scl;
+        *(vr++) += s * scr;
         scl += scld;
         scr += scrd;
     }
@@ -76,8 +76,8 @@ static inline void MixScaledMonoToStereo(float* out[], const float* in, uint32_t
     for(; num>0; --num)
     {
         float s = *(fin++);
-        *(fl++) = s * scale_l;
-        *(fr++) = s * scale_r;
+        *(fl++) += s * scale_l;
+        *(fr++) += s * scale_r;
         scale_l += scale_delta_l;
         scale_r += scale_delta_r;
     }
@@ -102,8 +102,8 @@ static inline void MixScaledStereoToStereo_MonoPan(float* out[], const float* in
     {
         vec4 sl = *(vin_l++);
         vec4 sr = *(vin_r++);
-        *(vl++) = sl * scl;
-        *(vr++) = sr * scr;
+        *(vl++) += sl * scl;
+        *(vr++) += sr * scr;
         scl += scld;
         scr += scrd;
     }
@@ -118,8 +118,8 @@ static inline void MixScaledStereoToStereo_MonoPan(float* out[], const float* in
     {
         float sl = *(fin_l++);
         float sr = *(fin_r++);
-        *(fl++) = sl * scale_l;
-        *(fr++) = sr * scale_r;
+        *(fl++) += sl * scale_l;
+        *(fr++) += sr * scale_r;
         scale_l += scale_delta_l;
         scale_r += scale_delta_r;
     }
@@ -150,8 +150,8 @@ static inline uint64_t MixAndResampleMonoToStero_Polyphase(float* out[], const f
         frac += delta;
         vec4 s = wasm_f32x4_make(s0, s1, s2, s3);
 
-        *(vl++) = s * scl;
-        *(vr++) = s * scr;
+        *(vl++) += s * scl;
+        *(vr++) += s * scr;
         scl += scld;
         scr += scrd;
     }
@@ -204,8 +204,8 @@ static inline uint64_t MixAndResampleStereoToStero_Polyphase_MonoPan(float* out[
         vec4 sl = wasm_f32x4_make(s0l, s1l, s2l, s3l);
         vec4 sr = wasm_f32x4_make(s0r, s1r, s2r, s3r);
 
-        *(vl++) = sl * scl;
-        *(vr++) = sr * scr;
+        *(vl++) += sl * scl;
+        *(vr++) += sr * scr;
         scl += scld;
         scr += scrd;
     }
@@ -507,8 +507,8 @@ static inline void MixScaledMonoToStereo(float* out[], const float* in, uint32_t
     for(; num>3; num-=4)
     {
         vec4 s = *(vin++);
-        *(vl++) = s * scl;
-        *(vr++) = s * scr;
+        *(vl++) += s * scl;
+        *(vr++) += s * scr;
         scl += scld;
         scr += scrd;
     }
@@ -521,8 +521,8 @@ static inline void MixScaledMonoToStereo(float* out[], const float* in, uint32_t
     for(; num>0; --num)
     {
         float s = *(fin++);
-        *(fl++) = s * scale_l;
-        *(fr++) = s * scale_r;
+        *(fl++) += s * scale_l;
+        *(fr++) += s * scale_r;
         scale_l += scale_delta_l;
         scale_r += scale_delta_r;
     }
@@ -547,8 +547,8 @@ static inline void MixScaledStereoToStereo_MonoPan(float* out[], const float* in
     {
         vec4 sl = *(vin_l++);
         vec4 sr = *(vin_r++);
-        *(vl++) = sl * scl;
-        *(vr++) = sr * scr;
+        *(vl++) += sl * scl;
+        *(vr++) += sr * scr;
         scl += scld;
         scr += scrd;
     }
@@ -563,8 +563,8 @@ static inline void MixScaledStereoToStereo_MonoPan(float* out[], const float* in
     {
         float sl = *(fin_l++);
         float sr = *(fin_r++);
-        *(fl++) = sl * scale_l;
-        *(fr++) = sr * scale_r;
+        *(fl++) += sl * scale_l;
+        *(fr++) += sr * scale_r;
         scale_l += scale_delta_l;
         scale_r += scale_delta_r;
     }
@@ -595,8 +595,8 @@ static inline uint64_t MixAndResampleMonoToStero_Polyphase(float* out[], const f
         frac += delta;
         vec4 s = _mm_set_ps(s3, s2, s1, s0);
 
-        *(vl++) = s * scl;
-        *(vr++) = s * scr;
+        *(vl++) += s * scl;
+        *(vr++) += s * scr;
         scl += scld;
         scr += scrd;
     }
@@ -649,8 +649,8 @@ static inline uint64_t MixAndResampleStereoToStero_Polyphase_MonoPan(float* out[
         vec4 sl = _mm_set_ps(s3l, s2l, s1l, s0l);
         vec4 sr = _mm_set_ps(s3r, s2r, s1r, s0r);
 
-        *(vl++) = sl * scl;
-        *(vr++) = sr * scr;
+        *(vl++) += sl * scl;
+        *(vr++) += sr * scr;
         scl += scld;
         scr += scrd;
     }
@@ -974,8 +974,8 @@ static inline void MixScaledMonoToStereo(float* out[], const float* in, uint32_t
     for(; num>0; --num)
     {
         float s = *(in++);
-        *(l++) = s * scale_l;
-        *(r++) = s * scale_r;
+        *(l++) += s * scale_l;
+        *(r++) += s * scale_r;
         scale_l += scale_delta_l;
         scale_r += scale_delta_r;
     }
@@ -989,8 +989,8 @@ static inline void MixScaledStereoToStereo_MonoPan(float* out[], const float* in
     {
         float sl = *(in_l++);
         float sr = *(in_r++);
-        *(l++) = sl * scale_l;
-        *(r++) = sr * scale_r;
+        *(l++) += sl * scale_l;
+        *(r++) += sr * scale_r;
         scale_l += scale_delta_l;
         scale_r += scale_delta_r;
     }
