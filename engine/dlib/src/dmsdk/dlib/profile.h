@@ -497,13 +497,6 @@
 #define DM_PROPERTY_RESET(name)
 #undef DM_PROPERTY_RESET
 
-//  Used to allocate correct memory size without dynamic allocations
-// #define DM_PROFILE_PROPERTY_MEM_SIZE 128
-// struct dmProfileProperty
-// {
-//     uint8_t mem[DM_PROFILE_PROPERTY_MEM_SIZE];
-// };
-
 typedef uint32_t dmProfilePropertyIdx;
 
 // Private
@@ -589,36 +582,6 @@ enum ProfilePropertyFlags
 
     #define DM_PROFILE_TEXT_LENGTH 1024
     #define DM_PROFILE_TEXT(format, ...)              dmProfile::LogText(format, __VA_ARGS__)
-
-    // // The profiler property api
-    // #define DM_PROPERTY_EXTERN(name)                                rmt_PropertyExtern(name)
-    // #define DM_PROPERTY_GROUP(name, desc, ...)                      rmt_PropertyDefine_Group(name, desc, __VA_ARGS__)
-    // #define DM_PROPERTY_BOOL(name, default_value, flag, desc, ...)  rmt_PropertyDefine_Bool(name, default_value, flag, desc, __VA_ARGS__)
-    // #define DM_PROPERTY_S32(name, default_value, flag, desc, ...)   rmt_PropertyDefine_S32(name, default_value, flag, desc, __VA_ARGS__)
-    // #define DM_PROPERTY_U32(name, default_value, flag, desc, ...)   rmt_PropertyDefine_U32(name, default_value, flag, desc, __VA_ARGS__)
-    // #define DM_PROPERTY_F32(name, default_value, flag, desc, ...)   rmt_PropertyDefine_F32(name, default_value, flag, desc, __VA_ARGS__)
-    // #define DM_PROPERTY_S64(name, default_value, flag, desc, ...)   rmt_PropertyDefine_S64(name, default_value, flag, desc, __VA_ARGS__)
-    // #define DM_PROPERTY_U64(name, default_value, flag, desc, ...)   rmt_PropertyDefine_U64(name, default_value, flag, desc, __VA_ARGS__)
-    // #define DM_PROPERTY_F64(name, default_value, flag, desc, ...)   rmt_PropertyDefine_F64(name, default_value, flag, desc, __VA_ARGS__)
-
-    // // Set properties to the given value
-    // #define DM_PROPERTY_SET_BOOL(name, set_value)   rmt_PropertySet_Bool(name, set_value)
-    // #define DM_PROPERTY_SET_S32(name, set_value)    rmt_PropertySet_S32(name, set_value)
-    // #define DM_PROPERTY_SET_U32(name, set_value)    rmt_PropertySet_U32(name, set_value)
-    // #define DM_PROPERTY_SET_F32(name, set_value)    rmt_PropertySet_F32(name, set_value)
-    // #define DM_PROPERTY_SET_S64(name, set_value)    rmt_PropertySet_S64(name, set_value)
-    // #define DM_PROPERTY_SET_U64(name, set_value)    rmt_PropertySet_U64(name, set_value)
-    // #define DM_PROPERTY_SET_F64(name, set_value)    rmt_PropertySet_F64(name, set_value)
-
-    // // Add the given value to properties
-    // #define DM_PROPERTY_ADD_S32(name, add_value)    rmt_PropertyAdd_S32(name, add_value)
-    // #define DM_PROPERTY_ADD_U32(name, add_value)    rmt_PropertyAdd_U32(name, add_value)
-    // #define DM_PROPERTY_ADD_F32(name, add_value)    rmt_PropertyAdd_F32(name, add_value)
-    // #define DM_PROPERTY_ADD_S64(name, add_value)    rmt_PropertyAdd_S64(name, add_value)
-    // #define DM_PROPERTY_ADD_U64(name, add_value)    rmt_PropertyAdd_U64(name, add_value)
-    // #define DM_PROPERTY_ADD_F64(name, add_value)    rmt_PropertyAdd_F64(name, add_value)
-
-    // #define DM_PROPERTY_RESET(name)                 rmt_PropertyReset(name)
 
     // The profiler property api
     #define DM_PROPERTY_GROUP(name, desc, parent)                       dmProfilePropertyIdx name = dmProfileCreatePropertyGroup(#name, desc, parent)

@@ -21,14 +21,10 @@
 #include "dlib/log.h"
 #include "dlib/atomic.h"
 #include "dlib/spinlock.h"
-#include "dlib/static_assert.h"
 
 #include "dlib/hash.h"
 
 #include "dmsdk/external/remotery/Remotery.h"
-#include "dmsdk/external/remotery/Remotery.h"
-
-// DM_STATIC_ASSERT(sizeof(rmtProperty) <= DM_PROFILE_PROPERTY_MEM_SIZE, "Struct is too small!");
 
 namespace dmProfile
 {
