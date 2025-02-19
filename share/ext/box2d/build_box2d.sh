@@ -22,13 +22,14 @@ PWD=$(pwd)
 BUILD_DIR=${PWD}/build/${PLATFORM}
 
 readonly PRODUCT=box2d
-readonly VERSION=v3.0.0
+readonly VERSION=28adacf82377d4113f2ed00586141463244b9d10 # v3.0.0
 readonly PACKAGE_NAME=${PRODUCT}-${VERSION}-${PLATFORM}.tar.gz
 readonly HEADERS_PACKAGE_NAME=${PRODUCT}-${VERSION}-common.tar.gz
 
-#readonly BOX2D_URL=https://github.com/erincatto/box2d/archive/refs/tags/${VERSION}.zip
-readonly BOX2D_URL=https://github.com/erincatto/box2d/archive/refs/heads/main.zip
+readonly BOX2D_URL=https://github.com/erincatto/box2d/archive/${VERSION}.zip
 readonly BOX2D_DIR=$(realpath ./box2d)
+
+. ../common.sh
 
 if [ -z "$PLATFORM" ]; then
     echo "No platform specified!"
@@ -70,30 +71,17 @@ function download {
 
 download ${BOX2D_URL} box2d.tar.gz ${BOX2D_DIR}
 
+pushd ${BOX2D_DIR}
+
+cmi_patch
+
+popd
+
 CMAKE_FLAGS="-DBOX2D_BUILD_DOCS=OFF ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DBOX2D_SAMPLES=OFF ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DBOX2D_UNIT_TESTS=OFF ${CMAKE_FLAGS}"
 
 CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Debug ${CMAKE_FLAGS}"
-
-#CMAKE_FLAGS="-DCMAKE_OSX_DEPLOYMENT_TARGET=${OSX_MIN_SDK_VERSION} ${CMAKE_FLAGS}"
-#CMAKE_FLAGS="-DSHADERC_SKIP_TESTS=ON ${CMAKE_FLAGS}"
-#CMAKE_FLAGS="-DSHADERC_SKIP_EXAMPLES=ON ${CMAKE_FLAGS}"
-#CMAKE_FLAGS="-DSHADERC_SKIP_COPYRIGHT_CHECK=ON ${CMAKE_FLAGS}"
-#CMAKE_FLAGS="-DSHADERC_SKIP_INSTALL=ON ${CMAKE_FLAGS}"
-## static link on MSVC
-#CMAKE_FLAGS="-DSHADERC_ENABLE_SHARED_CRT=OFF ${CMAKE_FLAGS}"
-## Size opt
-#CMAKE_FLAGS="-DSPIRV_CROSS_EXCEPTIONS_TO_ASSERTIONS=ON ${CMAKE_FLAGS}"
-
-#case $PLATFORM in
-#    arm64-macos)
-#        CMAKE_FLAGS="-DCMAKE_OSX_ARCHITECTURES=arm64 ${CMAKE_FLAGS}"
-#        ;;
-#    x86_64-macos)
-#        CMAKE_FLAGS="-DCMAKE_OSX_ARCHITECTURES=x86_64 ${CMAKE_FLAGS}"
-#        ;;
-#esac
 
 # Build
 
@@ -102,8 +90,6 @@ mkdir -p ${BUILD_DIR}
 pushd $BUILD_DIR
 
 cmake ${CMAKE_FLAGS} $BOX2D_DIR
-
-#cmake --build . --config Release -j 8
 cmake --build . --config Debug -j 8
 
 mkdir -p ./lib/$PLATFORM
@@ -120,35 +106,4 @@ cp -v -r ${BOX2D_DIR}/src/*.h ./include/box2d/src
 
 tar cfvz ${HEADERS_PACKAGE_NAME} include
 
-#EXE_SUFFIX=
-#case $PLATFORM in
-#    win32|x86_64-win32)
-#        EXE_SUFFIX=.exe
-#        cp -v ./StandAlone/Release/glslang${EXE_SUFFIX} ./bin/$PLATFORM
-#        ;;
-#    *)
-#        cp -v ./StandAlone/glslang${EXE_SUFFIX} ./bin/$PLATFORM
-#        ;;
-#esac
-
-#case $PLATFORM in
-#    win32|x86_64-win32)
-#        ;;
-#    *)
-#        strip ./bin/$PLATFORM/glslang${EXE_SUFFIX}
-#        ;;
-#esac
-
 popd
-
-# Package
-#VERSION=$(cd $SOURCE_DIR && git rev-parse --short HEAD)
-#echo VERSION=${VERSION}
-#
-#PACKAGE=glslang-${VERSION}-${PLATFORM}.tar.gz
-#
-#pushd $BUILD_DIR
-#tar cfvz ${PACKAGE} bin
-#popd
-#
-#echo "Wrote ${PACKAGE}"

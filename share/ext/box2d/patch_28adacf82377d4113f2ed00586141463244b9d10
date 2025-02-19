@@ -1,0 +1,60 @@
+diff --git a/src/body.c b/src/body.c
+index 286954f..0582083 100644
+--- a/src/body.c
++++ b/src/body.c
+@@ -1808,7 +1808,9 @@ int b2Body_GetJoints( b2BodyId bodyId, b2JointId* jointArray, int capacity )
+ 
+ bool b2ShouldBodiesCollide( b2World* world, b2Body* bodyA, b2Body* bodyB )
+ {
+-	if ( bodyA->type != b2_dynamicBody && bodyB->type != b2_dynamicBody )
++	// DEFOLD EDIT:
++	// Support collisions for kinematic objects
++	if ( bodyA->type != b2_dynamicBody && bodyB->type != b2_dynamicBody && bodyA->type != b2_kinematicBody && bodyB->type != b2_kinematicBody )
+ 	{
+ 		return false;
+ 	}
+diff --git a/src/broad_phase.c b/src/broad_phase.c
+index ebfff39..51b4fce 100644
+--- a/src/broad_phase.c
++++ b/src/broad_phase.c
+@@ -188,11 +188,13 @@ static bool b2PairQueryCallback( int proxyId, int shapeId, void* context )
+ 	// b2ShapeDef::forceContactCreation, b2ShapeDef::isSensor, or when a static shape is modified.
+ 	// There can easily be scenarios where the static proxy is in the moveSet but the dynamic proxy is not.
+ 	// I could have some flag to indicate that there are any static bodies in the moveSet.
+-	
++
+ 	// Is this proxy also moving?
+-	if ( queryProxyType == b2_dynamicBody)
++	// DEFOLD EDIT
++	// Support for kinematic bodies that create contacts
++	if ( queryProxyType == b2_dynamicBody || queryProxyType == b2_kinematicBody )
+ 	{
+-		if ( treeType == b2_dynamicBody && proxyKey < queryProxyKey)
++		if ( (treeType == b2_dynamicBody || treeType == b2_kinematicBody) && proxyKey < queryProxyKey)
+ 		{
+ 			bool moved = b2ContainsKey( &broadPhase->moveSet, proxyKey + 1 );
+ 			if ( moved )
+@@ -204,7 +206,9 @@ static bool b2PairQueryCallback( int proxyId, int shapeId, void* context )
+ 	}
+ 	else
+ 	{
+-		B2_ASSERT( treeType == b2_dynamicBody );
++		// DEFOLD EDIT
++		// Support for kinematic bodies that create contacts
++		B2_ASSERT( treeType == b2_dynamicBody || treeType == b2_kinematicBody );
+ 		bool moved = b2ContainsKey( &broadPhase->moveSet, proxyKey + 1 );
+ 		if ( moved )
+ 		{
+@@ -349,7 +353,11 @@ static void b2FindPairsTask( int startIndex, int endIndex, uint32_t threadIndex,
+ 		// Query trees. Only dynamic proxies collide with kinematic and static proxies.
+ 		// Using B2_DEFAULT_MASK_BITS so that b2Filter::groupIndex works.
+ 		b2TreeStats stats = { 0 };
+-		if ( proxyType == b2_dynamicBody )
++
++		// DEFOLD edit:
++		// Box2D normally does not support collisions for kinematic bodies, but we do.
++		// if ( proxyType == b2_dynamicBody )
++		if ( proxyType == b2_dynamicBody || proxyType == b2_kinematicBody )
+ 		{
+ 			// consider using bits = groupIndex > 0 ? B2_DEFAULT_MASK_BITS : maskBits
+ 			queryContext.queryTreeType = b2_kinematicBody;

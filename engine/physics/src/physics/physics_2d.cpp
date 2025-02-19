@@ -648,6 +648,23 @@ namespace dmPhysics
             }
         }
 
+        b2ContactEvents contact_events = b2World_GetContactEvents(world->m_WorldId);
+
+        if (contact_events.beginCount > 0)
+        {
+            dmLogInfo("Contact begin events: %d", contact_events.beginCount);
+        }
+
+        if (contact_events.endCount > 0)
+        {
+            dmLogInfo("Contact end events: %d", contact_events.endCount);
+        }
+
+        if (contact_events.hitCount > 0)
+        {
+            dmLogInfo("Contact hit events: %d", contact_events.hitCount);
+        }
+
         // Post-solve callbacks
         if (step_context.m_CollisionCallback || step_context.m_ContactPointCallback)
         {
