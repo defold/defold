@@ -781,6 +781,7 @@ static WGPURenderPipeline WebGPUGetOrCreateRenderPipeline(WebGPUContext* context
             depthstencil_desc.stencilBack.depthFailOp  = WGPUStencilOperation_Keep;
             depthstencil_desc.stencilBack.passOp       = WGPUStencilOperation_Keep;
         }
+        depthstencil_desc.stencilReadMask = context->m_CurrentPipelineState.m_StencilCompareMask;
         depthstencil_desc.stencilWriteMask = context->m_CurrentPipelineState.m_StencilWriteMask;
         desc.depthStencil                  = &depthstencil_desc;
     }
@@ -1399,7 +1400,7 @@ static void WebGPUBeginRenderPass(WebGPUContext* context, const float* clearColo
         wgpuRenderPassEncoderSetScissorRect(context->m_CurrentRenderPass.m_Encoder, context->m_CurrentRenderPass.m_Target->m_Scissor[0], context->m_CurrentRenderPass.m_Target->m_Scissor[1], context->m_CurrentRenderPass.m_Target->m_Scissor[2], context->m_CurrentRenderPass.m_Target->m_Scissor[3]);
         context->m_ViewportChanged = 0;
     }
-    if (context->m_CurrentPipelineState.m_StencilReference)
+    if (context->m_CurrentRenderPass.m_Target->m_TextureDepthStencil)
         wgpuRenderPassEncoderSetStencilReference(context->m_CurrentRenderPass.m_Encoder, context->m_CurrentPipelineState.m_StencilReference);
 }
 
@@ -2397,7 +2398,7 @@ static void WebGPUGetAttribute(HProgram _program, uint32_t index, dmhash_t* name
 {
     TRACE_CALL;
     WebGPUProgram* program = (WebGPUProgram*)_program;
-    
+
     uint32_t input_ix = 0;
     for (int i = 0; i < program->m_BaseProgram.m_ShaderMeta.m_Inputs.Size(); ++i)
     {

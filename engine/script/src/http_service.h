@@ -12,10 +12,11 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_HTTP_SERVICE
-#define DM_HTTP_SERVICE
+#ifndef DM_HTTP_SERVICE_H
+#define DM_HTTP_SERVICE_H
 
 #include <stdint.h>
+#include <dlib/http_cache.h>
 
 namespace dmHttpService
 {
@@ -26,14 +27,14 @@ namespace dmHttpService
     struct Params
     {
     	Params()
-        : m_ReportProgressCallback(0)
+        : m_HttpCache(0)
+        , m_ReportProgressCallback(0)
         , m_ThreadCount(4)
-        , m_UseHttpCache(1)
     	{}
 
+        dmHttpCache::HCache    m_HttpCache;
         ReportProgressCallback m_ReportProgressCallback;
     	uint32_t               m_ThreadCount  : 4;
-        uint32_t               m_UseHttpCache : 1;
     };
 
     HHttpService New(const Params* params);
@@ -43,4 +44,4 @@ namespace dmHttpService
 }  // namespace dmHttpService
 
 
-#endif // #ifndef DM_HTTP_SERVICE
+#endif // #ifndef DM_HTTP_SERVICE_H

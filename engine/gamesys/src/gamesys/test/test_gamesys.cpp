@@ -1641,13 +1641,15 @@ TEST_F(FontTest, GlyphBankTest)
     uint32_t glyph1_data_size = 0;
     uint32_t glyph1_image_width = 0;
     uint32_t glyph1_image_height = 0;
-    const uint8_t* glyph1_data = dmRender::GetGlyphData(font_map_1, 'A', &glyph1_data_size, &glyph1_data_compression, &glyph1_image_width, &glyph1_image_height);
+    uint32_t glyph1_image_channels = 0;
+    const uint8_t* glyph1_data = dmRender::GetGlyphData(font_map_1, 'A', &glyph1_data_size, &glyph1_data_compression, &glyph1_image_width, &glyph1_image_height, &glyph1_image_channels);
 
     uint32_t glyph2_data_compression; // E.g. FONT_map_GLYPH_COMPRESSION_NONE;
     uint32_t glyph2_data_size = 0;
     uint32_t glyph2_image_width = 0;
     uint32_t glyph2_image_height = 0;
-    const uint8_t* glyph2_data = dmRender::GetGlyphData(font_map_2, 'A', &glyph2_data_size, &glyph2_data_compression, &glyph2_image_width, &glyph2_image_height);
+    uint32_t glyph2_image_channels = 0;
+    const uint8_t* glyph2_data = dmRender::GetGlyphData(font_map_2, 'A', &glyph2_data_size, &glyph2_data_compression, &glyph2_image_width, &glyph2_image_height, &glyph2_image_channels);
 
     ASSERT_NE((void*)0, glyph_1);
     ASSERT_NE((void*)0, glyph_2);
@@ -1708,7 +1710,8 @@ TEST_F(FontTest, DynamicGlyph)
         uint32_t glyph_data_size = 0;
         uint32_t glyph_image_width = 0;
         uint32_t glyph_image_height = 0;
-        const uint8_t* glyph_data = dmRender::GetGlyphData(font_map, codepoint, &glyph_data_size, &glyph_data_compression, &glyph_image_width, &glyph_image_height);
+        uint32_t glyph_image_channels = 0;
+        const uint8_t* glyph_data = dmRender::GetGlyphData(font_map, codepoint, &glyph_data_size, &glyph_data_compression, &glyph_image_width, &glyph_image_height, &glyph_image_channels);
         ASSERT_NE((void*)0, glyph_data);
 
         dmRender::FontGlyph* glyph = dmRender::GetGlyph(font_map, codepoint);
@@ -1718,6 +1721,7 @@ TEST_F(FontTest, DynamicGlyph)
         ASSERT_EQ(data_size-1, glyph_data_size);
         ASSERT_EQ(1U, glyph_image_width);
         ASSERT_EQ(2U, glyph_image_height);
+        ASSERT_EQ(3U, glyph_image_channels);
 
         ASSERT_EQ(codepoint, glyph->m_Character);
         ASSERT_EQ(1U, glyph->m_Width);
@@ -2729,9 +2733,6 @@ GroupAndMaskParams groupandmask_params[] = {
 INSTANTIATE_TEST_CASE_P(GroupAndMaskTest, GroupAndMask2DTest, jc_test_values_in(groupandmask_params));
 INSTANTIATE_TEST_CASE_P(GroupAndMaskTest, GroupAndMask3DTest, jc_test_values_in(groupandmask_params));
 
-
-
-
 TEST_F(VelocityThreshold2DTest, VelocityThresholdTest)
 {
     dmHashEnableReverseHash(true);
@@ -3325,7 +3326,7 @@ INSTANTIATE_TEST_CASE_P(CollectionProxy, ComponentTest, jc_test_values_in(valid_
 
 const char* valid_collision_object_resources[] = {"/collision_object/valid.collisionobjectc",
                                                   "/collision_object/valid_tilegrid.collisionobjectc",
-                                                  "/collision_object/embedded_shapes.collisionobjectc" };
+                                                  "/collision_object/embedded_shapes.collisionobjectc"};
 
 INSTANTIATE_TEST_CASE_P(CollisionObject, ResourceTest, jc_test_values_in(valid_collision_object_resources));
 
@@ -3350,7 +3351,7 @@ INSTANTIATE_TEST_CASE_P(CollisionObject, ComponentFailTest, jc_test_values_in(in
 const char* valid_cs_resources[] =
 {
     "/convex_shape/box.convexshapec",
-    /*"/convex_shape/capsule.convexshapec",*/ // Temporarily disabling capsule since we are more interested in 2D atm
+    //"/convex_shape/capsule.convexshapec", // Temporarily disabling capsule since we are more interested in 2D atm
     "/convex_shape/hull.convexshapec",
     "/convex_shape/sphere.convexshapec",
 };
@@ -3359,7 +3360,7 @@ INSTANTIATE_TEST_CASE_P(ConvexShape, ResourceTest, jc_test_values_in(valid_cs_re
 ResourceFailParams invalid_cs_resources[] =
 {
     {"/convex_shape/box.convexshapec", "/convex_shape/invalid_box.convexshapec"},
-    {"/convex_shape/capsule.convexshapec", "/convex_shape/invalid_capsule.convexshapec"},
+    //{"/convex_shape/capsule.convexshapec", "/convex_shape/invalid_capsule.convexshapec"},
     {"/convex_shape/hull.convexshapec", "/convex_shape/invalid_hull.convexshapec"},
     {"/convex_shape/sphere.convexshapec", "/convex_shape/invalid_sphere.convexshapec"},
 };
@@ -3808,19 +3809,19 @@ INSTANTIATE_TEST_CASE_P(DrawCount, DrawCountTest, jc_test_values_in(draw_count_p
 
 ScriptComponentTestParams script_component_test_params[] =
 {
-    // file,                            comp type,          comp name
-    {"/camera/test_comp.goc",           "camerac",          "camera"},
-    {"/factory/test_comp.goc",          "factoryc",         "factory"},
-    {"/label/test_comp.goc",            "labelc",           "label"},
-    {"/light/test_comp.goc",            "lightc",           "light"},
-    {"/mesh/test_comp.goc",             "meshc",            "mesh"},
-    {"/model/test_comp.goc",            "modelc",           "model"},
-    {"/particlefx/test_comp.goc",       "particlefxc",      "particlefx"},
-    {"/sound/test_comp.goc",            "soundc",           "sound"},
-    {"/sprite/test_comp.goc",           "spritec",          "sprite"},
-    {"/tilegrid/test_comp.goc",         "tilemapc",         "tilemap"},
-    {"/collision_object/test_comp.goc", "collisionobjectc", "collisionobject"},
-    {"/collection_proxy/test_comp.goc", "collectionproxyc", "collectionproxy"},
+    // file,                              comp type,            comp name
+    {"/camera/test_comp.goc",             "camerac",            "camera"},
+    {"/factory/test_comp.goc",            "factoryc",           "factory"},
+    {"/label/test_comp.goc",              "labelc",             "label"},
+    {"/light/test_comp.goc",              "lightc",             "light"},
+    {"/mesh/test_comp.goc",               "meshc",              "mesh"},
+    {"/model/test_comp.goc",              "modelc",             "model"},
+    {"/particlefx/test_comp.goc",         "particlefxc",        "particlefx"},
+    {"/sound/test_comp.goc",              "soundc",             "sound"},
+    {"/sprite/test_comp.goc",             "spritec",            "sprite"},
+    {"/tilegrid/test_comp.goc",           "tilemapc",           "tilemap"},
+    {"/collision_object/test_comp.goc",   "collisionobjectc",   "collisionobject"},
+    {"/collection_proxy/test_comp.goc",   "collectionproxyc",   "collectionproxy"},
     {"/collection_factory/test_comp.goc", "collectionfactoryc", "collectionfactory"},
 };
 

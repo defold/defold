@@ -12,10 +12,10 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_EXTENSION_H
-#define DM_EXTENSION_H
+#ifndef DM_EXTENSION_HPP
+#define DM_EXTENSION_HPP
 
-#include <dmsdk/extension/extension_gen.hpp>
+#include <dmsdk/extension/extension.hpp>
 
 struct ExtensionDesc;
 

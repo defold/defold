@@ -29,10 +29,15 @@ import java.util.HashMap;
 
 import javax.imageio.ImageIO;
 
+import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.Project;
+import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.pipeline.TextureGenerator;
 import com.dynamo.bob.pipeline.TextureGeneratorException;
+import com.dynamo.bob.pipeline.TextureProfilesBuilder;
 import com.dynamo.graphics.proto.Graphics.PathSettings;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
@@ -215,6 +220,24 @@ public class TextureUtil {
         }
 
         return null;
+    }
+    private static String textureProfilesExt = TextureProfilesBuilder.class.getAnnotation(BuilderParams.class).outExt();
+
+    public static TextureProfile getTextureProfileByPath(IResource textureProfiles, String path) throws IOException {
+        TextureProfiles.Builder builder = TextureProfiles.newBuilder();
+        if (!textureProfiles.exists() || !textureProfiles.getPath().endsWith(textureProfilesExt)) {
+            return null;
+        }
+        builder.mergeFrom(textureProfiles.getContent());
+        return getTextureProfileByPath(builder.build(), path);
+    }
+
+    public static void addTextureProfileInput(Task.TaskBuilder taskBuilder, Project project) {
+        String textureProfilesPath = project.getProjectProperties().getStringValue("graphics", "texture_profiles");
+        if (textureProfilesPath != null) {
+            String fileName = ResourceUtil.changeExt(textureProfilesPath, textureProfilesExt);
+            taskBuilder.addInput(project.getResource(fileName).output());
+        }
     }
 
     private static int getTextureGenerateResultImageDatasIndex(TextureImage textureImage, int alternative, int mipMap) throws TextureGeneratorException {

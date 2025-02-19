@@ -46,12 +46,11 @@ public class ShaderCompilers {
             else
             if (platform == Platform.X86Win32 ||
                 platform == Platform.X86_64Win32 ||
-                platform == Platform.X86Linux ||
                 platform == Platform.X86_64Linux) {
                     if (isComputeType) {
                         shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM430);
                     } else {
-                        shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM140);
+                        shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
                     }
             }
             else

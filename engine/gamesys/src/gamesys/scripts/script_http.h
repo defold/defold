@@ -19,8 +19,6 @@
 
 namespace dmGameSystem
 {
-    void ScriptHttpRegister(const ScriptLibContext& context);
-    void ScriptHttpFinalize(const ScriptLibContext& context);
     void SetHttpRequestTimeout(uint64_t timeout);
 }
 

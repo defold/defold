@@ -7,8 +7,8 @@ jobs:
   build-linux:
     strategy:
       matrix:
-        arch: [x86_64-linux] # arm64-linux
-    runs-on: ubuntu-20.04
+        arch: [x86_64-linux]
+    runs-on: ubuntu-22.04
     steps:
     - name: Checkout repo
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -30,7 +30,7 @@ jobs:
     strategy:
       matrix:
         arch: [arm64-linux]
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-22.04-arm
     steps:
       
     - name: Add ARM64 architecture and install dependencies
@@ -140,7 +140,7 @@ jobs:
     strategy:
       matrix:
         platform: [armv7-android, arm64-android]
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
     - name: Checkout repo
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683

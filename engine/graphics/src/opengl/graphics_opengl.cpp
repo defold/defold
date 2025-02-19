@@ -2978,7 +2978,7 @@ static void LogFrameBufferError(GLenum status)
         {
             return language == ShaderDesc::LANGUAGE_GLSL_SM430;
         }
-        return language == ShaderDesc::LANGUAGE_GLSL_SM140 || language == ShaderDesc::LANGUAGE_GLSL_SM330;
+        return language == ShaderDesc::LANGUAGE_GLSL_SM330;
     }
 
     static void OpenGLEnableProgram(HContext _context, HProgram _program)

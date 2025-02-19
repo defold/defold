@@ -379,29 +379,30 @@ static char* CreateNameFromHash(const char* prefix, uint32_t hash)
     return strdup(buffer);
 }
 
+static char* CreateCgltfName(const char* prefix, uint32_t index)
+{
+    char buffer[128];
+    uint32_t size = dmSnPrintf(buffer, sizeof(buffer), "%s_%u", prefix, index);
+    char* mem = (char*)CGLTF_MALLOC(size+1);
+    memcpy(mem, buffer, size);
+    mem[size] = 0;
+    return mem;
+}
+
 template <typename T>
-static char* CreateObjectName(T* object, const char* prefix, uint32_t index)
+static char* DuplicateObjectName(T* object)
 {
-    if (object && object->name)
-        return strdup(object->name);
-    return CreateNameFromHash(prefix, index);
+    assert(object->name);
+    return strdup(object->name);
 }
 
 template <>
-char* CreateObjectName<>(cgltf_primitive* object, const char* prefix, uint32_t index)
+char* DuplicateObjectName<>(cgltf_buffer* object)
 {
-    (void)object;
-    return CreateNameFromHash("mesh", index);
-}
-
-template <>
-char* CreateObjectName<>(cgltf_buffer* object, const char* prefix, uint32_t index)
-{
-    if (object && object->name)
-        return strdup(object->name);
-    if (object && object->uri)
+    if (object->uri)
         return strdup(object->uri);
-    return CreateNameFromHash("buffer", index);
+    // embedded buffers doesn't have to have a valid uri.
+    return 0;
 }
 
 static void UpdateWorldTransforms(Node* node)
@@ -436,7 +437,7 @@ static void LoadNodes(Scene* scene, cgltf_data* gltf_data)
         cgltf_node* gltf_node = &gltf_data->nodes[i];
 
         Node* node = &scene->m_Nodes[i];
-        node->m_Name = CreateObjectName(gltf_node, "node", i);
+        node->m_Name = DuplicateObjectName(gltf_node);
         node->m_NameHash = dmHashString64(node->m_Name);
         node->m_Index = i;
 
@@ -508,7 +509,7 @@ static void LoadSamplers(Scene* scene, cgltf_data* gltf_data, dmHashTable64<void
         cgltf_sampler* gltf_sampler = &gltf_data->samplers[i];
         Sampler* sampler = &scene->m_Samplers[i];
         memset(sampler, 0, sizeof(*sampler));
-        sampler->m_Name = CreateObjectName(gltf_sampler, "sampler", i);
+        sampler->m_Name = DuplicateObjectName(gltf_sampler);
         sampler->m_Index = i;
 
         sampler->m_MagFilter = gltf_sampler->mag_filter;
@@ -531,7 +532,7 @@ static void LoadImages(Scene* scene, cgltf_data* gltf_data, dmHashTable64<void*>
         Image* image = &scene->m_Images[i];
         memset(image, 0, sizeof(*image));
         image->m_Index = i;
-        image->m_Name = CreateObjectName(gltf_image, "image", i);
+        image->m_Name = DuplicateObjectName(gltf_image);
         image->m_Uri = gltf_image->uri ? strdup(gltf_image->uri): 0;
         image->m_MimeType = gltf_image->mime_type ? strdup(gltf_image->mime_type): 0;
 
@@ -550,7 +551,7 @@ static void LoadTextures(Scene* scene, cgltf_data* gltf_data, dmHashTable64<void
         Texture* texture = &scene->m_Textures[i];
         memset(texture, 0, sizeof(*texture));
         texture->m_Index = i;
-        texture->m_Name = CreateObjectName(gltf_texture, "texture", i);
+        texture->m_Name = DuplicateObjectName(gltf_texture);
         texture->m_Sampler = GetFromCache<Sampler>(cache, gltf_texture->sampler);
         texture->m_Image = GetFromCache<Image>(cache, gltf_texture->image);
         texture->m_BasisuImage = GetFromCache<Image>(cache, gltf_texture->basisu_image);
@@ -714,7 +715,7 @@ static void LoadMaterials(Scene* scene, cgltf_data* gltf_data, dmHashTable64<voi
         Material* material = &scene->m_Materials[i];
         memset(material, 0, sizeof(*material));
 
-        material->m_Name = CreateObjectName(gltf_material, "material", i);
+        material->m_Name = DuplicateObjectName(gltf_material);
         material->m_Index = i;
 
         // a helper to avoid typos
@@ -781,7 +782,7 @@ static void LoadPrimitives(Scene* scene, Model* model, cgltf_data* gltf_data, cg
     {
         cgltf_primitive* prim = &gltf_mesh->primitives[i];
         Mesh* mesh = &model->m_Meshes[i];
-        mesh->m_Name = CreateObjectName(prim, "mesh", i);
+        mesh->m_Name = CreateNameFromHash("mesh", i);
 
         uint32_t material_index = FindIndex(gltf_data->materials, prim->material);
         if (material_index != INVALID_INDEX)
@@ -791,8 +792,6 @@ static void LoadPrimitives(Scene* scene, Model* model, cgltf_data* gltf_data, cg
         }
 
         //printf("primitive_type: %s\n", getPrimitiveTypeStr(prim->type));
-
-        ReadAccessorUint32ToArray(prim->indices, 1, mesh->m_Indices);
 
         for (uint32_t a = 0; a < prim->attributes_count; ++a)
         {
@@ -899,6 +898,29 @@ static void LoadPrimitives(Scene* scene, Model* model, cgltf_data* gltf_data, cg
             uint32_t size = mesh->m_VertexCount * mesh->m_TexCoords0NumComponents;
             InitSize(mesh->m_TexCoords0, size, size);
         }
+
+        if (prim->indices)
+        {
+            ReadAccessorUint32ToArray(prim->indices, 1, mesh->m_Indices);
+        }
+        else
+        {
+            // for now, we only support triangles
+            if(prim->type == cgltf_primitive_type_triangles)
+            {
+                uint32_t num_vertices = mesh->m_Positions.Size() / 3;
+                mesh->m_Indices.SetCapacity(num_vertices);
+                mesh->m_Indices.SetSize(num_vertices);
+                for (uint32_t i = 0; i < num_vertices; ++i)
+                {
+                    mesh->m_Indices[i] = i;
+                }
+            }
+            else if (prim->type == cgltf_primitive_type_points)
+            {
+                dmLogWarning("Primitive in mesh %s uses point type which we don't support.", mesh->m_Name);
+            }
+        }
     }
 }
 
@@ -910,7 +932,7 @@ static void LoadMeshes(Scene* scene, cgltf_data* gltf_data)
     {
         cgltf_mesh* gltf_mesh = &gltf_data->meshes[i]; // our "Model"
         Model* model = &scene->m_Models[i];
-        model->m_Name = CreateObjectName(gltf_mesh, "model", i);
+        model->m_Name = DuplicateObjectName(gltf_mesh);
         model->m_Index = i;
 
         LoadPrimitives(scene, model, gltf_data, gltf_mesh); // Our "Meshes"
@@ -1016,7 +1038,7 @@ struct BoneInfoSortPred
     }
 };
 
-static void CopyBone(Bone* src, Bone* dst)
+static void CopyBone(Bone* dst, Bone* src)
 {
     // While it's not a POD type, we copy all data as-is
     // We aren't running a destructor on the stale data
@@ -1109,7 +1131,7 @@ static void LoadSkins(Scene* scene, cgltf_data* gltf_data)
         cgltf_skin* gltf_skin = &gltf_data->skins[i];
 
         Skin* skin = &scene->m_Skins[i];
-        skin->m_Name = CreateObjectName(gltf_skin, "skin", i);
+        skin->m_Name = DuplicateObjectName(gltf_skin);
         skin->m_Index = i;
 
         InitSize(skin->m_Bones, gltf_skin->joints_count+1, gltf_skin->joints_count);
@@ -1119,7 +1141,7 @@ static void LoadSkins(Scene* scene, cgltf_data* gltf_data)
         {
             cgltf_node* gltf_joint = gltf_skin->joints[j];
             Bone* bone = &skin->m_Bones[j];
-            bone->m_Name = CreateObjectName(gltf_joint, "bone", j);
+            bone->m_Name = DuplicateObjectName(gltf_joint);
             bone->m_Index = j;
             bone->m_ParentIndex = FindBoneIndex(gltf_skin, gltf_joint->parent);
 
@@ -1328,21 +1350,38 @@ static void LoadChannel(NodeAnimation* node_animation, cgltf_animation_channel* 
     cgltf_accessor* accessor_times = channel->sampler->input;
     cgltf_accessor* accessor = channel->sampler->output;
 
+    uint32_t key_count = accessor_times->count;
+
+    // 1 for 1xf32, 4 for 4xf32
     uint32_t num_components = (uint32_t)cgltf_num_components(accessor->type);
+    // number of items per time step
+    uint32_t num_items = accessor->count / key_count;
 
     bool all_identical = true;
 
     float time_min = FLT_MAX;
     float time_max = -FLT_MAX;
 
-    KeyFrame* key_frames = new KeyFrame[accessor_times->count];
-    memset(key_frames, 0, sizeof(KeyFrame)*accessor_times->count);
-    for (uint32_t i = 0; i < accessor->count; ++i)
+    const uint32_t max_num_values = sizeof(KeyFrame::m_Value)/sizeof(float);
+    uint32_t num_values = num_items * num_components;
+    if (num_values > max_num_values)
+    {
+        dmLogWarning("Channel has input count %u and output count %u."
+                     "This yields %u items x %u components = %u"
+                     "which is larger than max count %u", (uint32_t)accessor_times->count, (uint32_t)accessor->count,
+                                                         num_items, num_components, num_values,
+                                                         max_num_values);
+        num_values = max_num_values;
+    }
+
+    KeyFrame* key_frames = new KeyFrame[key_count];
+    memset(key_frames, 0, sizeof(KeyFrame)*key_count);
+    for (uint32_t i = 0; i < key_count; ++i)
     {
         cgltf_accessor_read_float(accessor_times, i, &key_frames[i].m_Time, 1);
-        cgltf_accessor_read_float(accessor, i, key_frames[i].m_Value, num_components);
+        cgltf_accessor_read_float(accessor, i, key_frames[i].m_Value, num_values);
 
-        if (all_identical && !AreEqual(key_frames[0].m_Value, key_frames[i].m_Value, num_components, 0.0001f))
+        if (all_identical && !AreEqual(key_frames[0].m_Value, key_frames[i].m_Value, num_values, 0.0001f))
         {
             all_identical = false;
         }
@@ -1353,7 +1392,6 @@ static void LoadChannel(NodeAnimation* node_animation, cgltf_animation_channel* 
     node_animation->m_StartTime = 0.0f;
     node_animation->m_EndTime = time_max - time_min;
 
-    uint32_t key_count = accessor->count;
     if (all_identical)
     {
         key_count = 1;
@@ -1382,7 +1420,7 @@ static void LoadChannel(NodeAnimation* node_animation, cgltf_animation_channel* 
     }
 }
 
-static uint32_t CountAnimatedNodes(cgltf_animation* animation, dmHashTable64<uint32_t>& node_to_index)
+static uint32_t CountAnimatedNodes(Scene* scene, cgltf_data* gltf_data, cgltf_animation* animation, dmHashTable64<uint32_t>& node_to_index)
 {
     node_to_index.SetCapacity((32*2)/3, 32);
 
@@ -1394,8 +1432,8 @@ static uint32_t CountAnimatedNodes(cgltf_animation* animation, dmHashTable64<uin
             node_to_index.SetCapacity((new_capacity*2)/3, new_capacity);
         }
 
-        const char* node_name = animation->channels[i].target_node->name;
-        dmhash_t node_name_hash = dmHashString64(node_name);
+        Node* target_node = TranslateNode(animation->channels[i].target_node, gltf_data, scene);
+        dmhash_t node_name_hash = dmHashString64(target_node->m_Name);
 
         uint32_t* prev_index = node_to_index.Get(node_name_hash);
         if (prev_index == 0)
@@ -1420,12 +1458,12 @@ static void LoadAnimations(Scene* scene, cgltf_data* gltf_data)
         cgltf_animation* gltf_animation = &gltf_data->animations[a];
         Animation* animation = &scene->m_Animations[a];
 
-        animation->m_Name = CreateObjectName(gltf_animation, "animation", a);
+        animation->m_Name = DuplicateObjectName(gltf_animation);
 
         // Here we want to create a many individual tracks for different bones (name.type): "a.rot", "b.rot", "a.pos", "b.scale"...
         // into a list of tracks that holds all 3 types: [a: {rot, pos, scale}, b: {rot, pos, scale}...]
         dmHashTable64<uint32_t> node_name_to_index;
-        uint32_t node_animations_count = CountAnimatedNodes(gltf_animation, node_name_to_index);
+        uint32_t node_animations_count = CountAnimatedNodes(scene, gltf_data, gltf_animation, node_name_to_index);
 
         InitSize(animation->m_NodeAnimations, node_animations_count, node_animations_count);
 
@@ -1541,6 +1579,71 @@ bool HasUnresolvedBuffers(Scene* scene)
     return HasUnresolvedBuffersInternal((cgltf_data*)scene->m_OpaqueSceneData);
 }
 
+// As we use names for comparisons and lookups, it's awkward to support items with NULL names
+static void CreateNames(cgltf_options* options, cgltf_data* data)
+{
+#define CREATE_NAME(NODE, PREFIX, INDEX) \
+    if (!(NODE)->name) \
+    { \
+        (NODE)->name = CreateCgltfName(PREFIX, INDEX); \
+    }
+
+    for (int i = 0; i < data->nodes_count; ++i)
+    {
+        CREATE_NAME(&data->nodes[i], "node", i);
+    }
+
+    for (int i = 0; i < data->skins_count; ++i)
+    {
+        cgltf_skin* skin = &data->skins[i];
+        CREATE_NAME(skin, "skin", i);
+
+        for (int j = 0; j < skin->joints_count; ++j)
+        {
+            CREATE_NAME(skin->joints[j], "joint", j);
+        }
+    }
+
+    for (uint32_t i = 0; i < data->samplers_count; ++i)
+    {
+        CREATE_NAME(&data->samplers[i], "sampler", i);
+    }
+
+    for (uint32_t i = 0; i < data->buffers_count; ++i)
+    {
+        if (!(data->buffers[i].name || data->buffers[i].uri))
+            data->buffers[i].name = CreateCgltfName("buffer", i);
+    }
+
+    for (uint32_t i = 0; i < data->images_count; ++i)
+    {
+        CREATE_NAME(&data->images[i], "image", i);
+    }
+
+    for (uint32_t i = 0; i < data->textures_count; ++i)
+    {
+        CREATE_NAME(&data->textures[i], "texture", i);
+    }
+
+    for (uint32_t i = 0; i < data->materials_count; ++i)
+    {
+        CREATE_NAME(&data->materials[i], "material", i);
+    }
+
+    for (uint32_t i = 0; i < data->meshes_count; ++i)
+    {
+        CREATE_NAME(&data->meshes[i], "model", i); // our "Model"
+    }
+
+    // first, count number of animated nodes we have
+    for (uint32_t i = 0; i < data->animations_count; ++i)
+    {
+        CREATE_NAME(&data->animations[i], "animation", i);
+    }
+
+#undef CREATE_NAME
+}
+
 static void LoadScene(Scene* scene, cgltf_data* data)
 {
     dmHashTable64<void*> cache;
@@ -1602,6 +1705,8 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
         return 0;
     }
 
+    CreateNames(&options, data);
+
     // resolve as many buffers as possible
     result = ResolveBuffers(&options, data, 0);
     if (result != cgltf_result_success)
@@ -1624,7 +1729,7 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
 
     for (cgltf_size i = 0; i < data->buffers_count; ++i)
     {
-        scene->m_Buffers[i].m_Uri = CreateObjectName(data->buffers, "buffer", i);
+        scene->m_Buffers[i].m_Uri = DuplicateObjectName(&data->buffers[i]);
         scene->m_Buffers[i].m_Buffer = (uint8_t*)data->buffers[i].data;
         scene->m_Buffers[i].m_BufferCount = data->buffers[i].size;
     }

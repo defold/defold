@@ -552,6 +552,13 @@
   [resource]
   (stateful-resource-type? (resource-type resource)))
 
+(defn folder?
+  "Returns true if the supplied resource is a folder."
+  [resource]
+  (case (source-type resource)
+    :file false
+    :folder true))
+
 (def ^:private known-ext->language
   ;; See known language identifiers:
   ;; https://code.visualstudio.com/docs/languages/identifiers#_known-language-identifiers
