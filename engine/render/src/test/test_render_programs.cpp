@@ -85,8 +85,8 @@ class dmRenderComputeTest : public RenderProgramTestBase {};
 TEST_F(dmRenderMaterialTest, TestTags)
 {
     dmGraphics::ShaderDescBuilder shader_desc_builder;
-    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, "foo", 3);
-    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, "foo", 3);
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
 
     dmGraphics::ShaderDesc* shader_desc = shader_desc_builder.Get();
 
@@ -106,8 +106,8 @@ TEST_F(dmRenderMaterialTest, TestMaterialConstants)
 {
     dmGraphics::ShaderDescBuilder shader_desc_builder;
 
-    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, "uniform vec4 tint;\n", 19);
-    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, "foo", 3);
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "uniform vec4 tint;\n", 19);
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
 
     shader_desc_builder.AddTypeMember("tint", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
     shader_desc_builder.AddUniformBuffer("tint", 0, 0, dmGraphics::GetShaderTypeSize(dmGraphics::ShaderDesc::SHADER_TYPE_VEC4));
@@ -156,8 +156,8 @@ TEST_F(dmRenderMaterialTest, TestMaterialVertexAttributes)
         attribute float attribute_three;\n";
 
     dmGraphics::ShaderDescBuilder shader_desc_builder;
-    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, vs_src, strlen(vs_src));
-    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, "foo", 3);
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, vs_src, strlen(vs_src));
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
 
     shader_desc_builder.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "attribute_one", 0, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
     shader_desc_builder.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "attribute_two", 1, dmGraphics::ShaderDesc::SHADER_TYPE_VEC2);
@@ -250,8 +250,8 @@ TEST_F(dmRenderMaterialTest, TestMaterialInstanceNotSupported)
     null_context->m_ContextFeatures = 0;
 
     dmGraphics::ShaderDescBuilder shader_desc_builder;
-    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, vs_src, strlen(vs_src));
-    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, "foo", 3);
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, vs_src, strlen(vs_src));
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
 
     dmGraphics::ShaderDesc* shader_desc = shader_desc_builder.Get();
     dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader_desc, 0, 0);
@@ -277,8 +277,8 @@ TEST_F(dmRenderMaterialTest, TestMaterialInstanceAttributes)
         attribute mat4 mtx_world;\n";
 
     dmGraphics::ShaderDescBuilder shader_desc_builder;
-    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, vs_src, strlen(vs_src));
-    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, "foo", 3);
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, vs_src, strlen(vs_src));
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
 
     shader_desc_builder.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "position",   0, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
     shader_desc_builder.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "normal",     1, dmGraphics::ShaderDesc::SHADER_TYPE_VEC2);
@@ -424,8 +424,8 @@ TEST_F(dmRenderMaterialTest, TestMaterialInstanceAttributes)
 TEST_F(dmRenderMaterialTest, TestMaterialConstantsOverride)
 {
     dmGraphics::ShaderDescBuilder shader_desc_builder;
-    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, "uniform vec4 tint;\n", 19);
-    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, "foo", 3);
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "uniform vec4 tint;\n", 19);
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
 
     shader_desc_builder.AddTypeMember("tint", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
     shader_desc_builder.AddTypeMember("dummy", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
@@ -435,8 +435,8 @@ TEST_F(dmRenderMaterialTest, TestMaterialConstantsOverride)
     dmRender::HMaterial material = dmRender::NewMaterial(m_RenderContext, program);
 
     dmGraphics::ShaderDescBuilder shader_desc_builder_ovr;
-    shader_desc_builder_ovr.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, "uniform vec4 tint;\n", 19);
-    shader_desc_builder_ovr.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, "foo", 3);
+    shader_desc_builder_ovr.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "uniform vec4 tint;\n", 19);
+    shader_desc_builder_ovr.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
     shader_desc_builder_ovr.AddTypeMember("tint", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
     shader_desc_builder_ovr.AddTypeMember("dummy", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
     shader_desc_builder_ovr.AddUniformBuffer("tint", 0, 0, dmGraphics::GetShaderTypeSize(dmGraphics::ShaderDesc::SHADER_TYPE_VEC4));

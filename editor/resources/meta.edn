@@ -425,13 +425,17 @@
    :default 16,
    :path ["sound" "max_sound_sources"]}
   {:type :integer,
-   :help "max number of concurrent sound instances, 256 by default",
+   :help "max number of concurrent sound instances (voices), 256 by default",
    :default 256,
    :path ["sound" "max_sound_instances"]}
   {:type :integer,
-   :help "max number of sound comonents in a collection, 32 by default",
+   :help "max number of sound components in a collection, 32 by default",
    :default 32,
    :path ["sound" "max_component_count"]}
+  {:type :integer,
+   :help "number of samples used for each audio update. 0 by default which means (1024 for 48khz sound device, 768 for 44.1khz sound device)",
+   :default 0,
+   :path ["sound" "sample_frame_count"]}
   {:type :boolean,
    :help "Enables sound threading",
    :default true,

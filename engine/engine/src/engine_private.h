@@ -20,6 +20,7 @@
 #include <dmsdk/dlib/configfile.h>
 #include <dlib/hashtable.h>
 #include <dlib/message.h>
+#include <dlib/http_cache.h>
 
 #include <resource/resource.h>
 
@@ -149,6 +150,7 @@ namespace dmEngine
         dmInput::HContext                           m_InputContext;
         dmInput::HBinding                           m_GameInputBinding;
         dmRender::HDisplayProfiles                  m_DisplayProfiles;
+        dmHttpCache::HCache                         m_HttpCache;
 
         dmGameSystem::RenderScriptPrototype*        m_RenderScriptPrototype;
 

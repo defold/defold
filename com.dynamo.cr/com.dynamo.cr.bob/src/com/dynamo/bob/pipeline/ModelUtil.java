@@ -1097,7 +1097,7 @@ public class ModelUtil {
             return;
         }
 
-        Scene scene;
+        Scene scene = null;
         try {
             long timeStart = System.currentTimeMillis();
 
@@ -1123,11 +1123,13 @@ public class ModelUtil {
         } catch (Exception e) {
             e.printStackTrace(System.out);
             System.out.printf("Failed reading '%s':\n%s\n", file, e.getMessage());
+            System.exit(1);
             return;
         }
 
         if (scene == null){
             System.out.printf("Failed to load '%s'\n", file);
+            System.exit(1);
             return;
         }
 

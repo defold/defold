@@ -623,7 +623,11 @@ static jobject LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jb
         dmModelImporter::DebugScene(scene);
     }
 
-    jobject jscene = dmModelImporter::CreateJavaScene(env, scene);
+    jobject jscene = 0;
+    if (!dmModelImporter::NeedsResolve(scene))
+    {
+        jscene = dmModelImporter::CreateJavaScene(env, scene);
+    }
 
     dmModelImporter::DestroyScene(scene);
 

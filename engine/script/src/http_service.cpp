@@ -55,6 +55,9 @@ namespace dmHttpService
         dmHttpDDF::HttpRequest*   m_Request;
         const char*           m_Filepath;
         int                   m_Status;
+        uint32_t              m_RangeStart;
+        uint32_t              m_RangeEnd;
+        uint32_t              m_DocumentSize;
         uintptr_t             m_ResponseUserData1;
         uintptr_t             m_ResponseUserData2;
         dmArray<char>         m_Response;
@@ -102,10 +105,16 @@ namespace dmHttpService
     }
 
     // Called from the http thread(s)
-    void HttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length, const char* method)
+    void HttpContent(dmHttpClient::HResponse response, void* user_data, int status_code,
+                    const void* content_data, uint32_t content_data_size, int32_t content_length,
+                    uint32_t range_start, uint32_t range_end, uint32_t document_size,
+                    const char* method)
     {
         Worker* worker = (Worker*) user_data;
         worker->m_Status = status_code;
+        worker->m_RangeStart = range_start;
+        worker->m_RangeEnd = range_end;
+        worker->m_DocumentSize = document_size;
         dmArray<char>& r = worker->m_Response;
         bool method_is_head = method && strcmp(method, "HEAD") == 0;
 
@@ -209,12 +218,18 @@ namespace dmHttpService
                              const char* headers, uint32_t headers_length,
                              const char* response, uint32_t response_length,
                              const char* url,
-                             const char* filepath)
+                             const char* filepath,
+                             uint32_t range_start,
+                             uint32_t range_end,
+                             uint32_t document_size)
     {
         dmHttpDDF::HttpResponse resp;
         resp.m_Status = status;
         resp.m_HeadersLength = headers_length;
         resp.m_ResponseLength = response_length;
+        resp.m_RangeStart = range_start;
+        resp.m_RangeEnd = range_end;
+        resp.m_DocumentSize = document_size;
 
         resp.m_Headers = (uint64_t) malloc(headers_length);
         memcpy((void*) resp.m_Headers, headers, headers_length);
@@ -231,6 +246,29 @@ namespace dmHttpService
         }
     }
 
+    static const char* FindHeader(Worker* worker, const char* header, char* buffer, uint32_t buffer_length)
+    {
+        // Headers are either 0, of a list of strings "header1: value\nheader2: value\n"
+        const char* current = (const char*)worker->m_Request->m_Headers;
+        const char* headers_end = current + worker->m_Request->m_HeadersLength;
+        while (current < headers_end)
+        {
+            const char* end = strchr(current, '\n');
+            uint32_t length = end - current;
+            if (strstr(current, header) == current)
+            {
+                if (length < buffer_length)
+                {
+                    memcpy(buffer, current, length);
+                    buffer[length] = 0;
+                    return buffer;
+                }
+            }
+            current += length+1;
+        }
+        return 0;
+    }
+
     void HandleRequest(Worker* worker, const dmMessage::URL* requester, uintptr_t userdata1, uintptr_t userdata2, dmHttpDDF::HttpRequest* request)
     {
         dmURI::Parts url;
@@ -239,7 +277,7 @@ namespace dmHttpService
         dmURI::Result ur =  dmURI::Parse(request->m_Url, &url);
         if (ur != dmURI::RESULT_OK)
         {
-            SendResponse(requester, 0, 0, 0, 0, 0, 0, 0, worker->m_Request->m_Url, 0);
+            SendResponse(requester, 0, 0, 0, 0, 0, 0, 0, worker->m_Request->m_Url, 0, 0, 0, 0);
             return;
         }
         if (url.m_Path[0] == '\0') {
@@ -275,6 +313,9 @@ namespace dmHttpService
         worker->m_Headers.SetSize(0);
         worker->m_Headers.SetCapacity(DEFAULT_HEADER_BUFFER_SIZE);
         worker->m_Filepath = request->m_Path;
+        worker->m_RangeStart = 0;
+        worker->m_RangeEnd = 0;
+        worker->m_DocumentSize = 0;
 
         if (request->m_ReportProgress)
         {
@@ -290,18 +331,37 @@ namespace dmHttpService
             dmHttpClient::SetOptionInt(worker->m_Client, dmHttpClient::OPTION_REQUEST_IGNORE_CACHE, request->m_IgnoreCache);
             dmHttpClient::SetOptionInt(worker->m_Client, dmHttpClient::OPTION_REQUEST_CHUNKED_TRANSFER, request->m_ChunkedTransfer);
 
+            char cache_key[dmURI::MAX_URI_LEN];
+            dmHttpClient::GetURI(worker->m_Client, url.m_Path, cache_key, sizeof(cache_key));
+
+            char header_buffer[256];
+            const char* range_header = FindHeader(worker, "Range:", header_buffer, sizeof(header_buffer));
+            if (range_header)
+            {
+                // If we find a range header, let's use it to append to the cache key
+                range_header += strlen("Range:");
+                while(*range_header == ' ')
+                    ++range_header;
+                dmStrlCat(cache_key, "=", sizeof(cache_key));
+                dmStrlCat(cache_key, range_header, sizeof(cache_key));// "=bytes=%d-%d"
+            }
+            dmHttpClient::SetCacheKey(worker->m_Client, cache_key);
+
             dmHttpClient::Result r = dmHttpClient::Request(worker->m_Client, request->m_Method, url.m_Path);
 
             if (r == dmHttpClient::RESULT_OK || r == dmHttpClient::RESULT_NOT_200_OK) {
-                SendResponse(requester, userdata1, userdata2, worker->m_Status, worker->m_Headers.Begin(), worker->m_Headers.Size(), worker->m_Response.Begin(), worker->m_Response.Size(), request->m_Url, worker->m_Filepath);
+                SendResponse(requester, userdata1, userdata2, worker->m_Status, worker->m_Headers.Begin(), worker->m_Headers.Size(), worker->m_Response.Begin(), worker->m_Response.Size(), request->m_Url, worker->m_Filepath,
+                                    worker->m_RangeStart, worker->m_RangeEnd, worker->m_DocumentSize);
             } else {
                 // TODO: Error codes to lua?
                 dmLogError("HTTP request to '%s' failed (http result: %d  socket result: %d)", request->m_Url, r, GetLastSocketResult(worker->m_Client));
-                SendResponse(requester, userdata1, userdata2, 0, worker->m_Headers.Begin(), worker->m_Headers.Size(), worker->m_Response.Begin(), worker->m_Response.Size(), request->m_Url, worker->m_Filepath);
+                SendResponse(requester, userdata1, userdata2, 0, worker->m_Headers.Begin(), worker->m_Headers.Size(), worker->m_Response.Begin(), worker->m_Response.Size(), request->m_Url, worker->m_Filepath,
+                                worker->m_RangeStart, worker->m_RangeEnd, worker->m_DocumentSize);
             }
         } else {
             // TODO: Error codes to lua?
-            SendResponse(requester, userdata1, userdata2, 0, worker->m_Headers.Begin(), worker->m_Headers.Size(), worker->m_Response.Begin(), worker->m_Response.Size(), request->m_Url, worker->m_Filepath);
+            SendResponse(requester, userdata1, userdata2, 0, worker->m_Headers.Begin(), worker->m_Headers.Size(), worker->m_Response.Begin(), worker->m_Response.Size(), request->m_Url, worker->m_Filepath,
+                            worker->m_RangeStart, worker->m_RangeEnd, worker->m_DocumentSize);
             dmLogError("Unable to create HTTP connection to '%s'. No route to host?", request->m_Url);
         }
     }
@@ -401,31 +461,7 @@ namespace dmHttpService
     {
         HttpService* service = new HttpService;
 
-        if (params->m_UseHttpCache)
-        {
-            dmHttpCache::NewParams cache_params;
-            char path[1024];
-            dmSys::Result sys_result = dmSys::GetApplicationSupportPath("defold", path, sizeof(path));
-            if (sys_result == dmSys::RESULT_OK)
-            {
-                // NOTE: The other cache (streaming) is called /cache
-                dmStrlCat(path, "/http-cache", sizeof(path));
-                cache_params.m_Path = path;
-                dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &service->m_HttpCache);
-                if (cache_r != dmHttpCache::RESULT_OK)
-                {
-                    dmLogWarning("Unable to open http cache (%d)", cache_r);
-                }
-            }
-            else
-            {
-                dmLogWarning("Unable to locate application support path for \"%s\": (%d)", "defold", sys_result);
-            }
-        }
-        else
-        {
-            dmLogWarning("Http cache disabled");
-        }
+        service->m_HttpCache = params->m_HttpCache;
 
         int threadcount = params->m_ThreadCount;
 #if defined(__NX__)
@@ -510,8 +546,6 @@ namespace dmHttpService
         }
 
         dmMessage::DeleteSocket(http_service->m_Socket);
-        if (http_service->m_HttpCache)
-            dmHttpCache::Close(http_service->m_HttpCache);
         delete http_service;
     }
 

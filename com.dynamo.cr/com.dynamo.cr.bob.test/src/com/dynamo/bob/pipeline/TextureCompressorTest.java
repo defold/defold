@@ -16,6 +16,7 @@ package com.dynamo.bob.pipeline;
 
 import com.defold.extension.pipeline.texture.*;
 import com.defold.extension.pipeline.texture.TestTextureCompressor;
+import com.dynamo.bob.fs.IResource;
 import com.dynamo.graphics.proto.Graphics;
 import org.junit.Before;
 import org.junit.Test;
@@ -99,8 +100,10 @@ public class TextureCompressorTest extends AbstractProtoBuilderTest {
         texProfilesBuilder.addProfiles(textureProfile.build()).addPathSettings(genericPath);
 
         this.getProject().setOption("texture-compression", "true");
-        this.getProject().setTextureProfiles(texProfilesBuilder.build());
 
+        this.getProject().getProjectProperties().putStringValue("graphics", "texture_profiles", "my.texture_profile");
+        IResource res = this.getProject().getResource("my.texture_profilesc");
+        res.output().setContent(texProfilesBuilder.build().toByteArray());
         TextureCompression.registerCompressor(testCompressor);
         ensureBuildProject();
 
