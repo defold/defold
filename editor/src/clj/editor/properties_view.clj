@@ -236,7 +236,10 @@
       (g/transact
         (for [node-id node-ids]
           (let [current-value (cond-> (g/node-value node-id key) to-type to-type)
-                new-value (cond-> (drag-update-fn current-value update-val) from-type from-type)]
+                new-value (cond-> (drag-update-fn current-value update-val) 
+                            from-type from-type
+                            (:min edit-type) (max (:min edit-type))
+                            (:max edit-type) (min (:max edit-type)))]
             (concat (g/operation-sequence @label-drag-op-seq)
                     (g/set-property node-id key new-value)))))
       (when (apply = (properties/values property))
@@ -271,10 +274,12 @@
           (let [drag-update-fn (fn [v update-val]
                                  (update v index #(properties/round-scalar (+ % update-val))))
                 children (if (seq label-text)
-                           [(doto (Label. label-text)
-                              (.setMinWidth Region/USE_PREF_SIZE)
-                              (make-label-draggable! (partial handle-label-drag-event! property-fn drag-update-fn update-ui-fn)))
-                            text-field]
+                           (let [label (doto (Label. label-text)
+                                         (.setMinWidth Region/USE_PREF_SIZE))]
+                             (ui/do-run-later
+                               #(when-not (properties/read-only? (property-fn))
+                                  (make-label-draggable! label (partial handle-label-drag-event! property-fn drag-update-fn update-ui-fn))))
+                             [label text-field])
                            [text-field])
                 comp (doto (create-grid-pane children)
                        (GridPane/setConstraints index 0)
