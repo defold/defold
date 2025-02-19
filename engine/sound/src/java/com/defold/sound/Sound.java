@@ -23,8 +23,7 @@ import android.util.Log;
 
 public class Sound {
 
-    public static int getSampleRate(Context context) {
-        final int default_rate = 44100;
+    public static int getSampleRate(Context context, int default_rate) {
         AudioManager audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
         String sampleRate = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE);
         if (sampleRate == null) {

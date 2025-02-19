@@ -1400,7 +1400,7 @@ static void WebGPUBeginRenderPass(WebGPUContext* context, const float* clearColo
         wgpuRenderPassEncoderSetScissorRect(context->m_CurrentRenderPass.m_Encoder, context->m_CurrentRenderPass.m_Target->m_Scissor[0], context->m_CurrentRenderPass.m_Target->m_Scissor[1], context->m_CurrentRenderPass.m_Target->m_Scissor[2], context->m_CurrentRenderPass.m_Target->m_Scissor[3]);
         context->m_ViewportChanged = 0;
     }
-    if (context->m_CurrentPipelineState.m_StencilReference)
+    if (context->m_CurrentRenderPass.m_Target->m_TextureDepthStencil)
         wgpuRenderPassEncoderSetStencilReference(context->m_CurrentRenderPass.m_Encoder, context->m_CurrentPipelineState.m_StencilReference);
 }
 

@@ -114,7 +114,8 @@ struct TestParams
     float       m_Speed;
     uint8_t     m_Loopcount;
 
-    TestParams(const char* device_name, void* sound, uint32_t sound_size, SoundDataType type, uint32_t tone_rate, uint32_t mix_rate, uint32_t frame_count, uint32_t buffer_frame_count)
+    TestParams(const char* device_name, void* sound, uint32_t sound_size, SoundDataType type,
+                uint32_t tone_rate, uint32_t mix_rate, uint32_t frame_count, uint32_t buffer_frame_count)
     : m_Pan(0.0f)
     , m_Speed(1.0f)
     , m_Loopcount(0)
@@ -346,7 +347,7 @@ struct LoopbackDevice
 
 LoopbackDevice *g_LoopbackDevice = 0;
 
-dmSound::Result DeviceLoopbackOpen(const dmSound::OpenDeviceParams* params, dmSound::HDevice* device)
+static dmSound::Result DeviceLoopbackOpen(const dmSound::OpenDeviceParams* params, dmSound::HDevice* device)
 {
     LoopbackDevice* d = new LoopbackDevice;
 
@@ -375,7 +376,7 @@ dmSound::Result DeviceLoopbackOpen(const dmSound::OpenDeviceParams* params, dmSo
     return dmSound::RESULT_OK;
 }
 
-void DeviceLoopbackClose(dmSound::HDevice device)
+static void DeviceLoopbackClose(dmSound::HDevice device)
 {
     LoopbackDevice* d = (LoopbackDevice*) device;
     for (uint32_t i = 0; i < d->m_Buffers.Size(); ++i) {
@@ -386,7 +387,7 @@ void DeviceLoopbackClose(dmSound::HDevice device)
     g_LoopbackDevice = 0;
 }
 
-dmSound::Result DeviceLoopbackQueue(dmSound::HDevice device, const int16_t* samples, uint32_t sample_count)
+static dmSound::Result DeviceLoopbackQueue(dmSound::HDevice device, const int16_t* samples, uint32_t sample_count)
 {
     LoopbackDevice* loopback = (LoopbackDevice*) device;
     loopback->m_NumWrites++;
@@ -416,7 +417,7 @@ dmSound::Result DeviceLoopbackQueue(dmSound::HDevice device, const int16_t* samp
     return dmSound::RESULT_OK;
 }
 
-uint32_t DeviceLoopbackFreeBufferSlots(dmSound::HDevice device)
+static uint32_t DeviceLoopbackFreeBufferSlots(dmSound::HDevice device)
 {
     LoopbackDevice* loopback = (LoopbackDevice*) device;
 
@@ -434,19 +435,19 @@ uint32_t DeviceLoopbackFreeBufferSlots(dmSound::HDevice device)
     return n;
 }
 
-void DeviceLoopbackDeviceInfo(dmSound::HDevice device, dmSound::DeviceInfo* info)
+static void DeviceLoopbackDeviceInfo(dmSound::HDevice device, dmSound::DeviceInfo* info)
 {
     LoopbackDevice* loopback = (LoopbackDevice*) device;
     info->m_MixRate = 44100;
     info->m_FrameCount = loopback->m_DeviceFrameCount;
 }
 
-void DeviceLoopbackRestart(dmSound::HDevice device)
+static void DeviceLoopbackRestart(dmSound::HDevice device)
 {
 
 }
 
-void DeviceLoopbackStop(dmSound::HDevice device)
+static void DeviceLoopbackStop(dmSound::HDevice device)
 {
 
 }
@@ -896,6 +897,8 @@ TEST_P(dmSoundTestSpeedTest, Speed)
 
         int64_t pos_1 = dmSound::GetInternalPos(instance);
         int64_t pos_2 = dmSound::GetInternalPos(muted_instance);
+        (void)pos_1;
+        (void)pos_2;
     } while (dmSound::IsPlaying(instance));
 
     // The loop back device will have time to write out another output buffer while the
@@ -1223,7 +1226,7 @@ TEST_P(dmSoundTestPlayTest, Play)
     ASSERT_EQ(dmSound::RESULT_OK, r);
 }
 
-TEST_P(dmSoundTestPlaySpeedTest, Play)
+TEST_P(dmSoundTestPlaySpeedTest, PlaySpeed)
 {
     TestParams params = GetParam();
     dmSound::Result r;
@@ -1268,14 +1271,14 @@ TEST_P(dmSoundTestPlaySpeedTest, Play)
     ASSERT_EQ(dmSound::RESULT_OK, r);
 }
 
-#define SOUND_TEST(DEVICE, CHANNELS, FREQ, FRAMES, BYTES, BUFFERSIZE) \
+#define SOUND_TEST(DEVICE, CHANNELS, TONE, SAMPLE_RATE, NUM_FRAMES, BUFFERSIZE) \
     TestParams(DEVICE, \
-                CHANNELS ## _TONE_ ## FREQ ## _ ## FRAMES ## _ ## BYTES ## _WAV, \
-                CHANNELS ## _TONE_ ## FREQ ## _ ## FRAMES ## _ ## BYTES ## _WAV_SIZE, \
+                CHANNELS ## _TONE_ ## TONE ## _ ## SAMPLE_RATE ## _ ## NUM_FRAMES ## _WAV, \
+                CHANNELS ## _TONE_ ## TONE ## _ ## SAMPLE_RATE ## _ ## NUM_FRAMES ## _WAV_SIZE, \
                 dmSound::SOUND_DATA_TYPE_WAV, \
-                FREQ, \
-                FRAMES, \
-                FRAMES, \
+                TONE, \
+                SAMPLE_RATE, \
+                NUM_FRAMES, \
                 BUFFERSIZE)
 
 const TestParams params_test_play_test[] = {
@@ -1302,7 +1305,7 @@ const TestParams params_test_play_test[] = {
     SOUND_TEST("default", STEREO, 2000, 44100, 11025, 2048),
     SOUND_TEST("default", STEREO, 2000, 48000, 12000, 2048),
 };
-INSTANTIATE_TEST_CASE_P(dmSoundTestPlayTestMono, dmSoundTestPlayTest, jc_test_values_in(params_test_play_test));
+INSTANTIATE_TEST_CASE_P(dmSoundTestPlayTest, dmSoundTestPlayTest, jc_test_values_in(params_test_play_test));
 
 const TestParams params_test_play_speed_test[] = {
     TestParams("default",

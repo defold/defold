@@ -241,7 +241,45 @@
           ui-docs/enums)
         (ui-docs/script-docs)
         (prefs-docs/script-docs)
-        [{:name "json"
+        [{:name "http"
+          :type :module
+          :description "Functions for performing HTTP requests"}
+         {:name "http.request"
+          :type :function
+          :description "Perform an HTTP request"
+          :parameters [{:name "url"
+                        :types ["string"]
+                        :doc "request URL"}
+                       {:name "[opts]"
+                        :types ["table"]
+                        :doc (str "Additional request options, a table with the following keys:"
+                                  (lua-completion/args-doc-html
+                                    [{:name "method"
+                                      :types ["string"]
+                                      :doc "request method, defaults to <code>\"GET\"</code>"}
+                                     {:name "headers"
+                                      :types ["table"]
+                                      :doc "request headers, a table with string keys and values"}
+                                     {:name "body"
+                                      :types ["string"]
+                                      :doc "request body"}
+                                     {:name "as"
+                                      :types ["string"]
+                                      :doc "Response body converter, either <code>\"string\"</code> or <code>\"json\"</code>"}]))}]
+          :returnvalues [{:name "response"
+                          :types ["table"]
+                          :doc (str "HTTP response, a table with the following keys:"
+                                    (lua-completion/args-doc-html
+                                      [{:name "status"
+                                        :types ["integer"]
+                                        :doc "response code"}
+                                       {:name "headers"
+                                        :types ["table"]
+                                        :doc "response headers, a table where each key is a lower-cased string, and each value is either a string or an array of strings if the header was repeated"}
+                                       {:name "body"
+                                        :types ["string" "any" "nil"]
+                                        :doc "response body, present only when <code>as</code> option was provided, either a string or a parsed json value"}]))}]}
+         {:name "json"
           :type :module
           :description "Module for encoding or decoding values in JSON format"}
          {:name "json.decode"

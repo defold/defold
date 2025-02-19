@@ -30,7 +30,11 @@
 
         &:hover {
             & > .image-view {
-                -fx-effect: innershadow(gaussian, -df-text, 20, 0.3, 0, 0) !important;
+                -fx-effect: innershadow(gaussian, -df-text-selected, 20, 0.3, 0, 0) !important;
+            }
+
+            SVGPath {
+                -fx-fill: -df-text-selected;
             }
         }
         &:selected {
@@ -98,9 +102,6 @@
 
     SVGPath {
         -fx-fill: -df-text;
-        &:hover, &:pressed, &:focused {
-            -fx-fill: -df-text;
-        }
     }
 
     .separator {

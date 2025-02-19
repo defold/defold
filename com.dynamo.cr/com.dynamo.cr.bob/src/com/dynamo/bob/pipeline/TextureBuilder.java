@@ -40,12 +40,7 @@ public class TextureBuilder extends Builder {
                 .addInput(input)
                 .addOutput(input.changeExt(params.outExt()));
 
-        // If there is a texture profiles file, we need to make sure
-        // it has been read before building this tile set, add it as an input.
-        String textureProfilesPath = this.project.getProjectProperties().getStringValue("graphics", "texture_profiles");
-        if (textureProfilesPath != null) {
-            taskBuilder.addInput(this.project.getResource(textureProfilesPath));
-        }
+        TextureUtil.addTextureProfileInput(taskBuilder, project);
 
         return taskBuilder.build();
     }
@@ -54,7 +49,7 @@ public class TextureBuilder extends Builder {
     public void build(Task task) throws CompileExceptionError,
             IOException {
 
-        TextureProfile texProfile = TextureUtil.getTextureProfileByPath(this.project.getTextureProfiles(), task.firstInput().getPath());
+        TextureProfile texProfile = TextureUtil.getTextureProfileByPath(task.lastInput(), task.firstInput().getPath());
         logger.fine("Compiling %s using profile %s", task.firstInput().getPath(), texProfile!=null?texProfile.getName():"<none>");
 
         ByteArrayInputStream is = new ByteArrayInputStream(task.firstInput().getContent());

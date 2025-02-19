@@ -86,12 +86,7 @@ public class AtlasBuilder extends ProtoBuilder<Atlas.Builder> {
             taskBuilder.addInput(input.getResource(image.getImage()));
         }
 
-        // If there is a texture profiles file, we need to make sure
-        // it has been read before building this tile set, add it as an input.
-        String textureProfilesPath = this.project.getProjectProperties().getStringValue("graphics", "texture_profiles");
-        if (textureProfilesPath != null) {
-            taskBuilder.addInput(this.project.getResource(textureProfilesPath));
-        }
+        TextureUtil.addTextureProfileInput(taskBuilder, project);
 
         return taskBuilder.build();
     }
@@ -108,7 +103,7 @@ public class AtlasBuilder extends ProtoBuilder<Atlas.Builder> {
                                                 .setTexture(texturePath)
                                                 .build();
 
-        TextureProfile texProfile = TextureUtil.getTextureProfileByPath(this.project.getTextureProfiles(), task.input(0).getPath());
+        TextureProfile texProfile = TextureUtil.getTextureProfileByPath(task.lastInput(), task.input(0).getPath());
         logger.fine("Compiling %s using profile %s", task.input(0).getPath(), texProfile!=null?texProfile.getName():"<none>");
 
         boolean compress = project.option("texture-compression", "false").equals("true");

@@ -49,14 +49,57 @@ void RegisterArchiveLoader(ArchiveLoader* loader)
     g_ArchiveLoaders = loader;
 }
 
-void Register(ArchiveLoader* loader, uint32_t size, const char* name, void (*setup_fn)(ArchiveLoader*))
+void Register(ArchiveLoader* loader, uint32_t size, const char* name,
+                    FRegisterLoader register_fn,
+                    FInitializeLoader initialize_fn,
+                    FFinalizeLoader finalize_fn)
 {
     memset(loader, 0, sizeof(ArchiveLoader));
     loader->m_NameHash = dmHashString64(name);
+    loader->m_Initialize = initialize_fn;
+    loader->m_Finalize = finalize_fn;
 
-    setup_fn(loader);
+    register_fn(loader);
     RegisterArchiveLoader(loader);
     DM_RESOURCE_DBG_LOG(2, "\nRegistered loader: %s %llx\n", name, loader->m_NameHash);
+}
+
+Result InitializeLoaders(ArchiveLoaderParams* params)
+{
+    ArchiveLoader* loader = g_ArchiveLoaders;
+    while (loader)
+    {
+        if (loader->m_Initialize)
+        {
+            Result result = loader->m_Initialize(params, loader);
+            if (result != RESULT_OK)
+            {
+                dmLogError("Failed to initialize file provider type: %s", dmHashReverseSafe64(loader->m_NameHash));
+                return result;
+            }
+        }
+        loader = loader->m_Next;
+    }
+    return RESULT_OK;
+}
+
+Result FinalizeLoaders(ArchiveLoaderParams* params)
+{
+    ArchiveLoader* loader = g_ArchiveLoaders;
+    while (loader)
+    {
+        if (loader->m_Finalize)
+        {
+            Result result = loader->m_Finalize(params, loader);
+            if (result != RESULT_OK)
+            {
+                dmLogError("Failed to finalize file provider type: %s", dmHashReverseSafe64(loader->m_NameHash));
+                return result;
+            }
+        }
+        loader = loader->m_Next;
+    }
+    return RESULT_OK;
 }
 
 void ClearArchiveLoaders(ArchiveLoader* loader)

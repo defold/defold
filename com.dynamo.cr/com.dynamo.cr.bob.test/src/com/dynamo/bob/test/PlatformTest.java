@@ -20,6 +20,9 @@ import static org.junit.Assert.assertNull;
 
 import org.junit.Test;
 
+import java.util.Arrays;
+import java.util.List;
+
 import com.dynamo.bob.Platform;
 import com.dynamo.graphics.proto.Graphics.PlatformProfile;
 
@@ -68,11 +71,28 @@ public class PlatformTest {
         assertNull(Platform.get(""));
     }
 
+    @Test
+    public void testPlatformArchitectures() {
+        for (Platform platform : Platform.values())
+        {
+            List<String> availableArchitectures = Arrays.asList(platform.getArchitectures().getArchitectures());
+            if (!availableArchitectures.contains(platform.getPair()))
+            {
+                System.out.println(String.format("ERROR! %s is not a supported architecture for %s platform. Available architectures: %s", platform.getPair(), platform.getPair(), String.join(", ", availableArchitectures)));
+                assertTrue(false);
+            }
+        }
+    }
 
     @Test
     public void testPlatformMatching() {
 
-        // assertTrue(Platform.matchPlatformAgainstOS("",               PlatformProfile.OS.OS_ID_GENERIC));
+        assertTrue(Platform.X86Win32.matchesOS(PlatformProfile.OS.OS_ID_GENERIC));
+        assertTrue(Platform.X86_64MacOS.matchesOS(PlatformProfile.OS.OS_ID_GENERIC));
+        assertTrue(Platform.X86_64Ios.matchesOS(PlatformProfile.OS.OS_ID_GENERIC));
+        assertTrue(Platform.X86_64Linux.matchesOS(PlatformProfile.OS.OS_ID_GENERIC));
+        assertTrue(Platform.Arm64Android.matchesOS(PlatformProfile.OS.OS_ID_GENERIC));
+        assertTrue(Platform.WasmWeb.matchesOS(PlatformProfile.OS.OS_ID_GENERIC));
 
         assertTrue(Platform.X86Win32.matchesOS(PlatformProfile.OS.OS_ID_WINDOWS));
         assertTrue(Platform.X86_64Win32.matchesOS(PlatformProfile.OS.OS_ID_WINDOWS));

@@ -100,6 +100,7 @@
   (cond-> [{:name  "General"
             :prefs [{:label "Load External Changes on App Focus" :type :boolean :key [:workflow :load-external-changes-on-app-focus]}
                     {:label "Open Bundle Target Folder" :type :boolean :key [:bundle :open-output-directory]}
+                    {:label "Open Browser After `Build HTML5`" :type :boolean :key [:build :open-html5-build]}
                     {:label "Enable Texture Compression" :type :boolean :key [:build :texture-compression]}
                     {:label "Escape Quits Game" :type :boolean :key [:run :quit-on-escape]}
                     {:label "Track Active Tab in Asset Browser" :type :boolean :key [:asset-browser :track-active-tab]}

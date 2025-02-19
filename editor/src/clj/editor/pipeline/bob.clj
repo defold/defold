@@ -302,6 +302,7 @@
      "build-server" build-server-url
      "build-server-header" (native-extensions/get-build-server-headers prefs)
      "defoldsdk" defold-sdk-sha1
+     "texture-compression" (prefs/get prefs [:build :texture-compression])
      ;; internal option: can't set using command line, but it is needed to run
      ;; the HTML5 build locally.
      :local-launch true
