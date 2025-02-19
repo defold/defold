@@ -528,15 +528,23 @@ static inline void MixScaledMonoToStereo(float* out[], const float* in, uint32_t
     }
 }
 
-static inline void MixScaledStereoToStereo_MonoPan(float* out[], const float* in_l, const float* in_r, uint32_t num, float scale_l, float scale_r, float scale_delta_l, float scale_delta_r)
+static inline void MixScaledStereoToStereo(float* out[], const float* in_l, const float* in_r, uint32_t num,
+                                           float scale_l0, float scale_r0, float scale_delta_l0, float scale_delta_r0,
+                                           float scale_l1, float scale_r1, float scale_delta_l1, float scale_delta_r1)
 {
     // setup ramps
-    vec4 scld = _mm_set1_ps(scale_delta_l);
-    vec4 scrd = _mm_set1_ps(scale_delta_r);
-    vec4 scl  = _mm_set1_ps(scale_l) + scld * _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f);
-    vec4 scr  = _mm_set1_ps(scale_r) + scrd * _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f);
-    scld *= 4.0f;
-    scrd *= 4.0f;
+    vec4 scld0 = _mm_set1_ps(scale_delta_l0);
+    vec4 scrd0 = _mm_set1_ps(scale_delta_r0);
+    vec4 scld1 = _mm_set1_ps(scale_delta_l1);
+    vec4 scrd1 = _mm_set1_ps(scale_delta_r1);
+    vec4 scl0  = _mm_set1_ps(scale_l0) + scld0 * _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f);
+    vec4 scr0  = _mm_set1_ps(scale_r0) + scrd0 * _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f);
+    vec4 scl1  = _mm_set1_ps(scale_l1) + scld1 * _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f);
+    vec4 scr1  = _mm_set1_ps(scale_r1) + scrd1 * _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f);
+    scld0 *= 4.0f;
+    scrd0 *= 4.0f;
+    scld1 *= 4.0f;
+    scrd1 *= 4.0f;
 
     // vectorized mix
     vec4* vl = (vec4*)out[0];
@@ -547,26 +555,32 @@ static inline void MixScaledStereoToStereo_MonoPan(float* out[], const float* in
     {
         vec4 sl = *(vin_l++);
         vec4 sr = *(vin_r++);
-        *(vl++) += sl * scl;
-        *(vr++) += sr * scr;
-        scl += scld;
-        scr += scrd;
+        *(vl++) += sl * scl0 + sr * scl1;
+        *(vr++) += sl * scr0 + sr * scr1;
+        scl0 += scld0;
+        scr0 += scrd0;
+        scl1 += scld1;
+        scr1 += scrd1;
     }
     // process any remaining samples
     float* fl = (float*)vl;
     float* fr = (float*)vr;
     float* fin_l = (float*)vin_l;
     float* fin_r = (float*)vin_r;
-    scale_l = scl[0];
-    scale_r = scr[1];
+    scale_l0 = scl0[0];
+    scale_r0 = scr0[1];
+    scale_l1 = scl1[0];
+    scale_r1 = scr1[1];
     for(; num>0; --num)
     {
         float sl = *(fin_l++);
         float sr = *(fin_r++);
-        *(fl++) += sl * scale_l;
-        *(fr++) += sr * scale_r;
-        scale_l += scale_delta_l;
-        scale_r += scale_delta_r;
+        *(fl++) += sl * scale_l0 + sr * scale_l1;
+        *(fr++) += sl * scale_r0 + sr * scale_r1;
+        scale_l0 += scale_delta_l0;
+        scale_r0 += scale_delta_r0;
+        scale_l1 += scale_delta_l1;
+        scale_r1 += scale_delta_r1;
     }
 }
 
@@ -619,15 +633,23 @@ static inline uint64_t MixAndResampleMonoToStero_Polyphase(float* out[], const f
     return frac;
 }
 
-static inline uint64_t MixAndResampleStereoToStero_Polyphase_MonoPan(float* out[], const float* in_l, const float* in_r, uint32_t num, uint64_t frac, uint64_t delta, float scale_l, float scale_r, float scale_delta_l, float scale_delta_r)
+static inline uint64_t MixAndResampleStereoToStero_Polyphase(float* out[], const float* in_l, const float* in_r, uint32_t num, uint64_t frac, uint64_t delta,
+                                                             float scale_l0, float scale_r0, float scale_delta_l0, float scale_delta_r0,
+                                                             float scale_l1, float scale_r1, float scale_delta_l1, float scale_delta_r1)
 {
     // setup ramps
-    vec4 scld = _mm_set1_ps(scale_delta_l);
-    vec4 scrd = _mm_set1_ps(scale_delta_r);
-    vec4 scl  = _mm_set1_ps(scale_l) + scld * _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f);
-    vec4 scr  = _mm_set1_ps(scale_r) + scrd * _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f);
-    scld *= 4.0f;
-    scrd *= 4.0f;
+    vec4 scld0 = _mm_set1_ps(scale_delta_l0);
+    vec4 scrd0 = _mm_set1_ps(scale_delta_r0);
+    vec4 scld1 = _mm_set1_ps(scale_delta_l1);
+    vec4 scrd1 = _mm_set1_ps(scale_delta_r1);
+    vec4 scl0  = _mm_set1_ps(scale_l0) + scld0 * _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f);
+    vec4 scr0  = _mm_set1_ps(scale_r0) + scrd0 * _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f);
+    vec4 scl1  = _mm_set1_ps(scale_l1) + scld1 * _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f);
+    vec4 scr1  = _mm_set1_ps(scale_r1) + scrd1 * _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f);
+    scld0 *= 4.0f;
+    scrd0 *= 4.0f;
+    scld1 *= 4.0f;
+    scrd1 *= 4.0f;
 
     // vectorized mix
     vec4* vl = (vec4*)out[0];
@@ -649,25 +671,31 @@ static inline uint64_t MixAndResampleStereoToStero_Polyphase_MonoPan(float* out[
         vec4 sl = _mm_set_ps(s3l, s2l, s1l, s0l);
         vec4 sr = _mm_set_ps(s3r, s2r, s1r, s0r);
 
-        *(vl++) += sl * scl;
-        *(vr++) += sr * scr;
-        scl += scld;
-        scr += scrd;
+        *(vl++) += sl * scl0 + sr * scl1;
+        *(vr++) += sl * scr0 + sr * scr1;
+        scl0 += scld0;
+        scr0 += scrd0;
+        scl1 += scld1;
+        scr1 += scrd1;
     }
     // process any remaining samples
     float* fl = (float*)vl;
     float* fr = (float*)vr;
-    scale_l = scl[0];
-    scale_r = scr[1];
+    scale_l0 = scl0[0];
+    scale_r0 = scr0[1];
+    scale_l1 = scl1[0];
+    scale_r1 = scr1[1];
     for(; num>0; --num)
     {
         float sl = FilterSampleFIR8(&in_l[frac >> RESAMPLE_FRACTION_BITS], frac);
         float sr = FilterSampleFIR8(&in_r[frac >> RESAMPLE_FRACTION_BITS], frac);
 
-        *(fl++) += sl * scale_l;
-        *(fr++) += sr * scale_r;
-        scale_l += scale_delta_l;
-        scale_r += scale_delta_r;
+        *(fl++) += sl * scale_l0 + sr * scale_l1;
+        *(fr++) += sl * scale_r0 + sr * scale_r1;
+        scale_l0 += scale_delta_l0;
+        scale_r0 += scale_delta_r0;
+        scale_l1 += scale_delta_l1;
+        scale_r1 += scale_delta_r1;
 
         frac += delta;
     }
@@ -981,7 +1009,9 @@ static inline void MixScaledMonoToStereo(float* out[], const float* in, uint32_t
     }
 }
 
-static inline void MixScaledStereoToStereo_MonoPan(float* out[], const float* in_l, const float* in_r, uint32_t num, float scale_l, float scale_r, float scale_delta_l, float scale_delta_r)
+static inline void MixScaledStereoToStereo(float* out[], const float* in_l, const float* in_r, uint32_t num,
+                                           float scale_l0, float scale_r0, float scale_delta_l0, float scale_delta_r0,
+                                           float scale_l1, float scale_r1, float scale_delta_l1, float scale_delta_r1)
 {
     float* l = out[0];
     float* r = out[1];
@@ -989,10 +1019,12 @@ static inline void MixScaledStereoToStereo_MonoPan(float* out[], const float* in
     {
         float sl = *(in_l++);
         float sr = *(in_r++);
-        *(l++) += sl * scale_l;
-        *(r++) += sr * scale_r;
-        scale_l += scale_delta_l;
-        scale_r += scale_delta_r;
+        *(l++) += sl * scale_l0 + sr * scale_l1;
+        *(r++) += sl * scale_r0 + sr * scale_r1;
+        scale_l0 += scale_delta_l0;
+        scale_r0 += scale_delta_r0;
+        scale_l1 += scale_delta_l1;
+        scale_r1 += scale_delta_r1;
     }
 }
 
@@ -1018,7 +1050,9 @@ static inline uint64_t MixAndResampleMonoToStero_Polyphase(float* out[], const f
     return frac;
 }
 
-static inline uint64_t MixAndResampleStereoToStero_Polyphase_MonoPan(float* out[], const float* in_l, const float* in_r, uint32_t num, uint64_t frac, uint64_t delta, float scale_l, float scale_r, float scale_delta_l, float scale_delta_r)
+static inline uint64_t MixAndResampleStereoToStero_Polyphase(float* out[], const float* in_l, const float* in_r, uint32_t num, uint64_t frac, uint64_t delta,
+                                                             float scale_l0, float scale_r0, float scale_delta_l0, float scale_delta_r0,
+                                                             float scale_l1, float scale_r1, float scale_delta_l1, float scale_delta_r1)
 {
     float* out_l = out[0];
     float* out_r = out[1];
@@ -1030,10 +1064,12 @@ static inline uint64_t MixAndResampleStereoToStero_Polyphase_MonoPan(float* out[
         float sr = FilterSampleFIR8(&in_r[frac >> RESAMPLE_FRACTION_BITS], frac);
 
         // Mix
-        *(out_l++) += sl * scale_l;
-        *(out_r++) += sr * scale_r;
-        scale_l += scale_delta_l;
-        scale_r += scale_delta_r;
+        *(out_l++) += sl * scale_l0 + sr * scale_l1;
+        *(out_r++) += sl * scale_r0 + sr * scale_r1;
+        scale_l0 += scale_delta_l0;
+        scale_r0 += scale_delta_r0;
+        scale_l1 += scale_delta_l1;
+        scale_r1 += scale_delta_r1;
 
         // Advance
         frac += delta;
