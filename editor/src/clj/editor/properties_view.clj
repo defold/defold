@@ -214,16 +214,14 @@
                         ctrls))
     box))
 
-(def label-drag-position (atom nil))
-(def label-drag-op-seq (atom nil))
-
 (defn- handle-label-drag-event! [property-fn drag-update-fn update-ui-fn ^MouseDragEvent event]
   (.consume event)
-  (let [property (property-fn)
+  (let [target (.getTarget event)
+        property (property-fn)
         {:keys [key node-ids edit-type]} (property-fn)
         {:keys [precision from-type to-type]} edit-type
         [x y] [(.getX event) (.getY event)]
-        [prev-x prev-y] @label-drag-position
+        [prev-x prev-y] (ui/user-data target ::position)
         delta-x (- x prev-x)
         delta-y (- prev-y y)
         max-delta (if (> (abs delta-x) (abs delta-y)) delta-x delta-y)
@@ -239,9 +237,9 @@
                             from-type from-type
                             (:min edit-type) (max (:min edit-type))
                             (:max edit-type) (min (:max edit-type)))]
-            (concat (g/operation-sequence @label-drag-op-seq)
+            (concat (g/operation-sequence (ui/user-data target ::op-seq))
                     (g/set-property node-id key new-value)))))
-      (reset! label-drag-position [x y])
+      (ui/user-data! target ::position [x y])
       (when (apply = (properties/values property))
         (update-ui-fn [(cond-> (g/node-value (first node-ids) key)
                          to-type to-type)]
@@ -250,8 +248,9 @@
 
 (defn handle-label-press-event!
   [^MouseEvent event]
-  (reset! label-drag-op-seq (gensym))
-  (reset! label-drag-position [(.getX event) (.getY event)]))
+  (doto (.getTarget event)
+    (ui/user-data! ::op-seq (gensym))
+    (ui/user-data! ::position [(.getX event) (.getY event)])))
 
 (defn- make-label-draggable!
   [^Label label drag-event-handler]
