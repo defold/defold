@@ -528,6 +528,7 @@
                                        {:name "2" :types ["string"] :doc "optional; target file or folder path in the zip archive. May be omitted if source is a relative path that does not go above the project directory."}
                                        method-param
                                        level-param]))}]
+            :description "Create a ZIP archive"
             :examples "Archive a file and a folder:
 ```
 zip.pack(\"build.zip\", {\"build\", \"game.project\"})
