@@ -8,7 +8,7 @@
     -fx-padding: 0;
 
     &:hover {
-        -fx-background-color: -df-component-light;
+        -fx-background-color: -df-component-lighter;
     }
 
     .color-picker-label {
@@ -19,6 +19,10 @@
     .arrow-button {
         visibility: hidden;
     }
+}
+
+.color-input { /* modify the selector according to your needs */
+    -fx-border-style: solid none solid solid;
 }
 
 .color-palette {
