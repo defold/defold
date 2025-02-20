@@ -690,7 +690,7 @@ namespace dmPhysics
                             FromB2(rv, cp.m_RelativeVelocity, inv_scale);
 
                             // cp.m_Distance = contact->GetManifold()->points[i].distance * inv_scale;
-                            cp.m_Distance = manifold_point.separation * inv_scale;
+                            cp.m_Distance = -manifold_point.separation * inv_scale;
                             cp.m_AppliedImpulse = manifold_point.normalImpulse * inv_scale;
                             cp.m_MassA = b2Body_GetMass(bodyIdA);
                             cp.m_MassB = b2Body_GetMass(bodyIdB);
@@ -993,8 +993,6 @@ namespace dmPhysics
 
     bool SetGridShapeEnable(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t enable)
     {
-        // b2BodyId* body_id = (b2BodyId*) collision_object;
-
         Body* body = (Body*) collision_object;
         GridShapeData* shape_data = GetGridShapeData(body, shape_index);
         if (shape_data == 0)
@@ -1211,7 +1209,6 @@ namespace dmPhysics
                 delete circle_shape;
             }
             break;
-
             case SHAPE_TYPE_POLYGON:
             {
                 b2DestroyShape(shape->m_ShapeId, false);
@@ -1219,17 +1216,22 @@ namespace dmPhysics
                 delete poly_shape;
             }
             break;
-
             case SHAPE_TYPE_GRID:
             {
-                // b2DestroyShape(shape->m_ShapeId, false);
-                // TODO
                 GridShapeData* grid_shape = (GridShapeData*) shape;
+
+                uint32_t cell_count = grid_shape->m_RowCount * grid_shape->m_ColumnCount;
+
+                for (int i = 0; i < cell_count; ++i)
+                {
+                    if (grid_shape->m_Cells[i].m_Index != B2GRIDSHAPE_EMPTY_CELL)
+                    {
+                        b2DestroyShape(grid_shape->m_CellPolygonShapes[i], false);
+                    }
+                }
                 delete grid_shape;
             } break;
-        default:
-            // pass
-            break;
+            default: break;
         }
     }
 
