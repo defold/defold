@@ -365,37 +365,35 @@ namespace dmPhysics
                 break;
             }
 
-            b2ShapeType shape_type = b2Shape_GetType(shape_id);
-
             shape_data->m_LastScale = object_scale;
             allow_sleep = false;
 
-            if (shape_type == b2_circleShape)
+            if (shape_data->m_Type == SHAPE_TYPE_CIRCLE)
             {
+                CircleShapeData* circle_shape_data = (CircleShapeData*) shape_data;
+                circle_shape_data->m_Circle = b2Shape_GetCircle(shape_id);
+
                 // creation scale for circles, is the initial radius
-                b2Circle circle_shape = b2Shape_GetCircle(shape_id);
-                circle_shape.radius   = shape_data->m_CreationScale * object_scale;
-                b2Vec2 p              = shape_data->m_CreationPosition;
-                circle_shape.center.x = p.x * object_scale;
-                circle_shape.center.y = p.y * object_scale;
-
-                b2Shape_SetCircle(shape_id, &circle_shape);
+                circle_shape_data->m_Circle.radius   = shape_data->m_CreationScale * object_scale;
+                circle_shape_data->m_Circle.center.x = shape_data->m_CreationPosition.x * object_scale;
+                circle_shape_data->m_Circle.center.y = shape_data->m_CreationPosition.y * object_scale;
+                b2Shape_SetCircle(shape_id, &circle_shape_data->m_Circle);
             }
-            else if (shape_type == b2_polygonShape)
+            else if (shape_data->m_Type == SHAPE_TYPE_POLYGON)
             {
-                b2Polygon pshape = b2Shape_GetPolygon(shape_id);
-
                 PolygonShapeData* polygon_shape_data = (PolygonShapeData*) shape_data;
+                polygon_shape_data->m_Polygon = b2Shape_GetPolygon(shape_id);
 
                 float s = object_scale / shape_data->m_CreationScale;
-                for( int i = 0; i < B2_MAX_POLYGON_VERTICES; ++i)
+
+                for( int i = 0; i < polygon_shape_data->m_Polygon.count; ++i)
                 {
                     b2Vec2 p = polygon_shape_data->m_VerticesOriginal[i];
-                    pshape.vertices[i].x = p.x * s;
-                    pshape.vertices[i].y = p.y * s;
+                    polygon_shape_data->m_Polygon.vertices[i].x = p.x * s;
+                    polygon_shape_data->m_Polygon.vertices[i].y = p.y * s;
                 }
 
-                b2Shape_SetPolygon(shape_id, &pshape);
+                b2Shape_SetPolygon(shape_id, &polygon_shape_data->m_Polygon);
             }
         }
 
@@ -640,8 +638,9 @@ namespace dmPhysics
                 Body* body = world->m_Bodies[i];
                 b2BodyId body_id = body->m_BodyId;
                 dmArray<b2ContactData>& contacts = GetContactsBuffer(world, body_id);
+                int num_contacts = contacts.Size();
 
-                for (int j = 0; j < contacts.Size(); ++j)
+                for (int j = 0; j < num_contacts; ++j)
                 {
                     b2ContactData& contact = contacts[j];
 
@@ -682,14 +681,12 @@ namespace dmPhysics
                             ContactPoint cp;
                             FromB2(manifold_point.point, cp.m_PositionA, inv_scale);
                             FromB2(manifold_point.point, cp.m_PositionB, inv_scale);
-                            cp.m_UserDataA = b2Shape_GetUserData(contact.shapeIdA);
-                            cp.m_UserDataB = b2Shape_GetUserData(contact.shapeIdB);
+                            cp.m_UserDataA = b2Body_GetUserData(bodyIdA);
+                            cp.m_UserDataB = b2Body_GetUserData(bodyIdB);
 
                             FromB2(contact.manifold.normal, cp.m_Normal, 1.0f); // Don't scale normal
-
                             FromB2(rv, cp.m_RelativeVelocity, inv_scale);
 
-                            // cp.m_Distance = contact->GetManifold()->points[i].distance * inv_scale;
                             cp.m_Distance = -manifold_point.separation * inv_scale;
                             cp.m_AppliedImpulse = manifold_point.normalImpulse * inv_scale;
                             cp.m_MassA = b2Body_GetMass(bodyIdA);
@@ -708,10 +705,10 @@ namespace dmPhysics
 
     void SetDrawDebug2D(HWorld2D world, bool draw_debug)
     {
-        // world->m_DebugDraw.m_DebugDraw.drawJoints          = draw_debug;
-        // world->m_DebugDraw.m_DebugDraw.drawShapes          = draw_debug;
-        // world->m_DebugDraw.m_DebugDraw.drawContactNormals  = draw_debug;
-        // world->m_DebugDraw.m_DebugDraw.drawContactImpulses = draw_debug;
+        world->m_DebugDraw.m_DebugDraw.drawJoints          |= draw_debug;
+        world->m_DebugDraw.m_DebugDraw.drawShapes          |= draw_debug;
+        world->m_DebugDraw.m_DebugDraw.drawContactNormals  |= draw_debug;
+        world->m_DebugDraw.m_DebugDraw.drawContactImpulses |= draw_debug;
     }
 
     HCollisionShape2D NewCircleShape2D(HContext2D context, float radius)
@@ -738,6 +735,71 @@ namespace dmPhysics
         return shape_data;
     }
 
+    static b2Vec2 ComputeCentroid(const b2Vec2* vs, int count)
+    {
+        assert(count >= 3);
+
+        b2Vec2 c = {};
+        float area = 0.0f;
+
+        // pRef is the reference point for forming triangles.
+        // It's location doesn't change the result (except for rounding error).
+        b2Vec2 pRef = {};
+
+        const float inv3 = 1.0f / 3.0f;
+
+        for (int i = 0; i < count; ++i)
+        {
+            // Triangle vertices.
+            b2Vec2 p1 = pRef;
+            b2Vec2 p2 = vs[i];
+            b2Vec2 p3 = i + 1 < count ? vs[i+1] : vs[0];
+
+            b2Vec2 e1 = p2 - p1;
+            b2Vec2 e2 = p3 - p1;
+
+            float D = b2Cross(e1, e2);
+
+            float triangleArea = 0.5f * D;
+            area += triangleArea;
+
+            // Area weighted centroid
+            c += triangleArea * inv3 * (p1 + p2 + p3);
+        }
+
+        // Centroid
+        assert(area > FLT_EPSILON);
+        c *= 1.0f / area;
+        return c;
+    }
+
+    static void MakePolygonFromVertices(PolygonShapeData* polygon, const b2Vec2* vertices, uint32_t count)
+    {
+        polygon->m_Polygon.count = count;
+
+        // Copy vertices.
+        for (int i = 0; i < count; ++i)
+        {
+            polygon->m_VerticesOriginal[i] = vertices[i];
+            polygon->m_Polygon.vertices[i] = vertices[i];
+        }
+
+        // Compute normals. Ensure the edges have non-zero length.
+        for (int i = 0; i < count; ++i)
+        {
+            int i1 = i;
+            int i2 = i + 1 < count ? i + 1 : 0;
+            b2Vec2 edge = vertices[i2] - vertices[i1];
+
+            assert(b2LengthSquared(edge) > FLT_EPSILON * FLT_EPSILON);
+            polygon->m_Polygon.normals[i] = b2CrossVS(edge, 1.0f);
+            polygon->m_Polygon.normals[i] = b2Normalize(polygon->m_Polygon.normals[i]);
+        }
+
+        // Compute the polygon centroid.
+        polygon->m_Polygon.centroid = ComputeCentroid(polygon->m_Polygon.vertices, count);
+    }
+
     HCollisionShape2D NewPolygonShape2D(HContext2D context, const float* vertices, uint32_t vertex_count)
     {
         float scale = context->m_Scale;
@@ -751,8 +813,10 @@ namespace dmPhysics
             v[i].y = vertices[i * 2 + 1] * scale;
         }
 
-        b2Hull polygon_hull = b2ComputeHull(v, vertex_count);
-        shape_data->m_Polygon = b2MakePolygon(&polygon_hull, 1.0f);
+        MakePolygonFromVertices(shape_data, v, vertex_count);
+
+        // b2Hull polygon_hull = b2ComputeHull(v, vertex_count);
+        // shape_data->m_Polygon = b2MakePolygon(&polygon_hull, 1.0f);
 
         delete [] v;
         return shape_data;
@@ -1172,8 +1236,10 @@ namespace dmPhysics
                     tmp[i] = TransformScaleB2(transform, scale, poly_shape->m_Polygon.vertices[i]);
                 }
 
-                b2Hull polygon_hull = b2ComputeHull(tmp, n);
-                poly_shape_prim->m_Polygon = b2MakePolygon(&polygon_hull, 0.0f);
+                MakePolygonFromVertices(poly_shape_prim, tmp, n);
+
+                // b2Hull polygon_hull = b2ComputeHull(tmp, n);
+                // poly_shape_prim->m_Polygon = b2MakePolygon(&polygon_hull, 0.0f);
 
                 ret = (ShapeData*) poly_shape_prim;
             } break;
