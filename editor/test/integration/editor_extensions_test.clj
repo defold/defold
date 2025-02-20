@@ -32,6 +32,8 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [ring.adapter.jetty :as jetty]
+            [ring.util.response :as response]
             [support.test-support :as test-support]
             [util.diff :as diff])
   (:import [org.luaj.vm2 LuaError]))
@@ -823,3 +825,55 @@ nesting:
                            ((vswap! hash->stable-id #(assoc % s (str "0x" (count %)))) s))))]
         (is (= actual expected-pprint-output)
             (string/join "\n" (diff/make-diff-output-lines actual expected-pprint-output 3)))))))
+
+(def expected-http-test-output
+  "GET http://localhost:23000 => error (ConnectException)
+GET not-an-url => error (URI with undefined scheme)
+HEAD http://localhost:23456 => 200
+GET http://localhost:23456 => 200
+GET http://localhost:23456/redirect/foo as string => 200
+\"successfully redirected\"
+GET http://localhost:23456/json as json => 200
+{ --[[0x0]]
+  a = 1,
+  b = { --[[0x1]]
+    true
+  }
+}
+POST http://localhost:23456/echo {\"y\":\"foo\",\"x\":4} as json => 200
+{ --[[0x2]]
+  y = \"foo\",
+  x = 4
+}
+POST http://localhost:23456/echo hello world! as string => 200
+\"hello world!\"
+")
+
+(deftest http-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/http_project"
+    (let [server (jetty/run-jetty
+                   (fn [request]
+                     (case (:uri request)
+                       "/redirect/foo" (response/redirect "/foo")
+                       "/foo" (response/response "successfully redirected")
+                       "/" (response/response "")
+                       "/json" (response/response "{\"a\": 1, \"b\": [true]}")
+                       "/echo" (response/response (slurp (:body request)))
+                       (response/not-found "404")))
+                   {:port 23456 :join? false})
+          out (StringBuilder.)]
+      (try
+        (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+        ;; See test.editor_script: the test invokes http.request with various options and prints results
+        (run-edit-menu-test-command!)
+        (let [hash->stable-id (volatile! {})
+              actual (string/replace
+                       (str out)
+                       #"0x[0-9a-f]+"
+                       (fn [s]
+                         (or (@hash->stable-id s)
+                             ((vswap! hash->stable-id #(assoc % s (str "0x" (count %)))) s))))]
+          (is (= actual expected-http-test-output)
+              (string/join "\n" (diff/make-diff-output-lines actual expected-http-test-output 3))))
+        (finally
+          (.stop server))))))

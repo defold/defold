@@ -870,11 +870,9 @@ namespace dmGraphics
         switch(shader_type)
         {
             case ShaderDesc::SHADER_TYPE_VERTEX:
-                return language == ShaderDesc::LANGUAGE_GLSL_SM140 ||
-                       language == ShaderDesc::LANGUAGE_GLSL_SM330;
+                return language == ShaderDesc::LANGUAGE_GLSL_SM330;
             case ShaderDesc::SHADER_TYPE_FRAGMENT:
-                return language == ShaderDesc::LANGUAGE_GLSL_SM140 ||
-                       language == ShaderDesc::LANGUAGE_GLSL_SM330;
+                return language == ShaderDesc::LANGUAGE_GLSL_SM330;
             case ShaderDesc::SHADER_TYPE_COMPUTE:
                 return language == ShaderDesc::LANGUAGE_GLSL_SM430 ||
                        language == ShaderDesc::LANGUAGE_SPIRV;

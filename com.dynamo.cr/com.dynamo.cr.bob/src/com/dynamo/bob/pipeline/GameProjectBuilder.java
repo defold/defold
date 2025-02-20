@@ -17,13 +17,17 @@ package com.dynamo.bob.pipeline;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.RandomAccessFile;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.NoSuchAlgorithmException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 import com.dynamo.bob.fs.ResourceUtil;
 import org.apache.commons.io.FileUtils;
@@ -35,7 +39,6 @@ import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.CopyCustomResourcesBuilder;
-import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.Task;
@@ -50,12 +53,8 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.pipeline.graph.ResourceGraph;
-import com.dynamo.bob.util.ComponentsCounter;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.TimeProfiler;
-import com.dynamo.graphics.proto.Graphics.PlatformProfile;
-import com.dynamo.graphics.proto.Graphics.TextureProfile;
-import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
 import com.dynamo.liveupdate.proto.Manifest.SignAlgorithm;
 
@@ -161,53 +160,8 @@ public class GameProjectBuilder extends Builder {
             index++;
         }
 
-        // Load texture profile message if supplied and enabled
-        String textureProfilesPath = project.getProjectProperties().getStringValue("graphics", "texture_profiles");
-        if (textureProfilesPath != null) {
-            TimeProfiler.start("Load texture profile");
-            TextureProfiles.Builder texProfilesBuilder = TextureProfiles.newBuilder();
-            IResource texProfilesInput = project.getResource(textureProfilesPath);
-            if (!texProfilesInput.exists()) {
-                throw new CompileExceptionError(input, -1, "Could not find supplied texture_profiles file: " + textureProfilesPath);
-            }
-            ProtoUtil.merge(texProfilesInput, texProfilesBuilder);
-
-            // If Bob is building for a specific platform, we need to
-            // filter out any platform entries not relevant to the target platform.
-            // (i.e. we don't want win32 specific profiles lingering in android bundles)
-            Platform targetPlatform = project.getPlatform();
-
-            List<TextureProfile> newProfiles = new LinkedList<TextureProfile>();
-            for (int i = 0; i < texProfilesBuilder.getProfilesCount(); i++) {
-
-                TextureProfile profile = texProfilesBuilder.getProfiles(i);
-                TextureProfile.Builder profileBuilder = TextureProfile.newBuilder();
-                profileBuilder.mergeFrom(profile);
-                profileBuilder.clearPlatforms();
-
-                // Take only the platforms that matches the target platform
-                for (PlatformProfile platformProfile : profile.getPlatformsList()) {
-                    if (targetPlatform.matchesOS(platformProfile.getOs())) {
-                        profileBuilder.addPlatforms(platformProfile);
-                    }
-                }
-
-                newProfiles.add(profileBuilder.build());
-            }
-
-            // Update profiles list with new filtered one
-            // Now it should only contain profiles with platform entries
-            // relevant for the target platform...
-            texProfilesBuilder.clearProfiles();
-            texProfilesBuilder.addAllProfiles(newProfiles);
-
-
-            // Add the current texture profiles to the project, since this
-            // needs to be reachedable by the TextureGenerator.
-            TextureProfiles textureProfiles = texProfilesBuilder.build();
-            project.setTextureProfiles(textureProfiles);
-            TimeProfiler.stop();
-        }
+        String textureProfilesPath = project.getProjectProperties().getStringValue("graphics", "texture_profiles", "/builtins/graphics/default.texture_profiles");
+        createSubTask(textureProfilesPath, "", builder);
 
         return builder.build();
     }
@@ -364,7 +318,7 @@ public class GameProjectBuilder extends Builder {
     }
 
     // Used to transform an input game.project properties map to a game.projectc representation.
-    // Can be used for doing build time properties conversion.
+    // Can be used for doing build time properties' conversion.
     static public void transformGameProjectFile(BobProjectProperties properties) {
         properties.removePrivateFields();
 

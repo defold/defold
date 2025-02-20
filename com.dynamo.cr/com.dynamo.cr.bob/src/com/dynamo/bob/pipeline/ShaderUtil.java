@@ -144,11 +144,10 @@ public class ShaderUtil {
                 gles3Standard = true;
             } else {
                 gles = shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100 ||
-                        shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300;
+                       shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300;
 
-                gles3Standard = shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM140 ||
-                        shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300 ||
-                        shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM330;
+                gles3Standard = shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300 ||
+                                shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM330;
 
                 if (shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300) {
                     version = 300;

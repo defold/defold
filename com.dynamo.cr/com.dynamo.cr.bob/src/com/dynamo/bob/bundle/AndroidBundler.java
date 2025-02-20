@@ -187,7 +187,7 @@ public class AndroidBundler implements IBundler {
     private static Result exec(List<String> args) throws IOException {
         logger.info("exec: " + String.join(" ", args));
         Map<String, String> env = new HashMap<String, String>();
-        if (Platform.getHostPlatform() == Platform.X86_64Linux || Platform.getHostPlatform() == Platform.X86Linux) {
+        if (Platform.getHostPlatform() == Platform.X86_64Linux || Platform.getHostPlatform() == Platform.Arm64Linux) {
             env.put("LD_LIBRARY_PATH", Bob.getPath(String.format("%s/lib", Platform.getHostPlatform().getPair())));
         }
         return Exec.execResultWithEnvironment(env, args);

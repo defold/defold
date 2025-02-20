@@ -146,9 +146,6 @@ public class ShaderProgramBuilder extends Builder {
         if (getOutputGLSLFlag(120)) {
             compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM120);
         }
-        if (getOutputGLSLFlag(140)) {
-            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM140);
-        }
         if (getOutputGLSLFlag(330)) {
             compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
         }
