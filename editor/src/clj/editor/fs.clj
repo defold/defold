@@ -17,7 +17,7 @@
             [clojure.string :as string]
             [util.coll :as coll])
   (:import [clojure.lang IReduceInit]
-           [java.io BufferedInputStream BufferedOutputStream BufferedReader BufferedWriter File FileNotFoundException IOException RandomAccessFile]
+           [java.io BufferedInputStream BufferedOutputStream File FileNotFoundException IOException RandomAccessFile]
            [java.nio.channels OverlappingFileLockException]
            [java.nio.charset Charset StandardCharsets]
            [java.nio.file AccessDeniedException CopyOption FileAlreadyExistsException FileVisitResult FileVisitor Files LinkOption NoSuchFileException NotDirectoryException OpenOption Path SimpleFileVisitor StandardCopyOption StandardOpenOption]
@@ -719,3 +719,18 @@
 (defn create-path-parent-directories! [^Path path]
   (when-let [p (.getParent path)]
     (create-path-directories! p)))
+
+(defn path-last-modified-time
+  ^long [p]
+  (.toMillis (Files/getLastModifiedTime p empty-link-option-array)))
+
+(defn path-size
+  ^long [p]
+  (Files/size p))
+
+(defn make-path-parents [^Path p]
+  (when-let [parent (.getParent p)]
+    (Files/createDirectories parent empty-file-attrs)))
+
+(defn delete-path-file! [p]
+  (Files/delete p))
