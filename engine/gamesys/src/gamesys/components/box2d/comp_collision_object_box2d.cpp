@@ -285,6 +285,7 @@ namespace dmGameSystem
                         dmPhysics::SetGridShapeHull(component->m_Object2D, i, cell_y, cell_x, tile, flags);
                         uint32_t child = cell_x + tile_grid_resource->m_ColumnCount * cell_y;
                         uint16_t group = GetGroupBitIndex(&world->m_BaseWorld, texture_set_resource->m_HullCollisionGroups[tile], false);
+
                         dmPhysics::SetCollisionObjectFilter(world->m_World2D, component->m_Object2D, i, child, group, component->m_BaseComponent.m_Mask);
                     }
                 }

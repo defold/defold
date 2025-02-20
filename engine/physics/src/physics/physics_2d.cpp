@@ -992,28 +992,18 @@ namespace dmPhysics
         return hull.m_Count;
     }
 
-    static void EnsureGridShapePolygonShapes(b2BodyId body_id, b2ShapeDef* def, GridShapeData* shape_data)
+    static void CreateGridCellShape(GridShapeData* shape_data, b2BodyId body_id, b2ShapeDef* def, int child)
     {
-        const uint32_t cell_count = shape_data->m_RowCount * shape_data->m_ColumnCount;
+        HullSet::Hull& hull = shape_data->m_HullSet->m_Hulls[shape_data->m_Cells[child].m_Index];
+        assert(hull.m_Count <= B2_MAX_POLYGON_VERTICES);
 
-        for (int i = 0; i < cell_count; ++i)
-        {
-            if (shape_data->m_Cells[i].m_Index == B2GRIDSHAPE_EMPTY_CELL)
-            {
-                continue;
-            }
+        b2Vec2 vertices[B2_MAX_POLYGON_VERTICES];
+        uint32_t count = GetGridCellVertices(shape_data, child, vertices);
 
-            HullSet::Hull& hull = shape_data->m_HullSet->m_Hulls[shape_data->m_Cells[i].m_Index];
-            assert(hull.m_Count <= B2_MAX_POLYGON_VERTICES);
+        b2Hull polygon_hull = b2ComputeHull(vertices, count);
+        b2Polygon polygon = b2MakePolygon(&polygon_hull, shape_data->m_Radius);
 
-            b2Vec2 vertices[B2_MAX_POLYGON_VERTICES];
-            uint32_t count = GetGridCellVertices(shape_data, i, vertices);
-
-            b2Hull polygon_hull = b2ComputeHull(vertices, count);
-            b2Polygon polygon = b2MakePolygon(&polygon_hull, shape_data->m_Radius);
-
-            shape_data->m_CellPolygonShapes[i] = b2CreatePolygonShape(body_id, def, &polygon);
-        }
+        shape_data->m_CellPolygonShapes[child] = b2CreatePolygonShape(body_id, def, &polygon);
     }
 
     bool SetGridShapeHull(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t row, uint32_t column, uint32_t hull, HullFlags flags)
@@ -1044,13 +1034,14 @@ namespace dmPhysics
             HullSet::Hull& h = shape_data->m_HullSet->m_Hulls[hull];
             if (h.m_Count == 0)
             {
+                if (cell->m_Index != B2GRIDSHAPE_EMPTY_CELL)
+                {
+                    // TODO!
+                    assert(0 && "TODO!");
+                }
                 cell->m_Index = B2GRIDSHAPE_EMPTY_CELL;
-
-                // TODO: Remove polygon if needed
             }
         }
-
-        EnsureGridShapePolygonShapes(body->m_BodyId, &shape_data->m_ShapeDef, shape_data);
 
         return true;
     }
@@ -1064,19 +1055,7 @@ namespace dmPhysics
             return false;
         }
 
-        /*
-        const uint32_t cell_count = shape_data->m_RowCount * shape_data->m_ColumnCount;
-
-        for (int i = 0; i < cell_count; ++i)
-        {
-            if (shape_data->m_Cells[i].m_Index == B2GRIDSHAPE_EMPTY_CELL)
-            {
-                continue;
-            }
-        }
-        */
-
-        // TODO: Iterate polygons and enable them
+        // Not sure what the equivalent of this is now..
 
         /*
         b2Body* body = (b2Body*) collision_object;
@@ -1117,10 +1096,25 @@ namespace dmPhysics
         {
             GridShapeData* grid_shape = (GridShapeData*) shape_data;
 
-            b2Filter filter = b2Shape_GetFilter(grid_shape->m_CellPolygonShapes[child]);
-            filter.categoryBits = group;
-            filter.maskBits = mask;
-            b2Shape_SetFilter(grid_shape->m_CellPolygonShapes[child], filter);
+            // 0 is not a valid group (I THINK!), so if we have created a polygon shape already,
+            // we need to remove it.
+            if (group == 0)
+            {
+                if (grid_shape->m_Cells[child].m_Index == B2GRIDSHAPE_EMPTY_CELL)
+                {
+                    assert(0 && "TODO!");
+                }
+            }
+            else
+            {
+                // This should perhaps be lifted out to a separate function that can be called from the component?
+                CreateGridCellShape(grid_shape, body->m_BodyId, &grid_shape->m_ShapeDef, child);
+
+                b2Filter filter = b2Shape_GetFilter(grid_shape->m_CellPolygonShapes[child]);
+                filter.categoryBits = group;
+                filter.maskBits = mask;
+                b2Shape_SetFilter(grid_shape->m_CellPolygonShapes[child], filter);
+            }
         }
         else
         {
