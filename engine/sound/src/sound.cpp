@@ -113,14 +113,14 @@ namespace dmSound
         uint32_t m_FrameCount;
     };
 
-    float GetRampDelta(float& from, const MixContext* mix_context, const Value* value, uint32_t total_samples)
+    float GetRampDelta(const MixContext* mix_context, const Value* value, uint32_t total_samples, float& from)
     {
         float ramp_length = (value->m_Current - value->m_Prev) / mix_context->m_TotalBuffers;
         from = value->m_Prev + ramp_length * mix_context->m_CurrentBuffer;
         return ramp_length / total_samples;
     }
 
-    void GetRampDelta(uint32_t num_channels, float from[], float delta[], const MixContext* mix_context, const Value value[], uint32_t total_samples)
+    void GetRampDelta(uint32_t num_channels, const MixContext* mix_context, const Value value[], uint32_t total_samples, float from[], float delta[])
     {
         for(uint32_t c=0; c<num_channels; ++c) {
             float ramp_length = (value[c].m_Current - value[c].m_Prev) / mix_context->m_TotalBuffers;
@@ -1078,8 +1078,8 @@ namespace dmSound
 
         float scale_l[SOUND_MAX_DECODE_CHANNELS], scale_r[SOUND_MAX_DECODE_CHANNELS];
         float scale_dl[SOUND_MAX_DECODE_CHANNELS], scale_dr[SOUND_MAX_DECODE_CHANNELS];
-        GetRampDelta(channels, scale_l, scale_dl, mix_context, instance->m_ScaleL, mix_buffer_count);
-        GetRampDelta(channels, scale_r, scale_dr, mix_context, instance->m_ScaleR, mix_buffer_count);
+        GetRampDelta(channels, mix_context, instance->m_ScaleL, mix_buffer_count, scale_l, scale_dl);
+        GetRampDelta(channels, mix_context, instance->m_ScaleR, mix_buffer_count, scale_r, scale_dr);
 
         if (channels == 1)
         {
@@ -1103,8 +1103,8 @@ namespace dmSound
 
         float scale_l[SOUND_MAX_DECODE_CHANNELS], scale_r[SOUND_MAX_DECODE_CHANNELS];
         float scale_dl[SOUND_MAX_DECODE_CHANNELS], scale_dr[SOUND_MAX_DECODE_CHANNELS];
-        GetRampDelta(channels, scale_l, scale_dl, mix_context, instance->m_ScaleL, mix_buffer_count);
-        GetRampDelta(channels, scale_r, scale_dr, mix_context, instance->m_ScaleR, mix_buffer_count);
+        GetRampDelta(channels, mix_context, instance->m_ScaleL, mix_buffer_count, scale_l, scale_dl);
+        GetRampDelta(channels, mix_context, instance->m_ScaleR, mix_buffer_count, scale_r, scale_dr);
 
         uint64_t frac = instance->m_FrameFraction;
 
@@ -1516,12 +1516,12 @@ namespace dmSound
                 continue;
             }
             float gain;
-            float gaind = GetRampDelta(gain, mix_context, &g->m_Gain, n);
+            float gaind = GetRampDelta(mix_context, &g->m_Gain, n, gain);
             ApplyClampedGain(mix_buffer, g->m_MixBuffer, n, gain, gaind);
         }
 
         float gain;
-        float gaind = GetRampDelta(gain, mix_context, &master->m_Gain, n);
+        float gaind = GetRampDelta(mix_context, &master->m_Gain, n, gain);
         ApplyGainAndInterleaveToS16(out, mix_buffer, n, gain, gaind);
     }
 
