@@ -193,7 +193,6 @@ public class Task {
             throw new RuntimeException(e);
         }
 
-        digest.update(EngineVersion.sha1.getBytes());
         updateDigestWithResources(digest, inputs);
         updateDigestWithExtraCacheKeys(digest, extraCacheKeys);
 

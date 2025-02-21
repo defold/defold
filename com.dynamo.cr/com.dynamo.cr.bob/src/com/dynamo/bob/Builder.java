@@ -19,7 +19,9 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.BuilderUtil;
@@ -34,8 +36,9 @@ public abstract class Builder {
 
     public static void addParamsDigest(Class<?> klass, Map<String, String> options, BuilderParams builderParams) throws NoSuchAlgorithmException {
         String[] params = builderParams.paramsForSignature();
-        if (params.length == 0) {
-            return;
+        Set<String> paramSet = new HashSet<>(Arrays.asList(params));
+        if (paramSet.add("defoldsdk")) {
+            params = paramSet.toArray(new String[0]);
         }
         MessageDigest digest = MessageDigest.getInstance("SHA1");
         Arrays.sort(params);
