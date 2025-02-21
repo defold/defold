@@ -34,6 +34,7 @@
            [javafx.geometry Insets Point2D]
            [javafx.scene Node Parent]
            [javafx.scene.control Button CheckBox ColorPicker Control Label Slider TextArea TextField TextInputControl ToggleButton Tooltip]
+           [javafx.scene.control.skin ColorPickerSkin]
            [javafx.scene.input MouseEvent MouseDragEvent]
            [javafx.scene.layout AnchorPane ColumnConstraints GridPane HBox Pane Priority Region VBox]
            [javafx.scene.paint Color]
@@ -546,17 +547,17 @@
   (let [[r g b a] v]
     (Color. r g b a)))
 
-(defn color->web-string [^Color c ignore-alpha]
-  (cond->> (nnext (.toString c))
-    ignore-alpha (drop-last 2)
-    :always (apply str "#")))
+(let [colorDisplayName (.getDeclaredMethod ColorPickerSkin "colorDisplayName" (into-array Class [Color]))]
+  (.setAccessible colorDisplayName true)
+  (defn- color-display-name [^Color c]
+    (.invoke colorDisplayName nil (into-array Object [c]))))
 
 (defmethod create-property-control! types/Color [edit-type _ property-fn]
   (let [wrapper (doto (HBox.)
                   (.setPrefWidth Double/MAX_VALUE))
         text (TextField.)
         color-picker (ColorPicker.)
-        value->hex-color (fn [v] (color->web-string (value->color v) (:ignore-alpha? edit-type)))
+        value->hex-color (fn [v] (color-display-name (value->color v)))
         update-ui-fn (fn [values message read-only?]
                        (update-text-fn text value->hex-color values message read-only?)
                        (.setValue color-picker (when-let [v (properties/unify-values values)] (value->color v)))
@@ -581,7 +582,7 @@
                                   (let [c (.getValue color-picker)
                                         ignore-alpha (:ignore-alpha? edit-type)]
                                     (set-color-value! (property-fn) ignore-alpha c)
-                                    (.setText text (color->web-string c ignore-alpha)))))
+                                    (.setText text (color-display-name c)))))
     [wrapper update-ui-fn]))
 
 (defmethod create-property-control! :choicebox [{:keys [options]} _ property-fn]
