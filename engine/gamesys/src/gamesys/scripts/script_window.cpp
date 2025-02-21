@@ -17,6 +17,7 @@
 #include "../gamesys.h"
 #include <script/script.h>
 #include <hid/hid.h>
+#include <platform/platform_window.h>
 
 #include "script_window.h"
 
@@ -45,6 +46,7 @@ enum WindowEvent
 struct WindowInfo
 {
     dmHID::HContext m_HidContext;
+    dmPlatform::HWindow m_Window;
     dmScript::LuaCallbackInfo* m_Callback;
     int m_Width;
     int m_Height;
@@ -181,7 +183,7 @@ static int SetListener(lua_State* L)
  */
 static int SetMouseLock(lua_State* L)
 {
-    int top = lua_gettop(L);
+    DM_LUA_STACK_CHECK(L, 0);
 
     bool flag = dmScript::CheckBoolean(L, 1);
 
@@ -195,7 +197,6 @@ static int SetMouseLock(lua_State* L)
         dmHID::ShowMouseCursor(g_Window.m_HidContext);
     }
 
-    assert(top == lua_gettop(L));
     return 0;
 }
 
@@ -254,12 +255,11 @@ static int SetDimMode(lua_State* L)
  */
 static int GetDimMode(lua_State* L)
 {
-    int top = lua_gettop(L);
+    DM_LUA_STACK_CHECK(L, 1);
 
     DimMode mode = dmGameSystem::PlatformGetDimMode();
     lua_pushnumber(L, (lua_Number) mode);
 
-    assert(top + 1 == lua_gettop(L));
     return 1;
 }
 
@@ -273,14 +273,14 @@ static int GetDimMode(lua_State* L)
  */
 static int GetSize(lua_State* L)
 {
-    int top = lua_gettop(L);
+    DM_LUA_STACK_CHECK(L, 2);
 
     lua_pushnumber(L, g_Window.m_Width);
     lua_pushnumber(L, g_Window.m_Height);
 
-    assert(top + 2 == lua_gettop(L));
     return 2;
 }
+
 
 /*# get the cursor lock state
  *
@@ -291,13 +291,67 @@ static int GetSize(lua_State* L)
  */
 static int GetMouseLock(lua_State* L)
 {
-    int top = lua_gettop(L);
+    DM_LUA_STACK_CHECK(L, 1);
+
     bool cursor_visible = dmHID::GetCursorVisible(g_Window.m_HidContext);
     // If cursor is visible, it is not locked
     lua_pushboolean(L, !cursor_visible);
 
-    assert(top + 1 == lua_gettop(L));
     return 1;
+}
+
+/*# get the display scale
+ *
+ * This returns the content scale of the current display.
+ *
+ * @name window.get_display_scale
+ * @return scale [type:number] The display scale
+ */
+static int GetScale(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 1);
+
+    float scale = dmPlatform::GetDisplayScaleFactor(g_Window.m_Window);
+    lua_pushnumber(L, scale);
+
+    return 1;
+}
+
+/*# set the title of the window
+ *
+ * Sets the window title.
+ *
+ * @name window.set_title
+ * @param title [type:string] The title, encoded as UTF-8
+ */
+static int SetTitle(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 0);
+
+    const char* title = luaL_checkstring(L, 1);
+    dmPlatform::SetWindowTitle(g_Window.m_Window, title);
+
+    return 0;
+}
+
+
+/*# set the size of the window
+ *
+ * Sets the window size.
+ *
+ * @name window.set_size
+ * @param width [type:number] Width of window (optional)
+ * @param height [type:number] Height of window (optional)
+ */
+static int SetSize(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 0);
+
+    int width = luaL_checkinteger(L, 1);
+    int height = luaL_checkinteger(L, 2);
+    dmPlatform::SetWindowSize(g_Window.m_Window, width, height);
+
+    return 0;
 }
 
 static const luaL_reg Module_methods[] =
@@ -305,8 +359,11 @@ static const luaL_reg Module_methods[] =
     {"set_listener",   SetListener},
     {"set_dim_mode",   SetDimMode},
     {"set_mouse_lock", SetMouseLock},
+    {"set_title",      SetTitle},
     {"get_dim_mode",   GetDimMode},
     {"get_size",       GetSize},
+    {"set_size",       SetSize},
+    {"get_scale",      GetScale},
     {"get_mouse_lock", GetMouseLock},
     {0, 0}
 };
@@ -404,6 +461,7 @@ void ScriptWindowRegister(const ScriptLibContext& context)
 {
     LuaInit(context.m_LuaState);
     g_Window.m_HidContext = context.m_HidContext;
+    g_Window.m_Window = context.m_Window;
 }
 
 void ScriptWindowFinalize(const ScriptLibContext& context)

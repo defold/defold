@@ -1582,6 +1582,16 @@ static void LogFrameBufferError(GLenum status)
         return ((OpenGLContext*) context)->m_Height;
     }
 
+    static void OpenGLSetWindowTitle(HContext _context, const char* title)
+    {
+        assert(_context);
+        OpenGLContext* context = (OpenGLContext*) _context;
+        if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
+        {
+            dmPlatform::SetWindowTitle(context->m_Window, title);
+        }
+    }
+
     static void OpenGLSetWindowSize(HContext _context, uint32_t width, uint32_t height)
     {
         assert(_context);

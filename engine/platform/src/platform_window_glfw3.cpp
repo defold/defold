@@ -413,6 +413,11 @@ namespace dmPlatform
         }
     }
 
+    void SetWindowTitle(HWindow window, const char* title)
+    {
+        glfwSetWindowTitle(window->m_Window, title);
+    }
+
     void SetWindowSize(HWindow window, uint32_t width, uint32_t height)
     {
         glfwSetWindowSize(window->m_Window, (int) width, (int) height);

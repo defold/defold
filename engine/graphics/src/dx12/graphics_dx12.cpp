@@ -533,6 +533,16 @@ namespace dmGraphics
         return context->m_Height;
     }
 
+    static void DX12SetWindowTitle(HContext _context, const char* title)
+    {
+        assert(_context);
+        DX12Context* context = (DX12Context*) _context;
+        if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
+        {
+            dmPlatform::SetWindowSize(context->m_Window, title);
+        }
+    }
+
     static void DX12SetWindowSize(HContext _context, uint32_t width, uint32_t height)
     {
         assert(_context);

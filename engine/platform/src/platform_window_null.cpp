@@ -95,6 +95,9 @@ namespace dmPlatform
         return 1.0f;
     }
 
+    void SetWindowTitle(HWindow window, const char* title)
+    {}
+
     void SetWindowSize(HWindow window, uint32_t width, uint32_t height)
     {
         window->m_WindowWidth  = width;
