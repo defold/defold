@@ -955,7 +955,7 @@
             (value (layout-property-getter rotation))
             (set (layout-property-setter rotation)))
   (property scale types/Vec3 (default scene/default-scale)
-            (dynamic edit-type (layout-property-edit-type scale {:type types/Vec3}
+            (dynamic edit-type (layout-property-edit-type scale {:type types/Vec3 :precision 0.1}
                                  (fn [evaluation-context self prop-kw old-value new-value]
                                    {:scale (some-> new-value scene/non-zeroify-scale)})))
             (value (layout-property-getter scale))
@@ -1665,7 +1665,9 @@
             (set (layout-property-setter inner-radius)))
   (property perimeter-vertices g/Int (default (protobuf/default Gui$NodeDesc :perimeter-vertices))
             (dynamic error (g/fnk [_node-id perimeter-vertices] (validate-perimeter-vertices _node-id perimeter-vertices)))
-            (dynamic edit-type (layout-property-edit-type perimeter-vertices {:type g/Int}))
+            (dynamic edit-type (layout-property-edit-type perimeter-vertices {:type g/Int
+                                                                              :min perimeter-vertices-min
+                                                                              :max perimeter-vertices-max}))
             (value (layout-property-getter perimeter-vertices))
             (set (layout-property-setter perimeter-vertices)))
   (property pie-fill-angle g/Num (default (protobuf/default Gui$NodeDesc :pie-fill-angle))

@@ -283,7 +283,8 @@
                    (concat
                      (g/set-property self :pivot-x (new-value 0))
                      (g/set-property self :pivot-y (new-value 1)))))
-            (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["X" "Y"]})))
+            (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["X" "Y"]
+                                              :precision 0.1})))
 
   (property pivot-x g/Num
             (default (protobuf/default AtlasProto$AtlasImage :pivot-x))

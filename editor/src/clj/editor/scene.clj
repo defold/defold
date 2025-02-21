@@ -1676,6 +1676,7 @@
             (dynamic visible (g/fnk [transform-properties] (contains? transform-properties :rotation)))
             (dynamic edit-type (g/constantly properties/quat-rotation-edit-type)))
   (property scale types/Vec3 (default default-scale)
+            (dynamic edit-type (g/constantly {:type types/Vec3 :precision 0.1}))
             (dynamic visible (g/fnk [transform-properties] (contains? transform-properties :scale)))
             (set (fn [_evaluation-context self _old-value new-value]
                    (when (some? new-value)
