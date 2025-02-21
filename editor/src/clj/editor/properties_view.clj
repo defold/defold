@@ -34,6 +34,7 @@
            [javafx.geometry Insets Point2D]
            [javafx.scene Node Parent]
            [javafx.scene.control Button CheckBox ColorPicker Control Label Slider TextArea TextField TextInputControl ToggleButton Tooltip]
+           [javafx.scene.control.skin ColorPickerSkin]
            [javafx.scene.input MouseEvent MouseDragEvent]
            [javafx.scene.layout AnchorPane ColumnConstraints GridPane HBox Pane Priority Region VBox]
            [javafx.scene.paint Color]
@@ -525,39 +526,64 @@
         update-ui-fn (make-curve-update-ui-fn editor-toggle-button value-text-field update-ui-fn)]
     [box update-ui-fn]))
 
-(defmethod create-property-control! types/Color [edit-type _ property-fn]
-  (let [color-picker (doto (ColorPicker.)
-                       (.setPrefWidth Double/MAX_VALUE))
-        update-ui-fn  (fn [values message read-only?]
-                        (let [v (properties/unify-values values)]
-                          (if (nil? v)
-                            (.setValue color-picker nil)
-                            (let [[r g b a] v]
-                              (.setValue color-picker (Color. r g b a)))))
-                        (update-field-message [color-picker] message)
-                        (ui/editable! color-picker (not read-only?)))]
+(defn- set-color-value! [property ignore-alpha ^Color c]
+  (let [old-value (coalesced-property->any-value property)
+        num-fn (if (math/float32? (first old-value))
+                 properties/round-scalar-coarse-float
+                 properties/round-scalar-coarse)
+        new-value (-> (coll/empty-with-meta old-value)
+                      (conj (num-fn (.getRed c)))
+                      (conj (num-fn (.getGreen c)))
+                      (conj (num-fn (.getBlue c)))
+                      (conj (num-fn (.getOpacity c))))
+        values (if ignore-alpha
+                 (let [old-values (properties/values property)
+                       old-alphas (map #(nth % 3) old-values)]
+                   (mapv #(assoc new-value 3 %) old-alphas))
+                 (repeat new-value))]
+    (properties/set-values! property values)))
 
-    (ui/on-action!
-      color-picker
-      (fn [_]
-        (let [property (property-fn)
-              old-value (coalesced-property->any-value property)
-              num-fn (if (math/float32? (first old-value))
-                       properties/round-scalar-coarse-float
-                       properties/round-scalar-coarse)
-              ^Color c (.getValue color-picker)
-              new-value (-> (coll/empty-with-meta old-value)
-                            (conj (num-fn (.getRed c)))
-                            (conj (num-fn (.getGreen c)))
-                            (conj (num-fn (.getBlue c)))
-                            (conj (num-fn (.getOpacity c))))
-              values (if (:ignore-alpha? edit-type)
-                       (let [old-values (properties/values property)
-                             old-alphas (map #(nth % 3) old-values)]
-                         (mapv #(assoc new-value 3 %) old-alphas))
-                       (repeat new-value))]
-          (properties/set-values! property values))))
-    [color-picker update-ui-fn]))
+(defn- value->color [v]
+  (let [[r g b a] v]
+    (Color. r g b a)))
+
+(let [colorDisplayName (.getDeclaredMethod ColorPickerSkin "colorDisplayName" (into-array Class [Color]))]
+  (.setAccessible colorDisplayName true)
+  (defn- color-display-name [^Color c]
+    (.invoke colorDisplayName nil (into-array Object [c]))))
+
+(defmethod create-property-control! types/Color [edit-type _ property-fn]
+  (let [wrapper (doto (HBox.)
+                  (.setPrefWidth Double/MAX_VALUE))
+        text (TextField.)
+        color-picker (ColorPicker.)
+        value->display-color (comp color-display-name value->color)
+        update-ui-fn (fn [values message read-only?]
+                       (update-text-fn text value->display-color values message read-only?)
+                       (.setValue color-picker (when-let [v (properties/unify-values values)] (value->color v)))
+                       (update-field-message [color-picker] message)
+                       (ui/editable! color-picker (not read-only?)))
+        cancel-fn (fn [_]
+                    (let [property (property-fn)
+                          current-vals (properties/values property)]
+                      (update-ui-fn current-vals
+                                    (properties/validation-message property)
+                                    (properties/read-only? property))))
+        commit-fn (fn [_]
+                    (when-let [c (try (Color/valueOf (ui/text text))
+                                      (catch Exception _e (cancel-fn nil)))]
+                      (set-color-value! (property-fn) (:ignore-alpha? edit-type) c)))]
+    (doto text
+      (HBox/setHgrow Priority/ALWAYS)
+      (ui/add-style! "color-input")
+      (customize! commit-fn cancel-fn))
+    (ui/children! wrapper [text color-picker])
+    (ui/on-action! color-picker (fn [_]
+                                  (let [c (.getValue color-picker)
+                                        ignore-alpha (:ignore-alpha? edit-type)]
+                                    (set-color-value! (property-fn) ignore-alpha c)
+                                    (.setText text (color-display-name c)))))
+    [wrapper update-ui-fn]))
 
 (defmethod create-property-control! :choicebox [{:keys [options]} _ property-fn]
   (let [combo-box (fuzzy-combo-box/make options)
