@@ -544,7 +544,7 @@ namespace dmPhysics
      * @param group group to set
      * @param mask mask to set
      */
-    void SetCollisionObjectFilter(HWorld2D world, HCollisionObject2D collision_object,
+    void SetCollisionObjectFilter(HCollisionObject2D collision_object,
                                   uint32_t shape, uint32_t child,
                                   uint16_t group, uint16_t mask);
 

@@ -291,7 +291,7 @@ namespace dmGameSystem
                             dmPhysics::CreateGridCellShape(component->m_Object2D, i, child);
                         }
 
-                        dmPhysics::SetCollisionObjectFilter(world->m_World2D, component->m_Object2D, i, child, group, component->m_BaseComponent.m_Mask);
+                        dmPhysics::SetCollisionObjectFilter(component->m_Object2D, i, child, group, component->m_BaseComponent.m_Mask);
                     }
                 }
 
@@ -771,7 +771,7 @@ namespace dmGameSystem
                 group = GetGroupBitIndex((CollisionWorld*)params.m_World, tile_grid_resource->m_TextureSet->m_HullCollisionGroups[hull], false);
                 mask = component->m_BaseComponent.m_Mask;
             }
-            dmPhysics::SetCollisionObjectFilter(world->m_World2D, component->m_Object2D, ddf->m_Shape, child, group, mask);
+            dmPhysics::SetCollisionObjectFilter(component->m_Object2D, ddf->m_Shape, child, group, mask);
         }
         else if(params.m_Message->m_Id == dmPhysicsDDF::EnableGridShapeLayer::m_DDFDescriptor->m_NameHash)
         {

@@ -25,6 +25,17 @@
 #include "physics_private.h"
 #include "debug_draw_2d.h"
 
+// These values are from the original Box2D implementation, I think the newer version has different constants.
+// i.e B2_LINEAR_SLOP
+
+/// A small length used as a collision and constraint tolerance. Usually it is
+/// chosen to be numerically significant, but visually insignificant.
+#define b2_linearSlop           0.005f
+/// The radius of the polygon/edge shape skin. This should not be modified. Making
+/// this smaller means polygons will have an insufficient buffer for continuous collision.
+/// Making it larger may create artifacts for vertex collision.
+#define b2_polygonRadius        (2.0f * b2_linearSlop)
+
 namespace dmPhysics
 {
     static const uint32_t B2GRIDSHAPE_EMPTY_CELL = 0xffffffff;

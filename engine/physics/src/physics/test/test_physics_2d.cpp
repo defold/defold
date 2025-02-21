@@ -1093,7 +1093,7 @@ TYPED_TEST(PhysicsTest, JointGeneral)
     ASSERT_NEAR(10.0f, joint_params.m_SpringJointParams.m_Length, FLT_EPSILON);
 
     dmVMath::Vector3 force(0.0f);
-    ASSERT_TRUE(dmPhysics::GetJointReactionForce2D(TestFixture::m_World, joint, force, 1.0f / 16.0f));
+    ASSERT_TRUE(dmPhysics::GetJointReactionForce2D(TestFixture::m_World, joint, force));
 
     // Delete SPRING joint
     DeleteJoint2D(TestFixture::m_World, joint);
@@ -1138,7 +1138,7 @@ TYPED_TEST(PhysicsTest, JointGeneral)
     ASSERT_NEAR(10.0f, joint_params.m_HingeJointParams.m_MotorSpeed, FLT_EPSILON);
 
     float torque = 0.0f;
-    ASSERT_TRUE(dmPhysics::GetJointReactionTorque2D(TestFixture::m_World, joint, torque, 1.0f / 16.0f));
+    ASSERT_TRUE(dmPhysics::GetJointReactionTorque2D(TestFixture::m_World, joint, torque));
 
     // Delete HINGE joint
     DeleteJoint2D(TestFixture::m_World, joint);

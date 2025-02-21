@@ -5,7 +5,6 @@ def options(opt):
     pass
 
 def configure(conf):
-    #conf.recurse('box2d')
     conf.recurse('physics')
 
 def dmsdk_add_header_files(bld, target, source):
@@ -27,8 +26,6 @@ def dmsdk_add_header_files(bld, target, source):
 
 
 def build(bld):
-    #bld.recurse('box2d')
     bld.recurse('physics')
 
-    #dmsdk_add_header_files(bld, '${PREFIX}/ext/include/Box2D', 'box2d/Box2D')
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')

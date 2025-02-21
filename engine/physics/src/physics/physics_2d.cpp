@@ -582,7 +582,10 @@ namespace dmPhysics
                 data.m_GroupA    = b2Shape_GetFilter(shapeIdA).categoryBits;
                 data.m_GroupB    = b2Shape_GetFilter(shapeIdB).categoryBits;
 
-                step_context.m_TriggerEnteredCallback(data, step_context.m_TriggerExitedUserData);
+                if (step_context.m_TriggerEnteredCallback)
+                {
+                    step_context.m_TriggerEnteredCallback(data, step_context.m_TriggerEnteredUserData);
+                }
             }
 
             for (int i = 0; i < sensor_events.endCount; ++i)
@@ -601,7 +604,10 @@ namespace dmPhysics
                 data.m_GroupA    = b2Shape_GetFilter(shapeIdA).categoryBits;
                 data.m_GroupB    = b2Shape_GetFilter(shapeIdB).categoryBits;
 
-                step_context.m_TriggerExitedCallback(data, step_context.m_TriggerExitedUserData);
+                if (step_context.m_TriggerExitedCallback)
+                {
+                    step_context.m_TriggerExitedCallback(data, step_context.m_TriggerExitedUserData);
+                }
             }
         }
 
@@ -832,17 +838,6 @@ namespace dmPhysics
     {
         delete (HullSet*) hull_set;
     }
-
-    // These values are from the original Box2D implementation, I think the newer version has different constants.
-    // i.e B2_LINEAR_SLOP
-
-    /// A small length used as a collision and constraint tolerance. Usually it is
-    /// chosen to be numerically significant, but visually insignificant.
-    #define b2_linearSlop           0.005f
-    /// The radius of the polygon/edge shape skin. This should not be modified. Making
-    /// this smaller means polygons will have an insufficient buffer for continuous collision.
-    /// Making it larger may create artifacts for vertex collision.
-    #define b2_polygonRadius        (2.0f * b2_linearSlop)
 
     static inline void InitializeGridSHapeData(GridShapeData* shape_data)
     {
@@ -1084,7 +1079,7 @@ namespace dmPhysics
         return false;
     }
 
-    void SetCollisionObjectFilter(HWorld2D world, HCollisionObject2D collision_object,
+    void SetCollisionObjectFilter(HCollisionObject2D collision_object,
                                   uint32_t shape, uint32_t child,
                                   uint16_t group, uint16_t mask)
     {
@@ -1465,7 +1460,7 @@ namespace dmPhysics
         }
     }
 
-    uint32_t GetCollisionShapes2D(HWorld2D world, HCollisionObject2D collision_object, HCollisionShape2D* out_buffer, uint32_t buffer_size)
+    uint32_t GetCollisionShapes2D(HCollisionObject2D collision_object, HCollisionShape2D* out_buffer, uint32_t buffer_size)
     {
         Body* body = (Body*) collision_object;
 

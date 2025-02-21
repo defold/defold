@@ -5,7 +5,7 @@ def configure(conf):
 
 def build(bld):
     physics = bld.stlib(features = 'cxx',
-                        use = 'DLIB  BULLET',
+                        use = 'DLIB  BULLET BOX2D',
                         includes = '. .. ../box2d',
                         source = bld.path.ant_glob('*.cpp'),
                         proto_gen_py = True,

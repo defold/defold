@@ -4,13 +4,13 @@ from waf_dynamo import platform_supports_feature
 def build(bld):
     bld.program(features = 'cxx test',
                 source = 'test_physics.cpp',
-                use = 'TESTMAIN DLIB PROFILE_NULL PLATFORM_THREAD SOCKET BULLET physics Box2D',
+                use = 'TESTMAIN DLIB PROFILE_NULL PLATFORM_THREAD SOCKET BULLET BOX2D physics',
                 includes = ['../../../src', '../../../src/box2d'],
                 target = 'test_physics')
 
     bld.program(features = 'cxx test',
                     source = 'test_physics_2d.cpp',
-                    use = 'TESTMAIN DLIB PROFILE_NULL PLATFORM_THREAD SOCKET BULLET physics_2d Box2D',
+                    use = 'TESTMAIN DLIB PROFILE_NULL PLATFORM_THREAD SOCKET BULLET BOX2D physics_2d',
                     includes = ['../../../src', '../../../src/box2d'],
                     target = 'test_physics_2d')
 
