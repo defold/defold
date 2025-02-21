@@ -33,24 +33,22 @@ public abstract class Builder {
     private static Map<Class<?>,  byte[]> classToParamsDigest = new HashMap<Class<?>,  byte[]>();
 
     public static void addParamsDigest(Class<?> klass, Map<String, String> options, BuilderParams builderParams) throws NoSuchAlgorithmException {
-        if (classToParamsDigest.get(klass) == null) {
-            String[] params = builderParams.paramsForSignature();
-            if (params.length == 0) {
-                return;
-            }
-            MessageDigest digest = MessageDigest.getInstance("SHA1");
-            Arrays.sort(params);
-            for (String param: params) {
-                if (options.containsKey(param)) {
-                    digest.update(param.getBytes());
-                    String value = options.get(param);
-                    if (value != null && !value.isEmpty()) {
-                        digest.update(value.getBytes());
-                    }
+        String[] params = builderParams.paramsForSignature();
+        if (params.length == 0) {
+            return;
+        }
+        MessageDigest digest = MessageDigest.getInstance("SHA1");
+        Arrays.sort(params);
+        for (String param: params) {
+            if (options.containsKey(param)) {
+                digest.update(param.getBytes());
+                String value = options.get(param);
+                if (value != null && !value.isEmpty()) {
+                    digest.update(value.getBytes());
                 }
             }
-            classToParamsDigest.put(klass, digest.digest());
         }
+        classToParamsDigest.put(klass, digest.digest());
     }
 
     protected BuilderParams params;
