@@ -813,9 +813,6 @@ namespace dmPhysics
 
         MakePolygonFromVertices(shape_data, v, vertex_count);
 
-        // b2Hull polygon_hull = b2ComputeHull(v, vertex_count);
-        // shape_data->m_Polygon = b2MakePolygon(&polygon_hull, 1.0f);
-
         delete [] v;
         return shape_data;
     }
@@ -827,8 +824,7 @@ namespace dmPhysics
         // NOTE: We cast HullDesc* to const HullSet::Hull* here
         // We assume that they have the same physical layout
         // NOTE: No scaling of the vertices here since they are already assumed to be in a virtual "unit-space"
-        HullSet* hull_set = new HullSet((const b2Vec2*) vertices, vertex_count,
-                             (const HullSet::Hull*) hulls, hull_count);
+        HullSet* hull_set = new HullSet((const b2Vec2*) vertices, vertex_count, (const HullSet::Hull*) hulls, hull_count);
         return hull_set;
     }
 
@@ -1366,15 +1362,13 @@ namespace dmPhysics
         body->m_ShapeCount = shape_count;
 
         Vector3 zero_vec3 = Vector3(0);
-        for (uint32_t i = 0; i < shape_count; ++i) {
-            // Add shapes in reverse order. The fixture list in the body
-            // is a single linked list and cells are prepended.
-            uint32_t reverse_i = shape_count - i - 1;
-            ShapeData* s = (ShapeData*) shapes[reverse_i];
+        for (uint32_t i = 0; i < shape_count; ++i)
+        {
+            ShapeData* s = (ShapeData*) shapes[i];
 
             if (translations && rotations)
             {
-                s = TransformCopyShape(context, s, translations[reverse_i], rotations[reverse_i], scale);
+                s = TransformCopyShape(context, s, translations[i], rotations[i], scale);
             }
             else
             {
@@ -2125,16 +2119,15 @@ namespace dmPhysics
                 break;
             case dmPhysics::JOINT_TYPE_FIXED:
                 {
-                    /*
-                    b2RopeJointDef jointDef;
+                    b2DistanceJointDef jointDef = b2DefaultDistanceJointDef();
                     jointDef.bodyIdA            = *b2_obj_a;
                     jointDef.bodyIdB            = *b2_obj_b;
-                    jointDef.localAnchorA     = pa;
-                    jointDef.localAnchorB     = pb;
-                    jointDef.maxLength        = params.m_FixedJointParams.m_MaxLength * scale;
-                    jointDef.collideConnected = params.m_CollideConnected;
-                    joint = world->m_World.CreateJoint(&jointDef);
-                    */
+                    jointDef.localAnchorA       = pa;
+                    jointDef.localAnchorB       = pb;
+                    jointDef.maxLength          = params.m_FixedJointParams.m_MaxLength * scale;
+                    jointDef.collideConnected   = params.m_CollideConnected;
+
+                    joint = b2CreateDistanceJoint(world->m_WorldId, &jointDef);
                 }
                 break;
             case dmPhysics::JOINT_TYPE_HINGE:
@@ -2142,8 +2135,8 @@ namespace dmPhysics
                     b2RevoluteJointDef jointDef = b2DefaultRevoluteJointDef();
                     jointDef.bodyIdA          = *b2_obj_a;
                     jointDef.bodyIdB          = *b2_obj_b;
-                    jointDef.localAnchorA     = pa; // b2Body_GetLocalPoint(jointDef.bodyIdA, pivot);?
-                    jointDef.localAnchorB     = pb; // b2Body_GetLocalPoint(jointDef.bodyIdA, pivot);?
+                    jointDef.localAnchorA     = pa;
+                    jointDef.localAnchorB     = pb;
                     jointDef.referenceAngle   = params.m_HingeJointParams.m_ReferenceAngle;
                     jointDef.lowerAngle       = params.m_HingeJointParams.m_LowerAngle;
                     jointDef.upperAngle       = params.m_HingeJointParams.m_UpperAngle;
@@ -2242,9 +2235,7 @@ namespace dmPhysics
                 break;
             case dmPhysics::JOINT_TYPE_FIXED:
                 {
-                    // I think this is a distance joint?
-                    // b2DistanceJoint_SetLengthRange( b2JointId jointId, float minLength, float maxLength );
-                    // typed_joint->SetMaxLength(params.m_FixedJointParams.m_MaxLength * scale);
+                    b2DistanceJoint_SetLengthRange(*joint_raw, b2DistanceJoint_GetMinLength(*joint_raw), params.m_FixedJointParams.m_MaxLength * scale);
                 }
                 break;
             case dmPhysics::JOINT_TYPE_HINGE:
@@ -2298,14 +2289,14 @@ namespace dmPhysics
         {
             case dmPhysics::JOINT_TYPE_SPRING:
                 {
-                    params.m_SpringJointParams.m_Length =  b2DistanceJoint_GetLength(*joint_raw); // typed_joint->GetLength() * inv_scale;
+                    params.m_SpringJointParams.m_Length =  b2DistanceJoint_GetLength(*joint_raw) * inv_scale;
                     params.m_SpringJointParams.m_FrequencyHz = b2DistanceJoint_GetSpringHertz(*joint_raw);
                     params.m_SpringJointParams.m_DampingRatio = b2DistanceJoint_GetSpringDampingRatio(*joint_raw);
                 }
                 break;
             case dmPhysics::JOINT_TYPE_FIXED:
                 {
-                    // params.m_FixedJointParams.m_MaxLength = typed_joint->GetMaxLength() * inv_scale;
+                    params.m_FixedJointParams.m_MaxLength = b2DistanceJoint_GetMaxLength(*joint_raw) * inv_scale;
                 }
                 break;
             case dmPhysics::JOINT_TYPE_HINGE:
@@ -2386,7 +2377,7 @@ namespace dmPhysics
     }
 
     // NOTE: inv_dt is not used. It is calculated from the last step + substep time inside box2d
-    bool GetJointReactionForce2D(HWorld2D world, HJoint _joint, Vector3& force, float inv_dt)
+    bool GetJointReactionForce2D(HWorld2D world, HJoint _joint, Vector3& force)
     {
         float inv_scale = world->m_Context->m_InvScale;
         b2JointId* joint_raw = (b2JointId*)_joint;
@@ -2397,7 +2388,7 @@ namespace dmPhysics
     }
 
     // NOTE: inv_dt is not used. It is calculated from the last step + substep time inside box2d
-    bool GetJointReactionTorque2D(HWorld2D world, HJoint _joint, float& torque, float inv_dt)
+    bool GetJointReactionTorque2D(HWorld2D world, HJoint _joint, float& torque)
     {
         float inv_scale = world->m_Context->m_InvScale;
         b2JointId* joint_raw = (b2JointId*)_joint;
