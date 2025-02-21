@@ -430,6 +430,11 @@ namespace dmPlatform
         }
     }
 
+    void SetWindowPosition(HWindow window, int32_t x, int32_t y)
+    {
+        glfwSetWindowPos(window->m_Window, x, y);
+    }
+
     float GetDisplayScaleFactor(HWindow window)
     {
         return dmMath::Max(window->m_XScale, window->m_YScale);

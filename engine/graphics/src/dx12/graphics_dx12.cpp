@@ -553,6 +553,16 @@ namespace dmGraphics
         }
     }
 
+    static void DX12SetWindowPosition(HContext _context, int32_t x, int32_t y)
+    {
+        assert(_context);
+        DX12Context* context = (DX12Context*) _context;
+        if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
+        {
+            dmPlatform::SetWindowPosition(context->m_Window, x, y);
+        }
+    }
+
     static void DX12ResizeWindow(HContext _context, uint32_t width, uint32_t height)
     {
         assert(_context);

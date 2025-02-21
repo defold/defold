@@ -547,6 +547,14 @@ namespace dmGraphics
     void SetWindowSize(HContext context, uint32_t width, uint32_t height);
 
     /**
+     * Set the position of the opened window, if any. If no window is opened, this function does nothing.
+     * @param context Graphics context handle
+     * @param x New horizontal position of the window
+     * @param y New vertical position of the window
+     */
+    void SetWindowPosition(HContext context, int32_t x, int32_t y);
+
+    /**
      * Resizes a previously opened window. Only the window width and height will be changed with its framebuffer size
      * changed accordingly. The game width and height will be kept as specified from initial boot.
      * @param context Graphics context handle

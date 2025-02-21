@@ -109,6 +109,9 @@ namespace dmPlatform
         }
     }
 
+    void SetWindowPosition(HWindow window, int32_t x, int32_t y)
+    {}
+
     void ShowWindow(HWindow window)
     {}
 

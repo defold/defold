@@ -174,6 +174,16 @@ namespace dmGraphics
         }
     }
 
+    void VulkanSetWindowPosition(HContext _context, int32_t x, int32_t y)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+
+        if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
+        {
+            dmPlatform::SetWindowPosition(context->m_Window, x, y);
+        }
+    }
+
     void VulkanResizeWindow(HContext _context, uint32_t width, uint32_t height)
     {
         VulkanContext* context = (VulkanContext*) _context;

@@ -334,14 +334,13 @@ static int SetTitle(lua_State* L)
     return 0;
 }
 
-
 /*# set the size of the window
  *
  * Sets the window size.
  *
  * @name window.set_size
- * @param width [type:number] Width of window (optional)
- * @param height [type:number] Height of window (optional)
+ * @param width [type:number] Width of window
+ * @param height [type:number] Height of window
  */
 static int SetSize(lua_State* L)
 {
@@ -350,6 +349,26 @@ static int SetSize(lua_State* L)
     int width = luaL_checkinteger(L, 1);
     int height = luaL_checkinteger(L, 2);
     dmPlatform::SetWindowSize(g_Window.m_Window, width, height);
+
+    return 0;
+}
+
+
+/*# set the position of the window
+ *
+ * Sets the window position.
+ *
+ * @name window.set_position
+ * @param x [type:number] Horizontal position of window
+ * @param y [type:number] Vertical position of window
+ */
+static int SetPosition(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 0);
+
+    int x = luaL_checkinteger(L, 1);
+    int y = luaL_checkinteger(L, 2);
+    dmPlatform::SetWindowPosition(g_Window.m_Window, x, y);
 
     return 0;
 }
@@ -363,6 +382,7 @@ static const luaL_reg Module_methods[] =
     {"get_dim_mode",   GetDimMode},
     {"get_size",       GetSize},
     {"set_size",       SetSize},
+    {"set_position",   SetPosition},
     {"get_scale",      GetScale},
     {"get_mouse_lock", GetMouseLock},
     {0, 0}

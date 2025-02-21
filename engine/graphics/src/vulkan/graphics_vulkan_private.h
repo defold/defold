@@ -530,6 +530,7 @@ namespace dmGraphics
     void         VulkanSetWindowTitle(HContext context, const char* title);
     void         VulkanResizeWindow(HContext context, uint32_t width, uint32_t height);
     void         VulkanSetWindowSize(HContext context, uint32_t width, uint32_t height);
+    void         VulkanSetWindowPosition(HContext context, int32_t x, int32_t y);
     void         VulkanGetNativeWindowSize(HContext context, uint32_t* width, uint32_t* height);
 }
 #endif // __GRAPHICS_DEVICE_VULKAN__

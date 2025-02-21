@@ -290,6 +290,16 @@ namespace dmGraphics
         }
     }
 
+    static void NullSetWindowPosition(HContext _context, int32_t x, int32_t y)
+    {
+        assert(_context);
+        NullContext* context = (NullContext*) _context;
+        if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
+        {
+            dmPlatform::SetWindowPosition(context->m_Window, x, y);
+        }
+    }
+
     static void NullResizeWindow(HContext _context, uint32_t width, uint32_t height)
     {
         assert(_context);
