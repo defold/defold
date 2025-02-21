@@ -530,6 +530,9 @@ def default_flags(self):
         flags += ['-O%s' % opt_level]
         linkflags += ['-O%s' % opt_level]
 
+        if 'wasm' == build_util.get_target_architecture():
+            flags += ['-msimd128']
+
         self.env['DM_HOSTFS']           = '/node_vfs/'
         self.env.append_value('DEFINES', ['DM_NO_THREAD_SUPPORT', 'JC_TEST_NO_DEATH_TEST'])
         # This disables a few tests in test_httpclient (no real investigation done)
