@@ -62,7 +62,8 @@
             [util.http-server :as http-server]
             [util.text-util :as text-util]
             [util.thread-util :as thread-util])
-  (:import [clojure.core Vec]
+  (:import [ch.qos.logback.classic Level Logger]
+           [clojure.core Vec]
            [com.google.protobuf ByteString]
            [editor.properties Curve CurveSpread]
            [java.awt.image BufferedImage]
@@ -79,9 +80,12 @@
            [javafx.scene.paint Color]
            [javax.imageio ImageIO]
            [javax.vecmath Vector3d]
-           [org.apache.commons.io FilenameUtils IOUtils]))
+           [org.apache.commons.io FilenameUtils IOUtils]
+           [org.slf4j LoggerFactory]))
 
 (set! *warn-on-reflection* true)
+
+(.setLevel ^Logger (LoggerFactory/getLogger "org.eclipse.jetty") Level/ERROR)
 
 (def project-path "test/resources/test_project")
 
