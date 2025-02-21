@@ -994,6 +994,11 @@ namespace dmPhysics
         Body* body = (Body*) collision_object;
         GridShapeData* shape_data = GetGridShapeData(body, shape_index);
 
+        if (ToOpaqueHandle(shape_data->m_CellPolygonShapes[child]) != 0)
+        {
+            return;
+        }
+
         HullSet::Hull& hull = shape_data->m_HullSet->m_Hulls[shape_data->m_Cells[child].m_Index];
         assert(hull.m_Count <= B2_MAX_POLYGON_VERTICES);
 
@@ -1004,8 +1009,6 @@ namespace dmPhysics
         {
             b2Hull polygon_hull = b2ComputeHull(vertices, count);
             b2Polygon polygon = b2MakePolygon(&polygon_hull, shape_data->m_Radius);
-
-            assert(ToOpaqueHandle(shape_data->m_CellPolygonShapes[child]) == 0);
             shape_data->m_CellPolygonShapes[child] = b2CreatePolygonShape(shape_data->m_CellBodyId, &shape_data->m_ShapeDef, &polygon);
         }
     }
@@ -1032,18 +1035,28 @@ namespace dmPhysics
         cell->m_Index = hull;
         shape_data->m_CellFlags[index] = flags;
 
+        uint64_t opaque_id = ToOpaqueHandle(shape_data->m_CellPolygonShapes[index]);
+
         // treat cells with an empty hull as an empty cell
         if (hull != B2GRIDSHAPE_EMPTY_CELL)
         {
             HullSet::Hull& h = shape_data->m_HullSet->m_Hulls[hull];
             if (h.m_Count == 0)
             {
-                if (cell->m_Index != B2GRIDSHAPE_EMPTY_CELL)
-                {
-                    // JG: Should we remove the shape here or not? Destroying shapes is kinda expensive I think
-                    assert(0 && "TODO!");
-                }
                 cell->m_Index = B2GRIDSHAPE_EMPTY_CELL;
+            }
+            if (opaque_id == 0)
+            {
+                CreateGridCellShape(collision_object, shape_index, index);
+            }
+        }
+        else
+        {
+            // Clear the polygon
+            if (opaque_id != 0)
+            {
+                b2DestroyShape(shape_data->m_CellPolygonShapes[index], false);
+                memset(&shape_data->m_CellPolygonShapes[index], 0, sizeof(shape_data->m_CellPolygonShapes[index]));
             }
         }
 
@@ -1087,16 +1100,23 @@ namespace dmPhysics
         {
             GridShapeData* grid_shape = (GridShapeData*) shape_data;
 
+            uint64_t opaque_id = ToOpaqueHandle(grid_shape->m_CellPolygonShapes[child]);
+
             // 0 is not a valid group, so if we have created a polygon shape already, we need to remove it.
             if (group == 0)
             {
-                if (grid_shape->m_Cells[child].m_Index == B2GRIDSHAPE_EMPTY_CELL)
+                if (grid_shape->m_Cells[child].m_Index != B2GRIDSHAPE_EMPTY_CELL && opaque_id != 0)
                 {
-                    assert(0 && "TODO!");
+                    b2DestroyShape(grid_shape->m_CellPolygonShapes[child], false);
+                    memset(&grid_shape->m_CellPolygonShapes[child], 0, sizeof(grid_shape->m_CellPolygonShapes[child]));
                 }
             }
             else
             {
+                if (opaque_id == 0)
+                {
+                    CreateGridCellShape(collision_object, shape, child);
+                }
                 b2Filter filter = b2Shape_GetFilter(grid_shape->m_CellPolygonShapes[child]);
                 filter.categoryBits = group;
                 filter.maskBits = mask;
@@ -2211,7 +2231,6 @@ namespace dmPhysics
                 return 0x0;
         }
 
-        // TODO: I think we can pack/unpack this into uintptr + void instead
         b2JointId* joint_raw = new b2JointId();
         *joint_raw = joint;
 
