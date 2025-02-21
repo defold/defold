@@ -38,6 +38,7 @@
            [javafx.scene.input MouseEvent MouseDragEvent]
            [javafx.scene.layout AnchorPane ColumnConstraints GridPane HBox Pane Priority Region VBox]
            [javafx.scene.paint Color]
+           [javafx.scene.robot Robot]
            [javafx.util Duration]))
 
 (set! *warn-on-reflection* true)
@@ -552,9 +553,25 @@
   (defn- color-display-name [^Color c]
     (.invoke colorDisplayName nil (into-array Object [c]))))
 
+(defn- color-dropper-action
+  [mouse-pressed-fn _e]
+  (let [robot (Robot.)
+        c (atom nil)
+        mouse-move-handler (fn [^MouseEvent e]
+                             (let [x (.getScreenX e)
+                                   y (.getScreenY e)]
+                               (reset! c (.getPixelColor robot x y))))
+        mouse-press-handler (fn [^MouseEvent _e]
+                              (mouse-pressed-fn @c)
+                              (.removeEventHandler (ui/main-scene) MouseEvent/MOUSE_MOVED mouse-move-handler))]
+    (.addEventHandler (ui/main-scene) MouseEvent/MOUSE_MOVED (ui/event-handler event (mouse-move-handler event)))
+    (.addEventHandler (ui/main-scene) MouseEvent/MOUSE_PRESSED (ui/event-handler event (mouse-press-handler event)))))
+
 (defmethod create-property-control! types/Color [edit-type _ property-fn]
   (let [wrapper (doto (HBox.)
                   (.setPrefWidth Double/MAX_VALUE))
+        color-dropper (doto (Button.)
+                        (ui/on-action! (partial color-dropper-action (partial set-color-value! (property-fn) (:ignore-alpha? edit-type)))))
         text (TextField.)
         color-picker (ColorPicker.)
         value->display-color (comp color-display-name value->color)
@@ -575,9 +592,8 @@
                       (set-color-value! (property-fn) (:ignore-alpha? edit-type) c)))]
     (doto text
       (HBox/setHgrow Priority/ALWAYS)
-      (ui/add-style! "color-input")
       (customize! commit-fn cancel-fn))
-    (ui/children! wrapper [text color-picker])
+    (ui/children! wrapper [text color-dropper color-picker])
     (ui/on-action! color-picker (fn [_]
                                   (let [c (.getValue color-picker)
                                         ignore-alpha (:ignore-alpha? edit-type)]
