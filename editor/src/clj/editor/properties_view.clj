@@ -557,9 +557,9 @@
                   (.setPrefWidth Double/MAX_VALUE))
         text (TextField.)
         color-picker (ColorPicker.)
-        value->hex-color (comp color-display-name value->color)
+        value->display-color (comp color-display-name value->color)
         update-ui-fn (fn [values message read-only?]
-                       (update-text-fn text value->hex-color values message read-only?)
+                       (update-text-fn text value->display-color values message read-only?)
                        (.setValue color-picker (when-let [v (properties/unify-values values)] (value->color v)))
                        (update-field-message [color-picker] message)
                        (ui/editable! color-picker (not read-only?)))
