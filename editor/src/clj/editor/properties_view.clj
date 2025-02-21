@@ -495,7 +495,7 @@
     (Color. r g b a)))
 
 (defn color->web-string [^Color c ignore-alpha]
-  (cond->> (->> c .toString nnext)
+  (cond->> (nnext (.toString c))
     ignore-alpha (drop-last 2)
     :always (apply str "#")))
 
