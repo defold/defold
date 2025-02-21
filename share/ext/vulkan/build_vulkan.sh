@@ -19,13 +19,13 @@ set -e
 
 readonly PLATFORM=$1
 readonly PRODUCT=vulkan
-readonly VERSION=v1.3.299
+readonly VERSION=v1.4.307
 readonly PACKAGE_NAME=${PRODUCT}-${VERSION}-${PLATFORM}.tar.gz
 readonly HEADERS_PACKAGE_NAME=${PRODUCT}-${VERSION}-common.tar.gz
 
 readonly LOADER_URL=https://github.com/KhronosGroup/Vulkan-Loader/archive/refs/tags/${VERSION}.tar.gz
 readonly HEADERS_URL=https://github.com/KhronosGroup/Vulkan-Headers/archive/refs/tags/${VERSION}.tar.gz
-readonly VALIDATION_URL=https://github.com/KhronosGroup/Vulkan-ValidationLayers/archive/refs/tags/vulkan-sdk-1.3.296.0.tar.gz
+readonly VALIDATION_URL=https://github.com/KhronosGroup/Vulkan-ValidationLayers/archive/refs/tags/vulkan-sdk-1.4.304.0.tar.gz
 
 . ../common.sh
 
@@ -37,8 +37,13 @@ readonly LOADERDIR=$(realpath ./loader)
 readonly HEADERSDIR=$(realpath ./headers)
 readonly VALIDATIONDIR=$(realpath ./validation)
 
-cmi_setup_cc $PLATFORM
+mkdir -p ${BUILDDIR}
+mkdir -p ${BUILDDIR}/lib/$PLATFORM
 
+OSX_MIN_SDK_VERSION=10.15
+CMAKE_VALIDATION_FLAGS=
+
+cmi_setup_cc $PLATFORM
 
 function download {
     local url=$1
@@ -69,6 +74,17 @@ function download {
         echo "Found ${output}"
     fi
 }
+
+case $PLATFORM in
+    arm64-macos)
+        CMAKE_VALIDATION_FLAGS="-DCMAKE_OSX_ARCHITECTURES=arm64 ${CMAKE_VALIDATION_FLAGS}"
+        CMAKE_VALIDATION_FLAGS="-DCMAKE_OSX_DEPLOYMENT_TARGET=${OSX_MIN_SDK_VERSION} ${CMAKE_VALIDATION_FLAGS}"
+        ;;
+    x86_64-macos)
+        CMAKE_VALIDATION_FLAGS="-DCMAKE_OSX_ARCHITECTURES=x86_64 ${CMAKE_VALIDATION_FLAGS}"
+        CMAKE_VALIDATION_FLAGS="-DCMAKE_OSX_DEPLOYMENT_TARGET=${OSX_MIN_SDK_VERSION} ${CMAKE_VALIDATION_FLAGS}"
+        ;;
+esac
 
 download ${LOADER_URL} loader.tar.gz ${LOADERDIR}
 download ${VALIDATION_URL} validation.tar.gz ${VALIDATIONDIR}
@@ -125,11 +141,11 @@ pushd ${BUILDDIR}/validation
         -DCMAKE_C_FLAGS="${FLAGS} ${CFLAGS}" \
         -DUPDATE_DEPS=ON \
         -DBUILD_TESTS=OFF \
+        ${CMAKE_VALIDATION_FLAGS} \
         ${VALIDATIONDIR}
     cmake --build . --config Release
     cmake --install . --config Release --prefix ${INSTALLDIR}
 popd
-
 
 
 echo "**************************************************"
@@ -141,11 +157,14 @@ pushd package
 
     mkdir -p lib/${PLATFORM}
     mkdir -p bin/${PLATFORM}
-
+    mkdir -p include/${PLATFORM}
 
     case ${PLATFORM} in
         *-linux)
             cp -v ${BUILDDIR}/install/lib/lib*.so* lib/${PLATFORM}/
+            ;;
+        *-macos)
+            cp -v ${BUILDDIR}/install/lib/lib*.dylib* lib/${PLATFORM}/
             ;;
         *)
             cp -v ${BUILDDIR}/install/lib/lib*.a lib/${PLATFORM}/
@@ -181,8 +200,6 @@ pushd package
 popd
 
 echo "Wrote ./package/${HEADERS_PACKAGE_NAME}"
-
-
 
 echo "**************************************************"
 echo "Cleanup"
