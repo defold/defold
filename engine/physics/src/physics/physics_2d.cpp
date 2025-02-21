@@ -335,10 +335,8 @@ namespace dmPhysics
 
     bool IsWorldLocked(HWorld2D world)
     {
-        return false;
-        // Why wouldn't this work? getting unresolved linkage
-        // b2World* world_raw = b2GetWorldFromId(world->m_WorldId);
-        // return world_raw->locked;
+        // non-standard box2d function
+        return b2World_IsLocked(world->m_WorldId);
     }
 
     static inline float GetUniformScale2D(dmTransform::Transform& transform)
@@ -1433,11 +1431,6 @@ namespace dmPhysics
 
     void DeleteCollisionObject2D(HWorld2D world, HCollisionObject2D collision_object)
     {
-        // NOTE: This code assumes stuff about internals in box2d.
-        // When the next-pointer is cleared etc. Beware! :-)
-        // DestroyBody() should be enough in general but we have to run over all fixtures in order to free allocated shapes
-        // See comment above about shapes and transforms
-
         Body* body = (Body*) collision_object;
 
         for (int i = 0; i < body->m_ShapeCount; ++i)
@@ -1445,19 +1438,15 @@ namespace dmPhysics
             FreeShape(body->m_Shapes[i]);
         }
 
-        if (ToOpaqueHandle(body->m_BodyId))
+        b2DestroyBody(body->m_BodyId);
+        uint32_t num_bodies = world->m_Bodies.Size();
+        for (int i = 0; i < num_bodies; ++i)
         {
-            b2DestroyBody(body->m_BodyId);
-
-            uint32_t num_bodies = world->m_Bodies.Size();
-            for (int i = 0; i < num_bodies; ++i)
+            Body* other = world->m_Bodies[i];
+            if (body == other)
             {
-                Body* other = world->m_Bodies[i];
-                if (body == other)
-                {
-                    world->m_Bodies.EraseSwap(i);
-                    break;
-                }
+                world->m_Bodies.EraseSwap(i);
+                break;
             }
         }
     }
@@ -1588,15 +1577,11 @@ namespace dmPhysics
 
     Vector3 GetTotalForce2D(HContext2D context, HCollisionObject2D collision_object)
     {
-        /*
-        const b2Vec2& b2_force = ((b2Body*)collision_object)->GetForce();
+        Body* body = (Body*) collision_object;
+        b2Vec2 b2_force = b2Body_GetTotalForce(body->m_BodyId);
         Vector3 force;
         FromB2(b2_force, force, context->m_InvScale);
         return force;
-        */
-
-        Vector3 f;
-        return f;
     }
 
     Point3 GetWorldPosition2D(HContext2D context, HCollisionObject2D collision_object)
@@ -1826,45 +1811,54 @@ namespace dmPhysics
 
     bool UpdateMass2D(HWorld2D world, HCollisionObject2D collision_object, float mass)
     {
-        // // b2BodyId* body_id = (b2BodyId*) collision_object;
         Body* body = (Body*) collision_object;
 
         if (b2Body_GetType(body->m_BodyId) != b2_dynamicBody) {
             return false;
         }
 
-        b2MassData mass_data = b2Body_GetMassData(body->m_BodyId);
-        mass_data.mass = mass;
-
-        // TODO: We don't have an area here. Original code checked area of shapes
-
-        b2Body_SetMassData(body->m_BodyId, mass_data);
-
-        return true;
-
-        /*
-        b2Fixture* fixture = body->GetFixtureList();
         float total_area = 0.0f;
-        while (fixture) {
-            b2MassData mass_data;
-            fixture->GetShape()->ComputeMass(&mass_data, 1.0f);
-            // Since density is 1.0, massData.mass represents the area.
-            total_area += mass_data.mass;
-            fixture = fixture->GetNext();
-
+        for (int i = 0; i < body->m_ShapeCount; ++i)
+        {
+            switch(body->m_Shapes[i]->m_Type)
+            {
+            case SHAPE_TYPE_POLYGON:
+            {
+                PolygonShapeData* polygon = (PolygonShapeData*) body->m_Shapes[i];
+                b2MassData mass_data = b2ComputePolygonMass(&polygon->m_Polygon, 1.0f);
+                total_area += mass_data.mass;
+            } break;
+            case SHAPE_TYPE_CIRCLE:
+            {
+                CircleShapeData* circle = (CircleShapeData*) body->m_Shapes[i];
+                b2MassData mass_data = b2ComputeCircleMass(&circle->m_Circle, 1.0f);
+                total_area += mass_data.mass;
+            } break;
+            case SHAPE_TYPE_GRID:
+            {
+                // TODO
+                // Original code approximates the mass to a box, but I'm not even sure mass matters for a grid?
+            }
+            default:
+                break;
+            }
         }
-        fixture = body->GetFixtureList();
-        if (total_area <= 0.0f) {
+
+        if (total_area <= 0.0f)
+        {
             return false;
         }
+
         float new_density = mass / total_area;
-        while (fixture) {
-            fixture->SetDensity(new_density);
-            fixture = fixture->GetNext();
+
+        for (int i = 0; i < body->m_ShapeCount; ++i)
+        {
+            b2Shape_SetDensity(body->m_Shapes[i]->m_ShapeId, new_density, false);
         }
-        body->ResetMassData();
+
+        b2Body_ApplyMassFromShapes(body->m_BodyId);
+
         return true;
-        */
     }
 
     void RequestRayCast2D(HWorld2D world, const RayCastRequest& request)
