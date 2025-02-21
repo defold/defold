@@ -69,6 +69,10 @@ case $PLATFORM in
     x86_64-macos)
         CMAKE_FLAGS="-DCMAKE_OSX_ARCHITECTURES=x86_64 -DCMAKE_OSX_DEPLOYMENT_TARGET=${OSX_MIN_SDK_VERSION} ${CMAKE_FLAGS}"
         ;;
+    arm64-linux)
+        # Need to setup clang on linux
+        cmi_setup_cc $PLATFORM
+        ;;
 esac
 
 function cmi_unpack() {

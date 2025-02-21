@@ -499,6 +499,22 @@
                                  (last))]
       (:sequence-label prev-step))))
 
+(defn take-node-ids
+  "Given a count, returns a realized sequence of claimed, unique node-ids in the
+  specified graph."
+  [^long graph-id ^long node-id-count]
+  (when (pos? node-id-count)
+    (is/take-node-ids @*the-system* graph-id node-id-count)))
+
+(def add-node
+  "Returns the transaction step for adding a node to the graph. The node will
+  typically have been constructed beforehand using the construct function.
+
+  Example:
+
+  `(transact (add-node (construct SimpleTestNode)))`"
+  it/new-node)
+
 (defn- construct-node-with-id
   [graph-id node-type args]
   (apply construct node-type :_node-id (is/next-node-id @*the-system* graph-id) (mapcat identity args)))
@@ -955,6 +971,38 @@
          (let [value (in/node-value node label evaluation-context)]
            (when-not (error? value)
              value)))))))
+
+(defn tx-cached-node-value
+  "Like the node-value function, but caches the result in the :tx-data-context
+  of the supplied evaluation-context if it doesn't have a cache. This is mostly
+  a workaround for the fact that the evaluation-context supplied to property
+  setters inside transactions does not contain a cache. Some operations, like
+  resource lookups, can benefit hugely from caching the lookup maps. However,
+  beware that this function bypasses the regular cache invalidation mechanism.
+  Don't use it on outputs that might otherwise have been invalidated between two
+  calls in the same transaction. The lack of a cache inside transactions has
+  previously been reported as DEFEDIT-1411."
+  [node-id label evaluation-context]
+  (cond
+    (nil? node-id)
+    nil
+
+    (some? (:cache evaluation-context))
+    (node-value node-id label evaluation-context)
+
+    :else
+    (let [tx-data-context-atom (:tx-data-context evaluation-context)
+          cache-key (gt/endpoint node-id label)
+          cached-value (-> tx-data-context-atom
+                           (deref)
+                           (:tx-cache)
+                           (get cache-key ::not-found))]
+      (case cached-value
+        ::not-found
+        (let [evaluated-value (node-value node-id label evaluation-context)]
+          (swap! tx-data-context-atom assoc-in [:tx-cache cache-key] evaluated-value)
+          evaluated-value)
+        cached-value))))
 
 (defn graph-value
   "Returns the graph from the system given a graph-id and key.  It returns the graph at the point in time of the bais, if provided.

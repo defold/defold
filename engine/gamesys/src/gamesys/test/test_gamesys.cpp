@@ -1641,13 +1641,15 @@ TEST_F(FontTest, GlyphBankTest)
     uint32_t glyph1_data_size = 0;
     uint32_t glyph1_image_width = 0;
     uint32_t glyph1_image_height = 0;
-    const uint8_t* glyph1_data = dmRender::GetGlyphData(font_map_1, 'A', &glyph1_data_size, &glyph1_data_compression, &glyph1_image_width, &glyph1_image_height);
+    uint32_t glyph1_image_channels = 0;
+    const uint8_t* glyph1_data = dmRender::GetGlyphData(font_map_1, 'A', &glyph1_data_size, &glyph1_data_compression, &glyph1_image_width, &glyph1_image_height, &glyph1_image_channels);
 
     uint32_t glyph2_data_compression; // E.g. FONT_map_GLYPH_COMPRESSION_NONE;
     uint32_t glyph2_data_size = 0;
     uint32_t glyph2_image_width = 0;
     uint32_t glyph2_image_height = 0;
-    const uint8_t* glyph2_data = dmRender::GetGlyphData(font_map_2, 'A', &glyph2_data_size, &glyph2_data_compression, &glyph2_image_width, &glyph2_image_height);
+    uint32_t glyph2_image_channels = 0;
+    const uint8_t* glyph2_data = dmRender::GetGlyphData(font_map_2, 'A', &glyph2_data_size, &glyph2_data_compression, &glyph2_image_width, &glyph2_image_height, &glyph2_image_channels);
 
     ASSERT_NE((void*)0, glyph_1);
     ASSERT_NE((void*)0, glyph_2);
@@ -1708,7 +1710,8 @@ TEST_F(FontTest, DynamicGlyph)
         uint32_t glyph_data_size = 0;
         uint32_t glyph_image_width = 0;
         uint32_t glyph_image_height = 0;
-        const uint8_t* glyph_data = dmRender::GetGlyphData(font_map, codepoint, &glyph_data_size, &glyph_data_compression, &glyph_image_width, &glyph_image_height);
+        uint32_t glyph_image_channels = 0;
+        const uint8_t* glyph_data = dmRender::GetGlyphData(font_map, codepoint, &glyph_data_size, &glyph_data_compression, &glyph_image_width, &glyph_image_height, &glyph_image_channels);
         ASSERT_NE((void*)0, glyph_data);
 
         dmRender::FontGlyph* glyph = dmRender::GetGlyph(font_map, codepoint);
@@ -1718,6 +1721,7 @@ TEST_F(FontTest, DynamicGlyph)
         ASSERT_EQ(data_size-1, glyph_data_size);
         ASSERT_EQ(1U, glyph_image_width);
         ASSERT_EQ(2U, glyph_image_height);
+        ASSERT_EQ(3U, glyph_image_channels);
 
         ASSERT_EQ(codepoint, glyph->m_Character);
         ASSERT_EQ(1U, glyph->m_Width);

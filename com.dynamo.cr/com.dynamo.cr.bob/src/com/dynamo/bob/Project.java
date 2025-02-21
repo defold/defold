@@ -2252,12 +2252,4 @@ public class Project {
         return Collections.unmodifiableList(new ArrayList(this.tasks.values()));
     }
 
-    public TextureProfiles getTextureProfiles() {
-        return textureProfiles;
-    }
-
-    public void setTextureProfiles(TextureProfiles textureProfiles) {
-        this.textureProfiles = textureProfiles;
-    }
-
 }

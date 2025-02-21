@@ -71,9 +71,7 @@
     #endif
 #endif
 
-#if defined(__linux__) && !defined(ANDROID)
-    #include <GL/glext.h>
-#elif defined (ANDROID)
+#if defined (ANDROID)
     #define GL_GLEXT_PROTOTYPES
     #include <GLES2/gl2ext.h>
 
@@ -82,6 +80,8 @@
     #define glVertexAttribDivisor PFN_glVertexAttribDivisor
 
 #elif defined (__MACH__)
+    // NOP
+#elif defined (__linux__)
     // NOP
 #elif defined (_WIN32)
     #ifdef GL_GLEXT_PROTOTYPES
@@ -410,9 +410,14 @@ static void LogFrameBufferError(GLenum status)
     static GraphicsAdapterFunctionTable OpenGLRegisterFunctionTable();
     static bool                         OpenGLIsSupported();
     static HContext                     OpenGLGetContext();
-    static GraphicsAdapter g_opengl_adapter(ADAPTER_FAMILY_OPENGL);
 
+    #if defined(DM_GRAPHICS_USE_OPENGLES)
+    static GraphicsAdapter g_opengl_adapter(ADAPTER_FAMILY_OPENGLES);
+    DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterOpenGLES, &g_opengl_adapter, OpenGLIsSupported, OpenGLRegisterFunctionTable, OpenGLGetContext, ADAPTER_FAMILY_PRIORITY_OPENGLES);
+    #else
+    static GraphicsAdapter g_opengl_adapter(ADAPTER_FAMILY_OPENGL);
     DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterOpenGL, &g_opengl_adapter, OpenGLIsSupported, OpenGLRegisterFunctionTable, OpenGLGetContext, ADAPTER_FAMILY_PRIORITY_OPENGL);
+    #endif
 
     static void PostDeleteTextures(OpenGLContext*, bool);
     static bool OpenGLInitialize(HContext context, const ContextParams& params);
@@ -930,7 +935,11 @@ static void LogFrameBufferError(GLenum status)
 
     static void OpenGLPrintDeviceInfo(HContext context)
     {
+        #if defined(DM_GRAPHICS_USE_OPENGLES)
+        dmLogInfo("Device: OpenGL ES");
+        #else
         dmLogInfo("Device: OpenGL");
+        #endif
         dmLogInfo("Renderer: %s", (char *) glGetString(GL_RENDERER));
         dmLogInfo("Version: %s", (char *) glGetString(GL_VERSION));
         dmLogInfo("Vendor: %s", (char *) glGetString(GL_VENDOR));
@@ -1062,7 +1071,7 @@ static void LogFrameBufferError(GLenum status)
         context->m_IsGles3Version = 1; // 0 == gles 2, 1 == gles 3
         context->m_PipelineState  = GetDefaultPipelineState();
 
-#if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
+#if defined(__EMSCRIPTEN__) || defined(__ANDROID__) || defined(DM_GRAPHICS_USE_OPENGLES)
         context->m_IsShaderLanguageGles = 1;
 
         const char* version = (char *) glGetString(GL_VERSION);
@@ -1432,7 +1441,7 @@ static void LogFrameBufferError(GLenum status)
         #endif
         }
 
-#if defined(__ANDROID__) || defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__)
+#if defined(__ANDROID__) || defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__) || defined(DM_GRAPHICS_USE_OPENGLES)
         if (OpenGLIsExtensionSupported(context, "GL_OES_element_index_uint") ||
             OpenGLIsExtensionSupported(context, "OES_element_index_uint"))
         {
@@ -2969,7 +2978,7 @@ static void LogFrameBufferError(GLenum status)
         {
             return language == ShaderDesc::LANGUAGE_GLSL_SM430;
         }
-        return language == ShaderDesc::LANGUAGE_GLSL_SM140 || language == ShaderDesc::LANGUAGE_GLSL_SM330;
+        return language == ShaderDesc::LANGUAGE_GLSL_SM330;
     }
 
     static void OpenGLEnableProgram(HContext _context, HProgram _program)

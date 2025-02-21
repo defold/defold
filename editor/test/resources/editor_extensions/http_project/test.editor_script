@@ -1,0 +1,36 @@
+local M = {}
+
+local function test(url, opts)
+    local success, result = pcall(http.request, url, opts)
+    local method = (opts and opts.method) or "GET"
+    local as = (opts and opts.as and (" as " .. opts.as)) or ""
+    local body = (opts and opts.body and (" " .. opts.body)) or ""
+    local prefix = ("%s %s%s%s"):format(method, url, body, as)
+    if success then
+        print(("%s => %s"):format(prefix, result.status))
+        if result.body then
+            pprint(result.body)
+        end
+    else
+        print(("%s => error (%s)"):format(prefix, result))
+    end
+end
+
+function M.get_commands()
+    return {{
+        label = "Test",
+        locations = {"Edit"},
+        run = function()
+            test("http://localhost:23000")
+            test("not-an-url")
+            test("http://localhost:23456", {method = "HEAD"})
+            test("http://localhost:23456")
+            test("http://localhost:23456/redirect/foo", {as = "string"})
+            test("http://localhost:23456/json", {as = "json"})
+            test("http://localhost:23456/echo", {as = "json", method = "POST", body = json.encode({x = 4, y = "foo"})})
+            test("http://localhost:23456/echo", {as = "string", method = "POST", body = "hello world!"})
+        end
+    }}
+end
+
+return M

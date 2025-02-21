@@ -241,7 +241,45 @@
           ui-docs/enums)
         (ui-docs/script-docs)
         (prefs-docs/script-docs)
-        [{:name "json"
+        [{:name "http"
+          :type :module
+          :description "Functions for performing HTTP requests"}
+         {:name "http.request"
+          :type :function
+          :description "Perform an HTTP request"
+          :parameters [{:name "url"
+                        :types ["string"]
+                        :doc "request URL"}
+                       {:name "[opts]"
+                        :types ["table"]
+                        :doc (str "Additional request options, a table with the following keys:"
+                                  (lua-completion/args-doc-html
+                                    [{:name "method"
+                                      :types ["string"]
+                                      :doc "request method, defaults to <code>\"GET\"</code>"}
+                                     {:name "headers"
+                                      :types ["table"]
+                                      :doc "request headers, a table with string keys and values"}
+                                     {:name "body"
+                                      :types ["string"]
+                                      :doc "request body"}
+                                     {:name "as"
+                                      :types ["string"]
+                                      :doc "Response body converter, either <code>\"string\"</code> or <code>\"json\"</code>"}]))}]
+          :returnvalues [{:name "response"
+                          :types ["table"]
+                          :doc (str "HTTP response, a table with the following keys:"
+                                    (lua-completion/args-doc-html
+                                      [{:name "status"
+                                        :types ["integer"]
+                                        :doc "response code"}
+                                       {:name "headers"
+                                        :types ["table"]
+                                        :doc "response headers, a table where each key is a lower-cased string, and each value is either a string or an array of strings if the header was repeated"}
+                                       {:name "body"
+                                        :types ["string" "any" "nil"]
+                                        :doc "response body, present only when <code>as</code> option was provided, either a string or a parsed json value"}]))}]}
+         {:name "json"
           :type :module
           :description "Module for encoding or decoding values in JSON format"}
          {:name "json.decode"
@@ -467,4 +505,68 @@
                                                                           {:name "with_symbols" :types ["boolean"]}
                                                                           {:name "build_report" :types ["boolean"]}
                                                                           {:name "liveupdate" :types ["boolean"]}
-                                                                          {:name "contentless" :types ["boolean"]}]))}]}])))))
+                                                                          {:name "contentless" :types ["boolean"]}]))}]}])
+        [{:name "zip"
+          :type :module
+          :description "Module for manipulating zip archives"}
+         (let [method-param {:name "method" :types ["string"] :doc "compression method, either <code>zip.METHOD.DEFLATED</code> (default) or <code>zip.METHOD.STORED</code>"}
+               level-param {:name "level" :types ["integer"] :doc "compression level, an integer between 0 and 9, only useful when the compression method is <code>zip.METHOD.DEFLATED</code>; defaults to 6"}]
+           {:name "zip.pack"
+            :type :function
+            :parameters [{:name "output_path"
+                          :types ["string"]
+                          :doc "output zip file path, resolved against project root if relative"}
+                         {:name "[opts]"
+                          :types ["table"]
+                          :doc (str "compression options, a table with the following keys:"
+                                    (lua-completion/args-doc-html [method-param level-param]))}
+                         {:name "entries"
+                          :types ["string" "table"]
+                          :doc (str "entries to compress, either a string (relative path to file or folder to include) or a table with the following keys:"
+                                    (lua-completion/args-doc-html
+                                      [{:name "1" :types ["string"] :doc "required; source file or folder path to include, resolved against project root if relative"}
+                                       {:name "2" :types ["string"] :doc "optional; target file or folder path in the zip archive. May be omitted if source is a relative path that does not go above the project directory."}
+                                       method-param
+                                       level-param]))}]
+            :description "Create a ZIP archive"
+            :examples "Archive a file and a folder:
+```
+zip.pack(\"build.zip\", {\"build\", \"game.project\"})
+```
+Change the location of the files within the archive:
+```
+zip.pack(\"build.zip\", {
+  {\"build/wasm-web\", \".\"},
+  {\"configs/prod.json\", \"config.json\"}
+})
+```
+Create archive without compression (much faster to create the archive, bigger archive file size, allows mmap access):
+```
+zip.pack(\"build.zip\", {method = zip.METHOD.STORED}, {
+  \"build\",
+  \"resources\"
+})
+```
+Don't compress one of the folders:
+```
+zip.pack(\"build.zip\", {
+  {\"assets\", method = zip.METHOD.STORED},
+  \"build/wasm-web\"
+})
+```
+Include files from outside the project:
+```
+zip.pack(\"build.zip\", {
+  \"build\",
+  {\"../secrets/auth-key.txt\", \"auth-key.txt\"}
+})
+```"})
+         {:name "zip.METHOD"
+          :type :module
+          :description "Constants for zip compression methods"}
+         {:name "zip.METHOD.DEFLATED"
+          :type :constant
+          :description "<code>\"deflated\"</code> compression method"}
+         {:name "zip.METHOD.STORED"
+          :type :constant
+          :description "<code>\"stored\"</code> compression method, i.e. no compression"}]))))

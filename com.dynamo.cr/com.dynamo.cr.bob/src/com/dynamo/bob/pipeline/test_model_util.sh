@@ -41,4 +41,7 @@ echo "java.library.path ${MODELC_BUILD_DIR}"
 echo "Running jar:" $JAR
 echo "Using main class:" ${CLASS_NAME}
 
-java ${JNI_DEBUG_FLAGS} -Djava.library.path=${MODELC_BUILD_DIR} -cp ${JAR} ${PACKAGE_CLASS} $*
+MODELINPUT=$1
+shift
+
+java ${JNI_DEBUG_FLAGS} -Djava.library.path=${MODELC_BUILD_DIR} -cp ${JAR} ${PACKAGE_CLASS} "${MODELINPUT}" $*

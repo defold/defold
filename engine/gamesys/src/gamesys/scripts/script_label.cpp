@@ -264,7 +264,7 @@ static const char* LABEL_EXT = "labelc";
  *
  * @name label.set_text
  * @param url [type:string|hash|url] the label that should have a constant set
- * @param text [type:string] the text
+ * @param text [type:string|number] the text
  * @examples
  *
  * ```lua

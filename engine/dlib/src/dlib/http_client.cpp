@@ -112,10 +112,10 @@ namespace dmHttpClient
         int m_TotalReceived;
 
         // Headers
-        int      m_ContentLength;
+        int      m_ContentLength;       // Size of the payload sent over the http
         int      m_RangeStart;
         int      m_RangeEnd;
-        int      m_DocumentSize;
+        int      m_DocumentSize;        // The actual size of the file itself (!= content length)
         char     m_ETag[dmHttpCache::MAX_TAG_LEN];
         uint32_t m_Chunked : 1;
         uint32_t m_CloseConnection : 1;
@@ -139,6 +139,7 @@ namespace dmHttpClient
             m_ContentLength = -1;
             m_RangeStart = -1;
             m_RangeEnd = -1;
+            m_DocumentSize = -1;
             m_ETag[0] = '\0';
             m_ContentOffset = -1;
             m_TotalReceived = 0;
@@ -227,7 +228,9 @@ namespace dmHttpClient
     }
 
     static void DefaultHttpContentData(HResponse response, void* user_data, int status_code,
-        const void* content_data, uint32_t content_data_size, int32_t content_length, const char* method)
+        const void* content_data, uint32_t content_data_size, int32_t content_length,
+        uint32_t range_start, uint32_t range_end, uint32_t document_size,
+        const char* method)
     {
         (void) response;
         (void) user_data;
@@ -670,7 +673,9 @@ bail:
             } else {
                 n = dmMath::Min(to_transfer - total_transferred, response->m_TotalReceived - response->m_ContentOffset);
             }
-            http_content(response, client->m_Userdata, response->m_Status, client->m_Buffer + response->m_ContentOffset, n, response->m_ContentLength, method);
+            http_content(response, client->m_Userdata, response->m_Status, client->m_Buffer + response->m_ContentOffset, n, response->m_ContentLength,
+                        response->m_RangeStart, response->m_RangeEnd, response->m_DocumentSize,
+                        method);
 
             if (response->m_CacheCreator && add_to_cache)
             {
@@ -743,7 +748,8 @@ bail:
         }
     }
 
-    static void HttpContentConsume(HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length, const char* method)
+    static void HttpContentConsume(HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length,
+                                    uint32_t range_start, uint32_t range_end, uint32_t document_size, const char* method)
     {
         (void) response;
         (void) user_data;
@@ -751,6 +757,9 @@ bail:
         (void) content_data;
         (void) content_data_size;
         (void) content_length;
+        (void) range_start;
+        (void) range_end;
+        (void) document_size;
         (void) method;
     }
 
@@ -798,14 +807,20 @@ bail:
         FILE* file = 0;
         uint32_t file_size = 0;
         uint64_t checksum;
-        cache_result = dmHttpCache::Get(client->m_HttpCache, client->m_CacheKey, cache_etag, &file, &file_size, &checksum);
+        uint32_t range_start;
+        uint32_t range_end;
+        uint32_t document_size;
+        cache_result = dmHttpCache::Get(client->m_HttpCache, client->m_CacheKey, cache_etag, &file, &file_size, &checksum,
+                                        &range_start, &range_end, &document_size);
         if (cache_result == dmHttpCache::RESULT_OK)
         {
             // If the request is a "HEAD" request, and the URI is cached (i.e the file exists),
             // then we should return the meta-data about the file (including triggering the progress callback).
             if (method_is_head)
             {
-                client->m_HttpContent(response, client->m_Userdata, response->m_Status, 0, 0, file_size, "HEAD");
+                client->m_HttpContent(response, client->m_Userdata, response->m_Status, 0, 0, file_size,
+                                        range_start, range_end, document_size,
+                                        "HEAD");
             }
             else
             {
@@ -815,7 +830,9 @@ bail:
                 {
                     nread = fread(client->m_Buffer, 1, BUFFER_SIZE, file);
                     client->m_Buffer[nread] = '\0';
-                    client->m_HttpContent(response, client->m_Userdata, response->m_Status, client->m_Buffer, nread, file_size, 0);
+                    client->m_HttpContent(response, client->m_Userdata, response->m_Status, client->m_Buffer, nread, file_size,
+                                        range_start, range_end, document_size,
+                                        0);
                 }
                 while (nread > 0);
             }
@@ -835,7 +852,7 @@ bail:
     {
         Result r = RESULT_OK;
 
-        client->m_HttpContent(response, client->m_Userdata, response->m_Status, 0, 0, 0, 0);
+        client->m_HttpContent(response, client->m_Userdata, response->m_Status, 0, 0, 0, 0, 0, 0, 0);
 
         if (strcmp(method, "HEAD") == 0) {
             // A response from a HEAD request should not attempt to read any body despite
@@ -986,11 +1003,24 @@ bail:
         }
         else
         {
+            // Let's make the range values valid, even if it might not be a ranged request
+            if (response.m_DocumentSize == 0xFFFFFFFF)
+            {
+                response.m_DocumentSize = response.m_ContentLength;
+                response.m_RangeStart = 0;
+                response.m_RangeEnd = response.m_DocumentSize-1;
+            }
+
             // Non-cached response
             bool is_ok = response.m_Status == 200 || response.m_Status == 206;
             if (!client->m_IgnoreCache && client->m_HttpCache && !method_is_head && is_ok)
             {
-                dmHttpCache::Begin(client->m_HttpCache, client->m_CacheKey, response.m_ETag, response.m_MaxAge, &response.m_CacheCreator);
+                uint32_t document_size = dmMath::Max(response.m_ContentLength, response.m_DocumentSize);
+                uint32_t range_start = response.m_RangeStart != -1 ? response.m_RangeStart : 0;
+                uint32_t range_end = response.m_RangeEnd != -1 ? response.m_RangeEnd : document_size-1;
+
+                dmHttpCache::Begin(client->m_HttpCache, client->m_CacheKey, response.m_ETag, response.m_MaxAge,
+                                    range_start, range_end, document_size, &response.m_CacheCreator);
             }
 
             r = HandleResponse(client, path, method, &response);
@@ -1091,8 +1121,12 @@ bail:
         FILE* file = 0;
         uint32_t file_size = 0;
         uint64_t checksum;
+        uint32_t range_start;
+        uint32_t range_end;
+        uint32_t document_size;
 
-        dmHttpCache::Result cache_result = dmHttpCache::Get(client->m_HttpCache, client->m_CacheKey, info->m_ETag, &file, &file_size, &checksum);
+        dmHttpCache::Result cache_result = dmHttpCache::Get(client->m_HttpCache, client->m_CacheKey, info->m_ETag, &file, &file_size, &checksum,
+                                                            &range_start, &range_end, &document_size);
         if (cache_result == dmHttpCache::RESULT_OK)
         {
             // NOTE: We have an extra byte for null-termination so no buffer overrun here.
@@ -1101,7 +1135,9 @@ bail:
             {
                 nread = fread(client->m_Buffer, 1, BUFFER_SIZE, file);
                 client->m_Buffer[nread] = '\0';
-                client->m_HttpContent(&response, client->m_Userdata, 304, client->m_Buffer, nread, file_size, "GET");
+                client->m_HttpContent(&response, client->m_Userdata, 304, client->m_Buffer, nread, file_size,
+                                      range_start, range_end, document_size,
+                                      "GET");
             }
             while (nread > 0);
             dmHttpCache::Release(client->m_HttpCache, client->m_CacheKey, info->m_ETag, file);

@@ -291,14 +291,20 @@ def generate(version, hide_details = False):
         entry["body"] = re.sub("## Technical details.*", "", entry["body"], flags=re.DOTALL).strip()
 
         # Remove closing keywords
-        entry["body"] = re.sub("Closes .*/.*#.....*", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub("Fixes .*/.*#.....*", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub("Fix .*/.*#.....*", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub("Fixes #.....*", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub("Fix #.....*", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub("Resolves .*/.*#.....*", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub("Resolved .*/.*#.....*", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub("Resolve .*/.*#.....*", "", entry["body"], flags=re.IGNORECASE).strip()
         entry["body"] = re.sub("Closes https.*", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub("Closes .*/.*#.....*", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub("Closed .*/.*#.....*", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub("Close .*/.*#.....*", "", entry["body"], flags=re.IGNORECASE).strip()
         entry["body"] = re.sub("Fixes https.*", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub("Fixes #.....*", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub("Fixes .*/.*#.....*", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub("Fixed .*/.*#.....*", "", entry["body"], flags=re.IGNORECASE).strip()
         entry["body"] = re.sub("Fix https.*", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub("Fix .*/.*#.....*", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub("Fix #.....*", "", entry["body"], flags=re.IGNORECASE).strip()
 
         # Remove "user facing changes" header
         entry["body"] = re.sub("User-facing changes.", "", entry["body"], flags=re.IGNORECASE).strip()

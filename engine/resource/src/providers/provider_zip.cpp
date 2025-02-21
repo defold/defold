@@ -362,5 +362,5 @@ static void SetupArchiveLoaderHttpZip(dmResourceProvider::ArchiveLoader* loader)
     loader->m_ReadFilePartial   = ReadFilePartial;
 }
 
-DM_DECLARE_ARCHIVE_LOADER(ResourceProviderZip, "zip", SetupArchiveLoaderHttpZip);
+DM_DECLARE_ARCHIVE_LOADER(ResourceProviderZip, "zip", SetupArchiveLoaderHttpZip, 0, 0);
 }

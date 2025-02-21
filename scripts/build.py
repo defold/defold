@@ -26,6 +26,7 @@ import s3
 import sdk
 import release_to_github
 import release_to_steam
+import release_to_egs
 import BuildUtility
 import http_cache
 from datetime import datetime
@@ -1904,6 +1905,24 @@ class Configuration(object):
 
         release_to_github.release(self, tag_name, release_sha1, releases[0], release_name=release_name, body=body, prerelease=prerelease, editor_only=is_editor_branch)
 
+    def get_editor_urls_from_s3(self, archive_path, tag_name):
+        release = s3.get_single_release(archive_path, tag_name)
+        if not release.get("files"):
+            log("No files found on S3")
+            exit(1)
+
+        # get a set of editor files only
+        # for some reasons files are listed more than once in 'release'
+        urls = set()
+        base_url = "https://" + urlparse(archive_path).hostname
+        for file in release.get("files", None):
+            path = file.get("path")
+            if os.path.basename(path) in ('Defold-x86_64-macos.dmg',
+                                          'Defold-x86_64-linux.zip',
+                                          'Defold-x86_64-win32.zip'):
+                urls.add(base_url + path)
+
+        return urls
 
     # Use with ./scripts/build.py release_to_steam --version=1.4.8
     def release_to_steam(self):
@@ -1911,8 +1930,18 @@ class Configuration(object):
         engine_channel = "stable"
         tag_name = self.compose_tag_name(self.version, engine_channel)
         archive_path = self.get_archive_path(editor_channel)
-        release = s3.get_single_release(archive_path, tag_name)
-        release_to_steam.release(self, tag_name, release)
+        urls = self.get_editor_urls_from_s3(archive_path, tag_name)
+        release_to_steam.release(self, urls)
+
+
+    # Use with ./scripts/build.py release_to_egs --version=1.4.8
+    def release_to_egs(self):
+        editor_channel = "editor-alpha"
+        engine_channel = "stable"
+        tag_name = self.compose_tag_name(self.version, engine_channel)
+        archive_path = self.get_archive_path(editor_channel)
+        urls = self.get_editor_urls_from_s3(archive_path, tag_name)
+        release_to_egs.release(self, urls, tag_name)
 
 #
 # END: RELEASE

@@ -32,6 +32,7 @@
             [editor.editor-extensions.prefs-functions :as prefs-functions]
             [editor.editor-extensions.runtime :as rt]
             [editor.editor-extensions.ui-components :as ui-components]
+            [editor.editor-extensions.zip :as zip]
             [editor.fs :as fs]
             [editor.future :as future]
             [editor.graph-util :as gu]
@@ -45,7 +46,8 @@
             [editor.system :as system]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
-            [util.eduction :as e])
+            [util.eduction :as e]
+            [util.http-client :as http])
   (:import [com.dynamo.bob Platform]
            [com.dynamo.bob.bundle BundleHelper]
            [java.io PrintStream PushbackReader]
@@ -503,6 +505,42 @@
                    (.print out (str v)))))
               lua-values)))))
 
+;; region http
+
+(def http-request-options-coercer
+  (coerce/one-of
+    (coerce/hash-map
+      :opt {:method coerce/string
+            :headers (coerce/map-of coerce/string coerce/string)
+            :body coerce/string
+            :as (coerce/enum :string :json)}
+      :extra-keys false)
+    coerce/null))
+
+(def ext-http-request
+  (rt/suspendable-lua-fn ext-http-request
+    ([ctx lua-url]
+     (ext-http-request ctx lua-url nil))
+    ([{:keys [rt]} lua-url maybe-lua-options]
+     (let [options (some->> maybe-lua-options (rt/->clj rt http-request-options-coercer))
+           json (= :json (:as options))]
+       (try
+         (-> (http/request
+               (rt/->clj rt coerce/string lua-url)
+               (cond-> options json (assoc :as :input-stream)))
+             (future/then
+               (fn http-request-then [response]
+                 (cond-> response json (assoc :body (with-open [reader (io/reader (:body response))]
+                                                      (json/read reader))))))
+             (future/catch
+               (fn http-request-catch [e]
+                 (throw (LuaError. (str (or (ex-message e) (.getSimpleName (class e)))))))))
+         ;; we might get an exception when parsing the URI before we start the async request execution
+         (catch Throwable e
+           (throw (LuaError. (str (or (ex-message e) (.getSimpleName (class e))))))))))))
+
+;; endregion
+
 ;; endregion
 
 ;; region language servers
@@ -767,6 +805,7 @@
                                "version" (system/defold-version)
                                "engine_sha1" (system/defold-engine-sha1)
                                "editor_sha1" (system/defold-editor-sha1)}
+                     "http" {"request" ext-http-request}
                      "json" {"decode" ext-json-decode
                              "encode" ext-json-encode}
                      "io" {"tmpfile" nil}
@@ -776,7 +815,8 @@
                            "rename" nil
                            "setlocale" nil
                            "tmpname" nil}
-                     "pprint" ext-pprint})
+                     "pprint" ext-pprint
+                     "zip" (zip/env project-path reload-resources!)})
           _ (rt/invoke-immediate rt (rt/bind rt prelude-prototype) evaluation-context)
           new-state (re-create-ext-state
                       (assoc opts

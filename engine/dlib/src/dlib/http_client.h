@@ -67,9 +67,16 @@ namespace dmHttpClient
      * @param status_code Status code, eg 200
      * @param content_data Content data
      * @param content_data_size Content data size
+     * @param content_length The content length to receive (possibly in multiple callbacks)
+     * @param range_start The start byte offset into the original file
+     * @param range_end The end byte offset into the original file (inclusive)
+     * @param document_size The full size of the document
      * @param method The method of the request.
      */
-    typedef void (*HttpContent)(HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_size, const char* method);
+    typedef void (*HttpContent)(HResponse response, void* user_data, int status_code,
+                                const void* content_data, uint32_t content_data_size, int32_t content_length,
+                                uint32_t range_start, uint32_t range_end, uint32_t document_size,
+                                const char* method);
 
     /**
      * HTTP content-length callback. Invoked for POST-request prior to HttpWrite-callback to determine content-length

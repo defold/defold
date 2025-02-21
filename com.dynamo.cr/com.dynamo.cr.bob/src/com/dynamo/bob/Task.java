@@ -127,6 +127,8 @@ public class Task {
         return inputs.get(0);
     }
 
+    public IResource lastInput() { return inputs.get(inputs.size() - 1); }
+
     public List<IResource> getOutputs() {
         return Collections.unmodifiableList(outputs);
     }
