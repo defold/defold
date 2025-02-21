@@ -286,6 +286,11 @@ namespace dmGameSystem
                         uint32_t child = cell_x + tile_grid_resource->m_ColumnCount * cell_y;
                         uint16_t group = GetGroupBitIndex(&world->m_BaseWorld, texture_set_resource->m_HullCollisionGroups[tile], false);
 
+                        if (group != 0)
+                        {
+                            dmPhysics::CreateGridCellShape(component->m_Object2D, i, child);
+                        }
+
                         dmPhysics::SetCollisionObjectFilter(world->m_World2D, component->m_Object2D, i, child, group, component->m_BaseComponent.m_Mask);
                     }
                 }
@@ -1302,7 +1307,6 @@ namespace dmGameSystem
             case dmPhysicsDDF::CollisionShape::TYPE_SPHERE:
             {
                 dmPhysics::SetCollisionShapeRadius2D(world->m_World2D, shape2d, shape_info->m_SphereDiameter * 0.5f);
-                dmPhysics::SynchronizeObject2D(world->m_World2D, component->m_Object2D);
             } break;
             case dmPhysicsDDF::CollisionShape::TYPE_BOX:
             {

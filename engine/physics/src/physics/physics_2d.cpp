@@ -926,9 +926,12 @@ namespace dmPhysics
 
     static int GetGridCellVertices(GridShapeData* shape_data, int index, b2Vec2* vertices)
     {
-        // TODO: SHould the shape data have an "enabled" flag?
-        // if (!m_enabled)
-        //     return false;
+        // Original code checked if the shape was enabled, but I'm not sure we can do that now.
+        //
+        // if (!b2Body_IsEnabled(shape_data->m_CellBodyId))
+        // {
+        //     return 0;
+        // }
 
         const GridShapeData::Cell& cell = shape_data->m_Cells[index];
         if (cell.m_Index == B2GRIDSHAPE_EMPTY_CELL)
@@ -992,18 +995,25 @@ namespace dmPhysics
         return hull.m_Count;
     }
 
-    static void CreateGridCellShape(GridShapeData* shape_data, b2BodyId body_id, b2ShapeDef* def, int child)
+    void CreateGridCellShape(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t child)
     {
+        Body* body = (Body*) collision_object;
+        GridShapeData* shape_data = GetGridShapeData(body, shape_index);
+
         HullSet::Hull& hull = shape_data->m_HullSet->m_Hulls[shape_data->m_Cells[child].m_Index];
         assert(hull.m_Count <= B2_MAX_POLYGON_VERTICES);
 
         b2Vec2 vertices[B2_MAX_POLYGON_VERTICES];
         uint32_t count = GetGridCellVertices(shape_data, child, vertices);
 
-        b2Hull polygon_hull = b2ComputeHull(vertices, count);
-        b2Polygon polygon = b2MakePolygon(&polygon_hull, shape_data->m_Radius);
+        if (count > 0)
+        {
+            b2Hull polygon_hull = b2ComputeHull(vertices, count);
+            b2Polygon polygon = b2MakePolygon(&polygon_hull, shape_data->m_Radius);
 
-        shape_data->m_CellPolygonShapes[child] = b2CreatePolygonShape(body_id, def, &polygon);
+            assert(ToOpaqueHandle(shape_data->m_CellPolygonShapes[child]) == 0);
+            shape_data->m_CellPolygonShapes[child] = b2CreatePolygonShape(shape_data->m_CellBodyId, &shape_data->m_ShapeDef, &polygon);
+        }
     }
 
     bool SetGridShapeHull(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t row, uint32_t column, uint32_t hull, HullFlags flags)
@@ -1036,7 +1046,7 @@ namespace dmPhysics
             {
                 if (cell->m_Index != B2GRIDSHAPE_EMPTY_CELL)
                 {
-                    // TODO!
+                    // JG: Should we remove the shape here or not? Destroying shapes is kinda expensive I think
                     assert(0 && "TODO!");
                 }
                 cell->m_Index = B2GRIDSHAPE_EMPTY_CELL;
@@ -1055,28 +1065,15 @@ namespace dmPhysics
             return false;
         }
 
-        // Not sure what the equivalent of this is now..
-
-        /*
-        b2Body* body = (b2Body*) collision_object;
-        b2Fixture* fixture = GetFixture(body, shape_index);
-        if (fixture == 0)
+        // Enabling / disabling grid shapes will set the flag on the cell body and not the "main" body
+        if (enable && !b2Body_IsEnabled(shape_data->m_CellBodyId))
         {
-            return false;
+            b2Body_Enable(shape_data->m_CellBodyId);
         }
-        b2GridShape* grid_shape = GetGridShape(body, shape_index);
-        if (grid_shape == 0)
+        else if (!enable && b2Body_IsEnabled(shape_data->m_CellBodyId))
         {
-            return false;
+            b2Body_Disable(shape_data->m_CellBodyId);
         }
-        grid_shape->m_enabled = enable;
-
-        if (!enable)
-        {
-            body->PurgeContacts(fixture);
-        }
-        return true;
-        */
         return false;
     }
 
@@ -1096,8 +1093,7 @@ namespace dmPhysics
         {
             GridShapeData* grid_shape = (GridShapeData*) shape_data;
 
-            // 0 is not a valid group (I THINK!), so if we have created a polygon shape already,
-            // we need to remove it.
+            // 0 is not a valid group, so if we have created a polygon shape already, we need to remove it.
             if (group == 0)
             {
                 if (grid_shape->m_Cells[child].m_Index == B2GRIDSHAPE_EMPTY_CELL)
@@ -1107,9 +1103,6 @@ namespace dmPhysics
             }
             else
             {
-                // This should perhaps be lifted out to a separate function that can be called from the component?
-                CreateGridCellShape(grid_shape, body->m_BodyId, &grid_shape->m_ShapeDef, child);
-
                 b2Filter filter = b2Shape_GetFilter(grid_shape->m_CellPolygonShapes[child]);
                 filter.categoryBits = group;
                 filter.maskBits = mask;
@@ -1231,10 +1224,6 @@ namespace dmPhysics
                 }
 
                 MakePolygonFromVertices(poly_shape_prim, tmp, n);
-
-                // b2Hull polygon_hull = b2ComputeHull(tmp, n);
-                // poly_shape_prim->m_Polygon = b2MakePolygon(&polygon_hull, 0.0f);
-
                 ret = (ShapeData*) poly_shape_prim;
             } break;
             case SHAPE_TYPE_GRID:
@@ -1289,6 +1278,9 @@ namespace dmPhysics
                         b2DestroyShape(grid_shape->m_CellPolygonShapes[i], false);
                     }
                 }
+
+                b2DestroyBody(grid_shape->m_CellBodyId);
+
                 delete grid_shape;
             } break;
             default: break;
@@ -1362,23 +1354,20 @@ namespace dmPhysics
                 def.type = b2_kinematicBody;
                 break;
         }
-        def.userData = data.m_UserData;
-        def.linearDamping = data.m_LinearDamping;
-        def.angularDamping = data.m_AngularDamping;
-        def.fixedRotation = data.m_LockedRotation;
-        def.isBullet = data.m_Bullet;
-        def.isEnabled = data.m_Enabled;
+        def.userData        = data.m_UserData;
+        def.linearDamping   = data.m_LinearDamping;
+        def.angularDamping  = data.m_AngularDamping;
+        def.fixedRotation   = data.m_LockedRotation;
+        def.isBullet        = data.m_Bullet;
+        def.isEnabled       = data.m_Enabled;
+        b2BodyId bodyId     = b2CreateBody(world->m_WorldId, &def);
 
-        b2BodyId bodyId = b2CreateBody(world->m_WorldId, &def);
-
-        Body* body = new Body();
-        body->m_BodyId = bodyId;
-        body->m_Shapes = (ShapeData**) malloc(shape_count * sizeof(ShapeData*));
+        Body* body         = new Body();
+        body->m_BodyId     = bodyId;
+        body->m_Shapes     = (ShapeData**) malloc(shape_count * sizeof(ShapeData*));
         body->m_ShapeCount = shape_count;
 
-        // b2Body* body = world->m_World.CreateBody(&def);
         Vector3 zero_vec3 = Vector3(0);
-
         for (uint32_t i = 0; i < shape_count; ++i) {
             // Add shapes in reverse order. The fixture list in the body
             // is a single linked list and cells are prepended.
@@ -1420,9 +1409,10 @@ namespace dmPhysics
                 case SHAPE_TYPE_GRID:
                 {
                     GridShapeData* g = (GridShapeData*) s;
-
                     // Grid polygons are created later, so we need to store the definition for later.
                     memcpy(&g->m_ShapeDef, &f_def, sizeof(b2ShapeDef));
+
+                    g->m_CellBodyId = b2CreateBody(world->m_WorldId, &def);
                 } break;
                 default:assert(0);
             }
@@ -1449,24 +1439,25 @@ namespace dmPhysics
         // See comment above about shapes and transforms
 
         Body* body = (Body*) collision_object;
-        uint64_t opaque_id = ToOpaqueHandle(body->m_BodyId);
 
         for (int i = 0; i < body->m_ShapeCount; ++i)
         {
             FreeShape(body->m_Shapes[i]);
         }
 
-        b2DestroyBody(body->m_BodyId);
-
-        uint32_t num_bodies = world->m_Bodies.Size();
-        for (int i = 0; i < num_bodies; ++i)
+        if (ToOpaqueHandle(body->m_BodyId))
         {
-            Body* other = world->m_Bodies[i];
-            uint64_t opaque_id_other = ToOpaqueHandle(other->m_BodyId);
-            if (opaque_id == opaque_id_other)
+            b2DestroyBody(body->m_BodyId);
+
+            uint32_t num_bodies = world->m_Bodies.Size();
+            for (int i = 0; i < num_bodies; ++i)
             {
-                world->m_Bodies.EraseSwap(i);
-                break;
+                Body* other = world->m_Bodies[i];
+                if (body == other)
+                {
+                    world->m_Bodies.EraseSwap(i);
+                    break;
+                }
             }
         }
     }
@@ -1505,12 +1496,6 @@ namespace dmPhysics
         shape->m_ShapeDataBase.m_CreationScale = shape->m_Circle.radius;
 
         b2Shape_SetCircle(shape->m_ShapeDataBase.m_ShapeId, &shape->m_Circle);
-    }
-
-    void SynchronizeObject2D(HWorld2D world, HCollisionObject2D collision_object)
-    {
-        // I think this can be removed now
-        // ((b2Body*)collision_object)->SynchronizeFixtures();
     }
 
     void SetCollisionShapeBoxDimensions2D(HWorld2D world, HCollisionShape2D _shape, Quat rotation, float w, float h)
@@ -1680,7 +1665,10 @@ namespace dmPhysics
 
         Body* body = (Body*) collision_object;
 
-        b2Body_Enable(body->m_BodyId);
+        if (enabled)
+            b2Body_Enable(body->m_BodyId);
+        else
+            b2Body_Disable(body->m_BodyId);
 
         if (enabled)
         {
