@@ -355,7 +355,7 @@ public class Project {
                             extToBuilder.put(inExt, (Class<? extends Builder>) klass);
                             inextToOutext.put(inExt, builderParams.outExt());
                         }
-                        Builder.addProtoDigest(klass, this, builderParams);
+                        Builder.addParamsDigest(klass, this.getOptions(), builderParams);
                         ProtoParams protoParams = klass.getAnnotation(ProtoParams.class);
                         if (protoParams != null) {
                             ProtoBuilder.addMessageClass(builderParams.outExt(), protoParams.messageClass());
