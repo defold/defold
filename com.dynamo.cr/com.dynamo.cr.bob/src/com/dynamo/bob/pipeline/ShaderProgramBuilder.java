@@ -39,7 +39,7 @@ import com.dynamo.bob.pipeline.shader.SPIRVReflector;
 
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
-@BuilderParams(name="ShaderProgramBuilder", inExts= {".shbundle", ".shbundlec"}, outExt=".spc")
+@BuilderParams(name="ShaderProgramBuilder", inExts= {".shbundle", ".shbundlec"}, outExt=".spc", paramsForSignature = {"platform"})
 public class ShaderProgramBuilder extends Builder {
 
     static public class ShaderBuildResult {
