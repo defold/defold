@@ -169,7 +169,7 @@ namespace dmSound
         uint8_t     m_Playing : 1;
         uint8_t     m_ScaleDirty : 1;
         uint8_t     m_ScaleInit : 1;
-        uint8_t     : 4;
+        uint8_t     : 3;
         int8_t      m_Loopcounter; // if set to 3, there will be 3 loops effectively playing the sound 4 times.
     };
 
@@ -487,9 +487,7 @@ namespace dmSound
                 SoundGroup* g = &sound->m_Groups[i];
                 for(uint32_t c=0; c<SOUND_MAX_MIX_CHANNELS; ++c)
                 {
-                    if (g->m_MixBuffer[c]) {
-                        free((void*) g->m_MixBuffer[c]);
-                    }
+                    free((void*) g->m_MixBuffer[c]);
                 }
             }
 
