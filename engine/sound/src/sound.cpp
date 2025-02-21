@@ -254,6 +254,7 @@ namespace dmSound
         params->m_FrameCount = 0; // Let the sound system choose by default
         params->m_MaxInstances = 256;
         params->m_UseThread = true;
+        params->m_DSPImplementation = DSPIMPL_TYPE_DEFAULT;
     }
 
     Result RegisterDevice(struct DeviceType* device)
@@ -373,6 +374,15 @@ namespace dmSound
                 sound->m_DeviceFrameCount = GetDefaultFrameCount(device_info.m_MixRate);
             }
         }
+
+
+        // note: this will be an NoOp if the build target has DM_SOUND_EXPECTED_SIMD defined (compile-time implementation selection)
+        DSPImplType dsp_impl = params->m_DSPImplementation;
+        if (dsp_impl == DSPIMPL_TYPE_DEFAULT) {
+            dsp_impl = device_info.m_DSPImplementation;
+        }
+        SelectDSPImpl(dsp_impl);
+
 
         sound->m_FrameCount = sound->m_DeviceFrameCount;
         sound->m_MixRate = device_info.m_MixRate;
@@ -1114,12 +1124,12 @@ namespace dmSound
 
         if (channels == 1)
         {
-            frac = MixAndResampleMonoToStero_Polyphase(mix_buffer, g_SoundSystem->GetDecoderBufferBase(0), mix_buffer_count, frac, delta, scale_l[0], scale_r[0], scale_dl[0], scale_dr[0]);
+            frac = MixAndResampleMonoToStereo_Polyphase(mix_buffer, g_SoundSystem->GetDecoderBufferBase(0), mix_buffer_count, frac, delta, scale_l[0], scale_r[0], scale_dl[0], scale_dr[0]);
         }
         else
         {
             assert(channels == 2);
-            frac = MixAndResampleStereoToStero_Polyphase(mix_buffer, g_SoundSystem->GetDecoderBufferBase(0), g_SoundSystem->GetDecoderBufferBase(1), mix_buffer_count, frac, delta, scale_l[0], scale_r[0], scale_dl[0], scale_dr[0],
+            frac = MixAndResampleStereoToStereo_Polyphase(mix_buffer, g_SoundSystem->GetDecoderBufferBase(0), g_SoundSystem->GetDecoderBufferBase(1), mix_buffer_count, frac, delta, scale_l[0], scale_r[0], scale_dl[0], scale_dr[0],
                                                                                                                                                                                     scale_l[1], scale_r[1], scale_dl[1], scale_dr[1]);
         }
 

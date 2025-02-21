@@ -77,16 +77,26 @@ namespace dmSound
     struct InitializeParams;
     void SetDefaultInitializeParams(InitializeParams* params);
 
+    enum DSPImplType
+    {
+        DSPIMPL_TYPE_FALLBACK = 0,
+        DSPIMPL_TYPE_SSE2 = 1,
+        DSPIMPL_TYPE_WASM_SIMD128 = 2,
+
+        DSPIMPL_TYPE_DEFAULT = -1,
+    };
+
     struct InitializeParams
     {
-        const char* m_OutputDevice;
-        float    m_MasterGain;
-        uint32_t m_MaxSoundData;
-        uint32_t m_MaxSources;
-        uint32_t m_MaxBuffers;
-        uint32_t m_FrameCount;
-        uint32_t m_MaxInstances;
-        bool     m_UseThread;
+        const char*  m_OutputDevice;
+        float        m_MasterGain;
+        uint32_t     m_MaxSoundData;
+        uint32_t     m_MaxSources;
+        uint32_t     m_MaxBuffers;
+        uint32_t     m_FrameCount;
+        uint32_t     m_MaxInstances;
+        bool         m_UseThread;
+        DSPImplType  m_DSPImplementation;
 
         InitializeParams()
         {
@@ -180,6 +190,7 @@ namespace dmSound
     {
         uint32_t m_MixRate;
         uint32_t m_FrameCount; // If != 0, the max size of the audio buffer
+        DSPImplType m_DSPImplementation;
     };
 
     /**
