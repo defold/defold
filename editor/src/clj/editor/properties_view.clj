@@ -570,8 +570,8 @@
                                     (properties/validation-message property)
                                     (properties/read-only? property))))
         commit-fn (fn [_]
-                    (let [c (try (Color/valueOf (ui/text text))
-                                 (catch Exception _e (cancel-fn nil)))]
+                    (when-let [c (try (Color/valueOf (ui/text text))
+                                      (catch Exception _e (cancel-fn nil)))]
                       (set-color-value! (property-fn) (:ignore-alpha? edit-type) c)))]
     (doto text
       (HBox/setHgrow Priority/ALWAYS)
