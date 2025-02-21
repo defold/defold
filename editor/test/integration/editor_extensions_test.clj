@@ -883,7 +883,7 @@ POST http://localhost:23456/echo hello world! as string => 200
           (.stop server))))))
 
 (deftest zip-test
-  (test-util/with-loaded-project "test/resources/editor_extensions/zip_project"
+  (test-util/with-scratch-project "test/resources/editor_extensions/zip_project"
     (let [output (atom [])
           root (g/node-value workspace :root)
           list-entries (fn list-entries [path-str]
@@ -917,7 +917,7 @@ POST http://localhost:23456/echo hello world! as string => 200
               [:out "zip.pack(\"multiple.zip\", {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", {\"game.project\", \"settings.ini\"}}) => ok"]
               ;; Pack a file from outside the project
               [:out "Outside:"]
-              [:out "zip.pack(\"outside.zip\", {{\"../../../../project.clj\", \"project.clj\"}}) => ok"]
+              [:out (str "zip.pack(\"outside.zip\", {{\"" (System/getenv "PWD") "/project.clj\", \"project.clj\"}}) => ok")]
               ;; Pack using stored compression method
               [:out "Stored method:"]
               [:out "zip.pack(\"stored.zip\", {method = \"stored\"}, {\"foo\"}) => ok"]

@@ -23,6 +23,8 @@
            [org.apache.commons.compress.archivers.zip ZipArchiveEntry ZipArchiveOutputStream]
            [org.luaj.vm2 LuaError LuaValue]))
 
+(set! *warn-on-reflection* true)
+
 (def common-opts
   {:method (coerce/enum :deflated :stored)
    :level (coerce/wrap-with-pred coerce/integer #(<= 0 % 9) "should be between 0 and 9")})

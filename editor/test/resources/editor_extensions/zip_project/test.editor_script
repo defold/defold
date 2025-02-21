@@ -57,7 +57,7 @@ function M.get_commands()
             print("Multiple:")
             test("multiple.zip", {"foo", {"foo", "bar"}, ".gitignore", {"game.project", "settings.ini"}})
             print("Outside:")
-            test("outside.zip", {{"../../../../project.clj", "project.clj"}})
+            test("outside.zip", {{os.getenv("PWD") .. "/project.clj", "project.clj"}})
             print("Stored method:")
             test("stored.zip", {method = zip.METHOD.STORED}, {"foo"})
             for i = 0, 9 do
