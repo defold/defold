@@ -23,6 +23,10 @@ def build(bld):
         glfw_lib = ['DMGLFW']
         glfw_js = '%s/ext/lib/%s/js/library_glfw.js' % (bld.env.DYNAMO_HOME, bld.env.PLATFORM)
 
+        if platform_supports_feature(bld.env.PLATFORM, 'opengles', {}):
+            graphics_libs = ['GRAPHICS_OPENGLES', 'graphics_transcoder_basisu']
+            extra_symbols = ['GraphicsAdapterOpenGLES']
+
         if bld.env.PLATFORM in ('armv7-android', 'arm64-android'):
             extra_libs += ['OPENGL', 'graphics']
             extra_symbols += ['GraphicsAdapterOpenGL']
