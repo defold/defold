@@ -51,9 +51,12 @@ namespace dmSound
     {
         inline void Reset(float value)
         {
-            // NOTE: We always ramp from zero to x. Otherwise we can
-            // get initial clicks when playing sounds
-            m_Prev = 0.0f;
+            // note: we do NOT always start at zero for values as...
+            // - orderly authored samples should start at zero (or very close to it)
+            // - if coming back from a "skip" we could start at non-zero, but almost all cases for this involve a volume ramp up anyways as they are triggered by zero gain values (only skip by speed=0 could click)
+            // - for panning values this would make for at times very unwanted behavior
+            // - for samples it basically wold make it impossible to have a "punshy" start as we'd always need quite a few samples to reach full (intended) amplitude
+            m_Prev = value;
             m_Current = value;
             m_Next = value;
         }
