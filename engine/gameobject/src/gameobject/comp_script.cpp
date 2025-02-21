@@ -33,7 +33,7 @@ extern "C"
 }
 
 DM_PROPERTY_EXTERN(rmtp_GameObject);
-DM_PROPERTY_U32(rmtp_ScriptCount, 0, FrameReset, "# components", &rmtp_GameObject);
+DM_PROPERTY_U32(rmtp_ScriptCount, 0, PPF_FRAME_RESET, "# components", &rmtp_GameObject);
 
 namespace dmGameObject
 {
