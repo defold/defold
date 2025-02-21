@@ -190,7 +190,9 @@ namespace dmPlatform
     bool           GetDeviceState(HWindow window, DeviceState state);
     bool           GetDeviceState(HWindow window, DeviceState state, int32_t op1);
 
+    void           SetWindowTitle(HWindow window, const char* title);
     void           SetWindowSize(HWindow window, uint32_t width, uint32_t height);
+    void           SetWindowPosition(HWindow window, int32_t x, int32_t y);
     void           SetSwapInterval(HWindow window, uint32_t swap_interval);
     void           SetKeyboardCharCallback(HWindow window, WindowAddKeyboardCharCallback cb, void* user_data);
     void           SetKeyboardMarkedTextCallback(HWindow window, WindowSetMarkedTextCallback cb, void* user_data);

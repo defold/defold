@@ -1203,6 +1203,17 @@ static uint32_t WebGPUGetHeight(HContext _context)
     return context->m_OriginalHeight;
 }
 
+static void WebGPUSetWindowTitle(HContext _context, const char* title)
+{
+    TRACE_CALL;
+    assert(_context);
+    WebGPUContext* context = (WebGPUContext*)_context;
+    if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
+    {
+        dmPlatform::SetWindowTitle(context->m_Window, title);
+    }
+}
+
 static void WebGPUSetWindowSize(HContext _context, uint32_t width, uint32_t height)
 {
     TRACE_CALL;
@@ -1213,6 +1224,17 @@ static void WebGPUSetWindowSize(HContext _context, uint32_t width, uint32_t heig
         context->m_Width  = width;
         context->m_Height = height;
         dmPlatform::SetWindowSize(context->m_Window, width, height);
+    }
+}
+
+static void WebGPUSetWindowPosition(HContext _context, int32_t x, int32_t y)
+{
+    TRACE_CALL;
+    assert(_context);
+    WebGPUContext* context = (WebGPUContext*)_context;
+    if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
+    {
+        dmPlatform::SetWindowPosition(context->m_Window, x, y);
     }
 }
 
