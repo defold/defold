@@ -579,6 +579,8 @@ TEST_P(dmSoundVerifyTest, Mix)
     const int n = (int)(frame_count * (f / mix_rate));
     const double level = sin(M_PI_4);                       // center panning introduces this
 
+    assert(g_LoopbackDevice->m_AllOutput.Size() >= n * 2);
+
     uint64_t delta = (uint64_t)(mix_rate * (1UL << dmSound::RESAMPLE_FRACTION_BITS) / f);
     uint64_t pos = 0;
     for (int32_t i = 0; i < n - 1; i++) {
@@ -586,7 +588,7 @@ TEST_P(dmSoundVerifyTest, Mix)
         double a = GenAndMixTone(pos, params.m_ToneRate, mix_rate, f, frame_count, false, level);
         pos += delta;
 
-        int16_t as = (int16_t) a;
+        int16_t as = (int16_t)dmMath::Clamp(a, -32768.0, 32767.0);
 
         ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i], as, 27);
         ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i + 1], as, 27);
