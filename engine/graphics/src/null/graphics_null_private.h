@@ -103,7 +103,6 @@ namespace dmGraphics
 
     struct NullShaderModule
     {
-        ShaderMeta           m_ShaderMeta;
         char*                m_Data;
         ShaderDesc::Language m_Language;
     };

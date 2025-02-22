@@ -76,13 +76,11 @@ namespace dmRender
     RenderContextParams::RenderContextParams()
     : m_ScriptContext(0x0)
     , m_SystemFontMap(0)
-    , m_VertexShaderDesc(0x0)
-    , m_FragmentShaderDesc(0x0)
+    , m_ShaderProgramDesc(0x0)
     , m_MaxRenderTypes(0)
     , m_MaxInstances(0)
     , m_MaxRenderTargets(0)
-    , m_VertexShaderDescSize(0)
-    , m_FragmentShaderDescSize(0)
+    , m_ShaderProgramDescSize(0)
     , m_MaxCharacters(0)
     , m_CommandBufferSize(1024)
     , m_MaxDebugVertexCount(0)
@@ -122,9 +120,8 @@ namespace dmRender
         context->m_CallbackInfo = 0x0;
 
         context->m_DebugRenderer.m_RenderContext = 0;
-        if (params.m_VertexShaderDesc != 0 && params.m_VertexShaderDescSize != 0 &&
-            params.m_FragmentShaderDesc != 0 && params.m_FragmentShaderDescSize != 0) {
-            InitializeDebugRenderer(context, params.m_MaxDebugVertexCount, params.m_VertexShaderDesc, params.m_VertexShaderDescSize, params.m_FragmentShaderDesc, params.m_FragmentShaderDescSize);
+        if (params.m_ShaderProgramDesc != 0 && params.m_ShaderProgramDescSize != 0) {
+            InitializeDebugRenderer(context, params.m_MaxDebugVertexCount, params.m_ShaderProgramDesc, params.m_ShaderProgramDescSize);
         }
 
         InitializeTextContext(context, params.m_MaxCharacters, params.m_MaxBatches);
@@ -712,9 +709,12 @@ namespace dmRender
     void SetTextureBindingByHash(dmRender::HRenderContext render_context, dmhash_t sampler_hash, dmGraphics::HTexture texture)
     {
         uint32_t num_bindings = render_context->m_TextureBindTable.Size();
+        int32_t first_free_index = -1;
+
+        // First pass
+        // Check if the the sampler is already bound to this texture, if so we reuse or unbind the current binding
         for (int i = 0; i < num_bindings; ++i)
         {
-            // The sampler is already bound to this texture, reuse or unbind the current binding
             if (render_context->m_TextureBindTable[i].m_Samplerhash == sampler_hash)
             {
                 if (texture == 0)
@@ -724,21 +724,33 @@ namespace dmRender
                 render_context->m_TextureBindTable[i].m_Texture = texture;
                 return;
             }
-            // Take an empty slot if we can find one
-            else if (render_context->m_TextureBindTable[i].m_Texture == 0)
+            // Store the free index for later
+            else if (render_context->m_TextureBindTable[i].m_Texture == 0 && first_free_index == -1)
             {
-                render_context->m_TextureBindTable[i].m_Texture     = texture;
-                render_context->m_TextureBindTable[i].m_Samplerhash = sampler_hash;
-                return;
+                first_free_index = i;
             }
         }
 
+        // If we are unassigning the sampler, but it wasn't found we can exit here.
+        if (texture == 0)
+        {
+            return;
+        }
+
+        // Take the first free index we found
+        if (first_free_index != -1)
+        {
+            render_context->m_TextureBindTable[first_free_index].m_Texture     = texture;
+            render_context->m_TextureBindTable[first_free_index].m_Samplerhash = sampler_hash;
+            return;
+        }
+
+        // Otherwise, we add a new binding to the end of the list
         if (render_context->m_TextureBindTable.Full())
         {
             render_context->m_TextureBindTable.OffsetCapacity(4);
         }
 
-        // Otherwise, we add a new binding to the end of the list
         TextureBinding new_binding;
         new_binding.m_Samplerhash = sampler_hash;
         new_binding.m_Texture     = texture;

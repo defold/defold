@@ -46,13 +46,43 @@ public class ComputeBuilder extends ProtoBuilder<ComputeDesc.Builder> {
         }
     }
 
+    private IResource getShaderProgram(ComputeDesc.Builder fromBuilder) {
+        String shaderPath = BuilderUtil.replaceExt(fromBuilder.getComputeProgram(), ".cp", ShaderProgramBuilderBundle.EXT);
+        return this.project.getResource(shaderPath);
+    }
+
+    @Override
+    public Task create(IResource input) throws IOException, CompileExceptionError {
+        ComputeDesc.Builder computeBuilder = getSrcBuilder(input);
+
+        // The material should depend on the finally built shader resource file
+        // that is a combination of one or more shader modules
+        IResource shaderResourceOut = getShaderProgram(computeBuilder);
+
+        ShaderProgramBuilderBundle.ModuleBundle modules = ShaderProgramBuilderBundle.createBundle();
+        modules.addModule(computeBuilder.getComputeProgram());
+        shaderResourceOut.setContent(modules.toByteArray());
+
+        Task.TaskBuilder computeTaskBuilder = Task.newBuilder(this)
+                .setName(params.name())
+                .addInput(input)
+                .addOutput(input.changeExt(params.outExt()));
+
+        createSubTask(shaderResourceOut, computeTaskBuilder);
+
+        return computeTaskBuilder.build();
+    }
+
+
     @Override
     public void build(Task task) throws CompileExceptionError, IOException {
         IResource res = task.firstInput();
         ComputeDesc.Builder computeBuilder = getSrcBuilder(res);
 
         BuilderUtil.checkResource(this.project, res, "compute program", computeBuilder.getComputeProgram());
-        computeBuilder.setComputeProgram(BuilderUtil.replaceExt(computeBuilder.getComputeProgram(), ".cp", ".cpc"));
+        IResource shaderResourceOut = getShaderProgram(computeBuilder);
+
+        computeBuilder.setComputeProgram("/" + BuilderUtil.replaceExt(shaderResourceOut.getPath(), ".spc"));
 
         buildSamplers(computeBuilder);
 
@@ -61,27 +91,25 @@ public class ComputeBuilder extends ProtoBuilder<ComputeDesc.Builder> {
     }
 
     // Running standalone:
-    // java -classpath $DYNAMO_HOME/share/java/bob-light.jar com.dynamo.bob.pipeline.computeBuilder <path-in.compute> <path-out.computec>
+    // java -classpath $DYNAMO_HOME/share/java/bob-light.jar com.dynamo.bob.pipeline.computeBuilder <path-in.compute> <path-in.compute_shader> <path-out.computec>
     public static void main(String[] args) throws IOException, CompileExceptionError {
 
         System.setProperty("java.awt.headless", "true");
 
-        Reader reader       = new BufferedReader(new FileReader(args[0]));
-        OutputStream output = new BufferedOutputStream(new FileOutputStream(args[1]));
+        String pathIn = args[0];
+        String nameSpc = args[1];
+        String pathOut = args[2];
 
-        try {
+        try (Reader reader = new BufferedReader(new FileReader(pathIn)); OutputStream output = new BufferedOutputStream(new FileOutputStream(pathOut))) {
             ComputeDesc.Builder computeBuilder = ComputeDesc.newBuilder();
             TextFormat.merge(reader, computeBuilder);
 
-            computeBuilder.setComputeProgram(BuilderUtil.replaceExt(computeBuilder.getComputeProgram(), ".cp", ".cpc"));
+            computeBuilder.setComputeProgram(nameSpc);
 
             buildSamplers(computeBuilder);
 
             ComputeDesc ComputeDesc = computeBuilder.build();
             ComputeDesc.writeTo(output);
-        } finally {
-            reader.close();
-            output.close();
         }
     }
 }

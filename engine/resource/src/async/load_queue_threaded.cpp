@@ -198,12 +198,6 @@ namespace dmLoadQueue
         *buffer_size    = request->m_Buffer.Size();
         *resource_size  = request->m_ResourceSize;
         *load_result    = request->m_Result;
-
-        if (load_result->m_IsBufferOwnershipTransferred)
-        {
-            // we reset the dmArray (size = 0, capacity = 0)
-            memset((void*)&request->m_Buffer, 0, sizeof(request->m_Buffer));
-        }
         return RESULT_OK;
     }
 
@@ -213,11 +207,18 @@ namespace dmLoadQueue
 
         uint32_t old_bytes_waiting = queue->m_BytesWaiting;
 
+        uint32_t buffer_capacity = request->m_Buffer.Capacity();
+        queue->m_BytesWaiting -= buffer_capacity;
+
+        if (request->m_Result.m_IsBufferOwnershipTransferred)
+        {
+            // we reset the dmArray (size = 0, capacity = 0)
+            memset((void*)&request->m_Buffer, 0, sizeof(request->m_Buffer));
+        }
+
         // Make sure we don't copy any data if we reallocate the buffer
         request->m_Buffer.SetSize(0);
 
-        uint32_t buffer_capacity = request->m_Buffer.Capacity();
-        queue->m_BytesWaiting -= buffer_capacity;
         // If we either have blocked further processing by exceeding MAX_PENDING_DATA or
         // the buffer has a non-default capacity, we want to wake up the worker
         if (buffer_capacity != DEFAULT_CAPACITY || (old_bytes_waiting >= MAX_PENDING_DATA && queue->m_BytesWaiting < MAX_PENDING_DATA))

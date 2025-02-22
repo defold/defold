@@ -227,7 +227,7 @@
                         (.setExpanded true)))
   (ui/cell-factory! tree-view
                     (fn [item]
-                      (if (satisfies? resource/Resource item)
+                      (if (resource/resource? item)
                         {:text (resource/proj-path item)
                          :icon (workspace/resource-icon item)
                          :style (resource/style-classes item)}
@@ -249,7 +249,7 @@
 (defn- resolve-search-in-files-tree-view-selection [selection]
   (into []
         (keep (fn [item]
-                (if (satisfies? resource/Resource item)
+                (if (resource/resource? item)
                   (when (resource/exists? item)
                     [item {}])
                   (let [resource (:resource item)]

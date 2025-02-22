@@ -279,10 +279,9 @@ namespace dmRender
         SetProgramConstantValues(graphics_context, material->m_Program, total_constants_count, material->m_NameHashToLocation, material->m_Constants, material->m_Samplers);
     }
 
-    HMaterial NewMaterial(dmRender::HRenderContext render_context, dmGraphics::HVertexProgram vertex_program, dmGraphics::HFragmentProgram fragment_program)
+    HMaterial NewMaterial(dmRender::HRenderContext render_context, dmGraphics::HProgram program)
     {
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
-        dmGraphics::HProgram program          = dmGraphics::NewProgram(graphics_context, vertex_program, fragment_program);
         if (!program)
         {
             return 0;
@@ -290,8 +289,6 @@ namespace dmRender
 
         Material* m                       = new Material;
         m->m_RenderContext                = render_context;
-        m->m_VertexProgram                = vertex_program;
-        m->m_FragmentProgram              = fragment_program;
         m->m_Program                      = program;
         m->m_VertexDeclarationShared      = 0;
         m->m_VertexDeclarationPerVertex   = 0;
@@ -308,7 +305,6 @@ namespace dmRender
     void DeleteMaterial(dmRender::HRenderContext render_context, HMaterial material)
     {
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
-        dmGraphics::DeleteProgram(graphics_context, material->m_Program);
         dmGraphics::DeleteVertexDeclaration(material->m_VertexDeclarationPerVertex);
 
         if (material->m_VertexDeclarationPerInstance)
@@ -356,16 +352,6 @@ namespace dmRender
     dmGraphics::HProgram GetMaterialProgram(HMaterial material)
     {
         return material->m_Program;
-    }
-
-    dmGraphics::HVertexProgram GetMaterialVertexProgram(HMaterial material)
-    {
-        return material->m_VertexProgram;
-    }
-
-    dmGraphics::HFragmentProgram GetMaterialFragmentProgram(HMaterial material)
-    {
-        return material->m_FragmentProgram;
     }
 
     void GetMaterialProgramAttributeMetadata(HMaterial material, dmGraphics::VertexAttributeInfoMetadata* metadata)

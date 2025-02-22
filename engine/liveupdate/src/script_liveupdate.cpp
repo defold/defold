@@ -18,7 +18,7 @@
 
 #include <dlib/log.h>
 #include <dlib/uri.h>
-#include <extension/extension.h>
+#include <extension/extension.hpp>
 #include <resource/resource_manifest.h>
 #include <resource/resource_mounts.h>
 #include <resource/resource_verify.h>

@@ -20,7 +20,7 @@ def remove_from_node_list(lst, name):
     return [x for x in lst if not has_ext(x, name)]
 
 def build(bld):
-    sources = bld.path.ant_glob(['*.cpp', 'resources/*.cpp', 'components/*.cpp', 'scripts/*.cpp']) + bld.path.parent.parent.ant_glob('proto/gamesys/*')
+    sources = bld.path.ant_glob(['*.cpp', 'resources/**/*.cpp', 'components/**/*.cpp', 'scripts/*.cpp']) + bld.path.parent.parent.ant_glob('proto/gamesys/*')
     sources = remove_from_node_list(sources, 'comp_model.cpp')
     sources = remove_from_node_list(sources, 'comp_model_null.cpp')
     sources = remove_from_node_list(sources, 'model_ddf.proto')

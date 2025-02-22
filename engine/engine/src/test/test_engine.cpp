@@ -49,8 +49,13 @@ static void TestEngienFinalize(void* _ctx)
     dmEngineFinalize();
 }
 
+static bool g_ExitRequested = false;
+static int  g_ExitCode = 0;
+
 static dmEngine::HEngine TestEngineCreate(int argc, char** argv)
 {
+    g_ExitRequested = false;
+
     dmEngine::HEngine engine = dmEngineCreate(argc, argv);
 
     if (g_PreRun)
@@ -70,12 +75,19 @@ static void TestEngineDestroy(dmEngine::HEngine engine)
 
 static dmEngine::UpdateResult TestEngineUpdate(dmEngine::HEngine engine)
 {
+    if (g_ExitRequested)
+    {
+        return dmEngine::RESULT_EXIT;
+    }
     return dmEngineUpdate(engine);
 }
 
 static void TestEngineGetResult(dmEngine::HEngine engine, int* run_action, int* exit_code, int* argc, char*** argv)
 {
     dmEngineGetResult(engine, run_action, exit_code, argc, argv);
+
+    g_ExitRequested = true;
+    g_ExitCode = *exit_code;
 }
 
 static int Launch(int argc, char *argv[], PreRun pre_run, PostRun post_run, void* context)
@@ -425,6 +437,13 @@ TEST_F(EngineTest, ISSUE_8672_timer)
 {
     char project_path[256];
     const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/issue-8672/issue-8672.collectionc", "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")};
+    ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0));
+}
+
+TEST_F(EngineTest, ISSUE_10119)
+{
+    char project_path[256];
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/issue-10119/issue-10119.collectionc", "--config=script.shared_state=1", MAKE_PATH(project_path, "/game.projectc")};
     ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0));
 }
 

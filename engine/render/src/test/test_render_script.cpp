@@ -57,7 +57,7 @@ static dmRender::FontGlyph* GetGlyph(uint32_t utf8, void* user_ctx)
     return &glyphs[utf8];
 }
 
-static void* GetGlyphData(uint32_t codepoint, void* user_ctx, uint32_t* out_size, uint32_t* out_compression, uint32_t* out_width, uint32_t* out_height)
+static void* GetGlyphData(uint32_t codepoint, void* user_ctx, uint32_t* out_size, uint32_t* out_compression, uint32_t* out_width, uint32_t* out_height, uint32_t* out_channels)
 {
     return 0;
 }
@@ -73,9 +73,10 @@ protected:
     dmRender::HMaterial          m_FontMaterial;
     dmRender::FontGlyph          m_Glyphs[128];
 
-    dmGraphics::HVertexProgram   m_VertexProgram;
-    dmGraphics::HFragmentProgram m_FragmentProgram;
-    dmGraphics::HComputeProgram  m_ComputeProgram;
+    dmGraphics::HProgram m_FontProgram;
+    dmGraphics::HProgram m_ComputeProgram;
+
+    dmRender::HComputeProgram m_Compute;
 
     virtual void SetUp()
     {
@@ -128,14 +129,14 @@ protected:
         params.m_MaxBatches = 128;
         m_Context = dmRender::NewRenderContext(m_GraphicsContext, params);
 
-        dmGraphics::ShaderDesc::Shader shader_ddf = dmGraphics::MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, "foo", 3);
-        dmGraphics::ShaderDesc vs_desc            = dmGraphics::MakeDDFShaderDesc(&shader_ddf, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, 0, 0, 0, 0, 0, 0, 0, 0);
-        dmGraphics::ShaderDesc fs_desc            = dmGraphics::MakeDDFShaderDesc(&shader_ddf, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, 0, 0, 0, 0, 0, 0, 0, 0);
+        dmGraphics::ShaderDescBuilder shader_desc_builder;
+        shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+        shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
 
-        m_VertexProgram = dmGraphics::NewVertexProgram(m_GraphicsContext, &vs_desc, 0, 0);
-        m_FragmentProgram = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fs_desc, 0, 0);
+        dmGraphics::ShaderDesc* shader_desc = shader_desc_builder.Get();
+        m_FontProgram = dmGraphics::NewProgram(m_GraphicsContext, shader_desc, 0, 0);
 
-        m_FontMaterial = dmRender::NewMaterial(m_Context, m_VertexProgram, m_FragmentProgram);
+        m_FontMaterial = dmRender::NewMaterial(m_Context, m_FontProgram);
         dmRender::SetFontMapMaterial(m_SystemFontMap, m_FontMaterial);
 
         const char* compute_program_src =
@@ -143,16 +144,18 @@ protected:
             "uniform vec4 tint;\n"
             "uniform sampler2D texture_sampler\n";
 
-        dmGraphics::ShaderDesc::Shader compute_shader_ddf = dmGraphics::MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430, compute_program_src, strlen(compute_program_src));
-        dmGraphics::ShaderDesc compute_desc = dmGraphics::MakeDDFShaderDesc(&compute_shader_ddf, dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE, 0, 0, 0, 0, 0, 0, 0, 0);
-        m_ComputeProgram = dmGraphics::NewComputeProgram(m_GraphicsContext, &compute_desc, 0, 0);
+        dmGraphics::ShaderDescBuilder compute_desc_builder;
+        compute_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430, compute_program_src, strlen(compute_program_src));
+        m_ComputeProgram = dmGraphics::NewProgram(m_GraphicsContext, compute_desc_builder.Get(), 0, 0);
+        m_Compute = dmRender::NewComputeProgram(m_Context, m_ComputeProgram);
     }
 
     virtual void TearDown()
     {
-        dmGraphics::DeleteVertexProgram(m_VertexProgram);
-        dmGraphics::DeleteFragmentProgram(m_FragmentProgram);
+        dmGraphics::DeleteProgram(m_GraphicsContext, m_FontProgram);
+        dmGraphics::DeleteProgram(m_GraphicsContext, m_ComputeProgram);
         dmRender::DeleteMaterial(m_Context, m_FontMaterial);
+        dmRender::DeleteComputeProgram(m_Context, m_Compute);
 
         dmGraphics::CloseWindow(m_GraphicsContext);
         dmRender::DeleteRenderContext(m_Context, 0);
@@ -246,7 +249,8 @@ TEST_F(dmRenderScriptTest, TestRenderScriptMaterial)
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
 
-    dmRender::HMaterial material = dmRender::NewMaterial(m_Context, m_VertexProgram, m_FragmentProgram);
+    dmRender::HMaterial material = dmRender::NewMaterial(m_Context, m_FontProgram);
+
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::InitRenderScriptInstance(render_script_instance));
     dmRender::AddRenderScriptInstanceRenderResource(render_script_instance, "test_material", (uint64_t) material, dmRender::RENDER_RESOURCE_TYPE_MATERIAL);
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
@@ -1098,7 +1102,9 @@ TEST_F(dmRenderScriptTest, TestLuaConstantBuffers_NestedStructs)
     /////////////////////////////
     const char* shader_src = "foo";
 
-    dmGraphics::ShaderDesc::ResourceTypeInfo types[2] = {};
+    dmGraphics::ShaderDescBuilder shader_desc_builder;
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, shader_src, strlen(shader_src));
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, shader_src, strlen(shader_src));
 
     dmGraphics::ShaderDesc::ResourceMember ubo_members[2] = {};
     ubo_members[0].m_Name                     = "color";
@@ -1111,27 +1117,20 @@ TEST_F(dmRenderScriptTest, TestLuaConstantBuffers_NestedStructs)
     ubo_members[1].m_Type.m_UseTypeIndex      = 1;
     ubo_members[1].m_Type.m_Type.m_TypeIndex  = 1;
 
-    // Configure type list
-    dmGraphics::FillShaderResourceWithMembers(&types[0], "ubo", ubo_members, 2);
-    dmGraphics::FillShaderResourceWithSingleTypeMember(&types[1], "color", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+    shader_desc_builder.AddTypeMemberWithMembers("ubo", ubo_members, 2);
+    shader_desc_builder.AddTypeMember("color", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
 
-    dmGraphics::ShaderDesc::ResourceBinding fs_uniforms[1] = {};
-    FillResourceBindingTypeIndex(&fs_uniforms[0], "ubo", 0, 0);
+    shader_desc_builder.AddUniform("ubo", 0, 0);
 
-    dmGraphics::ShaderDesc::Shader shader = dmGraphics::MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, shader_src, strlen(shader_src));
-    dmGraphics::ShaderDesc vp_desc        = dmGraphics::MakeDDFShaderDesc(&shader, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, 0, 0, 0, 0, 0, 0, types, 2);
-    dmGraphics::ShaderDesc fp_desc        = dmGraphics::MakeDDFShaderDesc(&shader, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, 0, 0, fs_uniforms, 1, 0, 0, types, 2);
-    dmGraphics::HVertexProgram vp         = dmGraphics::NewVertexProgram(m_GraphicsContext, &vp_desc, 0, 0);
-    dmGraphics::HFragmentProgram fp       = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fp_desc, 0, 0);
-    dmRender::HMaterial material          = dmRender::NewMaterial(m_Context, vp, fp);
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader_desc_builder.Get(), 0, 0);
+    dmRender::HMaterial material = dmRender::NewMaterial(m_Context, program);
 
     dmRender::HConstant constant;
     ASSERT_TRUE(dmRender::GetMaterialProgramConstant(material, dmHashString64("color"), constant));
     ASSERT_TRUE(dmRender::GetMaterialProgramConstant(material, dmHashString64("nested.color"), constant));
 
     dmRender::DeleteMaterial(m_Context, material);
-    dmGraphics::DeleteFragmentProgram(fp);
-    dmGraphics::DeleteVertexProgram(vp);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
 }
 
 TEST_F(dmRenderScriptTest, TestLuaConstantBuffers_Baseline)
@@ -1492,12 +1491,12 @@ TEST_F(dmRenderScriptTest, TestRenderResourceTable)
                              "uniform lowp sampler2D texture_sampler_2;\n"
                              "uniform lowp sampler2D texture_sampler_3;\n";
 
-    dmGraphics::ShaderDesc::Shader shader = dmGraphics::MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, shader_src, strlen(shader_src));
-    dmGraphics::ShaderDesc vp_desc        = dmGraphics::MakeDDFShaderDesc(&shader, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, 0, 0, 0, 0, 0, 0, 0, 0);
-    dmGraphics::ShaderDesc fp_desc        = dmGraphics::MakeDDFShaderDesc(&shader, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, 0, 0, 0, 0, 0, 0, 0, 0);
-    dmGraphics::HVertexProgram vp         = dmGraphics::NewVertexProgram(m_GraphicsContext, &vp_desc, 0, 0);
-    dmGraphics::HFragmentProgram fp       = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fp_desc, 0, 0);
-    dmRender::HMaterial material          = dmRender::NewMaterial(m_Context, vp, fp);
+    dmGraphics::ShaderDescBuilder shader_desc_builder;
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, shader_src, strlen(shader_src));
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, shader_src, strlen(shader_src));
+
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader_desc_builder.Get(), 0, 0);
+    dmRender::HMaterial material = dmRender::NewMaterial(m_Context, program);
 
     /////////////////////////////
     // RENDER TARGET
@@ -1581,10 +1580,8 @@ TEST_F(dmRenderScriptTest, TestRenderResourceTable)
     ClearRenderScriptInstanceRenderResources(render_script_instance);
 
     dmGraphics::DeleteRenderTarget(rt);
-
-    dmGraphics::DeleteVertexProgram(vp);
-    dmGraphics::DeleteFragmentProgram(fp);
     dmRender::DeleteMaterial(m_Context, material);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
 
     dmRender::DeleteRenderScriptInstance(render_script_instance);
     dmRender::DeleteRenderScript(m_Context, render_script);
@@ -1602,13 +1599,9 @@ TEST_F(dmRenderScriptTest, TestComputeEnableDisable)
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
 
-    dmRender::HComputeProgram compute_program = dmRender::NewComputeProgram(m_Context, m_ComputeProgram);
-
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::InitRenderScriptInstance(render_script_instance));
-    dmRender::AddRenderScriptInstanceRenderResource(render_script_instance, "test_compute", (uint64_t) compute_program, dmRender::RENDER_RESOURCE_TYPE_COMPUTE);
+    dmRender::AddRenderScriptInstanceRenderResource(render_script_instance, "test_compute", (uint64_t) m_Compute, dmRender::RENDER_RESOURCE_TYPE_COMPUTE);
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
-
-    dmRender::DeleteComputeProgram(m_Context, compute_program);
 
     dmRender::DeleteRenderScriptInstance(render_script_instance);
     dmRender::DeleteRenderScript(m_Context, render_script);
@@ -1625,17 +1618,15 @@ TEST_F(dmRenderScriptTest, TestDispatch)
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
 
-    dmRender::HComputeProgram compute_program = dmRender::NewComputeProgram(m_Context, m_ComputeProgram);
-
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::InitRenderScriptInstance(render_script_instance));
-    dmRender::AddRenderScriptInstanceRenderResource(render_script_instance, "test_compute", (uint64_t) compute_program, dmRender::RENDER_RESOURCE_TYPE_COMPUTE);
+    dmRender::AddRenderScriptInstanceRenderResource(render_script_instance, "test_compute", (uint64_t) m_Compute, dmRender::RENDER_RESOURCE_TYPE_COMPUTE);
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
 
     dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
     dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
 
     ASSERT_EQ(dmRender::COMMAND_TYPE_SET_COMPUTE, commands[0].m_Type);
-    ASSERT_EQ(compute_program, (dmRender::HComputeProgram) commands[0].m_Operands[0]);
+    ASSERT_EQ(m_Compute, (dmRender::HComputeProgram) commands[0].m_Operands[0]);
 
     ASSERT_EQ(dmRender::COMMAND_TYPE_DISPATCH_COMPUTE, commands[1].m_Type);
     ASSERT_EQ(1, commands[1].m_Operands[0]);
@@ -1646,8 +1637,6 @@ TEST_F(dmRenderScriptTest, TestDispatch)
     ASSERT_EQ(0, commands[2].m_Operands[0]);
 
     commands.SetSize(0);
-
-    dmRender::DeleteComputeProgram(m_Context, compute_program);
 
     dmRender::DeleteRenderScriptInstance(render_script_instance);
     dmRender::DeleteRenderScript(m_Context, render_script);

@@ -31,7 +31,7 @@
 #include <dlib/job_thread.h>
 #include <dmsdk/dlib/configfile.h>
 #include <dmsdk/dlib/profile.h>
-#include <dmsdk/extension/extension_gen.hpp>
+#include <dmsdk/extension/extension.hpp>
 
 #include <resource/resource.h>
 #include <resource/resource_archive.h>

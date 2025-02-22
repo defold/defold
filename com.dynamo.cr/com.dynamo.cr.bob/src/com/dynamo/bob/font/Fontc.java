@@ -1078,15 +1078,11 @@ public class Fontc {
             Fontc fontc = new Fontc();
             String fontInputFile = basedir + File.separator + fontDesc.getFont();
             BufferedInputStream fontInputStream = new BufferedInputStream(new FileInputStream(fontInputFile));
-            BufferedImage previewImage = fontc.compile(fontInputStream, fontDesc, false, new FontResourceResolver() {
+            BufferedImage previewImage = fontc.compile(fontInputStream, fontDesc, false, resourceName -> {
+                Path resPath = Paths.get(fontInput.getParent(), resourceName);
+                BufferedInputStream resStream = new BufferedInputStream(new FileInputStream(resPath.toString()));
 
-                @Override
-                public InputStream getResource(String resourceName) throws FileNotFoundException {
-                    Path resPath = Paths.get(fontInput.getParent().toString(), resourceName);
-                    BufferedInputStream resStream = new BufferedInputStream(new FileInputStream(resPath.toString()));
-
-                    return resStream;
-                }
+                return resStream;
             });
             fontInputStream.close();
 

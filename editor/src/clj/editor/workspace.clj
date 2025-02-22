@@ -416,6 +416,7 @@ ordinary paths."
    (let [evaluation-context (g/make-evaluation-context {:basis (g/now) :cache c/null-cache})]
      (file-resource workspace path-or-file evaluation-context)))
   ([workspace path-or-file evaluation-context]
+   ;; Both :root and :editable-proj-path? are properties.
    (let [root (g/node-value workspace :root evaluation-context)
          editable-proj-path? (g/node-value workspace :editable-proj-path? evaluation-context)
          f (if (instance? File path-or-file)
@@ -428,7 +429,12 @@ ordinary paths."
    (g/with-auto-evaluation-context evaluation-context
      (find-resource workspace proj-path evaluation-context)))
   ([workspace proj-path evaluation-context]
-   (get (g/node-value workspace :resource-map evaluation-context) proj-path)))
+   ;; This is frequently called from property setters, where we don't have a
+   ;; cache. In that case, manually cache the evaluated value in the
+   ;; :tx-data-context atom of the evaluation-context, since this persists
+   ;; throughout the transaction.
+   (let [resources-by-proj-path (g/tx-cached-node-value workspace :resource-map evaluation-context)]
+     (get resources-by-proj-path proj-path))))
 
 (defn resolve-workspace-resource
   ([workspace path]

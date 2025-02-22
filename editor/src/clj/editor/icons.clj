@@ -18,7 +18,8 @@
             [service.log :as log]
             [util.thread-util :as thread-util])
   (:import [java.net URL]
-           [javafx.scene.image Image ImageView]))
+           [javafx.scene.image Image ImageView]
+           [javafx.scene.shape SVGPath]))
 
 (defonce cached-icons-atom (atom {}))
 (defonce workspace-atom (atom nil))
@@ -82,3 +83,8 @@
    (doto (ImageView. (get-image name))
      (.setFitWidth size)
      (.setFitHeight size))))
+
+(defn make-svg-icon-graphic
+  ^SVGPath [^SVGPath icon-template]
+  (doto (SVGPath.)
+    (.setContent (.getContent icon-template))))

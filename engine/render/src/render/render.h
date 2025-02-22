@@ -138,13 +138,11 @@ namespace dmRender
 
         dmScript::HContext              m_ScriptContext;
         HFontMap                        m_SystemFontMap;
-        void*                           m_VertexShaderDesc;
-        void*                           m_FragmentShaderDesc;
+        void*                           m_ShaderProgramDesc;
         uint32_t                        m_MaxRenderTypes;
         uint32_t                        m_MaxInstances;
         uint32_t                        m_MaxRenderTargets;
-        uint32_t                        m_VertexShaderDescSize;
-        uint32_t                        m_FragmentShaderDescSize;
+        uint32_t                        m_ShaderProgramDescSize;
         uint32_t                        m_MaxCharacters;
         uint32_t                        m_MaxBatches;
         uint32_t                        m_CommandBufferSize;
@@ -267,7 +265,7 @@ namespace dmRender
     void                    OnReloadRenderScriptInstance(HRenderScriptInstance render_script_instance);
 
     // Material
-    HMaterial                       NewMaterial(dmRender::HRenderContext render_context, dmGraphics::HVertexProgram vertex_program, dmGraphics::HFragmentProgram fragment_program);
+    HMaterial                       NewMaterial(dmRender::HRenderContext render_context, dmGraphics::HProgram program); // dmGraphics::HVertexProgram vertex_program, dmGraphics::HFragmentProgram fragment_program);
     void                            DeleteMaterial(dmRender::HRenderContext render_context, HMaterial material);
     HSampler                        GetMaterialSampler(HMaterial material, uint32_t unit);
     dmhash_t                        GetMaterialSamplerNameHash(HMaterial material, uint32_t unit);
@@ -276,8 +274,6 @@ namespace dmRender
     void                            ApplyMaterialSampler(dmRender::HRenderContext render_context, HMaterial material, HSampler sampler, uint8_t value_index, dmGraphics::HTexture texture);
 
     dmGraphics::HProgram            GetMaterialProgram(HMaterial material);
-    dmGraphics::HVertexProgram      GetMaterialVertexProgram(HMaterial material);
-    dmGraphics::HFragmentProgram    GetMaterialFragmentProgram(HMaterial material);
     void                            SetMaterialProgramConstantType(HMaterial material, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type);
     bool                            GetMaterialProgramConstant(HMaterial, dmhash_t name_hash, HConstant& out_value);
 
@@ -292,11 +288,10 @@ namespace dmRender
     bool                            GetMaterialHasSkinnedAttributes(HMaterial material);
 
     // Compute
-    HComputeProgram                 NewComputeProgram(HRenderContext render_context, dmGraphics::HComputeProgram shader);
+    HComputeProgram                 NewComputeProgram(HRenderContext render_context, dmGraphics::HProgram program);
     void                            DeleteComputeProgram(dmRender::HRenderContext render_context, HComputeProgram program);
     HSampler                        GetComputeProgramSampler(HComputeProgram program, uint32_t unit);
     HRenderContext                  GetProgramRenderContext(HComputeProgram program);
-    dmGraphics::HComputeProgram     GetComputeProgramShader(HComputeProgram program);
     dmGraphics::HProgram            GetComputeProgram(HComputeProgram program);
     uint64_t                        GetProgramUserData(HComputeProgram program);
     void                            SetProgramUserData(HComputeProgram program, uint64_t user_data);

@@ -43,7 +43,7 @@ namespace dmPlatform
 
     static void OnError(int error, const char* description)
     {
-        dmLogError("GLFW Error: %s\n", description);
+        dmLogError("GLFW Error: %s", description);
     }
 
     static void OnWindowResize(GLFWwindow* glfw_window, int width, int height)
@@ -116,8 +116,8 @@ namespace dmPlatform
     static void OnMouseScroll(GLFWwindow* glfw_window, double xoffset, double yoffset)
     {
         HWindow window = (HWindow) glfwGetWindowUserPointer(glfw_window);
-        window->m_MouseScrollX = xoffset;
-        window->m_MouseScrollY = yoffset;
+        window->m_MouseScrollX += xoffset;
+        window->m_MouseScrollY += yoffset;
     }
 
     static void OnJoystick(int id, int event)
@@ -142,25 +142,33 @@ namespace dmPlatform
 
     HWindow NewWindow()
     {
+        glfwSetErrorCallback(OnError);
+
     #ifdef __MACH__
         glfwInitHint(GLFW_COCOA_CHDIR_RESOURCES, GLFW_FALSE);
     #endif
 
     #if defined(__linux__) && !defined(ANDROID)
-        glfwInitHint(GLFW_WAYLAND_LIBDECOR, GLFW_WAYLAND_PREFER_LIBDECOR);
         glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11);
-    #endif
-
+        if (glfwInit() == GL_FALSE)
+        {
+            glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_WAYLAND);
+            if (glfwInit() == GL_FALSE)
+            {
+                dmLogError("Could not initialize glfw.");
+                return 0;
+            }
+        }
+    #else
         if (glfwInit() == GL_FALSE)
         {
             dmLogError("Could not initialize glfw.");
             return 0;
         }
+    #endif
 
         dmWindow* wnd = new dmWindow;
         memset(wnd, 0, sizeof(dmWindow));
-
-        glfwSetErrorCallback(OnError);
 
         // Reset context
         memset(&g_GLFW3Context, 0, sizeof(PlatformContext));
@@ -181,36 +189,6 @@ namespace dmPlatform
 
     static PlatformResult OpenWindowOpenGL(dmWindow* wnd, const WindowParams& params)
     {
-        uint32_t major = 3, minor = 3;
-        if (!OpenGLGetVersion(params.m_OpenGLVersionHint, &major, &minor))
-        {
-            dmLogWarning("OpenGL version hint %d is not supported. Using default version (%d.%d)",
-                params.m_OpenGLVersionHint, major, minor);
-        }
-
-        bool use_highest_version = major == 0 && minor == 0;
-        if (!use_highest_version)
-        {
-            glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, major);
-            glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, minor);
-        }
-
-        if (params.m_OpenGLUseCoreProfileHint)
-        {
-            bool can_set_profile_and_fc = true;
-
-        #ifdef _WIN32
-            // Not supported on windows when requesting the default OpenGL version (which will equate to the highest available)
-            can_set_profile_and_fc = !use_highest_version;
-        #endif
-
-            if (can_set_profile_and_fc)
-            {
-                glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-                glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-            }
-        }
-
         glfwWindowHint(GLFW_SAMPLES, params.m_Samples);
 
         GLFWmonitor* fullscreen_monitor = NULL;
@@ -219,7 +197,49 @@ namespace dmPlatform
             fullscreen_monitor = glfwGetPrimaryMonitor();
         }
 
-        wnd->m_Window = glfwCreateWindow(params.m_Width, params.m_Height, params.m_Title, fullscreen_monitor, NULL);
+        if (params.m_GraphicsApi == PLATFORM_GRAPHICS_API_OPENGLES)
+        {
+            glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
+            glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_EGL_CONTEXT_API);
+            glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
+            glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+
+            wnd->m_Window = glfwCreateWindow(params.m_Width, params.m_Height, params.m_Title, fullscreen_monitor, NULL);
+        }
+        else
+        {
+            uint32_t major = 3, minor = 3;
+            if (!OpenGLGetVersion(params.m_OpenGLVersionHint, &major, &minor))
+            {
+                dmLogWarning("OpenGL version hint %d is not supported. Using default version (%d.%d)",
+                    params.m_OpenGLVersionHint, major, minor);
+            }
+
+            bool use_highest_version = major == 0 && minor == 0;
+            if (!use_highest_version)
+            {
+                glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, major);
+                glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, minor);
+            }
+
+            if (params.m_OpenGLUseCoreProfileHint)
+            {
+                bool can_set_profile_and_fc = true;
+
+            #ifdef _WIN32
+                // Not supported on windows when requesting the default OpenGL version (which will equate to the highest available)
+                can_set_profile_and_fc = !use_highest_version;
+            #endif
+
+                if (can_set_profile_and_fc)
+                {
+                    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+                    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+                }
+            }
+
+            wnd->m_Window = glfwCreateWindow(params.m_Width, params.m_Height, params.m_Title, fullscreen_monitor, NULL);
+        }
 
         if (!wnd->m_Window)
         {
@@ -282,6 +302,7 @@ namespace dmPlatform
         switch(params.m_GraphicsApi)
         {
             case PLATFORM_GRAPHICS_API_OPENGL:
+            case PLATFORM_GRAPHICS_API_OPENGLES:
                 res = OpenWindowOpenGL(window, params);
                 break;
             case PLATFORM_GRAPHICS_API_DIRECTX:
@@ -357,8 +378,6 @@ namespace dmPlatform
 
     void PollEvents(HWindow window)
     {
-        window->m_MouseScrollX = 0.0;
-        window->m_MouseScrollY = 0.0;
         glfwPollEvents();
     }
 
@@ -455,6 +474,7 @@ namespace dmPlatform
             case WINDOW_STATE_SAMPLE_COUNT: return window->m_Samples;
             case WINDOW_STATE_HIGH_DPI:     return window->m_HighDPI;
             case WINDOW_STATE_AUX_CONTEXT:  return window->m_AuxWindow ? 1 : 0;
+            default: break;
         }
 
         return glfwGetWindowAttrib(window->m_Window, WindowStateToGLFW(state));
@@ -481,7 +501,7 @@ namespace dmPlatform
 
     int32_t GetMouseWheel(HWindow window)
     {
-        return (int32_t) window->m_MouseScrollY;
+        return (int32_t) round(window->m_MouseScrollY);
     }
 
     int32_t GetMouseButton(HWindow window, int32_t button)

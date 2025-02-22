@@ -325,8 +325,7 @@
           build-resource-path (comp resource/proj-path build-resource)
           build-resource-path-hash (comp murmur/hash64 build-resource-path)
           texture-build-resource (partial tu/texture-build-resource project)
-          vertex-shader-build-resource (partial tu/vertex-shader-build-resource project)
-          fragment-shader-build-resource (partial tu/fragment-shader-build-resource project)
+          shader-program-build-resource (partial tu/shader-program-build-resource project)
           build-output (partial tu/build-output project)
           make-atlas! (partial tu/make-atlas-resource-node! project)
           make-material! (partial make-material! project)
@@ -351,8 +350,7 @@
                        (build-resource                 "/from-props-script.atlas")
                        (texture-build-resource         "/from-props-script.atlas")
                        (build-resource                 "/from-props-script.material")
-                       (vertex-shader-build-resource   "/from-props-script.material")
-                       (fragment-shader-build-resource "/from-props-script.material")
+                       (shader-program-build-resource  "/from-props-script.material")
                        (build-resource                 "/from-props-script.png")}))
               (with-open [_ (tu/build! props-script)]
                 (let [built-props-script (protobuf/bytes->map-with-defaults Lua$LuaModule (build-output "/props.script"))]
@@ -432,8 +430,7 @@
           build-resource-path-hash (comp murmur/hash64 build-resource-path)
           build-output (partial tu/build-output project)
           texture-build-resource (partial tu/texture-build-resource project)
-          vertex-shader-build-resource (partial tu/vertex-shader-build-resource project)
-          fragment-shader-build-resource (partial tu/fragment-shader-build-resource project)
+          shader-program-build-resource (partial tu/shader-program-build-resource project)
           make-atlas! (partial tu/make-atlas-resource-node! project)
           make-material! (partial make-material! project)
           make-resource-node! (partial tu/make-resource-node! project)]
@@ -477,8 +474,7 @@
                        (build-resource                 "/from-props-script.atlas")
                        (texture-build-resource         "/from-props-script.atlas")
                        (build-resource                 "/from-props-script.material")
-                       (vertex-shader-build-resource   "/from-props-script.material")
-                       (fragment-shader-build-resource "/from-props-script.material")
+                       (shader-program-build-resource  "/from-props-script.material")
                        (build-resource                 "/from-props-script.png")}))
               (with-open [_ (tu/build! props-game-object)]
                 (let [built-props-game-object (protobuf/bytes->map-with-defaults GameObject$PrototypeDesc (build-output "/props.go"))
@@ -501,8 +497,7 @@
                          (build-resource                 "/from-props-script.atlas")
                          (texture-build-resource         "/from-props-script.atlas")
                          (build-resource                 "/from-props-script.material")
-                         (vertex-shader-build-resource   "/from-props-script.material")
-                         (fragment-shader-build-resource "/from-props-script.material")
+                         (shader-program-build-resource  "/from-props-script.material")
                          (build-resource                 "/from-props-script.png")}))
                 (with-open [_ (tu/build! props-game-object)]
                   (let [built-props-script (protobuf/bytes->map-with-defaults Lua$LuaModule (build-output "/props.script"))]
@@ -681,8 +676,7 @@
           build-resource-path-hash (comp murmur/hash64 build-resource-path)
           build-output (partial tu/build-output project)
           texture-build-resource (partial tu/texture-build-resource project)
-          vertex-shader-build-resource (partial tu/vertex-shader-build-resource project)
-          fragment-shader-build-resource (partial tu/fragment-shader-build-resource project)
+          shader-program-build-resource (partial tu/shader-program-build-resource project)
           make-atlas! (partial tu/make-atlas-resource-node! project)
           make-material! (partial make-material! project)
           make-resource-node! (partial tu/make-resource-node! project)]
@@ -739,8 +733,7 @@
                        (build-resource                 "/from-props-script.atlas")
                        (texture-build-resource         "/from-props-script.atlas")
                        (build-resource                 "/from-props-script.material")
-                       (vertex-shader-build-resource   "/from-props-script.material")
-                       (fragment-shader-build-resource "/from-props-script.material")
+                       (shader-program-build-resource  "/from-props-script.material")
                        (build-resource                 "/from-props-script.png")}))
               (with-open [_ (tu/build! props-collection)]
                 (let [built-props-collection (protobuf/bytes->map-with-defaults GameObject$CollectionDesc (build-output "/props.collection"))
@@ -763,8 +756,7 @@
                          (build-resource                 "/from-props-script.atlas")
                          (texture-build-resource         "/from-props-script.atlas")
                          (build-resource                 "/from-props-script.material")
-                         (vertex-shader-build-resource   "/from-props-script.material")
-                         (fragment-shader-build-resource "/from-props-script.material")
+                         (shader-program-build-resource  "/from-props-script.material")
                          (build-resource                 "/from-props-script.png")}))
                 (with-open [_ (tu/build! props-collection)]
                   (let [built-props-script (protobuf/bytes->map-with-defaults Lua$LuaModule (build-output "/props.script"))]
@@ -955,8 +947,7 @@
           build-resource-path-hash (comp murmur/hash64 build-resource-path)
           build-output (partial tu/build-output project)
           texture-build-resource (partial tu/texture-build-resource project)
-          vertex-shader-build-resource (partial tu/vertex-shader-build-resource project)
-          fragment-shader-build-resource (partial tu/fragment-shader-build-resource project)
+          shader-program-build-resource(partial tu/shader-program-build-resource project)
           make-atlas! (partial tu/make-atlas-resource-node! project)
           make-material! (partial make-material! project)
           make-resource-node! (partial tu/make-resource-node! project)]
@@ -1025,8 +1016,7 @@
                        (build-resource                 "/from-props-script.atlas")
                        (texture-build-resource         "/from-props-script.atlas")
                        (build-resource                 "/from-props-script.material")
-                       (vertex-shader-build-resource   "/from-props-script.material")
-                       (fragment-shader-build-resource "/from-props-script.material")
+                       (shader-program-build-resource  "/from-props-script.material")
                        (build-resource                 "/from-props-script.png")}))
               (with-open [_ (tu/build! sub-props-collection)]
                 (let [built-sub-props-collection (protobuf/bytes->map-with-defaults GameObject$CollectionDesc (build-output "/sub-props.collection"))
@@ -1051,8 +1041,7 @@
                          (build-resource                 "/from-props-script.atlas")
                          (texture-build-resource         "/from-props-script.atlas")
                          (build-resource                 "/from-props-script.material")
-                         (vertex-shader-build-resource   "/from-props-script.material")
-                         (fragment-shader-build-resource "/from-props-script.material")
+                         (shader-program-build-resource  "/from-props-script.material")
                          (build-resource                 "/from-props-script.png")}))
                 (with-open [_ (tu/build! sub-props-collection)]
                   (let [built-props-script (protobuf/bytes->map-with-defaults Lua$LuaModule (build-output "/props.script"))]
@@ -1201,8 +1190,7 @@
           build-output (partial tu/build-output project)
           node-build-resource tu/node-build-resource
           texture-build-resource (partial tu/texture-build-resource project)
-          vertex-shader-build-resource (partial tu/vertex-shader-build-resource project)
-          fragment-shader-build-resource (partial tu/fragment-shader-build-resource project)
+          shader-program-build-resource(partial tu/shader-program-build-resource project)
           make-atlas! (partial tu/make-atlas-resource-node! project)
           make-material! (partial make-material! project)
           make-resource-node! (partial tu/make-resource-node! project)]
@@ -1273,8 +1261,7 @@
                        (build-resource                 "/from-props-script.atlas")
                        (texture-build-resource         "/from-props-script.atlas")
                        (build-resource                 "/from-props-script.material")
-                       (vertex-shader-build-resource   "/from-props-script.material")
-                       (fragment-shader-build-resource "/from-props-script.material")
+                       (shader-program-build-resource  "/from-props-script.material")
                        (build-resource                 "/from-props-script.png")}))
               (with-open [_ (tu/build! sub-props-collection)]
                 (let [built-sub-props-collection (protobuf/bytes->map-with-defaults GameObject$CollectionDesc (build-output "/sub-props.collection"))
@@ -1299,8 +1286,7 @@
                          (build-resource                 "/from-props-script.atlas")
                          (texture-build-resource         "/from-props-script.atlas")
                          (build-resource                 "/from-props-script.material")
-                         (vertex-shader-build-resource   "/from-props-script.material")
-                         (fragment-shader-build-resource "/from-props-script.material")
+                         (shader-program-build-resource  "/from-props-script.material")
                          (build-resource                 "/from-props-script.png")}))
                 (with-open [_ (tu/build! sub-props-collection)]
                   (let [built-props-script (protobuf/bytes->map-with-defaults Lua$LuaModule (build-output "/props.script"))]

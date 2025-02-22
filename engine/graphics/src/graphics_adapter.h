@@ -85,21 +85,13 @@ namespace dmGraphics
     typedef void (*DrawElementsFn)(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer, uint32_t instance_count);
     typedef void (*DrawFn)(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count);
     typedef void (*DispatchComputeFn)(HContext context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);
-    typedef HVertexProgram (*NewVertexProgramFn)(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size);
-    typedef HFragmentProgram (*NewFragmentProgramFn)(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size);
-    typedef HProgram (*NewProgramFn)(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program);
+    typedef HProgram (*NewProgramFn)(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size);
+    typedef bool (*ReloadProgramFn)(HContext context, HProgram program, ShaderDesc* ddf);
     typedef void (*DeleteProgramFn)(HContext context, HProgram program);
-    typedef bool (*ReloadVertexProgramFn)(HVertexProgram prog, ShaderDesc* ddf);
-    typedef bool (*ReloadFragmentProgramFn)(HFragmentProgram prog, ShaderDesc* ddf);
-    typedef void (*DeleteVertexProgramFn)(HVertexProgram prog);
-    typedef void (*DeleteFragmentProgramFn)(HFragmentProgram prog);
     typedef bool (*IsShaderLanguageSupportedFn)(HContext context, ShaderDesc::Language language, ShaderDesc::ShaderType shader_type);
     typedef ShaderDesc::Language (*GetProgramLanguageFn)(HProgram program);
     typedef void (*EnableProgramFn)(HContext context, HProgram program);
     typedef void (*DisableProgramFn)(HContext context);
-    typedef bool (*ReloadProgramGraphicsFn)(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program);
-    typedef bool (*ReloadComputeProgramFn)(HComputeProgram prog, ShaderDesc* ddf);
-    typedef bool (*ReloadProgramComputeFn)(HContext context, HProgram program, HComputeProgram compute_program);
     typedef uint32_t (*GetAttributeCountFn)(HProgram prog);
     typedef void (*GetAttributeFn)(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location);
 
@@ -156,9 +148,6 @@ namespace dmGraphics
     typedef uint32_t (*GetTextureUsageHintFlagsFn)(HTexture texture);
     typedef bool (*IsContextFeatureSupportedFn)(HContext context, ContextFeature feature);
     typedef bool (*IsAssetHandleValidFn)(HContext context, HAssetHandle asset_handle);
-    typedef HComputeProgram (*NewComputeProgramFn)(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size);
-    typedef HProgram (*NewProgramFromComputeFn)(HContext context, HComputeProgram compute_program);
-    typedef void (*DeleteComputeProgramFn)(HComputeProgram prog);
     typedef void (*InvalidateGraphicsHandlesFn)(HContext context);
 
     struct GraphicsAdapterFunctionTable
@@ -199,19 +188,13 @@ namespace dmGraphics
         DrawElementsFn m_DrawElements;
         DrawFn m_Draw;
         DispatchComputeFn m_DispatchCompute;
-        NewVertexProgramFn m_NewVertexProgram;
-        NewFragmentProgramFn m_NewFragmentProgram;
         NewProgramFn m_NewProgram;
         DeleteProgramFn m_DeleteProgram;
-        ReloadVertexProgramFn m_ReloadVertexProgram;
-        ReloadFragmentProgramFn m_ReloadFragmentProgram;
-        DeleteVertexProgramFn m_DeleteVertexProgram;
-        DeleteFragmentProgramFn m_DeleteFragmentProgram;
         GetProgramLanguageFn m_GetProgramLanguage;
         IsShaderLanguageSupportedFn m_IsShaderLanguageSupported;
         EnableProgramFn m_EnableProgram;
         DisableProgramFn m_DisableProgram;
-        ReloadProgramGraphicsFn m_ReloadProgramGraphics;
+        ReloadProgramFn m_ReloadProgram;
         GetAttributeCountFn m_GetAttributeCount;
         GetAttributeFn m_GetAttribute;
         SetConstantV4Fn m_SetConstantV4;
@@ -269,13 +252,6 @@ namespace dmGraphics
         IsContextFeatureSupportedFn m_IsContextFeatureSupported;
         IsAssetHandleValidFn m_IsAssetHandleValid;
         InvalidateGraphicsHandlesFn m_InvalidateGraphicsHandles;
-
-        // Compute
-        ReloadComputeProgramFn  m_ReloadComputeProgram;
-        ReloadProgramComputeFn  m_ReloadProgramCompute;
-        NewComputeProgramFn     m_NewComputeProgram;
-        NewProgramFromComputeFn m_NewProgramFromCompute;
-        DeleteComputeProgramFn  m_DeleteComputeProgram;
     };
 
     #define DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, fn_name) \
@@ -316,21 +292,13 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DrawElements); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, Draw); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DispatchCompute); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewVertexProgram); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewFragmentProgram); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewProgram); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteProgram); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, ReloadVertexProgram); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, ReloadFragmentProgram); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteVertexProgram); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteFragmentProgram); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetProgramLanguage); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsShaderLanguageSupported); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, EnableProgram); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DisableProgram); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, ReloadProgramGraphics); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, ReloadProgramCompute); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, ReloadComputeProgram); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, ReloadProgram); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetAttributeCount); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetAttribute); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetConstantV4); \
@@ -388,10 +356,7 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetPipelineState); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsContextFeatureSupported); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsAssetHandleValid); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, InvalidateGraphicsHandles); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewComputeProgram); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewProgramFromCompute); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteComputeProgram);
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, InvalidateGraphicsHandles);
 }
 
 #endif

@@ -73,29 +73,30 @@ namespace dmGraphics
     const static uint8_t DM_GRAPHICS_STATE_WRITE_B   = 0x4;
     const static uint8_t DM_GRAPHICS_STATE_WRITE_A   = 0x8;
 
-    static const HVertexProgram   INVALID_VERTEX_PROGRAM_HANDLE   = ~0u;
-    static const HFragmentProgram INVALID_FRAGMENT_PROGRAM_HANDLE = ~0u;
-    static const HUniformLocation INVALID_UNIFORM_LOCATION        = ~0ull;
+    static const HProgram         INVALID_PROGRAM_HANDLE   = ~0u;
+    static const HUniformLocation INVALID_UNIFORM_LOCATION = ~0ull;
 
     enum AdapterFamily
     {
-        ADAPTER_FAMILY_NONE    = -1,
-        ADAPTER_FAMILY_NULL    = 1,
-        ADAPTER_FAMILY_OPENGL  = 2,
-        ADAPTER_FAMILY_VULKAN  = 3,
-        ADAPTER_FAMILY_VENDOR  = 4,
-        ADAPTER_FAMILY_WEBGPU  = 5,
-        ADAPTER_FAMILY_DIRECTX = 6,
+        ADAPTER_FAMILY_NONE     = -1,
+        ADAPTER_FAMILY_NULL     = 1,
+        ADAPTER_FAMILY_OPENGL   = 2,
+        ADAPTER_FAMILY_OPENGLES = 3,
+        ADAPTER_FAMILY_VULKAN   = 4,
+        ADAPTER_FAMILY_VENDOR   = 5,
+        ADAPTER_FAMILY_WEBGPU   = 6,
+        ADAPTER_FAMILY_DIRECTX  = 7,
     };
 
     enum AdapterFamilyPriority
     {
-        ADAPTER_FAMILY_PRIORITY_NULL    = 32,
-        ADAPTER_FAMILY_PRIORITY_OPENGL  = 2,
-        ADAPTER_FAMILY_PRIORITY_VULKAN  = 1,
-        ADAPTER_FAMILY_PRIORITY_VENDOR  = 0,
-        ADAPTER_FAMILY_PRIORITY_WEBGPU  = 0,
-        ADAPTER_FAMILY_PRIORITY_DIRECTX = 0,
+        ADAPTER_FAMILY_PRIORITY_NULL     = 32,
+        ADAPTER_FAMILY_PRIORITY_OPENGL   = 2,
+        ADAPTER_FAMILY_PRIORITY_OPENGLES = 2,
+        ADAPTER_FAMILY_PRIORITY_VULKAN   = 1,
+        ADAPTER_FAMILY_PRIORITY_VENDOR   = 0,
+        ADAPTER_FAMILY_PRIORITY_WEBGPU   = 0,
+        ADAPTER_FAMILY_PRIORITY_DIRECTX  = 0,
     };
 
     enum AssetType
@@ -623,29 +624,15 @@ namespace dmGraphics
     void     Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count);
     void     DispatchCompute(HContext context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);
 
-    // Shaders
-    HVertexProgram       NewVertexProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size);
-    HFragmentProgram     NewFragmentProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size);
-    HComputeProgram      NewComputeProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size);
-
-    HProgram             NewProgram(HContext context, HComputeProgram compute_program);
-    HProgram             NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program);
+    HProgram             NewProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size);
     void                 DeleteProgram(HContext context, HProgram program);
-
-    bool                 ReloadVertexProgram(HVertexProgram prog, ShaderDesc* ddf);
-    bool                 ReloadFragmentProgram(HFragmentProgram prog, ShaderDesc* ddf);
-    bool                 ReloadComputeProgram(HComputeProgram prog, ShaderDesc* ddf);
-    void                 DeleteVertexProgram(HVertexProgram prog);
-    void                 DeleteFragmentProgram(HFragmentProgram prog);
-    void                 DeleteComputeProgram(HComputeProgram prog);
 
     bool                 IsShaderLanguageSupported(HContext _context, ShaderDesc::Language language, ShaderDesc::ShaderType shader_type);
     ShaderDesc::Language GetProgramLanguage(HProgram program);
 
     void                 EnableProgram(HContext context, HProgram program);
     void                 DisableProgram(HContext context);
-    bool                 ReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program);
-    bool                 ReloadProgram(HContext context, HProgram program, HComputeProgram compute_program);
+    bool                 ReloadProgram(HContext context, HProgram program, ShaderDesc* ddf);
 
     // Attributes
     uint32_t         GetAttributeCount(HProgram prog);

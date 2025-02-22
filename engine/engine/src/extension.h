@@ -13,31 +13,3 @@
 // specific language governing permissions and limitations under the License.
 
 #include <dmsdk/extension/extension.h>
-#include <dmsdk/dlib/configfile.h>
-#include <dlib/webserver.h>
-#include <gameobject/gameobject.h>
-
-namespace dmEngine
-{
-    /** application level callback data
-     *
-     * Extension application entry callback data.
-     * This is the data structure passed as parameter by extension Application entry callbacks (AppInit and AppFinalize) functions
-     *
-     * @struct
-     * @name dmEngine::ExtensionAppParams
-     * @member m_ConfigFile [type:dmConfigFile::HConfig]
-     * @member m_WebServer [type:dmWebServer::HServer] Only valid in debug builds, where the engine service is running. 0 otherwise.
-     * @member dmGameObject::HRegister [type:dmWebServer::HServer] Only valid in debug builds, where the engine service is running. 0 otherwise.
-     *
-     */
-    struct ExtensionAppParams
-    {
-        ExtensionAppParams() { memset(this, 0, sizeof(*this)); }
-        dmConfigFile::HConfig   m_ConfigFile;
-        dmWebServer::HServer    m_WebServer;
-        dmGameObject::HRegister m_GameObjectRegister;
-        dmHID::HContext         m_HIDContext;
-    };
-
-}

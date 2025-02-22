@@ -483,6 +483,9 @@
    (fn [target source]
      (let [node-tree (node->gui-scene target)
            taken-id-names (g/node-value target target-name-key)]
+       ;; Note: We update the name before attaching the node to make sure the
+       ;; update-gui-resource-references call in the property setter does not
+       ;; treat this as a rename refactoring.
        (concat
          (g/update-property source :name outline/resolve-id taken-id-names)
          (attach-fn node-tree target source))))))
@@ -634,24 +637,29 @@
   (when (and (not (empty? old-name))
              (not (empty? new-name)))
     (let [basis (:basis evaluation-context)
-          owner-gui-scene (core/scope-of-type basis gui-resource-node-id GuiSceneNode)
-          gui-scenes (tree-seq
-                       any?
-                       (fn [gui-scene]
-                         (->> gui-scene
-                              (g/overrides basis)
-                              (e/remove
-                                (fn [ov-gui-scene]
-                                  (-> ov-gui-scene
-                                      (g/valid-node-value :aux-gui-resource-type-names evaluation-context)
-                                      (get gui-resource-type)
-                                      (contains? old-name))))))
-                       owner-gui-scene)]
-      (coll/transfer gui-scenes []
-        (mapcat #(g/valid-node-value % :node-ids evaluation-context))
-        (map val)
-        (keep (fn [gui-node]
-                (update-gui-resource-reference gui-resource-type evaluation-context gui-node old-name new-name)))))))
+          owner-gui-scene (core/scope-of-type basis gui-resource-node-id GuiSceneNode)]
+      ;; Note: We can be without an owner-gui-scene if the gui resource isn't
+      ;; attached yet. For example, if it is on the clipboard and about to be
+      ;; pasted into a gui scene.
+      (when owner-gui-scene
+        (let [gui-scenes
+              (tree-seq
+                any?
+                (fn [gui-scene]
+                  (->> gui-scene
+                       (g/overrides basis)
+                       (e/remove
+                         (fn [ov-gui-scene]
+                           (-> ov-gui-scene
+                               (g/valid-node-value :aux-gui-resource-type-names evaluation-context)
+                               (get gui-resource-type)
+                               (contains? old-name))))))
+                owner-gui-scene)]
+          (coll/transfer gui-scenes []
+            (mapcat #(g/valid-node-value % :node-ids evaluation-context))
+            (map val)
+            (keep (fn [gui-node]
+                    (update-gui-resource-reference gui-resource-type evaluation-context gui-node old-name new-name)))))))))
 
 (defn- update-gui-resource-reference-impl [rename-fn evaluation-context node-id prop-kw old-name new-name]
   (let [basis (:basis evaluation-context)]
@@ -947,7 +955,7 @@
             (value (layout-property-getter rotation))
             (set (layout-property-setter rotation)))
   (property scale types/Vec3 (default scene/default-scale)
-            (dynamic edit-type (layout-property-edit-type scale {:type types/Vec3}
+            (dynamic edit-type (layout-property-edit-type scale {:type types/Vec3 :precision 0.1}
                                  (fn [evaluation-context self prop-kw old-value new-value]
                                    {:scale (some-> new-value scene/non-zeroify-scale)})))
             (value (layout-property-getter scale))
@@ -1657,7 +1665,9 @@
             (set (layout-property-setter inner-radius)))
   (property perimeter-vertices g/Int (default (protobuf/default Gui$NodeDesc :perimeter-vertices))
             (dynamic error (g/fnk [_node-id perimeter-vertices] (validate-perimeter-vertices _node-id perimeter-vertices)))
-            (dynamic edit-type (layout-property-edit-type perimeter-vertices {:type g/Int}))
+            (dynamic edit-type (layout-property-edit-type perimeter-vertices {:type g/Int
+                                                                              :min perimeter-vertices-min
+                                                                              :max perimeter-vertices-max}))
             (value (layout-property-getter perimeter-vertices))
             (set (layout-property-setter perimeter-vertices)))
   (property pie-fill-angle g/Num (default (protobuf/default Gui$NodeDesc :pie-fill-angle))
@@ -2143,7 +2153,7 @@
   (property name g/Str)
   (property gpu-texture TextureLifecycle)
   (output texture-infos GuiResourceTextureInfos (g/fnk [name] (sorted-map name {})))
-  (output texture-page-counts GuiResourcePageCounts (g/fnk [name] (sorted-map name nil))) ; Use a nil texture-page-count to disable validation against the material page count.
+  (output texture-page-counts GuiResourcePageCounts (g/fnk [name] {name nil})) ; Use a nil texture-page-count to disable validation against the material page count.
   (output texture-gpu-textures GuiResourceTextures (g/fnk [name gpu-texture] {name gpu-texture})))
 
 (g/defnk produce-texture-gpu-textures [_node-id texture-names gpu-texture default-tex-params samplers]
@@ -2192,7 +2202,7 @@
   ;; The texture-page-count can be nil, which will disable validation against
   ;; the material page count. We still want an entry in the map since the keys
   ;; are used to validate the texture names.
-  (into (sorted-map)
+  (into {}
         (map (fn [texture-name]
                (pair texture-name texture-page-count)))
         texture-names))
@@ -2548,11 +2558,11 @@
      (g/connect texture :texture-infos self :texture-infos)
      (when (not internal?)
        (concat
-         (g/connect texture :texture-page-counts self :texture-page-counts)
          (g/connect texture :dep-build-targets self :dep-build-targets)
          (g/connect texture :pb-msg self :texture-msgs)
          (g/connect texture :build-errors textures-node :build-errors)
          (g/connect texture :node-outline textures-node :child-outlines)
+         (g/connect texture :texture-page-counts textures-node :texture-page-counts)
          (g/connect texture :name textures-node :names)
          (g/connect textures-node :name-counts texture :name-counts)
          (g/connect self :samplers texture :samplers)
@@ -2574,6 +2584,9 @@
   (output texture-resource-names GuiResourceNames :cached (g/fnk [names] (into (sorted-set) names)))
   (input build-errors g/Any :array)
   (output build-errors g/Any (gu/passthrough build-errors))
+  (input texture-page-counts g/Any :array)
+  (output texture-page-counts g/Any :cached (g/fnk [texture-page-counts]
+                                              (into {} cat texture-page-counts)))
   (output node-outline outline/OutlineData :cached
           (gen-outline-fnk "Textures" "Textures" 1 false [{:node-type TextureNode
                                                            :tx-attach-fn (gen-outline-node-tx-attach-fn attach-texture)}]))
@@ -3227,12 +3240,8 @@
             (into (sorted-set)
                   layout-names)))
 
-  (input texture-page-counts GuiResourcePageCounts :array)
-  (output texture-page-counts GuiResourcePageCounts :cached
-          (g/fnk [texture-page-counts]
-            (into (sorted-map)
-                  cat
-                  texture-page-counts)))
+  (input texture-page-counts GuiResourcePageCounts)
+  (output texture-page-counts GuiResourcePageCounts (gu/passthrough texture-page-counts))
 
   (input texture-resource-names GuiResourceNames)
   (input texture-gpu-textures GuiResourceTextures :array)
@@ -3616,6 +3625,7 @@
                               no-texture [InternalTextureNode
                                           :name ""
                                           :gpu-texture @texture/white-pixel]]
+                    (g/connect textures-node :texture-page-counts self :texture-page-counts)
                     (g/connect textures-node :_node-id self :textures-node) ; for the tests :/
                     (g/connect textures-node :_node-id self :nodes)
                     (g/connect textures-node :build-errors self :build-errors)

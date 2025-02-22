@@ -35,7 +35,7 @@ def build(bld):
                     target = 'engine',
                     proto_gen_py = True,
                     protoc_includes = ['../proto', bld.env['PREFIX'] + '/share'],
-                    embed_source='../content/materials/debug.vpc ../content/materials/debug.fpc ../content/builtins/connect/game.project ../content/builtins.arci ../content/builtins.arcd ../content/builtins.dmanifest',
+                    embed_source='../content/materials/debug.spc ../content/builtins/connect/game.project ../content/builtins.arci ../content/builtins.arcd ../content/builtins.dmanifest',
                     source='engine.cpp engine_main.cpp engine_loop.cpp extension.cpp physics_debug_render.cpp ../proto/engine/engine_ddf.proto ' + platform_main_cpp,
                     install_path = platform_lib_install_path,
                     use = 'engine_service')
@@ -63,7 +63,8 @@ def build(bld):
                              'ResourceProviderFile', 'ResourceProviderArchive', 'ResourceProviderArchiveMutable', 'ResourceProviderZip']
     component_type_symbols = ['ComponentTypeAnim', 'ComponentTypeScript', 'ComponentTypeGui', 'ComponentTypeMesh', 'ComponentTypeSound']
 
-    exported_symbols = ['DefaultSoundDevice', 'AudioDecoderWav', 'CrashExt', 'ProfilerExt', 'LiveUpdateExt', 'ScriptBox2DExt', 'ScriptImageExt', 'ScriptModelExt', 'ScriptTypesExt']
+    exported_symbols = ['DefaultSoundDevice', 'AudioDecoderWav', 'CrashExt', 'ProfilerExt', 'LiveUpdateExt',
+                        'ScriptBox2DExt', 'ScriptImageExt', 'ScriptModelExt', 'ScriptTypesExt', 'ScriptHttp']
 
     # Add stb_vorbis and/or tremolo depending on platform
     if bld.env['PLATFORM'] in ('arm64-nx64', 'win32', 'x86_64-win32', 'js-web', 'wasm-web'):
@@ -76,6 +77,10 @@ def build(bld):
 
     graphics_lib = 'GRAPHICS DMGLFW OPENGL'
     graphics_lib_symbols = ['GraphicsAdapterOpenGL']
+
+    if bld.env['PLATFORM'] in ('arm64-linux'):
+        graphics_lib = 'GRAPHICS_OPENGLES DMGLFW OPENGLES'
+        graphics_lib_symbols = ['GraphicsAdapterOpenGLES']
 
     if waflib.Options.options.with_vulkan:
         graphics_lib += ' GRAPHICS_VULKAN VULKAN'

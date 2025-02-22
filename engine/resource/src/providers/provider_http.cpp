@@ -19,6 +19,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/array.h>
 #include <dlib/hash.h>
+#include <dlib/http_cache.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/sys.h>
@@ -33,6 +34,8 @@ namespace dmResourceProviderHttp
 {
 
 static const uint32_t INVALID_CHUNK_VALUE = 0xFFFFFFFF;
+
+static dmHttpCache::HCache g_HttpCache = 0;
 
 struct HttpProviderContext
 {
@@ -87,7 +90,9 @@ static void HttpHeader(dmHttpClient::HResponse response, void* user_data, int st
     }
 }
 
-static void HttpContent(dmHttpClient::HResponse, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length, const char* method)
+static void HttpContent(dmHttpClient::HResponse, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length,
+                        uint32_t range_start, uint32_t range_end, uint32_t document_size,
+                        const char* method)
 {
     HttpProviderContext* archive = (HttpProviderContext*)user_data;
     (void) status_code;
@@ -146,11 +151,8 @@ static void DeleteHttpArchiveInternal(dmResourceProvider::HArchiveInternal _arch
     HttpProviderContext* archive = (HttpProviderContext*)_archive;
     if (archive->m_HttpClient)
         dmHttpClient::Delete(archive->m_HttpClient);
-    if (archive->m_HttpCache)
-        dmHttpCache::Close(archive->m_HttpCache);
 
     archive->m_HttpClient = 0;
-    archive->m_HttpCache = 0;
     delete archive;
 }
 
@@ -162,6 +164,7 @@ static dmResourceProvider::Result Mount(const dmURI::Parts* uri, dmResourceProvi
     HttpProviderContext* archive = new HttpProviderContext;
     memset(archive, 0, sizeof(HttpProviderContext));
     memcpy(&archive->m_BaseUri, uri, sizeof(dmURI::Parts));
+    archive->m_HttpCache = g_HttpCache;
 
     dmHttpClient::NewParams http_params;
     http_params.m_HttpHeader = &HttpHeader;
@@ -213,12 +216,26 @@ static dmResourceProvider::Result GetRequestFromUri(HttpProviderContext* archive
         archive->m_ChunkedRequest   = 1;
     }
 
+    bool get_file_size = strcmp(method, "HEAD") == 0;
+
     // // Always verify cache for reloaded resources
     // if (factory->m_HttpCache)
     //     dmHttpCache::SetConsistencyPolicy(factory->m_HttpCache, dmHttpCache::CONSISTENCY_POLICY_VERIFY);
 
     char encoded_uri[dmResource::RESOURCE_PATH_MAX*2];
     CreateEncodedUri(&archive->m_BaseUri, path, encoded_uri, sizeof(encoded_uri));
+
+    char cache_key[dmURI::MAX_URI_LEN];
+    dmHttpClient::GetURI(archive->m_HttpClient, path, cache_key, sizeof(cache_key));
+
+    // Make the cache key the same (see http_service.cpp)
+    if (!get_file_size && INVALID_CHUNK_VALUE != offset && INVALID_CHUNK_VALUE != size)
+    {
+        char range[256];
+        dmSnPrintf(range, sizeof(range), "=bytes=%u-%u", offset, offset+size-1);
+        dmStrlCat(cache_key, range, sizeof(cache_key));// "=bytes=%d-%d"
+    }
+    dmHttpClient::SetCacheKey(archive->m_HttpClient, cache_key);
 
     dmHttpClient::Result http_result = dmHttpClient::Request(archive->m_HttpClient, method, encoded_uri);
 
@@ -250,8 +267,6 @@ static dmResourceProvider::Result GetRequestFromUri(HttpProviderContext* archive
         }
     }
 
-    bool get_file_size = strcmp(method, "HEAD") == 0;
-
     if (get_file_size)
     {
         *buffer_length = archive->m_HttpContentLength;
@@ -269,6 +284,7 @@ static dmResourceProvider::Result GetRequestFromUri(HttpProviderContext* archive
         bool full_file = size == INVALID_CHUNK_VALUE && offset == INVALID_CHUNK_VALUE;
         if (archive->m_HttpTotalBytesStreamed > *buffer_length && full_file)
         {
+            dmLogError("Cannot write to buffer of size %u. Content has length %u", *buffer_length, archive->m_HttpTotalBytesStreamed);
             return dmResourceProvider::RESULT_IO_ERROR;
         }
 
@@ -307,12 +323,23 @@ static dmResourceProvider::Result ReadFilePartial(dmResourceProvider::HArchiveIn
 {
     HttpProviderContext* archive = (HttpProviderContext*)_archive;
     (void)path_hash;
-
     dmResourceProvider::Result result = GetRequestFromUri((HttpProviderContext*)archive, "GET", path, offset, size, nread, buffer);
     if (result != dmResourceProvider::RESULT_OK)
     {
         return result;
     }
+    return dmResourceProvider::RESULT_OK;
+}
+
+static dmResourceProvider::Result InitializeArchiveLoaderHttp(dmResourceProvider::ArchiveLoaderParams* params, dmResourceProvider::ArchiveLoader* loader)
+{
+    g_HttpCache = params->m_HttpCache;
+    return dmResourceProvider::RESULT_OK;
+}
+
+static dmResourceProvider::Result FinalizeArchiveLoaderHttp(dmResourceProvider::ArchiveLoaderParams* params, dmResourceProvider::ArchiveLoader* loader)
+{
+    g_HttpCache = 0;
     return dmResourceProvider::RESULT_OK;
 }
 
@@ -326,5 +353,5 @@ static void SetupArchiveLoaderHttp(dmResourceProvider::ArchiveLoader* loader)
     loader->m_ReadFilePartial   = ReadFilePartial;
 }
 
-DM_DECLARE_ARCHIVE_LOADER(ResourceProviderHttp, "http", SetupArchiveLoaderHttp);
+DM_DECLARE_ARCHIVE_LOADER(ResourceProviderHttp, "http", SetupArchiveLoaderHttp, InitializeArchiveLoaderHttp, FinalizeArchiveLoaderHttp);
 }

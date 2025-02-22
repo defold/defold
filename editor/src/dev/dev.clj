@@ -945,6 +945,9 @@
                          value)))))
         (.getDebugInfo weak-interner)))
 
+(definline weak-interner-values [^WeakInterner weak-interner]
+  `(.getValues ~(with-meta weak-interner {:tag `WeakInterner})))
+
 (defn weak-interner-stats [^WeakInterner weak-interner]
   (let [info (weak-interner-info weak-interner)
         hash-table (:hash-table info)

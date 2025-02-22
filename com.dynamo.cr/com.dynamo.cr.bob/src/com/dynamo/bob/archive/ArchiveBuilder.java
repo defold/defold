@@ -18,15 +18,10 @@
 package com.dynamo.bob.archive;
 
 import java.io.File;
-import java.io.InputStream;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -37,13 +32,11 @@ import java.util.Set;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import java.util.concurrent.Executors;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.io.IOUtils;
 
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.DefaultFileSystem;
@@ -86,7 +79,6 @@ public class ArchiveBuilder {
 
     private Project project;
     private Publisher publisher;
-    private ExecutorService executorService;
     private int nThreads;
 
     private byte[] archiveEntryPadding = new byte[11];
@@ -302,7 +294,9 @@ public class ArchiveBuilder {
         // create the executor service to write entries in parallel
         int nThreads = project.getMaxCpuThreads();
         logger.info("Creating archive entries with a fixed thread pool executor using %d threads", nThreads);
-        this.executorService = Executors.newFixedThreadPool(nThreads);
+        ExecutorService multiThreadedExecutorService = Executors.newFixedThreadPool(nThreads);
+        // temp workaround for a bug in the ZipPublisher
+        ExecutorService singleThreadedExecutorService = Executors.newFixedThreadPool(1);
 
         Collections.sort(entries); // Since it has no hash, it sorts on path
 
@@ -311,6 +305,7 @@ public class ArchiveBuilder {
 
         // create archive entry write tasks
         List<Future<ArchiveEntry>> futures = new ArrayList<>(entries.size());
+        ExecutorService executorService = multiThreadedExecutorService;
         for (int i = entries.size() - 1; i >= 0; --i) {
             ArchiveEntry entry = entries.get(i);
             String normalisedPath = FilenameUtils.separatorsToUnix(entry.getRelativeFilename());
@@ -319,11 +314,13 @@ public class ArchiveBuilder {
                 entry.setFlag(ArchiveEntry.FLAG_LIVEUPDATE);
                 entries.remove(i);
                 excludedEntries.add(entry);
+                executorService = singleThreadedExecutorService;
             }
             else {
                 includedEntries.add(entry);
+                executorService = multiThreadedExecutorService;
             }
-            Future<ArchiveEntry> future = this.executorService.submit(() -> {
+            Future<ArchiveEntry> future = executorService.submit(() -> {
                 writeArchiveEntry(archiveData, entry, excludedResources);
                 return entry;
             });
@@ -340,7 +337,8 @@ public class ArchiveBuilder {
             throw new CompileExceptionError("Error while writing archive", e);
         }
         finally {
-            this.executorService.shutdownNow();
+            multiThreadedExecutorService.shutdownNow();
+            singleThreadedExecutorService.shutdownNow();
             archiveData.close();
         }
 

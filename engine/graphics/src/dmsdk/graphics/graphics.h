@@ -53,27 +53,6 @@ namespace dmGraphics
     typedef uint64_t HRenderTarget; // Where is this currently used?
 
     /*#
-     * Vertex program handle
-     * @typedef
-     * @name HVertexProgram
-     */
-    typedef uintptr_t HVertexProgram;
-
-    /*#
-     * Fragment program handle
-     * @typedef
-     * @name HFragmentProgram
-     */
-    typedef uintptr_t HFragmentProgram;
-
-    /*#
-     * Compute program handle
-     * @typedef
-     * @name HComputeProgram
-     */
-    typedef uintptr_t HComputeProgram;
-
-    /*#
      * Program handle
      * @typedef
      * @name HProgram

@@ -516,7 +516,9 @@ namespace dmConfigFile
         (void) value;
     }
 
-    static void HttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length, const char* method)
+    static void HttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length,
+                            uint32_t range_start, uint32_t range_end, uint32_t document_size,
+                            const char* method)
     {
         (void) method; // unused
         HttpContext* context = (HttpContext*) user_data;

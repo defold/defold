@@ -1248,15 +1248,15 @@ namespace dmGraphics
         // context->m_CurrentVertexBufferOffset[binding_index]            = base_offset;
 
         uint32_t stream_ix = 0;
-        uint32_t num_inputs = vertex_shader->m_ShaderMeta.m_Inputs.Size();
+        uint32_t num_inputs = program_ptr->m_BaseProgram.m_ShaderMeta.m_Inputs.Size();
 
         for (int i = 0; i < vertex_declaration->m_StreamCount; ++i)
         {
             for (int j = 0; j < num_inputs; ++j)
             {
-                ShaderResourceBinding& input = vertex_shader->m_ShaderMeta.m_Inputs[j];
+                ShaderResourceBinding& input = program_ptr->m_BaseProgram.m_ShaderMeta.m_Inputs[j];
 
-                if (input.m_NameHash == vertex_declaration->m_Streams[i].m_NameHash)
+                if (input.m_StageFlags & SHADER_STAGE_FLAG_VERTEX && input.m_NameHash == vertex_declaration->m_Streams[i].m_NameHash)
                 {
                     VertexDeclaration::Stream& stream = context->m_MainVertexDeclaration[binding_index].m_Streams[stream_ix];
                     stream.m_NameHash  = input.m_NameHash;
@@ -1796,30 +1796,6 @@ namespace dmGraphics
         DM_PROPERTY_ADD_U32(rmtp_DispatchCalls, 1);
     }
 
-    static HComputeProgram DX12NewComputeProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
-    {
-        return 0;
-    }
-
-    static HProgram DX12NewProgramFromCompute(HContext context, HComputeProgram compute_program)
-    {
-        return (HProgram) 0;
-    }
-
-    static void DX12DeleteComputeProgram(HComputeProgram prog)
-    {
-    }
-
-    static bool DX12ReloadProgramCompute(HContext context, HProgram program, HComputeProgram compute_program)
-    {
-        return true;
-    }
-
-    static bool DX12ReloadComputeProgram(HComputeProgram prog, ShaderDesc* ddf)
-    {
-        return true;
-    }
-
     static D3D12_SHADER_VISIBILITY GetShaderVisibilityFromStage(uint8_t stage_flag)
     {
         if (stage_flag & SHADER_STAGE_FLAG_VERTEX && stage_flag & SHADER_STAGE_FLAG_FRAGMENT)
@@ -1870,19 +1846,10 @@ namespace dmGraphics
         uint32_t ssbo_alignment = 0; // TODO
 
         ProgramResourceBindingsInfo binding_info = {};
+        FillProgramResourceBindings(&program->m_BaseProgram, bindings, ubo_alignment, ssbo_alignment, binding_info);
 
-        if (compute_module)
-        {
-            FillProgramResourceBindings(&program->m_BaseProgram, &compute_module->m_ShaderMeta, bindings, ubo_alignment, ssbo_alignment, SHADER_STAGE_FLAG_COMPUTE, binding_info);
-            ResolveSamplerTextureUnits(program, compute_module->m_ShaderMeta.m_Textures);
-        }
-        else
-        {
-            FillProgramResourceBindings(&program->m_BaseProgram, &vertex_module->m_ShaderMeta, bindings, ubo_alignment, ssbo_alignment, SHADER_STAGE_FLAG_VERTEX, binding_info);
-            FillProgramResourceBindings(&program->m_BaseProgram, &fragment_module->m_ShaderMeta, bindings, ubo_alignment, ssbo_alignment, SHADER_STAGE_FLAG_FRAGMENT, binding_info);
-            ResolveSamplerTextureUnits(program, vertex_module->m_ShaderMeta.m_Textures);
-            ResolveSamplerTextureUnits(program, fragment_module->m_ShaderMeta.m_Textures);
-        }
+        // Each module must resolve samplers individually since there is no contextual information across modules (currently)
+        ResolveSamplerTextureUnits(program, program->m_BaseProgram.m_ShaderMeta.m_Textures);
 
         program->m_BaseProgram.m_MaxSet     = binding_info.m_MaxSet;
         program->m_BaseProgram.m_MaxBinding = binding_info.m_MaxBinding;
@@ -1897,101 +1864,6 @@ namespace dmGraphics
         program->m_TotalResourcesCount    = binding_info.m_UniformBufferCount + binding_info.m_TextureCount + binding_info.m_SamplerCount + binding_info.m_StorageBufferCount; // num actual descriptors
 
         BuildUniforms(&program->m_BaseProgram);
-    }
-
-    static HProgram DX12NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
-    {
-        DX12ShaderProgram* program = new DX12ShaderProgram();
-        program->m_VertexModule    = (DX12ShaderModule*) vertex_program;
-        program->m_FragmentModule  = (DX12ShaderModule*) fragment_program;
-        program->m_ComputeModule   = 0;
-
-        CreateProgramResourceBindings(program, program->m_VertexModule, program->m_FragmentModule, 0);
-
-        dmArray<CD3DX12_ROOT_PARAMETER > root_parameter_descs;
-        root_parameter_descs.SetCapacity(program->m_UniformBufferCount + program->m_TextureSamplerCount);
-        root_parameter_descs.SetSize(root_parameter_descs.Capacity());
-
-        uint32_t texture_unit_start = program->m_UniformBufferCount;
-        uint32_t texture_ix         = 0;
-        uint32_t ubo_ix             = 0;
-
-        for (int set = 0; set < program->m_BaseProgram.m_MaxSet; ++set)
-        {
-            for (int binding = 0; binding < program->m_BaseProgram.m_MaxBinding; ++binding)
-            {
-                ProgramResourceBinding& pgm_res = program->m_BaseProgram.m_ResourceBindings[set][binding];
-
-                if (pgm_res.m_Res == 0x0)
-                    continue;
-                switch(pgm_res.m_Res->m_BindingFamily)
-                {
-                    case ShaderResourceBinding::BINDING_FAMILY_TEXTURE:
-                    {
-                        uint32_t ix = texture_unit_start + pgm_res.m_Res->m_Binding;
-
-                        if (pgm_res.m_Res->m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_SAMPLER)
-                        {
-                            // Match the sampler to a resolved texture unit
-                            uint32_t texture_binding = pgm_res.m_TextureUnit;
-
-                            CD3DX12_DESCRIPTOR_RANGE sampler_range(D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, 1, texture_binding);
-                            root_parameter_descs[ix].InitAsDescriptorTable(1, &sampler_range, GetShaderVisibilityFromStage(pgm_res.m_StageFlags));
-                        }
-                        else
-                        {
-                            CD3DX12_DESCRIPTOR_RANGE texture_range(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, pgm_res.m_Res->m_Binding);
-                            root_parameter_descs[ix].InitAsDescriptorTable(1, &texture_range, GetShaderVisibilityFromStage(pgm_res.m_StageFlags));
-                        }
-                    } break;
-                    case ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER:
-                    {
-                        // TODO
-                        assert(0);
-                    } break;
-                    case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER:
-                    {
-                        root_parameter_descs[ubo_ix].InitAsConstantBufferView(pgm_res.m_Res->m_Binding, 0, GetShaderVisibilityFromStage(pgm_res.m_StageFlags));
-                        ubo_ix++;
-                    } break;
-                    case ShaderResourceBinding::BINDING_FAMILY_GENERIC:
-                    default: continue;
-                }
-            }
-        }
-
-        CD3DX12_ROOT_SIGNATURE_DESC root_signature_desc;
-        root_signature_desc.Init(
-            root_parameter_descs.Size(),
-            root_parameter_descs.Begin(),
-            // No static samplers
-            0, 0,
-            D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT |
-            D3D12_ROOT_SIGNATURE_FLAG_SAMPLER_HEAP_DIRECTLY_INDEXED |
-            // we can deny more shader stages here for better performance
-            D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS |
-            D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS |
-            D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS);
-
-        CreateRootSignature((DX12Context*) context, &root_signature_desc, program);
-
-        HashState64 program_hash;
-        dmHashInit64(&program_hash, false);
-
-        for (uint32_t i=0; i < program->m_VertexModule->m_ShaderMeta.m_Inputs.Size(); i++)
-        {
-            dmHashUpdateBuffer64(&program_hash, &program->m_VertexModule->m_ShaderMeta.m_Inputs[i].m_Binding, sizeof(program->m_VertexModule->m_ShaderMeta.m_Inputs[i].m_Binding));
-        }
-
-        dmHashUpdateBuffer64(&program_hash, &program->m_VertexModule->m_Hash, sizeof(program->m_VertexModule->m_Hash));
-        dmHashUpdateBuffer64(&program_hash, &program->m_FragmentModule->m_Hash, sizeof(program->m_FragmentModule->m_Hash));
-        program->m_Hash = dmHashFinal64(&program_hash);
-
-        return (HProgram) program;
-    }
-
-    static void DX12DeleteProgram(HContext context, HProgram program)
-    {
     }
 
     static HRESULT CreateShaderModule(DX12Context* context, const char* target, void* data, uint32_t data_size, DX12ShaderModule* shader)
@@ -2014,59 +1886,126 @@ namespace dmGraphics
         return S_OK;
     }
 
-    static HVertexProgram DX12NewVertexProgram(HContext _context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
+    static HProgram DX12NewProgram(HContext _context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
-        ShaderDesc::Shader* ddf_shader = GetShaderProgram(_context, ddf);
-        if (ddf_shader == 0x0)
+        ShaderDesc::Shader* ddf_vp = 0x0;
+        ShaderDesc::Shader* ddf_fp = 0x0;
+        ShaderDesc::Shader* ddf_cp = 0x0;
+
+        if (!GetShaderProgram(_context, ddf, &ddf_vp, &ddf_fp, &ddf_cp))
         {
-            return 0x0;
+            return 0;
         }
 
         DX12Context* context = (DX12Context*) _context;
-        DX12ShaderModule* shader = new DX12ShaderModule;
-        memset(shader, 0, sizeof(*shader));
+        DX12ShaderProgram* program = new DX12ShaderProgram();
 
-        HRESULT hr = CreateShaderModule(context, "vs_5_0", ddf_shader->m_Source.m_Data, ddf_shader->m_Source.m_Count, shader);
-        CHECK_HR_ERROR(hr);
+        CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram.m_ShaderMeta);
 
-        CreateShaderMeta(&ddf->m_Reflection, &shader->m_ShaderMeta);
-        return (HVertexProgram) shader;
-    }
-
-    static HFragmentProgram DX12NewFragmentProgram(HContext _context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
-    {
-        ShaderDesc::Shader* ddf_shader = GetShaderProgram(_context, ddf);
-        if (ddf_shader == 0x0)
+        if (ddf_cp)
         {
-            return 0x0;
+            assert(0 && "Not implemented yet");
+        }
+        else
+        {
+            program->m_VertexModule = new DX12ShaderModule;
+            program->m_FragmentModule = new DX12ShaderModule;
+
+            memset(program->m_VertexModule, 0, sizeof(DX12ShaderModule));
+            memset(program->m_FragmentModule, 0, sizeof(DX12ShaderModule));
+
+            HRESULT hr = CreateShaderModule(context, "vs_5_0", ddf_vp->m_Source.m_Data, ddf_vp->m_Source.m_Count, program->m_VertexModule);
+            CHECK_HR_ERROR(hr);
+
+            hr = CreateShaderModule(context, "ps_5_0", ddf_fp->m_Source.m_Data, ddf_fp->m_Source.m_Count, program->m_FragmentModule);
+            CHECK_HR_ERROR(hr);
+
+            CreateProgramResourceBindings(program, program->m_VertexModule, program->m_FragmentModule, 0);
+
+            dmArray<CD3DX12_ROOT_PARAMETER > root_parameter_descs;
+            root_parameter_descs.SetCapacity(program->m_UniformBufferCount + program->m_TextureSamplerCount);
+            root_parameter_descs.SetSize(root_parameter_descs.Capacity());
+
+            uint32_t texture_unit_start = program->m_UniformBufferCount;
+            uint32_t texture_ix         = 0;
+            uint32_t ubo_ix             = 0;
+
+            for (int set = 0; set < program->m_BaseProgram.m_MaxSet; ++set)
+            {
+                for (int binding = 0; binding < program->m_BaseProgram.m_MaxBinding; ++binding)
+                {
+                    ProgramResourceBinding& pgm_res = program->m_BaseProgram.m_ResourceBindings[set][binding];
+
+                    if (pgm_res.m_Res == 0x0)
+                        continue;
+                    switch(pgm_res.m_Res->m_BindingFamily)
+                    {
+                        case ShaderResourceBinding::BINDING_FAMILY_TEXTURE:
+                        {
+                            uint32_t ix = texture_unit_start + pgm_res.m_Res->m_Binding;
+
+                            if (pgm_res.m_Res->m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_SAMPLER)
+                            {
+                                // Match the sampler to a resolved texture unit
+                                uint32_t texture_binding = pgm_res.m_TextureUnit;
+
+                                CD3DX12_DESCRIPTOR_RANGE sampler_range(D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, 1, texture_binding);
+                                root_parameter_descs[ix].InitAsDescriptorTable(1, &sampler_range, GetShaderVisibilityFromStage(pgm_res.m_StageFlags));
+                            }
+                            else
+                            {
+                                CD3DX12_DESCRIPTOR_RANGE texture_range(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, pgm_res.m_Res->m_Binding);
+                                root_parameter_descs[ix].InitAsDescriptorTable(1, &texture_range, GetShaderVisibilityFromStage(pgm_res.m_StageFlags));
+                            }
+                        } break;
+                        case ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER:
+                        {
+                            // TODO
+                            assert(0);
+                        } break;
+                        case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER:
+                        {
+                            root_parameter_descs[ubo_ix].InitAsConstantBufferView(pgm_res.m_Res->m_Binding, 0, GetShaderVisibilityFromStage(pgm_res.m_StageFlags));
+                            ubo_ix++;
+                        } break;
+                        case ShaderResourceBinding::BINDING_FAMILY_GENERIC:
+                        default: continue;
+                    }
+                }
+            }
+
+            CD3DX12_ROOT_SIGNATURE_DESC root_signature_desc;
+            root_signature_desc.Init(
+                root_parameter_descs.Size(),
+                root_parameter_descs.Begin(),
+                // No static samplers
+                0, 0,
+                D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT |
+                D3D12_ROOT_SIGNATURE_FLAG_SAMPLER_HEAP_DIRECTLY_INDEXED |
+                // we can deny more shader stages here for better performance
+                D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS |
+                D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS |
+                D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS);
+
+            CreateRootSignature((DX12Context*) context, &root_signature_desc, program);
+
+            HashState64 program_hash;
+            dmHashInit64(&program_hash, false);
+
+            for (uint32_t i=0; i < program->m_BaseProgram.m_ShaderMeta.m_Inputs.Size(); i++)
+            {
+                dmHashUpdateBuffer64(&program_hash, &program->m_BaseProgram.m_ShaderMeta.m_Inputs[i].m_Binding, sizeof(program->m_BaseProgram.m_ShaderMeta.m_Inputs[i].m_Binding));
+            }
+
+            dmHashUpdateBuffer64(&program_hash, &program->m_VertexModule->m_Hash, sizeof(program->m_VertexModule->m_Hash));
+            dmHashUpdateBuffer64(&program_hash, &program->m_FragmentModule->m_Hash, sizeof(program->m_FragmentModule->m_Hash));
+            program->m_Hash = dmHashFinal64(&program_hash);
         }
 
-        DX12Context* context = (DX12Context*) _context;
-        DX12ShaderModule* shader = new DX12ShaderModule;
-        memset(shader, 0, sizeof(*shader));
-
-        HRESULT hr = CreateShaderModule(context, "ps_5_0", ddf_shader->m_Source.m_Data, ddf_shader->m_Source.m_Count, shader);
-        CHECK_HR_ERROR(hr);
-
-        CreateShaderMeta(&ddf->m_Reflection, &shader->m_ShaderMeta);
-        return (HVertexProgram) shader;
+        return (HProgram) program;
     }
 
-    static bool DX12ReloadVertexProgram(HVertexProgram prog, ShaderDesc* ddf)
-    {
-        return 0;
-    }
-
-    static bool DX12ReloadFragmentProgram(HFragmentProgram prog, ShaderDesc* ddf)
-    {
-        return 0;
-    }
-
-    static void DX12DeleteVertexProgram(HVertexProgram program)
-    {
-    }
-
-    static void DX12DeleteFragmentProgram(HFragmentProgram program)
+    static void DX12DeleteProgram(HContext context, HProgram program)
     {
     }
 
@@ -2090,28 +2029,45 @@ namespace dmGraphics
         ((DX12Context*) context)->m_CurrentProgram = 0;
     }
 
-    static bool DX12ReloadProgramGraphics(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
+    static bool DX12ReloadProgram(HContext _context, HProgram _program, ShaderDesc* ddf)
     {
         return true;
     }
 
     static uint32_t DX12GetAttributeCount(HProgram prog)
     {
-        DX12ShaderProgram* program_ptr = (DX12ShaderProgram*) prog;
-        return program_ptr->m_VertexModule->m_ShaderMeta.m_Inputs.Size();
+        DX12ShaderProgram* program = (DX12ShaderProgram*) prog;
+        uint32_t num_vx_inputs = 0;
+        for (int i = 0; i < program->m_BaseProgram.m_ShaderMeta.m_Inputs.Size(); ++i)
+        {
+            if (program->m_BaseProgram.m_ShaderMeta.m_Inputs[i].m_StageFlags & SHADER_STAGE_FLAG_VERTEX)
+            {
+                num_vx_inputs++;
+            }
+        }
+        return num_vx_inputs;
     }
 
     static void DX12GetAttribute(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location)
     {
-        DX12ShaderProgram* program_ptr = (DX12ShaderProgram*) prog;
-        assert(index < program_ptr->m_VertexModule->m_ShaderMeta.m_Inputs.Size());
-        ShaderResourceBinding& attr = program_ptr->m_VertexModule->m_ShaderMeta.m_Inputs[index];
-
-        *name_hash     = attr.m_NameHash;
-        *type          = ShaderDataTypeToGraphicsType(attr.m_Type.m_ShaderType);
-        *num_values    = 1;
-        *location      = attr.m_Binding;
-        *element_count = GetShaderTypeSize(attr.m_Type.m_ShaderType) / sizeof(float);
+        DX12ShaderProgram* program = (DX12ShaderProgram*) prog;
+        uint32_t input_ix = 0;
+        for (int i = 0; i < program->m_BaseProgram.m_ShaderMeta.m_Inputs.Size(); ++i)
+        {
+            if (program->m_BaseProgram.m_ShaderMeta.m_Inputs[i].m_StageFlags & SHADER_STAGE_FLAG_VERTEX)
+            {
+                if (input_ix == index)
+                {
+                    ShaderResourceBinding& attr = program->m_BaseProgram.m_ShaderMeta.m_Inputs[i];
+                    *name_hash                  = attr.m_NameHash;
+                    *type                       = ShaderDataTypeToGraphicsType(attr.m_Type.m_ShaderType);
+                    *num_values                 = 1;
+                    *location                   = attr.m_Binding;
+                    *element_count              = GetShaderTypeSize(attr.m_Type.m_ShaderType) / sizeof(float);
+                }
+                input_ix++;
+            }
+        }
     }
 
     static inline void WriteConstantData(uint32_t offset, uint8_t* uniform_data_ptr, uint8_t* data_ptr, uint32_t data_size)

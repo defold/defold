@@ -524,9 +524,13 @@
 (defn debugging? [debug-view evaluation-context]
   (some? (current-session debug-view evaluation-context)))
 
+(defn- contentless? [state]
+  (and state (:connection_mode state)))
+
 (defn can-attach? [prefs]
   (if-some [target (targets/selected-target prefs)]
-    (targets/controllable-target? target)
+    (and (targets/controllable-target? target)
+         (not (contentless? (engine/get-engine-state! target))))
     false))
 
 (def ^:private debugger-init-script "/_defold/debugger/start.lua")

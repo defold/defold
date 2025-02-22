@@ -249,11 +249,9 @@ struct ComputeTest : ITest
         AddShaderTypeMember(&compute_desc, type_info, "color", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC4);
         AddShaderResource(&compute_desc, "buf", 0, 0, 0, BINDING_TYPE_UNIFORM_BUFFER);
 
-        dmGraphics::HComputeProgram compute_program = dmGraphics::NewComputeProgram(engine->m_GraphicsContext, &compute_desc, 0, 0);
+        m_Program = dmGraphics::NewProgram(engine->m_GraphicsContext, &compute_desc, 0, 0);
 
         DeleteShaderDesc(&compute_desc);
-
-        m_Program = dmGraphics::NewProgram(engine->m_GraphicsContext, compute_program);
 
         m_UniformLoc = GetUniformLocation(m_Program, "buf");
     }
@@ -379,6 +377,10 @@ static void* EngineCreate(int argc, char** argv)
     if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGL)
     {
         window_params.m_GraphicsApi = dmPlatform::PLATFORM_GRAPHICS_API_OPENGL;
+    }
+    else if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGLES)
+    {
+        window_params.m_GraphicsApi = dmPlatform::PLATFORM_GRAPHICS_API_OPENGLES;
     }
 
     dmPlatform::OpenWindow(engine->m_Window, window_params);

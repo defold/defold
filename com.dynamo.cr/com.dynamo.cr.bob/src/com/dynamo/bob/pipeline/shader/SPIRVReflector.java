@@ -16,6 +16,7 @@ package com.dynamo.bob.pipeline.shader;
 
 import com.dynamo.bob.pipeline.Shaderc;
 import com.dynamo.bob.pipeline.ShadercJni;
+import com.dynamo.graphics.proto.Graphics;
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.map.ObjectMapper;
 
@@ -25,9 +26,16 @@ import java.util.*;
 public class SPIRVReflector {
 
     private final Shaderc.ShaderReflection reflection;
+    private final Graphics.ShaderDesc.ShaderType shaderStage;
 
-    public SPIRVReflector(long ctx) {
+    public SPIRVReflector() {
+        reflection = new Shaderc.ShaderReflection();
+        shaderStage = null;
+    }
+
+    public SPIRVReflector(long ctx, Graphics.ShaderDesc.ShaderType shaderStage) {
         this.reflection = ShadercJni.GetReflection(ctx);
+        this.shaderStage = shaderStage;
     }
 
     private static class SortBindingsComparator implements Comparator<Shaderc.ShaderResource> {
@@ -40,6 +48,10 @@ public class SPIRVReflector {
         public int compare(Shaderc.ShaderResource a, Shaderc.ShaderResource b) {
             return a.location - b.location;
         }
+    }
+
+    public Graphics.ShaderDesc.ShaderType getShaderStage() {
+        return this.shaderStage;
     }
 
     public ArrayList<Shaderc.ResourceTypeInfo> getTypes() {

@@ -65,9 +65,7 @@ BUILDERS['.skeletonc']      = rig.rig_ddf_pb2.Skeleton
 BUILDERS['.dmanifest']      = resource.liveupdate_ddf_pb2.ManifestFile
 BUILDERS['.texturec']       = graphics.graphics_ddf_pb2.TextureImage
 BUILDERS['.guic']           = gamesys.gui_ddf_pb2.SceneDesc
-BUILDERS['.vpc']            = graphics.graphics_ddf_pb2.ShaderDesc
-BUILDERS['.fpc']            = graphics.graphics_ddf_pb2.ShaderDesc
-BUILDERS['.cpc']            = graphics.graphics_ddf_pb2.ShaderDesc
+BUILDERS['.spc']            = graphics.graphics_ddf_pb2.ShaderDesc
 BUILDERS['.goc']            = gameobject.gameobject_ddf_pb2.PrototypeDesc
 BUILDERS['.collectionc']    = gameobject.gameobject_ddf_pb2.CollectionDesc
 BUILDERS['.luac']           = gameobject.lua_ddf_pb2.LuaModule
@@ -266,10 +264,8 @@ def print_shader_file(shader_file):
 
 
 PRINTERS = {}
-PRINTERS['.luac']       = print_lua_file
-PRINTERS['.vpc']        = print_shader_file
-PRINTERS['.fpc']        = print_shader_file
-PRINTERS['.cpc']        = print_shader_file
+PRINTERS['.luac'] = print_lua_file
+PRINTERS['.spc']  = print_shader_file
 
 if __name__ == "__main__":
     path = sys.argv[1]

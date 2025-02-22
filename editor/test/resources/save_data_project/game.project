@@ -171,6 +171,7 @@ max_sound_buffers = 16
 max_sound_sources = 32
 max_sound_instances = 128
 max_component_count = 16
+sample_frame_count = 0
 
 [sprite]
 max_count = 256
