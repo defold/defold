@@ -203,6 +203,9 @@ public abstract class ProtoBuilder<B extends GeneratedMessageV3.Builder<B>> exte
     @Override
     public void signature(MessageDigest digest) {
         super.signature(digest);
-        digest.update(classToProtoDigest.get(protoParams.messageClass()));
+        byte[] protoDigest = classToProtoDigest.get(protoParams.messageClass());
+        if (protoDigest != null) {
+            digest.update(protoDigest);
+        }
     }
 }

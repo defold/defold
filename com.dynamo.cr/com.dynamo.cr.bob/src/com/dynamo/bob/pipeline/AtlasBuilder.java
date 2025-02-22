@@ -48,7 +48,7 @@ import com.dynamo.gamesys.proto.AtlasProto.AtlasImage;
 import com.google.protobuf.TextFormat;
 
 @ProtoParams(srcClass = Atlas.class, messageClass = TextureSet.class)
-@BuilderParams(name = "Atlas", inExts = {".atlas"}, outExt = ".a.texturesetc", isCacheble = true)
+@BuilderParams(name = "Atlas", inExts = {".atlas"}, outExt = ".a.texturesetc", isCacheble = true, paramsForSignature = {"texture-compression"})
 public class AtlasBuilder extends ProtoBuilder<Atlas.Builder> {
 
     private static final Logger logger = Logger.getLogger(AtlasBuilder.class.getName());

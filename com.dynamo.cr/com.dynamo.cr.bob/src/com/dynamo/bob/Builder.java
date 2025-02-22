@@ -16,6 +16,10 @@ package com.dynamo.bob;
 
 import java.io.IOException;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.BuilderUtil;
@@ -25,6 +29,27 @@ import com.dynamo.bob.pipeline.BuilderUtil;
  * @author Christian Murray
  */
 public abstract class Builder {
+
+    private static Map<Class<?>,  byte[]> classToParamsDigest = new HashMap<Class<?>,  byte[]>();
+
+    public static void addParamsDigest(Class<?> klass, Map<String, String> options, BuilderParams builderParams) throws NoSuchAlgorithmException {
+        String[] params = builderParams.paramsForSignature();
+        if (params.length == 0) {
+            return;
+        }
+        MessageDigest digest = MessageDigest.getInstance("SHA1");
+        Arrays.sort(params);
+        for (String param: params) {
+            if (options.containsKey(param)) {
+                digest.update(param.getBytes());
+                String value = options.get(param);
+                if (value != null && !value.isEmpty()) {
+                    digest.update(value.getBytes());
+                }
+            }
+        }
+        classToParamsDigest.put(klass, digest.digest());
+    }
 
     protected BuilderParams params;
     protected Project project;
@@ -119,7 +144,10 @@ public abstract class Builder {
      * @param digest message digest to update
      */
     public void signature(MessageDigest digest) {
-
+        byte[] paramsDigest = classToParamsDigest.get(this.getClass());
+        if (paramsDigest != null) {
+            digest.update(paramsDigest);
+        }
     }
 
     /**

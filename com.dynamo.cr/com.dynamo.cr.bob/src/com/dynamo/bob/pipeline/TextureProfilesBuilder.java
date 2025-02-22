@@ -14,7 +14,7 @@ import java.util.LinkedList;
 import java.util.List;
 
 @ProtoParams(srcClass = Graphics.TextureProfiles.class, messageClass = Graphics.TextureProfiles.class)
-@BuilderParams(name = "TextureProfile", inExts = {".texture_profiles"}, outExt = ".texture_profilesc")
+@BuilderParams(name = "TextureProfile", inExts = {".texture_profiles"}, outExt = ".texture_profilesc", paramsForSignature = {"platform"})
 public class TextureProfilesBuilder extends ProtoBuilder<Graphics.TextureProfiles.Builder> {
 
     public void build(Task task) throws CompileExceptionError, IOException {
