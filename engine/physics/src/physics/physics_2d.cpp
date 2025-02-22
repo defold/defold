@@ -531,6 +531,11 @@ namespace dmPhysics
             {
                 Body* body = world->m_Bodies[i];
 
+                if (!b2Body_IsAwake(body->m_BodyId))
+                {
+                    continue;
+                }
+
                 for (int j=0; j < body->m_ShapeCount; ++j)
                 {
                     b2ShapeId shapeIdA = body->m_Shapes[j]->m_ShapeId;
