@@ -20,24 +20,6 @@
 
 namespace dmRender
 {
-    static inline dmGraphics::TextureType TypeToTextureType(dmGraphics::Type type)
-    {
-        switch(type)
-        {
-            case dmGraphics::TYPE_SAMPLER_2D:       return dmGraphics::TEXTURE_TYPE_2D;
-            case dmGraphics::TYPE_SAMPLER_2D_ARRAY: return dmGraphics::TEXTURE_TYPE_2D_ARRAY;
-            case dmGraphics::TYPE_SAMPLER_CUBE:     return dmGraphics::TEXTURE_TYPE_CUBE_MAP;
-            case dmGraphics::TYPE_IMAGE_2D:         return dmGraphics::TEXTURE_TYPE_IMAGE_2D;
-            case dmGraphics::TYPE_TEXTURE_2D:       return dmGraphics::TEXTURE_TYPE_TEXTURE_2D;
-            case dmGraphics::TYPE_TEXTURE_2D_ARRAY: return dmGraphics::TEXTURE_TYPE_TEXTURE_2D_ARRAY;
-            case dmGraphics::TYPE_TEXTURE_CUBE:     return dmGraphics::TEXTURE_TYPE_TEXTURE_CUBE;
-            case dmGraphics::TYPE_SAMPLER:          return dmGraphics::TEXTURE_TYPE_SAMPLER;
-            default:break;
-        }
-        assert(0);
-        return (dmGraphics::TextureType) -1;
-    }
-
     static inline bool IsUniformTypeSupported(dmGraphics::Type type)
     {
         return type == dmGraphics::TYPE_FLOAT_VEC4 || type == dmGraphics::TYPE_FLOAT_MAT4 || dmGraphics::IsTypeTextureType(type) || type == dmGraphics::TYPE_SAMPLER;
