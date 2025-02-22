@@ -17,4 +17,28 @@
 
 #include <dmsdk/rig/rig.h>
 
+namespace dmRig
+{
+	static const uint16_t INVALID_POSE_MATRIX_CACHE_INDEX = 0xFFFF;
+
+	struct RigModelSkinnedVertex
+    {
+        RigModelVertex m_Vertex;
+        float          m_BoneWeights[4];
+        float          m_BoneIndices[4];
+    };
+
+    struct PoseMatrixCache
+    {
+        dmArray<dmVMath::Matrix4> m_PoseMatrices;
+        dmArray<uint32_t>         m_BoneCounts;
+        uint32_t                  m_MaxBoneCount;
+    };
+
+    void                   ResetPoseMatrixCache(HRigContext context);
+    const PoseMatrixCache* GetPoseMatrixCache(HRigContext context);
+    uint16_t               AcquirePoseMatrixCacheIndex(HRigContext context, HRigInstance instance);
+    uint32_t               GetPoseMatrixCacheIndex(HRigContext context, uint16_t cache_index);
+}
+
 #endif // DM_RIG_H

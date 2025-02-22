@@ -507,6 +507,7 @@ proto_compile_task('mesh', 'mesh_ddf_pb2', 'MeshDesc', '.mesh', '.meshc', transf
 proto_compile_task('display_profiles', 'render.render_ddf_pb2', 'render_ddf_pb2.DisplayProfiles', '.display_profiles', '.display_profilesc')
 
 new_copy_task('project', '.project', '.projectc')
+new_copy_task('glsl', '.glsl', '.glslc')
 
 # Copy prebuilt spine scenes
 new_copy_task('copy prebuilt animationsetc', '.prebuilt_animationsetc', '.animationsetc')

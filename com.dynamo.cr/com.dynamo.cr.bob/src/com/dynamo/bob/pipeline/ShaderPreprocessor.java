@@ -169,6 +169,7 @@ public class ShaderPreprocessor {
 
     private String getIncludeData(String fromPath) throws CompileExceptionError, IOException
     {
+        fromPath = "/" + fromPath;
         IResource res = this.project.getResource(fromPath);
         if (res.getContent() == null) {
             throw new CompileExceptionError(this.sourcePath + " includes '" + fromPath + "', but the file is invalid. " +

@@ -1170,7 +1170,7 @@ namespace dmRig
         return out_write_ptr;
     }
 
-    PoseMatrixCache* GetPoseMatrixCache(HRigContext context)
+    const PoseMatrixCache* GetPoseMatrixCache(HRigContext context)
     {
         return &context->m_PoseMatrixCache;
     }
