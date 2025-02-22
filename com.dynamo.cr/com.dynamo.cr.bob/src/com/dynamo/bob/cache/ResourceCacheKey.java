@@ -19,6 +19,7 @@ import java.security.NoSuchAlgorithmException;
 import java.io.IOException;
 import java.math.BigInteger;
 
+import com.dynamo.bob.archive.EngineVersion;
 import com.dynamo.bob.fs.IResource;
 
 public class ResourceCacheKey {
@@ -34,6 +35,7 @@ public class ResourceCacheKey {
 	public static String calculate(byte[] taskSignature, IResource resource) throws RuntimeException, IOException, NoSuchAlgorithmException {
 		MessageDigest digest = MessageDigest.getInstance("SHA1");
         digest.update(taskSignature);
+		digest.update(EngineVersion.sha1.getBytes());
 		digest.update(resource.getPath().getBytes());
 		byte[] key = digest.digest();
 		// byte digest to hex string
