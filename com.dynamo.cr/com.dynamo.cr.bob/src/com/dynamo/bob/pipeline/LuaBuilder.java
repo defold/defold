@@ -178,7 +178,7 @@ public abstract class LuaBuilder extends Builder {
         // https://bugs.openjdk.org/browse/JDK-8068370
         Bob.initLua();
         useLua51 = LUA51_PLATFORMS.contains(this.project.getPlatform());
-        if (!useLua51 && luaJITExePath == null) {
+        if (luaJITExePath == null) {
             final Platform host = Platform.getHostPlatform();
             luaJITExePath = Bob.getExe(host, "luajit-64");
         }
@@ -534,11 +534,13 @@ public abstract class LuaBuilder extends Builder {
         // this is unacceptable for html5 games where size is a key factor
         // see https://github.com/defold/defold/issues/6891 for more info
         if (useLua51) {
+            constructLuaJITBytecode(task, script, false);
             srcBuilder.setScript(ByteString.copyFrom(script.getBytes()));
         }
         // include uncompressed Lua source code instead of bytecode
         // see https://forum.defold.com/t/urgent-need-help-i-have-huge-problem-with-game-submission-to-apple/68031
         else if (useUncompressedLuaSource) {
+            constructLuaJITBytecode(task, script, false);
             srcBuilder.setScript(ByteString.copyFrom(script.getBytes()));
         }
         else {
