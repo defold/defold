@@ -86,6 +86,7 @@ namespace dmRig
         float                         m_BlendTimer;
         // Max bone count used by skeleton (if it is used) and meshset
         uint16_t                      m_MaxBoneCount;
+        uint16_t                      m_PoseMatrixCacheIndex;
         /// Current player index
         uint8_t                       m_CurrentPlayer : 1;
         /// Whether we are currently X-fading or not

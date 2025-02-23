@@ -225,6 +225,8 @@ namespace dmGameSystem
         dmRender::HRenderContext    m_RenderContext;
         dmResource::HFactory        m_Factory;
         uint32_t                    m_MaxModelCount;
+        uint16_t                    m_MaxBoneMatrixTextureWidth;
+        uint16_t                    m_MaxBoneMatrixTextureHeight;
     };
 
     struct ScriptLibContext

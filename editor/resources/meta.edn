@@ -458,6 +458,14 @@
    :default false,
    :path ["model" "split_meshes"]}
   {:type :integer,
+   :help "Max width of the bone matrix texture, 1024 by default. only the size needed for the animations will be used, and the value will rounded up to nearest PO2.",
+   :default 1024,
+   :path ["model" "max_bone_matrix_texture_width"]}
+  {:type :integer,
+   :help "Max height of the bone matrix texture, 1024 by default. only the size needed for the animations will be used, and the value will rounded up to nearest PO2.",
+   :default 1024,
+   :path ["model" "max_bone_matrix_texture_height"]}
+  {:type :integer,
    :help "max number of mesh components, 128 by default",
    :default 128,
    :path ["mesh" "max_count"]}

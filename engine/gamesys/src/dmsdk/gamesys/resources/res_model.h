@@ -41,6 +41,12 @@ namespace dmGameSystem
     struct TextureResource;
     struct RenderTargetResource;
 
+    enum RigModelVertexFormat
+    {
+        RIG_MODEL_VERTEX_FORMAT_STATIC,
+        RIG_MODEL_VERTEX_FORMAT_SKINNED,
+    };
+
     struct ModelResourceBuffers
     {
         dmGraphics::HVertexBuffer   m_VertexBuffer;
@@ -48,6 +54,7 @@ namespace dmGameSystem
         uint32_t                    m_VertexCount;
         uint32_t                    m_IndexCount;
         dmGraphics::Type            m_IndexBufferElementType;
+        RigModelVertexFormat        m_RigModelVertexFormat;
         uint8_t                     m_LastUsedFrame; // Used for statistics
     };
 

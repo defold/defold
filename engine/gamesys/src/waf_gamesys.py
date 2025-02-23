@@ -219,7 +219,7 @@ def model_file(self, node):
     out_rigscene = node.change_ext(rig_ext)
     task.set_outputs([out_model, out_rigscene])
 
-waflib.Task.task_factory('shaderbuilder', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.ShaderProgramBuilder ${SRC} ${TGT} ${PLATFORM}',
+waflib.Task.task_factory('shaderbuilder', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.ShaderProgramBuilder ${SRC} ${TGT} ${PLATFORM} ${CONTENT_ROOT}',
                       color='PINK',
                       after='proto_gen_py',
                       before='c cxx',
@@ -230,6 +230,7 @@ def vertexprogram_file(self, node):
     classpath = [self.env['DYNAMO_HOME'] + '/share/java/bob-light.jar'] + self.env['PLATFORM_SHADER_COMPILER_PLUGIN_JAR']
     shader = self.create_task('shaderbuilder')
     shader.env['CLASSPATH'] = os.pathsep.join(classpath)
+    shader.env['CONTENT_ROOT'] = "."
     shader.set_inputs(node)
     _, ext = os.path.splitext(node.abspath())
     obj_ext = ext + ".spc"
@@ -507,6 +508,7 @@ proto_compile_task('mesh', 'mesh_ddf_pb2', 'MeshDesc', '.mesh', '.meshc', transf
 proto_compile_task('display_profiles', 'render.render_ddf_pb2', 'render_ddf_pb2.DisplayProfiles', '.display_profiles', '.display_profilesc')
 
 new_copy_task('project', '.project', '.projectc')
+new_copy_task('glsl', '.glsl', '.glslc')
 
 # Copy prebuilt spine scenes
 new_copy_task('copy prebuilt animationsetc', '.prebuilt_animationsetc', '.animationsetc')
