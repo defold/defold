@@ -1,18 +1,6 @@
 #ifndef DM_SKINNING_GLSL
 #define DM_SKINNING_GLSL
 
-in mediump vec4 bone_weights;
-in mediump vec4 bone_indices;
-
-// For instancing, we have to use an attribute for the animation data
-#ifdef DM_SKINNED_INSTANCING
-    in mediump vec4 animation_data;
-#else
-    uniform vec4 animation_data;
-#endif
-
-uniform sampler2D pose_matrix_cache;
-
 vec2 get_bone_uv(vec2 cache_size, int index)
 {
     int x = int(mod(index, int(cache_size.x)));
@@ -28,10 +16,10 @@ mat4 get_bone_matrix(int bone_index)
     int pose_matrix_index = bone_index * 4 + int(animation_data.x);
     vec2 cache_size       = animation_data.zw;
     return mat4(
-        texture2D(pose_matrix_cache, get_bone_uv(cache_size, pose_matrix_index + 0)),
-        texture2D(pose_matrix_cache, get_bone_uv(cache_size, pose_matrix_index + 1)),
-        texture2D(pose_matrix_cache, get_bone_uv(cache_size, pose_matrix_index + 2)),
-        texture2D(pose_matrix_cache, get_bone_uv(cache_size, pose_matrix_index + 3))
+        texture(pose_matrix_cache, get_bone_uv(cache_size, pose_matrix_index + 0)),
+        texture(pose_matrix_cache, get_bone_uv(cache_size, pose_matrix_index + 1)),
+        texture(pose_matrix_cache, get_bone_uv(cache_size, pose_matrix_index + 2)),
+        texture(pose_matrix_cache, get_bone_uv(cache_size, pose_matrix_index + 3))
     );
 }
 

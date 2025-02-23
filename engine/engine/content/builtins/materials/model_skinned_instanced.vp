@@ -1,8 +1,5 @@
 #version 140
 
-#define DM_SKINNED_INSTANCING
-#include "/builtins/materials/skinning.glsl"
-
 // Positions can be world or local space, since world and normal
 // matrices are identity for world vertex space materials.
 // If world vertex space is selected, you can remove the
@@ -11,6 +8,8 @@
 in highp vec4 position;
 in mediump vec2 texcoord0;
 in mediump vec3 normal;
+in mediump vec4 bone_weights;
+in mediump vec4 bone_indices;
 
 // When 'mtx_world' and 'mtx_normal' is specified as attributes,
 // instanced rendering is automatically triggered.
@@ -18,6 +17,7 @@ in mediump vec3 normal;
 // https://defold.com/manuals/material/#instancing
 in mediump mat4 mtx_world;
 in mediump mat4 mtx_normal;
+in mediump vec4 animation_data;
 
 out highp vec4 var_position;
 out mediump vec3 var_normal;
@@ -30,6 +30,10 @@ uniform vs_uniforms
     uniform mediump mat4 mtx_proj;
     uniform mediump vec4 light;
 };
+
+uniform sampler2D pose_matrix_cache;
+
+#include "/builtins/materials/skinning.glsl"
 
 void main()
 {

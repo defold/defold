@@ -1,7 +1,5 @@
 #version 140
 
-#include "/builtins/materials/skinning.glsl"
-
 // Positions can be world or local space, since world and normal
 // matrices are identity for world vertex space materials.
 // If world vertex space is selected, you can remove the
@@ -10,11 +8,15 @@
 in highp vec4 position;
 in mediump vec2 texcoord0;
 in mediump vec3 normal;
+in mediump vec4 bone_weights;
+in mediump vec4 bone_indices;
 
 out highp vec4 var_position;
 out mediump vec3 var_normal;
 out mediump vec2 var_texcoord0;
 out mediump vec4 var_light;
+
+uniform sampler2D pose_matrix_cache;
 
 uniform vs_uniforms
 {
@@ -23,7 +25,10 @@ uniform vs_uniforms
     uniform mediump mat4 mtx_proj;
     uniform mediump mat4 mtx_normal;
     uniform mediump vec4 light;
+    uniform mediump vec4 animation_data;
 };
+
+#include "/builtins/materials/skinning.glsl"
 
 void main()
 {
