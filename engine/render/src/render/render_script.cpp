@@ -206,24 +206,30 @@ namespace dmRender
 
         if (lua_istable(L, 3))
         {
-            ConstantBufferTableEntry* p_table_entry = (ConstantBufferTableEntry*) lua_newuserdata(L, sizeof(ConstantBufferTableEntry));
+            ConstantBufferTableEntry* table_entry = cb_table->m_ConstantArrayEntries.Get(name_hash);
+            if (table_entry)
+            {
+                dmScript::Unref(L, LUA_REGISTRYINDEX, table_entry->m_LuaRef);
+            }
+
+            table_entry = (ConstantBufferTableEntry*) lua_newuserdata(L, sizeof(ConstantBufferTableEntry));
             luaL_getmetatable(L, RENDER_SCRIPT_CONSTANTBUFFER_ARRAY);
             lua_setmetatable(L, -2);
 
-            lua_pushvalue(L, -1);
-            int p_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+            lua_pushvalue(L, 3);
+            int p_ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
             lua_pop(L, 1);
 
-            p_table_entry->m_ConstantBuffer = cb;
-            p_table_entry->m_ConstantName   = name_hash;
-            p_table_entry->m_LuaRef         = p_ref;
+            table_entry->m_ConstantBuffer = cb;
+            table_entry->m_ConstantName   = name_hash;
+            table_entry->m_LuaRef         = p_ref;
 
             if (cb_table->m_ConstantArrayEntries.Full())
             {
                 cb_table->m_ConstantArrayEntries.SetCapacity(4, cb_table->m_ConstantArrayEntries.Size() + 1);
             }
 
-            cb_table->m_ConstantArrayEntries.Put(name_hash, *p_table_entry);
+            cb_table->m_ConstantArrayEntries.Put(name_hash, *table_entry);
 
             // If the table contains elements, we add them directly
             lua_pushvalue(L, 3);
