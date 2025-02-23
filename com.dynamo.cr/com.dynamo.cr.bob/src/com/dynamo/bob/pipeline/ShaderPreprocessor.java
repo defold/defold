@@ -49,10 +49,10 @@ import com.dynamo.bob.pipeline.ShaderUtil.Common;
  */
 public class ShaderPreprocessor {
     // Compiler state
-    private final Project     project;
-    private final String      sourcePath;
-    private final IncludeNode root;
-    private final String contentRoot;
+    private Project     project;
+    private String      sourcePath;
+    private IncludeNode root;
+    private String contentRoot;
 
     private static class IncludeNode {
         public String                             path;
@@ -100,8 +100,8 @@ public class ShaderPreprocessor {
     public ShaderPreprocessor(Project project, String fromPath, String fromSource, String contentRoot) throws IOException, CompileExceptionError {
         this.project     = project;
         this.sourcePath  = fromPath;
-        this.root        = buildShaderIncludeTree(null, fromPath, Common.stripComments(fromSource));
         this.contentRoot = contentRoot;
+        this.root        = buildShaderIncludeTree(null, fromPath, Common.stripComments(fromSource));
     }
 
     public String[] getIncludes() {
@@ -170,7 +170,7 @@ public class ShaderPreprocessor {
     }
 
     private String getIncludeData(String fromPath) throws CompileExceptionError, IOException  {
-        String resData = null:
+        String resData = null;
         IResource res = this.project.getResource(fromPath);
         if (res.getContent() != null) {
             resData = new String(res.getContent(), StandardCharsets.UTF_8);
@@ -179,7 +179,7 @@ public class ShaderPreprocessor {
         // Fallback to reading regular data, but only if the content root has been set.
         // This is essentially a workaround for how content is built in the engine.
         if (this.contentRoot != null) {
-            fromPath = contentRoot + "/" + fromPath;
+            fromPath = this.contentRoot + "/" + fromPath;
             File f = new File(fromPath);
             if (f.exists() && f.isFile()) {
                 resData = Files.readString(Paths.get(f.getAbsolutePath()));
