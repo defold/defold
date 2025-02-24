@@ -539,7 +539,7 @@ namespace dmGraphics
         DX12Context* context = (DX12Context*) _context;
         if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
         {
-            dmPlatform::SetWindowSize(context->m_Window, title);
+            dmPlatform::SetWindowTitle(context->m_Window, title);
         }
     }
 
