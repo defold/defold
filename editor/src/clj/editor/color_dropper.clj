@@ -50,14 +50,14 @@
     (.clearRect graphics-context 0 0 (.getWidth canvas) (.getHeight canvas))
     (g/set-property! node :color (.getPixelColor robot robot-x robot-y))
 
-    (doseq [x-range pixel-range]
-      (doseq [y-range pixel-range]
-        (.setFill graphics-context (.getPixelColor robot (+ robot-x x-range) (+ robot-y y-range)))
-        (.fillRect graphics-context
-                   (+ mouse-x (* x-range pixel-size) (- half-pixel-range))
-                   (+ mouse-y (* y-range pixel-size) (- half-pixel-range))
-                   pixel-size
-                   pixel-size)))
+    (doseq [x-range pixel-range
+            y-range pixel-range]
+      (.setFill graphics-context (.getPixelColor robot (+ robot-x x-range) (+ robot-y y-range)))
+      (.fillRect graphics-context
+                 (+ mouse-x (* x-range pixel-size) (- half-pixel-range))
+                 (+ mouse-y (* y-range pixel-size) (- half-pixel-range))
+                 pixel-size
+                 pixel-size))
 
     (doto graphics-context
       (.setFill Color/TRANSPARENT)
