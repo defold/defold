@@ -207,6 +207,8 @@ namespace dmRender
         if (lua_istable(L, 3))
         {
             ConstantBufferTableEntry* table_entry = cb_table->m_ConstantArrayEntries.Get(name_hash);
+            // If we are re-assigning an existing entry that was previously ref'd by this function
+            // we have to unref the old value, otherwise we will leak memory
             if (table_entry)
             {
                 dmScript::Unref(L, LUA_REGISTRYINDEX, table_entry->m_LuaRef);
@@ -216,7 +218,7 @@ namespace dmRender
             luaL_getmetatable(L, RENDER_SCRIPT_CONSTANTBUFFER_ARRAY);
             lua_setmetatable(L, -2);
 
-            lua_pushvalue(L, 3);
+            lua_pushvalue(L, -1);
             int p_ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
             lua_pop(L, 1);
 
@@ -256,6 +258,9 @@ namespace dmRender
             }
             lua_pop(L, 1);
         }
+        // TODO: If you set an entry to nil from a render script, we never clear up any memory or un-set the constant in the constant buffer.
+        //       The memory will be cleared later when a CB is GC'd and setting something to nil will currently cause an exception.
+        //       I (JG) think we should fix it and remove everything the constant values and table entries when this happens.
         else
         {
             RenderScriptSetNamedValueFromLua(L, 3, cb, name_hash, 0);
