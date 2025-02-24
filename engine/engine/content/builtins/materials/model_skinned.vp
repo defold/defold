@@ -16,8 +16,6 @@ out mediump vec3 var_normal;
 out mediump vec2 var_texcoord0;
 out mediump vec4 var_light;
 
-uniform sampler2D pose_matrix_cache;
-
 uniform vs_uniforms
 {
     uniform mediump mat4 mtx_worldview;
@@ -32,7 +30,7 @@ uniform vs_uniforms
 
 void main()
 {
-	vec4 skinned_position = get_skinned_position(position);
+    vec4 skinned_position = get_skinned_position(position);
     vec4 p = mtx_worldview * vec4(skinned_position.xyz, 1.0);
     var_light = mtx_view * vec4(light.xyz, 1.0);
     var_position = p;

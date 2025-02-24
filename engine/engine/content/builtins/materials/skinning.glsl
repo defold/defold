@@ -1,5 +1,7 @@
-#ifndef DM_SKINNING_GLSL
-#define DM_SKINNING_GLSL
+#ifndef DEFOLD_SKINNING_GLSL
+#define DEFOLD_SKINNING_GLSL
+
+uniform sampler2D pose_matrix_cache;
 
 vec2 get_bone_uv(vec2 cache_size, int index)
 {
@@ -25,6 +27,10 @@ mat4 get_bone_matrix(int bone_index)
 
 vec4 get_skinned_position(vec4 local_position)
 {
+#ifdef EDITOR
+    // Editor does not support skinned mesh previews yet
+    return local_position;
+#else
     vec4 skinned_position = vec4(0.0);
     if (animation_data.y > 0.0) {
         for (int i = 0; i < 4; i++)
@@ -39,6 +45,7 @@ vec4 get_skinned_position(vec4 local_position)
         skinned_position = position;
     }
     return skinned_position;
+#endif
 }
 
 #endif

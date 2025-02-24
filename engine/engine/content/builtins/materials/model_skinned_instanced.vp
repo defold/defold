@@ -31,8 +31,6 @@ uniform vs_uniforms
     uniform mediump vec4 light;
 };
 
-uniform sampler2D pose_matrix_cache;
-
 #include "/builtins/materials/skinning.glsl"
 
 void main()
