@@ -88,6 +88,8 @@ static Property* GetPropertyFromIdx(dmProfilePropertyIdx idx)
     return &g_Properties[idx];
 }
 
+static PropertyData* GetFramePropertyFromIdx(dmProfilePropertyIdx idx);
+
 namespace dmProfile
 {
     #define CHECK_INITIALIZED() \
@@ -298,6 +300,20 @@ namespace dmProfile
         return profile;
     }
 
+    static void ResetProperties(Profile* profile)
+    {
+        uint32_t n = profile->m_PropertyData.Size();
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            PropertyData* data = &profile->m_PropertyData[i];
+            Property* prop = &g_Properties[i];
+            if ((prop->m_Flags & PPF_FRAME_RESET) == PPF_FRAME_RESET)
+            {
+                data->m_Value = prop->m_DefaultValue;
+            }
+        }
+    }
+
     void EndFrame(HProfile _profile)
     {
         CHECK_INITIALIZED();
@@ -307,7 +323,9 @@ namespace dmProfile
 
         // For each top property
         if (g_PropertyTreeCallback)
-            g_PropertyTreeCallback(profile, &g_Properties[0]);
+            g_PropertyTreeCallback(profile, &profile->m_PropertyData[0]);
+
+        ResetProperties(profile);
 
         g_ProfileContext->m_ActiveProfile = 0;
     }
@@ -437,9 +455,15 @@ namespace dmProfile
     {
     }
 
+    #define CHECK_HPROPERTY(HPROP) \
+        PropertyData* data = (PropertyData*)(HPROP); \
+        Property* prop = GetPropertyFromIdx(data->m_Index);
+
     PropertyIterator* PropertyIterateChildren(HProperty hproperty, PropertyIterator* iter)
     {
-        Property* prop = (Property*)hproperty;
+        CHECK_HPROPERTY(hproperty);
+        (void)prop;
+        iter->m_Property = 0;
         iter->m_IteratorImpl = (void*)(uintptr_t)prop->m_FirstChild;
         return iter;
     }
@@ -450,7 +474,9 @@ namespace dmProfile
         if (!IsValidIndex(idx))
             return false;
         Property* prop = GetPropertyFromIdx(idx);
-        iter->m_Property = prop;
+        PropertyData* data = GetFramePropertyFromIdx(idx);
+        assert(data->m_Index == idx);
+        iter->m_Property = data;
         iter->m_IteratorImpl = (void*)(uintptr_t)prop->m_Sibling;
         return true;
     }
@@ -459,33 +485,51 @@ namespace dmProfile
 
     uint32_t PropertyGetNameHash(HProperty hproperty)
     {
-        return ((Property*)hproperty)->m_NameHash;
+        CHECK_HPROPERTY(hproperty)
+        return prop->m_NameHash;
     }
 
     const char* PropertyGetName(HProperty hproperty)
     {
-        return ((Property*)hproperty)->m_Name;
+        CHECK_HPROPERTY(hproperty)
+        return prop->m_Name;
     }
 
     const char* PropertyGetDesc(HProperty hproperty)
     {
-        return ((Property*)hproperty)->m_Description;
+        CHECK_HPROPERTY(hproperty)
+        return prop->m_Description;
     }
 
     PropertyType PropertyGetType(HProperty hproperty)
     {
-        return ((Property*)hproperty)->m_Type;
+        CHECK_HPROPERTY(hproperty)
+        return prop->m_Type;
     }
 
     PropertyValue PropertyGetValue(HProperty hproperty)
     {
-        return ((Property*)hproperty)->m_DefaultValue;
+        CHECK_HPROPERTY(hproperty)
+        (void)prop;
+        return data->m_Value;
     }
 
     // *******************************************************************
 
 
 } // namespace dmProfile
+
+static PropertyData* GetFramePropertyFromIdx(dmProfilePropertyIdx idx)
+{
+    if (!IsValidIndex(idx))
+        return 0;
+    dmProfile::Profile* profile = dmProfile::g_ProfileContext->m_ActiveProfile;
+    if (!profile)
+        return 0;
+    if (idx >= profile->m_PropertyData.Size())
+        return 0;
+    return &profile->m_PropertyData[idx];
+}
 
 #define ALLOC_PROP_AND_CHECK() \
     dmProfilePropertyIdx idx; \
@@ -496,9 +540,10 @@ namespace dmProfile
 #define GET_PROP_AND_CHECK(IDX) \
     if (!dmProfile::IsInitialized()) \
         return; \
-    Property* prop = &g_Properties[IDX]; \
-    if (!prop) \
-        return;
+    PropertyData* data = GetFramePropertyFromIdx(IDX); \
+    if (!data) \
+        return; \
+    assert(data->m_Index == (IDX));
 
 static void SetupProperty(Property* prop, dmProfilePropertyIdx idx, const char* name, const char* desc, uint32_t flags, dmProfilePropertyIdx* parentidx)
 {
@@ -525,14 +570,13 @@ static void SetupProperty(Property* prop, dmProfilePropertyIdx idx, const char* 
     }
 }
 
-
 dmProfilePropertyIdx dmProfileCreatePropertyGroup(const char* name, const char* desc, dmProfilePropertyIdx* parentidx)
 {
     ALLOC_PROP_AND_CHECK();
     PropertyInitialize();
     SetupProperty(prop, idx, name, desc, 0, parentidx);
     prop->m_Type = dmProfile::PROPERTY_TYPE_GROUP;
-    printf("PROPERTY: %s %s - %s  idx: %u  parent: %u  child: %u\n", name, desc, "group", idx, prop->m_Parent, prop->m_FirstChild);
+    //printf("PROPERTY: %s %s - %s  idx: %u  parent: %u  child: %u\n", name, desc, "group", idx, prop->m_Parent, prop->m_FirstChild);
     return idx;
 }
 
@@ -540,10 +584,10 @@ dmProfilePropertyIdx dmProfileCreatePropertyBool(const char* name, const char* d
 {
     ALLOC_PROP_AND_CHECK();
     PropertyInitialize();
-    SetupProperty(prop, idx, name, desc, 0, parentidx);
+    SetupProperty(prop, idx, name, desc, flags, parentidx);
     prop->m_DefaultValue.m_Bool = (bool)value;
     prop->m_Type = dmProfile::PROPERTY_TYPE_BOOL;
-    printf("PROPERTY: %s %s - %s  idx: %u  parent: %u  child: %u\n", name, desc, "bool", idx, prop->m_Parent, prop->m_FirstChild);
+    //printf("PROPERTY: %s %s - %s  idx: %u  parent: %u  child: %u\n", name, desc, "bool", idx, prop->m_Parent, prop->m_FirstChild);
     return idx;
 }
 
@@ -551,10 +595,10 @@ dmProfilePropertyIdx dmProfileCreatePropertyS32(const char* name, const char* de
 {
     ALLOC_PROP_AND_CHECK();
     PropertyInitialize();
-    SetupProperty(prop, idx, name, desc, 0, parentidx);
+    SetupProperty(prop, idx, name, desc, flags, parentidx);
     prop->m_DefaultValue.m_S32 = value;
     prop->m_Type = dmProfile::PROPERTY_TYPE_S32;
-    printf("PROPERTY: %s %s - %s  idx: %u  parent: %u  child: %u\n", name, desc, "s32", idx, prop->m_Parent, prop->m_FirstChild);
+    //printf("PROPERTY: %s %s - %s  idx: %u  parent: %u  child: %u\n", name, desc, "s32", idx, prop->m_Parent, prop->m_FirstChild);
     return idx;
 }
 
@@ -562,10 +606,10 @@ dmProfilePropertyIdx dmProfileCreatePropertyU32(const char* name, const char* de
 {
     ALLOC_PROP_AND_CHECK();
     PropertyInitialize();
-    SetupProperty(prop, idx, name, desc, 0, parentidx);
+    SetupProperty(prop, idx, name, desc, flags, parentidx);
     prop->m_DefaultValue.m_U32 = value;
     prop->m_Type = dmProfile::PROPERTY_TYPE_U32;
-    printf("PROPERTY: %s %s - %s  idx: %u  parent: %u  child: %u\n", name, desc, "u32", idx, prop->m_Parent, prop->m_FirstChild);
+    //printf("PROPERTY: %s %s - %s  idx: %u  parent: %u  child: %u\n", name, desc, "u32", idx, prop->m_Parent, prop->m_FirstChild);
     return idx;
 }
 
@@ -573,10 +617,10 @@ dmProfilePropertyIdx dmProfileCreatePropertyF32(const char* name, const char* de
 {
     ALLOC_PROP_AND_CHECK();
     PropertyInitialize();
-    SetupProperty(prop, idx, name, desc, 0, parentidx);
+    SetupProperty(prop, idx, name, desc, flags, parentidx);
     prop->m_DefaultValue.m_F32 = value;
     prop->m_Type = dmProfile::PROPERTY_TYPE_F32;
-    printf("PROPERTY: %s %s - %s  idx: %u  parent: %u  child: %u\n", name, desc, "f32", idx, prop->m_Parent, prop->m_FirstChild);
+    //printf("PROPERTY: %s %s - %s  idx: %u  parent: %u  child: %u\n", name, desc, "f32", idx, prop->m_Parent, prop->m_FirstChild);
     return idx;
 }
 
@@ -584,10 +628,10 @@ dmProfilePropertyIdx dmProfileCreatePropertyS64(const char* name, const char* de
 {
     ALLOC_PROP_AND_CHECK();
     PropertyInitialize();
-    SetupProperty(prop, idx, name, desc, 0, parentidx);
+    SetupProperty(prop, idx, name, desc, flags, parentidx);
     prop->m_DefaultValue.m_S64 = value;
     prop->m_Type = dmProfile::PROPERTY_TYPE_S64;
-    printf("PROPERTY: %s %s - %s  idx: %u  parent: %u  child: %u\n", name, desc, "s64", idx, prop->m_Parent, prop->m_FirstChild);
+    //printf("PROPERTY: %s %s - %s  idx: %u  parent: %u  child: %u\n", name, desc, "s64", idx, prop->m_Parent, prop->m_FirstChild);
     return idx;
 }
 
@@ -595,10 +639,10 @@ dmProfilePropertyIdx dmProfileCreatePropertyU64(const char* name, const char* de
 {
     ALLOC_PROP_AND_CHECK();
     PropertyInitialize();
-    SetupProperty(prop, idx, name, desc, 0, parentidx);
+    SetupProperty(prop, idx, name, desc, flags, parentidx);
     prop->m_DefaultValue.m_U64 = value;
     prop->m_Type = dmProfile::PROPERTY_TYPE_U64;
-    printf("PROPERTY: %s %s - %s  idx: %u  parent: %u  child: %u\n", name, desc, "u64", idx, prop->m_Parent, prop->m_FirstChild);
+    //printf("PROPERTY: %s %s - %s  idx: %u  parent: %u  child: %u\n", name, desc, "u64", idx, prop->m_Parent, prop->m_FirstChild);
     return idx;
 }
 
@@ -606,92 +650,94 @@ dmProfilePropertyIdx dmProfileCreatePropertyF64(const char* name, const char* de
 {
     ALLOC_PROP_AND_CHECK();
     PropertyInitialize();
-    SetupProperty(prop, idx, name, desc, 0, parentidx);
+    SetupProperty(prop, idx, name, desc, flags, parentidx);
     prop->m_DefaultValue.m_F64 = value;
     prop->m_Type = dmProfile::PROPERTY_TYPE_F64;
-    printf("PROPERTY: %s %s - %s  idx: %u  parent: %u  child: %u\n", name, desc, "f64", idx, prop->m_Parent, prop->m_FirstChild);
+    //printf("PROPERTY: %s %s - %s  idx: %u  parent: %u  child: %u\n", name, desc, "f64", idx, prop->m_Parent, prop->m_FirstChild);
     return idx;
 }
 
 void dmProfilePropertySetBool(dmProfilePropertyIdx idx, int v)
 {
-    (void)idx;
-    (void)v;
+    GET_PROP_AND_CHECK(idx);
+    data->m_Value.m_Bool = v;
 }
 
 void dmProfilePropertySetS32(dmProfilePropertyIdx idx, int32_t v)
 {
-    (void)idx;
-    (void)v;
+    GET_PROP_AND_CHECK(idx);
+    data->m_Value.m_S32 = v;
 }
 
 void dmProfilePropertySetU32(dmProfilePropertyIdx idx, uint32_t v)
 {
-    (void)idx;
-    (void)v;
+    GET_PROP_AND_CHECK(idx);
+    data->m_Value.m_U32 = v;
 }
 
 void dmProfilePropertySetF32(dmProfilePropertyIdx idx, float v)
 {
-    (void)idx;
-    (void)v;
+    GET_PROP_AND_CHECK(idx);
+    data->m_Value.m_F32 = v;
 }
 
 void dmProfilePropertySetS64(dmProfilePropertyIdx idx, int64_t v)
 {
-    (void)idx;
-    (void)v;
+    GET_PROP_AND_CHECK(idx);
+    data->m_Value.m_S64 = v;
 }
 
 void dmProfilePropertySetU64(dmProfilePropertyIdx idx, uint64_t v)
 {
-    (void)idx;
-    (void)v;
+    GET_PROP_AND_CHECK(idx);
+    data->m_Value.m_U64 = v;
 }
 
 void dmProfilePropertySetF64(dmProfilePropertyIdx idx, double v)
 {
-    (void)idx;
-    (void)v;
+    GET_PROP_AND_CHECK(idx);
+    data->m_Value.m_F64 = v;
 }
 
 void dmProfilePropertyAddS32(dmProfilePropertyIdx idx, int32_t v)
 {
-    (void)idx;
-    (void)v;
+    GET_PROP_AND_CHECK(idx);
+    data->m_Value.m_S32 += v;
 }
 
 void dmProfilePropertyAddU32(dmProfilePropertyIdx idx, uint32_t v)
 {
-    (void)idx;
-    (void)v;
+    GET_PROP_AND_CHECK(idx);
+    data->m_Value.m_U32 += v;
 }
 
 void dmProfilePropertyAddF32(dmProfilePropertyIdx idx, float v)
 {
-    (void)idx;
-    (void)v;
+    GET_PROP_AND_CHECK(idx);
+    data->m_Value.m_F32 += v;
 }
 
 void dmProfilePropertyAddS64(dmProfilePropertyIdx idx, int64_t v)
 {
-    (void)idx;
-    (void)v;
+    GET_PROP_AND_CHECK(idx);
+    data->m_Value.m_S64 += v;
 }
 
 void dmProfilePropertyAddU64(dmProfilePropertyIdx idx, uint64_t v)
 {
-    (void)idx;
-    (void)v;
+    GET_PROP_AND_CHECK(idx);
+    data->m_Value.m_U64 += v;
 }
 
 void dmProfilePropertyAddF64(dmProfilePropertyIdx idx, double v)
 {
-    (void)idx;
-    (void)v;
+    GET_PROP_AND_CHECK(idx);
+    data->m_Value.m_F64 += v;
 }
 
 void dmProfilePropertyReset(dmProfilePropertyIdx idx)
 {
-    (void)idx;
+    GET_PROP_AND_CHECK(idx);
+    Property* prop = GetPropertyFromIdx(data->m_Index);
+    data->m_Value = prop->m_DefaultValue;
 }
