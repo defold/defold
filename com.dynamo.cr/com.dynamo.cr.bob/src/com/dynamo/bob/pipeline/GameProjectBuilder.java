@@ -68,7 +68,8 @@ import com.dynamo.rig.proto.Rig.AnimationSet;
 
 import static com.dynamo.bob.util.ComponentsCounter.isCompCounterStorage;
 
-@BuilderParams(name = "GameProjectBuilder", inExts = ".project", outExt = "")
+@BuilderParams(name = "GameProjectBuilder", inExts = ".project", outExt = "", paramsForSignature = {"liveupdate", "variant", "archive", "archive-resource-padding",
+                "platform", "manifest-private-key", "manifest-public-key"})
 public class GameProjectBuilder extends Builder {
 
     // Root nodes to follow (default values from engine.cpp)
