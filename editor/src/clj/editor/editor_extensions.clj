@@ -32,6 +32,7 @@
             [editor.editor-extensions.prefs-functions :as prefs-functions]
             [editor.editor-extensions.runtime :as rt]
             [editor.editor-extensions.ui-components :as ui-components]
+            [editor.editor-extensions.zip :as zip]
             [editor.fs :as fs]
             [editor.future :as future]
             [editor.graph-util :as gu]
@@ -814,7 +815,8 @@
                            "rename" nil
                            "setlocale" nil
                            "tmpname" nil}
-                     "pprint" ext-pprint})
+                     "pprint" ext-pprint
+                     "zip" (zip/env project-path reload-resources!)})
           _ (rt/invoke-immediate rt (rt/bind rt prelude-prototype) evaluation-context)
           new-state (re-create-ext-state
                       (assoc opts
