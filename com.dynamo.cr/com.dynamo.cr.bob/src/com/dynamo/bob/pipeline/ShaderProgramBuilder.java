@@ -39,7 +39,7 @@ import com.dynamo.bob.pipeline.shader.SPIRVReflector;
 
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
-@BuilderParams(name="ShaderProgramBuilder", inExts= {".shbundle", ".shbundlec"}, outExt=".spc")
+@BuilderParams(name="ShaderProgramBuilder", inExts= {".shbundle", ".shbundlec"}, outExt=".spc", paramsForSignature = {"platform"})
 public class ShaderProgramBuilder extends Builder {
 
     static public class ShaderBuildResult {
@@ -99,14 +99,9 @@ public class ShaderProgramBuilder extends Builder {
 
         compileOptions = modules.getCompileOptions();
 
-        String platformString = this.project.getPlatformStrings()[0];
-
-        // Include the spir-v flag into the cache key so we can invalidate the output results accordingly
-        // NOTE: We include the platform string as well for the same reason as spirv, but it doesn't seem to work correctly.
-        //       Keeping the build folder and rebuilding for a different platform _should_ invalidate the cache, but it doesn't.
-        //       Needs further investigation!
-        String shaderCacheKey = String.format("output_spirv=%s;output_hlsl=%s;output_wgsl=%s;platform_key=%s",
-                getOutputSpirvFlag(), getOutputHlslFlag(), getOutputWGSLFlag(),  platformString);
+        // Include the spir-v flag into the cache key, so we can invalidate the output results accordingly
+        String shaderCacheKey = String.format("output_spirv=%s;output_hlsl=%s;output_wgsl=%s",
+                getOutputSpirvFlag(), getOutputHlslFlag(), getOutputWGSLFlag());
 
         taskBuilder.addOutput(input.changeExt(params.outExt()));
         taskBuilder.addExtraCacheKey(shaderCacheKey);
