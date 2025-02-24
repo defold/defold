@@ -256,16 +256,6 @@ namespace dmGraphics
         return context->m_Height;
     }
 
-    static void NullSetWindowTitle(HContext _context, const char* title)
-    {
-        assert(_context);
-        NullContext* context = (NullContext*) _context;
-        if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
-        {
-            dmPlatform::SetWindowTitle(context->m_Window, title);
-        }
-    }
-
     static void NullSetWindowSize(HContext _context, uint32_t width, uint32_t height)
     {
         assert(_context);
@@ -287,16 +277,6 @@ namespace dmGraphics
             main.m_StencilBufferSize = buffer_size;
 
             dmPlatform::SetWindowSize(context->m_Window, width, height);
-        }
-    }
-
-    static void NullSetWindowPosition(HContext _context, int32_t x, int32_t y)
-    {
-        assert(_context);
-        NullContext* context = (NullContext*) _context;
-        if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
-        {
-            dmPlatform::SetWindowPosition(context->m_Window, x, y);
         }
     }
 

@@ -146,16 +146,6 @@ namespace dmGraphics
         }
     }
 
-    void VulkanSetWindowTitle(HContext _context, const char* title)
-    {
-        VulkanContext* context = (VulkanContext*) _context;
-
-        if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
-        {
-            dmPlatform::SetWindowTitle(context->m_Window, title);
-        }
-    }
-
     void VulkanSetWindowSize(HContext _context, uint32_t width, uint32_t height)
     {
         VulkanContext* context = (VulkanContext*) _context;
@@ -171,16 +161,6 @@ namespace dmGraphics
             context->m_WindowHeight = dmPlatform::GetWindowHeight(context->m_Window);
 
             SwapChainChanged(g_VulkanContext, &context->m_WindowWidth, &context->m_WindowHeight, 0, 0);
-        }
-    }
-
-    void VulkanSetWindowPosition(HContext _context, int32_t x, int32_t y)
-    {
-        VulkanContext* context = (VulkanContext*) _context;
-
-        if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
-        {
-            dmPlatform::SetWindowPosition(context->m_Window, x, y);
         }
     }
 

@@ -56,9 +56,7 @@ namespace dmGraphics
     typedef uint32_t (*GetWidthFn)(HContext context);
     typedef uint32_t (*GetHeightFn)(HContext context);
     typedef PipelineState (*GetPipelineStateFn)(HContext context);
-    typedef void (*SetWindowTitleFn)(HContext context, const char* title);
     typedef void (*SetWindowSizeFn)(HContext context, uint32_t width, uint32_t height);
-    typedef void (*SetWindowPositionFn)(HContext context, int32_t x, int32_t y);
     typedef void (*ResizeWindowFn)(HContext context, uint32_t width, uint32_t height);
     typedef void (*GetDefaultTextureFiltersFn)(HContext context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter);
     typedef void (*BeginFrameFn)(HContext context);
@@ -162,9 +160,7 @@ namespace dmGraphics
         GetDisplayDpiFn m_GetDisplayDpi;
         GetWidthFn m_GetWidth;
         GetHeightFn m_GetHeight;
-        SetWindowTitleFn m_SetWindowTitle;
         SetWindowSizeFn m_SetWindowSize;
-        SetWindowPositionFn m_SetWindowPosition;
         ResizeWindowFn m_ResizeWindow;
         GetDefaultTextureFiltersFn m_GetDefaultTextureFilters;
         BeginFrameFn m_BeginFrame;
@@ -269,9 +265,7 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetDisplayDpi); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetWidth); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetHeight); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetWindowTitle); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetWindowSize); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetWindowPosition); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, ResizeWindow); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetDefaultTextureFilters); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, BeginFrame); \

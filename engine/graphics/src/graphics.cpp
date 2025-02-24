@@ -1495,17 +1495,9 @@ namespace dmGraphics
     {
         return g_functions.m_GetHeight(context);
     }
-    void SetWindowTitle(HContext context, const char* title)
-    {
-        g_functions.m_SetWindowTitle(g_functions.m_GetWindow(context), title);
-    }
     void SetWindowSize(HContext context, uint32_t width, uint32_t height)
     {
         g_functions.m_SetWindowSize(context, width, height);
-    }
-    void SetWindowPosition(HContext context, int32_t x, int32_t y)
-    {
-        g_functions.m_SetWindowPosition(context, x, y);
     }
     void ResizeWindow(HContext context, uint32_t width, uint32_t height)
     {

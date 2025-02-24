@@ -533,16 +533,6 @@ namespace dmGraphics
         return context->m_Height;
     }
 
-    static void DX12SetWindowTitle(HContext _context, const char* title)
-    {
-        assert(_context);
-        DX12Context* context = (DX12Context*) _context;
-        if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
-        {
-            dmPlatform::SetWindowTitle(context->m_Window, title);
-        }
-    }
-
     static void DX12SetWindowSize(HContext _context, uint32_t width, uint32_t height)
     {
         assert(_context);
@@ -550,16 +540,6 @@ namespace dmGraphics
         if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
         {
             dmPlatform::SetWindowSize(context->m_Window, width, height);
-        }
-    }
-
-    static void DX12SetWindowPosition(HContext _context, int32_t x, int32_t y)
-    {
-        assert(_context);
-        DX12Context* context = (DX12Context*) _context;
-        if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
-        {
-            dmPlatform::SetWindowPosition(context->m_Window, x, y);
         }
     }
 
