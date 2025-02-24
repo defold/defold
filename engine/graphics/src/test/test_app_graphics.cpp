@@ -378,6 +378,10 @@ static void* EngineCreate(int argc, char** argv)
     {
         window_params.m_GraphicsApi = dmPlatform::PLATFORM_GRAPHICS_API_OPENGL;
     }
+    else if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGLES)
+    {
+        window_params.m_GraphicsApi = dmPlatform::PLATFORM_GRAPHICS_API_OPENGLES;
+    }
 
     dmPlatform::OpenWindow(engine->m_Window, window_params);
     dmPlatform::ShowWindow(engine->m_Window);
