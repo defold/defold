@@ -19,9 +19,9 @@
 
 namespace dmRig
 {
-	static const uint16_t INVALID_POSE_MATRIX_CACHE_INDEX = 0xFFFF;
+    static const uint16_t INVALID_POSE_MATRIX_CACHE_INDEX = 0xFFFF;
 
-	struct RigModelSkinnedVertex
+    struct RigModelSkinnedVertex
     {
         RigModelVertex m_Vertex;
         float          m_BoneWeights[4];

@@ -180,7 +180,7 @@ public class ShaderCompilePipelineTest {
         fsDescLegacy.type = ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT;
         ShaderCompilePipelineLegacy pipelineFragmentLegacy = new ShaderCompilePipelineLegacy("testFragment");
         ShaderCompilePipeline.createShaderPipeline(pipelineFragmentLegacy, fsDescLegacy, new ShaderCompilePipeline.Options());
-        
+
         compiledSrc = pipelineFragmentLegacy.crossCompile(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, ShaderDesc.Language.LANGUAGE_GLSL_SM330);
         compiledStr = new String(compiledSrc);
 

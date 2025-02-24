@@ -533,17 +533,11 @@ public class ShaderProgramBuilder extends Builder {
             outputPath   = args[1];
             platform     = args[2];
             contentRoot  = args[3];
-
-            System.out.println("CONTENT ROOT! " + contentRoot);
-
             modules.add(GetShaderDesc(project, args[0], contentRoot));
         } else {
             outputPath   = args[2];
             platform     = args[3];
             contentRoot  = args[4];
-
-            System.out.println("CONTENT ROOT! " + contentRoot);
-
             modules.add(GetShaderDesc(project, args[0], contentRoot));
             modules.add(GetShaderDesc(project, args[1], contentRoot));
         }

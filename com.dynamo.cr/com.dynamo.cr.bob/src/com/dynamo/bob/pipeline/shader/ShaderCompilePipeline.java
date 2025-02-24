@@ -138,10 +138,6 @@ public class ShaderCompilePipeline {
     protected static String intermediateResourceToProjectPath(String message, String projectPath) {
         String[] knownFileExtensions = new String[] { "glsl", "spv", "wgsl", "hlsl" };
         String replacementRegex = String.format("/[^\\s:]+\\.(%s)(?=:)", String.join("|", knownFileExtensions));
-
-        System.out.println("error?: " + projectPath);
-        System.out.println("message?: " + message);
-
         return message.replaceAll(replacementRegex, projectPath);
     }
 
