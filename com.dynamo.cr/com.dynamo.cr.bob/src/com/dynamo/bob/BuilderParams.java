@@ -50,4 +50,10 @@ public @interface BuilderParams {
      * @return if task should be cached
      */
     boolean isCacheble() default false;
+
+    /**
+     * Get parameters that should be included in the task signature produced by the builder
+     * @return Bob parameters that may affect the builder's task signature
+     */
+    String[] paramsForSignature() default {};
 }

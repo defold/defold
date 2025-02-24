@@ -382,7 +382,8 @@
     :vulkan (concat
               vulkan-toggles
               (exclude-libs-toggles vulkan ["graphics"])
-              (generic-contains-toggles vulkan :excludeSymbols ["GraphicsAdapterOpenGL"]))
+              (generic-contains-toggles (disj vulkan :arm64-linux) :excludeSymbols ["GraphicsAdapterOpenGL"])
+              [(contains-toggle :arm64-linux :excludeSymbols "GraphicsAdapterOpenGLES")])
     :both vulkan-toggles
     :open-gl))
 
