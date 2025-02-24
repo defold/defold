@@ -19,7 +19,7 @@
 
 namespace dmRig
 {
-    static const uint16_t INVALID_POSE_MATRIX_CACHE_INDEX = 0xFFFF;
+    static const uint16_t INVALID_POSE_MATRIX_CACHE_INDEX = 0xFFFF;;
 
     struct RigModelSkinnedVertex
     {
@@ -28,10 +28,17 @@ namespace dmRig
         float          m_BoneIndices[4];
     };
 
+    /** Pose matrix cache (Should it be a buffer instead? we commit poses one by one, and we don't reuse the result if we already commited a pose)
+     * A pose matrix cache stores a cache of pose matrices for a given number of rig instances.
+     * The m_BoneCounts contains the number of bones for a rig isntance that has aqcuired a cache index.
+     */
     struct PoseMatrixCache
     {
+        /// The array of pose matrices for all rig instances
         dmArray<dmVMath::Matrix4> m_PoseMatrices;
+        /// The array of bone counts for all rig instances
         dmArray<uint32_t>         m_BoneCounts;
+        /// The max bone count found in the set of pose matrices (I think this can be removed?)
         uint32_t                  m_MaxBoneCount;
     };
 

@@ -192,8 +192,11 @@ namespace dmGameSystem
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
 
-        world->m_SkinnedAnimationData.m_BindPoseCacheTextureMaxWidth = context->m_MaxBoneMatrixTextureWidth;
-        world->m_SkinnedAnimationData.m_BindPoseCacheTextureMaxHeight = context->m_MaxBoneMatrixTextureHeight;
+        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
+
+        uint32_t max_texture_size = dmGraphics::GetMaxTextureSize(graphics_context);
+        world->m_SkinnedAnimationData.m_BindPoseCacheTextureMaxWidth = dmMath::Min(max_texture_size, (uint32_t) context->m_MaxBoneMatrixTextureWidth);
+        world->m_SkinnedAnimationData.m_BindPoseCacheTextureMaxHeight = dmMath::Min(max_texture_size, (uint32_t) context->m_MaxBoneMatrixTextureHeight);
         world->m_SkinnedAnimationData.m_BindPoseCacheTextureCurrentWidth = 0;
         world->m_SkinnedAnimationData.m_BindPoseCacheTextureCurrentHeight = 0;
 
@@ -202,7 +205,6 @@ namespace dmGameSystem
         // position, normal, tangent, color, texcoord0, texcoord1 * sizeof(float)
         DM_STATIC_ASSERT( sizeof(dmRig::RigModelVertex) == ((3+3+4+4+2+2)*4), Invalid_Struct_Size);
 
-        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
         dmGraphics::HVertexStreamDeclaration stream_declaration_vertex = dmGraphics::NewVertexStreamDeclaration(graphics_context);
         dmGraphics::AddVertexStream(stream_declaration_vertex, "position",  3, dmGraphics::TYPE_FLOAT, false);
         dmGraphics::AddVertexStream(stream_declaration_vertex, "normal",    3, dmGraphics::TYPE_FLOAT, false);
@@ -1839,8 +1841,12 @@ namespace dmGameSystem
             component.m_BindPoseCacheAnimationIndex = dmRig::INVALID_POSE_MATRIX_CACHE_INDEX;
             if (RequiresBindPoseCaching(component))
             {
-                // TODO: Error handling
                 component.m_BindPoseCacheAnimationIndex = dmRig::AcquirePoseMatrixCacheIndex(world->m_RigContext, component.m_RigInstance);
+
+                if (component.m_BindPoseCacheAnimationIndex == dmRig::INVALID_POSE_MATRIX_CACHE_INDEX)
+                {
+                    dmLogWarning("Model requires bind pose cache, but was not able to acquire a cache index. Consider increasing the cache size (model.max_bone_matrix_texture_width and model.max_bone_matrix_texture_height).");
+                }
             }
 
             component.m_DoRender = 1;

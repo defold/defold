@@ -519,15 +519,15 @@ namespace dmRig
             return;
         }
 
-        dmArray<Matrix4>& pose_matrices = context->m_PoseMatrixCache.m_PoseMatrices;
-        dmArray<uint32_t>& pose_bone_count = context->m_PoseMatrixCache.m_BoneCounts;
+        dmArray<Matrix4>& cache_pose_matrices = context->m_PoseMatrixCache.m_PoseMatrices;
+        dmArray<uint32_t>& cache_pose_bone_count = context->m_PoseMatrixCache.m_BoneCounts;
 
-        uint32_t current_size = pose_matrices.Size();
-        EnsureSize(pose_matrices, current_size + bone_count);
+        const uint32_t num_pose_matrices = cache_pose_matrices.Size();
+        EnsureSize(cache_pose_matrices, num_pose_matrices + bone_count);
 
-        pose_bone_count[instance->m_PoseMatrixCacheIndex] = current_size;
+        cache_pose_bone_count[instance->m_PoseMatrixCacheIndex] = num_pose_matrices;
 
-        Matrix4* pose_matrix_write_ptr = pose_matrices.Begin() + current_size;
+        Matrix4* pose_matrix_write_ptr = cache_pose_matrices.Begin() + num_pose_matrices;
         PoseToMatrix(instance->m_Pose, pose_matrix_write_ptr);
 
         // Premultiply pose matrices with the bind pose inverse so they
@@ -1187,6 +1187,7 @@ namespace dmRig
         }
     }
 
+    // These should typically not be stored across multiple frames, since dispatch order might differ.
     uint16_t AcquirePoseMatrixCacheIndex(HRigContext context, HRigInstance instance)
     {
         if (instance == 0)
@@ -1201,7 +1202,7 @@ namespace dmRig
         uint16_t next_index = context->m_PoseMatrixCache.m_BoneCounts.Size();
         if (context->m_PoseMatrixCache.m_BoneCounts.Full())
         {
-            context->m_PoseMatrixCache.m_BoneCounts.OffsetCapacity(1);
+            context->m_PoseMatrixCache.m_BoneCounts.OffsetCapacity(32);
         }
 
         context->m_PoseMatrixCache.m_BoneCounts.SetSize(next_index + 1);
