@@ -20,6 +20,7 @@
             [editor.changes-view :as changes-view]
             [editor.cljfx-form-view :as cljfx-form-view]
             [editor.code.view :as code-view]
+            [editor.color-dropper :as color-dropper]
             [editor.command-requests :as command-requests]
             [editor.console :as console]
             [editor.curve-view :as curve-view]
@@ -170,12 +171,14 @@
           console-grid-pane    (.lookup root "#console-grid-pane")
           workbench            (.lookup root "#workbench")
           notifications        (.lookup root "#notifications")
+          ^StackPane dropper   (.lookup root "#color-dropper-pane")
           scene-visibility     (scene-visibility/make-scene-visibility-node! *view-graph*)
           app-view             (app-view/make-app-view *view-graph* project stage menu-bar editor-tabs-split tool-tabs prefs)
           outline-view         (outline-view/make-outline-view *view-graph* project outline app-view)
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets prefs)
           open-resource        (partial #'app-view/open-resource app-view prefs workspace project)
           console-view         (console/make-console! *view-graph* workspace console-tab console-grid-pane open-resource prefs)
+          _                    (color-dropper/make-color-dropper! *view-graph* dropper)
           _                    (notifications-view/init! (g/node-value workspace :notifications) notifications)
           build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
                                                                          (fn [resource selected-node-ids opts]
