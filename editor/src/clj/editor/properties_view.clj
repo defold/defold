@@ -555,11 +555,9 @@
 (defmethod create-property-control! types/Color [edit-type _ property-fn]
   (let [wrapper (doto (HBox.)
                   (.setPrefWidth Double/MAX_VALUE))
-        pick-fn (fn [c] (set-color-value! (property-fn) (:ignore-alpha? edit-type) c))
+        pick-fn (fn [c] (set-color-value! property-fn (:ignore-alpha? edit-type) c))
         color-dropper (doto (Button. "" (jfx/get-image-view "icons/32/Icons_M_03_colorpicker.png" 16))
-                        (.setPrefWidth 28)
-                        (.setPrefHeight 28)
-                        (ui/add-style! "button-small")
+                        (ui/add-style! "color-dropper")
                         (ui/on-action! (fn [^MouseEvent event] (ui/run-command (.getSource event) :color-dropper {:pick-fn pick-fn}))))
         text (TextField.)
         color-picker (ColorPicker.)
