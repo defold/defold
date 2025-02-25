@@ -74,6 +74,17 @@
       bytes-per-terabyte (decimal-string (/ double-bytes bytes-per-gigabyte) "GB")
       (decimal-string (/ double-bytes bytes-per-terabyte) "TB"))))
 
+(defn- stack-trace-impl [^Thread thread trimmed-fn-class-names-set]
+  {:pre [(set? trimmed-fn-class-names-set)]}
+  (let [own-fn-class-name (.getName (class stack-trace-impl))
+        trimmed-fn-class-names-set (conj trimmed-fn-class-names-set own-fn-class-name)]
+    (into []
+          (comp (drop 1) ; Trim the getStackTrace method call itself.
+                (drop-while (fn [^StackTraceElement stack-trace-element]
+                              (contains? trimmed-fn-class-names-set (.getClassName stack-trace-element))))
+                (map repl/stack-element-str))
+          (.getStackTrace thread))))
+
 (defn stack-trace
   "Returns a human-readable stack trace as a vector of strings. Elements are
   ordered from the stack-trace function call site towards the outermost stack
@@ -81,14 +92,28 @@
   ([]
    (stack-trace (Thread/currentThread)))
   ([^Thread thread]
-   (let [own-class-name (.getName (class stack-trace))]
-     (into []
-           (comp (drop 1)
-                 (drop-while (fn [^StackTraceElement stack-trace-element]
-                               (= own-class-name
-                                  (.getClassName stack-trace-element))))
-                 (map repl/stack-element-str))
-           (.getStackTrace thread)))))
+   (let [own-fn-class-name (.getName (class stack-trace))
+         trimmed-fn-class-names-set #{own-fn-class-name}]
+     (stack-trace-impl thread trimmed-fn-class-names-set))))
+
+(defn print-stack-trace!
+  "Prints the stack trace of the current thread to *out*. Optionally, a prefix
+  string to append to the beginning of each line can be specified, as well as a
+  different Thread."
+  ([]
+   (print-stack-trace! nil (Thread/currentThread)))
+  ([^String line-prefix]
+   (print-stack-trace! line-prefix (Thread/currentThread)))
+  ([^String line-prefix ^Thread thread]
+   (let [own-fn-class-name (.getName (class print-stack-trace!))
+         trimmed-fn-class-names-set #{own-fn-class-name}
+         stack-trace (stack-trace-impl thread trimmed-fn-class-names-set)
+         print-line! (if (empty? line-prefix)
+                       println
+                       (fn print-fn [^String line]
+                         (print line-prefix)
+                         (println line)))]
+     (run! print-line! stack-trace))))
 
 (defn release-build?
   "Returns true if we're running a release build of the editor."
