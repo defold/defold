@@ -44,8 +44,8 @@
 
 DM_PROPERTY_GROUP(rmtp_GameObject, "Gameobjects", 0);
 
-DM_PROPERTY_U32(rmtp_GOInstances, 0, PPF_FRAME_RESET, "# alive go instances / frame", &rmtp_GameObject);
-DM_PROPERTY_U32(rmtp_GODeleted, 0, PPF_FRAME_RESET, "# deleted instances / frame", &rmtp_GameObject);
+DM_PROPERTY_U32(rmtp_GOInstances, 0, PROFILE_PROPERTY_FRAME_RESET, "# alive go instances / frame", &rmtp_GameObject);
+DM_PROPERTY_U32(rmtp_GODeleted, 0, PROFILE_PROPERTY_FRAME_RESET, "# deleted instances / frame", &rmtp_GameObject);
 
 namespace dmGameObject
 {

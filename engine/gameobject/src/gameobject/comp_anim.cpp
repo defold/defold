@@ -31,7 +31,7 @@ extern "C"
 }
 
 DM_PROPERTY_EXTERN(rmtp_GameObject);
-DM_PROPERTY_U32(rmtp_ComponentsAnim, 0, PPF_FRAME_RESET, "#", &rmtp_GameObject);
+DM_PROPERTY_U32(rmtp_ComponentsAnim, 0, PROFILE_PROPERTY_FRAME_RESET, "#", &rmtp_GameObject);
 
 namespace dmGameObject
 {

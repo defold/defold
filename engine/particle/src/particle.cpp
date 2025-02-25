@@ -29,7 +29,7 @@
 #include "particle_private.h"
 
 DM_PROPERTY_GROUP(rmtp_Particles, "Particles", 0);
-DM_PROPERTY_U32(rmtp_ParticlesAlive, 0, PPF_FRAME_RESET, "# particles alive", &rmtp_Particles);
+DM_PROPERTY_U32(rmtp_ParticlesAlive, 0, PROFILE_PROPERTY_FRAME_RESET, "# particles alive", &rmtp_Particles);
 
 namespace dmParticle
 {

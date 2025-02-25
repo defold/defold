@@ -31,7 +31,7 @@
 #include "../gamesys_private.h"
 
 DM_PROPERTY_EXTERN(rmtp_Components);
-DM_PROPERTY_U32(rmtp_CollectionFactory, 0, PPF_FRAME_RESET, "# components", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_CollectionFactory, 0, PROFILE_PROPERTY_FRAME_RESET, "# components", &rmtp_Components);
 
 namespace dmGameSystem
 {
