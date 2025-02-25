@@ -213,7 +213,7 @@ namespace dmPhysics
         m_DebugDraw.DrawString           = DrawString;
 
         // Debug!
-        const bool force_flag = true;
+        const bool force_flag = false;
         m_DebugDraw.drawShapes           = force_flag;
         m_DebugDraw.drawJoints           = force_flag;
         m_DebugDraw.drawJointExtras      = force_flag;

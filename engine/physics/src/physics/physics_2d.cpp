@@ -58,6 +58,8 @@ namespace dmPhysics
     {
         m_RayCastRequests.SetCapacity(context->m_RayCastLimit);
 
+        OverlapCacheInit(&m_TriggerOverlaps);
+
         b2WorldDef worldDef         = b2DefaultWorldDef();
         worldDef.gravity            = context->m_Gravity;
 
@@ -401,6 +403,35 @@ namespace dmPhysics
         }
     }
 
+    static ContactPair* GetContactPair(HWorld2D world, uint64_t id_a, uint64_t id_b)
+    {
+        for (int i = 0; i < world->m_ContactBuffer.Size(); ++i)
+        {
+            ContactPair* pair = &world->m_ContactBuffer[i];
+            if ((pair->m_ShapeIdA == id_a && pair->m_ShapeIdB == id_b) || (pair->m_ShapeIdA == id_b && pair->m_ShapeIdB == id_a))
+            {
+                return pair;
+            }
+        }
+        return 0;
+    }
+
+    static ContactPair* MakeContactPair(HWorld2D world, uint64_t id_a, uint64_t id_b, b2ContactData* contact)
+    {
+        if (world->m_ContactBuffer.Full())
+        {
+            world->m_ContactBuffer.OffsetCapacity(32);
+        }
+
+        ContactPair pair;
+        pair.m_ShapeIdA = id_a;
+        pair.m_ShapeIdB = id_b;
+        pair.m_Data = *contact;
+
+        world->m_ContactBuffer.Push(pair);
+        return &world->m_ContactBuffer.Back();
+    }
+
     void StepWorld2D(HWorld2D world, const StepWorldContext& step_context)
     {
         float dt = step_context.m_DT;
@@ -531,7 +562,7 @@ namespace dmPhysics
             {
                 Body* body = world->m_Bodies[i];
 
-                if (!b2Body_IsAwake(body->m_BodyId))
+                if (!b2Body_IsEnabled(body->m_BodyId))
                 {
                     continue;
                 }
@@ -547,6 +578,8 @@ namespace dmPhysics
                     if (b2Shape_IsSensor(shapeIdA))
                     {
                         dmArray<b2ShapeId>& overlaps = GetSensorOverlapBuffer(world, shapeIdA);
+
+                        // uint32_t max_overlaps = dmMath::Min((int) overlaps.Size(), context->m_TriggerOverlapCapacity);
 
                         // Trigger collision callbacks for overlapping sensors
                         for (int k=0; k < overlaps.Size(); ++k)
@@ -571,49 +604,50 @@ namespace dmPhysics
         {
             DM_PROFILE("TriggerCallbacks");
 
+            OverlapCacheAddData add_data;
+            add_data.m_TriggerEnteredCallback = step_context.m_TriggerEnteredCallback;
+            add_data.m_TriggerEnteredUserData = step_context.m_TriggerEnteredUserData;
+
             for (int i = 0; i < sensor_events.beginCount; ++i)
             {
                 b2ShapeId shapeIdA = sensor_events.beginEvents[i].sensorShapeId;
                 b2ShapeId shapeIdB = sensor_events.beginEvents[i].visitorShapeId;
 
-                if (!(b2Shape_IsValid(shapeIdA) || b2Shape_IsValid(shapeIdB)))
+                if (!(b2Shape_IsValid(shapeIdA) && b2Shape_IsValid(shapeIdB)))
                 {
                     continue;
                 }
 
-                TriggerEnter data;
-                data.m_UserDataA = b2Shape_GetUserData(shapeIdA);
-                data.m_UserDataB = b2Shape_GetUserData(shapeIdB);
-                data.m_GroupA    = b2Shape_GetFilter(shapeIdA).categoryBits;
-                data.m_GroupB    = b2Shape_GetFilter(shapeIdB).categoryBits;
-
-                if (step_context.m_TriggerEnteredCallback)
-                {
-                    step_context.m_TriggerEnteredCallback(data, step_context.m_TriggerEnteredUserData);
-                }
+                add_data.m_ObjectA   = ToOpaqueHandle(b2Shape_GetBody(shapeIdA));
+                add_data.m_UserDataA = b2Shape_GetUserData(shapeIdA);
+                add_data.m_ObjectB   = ToOpaqueHandle(b2Shape_GetBody(shapeIdB));
+                add_data.m_UserDataB = b2Shape_GetUserData(shapeIdB);
+                add_data.m_GroupA    = b2Shape_GetFilter(shapeIdA).categoryBits;
+                add_data.m_GroupB    = b2Shape_GetFilter(shapeIdB).categoryBits;
+                OverlapCacheAdd(&world->m_TriggerOverlaps, add_data);
             }
+
+            OverlapCacheRemoveData remove_data;
+            remove_data.m_TriggerExitedCallback = step_context.m_TriggerExitedCallback;
+            remove_data.m_TriggerExitedUserData = step_context.m_TriggerExitedUserData;
 
             for (int i = 0; i < sensor_events.endCount; ++i)
             {
                 b2ShapeId shapeIdA = sensor_events.endEvents[i].sensorShapeId;
                 b2ShapeId shapeIdB = sensor_events.endEvents[i].visitorShapeId;
 
-                if (!(b2Shape_IsValid(shapeIdA) || b2Shape_IsValid(shapeIdB)))
+                if (!(b2Shape_IsValid(shapeIdA) && b2Shape_IsValid(shapeIdB)))
                 {
                     continue;
                 }
-
-                TriggerExit data;
-                data.m_UserDataA = b2Shape_GetUserData(shapeIdA);
-                data.m_UserDataB = b2Shape_GetUserData(shapeIdB);
-                data.m_GroupA    = b2Shape_GetFilter(shapeIdA).categoryBits;
-                data.m_GroupB    = b2Shape_GetFilter(shapeIdB).categoryBits;
-
-                if (step_context.m_TriggerExitedCallback)
-                {
-                    step_context.m_TriggerExitedCallback(data, step_context.m_TriggerExitedUserData);
-                }
+                OverlapCacheDecreaseCount(&world->m_TriggerOverlaps, ToOpaqueHandle(b2Shape_GetBody(shapeIdA)));
+                OverlapCacheDecreaseCount(&world->m_TriggerOverlaps, ToOpaqueHandle(b2Shape_GetBody(shapeIdB)));
             }
+
+            OverlapCachePruneData prune_data;
+            prune_data.m_TriggerExitedCallback = step_context.m_TriggerExitedCallback;
+            prune_data.m_TriggerExitedUserData = step_context.m_TriggerExitedUserData;
+            OverlapCachePrune(&world->m_TriggerOverlaps, prune_data);
         }
 
     #if 0
@@ -642,6 +676,8 @@ namespace dmPhysics
 
             float inv_scale = world->m_Context->m_InvScale;
 
+            world->m_ContactBuffer.SetSize(0);
+
             for (int i = 0; i < world->m_Bodies.Size(); ++i)
             {
                 Body* body = world->m_Bodies[i];
@@ -649,12 +685,26 @@ namespace dmPhysics
                 dmArray<b2ContactData>& contacts = GetContactsBuffer(world, body_id);
                 int num_contacts = contacts.Size();
 
+                bool is_enabled = b2Body_IsEnabled(body_id);
+
+                if (!is_enabled)
+                {
+                    continue;
+                }
+
                 for (int j = 0; j < num_contacts; ++j)
                 {
                     b2ContactData& contact = contacts[j];
 
-                    float max_impulse = 0.0f;
+                    // I think we need to keep track of unique contacts here
+                    uint64_t opaque_id_a = ToOpaqueHandle(contact.shapeIdA);
+                    uint64_t opaque_id_b = ToOpaqueHandle(contact.shapeIdB);
 
+                    ContactPair* contact_pair = GetContactPair(world, opaque_id_a, opaque_id_b);
+                    if (contact_pair)
+                        continue;
+
+                    float max_impulse = 0.0f;
                     for (int k = 0; k < contact.manifold.pointCount; ++k)
                     {
                         b2ManifoldPoint& manifold = contact.manifold.points[k];
@@ -664,6 +714,8 @@ namespace dmPhysics
                     {
                         continue;
                     }
+
+                    contact_pair = MakeContactPair(world, opaque_id_a, opaque_id_b, &contact);
 
                     if (step_context.m_CollisionCallback)
                     {
@@ -714,10 +766,10 @@ namespace dmPhysics
 
     void SetDrawDebug2D(HWorld2D world, bool draw_debug)
     {
-        world->m_DebugDraw.m_DebugDraw.drawJoints          |= draw_debug;
-        world->m_DebugDraw.m_DebugDraw.drawShapes          |= draw_debug;
-        world->m_DebugDraw.m_DebugDraw.drawContactNormals  |= draw_debug;
-        world->m_DebugDraw.m_DebugDraw.drawContactImpulses |= draw_debug;
+        world->m_DebugDraw.m_DebugDraw.drawJoints          = draw_debug;
+        world->m_DebugDraw.m_DebugDraw.drawShapes          = draw_debug;
+        world->m_DebugDraw.m_DebugDraw.drawContactNormals  = draw_debug;
+        world->m_DebugDraw.m_DebugDraw.drawContactImpulses = draw_debug;
     }
 
     HCollisionShape2D NewCircleShape2D(HContext2D context, float radius)
@@ -1447,6 +1499,8 @@ namespace dmPhysics
     {
         Body* body = (Body*) collision_object;
 
+        OverlapCacheRemove(&world->m_TriggerOverlaps, ToOpaqueHandle(body->m_BodyId));
+
         for (int i = 0; i < body->m_ShapeCount; ++i)
         {
             FreeShape(body->m_Shapes[i]);
@@ -1697,7 +1751,7 @@ namespace dmPhysics
     bool IsSleeping2D(HCollisionObject2D collision_object)
     {
         Body* body = (Body*) collision_object;
-        return b2Body_IsAwake(body->m_BodyId);
+        return !b2Body_IsAwake(body->m_BodyId);
     }
 
     void Wakeup2D(HCollisionObject2D collision_object)

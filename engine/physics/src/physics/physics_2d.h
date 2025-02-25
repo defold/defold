@@ -102,6 +102,13 @@ namespace dmPhysics
         uint8_t     m_ShapeCount;
     };
 
+    struct ContactPair
+    {
+        uint64_t      m_ShapeIdA;
+        uint64_t      m_ShapeIdB;
+        b2ContactData m_Data;
+    };
+
     struct World2D
     {
         World2D(HContext2D context, const NewWorldParams& params);
@@ -115,6 +122,7 @@ namespace dmPhysics
         SetWorldTransformCallback   m_SetWorldTransformCallback;
 
         dmArray<Body*>              m_Bodies;
+        dmArray<ContactPair>        m_ContactBuffer;
 
         // TODO: I think we can merge these into a single buffer of bytes
         dmArray<b2ShapeId>          m_GetShapeScratchBuffer;

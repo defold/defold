@@ -86,7 +86,6 @@ CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Debug ${CMAKE_FLAGS}"
 # Build
 
 mkdir -p ${BUILD_DIR}
-
 pushd $BUILD_DIR
 
 cmake ${CMAKE_FLAGS} $BOX2D_DIR

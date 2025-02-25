@@ -82,7 +82,7 @@ index 286954f..a0770b0 100644
  		return false;
  	}
 diff --git a/src/broad_phase.c b/src/broad_phase.c
-index ebfff39..ee00f78 100644
+index ebfff39..8b58fde 100644
 --- a/src/broad_phase.c
 +++ b/src/broad_phase.c
 @@ -188,11 +188,14 @@ static bool b2PairQueryCallback( int proxyId, int shapeId, void* context )
@@ -134,6 +134,24 @@ index ebfff39..ee00f78 100644
  		{
  			// consider using bits = groupIndex > 0 ? B2_DEFAULT_MASK_BITS : maskBits
  			queryContext.queryTreeType = b2_kinematicBody;
+@@ -362,6 +371,17 @@ static void b2FindPairsTask( int startIndex, int endIndex, uint32_t threadIndex,
+ 			stats.nodeVisits += statsStatic.nodeVisits;
+ 			stats.leafVisits += statsStatic.leafVisits;
+ 		}
++		// DEFOLD EDIT BEGIN
++		// If the proxy type is static, we need to check to kinematic body tree as well.
++		// This is because defold supports collisions with kinematic bodies.
++		else if (proxyType == b2_staticBody)
++		{
++			queryContext.queryTreeType = b2_kinematicBody;
++			b2TreeStats statsKinematic = b2DynamicTree_Query( bp->trees + b2_kinematicBody, fatAABB, B2_DEFAULT_MASK_BITS, b2PairQueryCallback, &queryContext );
++			stats.nodeVisits += statsKinematic.nodeVisits;
++			stats.leafVisits += statsKinematic.leafVisits;
++		}
++		// DEFOLD EDIT END
+ 
+ 		// All proxies collide with dynamic proxies
+ 		// Using B2_DEFAULT_MASK_BITS so that b2Filter::groupIndex works.
 diff --git a/src/world.c b/src/world.c
 index 7d8ad1e..7aae63d 100644
 --- a/src/world.c
