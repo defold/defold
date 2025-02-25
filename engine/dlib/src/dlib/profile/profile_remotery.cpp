@@ -488,7 +488,7 @@ static void SetupProperty(rmtProperty* prop, const char* name, const char* desc,
 {
     memset(prop, 0, sizeof(rmtProperty));
     prop->initialised    = RMT_FALSE;
-    prop->flags          = (flags == PPF_FRAME_RESET) ? RMT_PropertyFlags_FrameReset : RMT_PropertyFlags_NoFlags;
+    prop->flags          = (flags == PROFILE_PROPERTY_FRAME_RESET) ? RMT_PropertyFlags_FrameReset : RMT_PropertyFlags_NoFlags;
     prop->name           = name;
     prop->description    = desc;
     prop->parent         = parentidx ? GetPropertyFromIdx(*parentidx) : 0;

@@ -96,8 +96,8 @@ extern "C" {
 #endif
 
 DM_PROPERTY_EXTERN(rmtp_Script);
-DM_PROPERTY_U32(rmtp_LuaMem, 0, PPF_FRAME_RESET, "kb", &rmtp_Script); // kilo bytes
-DM_PROPERTY_U32(rmtp_LuaRefs, 0, PPF_FRAME_RESET, "# Lua references", &rmtp_Script);
+DM_PROPERTY_U32(rmtp_LuaMem, 0, PROFILE_PROPERTY_FRAME_RESET, "kb", &rmtp_Script); // kilo bytes
+DM_PROPERTY_U32(rmtp_LuaRefs, 0, PROFILE_PROPERTY_FRAME_RESET, "# Lua references", &rmtp_Script);
 
 namespace dmEngine
 {

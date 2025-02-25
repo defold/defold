@@ -254,16 +254,16 @@ TEST(dmProfile, Profile)
 
 
 DM_PROPERTY_GROUP(prop_TestGroup1, "", 0);
-DM_PROPERTY_BOOL(prop_TestBOOL, 0, PPF_FRAME_RESET, "", &prop_TestGroup1);
-DM_PROPERTY_S32(propt_TestS32, 0, PPF_FRAME_RESET, "", &prop_TestGroup1);
-DM_PROPERTY_U32(propt_TestU32, 0, PPF_FRAME_RESET, "", &prop_TestGroup1);
-DM_PROPERTY_F32(propt_TestF32, 0, PPF_FRAME_RESET, "", &prop_TestGroup1);
-DM_PROPERTY_S64(propt_TestS64, 0, PPF_FRAME_RESET, "", &prop_TestGroup1);
-DM_PROPERTY_U64(propt_TestU64, 0, PPF_FRAME_RESET, "", &prop_TestGroup1);
-DM_PROPERTY_F64(propt_TestF64, 0, PPF_FRAME_RESET, "", &prop_TestGroup1);
+DM_PROPERTY_BOOL(prop_TestBOOL, 0, PROFILE_PROPERTY_FRAME_RESET, "", &prop_TestGroup1);
+DM_PROPERTY_S32(propt_TestS32, 0, PROFILE_PROPERTY_FRAME_RESET, "", &prop_TestGroup1);
+DM_PROPERTY_U32(propt_TestU32, 0, PROFILE_PROPERTY_FRAME_RESET, "", &prop_TestGroup1);
+DM_PROPERTY_F32(propt_TestF32, 0, PROFILE_PROPERTY_FRAME_RESET, "", &prop_TestGroup1);
+DM_PROPERTY_S64(propt_TestS64, 0, PROFILE_PROPERTY_FRAME_RESET, "", &prop_TestGroup1);
+DM_PROPERTY_U64(propt_TestU64, 0, PROFILE_PROPERTY_FRAME_RESET, "", &prop_TestGroup1);
+DM_PROPERTY_F64(propt_TestF64, 0, PROFILE_PROPERTY_FRAME_RESET, "", &prop_TestGroup1);
 
 DM_PROPERTY_GROUP(prop_TestGroup2, "", &prop_TestGroup1);
-DM_PROPERTY_U32(prop_FrameCounter, 0, PPF_NONE, "", &prop_TestGroup2);
+DM_PROPERTY_U32(prop_FrameCounter, 0, PROFILE_PROPERTY_NONE, "", &prop_TestGroup2);
 
 static TestProperty* GetProperty(PropertyCtx* ctx, const char* name)
 {

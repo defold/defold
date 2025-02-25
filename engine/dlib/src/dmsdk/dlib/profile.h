@@ -108,7 +108,7 @@
  *
  * ```cpp
  * DM_PROPERTY_EXTERN(rmtp_GameObject);
- * DM_PROPERTY_U32(rmtp_ComponentsAnim, 0, PPF_FRAME_RESET, "#", &rmtp_GameObject);
+ * DM_PROPERTY_U32(rmtp_ComponentsAnim, 0, PROFILE_PROPERTY_FRAME_RESET, "#", &rmtp_GameObject);
  * ```
  */
 #define DM_PROPERTY_EXTERN(name)
@@ -139,14 +139,14 @@
  * @name DM_PROPERTY_BOOL
  * @param name [type:symbol] The property symbol/name
  * @param default [type:bool] The default value
- * @param flags [type:uint32_t] The flags. Either `PPF_FRAME_NONE` or `PPF_FRAME_RESET`. `PPF_FRAME_RESET` makes the value reset each frame.
+ * @param flags [type:uint32_t] The flags. Either `PROFILE_PROPERTY_NONE` or `PROFILE_PROPERTY_FRAME_RESET`. `PROFILE_PROPERTY_FRAME_RESET` makes the value reset each frame.
  * @param desc [type:const char*] The description
  * @param group [type: dmProfilePropertyIdx*] The parent group. May be 0.
  *
  * @examples
  *
  * ```cpp
- * DM_PROPERTY_BOOL(rmtp_MyBool, 0, PPF_FRAME_RESET, "true or false", &rmtp_MyGroup);
+ * DM_PROPERTY_BOOL(rmtp_MyBool, 0, PROFILE_PROPERTY_FRAME_RESET, "true or false", &rmtp_MyGroup);
  * ```
  */
 #define DM_PROPERTY_BOOL(name, default_value, flag, desc, parent)
@@ -159,14 +159,14 @@
  * @name DM_PROPERTY_S32
  * @param name [type:symbol] The property symbol/name
  * @param default [type:int32_t] The default value
- * @param flags [type:uint32_t] The flags. Either `PPF_FRAME_NONE` or `PPF_FRAME_RESET`. `PPF_FRAME_RESET` makes the value reset each frame.
+ * @param flags [type:uint32_t] The flags. Either `PROFILE_PROPERTY_NONE` or `PROFILE_PROPERTY_FRAME_RESET`. `PROFILE_PROPERTY_FRAME_RESET` makes the value reset each frame.
  * @param desc [type:const char*] The description
  * @param group [type: dmProfilePropertyIdx*] The parent group. May be 0.
  *
  * @examples
  *
  * ```cpp
- * DM_PROPERTY_S32(rmtp_MyValue, 0, PPF_FRAME_RESET, "a value", &rmtp_MyGroup);
+ * DM_PROPERTY_S32(rmtp_MyValue, 0, PROFILE_PROPERTY_FRAME_RESET, "a value", &rmtp_MyGroup);
  * ```
  */
 #define DM_PROPERTY_S32(name, default_value, flag, desc, parent)
@@ -179,14 +179,14 @@
  * @name DM_PROPERTY_U32
  * @param name [type:symbol] The property symbol/name
  * @param default [type:uint32_t] The default value
- * @param flags [type:uint32_t] The flags. Either `PPF_FRAME_NONE` or `PPF_FRAME_RESET`. `PPF_FRAME_RESET` makes the value reset each frame.
+ * @param flags [type:uint32_t] The flags. Either `PROFILE_PROPERTY_NONE` or `PROFILE_PROPERTY_FRAME_RESET`. `PROFILE_PROPERTY_FRAME_RESET` makes the value reset each frame.
  * @param desc [type:const char*] The description
  * @param group [type: dmProfilePropertyIdx*] The parent group. May be 0.
  *
  * @examples
  *
  * ```cpp
- * DM_PROPERTY_U32(rmtp_MyValue, 0, PPF_FRAME_RESET, "a value", &rmtp_MyGroup);
+ * DM_PROPERTY_U32(rmtp_MyValue, 0, PROFILE_PROPERTY_FRAME_RESET, "a value", &rmtp_MyGroup);
  * ```
  */
 #define DM_PROPERTY_U32(name, default_value, flag, desc, parent)
@@ -199,14 +199,14 @@
  * @name DM_PROPERTY_F32
  * @param name [type:symbol] The property symbol/name
  * @param default [type:float] The default value
- * @param flags [type:uint32_t] The flags. Either `PPF_FRAME_NONE` or `PPF_FRAME_RESET`. `PPF_FRAME_RESET` makes the value reset each frame.
+ * @param flags [type:uint32_t] The flags. Either `PROFILE_PROPERTY_NONE` or `PROFILE_PROPERTY_FRAME_RESET`. `PROFILE_PROPERTY_FRAME_RESET` makes the value reset each frame.
  * @param desc [type:const char*] The description
  * @param group [type: dmProfilePropertyIdx*] The parent group. May be 0.
  *
  * @examples
  *
  * ```cpp
- * DM_PROPERTY_F32(rmtp_MyValue, 0, PPF_FRAME_RESET, "a value", &rmtp_MyGroup);
+ * DM_PROPERTY_F32(rmtp_MyValue, 0, PROFILE_PROPERTY_FRAME_RESET, "a value", &rmtp_MyGroup);
  * ```
  */
 #define DM_PROPERTY_F32(name, default_value, flag, desc, parent)
@@ -219,14 +219,14 @@
  * @name DM_PROPERTY_S64
  * @param name [type:symbol] The property symbol/name
  * @param default [type:int64_t] The default value
- * @param flags [type:uint32_t] The flags. Either `PPF_FRAME_NONE` or `PPF_FRAME_RESET`. `PPF_FRAME_RESET` makes the value reset each frame.
+ * @param flags [type:uint32_t] The flags. Either `PROFILE_PROPERTY_NONE` or `PROFILE_PROPERTY_FRAME_RESET`. `PROFILE_PROPERTY_FRAME_RESET` makes the value reset each frame.
  * @param desc [type:const char*] The description
  * @param group [type: dmProfilePropertyIdx*] The parent group. May be 0.
  *
  * @examples
  *
  * ```cpp
- * DM_PROPERTY_S64(rmtp_MyValue, 0, PPF_FRAME_RESET, "a value", &rmtp_MyGroup);
+ * DM_PROPERTY_S64(rmtp_MyValue, 0, PROFILE_PROPERTY_FRAME_RESET, "a value", &rmtp_MyGroup);
  * ```
  */
 #define DM_PROPERTY_S64(name, default_value, flag, desc, parent)
@@ -240,14 +240,14 @@
  * @name DM_PROPERTY_U64
  * @param name [type:symbol] The property symbol/name
  * @param default [type:uint64_t] The default value
- * @param flags [type:uint32_t] The flags. Either `PPF_FRAME_NONE` or `PPF_FRAME_RESET`. `PPF_FRAME_RESET` makes the value reset each frame.
+ * @param flags [type:uint32_t] The flags. Either `PROFILE_PROPERTY_NONE` or `PROFILE_PROPERTY_FRAME_RESET`. `PROFILE_PROPERTY_FRAME_RESET` makes the value reset each frame.
  * @param desc [type:const char*] The description
  * @param group [type: dmProfilePropertyIdx*] The parent group. May be 0.
  *
  * @examples
  *
  * ```cpp
- * DM_PROPERTY_U64(rmtp_MyValue, 0, PPF_FRAME_RESET, "a value", &rmtp_MyGroup);
+ * DM_PROPERTY_U64(rmtp_MyValue, 0, PROFILE_PROPERTY_FRAME_RESET, "a value", &rmtp_MyGroup);
  * ```
  */
 #define DM_PROPERTY_U64(name, default_value, flag, desc, parent)
@@ -260,14 +260,14 @@
  * @name DM_PROPERTY_F64
  * @param name [type:symbol] The property symbol/name
  * @param default [type:double] The default value
- * @param flags [type:uint32_t] The flags. Either `PPF_FRAME_NONE` or `PPF_FRAME_RESET`. `PPF_FRAME_RESET` makes the value reset each frame.
+ * @param flags [type:uint32_t] The flags. Either `PROFILE_PROPERTY_NONE` or `PROFILE_PROPERTY_FRAME_RESET`. `PROFILE_PROPERTY_FRAME_RESET` makes the value reset each frame.
  * @param desc [type:const char*] The description
  * @param group [type: dmProfilePropertyIdx*] The parent group. May be 0.
  *
  * @examples
  *
  * ```cpp
- * DM_PROPERTY_F64(rmtp_MyValue, 0, PPF_FRAME_RESET, "a value", &rmtp_MyGroup);
+ * DM_PROPERTY_F64(rmtp_MyValue, 0, PROFILE_PROPERTY_FRAME_RESET, "a value", &rmtp_MyGroup);
  * ```
  */
 #define DM_PROPERTY_F64(name, default_value, flag, desc, parent)
@@ -533,8 +533,8 @@ void dmProfilePropertyReset(dmProfilePropertyIdx idx);
 
 enum ProfilePropertyFlags
 {
-    PPF_NONE = 0,
-    PPF_FRAME_RESET = 1  // reset the property each frame
+    PROFILE_PROPERTY_NONE = 0,
+    PROFILE_PROPERTY_FRAME_RESET = 1  // reset the property each frame
 };
 
 #if defined(NDEBUG) || defined(DM_PROFILE_NULL)

@@ -54,7 +54,7 @@
 #include <dmsdk/resource/resource.h>
 
 DM_PROPERTY_EXTERN(rmtp_Gui);
-DM_PROPERTY_U32(rmtp_GuiVertexCount, 0, PPF_FRAME_RESET, "#", &rmtp_Gui);
+DM_PROPERTY_U32(rmtp_GuiVertexCount, 0, PROFILE_PROPERTY_FRAME_RESET, "#", &rmtp_Gui);
 
 namespace dmGameSystem
 {
