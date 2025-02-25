@@ -319,7 +319,7 @@ def build(options):
 
     invoke_lein(init_command, jdk_path=extracted_build_jdk)
 
-    build_ns_batches_command = ['with-profile', '+release', 'build-ns-batches']
+    build_ns_batches_command = ['with-profile', 'release', 'run', '-m', 'editor.ns-batch-builder', 'resources/sorted_clojure_ns_list.edn']
     invoke_lein(build_ns_batches_command, jdk_path=extracted_build_jdk)
 
     check_reflections(extracted_build_jdk)
