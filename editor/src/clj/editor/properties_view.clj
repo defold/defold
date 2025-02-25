@@ -525,8 +525,9 @@
         update-ui-fn (make-curve-update-ui-fn editor-toggle-button value-text-field update-ui-fn)]
     [box update-ui-fn]))
 
-(defn- set-color-value! [property ignore-alpha ^Color c]
-  (let [old-value (coalesced-property->any-value property)
+(defn- set-color-value! [property-fn ignore-alpha ^Color c]
+  (let [property (property-fn)
+        old-value (coalesced-property->any-value property)
         num-fn (if (math/float32? (first old-value))
                  properties/round-scalar-coarse-float
                  properties/round-scalar-coarse)
@@ -572,7 +573,7 @@
         commit-fn (fn [_]
                     (when-let [c (try (Color/valueOf (ui/text text))
                                       (catch Exception _e (cancel-fn nil)))]
-                      (set-color-value! (property-fn) ignore-alpha c)))]
+                      (set-color-value! property-fn ignore-alpha c)))]
     (doto text
       (HBox/setHgrow Priority/ALWAYS)
       (ui/add-style! "color-input")
@@ -580,7 +581,7 @@
     (ui/on-action! color-picker (fn [_]
                                   (let [c (.getValue color-picker)
                                         ignore-alpha (:ignore-alpha? edit-type)]
-                                    (set-color-value! (property-fn) ignore-alpha c)
+                                    (set-color-value! property-fn ignore-alpha c)
                                     (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true))))
     (ui/children! wrapper [text color-picker])
     [wrapper update-ui-fn]))
