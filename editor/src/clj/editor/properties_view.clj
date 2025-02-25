@@ -579,8 +579,7 @@
       (ui/add-style! "color-input")
       (customize! commit-fn cancel-fn))
     (ui/on-action! color-picker (fn [_]
-                                  (let [c (.getValue color-picker)
-                                        ignore-alpha (:ignore-alpha? edit-type)]
+                                  (let [c (.getValue color-picker)]
                                     (set-color-value! property-fn ignore-alpha c)
                                     (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true))))
     (ui/children! wrapper [text color-picker])
