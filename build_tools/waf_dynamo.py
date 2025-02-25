@@ -77,8 +77,6 @@ def platform_supports_feature(platform, feature, data):
         return platform in ['x86_64-win32']
     if feature == 'opengl_compute':
         return platform not in ['js-web', 'wasm-web', 'x86_64-ios', 'arm64-ios', 'arm64-macos', 'x86_64-macos']
-    if feature == 'opengl':
-        return platform not in ['arm64-linux']
     if feature == 'opengles':
         return platform in ['arm64-linux']
     if feature == 'webgpu':
