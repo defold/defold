@@ -34,7 +34,6 @@
            [javafx.geometry Insets Point2D]
            [javafx.scene Node Parent]
            [javafx.scene.control Button CheckBox ColorPicker Control Label Slider TextArea TextField TextInputControl ToggleButton Tooltip]
-           [javafx.scene.control.skin ColorPickerSkin]
            [javafx.scene.input MouseEvent MouseDragEvent]
            [javafx.scene.layout AnchorPane ColumnConstraints GridPane HBox Pane Priority Region VBox]
            [javafx.scene.paint Color]
@@ -526,8 +525,9 @@
         update-ui-fn (make-curve-update-ui-fn editor-toggle-button value-text-field update-ui-fn)]
     [box update-ui-fn]))
 
-(defn- set-color-value! [property ignore-alpha ^Color c]
-  (let [old-value (coalesced-property->any-value property)
+(defn- set-color-value! [property-fn ignore-alpha ^Color c]
+  (let [property (property-fn)
+        old-value (coalesced-property->any-value property)
         num-fn (if (math/float32? (first old-value))
                  properties/round-scalar-coarse-float
                  properties/round-scalar-coarse)
@@ -547,10 +547,10 @@
   (let [[r g b a] v]
     (Color. r g b a)))
 
-(let [colorDisplayName (.getDeclaredMethod ColorPickerSkin "colorDisplayName" (into-array Class [Color]))]
-  (.setAccessible colorDisplayName true)
-  (defn- color-display-name [^Color c]
-    (.invoke colorDisplayName nil (into-array Object [c]))))
+(defn- color->web-string [^Color c ignore-alpha]
+  (cond->> (nnext (.toString c))
+    ignore-alpha (drop-last 2)
+    :always (apply str "#")))
 
 (defmethod create-property-control! types/Color [edit-type _ property-fn]
   (let [wrapper (doto (HBox.)
@@ -563,10 +563,11 @@
                         (ui/on-action! (fn [^MouseEvent event] (ui/run-command (.getSource event) :color-dropper {:pick-fn pick-fn}))))
         text (TextField.)
         color-picker (ColorPicker.)
-        value->display-color (comp color-display-name value->color)
+        ignore-alpha (:ignore-alpha? edit-type)
+        value->display-color #(some-> % value->color (color->web-string ignore-alpha))
         update-ui-fn (fn [values message read-only?]
                        (update-text-fn text value->display-color values message read-only?)
-                       (.setValue color-picker (when-let [v (properties/unify-values values)] (value->color v)))
+                       (.setValue color-picker (some-> (properties/unify-values values) value->color))
                        (update-field-message [color-picker] message)
                        (ui/editable! color-picker (not read-only?)))
         cancel-fn (fn [_]
@@ -578,16 +579,15 @@
         commit-fn (fn [_]
                     (when-let [c (try (Color/valueOf (ui/text text))
                                       (catch Exception _e (cancel-fn nil)))]
-                      (set-color-value! (property-fn) (:ignore-alpha? edit-type) c)))]
+                      (set-color-value! property-fn ignore-alpha c)))]
     (doto text
       (HBox/setHgrow Priority/ALWAYS)
       (customize! commit-fn cancel-fn))
-    (ui/children! wrapper [text color-dropper color-picker])
     (ui/on-action! color-picker (fn [_]
-                                  (let [c (.getValue color-picker)
-                                        ignore-alpha (:ignore-alpha? edit-type)]
-                                    (set-color-value! (property-fn) ignore-alpha c)
-                                    (.setText text (color-display-name c)))))
+                                  (let [c (.getValue color-picker)]
+                                    (set-color-value! property-fn ignore-alpha c)
+                                    (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true))))
+    (ui/children! wrapper [text color-dropper color-picker])
     [wrapper update-ui-fn]))
 
 (defmethod create-property-control! :choicebox [{:keys [options]} _ property-fn]

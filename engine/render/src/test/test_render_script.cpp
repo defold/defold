@@ -1173,6 +1173,34 @@ TEST_F(dmRenderScriptTest, TestLuaConstantBuffers_Baseline)
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
+TEST_F(dmRenderScriptTest, TestLuaConstantBuffers_ReuseSameTableKey)
+{
+    const char* script =
+    "function init(self)\n"
+    "    self.cb = render.constant_buffer()\n"
+    "end\n"
+    "function update(self)\n"
+    "    -- create a new userdata entry every time this function is called\n"
+    "    self.cb.tbl = {}\n"
+    "end\n";
+
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
+
+    int refCountStart = dmScript::GetLuaRefCount();
+    for (int i = 0; i < 10; ++i)
+    {
+        ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
+    }
+    int refCountEnd = dmScript::GetLuaRefCount();
+    ASSERT_EQ(refCountStart + 1, refCountEnd);
+
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
 TEST_F(dmRenderScriptTest, TestLuaConstantBuffers_InvalidUsage)
 {
     const char* script =
