@@ -501,6 +501,98 @@ namespace dmPhysics
 
             b2World_Step(world->m_WorldId, dt, 10);
 
+            // Post-solve must happen after stepping
+            if (step_context.m_CollisionCallback || step_context.m_ContactPointCallback)
+            {
+                DM_PROFILE("PostSolveCallbacks");
+
+                float inv_scale = world->m_Context->m_InvScale;
+
+                world->m_ContactBuffer.SetSize(0);
+
+                for (int i = 0; i < world->m_Bodies.Size(); ++i)
+                {
+                    Body* body = world->m_Bodies[i];
+                    b2BodyId body_id = body->m_BodyId;
+                    dmArray<b2ContactData>& contacts = GetContactsBuffer(world, body_id);
+                    int num_contacts = contacts.Size();
+
+                    if (!b2Body_IsEnabled(body_id))
+                    {
+                        continue;
+                    }
+
+                    for (int j = 0; j < num_contacts; ++j)
+                    {
+                        b2ContactData& contact = contacts[j];
+
+                        // I think we need to keep track of unique contacts here
+                        uint64_t opaque_id_a = ToOpaqueHandle(contact.shapeIdA);
+                        uint64_t opaque_id_b = ToOpaqueHandle(contact.shapeIdB);
+
+                        ContactPair* contact_pair = 0; // GetContactPair(world, opaque_id_a, opaque_id_b);
+                        if (contact_pair)
+                            continue;
+
+                        float max_impulse = 0.0f;
+                        for (int k = 0; k < contact.manifold.pointCount; ++k)
+                        {
+                            b2ManifoldPoint& manifold = contact.manifold.points[k];
+                            max_impulse = dmMath::Max(max_impulse, manifold.normalImpulse);
+                        }
+                        if (max_impulse < world->m_Context->m_ContactImpulseLimit)
+                        {
+                            continue;
+                        }
+
+                        // dmLogInfo("impulse->count: %d, max impulse: %f", contact.manifold.pointCount, max_impulse);
+
+                        contact_pair = MakeContactPair(world, opaque_id_a, opaque_id_b, &contact);
+
+                        if (step_context.m_CollisionCallback)
+                        {
+                            step_context.m_CollisionCallback(
+                                b2Shape_GetUserData(contact.shapeIdA),
+                                b2Shape_GetFilter(contact.shapeIdA).categoryBits,
+                                b2Shape_GetUserData(contact.shapeIdB),
+                                b2Shape_GetFilter(contact.shapeIdB).categoryBits,
+                                step_context.m_CollisionUserData);
+                        }
+
+                        if (step_context.m_ContactPointCallback)
+                        {
+                            b2BodyId bodyIdA = b2Shape_GetBody(contact.shapeIdA);
+                            b2BodyId bodyIdB = b2Shape_GetBody(contact.shapeIdB);
+                            b2Vec2 vel_a = b2Body_GetLinearVelocity(bodyIdA);
+                            b2Vec2 vel_b = b2Body_GetLinearVelocity(bodyIdB);
+                            b2Vec2 rv    = b2Sub(vel_b, vel_a);
+
+                            for (int k = 0; k < contact.manifold.pointCount; ++k)
+                            {
+                                b2ManifoldPoint& manifold_point = contact.manifold.points[k];
+
+                                ContactPoint cp;
+                                FromB2(manifold_point.point, cp.m_PositionA, inv_scale);
+                                FromB2(manifold_point.point, cp.m_PositionB, inv_scale);
+                                cp.m_UserDataA = b2Body_GetUserData(bodyIdA);
+                                cp.m_UserDataB = b2Body_GetUserData(bodyIdB);
+
+                                FromB2(contact.manifold.normal, cp.m_Normal, 1.0f); // Don't scale normal
+                                FromB2(rv, cp.m_RelativeVelocity, inv_scale);
+
+                                cp.m_Distance = -manifold_point.separation * inv_scale;
+                                cp.m_AppliedImpulse = manifold_point.normalImpulse * inv_scale;
+                                cp.m_MassA = b2Body_GetMass(bodyIdA);
+                                cp.m_MassB = b2Body_GetMass(bodyIdB);
+                                cp.m_GroupA = b2Shape_GetFilter(contact.shapeIdA).categoryBits;
+                                cp.m_GroupB = b2Shape_GetFilter(contact.shapeIdB).categoryBits;
+                                step_context.m_ContactPointCallback(cp, step_context.m_ContactPointUserData);
+                            }
+                        }
+                    }
+                }
+            }
+
             float inv_scale = world->m_Context->m_InvScale;
             // Update transforms of dynamic bodies
             if (world->m_SetWorldTransformCallback)
@@ -518,7 +610,7 @@ namespace dmPhysics
                         b2Rot rot = b2Body_GetRotation(body_id);
                         Quat rotation = Quat::rotationZ(b2Rot_GetAngle(rot));
 
-                        dmLogInfo("Position: %f, %f, %f", position.getX(), position.getY(), position.getZ());
+                        // dmLogInfo("Position: %f, %f, %f", position.getX(), position.getY(), position.getZ());
 
                         (*world->m_SetWorldTransformCallback)(b2Body_GetUserData(body_id), position, rotation);
                     }
@@ -587,8 +679,6 @@ namespace dmPhysics
                     {
                         dmArray<b2ShapeId>& overlaps = GetSensorOverlapBuffer(world, shapeIdA);
 
-                        // uint32_t max_overlaps = dmMath::Min((int) overlaps.Size(), context->m_TriggerOverlapCapacity);
-
                         // Trigger collision callbacks for overlapping sensors
                         for (int k=0; k < overlaps.Size(); ++k)
                         {
@@ -656,137 +746,6 @@ namespace dmPhysics
             prune_data.m_TriggerExitedCallback = step_context.m_TriggerExitedCallback;
             prune_data.m_TriggerExitedUserData = step_context.m_TriggerExitedUserData;
             OverlapCachePrune(&world->m_TriggerOverlaps, prune_data);
-        }
-
-    #if 0
-        b2ContactEvents contact_events = b2World_GetContactEvents(world->m_WorldId);
-
-        if (contact_events.beginCount > 0)
-        {
-            dmLogInfo("Contact begin events: %d", contact_events.beginCount);
-        }
-
-        if (contact_events.endCount > 0)
-        {
-            dmLogInfo("Contact end events: %d", contact_events.endCount);
-        }
-
-        if (contact_events.hitCount > 0)
-        {
-            dmLogInfo("Contact hit events: %d", contact_events.hitCount);
-        }
-    #endif
-
-        // Post-solve callbacks
-        if (step_context.m_CollisionCallback || step_context.m_ContactPointCallback)
-        {
-            DM_PROFILE("PostSolveCallbacks");
-
-            float inv_scale = world->m_Context->m_InvScale;
-
-            world->m_ContactBuffer.SetSize(0);
-
-            for (int i = 0; i < world->m_Bodies.Size(); ++i)
-            {
-                Body* body = world->m_Bodies[i];
-                b2BodyId body_id = body->m_BodyId;
-                dmArray<b2ContactData>& contacts = GetContactsBuffer(world, body_id);
-                int num_contacts = contacts.Size();
-
-                bool is_enabled = b2Body_IsEnabled(body_id);
-
-                if (!is_enabled)
-                {
-                    continue;
-                }
-
-                for (int j = 0; j < num_contacts; ++j)
-                {
-                    b2ContactData& contact = contacts[j];
-
-                    // I think we need to keep track of unique contacts here
-                    uint64_t opaque_id_a = ToOpaqueHandle(contact.shapeIdA);
-                    uint64_t opaque_id_b = ToOpaqueHandle(contact.shapeIdB);
-
-                    ContactPair* contact_pair = GetContactPair(world, opaque_id_a, opaque_id_b);
-                    if (contact_pair)
-                        continue;
-
-                    float max_impulse = 0.0f;
-                    for (int k = 0; k < contact.manifold.pointCount; ++k)
-                    {
-                        b2ManifoldPoint& manifold = contact.manifold.points[k];
-                        max_impulse = dmMath::Max(max_impulse, manifold.maxNormalImpulse);
-                    }
-                    if (max_impulse < world->m_Context->m_ContactImpulseLimit)
-                    {
-                        continue;
-                    }
-
-                    dmLogInfo("impulse->count: %d, max impulse: %f", contact.manifold.pointCount, max_impulse);
-
-                    contact_pair = MakeContactPair(world, opaque_id_a, opaque_id_b, &contact);
-
-                    if (step_context.m_CollisionCallback)
-                    {
-                        step_context.m_CollisionCallback(
-                            b2Shape_GetUserData(contact.shapeIdA),
-                            b2Shape_GetFilter(contact.shapeIdA).categoryBits,
-                            b2Shape_GetUserData(contact.shapeIdB),
-                            b2Shape_GetFilter(contact.shapeIdB).categoryBits,
-                            step_context.m_CollisionUserData);
-                    }
-
-                    if (step_context.m_ContactPointCallback)
-                    {
-                        b2BodyId bodyIdA = b2Shape_GetBody(contact.shapeIdA);
-                        b2BodyId bodyIdB = b2Shape_GetBody(contact.shapeIdB);
-                        b2Vec2 vel_a = b2Body_GetLinearVelocity(bodyIdA);
-                        b2Vec2 vel_b = b2Body_GetLinearVelocity(bodyIdB);
-                        b2Vec2 rv    = b2Sub(vel_b, vel_a);
-
-                        for (int k = 0; k < contact.manifold.pointCount; ++k)
-                        {
-                            b2ManifoldPoint& manifold_point = contact.manifold.points[k];
-
-                            ContactPoint cp;
-                            FromB2(manifold_point.point, cp.m_PositionA, inv_scale);
-                            FromB2(manifold_point.point, cp.m_PositionB, inv_scale);
-                            cp.m_UserDataA = b2Body_GetUserData(bodyIdA);
-                            cp.m_UserDataB = b2Body_GetUserData(bodyIdB);
-
-                            FromB2(contact.manifold.normal, cp.m_Normal, 1.0f); // Don't scale normal
-                            FromB2(rv, cp.m_RelativeVelocity, inv_scale);
-
-                            cp.m_Distance = -manifold_point.separation * inv_scale;
-                            cp.m_AppliedImpulse = manifold_point.normalImpulse * inv_scale;
-                            cp.m_MassA = b2Body_GetMass(bodyIdA);
-                            cp.m_MassB = b2Body_GetMass(bodyIdB);
-                            cp.m_GroupA = b2Shape_GetFilter(contact.shapeIdA).categoryBits;
-                            cp.m_GroupB = b2Shape_GetFilter(contact.shapeIdB).categoryBits;
-                            step_context.m_ContactPointCallback(cp, step_context.m_ContactPointUserData);
-
-                            /*
-                            ContactPoint cp;
-                            FromB2(world_manifold.points[i], cp.m_PositionA, inv_scale);
-                            FromB2(world_manifold.points[i], cp.m_PositionB, inv_scale);
-                            cp.m_UserDataA = fixture_a->GetBody()->GetUserData();
-                            cp.m_UserDataB = fixture_b->GetBody()->GetUserData();
-                            FromB2(world_manifold.normal, cp.m_Normal, 1.0f); // Don't scale normal
-                            b2Vec2 rv = fixture_b->GetBody()->GetLinearVelocity() - fixture_a->GetBody()->GetLinearVelocity();
-                            FromB2(rv, cp.m_RelativeVelocity, inv_scale);
-                            cp.m_Distance = contact->GetManifold()->points[i].distance * inv_scale;
-                            cp.m_AppliedImpulse = impulse->normalImpulses[i] * inv_scale;
-                            cp.m_MassA = fixture_a->GetBody()->GetMass();
-                            cp.m_MassB = fixture_b->GetBody()->GetMass();
-                            cp.m_GroupA = fixture_a->GetFilterData(index_a).categoryBits;
-                            cp.m_GroupB = fixture_b->GetFilterData(index_b).categoryBits;
-                            contact_point_callback(cp, m_TempStepWorldContext->m_ContactPointUserData);
-                            */
-                        }
-                    }
-                }
-            }
         }
 
         b2World_Draw(world->m_WorldId, &world->m_DebugDraw.m_DebugDraw);

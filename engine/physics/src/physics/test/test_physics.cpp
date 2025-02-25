@@ -1852,13 +1852,22 @@ TYPED_TEST(PhysicsTest, ScaledImpulses)
     for (int i = 0; i < steps && applied_impulse == 0.0f; ++i) {
         (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
     }
+
+    // (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+
     steps = 10;
     float y = vo_a.m_Position.getY();
+
     for (int i = 0; i < steps; ++i) {
         (*TestFixture::m_Test.m_ApplyForceFunc)(TestFixture::m_Context, box_co_a, Vector3(0, -applied_impulse * 0.5f / TestFixture::m_StepWorldContext.m_DT + 10, 0), vo_a.m_Position);
         applied_impulse = 0.0f;
         (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
-        ASSERT_NEAR(y, vo_a.m_Position.getY(), 0.00001f);
+
+        // printf("y = %f\n", y);
+        // printf("vo_a.m_Position.getY() = %f\n", vo_a.m_Position.getY());
+        // printf("%f\n", fabs(y - vo_a.m_Position.getY()));
+
+        ASSERT_NEAR(y, vo_a.m_Position.getY(), 0.0001f);
     }
 
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, box_co_a);
