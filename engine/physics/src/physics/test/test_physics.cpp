@@ -1811,7 +1811,7 @@ bool CollectImpulseContactPointCallback(const dmPhysics::ContactPoint& contact_p
 }
 
 // Checking that applied impulses are scaled correctly
-// The test drops a sphere from a distance and let's it fall under gravity to collide
+// The test drops a sphere from a distance and let it fall under gravity to collide
 // with a static block. Immediately after the contact, the test attempt to freeze the
 // sphere in mid-air using the applied impulse and reversed gravity.
 TYPED_TEST(PhysicsTest, ScaledImpulses)

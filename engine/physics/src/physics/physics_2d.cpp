@@ -60,8 +60,8 @@ namespace dmPhysics
 
         OverlapCacheInit(&m_TriggerOverlaps);
 
-        b2WorldDef worldDef         = b2DefaultWorldDef();
-        worldDef.gravity            = context->m_Gravity;
+        b2WorldDef worldDef = b2DefaultWorldDef();
+        worldDef.gravity    = context->m_Gravity;
 
         // These values have changed, I think. It's in meter per second now, and our default values is like 1.0f
         // worldDef.maximumLinearSpeed = context->m_VelocityThreshold * context->m_Scale;
@@ -517,6 +517,9 @@ namespace dmPhysics
                         FromB2(b2Body_GetPosition(body_id), position, inv_scale);
                         b2Rot rot = b2Body_GetRotation(body_id);
                         Quat rotation = Quat::rotationZ(b2Rot_GetAngle(rot));
+
+                        dmLogInfo("Position: %f, %f, %f", position.getX(), position.getY(), position.getZ());
+
                         (*world->m_SetWorldTransformCallback)(b2Body_GetUserData(body_id), position, rotation);
                     }
                 }
@@ -541,12 +544,17 @@ namespace dmPhysics
                 b2Vec2 to;
                 ToB2(request.m_To, to, scale);
 
+                // Box2d V3 requires a translation vector, not a point
+                b2Vec2 translate = b2Sub(to, from);
+
                 ray_cast_context.m_IgnoredUserData = request.m_IgnoredUserData;
                 ray_cast_context.m_CollisionMask = request.m_Mask;
                 ray_cast_context.m_Response.m_Hit = 0;
 
                 filter.maskBits = request.m_Mask;
-                b2World_CastRay(world->m_WorldId, from, to, filter, cast_ray_cb, &ray_cast_context);
+                filter.categoryBits = (uint64_t) -1; // This will search for all groups
+
+                b2World_CastRay(world->m_WorldId, from, translate, filter, cast_ray_cb, &ray_cast_context);
                 (*step_context.m_RayCastCallback)(ray_cast_context.m_Response, request, step_context.m_RayCastUserData);
             }
 
@@ -715,6 +723,8 @@ namespace dmPhysics
                         continue;
                     }
 
+                    dmLogInfo("impulse->count: %d, max impulse: %f", contact.manifold.pointCount, max_impulse);
+
                     contact_pair = MakeContactPair(world, opaque_id_a, opaque_id_b, &contact);
 
                     if (step_context.m_CollisionCallback)
@@ -755,6 +765,24 @@ namespace dmPhysics
                             cp.m_GroupA = b2Shape_GetFilter(contact.shapeIdA).categoryBits;
                             cp.m_GroupB = b2Shape_GetFilter(contact.shapeIdB).categoryBits;
                             step_context.m_ContactPointCallback(cp, step_context.m_ContactPointUserData);
+
+                            /*
+                            ContactPoint cp;
+                            FromB2(world_manifold.points[i], cp.m_PositionA, inv_scale);
+                            FromB2(world_manifold.points[i], cp.m_PositionB, inv_scale);
+                            cp.m_UserDataA = fixture_a->GetBody()->GetUserData();
+                            cp.m_UserDataB = fixture_b->GetBody()->GetUserData();
+                            FromB2(world_manifold.normal, cp.m_Normal, 1.0f); // Don't scale normal
+                            b2Vec2 rv = fixture_b->GetBody()->GetLinearVelocity() - fixture_a->GetBody()->GetLinearVelocity();
+                            FromB2(rv, cp.m_RelativeVelocity, inv_scale);
+                            cp.m_Distance = contact->GetManifold()->points[i].distance * inv_scale;
+                            cp.m_AppliedImpulse = impulse->normalImpulses[i] * inv_scale;
+                            cp.m_MassA = fixture_a->GetBody()->GetMass();
+                            cp.m_MassB = fixture_b->GetBody()->GetMass();
+                            cp.m_GroupA = fixture_a->GetFilterData(index_a).categoryBits;
+                            cp.m_GroupB = fixture_b->GetFilterData(index_b).categoryBits;
+                            contact_point_callback(cp, m_TempStepWorldContext->m_ContactPointUserData);
+                            */
                         }
                     }
                 }
