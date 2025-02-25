@@ -307,7 +307,7 @@ namespace dmProfile
         {
             PropertyData* data = &profile->m_PropertyData[i];
             Property* prop = &g_Properties[i];
-            if ((prop->m_Flags & PPF_FRAME_RESET) == PPF_FRAME_RESET)
+            if ((prop->m_Flags & PROFILE_PROPERTY_FRAME_RESET) == PROFILE_PROPERTY_FRAME_RESET)
             {
                 data->m_Value = prop->m_DefaultValue;
             }
