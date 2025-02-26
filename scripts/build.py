@@ -113,7 +113,7 @@ PACKAGES_ANDROID="protobuf-3.20.1 android-support-multidex androidx-multidex lua
 PACKAGES_ANDROID.append(sdk.ANDROID_PACKAGE)
 PACKAGES_ANDROID_64="protobuf-3.20.1 android-support-multidex androidx-multidex luajit-2.1.0-a4f56a4 tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
 PACKAGES_ANDROID_64.append(sdk.ANDROID_PACKAGE)
-PACKAGES_EMSCRIPTEN="protobuf-3.20.1 bullet-2.77 glfw-2.7.1".split()
+PACKAGES_EMSCRIPTEN="protobuf-3.20.1 bullet-2.77 glfw-2.7.1 box2d-28adacf82377d4113f2ed00586141463244b9d10".split()
 PACKAGES_NODE_MODULES="xhr2-0.1.0".split()
 
 PLATFORM_PACKAGES = {

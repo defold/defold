@@ -48,8 +48,13 @@ CMAKE_FLAGS="-DBOX2D_UNIT_TESTS=OFF ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Release ${CMAKE_FLAGS}"
 
 CMAKE_BUILD_FLAGS=
+CMAKE_CONFIGURE=cmake
 
 case $PLATFORM in
+    js-web|wasm-web)
+        CMAKE_CONFIGURE="emcmake cmake"
+        ;;
+
     x86_64-ios)
         CMAKE_FLAGS="-DCMAKE_OSX_SYSROOT=iphonesimulator ${CMAKE_FLAGS}"
         CMAKE_FLAGS="-DCMAKE_SYSTEM_NAME=iOS ${CMAKE_FLAGS}"
@@ -126,9 +131,12 @@ echo "**************************************************"
 echo "CMAKE_FLAGS: ${CMAKE_FLAGS}"
 echo "**************************************************"
 
-cmake ${CMAKE_FLAGS} $BOX2D_DIR
+$CMAKE_CONFIGURE ${CMAKE_FLAGS} $BOX2D_DIR
 #cmake --build . --config Debug -j 8
-cmake --build . --config Release ${CMAKE_BUILD_FLAGS} -j 8
+cmake --build . --config Release ${CMAKE_BUILD_FLAGS} -j 8 
+
+# emcmake cmake -DBOX2D_VALIDATE=OFF -DBOX2D_UNIT_TESTS=ON -DBOX2D_SAMPLES=OFF -DCMAKE_BUILD_TYPE=Debug ..
+# cmake --build .
 
 mkdir -p ./lib/$PLATFORM
 mkdir -p ./include
