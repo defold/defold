@@ -320,12 +320,6 @@ static void DoLogPlatform(LogSeverity severity, const char* output, int output_l
 #elif !defined(ANDROID)
         fwrite(output, 1, output_len, stderr);
 #endif
-
-    if (dmLog::g_LogFile && dmLog::g_TotalBytesLogged < dmLog::MAX_LOG_FILE_SIZE) {
-        dmLog::g_TotalBytesLogged += output_len;
-        fwrite(output, 1, output_len, dmLog::g_LogFile);
-        fflush(dmLog::g_LogFile);
-    }
 }
 
 // Here we put logging that needs to be thread safe
@@ -689,6 +683,12 @@ void LogInternal(LogSeverity severity, const char* domain, const char* format, .
     if (is_debug_mode)
     {
         dmLog::DoLogPlatform(severity, str_buf, actual_n);
+    }
+
+    if (dmLog::g_LogFile && dmLog::g_TotalBytesLogged < dmLog::MAX_LOG_FILE_SIZE) {
+        dmLog::g_TotalBytesLogged += actual_n;
+        fwrite(str_buf, 1, actual_n, dmLog::g_LogFile);
+        fflush(dmLog::g_LogFile);
     }
 
     if (!dmLog::IsServerInitialized()) // in case the server lock isn't even created
