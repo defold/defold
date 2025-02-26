@@ -1299,14 +1299,16 @@ namespace dmPhysics
         {
             case SHAPE_TYPE_CIRCLE:
             {
-                b2DestroyShape(shape->m_ShapeId, false);
+                if (b2Shape_IsValid(shape->m_ShapeId))
+                    b2DestroyShape(shape->m_ShapeId, false);
                 CircleShapeData* circle_shape = (CircleShapeData*) shape;
                 delete circle_shape;
             }
             break;
             case SHAPE_TYPE_POLYGON:
             {
-                b2DestroyShape(shape->m_ShapeId, false);
+                if (b2Shape_IsValid(shape->m_ShapeId))
+                    b2DestroyShape(shape->m_ShapeId, false);
                 PolygonShapeData* poly_shape = (PolygonShapeData*) shape;
                 delete poly_shape;
             }
@@ -1321,7 +1323,8 @@ namespace dmPhysics
                 {
                     if (grid_shape->m_Cells[i].m_Index != B2GRIDSHAPE_EMPTY_CELL)
                     {
-                        b2DestroyShape(grid_shape->m_CellPolygonShapes[i], false);
+                        if (b2Shape_IsValid(grid_shape->m_CellPolygonShapes[i]))
+                            b2DestroyShape(grid_shape->m_CellPolygonShapes[i], false);
                     }
                 }
 
