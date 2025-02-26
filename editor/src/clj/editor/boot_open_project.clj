@@ -60,7 +60,7 @@
            [javafx.scene Node Scene]
            [javafx.scene.control MenuBar SplitPane Tab TabPane TreeView]
            [javafx.scene.input DragEvent InputEvent KeyCombination KeyEvent MouseEvent]
-           [javafx.scene.layout StackPane]
+           [javafx.scene.layout VBox]
            [javafx.stage Stage]))
 
 (set! *warn-on-reflection* true)
@@ -148,9 +148,9 @@
     MouseEvent/MOUSE_RELEASED})
 
 (defn- load-stage! [workspace project prefs updater newly-created?]
-  (let [^StackPane root (ui/load-fxml "editor.fxml")
-        stage (ui/make-stage)
-        scene (Scene. root)]
+  (let [^VBox root (ui/load-fxml "editor.fxml")
+        stage      (ui/make-stage)
+        scene      (Scene. root)]
 
     (ui/set-main-stage stage)
     (.setScene stage scene)
@@ -171,14 +171,13 @@
           console-grid-pane    (.lookup root "#console-grid-pane")
           workbench            (.lookup root "#workbench")
           notifications        (.lookup root "#notifications")
-          ^StackPane dropper   (.lookup root "#color-dropper-pane")
           scene-visibility     (scene-visibility/make-scene-visibility-node! *view-graph*)
           app-view             (app-view/make-app-view *view-graph* project stage menu-bar editor-tabs-split tool-tabs prefs)
           outline-view         (outline-view/make-outline-view *view-graph* project outline app-view)
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets prefs)
           open-resource        (partial #'app-view/open-resource app-view prefs workspace project)
           console-view         (console/make-console! *view-graph* workspace console-tab console-grid-pane open-resource prefs)
-          color-dropper        (color-dropper/make-color-dropper! *view-graph* dropper)
+          color-dropper        (color-dropper/make-color-dropper! *view-graph*)
           _                    (notifications-view/init! (g/node-value workspace :notifications) notifications)
           build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
                                                                          (fn [resource selected-node-ids opts]
