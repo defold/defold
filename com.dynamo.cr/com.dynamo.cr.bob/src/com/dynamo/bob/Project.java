@@ -1134,6 +1134,10 @@ public class Project {
 
         // Build all skews of platform
         String outputDir = getBinaryOutputDirectory();
+
+        ExecutorService buildEngineExecutor = Executors.newFixedThreadPool(architectures.length);
+        List<Future<?>> buildEngineFutures = new ArrayList<>();
+
         for (int i = 0; i < architectures.length; ++i) {
             Platform platform = Platform.get(architectures[i]);
 
@@ -1141,18 +1145,36 @@ public class Project {
             File buildDir = new File(FilenameUtils.concat(outputDir, buildPlatform));
             buildDir.mkdirs();
 
-
-            boolean buildLibrary = shouldBuildArtifact("library");
-            if (buildLibrary) {
-                buildLibraryPlatform(monitor, buildDir, cacheDir, appmanifestOptions, platform);
-            }
-            else {
-                buildEnginePlatform(monitor, buildDir, cacheDir, appmanifestOptions, platform);
-            }
-
+            buildEngineFutures.add(executor.submit(() -> {
+                boolean buildLibrary = shouldBuildArtifact("library");
+                try {
+                    if (buildLibrary) {
+                        buildLibraryPlatform(monitor, buildDir, cacheDir, appmanifestOptions, platform);
+                    } else {
+                        buildEnginePlatform(monitor, buildDir, cacheDir, appmanifestOptions, platform);
+                    }
+                } catch (Throwable e) {
+                    throw new RuntimeException(e);
+                }
+            }));
             m.worked(1);
         }
 
+        for (Future<?> future : buildEngineFutures) {
+            try {
+                future.get();
+            } catch (Exception e) {
+                Throwable cause = e.getCause();
+                if (cause.getCause() instanceof CompileExceptionError) {
+                    throw (CompileExceptionError) cause.getCause();
+                } else if (cause.getCause() instanceof MultipleCompileException) {
+                    throw (MultipleCompileException) cause.getCause();
+                } else {
+                    throw (RuntimeException) e;
+                }
+            }
+        }
+        executor.shutdown();
         m.done();
     }
 
