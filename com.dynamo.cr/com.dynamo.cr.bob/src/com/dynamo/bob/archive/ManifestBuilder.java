@@ -521,7 +521,7 @@ public class ManifestBuilder {
                     resourceEntryBuilder.addDependants(resource.getUrlHash());
                 }
             }
-            if (buildVariant.equals(Bob.VARIANT_RELEASE)) {
+            if (buildVariant != null && buildVariant.equals(Bob.VARIANT_RELEASE)) {
                 resourceEntryBuilder.setUrl("");
             }
             builder.addResources(resourceEntryBuilder.build());
