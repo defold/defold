@@ -37,6 +37,14 @@ DEF_EMBED(MUSIC_OGG)
 DEF_EMBED(CYMBAL_OGG)
 DEF_EMBED(MUSIC_LOW_OGG)
 
+DEF_EMBED(AMBIENCE_OPUS)
+DEF_EMBED(GLOCKENSPIEL_OPUS)
+DEF_EMBED(EXPLOSION_OPUS)
+DEF_EMBED(EXPLOSION_LOW_MONO_OPUS)
+DEF_EMBED(MUSIC_OPUS)
+DEF_EMBED(CYMBAL_OPUS)
+DEF_EMBED(MUSIC_LOW_OPUS)
+
 #undef DEF_EMBED
 
 #define MAX_BUFFERS 32
@@ -141,7 +149,7 @@ public:
         dmSound::DeleteSoundData(sd);
     }
 
-    void RunSuite(const char *decoder_name, bool skip)
+    void RunSuite(const char *decoder_name, dmSound::SoundDataType sound_datatype, bool skip)
     {
         dmSound::InitializeParams params;
         params.m_MaxBuffers = MAX_BUFFERS;
@@ -154,15 +162,26 @@ public:
         assert(r == dmSound::RESULT_OK);
 
         const dmSoundCodec::DecoderInfo *info = dmSoundCodec::FindDecoderByName(decoder_name);
-        const dmSound::SoundDataType sound_datatype = dmSound::SOUND_DATA_TYPE_OGG_VORBIS;
         ASSERT_NE((void*) 0, info);
-        DecodeAndTime(info, AMBIENCE_OGG,     AMBIENCE_OGG_SIZE, decoder_name, sound_datatype, skip, "Ambience");
-        DecodeAndTime(info, GLOCKENSPIEL_OGG, GLOCKENSPIEL_OGG_SIZE, decoder_name, sound_datatype, skip, "Glockenspiel");
-        DecodeAndTime(info, EXPLOSION_OGG,    EXPLOSION_OGG_SIZE, decoder_name, sound_datatype, skip, "Explosion");
-        DecodeAndTime(info, EXPLOSION_LOW_MONO_OGG,EXPLOSION_LOW_MONO_OGG_SIZE, decoder_name, sound_datatype, skip, "Explosion Low Mono");
-        DecodeAndTime(info, MUSIC_OGG,        MUSIC_OGG_SIZE, decoder_name, sound_datatype, skip, "Music");
-        DecodeAndTime(info, MUSIC_LOW_OGG,    MUSIC_LOW_OGG_SIZE, decoder_name, sound_datatype, skip, "Music Low");
-        DecodeAndTime(info, CYMBAL_OGG,       CYMBAL_OGG_SIZE, decoder_name, sound_datatype, skip, "Cymbal");
+
+        if (sound_datatype == dmSound::SOUND_DATA_TYPE_OGG_VORBIS) {
+            DecodeAndTime(info, AMBIENCE_OGG,     AMBIENCE_OGG_SIZE, decoder_name, sound_datatype, skip, "Ambience");
+            DecodeAndTime(info, GLOCKENSPIEL_OGG, GLOCKENSPIEL_OGG_SIZE, decoder_name, sound_datatype, skip, "Glockenspiel");
+            DecodeAndTime(info, EXPLOSION_OGG,    EXPLOSION_OGG_SIZE, decoder_name, sound_datatype, skip, "Explosion");
+            DecodeAndTime(info, EXPLOSION_LOW_MONO_OGG,EXPLOSION_LOW_MONO_OGG_SIZE, decoder_name, sound_datatype, skip, "Explosion Low Mono");
+            DecodeAndTime(info, MUSIC_OGG,        MUSIC_OGG_SIZE, decoder_name, sound_datatype, skip, "Music");
+            DecodeAndTime(info, MUSIC_LOW_OGG,    MUSIC_LOW_OGG_SIZE, decoder_name, sound_datatype, skip, "Music Low");
+            DecodeAndTime(info, CYMBAL_OGG,       CYMBAL_OGG_SIZE, decoder_name, sound_datatype, skip, "Cymbal");
+        }
+        else {
+            DecodeAndTime(info, AMBIENCE_OPUS,    AMBIENCE_OPUS_SIZE, decoder_name, sound_datatype, skip, "Ambience");
+            DecodeAndTime(info, GLOCKENSPIEL_OPUS,GLOCKENSPIEL_OPUS_SIZE, decoder_name, sound_datatype, skip, "Glockenspiel");
+            DecodeAndTime(info, EXPLOSION_OPUS,   EXPLOSION_OPUS_SIZE, decoder_name, sound_datatype, skip, "Explosion");
+            DecodeAndTime(info, EXPLOSION_LOW_MONO_OPUS,EXPLOSION_LOW_MONO_OPUS_SIZE, decoder_name, sound_datatype, skip, "Explosion Low Mono");
+            DecodeAndTime(info, MUSIC_OPUS,       MUSIC_OPUS_SIZE, decoder_name, sound_datatype, skip, "Music");
+            DecodeAndTime(info, MUSIC_LOW_OPUS,   MUSIC_LOW_OPUS_SIZE, decoder_name, sound_datatype, skip, "Music Low");
+            DecodeAndTime(info, CYMBAL_OPUS,      CYMBAL_OPUS_SIZE, decoder_name, sound_datatype, skip, "Cymbal");
+        }
 
         if (dmSoundCodec::FindBestDecoder(dmSoundCodec::FORMAT_VORBIS) == info)
             printf("%s is used by default with current build settings on this platform\n", decoder_name);
@@ -177,22 +196,32 @@ public:
 #if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(__MACH__))
 TEST_F(dmSoundTest, MeasureStdb)
 {
-    RunSuite("VorbisDecoderStb", false);
+    RunSuite("VorbisDecoderStb", dmSound::SOUND_DATA_TYPE_OGG_VORBIS, false);
 }
 
 TEST_F(dmSoundTest, MeasureStdbSkip)
 {
-    RunSuite("VorbisDecoderStb", true);
+    RunSuite("VorbisDecoderStb", dmSound::SOUND_DATA_TYPE_OGG_VORBIS, true);
 }
 
 TEST_F(dmSoundTest, MeasureTremolo)
 {
-    RunSuite("VorbisDecoderTremolo", false);
+    RunSuite("VorbisDecoderTremolo", dmSound::SOUND_DATA_TYPE_OGG_VORBIS, false);
 }
 
 TEST_F(dmSoundTest, MeasureTremoloSkip)
 {
-    RunSuite("VorbisDecoderTremolo", true);
+    RunSuite("VorbisDecoderTremolo", dmSound::SOUND_DATA_TYPE_OGG_VORBIS, true);
+}
+
+TEST_F(dmSoundTest, MeasureOpus)
+{
+    RunSuite("OpusDecoder", dmSound::SOUND_DATA_TYPE_OPUS, false);
+}
+
+TEST_F(dmSoundTest, MeasureOpusSkip)
+{
+    RunSuite("OpusDecoder", dmSound::SOUND_DATA_TYPE_OPUS, true);
 }
 #endif
 

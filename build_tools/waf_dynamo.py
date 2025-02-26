@@ -382,6 +382,8 @@ def default_flags(self):
 
         for f in ['CFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, [f'--target={clang_arch}', '-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-Werror=format', '-fno-exceptions','-fPIC', '-fvisibility=hidden'])
+            if build_util.get_target_platform() == 'x86_64-linux':
+                self.env.append_value(f, ['-msse4.1', '-DDM_SOUND_EXPECTED_SIMD=SSE'])
 
             if f == 'CXXFLAGS':
                 self.env.append_value(f, ['-fno-rtti'])
@@ -527,7 +529,7 @@ def default_flags(self):
         linkflags += ['-O%s' % opt_level]
 
         if 'wasm' == build_util.get_target_architecture():
-            flags += ['-msimd128']
+            flags += ['-msimd128', '-msse4.2']
 
         self.env['DM_HOSTFS']           = '/node_vfs/'
         self.env.append_value('DEFINES', ['DM_NO_THREAD_SUPPORT', 'JC_TEST_NO_DEATH_TEST'])

@@ -145,6 +145,8 @@ def configure(conf):
 
     conf.env['STLIB_TREMOLO'] = 'tremolo'
 
+    conf.env['STLIB_OPUS'] = 'opus'
+
     if target_os == "linux":
         conf.env['LIB_OPENAL'] = 'openal'
     elif target_os == "macos":

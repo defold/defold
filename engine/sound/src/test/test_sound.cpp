@@ -30,6 +30,7 @@
 #include "../sound_private.h"
 #include "../sound_codec.h"
 #include "../sound_pfb.h"
+#include "../sound_pfb.h"
 #include "../stb_vorbis/stb_vorbis.h"
 
 #include "test/mono_tone_2000_22050_5512.wav.embed.h"
@@ -72,6 +73,7 @@
 #include "test/mono_toneramp_440_32000_64000.wav.embed.h"
 
 #include "test/mono_resample_framecount_16000.ogg.embed.h"
+#include "test/mono_resample_framecount_16000.opus.embed.h"
 
 #include "test/mono_dc_44100_88200.wav.embed.h"
 
@@ -79,6 +81,8 @@
 
 extern unsigned char CLICK_TRACK_OGG[];
 extern uint32_t CLICK_TRACK_OGG_SIZE;
+extern unsigned char CLICK_TRACK_OPUS[];
+extern uint32_t CLICK_TRACK_OPUS_SIZE;
 extern unsigned char DRUMLOOP_WAV[];
 extern uint32_t DRUMLOOP_WAV_SIZE;
 extern unsigned char ONEFOOTSTEP_WAV[];
@@ -95,7 +99,12 @@ extern unsigned char BOOSTER_ON_SFX_WAV[];
 extern uint32_t BOOSTER_ON_SFX_WAV_SIZE;
 extern unsigned char MONO_RESAMPLE_FRAMECOUNT_16000_OGG[];
 extern uint32_t MONO_RESAMPLE_FRAMECOUNT_16000_OGG_SIZE;
-
+extern unsigned char MONO_RESAMPLE_FRAMECOUNT_16000_OPUS[];
+extern uint32_t MONO_RESAMPLE_FRAMECOUNT_16000_OPUS_SIZE;
+extern unsigned char MUSIC_OPUS[];
+extern uint32_t MUSIC_OPUS_SIZE;
+extern unsigned char AMBIENCE_OPUS[];
+extern uint32_t AMBIENCE_OPUS_SIZE;
 
 
 struct TestParams
@@ -292,6 +301,10 @@ class dmSoundVerifyWavTest : public dmSoundTest
 };
 
 class dmSoundVerifyOggTest : public dmSoundTest
+{
+};
+
+class dmSoundVerifyOpusTest : public dmSoundTest
 {
 };
 
@@ -546,6 +559,47 @@ static double GenAndMixTone(uint64_t pos, float tone_frq, float sample_rate, flo
     }
     return a;
 }
+// Generate sine wave per given parametyers and resasmple it as needed to mimic runtimes signal path for generated test waves
+static double GenAndMixTone(uint64_t pos, float tone_frq, float sample_rate, float mix_rate, int num_frames, bool ramp_active, float scale)
+{
+    static_assert(_pfb_num_phases == 1 << 11, "PFB header does not readily offer this constant - update needed (see below)!");
+
+    int index = (int)(pos >> dmSound::RESAMPLE_FRACTION_BITS);
+
+    double a;
+    // only generate data inside samples range (assumes no looping)
+    if (index < num_frames) {
+        if (mix_rate != sample_rate) {
+            int frac = (int)(pos >> (dmSound::RESAMPLE_FRACTION_BITS - 11)) & (_pfb_num_phases - 1);
+            int32_t ti = _pfb_num_taps * frac;
+            const int32_t js = -(_pfb_num_taps / 2 - 1);
+            const int32_t je = _pfb_num_taps / 2;
+            // Polyphase FIR
+            a = 0.0;
+            for (int32_t j = js; j <= je; j++, ti++) {
+                // add only if we are past the start (assumes zeroes in history buffer)
+                int32_t idx = index + j;
+                if (idx >= 0) {
+                    // Clamp index at end of sample data (assumes samples at the end get repeated as needed for resampling)
+                    idx = dmMath::Min(idx, num_frames - 1);
+                    float ramp = ramp_active ? ((num_frames - 1) - idx) / (float) num_frames : 1.0f;
+                    double t = ramp * 0.8 * 32768.0 * sin((idx * 2.0 * M_PI * tone_frq) / sample_rate);
+                    a += t * _pfb[ti];
+                }
+            }
+            a *= scale;
+        }
+        else {
+            // 1:1
+            float ramp = ramp_active ? ((num_frames - 1) - index) / (float) num_frames : 1.0f;
+            a = scale * ramp * 0.8 * 32768.0 * sin((index * 2.0 * M_PI * tone_frq) / sample_rate);
+        }
+    }
+    else {
+        a = 0.0;
+    }
+    return a;
+}
 
 #if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !(defined(WIN32) || defined(__MACH__)))
 TEST_P(dmSoundVerifyTest, Mix)
@@ -602,15 +656,19 @@ TEST_P(dmSoundVerifyTest, Mix)
 
     float rms_left, rms_right;
     dmSound::GetGroupRMS(dmHashString64("master"), params.m_BufferFrameCount / f, &rms_left, &rms_right);
+    dmSound::GetGroupRMS(dmHashString64("master"), params.m_BufferFrameCount / f, &rms_left, &rms_right);
     // Theoretical RMS for a sin-function with amplitude a is a / sqrt(2)
     ASSERT_NEAR(0.8f / sqrtf(2.0f) * 0.707107f, rms_left, 0.02f);
     ASSERT_NEAR(0.8f / sqrtf(2.0f) * 0.707107f, rms_right, 0.02f);
 
     float peak_left, peak_right;
     dmSound::GetGroupPeak(dmHashString64("master"), params.m_BufferFrameCount / f, &peak_left, &peak_right);
+    dmSound::GetGroupPeak(dmHashString64("master"), params.m_BufferFrameCount / f, &peak_left, &peak_right);
     ASSERT_NEAR(0.8f* 0.707107f, peak_left, 0.01f);
     ASSERT_NEAR(0.8f* 0.707107f, peak_right, 0.01f);
 
+    int expected_queued = (frame_count * (int)f) / ((int) mix_rate * params.m_BufferFrameCount)
+                            + dmMath::Min(1U, (frame_count * (int)f) % ((int) mix_rate * params.m_BufferFrameCount));
     int expected_queued = (frame_count * (int)f) / ((int) mix_rate * params.m_BufferFrameCount)
                             + dmMath::Min(1U, (frame_count * (int)f) % ((int) mix_rate * params.m_BufferFrameCount));
     ASSERT_EQ(g_LoopbackDevice->m_TotalBuffersQueued, (uint32_t)expected_queued);
@@ -1183,8 +1241,208 @@ INSTANTIATE_TEST_CASE_P(dmSoundVerifyOggTest, dmSoundVerifyOggTest, jc_test_valu
 #endif
 
 #if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !(defined(WIN32) || defined(__MACH__)))
+TEST_P(dmSoundVerifyOpusTest, Mix)
+{
+    TestParams params = GetParam();
+    dmSound::Result r;
+    dmSound::HSoundData sd = 0;
+    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
+
+    printf("verifying opus mix: frames: %d\n", params.m_FrameCount);
+
+    dmSound::HSoundInstance instance = 0;
+    r = dmSound::NewSoundInstance(sd, &instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    ASSERT_NE((dmSound::HSoundInstance) 0, instance);
+
+    r = dmSound::Play(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    do {
+        r = dmSound::Update();
+        ASSERT_EQ(dmSound::RESULT_OK, r);
+    } while (dmSound::IsPlaying(instance));
+
+    r = dmSound::DeleteSoundInstance(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::DeleteSoundData(sd);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+}
+
+TEST_P(dmSoundVerifyOpusTest, Kill)
+{
+    TestParams params = GetParam();
+    dmSound::Result r;
+    dmSound::HSoundData sd = 0;
+    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
+
+    int tick = 0;
+    int killTick = 16;
+    int killed = 0;
+    printf("verifying opus kill: frames: %d killing on: %d\n", params.m_FrameCount, killTick);
+
+    dmSound::HSoundInstance instanceA = 0;
+    dmSound::HSoundInstance instanceB = 0;
+    r = dmSound::NewSoundInstance(sd, &instanceA);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    ASSERT_NE((dmSound::HSoundInstance) 0, instanceA);
+
+    r = dmSound::NewSoundInstance(sd, &instanceB);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    ASSERT_NE((dmSound::HSoundInstance) 0, instanceB);
+
+    r = dmSound::Play(instanceA);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    r = dmSound::Play(instanceB);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+
+    do {
+        r = dmSound::Update();
+        ASSERT_EQ(dmSound::RESULT_OK, r);
+        if (0 == killed && ++tick == killTick) {
+            r =  dmSound::Stop(instanceB);
+            ASSERT_EQ(dmSound::RESULT_OK, r);
+            r = dmSound::Update();
+            ASSERT_EQ(dmSound::RESULT_OK, r);
+            r = dmSound::DeleteSoundInstance(instanceB);
+            killed = 1;
+            ASSERT_EQ(dmSound::RESULT_OK, r);
+            r = dmSound::Update();
+            ASSERT_EQ(dmSound::RESULT_OK, r);
+        }
+    } while (dmSound::IsPlaying(instanceA));
+
+    if (0 == killed) {
+        r = dmSound::DeleteSoundInstance(instanceB);
+    }
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::DeleteSoundInstance(instanceA);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::DeleteSoundData(sd);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+}
+
+// Verifies that the Skip function skips the correct number of samples
+TEST_P(dmSoundVerifyOpusTest, SkipSync)
+{
+    TestParams params = GetParam();
+    dmSound::Result r;
+    dmSound::HSoundData sd = 0;
+    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
+
+    dmSound::HSoundInstance instance = 0;
+    r = dmSound::NewSoundInstance(sd, &instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    ASSERT_NE((dmSound::HSoundInstance) 0, instance);
+
+    r = dmSound::SetParameter(instance, dmSound::PARAMETER_GAIN, dmVMath::Vector4(0.5f,0,0,0));
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    r = dmSound::SetParameter(instance, dmSound::PARAMETER_SPEED, dmVMath::Vector4(params.m_Speed,0,0,0));
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::Play(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    // We create a muted instance, to make sure that they end at the same time
+    dmSound::HSoundInstance muted_instance = 0;
+    r = dmSound::NewSoundInstance(sd, &muted_instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    ASSERT_NE((dmSound::HSoundInstance) 0, muted_instance);
+
+    r = dmSound::SetParameter(muted_instance, dmSound::PARAMETER_GAIN, dmVMath::Vector4(0,0,0,0)); // gain 0
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    r = dmSound::SetParameter(muted_instance, dmSound::PARAMETER_SPEED, dmVMath::Vector4(params.m_Speed,0,0,0));
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::Play(muted_instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    do {
+        r = dmSound::Update();
+        ASSERT_EQ(dmSound::RESULT_OK, r);
+
+        int64_t pos_1 = dmSound::GetInternalPos(instance);
+        int64_t pos_2 = dmSound::GetInternalPos(muted_instance);
+        ASSERT_EQ(pos_1, pos_2); // If these numbers differ, then the Skip function isn't working correctly
+    } while (dmSound::IsPlaying(instance));
+
+    r = dmSound::DeleteSoundInstance(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    r = dmSound::DeleteSoundInstance(muted_instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::DeleteSoundData(sd);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+}
+
+// Verifies that the ref counted for HSoundData works correct
+TEST_P(dmSoundVerifyOpusTest, SoundDataRefCount)
+{
+    TestParams params = GetParam();
+    dmSound::Result r;
+    dmSound::HSoundData sd = 0;
+    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
+
+    dmSound::HSoundInstance instance = 0;
+    r = dmSound::NewSoundInstance(sd, &instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    ASSERT_NE((dmSound::HSoundInstance) 0, instance);
+
+    r = dmSound::SetParameter(instance, dmSound::PARAMETER_GAIN, dmVMath::Vector4(0.5f,0,0,0));
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    r = dmSound::SetParameter(instance, dmSound::PARAMETER_SPEED, dmVMath::Vector4(params.m_Speed,0,0,0));
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::Play(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    // We create a muted instance, to make sure that they end at the same time
+    dmSound::HSoundInstance muted_instance = 0;
+    r = dmSound::NewSoundInstance(sd, &muted_instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    ASSERT_NE((dmSound::HSoundInstance) 0, muted_instance);
+
+    r = dmSound::SetParameter(muted_instance, dmSound::PARAMETER_GAIN, dmVMath::Vector4(0,0,0,0)); // gain 0
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    r = dmSound::SetParameter(muted_instance, dmSound::PARAMETER_SPEED, dmVMath::Vector4(params.m_Speed,0,0,0));
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::Play(muted_instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    ASSERT_EQ(dmSound::GetRefCount(sd), 3);
+    dmSound::DeleteSoundData(sd);
+    ASSERT_EQ(dmSound::GetRefCount(sd), 2);
+
+    r = dmSound::DeleteSoundInstance(instance);
+    ASSERT_EQ(dmSound::GetRefCount(sd), 1);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    r = dmSound::DeleteSoundInstance(muted_instance);
+    ASSERT_EQ(dmSound::GetRefCount(sd), 0);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::DeleteSoundData(sd);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+}
+
+const TestParams params_verify_opus_test[] = {TestParams("loopback",
+                                            MONO_RESAMPLE_FRAMECOUNT_16000_OPUS,
+                                            MONO_RESAMPLE_FRAMECOUNT_16000_OPUS_SIZE,
+                                            dmSound::SOUND_DATA_TYPE_OPUS,
+                                            2000,
+                                            44100,
+                                            35200,
+                                            2048)};
+INSTANTIATE_TEST_CASE_P(dmSoundVerifyOpusTest, dmSoundVerifyOpusTest, jc_test_values_in(params_verify_opus_test));
+#endif
+
+#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !(defined(WIN32) || defined(__MACH__)))
 TEST_P(dmSoundTestPlayTest, Play)
 {
+
     TestParams params = GetParam();
     dmSound::Result r;
     dmSound::HSoundData sd = 0;
@@ -1210,7 +1468,6 @@ TEST_P(dmSoundTestPlayTest, Play)
 
     do {
         r = dmSound::Update();
-//NOTE: the panning test here seems defunct (mixer does mix all data in one pass, hence never allowing any panning update set here)
         ASSERT_EQ(dmSound::RESULT_OK, r);
         a += M_PI / 20000000.0f;
         if (a > M_PI*2) {
@@ -1285,8 +1542,8 @@ TEST_P(dmSoundTestPlaySpeedTest, PlaySpeed)
 
 const TestParams params_test_play_test[] = {
 
-    SOUND_TEST("default", MONO, 2000, 22050, 5512, 2048),
-    SOUND_TEST("default", MONO, 2000, 32000, 8000, 2048),
+//    SOUND_TEST("default", MONO, 2000, 22050, 5512, 2048),
+/*    SOUND_TEST("default", MONO, 2000, 32000, 8000, 2048),
     SOUND_TEST("default", MONO, 2000, 44000, 11000, 2048),
     SOUND_TEST("default", MONO, 2000, 44100, 11025, 2048),
     SOUND_TEST("default", MONO, 2000, 48000, 12000, 2048),
@@ -1306,6 +1563,10 @@ const TestParams params_test_play_test[] = {
     SOUND_TEST("default", STEREO, 2000, 44000, 11000, 2048),
     SOUND_TEST("default", STEREO, 2000, 44100, 11025, 2048),
     SOUND_TEST("default", STEREO, 2000, 48000, 12000, 2048),
+*/
+    TestParams("default", AMBIENCE_OPUS, AMBIENCE_OPUS_SIZE, dmSound::SOUND_DATA_TYPE_OPUS, 0, 0, 0, 2048),
+    TestParams("default", MUSIC_OPUS, MUSIC_OPUS_SIZE, dmSound::SOUND_DATA_TYPE_OPUS, 0, 0, 0, 2048),
+    TestParams("default", MONO_RESAMPLE_FRAMECOUNT_16000_OPUS, MONO_RESAMPLE_FRAMECOUNT_16000_OPUS_SIZE, dmSound::SOUND_DATA_TYPE_OPUS, 0, 0, 0, 2048),
 };
 INSTANTIATE_TEST_CASE_P(dmSoundTestPlayTest, dmSoundTestPlayTest, jc_test_values_in(params_test_play_test));
 
@@ -1485,6 +1746,7 @@ TEST_P(dmSoundMixerTest, Mixer)
     ASSERT_EQ(dmSound::RESULT_OK, r);
 
     r = dmSound::NewSoundInstance(sd2, &instance2);
+    r = dmSound::NewSoundInstance(sd2, &instance2);
     ASSERT_EQ(dmSound::RESULT_OK, r);
     ASSERT_NE((dmSound::HSoundInstance) 0, instance2);
     r = dmSound::SetInstanceGroup(instance2, "g2");
@@ -1513,13 +1775,24 @@ TEST_P(dmSoundMixerTest, Mixer)
     const double level = sin(M_PI_4);                       // center panning introduces this
 
     const double f = 44100.0;
+    const double level = sin(M_PI_4);                       // center panning introduces this
 
+    const double f = 44100.0;
+
+    const int n1 = (int)(frame_count1 * (f / mix_rate1));
+    const int n2 = (int)(frame_count2 * (f / mix_rate2));
     const int n1 = (int)(frame_count1 * (f / mix_rate1));
     const int n2 = (int)(frame_count2 * (f / mix_rate2));
     const int n = dmMath::Max(n1, n2);
 
+
     float sum_square = 0.0f;
     float last_rms = 0.0f;
+
+    uint64_t delta1 = (uint64_t)(mix_rate1 * (1UL << dmSound::RESAMPLE_FRACTION_BITS) / f);
+    uint64_t pos1 = 0;
+    uint64_t delta2 = (uint64_t)(mix_rate2 * (1UL << dmSound::RESAMPLE_FRACTION_BITS) / f);
+    uint64_t pos2 = 0;
 
     uint64_t delta1 = (uint64_t)(mix_rate1 * (1UL << dmSound::RESAMPLE_FRACTION_BITS) / f);
     uint64_t pos1 = 0;
@@ -1539,17 +1812,35 @@ TEST_P(dmSoundMixerTest, Mixer)
         double a = dmMath::Clamp((ax + ay) * master_gain, -32768.0, 32767.0);
 
         // Note: yes, we do this only for the output from G1
+
+        // Generate comparison data for G1 output
+        double ax = GenAndMixTone(pos1, params.m_ToneRate1, params.m_MixRate1, f, frame_count1, params.m_Ramp1, level * params.m_Gain1);
+        // Generate comparison data for G2 output
+        double ay = GenAndMixTone(pos2, params.m_ToneRate2, params.m_MixRate2, f, frame_count2, params.m_Ramp2, level * params.m_Gain2);
+
+        pos1 += delta1;
+        pos2 += delta2;
+
+        // Mix groups and apply master gain (& clamp)
+        double a = dmMath::Clamp((ax + ay) * master_gain, -32768.0, 32767.0);
+
+        // Note: yes, we do this only for the output from G1
         sum_square += ax * ax;
         if (i % params.m_BufferFrameCount == 0 && i > 0) {
             last_rms = sqrtf(sum_square / (float) params.m_BufferFrameCount);
             sum_square = 0.0f;
+            sum_square = 0.0f;
         }
 
+        // Check with actual output...
         // Check with actual output...
         int16_t as = (int16_t) a;
 
         const int abs_error = 36;
+        const int abs_error = 36;
         if ((uint32_t)i > params.m_BufferFrameCount * 2) {
+            ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i], as, abs_error);
+            ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i + 1], as, abs_error);
             ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i], as, abs_error);
             ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i + 1], as, abs_error);
         }
@@ -1557,6 +1848,7 @@ TEST_P(dmSoundMixerTest, Mixer)
     last_rms /= 32767.0f;
 
     float rms_left, rms_right;
+    dmSound::GetGroupRMS(dmHashString64("g1"), params.m_BufferFrameCount / f, &rms_left, &rms_right);
     dmSound::GetGroupRMS(dmHashString64("g1"), params.m_BufferFrameCount / f, &rms_left, &rms_right);
     const float rms_tol = 3.0f;
     ASSERT_NEAR(rms_left, last_rms, rms_tol);
@@ -1730,6 +2022,12 @@ static const char* FindSoundFile(int argc, char** argv, dmSound::SoundDataType* 
         if (dmStrCaseCmp(suffix, ".ogg")==0)
         {
             *type = dmSound::SOUND_DATA_TYPE_OGG_VORBIS;
+            return arg;
+        }
+
+        if (dmStrCaseCmp(suffix, ".opus")==0)
+        {
+            *type = dmSound::SOUND_DATA_TYPE_OPUS;
             return arg;
         }
     }

@@ -386,6 +386,7 @@ namespace dmDeviceWasapi
 
         info->m_MixRate = device->m_MixFormat->nSamplesPerSec;
         info->m_FrameCount = device->m_FrameCount;
+        info->m_DSPImplementation = dmSound::DSPIMPL_TYPE_FALLBACK;
     }
 
     static void DeviceWasapiStart(dmSound::HDevice _device)

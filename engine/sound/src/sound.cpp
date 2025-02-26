@@ -162,6 +162,8 @@ namespace dmSound
         Value       m_Pan;      // 0 = -45deg left, 1 = 45 deg right
         Value       m_ScaleL[SOUND_MAX_DECODE_CHANNELS];
         Value       m_ScaleR[SOUND_MAX_DECODE_CHANNELS];
+        Value       m_ScaleL[SOUND_MAX_DECODE_CHANNELS];
+        Value       m_ScaleR[SOUND_MAX_DECODE_CHANNELS];
         float       m_Speed;    // 1.0 = normal speed, 0.5 = half speed, 2.0 = double speed
         uint64_t    m_FrameFraction;
 
@@ -170,6 +172,9 @@ namespace dmSound
         uint8_t     m_Looping : 1;
         uint8_t     m_EndOfStream : 1;
         uint8_t     m_Playing : 1;
+        uint8_t     m_ScaleDirty : 1;
+        uint8_t     m_ScaleInit : 1;
+        uint8_t     : 3;
         uint8_t     m_ScaleDirty : 1;
         uint8_t     m_ScaleInit : 1;
         uint8_t     : 3;
@@ -257,6 +262,7 @@ namespace dmSound
         params->m_FrameCount = 0; // Let the sound system choose by default
         params->m_MaxInstances = 256;
         params->m_UseThread = true;
+        params->m_DSPImplementation = DSPIMPL_TYPE_DEFAULT;
     }
 
     Result RegisterDevice(struct DeviceType* device)
@@ -376,6 +382,15 @@ namespace dmSound
                 sound->m_DeviceFrameCount = GetDefaultFrameCount(device_info.m_MixRate);
             }
         }
+
+
+        // note: this will be an NoOp if the build target has DM_SOUND_EXPECTED_SIMD defined (compile-time implementation selection)
+        DSPImplType dsp_impl = params->m_DSPImplementation;
+        if (dsp_impl == DSPIMPL_TYPE_DEFAULT) {
+            dsp_impl = device_info.m_DSPImplementation;
+        }
+        SelectDSPImpl(dsp_impl);
+
 
         sound->m_FrameCount = sound->m_DeviceFrameCount;
         sound->m_MixRate = device_info.m_MixRate;
@@ -691,6 +706,8 @@ namespace dmSound
             codec_format = dmSoundCodec::FORMAT_WAV;
         } else if (sound_data->m_Type == SOUND_DATA_TYPE_OGG_VORBIS) {
             codec_format = dmSoundCodec::FORMAT_VORBIS;
+        } else if (sound_data->m_Type == SOUND_DATA_TYPE_OPUS) {
+            codec_format = dmSoundCodec::FORMAT_OPUS;
         } else {
             assert(0);
         }
@@ -724,6 +741,13 @@ namespace dmSound
         si->m_Index = index;
         si->m_Gain.Reset(1.0f);
         si->m_Pan.Reset(0.5f);
+        for(uint32_t c=0; c<SOUND_MAX_DECODE_CHANNELS; ++c)
+        {
+            si->m_ScaleL[c].Reset(0.70711f);
+            si->m_ScaleR[c].Reset(0.70711f);
+        }
+        si->m_ScaleDirty = 1;
+        si->m_ScaleInit = 1;
         for(uint32_t c=0; c<SOUND_MAX_DECODE_CHANNELS; ++c)
         {
             si->m_ScaleL[c].Reset(0.70711f);
@@ -1020,6 +1044,9 @@ namespace dmSound
                     // Trigger volume scale updates as soon as we know how many channels the instance has
                     // (we might not have that info initially)
                     sound_instance->m_ScaleDirty = 1;
+                    // Trigger volume scale updates as soon as we know how many channels the instance has
+                    // (we might not have that info initially)
+                    sound_instance->m_ScaleDirty = 1;
                 }
                 break;
             case PARAMETER_PAN:
@@ -1027,6 +1054,9 @@ namespace dmSound
                     float pan = dmMath::Max(-1.0f, dmMath::Min(1.0f, value.getX()));
                     pan = (pan + 1.0f) * 0.5f; // map [-1,1] to [0,1] for easier calculations later
                     sound_instance->m_Pan.Set(pan, reset);
+                    // Trigger volume scale updates as soon as we know how many channels the instance has
+                    // (we might not have that info initially)
+                    sound_instance->m_ScaleDirty = 1;
                     // Trigger volume scale updates as soon as we know how many channels the instance has
                     // (we might not have that info initially)
                     sound_instance->m_ScaleDirty = 1;
@@ -1087,10 +1117,13 @@ namespace dmSound
         if (channels == 1)
         {
             MixScaledMonoToStereo(mix_buffer, g_SoundSystem->GetDecoderBufferBase(0), mix_buffer_count, scale_l[0], scale_r[0], scale_dl[0], scale_dr[0]);
+            MixScaledMonoToStereo(mix_buffer, g_SoundSystem->GetDecoderBufferBase(0), mix_buffer_count, scale_l[0], scale_r[0], scale_dl[0], scale_dr[0]);
         }
         else
         {
             assert(channels == 2);
+            MixScaledStereoToStereo(mix_buffer, g_SoundSystem->GetDecoderBufferBase(0), g_SoundSystem->GetDecoderBufferBase(1), mix_buffer_count, scale_l[0], scale_r[0], scale_dl[0], scale_dr[0],
+                                                                                                                                                  scale_l[1], scale_r[1], scale_dl[1], scale_dr[1]);
             MixScaledStereoToStereo(mix_buffer, g_SoundSystem->GetDecoderBufferBase(0), g_SoundSystem->GetDecoderBufferBase(1), mix_buffer_count, scale_l[0], scale_r[0], scale_dl[0], scale_dr[0],
                                                                                                                                                   scale_l[1], scale_r[1], scale_dl[1], scale_dr[1]);
         }
@@ -1130,6 +1163,47 @@ namespace dmSound
 
     static inline void MixResample(const MixContext* mix_context, SoundInstance* instance, const dmSoundCodec::Info* info, uint64_t delta, float* mix_buffer[], uint32_t mix_buffer_count, uint32_t avail_framecount)
     {
+        // Make sure to update the mixing scale values...
+        if (instance->m_ScaleDirty != 0) {
+            instance->m_ScaleDirty = 0;
+
+            bool reset = (instance->m_ScaleInit != 0);
+            instance->m_ScaleInit = 0;
+
+            float gain = instance->m_Gain.m_Current;
+
+            if (info->m_Channels == 1) {
+                float rs, ls;
+                GetPanScale(instance->m_Pan.m_Current, &ls, &rs);
+                instance->m_ScaleL[0].Set(ls * gain, reset);
+                instance->m_ScaleR[0].Set(rs * gain, reset);
+            }
+            else {
+                assert(info->m_Channels == 2);
+
+#if defined(SOUND_USE_LEGACY_STEREO_PAN) && (SOUND_USE_LEGACY_STEREO_PAN != 0)
+                float rs, ls;
+                GetPanScale(instance->m_Pan.m_Current, &ls, &rs);
+                instance->m_ScaleL[0].Set(ls * gain, reset);
+                instance->m_ScaleR[0].Set(0.0f, reset);
+                instance->m_ScaleL[1].Set(0.0f, reset);
+                instance->m_ScaleR[1].Set(rs * gain, reset);
+#else
+                float rs, ls;
+                GetPanScale(dmMath::Max(0.0f, instance->m_Pan.m_Current - 0.5f), &ls, &rs);
+                instance->m_ScaleL[0].Set(ls * gain, reset);
+                instance->m_ScaleR[0].Set(rs * gain, reset);
+                GetPanScale(dmMath::Min(instance->m_Pan.m_Current + 0.5f, 1.0f), &ls, &rs);
+                instance->m_ScaleL[1].Set(ls * gain, reset);
+                instance->m_ScaleR[1].Set(rs * gain, reset);
+#endif
+            }
+        }
+
+        // 1:1 output only if:
+        // - rate is mixrate (including speed factor!) -> delta = 1.0
+        // - sampling is not at a fractional position
+        bool identity_mixer = delta == (1UL << RESAMPLE_FRACTION_BITS) && instance->m_FrameFraction == 0;
         // Make sure to update the mixing scale values...
         if (instance->m_ScaleDirty != 0) {
             instance->m_ScaleDirty = 0;
@@ -1230,6 +1304,7 @@ namespace dmSound
 
         // TODO: Move this check to the NewSoundInstance
         bool correct_bit_depth = info.m_BitsPerSample == 32 || info.m_BitsPerSample == 16 || info.m_BitsPerSample == 8;
+        bool correct_bit_depth = info.m_BitsPerSample == 32 || info.m_BitsPerSample == 16 || info.m_BitsPerSample == 8;
         bool correct_num_channels = info.m_Channels == 1 || info.m_Channels == 2;
         if (!correct_bit_depth || !correct_num_channels) {
             dmLogError("Only mono/stereo with 8/16 bits per sample is supported (%s): %u bpp %u ch", GetSoundName(sound, instance), (uint32_t)info.m_BitsPerSample, (uint32_t)info.m_Channels);
@@ -1269,6 +1344,9 @@ namespace dmSound
             bool is_direct_delivery = (info.m_BitsPerSample == 32 && (!info.m_IsInterleaved || info.m_Channels == 1));
 
             const uint32_t stride = !is_direct_delivery ? (info.m_Channels * (info.m_BitsPerSample / 8)) : sizeof(float);
+            bool is_direct_delivery = (info.m_BitsPerSample == 32 && (!info.m_IsInterleaved || info.m_Channels == 1));
+
+            const uint32_t stride = !is_direct_delivery ? (info.m_Channels * (info.m_BitsPerSample / 8)) : sizeof(float);
 
             while(frame_count < mixed_instance_frame_count)
             {
@@ -1276,6 +1354,7 @@ namespace dmSound
 
                 char* buffer[SOUND_MAX_DECODE_CHANNELS];
                 uint32_t buffer_size;
+                if (!is_direct_delivery)
                 if (!is_direct_delivery)
                 {
                     // Output is non-float and/or interleaved and needs post output conversion
@@ -1289,6 +1368,7 @@ namespace dmSound
                         buffer[c] = (char*)(sound->GetDecoderBufferBase(c) + frame_count);
                     }
                 }
+                buffer_size = n * stride;
                 buffer_size = n * stride;
 
                 uint32_t decoded = 0;
@@ -1432,6 +1512,7 @@ namespace dmSound
                     for(uint32_t mi=missing_frames; mi > 0; --mi)
                     {
                         decoder_output_buffer[fc++] = last;
+                        decoder_output_buffer[fc++] = last;
                     }
                 }
                 frame_count += missing_frames;
@@ -1550,6 +1631,10 @@ namespace dmSound
             if (instance->m_Playing || instance->m_FrameCount > 0) {
                 instance->m_Gain.Step();
                 instance->m_Pan.Step();
+                for(uint32_t c=0; c<SOUND_MAX_DECODE_CHANNELS; ++c) {
+                    instance->m_ScaleL[c].Step();
+                    instance->m_ScaleR[c].Step();
+                }
                 for(uint32_t c=0; c<SOUND_MAX_DECODE_CHANNELS; ++c) {
                     instance->m_ScaleL[c].Step();
                     instance->m_ScaleR[c].Step();
