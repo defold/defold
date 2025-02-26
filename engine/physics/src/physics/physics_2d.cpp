@@ -1424,8 +1424,7 @@ namespace dmPhysics
         Vector3 zero_vec3 = Vector3(0);
         for (uint32_t i = 0; i < shape_count; ++i)
         {
-            uint32_t reverse_i = shape_count - i - 1;
-            ShapeData* s = (ShapeData*) shapes[reverse_i];
+            ShapeData* s = (ShapeData*) shapes[i];
 
             if (translations && rotations)
             {
