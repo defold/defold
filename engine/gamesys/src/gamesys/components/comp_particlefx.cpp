@@ -37,10 +37,10 @@
 #include "resources/res_material.h"
 
 DM_PROPERTY_EXTERN(rmtp_Components);
-DM_PROPERTY_U32(rmtp_ParticleFx, 0, FrameReset, "# components", &rmtp_Components);
-DM_PROPERTY_U32(rmtp_ParticleVertexCount, 0, FrameReset, "# vertices", &rmtp_ParticleFx);
-DM_PROPERTY_U32(rmtp_ParticleVertexSize, 0, FrameReset, "size of CPU vertex buffer (in bytes)", &rmtp_ParticleFx);
-DM_PROPERTY_U32(rmtp_ParticleVertexSizeGPU, 0, FrameReset, "size of GPU vertex buffer (in bytes)", &rmtp_ParticleFx);
+DM_PROPERTY_U32(rmtp_ParticleFx, 0, PROFILE_PROPERTY_FRAME_RESET, "# components", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_ParticleVertexCount, 0, PROFILE_PROPERTY_FRAME_RESET, "# vertices", &rmtp_ParticleFx);
+DM_PROPERTY_U32(rmtp_ParticleVertexSize, 0, PROFILE_PROPERTY_FRAME_RESET, "size of CPU vertex buffer (in bytes)", &rmtp_ParticleFx);
+DM_PROPERTY_U32(rmtp_ParticleVertexSizeGPU, 0, PROFILE_PROPERTY_FRAME_RESET, "size of GPU vertex buffer (in bytes)", &rmtp_ParticleFx);
 
 namespace dmGameSystem
 {
