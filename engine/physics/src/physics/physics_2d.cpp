@@ -526,13 +526,15 @@ namespace dmPhysics
                     {
                         b2ContactData& contact = contacts[j];
 
+                        /*
                         // I think we need to keep track of unique contacts here
                         uint64_t opaque_id_a = ToOpaqueHandle(contact.shapeIdA);
                         uint64_t opaque_id_b = ToOpaqueHandle(contact.shapeIdB);
 
-                        ContactPair* contact_pair = 0; // GetContactPair(world, opaque_id_a, opaque_id_b);
+                        ContactPair* contact_pair = GetContactPair(world, opaque_id_a, opaque_id_b);
                         if (contact_pair)
                             continue;
+                        */
 
                         float max_impulse = 0.0f;
                         for (int k = 0; k < contact.manifold.pointCount; ++k)
@@ -545,9 +547,8 @@ namespace dmPhysics
                             continue;
                         }
 
-                        // dmLogInfo("impulse->count: %d, max impulse: %f", contact.manifold.pointCount, max_impulse);
-
-                        contact_pair = MakeContactPair(world, opaque_id_a, opaque_id_b, &contact);
+                        dmLogInfo("impulse->count: %d, max impulse: %f", contact.manifold.pointCount, max_impulse);
+                        // contact_pair = MakeContactPair(world, opaque_id_a, opaque_id_b, &contact);
 
                         if (step_context.m_CollisionCallback)
                         {
@@ -1423,7 +1424,8 @@ namespace dmPhysics
         Vector3 zero_vec3 = Vector3(0);
         for (uint32_t i = 0; i < shape_count; ++i)
         {
-            ShapeData* s = (ShapeData*) shapes[i];
+            uint32_t reverse_i = shape_count - i - 1;
+            ShapeData* s = (ShapeData*) shapes[reverse_i];
 
             if (translations && rotations)
             {
