@@ -1803,10 +1803,17 @@ TYPED_TEST(PhysicsTest, SphereBoxDeepPenetration)
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_b);
 }
 
+struct ScaledImpulsesUserData
+{
+    float m_AppliedImpulse;
+    bool m_CallbackCalled;
+};
+
 bool CollectImpulseContactPointCallback(const dmPhysics::ContactPoint& contact_point, void* user_data)
 {
-    float* applied_impulse = (float*)user_data;
-    *applied_impulse += contact_point.m_AppliedImpulse;
+    ScaledImpulsesUserData* ud = (ScaledImpulsesUserData*)user_data;
+    ud->m_AppliedImpulse += contact_point.m_AppliedImpulse;
+    ud->m_CallbackCalled = true;
     return true;
 }
 
@@ -1841,33 +1848,50 @@ TYPED_TEST(PhysicsTest, ScaledImpulses)
     data_b.m_Restitution = 1.0f;
     typename TypeParam::CollisionObjectType box_co_b = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data_b, &shape_b, 1u);
 
-    float applied_impulse = 0.0f;
-
+    ScaledImpulsesUserData ud = {};
     TestFixture::m_StepWorldContext.m_CollisionCallback = 0;
     TestFixture::m_StepWorldContext.m_CollisionUserData = 0;
     TestFixture::m_StepWorldContext.m_ContactPointCallback = CollectImpulseContactPointCallback;
-    TestFixture::m_StepWorldContext.m_ContactPointUserData = &applied_impulse;
+    TestFixture::m_StepWorldContext.m_ContactPointUserData = &ud;
 
     int steps = 400;
-    for (int i = 0; i < steps && applied_impulse == 0.0f; ++i) {
+    for (int i = 0; i < steps && !ud.m_CallbackCalled; ++i) {
         (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
     }
 
     steps = 10;
-    float y = vo_a.m_Position.getY();
-
-    printf("initial steps done\n");
+    float y = 0.0f;
+    float applied_impulse = ud.m_AppliedImpulse;
 
     for (int i = 0; i < steps; ++i) {
         (*TestFixture::m_Test.m_ApplyForceFunc)(TestFixture::m_Context, box_co_a, Vector3(0, -applied_impulse * 0.5f / TestFixture::m_StepWorldContext.m_DT + 10, 0), vo_a.m_Position);
         applied_impulse = 0.0f;
         (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 
+        // Box2d V3 change:
+        // In the old box2d version when the first collision was detected, the object was resolved immediately according to the applied impulse,
+        // but in the new version there are more settings that affect how the object is resolved. With the default settings we use now,
+        // box2d requires an extra step in order to move the object outside of the collision.
+        //
+        // I could kinda get this to work by adjusting the settings to something like:
+        // worldDef.contactDampingRatio = 0.0f;
+        // worldDef.maximumLinearSpeed = 1.0f;
+        // worldDef.contactPushMaxSpeed = 1.0f;
+        //
+        // .. but these have side-effects for actual projects, so it's not something we can really use, so for now I've modified the test
+        // to update the test position after the first resolve here. I'm not sure if it's correct or not, but it's the best I can do..
+        if (i == 0)
+        {
+            y = vo_a.m_Position.getY();
+        }
+
+    #if 0
         printf("y = %f\n", y);
         printf("vo_a.m_Position.getY() = %f\n", vo_a.m_Position.getY());
         printf("%f\n", fabs(y - vo_a.m_Position.getY()));
+    #endif
 
-        // ASSERT_NEAR(y, vo_a.m_Position.getY(), 0.0001f);
+        ASSERT_NEAR(y, vo_a.m_Position.getY(), 0.01f);
     }
 
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, box_co_a);

@@ -81,7 +81,8 @@ CMAKE_FLAGS="-DBOX2D_BUILD_DOCS=OFF ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DBOX2D_SAMPLES=OFF ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DBOX2D_UNIT_TESTS=OFF ${CMAKE_FLAGS}"
 
-CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Debug ${CMAKE_FLAGS}"
+# CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Debug ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Release ${CMAKE_FLAGS}"
 
 # Build
 
@@ -89,7 +90,8 @@ mkdir -p ${BUILD_DIR}
 pushd $BUILD_DIR
 
 cmake ${CMAKE_FLAGS} $BOX2D_DIR
-cmake --build . --config Debug -j 8
+#cmake --build . --config Debug -j 8
+cmake --build . --config Release -j 8
 
 mkdir -p ./lib/$PLATFORM
 mkdir -p ./include

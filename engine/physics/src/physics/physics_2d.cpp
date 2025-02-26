@@ -403,6 +403,8 @@ namespace dmPhysics
         }
     }
 
+    // Currently not used..
+    /*
     static ContactPair* GetContactPair(HWorld2D world, uint64_t id_a, uint64_t id_b)
     {
         for (int i = 0; i < world->m_ContactBuffer.Size(); ++i)
@@ -431,6 +433,7 @@ namespace dmPhysics
         world->m_ContactBuffer.Push(pair);
         return &world->m_ContactBuffer.Back();
     }
+    */
 
     void StepWorld2D(HWorld2D world, const StepWorldContext& step_context)
     {
@@ -526,16 +529,6 @@ namespace dmPhysics
                     {
                         b2ContactData& contact = contacts[j];
 
-                        /*
-                        // I think we need to keep track of unique contacts here
-                        uint64_t opaque_id_a = ToOpaqueHandle(contact.shapeIdA);
-                        uint64_t opaque_id_b = ToOpaqueHandle(contact.shapeIdB);
-
-                        ContactPair* contact_pair = GetContactPair(world, opaque_id_a, opaque_id_b);
-                        if (contact_pair)
-                            continue;
-                        */
-
                         float max_impulse = 0.0f;
                         for (int k = 0; k < contact.manifold.pointCount; ++k)
                         {
@@ -547,8 +540,7 @@ namespace dmPhysics
                             continue;
                         }
 
-                        dmLogInfo("impulse->count: %d, max impulse: %f", contact.manifold.pointCount, max_impulse);
-                        // contact_pair = MakeContactPair(world, opaque_id_a, opaque_id_b, &contact);
+                        // dmLogInfo("impulse->count: %d, max impulse: %f", contact.manifold.pointCount, max_impulse);
 
                         if (step_context.m_CollisionCallback)
                         {
