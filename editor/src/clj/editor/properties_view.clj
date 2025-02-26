@@ -580,6 +580,7 @@
                       (set-color-value! property-fn ignore-alpha c)))]
     (doto text
       (HBox/setHgrow Priority/ALWAYS)
+      (ui/add-style! "color-input")
       (customize! commit-fn cancel-fn))
     (ui/on-action! color-picker (fn [_]
                                   (let [c (.getValue color-picker)]

@@ -194,8 +194,8 @@
                           <AnchorPane prefHeight="100.0" prefWidth="160.0">
                             <children>
                               <!-- DEFEDIT-1427. We used to have a TitledPane here, but TitledPane + ScrollPane + AnchorPane + running
-                                  animation sometimes stopped the rendering of the whole right-split. Replacing the TitledPane with a
-                                  VBox + Label as below is a workaround. -->
+                                   VBox + Label as below is a workaround. -->
+                                   animation sometimes stopped the rendering of the whole right-split. Replacing the TitledPane with a
                               <VBox styleClass="fake-titled-pane" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
                                 <children>
                                   <Label styleClass="fake-titled-pane-label" text="Properties" />
