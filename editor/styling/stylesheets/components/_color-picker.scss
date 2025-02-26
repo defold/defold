@@ -1,7 +1,6 @@
 .color-picker {
     -fx-max-width: 24px;
     -fx-min-width: 24px;
-    -fx-max-height: 27px;
     -fx-background-radius: 0;
     -fx-border-radius: 0;
     -fx-border-color: -df-background-lighter;
@@ -35,11 +34,27 @@
 }
 
 .color-dropper {
-    -fx-margin-right: 1px;
     -fx-max-width: 24px;
     -fx-min-width: 24px;
     -fx-background-radius: 0;
     -fx-border-radius: 0;
     -fx-background-color: transparent;
-    -fx-border-color: -df-background-lighter;
+    -fx-border-color: transparent;
+    visibility: hidden;
+
+    &:hover {
+        -fx-background-color: transparent;
+
+        .image-view {
+            -fx-effect: innershadow(gaussian, -df-text-selected, 20, 1.0, 0, 0);
+          }
+    }
+}
+
+.color-pane {
+    -fx-background-color: transparent;
+
+    &:hover  .color-dropper {
+        visibility: visible;
+    }
 }

@@ -558,11 +558,15 @@
         pick-fn (fn [c] (set-color-value! property-fn (:ignore-alpha? edit-type) c))
         color-dropper (doto (Button. "" (jfx/get-image-view "icons/32/Icons_M_03_colorpicker.png" 16))
                         (ui/add-style! "color-dropper")
+                        (AnchorPane/setRightAnchor 0.0)
                         (ui/on-action! (fn [^MouseEvent event] (ui/run-command (.getSource event) :color-dropper {:pick-fn pick-fn}))))
         text (TextField.)
         color-picker (ColorPicker.)
         ignore-alpha (:ignore-alpha? edit-type)
         value->display-color #(some-> % value->color (color->web-string ignore-alpha))
+        pane (doto (AnchorPane. (ui/node-array [text color-dropper]))
+               (HBox/setHgrow Priority/ALWAYS)
+               (ui/add-style! "color-pane"))
         update-ui-fn (fn [values message read-only?]
                        (update-text-fn text value->display-color values message read-only?)
                        (.setValue color-picker (some-> (properties/unify-values values) value->color))
@@ -579,14 +583,17 @@
                                       (catch Exception _e (cancel-fn nil)))]
                       (set-color-value! property-fn ignore-alpha c)))]
     (doto text
-      (HBox/setHgrow Priority/ALWAYS)
+      (AnchorPane/setTopAnchor 0.0)
+      (AnchorPane/setBottomAnchor 0.0)
+      (AnchorPane/setRightAnchor 0.0)
+      (AnchorPane/setLeftAnchor 0.0)
       (ui/add-style! "color-input")
       (customize! commit-fn cancel-fn))
     (ui/on-action! color-picker (fn [_]
                                   (let [c (.getValue color-picker)]
                                     (set-color-value! property-fn ignore-alpha c)
                                     (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true))))
-    (ui/children! wrapper [text color-dropper color-picker])
+    (ui/children! wrapper [pane color-picker])
     [wrapper update-ui-fn]))
 
 (defmethod create-property-control! :choicebox [{:keys [options]} _ property-fn]

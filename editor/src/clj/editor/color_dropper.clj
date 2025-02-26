@@ -56,45 +56,46 @@
     (and (<= 0 x width)
          (<= 0 y height))))
 
-(def pixel-range (range -4 5))
-(def pixel-size 10)
-(def center 5)
-(def diameter (* pixel-size (count pixel-range)))
-(def radius (/ diameter 2))
 
-(defn- mouse-move-handler!
-  [view-node ^Canvas canvas ^MouseEvent e]
-  (.consume e)
-  (let [^GraphicsContext graphics-context (.getGraphicsContext2D canvas)
-        ^WritableImage image (g/node-value view-node :image)
-        ^PixelReader pixel-reader (.getPixelReader image)
-        mouse-x (.getX e)
-        mouse-y (.getY e)
-        delta-x (- (.getScreenX e) mouse-x)
-        delta-y (- (.getScreenY e) mouse-y)
-        adjusted-x (+ mouse-x delta-x)
-        adjusted-y (+ mouse-y delta-y)
-        color (.getColor pixel-reader adjusted-x adjusted-y)
-        mask (doto (Circle.)
-               (.setCenterX (+ mouse-x))
-               (.setCenterY (+ mouse-y))
-               (.setRadius radius))]
-    (g/set-property! view-node :color color)
-    (.clearRect graphics-context (- mouse-x radius) (- mouse-y radius) diameter diameter)
-    (.setClip canvas mask)
-  
-    (doseq [x-range pixel-range
-            y-range pixel-range
-            :let [x (+ mouse-x (* x-range pixel-size) (- center))
-                  y (+ mouse-y (* y-range pixel-size) (- center))]]
-      (when (in-bounds? view-node x y)
-        (->> (.getColor pixel-reader (+ adjusted-x x-range) (+ adjusted-y y-range))
-             (paint-pixel! graphics-context x y pixel-size))))
-  
-    (doto graphics-context
-      (.setStroke Color/GRAY)
-      (.strokeOval (- mouse-x radius) (- mouse-y radius) diameter diameter)
-      (highlight-pixel! (- mouse-x center) (- mouse-y center) pixel-size))))
+
+(let [pixel-size 12
+      center (/ pixel-size 2)
+      pixel-range (range -4 5)
+      diameter (* pixel-size (count pixel-range))
+      radius (/ diameter 2)]
+  (defn- mouse-move-handler!
+    [view-node ^Canvas canvas ^MouseEvent e]
+    (.consume e)
+    (let [^GraphicsContext graphics-context (.getGraphicsContext2D canvas)
+          ^WritableImage image (g/node-value view-node :image)
+          ^PixelReader pixel-reader (.getPixelReader image)
+          mouse-x (.getX e)
+          mouse-y (.getY e)
+          delta-x (- (.getScreenX e) mouse-x)
+          delta-y (- (.getScreenY e) mouse-y)
+          adjusted-x (+ mouse-x delta-x)
+          adjusted-y (+ mouse-y delta-y)
+          color (.getColor pixel-reader adjusted-x adjusted-y)
+          mask (doto (Circle.)
+                 (.setCenterX (+ mouse-x))
+                 (.setCenterY (+ mouse-y))
+                 (.setRadius radius))]
+      (g/set-property! view-node :color color)
+      (.clearRect graphics-context (- mouse-x radius) (- mouse-y radius) diameter diameter)
+      (.setClip canvas mask)
+
+      (doseq [x-range pixel-range
+              y-range pixel-range
+              :let [x (+ mouse-x (* x-range pixel-size) (- center))
+                    y (+ mouse-y (* y-range pixel-size) (- center))]]
+        (when (in-bounds? view-node x y)
+          (->> (.getColor pixel-reader (+ adjusted-x x-range) (+ adjusted-y y-range))
+               (paint-pixel! graphics-context x y pixel-size))))
+
+      (doto graphics-context
+        (.setStroke Color/GRAY)
+        (.strokeOval (- mouse-x radius) (- mouse-y radius) diameter diameter)
+        (highlight-pixel! (- mouse-x center) (- mouse-y center) pixel-size)))))
 
 (defn- apply-and-deactivate!
   [view-node ^Popup popup pick-fn]
@@ -112,12 +113,14 @@
           (Screen/getScreens)))
 
 (defn- capture! 
-  [view-node]
+  [view-node ^Canvas canvas]
+  (.setVisible canvas false)
   (let [{:keys [width height]} (g/node-value view-node :size)
         capture-rect (Rectangle2D. 0 0 width height)
         writable-image (WritableImage. width height)
         image (.getScreenCapture (Robot.) writable-image capture-rect)]
-    (g/set-property! view-node :image image)))
+    (g/set-property! view-node :image image)
+    (.setVisible canvas true)))
 
 (defn make-color-dropper! [graph]
   (g/make-node! graph ColorDropper))
@@ -138,7 +141,7 @@
         canvas (Canvas.)]
     (g/set-property! view-node :size size)
     (.add (.getContent popup) pane)
-    (.addListener (.focusedProperty pane) (ui/change-listener _ _ _ (capture! view-node)))
+    (.addListener (.focusedProperty pane) (ui/change-listener _ _ _ (capture! view-node canvas)))
     (.show popup (ui/main-stage))
 
     (doto pane
