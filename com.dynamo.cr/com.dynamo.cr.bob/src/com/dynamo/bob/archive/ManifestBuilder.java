@@ -47,6 +47,7 @@ import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import javax.security.auth.DestroyFailedException;
 
+import com.dynamo.bob.Bob;
 import com.dynamo.bob.pipeline.graph.ResourceNode;
 import com.dynamo.bob.pipeline.graph.ResourceGraph;
 import com.dynamo.bob.util.MurmurHash;
@@ -286,6 +287,7 @@ public class ManifestBuilder {
     private String privateKeyFilepath = null;
     private String publicKeyFilepath = null;
     private String projectIdentifier = null;
+    private String buildVariant = null;
     private ResourceGraph resourceGraph = null;
     private boolean outputManifestHash = false;
     private byte[] manifestDataHash = null;
@@ -378,6 +380,10 @@ public class ManifestBuilder {
 
     public void setProjectIdentifier(String projectIdentifier) {
         this.projectIdentifier = projectIdentifier;
+    }
+
+    public void setBuildVariant(String variant) {
+        buildVariant = variant;
     }
 
     public void setArchiveIdentifier(byte[] archiveIdentifier) {
@@ -522,6 +528,9 @@ public class ManifestBuilder {
                     }
                     resourceEntryBuilder.addDependants(resource.getUrlHash());
                 }
+            }
+            if (buildVariant != null && buildVariant.equals(Bob.VARIANT_RELEASE)) {
+                resourceEntryBuilder.setUrl("");
             }
             builder.addResources(resourceEntryBuilder.build());
         }
