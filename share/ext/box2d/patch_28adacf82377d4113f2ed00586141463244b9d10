@@ -152,6 +152,21 @@ index ebfff39..8b58fde 100644
  
  		// All proxies collide with dynamic proxies
  		// Using B2_DEFAULT_MASK_BITS so that b2Filter::groupIndex works.
+diff --git a/src/core.c b/src/core.c
+index 4e39eb5..ce7d391 100644
+--- a/src/core.c
++++ b/src/core.c
+@@ -185,7 +185,9 @@ void* b2Alloc( int size )
+ 
+ #ifdef B2_PLATFORM_WINDOWS
+ 	void* ptr = _aligned_malloc( size32, B2_ALIGNMENT );
+-#elif defined( B2_PLATFORM_ANDROID )
++	// DEFOLD EDIT BEGIN - iOS11 doesn't support aligned_malloc
++#elif defined( B2_PLATFORM_ANDROID ) || defined( DEFOLD_USE_POSIX_MEMALIGN )
++	// DEFOLD EDIT END
+ 	void* ptr = NULL;
+ 	if ( posix_memalign( &ptr, B2_ALIGNMENT, size32 ) != 0 )
+ 	{
 diff --git a/src/world.c b/src/world.c
 index 7d8ad1e..7aae63d 100644
 --- a/src/world.c

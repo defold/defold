@@ -31,13 +31,53 @@ readonly BOX2D_DIR=$(realpath ./box2d)
 
 . ../common.sh
 
+cmi_setup_cc $PLATFORM
+
 if [ -z "$PLATFORM" ]; then
     echo "No platform specified!"
     exit 1
 fi
 
-eval $(python ${DYNAMO_HOME}/../../build_tools/set_sdk_vars.py VERSION_MACOSX_MIN)
-OSX_MIN_SDK_VERSION=$VERSION_MACOSX_MIN
+echo "PLATFORM: ${PLATFORM}"
+
+CMAKE_FLAGS="-DBOX2D_BUILD_DOCS=OFF ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DBOX2D_SAMPLES=OFF ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DBOX2D_UNIT_TESTS=OFF ${CMAKE_FLAGS}"
+
+# CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Debug ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Release ${CMAKE_FLAGS}"
+
+CMAKE_BUILD_FLAGS=
+
+case $PLATFORM in
+    x86_64-ios)
+        CMAKE_FLAGS="-DCMAKE_OSX_SYSROOT=iphonesimulator ${CMAKE_FLAGS}"
+        CMAKE_FLAGS="-DCMAKE_SYSTEM_NAME=iOS ${CMAKE_FLAGS}"
+        CMAKE_FLAGS="-DCMAKE_OSX_ARCHITECTURES=x86_64 ${CMAKE_FLAGS}"
+        CMAKE_FLAGS="-DCMAKE_OSX_DEPLOYMENT_TARGET=${IOS_MIN_SDK_VERSION} ${CMAKE_FLAGS}"
+
+        CXXFLAGS="-DDEFOLD_USE_POSIX_MEMALIGN ${CXXFLAGS}"
+        CFLAGS="-DDEFOLD_USE_POSIX_MEMALIGN ${CFLAGS}"
+        ;;
+    arm64-ios)
+        CMAKE_FLAGS="-DCMAKE_OSX_SYSROOT=iphoneos ${CMAKE_FLAGS}"
+        CMAKE_FLAGS="-DCMAKE_SYSTEM_NAME=iOS ${CMAKE_FLAGS}"
+        CMAKE_FLAGS="-DCMAKE_OSX_ARCHITECTURES=arm64 ${CMAKE_FLAGS}"
+        CMAKE_FLAGS="-DCMAKE_OSX_DEPLOYMENT_TARGET=${IOS_MIN_SDK_VERSION} ${CMAKE_FLAGS}"
+
+        CXXFLAGS="-DDEFOLD_USE_POSIX_MEMALIGN ${CXXFLAGS}"
+        CFLAGS="-DDEFOLD_USE_POSIX_MEMALIGN ${CFLAGS}"
+        ;;
+    arm64-macos)
+        CMAKE_FLAGS="-DCMAKE_OSX_ARCHITECTURES=arm64 ${CMAKE_FLAGS}"
+        ;;
+    x86_64-macos)
+        CMAKE_FLAGS="-DCMAKE_OSX_ARCHITECTURES=x86_64 ${CMAKE_FLAGS}"
+        ;;
+esac
+
+# eval $(python ${DYNAMO_HOME}/../../build_tools/set_sdk_vars.py VERSION_MACOSX_MIN)
+# OSX_MIN_SDK_VERSION=$VERSION_MACOSX_MIN
 
 function download {
     local url=$1
@@ -77,21 +117,18 @@ cmi_patch
 
 popd
 
-CMAKE_FLAGS="-DBOX2D_BUILD_DOCS=OFF ${CMAKE_FLAGS}"
-CMAKE_FLAGS="-DBOX2D_SAMPLES=OFF ${CMAKE_FLAGS}"
-CMAKE_FLAGS="-DBOX2D_UNIT_TESTS=OFF ${CMAKE_FLAGS}"
-
-# CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Debug ${CMAKE_FLAGS}"
-CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Release ${CMAKE_FLAGS}"
-
 # Build
 
 mkdir -p ${BUILD_DIR}
 pushd $BUILD_DIR
 
+echo "**************************************************"
+echo "CMAKE_FLAGS: ${CMAKE_FLAGS}"
+echo "**************************************************"
+
 cmake ${CMAKE_FLAGS} $BOX2D_DIR
 #cmake --build . --config Debug -j 8
-cmake --build . --config Release -j 8
+cmake --build . --config Release ${CMAKE_BUILD_FLAGS} -j 8
 
 mkdir -p ./lib/$PLATFORM
 mkdir -p ./include
