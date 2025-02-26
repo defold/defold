@@ -162,8 +162,6 @@ namespace dmSound
         Value       m_Pan;      // 0 = -45deg left, 1 = 45 deg right
         Value       m_ScaleL[SOUND_MAX_DECODE_CHANNELS];
         Value       m_ScaleR[SOUND_MAX_DECODE_CHANNELS];
-        Value       m_ScaleL[SOUND_MAX_DECODE_CHANNELS];
-        Value       m_ScaleR[SOUND_MAX_DECODE_CHANNELS];
         float       m_Speed;    // 1.0 = normal speed, 0.5 = half speed, 2.0 = double speed
         uint64_t    m_FrameFraction;
 
@@ -172,9 +170,6 @@ namespace dmSound
         uint8_t     m_Looping : 1;
         uint8_t     m_EndOfStream : 1;
         uint8_t     m_Playing : 1;
-        uint8_t     m_ScaleDirty : 1;
-        uint8_t     m_ScaleInit : 1;
-        uint8_t     : 3;
         uint8_t     m_ScaleDirty : 1;
         uint8_t     m_ScaleInit : 1;
         uint8_t     : 3;
@@ -1146,12 +1141,12 @@ namespace dmSound
 
         if (channels == 1)
         {
-            frac = MixAndResampleMonoToStero_Polyphase(mix_buffer, g_SoundSystem->GetDecoderBufferBase(0), mix_buffer_count, frac, delta, scale_l[0], scale_r[0], scale_dl[0], scale_dr[0]);
+            frac = MixAndResampleMonoToStereo_Polyphase(mix_buffer, g_SoundSystem->GetDecoderBufferBase(0), mix_buffer_count, frac, delta, scale_l[0], scale_r[0], scale_dl[0], scale_dr[0]);
         }
         else
         {
             assert(channels == 2);
-            frac = MixAndResampleStereoToStero_Polyphase(mix_buffer, g_SoundSystem->GetDecoderBufferBase(0), g_SoundSystem->GetDecoderBufferBase(1), mix_buffer_count, frac, delta, scale_l[0], scale_r[0], scale_dl[0], scale_dr[0],
+            frac = MixAndResampleStereoToStereo_Polyphase(mix_buffer, g_SoundSystem->GetDecoderBufferBase(0), g_SoundSystem->GetDecoderBufferBase(1), mix_buffer_count, frac, delta, scale_l[0], scale_r[0], scale_dl[0], scale_dr[0],
                                                                                                                                                                                     scale_l[1], scale_r[1], scale_dl[1], scale_dr[1]);
         }
 
@@ -1200,10 +1195,6 @@ namespace dmSound
             }
         }
 
-        // 1:1 output only if:
-        // - rate is mixrate (including speed factor!) -> delta = 1.0
-        // - sampling is not at a fractional position
-        bool identity_mixer = delta == (1UL << RESAMPLE_FRACTION_BITS) && instance->m_FrameFraction == 0;
         // Make sure to update the mixing scale values...
         if (instance->m_ScaleDirty != 0) {
             instance->m_ScaleDirty = 0;
@@ -1304,7 +1295,6 @@ namespace dmSound
 
         // TODO: Move this check to the NewSoundInstance
         bool correct_bit_depth = info.m_BitsPerSample == 32 || info.m_BitsPerSample == 16 || info.m_BitsPerSample == 8;
-        bool correct_bit_depth = info.m_BitsPerSample == 32 || info.m_BitsPerSample == 16 || info.m_BitsPerSample == 8;
         bool correct_num_channels = info.m_Channels == 1 || info.m_Channels == 2;
         if (!correct_bit_depth || !correct_num_channels) {
             dmLogError("Only mono/stereo with 8/16 bits per sample is supported (%s): %u bpp %u ch", GetSoundName(sound, instance), (uint32_t)info.m_BitsPerSample, (uint32_t)info.m_Channels);
@@ -1341,9 +1331,6 @@ namespace dmSound
         //
         if (frame_count < mixed_instance_frame_count && instance->m_Playing) {
 
-            bool is_direct_delivery = (info.m_BitsPerSample == 32 && (!info.m_IsInterleaved || info.m_Channels == 1));
-
-            const uint32_t stride = !is_direct_delivery ? (info.m_Channels * (info.m_BitsPerSample / 8)) : sizeof(float);
             bool is_direct_delivery = (info.m_BitsPerSample == 32 && (!info.m_IsInterleaved || info.m_Channels == 1));
 
             const uint32_t stride = !is_direct_delivery ? (info.m_Channels * (info.m_BitsPerSample / 8)) : sizeof(float);
