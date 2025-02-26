@@ -39,10 +39,10 @@
   (test-util/prop! node-id label val))
 
 (defn- gui-node [scene id]
-  (let [id->node (->> (get-in (g/node-value scene :node-outline) [:children 0])
+  (let [id->node (->> (get-in (g/valid-node-value scene :node-outline) [:children 0])
                       (tree-seq fn/constantly-true :children)
                       (map :node-id)
-                      (map (fn [node-id] [(g/node-value node-id :id) node-id]))
+                      (map (fn [node-id] [(g/valid-node-value node-id :id) node-id]))
                       (into {}))]
     (id->node id)))
 
@@ -506,7 +506,7 @@
           dims (g/valid-node-value node-id :scene-dims)]
       (set-visible-layout! node-id "Landscape")
       (is (identical? box (gui-node node-id "box")))
-      (is (= "Landscape" (g/node-value box :current-layout)))
+      (is (= "Landscape" (:current-layout (g/valid-node-value box :trivial-gui-scene-info))))
       (let [box-landscape-pos (g/valid-node-value box :position)]
         (is (and box-landscape-pos (not= box-default-pos box-landscape-pos))))
       (let [new-dims (g/valid-node-value node-id :scene-dims)]
@@ -519,7 +519,7 @@
       (add-layout! project app-view node-id "Portrait")
       (set-visible-layout! node-id "Portrait")
       (is (identical? box (gui-node node-id "box")))
-      (is (= "Portrait" (g/node-value box :current-layout))))))
+      (is (= "Portrait" (:current-layout (g/valid-node-value box :trivial-gui-scene-info)))))))
 
 (deftest gui-layout-add-node
   (test-util/with-loaded-project
@@ -1099,23 +1099,23 @@
                 referencing-scene-referenced-scene-added-text (get referencing-scene-node-map "button/added")]
 
             (testing "Successors in referenced scene."
-              (is (has-successor? [referenced-scene :visible-layout] [referenced-scene :current-layout]))
-              (is (has-successor? [referenced-scene :current-layout] [referenced-scene-node-tree :current-layout]))
-              (is (has-successor? [referenced-scene-node-tree :current-layout] [referenced-scene-text :current-layout]))
-              (is (has-successor? [referenced-scene-node-tree :current-layout] [referenced-scene-added-text :current-layout]))
-              (is (has-successor? [referenced-scene-text :current-layout] [referenced-scene-text :prop->value]))
-              (is (has-successor? [referenced-scene-added-text :current-layout] [referenced-scene-added-text :prop->value])))
+              (is (has-successor? [referenced-scene :visible-layout] [referenced-scene :trivial-gui-scene-info]))
+              (is (has-successor? [referenced-scene :trivial-gui-scene-info] [referenced-scene-node-tree :trivial-gui-scene-info]))
+              (is (has-successor? [referenced-scene-node-tree :trivial-gui-scene-info] [referenced-scene-text :trivial-gui-scene-info]))
+              (is (has-successor? [referenced-scene-node-tree :trivial-gui-scene-info] [referenced-scene-added-text :trivial-gui-scene-info]))
+              (is (has-successor? [referenced-scene-text :trivial-gui-scene-info] [referenced-scene-text :prop->value]))
+              (is (has-successor? [referenced-scene-added-text :trivial-gui-scene-info] [referenced-scene-added-text :prop->value])))
 
             (testing "Successors in referencing scene."
-              (is (has-successor? [referencing-scene :visible-layout] [referencing-scene :current-layout]))
-              (is (has-successor? [referencing-scene :current-layout] [referencing-scene-node-tree :current-layout]))
-              (is (has-successor? [referencing-scene-node-tree :current-layout] [referencing-scene-button :current-layout]))
-              (is (has-successor? [referencing-scene-button :current-layout] [referencing-scene-referenced-scene :current-layout]))
-              (is (has-successor? [referencing-scene-referenced-scene :current-layout] [referencing-scene-referenced-scene-node-tree :current-layout]))
-              (is (has-successor? [referencing-scene-referenced-scene-node-tree :current-layout] [referencing-scene-referenced-scene-text :current-layout]))
-              (is (has-successor? [referencing-scene-referenced-scene-node-tree :current-layout] [referencing-scene-referenced-scene-added-text :current-layout]))
-              (is (has-successor? [referencing-scene-referenced-scene-text :current-layout] [referencing-scene-referenced-scene-text :prop->value]))
-              (is (has-successor? [referencing-scene-referenced-scene-added-text :current-layout] [referencing-scene-referenced-scene-added-text :prop->value])))
+              (is (has-successor? [referencing-scene :visible-layout] [referencing-scene :trivial-gui-scene-info]))
+              (is (has-successor? [referencing-scene :trivial-gui-scene-info] [referencing-scene-node-tree :trivial-gui-scene-info]))
+              (is (has-successor? [referencing-scene-node-tree :trivial-gui-scene-info] [referencing-scene-button :trivial-gui-scene-info]))
+              (is (has-successor? [referencing-scene-button :template-trivial-gui-scene-info] [referencing-scene-referenced-scene :trivial-gui-scene-info]))
+              (is (has-successor? [referencing-scene-referenced-scene :trivial-gui-scene-info] [referencing-scene-referenced-scene-node-tree :trivial-gui-scene-info]))
+              (is (has-successor? [referencing-scene-referenced-scene-node-tree :trivial-gui-scene-info] [referencing-scene-referenced-scene-text :trivial-gui-scene-info]))
+              (is (has-successor? [referencing-scene-referenced-scene-node-tree :trivial-gui-scene-info] [referencing-scene-referenced-scene-added-text :trivial-gui-scene-info]))
+              (is (has-successor? [referencing-scene-referenced-scene-text :trivial-gui-scene-info] [referencing-scene-referenced-scene-text :prop->value]))
+              (is (has-successor? [referencing-scene-referenced-scene-added-text :trivial-gui-scene-info] [referencing-scene-referenced-scene-added-text :prop->value])))
 
             (testing "Visible layout selected for referencing scene is reflected in imported nodes."
               (set-visible-layout! referencing-scene "")
