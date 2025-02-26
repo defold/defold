@@ -37,16 +37,17 @@
   (property image WritableImage))
 
 (defn- highlight-pixel!
-  [graphics-context x y size]
+  [^GraphicsContext graphics-context x y size]
   (doto graphics-context
     (.setFill Color/TRANSPARENT)
     (.setStroke Color/RED)
     (.strokeRect x y size size)))
 
 (defn- paint-pixel!
-  [graphics-context x y size color]
+  [^GraphicsContext graphics-context x y size color]
   (doto graphics-context
     (.setFill Color/TRANSPARENT)
+    (.setStroke Color/GRAY)
     (.strokeRect x y size size)
     (.setFill color)
     (.fillRect x y size size)))
@@ -58,7 +59,7 @@
          (< 0 y height))))
 
 (defn mouse-move-handler!
-  [view-node ^Canvas canvas ^MouseEvent e]
+  [view-node ^Stage stage ^Canvas canvas ^MouseEvent e]
   (.consume e)
   (when (in-bounds? view-node (.getX e) (.getY e))
     (let [^GraphicsContext graphics-context (.getGraphicsContext2D canvas)
@@ -71,7 +72,7 @@
           adjusted-x (+ mouse-x delta-x)
           adjusted-y (+ mouse-y delta-y)
           pixel-range (range -4 5)
-          pixel-size 12
+          pixel-size 10
           half-pixel-size (/ pixel-size 2)
           color (.getColor pixel-reader adjusted-x adjusted-y)
           radius (/ (* pixel-size (count pixel-range)) 2)
@@ -80,11 +81,8 @@
                  (.setCenterY (+ mouse-y))
                  (.setRadius radius))]
       (g/set-property! view-node :color color)
-  
-      (doto graphics-context
-        (.clearRect 0 0 (.getWidth canvas) (.getHeight canvas))
-        (.setStroke Color/GRAY))
-  
+      (.clearRect graphics-context 0 0 (.getWidth canvas) (.getHeight canvas))
+
       (doseq [x-range pixel-range
               y-range pixel-range
               :let [x (+ mouse-x (* x-range pixel-size) (- half-pixel-size))
@@ -92,9 +90,9 @@
                     color (.getColor pixel-reader (+ adjusted-x x-range) (+ adjusted-y y-range))]]
         (when (in-bounds? view-node x y)
           (paint-pixel! graphics-context x y pixel-size color)))
-  
+
       (highlight-pixel! graphics-context (- mouse-x half-pixel-size) (- mouse-y half-pixel-size) pixel-size)
-  
+
       (.setClip canvas mask))))
 
 (defn- apply-and-deactivate!
@@ -131,39 +129,44 @@
 (defn make-color-dropper! [graph]
   (g/make-node! graph ColorDropper))
 
+(defn- create-stage! [width height]
+   (doto (Stage.)
+    (.initModality Modality/APPLICATION_MODAL)
+    (.initStyle StageStyle/TRANSPARENT)
+    (.initOwner (ui/main-stage))
+    (.setX 0)
+    (.setY 0)
+    (.setWidth width)
+    (.setHeight height)
+    (.setAlwaysOnTop true)
+    (.setResizable false)))
+
 (defn activate!
   [view-node pick-fn]
-  (let [stage (Stage.)
+  (let [size (get-size)
+        stage (create-stage! (:width size) (:height size))
         pane (doto (StackPane.)
                (.setStyle "-fx-background-color: transparent;"))
         canvas (doto (Canvas.)
                  (.setCursor Cursor/NONE))
         scene (doto (Scene. pane)
-                (.setFill Color/TRANSPARENT))
-        size (get-size)]
+                (.setFill Color/TRANSPARENT))]
     (g/set-property! view-node :size size)
     (ui/add-child! pane canvas)
+    (.setScene stage scene)
     (.bind (.widthProperty canvas) (.widthProperty pane))
     (.bind (.heightProperty canvas) (.heightProperty pane))
     
     (capture! view-node)
-    (-> (doto stage
-          (.initModality Modality/APPLICATION_MODAL)
-          (.initStyle StageStyle/TRANSPARENT)
-          (.initOwner (ui/main-stage))
-          (.setScene scene)
-          (.setX 0)
-          (.setY 0)
-          (.setWidth (:width size))
-          (.setHeight (:height size))
-          (.setAlwaysOnTop true)
-          (.show)))
+
     (doto pane
       (.requestFocus)
       (.addEventHandler KeyEvent/ANY (ui/event-handler event (.consume event)))
       (.addEventHandler KeyEvent/KEY_PRESSED (ui/event-handler event (key-pressed-handler! view-node stage pick-fn event)))
-      (.addEventHandler MouseEvent/MOUSE_MOVED (ui/event-handler event (mouse-move-handler! view-node canvas event)))
-      (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (apply-and-deactivate! view-node stage pick-fn))))))
+      (.addEventHandler MouseEvent/MOUSE_MOVED (ui/event-handler event (mouse-move-handler! view-node stage canvas event)))
+      (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (apply-and-deactivate! view-node stage pick-fn))))
+    
+    (.show stage)))
 
 (handler/defhandler :color-dropper :global
   (active? [color-dropper evaluation-context user-data] true)
