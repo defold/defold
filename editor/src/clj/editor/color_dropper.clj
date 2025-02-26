@@ -56,8 +56,6 @@
     (and (<= 0 x width)
          (<= 0 y height))))
 
-
-
 (let [pixel-size 12
       center (/ pixel-size 2)
       pixel-range (range -4 5)
@@ -137,25 +135,19 @@
   [view-node pick-fn]
   (let [size (get-size)
         popup (create-popup! (:width size) (:height size))
-        pane (StackPane.)
-        canvas (Canvas.)]
+        canvas (Canvas. (:width size) (:height size))
+        pane (doto (StackPane.)
+               (.setCursor Cursor/NONE)
+               (.setStyle "-fx-background-color: transparent;")
+               (ui/add-child! canvas)
+               (.addEventHandler KeyEvent/ANY (ui/event-handler event (.hide popup)))
+               (.addEventHandler MouseEvent/MOUSE_MOVED (ui/event-handler event (mouse-move-handler! view-node canvas event)))
+               (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (apply-and-deactivate! view-node popup pick-fn))))]
     (g/set-property! view-node :size size)
     (.add (.getContent popup) pane)
-    (.addListener (.focusedProperty pane) (ui/change-listener _ _ _ (capture! view-node canvas)))
-    (.show popup (ui/main-stage))
-
-    (doto pane
-      (.requestFocus)
-      (ui/add-child! canvas)
-      (.setStyle "-fx-background-color: transparent;")
-      (.setCursor Cursor/NONE)
-      (.addEventHandler KeyEvent/ANY (ui/event-handler event (.hide popup)))
-      (.addEventHandler MouseEvent/MOUSE_MOVED (ui/event-handler event (mouse-move-handler! view-node canvas event)))
-      (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (apply-and-deactivate! view-node popup pick-fn))))
-
-    (doto canvas
-      (.setWidth (:width size))
-      (.setHeight (:height size)))))
+    (.requestFocus popup)
+    (.addListener (.focusedProperty popup) (ui/change-listener _ _ _ (capture! view-node canvas)))
+    (.show popup (ui/main-stage))))
 
 (handler/defhandler :color-dropper :global
   (active? [color-dropper evaluation-context user-data] true)
