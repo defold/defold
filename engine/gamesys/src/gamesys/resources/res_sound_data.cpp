@@ -381,4 +381,5 @@ namespace dmGameSystem
 }
 
 DM_DECLARE_RESOURCE_TYPE(ResourceTypeOgg, "oggc", dmGameSystem::ResourceTypeSoundData_Register, dmGameSystem::ResourceTypeSoundData_Deregister);
+DM_DECLARE_RESOURCE_TYPE(ResourceTypeOpus, "opusc", dmGameSystem::ResourceTypeSoundData_Register, dmGameSystem::ResourceTypeSoundData_Deregister);
 DM_DECLARE_RESOURCE_TYPE(ResourceTypeWav, "wavc", dmGameSystem::ResourceTypeSoundData_Register, dmGameSystem::ResourceTypeSoundData_Deregister);
