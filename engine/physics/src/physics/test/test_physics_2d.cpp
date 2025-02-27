@@ -613,7 +613,7 @@ TYPED_TEST(PhysicsTest, GridShapeCrack)
     // JG: Hm, it's less precise now with a different solver?
     float eps = 0.025f;
 
-    ASSERT_EQ(4u, crack_data.m_Count);
+    ASSERT_EQ(8u, crack_data.m_Count);
     ASSERT_EQ(1.0f, crack_data.m_Normal.getX());
     ASSERT_EQ(0.0f, crack_data.m_Normal.getY());
     ASSERT_EQ(0.0f, crack_data.m_Normal.getZ());
@@ -626,8 +626,8 @@ TYPED_TEST(PhysicsTest, GridShapeCrack)
     */
 
     ASSERT_NEAR(2.0f, crack_data.m_Distance, eps);
-    ASSERT_EQ(2, vo_a.m_CollisionCount);
-    ASSERT_EQ(2, vo_b.m_CollisionCount);
+    ASSERT_EQ(4, vo_a.m_CollisionCount);
+    ASSERT_EQ(4, vo_b.m_CollisionCount);
 
     vo_b.m_Position = dmVMath::Point3(0.0f, 8.1f, 0.0f);
     (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
@@ -704,13 +704,13 @@ TYPED_TEST(PhysicsTest, PolygonShape)
     // Put it completely within one cell, but closer to one of the non-shared edges, and it should resolve that direction
     vo_b.m_Position = dmVMath::Point3(5.0f, 7.9f, 0.0f);
     (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
-    ASSERT_EQ(2u, crack_data.m_Count);
+    ASSERT_EQ(4u, crack_data.m_Count);
     ASSERT_EQ(0.0f, crack_data.m_Normal.getX());
     ASSERT_EQ(1.0f, crack_data.m_Normal.getY());
     ASSERT_EQ(0.0f, crack_data.m_Normal.getZ());
     ASSERT_NEAR(2.1f, crack_data.m_Distance, eps);
-    ASSERT_EQ(1, vo_a.m_CollisionCount);
-    ASSERT_EQ(1, vo_b.m_CollisionCount);
+    ASSERT_EQ(2, vo_a.m_CollisionCount);
+    ASSERT_EQ(2, vo_b.m_CollisionCount);
 
     vo_b.m_Position = dmVMath::Point3(5.0f, 0.0f, 0.0f);
     (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
@@ -803,13 +803,13 @@ TYPED_TEST(PhysicsTest, GridShapeCorner)
     // float eps = 0.000001f;
     float eps = 0.025f;
 
-    ASSERT_EQ(2u, crack_data.m_Count);
+    ASSERT_EQ(4u, crack_data.m_Count);
     ASSERT_EQ(0.0f, crack_data.m_Normal.getX());
     ASSERT_EQ(1.0f, crack_data.m_Normal.getY());
     ASSERT_EQ(0.0f, crack_data.m_Normal.getZ());
     ASSERT_NEAR(0.1f, crack_data.m_Distance, eps);
-    ASSERT_EQ(1, vo_a.m_CollisionCount);
-    ASSERT_EQ(1, vo_b.m_CollisionCount);
+    ASSERT_EQ(2, vo_a.m_CollisionCount);
+    ASSERT_EQ(2, vo_b.m_CollisionCount);
 
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, grid_co);
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, dynamic_co);
@@ -875,13 +875,13 @@ TYPED_TEST(PhysicsTest, GridShapeSphereDistance)
     // float eps = 0.000001f;
     float eps = 0.025f;
 
-    ASSERT_EQ(1u, crack_data.m_Count);
+    ASSERT_EQ(2u, crack_data.m_Count);
     ASSERT_EQ(0.0f, crack_data.m_Normal.getX());
     ASSERT_EQ(1.0f, crack_data.m_Normal.getY());
     ASSERT_EQ(0.0f, crack_data.m_Normal.getZ());
     ASSERT_NEAR(2.0f, crack_data.m_Distance, eps);
-    ASSERT_EQ(1, vo_a.m_CollisionCount);
-    ASSERT_EQ(1, vo_b.m_CollisionCount);
+    ASSERT_EQ(2, vo_a.m_CollisionCount);
+    ASSERT_EQ(2, vo_b.m_CollisionCount);
 
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, grid_co);
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, dynamic_co);
@@ -1642,8 +1642,10 @@ TYPED_TEST(PhysicsTest, ClearGridShapeHull)
     (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
     // TODO Asserting for 2 here is actually a bug, it should be 1 for one body in collision with 1 other
     // Reported here: https://defold.fogbugz.com/default.asp?2091
-    ASSERT_EQ(2, TestFixture::m_CollisionCount);
-    ASSERT_EQ(2, TestFixture::m_ContactPointCount);
+
+    // Box2D V3: We get twice the collisions, so it's 4 now.
+    ASSERT_EQ(4, TestFixture::m_CollisionCount);
+    ASSERT_EQ(4, TestFixture::m_ContactPointCount);
 
     // Clear the "top" of the "L"
     dmPhysics::SetGridShapeHull(grid_co, 0, 1, 0, ~0u, EMPTY_FLAGS);
@@ -1654,8 +1656,8 @@ TYPED_TEST(PhysicsTest, ClearGridShapeHull)
 
     (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 
-    ASSERT_EQ(1, TestFixture::m_CollisionCount);
-    ASSERT_EQ(1, TestFixture::m_ContactPointCount);
+    ASSERT_EQ(2, TestFixture::m_CollisionCount);
+    ASSERT_EQ(2, TestFixture::m_ContactPointCount);
 
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, grid_co);
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, dynamic_co);
@@ -1770,7 +1772,7 @@ TYPED_TEST(PhysicsTest, GridShapeFlipped)
     typename TypeParam::CollisionObjectType dynamic_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
 
     (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
-    ASSERT_EQ(1, TestFixture::m_CollisionCount);
+    ASSERT_EQ(2, TestFixture::m_CollisionCount);
 
     flags.m_FlipHorizontal = 1;
     dmPhysics::SetGridShapeHull(grid_co, 0, 0, 0, 0, flags);
@@ -1801,7 +1803,7 @@ TYPED_TEST(PhysicsTest, GridShapeFlipped)
 
     TestFixture::m_CollisionCount = 0;
     (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
-    ASSERT_EQ(1, TestFixture::m_CollisionCount);
+    ASSERT_EQ(2, TestFixture::m_CollisionCount);
 
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, grid_co);
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, dynamic_co);

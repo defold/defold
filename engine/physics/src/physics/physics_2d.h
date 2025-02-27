@@ -83,8 +83,6 @@ namespace dmPhysics
         HullSet*   m_HullSet;
         Cell*      m_Cells;
         HullFlags* m_CellFlags;
-
-        b2BodyId   m_CellBodyId;
         b2ShapeId* m_CellPolygonShapes;
         b2Vec2     m_Position;
         float      m_Radius;

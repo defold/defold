@@ -128,6 +128,7 @@ namespace dmPhysics
     };
 
     static float cast_ray_cb(b2ShapeId shape_id, b2Vec2 point, b2Vec2 normal, float fraction, void* context );
+    static int GetGridCellVertices(GridShapeData* shape_data, int index, b2Vec2* vertices);
 
     template <typename T>
     static inline uint64_t ToOpaqueHandle(T id)
@@ -395,6 +396,34 @@ namespace dmPhysics
 
                 b2Shape_SetPolygon(shape_id, &polygon_shape_data->m_Polygon);
             }
+            else if (shape_data->m_Type == SHAPE_TYPE_GRID)
+            {
+                GridShapeData* grid_shape = (GridShapeData*) shape_data;
+
+                b2Vec2 vertices[B2_MAX_POLYGON_VERTICES];
+                uint32_t cell_count = grid_shape->m_RowCount * grid_shape->m_ColumnCount;
+                for (uint32_t i = 0; i < cell_count; ++i)
+                {
+                    if (grid_shape->m_Cells[i].m_Index == B2GRIDSHAPE_EMPTY_CELL)
+                        continue;
+
+                    HullSet::Hull& hull = grid_shape->m_HullSet->m_Hulls[grid_shape->m_Cells[i].m_Index];
+                    assert(hull.m_Count <= B2_MAX_POLYGON_VERTICES);
+                    uint32_t count = GetGridCellVertices(grid_shape, i, vertices);
+
+                    if (count > 0)
+                    {
+                        for (uint32_t j = 0; j < count; ++j)
+                        {
+                            vertices[j].x *= object_scale;
+                            vertices[j].y *= object_scale;
+                        }
+                        b2Hull polygon_hull = b2ComputeHull(vertices, count);
+                        b2Polygon polygon = b2MakePolygon(&polygon_hull, grid_shape->m_Radius);
+                        b2Shape_SetPolygon(grid_shape->m_CellPolygonShapes[i], &polygon);
+                    }
+                }
+            }
         }
 
         if (!allow_sleep)
@@ -603,7 +632,7 @@ namespace dmPhysics
                         b2Rot rot = b2Body_GetRotation(body_id);
                         Quat rotation = Quat::rotationZ(b2Rot_GetAngle(rot));
 
-                        // dmLogInfo("Position: %f, %f, %f", position.getX(), position.getY(), position.getZ());
+                        dmLogInfo("Position: %f, %f, %f", position.getX(), position.getY(), position.getZ());
 
                         (*world->m_SetWorldTransformCallback)(b2Body_GetUserData(body_id), position, rotation);
                     }
@@ -904,6 +933,7 @@ namespace dmPhysics
 
         GridShapeData* shape_data = new GridShapeData();
         shape_data->m_ShapeDataBase.m_Type = SHAPE_TYPE_GRID;
+        shape_data->m_ShapeDataBase.m_CreationScale = scale;
 
         shape_data->m_Position    = p;
         shape_data->m_HullSet     = (HullSet*) hull_set;
@@ -1041,7 +1071,7 @@ namespace dmPhysics
         {
             b2Hull polygon_hull = b2ComputeHull(vertices, count);
             b2Polygon polygon = b2MakePolygon(&polygon_hull, shape_data->m_Radius);
-            shape_data->m_CellPolygonShapes[child] = b2CreatePolygonShape(shape_data->m_CellBodyId, &shape_data->m_ShapeDef, &polygon);
+            shape_data->m_CellPolygonShapes[child] = b2CreatePolygonShape(body->m_BodyId, &shape_data->m_ShapeDef, &polygon);
         }
     }
 
@@ -1109,15 +1139,20 @@ namespace dmPhysics
             return false;
         }
 
-        // Enabling / disabling grid shapes will set the flag on the cell body and not the "main" body
-        if (enable && !b2Body_IsEnabled(shape_data->m_CellBodyId))
+        uint32_t num_cells = shape_data->m_RowCount * shape_data->m_ColumnCount;
+        for (int i = 0; i < num_cells; ++i)
         {
-            b2Body_Enable(shape_data->m_CellBodyId);
+            if (enable && !b2Shape_IsValid(shape_data->m_CellPolygonShapes[i]) && shape_data->m_Cells[i].m_Index != B2GRIDSHAPE_EMPTY_CELL)
+            {
+                CreateGridCellShape(collision_object, shape_index, i);
+            }
+            else if (!enable && b2Shape_IsValid(shape_data->m_CellPolygonShapes[i]))
+            {
+                b2DestroyShape(shape_data->m_CellPolygonShapes[i], false);
+                memset(&shape_data->m_CellPolygonShapes[i], 0, sizeof(shape_data->m_CellPolygonShapes[i]));
+            }
         }
-        else if (!enable && b2Body_IsEnabled(shape_data->m_CellBodyId))
-        {
-            b2Body_Disable(shape_data->m_CellBodyId);
-        }
+
         return false;
     }
 
@@ -1332,9 +1367,6 @@ namespace dmPhysics
                             b2DestroyShape(grid_shape->m_CellPolygonShapes[i], false);
                     }
                 }
-
-                b2DestroyBody(grid_shape->m_CellBodyId);
-
                 delete grid_shape;
             } break;
             default: break;
@@ -1463,8 +1495,6 @@ namespace dmPhysics
                     GridShapeData* g = (GridShapeData*) s;
                     // Grid polygons are created later, so we need to store the definition for later.
                     memcpy(&g->m_ShapeDef, &f_def, sizeof(b2ShapeDef));
-
-                    g->m_CellBodyId = b2CreateBody(world->m_WorldId, &def);
                 } break;
                 default:assert(0);
             }
@@ -1892,8 +1922,11 @@ namespace dmPhysics
             } break;
             case SHAPE_TYPE_GRID:
             {
-                // TODO
-                // Original code approximates the mass to a box, but I'm not even sure mass matters for a grid?
+                GridShapeData* grid = (GridShapeData*) body->m_Shapes[i];
+                float w = grid->m_CellWidth * grid->m_ColumnCount;
+                float h = grid->m_CellHeight * grid->m_RowCount;
+                float area = w * h;
+                total_area += area;
             }
             default:
                 break;
