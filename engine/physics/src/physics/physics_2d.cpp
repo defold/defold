@@ -1055,16 +1055,15 @@ namespace dmPhysics
             return false;
         }
 
-        HullFlags f = {};
-        f.m_FlipHorizontal = flags.m_FlipHorizontal;
-        f.m_FlipVertical   = flags.m_FlipVertical;
-        f.m_Rotate90       = flags.m_Rotate90;
-
         uint32_t index = row * shape_data->m_ColumnCount + column;
         assert(index < shape_data->m_RowCount * shape_data->m_ColumnCount);
 
         GridShapeData::Cell* cell = &shape_data->m_Cells[index];
         cell->m_Index = hull;
+
+        // We need to recreate polygon if the flags have changed
+        HullFlags* cell_flags = &shape_data->m_CellFlags[index];
+        bool cell_flags_changed = memcmp(&flags, cell_flags, sizeof(HullFlags)) != 0;
         shape_data->m_CellFlags[index] = flags;
 
         uint64_t opaque_id = ToOpaqueHandle(shape_data->m_CellPolygonShapes[index]);
@@ -1077,8 +1076,14 @@ namespace dmPhysics
             {
                 cell->m_Index = B2GRIDSHAPE_EMPTY_CELL;
             }
-            if (opaque_id == 0)
+            else if (opaque_id == 0)
             {
+                CreateGridCellShape(collision_object, shape_index, index);
+            }
+            else if (cell_flags_changed)
+            {
+                b2DestroyShape(shape_data->m_CellPolygonShapes[index], false);
+                memset(&shape_data->m_CellPolygonShapes[index], 0, sizeof(shape_data->m_CellPolygonShapes[index]));
                 CreateGridCellShape(collision_object, shape_index, index);
             }
         }
