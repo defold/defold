@@ -21,7 +21,7 @@
            [javafx.scene.canvas Canvas GraphicsContext]
            [javafx.scene.image PixelReader WritableImage]
            [javafx.scene.input KeyEvent MouseEvent]
-           [javafx.scene.layout StackPane]
+           [javafx.scene.layout Pane]
            [javafx.scene.paint Color]
            [javafx.scene.shape Circle]
            [javafx.scene.robot Robot]
@@ -135,10 +135,10 @@
 (defn- create-popup! ^Popup
   [x y width height]
    (doto (Popup.)
-    (.setX x)
-    (.setY y)
-    (.setWidth width)
-    (.setHeight height)))
+     (.setX x)
+     (.setY y)
+     (.setWidth width)
+     (.setHeight height)))
 
 (defn- activate!
   [view-node pick-fn]
@@ -146,11 +146,11 @@
         {:keys [min-x min-y width height]} bounds
         popup (create-popup! min-x min-y width height)
         canvas (Canvas. width height)
-        pane (doto (StackPane.)
+        pane (doto (Pane.)
                (.setCursor Cursor/NONE)
+               (.setPrefSize 1 1)
                (.setStyle "-fx-background-color: transparent;"))]
-    (g/transact (concat (g/set-property view-node :bounds bounds)
-                        (g/set-property view-node :image nil)))
+    (g/set-property! view-node :bounds bounds)
     
     (.add (.getContent popup) pane)
     (.addListener (.focusedProperty popup) (ui/change-listener _ _ v (when-not v (.hide popup))))
@@ -163,7 +163,9 @@
       (.requestFocus))
     
     (capture! view-node)
-    (ui/add-child! pane canvas)))
+    (doto pane
+      (.setPrefSize width height)
+      (ui/add-child! canvas))))
 
 (handler/defhandler :color-dropper :global
   (active? [color-dropper evaluation-context user-data] true)
