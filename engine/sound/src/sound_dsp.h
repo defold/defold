@@ -24,6 +24,11 @@
 #include <wasm_simd128.h>
 #endif
 
+// Make sure we use compile time selected fallback code if nothing is selected at all
+#if !defined(DM_SOUND_EXPECTED_SIMD) && !defined(__SSE__) && !defined(__wasm_simd128__)
+#define DM_SOUND_EXPECTED_SIMD Fallback
+#endif
+
 namespace dmSound
 {
 
@@ -1389,7 +1394,7 @@ static inline bool SelectDSPImpl(DSPImplType impl_type)
     switch(impl_type)
     {
         case    DSPIMPL_TYPE_FALLBACK: g_DSPImpl = &fallback_impl; return true;
-#if defined(__SEE__)
+#if defined(__SSE__) && !defined(__wasm_simd128__)
         case    DSPIMPL_TYPE_SSE2: g_DSPImpl = &sse_impl; return true;
 #endif
 #if defined(__wasm_simd128__)
@@ -1412,7 +1417,7 @@ static inline void MixScaledStereoToStereo(float* out[], const float* in_l, cons
                                            float scale_l1, float scale_r1, float scale_delta_l1, float scale_delta_r1)
 {
     g_DSPImpl->MixScaledStereoToStereo(out, in_l, in_r, num, scale_l0, scale_r0, scale_delta_l0, scale_delta_r0,
-                                                       scale_l1, scale_r1, scale_delta_l1, scale_delta_r1);
+                                                             scale_l1, scale_r1, scale_delta_l1, scale_delta_r1);
 }
 
 static inline uint64_t MixAndResampleMonoToStereo_Polyphase(float* out[], const float* in, uint32_t num, uint64_t frac, uint64_t delta, float scale_l, float scale_r, float scale_delta_l, float scale_delta_r)
@@ -1425,7 +1430,7 @@ static inline uint64_t MixAndResampleStereoToStereo_Polyphase(float* out[], cons
                                                              float scale_l1, float scale_r1, float scale_delta_l1, float scale_delta_r1)
 {
     return g_DSPImpl->MixAndResampleStereoToStereo_Polyphase(out, in_l, in_r, num, frac, delta, scale_l0, scale_r0, scale_delta_l0, scale_delta_r0,
-                                                                                          scale_l1, scale_r1, scale_delta_l1, scale_delta_r1);
+                                                                                                scale_l1, scale_r1, scale_delta_l1, scale_delta_r1);
 }
 
 static inline void ApplyClampedGain(float* out[], float* in[], uint32_t num, float scale, float scale_delta)
