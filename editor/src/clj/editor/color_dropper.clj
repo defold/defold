@@ -63,8 +63,7 @@
         capture-rect (Rectangle2D. min-x min-y width height)
         writable-image (WritableImage. width height)
         image (.getScreenCapture (Robot.) writable-image capture-rect)]
-    (g/set-property! view-node :image image)
-    (when-not image (g/set-property! view-node :image image))))
+    (g/set-property! view-node :image image)))
 
 (defn- in-bounds?
   [view-node x y]
@@ -91,6 +90,7 @@
             adjusted-y (+ mouse-y delta-y)
             color (.getColor pixel-reader adjusted-x adjusted-y)]
         (g/set-property! view-node :color color)
+        ;; Clear the area to avoid leftover artifacts around screen edges. 
         (.clearRect graphics-context (- mouse-x radius) (- mouse-y radius) diameter diameter)
         (.setClip canvas (create-mask! mouse-x mouse-y radius))
         (.setStroke graphics-context Color/GRAY)
@@ -148,8 +148,7 @@
         canvas (Canvas. width height)
         pane (doto (StackPane.)
                (.setCursor Cursor/NONE)
-               (.setStyle "-fx-background-color: transparent;")
-               (ui/add-child! canvas))]
+               (.setStyle "-fx-background-color: transparent;"))]
     (g/transact (concat (g/set-property view-node :bounds bounds)
                         (g/set-property view-node :image nil)))
     
@@ -163,7 +162,8 @@
       (.show (ui/main-stage))
       (.requestFocus))
     
-    (capture! view-node)))
+    (capture! view-node)
+    (ui/add-child! pane canvas)))
 
 (handler/defhandler :color-dropper :global
   (active? [color-dropper evaluation-context user-data] true)
