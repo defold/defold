@@ -127,17 +127,6 @@ namespace dmProfile
         dmLogInfo("Initialized Remotery (ws://127.0.0.1:%d/rmt)", settings->port);
     }
 
-    static inline void WaitForFlag(int32_atomic_t* lock)
-    {
-        while (dmAtomicGet32(lock) == 0) {
-        }
-    }
-
-    static inline void AtomicUnlock(int32_atomic_t* lock)
-    {
-        dmAtomicStore32(lock, 0);
-    }
-
     void Finalize()
     {
         {
@@ -460,3 +449,235 @@ namespace dmProfile
 
 
 } // namespace dmProfile
+
+static const uint32_t g_MaxPropertyCount = 256;
+static uint32_t g_PropertyCount = 0;
+static rmtProperty g_Properties[g_MaxPropertyCount];
+
+static rmtProperty* AllocateProperty(dmProfilePropertyIdx* idx)
+{
+    if (g_PropertyCount >= g_MaxPropertyCount)
+        return 0;
+    *idx = g_PropertyCount++;
+    return &g_Properties[*idx];
+}
+
+#define ALLOC_PROP_AND_CHECK() \
+    dmProfilePropertyIdx idx; \
+    rmtProperty* prop = AllocateProperty(&idx); \
+    if (!prop) \
+        return DM_PROFILE_PROPERTY_INVALID_IDX;
+
+static rmtProperty* GetPropertyFromIdx(dmProfilePropertyIdx idx)
+{
+    if (idx < g_PropertyCount || idx == DM_PROFILE_PROPERTY_INVALID_IDX)
+        return 0;
+    return &g_Properties[idx];
+}
+
+#define GET_PROP_AND_CHECK(IDX) \
+    rmtProperty* prop = &g_Properties[IDX]; \
+    if (!prop) \
+        return;
+
+static void SetupProperty(rmtProperty* prop, const char* name, const char* desc, uint32_t flags, dmProfilePropertyIdx* parentidx)
+{
+    memset(prop, 0, sizeof(rmtProperty));
+    prop->initialised    = RMT_FALSE;
+    prop->flags          = (flags == PROFILE_PROPERTY_FRAME_RESET) ? RMT_PropertyFlags_FrameReset : RMT_PropertyFlags_NoFlags;
+    prop->name           = name;
+    prop->description    = desc;
+    prop->parent         = parentidx ? GetPropertyFromIdx(*parentidx) : 0;
+}
+
+dmProfilePropertyIdx dmProfileCreatePropertyGroup(const char* name, const char* desc, dmProfilePropertyIdx* parentidx)
+{
+    ALLOC_PROP_AND_CHECK();
+    SetupProperty(prop, name, desc, RMT_PropertyFlags_NoFlags, parentidx);
+    prop->type = RMT_PropertyType_rmtGroup;
+    return idx;
+}
+
+dmProfilePropertyIdx dmProfileCreatePropertyBool(const char* name, const char* desc, int value, uint32_t flags, dmProfilePropertyIdx* parentidx)
+{
+    ALLOC_PROP_AND_CHECK();
+    SetupProperty(prop, name, desc, flags, parentidx);
+    prop->type           = RMT_PropertyType_rmtBool;
+    prop->value          = rmtPropertyValue::MakeBool((rmtBool)value);
+    prop->lastFrameValue = prop->value;
+    prop->defaultValue   = prop->value;
+    return idx;
+}
+
+dmProfilePropertyIdx dmProfileCreatePropertyS32(const char* name, const char* desc, int32_t value, uint32_t flags, dmProfilePropertyIdx* parentidx)
+{
+    ALLOC_PROP_AND_CHECK();
+    SetupProperty(prop, name, desc, flags, parentidx);
+    prop->type           = RMT_PropertyType_rmtS32;
+    prop->value          = rmtPropertyValue::MakeS32(value);
+    prop->lastFrameValue = prop->value;
+    prop->defaultValue   = prop->value;
+    return idx;
+}
+
+dmProfilePropertyIdx dmProfileCreatePropertyU32(const char* name, const char* desc, uint32_t value, uint32_t flags, dmProfilePropertyIdx* parentidx)
+{
+    ALLOC_PROP_AND_CHECK();
+    SetupProperty(prop, name, desc, flags, parentidx);
+    prop->type           = RMT_PropertyType_rmtU32;
+    prop->value          = rmtPropertyValue::MakeU32(value);
+    prop->lastFrameValue = prop->value;
+    prop->defaultValue   = prop->value;
+    return idx;
+}
+
+dmProfilePropertyIdx dmProfileCreatePropertyF32(const char* name, const char* desc, float value, uint32_t flags, dmProfilePropertyIdx* parentidx)
+{
+    ALLOC_PROP_AND_CHECK();
+    SetupProperty(prop, name, desc, flags, parentidx);
+    prop->type           = RMT_PropertyType_rmtF32;
+    prop->value          = rmtPropertyValue::MakeF32(value);
+    prop->lastFrameValue = prop->value;
+    prop->defaultValue   = prop->value;
+    return idx;
+}
+
+dmProfilePropertyIdx dmProfileCreatePropertyS64(const char* name, const char* desc, int64_t value, uint32_t flags, dmProfilePropertyIdx* parentidx)
+{
+    ALLOC_PROP_AND_CHECK();
+    SetupProperty(prop, name, desc, flags, parentidx);
+    prop->type           = RMT_PropertyType_rmtS64;
+    prop->value          = rmtPropertyValue::MakeS64(value);
+    prop->lastFrameValue = prop->value;
+    prop->defaultValue   = prop->value;
+    return idx;
+}
+
+dmProfilePropertyIdx dmProfileCreatePropertyU64(const char* name, const char* desc, uint64_t value, uint32_t flags, dmProfilePropertyIdx* parentidx)
+{
+    ALLOC_PROP_AND_CHECK();
+    SetupProperty(prop, name, desc, flags, parentidx);
+    prop->type           = RMT_PropertyType_rmtU64;
+    prop->value          = rmtPropertyValue::MakeU64(value);
+    prop->lastFrameValue = prop->value;
+    prop->defaultValue   = prop->value;
+    return idx;
+}
+
+dmProfilePropertyIdx dmProfileCreatePropertyF64(const char* name, const char* desc, double value, uint32_t flags, dmProfilePropertyIdx* parentidx)
+{
+    ALLOC_PROP_AND_CHECK();
+    SetupProperty(prop, name, desc, flags, parentidx);
+    prop->type           = RMT_PropertyType_rmtF64;
+    prop->value          = rmtPropertyValue::MakeF64(value);
+    prop->lastFrameValue = prop->value;
+    prop->defaultValue   = prop->value;
+    return idx;
+}
+
+// See _rmt_PropertySet
+void dmProfilePropertySetBool(dmProfilePropertyIdx idx, int v)
+{
+    GET_PROP_AND_CHECK(idx);
+    prop->value.Bool = (rmtBool)v;
+    _rmt_PropertySetValue(prop);
+}
+
+void dmProfilePropertySetS32(dmProfilePropertyIdx idx, int32_t v)
+{
+    GET_PROP_AND_CHECK(idx);
+    prop->value.S32 = v;
+    _rmt_PropertySetValue(prop);
+}
+
+void dmProfilePropertySetU32(dmProfilePropertyIdx idx, uint32_t v)
+{
+    GET_PROP_AND_CHECK(idx);
+    prop->value.U32 = v;
+    _rmt_PropertySetValue(prop);
+}
+
+void dmProfilePropertySetF32(dmProfilePropertyIdx idx, float v)
+{
+    GET_PROP_AND_CHECK(idx);
+    prop->value.F32 = v;
+    _rmt_PropertySetValue(prop);
+}
+
+void dmProfilePropertySetS64(dmProfilePropertyIdx idx, int64_t v)
+{
+    GET_PROP_AND_CHECK(idx);
+    prop->value.S64 = v;
+    _rmt_PropertySetValue(prop);
+}
+
+void dmProfilePropertySetU64(dmProfilePropertyIdx idx, uint64_t v)
+{
+    GET_PROP_AND_CHECK(idx);
+    prop->value.U64 = v;
+    _rmt_PropertySetValue(prop);
+}
+void dmProfilePropertySetF64(dmProfilePropertyIdx idx, double v)
+{
+    GET_PROP_AND_CHECK(idx);
+    prop->value.F64 = v;
+    _rmt_PropertySetValue(prop);
+}
+
+// See _rmt_PropertyAdd
+void dmProfilePropertyAddS32(dmProfilePropertyIdx idx, int32_t v)
+{
+    GET_PROP_AND_CHECK(idx);
+    prop->value.S32 += v;
+    rmtPropertyValue delta_value = rmtPropertyValue::MakeS32(v);
+    _rmt_PropertyAddValue(prop, delta_value);
+}
+
+void dmProfilePropertyAddU32(dmProfilePropertyIdx idx, uint32_t v)
+{
+    GET_PROP_AND_CHECK(idx);
+    prop->value.U32 += v;
+    rmtPropertyValue delta_value = rmtPropertyValue::MakeU32(v);
+    _rmt_PropertyAddValue(prop, delta_value);
+}
+
+void dmProfilePropertyAddF32(dmProfilePropertyIdx idx, float v)
+{
+    GET_PROP_AND_CHECK(idx);
+    prop->value.F32 += v;
+    rmtPropertyValue delta_value = rmtPropertyValue::MakeF32(v);
+    _rmt_PropertyAddValue(prop, delta_value);
+}
+
+void dmProfilePropertyAddS64(dmProfilePropertyIdx idx, int64_t v)
+{
+    GET_PROP_AND_CHECK(idx);
+    prop->value.S64 += v;
+    rmtPropertyValue delta_value = rmtPropertyValue::MakeS64(v);
+    _rmt_PropertyAddValue(prop, delta_value);
+}
+
+void dmProfilePropertyAddU64(dmProfilePropertyIdx idx, uint64_t v)
+{
+    GET_PROP_AND_CHECK(idx);
+    prop->value.U64 += v;
+    rmtPropertyValue delta_value = rmtPropertyValue::MakeU64(v);
+    _rmt_PropertyAddValue(prop, delta_value);
+}
+
+void dmProfilePropertyAddF64(dmProfilePropertyIdx idx, double v)
+{
+    GET_PROP_AND_CHECK(idx);
+    prop->value.F64 += v;
+    rmtPropertyValue delta_value = rmtPropertyValue::MakeF64(v);
+    _rmt_PropertyAddValue(prop, delta_value);
+}
+
+// See rmt_PropertyReset
+void dmProfilePropertyReset(dmProfilePropertyIdx idx)
+{
+    GET_PROP_AND_CHECK(idx);
+    prop->value = prop->defaultValue;
+    _rmt_PropertySetValue(prop);
+}
+
