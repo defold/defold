@@ -47,14 +47,14 @@
 
         .image-view {
             -fx-effect: innershadow(gaussian, -df-text-selected, 20, 1.0, 0, 0);
-          }
+        }
     }
 }
 
 .color-pane {
     -fx-background-color: transparent;
 
-    &:hover  .color-dropper {
+    &:hover .color-dropper {
         visibility: visible;
     }
 }

@@ -32,20 +32,12 @@
 
 (g/defnode ColorDropper
   (property color Color)
-  (property bounds g/Any)
   (property image WritableImage))
 
-(defn- highlight-pixel!
-  [^GraphicsContext graphics-context x y size]
-  (doto graphics-context
-    (.setFill Color/TRANSPARENT)
-    (.setStroke Color/RED)
-    (.strokeRect x y size size)))
 
 (defn- paint-pixel!
   [^GraphicsContext graphics-context x y size color]
   (doto graphics-context
-    (.setFill Color/TRANSPARENT)
     (.strokeRect x y size size)
     (.setFill color)
     (.fillRect x y size size)))
@@ -58,16 +50,16 @@
     (.setRadius radius)))
 
 (defn- capture!
-  [view-node]
-  (let [{:keys [min-x min-y width height]} (g/node-value view-node :bounds)
+  [view-node bounds]
+  (let [{:keys [min-x min-y width height]} bounds
         capture-rect (Rectangle2D. min-x min-y width height)
-        writable-image (WritableImage. width height)
+        writable-image ^WritableImage (g/node-value view-node :image)
         image (.getScreenCapture (Robot.) writable-image capture-rect)]
     (g/set-property! view-node :image image)))
 
 (defn- in-bounds?
-  [view-node x y]
-  (let [{:keys [min-x min-y max-x max-y]} (g/node-value view-node :bounds)]
+  [bounds x y]
+  (let [{:keys [min-x min-y max-x max-y]} bounds]
     (and (<= min-x x max-x)
          (<= min-y y max-y))))
 
@@ -77,7 +69,7 @@
       diameter (* pixel-size (count pixel-seq))
       radius ^double (/ diameter 2)]
   (defn- mouse-move-handler!
-    [view-node ^Canvas canvas ^MouseEvent e]
+    [view-node bounds ^Canvas canvas ^MouseEvent e]
     (.consume e)
     (when-let [image ^WritableImage (g/node-value view-node :image)]
       (let [graphics-context ^GraphicsContext (.getGraphicsContext2D canvas)
@@ -99,13 +91,14 @@
                 ^int y-step pixel-seq
                 :let [x (+ mouse-x (* x-step pixel-size) (- pixel-center))
                       y (+ mouse-y (* y-step pixel-size) (- pixel-center))]]
-          (when (in-bounds? view-node (+ x delta-x) (+ y delta-y))
+          (when (in-bounds? bounds (+ x delta-x) (+ y delta-y))
             (->> (.getColor pixel-reader (+ adjusted-x x-step) (+ adjusted-y y-step))
                  (paint-pixel! graphics-context x y pixel-size))))
 
         (doto graphics-context
           (.strokeOval (- mouse-x radius) (- mouse-y radius) diameter diameter)
-          (highlight-pixel! (- mouse-x pixel-center) (- mouse-y pixel-center) pixel-size))))))
+          (.setStroke Color/RED)
+          (.strokeRect (- mouse-x pixel-center) (- mouse-y pixel-center) pixel-size pixel-size))))))
 
 (defn- apply-and-deactivate!
   [view-node ^Popup popup pick-fn]
@@ -150,25 +143,22 @@
                (.setCursor Cursor/NONE)
                (.setPrefSize 1 1)
                (.setStyle "-fx-background-color: transparent;"))]
-    (g/set-property! view-node :bounds bounds)
-    
     (.add (.getContent popup) pane)
     (.addListener (.focusedProperty popup) (ui/change-listener _ _ v (when-not v (.hide popup))))
     
     (doto popup
       (.addEventHandler KeyEvent/ANY (ui/event-handler event (.hide popup)))
-      (.addEventHandler MouseEvent/MOUSE_MOVED (ui/event-handler event (mouse-move-handler! view-node canvas event)))
+      (.addEventHandler MouseEvent/MOUSE_MOVED (ui/event-handler event (mouse-move-handler! view-node bounds canvas event)))
       (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (apply-and-deactivate! view-node popup pick-fn)))
       (.show (ui/main-stage))
       (.requestFocus))
     
-    (capture! view-node)
+    (capture! view-node bounds)
     (doto pane
       (.setPrefSize width height)
       (ui/add-child! canvas))))
 
 (handler/defhandler :color-dropper :global
-  (active? [color-dropper evaluation-context user-data] true)
   (run [color-dropper user-data]
-       (when-let [{:keys [pick-fn]} user-data]
+       (when-let [pick-fn (:pick-fn user-data)]
          (activate! color-dropper pick-fn))))
