@@ -51,9 +51,12 @@ namespace dmSound
     {
         inline void Reset(float value)
         {
-            // NOTE: We always ramp from zero to x. Otherwise we can
-            // get initial clicks when playing sounds
-            m_Prev = 0.0f;
+            // note: we do NOT always start at zero for values as...
+            // - orderly authored samples should start at zero (or very close to it)
+            // - if coming back from a "skip" we could start at non-zero, but almost all cases for this involve a volume ramp up anyways as they are triggered by zero gain values (only skip by speed=0 could click)
+            // - for panning values this would make for at times very unwanted behavior
+            // - for samples it basically wold make it impossible to have a "punshy" start as we'd always need quite a few samples to reach full (intended) amplitude
+            m_Prev = value;
             m_Current = value;
             m_Next = value;
         }
@@ -113,14 +116,14 @@ namespace dmSound
         uint32_t m_FrameCount;
     };
 
-    float GetRampDelta(float& from, const MixContext* mix_context, const Value* value, uint32_t total_samples)
+    float GetRampDelta(const MixContext* mix_context, const Value* value, uint32_t total_samples, float& from)
     {
         float ramp_length = (value->m_Current - value->m_Prev) / mix_context->m_TotalBuffers;
         from = value->m_Prev + ramp_length * mix_context->m_CurrentBuffer;
         return ramp_length / total_samples;
     }
 
-    void GetRampDelta(uint32_t num_channels, float from[], float delta[], const MixContext* mix_context, const Value value[], uint32_t total_samples)
+    void GetRampDelta(uint32_t num_channels, const MixContext* mix_context, const Value value[], uint32_t total_samples, float from[], float delta[])
     {
         for(uint32_t c=0; c<num_channels; ++c) {
             float ramp_length = (value[c].m_Current - value[c].m_Prev) / mix_context->m_TotalBuffers;
@@ -254,6 +257,7 @@ namespace dmSound
         params->m_FrameCount = 0; // Let the sound system choose by default
         params->m_MaxInstances = 256;
         params->m_UseThread = true;
+        params->m_DSPImplementation = DSPIMPL_TYPE_DEFAULT;
     }
 
     Result RegisterDevice(struct DeviceType* device)
@@ -374,6 +378,15 @@ namespace dmSound
             }
         }
 
+
+        // note: this will be an NoOp if the build target has DM_SOUND_EXPECTED_SIMD defined (compile-time implementation selection)
+        DSPImplType dsp_impl = params->m_DSPImplementation;
+        if (dsp_impl == DSPIMPL_TYPE_DEFAULT) {
+            dsp_impl = device_info.m_DSPImplementation;
+        }
+        SelectDSPImpl(dsp_impl);
+
+
         sound->m_FrameCount = sound->m_DeviceFrameCount;
         sound->m_MixRate = device_info.m_MixRate;
         sound->m_Instances.SetCapacity(max_instances);
@@ -487,9 +500,7 @@ namespace dmSound
                 SoundGroup* g = &sound->m_Groups[i];
                 for(uint32_t c=0; c<SOUND_MAX_MIX_CHANNELS; ++c)
                 {
-                    if (g->m_MixBuffer[c]) {
-                        free((void*) g->m_MixBuffer[c]);
-                    }
+                    free((void*) g->m_MixBuffer[c]);
                 }
             }
 
@@ -725,6 +736,13 @@ namespace dmSound
         si->m_Index = index;
         si->m_Gain.Reset(1.0f);
         si->m_Pan.Reset(0.5f);
+        for(uint32_t c=0; c<SOUND_MAX_DECODE_CHANNELS; ++c)
+        {
+            si->m_ScaleL[c].Reset(0.70711f);
+            si->m_ScaleR[c].Reset(0.70711f);
+        }
+        si->m_ScaleDirty = 1;
+        si->m_ScaleInit = 1;
         for(uint32_t c=0; c<SOUND_MAX_DECODE_CHANNELS; ++c)
         {
             si->m_ScaleL[c].Reset(0.70711f);
@@ -1082,8 +1100,8 @@ namespace dmSound
 
         float scale_l[SOUND_MAX_DECODE_CHANNELS], scale_r[SOUND_MAX_DECODE_CHANNELS];
         float scale_dl[SOUND_MAX_DECODE_CHANNELS], scale_dr[SOUND_MAX_DECODE_CHANNELS];
-        GetRampDelta(channels, scale_l, scale_dl, mix_context, instance->m_ScaleL, mix_buffer_count);
-        GetRampDelta(channels, scale_r, scale_dr, mix_context, instance->m_ScaleR, mix_buffer_count);
+        GetRampDelta(channels, mix_context, instance->m_ScaleL, mix_buffer_count, scale_l, scale_dl);
+        GetRampDelta(channels, mix_context, instance->m_ScaleR, mix_buffer_count, scale_r, scale_dr);
 
         if (channels == 1)
         {
@@ -1107,19 +1125,19 @@ namespace dmSound
 
         float scale_l[SOUND_MAX_DECODE_CHANNELS], scale_r[SOUND_MAX_DECODE_CHANNELS];
         float scale_dl[SOUND_MAX_DECODE_CHANNELS], scale_dr[SOUND_MAX_DECODE_CHANNELS];
-        GetRampDelta(channels, scale_l, scale_dl, mix_context, instance->m_ScaleL, mix_buffer_count);
-        GetRampDelta(channels, scale_r, scale_dr, mix_context, instance->m_ScaleR, mix_buffer_count);
+        GetRampDelta(channels, mix_context, instance->m_ScaleL, mix_buffer_count, scale_l, scale_dl);
+        GetRampDelta(channels, mix_context, instance->m_ScaleR, mix_buffer_count, scale_r, scale_dr);
 
         uint64_t frac = instance->m_FrameFraction;
 
         if (channels == 1)
         {
-            frac = MixAndResampleMonoToStero_Polyphase(mix_buffer, g_SoundSystem->GetDecoderBufferBase(0), mix_buffer_count, frac, delta, scale_l[0], scale_r[0], scale_dl[0], scale_dr[0]);
+            frac = MixAndResampleMonoToStereo_Polyphase(mix_buffer, g_SoundSystem->GetDecoderBufferBase(0), mix_buffer_count, frac, delta, scale_l[0], scale_r[0], scale_dl[0], scale_dr[0]);
         }
         else
         {
             assert(channels == 2);
-            frac = MixAndResampleStereoToStero_Polyphase(mix_buffer, g_SoundSystem->GetDecoderBufferBase(0), g_SoundSystem->GetDecoderBufferBase(1), mix_buffer_count, frac, delta, scale_l[0], scale_r[0], scale_dl[0], scale_dr[0],
+            frac = MixAndResampleStereoToStereo_Polyphase(mix_buffer, g_SoundSystem->GetDecoderBufferBase(0), g_SoundSystem->GetDecoderBufferBase(1), mix_buffer_count, frac, delta, scale_l[0], scale_r[0], scale_dl[0], scale_dr[0],
                                                                                                                                                                                     scale_l[1], scale_r[1], scale_dl[1], scale_dr[1]);
         }
 
@@ -1131,6 +1149,43 @@ namespace dmSound
 
     static inline void MixResample(const MixContext* mix_context, SoundInstance* instance, const dmSoundCodec::Info* info, uint64_t delta, float* mix_buffer[], uint32_t mix_buffer_count, uint32_t avail_framecount)
     {
+        // Make sure to update the mixing scale values...
+        if (instance->m_ScaleDirty != 0) {
+            instance->m_ScaleDirty = 0;
+
+            bool reset = (instance->m_ScaleInit != 0);
+            instance->m_ScaleInit = 0;
+
+            float gain = instance->m_Gain.m_Current;
+
+            if (info->m_Channels == 1) {
+                float rs, ls;
+                GetPanScale(instance->m_Pan.m_Current, &ls, &rs);
+                instance->m_ScaleL[0].Set(ls * gain, reset);
+                instance->m_ScaleR[0].Set(rs * gain, reset);
+            }
+            else {
+                assert(info->m_Channels == 2);
+
+#if defined(SOUND_USE_LEGACY_STEREO_PAN) && (SOUND_USE_LEGACY_STEREO_PAN != 0)
+                float rs, ls;
+                GetPanScale(instance->m_Pan.m_Current, &ls, &rs);
+                instance->m_ScaleL[0].Set(ls * gain, reset);
+                instance->m_ScaleR[0].Set(0.0f, reset);
+                instance->m_ScaleL[1].Set(0.0f, reset);
+                instance->m_ScaleR[1].Set(rs * gain, reset);
+#else
+                float rs, ls;
+                GetPanScale(dmMath::Max(0.0f, instance->m_Pan.m_Current - 0.5f), &ls, &rs);
+                instance->m_ScaleL[0].Set(ls * gain, reset);
+                instance->m_ScaleR[0].Set(rs * gain, reset);
+                GetPanScale(dmMath::Min(instance->m_Pan.m_Current + 0.5f, 1.0f), &ls, &rs);
+                instance->m_ScaleL[1].Set(ls * gain, reset);
+                instance->m_ScaleR[1].Set(rs * gain, reset);
+#endif
+            }
+        }
+
         // Make sure to update the mixing scale values...
         if (instance->m_ScaleDirty != 0) {
             instance->m_ScaleDirty = 0;
@@ -1520,12 +1575,12 @@ namespace dmSound
                 continue;
             }
             float gain;
-            float gaind = GetRampDelta(gain, mix_context, &g->m_Gain, n);
+            float gaind = GetRampDelta(mix_context, &g->m_Gain, n, gain);
             ApplyClampedGain(mix_buffer, g->m_MixBuffer, n, gain, gaind);
         }
 
         float gain;
-        float gaind = GetRampDelta(gain, mix_context, &master->m_Gain, n);
+        float gaind = GetRampDelta(mix_context, &master->m_Gain, n, gain);
         ApplyGainAndInterleaveToS16(out, mix_buffer, n, gain, gaind);
     }
 

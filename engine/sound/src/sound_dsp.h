@@ -19,14 +19,25 @@
 
 #if defined(__SSE__)
 #include <immintrin.h>
-#elif defined(__wasm_simd128__)
+#endif
+#if defined(__wasm_simd128__)
 #include <wasm_simd128.h>
+#endif
+
+// Make sure we use compile time selected fallback code if nothing is selected at all
+#if !defined(DM_SOUND_EXPECTED_SIMD) && !defined(__SSE__) && !defined(__wasm_simd128__)
+#define DM_SOUND_EXPECTED_SIMD Fallback
 #endif
 
 namespace dmSound
 {
+
+// ----------------------------------------------------------------------------------------------------------------------------------------------------------------
+// ----------------------------------------------------------------------------------------------------------------------------------------------------------------
+
 #if defined(__wasm_simd128__)
 
+namespace WASM {
 //
 // WASM
 //
@@ -138,7 +149,7 @@ static inline void MixScaledStereoToStereo(float* out[], const float* in_l, cons
     }
 }
 
-static inline uint64_t MixAndResampleMonoToStero_Polyphase(float* out[], const float* in, uint32_t num, uint64_t frac, uint64_t delta, float scale_l, float scale_r, float scale_delta_l, float scale_delta_r)
+static inline uint64_t MixAndResampleMonoToStereo_Polyphase(float* out[], const float* in, uint32_t num, uint64_t frac, uint64_t delta, float scale_l, float scale_r, float scale_delta_l, float scale_delta_r)
 {
     // setup ramps
     vec4 scld = wasm_f32x4_splat(scale_delta_l);
@@ -187,7 +198,7 @@ static inline uint64_t MixAndResampleMonoToStero_Polyphase(float* out[], const f
     return frac;
 }
 
-static inline uint64_t MixAndResampleStereoToStero_Polyphase(float* out[], const float* in_l, const float* in_r, uint32_t num, uint64_t frac, uint64_t delta, float scale_l0, float scale_r0, float scale_delta_l0, float scale_delta_r0,
+static inline uint64_t MixAndResampleStereoToStereo_Polyphase(float* out[], const float* in_l, const float* in_r, uint32_t num, uint64_t frac, uint64_t delta, float scale_l0, float scale_r0, float scale_delta_l0, float scale_delta_r0,
                                                                                                                                                               float scale_l1, float scale_r1, float scale_delta_l1, float scale_delta_r1)
 {
     // setup ramps
@@ -486,10 +497,18 @@ static inline void DeinterleaveFromS8(float* out[], const int8_t* in, uint32_t n
     }
 }
 
-#elif defined(__SSE__)
+} // namespace WASM
+
+#endif // __wasm_simd128__
+
+// ----------------------------------------------------------------------------------------------------------------------------------------------------------------
+// ----------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+#if defined(__SSE__) && !defined(__wasm_simd128__)
 //
 // SSE
 //
+namespace SSE {
 
     typedef __m128 vec4;
 
@@ -610,7 +629,7 @@ static inline void MixScaledStereoToStereo(float* out[], const float* in_l, cons
     }
 }
 
-static inline uint64_t MixAndResampleMonoToStero_Polyphase(float* out[], const float* in, uint32_t num, uint64_t frac, uint64_t delta, float scale_l, float scale_r, float scale_delta_l, float scale_delta_r)
+static inline uint64_t MixAndResampleMonoToStereo_Polyphase(float* out[], const float* in, uint32_t num, uint64_t frac, uint64_t delta, float scale_l, float scale_r, float scale_delta_l, float scale_delta_r)
 {
     // setup ramps
     vec4 scld = _mm_set1_ps(scale_delta_l);
@@ -659,7 +678,7 @@ static inline uint64_t MixAndResampleMonoToStero_Polyphase(float* out[], const f
     return frac;
 }
 
-static inline uint64_t MixAndResampleStereoToStero_Polyphase(float* out[], const float* in_l, const float* in_r, uint32_t num, uint64_t frac, uint64_t delta,
+static inline uint64_t MixAndResampleStereoToStereo_Polyphase(float* out[], const float* in_l, const float* in_r, uint32_t num, uint64_t frac, uint64_t delta,
                                                              float scale_l0, float scale_r0, float scale_delta_l0, float scale_delta_r0,
                                                              float scale_l1, float scale_r1, float scale_delta_l1, float scale_delta_r1)
 {
@@ -1007,7 +1026,14 @@ static inline void DeinterleaveFromS8(float* out[], const int8_t* in, uint32_t n
     }
 }
 
-#else // defined(__SSE__)
+} // namespace SSE
+
+#endif
+
+// ----------------------------------------------------------------------------------------------------------------------------------------------------------------
+// ----------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+namespace Fallback {
 
 //
 // Non SIMD
@@ -1054,7 +1080,7 @@ static inline void MixScaledStereoToStereo(float* out[], const float* in_l, cons
     }
 }
 
-static inline uint64_t MixAndResampleMonoToStero_Polyphase(float* out[], const float* in, uint32_t num, uint64_t frac, uint64_t delta, float scale_l, float scale_r, float scale_delta_l, float scale_delta_r)
+static inline uint64_t MixAndResampleMonoToStereo_Polyphase(float* out[], const float* in, uint32_t num, uint64_t frac, uint64_t delta, float scale_l, float scale_r, float scale_delta_l, float scale_delta_r)
 {
     float* out_l = out[0];
     float* out_r = out[1];
@@ -1076,7 +1102,7 @@ static inline uint64_t MixAndResampleMonoToStero_Polyphase(float* out[], const f
     return frac;
 }
 
-static inline uint64_t MixAndResampleStereoToStero_Polyphase(float* out[], const float* in_l, const float* in_r, uint32_t num, uint64_t frac, uint64_t delta,
+static inline uint64_t MixAndResampleStereoToStereo_Polyphase(float* out[], const float* in_l, const float* in_r, uint32_t num, uint64_t frac, uint64_t delta,
                                                              float scale_l0, float scale_r0, float scale_delta_l0, float scale_delta_r0,
                                                              float scale_l1, float scale_r1, float scale_delta_l1, float scale_delta_r1)
 {
@@ -1202,7 +1228,253 @@ static inline void DeinterleaveFromS8(float* out[], const int8_t* in, uint32_t n
     }
 }
 
-#endif // SSEx
+} // namespace Fallback
+
+// ----------------------------------------------------------------------------------------------------------------------------------------------------------------
+// ----------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+#ifdef DM_SOUND_EXPECTED_SIMD
+
+//
+// Compiletime selected DSP implementation
+//
+
+#define SoundImpl DM_SOUND_EXPECTED_SIMD
+
+static inline void SelectDSPImpl(DSPImplType /*impl_type*/)
+{
+    // nothing to do in this implementation
+}
+
+static inline void MixScaledMonoToStereo(float* out[], const float* in, uint32_t num, float scale_l, float scale_r, float scale_delta_l, float scale_delta_r)
+{
+    SoundImpl::MixScaledMonoToStereo(out, in, num, scale_l, scale_r, scale_delta_l, scale_delta_r);
+}
+
+static inline void MixScaledStereoToStereo(float* out[], const float* in_l, const float* in_r, uint32_t num,
+                                           float scale_l0, float scale_r0, float scale_delta_l0, float scale_delta_r0,
+                                           float scale_l1, float scale_r1, float scale_delta_l1, float scale_delta_r1)
+{
+    SoundImpl::MixScaledStereoToStereo(out, in_l, in_r, num, scale_l0, scale_r0, scale_delta_l0, scale_delta_r0,
+                                                       scale_l1, scale_r1, scale_delta_l1, scale_delta_r1);
+}
+
+static inline uint64_t MixAndResampleMonoToStereo_Polyphase(float* out[], const float* in, uint32_t num, uint64_t frac, uint64_t delta, float scale_l, float scale_r, float scale_delta_l, float scale_delta_r)
+{
+    return SoundImpl::MixAndResampleMonoToStereo_Polyphase(out, in, num, frac, delta, scale_l, scale_r, scale_delta_l, scale_delta_r);
+}
+
+static inline uint64_t MixAndResampleStereoToStereo_Polyphase(float* out[], const float* in_l, const float* in_r, uint32_t num, uint64_t frac, uint64_t delta,
+                                                             float scale_l0, float scale_r0, float scale_delta_l0, float scale_delta_r0,
+                                                             float scale_l1, float scale_r1, float scale_delta_l1, float scale_delta_r1)
+{
+    return SoundImpl::MixAndResampleStereoToStereo_Polyphase(out, in_l, in_r, num, frac, delta, scale_l0, scale_r0, scale_delta_l0, scale_delta_r0,
+                                                                                          scale_l1, scale_r1, scale_delta_l1, scale_delta_r1);
+}
+
+static inline void ApplyClampedGain(float* out[], float* in[], uint32_t num, float scale, float scale_delta)
+{
+    SoundImpl::ApplyClampedGain(out, in, num, scale, scale_delta);
+}
+
+static inline void ApplyGainAndInterleaveToS16(int16_t* out, float* in[], uint32_t num, float scale, float scale_delta)
+{
+    SoundImpl::ApplyGainAndInterleaveToS16(out, in, num, scale, scale_delta);
+}
+
+static inline void GatherPowerData(float* in[], uint32_t num, float gain, float& sum_sq_left, float& sum_sq_right, float& max_sq_left, float& max_sq_right)
+{
+    SoundImpl::GatherPowerData(in, num, gain, sum_sq_left, sum_sq_right, max_sq_left, max_sq_right);
+}
+
+static inline void ConvertFromS16(float* out, const int16_t* in, uint32_t num)
+{
+    SoundImpl::ConvertFromS16(out, in, num);
+}
+
+static inline void ConvertFromS8(float* out, const int8_t* in, uint32_t num)
+{
+    SoundImpl::ConvertFromS8(out, in, num);
+}
+
+static inline void Deinterleave(float* out[], const float* in, uint32_t num)
+{
+    SoundImpl::Deinterleave(out, in, num);
+}
+
+static inline void DeinterleaveFromS16(float* out[], const int16_t* in, uint32_t num)
+{
+    SoundImpl::DeinterleaveFromS16(out, in, num);
+}
+
+static inline void DeinterleaveFromS8(float* out[], const int8_t* in, uint32_t num)
+{
+    SoundImpl::DeinterleaveFromS8(out, in, num);
+}
+
+#undef SoundImpl
+
+#else
+
+//
+// Runtime selected DSP implementation
+//
+
+struct DSPImpl {
+     void (*MixScaledMonoToStereo)(float* out[], const float* in, uint32_t num, float scale_l, float scale_r, float scale_delta_l, float scale_delta_r);
+     void (*MixScaledStereoToStereo)(float* out[], const float* in_l, const float* in_r, uint32_t num, float scale_l0, float scale_r0, float scale_delta_l0, float scale_delta_r0, float scale_l1, float scale_r1, float scale_delta_l1, float scale_delta_r1);
+     uint64_t (*MixAndResampleMonoToStereo_Polyphase)(float* out[], const float* in, uint32_t num, uint64_t frac, uint64_t delta, float scale_l, float scale_r, float scale_delta_l, float scale_delta_r);
+     uint64_t (*MixAndResampleStereoToStereo_Polyphase)(float* out[], const float* in_l, const float* in_r, uint32_t num, uint64_t frac, uint64_t delta, float scale_l0, float scale_r0, float scale_delta_l0, float scale_delta_r0, float scale_l1, float scale_r1, float scale_delta_l1, float scale_delta_r1);
+     void (*ApplyClampedGain)(float* out[], float* in[], uint32_t num, float scale, float scale_delta);
+     void (*ApplyGainAndInterleaveToS16)(int16_t* out, float* in[], uint32_t num, float scale, float scale_delta);
+     void (*GatherPowerData)(float* in[], uint32_t num, float gain, float& sum_sq_left, float& sum_sq_right, float& max_sq_left, float& max_sq_right);
+     void (*ConvertFromS16)(float* out, const int16_t* in, uint32_t num);
+     void (*ConvertFromS8)(float* out, const int8_t* in, uint32_t num);
+     void (*Deinterleave)(float* out[], const float* in, uint32_t num);
+     void (*DeinterleaveFromS16)(float* out[], const int16_t* in, uint32_t num);
+     void (*DeinterleaveFromS8)(float* out[], const int8_t* in, uint32_t num);
+};
+
+#if defined(__wasm_simd128__)
+static DSPImpl wasm_impl =
+{
+    WASM::MixScaledMonoToStereo,
+    WASM::MixScaledStereoToStereo,
+    WASM::MixAndResampleMonoToStereo_Polyphase,
+    WASM::MixAndResampleStereoToStereo_Polyphase,
+    WASM::ApplyClampedGain,
+    WASM::ApplyGainAndInterleaveToS16,
+    WASM::GatherPowerData,
+    WASM::ConvertFromS16,
+    WASM::ConvertFromS8,
+    WASM::Deinterleave,
+    WASM::DeinterleaveFromS16,
+    WASM::DeinterleaveFromS8
+};
+#endif
+
+#if defined(__SSE__) && !defined(__wasm_simd128__)  // excluding this if WASM is active as WASM targets may enable SSE to support Opus etc. (and we only need WASM here)
+static DSPImpl sse_impl =
+{
+    SSE::MixScaledMonoToStereo,
+    SSE::MixScaledStereoToStereo,
+    SSE::MixAndResampleMonoToStereo_Polyphase,
+    SSE::MixAndResampleStereoToStereo_Polyphase,
+    SSE::ApplyClampedGain,
+    SSE::ApplyGainAndInterleaveToS16,
+    SSE::GatherPowerData,
+    SSE::ConvertFromS16,
+    SSE::ConvertFromS8,
+    SSE::Deinterleave,
+    SSE::DeinterleaveFromS16,
+    SSE::DeinterleaveFromS8
+};
+#endif
+
+static DSPImpl fallback_impl =
+{
+    Fallback::MixScaledMonoToStereo,
+    Fallback::MixScaledStereoToStereo,
+    Fallback::MixAndResampleMonoToStereo_Polyphase,
+    Fallback::MixAndResampleStereoToStereo_Polyphase,
+    Fallback::ApplyClampedGain,
+    Fallback::ApplyGainAndInterleaveToS16,
+    Fallback::GatherPowerData,
+    Fallback::ConvertFromS16,
+    Fallback::ConvertFromS8,
+    Fallback::Deinterleave,
+    Fallback::DeinterleaveFromS16,
+    Fallback::DeinterleaveFromS8
+};
+
+static DSPImpl* g_DSPImpl = &fallback_impl;
+
+static inline bool SelectDSPImpl(DSPImplType impl_type)
+{
+    switch(impl_type)
+    {
+        case    DSPIMPL_TYPE_FALLBACK: g_DSPImpl = &fallback_impl; return true;
+#if defined(__SSE__) && !defined(__wasm_simd128__)
+        case    DSPIMPL_TYPE_SSE2: g_DSPImpl = &sse_impl; return true;
+#endif
+#if defined(__wasm_simd128__)
+        case    DSPIMPL_TYPE_WASM_SIMD128: g_DSPImpl = &wasm_impl; return true;
+#endif
+        default: break;
+    }
+
+    g_DSPImpl = &fallback_impl;
+    return false;
+}
+
+static inline void MixScaledMonoToStereo(float* out[], const float* in, uint32_t num, float scale_l, float scale_r, float scale_delta_l, float scale_delta_r)
+{
+    g_DSPImpl->MixScaledMonoToStereo(out, in, num, scale_l, scale_r, scale_delta_l, scale_delta_r);
+}
+
+static inline void MixScaledStereoToStereo(float* out[], const float* in_l, const float* in_r, uint32_t num,
+                                           float scale_l0, float scale_r0, float scale_delta_l0, float scale_delta_r0,
+                                           float scale_l1, float scale_r1, float scale_delta_l1, float scale_delta_r1)
+{
+    g_DSPImpl->MixScaledStereoToStereo(out, in_l, in_r, num, scale_l0, scale_r0, scale_delta_l0, scale_delta_r0,
+                                                             scale_l1, scale_r1, scale_delta_l1, scale_delta_r1);
+}
+
+static inline uint64_t MixAndResampleMonoToStereo_Polyphase(float* out[], const float* in, uint32_t num, uint64_t frac, uint64_t delta, float scale_l, float scale_r, float scale_delta_l, float scale_delta_r)
+{
+    return g_DSPImpl->MixAndResampleMonoToStereo_Polyphase(out, in, num, frac, delta, scale_l, scale_r, scale_delta_l, scale_delta_r);
+}
+
+static inline uint64_t MixAndResampleStereoToStereo_Polyphase(float* out[], const float* in_l, const float* in_r, uint32_t num, uint64_t frac, uint64_t delta,
+                                                             float scale_l0, float scale_r0, float scale_delta_l0, float scale_delta_r0,
+                                                             float scale_l1, float scale_r1, float scale_delta_l1, float scale_delta_r1)
+{
+    return g_DSPImpl->MixAndResampleStereoToStereo_Polyphase(out, in_l, in_r, num, frac, delta, scale_l0, scale_r0, scale_delta_l0, scale_delta_r0,
+                                                                                                scale_l1, scale_r1, scale_delta_l1, scale_delta_r1);
+}
+
+static inline void ApplyClampedGain(float* out[], float* in[], uint32_t num, float scale, float scale_delta)
+{
+    g_DSPImpl->ApplyClampedGain(out, in, num, scale, scale_delta);
+}
+
+static inline void ApplyGainAndInterleaveToS16(int16_t* out, float* in[], uint32_t num, float scale, float scale_delta)
+{
+    g_DSPImpl->ApplyGainAndInterleaveToS16(out, in, num, scale, scale_delta);
+}
+
+static inline void GatherPowerData(float* in[], uint32_t num, float gain, float& sum_sq_left, float& sum_sq_right, float& max_sq_left, float& max_sq_right)
+{
+    g_DSPImpl->GatherPowerData(in, num, gain, sum_sq_left, sum_sq_right, max_sq_left, max_sq_right);
+}
+
+static inline void ConvertFromS16(float* out, const int16_t* in, uint32_t num)
+{
+    g_DSPImpl->ConvertFromS16(out, in, num);
+}
+
+static inline void ConvertFromS8(float* out, const int8_t* in, uint32_t num)
+{
+    g_DSPImpl->ConvertFromS8(out, in, num);
+}
+
+static inline void Deinterleave(float* out[], const float* in, uint32_t num)
+{
+    g_DSPImpl->Deinterleave(out, in, num);
+}
+
+static inline void DeinterleaveFromS16(float* out[], const int16_t* in, uint32_t num)
+{
+    g_DSPImpl->DeinterleaveFromS16(out, in, num);
+}
+
+static inline void DeinterleaveFromS8(float* out[], const int8_t* in, uint32_t num)
+{
+    g_DSPImpl->DeinterleaveFromS8(out, in, num);
+}
+
+#endif
+
 
 } // namespace dmSound
 

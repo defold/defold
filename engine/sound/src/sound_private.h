@@ -34,6 +34,7 @@ namespace dmSound
     int64_t GetInternalPos(HSoundInstance);
     int32_t GetRefCount(HSoundData);
 
+    #define SOUND_USE_LEGACY_STEREO_PAN (1)  // define this to enable legacy behavior regarding panning of stereo instances
 
     #define SOUND_MAX_DECODE_CHANNELS (2)
     #define SOUND_MAX_MIX_CHANNELS (2)
