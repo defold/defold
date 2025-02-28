@@ -1039,9 +1039,6 @@ namespace dmSound
                     // Trigger volume scale updates as soon as we know how many channels the instance has
                     // (we might not have that info initially)
                     sound_instance->m_ScaleDirty = 1;
-                    // Trigger volume scale updates as soon as we know how many channels the instance has
-                    // (we might not have that info initially)
-                    sound_instance->m_ScaleDirty = 1;
                 }
                 break;
             case PARAMETER_PAN:
@@ -1049,9 +1046,6 @@ namespace dmSound
                     float pan = dmMath::Max(-1.0f, dmMath::Min(1.0f, value.getX()));
                     pan = (pan + 1.0f) * 0.5f; // map [-1,1] to [0,1] for easier calculations later
                     sound_instance->m_Pan.Set(pan, reset);
-                    // Trigger volume scale updates as soon as we know how many channels the instance has
-                    // (we might not have that info initially)
-                    sound_instance->m_ScaleDirty = 1;
                     // Trigger volume scale updates as soon as we know how many channels the instance has
                     // (we might not have that info initially)
                     sound_instance->m_ScaleDirty = 1;
@@ -1112,13 +1106,10 @@ namespace dmSound
         if (channels == 1)
         {
             MixScaledMonoToStereo(mix_buffer, g_SoundSystem->GetDecoderBufferBase(0), mix_buffer_count, scale_l[0], scale_r[0], scale_dl[0], scale_dr[0]);
-            MixScaledMonoToStereo(mix_buffer, g_SoundSystem->GetDecoderBufferBase(0), mix_buffer_count, scale_l[0], scale_r[0], scale_dl[0], scale_dr[0]);
         }
         else
         {
             assert(channels == 2);
-            MixScaledStereoToStereo(mix_buffer, g_SoundSystem->GetDecoderBufferBase(0), g_SoundSystem->GetDecoderBufferBase(1), mix_buffer_count, scale_l[0], scale_r[0], scale_dl[0], scale_dr[0],
-                                                                                                                                                  scale_l[1], scale_r[1], scale_dl[1], scale_dr[1]);
             MixScaledStereoToStereo(mix_buffer, g_SoundSystem->GetDecoderBufferBase(0), g_SoundSystem->GetDecoderBufferBase(1), mix_buffer_count, scale_l[0], scale_r[0], scale_dl[0], scale_dr[0],
                                                                                                                                                   scale_l[1], scale_r[1], scale_dl[1], scale_dr[1]);
         }
@@ -1342,7 +1333,6 @@ namespace dmSound
                 char* buffer[SOUND_MAX_DECODE_CHANNELS];
                 uint32_t buffer_size;
                 if (!is_direct_delivery)
-                if (!is_direct_delivery)
                 {
                     // Output is non-float and/or interleaved and needs post output conversion
                     buffer[0] = ((char*) decoder_temp) + new_frame_count * stride;
@@ -1355,7 +1345,6 @@ namespace dmSound
                         buffer[c] = (char*)(sound->GetDecoderBufferBase(c) + frame_count);
                     }
                 }
-                buffer_size = n * stride;
                 buffer_size = n * stride;
 
                 uint32_t decoded = 0;
@@ -1499,7 +1488,6 @@ namespace dmSound
                     for(uint32_t mi=missing_frames; mi > 0; --mi)
                     {
                         decoder_output_buffer[fc++] = last;
-                        decoder_output_buffer[fc++] = last;
                     }
                 }
                 frame_count += missing_frames;
@@ -1618,10 +1606,6 @@ namespace dmSound
             if (instance->m_Playing || instance->m_FrameCount > 0) {
                 instance->m_Gain.Step();
                 instance->m_Pan.Step();
-                for(uint32_t c=0; c<SOUND_MAX_DECODE_CHANNELS; ++c) {
-                    instance->m_ScaleL[c].Step();
-                    instance->m_ScaleR[c].Step();
-                }
                 for(uint32_t c=0; c<SOUND_MAX_DECODE_CHANNELS; ++c) {
                     instance->m_ScaleL[c].Step();
                     instance->m_ScaleR[c].Step();
