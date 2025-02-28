@@ -427,6 +427,7 @@ public class ProtoBuilders {
             BuilderUtil.checkResource(this.project, resource, "sound", messageBuilder.getSound());
             messageBuilder.setSound(BuilderUtil.replaceExt(messageBuilder.getSound(), "wav", "wavc"));
             messageBuilder.setSound(BuilderUtil.replaceExt(messageBuilder.getSound(), "ogg", "oggc"));
+            messageBuilder.setSound(BuilderUtil.replaceExt(messageBuilder.getSound(), "opus", "opusc"));
             return messageBuilder;
         }
     }
