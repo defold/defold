@@ -463,8 +463,6 @@ static rmtProperty* AllocateProperty(dmProfilePropertyIdx* idx)
 }
 
 #define ALLOC_PROP_AND_CHECK() \
-    if (!dmProfile::IsInitialized()) \
-        return DM_PROFILE_PROPERTY_INVALID_IDX; \
     dmProfilePropertyIdx idx; \
     rmtProperty* prop = AllocateProperty(&idx); \
     if (!prop) \
