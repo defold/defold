@@ -22,6 +22,11 @@
 
 namespace dmPhysics
 {
+    void PrintGridShape(HCollisionObject2D collision_object, int shape_index)
+    {
+
+    }
+
     HContext2D NewContext2D(const NewContextParams& params)
     {
         return 0;

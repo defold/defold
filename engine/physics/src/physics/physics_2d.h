@@ -40,6 +40,8 @@ namespace dmPhysics
 {
     static const uint32_t B2GRIDSHAPE_EMPTY_CELL = 0xffffffff;
 
+    void PrintGridShape(HCollisionObject2D collision_object, int shape_index);
+
     enum ShapeType
     {
         SHAPE_TYPE_CIRCLE,
@@ -78,12 +80,19 @@ namespace dmPhysics
             uint32_t m_Index;
         };
 
+        struct Filter
+        {
+            uint16_t m_Group;
+            uint16_t m_Mask;
+        };
+
         ShapeData  m_ShapeDataBase;
         b2ShapeDef m_ShapeDef;
         HullSet*   m_HullSet;
         Cell*      m_Cells;
         HullFlags* m_CellFlags;
         b2ShapeId* m_CellPolygonShapes;
+        Filter*    m_CellFilters;
         b2Vec2     m_Position;
         float      m_Radius;
         float      m_CellWidth;

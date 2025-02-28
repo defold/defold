@@ -569,10 +569,16 @@ namespace dmPhysics
                             continue;
                         }
 
-                        // dmLogInfo("impulse->count: %d, max impulse: %f", contact.manifold.pointCount, max_impulse);
-
                         if (step_context.m_CollisionCallback)
                         {
+                            /*
+                            dmLogInfo("A: %d (group=%d), B: %d (group=%d)",
+                                contact.shapeIdA.index1,
+                                (int) b2Shape_GetFilter(contact.shapeIdA).categoryBits,
+                                contact.shapeIdB.index1,
+                                (int) b2Shape_GetFilter(contact.shapeIdB).categoryBits);
+                            */
+
                             step_context.m_CollisionCallback(
                                 b2Shape_GetUserData(contact.shapeIdA),
                                 b2Shape_GetFilter(contact.shapeIdA).categoryBits,
@@ -632,7 +638,7 @@ namespace dmPhysics
                         b2Rot rot = b2Body_GetRotation(body_id);
                         Quat rotation = Quat::rotationZ(b2Rot_GetAngle(rot));
 
-                        dmLogInfo("Position: %f, %f, %f", position.getX(), position.getY(), position.getZ());
+                        // dmLogInfo("Position: %f, %f, %f", position.getX(), position.getY(), position.getZ());
 
                         (*world->m_SetWorldTransformCallback)(b2Body_GetUserData(body_id), position, rotation);
                     }
@@ -920,6 +926,10 @@ namespace dmPhysics
         size = sizeof(b2ShapeId) * cell_count;
         shape_data->m_CellPolygonShapes = (b2ShapeId*) malloc(size);
         memset(shape_data->m_CellPolygonShapes, 0x0, size);
+
+        size = sizeof(GridShapeData::Filter) * cell_count;
+        shape_data->m_CellFilters = (GridShapeData::Filter*) malloc(size);
+        memset(shape_data->m_CellFilters, 0x0, size);
     }
 
     HCollisionShape2D NewGridShape2D(HContext2D context, HHullSet2D hull_set,
@@ -946,6 +956,23 @@ namespace dmPhysics
         InitializeGridSHapeData(shape_data);
 
         return shape_data;
+    }
+
+    #include <stdio.h>
+
+    void PrintGridShape(HCollisionObject2D collision_object, int shape_index)
+    {
+        Body* body = (Body*) collision_object;
+        GridShapeData* grid_shape = (GridShapeData*) body->m_Shapes[shape_index];
+
+        for (int i = 0; i < grid_shape->m_RowCount; ++i)
+        {
+            for (int j = 0; j < grid_shape->m_ColumnCount; ++j)
+            {
+                printf("%d ", grid_shape->m_Cells[i * grid_shape->m_ColumnCount + j].m_Index);
+            }
+            printf("\n");
+        }
     }
 
     void ClearGridShapeHulls(HCollisionObject2D collision_object)
@@ -1069,9 +1096,20 @@ namespace dmPhysics
 
         if (count > 0)
         {
-            b2Hull polygon_hull = b2ComputeHull(vertices, count);
-            b2Polygon polygon = b2MakePolygon(&polygon_hull, shape_data->m_Radius);
-            shape_data->m_CellPolygonShapes[child] = b2CreatePolygonShape(body->m_BodyId, &shape_data->m_ShapeDef, &polygon);
+            for (uint32_t j = 0; j < count; ++j)
+            {
+                vertices[j].x *= shape_data->m_ShapeDataBase.m_CreationScale;
+                vertices[j].y *= shape_data->m_ShapeDataBase.m_CreationScale;
+            }
+
+            // Filters can potentially have changed between creating/initializing the grid shape and when we need to create the actual b2 shapes
+            b2ShapeDef shape_def          = shape_data->m_ShapeDef;
+            shape_def.filter.categoryBits = shape_data->m_CellFilters[child].m_Group;
+            shape_def.filter.maskBits     = shape_data->m_CellFilters[child].m_Mask;
+
+            b2Hull polygon_hull                    = b2ComputeHull(vertices, count);
+            b2Polygon polygon                      = b2MakePolygon(&polygon_hull, shape_data->m_Radius);
+            shape_data->m_CellPolygonShapes[child] = b2CreatePolygonShape(body->m_BodyId, &shape_def, &polygon);
         }
     }
 
@@ -1089,6 +1127,7 @@ namespace dmPhysics
         assert(index < shape_data->m_RowCount * shape_data->m_ColumnCount);
 
         GridShapeData::Cell* cell = &shape_data->m_Cells[index];
+        bool hull_changed = cell->m_Index != hull;
         cell->m_Index = hull;
 
         // We need to recreate polygon if the flags have changed
@@ -1110,7 +1149,7 @@ namespace dmPhysics
             {
                 CreateGridCellShape(collision_object, shape_index, index);
             }
-            else if (cell_flags_changed)
+            else if (cell_flags_changed || hull_changed)
             {
                 b2DestroyShape(shape_data->m_CellPolygonShapes[index], false);
                 memset(&shape_data->m_CellPolygonShapes[index], 0, sizeof(shape_data->m_CellPolygonShapes[index]));
@@ -1172,8 +1211,24 @@ namespace dmPhysics
         {
             GridShapeData* grid_shape = (GridShapeData*) shape_data;
 
-            uint64_t opaque_id = ToOpaqueHandle(grid_shape->m_CellPolygonShapes[child]);
+            // uint64_t opaque_id = ToOpaqueHandle(grid_shape->m_CellPolygonShapes[child]);
 
+            grid_shape->m_CellFilters[child].m_Group = group;
+            grid_shape->m_CellFilters[child].m_Mask = mask;
+
+            if (!b2Shape_IsValid(grid_shape->m_CellPolygonShapes[child]))
+            {
+                CreateGridCellShape(collision_object, shape, child);
+            }
+            else
+            {
+                b2Filter filter = b2Shape_GetFilter(grid_shape->m_CellPolygonShapes[child]);
+                filter.categoryBits = group;
+                filter.maskBits = mask;
+                b2Shape_SetFilter(grid_shape->m_CellPolygonShapes[child], filter);
+            }
+
+            /*
             // 0 is not a valid group, so if we have created a polygon shape already, we need to remove it.
             if (group == 0)
             {
@@ -1194,6 +1249,7 @@ namespace dmPhysics
                 filter.maskBits = mask;
                 b2Shape_SetFilter(grid_shape->m_CellPolygonShapes[child], filter);
             }
+            */
         }
         else
         {
@@ -1495,6 +1551,13 @@ namespace dmPhysics
                     GridShapeData* g = (GridShapeData*) s;
                     // Grid polygons are created later, so we need to store the definition for later.
                     memcpy(&g->m_ShapeDef, &f_def, sizeof(b2ShapeDef));
+
+                    uint32_t cell_count = g->m_RowCount * g->m_ColumnCount;
+                    for (int i = 0; i < cell_count; ++i)
+                    {
+                        g->m_CellFilters[i].m_Group = data.m_Group;
+                        g->m_CellFilters[i].m_Mask  = data.m_Mask;
+                    }
                 } break;
                 default:assert(0);
             }

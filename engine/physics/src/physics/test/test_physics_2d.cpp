@@ -80,7 +80,7 @@ bool CollisionCallback(void* user_data_a, uint16_t group_a, void* user_data_b, u
     int bc = vo->m_CollisionCount;
     int bg = vo->m_FirstCollisionGroup;
 
-    // printf("  a.c = %d, a.g = %d, b.c = %d, b.g = %d, count = %d\n", ac, ag, bc, bg, *count);
+    // printf("  a.p = %p, a.c = %d, a.g = %d, b.p = %p, b.c = %d, b.g = %d, count = %d\n", user_data_a, ac, group_a, user_data_b, bc, group_b, *count);
 
     if (*count < 20)
     {
@@ -257,9 +257,6 @@ TYPED_TEST(PhysicsTest, GridShapePolygon)
 
     for (int32_t j = 0; j < columns; ++j)
     {
-
-        // printf("Column %d\n", j);
-
         VisualObject vo_a;
         vo_a.m_Position = dmVMath::Point3(0, 0, 0);
         dmPhysics::CollisionObjectData data;
@@ -1043,7 +1040,9 @@ TYPED_TEST(PhysicsTest, ScaledCircle)
         (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
     }
 
-    ASSERT_LT(1.5f, vo_b.m_Position.getY());
+    // Box2d v3: the collision seems to get resolved really really close to 1.5, but slightly below (e.g the sphere stays at ~1.49999)
+    float eps = 0.0001f;
+    ASSERT_NEAR(1.5f, vo_b.m_Position.getY(), eps);
 
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, static_co);
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, dynamic_co);
@@ -1075,7 +1074,9 @@ TYPED_TEST(PhysicsTest, ScaledBox)
         (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
     }
 
-    ASSERT_LT(1.5f, vo_b.m_Position.getY());
+    // Box2d v3: the collision seems to get resolved really really close to 1.5, but slightly below (e.g the box stays at ~1.49999)
+    float eps = 0.0001f;
+    ASSERT_NEAR(1.5f, vo_b.m_Position.getY(), eps);
 
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, static_co);
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, dynamic_co);
