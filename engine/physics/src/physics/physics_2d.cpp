@@ -2253,8 +2253,8 @@ namespace dmPhysics
         b2Vec2 pb;
         ToB2(pos_b, pb, scale);
 
-        b2BodyId* b2_obj_a = (b2BodyId*) obj_a;
-        b2BodyId* b2_obj_b = (b2BodyId*) obj_b;
+        Body* body_a = (Body*) obj_a;
+        Body* body_b = (Body*) obj_b;
 
         b2JointId joint = {};
 
@@ -2263,14 +2263,17 @@ namespace dmPhysics
             case dmPhysics::JOINT_TYPE_SPRING:
                 {
                     b2DistanceJointDef jointDef = b2DefaultDistanceJointDef();
-                    jointDef.bodyIdA          = *b2_obj_a;
-                    jointDef.bodyIdB          = *b2_obj_b;
+                    jointDef.bodyIdA          = body_a->m_BodyId;
+                    jointDef.bodyIdB          = body_b->m_BodyId;
                     jointDef.localAnchorA     = pa;
                     jointDef.localAnchorB     = pb;
                     jointDef.length           = params.m_SpringJointParams.m_Length * scale;
                     jointDef.hertz            = params.m_SpringJointParams.m_FrequencyHz;
                     jointDef.dampingRatio     = params.m_SpringJointParams.m_DampingRatio;
                     jointDef.collideConnected = params.m_CollideConnected;
+                    jointDef.enableSpring     = true;
+                    // Maybe:
+                    // jointDef.enableSpring = jointDef.hertz > 0.0 || jointDef.dampingRatio > 0.0;
 
                     joint = b2CreateDistanceJoint(world->m_WorldId, &jointDef);
                 }
@@ -2278,8 +2281,8 @@ namespace dmPhysics
             case dmPhysics::JOINT_TYPE_FIXED:
                 {
                     b2DistanceJointDef jointDef = b2DefaultDistanceJointDef();
-                    jointDef.bodyIdA            = *b2_obj_a;
-                    jointDef.bodyIdB            = *b2_obj_b;
+                    jointDef.bodyIdA            = body_a->m_BodyId;
+                    jointDef.bodyIdB            = body_b->m_BodyId;
                     jointDef.localAnchorA       = pa;
                     jointDef.localAnchorB       = pb;
                     jointDef.maxLength          = params.m_FixedJointParams.m_MaxLength * scale;
@@ -2291,8 +2294,8 @@ namespace dmPhysics
             case dmPhysics::JOINT_TYPE_HINGE:
                 {
                     b2RevoluteJointDef jointDef = b2DefaultRevoluteJointDef();
-                    jointDef.bodyIdA          = *b2_obj_a;
-                    jointDef.bodyIdB          = *b2_obj_b;
+                    jointDef.bodyIdA          = body_a->m_BodyId;
+                    jointDef.bodyIdB          = body_b->m_BodyId;
                     jointDef.localAnchorA     = pa;
                     jointDef.localAnchorB     = pb;
                     jointDef.referenceAngle   = params.m_HingeJointParams.m_ReferenceAngle;
@@ -2309,8 +2312,8 @@ namespace dmPhysics
             case dmPhysics::JOINT_TYPE_SLIDER:
                 {
                     b2PrismaticJointDef jointDef = b2DefaultPrismaticJointDef();
-                    jointDef.bodyIdA          = *b2_obj_a;
-                    jointDef.bodyIdB          = *b2_obj_b;
+                    jointDef.bodyIdA          = body_a->m_BodyId;
+                    jointDef.bodyIdB          = body_b->m_BodyId;
                     jointDef.localAnchorA     = pa;
                     jointDef.localAnchorB     = pb;
                     b2Vec2 axis;
@@ -2330,25 +2333,25 @@ namespace dmPhysics
                 break;
             case dmPhysics::JOINT_TYPE_WELD:
                 {
-                    b2WeldJointDef jointDef   = b2DefaultWeldJointDef();
-                    jointDef.bodyIdA          = *b2_obj_a;
-                    jointDef.bodyIdB          = *b2_obj_b;
-                    jointDef.localAnchorA     = pa;
-                    jointDef.localAnchorB     = pb;
-                    jointDef.referenceAngle   = params.m_WeldJointParams.m_ReferenceAngle;
-                    jointDef.linearHertz      = params.m_WeldJointParams.m_FrequencyHz;
-                    // todo: angularHertz?
-                    jointDef.linearDampingRatio = params.m_WeldJointParams.m_DampingRatio;
-                    // todo: angularDampingRatio?
-                    jointDef.collideConnected   = params.m_CollideConnected;
+                    b2WeldJointDef jointDef      = b2DefaultWeldJointDef();
+                    jointDef.bodyIdA             = body_a->m_BodyId;
+                    jointDef.bodyIdB             = body_b->m_BodyId;
+                    jointDef.localAnchorA        = pa;
+                    jointDef.localAnchorB        = pb;
+                    jointDef.referenceAngle      = params.m_WeldJointParams.m_ReferenceAngle;
+                    jointDef.linearHertz         = params.m_WeldJointParams.m_FrequencyHz;
+                    jointDef.angularHertz        = params.m_WeldJointParams.m_FrequencyHz;
+                    jointDef.linearDampingRatio  = params.m_WeldJointParams.m_DampingRatio;
+                    jointDef.angularDampingRatio = params.m_WeldJointParams.m_DampingRatio;
+                    jointDef.collideConnected    = params.m_CollideConnected;
                     joint = b2CreateWeldJoint(world->m_WorldId, &jointDef);
                 }
                 break;
             case dmPhysics::JOINT_TYPE_WHEEL:
                 {
                     b2WheelJointDef jointDef  = b2DefaultWheelJointDef();
-                    jointDef.bodyIdA          = *b2_obj_a;
-                    jointDef.bodyIdB          = *b2_obj_b;
+                    jointDef.bodyIdA          = body_a->m_BodyId;
+                    jointDef.bodyIdB          = body_b->m_BodyId;
                     jointDef.localAnchorA     = pa;
                     jointDef.localAnchorB     = pb;
                     b2Vec2 axis;
@@ -2361,6 +2364,7 @@ namespace dmPhysics
                     jointDef.hertz            = params.m_WheelJointParams.m_FrequencyHz;
                     jointDef.dampingRatio     = params.m_WheelJointParams.m_DampingRatio;
                     jointDef.collideConnected = params.m_CollideConnected;
+                    // jointDef.enableSpring = true;
 
                     joint = b2CreateWheelJoint(world->m_WorldId, &jointDef);
                 }
