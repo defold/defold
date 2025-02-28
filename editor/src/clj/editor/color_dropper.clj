@@ -14,7 +14,6 @@
 
 (ns editor.color-dropper
   (:require [dynamo.graph :as g]
-            [editor.handler :as handler]
             [editor.ui :as ui])
   (:import [javafx.geometry Rectangle2D]
            [javafx.scene Cursor]
@@ -33,7 +32,6 @@
 (g/defnode ColorDropper
   (property color Color)
   (property image WritableImage))
-
 
 (defn- paint-pixel!
   [^GraphicsContext graphics-context x y size color]
@@ -133,7 +131,7 @@
      (.setWidth width)
      (.setHeight height)))
 
-(defn- activate!
+(defn activate!
   [view-node pick-fn]
   (let [bounds (get-bounds)
         {:keys [min-x min-y width height]} bounds
@@ -157,8 +155,3 @@
     (doto pane
       (.setPrefSize width height)
       (ui/add-child! canvas))))
-
-(handler/defhandler :color-dropper :global
-  (run [color-dropper user-data]
-       (when-let [pick-fn (:pick-fn user-data)]
-         (activate! color-dropper pick-fn))))
