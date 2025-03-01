@@ -203,6 +203,7 @@ end
 
 function editor.bundle.check_boxes_grid_row(config, set_config)
     return editor.bundle.grid_row(nil, {
+        editor.bundle.check_box(config, set_config, "distclean", "Clean build folder before bundling"),
         editor.bundle.check_box(config, set_config, "with_symbols", "Generate debug symbols"),
         editor.bundle.check_box(config, set_config, "build_report", "Generate build report"),
         editor.bundle.check_box(config, set_config, "liveupdate", "Publish Live Update content"),
@@ -356,7 +357,12 @@ function editor.bundle.create(config, output_directory, extra_bob_opts)
         end
     end
 
-    editor.bob(bob_opts, "distclean", "resolve", "build", "bundle")
+    local commands = {"distclean", "resolve", "build", "bundle"}
+    if not config.distclean then
+        table.remove(commands, 1)
+    end
+
+    editor.bob(bob_opts, table.unpack(commands))
 
     if editor.prefs.get("bundle.open-output-directory") then
         editor.open_external_file(output_directory)
@@ -395,6 +401,7 @@ editor.bundle.common_variant_schema = editor.prefs.schema.enum({ values = common
 
 function editor.bundle.config_schema(variant_schema, properties)
     properties = properties or {}
+    properties.distclean = editor.prefs.schema.boolean({default = true})
     properties.variant = variant_schema
     properties.texture_compression = editor.prefs.schema.enum({values = texture_compressions})
     properties.with_symbols = editor.prefs.schema.boolean({default = true})
