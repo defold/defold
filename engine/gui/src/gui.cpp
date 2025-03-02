@@ -40,16 +40,16 @@
 #include "gui_private.h"
 #include "gui_script.h"
 
-DM_PROPERTY_U32(rmtp_Gui, 0, FrameReset, "");
-DM_PROPERTY_U32(rmtp_GuiAnimations, 0, FrameReset, "", &rmtp_Gui);
-DM_PROPERTY_U32(rmtp_GuiActiveAnimations, 0, FrameReset, "", &rmtp_Gui);
-DM_PROPERTY_U32(rmtp_GuiNodes, 0, FrameReset, "", &rmtp_Gui);
-DM_PROPERTY_U32(rmtp_GuiActiveNodes, 0, FrameReset, "", &rmtp_Gui);
-DM_PROPERTY_U32(rmtp_GuiStaticTextures, 0, FrameReset, "", &rmtp_Gui);
-DM_PROPERTY_U32(rmtp_GuiDynamicTextures, 0, FrameReset, "", &rmtp_Gui);
-DM_PROPERTY_U32(rmtp_GuiTextures, 0, FrameReset, "", &rmtp_Gui);
-DM_PROPERTY_U32(rmtp_GuiParticlefx, 0, FrameReset, "", &rmtp_Gui);
-DM_PROPERTY_F32(rmtp_GuiDynamicTexturesSizeMb, 0, NoFlags, "size of dynamic tex in Mb", &rmtp_Gui);
+DM_PROPERTY_U32(rmtp_Gui, 0, PROFILE_PROPERTY_FRAME_RESET, "", 0);
+DM_PROPERTY_U32(rmtp_GuiAnimations, 0, PROFILE_PROPERTY_FRAME_RESET, "", &rmtp_Gui);
+DM_PROPERTY_U32(rmtp_GuiActiveAnimations, 0, PROFILE_PROPERTY_FRAME_RESET, "", &rmtp_Gui);
+DM_PROPERTY_U32(rmtp_GuiNodes, 0, PROFILE_PROPERTY_FRAME_RESET, "", &rmtp_Gui);
+DM_PROPERTY_U32(rmtp_GuiActiveNodes, 0, PROFILE_PROPERTY_FRAME_RESET, "", &rmtp_Gui);
+DM_PROPERTY_U32(rmtp_GuiStaticTextures, 0, PROFILE_PROPERTY_FRAME_RESET, "", &rmtp_Gui);
+DM_PROPERTY_U32(rmtp_GuiDynamicTextures, 0, PROFILE_PROPERTY_FRAME_RESET, "", &rmtp_Gui);
+DM_PROPERTY_U32(rmtp_GuiTextures, 0, PROFILE_PROPERTY_FRAME_RESET, "", &rmtp_Gui);
+DM_PROPERTY_U32(rmtp_GuiParticlefx, 0, PROFILE_PROPERTY_FRAME_RESET, "", &rmtp_Gui);
+DM_PROPERTY_F32(rmtp_GuiDynamicTexturesSizeMb, 0, PROFILE_PROPERTY_NONE, "size of dynamic tex in Mb", &rmtp_Gui);
 
 namespace dmGui
 {

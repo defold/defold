@@ -154,9 +154,9 @@
   (let [graph-id (g/node-id->graph-id node-id)
         original-value (g/node-value node-id prop-kw)
         widget (make-property-widget edit-type node-id prop-kw)
-        [color-picker] (test-util/editable-controls widget)]
+        [color-input] (test-util/editable-controls widget)]
     (with-open [_ (test-util/make-graph-reverter graph-id)]
-      (test-util/set-control-value! color-picker 0.11)
+      (test-util/set-control-value! color-input "#fff")
       (let [modified-value (g/node-value node-id prop-kw)]
         (is (not= original-value modified-value))
         (is (= (count original-value) (count modified-value)))
