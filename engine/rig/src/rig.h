@@ -19,7 +19,9 @@
 
 namespace dmRig
 {
-    static const uint16_t INVALID_POSE_MATRIX_CACHE_INDEX = 0xFFFF;;
+    static const uint16_t INVALID_POSE_MATRIX_CACHE_ENTRY = 0xFFFF;
+
+    typedef uint16_t HCachePoseMatrixEntry;
 
     struct RigModelSkinnedVertex
     {
@@ -28,24 +30,36 @@ namespace dmRig
         float          m_BoneIndices[4];
     };
 
-    /** Pose matrix cache (Should it be a buffer instead? we commit poses one by one, and we don't reuse the result if we already commited a pose)
-     * A pose matrix cache stores a cache of pose matrices for a given number of rig instances.
-     * The m_BoneCounts contains the number of bones for a rig isntance that has aqcuired a cache index.
+    /**
+     * Gets the pose matrix cache data pointer and number of matrices in the cache
+     * @param context The rig context
+     * @param pose_matrices A pointer to where the pose matrix pointer will be stored
+     * @param pose_matrices_count A pointer to where the pose matrix count will be stored
      */
-    struct PoseMatrixCache
-    {
-        /// The array of pose matrices for all rig instances
-        dmArray<dmVMath::Matrix4> m_PoseMatrices;
-        /// The array of bone counts for all rig instances
-        dmArray<uint32_t>         m_BoneCounts;
-        /// The max bone count found in the set of pose matrices (I think this can be removed?)
-        uint32_t                  m_MaxBoneCount;
-    };
+    void GetPoseMatrixCacheData(HRigContext context, const dmVMath::Matrix4** pose_matrices, uint32_t* pose_matrices_count);
 
-    void                   ResetPoseMatrixCache(HRigContext context);
-    const PoseMatrixCache* GetPoseMatrixCache(HRigContext context);
-    uint16_t               AcquirePoseMatrixCacheIndex(HRigContext context, HRigInstance instance);
-    uint32_t               GetPoseMatrixCacheIndex(HRigContext context, uint16_t cache_index);
+    /**
+     * Gets the offset into the pose matrix cache for a given cache entry
+     * @param context The rig context
+     * @param instance The rig instance
+     * @return The offset into the pose matrix cache
+     */
+    uint32_t GetPoseMatrixCacheDataOffset(HRigContext context, HRigInstance instance);
+
+    /**
+     * Resets the pose matrix cache, i.e rewinds the buffer to the beginning.
+     * All instance entry handles will be reset to INVALID_POSE_MATRIX_CACHE_ENTRY
+     * @param context The rig context
+     */
+    void ResetPoseMatrixCache(HRigContext context);
+
+    /**
+     * Acquires a pose matrix cache entry
+     * @param context The rig context
+     * @param instance The rig instance
+     * @return The pose matrix cache entry or INVALID_POSE_MATRIX_CACHE_ENTRY if the cache is full
+     */
+    HCachePoseMatrixEntry AcquirePoseMatrixCacheEntry(HRigContext context, HRigInstance instance);
 }
 
 #endif // DM_RIG_H

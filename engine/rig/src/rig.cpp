@@ -53,7 +53,7 @@ namespace dmRig
     static void ResetPoseMatrixCache(PoseMatrixCache* cache)
     {
         cache->m_PoseMatrices.SetCapacity(0);
-        cache->m_BoneCounts.SetCapacity(0);
+        cache->m_CacheEntryOffsets.SetCapacity(0);
         cache->m_MaxBoneCount = 0;
     }
 
@@ -514,18 +514,17 @@ namespace dmRig
     static void CommitPoseMatrixToCache(HRigContext context, HRigInstance instance)
     {
         uint32_t bone_count = GetBoneCount(instance);
-        if (bone_count == 0 || instance->m_PoseMatrixCacheIndex == INVALID_POSE_MATRIX_CACHE_INDEX)
+        if (bone_count == 0 || instance->m_PoseMatrixCacheIndex == INVALID_POSE_MATRIX_CACHE_ENTRY)
         {
             return;
         }
 
         dmArray<Matrix4>& cache_pose_matrices = context->m_PoseMatrixCache.m_PoseMatrices;
-        dmArray<uint32_t>& cache_pose_bone_count = context->m_PoseMatrixCache.m_BoneCounts;
 
         const uint32_t num_pose_matrices = cache_pose_matrices.Size();
         EnsureSize(cache_pose_matrices, num_pose_matrices + bone_count);
 
-        cache_pose_bone_count[instance->m_PoseMatrixCacheIndex] = num_pose_matrices;
+        context->m_PoseMatrixCache.m_CacheEntryOffsets[instance->m_PoseMatrixCacheIndex] = num_pose_matrices;
 
         Matrix4* pose_matrix_write_ptr = cache_pose_matrices.Begin() + num_pose_matrices;
         PoseToMatrix(instance->m_Pose, pose_matrix_write_ptr);
@@ -1170,11 +1169,6 @@ namespace dmRig
         return out_write_ptr;
     }
 
-    const PoseMatrixCache* GetPoseMatrixCache(HRigContext context)
-    {
-        return &context->m_PoseMatrixCache;
-    }
-
     void ResetPoseMatrixCache(HRigContext context)
     {
         ResetPoseMatrixCache(&context->m_PoseMatrixCache);
@@ -1183,41 +1177,54 @@ namespace dmRig
         uint32_t n = context->m_Instances.Size();
         for (uint32_t i = 0; i < n; ++i)
         {
-            instances[i]->m_PoseMatrixCacheIndex = INVALID_POSE_MATRIX_CACHE_INDEX;
+            instances[i]->m_PoseMatrixCacheIndex = INVALID_POSE_MATRIX_CACHE_ENTRY;
         }
     }
 
+    void GetPoseMatrixCacheData(HRigContext context, const dmVMath::Matrix4** pose_matrices, uint32_t* pose_matrices_count)
+    {
+        *pose_matrices = context->m_PoseMatrixCache.m_PoseMatrices.Begin();
+        *pose_matrices_count = context->m_PoseMatrixCache.m_PoseMatrices.Size();
+    }
+
     // These should typically not be stored across multiple frames, since dispatch order might differ.
-    uint16_t AcquirePoseMatrixCacheIndex(HRigContext context, HRigInstance instance)
+    HCachePoseMatrixEntry AcquirePoseMatrixCacheEntry(HRigContext context, HRigInstance instance)
     {
         if (instance == 0)
         {
-            return INVALID_POSE_MATRIX_CACHE_INDEX;
+            return INVALID_POSE_MATRIX_CACHE_ENTRY;
         }
-        else if (instance->m_PoseMatrixCacheIndex != INVALID_POSE_MATRIX_CACHE_INDEX)
+        else if (instance->m_PoseMatrixCacheIndex != INVALID_POSE_MATRIX_CACHE_ENTRY)
         {
             return instance->m_PoseMatrixCacheIndex;
         }
 
-        uint16_t next_index = context->m_PoseMatrixCache.m_BoneCounts.Size();
-        if (context->m_PoseMatrixCache.m_BoneCounts.Full())
+        uint16_t next_index = context->m_PoseMatrixCache.m_CacheEntryOffsets.Size();
+        if (context->m_PoseMatrixCache.m_CacheEntryOffsets.Full())
         {
-            context->m_PoseMatrixCache.m_BoneCounts.OffsetCapacity(32);
+            context->m_PoseMatrixCache.m_CacheEntryOffsets.OffsetCapacity(32);
         }
 
-        context->m_PoseMatrixCache.m_BoneCounts.SetSize(next_index + 1);
+        context->m_PoseMatrixCache.m_CacheEntryOffsets.SetSize(next_index + 1);
 
         instance->m_PoseMatrixCacheIndex = next_index;
 
         return next_index;
     }
 
-    uint32_t GetPoseMatrixCacheIndex(HRigContext context, uint16_t cache_index)
+    uint32_t GetPoseMatrixCacheDataOffset(HRigContext context, HRigInstance instance)
     {
-        if (cache_index == INVALID_POSE_MATRIX_CACHE_INDEX) {
-            return INVALID_POSE_MATRIX_CACHE_INDEX;
+        if (instance->m_PoseMatrixCacheIndex == INVALID_POSE_MATRIX_CACHE_ENTRY)
+        {
+            return INVALID_POSE_MATRIX_CACHE_ENTRY;
         }
-        return context->m_PoseMatrixCache.m_BoneCounts[cache_index];
+        return context->m_PoseMatrixCache.m_CacheEntryOffsets[instance->m_PoseMatrixCacheIndex];
+    }
+
+    // For tests
+    PoseMatrixCache* GetPoseMatrixCache(HRigContext context)
+    {
+        return &context->m_PoseMatrixCache;
     }
 
     uint8_t* GenerateVertexDataFromAttributes(dmRig::HRigContext context, dmRig::HRigInstance instance, dmRigDDF::Mesh* mesh, const dmVMath::Matrix4& world_matrix, const dmVMath::Matrix4& normal_matrix, const dmGraphics::VertexAttributeInfos* attribute_infos, uint32_t vertex_stride, uint8_t* vertex_data_out)
@@ -1490,7 +1497,7 @@ namespace dmRig
         instance->m_MeshSet            = params.m_MeshSet;
         instance->m_AnimationSet       = params.m_AnimationSet;
 
-        instance->m_PoseMatrixCacheIndex = INVALID_POSE_MATRIX_CACHE_INDEX;
+        instance->m_PoseMatrixCacheIndex = INVALID_POSE_MATRIX_CACHE_ENTRY;
 
         instance->m_Enabled = 1;
 

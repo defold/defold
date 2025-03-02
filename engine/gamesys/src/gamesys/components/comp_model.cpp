@@ -116,7 +116,6 @@ namespace dmGameSystem
         dmArray<MeshRenderItem>          m_RenderItems;
         dmArray<MeshAttributeRenderData> m_MeshAttributeRenderDatas;
         uint16_t                         m_ComponentIndex;
-        uint16_t                         m_BindPoseCacheAnimationIndex;
         uint8_t                          m_Enabled : 1;
         uint8_t                          m_DoRender : 1;
         uint8_t                          m_AddedToUpdate : 1;
@@ -1224,7 +1223,7 @@ namespace dmGameSystem
                 instance_data->m_InstanceData.m_NormalTransform = dmRender::GetNormalMatrix(render_context, instance_data->m_InstanceData.m_WorldTransform);
 
                 // *4 = 4 vectors per matrix (RGBA)
-                uint32_t cache_offset = 4 * dmRig::GetPoseMatrixCacheIndex(world->m_RigContext, instance_component->m_BindPoseCacheAnimationIndex);
+                uint32_t cache_offset = 4 * dmRig::GetPoseMatrixCacheDataOffset(world->m_RigContext, instance_component->m_RigInstance);
 
                 instance_data->m_AnimationData.setX((float) cache_offset);
                 instance_data->m_AnimationData.setY((float) GetBoneCount(instance_component->m_RigInstance));
@@ -1377,7 +1376,7 @@ namespace dmGameSystem
                 constants = constants ? constants : world->m_SkinnedAnimationData.m_AnimationRenderConstants;
 
                 // *4 = 4 vectors per matrix (RGBA)
-                uint32_t cache_offset = 4 * dmRig::GetPoseMatrixCacheIndex(world->m_RigContext, component->m_BindPoseCacheAnimationIndex);
+                uint32_t cache_offset = 4 * dmRig::GetPoseMatrixCacheDataOffset(world->m_RigContext, component->m_RigInstance);
 
                 dmVMath::Vector4 animation_data;
                 animation_data.setX((float) cache_offset);
@@ -1694,25 +1693,24 @@ namespace dmGameSystem
         }
     }
 
-    static void FlushPoseMatrixCache(ModelWorld* world)
+    static void WritePoseMatricesToTexture(ModelWorld* world)
     {
-        const dmRig::PoseMatrixCache* pose_matrix_cache = dmRig::GetPoseMatrixCache(world->m_RigContext);
+        const dmVMath::Matrix4* pose_matrix_read_ptr;
+        uint32_t pose_matrix_count;
 
-        if (pose_matrix_cache->m_MaxBoneCount == 0)
+        dmRig::GetPoseMatrixCacheData(world->m_RigContext, &pose_matrix_read_ptr, &pose_matrix_count);
+
+        if (pose_matrix_count == 0)
             return;
 
-        uint32_t num_pose_matrices = pose_matrix_cache->m_PoseMatrices.Size();
-        uint32_t num_bone_pixels = num_pose_matrices * 4;
-
+        uint32_t num_bone_pixels = pose_matrix_count * 4;
         uint32_t max_width  = dmMath::Min(num_bone_pixels, (uint32_t) world->m_SkinnedAnimationData.m_BindPoseCacheTextureMaxWidth);
         uint32_t max_height = dmMath::Min(num_bone_pixels / world->m_SkinnedAnimationData.m_BindPoseCacheTextureMaxWidth + 1, (uint32_t) world->m_SkinnedAnimationData.m_BindPoseCacheTextureMaxHeight);
 
         EnsureBindPoseCacheBufferSize(world, max_width, max_height);
-
-        const dmVMath::Matrix4* animation_data_read_ptr = pose_matrix_cache->m_PoseMatrices.Begin();
         dmVMath::Matrix4* animation_data_write_ptr = (dmVMath::Matrix4*) world->m_SkinnedAnimationData.m_BindPoseCacheBuffer;
 
-        memcpy(animation_data_write_ptr, animation_data_read_ptr, num_pose_matrices * sizeof(dmVMath::Matrix4));
+        memcpy(animation_data_write_ptr, pose_matrix_read_ptr, pose_matrix_count * sizeof(dmVMath::Matrix4));
 
         dmGraphics::TextureParams tp;
         tp.m_Width     = max_width;
@@ -1838,12 +1836,9 @@ namespace dmGameSystem
                 ReHash(&component);
             }
 
-            component.m_BindPoseCacheAnimationIndex = dmRig::INVALID_POSE_MATRIX_CACHE_INDEX;
             if (RequiresBindPoseCaching(component))
             {
-                component.m_BindPoseCacheAnimationIndex = dmRig::AcquirePoseMatrixCacheIndex(world->m_RigContext, component.m_RigInstance);
-
-                if (component.m_BindPoseCacheAnimationIndex == dmRig::INVALID_POSE_MATRIX_CACHE_INDEX)
+                if (dmRig::AcquirePoseMatrixCacheEntry(world->m_RigContext, component.m_RigInstance) == dmRig::INVALID_POSE_MATRIX_CACHE_ENTRY)
                 {
                     dmLogWarning("Model requires bind pose cache, but was not able to acquire a cache index. Consider increasing the cache size (model.max_bone_matrix_texture_width and model.max_bone_matrix_texture_height).");
                 }
@@ -1941,7 +1936,7 @@ namespace dmGameSystem
                     world->m_VertexBufferDispatchCounts[batch_index]++;
                 }
 
-                FlushPoseMatrixCache(world);
+                WritePoseMatricesToTexture(world);
 
                 DM_PROPERTY_ADD_U32(rmtp_ModelVertexCount, world->m_StatisticsVertexCount);
                 DM_PROPERTY_ADD_U32(rmtp_ModelVertexSize, world->m_StatisticsVertexDataSize);

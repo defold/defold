@@ -24,6 +24,7 @@
 #include <dmsdk/dlib/dstrings.h>
 
 #include <../rig.h>
+#include <../rig_private.h>
 
 using namespace dmVMath;
 
@@ -1903,9 +1904,9 @@ TEST_F(RigContextTest, TestBindPoseCache)
     create_params.m_AnimationSet     = animation_set;
 
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::InstanceCreate(m_Context, create_params, &instance));
-    uint16_t pose_matrix_index = dmRig::AcquirePoseMatrixCacheIndex(m_Context, instance);
+    dmRig::HCachePoseMatrixEntry pose_matrix_entry = dmRig::AcquirePoseMatrixCacheEntry(m_Context, instance);
 
-    ASSERT_NE(dmRig::INVALID_POSE_MATRIX_CACHE_INDEX, pose_matrix_index);
+    ASSERT_NE(dmRig::INVALID_POSE_MATRIX_CACHE_ENTRY, pose_matrix_entry);
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
 
     const dmRig::PoseMatrixCache* cache = dmRig::GetPoseMatrixCache(m_Context);
