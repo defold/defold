@@ -122,9 +122,6 @@ namespace dmGameSystem
     static uint8_t* CreateVertexData(const dmRigDDF::Mesh* mesh, uint8_t* out_write_ptr, RigModelVertexFormat format)
     {
         uint32_t vertex_count = mesh->m_Positions.m_Count / 3;
-
-        uint8_t* out_write_ptr_orig = out_write_ptr;
-
         const float* positions = mesh->m_Positions.m_Count ? mesh->m_Positions.m_Data : 0;
         const float* normals = mesh->m_Normals.m_Count ? mesh->m_Normals.m_Data : 0;
         const float* tangents = mesh->m_Tangents.m_Count ? mesh->m_Tangents.m_Data : 0;
@@ -362,6 +359,18 @@ namespace dmGameSystem
         {
             ReleaseResources(factory, resource);
             return result;
+        }
+
+        if(resource->m_RigScene->m_AnimationSetRes || resource->m_RigScene->m_SkeletonRes)
+        {
+            if (!AreAllMaterialsWorldSpace(resource) && !dmGraphics::IsTextureFormatSupported(context, BIND_POSE_CACHE_TEXTURE_FORMAT))
+            {
+                dmLogError(
+                    "Failed to create Model component. One or more materials has vertex space option VERTEX_SPACE_LOCAL,"
+                    "which requires a float texture for storing animation data but the format (%s) isn't supported.",
+                    dmGraphics::GetTextureFormatLiteral(BIND_POSE_CACHE_TEXTURE_FORMAT));
+                return dmResource::RESULT_NOT_SUPPORTED;
+            }
         }
 
         return result;

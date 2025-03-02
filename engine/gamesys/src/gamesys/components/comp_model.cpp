@@ -120,7 +120,8 @@ namespace dmGameSystem
         uint8_t                          m_DoRender : 1;
         uint8_t                          m_AddedToUpdate : 1;
         uint8_t                          m_ReHash : 1;
-        uint8_t                          : 4;
+        uint8_t                          m_RequiresBindPoseCaching : 1;
+        uint8_t                          : 3;
     };
 
     struct ModelSkinnedAnimationData
@@ -833,6 +834,26 @@ namespace dmGameSystem
         rd->m_Initialized = true;
     }
 
+    static void SetupRequiresBindPoseCaching(ModelComponent* component)
+    {
+        component->m_RequiresBindPoseCaching = component->m_RigInstance != 0;
+
+        uint32_t render_item_count = component->m_RenderItems.Size();
+        for (uint32_t j = 0; j < render_item_count; ++j)
+        {
+            const MeshRenderItem& render_item = component->m_RenderItems[j];
+            if (!render_item.m_Enabled)
+            {
+                continue;
+            }
+            if (render_item.m_Buffers->m_RigModelVertexFormat == RIG_MODEL_VERTEX_FORMAT_SKINNED)
+            {
+                component->m_RequiresBindPoseCaching = true;
+                return;
+            }
+        }
+    }
+
     static void SetupRenderItems(ModelComponent* component, ModelResource* resource)
     {
         component->m_RenderItems.SetCapacity(resource->m_Meshes.Size());
@@ -843,6 +864,8 @@ namespace dmGameSystem
         dmHashTable64<uint32_t>* bone_id_to_indices = 0;
         if (resource->m_RigScene->m_SkeletonRes)
             bone_id_to_indices = &resource->m_RigScene->m_SkeletonRes->m_BoneIndices;
+
+        SetupRequiresBindPoseCaching(component);
 
         for (uint32_t i = 0; i < resource->m_Meshes.Size(); ++i)
         {
@@ -1716,7 +1739,7 @@ namespace dmGameSystem
         tp.m_Width     = max_width;
         tp.m_Height    = max_height;
         tp.m_Depth     = 1;
-        tp.m_Format    = dmGraphics::TEXTURE_FORMAT_RGBA32F;
+        tp.m_Format    = BIND_POSE_CACHE_TEXTURE_FORMAT;
         tp.m_Data      = animation_data_write_ptr;
         tp.m_MinFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
         tp.m_MagFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
@@ -1787,25 +1810,6 @@ namespace dmGameSystem
             world->m_RenderObjects.SetCapacity(num_render_items);
     }
 
-    // Move to res_model
-    static bool RequiresBindPoseCaching(const ModelComponent& component)
-    {
-        if (!component.m_RigInstance)
-            return false;
-        uint32_t render_item_count = component.m_RenderItems.Size();
-        for (uint32_t j = 0; j < render_item_count; ++j)
-        {
-            const MeshRenderItem& render_item = component.m_RenderItems[j];
-            if (!render_item.m_Enabled)
-                continue;
-            if (render_item.m_Buffers->m_RigModelVertexFormat == RIG_MODEL_VERTEX_FORMAT_SKINNED)
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
     dmGameObject::CreateResult CompModelAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params)
     {
         ModelWorld* world = (ModelWorld*)params.m_World;
@@ -1836,7 +1840,7 @@ namespace dmGameSystem
                 ReHash(&component);
             }
 
-            if (RequiresBindPoseCaching(component))
+            if (component.m_RequiresBindPoseCaching)
             {
                 if (dmRig::AcquirePoseMatrixCacheEntry(world->m_RigContext, component.m_RigInstance) == dmRig::INVALID_POSE_MATRIX_CACHE_ENTRY)
                 {
@@ -2350,6 +2354,12 @@ namespace dmGameSystem
                 found = true;
             }
         }
+
+        if (found)
+        {
+            SetupRequiresBindPoseCaching(component);
+        }
+
         return found;
     }
 

@@ -132,19 +132,6 @@ public class Exec {
 
     /**
      * Exec command
-     * @param args arguments
-     * @return Result instance with return code and stdout/stderr combined
-     * @throws IOException
-     */
-    public static Result execResult(List<String> args) throws IOException {
-        String[] array = new String[args.size()];
-        array = args.toArray(array);
-        ProcessBuilder pb = createProcessBuilder(array);
-        return startAndWaitForProcessBuilderResult(pb);
-    }
-
-    /**
-     * Exec command
      * @param env environment variables to use
      * @param args arguments
      * @return Result instance with return code and stdout/stderr combined

@@ -185,7 +185,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
             }
             glslangArgs.add(file_in_glsl.getAbsolutePath());
 
-            result = Exec.execResult(glslangArgs);
+            result = Exec.execResult(glslangArgs.toArray(new String[0]));
         }
 
         String resultString = getResultString(result);

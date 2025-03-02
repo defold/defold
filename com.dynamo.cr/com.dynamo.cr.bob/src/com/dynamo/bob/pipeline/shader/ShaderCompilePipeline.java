@@ -193,7 +193,7 @@ public class ShaderCompilePipeline {
         }
         args.add(pathFileInGLSL);
 
-        Result result = Exec.execResult(args);
+        Result result = Exec.execResult(args.toArray(new String[0]));
         checkResult(resourcePath, result);
     }
 
