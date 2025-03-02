@@ -2501,7 +2501,8 @@ namespace dmPhysics
                     params.m_WeldJointParams.m_DampingRatio = b2WeldJoint_GetLinearDampingRatio(*joint_raw);
 
                     // Read only properties
-                    // params.m_WeldJointParams.m_ReferenceAngle = typed_joint->GetReferenceAngle();
+                    params.m_WeldJointParams.m_ReferenceAngle = b2WeldJoint_GetReferenceAngle(*joint_raw);
+                    
                 }
                 break;
             case dmPhysics::JOINT_TYPE_WHEEL:

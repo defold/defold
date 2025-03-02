@@ -78,6 +78,9 @@ case $PLATFORM in
         ;;
     x86_64-macos)
         CMAKE_FLAGS="-DCMAKE_OSX_ARCHITECTURES=x86_64 ${CMAKE_FLAGS}"
+
+        CXXFLAGS="-DDEFOLD_USE_POSIX_MEMALIGN ${CXXFLAGS}"
+        CFLAGS="-DDEFOLD_USE_POSIX_MEMALIGN ${CFLAGS}"
         ;;
 esac
 
@@ -134,9 +137,6 @@ echo "**************************************************"
 $CMAKE_CONFIGURE ${CMAKE_FLAGS} $BOX2D_DIR
 #cmake --build . --config Debug -j 8
 cmake --build . --config Release ${CMAKE_BUILD_FLAGS} -j 8 
-
-# emcmake cmake -DBOX2D_VALIDATE=OFF -DBOX2D_UNIT_TESTS=ON -DBOX2D_SAMPLES=OFF -DCMAKE_BUILD_TYPE=Debug ..
-# cmake --build .
 
 mkdir -p ./lib/$PLATFORM
 mkdir -p ./include

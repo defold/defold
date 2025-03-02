@@ -22,6 +22,19 @@ local function assert_error(func)
     assert(not r)
 end
 
+-- helper functions to verify test data.
+-- throws a Lua error if the assert(s) fails.
+local function assert_near(a, b, eps)
+    if not eps then
+        eps = 0.001
+    end
+    local diff = math.abs(a - b)
+    if not (diff < eps) then
+        local err_msg = "assert_near failed, a: " .. tostring(a) .. ", b: " .. tostring(b) .. " diff == " .. tostring(diff) .. " >= " .. tostring(eps)
+        error(debug.traceback(err_msg))
+    end
+end
+
 -- reusable zero point
 local zp = vmath.vector3(0)
 
@@ -82,8 +95,10 @@ function init(self)
 
     physics.create_joint(physics.JOINT_TYPE_HINGE, self.a_coll, self.joint_id, zp, self.b_coll, zp, { lower_angle = 0, upper_angle = 10, enable_limit = true })
     properties = physics.get_joint_properties(self.a_coll, self.joint_id)
+
     assert(properties.lower_angle == 0)
-    assert(properties.upper_angle == 10)
+    -- box2d v3: upper_angle is clamped to PI
+    assert_near(properties.upper_angle, 3.1415927410126)
     assert(properties.enable_limit)
     physics.destroy_joint(self.a_coll, self.joint_id)
 
@@ -104,17 +119,6 @@ function init(self)
     assert(properties.enable_motor)
     assert(properties.motor_speed == 20)
     physics.destroy_joint(self.a_coll, self.joint_id)
-end
-
--- helper functions to verify test data.
--- throws a Lua error if the assert(s) fails.
-local function assert_near(a, b)
-    local eps = 0.001
-    local diff = math.abs(a - b)
-    if not (diff < eps) then
-        local err_msg = "assert_near failed, a: " .. tostring(a) .. ", b: " .. tostring(b) .. " diff == " .. tostring(diff) .. " >= " .. tostring(eps)
-        error(debug.traceback(err_msg))
-    end
 end
 
 local function assert_true(a)
@@ -177,7 +181,7 @@ local joint_tests = {
             local p_a = go.get_position(self.a)
             local p_b = go.get_position(self.b)
             local length = vmath.length(p_a - p_b)
-            assert_near(length, 5)
+            assert_near(length, 5, 0.025)
             assert_near(p_b.x, 0)
 
             -- Move A
