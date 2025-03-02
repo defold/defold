@@ -17,9 +17,11 @@
 #include "dlib/array.h"
 #include "dlib/atomic.h"
 #include "dlib/dlib.h" // IsDebugMode
+#include "dlib/hash.h"
+#include "dlib/hashtable.h"
 #include "dlib/log.h"
-#include "dlib/spinlock.h"
-#include "dlib/static_assert.h"
+#include "dlib/math.h"
+#include "dlib/mutex.h"
 #include "dlib/thread.h"
 #include "dlib/time.h"
 
@@ -31,34 +33,274 @@
 
 struct Property
 {
-    const char*                 m_Name;
-    const char*                 m_Description;
-    uint32_t                    m_NameHash;
-    uint32_t                    m_Flags;
-    dmProfilePropertyIdx        m_Parent;
-    dmProfilePropertyIdx        m_Sibling;
-    dmProfilePropertyIdx        m_FirstChild;
-    dmProfile::PropertyValue    m_DefaultValue;
-    dmProfile::PropertyType     m_Type;
+    const char*              m_Name;
+    const char*              m_Description;
+    uint32_t                 m_NameHash;
+    uint32_t                 m_Flags;
+    dmProfileIdx             m_Parent;
+    dmProfileIdx             m_Sibling;
+    dmProfileIdx             m_FirstChild;
+    dmProfile::PropertyValue m_DefaultValue;
+    dmProfile::PropertyType  m_Type;
 };
 
 struct PropertyData
 {
-    dmProfilePropertyIdx        m_Index;
     dmProfile::PropertyValue    m_Value;
+    dmProfileIdx                m_Index:63;
+    dmProfileIdx                m_Used:1;
 };
 
-static bool             g_PropertyInitialized = false;
+struct Sample
+{
+    Sample*         m_Parent;
+    Sample*         m_Sibling;
+    Sample*         m_FirstChild;
+    Sample*         m_LastChild;
+    uint64_t        m_Start;            // Start time for first sample (in microseconds)
+    uint64_t        m_TempStart;        // Start time for sub sample
+    uint64_t        m_Length;           // Elapsed time in microseconds
+    uint64_t        m_LengthChildren;   // Elapsed time in children in microseconds
+    uint32_t        m_NameHash;         // faster access to name hash
+    uint32_t        m_CallCount;        // Number of times this scope was called
+};
+
+///////////////////////////////////////////////////////////////////////////////////////////////
+
+// Properties are initialized at global scope, so we put them in a preallocated static array
+// to avoid dynamic allocations or other setup issues
+static int32_atomic_t   g_PropertyInitialized = 0;
 static const uint32_t   g_MaxPropertyCount = 256;
-static uint32_t         g_PropertyCount = 1; // #0 is in valid!
+static const uint32_t   g_MaxSampleCount = 4096;
+static uint32_t         g_PropertyCount = 1; // #0 is root!
 static Property         g_Properties[g_MaxPropertyCount];
 
+// At global scope as they're set _before_ the profiler is started
+static dmProfile::FSampleTreeCallback      g_SampleTreeCallback = 0;
+static void*                               g_SampleTreeCallbackCtx = 0;
+static dmProfile::FPropertyTreeCallback    g_PropertyTreeCallback = 0;
+static void*                               g_PropertyTreeCallbackCtx = 0;
+
+// Synchronization
+static dmThread::TlsKey         g_TlsKey = dmThread::AllocTls();
+static int32_atomic_t           g_ThreadCount = 0;
+static int32_atomic_t           g_ProfileInitialized = 0;
+static dmMutex::HMutex          g_Lock = 0;
+
+static struct ProfileContext*   g_ProfileContext = 0;
+
+///////////////////////////////////////////////////////////////////////////////////////////////
+// UTILS
+
+static inline uint32_t HashString32(const char* name)
+{
+    return dmHashBufferNoReverse32(name, strlen(name));
+}
+
+static inline bool IsValidIndex(dmProfileIdx idx)
+{
+    return idx != DM_PROFILE_PROPERTY_INVALID_IDX;
+}
+
+static inline uint32_t MakeColorFromHash(uint32_t hash)
+{
+    // Borrowed from Remotery.c
+
+    // Hash integer line position to full hue
+    float h = (float)hash / (float)0xFFFFFFFF;
+    float r = dmMath::Clamp(fabsf(fmodf(h * 6 + 0, 6) - 3) - 1, 0.0f, 1.0f);
+    float g = dmMath::Clamp(fabsf(fmodf(h * 6 + 4, 6) - 3) - 1, 0.0f, 1.0f);
+    float b = dmMath::Clamp(fabsf(fmodf(h * 6 + 2, 6) - 3) - 1, 0.0f, 1.0f);
+
+    // Cubic smooth
+    r = r * r * (3 - 2 * r);
+    g = g * g * (3 - 2 * g);
+    b = b * b * (3 - 2 * b);
+
+    // Lerp to HSV lightness a little
+    float k = 0.4;
+    r = r * k + (1 - k);
+    g = g * k + (1 - k);
+    b = b * k + (1 - k);
+
+    uint8_t br = (uint8_t)255*dmMath::Clamp(r, 0.0f, 1.0f);
+    uint8_t bg = (uint8_t)255*dmMath::Clamp(g, 0.0f, 1.0f);
+    uint8_t bb = (uint8_t)255*dmMath::Clamp(b, 0.0f, 1.0f);
+    uint8_t ba = 0xFF;
+
+    return (ba<<24) | (br << 16) | (bg << 8) | (bb << 0);
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////
+// ThreadData
+
+static void ResetThreadData(struct ThreadData* td);
+
+// We use one instance of ThreadData per thread, keeping track of it's sample scopes
+struct ThreadData
+{
+    Sample          m_Root;
+    Sample*         m_CurrentSample;
+    dmArray<Sample> m_SamplePool;
+    int32_t         m_ThreadId;
+
+    ThreadData(int32_t thread_id)
+    : m_ThreadId(thread_id)
+    {
+        memset(this, 0, sizeof(*this));
+        m_Root.m_NameHash = HashString32("Root");
+
+        // mustn't reallocate as we use pointers directly into this array
+        m_SamplePool.SetCapacity(g_MaxSampleCount);
+        m_SamplePool.SetSize(0);
+
+        ResetThreadData(this);
+    }
+};
+
+static Sample* AllocateNewSample(ThreadData* td)
+{
+    static Sample g_DummySample = {
+        .m_Parent = 0,
+        .m_FirstChild = 0,
+        .m_LastChild = 0,
+        .m_Sibling = 0,
+        .m_Start = 0,
+        .m_Length = 0,
+        .m_LengthChildren = 0,
+        .m_NameHash = 0 };
+
+    if (td->m_SamplePool.Full())
+    {
+        return &g_DummySample;
+    }
+
+    td->m_SamplePool.SetSize(td->m_SamplePool.Size() + 1);
+    return td->m_SamplePool.End() - 1;
+}
+
+static void ResetThreadData(ThreadData* td)
+{
+    td->m_SamplePool.SetSize(0);
+    td->m_Root.m_FirstChild = 0;
+    td->m_Root.m_LastChild = 0;
+    td->m_CurrentSample = &td->m_Root;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////
+// PROFILE CONTEXT
+
+static void DeleteThreadDataFn(void* context, const uint32_t* key, ThreadData** td)
+{
+    delete *td;
+}
+
+static void DeleteStringFn(void* context, const uint32_t* key, const char** str)
+{
+    free((void*)*str);
+}
+
+struct ProfileContext
+{
+    dmHashTable32<const char*> m_Names;
+    dmHashTable32<const char*> m_ThreadNames;
+    dmArray<PropertyData>      m_PropertyData; // 1:1 index mapping to g_Properties array
+    dmHashTable32<ThreadData*> m_ThreadData;
+
+    ProfileContext()
+    {
+        m_PropertyData.SetCapacity(g_MaxPropertyCount);
+        m_PropertyData.SetSize(g_MaxPropertyCount);
+
+        for (uint32_t i = 0; i < g_MaxPropertyCount; ++i)
+        {
+            m_PropertyData[i].m_Index = i;
+            m_PropertyData[i].m_Value.m_U64 = 0;
+        }
+        m_PropertyData[0].m_Used = 1;
+    }
+
+    ~ProfileContext()
+    {
+        m_ThreadData.Iterate(DeleteThreadDataFn, (void*)0);
+        m_ThreadData.Clear();
+
+        m_Names.Iterate(DeleteStringFn, (void*)0);
+        m_Names.Clear();
+
+        m_ThreadNames.Iterate(DeleteStringFn, (void*)0);
+        m_ThreadNames.Clear();
+    }
+};
+
+static bool IsProfileInitialized()
+{
+    return dmAtomicGet32(&g_ProfileInitialized) != 0;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////
+
+#define CHECK_INITIALIZED() \
+    if (!IsProfileInitialized()) \
+        return;
+
+#define CHECK_INITIALIZED_RETVAL(RETVAL) \
+    if (!IsProfileInitialized()) \
+        return RETVAL;
+
+///////////////////////////////////////////////////////////////////////////////////////////////
+
+static const char* GetNameFromHash(uint32_t name_hash)
+{
+    CHECK_INITIALIZED_RETVAL("null");
+    DM_MUTEX_SCOPED_LOCK(g_Lock);
+    const char** pname = g_ProfileContext->m_Names.Get(name_hash);
+    return pname != 0 ? *pname : "null";
+}
+
+static uint32_t GetOrCacheNameHash(const char* name, uint32_t* pname_hash)
+{
+    if (pname_hash)
+    {
+        uint32_t name_hash = *pname_hash;
+        if (!name_hash)
+        {
+            *pname_hash = HashString32(name);
+        }
+        return *pname_hash;
+    }
+    return HashString32(name); // No cache to store it in, so we have to recalculate each time
+}
+
+static uint32_t InternalizeName(const char* original, uint32_t* pname_hash)
+{
+    const char* name = strdup(original);
+    uint32_t name_hash = GetOrCacheNameHash(name, pname_hash);
+
+    if (g_ProfileContext->m_Names.Full())
+    {
+        uint32_t cap = g_ProfileContext->m_Names.Capacity() + 64;
+        g_ProfileContext->m_Names.SetCapacity((cap*2)/3, cap);
+    }
+    g_ProfileContext->m_Names.Put(name_hash, name);
+    return name_hash;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////
+// PROPERTIES
+
+static Property*        GetPropertyFromIdx(dmProfileIdx idx);
+static PropertyData*    GetPropertyDataFromIdx(dmProfileIdx idx);
+
+// Invoked when first property is initialized
 static void PropertyInitialize()
 {
-    if (g_PropertyInitialized)
+    if (dmAtomicIncrement32(&g_PropertyInitialized) != 0)
         return;
+
     memset(g_Properties, 0, sizeof(g_Properties));
-    g_PropertyInitialized = true;
+
+    g_Lock = dmMutex::New();
 
     g_Properties[0].m_Name      = "Root";
     g_Properties[0].m_NameHash  = dmHashString32(g_Properties[0].m_Name);
@@ -68,192 +310,138 @@ static void PropertyInitialize()
     g_Properties[0].m_Sibling   = DM_PROFILE_PROPERTY_INVALID_IDX;
 }
 
-static Property* AllocateProperty(dmProfilePropertyIdx* idx)
+static void ResetProperties(ProfileContext* ctx)
 {
-    if (g_PropertyCount >= g_MaxPropertyCount)
-        return 0;
-    *idx = g_PropertyCount++;
-    return &g_Properties[*idx];
+    uint32_t n = ctx->m_PropertyData.Size();
+    for (uint32_t i = 0; i < n; ++i)
+    {
+        PropertyData* data = &ctx->m_PropertyData[i];
+        data->m_Used = 0;
+
+        Property* prop = &g_Properties[i];
+        if ((prop->m_Flags & PROFILE_PROPERTY_FRAME_RESET) == PROFILE_PROPERTY_FRAME_RESET)
+        {
+            data->m_Value = prop->m_DefaultValue;
+        }
+    }
+
+    ctx->m_PropertyData[0].m_Used = 1;
 }
 
-static inline bool IsValidIndex(dmProfilePropertyIdx idx)
+static void DebugProperties(int indent, Property* prop)
 {
-    return idx != DM_PROFILE_PROPERTY_INVALID_IDX;
+    Property* parent = GetPropertyFromIdx(prop->m_Parent);
+
+    for (int i = 0; i < indent; ++i)
+        printf("  ");
+    printf("Property: '%s'  parent: '%s'\n", prop->m_Name, parent?parent->m_Name:"-");
+
+    dmProfileIdx idx = prop->m_FirstChild;
+    while(IsValidIndex(idx))
+    {
+        Property* child = GetPropertyFromIdx(idx);
+        assert(child != 0);
+        DebugProperties(indent+1, child);
+
+        idx = child->m_Sibling;
+    }
 }
 
-static Property* GetPropertyFromIdx(dmProfilePropertyIdx idx)
+///////////////////////////////////////////////////////////////////////////////////////////////
+// Threads
+
+static int32_t GetThreadId()
 {
-    if (!IsValidIndex(idx))
-        return 0;
-    return &g_Properties[idx];
+    void* tls_data = (ThreadData*)dmThread::GetTlsValue(g_TlsKey);
+    if (tls_data == 0)
+    {
+        // NOTE: We store thread_id + 1. Otherwise we can't differentiate between thread-id 0 and not initialized
+        int32_t next_thread_id = dmAtomicIncrement32(&g_ThreadCount) + 1;
+        tls_data = (void*)((uintptr_t)next_thread_id);
+        dmThread::SetTlsValue(g_TlsKey, tls_data);
+    }
+
+    intptr_t thread_id = ((intptr_t)tls_data) - 1;
+    assert(thread_id >= 0);
+    return (int32_t)thread_id;
 }
 
-static PropertyData* GetFramePropertyFromIdx(dmProfilePropertyIdx idx);
+static const char* GetThreadName(int32_t thread_id)
+{
+    CHECK_INITIALIZED_RETVAL("null");
+    DM_MUTEX_SCOPED_LOCK(g_Lock);
+    const char** pname = g_ProfileContext->m_ThreadNames.Get(thread_id);
+    return pname != 0 ? *pname : "null";
+}
+
+static ThreadData* GetOrCreateThreadData(ProfileContext* ctx, int32_t thread_id)
+{
+    ThreadData** pdata = ctx->m_ThreadData.Get(thread_id);
+    if (pdata)
+        return *pdata;
+
+    ThreadData* td = new ThreadData(thread_id);
+
+    if (ctx->m_ThreadData.Full())
+    {
+        uint32_t cap = ctx->m_ThreadData.Capacity() + 16;
+        ctx->m_ThreadData.SetCapacity((cap*2)/3, cap);
+    }
+    ctx->m_ThreadData.Put(thread_id, td);
+    return td;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////
 
 namespace dmProfile
 {
-    #define CHECK_INITIALIZED() \
-        if (!dmProfile::IsInitialized()) \
-            return;
-
-    #define CHECK_INITIALIZED_RETVAL(RETVAL) \
-        if (!dmProfile::IsInitialized()) \
-            return RETVAL;
-
-
     static const uint32_t INVALID_INDEX = 0xFFFFFFFF;
-
-    struct Scope
-    {
-        const char* m_Name;
-        uint32_t    m_NameHash;
-        uint16_t    m_Index;    /// Scope index, range [0, scopes-1]
-        void*       m_Internal;
-    };
-
-    struct ScopeData
-    {
-        Scope*   m_Scope;
-        uint32_t m_Elapsed; /// Total time spent in scope (in ticks) summed over all threads
-        uint32_t m_Count;   /// Occurrences of this scope summed over all threads
-    };
-
-    struct Sample
-    {
-        const char* m_Name;
-        Scope*      m_Scope;    /// Sampled within scope
-        uint32_t    m_Start;    /// Start time in ticks
-        uint32_t    m_Elapsed;  /// Elapsed time in ticks
-        uint32_t    m_NameHash; /// Sample name hash
-        uint16_t    m_ThreadId; /// Thread id this sample belongs to
-        uint16_t    :16;        /// Padding to 64-bit align
-    };
-
-    DM_STATIC_ASSERT(sizeof(Sample) == 32, Invalid_struct_size);
-
-    struct Profile
-    {
-        dmArray<Sample>         m_Samples;
-        dmArray<ScopeData>      m_ScopesData;
-        dmArray<PropertyData>   m_PropertyData; // 1:1 index mapping to g_Properties array
-        uint32_t                m_ScopeCount;
-        //uint32_t                m_CounterCount;
-    };
-
-    struct ProfileContext
-    {
-        dmSpinlock::Spinlock    m_Lock;
-        dmThread::TlsKey        m_TlsKey;
-        int32_atomic_t          m_ThreadCount;
-
-        uint64_t                m_BeginTime;
-
-        Profile                 m_EmptyProfile;
-        Profile*                m_ActiveProfile;
-
-        dmArray<Profile*>       m_FreeProfiles;
-
-        dmArray<Scope>          m_Scopes;
-
-        ProfileContext()
-        {
-            m_TlsKey        = dmThread::AllocTls();
-            m_ThreadCount   = 0;
-
-            dmSpinlock::Create(&m_Lock);
-
-            memset(&m_EmptyProfile, 0, sizeof(m_EmptyProfile));
-            m_ActiveProfile = 0;//&m_EmptyProfile;
-
-            // Setup profiles
-
-            const uint32_t max_samples    = 8192;
-            const uint32_t max_scopes     = 256;
-            const uint32_t max_properties = g_MaxPropertyCount;
-
-            // let's support only one profile at a time
-            Profile* p = &m_EmptyProfile;
-
-            p->m_Samples.SetCapacity(max_samples);
-
-            p->m_PropertyData.SetCapacity(max_properties);
-            p->m_PropertyData.SetSize(max_properties);
-
-            p->m_ScopesData.SetCapacity(max_scopes);
-            p->m_ScopesData.SetSize(max_scopes);
-
-            p->m_Samples.SetSize(0); // Could be > 0 if Initialized is called again after Finalize
-
-            //p->m_ScopeCount = 0;
-            //p->m_CounterCount = 0;
-        }
-
-        ~ProfileContext()
-        {
-            dmSpinlock::Destroy(&m_Lock);
-        }
-    };
-
-    static void DebugProperties(int indent, Property* prop)
-    {
-        Property* parent = GetPropertyFromIdx(prop->m_Parent);
-
-        for (int i = 0; i < indent; ++i)
-            printf("  ");
-        printf("Property: '%s'  parent: '%s'\n", prop->m_Name, parent?parent->m_Name:"-");
-
-        dmProfilePropertyIdx idx = prop->m_FirstChild;
-        while(IsValidIndex(idx))
-        {
-            Property* child = GetPropertyFromIdx(idx);
-            assert(child != 0);
-            DebugProperties(indent+1, child);
-
-            idx = child->m_Sibling;
-        }
-
-    }
-
-
-    FSampleTreeCallback     g_SampleTreeCallback = 0;
-    FPropertyTreeCallback   g_PropertyTreeCallback = 0;
-    ProfileContext* g_ProfileContext = 0;
-    ScopeData       g_DummyScopeData = { 0 };
-    Scope           g_DummyScope = { "dummy", 0u, 0, &g_DummyScopeData };
 
     void Initialize(const Options* options)
     {
         if (!dLib::IsDebugMode())
             return;
 
-        dmLogInfo("Defold Profiler");
-        DebugProperties(0, &g_Properties[0]);
+        // dmLogInfo("Defold Profiler");
+        // DebugProperties(0, &g_Properties[0]);
 
         assert(!IsInitialized());
         g_ProfileContext = new ProfileContext;
 
-        dmSpinlock::Create(&g_ProfileContext->m_Lock);
+        dmAtomicIncrement32(&g_ProfileInitialized);
+
+        SetThreadName("Main");
     }
 
     void Finalize()
     {
-        if (g_ProfileContext)
+        CHECK_INITIALIZED();
         {
-            dmSpinlock::Destroy(&g_ProfileContext->m_Lock);
+            DM_MUTEX_SCOPED_LOCK(g_Lock);
+            dmAtomicDecrement32(&g_ProfileInitialized);
+
             delete g_ProfileContext;
+            g_ProfileContext = 0;
         }
+        dmMutex::Delete(g_Lock);
+        g_Lock = 0;
     }
 
     bool IsInitialized()
     {
-        return g_ProfileContext != 0;
+        return IsProfileInitialized();
     }
 
     void SetThreadName(const char* name)
     {
         CHECK_INITIALIZED();
-        // we're on the main thread here, so we'll respect the current name
-        (void)name;
+        DM_MUTEX_SCOPED_LOCK(g_Lock);
+        if (g_ProfileContext->m_ThreadNames.Full())
+        {
+            uint32_t cap = g_ProfileContext->m_ThreadNames.Capacity() + 32;
+            g_ProfileContext->m_ThreadNames.SetCapacity((cap*2)/3, cap);
+        }
+        g_ProfileContext->m_ThreadNames.Put(GetThreadId(), strdup(name));
     }
 
     void AddCounter(const char* name, uint32_t amount)
@@ -262,72 +450,25 @@ namespace dmProfile
         // Used by mem profiler to dynamically insert a property at runtime
     }
 
-    static void ResetProfile(ProfileContext* ctx, Profile* profile)
-    {
-        profile->m_Samples.SetSize(0);
-
-        uint32_t n = ctx->m_Scopes.Size(); // instead of resetting max count every frame
-        for (uint32_t i = 0; i < n; ++i)
-        {
-            ScopeData* scope_data = &profile->m_ScopesData[i];
-            scope_data->m_Elapsed = 0;
-            scope_data->m_Count = 0;
-            profile->m_ScopesData[i].m_Scope = &ctx->m_Scopes[i];
-        }
-
-        n = g_PropertyCount;
-        for (uint32_t i = 0; i < n; ++i)
-        {
-            profile->m_PropertyData[i].m_Index = i;
-            profile->m_PropertyData[i].m_Value.m_U64 = 0;
-        }
-    }
-
     HProfile BeginFrame()
     {
         CHECK_INITIALIZED_RETVAL(0);
-        DM_SPINLOCK_SCOPED_LOCK(g_ProfileContext->m_Lock);
+        DM_MUTEX_SCOPED_LOCK(g_Lock);
 
-        // let's support only one profile frame at a time for now
-        assert(g_ProfileContext->m_ActiveProfile == 0);
-        g_ProfileContext->m_ActiveProfile = &g_ProfileContext->m_EmptyProfile;
-
-        g_ProfileContext->m_BeginTime = dmTime::GetMonotonicTime();
-
-        Profile* profile = g_ProfileContext->m_ActiveProfile;
-        ResetProfile(g_ProfileContext, profile);
-
-        return profile;
+        return (HProfile)g_ProfileContext;
     }
 
-    static void ResetProperties(Profile* profile)
+    void EndFrame(HProfile profile)
     {
-        uint32_t n = profile->m_PropertyData.Size();
-        for (uint32_t i = 0; i < n; ++i)
-        {
-            PropertyData* data = &profile->m_PropertyData[i];
-            Property* prop = &g_Properties[i];
-            if ((prop->m_Flags & PROFILE_PROPERTY_FRAME_RESET) == PROFILE_PROPERTY_FRAME_RESET)
-            {
-                data->m_Value = prop->m_DefaultValue;
-            }
-        }
-    }
-
-    void EndFrame(HProfile _profile)
-    {
+        (void)profile;
         CHECK_INITIALIZED();
-        DM_SPINLOCK_SCOPED_LOCK(g_ProfileContext->m_Lock);
-
-        Profile* profile = (Profile*)_profile;
+        DM_MUTEX_SCOPED_LOCK(g_Lock);
 
         // For each top property
         if (g_PropertyTreeCallback)
-            g_PropertyTreeCallback(profile, &profile->m_PropertyData[0]);
+            g_PropertyTreeCallback(g_PropertyTreeCallbackCtx, &g_ProfileContext->m_PropertyData[0]);
 
-        ResetProperties(profile);
-
-        g_ProfileContext->m_ActiveProfile = 0;
+        ResetProperties(g_ProfileContext);
     }
 
     uint64_t GetTicksPerSecond()
@@ -361,28 +502,152 @@ namespace dmProfile
 
     void SetSampleTreeCallback(void* ctx, FSampleTreeCallback callback)
     {
+        // NOTE: Called _before_ initialization
         g_SampleTreeCallback = callback;
+        g_SampleTreeCallbackCtx = ctx;
     }
 
     void SetPropertyTreeCallback(void* ctx, FPropertyTreeCallback callback)
     {
+        // NOTE: Called _before_ initialization
         g_PropertyTreeCallback = callback;
+        g_PropertyTreeCallbackCtx = ctx;
     }
 
-    void ProfileScope::StartScope(const char* name, uint64_t* name_hash)
+    static Sample* AllocateSample(ThreadData* td, uint32_t name_hash)
     {
+// TODO: Recursive sample
+        Sample* parent = td->m_CurrentSample;
+
+        // Aggregate samples:
+        //      If there already is a child with this name, use that
+        Sample* sample = parent->m_FirstChild;
+        while (sample)
+        {
+            if (sample->m_NameHash == name_hash)
+            {
+                break;
+            }
+            sample = sample->m_Sibling;
+        }
+
+        if (!sample)
+        {
+            sample = AllocateNewSample(td);
+            memset(sample, 0, sizeof(Sample));
+
+            sample->m_NameHash = name_hash;
+            //sample->m_Color = MakeColorFromHash(name_hash);
+
+            // link the sample into the tree
+            Sample* parent = td->m_CurrentSample;
+            sample->m_Parent = parent;
+            if (parent->m_FirstChild == 0)
+            {
+                parent->m_FirstChild = sample;
+                parent->m_LastChild = sample;
+            }
+            else
+            {
+                parent->m_LastChild->m_Sibling = sample;
+                parent->m_LastChild = sample;
+            }
+        }
+
+        sample->m_CallCount++;
+        td->m_CurrentSample = sample;
+        return sample;
     }
 
-    void ProfileScope::EndScope()
+    void ScopeBegin(const char* name, uint64_t* pname_hash)
     {
-    }
+        CHECK_INITIALIZED();
+        DM_MUTEX_SCOPED_LOCK(g_Lock);
 
-    void ScopeBegin(const char* name, uint64_t* name_hash)
-    {
+        uint64_t tstart = dmTime::GetMonotonicTime();
+
+        uint32_t name_hash = InternalizeName(name, (uint32_t*)pname_hash);
+
+        ThreadData* td = GetOrCreateThreadData(g_ProfileContext, GetThreadId());
+        Sample* sample = AllocateSample(td, name_hash); // Adds it to the thread data
+
+        bool debug = false;
+        if (strcmp(name, "DrawRenderList") == 0)
+        {
+            debug = true;
+        }
+
+        if (sample->m_CallCount > 1) // we want to preserve the real start of this sample
+            sample->m_TempStart = tstart;
+        else
+            sample->m_Start = tstart;
     }
 
     void ScopeEnd()
     {
+        CHECK_INITIALIZED();
+        DM_MUTEX_SCOPED_LOCK(g_Lock);
+
+        uint64_t end = dmTime::GetMonotonicTime();
+
+        ThreadData* td = GetOrCreateThreadData(g_ProfileContext, GetThreadId());
+        Sample* sample = td->m_CurrentSample;
+
+        const char* name = GetNameFromHash(sample->m_NameHash);
+        bool debug = false;
+        if (strcmp(name, "DrawRenderList") == 0)
+        {
+            debug = true;
+        }
+
+        uint64_t length = 0;
+        if (sample->m_CallCount > 1)
+            length = dmMath::Max(end - sample->m_TempStart, (uint64_t)0);
+        else
+            length = dmMath::Max(end - sample->m_Start, (uint64_t)0);
+
+        sample->m_Length += (uint32_t)length;
+
+        if (sample->m_Parent)
+        {
+            sample->m_Parent->m_LengthChildren += length;
+        }
+
+        td->m_CurrentSample = sample->m_Parent;
+        assert(td->m_CurrentSample != 0);
+
+        if (td->m_CurrentSample == &td->m_Root)
+        {
+            // We've closed a top scope (there may be several) on this thread and are ready to present the info
+            if (g_SampleTreeCallback)
+            {
+                // TODO: ability to show the other threads
+                // Note: the rest of the threads make their own calls to this callback
+                int32_t thread_id = GetThreadId();
+                ThreadData* td = GetOrCreateThreadData(g_ProfileContext, thread_id);
+                td->m_Root.m_Length = td->m_Root.m_LengthChildren;
+                Sample* sibling = td->m_Root.m_FirstChild;
+                while (sibling)
+                {
+                    g_SampleTreeCallback(g_SampleTreeCallbackCtx, GetThreadName(thread_id), sibling);
+                    sibling = sibling->m_Sibling;
+                }
+            }
+
+            ResetThreadData(td);
+        }
+    }
+
+    void ProfileScopeHelper::StartScope(const char* name, uint64_t* pname_hash)
+    {
+        if (name[0] == 0)
+            name = "<empty>";
+        ScopeBegin(name, pname_hash);
+    }
+
+    void ProfileScopeHelper::EndScope()
+    {
+        ScopeEnd();
     }
 
     // *******************************************************************
@@ -397,49 +662,67 @@ namespace dmProfile
     {
     }
 
-    SampleIterator* SampleIterateChildren(HSample sample, SampleIterator* iter)
+    SampleIterator* SampleIterateChildren(HSample hsample, SampleIterator* iter)
     {
+        Sample* sample = (Sample*)hsample;
+        iter->m_Sample = 0;
+        iter->m_IteratorImpl = (void*)sample->m_FirstChild;
+        // printf("Iterate Children: '%s' %p\n", GetNameFromHash(sample->m_NameHash), sample);
         return iter;
     }
 
     bool SampleIterateNext(SampleIterator* iter)
     {
-        return false;
+        Sample* sample = (Sample*)iter->m_IteratorImpl;
+        if (!sample)
+            return false;
+        // printf("  next: '%s' %p\n", GetNameFromHash(sample->m_NameHash), sample);
+
+        iter->m_Sample = sample;
+        iter->m_IteratorImpl = sample->m_Sibling;
+        return true;
     }
 
-    uint32_t SampleGetNameHash(HSample sample)
+    uint32_t SampleGetNameHash(HSample hsample)
     {
-        return 0;
+        Sample* sample = (Sample*)hsample;
+        return sample->m_NameHash;
     }
 
-    const char* SampleGetName(HSample sample)
+    const char* SampleGetName(HSample hsample)
     {
-        return 0;
+        Sample* sample = (Sample*)hsample;
+        return GetNameFromHash(sample->m_NameHash);
     }
 
-    uint64_t SampleGetStart(HSample sample)
+    uint64_t SampleGetStart(HSample hsample)
     {
-        return 0;
+        Sample* sample = (Sample*)hsample;
+        return sample->m_Start;
     }
 
-    uint64_t SampleGetTime(HSample sample)
+    uint64_t SampleGetTime(HSample hsample)
     {
-        return 0;
+        Sample* sample = (Sample*)hsample;
+        return sample->m_Length;
     }
 
-    uint64_t SampleGetSelfTime(HSample sample)
+    uint64_t SampleGetSelfTime(HSample hsample)
     {
-        return 0;
+        Sample* sample = (Sample*)hsample;
+        return dmMath::Max((uint64_t)0, sample->m_Length - sample->m_LengthChildren);
     }
 
-    uint32_t SampleGetCallCount(HSample sample)
+    uint32_t SampleGetCallCount(HSample hsample)
     {
-        return 0;
+        Sample* sample = (Sample*)hsample;
+        return sample->m_CallCount;
     }
 
-    uint32_t SampleGetColor(HSample sample)
+    uint32_t SampleGetColor(HSample hsample)
     {
-        return 0;
+        Sample* sample = (Sample*)hsample;
+        return MakeColorFromHash(sample->m_NameHash);
     }
 
 
@@ -464,17 +747,22 @@ namespace dmProfile
         CHECK_HPROPERTY(hproperty);
         (void)prop;
         iter->m_Property = 0;
-        iter->m_IteratorImpl = (void*)(uintptr_t)prop->m_FirstChild;
+        iter->m_IteratorImpl = (void*)(uintptr_t)INVALID_INDEX;
+        if (data->m_Used)
+        {
+            iter->m_IteratorImpl = (void*)(uintptr_t)prop->m_FirstChild;
+        }
         return iter;
     }
 
     bool PropertyIterateNext(PropertyIterator* iter)
     {
-        dmProfilePropertyIdx idx = (dmProfilePropertyIdx)(uintptr_t)iter->m_IteratorImpl;
+        dmProfileIdx idx = (dmProfileIdx)(uintptr_t)iter->m_IteratorImpl;
         if (!IsValidIndex(idx))
             return false;
+
         Property* prop = GetPropertyFromIdx(idx);
-        PropertyData* data = GetFramePropertyFromIdx(idx);
+        PropertyData* data = GetPropertyDataFromIdx(idx);
         assert(data->m_Index == idx);
         iter->m_Property = data;
         iter->m_IteratorImpl = (void*)(uintptr_t)prop->m_Sibling;
@@ -519,36 +807,55 @@ namespace dmProfile
 
 } // namespace dmProfile
 
-static PropertyData* GetFramePropertyFromIdx(dmProfilePropertyIdx idx)
+// *******************************************************************
+
+
+static Property* AllocateProperty(dmProfileIdx* idx)
+{
+    DM_MUTEX_SCOPED_LOCK(g_Lock);
+    if (g_PropertyCount >= g_MaxPropertyCount)
+        return 0;
+    *idx = g_PropertyCount++;
+    return &g_Properties[*idx];
+}
+
+static Property* GetPropertyFromIdx(dmProfileIdx idx)
 {
     if (!IsValidIndex(idx))
         return 0;
-    dmProfile::Profile* profile = dmProfile::g_ProfileContext->m_ActiveProfile;
-    if (!profile)
-        return 0;
-    if (idx >= profile->m_PropertyData.Size())
-        return 0;
-    return &profile->m_PropertyData[idx];
+    DM_MUTEX_SCOPED_LOCK(g_Lock);
+    return &g_Properties[idx];
 }
 
+static PropertyData* GetPropertyDataFromIdx(dmProfileIdx idx)
+{
+    if (!IsValidIndex(idx))
+        return 0;
+    if (idx >= g_ProfileContext->m_PropertyData.Size())
+        return 0;
+    return &g_ProfileContext->m_PropertyData[idx];
+}
+
+
 #define ALLOC_PROP_AND_CHECK() \
-    dmProfilePropertyIdx idx; \
+    PropertyInitialize(); \
+    dmProfileIdx idx; \
     Property* prop = AllocateProperty(&idx); \
     if (!prop) \
         return DM_PROFILE_PROPERTY_INVALID_IDX;
 
 #define GET_PROP_AND_CHECK(IDX) \
-    if (!dmProfile::IsInitialized()) \
+    if (!IsProfileInitialized()) \
         return; \
-    PropertyData* data = GetFramePropertyFromIdx(IDX); \
+    DM_MUTEX_SCOPED_LOCK(g_Lock); \
+    PropertyData* data = GetPropertyDataFromIdx(IDX); \
     if (!data) \
         return; \
     assert(data->m_Index == (IDX));
 
-static void SetupProperty(Property* prop, dmProfilePropertyIdx idx, const char* name, const char* desc, uint32_t flags, dmProfilePropertyIdx* parentidx)
+static void SetupProperty(Property* prop, dmProfileIdx idx, const char* name, const char* desc, uint32_t flags, dmProfileIdx* parentidx)
 {
     memset(prop, 0, sizeof(Property));
-    //prop->initialised    = RMT_FALSE;
     prop->m_Flags        = flags;
     prop->m_Name         = name;
     prop->m_NameHash     = dmHashString32(name);
@@ -570,174 +877,172 @@ static void SetupProperty(Property* prop, dmProfilePropertyIdx idx, const char* 
     }
 }
 
-dmProfilePropertyIdx dmProfileCreatePropertyGroup(const char* name, const char* desc, dmProfilePropertyIdx* parentidx)
+dmProfileIdx dmProfileCreatePropertyGroup(const char* name, const char* desc, dmProfileIdx* parentidx)
 {
     ALLOC_PROP_AND_CHECK();
-    PropertyInitialize();
     SetupProperty(prop, idx, name, desc, 0, parentidx);
     prop->m_Type = dmProfile::PROPERTY_TYPE_GROUP;
-    //printf("PROPERTY: %s %s - %s  idx: %u  parent: %u  child: %u\n", name, desc, "group", idx, prop->m_Parent, prop->m_FirstChild);
     return idx;
 }
 
-dmProfilePropertyIdx dmProfileCreatePropertyBool(const char* name, const char* desc, int value, uint32_t flags, dmProfilePropertyIdx* parentidx)
+dmProfileIdx dmProfileCreatePropertyBool(const char* name, const char* desc, int value, uint32_t flags, dmProfileIdx* parentidx)
 {
     ALLOC_PROP_AND_CHECK();
-    PropertyInitialize();
     SetupProperty(prop, idx, name, desc, flags, parentidx);
     prop->m_DefaultValue.m_Bool = (bool)value;
     prop->m_Type = dmProfile::PROPERTY_TYPE_BOOL;
-    //printf("PROPERTY: %s %s - %s  idx: %u  parent: %u  child: %u\n", name, desc, "bool", idx, prop->m_Parent, prop->m_FirstChild);
     return idx;
 }
 
-dmProfilePropertyIdx dmProfileCreatePropertyS32(const char* name, const char* desc, int32_t value, uint32_t flags, dmProfilePropertyIdx* parentidx)
+dmProfileIdx dmProfileCreatePropertyS32(const char* name, const char* desc, int32_t value, uint32_t flags, dmProfileIdx* parentidx)
 {
     ALLOC_PROP_AND_CHECK();
-    PropertyInitialize();
     SetupProperty(prop, idx, name, desc, flags, parentidx);
     prop->m_DefaultValue.m_S32 = value;
     prop->m_Type = dmProfile::PROPERTY_TYPE_S32;
-    //printf("PROPERTY: %s %s - %s  idx: %u  parent: %u  child: %u\n", name, desc, "s32", idx, prop->m_Parent, prop->m_FirstChild);
     return idx;
 }
 
-dmProfilePropertyIdx dmProfileCreatePropertyU32(const char* name, const char* desc, uint32_t value, uint32_t flags, dmProfilePropertyIdx* parentidx)
+dmProfileIdx dmProfileCreatePropertyU32(const char* name, const char* desc, uint32_t value, uint32_t flags, dmProfileIdx* parentidx)
 {
     ALLOC_PROP_AND_CHECK();
-    PropertyInitialize();
     SetupProperty(prop, idx, name, desc, flags, parentidx);
     prop->m_DefaultValue.m_U32 = value;
     prop->m_Type = dmProfile::PROPERTY_TYPE_U32;
-    //printf("PROPERTY: %s %s - %s  idx: %u  parent: %u  child: %u\n", name, desc, "u32", idx, prop->m_Parent, prop->m_FirstChild);
     return idx;
 }
 
-dmProfilePropertyIdx dmProfileCreatePropertyF32(const char* name, const char* desc, float value, uint32_t flags, dmProfilePropertyIdx* parentidx)
+dmProfileIdx dmProfileCreatePropertyF32(const char* name, const char* desc, float value, uint32_t flags, dmProfileIdx* parentidx)
 {
     ALLOC_PROP_AND_CHECK();
-    PropertyInitialize();
     SetupProperty(prop, idx, name, desc, flags, parentidx);
     prop->m_DefaultValue.m_F32 = value;
     prop->m_Type = dmProfile::PROPERTY_TYPE_F32;
-    //printf("PROPERTY: %s %s - %s  idx: %u  parent: %u  child: %u\n", name, desc, "f32", idx, prop->m_Parent, prop->m_FirstChild);
     return idx;
 }
 
-dmProfilePropertyIdx dmProfileCreatePropertyS64(const char* name, const char* desc, int64_t value, uint32_t flags, dmProfilePropertyIdx* parentidx)
+dmProfileIdx dmProfileCreatePropertyS64(const char* name, const char* desc, int64_t value, uint32_t flags, dmProfileIdx* parentidx)
 {
     ALLOC_PROP_AND_CHECK();
-    PropertyInitialize();
     SetupProperty(prop, idx, name, desc, flags, parentidx);
     prop->m_DefaultValue.m_S64 = value;
     prop->m_Type = dmProfile::PROPERTY_TYPE_S64;
-    //printf("PROPERTY: %s %s - %s  idx: %u  parent: %u  child: %u\n", name, desc, "s64", idx, prop->m_Parent, prop->m_FirstChild);
     return idx;
 }
 
-dmProfilePropertyIdx dmProfileCreatePropertyU64(const char* name, const char* desc, uint64_t value, uint32_t flags, dmProfilePropertyIdx* parentidx)
+dmProfileIdx dmProfileCreatePropertyU64(const char* name, const char* desc, uint64_t value, uint32_t flags, dmProfileIdx* parentidx)
 {
     ALLOC_PROP_AND_CHECK();
-    PropertyInitialize();
     SetupProperty(prop, idx, name, desc, flags, parentidx);
     prop->m_DefaultValue.m_U64 = value;
     prop->m_Type = dmProfile::PROPERTY_TYPE_U64;
-    //printf("PROPERTY: %s %s - %s  idx: %u  parent: %u  child: %u\n", name, desc, "u64", idx, prop->m_Parent, prop->m_FirstChild);
     return idx;
 }
 
-dmProfilePropertyIdx dmProfileCreatePropertyF64(const char* name, const char* desc, double value, uint32_t flags, dmProfilePropertyIdx* parentidx)
+dmProfileIdx dmProfileCreatePropertyF64(const char* name, const char* desc, double value, uint32_t flags, dmProfileIdx* parentidx)
 {
     ALLOC_PROP_AND_CHECK();
-    PropertyInitialize();
     SetupProperty(prop, idx, name, desc, flags, parentidx);
     prop->m_DefaultValue.m_F64 = value;
     prop->m_Type = dmProfile::PROPERTY_TYPE_F64;
-    //printf("PROPERTY: %s %s - %s  idx: %u  parent: %u  child: %u\n", name, desc, "f64", idx, prop->m_Parent, prop->m_FirstChild);
     return idx;
 }
 
-void dmProfilePropertySetBool(dmProfilePropertyIdx idx, int v)
+void dmProfilePropertySetBool(dmProfileIdx idx, int v)
 {
     GET_PROP_AND_CHECK(idx);
     data->m_Value.m_Bool = v;
+    data->m_Used = 1;
 }
 
-void dmProfilePropertySetS32(dmProfilePropertyIdx idx, int32_t v)
+void dmProfilePropertySetS32(dmProfileIdx idx, int32_t v)
 {
     GET_PROP_AND_CHECK(idx);
     data->m_Value.m_S32 = v;
+    data->m_Used = 1;
 }
 
-void dmProfilePropertySetU32(dmProfilePropertyIdx idx, uint32_t v)
+void dmProfilePropertySetU32(dmProfileIdx idx, uint32_t v)
 {
     GET_PROP_AND_CHECK(idx);
     data->m_Value.m_U32 = v;
+    data->m_Used = 1;
 }
 
-void dmProfilePropertySetF32(dmProfilePropertyIdx idx, float v)
+void dmProfilePropertySetF32(dmProfileIdx idx, float v)
 {
     GET_PROP_AND_CHECK(idx);
     data->m_Value.m_F32 = v;
+    data->m_Used = 1;
 }
 
-void dmProfilePropertySetS64(dmProfilePropertyIdx idx, int64_t v)
+void dmProfilePropertySetS64(dmProfileIdx idx, int64_t v)
 {
     GET_PROP_AND_CHECK(idx);
     data->m_Value.m_S64 = v;
+    data->m_Used = 1;
 }
 
-void dmProfilePropertySetU64(dmProfilePropertyIdx idx, uint64_t v)
+void dmProfilePropertySetU64(dmProfileIdx idx, uint64_t v)
 {
     GET_PROP_AND_CHECK(idx);
     data->m_Value.m_U64 = v;
+    data->m_Used = 1;
 }
 
-void dmProfilePropertySetF64(dmProfilePropertyIdx idx, double v)
+void dmProfilePropertySetF64(dmProfileIdx idx, double v)
 {
     GET_PROP_AND_CHECK(idx);
     data->m_Value.m_F64 = v;
+    data->m_Used = 1;
 }
 
-void dmProfilePropertyAddS32(dmProfilePropertyIdx idx, int32_t v)
+void dmProfilePropertyAddS32(dmProfileIdx idx, int32_t v)
 {
     GET_PROP_AND_CHECK(idx);
     data->m_Value.m_S32 += v;
+    data->m_Used = 1;
 }
 
-void dmProfilePropertyAddU32(dmProfilePropertyIdx idx, uint32_t v)
+void dmProfilePropertyAddU32(dmProfileIdx idx, uint32_t v)
 {
     GET_PROP_AND_CHECK(idx);
     data->m_Value.m_U32 += v;
+    data->m_Used = 1;
 }
 
-void dmProfilePropertyAddF32(dmProfilePropertyIdx idx, float v)
+void dmProfilePropertyAddF32(dmProfileIdx idx, float v)
 {
     GET_PROP_AND_CHECK(idx);
     data->m_Value.m_F32 += v;
+    data->m_Used = 1;
 }
 
-void dmProfilePropertyAddS64(dmProfilePropertyIdx idx, int64_t v)
+void dmProfilePropertyAddS64(dmProfileIdx idx, int64_t v)
 {
     GET_PROP_AND_CHECK(idx);
     data->m_Value.m_S64 += v;
+    data->m_Used = 1;
 }
 
-void dmProfilePropertyAddU64(dmProfilePropertyIdx idx, uint64_t v)
+void dmProfilePropertyAddU64(dmProfileIdx idx, uint64_t v)
 {
     GET_PROP_AND_CHECK(idx);
     data->m_Value.m_U64 += v;
+    data->m_Used = 1;
 }
 
-void dmProfilePropertyAddF64(dmProfilePropertyIdx idx, double v)
+void dmProfilePropertyAddF64(dmProfileIdx idx, double v)
 {
     GET_PROP_AND_CHECK(idx);
     data->m_Value.m_F64 += v;
+    data->m_Used = 1;
 }
 
-void dmProfilePropertyReset(dmProfilePropertyIdx idx)
+void dmProfilePropertyReset(dmProfileIdx idx)
 {
     GET_PROP_AND_CHECK(idx);
     Property* prop = GetPropertyFromIdx(data->m_Index);
     data->m_Value = prop->m_DefaultValue;
+    data->m_Used = 0;
 }
