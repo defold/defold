@@ -356,7 +356,7 @@ function editor.bundle.create(config, output_directory, extra_bob_opts)
         end
     end
 
-    editor.bob(bob_opts, "distclean", "resolve", "build", "bundle")
+    editor.bob(bob_opts, "resolve", "build", "bundle")
 
     if editor.prefs.get("bundle.open-output-directory") then
         editor.open_external_file(output_directory)
