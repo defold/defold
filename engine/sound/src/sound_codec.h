@@ -50,7 +50,6 @@ namespace dmSoundCodec
     {
         FORMAT_WAV,   //!< FORMAT_WAV
         FORMAT_VORBIS,//!< FORMAT_VORBIS
-        FORMAT_OPUS,  //!< FORMAT_OPUS
     };
 
     /**
