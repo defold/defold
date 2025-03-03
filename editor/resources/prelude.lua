@@ -237,10 +237,12 @@ function editor.bundle.dialog(heading, config, hint, error, content)
                 color = error and editor.ui.COLOR.ERROR or editor.ui.COLOR.HINT
             })
         }}),
-        content = editor.ui.grid({
-            padding = editor.ui.PADDING.LARGE,
-            columns = {{}, {grow = true}},
-            children = content
+        content = editor.ui.scroll({
+            content = editor.ui.grid({
+                padding = editor.ui.PADDING.LARGE,
+                columns = {{}, {grow = true}},
+                children = content
+            })
         }),
         buttons = {
             editor.ui.dialog_button({
