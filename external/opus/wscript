@@ -148,9 +148,9 @@ def build(bld):
     if bld.env.PLATFORM in ('x86_64-win32', 'x86_64-linux', 'x86_64-macos'):
         simd_defs = simd_defs + ['OPUS_HAVE_RTCD', 'OPUS_X86_MAY_HAVE_SSE', 'OPUS_X86_MAY_HAVE_SSE2', 'OPUS_X86_MAY_HAVE_SSE4_1', 'CPU_INFO_BY_C'];
         source_files = source_files + x86_simd_source_files
-    elif bld.env.PLATFORM in ('wasm-web', 'js-web'):
-        simd_defs = simd_defs + ['OPUS_X86_MAY_HAVE_SSE', 'OPUS_X86_MAY_HAVE_SSE2', 'OPUS_X86_MAY_HAVE_SSE4_1', 'OPUS_X86_PRESUME_SSE', 'OPUS_X86_PRESUME_SSE2', 'OPUS_X86_PRESUME_SSE4_1'];
-        source_files = source_files + x86_simd_source_files
+    #elif bld.env.PLATFORM in ('wasm-web', 'js-web'):
+    #    simd_defs = simd_defs + ['OPUS_X86_MAY_HAVE_SSE', 'OPUS_X86_MAY_HAVE_SSE2', 'OPUS_X86_MAY_HAVE_SSE4_1', 'OPUS_X86_PRESUME_SSE', 'OPUS_X86_PRESUME_SSE2', 'OPUS_X86_PRESUME_SSE4_1'];
+    #    source_files = source_files + x86_simd_source_files
 
     opus_decoder    = bld.stlib(features = 'c cxx',
                                 source    = source_files,
