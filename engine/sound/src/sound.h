@@ -29,7 +29,6 @@ namespace dmSound
     {
         SOUND_DATA_TYPE_WAV        = 0,
         SOUND_DATA_TYPE_OGG_VORBIS = 1,
-        SOUND_DATA_TYPE_OPUS = 2,
     };
 
     enum Parameter

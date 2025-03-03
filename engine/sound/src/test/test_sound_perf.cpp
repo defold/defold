@@ -37,14 +37,6 @@ DEF_EMBED(MUSIC_OGG)
 DEF_EMBED(CYMBAL_OGG)
 DEF_EMBED(MUSIC_LOW_OGG)
 
-DEF_EMBED(AMBIENCE_OPUS)
-DEF_EMBED(GLOCKENSPIEL_OPUS)
-DEF_EMBED(EXPLOSION_OPUS)
-DEF_EMBED(EXPLOSION_LOW_MONO_OPUS)
-DEF_EMBED(MUSIC_OPUS)
-DEF_EMBED(CYMBAL_OPUS)
-DEF_EMBED(MUSIC_LOW_OPUS)
-
 #undef DEF_EMBED
 
 #define MAX_BUFFERS 32
@@ -173,15 +165,6 @@ public:
             DecodeAndTime(info, MUSIC_LOW_OGG,    MUSIC_LOW_OGG_SIZE, decoder_name, sound_datatype, skip, "Music Low");
             DecodeAndTime(info, CYMBAL_OGG,       CYMBAL_OGG_SIZE, decoder_name, sound_datatype, skip, "Cymbal");
         }
-        else {
-            DecodeAndTime(info, AMBIENCE_OPUS,    AMBIENCE_OPUS_SIZE, decoder_name, sound_datatype, skip, "Ambience");
-            DecodeAndTime(info, GLOCKENSPIEL_OPUS,GLOCKENSPIEL_OPUS_SIZE, decoder_name, sound_datatype, skip, "Glockenspiel");
-            DecodeAndTime(info, EXPLOSION_OPUS,   EXPLOSION_OPUS_SIZE, decoder_name, sound_datatype, skip, "Explosion");
-            DecodeAndTime(info, EXPLOSION_LOW_MONO_OPUS,EXPLOSION_LOW_MONO_OPUS_SIZE, decoder_name, sound_datatype, skip, "Explosion Low Mono");
-            DecodeAndTime(info, MUSIC_OPUS,       MUSIC_OPUS_SIZE, decoder_name, sound_datatype, skip, "Music");
-            DecodeAndTime(info, MUSIC_LOW_OPUS,   MUSIC_LOW_OPUS_SIZE, decoder_name, sound_datatype, skip, "Music Low");
-            DecodeAndTime(info, CYMBAL_OPUS,      CYMBAL_OPUS_SIZE, decoder_name, sound_datatype, skip, "Cymbal");
-        }
 
         if (dmSoundCodec::FindBestDecoder(dmSoundCodec::FORMAT_VORBIS) == info)
             printf("%s is used by default with current build settings on this platform\n", decoder_name);
@@ -214,15 +197,6 @@ TEST_F(dmSoundTest, MeasureTremoloSkip)
     RunSuite("VorbisDecoderTremolo", dmSound::SOUND_DATA_TYPE_OGG_VORBIS, true);
 }
 
-TEST_F(dmSoundTest, MeasureOpus)
-{
-    RunSuite("OpusDecoder", dmSound::SOUND_DATA_TYPE_OPUS, false);
-}
-
-TEST_F(dmSoundTest, MeasureOpusSkip)
-{
-    RunSuite("OpusDecoder", dmSound::SOUND_DATA_TYPE_OPUS, true);
-}
 #endif
 
 extern "C" void dmExportedSymbols();

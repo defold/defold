@@ -125,16 +125,12 @@ def build(bld):
                                      target = 'embedded_oggs',
                                      source = 'dummy.cpp',  # Make waf happy
                                      embed_source = [x.name for x in bld.path.ant_glob('**/*.ogg')])
-    embedded_opus = bld.stlib(features = 'cxx embed test',
-                                     target = 'embedded_opus',
-                                     source = 'dummy.cpp',  # Make waf happy
-                                     embed_source = [x.name for x in bld.path.ant_glob('**/*.opus')])
 
-    soundlibs = ['SOUND', 'OPUS']
+    soundlibs = ['SOUND']
     if bld.env.PLATFORM in ['js-web', 'wasm-web', 'win32', 'x86_64-win32', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5']:
-        exported_symbols = ["DefaultSoundDevice", "AudioDecoderWav", "AudioDecoderStbVorbis", "AudioDecoderOpus"]
+        exported_symbols = ["DefaultSoundDevice", "AudioDecoderWav", "AudioDecoderStbVorbis"]
     else:
-        exported_symbols = ["DefaultSoundDevice", "AudioDecoderWav", "AudioDecoderStbVorbis", "AudioDecoderOpus", "AudioDecoderTremolo"]
+        exported_symbols = ["DefaultSoundDevice", "AudioDecoderWav", "AudioDecoderStbVorbis", "AudioDecoderTremolo"]
         soundlibs.append('TREMOLO')
 
     if bld.env.PLATFORM in ['arm64-nx64', 'x86_64-ps4']:
@@ -147,7 +143,7 @@ def build(bld):
     if 'TREMOLO' in soundlibs:
         bld.program(features = 'cxx embed test',
                     includes = '../../src .',
-                    use = 'TESTMAIN DLIB SOCKET PROFILE_NULL sound embedded_wavs embedded_oggs embedded_opus'.split() + soundlibs,
+                    use = 'TESTMAIN DLIB SOCKET PROFILE_NULL sound embedded_wavs embedded_oggs'.split() + soundlibs,
                     web_libs = ['library_sound.js'],
                     exported_symbols = exported_symbols,
                     target = 'test_sound_perf',
@@ -160,7 +156,7 @@ def build(bld):
 
     foo = bld.program(features = 'cxx embed test'.split() + extra_features,
                 includes = '../../src .',
-                use = 'TESTMAIN DLIB SOCKET PROFILE_NULL sound embedded_wavs embedded_oggs embedded_opus'.split() + soundlibs,
+                use = 'TESTMAIN DLIB SOCKET PROFILE_NULL sound embedded_wavs embedded_oggs'.split() + soundlibs,
                 web_libs = ['library_sound.js'],
                 exported_symbols = exported_symbols + ['LoopBackDevice'],
                 target = 'test_sound',
@@ -170,7 +166,7 @@ def build(bld):
     exported_symbols = 'NullSoundDevice TestNullDevice'
     bld.program(features = 'cxx embed test',
                     includes = '../../src .',
-                    use = 'TESTMAIN DLIB SOCKET PROFILE_NULL sound_null embedded_wavs embedded_oggs embedded_opus',
+                    use = 'TESTMAIN DLIB SOCKET PROFILE_NULL sound_null embedded_wavs embedded_oggs',
                     web_libs = ['library_sound.js'],
                     exported_symbols = exported_symbols,
                     target = 'test_sound_null',

@@ -72,7 +72,6 @@
 #include "test/mono_toneramp_440_32000_64000.wav.embed.h"
 
 #include "test/mono_resample_framecount_16000.ogg.embed.h"
-#include "test/mono_resample_framecount_16000.opus.embed.h"
 
 #include "test/mono_dc_44100_88200.wav.embed.h"
 
@@ -80,8 +79,6 @@
 
 extern unsigned char CLICK_TRACK_OGG[];
 extern uint32_t CLICK_TRACK_OGG_SIZE;
-extern unsigned char CLICK_TRACK_OPUS[];
-extern uint32_t CLICK_TRACK_OPUS_SIZE;
 extern unsigned char DRUMLOOP_WAV[];
 extern uint32_t DRUMLOOP_WAV_SIZE;
 extern unsigned char ONEFOOTSTEP_WAV[];
@@ -98,12 +95,6 @@ extern unsigned char BOOSTER_ON_SFX_WAV[];
 extern uint32_t BOOSTER_ON_SFX_WAV_SIZE;
 extern unsigned char MONO_RESAMPLE_FRAMECOUNT_16000_OGG[];
 extern uint32_t MONO_RESAMPLE_FRAMECOUNT_16000_OGG_SIZE;
-extern unsigned char MONO_RESAMPLE_FRAMECOUNT_16000_OPUS[];
-extern uint32_t MONO_RESAMPLE_FRAMECOUNT_16000_OPUS_SIZE;
-extern unsigned char MUSIC_OPUS[];
-extern uint32_t MUSIC_OPUS_SIZE;
-extern unsigned char AMBIENCE_OPUS[];
-extern uint32_t AMBIENCE_OPUS_SIZE;
 
 
 struct TestParams
@@ -300,10 +291,6 @@ class dmSoundVerifyWavTest : public dmSoundTest
 };
 
 class dmSoundVerifyOggTest : public dmSoundTest
-{
-};
-
-class dmSoundVerifyOpusTest : public dmSoundTest
 {
 };
 
@@ -517,47 +504,6 @@ const TestParams params_looping_test[] = {
 INSTANTIATE_TEST_CASE_P(dmSoundTestLoopingTest, dmSoundTestLoopingTest, jc_test_values_in(params_looping_test));
 #endif
 
-// Generate sine wave per given parametyers and resasmple it as needed to mimic runtimes signal path for generated test waves
-static double GenAndMixTone(uint64_t pos, float tone_frq, float sample_rate, float mix_rate, int num_frames, bool ramp_active, float scale)
-{
-    static_assert(_pfb_num_phases == 1 << 11, "PFB header does not readily offer this constant - update needed (see below)!");
-
-    int index = (int)(pos >> dmSound::RESAMPLE_FRACTION_BITS);
-
-    double a;
-    // only generate data inside samples range (assumes no looping)
-    if (index < num_frames) {
-        if (mix_rate != sample_rate) {
-            int frac = (int)(pos >> (dmSound::RESAMPLE_FRACTION_BITS - 11)) & (_pfb_num_phases - 1);
-            int32_t ti = _pfb_num_taps * frac;
-            const int32_t js = -(_pfb_num_taps / 2 - 1);
-            const int32_t je = _pfb_num_taps / 2;
-            // Polyphase FIR
-            a = 0.0;
-            for (int32_t j = js; j <= je; j++, ti++) {
-                // add only if we are past the start (assumes zeroes in history buffer)
-                int32_t idx = index + j;
-                if (idx >= 0) {
-                    // Clamp index at end of sample data (assumes samples at the end get repeated as needed for resampling)
-                    idx = dmMath::Min(idx, num_frames - 1);
-                    float ramp = ramp_active ? ((num_frames - 1) - idx) / (float) num_frames : 1.0f;
-                    double t = ramp * 0.8 * 32768.0 * sin((idx * 2.0 * M_PI * tone_frq) / sample_rate);
-                    a += t * _pfb[ti];
-                }
-            }
-            a *= scale;
-        }
-        else {
-            // 1:1
-            float ramp = ramp_active ? ((num_frames - 1) - index) / (float) num_frames : 1.0f;
-            a = scale * ramp * 0.8 * 32768.0 * sin((index * 2.0 * M_PI * tone_frq) / sample_rate);
-        }
-    }
-    else {
-        a = 0.0;
-    }
-    return a;
-}
 // Generate sine wave per given parametyers and resasmple it as needed to mimic runtimes signal path for generated test waves
 static double GenAndMixTone(uint64_t pos, float tone_frq, float sample_rate, float mix_rate, int num_frames, bool ramp_active, float scale)
 {
@@ -1238,205 +1184,6 @@ INSTANTIATE_TEST_CASE_P(dmSoundVerifyOggTest, dmSoundVerifyOggTest, jc_test_valu
 #endif
 
 #if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !(defined(WIN32) || defined(__MACH__)))
-TEST_P(dmSoundVerifyOpusTest, Mix)
-{
-    TestParams params = GetParam();
-    dmSound::Result r;
-    dmSound::HSoundData sd = 0;
-    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
-
-    printf("verifying opus mix: frames: %d\n", params.m_FrameCount);
-
-    dmSound::HSoundInstance instance = 0;
-    r = dmSound::NewSoundInstance(sd, &instance);
-    ASSERT_EQ(dmSound::RESULT_OK, r);
-    ASSERT_NE((dmSound::HSoundInstance) 0, instance);
-
-    r = dmSound::Play(instance);
-    ASSERT_EQ(dmSound::RESULT_OK, r);
-    do {
-        r = dmSound::Update();
-        ASSERT_EQ(dmSound::RESULT_OK, r);
-    } while (dmSound::IsPlaying(instance));
-
-    r = dmSound::DeleteSoundInstance(instance);
-    ASSERT_EQ(dmSound::RESULT_OK, r);
-
-    r = dmSound::DeleteSoundData(sd);
-    ASSERT_EQ(dmSound::RESULT_OK, r);
-}
-
-TEST_P(dmSoundVerifyOpusTest, Kill)
-{
-    TestParams params = GetParam();
-    dmSound::Result r;
-    dmSound::HSoundData sd = 0;
-    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
-
-    int tick = 0;
-    int killTick = 16;
-    int killed = 0;
-    printf("verifying opus kill: frames: %d killing on: %d\n", params.m_FrameCount, killTick);
-
-    dmSound::HSoundInstance instanceA = 0;
-    dmSound::HSoundInstance instanceB = 0;
-    r = dmSound::NewSoundInstance(sd, &instanceA);
-    ASSERT_EQ(dmSound::RESULT_OK, r);
-    ASSERT_NE((dmSound::HSoundInstance) 0, instanceA);
-
-    r = dmSound::NewSoundInstance(sd, &instanceB);
-    ASSERT_EQ(dmSound::RESULT_OK, r);
-    ASSERT_NE((dmSound::HSoundInstance) 0, instanceB);
-
-    r = dmSound::Play(instanceA);
-    ASSERT_EQ(dmSound::RESULT_OK, r);
-    r = dmSound::Play(instanceB);
-    ASSERT_EQ(dmSound::RESULT_OK, r);
-
-
-    do {
-        r = dmSound::Update();
-        ASSERT_EQ(dmSound::RESULT_OK, r);
-        if (0 == killed && ++tick == killTick) {
-            r =  dmSound::Stop(instanceB);
-            ASSERT_EQ(dmSound::RESULT_OK, r);
-            r = dmSound::Update();
-            ASSERT_EQ(dmSound::RESULT_OK, r);
-            r = dmSound::DeleteSoundInstance(instanceB);
-            killed = 1;
-            ASSERT_EQ(dmSound::RESULT_OK, r);
-            r = dmSound::Update();
-            ASSERT_EQ(dmSound::RESULT_OK, r);
-        }
-    } while (dmSound::IsPlaying(instanceA));
-
-    if (0 == killed) {
-        r = dmSound::DeleteSoundInstance(instanceB);
-    }
-    ASSERT_EQ(dmSound::RESULT_OK, r);
-
-    r = dmSound::DeleteSoundInstance(instanceA);
-    ASSERT_EQ(dmSound::RESULT_OK, r);
-
-    r = dmSound::DeleteSoundData(sd);
-    ASSERT_EQ(dmSound::RESULT_OK, r);
-}
-
-// Verifies that the Skip function skips the correct number of samples
-TEST_P(dmSoundVerifyOpusTest, SkipSync)
-{
-    TestParams params = GetParam();
-    dmSound::Result r;
-    dmSound::HSoundData sd = 0;
-    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
-
-    dmSound::HSoundInstance instance = 0;
-    r = dmSound::NewSoundInstance(sd, &instance);
-    ASSERT_EQ(dmSound::RESULT_OK, r);
-    ASSERT_NE((dmSound::HSoundInstance) 0, instance);
-
-    r = dmSound::SetParameter(instance, dmSound::PARAMETER_GAIN, dmVMath::Vector4(0.5f,0,0,0));
-    ASSERT_EQ(dmSound::RESULT_OK, r);
-    r = dmSound::SetParameter(instance, dmSound::PARAMETER_SPEED, dmVMath::Vector4(params.m_Speed,0,0,0));
-    ASSERT_EQ(dmSound::RESULT_OK, r);
-
-    r = dmSound::Play(instance);
-    ASSERT_EQ(dmSound::RESULT_OK, r);
-
-    // We create a muted instance, to make sure that they end at the same time
-    dmSound::HSoundInstance muted_instance = 0;
-    r = dmSound::NewSoundInstance(sd, &muted_instance);
-    ASSERT_EQ(dmSound::RESULT_OK, r);
-    ASSERT_NE((dmSound::HSoundInstance) 0, muted_instance);
-
-    r = dmSound::SetParameter(muted_instance, dmSound::PARAMETER_GAIN, dmVMath::Vector4(0,0,0,0)); // gain 0
-    ASSERT_EQ(dmSound::RESULT_OK, r);
-    r = dmSound::SetParameter(muted_instance, dmSound::PARAMETER_SPEED, dmVMath::Vector4(params.m_Speed,0,0,0));
-    ASSERT_EQ(dmSound::RESULT_OK, r);
-
-    r = dmSound::Play(muted_instance);
-    ASSERT_EQ(dmSound::RESULT_OK, r);
-
-    do {
-        r = dmSound::Update();
-        ASSERT_EQ(dmSound::RESULT_OK, r);
-
-        int64_t pos_1 = dmSound::GetInternalPos(instance);
-        int64_t pos_2 = dmSound::GetInternalPos(muted_instance);
-        ASSERT_EQ(pos_1, pos_2); // If these numbers differ, then the Skip function isn't working correctly
-    } while (dmSound::IsPlaying(instance));
-
-    r = dmSound::DeleteSoundInstance(instance);
-    ASSERT_EQ(dmSound::RESULT_OK, r);
-    r = dmSound::DeleteSoundInstance(muted_instance);
-    ASSERT_EQ(dmSound::RESULT_OK, r);
-
-    r = dmSound::DeleteSoundData(sd);
-    ASSERT_EQ(dmSound::RESULT_OK, r);
-}
-
-// Verifies that the ref counted for HSoundData works correct
-TEST_P(dmSoundVerifyOpusTest, SoundDataRefCount)
-{
-    TestParams params = GetParam();
-    dmSound::Result r;
-    dmSound::HSoundData sd = 0;
-    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
-
-    dmSound::HSoundInstance instance = 0;
-    r = dmSound::NewSoundInstance(sd, &instance);
-    ASSERT_EQ(dmSound::RESULT_OK, r);
-    ASSERT_NE((dmSound::HSoundInstance) 0, instance);
-
-    r = dmSound::SetParameter(instance, dmSound::PARAMETER_GAIN, dmVMath::Vector4(0.5f,0,0,0));
-    ASSERT_EQ(dmSound::RESULT_OK, r);
-    r = dmSound::SetParameter(instance, dmSound::PARAMETER_SPEED, dmVMath::Vector4(params.m_Speed,0,0,0));
-    ASSERT_EQ(dmSound::RESULT_OK, r);
-
-    r = dmSound::Play(instance);
-    ASSERT_EQ(dmSound::RESULT_OK, r);
-
-    // We create a muted instance, to make sure that they end at the same time
-    dmSound::HSoundInstance muted_instance = 0;
-    r = dmSound::NewSoundInstance(sd, &muted_instance);
-    ASSERT_EQ(dmSound::RESULT_OK, r);
-    ASSERT_NE((dmSound::HSoundInstance) 0, muted_instance);
-
-    r = dmSound::SetParameter(muted_instance, dmSound::PARAMETER_GAIN, dmVMath::Vector4(0,0,0,0)); // gain 0
-    ASSERT_EQ(dmSound::RESULT_OK, r);
-    r = dmSound::SetParameter(muted_instance, dmSound::PARAMETER_SPEED, dmVMath::Vector4(params.m_Speed,0,0,0));
-    ASSERT_EQ(dmSound::RESULT_OK, r);
-
-    r = dmSound::Play(muted_instance);
-    ASSERT_EQ(dmSound::RESULT_OK, r);
-
-    ASSERT_EQ(dmSound::GetRefCount(sd), 3);
-    dmSound::DeleteSoundData(sd);
-    ASSERT_EQ(dmSound::GetRefCount(sd), 2);
-
-    r = dmSound::DeleteSoundInstance(instance);
-    ASSERT_EQ(dmSound::GetRefCount(sd), 1);
-    ASSERT_EQ(dmSound::RESULT_OK, r);
-    r = dmSound::DeleteSoundInstance(muted_instance);
-    ASSERT_EQ(dmSound::GetRefCount(sd), 0);
-    ASSERT_EQ(dmSound::RESULT_OK, r);
-
-    r = dmSound::DeleteSoundData(sd);
-    ASSERT_EQ(dmSound::RESULT_OK, r);
-}
-
-const TestParams params_verify_opus_test[] = {TestParams("loopback",
-                                            MONO_RESAMPLE_FRAMECOUNT_16000_OPUS,
-                                            MONO_RESAMPLE_FRAMECOUNT_16000_OPUS_SIZE,
-                                            dmSound::SOUND_DATA_TYPE_OPUS,
-                                            2000,
-                                            44100,
-                                            35200,
-                                            2048)};
-INSTANTIATE_TEST_CASE_P(dmSoundVerifyOpusTest, dmSoundVerifyOpusTest, jc_test_values_in(params_verify_opus_test));
-#endif
-
-#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !(defined(WIN32) || defined(__MACH__)))
 TEST_P(dmSoundTestPlayTest, Play)
 {
 
@@ -1539,8 +1286,8 @@ TEST_P(dmSoundTestPlaySpeedTest, PlaySpeed)
 
 const TestParams params_test_play_test[] = {
 
-//    SOUND_TEST("default", MONO, 2000, 22050, 5512, 2048),
-/*    SOUND_TEST("default", MONO, 2000, 32000, 8000, 2048),
+    SOUND_TEST("default", MONO, 2000, 22050, 5512, 2048),
+    SOUND_TEST("default", MONO, 2000, 32000, 8000, 2048),
     SOUND_TEST("default", MONO, 2000, 44000, 11000, 2048),
     SOUND_TEST("default", MONO, 2000, 44100, 11025, 2048),
     SOUND_TEST("default", MONO, 2000, 48000, 12000, 2048),
@@ -1560,10 +1307,6 @@ const TestParams params_test_play_test[] = {
     SOUND_TEST("default", STEREO, 2000, 44000, 11000, 2048),
     SOUND_TEST("default", STEREO, 2000, 44100, 11025, 2048),
     SOUND_TEST("default", STEREO, 2000, 48000, 12000, 2048),
-*/
-    TestParams("default", AMBIENCE_OPUS, AMBIENCE_OPUS_SIZE, dmSound::SOUND_DATA_TYPE_OPUS, 0, 0, 0, 2048),
-    TestParams("default", MUSIC_OPUS, MUSIC_OPUS_SIZE, dmSound::SOUND_DATA_TYPE_OPUS, 0, 0, 0, 2048),
-    TestParams("default", MONO_RESAMPLE_FRAMECOUNT_16000_OPUS, MONO_RESAMPLE_FRAMECOUNT_16000_OPUS_SIZE, dmSound::SOUND_DATA_TYPE_OPUS, 0, 0, 0, 2048),
 };
 INSTANTIATE_TEST_CASE_P(dmSoundTestPlayTest, dmSoundTestPlayTest, jc_test_values_in(params_test_play_test));
 
@@ -1994,12 +1737,6 @@ static const char* FindSoundFile(int argc, char** argv, dmSound::SoundDataType* 
         if (dmStrCaseCmp(suffix, ".ogg")==0)
         {
             *type = dmSound::SOUND_DATA_TYPE_OGG_VORBIS;
-            return arg;
-        }
-
-        if (dmStrCaseCmp(suffix, ".opus")==0)
-        {
-            *type = dmSound::SOUND_DATA_TYPE_OPUS;
             return arg;
         }
     }

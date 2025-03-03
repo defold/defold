@@ -701,8 +701,6 @@ namespace dmSound
             codec_format = dmSoundCodec::FORMAT_WAV;
         } else if (sound_data->m_Type == SOUND_DATA_TYPE_OGG_VORBIS) {
             codec_format = dmSoundCodec::FORMAT_VORBIS;
-        } else if (sound_data->m_Type == SOUND_DATA_TYPE_OPUS) {
-            codec_format = dmSoundCodec::FORMAT_OPUS;
         } else {
             assert(0);
         }

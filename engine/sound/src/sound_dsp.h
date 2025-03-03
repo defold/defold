@@ -1353,7 +1353,7 @@ static DSPImpl wasm_impl =
 };
 #endif
 
-#if defined(__SSE__) && !defined(__wasm_simd128__)  // excluding this if WASM is active as WASM targets may enable SSE to support Opus etc. (and we only need WASM here)
+#if defined(__SSE__) && !defined(__wasm_simd128__)
 static DSPImpl sse_impl =
 {
     SSE::MixScaledMonoToStereo,
