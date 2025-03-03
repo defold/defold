@@ -128,6 +128,10 @@ namespace dmGameSystem
     {
         HComponentRenderConstants        m_AnimationRenderConstants;
         dmGraphics::HTexture             m_BindPoseCacheTexture;
+        // We use an intermediate buffer here to copy the bind poses to before uploading to texture.
+        // This means that we have both a buffer for the matrices in dmRig as well as here.
+        // A potential improvement here would be to just allocate this buffer in comp_model and pass
+        // a pointer to dmRig instead.
         uint8_t*                         m_BindPoseCacheBuffer;
         uint16_t                         m_BindPoseCacheTextureMaxWidth;
         uint16_t                         m_BindPoseCacheTextureMaxHeight;
@@ -836,7 +840,12 @@ namespace dmGameSystem
 
     static void SetupRequiresBindPoseCaching(ModelComponent* component)
     {
-        component->m_RequiresBindPoseCaching = component->m_RigInstance != 0;
+        if (!component->m_RigInstance)
+        {
+            return;
+        }
+
+        component->m_RequiresBindPoseCaching = false;
 
         uint32_t render_item_count = component->m_RenderItems.Size();
         for (uint32_t j = 0; j < render_item_count; ++j)
