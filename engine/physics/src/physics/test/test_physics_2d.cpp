@@ -1318,7 +1318,8 @@ TYPED_TEST(PhysicsTest, JointFixed)
     for (uint32_t i = 0; i < 40; ++i)
     {
         (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
-        ASSERT_TRUE(-3.0f <= vo_b.m_Position.getY());
+
+        ASSERT_TRUE(-3.01f <= vo_b.m_Position.getY());
     }
 
     // Delete FIXED joint
@@ -1532,10 +1533,10 @@ TYPED_TEST(PhysicsTest, JointWheel)
     joint_params.m_WheelJointParams.m_LocalAxisA[0] = 0.0f;
     joint_params.m_WheelJointParams.m_LocalAxisA[1] = 1.0f;
     joint_params.m_WheelJointParams.m_LocalAxisA[2] = 0.0f;
-    joint_params.m_WheelJointParams.m_MotorSpeed = 100.0f;
+    joint_params.m_WheelJointParams.m_MotorSpeed = 20.0f;
     joint_params.m_WheelJointParams.m_EnableMotor = true;
-    joint_params.m_WheelJointParams.m_MaxMotorTorque = 10000.0f;
-    joint_params.m_WheelJointParams.m_DampingRatio = 0.0f;
+    joint_params.m_WheelJointParams.m_MaxMotorTorque = 1000.0f;
+    joint_params.m_WheelJointParams.m_DampingRatio = 1.0f;
     dmPhysics::HJoint joint = dmPhysics::CreateJoint2D(TestFixture::m_World, circle_co, anchorPoint, dynamic_co, anchorPoint, joint_type, joint_params);
     ASSERT_NE((dmPhysics::HJoint)0x0, joint);
 

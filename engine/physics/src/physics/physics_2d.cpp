@@ -2287,6 +2287,7 @@ namespace dmPhysics
                     jointDef.maxLength          = params.m_FixedJointParams.m_MaxLength * scale;
                     jointDef.collideConnected   = params.m_CollideConnected;
                     jointDef.enableLimit        = true;
+                    jointDef.enableSpring       = false;
 
                     joint = b2CreateDistanceJoint(world->m_WorldId, &jointDef);
                 }
