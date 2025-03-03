@@ -2271,9 +2271,7 @@ namespace dmPhysics
                     jointDef.hertz            = params.m_SpringJointParams.m_FrequencyHz;
                     jointDef.dampingRatio     = params.m_SpringJointParams.m_DampingRatio;
                     jointDef.collideConnected = params.m_CollideConnected;
-                    jointDef.enableSpring     = true;
-                    // Maybe:
-                    // jointDef.enableSpring = jointDef.hertz > 0.0 || jointDef.dampingRatio > 0.0;
+                    jointDef.enableSpring     = jointDef.hertz > 0.0 || jointDef.dampingRatio > 0.0;
 
                     joint = b2CreateDistanceJoint(world->m_WorldId, &jointDef);
                 }
@@ -2285,8 +2283,10 @@ namespace dmPhysics
                     jointDef.bodyIdB            = body_b->m_BodyId;
                     jointDef.localAnchorA       = pa;
                     jointDef.localAnchorB       = pb;
+                    jointDef.length             = params.m_FixedJointParams.m_MaxLength * scale;
                     jointDef.maxLength          = params.m_FixedJointParams.m_MaxLength * scale;
                     jointDef.collideConnected   = params.m_CollideConnected;
+                    jointDef.enableLimit        = true;
 
                     joint = b2CreateDistanceJoint(world->m_WorldId, &jointDef);
                 }
@@ -2364,7 +2364,9 @@ namespace dmPhysics
                     jointDef.hertz            = params.m_WheelJointParams.m_FrequencyHz;
                     jointDef.dampingRatio     = params.m_WheelJointParams.m_DampingRatio;
                     jointDef.collideConnected = params.m_CollideConnected;
-                    // jointDef.enableSpring = true;
+
+                    // This is enabled as a default, but it seems like it wasn't default in the original code as per our unit tests.
+                    jointDef.enableSpring = false;
 
                     joint = b2CreateWheelJoint(world->m_WorldId, &jointDef);
                 }
