@@ -88,22 +88,24 @@ namespace dmSoundCodec
     }
 */
 
-    static bool ReadPageHeader(Decodestream_info *stream_info, dmSound::HSoundData sound_data, uint8_t& flags, uint32_t& stream_serial, uint32_t& page_size, uint8_t& num_page_segments, uint8_t lacing_table[255])
+    static void EnsureDataRead(Decodestream_info *stream_info, dmSound::HSoundData sound_data, uint32_t min_bytes_needed)
     {
-        const uint32_t min_bytes_needed = 27 + 255;    // 27 bytes page header and max. 255 lacing table
-
-        // Make sure we got as much data as we could possibly need (if the stream can yield it)
         if (stream_info->m_DataBuffer.Size() < min_bytes_needed) {
             uint32_t read_size;
             dmSound::Result res = dmSound::SoundDataRead(sound_data, stream_info->m_StreamOffset, min_bytes_needed - stream_info->m_DataBuffer.Size(), stream_info->m_DataBuffer.End(), &read_size);
             if (res == dmSound::RESULT_OK || res == dmSound::RESULT_PARTIAL_DATA) {
-                stream_info->m_DataBuffer.SetSize(read_size);
+                stream_info->m_DataBuffer.SetSize(stream_info->m_DataBuffer.Size() + read_size);
                 stream_info->m_StreamOffset += read_size;
             }
             else {
                 stream_info->m_bEOS = (res == dmSound::RESULT_END_OF_STREAM);
             }
         }
+    }
+
+    static bool ReadPageHeader(Decodestream_info *stream_info, dmSound::HSoundData sound_data, uint8_t& flags, uint32_t& stream_serial, uint32_t& page_size, uint8_t& num_page_segments, uint8_t lacing_table[255])
+    {
+        EnsureDataRead(stream_info, sound_data, 27 + 255);  // 27 bytes page header and max. 255 lacing table
 
         if (stream_info->m_DataBuffer.Size() >= 4) {
             auto sync_mark = (const char *)stream_info->m_DataBuffer.Begin();
@@ -141,6 +143,8 @@ namespace dmSoundCodec
             }
             else
             {
+//NOTE: this code will ultimately seek through the file, but it will posibly take a LONG time to find the next sync marker
+//BUT: defacto it should never be triggered with any correctly formed stream! (as we do not randomly jump into the data)
                 // As we read from a reliable source we really should not need to resync, but if we would: this is a very slow way of moving the file position to find the next 'OggS' mark
                 CleanupBuffer(stream_info->m_DataBuffer, 1);
             }
@@ -170,7 +174,7 @@ namespace dmSoundCodec
                 // This is the stream we are working with?
                 bool is_data = false;
                 if (stream_serial == stream_info->m_stream_serial) {
-//WE DONT'T KNOW WE GOT THAT DATA AT THIS POINT?!?!
+                    EnsureDataRead(stream_info, sound_data, 4);
                     auto magic = (const char*)stream_info->m_DataBuffer.Begin();
                     // we need to avoid the Opushead and Opustags packets (the first one if we should restart the stream, the second one all the time as we do not explicitly parse it)
                     is_data = (magic[0] != 'O' || magic[1] != 'p' || magic[2] != 'u' || magic[3] != 's');
@@ -190,18 +194,7 @@ namespace dmSoundCodec
                 uint8_t segment_size = stream_info->m_lacing_table[stream_info->m_lacing_tableIndex];
 
                 if (segment_size > 0) {
-
-                    if (!stream_info->m_DataBuffer.Full()) {
-                        uint32_t read_size;
-                        dmSound::Result res = dmSound::SoundDataRead(sound_data, stream_info->m_StreamOffset, STREAM_BLOCK_SIZE - stream_info->m_DataBuffer.Size(), stream_info->m_DataBuffer.End(), &read_size);
-                        if (res == dmSound::RESULT_OK || res == dmSound::RESULT_PARTIAL_DATA) {
-                            stream_info->m_DataBuffer.SetSize(stream_info->m_DataBuffer.Size() + read_size);
-                            stream_info->m_StreamOffset += read_size;
-                        }
-                        else {
-                            stream_info->m_bEOS = (res == dmSound::RESULT_END_OF_STREAM);
-                        }
-                    }
+                    EnsureDataRead(stream_info, sound_data, STREAM_BLOCK_SIZE);
 
                     if (stream_info->m_DataBuffer.Size() < segment_size) {
                         break;
@@ -296,16 +289,10 @@ namespace dmSoundCodec
                 assert(page_size <= STREAM_BLOCK_SIZE);
 
                 // Refill buffer with whatever next page we found... (if it's not yet in there)
+                EnsureDataRead(stream_info, sound_data, STREAM_BLOCK_SIZE);
                 if (stream_info->m_DataBuffer.Size() < page_size) {
-                    dmSound::Result res = dmSound::SoundDataRead(sound_data, stream_info->m_StreamOffset, STREAM_BLOCK_SIZE - stream_info->m_DataBuffer.Size(), stream_info->m_DataBuffer.End(), &read_size);
-                    if (res != dmSound::RESULT_OK && res != dmSound::RESULT_PARTIAL_DATA)
-                    {
-                        delete stream_info;
-                        return RESULT_INVALID_FORMAT;
-                    }
-                    stream_info->m_DataBuffer.SetSize(read_size);
-                    stream_info->m_StreamOffset += read_size;
-                    stream_info->m_bEOS = (res == dmSound::RESULT_END_OF_STREAM);
+                    delete stream_info;
+                    return RESULT_INVALID_FORMAT;
                 }
 
                 // Long enough for a OpusHeader & start of a new logical stream?
@@ -469,7 +456,6 @@ namespace dmSoundCodec
         stream_info->m_StreamOffset = 0;
         stream_info->m_lacing_tableIndex = 256;
         stream_info->m_PacketOffset = 0;
-        stream_info->m_Decoder = NULL;
         stream_info->m_SkipBytes = 0;
         stream_info->m_PacketOffset = 0;
         stream_info->m_bEOS = false;
@@ -477,6 +463,9 @@ namespace dmSoundCodec
         stream_info->m_SamplePos = 0;
         stream_info->m_DataBuffer.SetSize(0);
         stream_info->m_LastOutput.SetSize(0);
+
+        opus_decoder_init(stream_info->m_Decoder, stream_info->m_Info.m_Rate, stream_info->m_Info.m_Channels);
+
         return RESULT_OK;
     }
 
