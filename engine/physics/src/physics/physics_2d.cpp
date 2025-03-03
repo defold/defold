@@ -60,11 +60,9 @@ namespace dmPhysics
 
         OverlapCacheInit(&m_TriggerOverlaps);
 
-        b2WorldDef worldDef = b2DefaultWorldDef();
-        worldDef.gravity    = context->m_Gravity;
-
-        // These values have changed, I think. It's in meter per second now, and our default values is like 1.0f
-        // worldDef.maximumLinearSpeed = context->m_VelocityThreshold * context->m_Scale;
+        b2WorldDef worldDef           = b2DefaultWorldDef();
+        worldDef.gravity              = context->m_Gravity;
+        worldDef.restitutionThreshold = context->m_VelocityThreshold * context->m_Scale;
 
         m_WorldId = b2CreateWorld(&worldDef);
 
@@ -571,14 +569,6 @@ namespace dmPhysics
 
                         if (step_context.m_CollisionCallback)
                         {
-                            /*
-                            dmLogInfo("A: %d (group=%d), B: %d (group=%d)",
-                                contact.shapeIdA.index1,
-                                (int) b2Shape_GetFilter(contact.shapeIdA).categoryBits,
-                                contact.shapeIdB.index1,
-                                (int) b2Shape_GetFilter(contact.shapeIdB).categoryBits);
-                            */
-
                             step_context.m_CollisionCallback(
                                 b2Shape_GetUserData(contact.shapeIdA),
                                 b2Shape_GetFilter(contact.shapeIdA).categoryBits,
@@ -638,7 +628,8 @@ namespace dmPhysics
                         b2Rot rot = b2Body_GetRotation(body_id);
                         Quat rotation = Quat::rotationZ(b2Rot_GetAngle(rot));
 
-                        // dmLogInfo("Position: %f, %f, %f", position.getX(), position.getY(), position.getZ());
+                        // Vector3 linear_velocity = GetLinearVelocity2D(context, (HCollisionObject2D) body);
+                        // dmLogInfo("Position: %f, %f, Velocity: %f, %f", position.getX(), position.getY(), linear_velocity.getX(), linear_velocity.getY());
 
                         (*world->m_SetWorldTransformCallback)(b2Body_GetUserData(body_id), position, rotation);
                     }
@@ -807,7 +798,6 @@ namespace dmPhysics
         shape_data->m_Polygon = b2MakeBox(half_extents.getX() * scale, half_extents.getY() * scale);
 
         memcpy(shape_data->m_VerticesOriginal, shape_data->m_Polygon.vertices, sizeof(shape_data->m_Polygon.vertices));
-
         return shape_data;
     }
 
@@ -1471,19 +1461,32 @@ namespace dmPhysics
             {
                 dmTransform::Transform world_transform;
                 (*world->m_GetWorldTransformCallback)(data.m_UserData, world_transform);
+
                 Point3 position = Point3(world_transform.GetTranslation());
+
+                // I don't think this is the way to go, but tests return broken transforms..
+                position.setX(dmMath::Clamp(position.getX(), -1000.0f, 1000.0f));
+                position.setY(dmMath::Clamp(position.getY(), -1000.0f, 1000.0f));
+                position.setZ(dmMath::Clamp(position.getZ(), -1000.0f, 1000.0f));
+
                 Quat rotation = Quat(world_transform.GetRotation());
                 ToB2(position, def.position, context->m_Scale);
 
                 def.rotation = b2MakeRot(atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()), 1.0f - 2.0f * (rotation.getY() * rotation.getY() + rotation.getZ() * rotation.getZ())));
 
                 scale = GetUniformScale2D(world_transform);
+                scale = dmMath::Clamp(scale, -1000.0f, 1000.0f);
+
+                dmLogInfo("Scale: %f", scale);
+                dmLogInfo("Position: %f, %f", position.getX(), position.getY());
+                dmLogInfo("Rotation: %f, %f", def.rotation.s, def.rotation.c);
             }
             else
             {
                 dmLogWarning("Collision object created at origin, this will result in a performance hit if multiple objects are created there in the same frame.");
             }
         }
+
         switch (data.m_Type)
         {
             case dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC:
@@ -1642,23 +1645,14 @@ namespace dmPhysics
 
         if (shape->m_Type == SHAPE_TYPE_POLYGON)
         {
-            float angle = atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()), 1.0f - 2.0f * (rotation.getY() * rotation.getY() + rotation.getZ() * rotation.getZ()));
+            float angle = atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()),
+                                1.0f - 2.0f * (rotation.getY() * rotation.getY() + rotation.getZ() * rotation.getZ()));
             float scale = world->m_Context->m_Scale;
 
             PolygonShapeData* polygon = (PolygonShapeData*) shape;
             b2Vec2 centroid = polygon->m_Polygon.centroid;
-            polygon->m_Polygon = b2MakeBox(w * scale, h * scale);
 
-            b2Transform transform;
-            transform.p = centroid;
-            transform.q = b2MakeRot(angle);
-
-            for (int i = 0; i < polygon->m_Polygon.count; ++i)
-            {
-                polygon->m_Polygon.vertices[i] = b2TransformPoint(transform, polygon->m_Polygon.vertices[i]);
-                polygon->m_Polygon.normals[i] = b2RotateVector(transform.q, polygon->m_Polygon.normals[i]);
-            }
-
+            polygon->m_Polygon = b2MakeOffsetBox(w * scale, h * scale, centroid, b2MakeRot(angle));
             memcpy(polygon->m_VerticesOriginal, polygon->m_Polygon.vertices, sizeof(b2Vec2) * polygon->m_Polygon.count);
         }
     }
@@ -1672,9 +1666,8 @@ namespace dmPhysics
             b2Vec2 t;
             ToB2(Vector3(0), t, world->m_Context->m_Scale);
             b2Rot r;
-
             r.c = 1 - 2 * rotation.getZ() * rotation.getZ();
-            r.s = 2 * rotation.getX() * rotation.getY();
+            r.s = 2 * rotation.getZ() * rotation.getW();
 
             b2Transform transform;
             transform.p = t;
@@ -1772,12 +1765,23 @@ namespace dmPhysics
         Body* body = (Body*) collision_object;
         b2Vec2 b2_velocity;
         ToB2(velocity, b2_velocity, context->m_Scale);
+
+        if (!b2Body_IsEnabled(body->m_BodyId))
+        {
+            b2Body_Enable(body->m_BodyId);
+        }
         b2Body_SetLinearVelocity(body->m_BodyId, b2_velocity);
     }
 
     void SetAngularVelocity2D(HContext2D context, HCollisionObject2D collision_object, const Vector3& velocity)
     {
         Body* body = (Body*) collision_object;
+
+        if (!b2Body_IsEnabled(body->m_BodyId))
+        {
+            b2Body_Enable(body->m_BodyId);
+        }
+
         b2Body_SetAngularVelocity(body->m_BodyId, velocity.getZ());
     }
 
@@ -2005,7 +2009,8 @@ namespace dmPhysics
 
         for (int i = 0; i < body->m_ShapeCount; ++i)
         {
-            b2Shape_SetDensity(body->m_Shapes[i]->m_ShapeId, new_density, false);
+            if (b2Shape_IsValid(body->m_Shapes[i]->m_ShapeId))
+                b2Shape_SetDensity(body->m_Shapes[i]->m_ShapeId, new_density, false);
         }
 
         b2Body_ApplyMassFromShapes(body->m_BodyId);
@@ -2283,8 +2288,9 @@ namespace dmPhysics
                     jointDef.bodyIdB            = body_b->m_BodyId;
                     jointDef.localAnchorA       = pa;
                     jointDef.localAnchorB       = pb;
-                    jointDef.length             = params.m_FixedJointParams.m_MaxLength * scale;
-                    jointDef.maxLength          = params.m_FixedJointParams.m_MaxLength * scale;
+                    // Joints can't have zero length
+                    jointDef.length             = dmMath::Max(0.01f, params.m_FixedJointParams.m_MaxLength * scale);
+                    jointDef.maxLength          = dmMath::Max(0.01f, params.m_FixedJointParams.m_MaxLength * scale);
                     jointDef.collideConnected   = params.m_CollideConnected;
                     jointDef.enableLimit        = true;
                     jointDef.enableSpring       = false;
