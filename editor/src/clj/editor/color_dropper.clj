@@ -51,6 +51,7 @@
   [view-node ^Canvas canvas]
   (let [graphics-context ^GraphicsContext (.getGraphicsContext2D canvas)]
     (.clearRect graphics-context 0 0 (.getWidth canvas) (.getHeight canvas))
+    (ui/refresh (ui/main-scene))
     (g/set-property! view-node :image (.snapshot (ui/main-root) nil nil))))
 
 (defn- in-bounds?
@@ -138,10 +139,10 @@
     (.addListener (.widthProperty main-view) size-listener)
     (.addListener (.heightProperty main-view) size-listener)
 
-    (capture! view-node canvas)
-
     (doto dropper-area
       (.addEventHandler KeyEvent/ANY (ui/event-handler event (key-pressed-handler! view-node pick-fn event)))
       (.addEventHandler MouseEvent/MOUSE_MOVED (ui/event-handler event (mouse-move-handler! view-node canvas event)))
       (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (apply-and-deactivate! view-node pick-fn)))
-      (.requestFocus))))
+      (.requestFocus))
+    
+    (capture! view-node canvas)))
