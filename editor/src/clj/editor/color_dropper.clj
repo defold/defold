@@ -15,7 +15,8 @@
 (ns editor.color-dropper
   (:require [dynamo.graph :as g]
             [editor.ui :as ui])
-  (:import [javafx.scene Cursor]
+  (:import [javafx.beans.value ChangeListener]
+           [javafx.scene Cursor]
            [javafx.scene.canvas Canvas GraphicsContext]
            [javafx.scene.image PixelReader WritableImage]
            [javafx.scene.input KeyCode KeyEvent MouseEvent]
@@ -29,6 +30,7 @@
 (g/defnode ColorDropper
   (property color Color)
   (property dropper-area StackPane)
+  (property size-listener ChangeListener)
   (property image WritableImage))
 
 (defn- paint-pixel!
@@ -88,24 +90,28 @@
           (.setStroke Color/RED)
           (.strokeRect (- mouse-x pixel-center) (- mouse-y pixel-center) pixel-size pixel-size))))))
 
-(defn- remove-dropper-area!
+(defn- deactivate!
   [view-node]
   (let [dropper-area ^StackPane (g/node-value view-node :dropper-area)
-        root ^StackPane (ui/main-root)]
+        size-listener ^ChangeListener (g/node-value view-node :size-listener)
+        main-view ^StackPane (ui/main-root)]
+    (.removeListener (.widthProperty main-view) size-listener)
+    (.removeListener (.heightProperty main-view) size-listener)
     (g/set-property! view-node :dropper-area nil)
-    (-> (.getChildren root)
+    (g/set-property! view-node :size-listener nil)
+    (-> (.getChildren main-view)
         (.remove dropper-area))))
 
 (defn- apply-and-deactivate!
   [view-node pick-fn]
-  (remove-dropper-area! view-node)
+  (deactivate! view-node)
   (pick-fn (g/node-value view-node :color)))
 
 (defn- key-pressed-handler!
   [view-node pick-fn ^KeyEvent event]
   (condp = (.getCode event)
     KeyCode/ENTER (apply-and-deactivate! view-node pick-fn)
-    KeyCode/ESCAPE (remove-dropper-area! view-node)
+    KeyCode/ESCAPE (deactivate! view-node)
     nil))
 
 (defn make-color-dropper! [graph]
@@ -115,18 +121,22 @@
   [view-node pick-fn]
   (let [main-view ^StackPane (ui/main-root)
         canvas (Canvas. (.getWidth main-view) (.getHeight main-view))
+        size-listener (reify ChangeListener
+                        (changed [_ _ _ _]
+                          (capture! view-node canvas)))
         dropper-area (doto (StackPane.)
                        (.setCursor Cursor/NONE)
                        (ui/add-child! canvas)
                        (.setStyle "-fx-background-color: transparent;"))]
     (ui/add-child! main-view dropper-area)
     (g/set-property! view-node :dropper-area dropper-area)
+    (g/set-property! view-node :size-listener size-listener)
 
     (.bind (.widthProperty canvas) (.widthProperty dropper-area))
     (.bind (.heightProperty canvas) (.heightProperty dropper-area))
 
-    (ui/observe (.widthProperty main-view) (fn [_ _ _] (capture! view-node canvas)))
-    (ui/observe (.heightProperty main-view) (fn [_ _ _] (capture! view-node canvas)))
+    (.addListener (.widthProperty main-view) size-listener)
+    (.addListener (.heightProperty main-view) size-listener)
 
     (capture! view-node canvas)
 
