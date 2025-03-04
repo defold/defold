@@ -345,9 +345,9 @@
 
 (def physics-setting
   (make-choice-setting
-    :none (concat (libs-toggles all-platforms ["physics_null"]) (exclude-libs-toggles all-platforms ["physics" "LinearMath" "BulletDynamics" "BulletCollision" "Box2D" "script_box2d"]) (generic-contains-toggles all-platforms :excludeSymbols ["ScriptBox2DExt"]))
+    :none (concat (libs-toggles all-platforms ["physics_null"]) (exclude-libs-toggles all-platforms ["physics" "LinearMath" "BulletDynamics" "BulletCollision" "box2d" "script_box2d"]) (generic-contains-toggles all-platforms :excludeSymbols ["ScriptBox2DExt"]))
     :2d   (concat (libs-toggles all-platforms ["physics_2d"])   (exclude-libs-toggles all-platforms ["physics" "LinearMath" "BulletDynamics" "BulletCollision"]))
-    :3d   (concat (libs-toggles all-platforms ["physics_3d"])   (exclude-libs-toggles all-platforms ["physics" "Box2D" "script_box2d"]) (generic-contains-toggles all-platforms :excludeSymbols ["ScriptBox2DExt"]))
+    :3d   (concat (libs-toggles all-platforms ["physics_3d"])   (exclude-libs-toggles all-platforms ["physics" "box2d" "script_box2d"]) (generic-contains-toggles all-platforms :excludeSymbols ["ScriptBox2DExt"]))
     :both))
 
 (def image-setting

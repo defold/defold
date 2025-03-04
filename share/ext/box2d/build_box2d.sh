@@ -55,7 +55,13 @@ LIB_SUFFIX=a
 LIB_OUTPUT_PATH=
 
 case $PLATFORM in
-    js-web|wasm-web)
+    js-web)
+        CMAKE_FLAGS="-DBOX2D_ENABLE_SIMD=OFF ${CMAKE_FLAGS}"
+        CMAKE_CONFIGURE="emcmake cmake"
+        # CXXFLAGS="-s WASM=0 ${CXXFLAGS}"
+        ;;
+
+    wasm-web)
         CMAKE_CONFIGURE="emcmake cmake"
         ;;
 
@@ -94,8 +100,6 @@ case $PLATFORM in
         CMAKE_CONFIGURE_FLAGS="-A Win32" # set cmake to use X86 toolchina
         ;;
     x86_64-win32)
-        # NOTE: Unpacking on windows doesn't work for me (JG)
-        #       So to make this work I have to unpack the tar manually.
         LIB_SUFFIX=lib
         LIB_OUTPUT_PATH=${CMAKE_BUILD_VARIANT}/
         ;;
@@ -108,9 +112,6 @@ case $PLATFORM in
         CMAKE_CONFIGURE_FLAGS="-DANDROID=ON -DCMAKE_SYSTEM_NAME=Linux"
         ;;
 esac
-
-# eval $(python ${DYNAMO_HOME}/../../build_tools/set_sdk_vars.py VERSION_MACOSX_MIN)
-# OSX_MIN_SDK_VERSION=$VERSION_MACOSX_MIN
 
 function download {
     local url=$1
@@ -146,7 +147,7 @@ download ${BOX2D_URL} box2d.tar.gz ${BOX2D_DIR}
 
 pushd ${BOX2D_DIR}
 
-# cmi_patch
+cmi_patch
 
 popd
 
@@ -156,10 +157,10 @@ mkdir -p ${BUILD_DIR}
 pushd $BUILD_DIR
 
 echo "**************************************************"
-echo "CMAKE_FLAGS: ${CMAKE_FLAGS}"
+echo "Builing with flags: ${CMAKE_FLAGS}"
 echo "**************************************************"
 
-$CMAKE_CONFIGURE ${CMAKE_FLAGS} ${CMAKE_CONFIGURE_FLAGS} ${BOX2D_DIR}
+$CMAKE_CONFIGURE ${CMAKE_FLAGS} ${CMAKE_CONFIGURE_FLAGS} ${BOX2D_DIR} # js-web? -DCMAKE_CXX_FLAGS="-s WASM=0"
 cmake --build . --config ${CMAKE_BUILD_VARIANT} ${CMAKE_BUILD_FLAGS} -j 8
 
 mkdir -p ./lib/$PLATFORM
