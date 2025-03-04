@@ -205,8 +205,18 @@ namespace dmPhysics
     void DeleteWorld2D(HContext2D context, HWorld2D world)
     {
         for (uint32_t i = 0; i < context->m_Worlds.Size(); ++i)
+        {
             if (context->m_Worlds[i] == world)
+            {
                 context->m_Worlds.EraseSwap(i);
+            }
+        }
+
+        if (b2World_IsValid(world->m_WorldId))
+        {
+            b2DestroyWorld(world->m_WorldId);
+        }
+
         delete world;
     }
 
@@ -1201,8 +1211,6 @@ namespace dmPhysics
         {
             GridShapeData* grid_shape = (GridShapeData*) shape_data;
 
-            // uint64_t opaque_id = ToOpaqueHandle(grid_shape->m_CellPolygonShapes[child]);
-
             grid_shape->m_CellFilters[child].m_Group = group;
             grid_shape->m_CellFilters[child].m_Mask = mask;
 
@@ -1217,29 +1225,6 @@ namespace dmPhysics
                 filter.maskBits = mask;
                 b2Shape_SetFilter(grid_shape->m_CellPolygonShapes[child], filter);
             }
-
-            /*
-            // 0 is not a valid group, so if we have created a polygon shape already, we need to remove it.
-            if (group == 0)
-            {
-                if (grid_shape->m_Cells[child].m_Index != B2GRIDSHAPE_EMPTY_CELL && opaque_id != 0)
-                {
-                    b2DestroyShape(grid_shape->m_CellPolygonShapes[child], false);
-                    memset(&grid_shape->m_CellPolygonShapes[child], 0, sizeof(grid_shape->m_CellPolygonShapes[child]));
-                }
-            }
-            else
-            {
-                if (opaque_id == 0)
-                {
-                    CreateGridCellShape(collision_object, shape, child);
-                }
-                b2Filter filter = b2Shape_GetFilter(grid_shape->m_CellPolygonShapes[child]);
-                filter.categoryBits = group;
-                filter.maskBits = mask;
-                b2Shape_SetFilter(grid_shape->m_CellPolygonShapes[child], filter);
-            }
-            */
         }
         else
         {
@@ -1477,9 +1462,9 @@ namespace dmPhysics
                 scale = GetUniformScale2D(world_transform);
                 scale = dmMath::Clamp(scale, -1000.0f, 1000.0f);
 
-                dmLogInfo("Scale: %f", scale);
-                dmLogInfo("Position: %f, %f", position.getX(), position.getY());
-                dmLogInfo("Rotation: %f, %f", def.rotation.s, def.rotation.c);
+                // dmLogInfo("Scale: %f", scale);
+                // dmLogInfo("Position: %f, %f", position.getX(), position.getY());
+                // dmLogInfo("Rotation: %f, %f", def.rotation.s, def.rotation.c);
             }
             else
             {
