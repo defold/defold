@@ -488,6 +488,8 @@ platforms:
       LD_LIBRARY_PATH:  '{{dynamo_home}}/lib/arm64-linux:{{env.LD_LIBRARY_PATH}}'
 
     context:
-        engineLibs:  ["graphics_opengles"]
-        libPaths:    ["{{dynamo_home}}/lib/arm64-linux","{{dynamo_home}}/ext/lib/arm64-linux"]
-        dynamicLibs: ["EGL", "GLESv1_CM", "GLESv2"]
+        symbols:        ["GraphicsAdapterOpenGLES"]
+        excludeSymbols: ["GraphicsAdapterOpenGL"]
+        engineLibs:     ["graphics_opengles"]
+        libPaths:       ["{{dynamo_home}}/lib/arm64-linux","{{dynamo_home}}/ext/lib/arm64-linux"]
+        dynamicLibs:    ["EGL", "GLESv1_CM", "GLESv2"]
