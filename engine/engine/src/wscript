@@ -134,7 +134,7 @@ def build(bld):
     bld.add_group()
 
     profile_lib = ['PROFILE', 'PROFILEREXT']
-    if bld.env['PLATFORM'] in ('js-web', 'wasm-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5'):
+    if bld.env['PLATFORM'] in ('arm64-nx64', 'x86_64-ps4', 'x86_64-ps5'):
         profile_lib = ['PROFILE_NULL', 'PROFILEREXT_NULL']
 
     if bld.env['PLATFORM'] in ('x86_64-ps4', 'x86_64-ps5', 'x86_64-linux', 'arm64-linux'):

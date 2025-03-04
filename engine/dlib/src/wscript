@@ -228,11 +228,11 @@ def build(bld):
     libprofile_defines = extra_defines
 
     # defold version
-    libprofile_defold = bld.stlib(features   = libprofile_features,
+    libprofile_basic = bld.stlib(features   = libprofile_features,
                                 includes     = libprofile_includes,
                                 defines      = libprofile_defines,
-                                source       = 'dlib/profile/profile.cpp dlib/profile/profile_defold.cpp',
-                                target       = 'profile_defold')
+                                source       = 'dlib/profile/profile.cpp dlib/profile/profile_basic.cpp',
+                                target       = 'profile_basic')
 
     # null version
     libprofile_null = bld.stlib(features     = libprofile_features,

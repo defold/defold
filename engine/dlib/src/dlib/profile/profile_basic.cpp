@@ -347,6 +347,20 @@ static void DebugProperties(int indent, Property* prop)
     }
 }
 
+static void DebugSamples(int indent, Sample* sample)
+{
+    for (int i = 0; i < indent; ++i)
+        printf("  ");
+    printf("'%s'  length: %.3f ms  #%u\n", GetNameFromHash(sample->m_NameHash), sample->m_Length/1000.0f, sample->m_CallCount);
+
+    Sample* child = sample->m_FirstChild;
+    while(child)
+    {
+        DebugSamples(indent+1, child);
+        child = child->m_Sibling;
+    }
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////
 // Threads
 
@@ -478,26 +492,10 @@ namespace dmProfile
 
     void LogText(const char* format, ...)
     {
-        CHECK_INITIALIZED();
+        (void)format;
 
-        // va_list lst;
-        // va_start(lst, format);
-        // LogInternal(LOG_SEVERITY_INFO, "PROFILE", format, lst);
-        // va_end(lst);
-
-        char buffer[DM_PROFILE_TEXT_LENGTH];
-
-        va_list lst;
-        va_start(lst, format);
-        int n = vsnprintf(buffer, DM_PROFILE_TEXT_LENGTH, format, lst);
-        if (n < 0)
-        {
-            buffer[DM_PROFILE_TEXT_LENGTH-1] = '\0';
-        }
-        va_end(lst);
-
-        // Simply outputting via the logger
-        dmLogInfo("%s", buffer);
+        // This function is called by the logging system, and is intended for passing the data on to
+        // any connected devices collecting the profile data.
     }
 
     void SetSampleTreeCallback(void* ctx, FSampleTreeCallback callback)
@@ -516,7 +514,6 @@ namespace dmProfile
 
     static Sample* AllocateSample(ThreadData* td, uint32_t name_hash)
     {
-// TODO: Recursive sample
         Sample* parent = td->m_CurrentSample;
 
         // Aggregate samples:
@@ -571,12 +568,6 @@ namespace dmProfile
         ThreadData* td = GetOrCreateThreadData(g_ProfileContext, GetThreadId());
         Sample* sample = AllocateSample(td, name_hash); // Adds it to the thread data
 
-        bool debug = false;
-        if (strcmp(name, "DrawRenderList") == 0)
-        {
-            debug = true;
-        }
-
         if (sample->m_CallCount > 1) // we want to preserve the real start of this sample
             sample->m_TempStart = tstart;
         else
@@ -592,13 +583,6 @@ namespace dmProfile
 
         ThreadData* td = GetOrCreateThreadData(g_ProfileContext, GetThreadId());
         Sample* sample = td->m_CurrentSample;
-
-        const char* name = GetNameFromHash(sample->m_NameHash);
-        bool debug = false;
-        if (strcmp(name, "DrawRenderList") == 0)
-        {
-            debug = true;
-        }
 
         uint64_t length = 0;
         if (sample->m_CallCount > 1)
@@ -667,7 +651,6 @@ namespace dmProfile
         Sample* sample = (Sample*)hsample;
         iter->m_Sample = 0;
         iter->m_IteratorImpl = (void*)sample->m_FirstChild;
-        // printf("Iterate Children: '%s' %p\n", GetNameFromHash(sample->m_NameHash), sample);
         return iter;
     }
 
@@ -676,7 +659,6 @@ namespace dmProfile
         Sample* sample = (Sample*)iter->m_IteratorImpl;
         if (!sample)
             return false;
-        // printf("  next: '%s' %p\n", GetNameFromHash(sample->m_NameHash), sample);
 
         iter->m_Sample = sample;
         iter->m_IteratorImpl = sample->m_Sibling;
