@@ -47,6 +47,7 @@
             [jfx :as jfx]
             [lambdaisland.deep-diff2 :as deep-diff]
             [lambdaisland.deep-diff2.minimize-impl :as deep-diff.minimize-impl]
+            [lambdaisland.deep-diff2.printer-impl :as deep-diff.printer-impl]
             [lambdaisland.deep-diff2.puget.color :as puget.color]
             [lambdaisland.deep-diff2.puget.printer :as puget.printer]
             [util.coll :as coll :refer [pair]]
@@ -1138,7 +1139,15 @@
                vecmath-tuple-pprint-handler})]
 
         (deep-diff/printer
-          {:extra-handlers
+          {:color-scheme
+           {::deep-diff.printer-impl/deletion [:red]
+            ::deep-diff.printer-impl/insertion [:green]
+            ::deep-diff.printer-impl/other [:yellow]
+            :boolean [:bold :cyan]
+            :nil [:bold :cyan]
+            :tag [:magenta]}
+
+           :extra-handlers
            (merge editor-pprint-handlers
                   graph-pprint-handlers
                   java-pprint-handlers

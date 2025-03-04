@@ -16,6 +16,7 @@
   (:require [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.defold-project :as project]
             [editor.field-expression :as field-expression]
             [editor.handler :as handler]
             [editor.jfx :as jfx]
@@ -133,10 +134,10 @@
     nil))
 
 ;; TODO: Remove context parameter.
-(defmulti make-property-control (fn [edit-type _context _property-fn]
-                                     (edit-type->type edit-type)))
+(defmulti make-property-control (fn [edit-type _property-fn]
+                                  (edit-type->type edit-type)))
 
-(defmethod make-property-control g/Str [edit-type _ property-fn]
+(defmethod make-property-control g/Str [edit-type property-fn]
   (let [text (TextField.)
         update-ui-fn (partial update-text-fn text str)
         cancel-fn (fn [_]
@@ -151,7 +152,7 @@
       (add-style-class! text style-class))
     [text update-ui-fn]))
 
-(defmethod make-property-control g/Int [edit-type _ property-fn]
+(defmethod make-property-control g/Int [edit-type property-fn]
   (let [text (TextField.)
         update-ui-fn (partial update-text-fn text field-expression/format-int)
         update-prop-fn (fn [_]
@@ -170,7 +171,7 @@
       (add-style-class! text style-class))
     [text update-ui-fn]))
 
-(defmethod make-property-control g/Num [edit-type _ property-fn]
+(defmethod make-property-control g/Num [edit-type property-fn]
   (let [text-field (TextField.)
         update-ui-fn (partial update-text-fn text-field field-expression/format-number)
         cancel-fn (fn [_]
@@ -190,7 +191,7 @@
       (add-style-class! text-field style-class))
     [text-field update-ui-fn]))
 
-(defmethod make-property-control g/Bool [_ _ property-fn]
+(defmethod make-property-control g/Bool [_ property-fn]
   (let [check (CheckBox.)
         update-ui-fn (fn [values message read-only?]
                        (let [v (properties/unify-values values)]
@@ -253,17 +254,17 @@
         labels))
     [box update-ui-fn]))
 
-(defmethod make-property-control types/Vec2 [edit-type _ property-fn]
+(defmethod make-property-control types/Vec2 [edit-type property-fn]
   (let [{:keys [labels]
          :or {labels ["X" "Y"]}} edit-type]
     (make-multi-text-field labels property-fn)))
 
-(defmethod make-property-control types/Vec3 [edit-type _ property-fn]
+(defmethod make-property-control types/Vec3 [edit-type property-fn]
   (let [{:keys [labels]
          :or {labels ["X" "Y" "Z"]}} edit-type]
     (make-multi-text-field labels property-fn)))
 
-(defmethod make-property-control types/Vec4 [edit-type _ property-fn]
+(defmethod make-property-control types/Vec4 [edit-type property-fn]
   (let [{:keys [labels]
          :or {labels ["X" "Y" "Z" "W"]}} edit-type]
     (make-multi-text-field labels property-fn)))
@@ -371,7 +372,7 @@
       (ui/editable! editor-toggle-button (some? (first values)))
       (ui/disable! value-text-field is-curved))))
 
-(defmethod make-property-control CurveSpread [_ _ property-fn]
+(defmethod make-property-control CurveSpread [_ property-fn]
   (let [^ToggleButton editor-toggle-button (make-curve-toggler property-fn)
         fields [{:get-fn curve-get-fn
                  :set-fn curve-spread-set-fn
@@ -382,7 +383,7 @@
         update-ui-fn (make-curve-update-ui-fn editor-toggle-button value-text-field update-ui-fn)]
     [box update-ui-fn]))
 
-(defmethod make-property-control Curve [_ _ property-fn]
+(defmethod make-property-control Curve [_ property-fn]
   (let [^ToggleButton editor-toggle-button (make-curve-toggler property-fn)
         fields [{:get-fn curve-get-fn
                  :set-fn curve-set-fn
@@ -392,7 +393,7 @@
         update-ui-fn (make-curve-update-ui-fn editor-toggle-button value-text-field update-ui-fn)]
     [box update-ui-fn]))
 
-(defmethod make-property-control types/Color [edit-type _ property-fn]
+(defmethod make-property-control types/Color [edit-type property-fn]
   (let [color-picker (doto (ColorPicker.)
                        (.setPrefWidth Double/MAX_VALUE))
         update-ui-fn  (fn [values message read-only?]
@@ -426,7 +427,7 @@
           (properties/set-values! property values))))
     [color-picker update-ui-fn]))
 
-(defmethod make-property-control :choicebox [{:keys [options]} _ property-fn]
+(defmethod make-property-control :choicebox [{:keys [options]} property-fn]
   (let [combo-box (fuzzy-combo-box/make options)
         update-ui-fn (fn [values message read-only?]
                        (binding [*programmatic-setting* true]
@@ -440,7 +441,7 @@
     (fuzzy-combo-box/observe! combo-box listen-fn)
     [combo-box update-ui-fn]))
 
-(defmethod make-property-control resource/Resource [edit-type {:keys [workspace project]} property-fn]
+(defmethod make-property-control resource/Resource [edit-type property-fn]
   (let [box           (GridPane.)
         browse-button (doto (Button. "\u2026") ; "..." (HORIZONTAL ELLIPSIS)
                         (.setPrefWidth 26)
@@ -462,16 +463,31 @@
                                     (properties/validation-message property)
                                     (properties/read-only? property))))
         commit-fn (fn [_]
-                    (let [path (ui/text text)
-                          resource (workspace/resolve-workspace-resource workspace path)]
-                      (properties/set-values! (property-fn) (repeat resource))))]
+                    (let [property (property-fn)
+                          resource (g/with-auto-evaluation-context evaluation-context
+                                     (let [basis (:basis evaluation-context)
+                                           node-id (first (:node-ids property))
+                                           project (project/get-project basis node-id)
+                                           workspace (project/workspace project evaluation-context)
+                                           proj-path (ui/text text)]
+                                       (workspace/resolve-workspace-resource workspace proj-path evaluation-context)))]
+                      (properties/set-values! property (repeat resource))))]
     (ui/add-style! box "composite-property-control-container")
-    (ui/on-action! browse-button (fn [_] (when-let [resource (first (resource-dialog/make workspace project dialog-opts))]
-                                           (properties/set-values! (property-fn) (repeat resource)))))
-    (ui/on-action! open-button (fn [_]  (when-let [resource (-> (property-fn)
-                                                              properties/values
-                                                              properties/unify-values)]
-                                          (ui/run-command open-button :open {:resources [resource]}))))
+    (ui/on-action! browse-button (fn [_]
+                                   (let [property (property-fn)
+                                         resource (g/with-auto-evaluation-context evaluation-context
+                                                    (let [basis (:basis evaluation-context)
+                                                          node-id (first (:node-ids property))
+                                                          project (project/get-project basis node-id)
+                                                          workspace (project/workspace project evaluation-context)]
+                                                      (first (resource-dialog/make workspace project dialog-opts))))]
+                                     (when (some? resource)
+                                       (properties/set-values! property (repeat resource))))))
+    (ui/on-action! open-button (fn [_]
+                                 (when-let [resource (-> (property-fn)
+                                                         properties/values
+                                                         properties/unify-values)]
+                                   (ui/run-command open-button :open {:resources [resource]}))))
     (customize! text commit-fn cancel-fn)
     (ui/children! box [text browse-button open-button])
     (GridPane/setConstraints text 0 0)
@@ -495,10 +511,10 @@
               (.setHgrow Priority/NEVER))))
     [box update-ui-fn]))
 
-(defmethod make-property-control :slider [edit-type context property-fn]
+(defmethod make-property-control :slider [edit-type property-fn]
   (let [box (doto (GridPane.)
               (.setHgap grid-hgap))
-        [^TextField text-field tf-update-ui-fn] (make-property-control {:type g/Num} context property-fn)
+        [^TextField text-field tf-update-ui-fn] (make-property-control {:type g/Num} property-fn)
         min (:min edit-type 0.0)
         max (:max edit-type 1.0)
         val (:value edit-type max)
@@ -538,7 +554,7 @@
                                         (.setPercentWidth 80))))
     [box update-ui-fn]))
 
-(defmethod make-property-control :multi-line-text [_ _ property-fn]
+(defmethod make-property-control :multi-line-text [_ property-fn]
   (let [text (doto (TextArea.)
                (ui/add-style! "property")
                (.setMinHeight 68))
@@ -553,10 +569,10 @@
     (customize! text update-fn cancel-fn)
     [text update-ui-fn]))
 
-(defmethod make-property-control :default [_ _ _]
-  (let [text         (TextField.)
-        wrapper      (doto (HBox.)
-                       (.setPrefWidth Double/MAX_VALUE))
+(defmethod make-property-control :default [_ _]
+  (let [text (TextField.)
+        wrapper (doto (HBox.)
+                  (.setPrefWidth Double/MAX_VALUE))
         update-ui-fn (partial update-text-fn text str)]
     (HBox/setHgrow text Priority/ALWAYS)
     (ui/children! wrapper [text])
@@ -662,6 +678,7 @@
   (succeeding-selection [_])
   (alt-selection [_]))
 
+;; TODO: Remove the context parameter here.
 (defn- make-property-grid-row [context property-keyword edit-type row property-keyword->property]
   (let [label (doto (Label.)
                 (ui/register-context-menu ::properties-menu true)
@@ -672,8 +689,7 @@
                 (.setMinWidth Label/USE_PREF_SIZE)
                 (.setMinHeight 28.0)
                 (GridPane/setFillWidth true))
-        [^Node control update-ctrl-fn] (make-property-control edit-type context
-                                                              (fn [] (property-keyword->property property-keyword)))
+        [^Node control update-ctrl-fn] (make-property-control edit-type #(property-keyword->property property-keyword))
         reset-btn (doto (Button. nil (jfx/get-image-view "icons/32/Icons_S_02_Reset.png"))
                     (ui/add-styles! ["clear-button" "button-small"])
                     (ui/on-action! (fn [_]
@@ -705,7 +721,8 @@
                                (GridPane/setConstraints label 0 0))))
 
         update-ui-fn (fn [property selection-provider]
-                       (ui/context! label :property (assoc context :property property) selection-provider)
+                       ;; TODO: Do we need to supply the selection-provider here, or do we inherit it?
+                       (ui/context! label :property {:property property} selection-provider)
                        (let [is-overridden (properties/overridden? property)
                              f (if is-overridden ui/add-style! ui/remove-style!)]
                          (doseq [c [label control]]
