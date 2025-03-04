@@ -39,7 +39,7 @@ import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
 import com.dynamo.gamesys.proto.Tile.TileSet;
 
 @ProtoParams(srcClass = TileSet.class, messageClass = TileSet.class)
-@BuilderParams(name = "TileSet", inExts = {".tileset", ".tilesource"}, outExt = ".t.texturesetc", isCacheble = true)
+@BuilderParams(name = "TileSet", inExts = {".tileset", ".tilesource"}, outExt = ".t.texturesetc", isCacheble = true, paramsForSignature = {"texture-compression"})
 public class TileSetBuilder extends ProtoBuilder<TileSet.Builder> {
 
     private static Logger logger = Logger.getLogger(TileSetBuilder.class.getName());

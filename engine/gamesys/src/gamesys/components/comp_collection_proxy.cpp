@@ -35,9 +35,9 @@
 #include <gamesys/gamesys_ddf.h>
 
 DM_PROPERTY_EXTERN(rmtp_Components);
-DM_PROPERTY_U32(rmtp_CollectionProxy, 0, FrameReset, "# components", &rmtp_Components);
-DM_PROPERTY_U32(rmtp_CollectionProxyLoaded, 0, FrameReset, "# loaded collection proxies", &rmtp_CollectionProxy);
-DM_PROPERTY_U32(rmtp_CollectionProxyEnabled, 0, FrameReset, "# enabled collection proxies", &rmtp_CollectionProxy);
+DM_PROPERTY_U32(rmtp_CollectionProxy, 0, PROFILE_PROPERTY_FRAME_RESET, "# components", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_CollectionProxyLoaded, 0, PROFILE_PROPERTY_FRAME_RESET, "# loaded collection proxies", &rmtp_CollectionProxy);
+DM_PROPERTY_U32(rmtp_CollectionProxyEnabled, 0, PROFILE_PROPERTY_FRAME_RESET, "# enabled collection proxies", &rmtp_CollectionProxy);
 
 namespace dmGameSystem
 {

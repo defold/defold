@@ -68,7 +68,8 @@ import com.dynamo.rig.proto.Rig.AnimationSet;
 
 import static com.dynamo.bob.util.ComponentsCounter.isCompCounterStorage;
 
-@BuilderParams(name = "GameProjectBuilder", inExts = ".project", outExt = "")
+@BuilderParams(name = "GameProjectBuilder", inExts = ".project", outExt = "", paramsForSignature = {"liveupdate", "variant", "archive", "archive-resource-padding",
+                "platform", "manifest-private-key", "manifest-public-key"})
 public class GameProjectBuilder extends Builder {
 
     // Root nodes to follow (default values from engine.cpp)
@@ -244,6 +245,7 @@ public class GameProjectBuilder extends Builder {
 
     private ManifestBuilder createManifestBuilder(ResourceGraph resourceGraph) throws IOException {
         String projectIdentifier = project.getProjectProperties().getStringValue("project", "title", "<anonymous>");
+        final String variant = project.option("variant", Bob.VARIANT_RELEASE);
         String supportedEngineVersionsString = project.getPublisher().getSupportedVersions();
         String privateKeyFilepath = project.getPublisher().getManifestPrivateKey();
         String publicKeyFilepath = project.getPublisher().getManifestPublicKey();
@@ -253,6 +255,7 @@ public class GameProjectBuilder extends Builder {
         manifestBuilder.setSignatureHashAlgorithm(HashAlgorithm.HASH_SHA256);
         manifestBuilder.setSignatureSignAlgorithm(SignAlgorithm.SIGN_RSA);
         manifestBuilder.setProjectIdentifier(projectIdentifier);
+        manifestBuilder.setBuildVariant(variant);
         manifestBuilder.setResourceGraph(resourceGraph);
 
         // Try manifest signing keys specified through the publisher

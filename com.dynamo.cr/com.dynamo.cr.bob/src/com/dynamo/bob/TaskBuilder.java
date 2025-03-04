@@ -14,15 +14,14 @@
 
 package com.dynamo.bob;
 
-import com.dynamo.bob.TaskResult;
 import com.dynamo.bob.TaskResult.Result;
+import com.dynamo.bob.cache.ResourceCacheKey;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.util.TimeProfiler;
 import com.dynamo.bob.util.TimeProfiler.ProfilingScope;
 import com.dynamo.bob.util.StringUtil;
 import com.dynamo.bob.cache.ResourceCache;
-import com.dynamo.bob.cache.ResourceCacheKey;
 import com.dynamo.bob.logging.Logger;
 
 import java.util.Arrays;
@@ -32,7 +31,6 @@ import java.util.ArrayList;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.Set;
-import java.util.EnumSet;
 import java.util.HashSet;
 
 import java.io.IOException;
@@ -42,7 +40,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import java.util.concurrent.Executors;
-
 
 public class TaskBuilder {
 
@@ -68,7 +65,6 @@ public class TaskBuilder {
     private Set<Task> tasks;
 
     private Project project;
-    private Map<String, String> options;
     private State state;
     private ResourceCache resourceCache;
 
@@ -84,7 +80,6 @@ public class TaskBuilder {
     public TaskBuilder(List<Task> tasks, Project project) {
         this.tasks = new HashSet<Task>(tasks);
         this.project = project;
-        this.options = project.getOptions();
         this.state = project.getState();
         this.resourceCache = project.getResourceCache();
 
@@ -130,7 +125,6 @@ public class TaskBuilder {
         return dependencies;
     }
 
-
     private boolean checkIfResourcesExist(final List<IResource> resources) {
         // do all output files exist?
         boolean allResourcesExists = true;
@@ -173,7 +167,7 @@ public class TaskBuilder {
                     // check if all output resources exist in the resource cache
                     boolean allResourcesCached = true;
                     for (IResource r : outputResources) {
-                        final String key = ResourceCacheKey.calculate(task, options, r);
+                        final String key = ResourceCacheKey.calculate(taskSignature, r);
                         outputResourceToCacheKey.put(r, key);
                         if (!r.isCacheable()) {
                             allResourcesCached = false;
