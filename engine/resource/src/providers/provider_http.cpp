@@ -235,7 +235,9 @@ static dmResourceProvider::Result GetRequestFromUri(HttpProviderContext* archive
         dmSnPrintf(range, sizeof(range), "=bytes=%u-%u", offset, offset+size-1);
         dmStrlCat(cache_key, range, sizeof(cache_key));// "=bytes=%d-%d"
     }
-    dmHttpClient::SetCacheKey(archive->m_HttpClient, cache_key);
+    if (!get_file_size) {
+        dmHttpClient::SetCacheKey(archive->m_HttpClient, cache_key);
+    }
 
     dmHttpClient::Result http_result = dmHttpClient::Request(archive->m_HttpClient, method, encoded_uri);
 
