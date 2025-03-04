@@ -99,6 +99,14 @@ case $PLATFORM in
         LIB_SUFFIX=lib
         LIB_OUTPUT_PATH=${CMAKE_BUILD_VARIANT}/
         ;;
+    arm64-android)
+        CMAKE_CONFIGURE_FLAGS="-DANDROID=ON -DCMAKE_SYSTEM_NAME=Linux"
+        ;;
+    armv7-android)
+        # SIMD with neon is not supported on armv7 (or I can't get it to work with clang)
+        CMAKE_FLAGS="-DBOX2D_ENABLE_SIMD=OFF ${CMAKE_FLAGS}"
+        CMAKE_CONFIGURE_FLAGS="-DANDROID=ON -DCMAKE_SYSTEM_NAME=Linux"
+        ;;
 esac
 
 # eval $(python ${DYNAMO_HOME}/../../build_tools/set_sdk_vars.py VERSION_MACOSX_MIN)
@@ -138,7 +146,7 @@ download ${BOX2D_URL} box2d.tar.gz ${BOX2D_DIR}
 
 pushd ${BOX2D_DIR}
 
-cmi_patch
+# cmi_patch
 
 popd
 
