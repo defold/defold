@@ -308,6 +308,26 @@ namespace dmGraphics
         return (T*) container.Get(opaque_handle);
     }
 
+    struct ScopedLock
+    {
+        ScopedLock(dmMutex::HMutex mutex)
+        : m_Mutex(mutex)
+        {
+            if (m_Mutex)
+            {
+                dmMutex::Lock(m_Mutex);
+            }
+        }
+        ~ScopedLock()
+        {
+            if (m_Mutex)
+            {
+                dmMutex::Unlock(m_Mutex);
+            }
+        }
+        dmMutex::HMutex m_Mutex;
+    };
+
     // Test only functions:
     void             ResetDrawCount();
     uint64_t         GetDrawCount();
