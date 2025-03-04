@@ -21,7 +21,6 @@
             [editor.cljfx-form-view :as cljfx-form-view]
             [editor.code.view :as code-view]
             [editor.color-dropper :as color-dropper]
-            [editor.command-requests :as command-requests]
             [editor.console :as console]
             [editor.curve-view :as curve-view]
             [editor.debug-view :as debug-view]
@@ -29,17 +28,14 @@
             [editor.dialogs :as dialogs]
             [editor.disk :as disk]
             [editor.editor-extensions :as extensions]
-            [editor.engine-profiler :as engine-profiler]
             [editor.fxui :as fxui]
             [editor.git :as git]
             [editor.graph-view :as graph-view]
-            [editor.hot-reload :as hot-reload]
             [editor.html-view :as html-view]
             [editor.icons :as icons]
             [editor.notifications-view :as notifications-view]
             [editor.os :as os]
             [editor.outline-view :as outline-view]
-            [editor.pipeline.bob :as bob]
             [editor.properties-view :as properties-view]
             [editor.resource :as resource]
             [editor.resource-types :as resource-types]
@@ -51,7 +47,7 @@
             [editor.targets :as targets]
             [editor.ui :as ui]
             [editor.ui.updater :as ui.updater]
-            [editor.web-profiler :as web-profiler]
+            [editor.web-server :as web-server]
             [editor.workspace :as workspace]
             [service.log :as log]
             [service.smoke-log :as slog]
@@ -200,14 +196,8 @@
                                                       root
                                                       open-resource
                                                       (partial app-view/debugger-state-changed! scene tool-tabs))
-          web-server           (-> (http-server/->server 0 {engine-profiler/url-prefix engine-profiler/handler
-                                                            web-profiler/url-prefix web-profiler/handler
-                                                            hot-reload/url-prefix (partial hot-reload/build-handler workspace project)
-                                                            hot-reload/verify-etags-url-prefix (partial hot-reload/verify-etags-handler workspace project)
-                                                            bob/html5-url-prefix (partial bob/html5-handler project)
-                                                            command-requests/url-prefix (command-requests/make-request-handler root (app-view/make-render-task-progress :resource-sync))
-                                                            console/url-prefix (console/make-request-handler console-view)})
-                                   http-server/start!)]
+          web-server (http-server/start!
+                       (web-server/handler workspace project console-view root (app-view/make-render-task-progress :resource-sync)))]
       (ui/add-application-focused-callback! :main-stage app-view/handle-application-focused! app-view changes-view workspace prefs)
       (app-view/reload-extensions! app-view project :all workspace changes-view build-errors-view prefs)
 

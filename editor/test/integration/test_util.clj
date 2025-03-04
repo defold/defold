@@ -793,33 +793,34 @@
     handler/selection))
 
 ;; Extension library server
+(defmacro with-server [handler & body]
+  `(let [~'server (http-server/start! ~handler)]
+     (try
+       (do ~@body)
+       (finally (http-server/stop! ~'server 0)))))
 
-(defn ->lib-server []
-  (doto (http-server/->server 0 {"/lib" (fn [request]
-                                          (let [lib (subs (:url request) 5)
-                                                path-offset (count (format "test/resources/%s/" lib))
-                                                ignored #{".internal" "build"}
-                                                file-filter (reify FilenameFilter
-                                                              (accept [this file name] (not (contains? ignored name))))
-                                                files (->> (tree-seq (fn [^File f] (.isDirectory f)) (fn [^File f] (.listFiles f file-filter)) (io/file (format "test/resources/%s" lib)))
-                                                        (filter (fn [^File f] (not (.isDirectory f)))))]
-                                            (with-open [byte-stream (ByteArrayOutputStream.)
-                                                        out (ZipOutputStream. byte-stream)]
-                                              (doseq [^File f files]
-                                                (with-open [in (FileInputStream. f)]
-                                                  (let [entry (doto (ZipEntry. (subs (.getPath f) path-offset))
-                                                                (.setSize (.length f)))]
-                                                    (.putNextEntry out entry)
-                                                    (IOUtils/copy in out)
-                                                    (.closeEntry out))))
-                                              (.finish out)
-                                              (let [bytes (.toByteArray byte-stream)]
-                                                {:headers {"ETag" "tag"}
-                                                 :body bytes}))))})
-    (http-server/start!)))
-
-(defn kill-lib-server [server]
-  (http-server/stop! server))
+(def lib-server-handler
+  (http-server/router-handler
+    {"/lib/{*lib}" {"GET" (fn [request]
+                            (let [lib (-> request :path-params :lib)
+                                  path-offset (count (format "test/resources/%s/" lib))
+                                  ignored #{".internal" "build"}
+                                  file-filter (reify FilenameFilter
+                                                (accept [this file name] (not (contains? ignored name))))
+                                  files (->> (tree-seq (fn [^File f] (.isDirectory f))
+                                                       (fn [^File f] (.listFiles f ^FilenameFilter file-filter))
+                                                       (io/file (format "test/resources/%s" lib)))
+                                             (filter (fn [^File f] (not (.isDirectory f)))))
+                                  baos (ByteArrayOutputStream.)]
+                              (with-open [out (ZipOutputStream. baos)]
+                                (doseq [^File f files]
+                                  (with-open [in (FileInputStream. f)]
+                                    (let [entry (doto (ZipEntry. (subs (.getPath f) path-offset))
+                                                  (.setSize (.length f)))]
+                                      (.putNextEntry out entry)
+                                      (IOUtils/copy in out)
+                                      (.closeEntry out)))))
+                              (http-server/response 200 {"etag" "tag"} (.toByteArray baos))))}}))
 
 (defn lib-server-uri [server lib]
   (format "%s/lib/%s" (http-server/local-url server) lib))

@@ -34,10 +34,9 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
-            [ring.adapter.jetty :as jetty]
-            [ring.util.response :as response]
             [support.test-support :as test-support]
-            [util.diff :as diff])
+            [util.diff :as diff]
+            [util.http-server :as http-server])
   (:import [java.util.zip ZipEntry]
            [org.apache.commons.compress.archivers.zip ZipArchiveInputStream]
            [org.luaj.vm2 LuaError]))
@@ -855,16 +854,14 @@ POST http://localhost:23456/echo hello world! as string => 200
 
 (deftest http-test
   (test-util/with-loaded-project "test/resources/editor_extensions/http_project"
-    (let [server (jetty/run-jetty
-                   (fn [request]
-                     (case (:uri request)
-                       "/redirect/foo" (response/redirect "/foo")
-                       "/foo" (response/response "successfully redirected")
-                       "/" (response/response "")
-                       "/json" (response/response "{\"a\": 1, \"b\": [true]}")
-                       "/echo" (response/response (slurp (:body request)))
-                       (response/not-found "404")))
-                   {:port 23456 :join? false})
+    (let [server (http-server/start!
+                   (http-server/router-handler
+                     {"/redirect/foo" {"GET" (constantly (http-server/redirect "/foo"))}
+                      "/foo" {"GET" (constantly (http-server/response 200 "successfully redirected"))}
+                      "/" {"GET" (constantly (http-server/response 200 ""))}
+                      "/json" {"GET" (constantly (http-server/response 200 "{\"a\": 1, \"b\": [true]}"))}
+                      "/echo" {"POST" (fn [request] (http-server/response 200 (:body request)))}})
+                   :port 23456)
           out (StringBuilder.)]
       (try
         (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
@@ -880,7 +877,7 @@ POST http://localhost:23456/echo hello world! as string => 200
           (is (= actual expected-http-test-output)
               (string/join "\n" (diff/make-diff-output-lines actual expected-http-test-output 3))))
         (finally
-          (.stop server))))))
+          (http-server/stop! server 0))))))
 
 (deftest zip-test
   (test-util/with-scratch-project "test/resources/editor_extensions/zip_project"

@@ -131,24 +131,23 @@
 (deftest open-project
   (with-clean-system
     (test-util/with-ui-run-later-rebound
-      (let [workspace (test-util/setup-scratch-workspace! world "test/resources/test_project")
-            server (test-util/->lib-server)
-            uri (test-util/lib-server-uri server "lib_resource_project")
-            game-project-res (workspace/resolve-workspace-resource workspace "/game.project")]
-        (write-deps! game-project-res uri)
-        (let [extensions (extensions/make world)
-              project (project/open-project! world extensions workspace game-project-res progress/null-render-progress!)
-              ext-gui (test-util/resource-node project "/lib_resource_project/simple.gui")
-              int-gui (test-util/resource-node project "/gui/empty.gui")]
-          (is (some? ext-gui))
-          (is (some? int-gui))
-          (let [template-node (gui/add-gui-node! project int-gui (:node-id (test-util/outline int-gui [0])) :type-template 0 nil)]
-            (g/set-property! template-node :template {:resource (workspace/resolve-workspace-resource workspace "/lib_resource_project/simple.gui")
-                                                      :overrides {}}))
-          (let [original (:node-id (test-util/outline ext-gui [0 0]))
-                or (:node-id (test-util/outline int-gui [0 0 0]))]
-            (is (= [or] (g/overrides original)))))
-        (test-util/kill-lib-server server)))))
+      (test-util/with-server test-util/lib-server-handler
+        (let [workspace (test-util/setup-scratch-workspace! world "test/resources/test_project")
+              uri (test-util/lib-server-uri server "lib_resource_project")
+              game-project-res (workspace/resolve-workspace-resource workspace "/game.project")]
+          (write-deps! game-project-res uri)
+          (let [extensions (extensions/make world)
+                project (project/open-project! world extensions workspace game-project-res progress/null-render-progress!)
+                ext-gui (test-util/resource-node project "/lib_resource_project/simple.gui")
+                int-gui (test-util/resource-node project "/gui/empty.gui")]
+            (is (some? ext-gui))
+            (is (some? int-gui))
+            (let [template-node (gui/add-gui-node! project int-gui (:node-id (test-util/outline int-gui [0])) :type-template 0 nil)]
+              (g/set-property! template-node :template {:resource (workspace/resolve-workspace-resource workspace "/lib_resource_project/simple.gui")
+                                                        :overrides {}}))
+            (let [original (:node-id (test-util/outline ext-gui [0 0]))
+                  or (:node-id (test-util/outline int-gui [0 0 0]))]
+              (is (= [or] (g/overrides original))))))))))
 
 (defn- fetch-validate-install-libraries! [workspace library-uris render-fn]
   (when (workspace/dependencies-reachable? library-uris)
@@ -158,31 +157,31 @@
 
 (deftest fetch-libraries
   (with-clean-system
-    (let [[workspace project] (log/without-logging (setup-scratch world))
-          server (test-util/->lib-server)
-          uri (test-util/lib-server-uri server "lib_resource_project")
-          game-project (project/get-resource-node project "/game.project")]
-      ;; make sure we don't have library file to begin with
-      (is (= 0 (count (project/find-resources project "lib_resource_project/simple.gui"))))
-      ;; add dependency, fetch libraries, we should now have library file
-      (game-project/set-setting! game-project ["project" "dependencies"] [uri])
-      (fetch-validate-install-libraries! workspace (project/project-dependencies project) identity)
-      (is (= 1 (count (project/find-resources project "lib_resource_project/simple.gui"))))
-      ;; remove dependency again, fetch libraries, we should no longer have the file
-      (game-project/set-setting! game-project ["project" "dependencies"] nil)
-      (fetch-validate-install-libraries! workspace (project/project-dependencies project) identity)
-      (is (= 0 (count (project/find-resources project "lib_resource_project/simple.gui")))))))
+    (test-util/with-server test-util/lib-server-handler
+      (let [[workspace project] (log/without-logging (setup-scratch world))
+            uri (test-util/lib-server-uri server "lib_resource_project")
+            game-project (project/get-resource-node project "/game.project")]
+        ;; make sure we don't have library file to begin with
+        (is (= 0 (count (project/find-resources project "lib_resource_project/simple.gui"))))
+        ;; add dependency, fetch libraries, we should now have library file
+        (game-project/set-setting! game-project ["project" "dependencies"] [uri])
+        (fetch-validate-install-libraries! workspace (project/project-dependencies project) identity)
+        (is (= 1 (count (project/find-resources project "lib_resource_project/simple.gui"))))
+        ;; remove dependency again, fetch libraries, we should no longer have the file
+        (game-project/set-setting! game-project ["project" "dependencies"] nil)
+        (fetch-validate-install-libraries! workspace (project/project-dependencies project) identity)
+        (is (= 0 (count (project/find-resources project "lib_resource_project/simple.gui"))))))))
 
 (deftest fetch-libraries-from-library-archive-with-nesting
   (with-clean-system
-    (let [[workspace project] (log/without-logging (setup-scratch world))
-          server (test-util/->lib-server)
-          uri (test-util/lib-server-uri server "lib_resource_project_with_nesting")
-          game-project (project/get-resource-node project "/game.project")]
-      ;; make sure we don't have library file to begin with
-      (is (= 0 (count (project/find-resources project "lib_resource_project/simple.gui"))))
+    (test-util/with-server test-util/lib-server-handler
+      (let [[workspace project] (log/without-logging (setup-scratch world))
+            uri (test-util/lib-server-uri server "lib_resource_project_with_nesting")
+            game-project (project/get-resource-node project "/game.project")]
+        ;; make sure we don't have library file to begin with
+        (is (= 0 (count (project/find-resources project "lib_resource_project/simple.gui"))))
 
-      ;; add dependency, fetch libraries, we should now have library file
-      (game-project/set-setting! game-project ["project" "dependencies"] [uri])
-      (fetch-validate-install-libraries! workspace (project/project-dependencies project) identity)
-      (is (= 1 (count (project/find-resources project "lib_resource_project/simple.gui")))))))
+        ;; add dependency, fetch libraries, we should now have library file
+        (game-project/set-setting! game-project ["project" "dependencies"] [uri])
+        (fetch-validate-install-libraries! workspace (project/project-dependencies project) identity)
+        (is (= 1 (count (project/find-resources project "lib_resource_project/simple.gui"))))))))

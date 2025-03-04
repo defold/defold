@@ -23,9 +23,11 @@
             [util.coll :as coll :refer [pair]]
             [util.digest :as digest]
             [util.fn :as fn]
+            [util.http-server :as http-server]
             [util.text-util :as text-util])
   (:import [clojure.lang PersistentHashMap]
            [java.io File FilterInputStream IOException InputStream]
+           [java.lang AutoCloseable]
            [java.net URI]
            [java.nio.file FileSystem FileSystems]
            [java.util.zip ZipEntry ZipFile ZipInputStream]
@@ -208,7 +210,12 @@
   (make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts))
 
   io/Coercions
-  (as-file [this] (File. abs-path)))
+  (as-file [this] (File. abs-path))
+
+  http-server/ContentType
+  (content-type [this] (http-server/ext->content-type (type-ext this)))
+  http-server/ContentData
+  (content-data [_] (fs/path abs-path)))
 
 (defn make-file-resource [workspace ^String root ^File file children editable-proj-path?]
   (let [source-type (if (.isDirectory file) :folder :file)
@@ -326,7 +333,26 @@
   (make-writer        [this opts] (throw (Exception. "Zip resources are read-only")))
 
   io/Coercions
-  (as-file [this] (io/as-file zip-uri)))
+  (as-file [this] (io/as-file zip-uri))
+
+  http-server/ContentType
+  (content-type [this] (http-server/ext->content-type (type-ext this)))
+  http-server/DataConnection
+  (data-connection [_]
+    (let [zip-file (ZipFile. ^File (io/as-file zip-uri))
+          entry (.getEntry zip-file zip-entry)]
+      (reify
+        http-server/DataLength
+        (data-length [_]
+          (let [size (.getSize entry)]
+            (when-not (= -1 size) size)))
+        io/IOFactory
+        (make-input-stream [_ opts] (io/make-input-stream (.getInputStream zip-file entry) opts))
+        (make-reader [this opts] (io/make-reader (io/make-input-stream this opts) opts))
+        (make-output-stream [_ _] (throw (Exception. "Zip resources are read-only")))
+        (make-writer [_ _] (throw (Exception. "Zip resources are read-only")))
+        AutoCloseable
+        (close [_] (.close zip-file))))))
 
 (core/register-record-type! ZipResource)
 
