@@ -31,10 +31,13 @@ import java.security.PublicKey;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -291,7 +294,7 @@ public class ManifestBuilder {
     private byte[] archiveIdentifier = new byte[ArchiveBuilder.MD5_HASH_DIGEST_BYTE_LENGTH];
     private HashMap<ResourceNode, HashSet<ResourceNode>> pathToDependants = new HashMap<>();
     private HashMap<String, ResourceEntry> urlToResource = new HashMap<>();
-    private Set<HashDigest> supportedEngineVersions = new HashSet<HashDigest>();
+    private Set<String> supportedEngineVersions = new HashSet<String>();
     private Set<ResourceEntry> resourceEntries = new TreeSet<ResourceEntry>(new Comparator<ResourceEntry>() {
         // We need to make sure the entries are sorted properly in order to do the binary search
         private int compare(byte[] left, byte[] right) {
@@ -390,18 +393,8 @@ public class ManifestBuilder {
     }
 
     public void addSupportedEngineVersion(String version) {
-        try {
-            // strip any leading or trailing quotation marks
-            version = version.replaceAll("^\"|\"$", "");
-            byte[] hashBytes = CryptographicOperations.hash(version.getBytes(), HashAlgorithm.HASH_SHA1);
-            HashDigest.Builder builder = HashDigest.newBuilder();
-            builder.setData(ByteString.copyFrom(hashBytes));
-            this.supportedEngineVersions.add(builder.build());
-        } catch (NoSuchAlgorithmException e) {
-            System.out.println("Algorithm not found when adding supported engine versions to manifest, msg: " + e.getMessage());
-        } catch (Exception e) {
-            System.out.println("Failed to add supported engine versions to manifest, msg: " + e.getMessage());
-        }
+        version = version.replaceAll("^\"|\"$", "");
+        this.supportedEngineVersions.add(version);
     }
 
     public void addResourceEntry(String url, byte[] data, int size, int compressed_size, int flags) throws IOException {
@@ -496,7 +489,22 @@ public class ManifestBuilder {
 
         buildUrlToResourceMap(this.resourceEntries);
 
-        builder.addAllEngineVersions(this.supportedEngineVersions);
+        List<String> sortedEngineVersions = new ArrayList<>(this.supportedEngineVersions);
+        Collections.sort(sortedEngineVersions);
+        for(String version : sortedEngineVersions) {
+            try {
+                // strip any leading or trailing quotation marks
+                byte[] hashBytes = CryptographicOperations.hash(version.getBytes(), HashAlgorithm.HASH_SHA1);
+                HashDigest.Builder digestBuilder = HashDigest.newBuilder();
+                digestBuilder.setData(ByteString.copyFrom(hashBytes));
+                builder.addEngineVersions(digestBuilder.build());
+            } catch (NoSuchAlgorithmException e) {
+                System.out.println("Algorithm not found when adding supported engine versions to manifest, msg: " + e.getMessage());
+            } catch (Exception e) {
+                System.out.println("Failed to add supported engine versions to manifest, msg: " + e.getMessage());
+            }
+        }
+
         for (ResourceEntry entry : this.resourceEntries) {
             String url = entry.getUrl();
             ResourceEntry.Builder resourceEntryBuilder = entry.toBuilder();
