@@ -15,22 +15,20 @@
 (ns editor.color-dropper
   (:require [dynamo.graph :as g]
             [editor.ui :as ui])
-  (:import [javafx.geometry Rectangle2D]
-           [javafx.scene Cursor]
+  (:import [javafx.scene Cursor]
            [javafx.scene.canvas Canvas GraphicsContext]
            [javafx.scene.image PixelReader WritableImage]
-           [javafx.scene.input KeyEvent MouseEvent]
-           [javafx.scene.layout Pane]
+           [javafx.scene.input KeyCode KeyEvent MouseEvent]
+           [javafx.scene.layout StackPane]
            [javafx.scene.paint Color]
-           [javafx.scene.shape Circle]
-           [javafx.scene.robot Robot]
-           [javafx.stage Popup Screen]))
+           [javafx.scene.shape Circle]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
 (g/defnode ColorDropper
   (property color Color)
+  (property dropper-area StackPane)
   (property image WritableImage))
 
 (defn- paint-pixel!
@@ -48,18 +46,15 @@
     (.setRadius radius)))
 
 (defn- capture!
-  [view-node bounds]
-  (let [{:keys [min-x min-y width height]} bounds
-        capture-rect (Rectangle2D. min-x min-y width height)
-        writable-image ^WritableImage (g/node-value view-node :image)
-        image (.getScreenCapture (Robot.) writable-image capture-rect)]
-    (g/set-property! view-node :image image)))
+  [view-node ^Canvas canvas]
+  (let [graphics-context ^GraphicsContext (.getGraphicsContext2D canvas)]
+    (.clearRect graphics-context 0 0 (.getWidth canvas) (.getHeight canvas))
+    (g/set-property! view-node :image (.snapshot (ui/main-root) nil nil))))
 
 (defn- in-bounds?
-  [bounds x y]
-  (let [{:keys [min-x min-y max-x max-y]} bounds]
-    (and (<= min-x x max-x)
-         (<= min-y y max-y))))
+  [^WritableImage image x y]
+  (and (< 0 x (.getWidth image))
+       (< 0 y (.getHeight image))))
 
 (let [pixel-size 12
       pixel-center ^double (/ pixel-size 2)
@@ -67,20 +62,15 @@
       diameter (* pixel-size (count pixel-seq))
       radius ^double (/ diameter 2)]
   (defn- mouse-move-handler!
-    [view-node bounds ^Canvas canvas ^MouseEvent e]
+    [view-node ^Canvas canvas ^MouseEvent e]
     (.consume e)
     (when-let [image ^WritableImage (g/node-value view-node :image)]
       (let [graphics-context ^GraphicsContext (.getGraphicsContext2D canvas)
             pixel-reader ^PixelReader (.getPixelReader image)
-            mouse-x ^double (.getX e)
-            mouse-y ^double (.getY e)
-            delta-x (- ^double (.getScreenX e) mouse-x)
-            delta-y (- ^double (.getScreenY e) mouse-y)
-            adjusted-x (+ mouse-x delta-x)
-            adjusted-y (+ mouse-y delta-y)
-            color (.getColor pixel-reader adjusted-x adjusted-y)]
-        (g/set-property! view-node :color color)
-        ;; Clear the area to avoid leftover artifacts around screen edges. 
+            mouse-x (.getX e)
+            mouse-y (.getY e)]
+        (when (in-bounds? image mouse-x mouse-y)
+          (g/set-property! view-node :color (.getColor pixel-reader mouse-x mouse-y)))
         (.clearRect graphics-context (- mouse-x radius) (- mouse-y radius) diameter diameter)
         (.setClip canvas (create-mask! mouse-x mouse-y radius))
         (.setStroke graphics-context Color/GRAY)
@@ -89,8 +79,8 @@
                 ^int y-step pixel-seq
                 :let [x (+ mouse-x (* x-step pixel-size) (- pixel-center))
                       y (+ mouse-y (* y-step pixel-size) (- pixel-center))]]
-          (when (in-bounds? bounds (+ x delta-x) (+ y delta-y))
-            (->> (.getColor pixel-reader (+ adjusted-x x-step) (+ adjusted-y y-step))
+          (when (in-bounds? image x y)
+            (->> (.getColor pixel-reader (+ mouse-x x-step) (+ mouse-y y-step))
                  (paint-pixel! graphics-context x y pixel-size))))
 
         (doto graphics-context
@@ -98,60 +88,50 @@
           (.setStroke Color/RED)
           (.strokeRect (- mouse-x pixel-center) (- mouse-y pixel-center) pixel-size pixel-size))))))
 
-(defn- apply-and-deactivate!
-  [view-node ^Popup popup pick-fn]
-  (.hide popup)
-  (pick-fn (g/node-value view-node :color))
-  (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true))
+(defn- remove-dropper-area!
+  [view-node]
+  (let [dropper-area ^StackPane (g/node-value view-node :dropper-area)
+        root ^StackPane (ui/main-root)]
+    (g/set-property! view-node :dropper-area nil)
+    (-> (.getChildren root)
+        (.remove dropper-area))))
 
-(defn- get-bounds []
-  (let [bounds (reduce (fn [bounds ^Screen screen]
-                         (let [{:keys [^double min-x ^double min-y ^double max-x ^double max-y]} bounds
-                               screen-bounds (.getBounds screen)]
-                           (assoc bounds
-                                  :min-x (cond-> ^double (.getMinX screen-bounds) min-x (min min-x))
-                                  :min-y (cond-> ^double (.getMinY screen-bounds) min-y (min min-y))
-                                  :max-x (cond-> ^double (.getMaxX screen-bounds) max-x (max max-x))
-                                  :max-y (cond-> ^double (.getMaxY screen-bounds) max-y (max max-y)))))
-                       {}
-                       (Screen/getScreens))
-        {:keys [^double min-x ^double min-y ^double max-x ^double max-y]} bounds]
-    (assoc bounds
-           :width (- max-x min-x)
-           :height (- max-y min-y))))
+(defn- apply-and-deactivate!
+  [view-node pick-fn]
+  (remove-dropper-area! view-node)
+  (pick-fn (g/node-value view-node :color)))
+
+(defn- key-pressed-handler!
+  [view-node pick-fn ^KeyEvent event]
+  (condp = (.getCode event)
+    KeyCode/ENTER (apply-and-deactivate! view-node pick-fn)
+    KeyCode/ESCAPE (remove-dropper-area! view-node)
+    nil))
 
 (defn make-color-dropper! [graph]
   (g/make-node! graph ColorDropper))
 
-(defn- create-popup! ^Popup
-  [x y width height]
-   (doto (Popup.)
-     (.setX x)
-     (.setY y)
-     (.setWidth width)
-     (.setHeight height)))
-
 (defn activate!
   [view-node pick-fn]
-  (let [bounds (get-bounds)
-        {:keys [min-x min-y width height]} bounds
-        popup (create-popup! min-x min-y width height)
-        canvas (Canvas. width height)
-        pane (doto (Pane.)
-               (.setCursor Cursor/NONE)
-               (.setPrefSize 1 1)
-               (.setStyle "-fx-background-color: transparent;"))]
-    (.add (.getContent popup) pane)
-    (.addListener (.focusedProperty popup) (ui/change-listener _ _ v (when-not v (.hide popup))))
-    
-    (doto popup
-      (.addEventHandler KeyEvent/ANY (ui/event-handler event (.hide popup)))
-      (.addEventHandler MouseEvent/MOUSE_MOVED (ui/event-handler event (mouse-move-handler! view-node bounds canvas event)))
-      (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (apply-and-deactivate! view-node popup pick-fn)))
-      (.show (ui/main-stage))
-      (.requestFocus))
-    
-    (capture! view-node bounds)
-    (doto pane
-      (.setPrefSize width height)
-      (ui/add-child! canvas))))
+  (let [main-view ^StackPane (ui/main-root)
+        canvas (Canvas. (.getWidth main-view) (.getHeight main-view))
+        dropper-area (doto (StackPane.)
+                       (.setCursor Cursor/NONE)
+                       (ui/add-child! canvas)
+                       (.setStyle "-fx-background-color: transparent;"))]
+    (ui/add-child! main-view dropper-area)
+    (g/set-property! view-node :dropper-area dropper-area)
+
+    (.bind (.widthProperty canvas) (.widthProperty dropper-area))
+    (.bind (.heightProperty canvas) (.heightProperty dropper-area))
+
+    (ui/observe (.widthProperty main-view) (fn [_ _ _] (capture! view-node canvas)))
+    (ui/observe (.heightProperty main-view) (fn [_ _ _] (capture! view-node canvas)))
+
+    (capture! view-node canvas)
+
+    (doto dropper-area
+      (.addEventHandler KeyEvent/ANY (ui/event-handler event (key-pressed-handler! view-node pick-fn event)))
+      (.addEventHandler MouseEvent/MOUSE_MOVED (ui/event-handler event (mouse-move-handler! view-node canvas event)))
+      (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (apply-and-deactivate! view-node pick-fn)))
+      (.requestFocus))))

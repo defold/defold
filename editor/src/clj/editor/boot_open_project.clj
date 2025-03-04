@@ -60,7 +60,7 @@
            [javafx.scene Node Scene]
            [javafx.scene.control MenuBar SplitPane Tab TabPane TreeView]
            [javafx.scene.input DragEvent InputEvent KeyCombination KeyEvent MouseEvent]
-           [javafx.scene.layout VBox]
+           [javafx.scene.layout StackPane]
            [javafx.stage Stage]))
 
 (set! *warn-on-reflection* true)
@@ -148,9 +148,9 @@
     MouseEvent/MOUSE_RELEASED})
 
 (defn- load-stage! [workspace project prefs updater newly-created?]
-  (let [^VBox root (ui/load-fxml "editor.fxml")
-        stage      (ui/make-stage)
-        scene      (Scene. root)]
+  (let [^StackPane root (ui/load-fxml "editor.fxml")
+        stage (ui/make-stage)
+        scene (Scene. root)]
 
     (ui/set-main-stage stage)
     (.setScene stage scene)
@@ -177,7 +177,7 @@
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets prefs)
           open-resource        (partial #'app-view/open-resource app-view prefs workspace project)
           console-view         (console/make-console! *view-graph* workspace console-tab console-grid-pane open-resource prefs)
-          color-dropper        (color-dropper/make-color-dropper! *view-graph*)
+          color-dropper-view   (color-dropper/make-color-dropper! *view-graph*)
           _                    (notifications-view/init! (g/node-value workspace :notifications) notifications)
           build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
                                                                          (fn [resource selected-node-ids opts]
@@ -186,7 +186,7 @@
           search-results-view  (search-results-view/make-search-results-view! *view-graph*
                                                                               (.lookup root "#search-results-container")
                                                                               open-resource)
-          properties-view      (properties-view/make-properties-view workspace project app-view search-results-view *view-graph* color-dropper (.lookup root "#properties"))
+          properties-view      (properties-view/make-properties-view workspace project app-view search-results-view *view-graph* color-dropper-view (.lookup root "#properties"))
           changes-view         (changes-view/make-changes-view *view-graph* workspace prefs (.lookup root "#changes-container")
                                                                (fn [changes-view moved-files]
                                                                  (app-view/async-reload! app-view changes-view workspace moved-files)))
@@ -290,8 +290,7 @@
                          :main-stage          stage
                          :asset-browser       asset-browser
                          :debug-view          debug-view
-                         :tool-tab-pane       tool-tabs
-                         :color-dropper       color-dropper}
+                         :tool-tab-pane       tool-tabs}
             dynamics {:active-resource [:app-view :active-resource]}]
         (ui/context! root :global context-env (ui/->selection-provider assets) dynamics)
         (ui/context! workbench :workbench context-env (app-view/->selection-provider app-view) dynamics))
