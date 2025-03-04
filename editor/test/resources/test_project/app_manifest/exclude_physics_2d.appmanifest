@@ -55,7 +55,7 @@ platforms:
 
     x86-win32:
         context:
-            excludeLibs: ["libphysics","libBox2D","libscript_box2d"]
+            excludeLibs: ["libphysics","libbox2d","libscript_box2d"]
             excludeSymbols: ["ScriptBox2DExt"]
             symbols: []
             libs: ["libphysics_3d.lib"]
@@ -63,7 +63,7 @@ platforms:
 
     x86_64-win32:
         context:
-            excludeLibs: ["libphysics","libBox2D","libscript_box2d"]
+            excludeLibs: ["libphysics","libbox2d","libscript_box2d"]
             excludeSymbols: ["ScriptBox2DExt"]
             symbols: []
             libs: ["libphysics_3d.lib"]
