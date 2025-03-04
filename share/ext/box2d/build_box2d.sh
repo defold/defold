@@ -49,6 +49,7 @@ CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_VARIANT} ${CMAKE_FLAGS}"
 
 CMAKE_BUILD_FLAGS=
 CMAKE_CONFIGURE=cmake
+CMAKE_CONFIGURE_FLAGS=
 
 LIB_SUFFIX=a
 LIB_OUTPUT_PATH=
@@ -85,7 +86,14 @@ case $PLATFORM in
         CXXFLAGS="-DDEFOLD_USE_POSIX_MEMALIGN ${CXXFLAGS}"
         CFLAGS="-DDEFOLD_USE_POSIX_MEMALIGN ${CFLAGS}"
         ;;
-    win32|x86_64-win32)
+    # NOTE: Unpacking on windows doesn't work for me (JG)
+    #       So to make this work I have to unpack the tar manually.
+    win32)
+        LIB_SUFFIX=lib
+        LIB_OUTPUT_PATH=${CMAKE_BUILD_VARIANT}/
+        CMAKE_CONFIGURE_FLAGS="-A Win32" # set cmake to use X86 toolchina
+        ;;
+    x86_64-win32)
         # NOTE: Unpacking on windows doesn't work for me (JG)
         #       So to make this work I have to unpack the tar manually.
         LIB_SUFFIX=lib
@@ -130,7 +138,7 @@ download ${BOX2D_URL} box2d.tar.gz ${BOX2D_DIR}
 
 pushd ${BOX2D_DIR}
 
-# cmi_patch
+cmi_patch
 
 popd
 
@@ -143,7 +151,7 @@ echo "**************************************************"
 echo "CMAKE_FLAGS: ${CMAKE_FLAGS}"
 echo "**************************************************"
 
-$CMAKE_CONFIGURE ${CMAKE_FLAGS} ${BOX2D_DIR}
+$CMAKE_CONFIGURE ${CMAKE_FLAGS} ${CMAKE_CONFIGURE_FLAGS} ${BOX2D_DIR}
 cmake --build . --config ${CMAKE_BUILD_VARIANT} ${CMAKE_BUILD_FLAGS} -j 8
 
 mkdir -p ./lib/$PLATFORM
