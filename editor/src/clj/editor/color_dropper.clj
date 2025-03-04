@@ -64,14 +64,14 @@
       pixel-seq (range -4 5)
       diameter (* pixel-size (count pixel-seq))
       radius ^double (/ diameter 2)]
-  (defn- mouse-move-handler!
+  (defn- paint-magnifier!
     [view-node ^Canvas canvas ^MouseEvent e]
     (.consume e)
     (when-let [image ^WritableImage (g/node-value view-node :image)]
       (let [graphics-context ^GraphicsContext (.getGraphicsContext2D canvas)
             pixel-reader ^PixelReader (.getPixelReader image)
-            mouse-x (.getX e)
-            mouse-y (.getY e)]
+            mouse-x (.getSceneX e)
+            mouse-y (.getSceneY e)]
         (when (in-bounds? image mouse-x mouse-y)
           (g/set-property! view-node :color (.getColor pixel-reader mouse-x mouse-y)))
         (.clearRect graphics-context (- mouse-x radius) (- mouse-y radius) diameter diameter)
@@ -119,7 +119,7 @@
   (g/make-node! graph ColorDropper))
 
 (defn activate!
-  [view-node pick-fn]
+  [view-node pick-fn ^MouseEvent event]
   (let [main-view ^StackPane (ui/main-root)
         canvas (Canvas. (.getWidth main-view) (.getHeight main-view))
         size-listener (reify ChangeListener
@@ -141,8 +141,9 @@
 
     (doto dropper-area
       (.addEventHandler KeyEvent/ANY (ui/event-handler event (key-pressed-handler! view-node pick-fn event)))
-      (.addEventHandler MouseEvent/MOUSE_MOVED (ui/event-handler event (mouse-move-handler! view-node canvas event)))
+      (.addEventHandler MouseEvent/MOUSE_MOVED (ui/event-handler event (paint-magnifier! view-node canvas event)))
       (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (apply-and-deactivate! view-node pick-fn)))
       (.requestFocus))
     
-    (capture! view-node canvas)))
+    (capture! view-node canvas)
+    (paint-magnifier! view-node canvas event)))

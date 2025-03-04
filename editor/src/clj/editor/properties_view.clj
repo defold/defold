@@ -560,7 +560,7 @@
         color-dropper (doto (Button. "" (jfx/get-image-view "icons/32/Icons_M_03_colorpicker.png" 16))
                         (ui/add-style! "color-dropper")
                         (AnchorPane/setRightAnchor 0.0)
-                        (ui/on-action! (fn [_] (color-dropper/activate! color-dropper-view pick-fn))))
+                        (ui/on-click! (fn [^MouseEvent event] (color-dropper/activate! color-dropper-view pick-fn event))))
         text (TextField.)
         color-picker (ColorPicker.)
         ignore-alpha (:ignore-alpha? edit-type)
