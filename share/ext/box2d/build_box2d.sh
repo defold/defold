@@ -44,11 +44,14 @@ CMAKE_FLAGS="-DBOX2D_BUILD_DOCS=OFF ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DBOX2D_SAMPLES=OFF ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DBOX2D_UNIT_TESTS=OFF ${CMAKE_FLAGS}"
 
-# CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Debug ${CMAKE_FLAGS}"
-CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Release ${CMAKE_FLAGS}"
+CMAKE_BUILD_VARIANT=Release
+CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_VARIANT} ${CMAKE_FLAGS}"
 
 CMAKE_BUILD_FLAGS=
 CMAKE_CONFIGURE=cmake
+
+LIB_SUFFIX=a
+LIB_OUTPUT_PATH=
 
 case $PLATFORM in
     js-web|wasm-web)
@@ -81,6 +84,12 @@ case $PLATFORM in
 
         CXXFLAGS="-DDEFOLD_USE_POSIX_MEMALIGN ${CXXFLAGS}"
         CFLAGS="-DDEFOLD_USE_POSIX_MEMALIGN ${CFLAGS}"
+        ;;
+    win32|x86_64-win32)
+        # NOTE: Unpacking on windows doesn't work for me (JG)
+        #       So to make this work I have to unpack the tar manually.
+        LIB_SUFFIX=lib
+        LIB_OUTPUT_PATH=${CMAKE_BUILD_VARIANT}/
         ;;
 esac
 
@@ -121,7 +130,7 @@ download ${BOX2D_URL} box2d.tar.gz ${BOX2D_DIR}
 
 pushd ${BOX2D_DIR}
 
-cmi_patch
+# cmi_patch
 
 popd
 
@@ -134,16 +143,15 @@ echo "**************************************************"
 echo "CMAKE_FLAGS: ${CMAKE_FLAGS}"
 echo "**************************************************"
 
-$CMAKE_CONFIGURE ${CMAKE_FLAGS} $BOX2D_DIR
-#cmake --build . --config Debug -j 8
-cmake --build . --config Release ${CMAKE_BUILD_FLAGS} -j 8 
+$CMAKE_CONFIGURE ${CMAKE_FLAGS} ${BOX2D_DIR}
+cmake --build . --config ${CMAKE_BUILD_VARIANT} ${CMAKE_BUILD_FLAGS} -j 8
 
 mkdir -p ./lib/$PLATFORM
 mkdir -p ./include
 mkdir -p ./include/box2d
 mkdir -p ./include/box2d/src
 
-cp -v ./src/*.a ./lib/$PLATFORM
+cp -v ./src/${LIB_OUTPUT_PATH}*.${LIB_SUFFIX} ./lib/$PLATFORM/libbox2d.${LIB_SUFFIX}
 
 tar cfvz ${PACKAGE_NAME} lib
 
