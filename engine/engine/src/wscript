@@ -78,6 +78,10 @@ def build(bld):
     graphics_lib = 'GRAPHICS DMGLFW OPENGL'
     graphics_lib_symbols = ['GraphicsAdapterOpenGL']
 
+    if bld.env['PLATFORM'] in ('arm64-linux'):
+        graphics_lib = 'GRAPHICS_OPENGLES DMGLFW OPENGLES'
+        graphics_lib_symbols = ['GraphicsAdapterOpenGLES']
+
     if waflib.Options.options.with_vulkan:
         graphics_lib += ' GRAPHICS_VULKAN VULKAN'
         graphics_lib_symbols.append('GraphicsAdapterVulkan')

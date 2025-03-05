@@ -129,6 +129,8 @@ void RenderProfiler(dmProfile::HProfile profile, dmGraphics::HContext graphics_c
 
     if (g_ProfilerCurrentFrame)
     {
+        DM_MUTEX_SCOPED_LOCK(g_ProfilerMutex);
+        
         if (g_ProfilerDumpNextFrame)
             dmProfileRender::DumpFrame(g_ProfilerCurrentFrame);
         g_ProfilerDumpNextFrame = false;

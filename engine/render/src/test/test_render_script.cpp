@@ -57,7 +57,7 @@ static dmRender::FontGlyph* GetGlyph(uint32_t utf8, void* user_ctx)
     return &glyphs[utf8];
 }
 
-static void* GetGlyphData(uint32_t codepoint, void* user_ctx, uint32_t* out_size, uint32_t* out_compression, uint32_t* out_width, uint32_t* out_height)
+static void* GetGlyphData(uint32_t codepoint, void* user_ctx, uint32_t* out_size, uint32_t* out_compression, uint32_t* out_width, uint32_t* out_height, uint32_t* out_channels)
 {
     return 0;
 }
@@ -1168,6 +1168,34 @@ TEST_F(dmRenderScriptTest, TestLuaConstantBuffers_Baseline)
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
 
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
+
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+TEST_F(dmRenderScriptTest, TestLuaConstantBuffers_ReuseSameTableKey)
+{
+    const char* script =
+    "function init(self)\n"
+    "    self.cb = render.constant_buffer()\n"
+    "end\n"
+    "function update(self)\n"
+    "    -- create a new userdata entry every time this function is called\n"
+    "    self.cb.tbl = {}\n"
+    "end\n";
+
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
+
+    int refCountStart = dmScript::GetLuaRefCount();
+    for (int i = 0; i < 10; ++i)
+    {
+        ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
+    }
+    int refCountEnd = dmScript::GetLuaRefCount();
+    ASSERT_EQ(refCountStart + 1, refCountEnd);
 
     dmRender::DeleteRenderScriptInstance(render_script_instance);
     dmRender::DeleteRenderScript(m_Context, render_script);

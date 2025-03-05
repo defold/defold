@@ -890,7 +890,7 @@ namespace dmProfileRender
             float time = (sample.m_Time * 1000) / (float)ticks_per_second; // in milliseconds
             float self_time = (sample.m_SelfTime * 1000) / (float)ticks_per_second; // in milliseconds
 
-            dmLogInfo("%s'%s': time: %.3f ms self: %.3f ms", GetIndent(sample.m_Indent), dmHashReverseSafe32(sample.m_NameHash), time, self_time);
+            dmLogInfo("%s'%s': time: %.3f ms self: %.3f ms  count: %u", GetIndent(sample.m_Indent+1), dmHashReverseSafe32(sample.m_NameHash), time, self_time, sample.m_Count);
         }
     }
 

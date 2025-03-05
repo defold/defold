@@ -394,19 +394,32 @@ namespace dmEngine
         if (engine->m_GuiContext)
             dmGui::DeleteContext(engine->m_GuiContext, engine->m_GuiScriptContext);
 
+        ScopedExtensionParams extension_params(engine);
         if (engine->m_SharedScriptContext) {
+            extension_params.SetLuaContext(engine->m_SharedScriptContext);
+            dmExtension::Finalize(extension_params);
+
             dmScript::Finalize(engine->m_SharedScriptContext);
             dmScript::DeleteContext(engine->m_SharedScriptContext);
         } else {
             if (engine->m_GOScriptContext) {
+                extension_params.SetLuaContext(engine->m_GOScriptContext);
+                dmExtension::Finalize(extension_params);
+
                 dmScript::Finalize(engine->m_GOScriptContext);
                 dmScript::DeleteContext(engine->m_GOScriptContext);
             }
             if (engine->m_RenderScriptContext) {
+                extension_params.SetLuaContext(engine->m_RenderScriptContext);
+                dmExtension::Finalize(extension_params);
+
                 dmScript::Finalize(engine->m_RenderScriptContext);
                 dmScript::DeleteContext(engine->m_RenderScriptContext);
             }
             if (engine->m_GuiScriptContext) {
+                extension_params.SetLuaContext(engine->m_GuiScriptContext);
+                dmExtension::Finalize(extension_params);
+
                 dmScript::Finalize(engine->m_GuiScriptContext);
                 dmScript::DeleteContext(engine->m_GuiScriptContext);
             }
@@ -639,12 +652,13 @@ namespace dmEngine
     {
         switch(family)
         {
-            case dmGraphics::ADAPTER_FAMILY_NULL:    return dmPlatform::PLATFORM_GRAPHICS_API_NULL;
-            case dmGraphics::ADAPTER_FAMILY_OPENGL:  return dmPlatform::PLATFORM_GRAPHICS_API_OPENGL;
-            case dmGraphics::ADAPTER_FAMILY_VULKAN:  return dmPlatform::PLATFORM_GRAPHICS_API_VULKAN;
-            case dmGraphics::ADAPTER_FAMILY_VENDOR:  return dmPlatform::PLATFORM_GRAPHICS_API_VENDOR;
-            case dmGraphics::ADAPTER_FAMILY_WEBGPU:  return dmPlatform::PLATFORM_GRAPHICS_API_WEBGPU;
-            case dmGraphics::ADAPTER_FAMILY_DIRECTX: return dmPlatform::PLATFORM_GRAPHICS_API_DIRECTX;
+            case dmGraphics::ADAPTER_FAMILY_NULL:     return dmPlatform::PLATFORM_GRAPHICS_API_NULL;
+            case dmGraphics::ADAPTER_FAMILY_OPENGL:   return dmPlatform::PLATFORM_GRAPHICS_API_OPENGL;
+            case dmGraphics::ADAPTER_FAMILY_OPENGLES: return dmPlatform::PLATFORM_GRAPHICS_API_OPENGLES;
+            case dmGraphics::ADAPTER_FAMILY_VULKAN:   return dmPlatform::PLATFORM_GRAPHICS_API_VULKAN;
+            case dmGraphics::ADAPTER_FAMILY_VENDOR:   return dmPlatform::PLATFORM_GRAPHICS_API_VENDOR;
+            case dmGraphics::ADAPTER_FAMILY_WEBGPU:   return dmPlatform::PLATFORM_GRAPHICS_API_WEBGPU;
+            case dmGraphics::ADAPTER_FAMILY_DIRECTX:  return dmPlatform::PLATFORM_GRAPHICS_API_DIRECTX;
             default:break;
         }
         assert(0);

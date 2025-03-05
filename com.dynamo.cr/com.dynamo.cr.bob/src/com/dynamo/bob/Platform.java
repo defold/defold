@@ -34,9 +34,8 @@ public class Platform {
     public static final Platform Arm64MacOS = new Platform(  OS.OS_ID_OSX,       "arm64",   true,   "macos",   new String[] {""},               "",     "lib",  ".dylib",   new String[] {"osx", "arm64-osx"},          PlatformArchitectures.MacOS,        "arm64-osx");
     public static final Platform X86Win32 = new Platform(    OS.OS_ID_WINDOWS,   "x86",     false,  "win32",   new String[] {".exe"},           "",     "",     ".dll",     new String[] {"win32", "x86-win32"},        PlatformArchitectures.Windows32,    "x86-win32");
     public static final Platform X86_64Win32 = new Platform( OS.OS_ID_WINDOWS,   "x86_64",  true,   "win32",   new String[] {".exe"},           "",     "",     ".dll",     new String[] {"win32", "x86_64-win32"},     PlatformArchitectures.Windows64,    "x86_64-win32");
-    public static final Platform X86Linux = new Platform(    OS.OS_ID_LINUX,     "x86",     false,  "linux",   new String[] {""},               "",     "lib",  ".so",      new String[] {"linux", "x86-linux"},        PlatformArchitectures.Linux,        "x86-linux");
     public static final Platform X86_64Linux = new Platform( OS.OS_ID_LINUX,     "x86_64",  true,   "linux",   new String[] {""},               "",     "lib",  ".so",      new String[] {"linux", "x86_64-linux"},     PlatformArchitectures.Linux,        "x86_64-linux");
-    public static final Platform Arm64Linux = new Platform(  OS.OS_ID_LINUX,     "arm64",   true,   "linux",   new String[] {""},               "",     "lib",  ".so",      new String[] {"linux", "arm64-linux"},      PlatformArchitectures.Linux,        "arm64-linux");
+    public static final Platform Arm64Linux = new Platform(  OS.OS_ID_LINUX,     "arm64",   true,   "linux",   new String[] {""},               "",     "lib",  ".so",      new String[] {"linux", "arm64-linux"},      PlatformArchitectures.LinuxArm64,   "arm64-linux");
     public static final Platform Arm64Ios = new Platform(    OS.OS_ID_IOS,       "arm64",   true,   "ios",     new String[] {""},               "",     "lib",  ".so",      new String[] {"ios", "arm64-ios"},          PlatformArchitectures.iOS,          "arm64-ios");
     public static final Platform X86_64Ios = new Platform(   OS.OS_ID_IOS,       "x86_64",  true,   "ios",     new String[] {""},               "",     "lib",  ".so",      new String[] {"ios", "x86_64-ios"},         PlatformArchitectures.iOS,          "x86_64-ios");
     public static final Platform Armv7Android = new Platform(OS.OS_ID_ANDROID,   "armv7",   false,  "android", new String[] {".so"},            "lib", "lib",   ".so",      new String[] {"android", "armv7-android"},  PlatformArchitectures.Android,      "armv7-android");
@@ -246,12 +245,12 @@ public class Platform {
         } else if (os_name.indexOf("linux") != -1) {
             if (arch.equals("x86_64") || arch.equals("amd64")) {
                 return Platform.X86_64Linux;
-            } else {
-                return Platform.X86Linux;
+            } else if (arch.equals("aarch64")) {
+                return Platform.Arm64Linux;
             }
-        } else {
-            throw new RuntimeException(String.format("Could not identify OS: '%s'", os_name));
         }
+
+        throw new RuntimeException(String.format("Could not identify OS: '%s'", os_name));
     }
 
     public static Platform getHostPlatform() {
@@ -278,8 +277,6 @@ public class Platform {
             }
             else if (arch.equals("aarch64")) {
                 return Platform.Arm64Linux;
-            } else {
-                return Platform.X86Linux;
             }
         }
 
