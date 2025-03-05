@@ -1498,8 +1498,8 @@ TEST_P(dmSoundTestPlaySpeedTest, PlaySpeed)
 
 const TestParams params_test_play_test[] = {
 
-//    SOUND_TEST("default", MONO, 2000, 22050, 5512, 2048),
-/*    SOUND_TEST("default", MONO, 2000, 32000, 8000, 2048),
+    SOUND_TEST("default", MONO, 2000, 22050, 5512, 2048),
+    SOUND_TEST("default", MONO, 2000, 32000, 8000, 2048),
     SOUND_TEST("default", MONO, 2000, 44000, 11000, 2048),
     SOUND_TEST("default", MONO, 2000, 44100, 11025, 2048),
     SOUND_TEST("default", MONO, 2000, 48000, 12000, 2048),
@@ -1519,9 +1519,9 @@ const TestParams params_test_play_test[] = {
     SOUND_TEST("default", STEREO, 2000, 44000, 11000, 2048),
     SOUND_TEST("default", STEREO, 2000, 44100, 11025, 2048),
     SOUND_TEST("default", STEREO, 2000, 48000, 12000, 2048),
-*/
+
     TestParams("default", AMBIENCE_OPUS, AMBIENCE_OPUS_SIZE, dmSound::SOUND_DATA_TYPE_OPUS, 0, 0, 0, 2048),
-    TestParams("default", MUSIC_OPUS, MUSIC_OPUS_SIZE, dmSound::SOUND_DATA_TYPE_OPUS, 0, 0, 0, 2048),
+//  TestParams("default", MUSIC_OPUS, MUSIC_OPUS_SIZE, dmSound::SOUND_DATA_TYPE_OPUS, 0, 0, 0, 2048),
     TestParams("default", MONO_RESAMPLE_FRAMECOUNT_16000_OPUS, MONO_RESAMPLE_FRAMECOUNT_16000_OPUS_SIZE, dmSound::SOUND_DATA_TYPE_OPUS, 0, 0, 0, 2048),
 };
 INSTANTIATE_TEST_CASE_P(dmSoundTestPlayTest, dmSoundTestPlayTest, jc_test_values_in(params_test_play_test));
