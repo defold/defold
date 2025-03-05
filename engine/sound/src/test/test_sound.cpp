@@ -524,13 +524,14 @@ INSTANTIATE_TEST_CASE_P(dmSoundTestLoopingTest, dmSoundTestLoopingTest, jc_test_
 // gain to scale conversion
 static float GainToScale(float gain)
 {
+    gain = dmMath::Clamp(gain, 0.0f, 1.0f);
     const float l = 0.1f;   // linear taper-off range
     const float a = 1e-3f;
     const float b = 6.908f;
     float scale = a * expf(gain * b);
     if (gain < l)
         scale *= gain * (1.0f / l);
-    return scale;
+    return dmMath::Min(scale, 1.0f);
 }
 
 // Generate sine wave per given parametyers and resasmple it as needed to mimic runtimes signal path for generated test waves
@@ -867,7 +868,7 @@ TEST_P(dmSoundTestGroupRampTest, GroupRamp)
                 float mix = (i - prev_frames) / (float) (frames - prev_frames);
                 float expectedf = (32768.0f * 0.8f * ((1.0f - mix) * prev_g + g * mix));
                 int16_t expected = (int16_t) expectedf ;
-                ASSERT_NEAR(expected * 0.707107f, actual, 2U);
+                ASSERT_NEAR(expected * 0.707107f, actual, 2U);      // 0.707... due to mono sample being panned to center
             }
             prev_g = g;
         }
