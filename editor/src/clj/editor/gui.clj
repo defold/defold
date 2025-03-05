@@ -2879,7 +2879,7 @@
     :name layout-name
     :nodes (coll/transfer decorated-node-msgs []
              (keep
-               (fn [{:keys [layout->prop->override] :as node-msg}]
+               (fn [{:keys [layout->prop->override] :as decorated-node-msg}]
                  {:pre [(map? layout->prop->override)]}
                  (when-some [prop->override (coll/not-empty (layout->prop->override layout-name))]
                    (let [overridden-fields
@@ -2894,7 +2894,7 @@
                                 (if (= default-pb-value pb-value)
                                   (dissoc node-desc pb-field)
                                   (assoc node-desc pb-field pb-value))))
-                            (-> node-msg
+                            (-> decorated-node-msg
                                 (dissoc :layout->prop->override :layout->prop->value)
                                 (protobuf/assign-repeated :overridden-fields overridden-fields)))
                           (strip-unused-overridden-fields-from-node-desc)))))))))
@@ -2973,16 +2973,16 @@
             [(persistent! textures) (persistent! materials) (persistent! fonts) (persistent! particlefx-resources) (persistent! resources)]))]
     (assoc rt-pb-msg :textures (mapv second textures) :materials (mapv second materials) :fonts (mapv second fonts) :particlefxs (mapv second particlefx-resources) :resources (mapv second resources))))
 
-(defn- node-desc->pose
-  ^Pose [node-desc]
-  {:pre [(map? node-desc)]} ; Gui$NodeDesc in map format.
-  (pose/make (some-> (:position node-desc) pose/seq-translation)
-             (some-> (:rotation node-desc) pose/seq-euler-rotation)
-             (some-> (:scale node-desc) pose/seq-scale)))
+(defn- transform-properties->pose
+  ^Pose [transform-properties]
+  {:pre [(map? transform-properties)]} ; Gui$NodeDesc in map format.
+  (pose/make (some-> (:position transform-properties) pose/seq-translation)
+             (some-> (:rotation transform-properties) pose/seq-euler-rotation)
+             (some-> (:scale transform-properties) pose/seq-scale)))
 
-(defn- pre-multiply-pb-pose [child-node-desc parent-node-desc]
-  (let [pose (pose/pre-multiply (node-desc->pose child-node-desc)
-                                (node-desc->pose parent-node-desc))]
+(defn- pre-multiply-pb-pose [child-node-desc parent-transform-properties]
+  (let [pose (pose/pre-multiply (transform-properties->pose child-node-desc)
+                                (transform-properties->pose parent-transform-properties))]
     (protobuf/assign child-node-desc
       :position (when (pose/translated? pose)
                   (pose/translation-v4 pose 1.0))
@@ -2991,41 +2991,53 @@
       :scale (when (pose/scaled? pose)
                (pose/scale-v4 pose)))))
 
-(defn- node-desc->rt-node-desc [node-desc]
-  {:pre [(map? node-desc)]} ; Gui$NodeDesc in map format.
+(defn- node-desc->rt-node-desc [node-desc layout-name]
+  {:pre [(map? node-desc) ; Gui$NodeDesc in map format.
+         (string? layout-name)]}
   (cond
     (= :type-template (:type node-desc))
-    nil
+    nil ; Filtered out when building. We apply its properties to imported nodes.
 
     (:template-node-child node-desc)
     (reduce
-      (fn [node template]
-        (cond-> node
+      (fn [imported-node-desc decorated-template-node-msg]
+        ;; The layout overrides have already been applied to the
+        ;; imported-node-desc at this point, but we must also respect the
+        ;; layout-specific values for any layout properties on the TemplateNode
+        ;; that imported the node-desc. Non-layout properties like :id and
+        ;; :parent are used directly from the decorated-template-node-msg.
+        (let [layout->prop->value-for-template-node (:layout->prop->value decorated-template-node-msg)
+              prop->value-for-template-node (layout->prop->value-for-template-node layout-name)]
+          ;; Note: Protobuf defaults are included in the prop->value map.
+          (assert (map? layout->prop->value-for-template-node))
+          (assert (map? prop->value-for-template-node))
+          (cond-> imported-node-desc
 
-                (coll/empty? (:layer node))
-                (protobuf/assign :layer (coll/not-empty (:layer template)))
+                  (coll/empty? (:layer imported-node-desc))
+                  (protobuf/assign :layer (coll/not-empty (prop->value-for-template-node :layer)))
 
-                (:inherit-alpha node)
-                (as-> node
-                      (let [^float node-alpha (:alpha node protobuf/float-one)
-                            ^float template-alpha (:alpha template protobuf/float-one)
-                            inherited-alpha (* node-alpha template-alpha)]
-                        (protobuf/assign node
-                          :inherit-alpha (:inherit-alpha template) ; Protobuf default is false, and we want to exclude defaults.
-                          :alpha (when (< inherited-alpha (float 1.0))
-                                   inherited-alpha))))
+                  (:inherit-alpha imported-node-desc)
+                  (as-> imported-node-desc
+                        (let [^float node-alpha (:alpha imported-node-desc protobuf/float-one)
+                              ^float template-alpha (prop->value-for-template-node :alpha)
+                              inherited-alpha (* node-alpha template-alpha)]
+                          (protobuf/assign imported-node-desc
+                            :inherit-alpha (when (prop->value-for-template-node :inherit-alpha)
+                                             true) ; Protobuf default is false, and we want to exclude defaults.
+                            :alpha (when (< inherited-alpha (float 1.0))
+                                     inherited-alpha))))
 
-                (or (= (:id template) (:parent node))
-                    (coll/empty? (:parent node)))
-                (->
-                  (protobuf/assign
-                    :parent (:parent template)
-                    :enabled (when-not (and (:enabled node true)
-                                            (:enabled template true))
-                               false)) ; Protobuf default is true, and we want to exclude defaults.
+                  (or (= (:id decorated-template-node-msg) (:parent imported-node-desc))
+                      (coll/empty? (:parent imported-node-desc)))
+                  (->
+                    (protobuf/assign
+                      :parent (:parent decorated-template-node-msg)
+                      :enabled (when-not (and (:enabled imported-node-desc true)
+                                              (prop->value-for-template-node :enabled))
+                                 false)) ; Protobuf default is true, and we want to exclude defaults.
 
-                  ;; In fact incorrect, but only possibility to retain rotation/scale separation.
-                  (pre-multiply-pb-pose template))))
+                    ;; In fact incorrect, but only possibility to retain rotation/scale separation.
+                    (pre-multiply-pb-pose prop->value-for-template-node)))))
       (dissoc node-desc :overridden-fields :template-node-child)
       (:templates (meta node-desc)))
 
@@ -3048,7 +3060,7 @@
                                   (select-keys [:custom-type :id :parent :template-node-child :type])
                                   (into (map prop-entry->pb-field-entry)
                                         prop->value)
-                                  (node-desc->rt-node-desc))
+                                  (node-desc->rt-node-desc layout-name))
                               (protobuf/clear-defaults Gui$NodeDesc)))))))))
 
 (g/defnk produce-build-targets [_node-id build-errors resource pb-msg dep-build-targets template-build-targets layout-names node-msgs]
@@ -3066,7 +3078,7 @@
                             (fn [decorated-node-msg]
                               (-> decorated-node-msg
                                   (dissoc :layout->prop->override :layout->prop->value)
-                                  (node-desc->rt-node-desc)))))
+                                  (node-desc->rt-node-desc "")))))
           rt-pb-msg (protobuf/assign-repeated pb-msg
                       :layouts rt-layout-descs
                       :nodes rt-node-descs)
