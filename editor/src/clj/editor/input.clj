@@ -15,7 +15,7 @@
 (ns editor.input
   (:require [schema.core :as s])
   (:import [javafx.event EventType]
-           [javafx.scene.input InputEvent MouseEvent MouseButton ScrollEvent]))
+           [javafx.scene.input InputEvent MouseEvent MouseButton ScrollEvent DragEvent TransferMode]))
 
 (set! *warn-on-reflection* true)
 
@@ -28,7 +28,9 @@
                  MouseEvent/MOUSE_RELEASED :mouse-released
                  MouseEvent/MOUSE_CLICKED :mouse-clicked
                  MouseEvent/MOUSE_MOVED :mouse-moved
-                 MouseEvent/MOUSE_DRAGGED :mouse-moved})
+                 MouseEvent/MOUSE_DRAGGED :mouse-moved
+                 DragEvent/DRAG_OVER :drag-over
+                 DragEvent/DRAG_DROPPED :drag-dropped})
 
 (defn translate-action [^EventType jfx-action]
   (get action-map jfx-action :undefined))
@@ -56,6 +58,20 @@
                        :shift (.isShiftDown scroll-event)
                        :meta (.isMetaDown scroll-event)
                        :control (.isControlDown scroll-event)))
+      :drag-over (let [drag-event ^DragEvent jfx-event]
+                   (.acceptTransferModes drag-event TransferMode/ANY)
+                   (assoc action
+                          :x (.getX drag-event)
+                          :y (.getY drag-event)
+                          :target (.getTarget drag-event)))
+      :drag-dropped (let [drag-event ^DragEvent jfx-event]
+                      (assoc action
+                             :x (.getX drag-event)
+                             :y (.getY drag-event)
+                             :dragboard (.getDragboard drag-event)
+                             :transfer-mode (.getTransferMode drag-event)
+                             :target (.getGestureTarget drag-event)
+                             :source (.getGestureSource drag-event)))
       (let [mouse-event ^MouseEvent jfx-event]
         (assoc action
                :button (translate-button (.getButton mouse-event))

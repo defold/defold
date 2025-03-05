@@ -50,7 +50,8 @@
             [schema.core :as s]
             [util.digestable :as digestable]
             [util.fn :as fn]
-            [util.murmur :as murmur])
+            [util.murmur :as murmur]
+            [editor.ui :as ui])
   (:import [com.dynamo.bob.pipeline AtlasUtil ShaderUtil$Common ShaderUtil$VariantTextureArrayFallback]
            [com.dynamo.bob.textureset TextureSetGenerator$LayoutResult]
            [com.dynamo.gamesys.proto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage TextureSetProto$TextureSet Tile$Playback]
@@ -58,9 +59,11 @@
            [editor.gl.vertex2 VertexBuffer]
            [editor.types AABB Animation Image]
            [java.awt.image BufferedImage]
+           [java.io File]
            [java.nio ByteBuffer]
            [java.util List]
-           [javax.vecmath AxisAngle4d Matrix4d Point3d Vector3d]))
+           [javax.vecmath AxisAngle4d Matrix4d Point3d Vector3d]
+           [javafx.scene.input Dragboard]))
 
 (set! *warn-on-reflection* true)
 
@@ -1188,6 +1191,30 @@
 
 (defn handle-input [self action selection-data]
   (case (:type action)
+    :drag-dropped (let [db ^Dragboard (:dragboard action)]
+                    (when (.hasFiles db)
+                      (when-let [parent (->> (g/node-value self :selected-renderables)
+                                             (map :node-id)
+                                             (filter #(or (g/node-instance? AtlasNode %)
+                                                          (g/node-instance? AtlasAnimation %)))
+                                             last)]
+                        (let [project (project/get-project parent)
+                              files (mapv (fn [^File f] 
+                                            {:image (workspace/resolve-workspace-resource project (.getCanonicalPath f))}) 
+                                          (.getFiles db))
+                              op-seq (gensym)
+                              image-nodes (g/tx-nodes-added
+                                            (g/transact
+                                              (concat
+                                                (g/operation-sequence op-seq)
+                                                (g/operation-label "Drop Images")
+                                                (condp g/node-instance? parent
+                                                  AtlasNode (make-image-nodes-in-atlas parent files)
+                                                  AtlasAnimation (make-image-nodes-in-animation parent files)))))]
+                          (g/transact
+                            (concat
+                              (g/operation-sequence op-seq)
+                              (app-view/select (ui/main-scene) image-nodes)))))))
     :mouse-pressed (if (first (get selection-data self))
                      (do
                        (g/transact
