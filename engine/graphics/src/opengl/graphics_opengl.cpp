@@ -1512,6 +1512,7 @@ static void LogFrameBufferError(GLenum status)
             if (!context->m_AsyncProcessingSupport)
             {
                 dmMutex::Delete(context->m_GLHandlesData.m_Mutex);
+                context->m_GLHandlesData.m_Mutex = 0;
             }
         }
 
