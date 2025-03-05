@@ -1311,7 +1311,7 @@ namespace dmGraphics
             tex->m_OriginalHeight = params.m_OriginalHeight;
         }
 
-        DM_MUTEX_SCOPED_LOCK(context->m_AssetContainerMutex);
+        ScopedLock lock(context->m_AssetContainerMutex);
 
         return StoreAssetInContainer(context->m_AssetHandleContainer, tex, ASSET_TYPE_TEXTURE);
     }
@@ -1319,7 +1319,7 @@ namespace dmGraphics
     static int DoDeleteTexture(void* _context, void* _h_texture)
     {
         NullContext* context = (NullContext*) _context;
-        DM_MUTEX_SCOPED_LOCK(context->m_AssetContainerMutex);
+        ScopedLock lock(context->m_AssetContainerMutex);
         HTexture texture = (HTexture) _h_texture;
 
         Texture* tex = GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, texture);
@@ -1339,14 +1339,14 @@ namespace dmGraphics
     static void DoDeleteTextureComplete(void* _context, void* _h_texture, int result)
     {
         NullContext* context = (NullContext*) _context;
-        DM_MUTEX_SCOPED_LOCK(context->m_AssetContainerMutex);
+        ScopedLock lock(context->m_AssetContainerMutex);
         HTexture texture = (HTexture) _h_texture;
         context->m_AssetHandleContainer.Release(texture);
     }
 
     static void NullDeleteTextureAsync(NullContext* context, HTexture texture)
     {
-        DM_MUTEX_SCOPED_LOCK(context->m_AssetContainerMutex);
+        ScopedLock lock(context->m_AssetContainerMutex);
         dmJobThread::PushJob(context->m_JobThread, DoDeleteTexture, DoDeleteTextureComplete, context, (void*) texture);
     }
 
@@ -1427,7 +1427,7 @@ namespace dmGraphics
 
     static void NullSetTexture(HTexture texture, const TextureParams& params)
     {
-        DM_MUTEX_SCOPED_LOCK(g_NullContext->m_AssetContainerMutex);
+        ScopedLock lock(g_NullContext->m_AssetContainerMutex);
         Texture* tex = GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture);
         assert(tex);
         assert(!params.m_SubUpdate || (params.m_X + params.m_Width <= tex->m_Width));
@@ -1675,7 +1675,7 @@ namespace dmGraphics
         uint16_t param_array_index = (uint16_t) (size_t) data;
         SetTextureAsyncParams ap   = GetSetTextureAsyncParams(context->m_SetTextureAsyncState, param_array_index);
 
-        DM_MUTEX_SCOPED_LOCK(context->m_AssetContainerMutex);
+        ScopedLock lock(context->m_AssetContainerMutex);
         Texture* tex = GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, ap.m_Texture);
         if (tex)
         {
@@ -1705,7 +1705,7 @@ namespace dmGraphics
     {
         if (g_NullContext->m_AsyncProcessingSupport && g_NullContext->m_UseAsyncTextureLoad)
         {
-            DM_MUTEX_SCOPED_LOCK(g_NullContext->m_AssetContainerMutex);
+            ScopedLock lock(g_NullContext->m_AssetContainerMutex);
 
             Texture* tex               = GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture);
             tex->m_DataState          |= 1 << params.m_MipMap;
@@ -1726,7 +1726,7 @@ namespace dmGraphics
 
     static uint32_t NullGetTextureStatusFlags(HTexture texture)
     {
-        DM_MUTEX_SCOPED_LOCK(g_NullContext->m_AssetContainerMutex);
+        ScopedLock lock(g_NullContext->m_AssetContainerMutex);
         Texture* tex   = GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture);
         uint32_t flags = TEXTURE_STATUS_OK;
         if(tex && tex->m_DataState)
