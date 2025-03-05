@@ -17,7 +17,15 @@
 
 #include "sound_pfb.h"
 
-#if defined(__SSE__)
+
+#if defined(_M_IX86_FP) && _M_IX86_FP == 2  // MSVC: SSE2 (or better)
+#define SOUND_SSE2
+#elif defined(__SSE2__)                     // GCC / CLang / Emscripten: SSE2
+#define SOUND_SSE2
+#endif
+
+
+#if defined(SOUND_SSE2)
 #include <immintrin.h>
 #endif
 #if defined(__wasm_simd128__)
@@ -25,7 +33,7 @@
 #endif
 
 // Make sure we use compile time selected fallback code if nothing is selected at all
-#if !defined(DM_SOUND_EXPECTED_SIMD) && !defined(__SSE__) && !defined(__wasm_simd128__)
+#if !defined(DM_SOUND_EXPECTED_SIMD) && !defined(SOUND_SSE2) && !defined(__wasm_simd128__)
 #define DM_SOUND_EXPECTED_SIMD Fallback
 #endif
 
@@ -83,7 +91,7 @@ static inline void MixScaledMonoToStereo(float* out[], const float* in, uint32_t
     float* fr = (float*)vr;
     float* fin = (float*)vin;
     scale_l = scl[0];
-    scale_r = scr[1];
+    scale_r = scr[0];
     for(; num>0; --num)
     {
         float s = *(fin++);
@@ -183,7 +191,7 @@ static inline uint64_t MixAndResampleMonoToStereo_Polyphase(float* out[], const 
     float* fl = (float*)vl;
     float* fr = (float*)vr;
     scale_l = scl[0];
-    scale_r = scr[1];
+    scale_r = scr[0];
     for(; num>0; --num)
     {
         float s = FilterSampleFIR8(&in[frac >> RESAMPLE_FRACTION_BITS], frac);
@@ -246,9 +254,9 @@ static inline uint64_t MixAndResampleStereoToStereo_Polyphase(float* out[], cons
     float* fl = (float*)vl;
     float* fr = (float*)vr;
     scale_l0 = scl0[0];
-    scale_r0 = scr0[1];
+    scale_r0 = scr0[0];
     scale_l1 = scl1[0];
-    scale_r1 = scr1[1];
+    scale_r1 = scr1[0];
     for(; num>0; --num)
     {
         float sl = FilterSampleFIR8(&in_l[frac >> RESAMPLE_FRACTION_BITS], frac);
@@ -504,9 +512,10 @@ static inline void DeinterleaveFromS8(float* out[], const int8_t* in, uint32_t n
 // ----------------------------------------------------------------------------------------------------------------------------------------------------------------
 // ----------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-#if defined(__SSE__) && !defined(__wasm_simd128__)
+#if defined(SOUND_SSE2) && !defined(__wasm_simd128__)
+
 //
-// SSE
+// SSE2
 //
 namespace SSE {
 
@@ -522,15 +531,15 @@ namespace SSE {
 #if 0 //defined(__SSE4_1__)
         vec4 taps0 = _mm_loadu_ps(&frames[-3]);
         vec4 taps1 = _mm_loadu_ps(&frames[ 1]);
-        return (_mm_dp_ps(taps0, *(const vec4*)&c[0], 0xf1) + _mm_dp_ps(taps1, *(const vec4*)&c[4], 0xf1))[0];      // at least on intel: 11 cycles latency, but good throughput -> shuffles and adds are rather FAST, without hiding the latency the old code could be comparable in speed!
+        return _mm_cvtss_f32(_mm_add_ps(_mm_dp_ps(taps0, *(const vec4*)&c[0], 0xf1), _mm_dp_ps(taps1, *(const vec4*)&c[4], 0xf1)));      // at least on intel: 11 cycles latency, but good throughput -> shuffles and adds are rather FAST, without hiding the latency the old code could be comparable in speed!
 #else
-        vec4 tmp0 = _mm_loadu_ps(&frames[-3]) * *(const vec4*)&c[0];
-        vec4 tmp1 = _mm_loadu_ps(&frames[ 1]) * *(const vec4*)&c[4];
-        tmp0 += _mm_shuffle_ps(tmp0, tmp0, _MM_SHUFFLE(0, 3, 0, 1)); // X=X+Y; Z=Z+W
-        tmp1 += _mm_shuffle_ps(tmp1, tmp1, _MM_SHUFFLE(0, 3, 0, 1)); // X=X+Y; Z=Z+W
-        tmp0 += _mm_shuffle_ps(tmp0, tmp0, _MM_SHUFFLE(0, 0, 0, 2)); // X=X+Y+Z+W
-        tmp1 += _mm_shuffle_ps(tmp1, tmp1, _MM_SHUFFLE(0, 0, 0, 2)); // X=X+Y+Z+W
-        return (tmp0 + tmp1)[0];
+        vec4 tmp0 = _mm_mul_ps(_mm_loadu_ps(&frames[-3]), *(const vec4*)&c[0]);
+        vec4 tmp1 = _mm_mul_ps(_mm_loadu_ps(&frames[ 1]), *(const vec4*)&c[4]);
+        tmp0 = _mm_add_ps(tmp0, _mm_shuffle_ps(tmp0, tmp0, _MM_SHUFFLE(0, 3, 0, 1))); // X=X+Y; Z=Z+W
+        tmp1 = _mm_add_ps(tmp1, _mm_shuffle_ps(tmp1, tmp1, _MM_SHUFFLE(0, 3, 0, 1))); // X=X+Y; Z=Z+W
+        tmp0 = _mm_add_ps(tmp0, _mm_shuffle_ps(tmp0, tmp0, _MM_SHUFFLE(0, 0, 0, 2))); // X=X+Y+Z+W
+        tmp1 = _mm_add_ps(tmp1, _mm_shuffle_ps(tmp1, tmp1, _MM_SHUFFLE(0, 0, 0, 2))); // X=X+Y+Z+W
+        return _mm_cvtss_f32(_mm_add_ps(tmp0, tmp1));
 #endif
     }
 
@@ -540,10 +549,10 @@ static inline void MixScaledMonoToStereo(float* out[], const float* in, uint32_t
     // setup ramps
     vec4 scld = _mm_set1_ps(scale_delta_l);
     vec4 scrd = _mm_set1_ps(scale_delta_r);
-    vec4 scl  = _mm_set1_ps(scale_l) + scld * _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f);
-    vec4 scr  = _mm_set1_ps(scale_r) + scrd * _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f);
-    scld *= 4.0f;
-    scrd *= 4.0f;
+    vec4 scl  = _mm_add_ps(_mm_set1_ps(scale_l), _mm_mul_ps(scld, _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f)));
+    vec4 scr  = _mm_add_ps(_mm_set1_ps(scale_r), _mm_mul_ps(scrd, _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f)));
+    scld = _mm_mul_ps(scld, _mm_set1_ps(4.0f));
+    scrd = _mm_mul_ps(scrd, _mm_set1_ps(4.0f));
 
     // vectorized mix
     vec4* vl = (vec4*)out[0];
@@ -552,17 +561,19 @@ static inline void MixScaledMonoToStereo(float* out[], const float* in, uint32_t
     for(; num>3; num-=4)
     {
         vec4 s = *(vin++);
-        *(vl++) += s * scl;
-        *(vr++) += s * scr;
-        scl += scld;
-        scr += scrd;
+        *vl = _mm_add_ps(*vl, _mm_mul_ps(s, scl));
+        ++vl;
+        *vr = _mm_add_ps(*vr, _mm_mul_ps(s, scr));
+        ++vr;
+        scl = _mm_add_ps(scl, scld);
+        scr = _mm_add_ps(scr, scrd);
     }
     // process any remaining samples
     float* fl = (float*)vl;
     float* fr = (float*)vr;
     float* fin = (float*)vin;
-    scale_l = scl[0];
-    scale_r = scr[1];
+    scale_l = _mm_cvtss_f32(scl);
+    scale_r = _mm_cvtss_f32(scr);
     for(; num>0; --num)
     {
         float s = *(fin++);
@@ -582,14 +593,14 @@ static inline void MixScaledStereoToStereo(float* out[], const float* in_l, cons
     vec4 scrd0 = _mm_set1_ps(scale_delta_r0);
     vec4 scld1 = _mm_set1_ps(scale_delta_l1);
     vec4 scrd1 = _mm_set1_ps(scale_delta_r1);
-    vec4 scl0  = _mm_set1_ps(scale_l0) + scld0 * _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f);
-    vec4 scr0  = _mm_set1_ps(scale_r0) + scrd0 * _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f);
-    vec4 scl1  = _mm_set1_ps(scale_l1) + scld1 * _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f);
-    vec4 scr1  = _mm_set1_ps(scale_r1) + scrd1 * _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f);
-    scld0 *= 4.0f;
-    scrd0 *= 4.0f;
-    scld1 *= 4.0f;
-    scrd1 *= 4.0f;
+    vec4 scl0  = _mm_add_ps(_mm_set1_ps(scale_l0), _mm_mul_ps(scld0, _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f)));
+    vec4 scr0  = _mm_add_ps(_mm_set1_ps(scale_r0), _mm_mul_ps(scrd0, _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f)));
+    vec4 scl1  = _mm_add_ps(_mm_set1_ps(scale_l1), _mm_mul_ps(scld1, _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f)));
+    vec4 scr1  = _mm_add_ps(_mm_set1_ps(scale_r1), _mm_mul_ps(scrd1, _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f)));
+    scld0 = _mm_mul_ps(scld0, _mm_set1_ps(4.0f));
+    scrd0 = _mm_mul_ps(scrd0, _mm_set1_ps(4.0f));
+    scld1 = _mm_mul_ps(scld1, _mm_set1_ps(4.0f));
+    scrd1 = _mm_mul_ps(scrd1, _mm_set1_ps(4.0f));
 
     // vectorized mix
     vec4* vl = (vec4*)out[0];
@@ -600,22 +611,24 @@ static inline void MixScaledStereoToStereo(float* out[], const float* in_l, cons
     {
         vec4 sl = *(vin_l++);
         vec4 sr = *(vin_r++);
-        *(vl++) += sl * scl0 + sr * scl1;
-        *(vr++) += sl * scr0 + sr * scr1;
-        scl0 += scld0;
-        scr0 += scrd0;
-        scl1 += scld1;
-        scr1 += scrd1;
+        *vl = _mm_add_ps(*vl, _mm_add_ps(_mm_mul_ps(sl, scl0), _mm_mul_ps(sr, scl1)));
+        ++vl;
+        *vr = _mm_add_ps(*vr, _mm_add_ps(_mm_mul_ps(sl, scr0), _mm_mul_ps(sr, scr1)));
+        ++vr;
+        scl0 = _mm_add_ps(scl0, scld0);
+        scr0 = _mm_add_ps(scr0, scrd0);
+        scl1 = _mm_add_ps(scl1, scld1);
+        scr1 = _mm_add_ps(scr1, scrd1);
     }
     // process any remaining samples
     float* fl = (float*)vl;
     float* fr = (float*)vr;
     float* fin_l = (float*)vin_l;
     float* fin_r = (float*)vin_r;
-    scale_l0 = scl0[0];
-    scale_r0 = scr0[1];
-    scale_l1 = scl1[0];
-    scale_r1 = scr1[1];
+    scale_l0 = _mm_cvtss_f32(scl0);
+    scale_r0 = _mm_cvtss_f32(scr0);
+    scale_l1 = _mm_cvtss_f32(scl1);
+    scale_r1 = _mm_cvtss_f32(scr1);
     for(; num>0; --num)
     {
         float sl = *(fin_l++);
@@ -634,10 +647,10 @@ static inline uint64_t MixAndResampleMonoToStereo_Polyphase(float* out[], const 
     // setup ramps
     vec4 scld = _mm_set1_ps(scale_delta_l);
     vec4 scrd = _mm_set1_ps(scale_delta_r);
-    vec4 scl  = _mm_set1_ps(scale_l) + scld * _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f);
-    vec4 scr  = _mm_set1_ps(scale_r) + scrd * _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f);
-    scld *= 4.0f;
-    scrd *= 4.0f;
+    vec4 scl  = _mm_add_ps(_mm_set1_ps(scale_l), _mm_mul_ps(scld, _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f)));
+    vec4 scr  = _mm_add_ps(_mm_set1_ps(scale_r), _mm_mul_ps(scrd, _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f)));
+    scld = _mm_mul_ps(scld, _mm_set1_ps(4.0f));
+    scrd = _mm_mul_ps(scrd, _mm_set1_ps(4.0f));
 
     // vectorized mix
     vec4* vl = (vec4*)out[0];
@@ -654,16 +667,18 @@ static inline uint64_t MixAndResampleMonoToStereo_Polyphase(float* out[], const 
         frac += delta;
         vec4 s = _mm_set_ps(s3, s2, s1, s0);
 
-        *(vl++) += s * scl;
-        *(vr++) += s * scr;
-        scl += scld;
-        scr += scrd;
+        *vl = _mm_add_ps(*vl, _mm_mul_ps(s, scl));
+        ++vl;
+        *vr = _mm_add_ps(*vr, _mm_mul_ps(s, scr));
+        ++vr;
+        scl = _mm_add_ps(scl, scld);
+        scr = _mm_add_ps(scr, scrd);
     }
     // process any remaining samples
     float* fl = (float*)vl;
     float* fr = (float*)vr;
-    scale_l = scl[0];
-    scale_r = scr[1];
+    scale_l = _mm_cvtss_f32(scl);
+    scale_r = _mm_cvtss_f32(scr);
     for(; num>0; --num)
     {
         float s = FilterSampleFIR8(&in[frac >> RESAMPLE_FRACTION_BITS], frac);
@@ -679,22 +694,22 @@ static inline uint64_t MixAndResampleMonoToStereo_Polyphase(float* out[], const 
 }
 
 static inline uint64_t MixAndResampleStereoToStereo_Polyphase(float* out[], const float* in_l, const float* in_r, uint32_t num, uint64_t frac, uint64_t delta,
-                                                             float scale_l0, float scale_r0, float scale_delta_l0, float scale_delta_r0,
-                                                             float scale_l1, float scale_r1, float scale_delta_l1, float scale_delta_r1)
+                                                              float scale_l0, float scale_r0, float scale_delta_l0, float scale_delta_r0,
+                                                              float scale_l1, float scale_r1, float scale_delta_l1, float scale_delta_r1)
 {
     // setup ramps
     vec4 scld0 = _mm_set1_ps(scale_delta_l0);
     vec4 scrd0 = _mm_set1_ps(scale_delta_r0);
     vec4 scld1 = _mm_set1_ps(scale_delta_l1);
     vec4 scrd1 = _mm_set1_ps(scale_delta_r1);
-    vec4 scl0  = _mm_set1_ps(scale_l0) + scld0 * _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f);
-    vec4 scr0  = _mm_set1_ps(scale_r0) + scrd0 * _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f);
-    vec4 scl1  = _mm_set1_ps(scale_l1) + scld1 * _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f);
-    vec4 scr1  = _mm_set1_ps(scale_r1) + scrd1 * _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f);
-    scld0 *= 4.0f;
-    scrd0 *= 4.0f;
-    scld1 *= 4.0f;
-    scrd1 *= 4.0f;
+    vec4 scl0  = _mm_add_ps(_mm_set1_ps(scale_l0), _mm_mul_ps(scld0, _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f)));
+    vec4 scr0  = _mm_add_ps(_mm_set1_ps(scale_r0), _mm_mul_ps(scrd0, _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f)));
+    vec4 scl1  = _mm_add_ps(_mm_set1_ps(scale_l1), _mm_mul_ps(scld1, _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f)));
+    vec4 scr1  = _mm_add_ps(_mm_set1_ps(scale_r1), _mm_mul_ps(scrd1, _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f)));
+    scld0 = _mm_mul_ps(scld0, _mm_set1_ps(4.0f));
+    scrd0 = _mm_mul_ps(scrd0, _mm_set1_ps(4.0f));
+    scld1 = _mm_mul_ps(scld1, _mm_set1_ps(4.0f));
+    scrd1 = _mm_mul_ps(scrd1, _mm_set1_ps(4.0f));
 
     // vectorized mix
     vec4* vl = (vec4*)out[0];
@@ -716,20 +731,22 @@ static inline uint64_t MixAndResampleStereoToStereo_Polyphase(float* out[], cons
         vec4 sl = _mm_set_ps(s3l, s2l, s1l, s0l);
         vec4 sr = _mm_set_ps(s3r, s2r, s1r, s0r);
 
-        *(vl++) += sl * scl0 + sr * scl1;
-        *(vr++) += sl * scr0 + sr * scr1;
-        scl0 += scld0;
-        scr0 += scrd0;
-        scl1 += scld1;
-        scr1 += scrd1;
+        *vl = _mm_add_ps(*vl, _mm_add_ps(_mm_mul_ps(sl, scl0), _mm_mul_ps(sr, scl1)));
+        ++vl;
+        *vr = _mm_add_ps(*vr, _mm_add_ps(_mm_mul_ps(sl, scr0), _mm_mul_ps(sr, scr1)));
+        ++vr;
+        scl0 = _mm_add_ps(scl0, scld0);
+        scr0 = _mm_add_ps(scr0, scrd0);
+        scl1 = _mm_add_ps(scl1, scld1);
+        scr1 = _mm_add_ps(scr1, scrd1);
     }
     // process any remaining samples
     float* fl = (float*)vl;
     float* fr = (float*)vr;
-    scale_l0 = scl0[0];
-    scale_r0 = scr0[1];
-    scale_l1 = scl1[0];
-    scale_r1 = scr1[1];
+    scale_l0 = _mm_cvtss_f32(scl0);
+    scale_r0 = _mm_cvtss_f32(scr0);
+    scale_l1 = _mm_cvtss_f32(scl1);
+    scale_r1 = _mm_cvtss_f32(scr1);
     for(; num>0; --num)
     {
         float sl = FilterSampleFIR8(&in_l[frac >> RESAMPLE_FRACTION_BITS], frac);
@@ -752,8 +769,8 @@ static inline void ApplyClampedGain(float* out[], float* in[], uint32_t num, flo
     // setup ramp
     vec4 sc = _mm_set1_ps(scale);
     vec4 scd = _mm_set1_ps(scale_delta);
-    sc = _mm_set1_ps(scale) + scd * _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f);
-    scd *= 4.0f;
+    sc = _mm_add_ps(_mm_set1_ps(scale), _mm_mul_ps(scd, _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f)));
+    scd = _mm_mul_ps(scd, _mm_set1_ps(4.0f));
 
     vec4 zero = _mm_set1_ps(0.0f);
     vec4 one = _mm_set1_ps(1.0f);
@@ -765,16 +782,19 @@ static inline void ApplyClampedGain(float* out[], float* in[], uint32_t num, flo
     for(; num>3; num-=4)
     {
         vec4 sc_clamped = _mm_min_ps(_mm_max_ps(sc, zero), one);
-        *(vout_l++) += *(vin_l++) * sc_clamped;
-        *(vout_r++) += *(vin_r++) * sc_clamped;
-        sc += scd;
+
+        *vout_l = _mm_add_ps(*vout_l, _mm_mul_ps(*(vin_l++), sc_clamped));
+        ++vout_l;
+        *vout_r = _mm_add_ps(*vout_r, _mm_mul_ps(*(vin_r++), sc_clamped));
+        ++vout_r;
+        sc = _mm_add_ps(sc, scd);
     }
 
     float* in_l = (float*)vin_l;
     float* in_r = (float*)vin_r;
     float* out_l = (float*)vout_l;
     float* out_r = (float*)vout_r;
-    scale = sc[0];
+    scale = _mm_cvtss_f32(sc);
     for(; num>0; --num)
     {
         float scale_clamped = dmMath::Clamp(scale, 0.0f, 1.0f);
@@ -789,18 +809,16 @@ static inline void ApplyGainAndInterleaveToS16(int16_t* out, float* in[], uint32
     // setup ramp
     vec4 sc = _mm_set1_ps(scale);
     vec4 scd = _mm_set1_ps(scale_delta);
-    sc = _mm_set1_ps(scale) + scd * _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f);
-    scd *= 4.0f;
+    sc = _mm_add_ps(_mm_set1_ps(scale), _mm_mul_ps(scd, _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f)));
+    scd = _mm_mul_ps(scd, _mm_set1_ps(4.0f));
 
     vec4* vin_l = (vec4*)in[0];
     vec4* vin_r = (vec4*)in[1];
     __m64* vout = (__m64*)out;
     for(; num>3; num-=4)
     {
-        vec4 l = *(vin_l++);
-        vec4 r = *(vin_r++);
-        l *= sc;
-        r *= sc;
+        vec4 l = _mm_mul_ps(*(vin_l++), sc);
+        vec4 r = _mm_mul_ps(*(vin_r++), sc);
         __m64 li0 = _mm_cvt_ps2pi(l);                       // L0L1 (int32)
         __m64 li1 = _mm_cvt_ps2pi(_mm_movehl_ps(l, l));     // L2L3 (int32)
         __m64 ri0 = _mm_cvt_ps2pi(r);                       // R0R1 (int32)
@@ -809,12 +827,12 @@ static inline void ApplyGainAndInterleaveToS16(int16_t* out, float* in[], uint32
         __m64 r16 = _mm_packs_pi32(ri0, ri1);               // R0R1R2R3 (int16; sat)
         *(vout++) = _mm_unpacklo_pi16(l16, r16);            // L0R0L1R1
         *(vout++) = _mm_unpackhi_pi16(l16, r16);            // L2R2L3R3
-        sc += scd;
+        sc = _mm_add_ps(sc, scd);
     }
 
     float* in_l = (float*)vin_l;
     float* in_r = (float*)vin_r;
-    scale = sc[0];
+    scale = _mm_cvtss_f32(sc);
     out = (int16_t*)vout;
     for(; num>0; --num)
     {
@@ -841,31 +859,31 @@ static inline void GatherPowerData(float* in[], uint32_t num, float gain, float&
 
     for(; num>3; num-=4)
     {
-        vec4 sl = *(in_l++) * scale;
-        vec4 sr = *(in_r++) * scale;
-        sl *= sl;
-        sr *= sr;
+        vec4 sl = _mm_mul_ps(*(in_l++), scale);
+        vec4 sr = _mm_mul_ps(*(in_r++), scale);
+        sl = _mm_mul_ps(sl, sl);
+        sr = _mm_mul_ps(sr, sr);
         maxl = _mm_max_ps(maxl, sl);
         maxr = _mm_max_ps(maxr, sr);
-        suml += sl;
-        sumr += sr;
+        suml = _mm_add_ps(suml, sl);
+        sumr = _mm_add_ps(sumr, sr);
     }
 
     maxl = _mm_max_ps(maxl, _mm_shuffle_ps(maxl, maxl, _MM_SHUFFLE(0,3,0,1)));
     maxl = _mm_max_ps(maxl, _mm_shuffle_ps(maxl, maxl, _MM_SHUFFLE(0,0,0,2)));
-    max_sq_left = maxl[0];
+    max_sq_left = _mm_cvtss_f32(maxl);
 
     maxr = _mm_max_ps(maxr, _mm_shuffle_ps(maxr, maxr, _MM_SHUFFLE(0,3,0,1)));
     maxr = _mm_max_ps(maxr, _mm_shuffle_ps(maxr, maxr, _MM_SHUFFLE(0,0,0,2)));
-    max_sq_right = maxr[0];
+    max_sq_right = _mm_cvtss_f32(maxr);
 
-    suml += _mm_shuffle_ps(suml, suml, _MM_SHUFFLE(0,3,0,1));
-    suml += _mm_shuffle_ps(suml, suml, _MM_SHUFFLE(0,0,0,2));
-    sum_sq_left = suml[0];
+    suml = _mm_add_ps(suml, _mm_shuffle_ps(suml, suml, _MM_SHUFFLE(0,3,0,1)));
+    suml = _mm_add_ps(suml, _mm_shuffle_ps(suml, suml, _MM_SHUFFLE(0,0,0,2)));
+    sum_sq_left = _mm_cvtss_f32(suml);
 
-    sumr += _mm_shuffle_ps(sumr, sumr, _MM_SHUFFLE(0,3,0,1));
-    sumr += _mm_shuffle_ps(sumr, sumr, _MM_SHUFFLE(0,0,0,2));
-    sum_sq_right = sumr[0];
+    sumr = _mm_add_ps(sumr, _mm_shuffle_ps(sumr, sumr, _MM_SHUFFLE(0,3,0,1)));
+    sumr = _mm_add_ps(sumr, _mm_shuffle_ps(sumr, sumr, _MM_SHUFFLE(0,0,0,2)));
+    sum_sq_right = _mm_cvtss_f32(sumr);
 
     float* fin_l = (float*)in_l;
     float* fin_r = (float*)in_r;
@@ -1353,7 +1371,7 @@ static DSPImpl wasm_impl =
 };
 #endif
 
-#if defined(__SSE__) && !defined(__wasm_simd128__)
+#if defined(SOUND_SSE2) && !defined(__wasm_simd128__)
 static DSPImpl sse_impl =
 {
     SSE::MixScaledMonoToStereo,
@@ -1394,7 +1412,7 @@ static inline bool SelectDSPImpl(DSPImplType impl_type)
     switch(impl_type)
     {
         case    DSPIMPL_TYPE_FALLBACK: g_DSPImpl = &fallback_impl; return true;
-#if defined(__SSE__) && !defined(__wasm_simd128__)
+#if defined(SOUND_SSE2) && !defined(__wasm_simd128__)
         case    DSPIMPL_TYPE_SSE2: g_DSPImpl = &sse_impl; return true;
 #endif
 #if defined(__wasm_simd128__)
