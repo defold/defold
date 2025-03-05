@@ -29,8 +29,6 @@
 #include <stdio.h> // vsnprintf
 #include <stdarg.h> // va_start et al
 
-// https://github.com/defold/defold/blob/1.2.189/engine/dlib/src/dlib/profile.cpp
-
 struct Property
 {
     const char*              m_Name;
