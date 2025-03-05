@@ -96,8 +96,8 @@ extern "C" {
 #endif
 
 DM_PROPERTY_EXTERN(rmtp_Script);
-DM_PROPERTY_U32(rmtp_LuaMem, 0, FrameReset, "kb", &rmtp_Script); // kilo bytes
-DM_PROPERTY_U32(rmtp_LuaRefs, 0, FrameReset, "# Lua references", &rmtp_Script);
+DM_PROPERTY_U32(rmtp_LuaMem, 0, PROFILE_PROPERTY_FRAME_RESET, "kb", &rmtp_Script); // kilo bytes
+DM_PROPERTY_U32(rmtp_LuaRefs, 0, PROFILE_PROPERTY_FRAME_RESET, "# Lua references", &rmtp_Script);
 
 namespace dmEngine
 {
@@ -394,19 +394,32 @@ namespace dmEngine
         if (engine->m_GuiContext)
             dmGui::DeleteContext(engine->m_GuiContext, engine->m_GuiScriptContext);
 
+        ScopedExtensionParams extension_params(engine);
         if (engine->m_SharedScriptContext) {
+            extension_params.SetLuaContext(engine->m_SharedScriptContext);
+            dmExtension::Finalize(extension_params);
+
             dmScript::Finalize(engine->m_SharedScriptContext);
             dmScript::DeleteContext(engine->m_SharedScriptContext);
         } else {
             if (engine->m_GOScriptContext) {
+                extension_params.SetLuaContext(engine->m_GOScriptContext);
+                dmExtension::Finalize(extension_params);
+
                 dmScript::Finalize(engine->m_GOScriptContext);
                 dmScript::DeleteContext(engine->m_GOScriptContext);
             }
             if (engine->m_RenderScriptContext) {
+                extension_params.SetLuaContext(engine->m_RenderScriptContext);
+                dmExtension::Finalize(extension_params);
+
                 dmScript::Finalize(engine->m_RenderScriptContext);
                 dmScript::DeleteContext(engine->m_RenderScriptContext);
             }
             if (engine->m_GuiScriptContext) {
+                extension_params.SetLuaContext(engine->m_GuiScriptContext);
+                dmExtension::Finalize(extension_params);
+
                 dmScript::Finalize(engine->m_GuiScriptContext);
                 dmScript::DeleteContext(engine->m_GuiScriptContext);
             }

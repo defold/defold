@@ -64,7 +64,7 @@
  *  - Handle out of resources. Eg Hashtables full.
  */
 
-DM_PROPERTY_U32(rmtp_Resource, 0, FrameReset, "# resources");
+DM_PROPERTY_U32(rmtp_Resource, 0, PROFILE_PROPERTY_FRAME_RESET, "# resources", 0);
 
 
 struct ResourceReloadedCallbackPair

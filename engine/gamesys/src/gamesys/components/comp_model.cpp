@@ -49,10 +49,10 @@
 #include <dmsdk/resource/resource.h>
 
 DM_PROPERTY_EXTERN(rmtp_Components);
-DM_PROPERTY_U32(rmtp_Model, 0, FrameReset, "# components", &rmtp_Components);
-DM_PROPERTY_U32(rmtp_ModelIndexCount, 0, FrameReset, "# indices", &rmtp_Model);
-DM_PROPERTY_U32(rmtp_ModelVertexCount, 0, FrameReset, "# vertices", &rmtp_Model);
-DM_PROPERTY_U32(rmtp_ModelVertexSize, 0, FrameReset, "size of vertices in bytes", &rmtp_Model);
+DM_PROPERTY_U32(rmtp_Model, 0, PROFILE_PROPERTY_FRAME_RESET, "# components", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_ModelIndexCount, 0, PROFILE_PROPERTY_FRAME_RESET, "# indices", &rmtp_Model);
+DM_PROPERTY_U32(rmtp_ModelVertexCount, 0, PROFILE_PROPERTY_FRAME_RESET, "# vertices", &rmtp_Model);
+DM_PROPERTY_U32(rmtp_ModelVertexSize, 0, PROFILE_PROPERTY_FRAME_RESET, "size of vertices in bytes", &rmtp_Model);
 
 namespace dmGameSystem
 {

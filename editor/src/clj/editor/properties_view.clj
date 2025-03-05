@@ -16,6 +16,7 @@
   (:require [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.color-dropper :as color-dropper]
             [editor.field-expression :as field-expression]
             [editor.handler :as handler]
             [editor.jfx :as jfx]
@@ -525,39 +526,76 @@
         update-ui-fn (make-curve-update-ui-fn editor-toggle-button value-text-field update-ui-fn)]
     [box update-ui-fn]))
 
-(defmethod create-property-control! types/Color [edit-type _ property-fn]
-  (let [color-picker (doto (ColorPicker.)
-                       (.setPrefWidth Double/MAX_VALUE))
-        update-ui-fn  (fn [values message read-only?]
-                        (let [v (properties/unify-values values)]
-                          (if (nil? v)
-                            (.setValue color-picker nil)
-                            (let [[r g b a] v]
-                              (.setValue color-picker (Color. r g b a)))))
-                        (update-field-message [color-picker] message)
-                        (ui/editable! color-picker (not read-only?)))]
+(defn- set-color-value! [property-fn ignore-alpha ^Color c]
+  (let [property (property-fn)
+        old-value (coalesced-property->any-value property)
+        num-fn (if (math/float32? (first old-value))
+                 properties/round-scalar-coarse-float
+                 properties/round-scalar-coarse)
+        new-value (-> (coll/empty-with-meta old-value)
+                      (conj (num-fn (.getRed c)))
+                      (conj (num-fn (.getGreen c)))
+                      (conj (num-fn (.getBlue c)))
+                      (conj (num-fn (.getOpacity c))))
+        values (if ignore-alpha
+                 (let [old-values (properties/values property)
+                       old-alphas (map #(nth % 3) old-values)]
+                   (mapv #(assoc new-value 3 %) old-alphas))
+                 (repeat new-value))]
+    (properties/set-values! property values)))
 
-    (ui/on-action!
-      color-picker
-      (fn [_]
-        (let [property (property-fn)
-              old-value (coalesced-property->any-value property)
-              num-fn (if (math/float32? (first old-value))
-                       properties/round-scalar-coarse-float
-                       properties/round-scalar-coarse)
-              ^Color c (.getValue color-picker)
-              new-value (-> (coll/empty-with-meta old-value)
-                            (conj (num-fn (.getRed c)))
-                            (conj (num-fn (.getGreen c)))
-                            (conj (num-fn (.getBlue c)))
-                            (conj (num-fn (.getOpacity c))))
-              values (if (:ignore-alpha? edit-type)
-                       (let [old-values (properties/values property)
-                             old-alphas (map #(nth % 3) old-values)]
-                         (mapv #(assoc new-value 3 %) old-alphas))
-                       (repeat new-value))]
-          (properties/set-values! property values))))
-    [color-picker update-ui-fn]))
+(defn- value->color [v]
+  (let [[r g b a] v]
+    (Color. r g b a)))
+
+(defn- color->web-string [^Color c ignore-alpha]
+  (cond->> (nnext (.toString c))
+    ignore-alpha (drop-last 2)
+    :always (apply str "#")))
+
+(defmethod create-property-control! types/Color [edit-type {:keys [color-dropper-view]} property-fn]
+  (let [wrapper (doto (HBox.)
+                  (.setPrefWidth Double/MAX_VALUE))
+        pick-fn (fn [c] (set-color-value! property-fn (:ignore-alpha? edit-type) c))
+        color-dropper (doto (Button. "" (jfx/get-image-view "icons/32/Icons_M_03_colorpicker.png" 16))
+                        (ui/add-style! "color-dropper")
+                        (AnchorPane/setRightAnchor 0.0)
+                        (ui/on-click! (fn [^MouseEvent event] (color-dropper/activate! color-dropper-view pick-fn event))))
+        text (TextField.)
+        color-picker (ColorPicker.)
+        ignore-alpha (:ignore-alpha? edit-type)
+        value->display-color #(some-> % value->color (color->web-string ignore-alpha))
+        pane (doto (AnchorPane. (ui/node-array [text color-dropper]))
+               (HBox/setHgrow Priority/ALWAYS)
+               (ui/add-style! "color-pane"))
+        update-ui-fn (fn [values message read-only?]
+                       (update-text-fn text value->display-color values message read-only?)
+                       (.setValue color-picker (some-> (properties/unify-values values) value->color))
+                       (update-field-message [color-picker] message)
+                       (ui/editable! color-picker (not read-only?)))
+        cancel-fn (fn [_]
+                    (let [property (property-fn)
+                          current-vals (properties/values property)]
+                      (update-ui-fn current-vals
+                                    (properties/validation-message property)
+                                    (properties/read-only? property))))
+        commit-fn (fn [_]
+                    (when-let [c (try (Color/valueOf (ui/text text))
+                                      (catch Exception _e (cancel-fn nil)))]
+                      (set-color-value! property-fn ignore-alpha c)))]
+    (doto text
+      (AnchorPane/setTopAnchor 0.0)
+      (AnchorPane/setBottomAnchor 0.0)
+      (AnchorPane/setRightAnchor 0.0)
+      (AnchorPane/setLeftAnchor 0.0)
+      (ui/add-style! "color-input")
+      (customize! commit-fn cancel-fn))
+    (ui/on-action! color-picker (fn [_]
+                                  (let [c (.getValue color-picker)]
+                                    (set-color-value! property-fn ignore-alpha c)
+                                    (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true))))
+    (ui/children! wrapper [pane color-picker])
+    [wrapper update-ui-fn]))
 
 (defmethod create-property-control! :choicebox [{:keys [options]} _ property-fn]
   (let [combo-box (fuzzy-combo-box/make options)
@@ -951,19 +989,21 @@
   (input project g/Any)
   (input app-view g/NodeID)
   (input search-results-view g/NodeID)
+  (input color-dropper-view g/NodeID)
   (input selected-node-properties g/Any)
 
-  (output pane Pane :cached (g/fnk [parent-view workspace project app-view search-results-view selected-node-properties]
+  (output pane Pane :cached (g/fnk [parent-view workspace project app-view search-results-view selected-node-properties color-dropper-view]
                                    (let [context {:workspace workspace
                                                   :project project
                                                   :app-view app-view
-                                                  :search-results-view search-results-view}]
+                                                  :search-results-view search-results-view
+                                                  :color-dropper-view color-dropper-view}]
                                      ;; Collecting the properties and then updating the view takes some time, but has no immediacy
                                      ;; This is effectively time-slicing it over two "frames" (or whenever JavaFX decides to run the second part)
                                      (ui/run-later
                                        (update-pane! parent-view context selected-node-properties))))))
 
-(defn make-properties-view [workspace project app-view search-results-view view-graph ^Node parent]
+(defn make-properties-view [workspace project app-view search-results-view view-graph color-dropper-view ^Node parent]
   (first
     (g/tx-nodes-added
       (g/transact
@@ -972,4 +1012,5 @@
           (g/connect project :_node-id view :project)
           (g/connect app-view :_node-id view :app-view)
           (g/connect app-view :selected-node-properties view :selected-node-properties)
-          (g/connect search-results-view :_node-id view :search-results-view))))))
+          (g/connect search-results-view :_node-id view :search-results-view)
+          (g/connect color-dropper-view :_node-id view :color-dropper-view))))))
