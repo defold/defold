@@ -158,15 +158,7 @@ struct ThreadData
 
 static Sample* AllocateNewSample(ThreadData* td)
 {
-    static Sample g_DummySample = {
-        .m_Parent = 0,
-        .m_FirstChild = 0,
-        .m_LastChild = 0,
-        .m_Sibling = 0,
-        .m_Start = 0,
-        .m_Length = 0,
-        .m_LengthChildren = 0,
-        .m_NameHash = 0 };
+    static Sample g_DummySample = { 0 };
 
     if (td->m_SamplePool.Full())
     {
