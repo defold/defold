@@ -180,6 +180,7 @@ namespace dmSound
     {
         dmhash_t m_NameHash;
         Value    m_Gain;
+        float    m_GainParameter;
         float*   m_MixBuffer[SOUND_MAX_MIX_CHANNELS];
         float    m_SumSquaredMemory[SOUND_MAX_MIX_CHANNELS * GROUP_MEMORY_BUFFER_COUNT];
         float    m_PeakMemorySq[SOUND_MAX_MIX_CHANNELS * GROUP_MEMORY_BUFFER_COUNT];
@@ -281,6 +282,20 @@ namespace dmSound
         return RESULT_DEVICE_NOT_FOUND;
     }
 
+    static float GainToScale(float gain)
+    {
+        gain = dmMath::Clamp(gain, 0.0f, 1.0f);
+        // Convert "gain" to scale so progression over the range 'feels' linear
+        // (roughly 60dB(A) range assumed; rough approximation would be simply X^4 -- if this ever is too costly)
+        const float l = 0.1f;   // linear taper-off range
+        const float a = 1e-3f;
+        const float b = 6.908f;
+        float scale = a * expf(gain * b);
+        if (gain < l)
+            scale *= gain * (1.0f / l);
+        return dmMath::Min(scale, 1.0f);
+    }
+
     static int GetOrCreateGroup(const char* group_name)
     {
         dmhash_t group_hash = dmHashString64(group_name);
@@ -297,7 +312,8 @@ namespace dmSound
         uint32_t index = sound->m_GroupMap.Size();
         SoundGroup* group = &sound->m_Groups[index];
         group->m_NameHash = group_hash;
-        group->m_Gain.Reset(1.0f);
+        group->m_GainParameter = 1.0f;
+        group->m_Gain.Reset(GainToScale(group->m_GainParameter));
 
         for(uint32_t c=0; c<SOUND_MAX_MIX_CHANNELS; ++c)
         {
@@ -433,7 +449,8 @@ namespace dmSound
 
         int master_index = GetOrCreateGroup("master");
         SoundGroup* master = &sound->m_Groups[master_index];
-        master->m_Gain.Reset(master_gain);
+        master->m_GainParameter = master_gain;
+        master->m_Gain.Reset(GainToScale(master->m_GainParameter));
 
         dmAtomicStore32(&sound->m_IsRunning, 1);
         dmAtomicStore32(&sound->m_IsPaused, 0);
@@ -853,7 +870,8 @@ namespace dmSound
             }
         }
         SoundGroup* group = &sound->m_Groups[*index];
-        group->m_Gain.Set(gain, reset);
+        group->m_Gain.Set(GainToScale(gain), reset);
+        group->m_GainParameter = gain;
         return RESULT_OK;
     }
 
@@ -867,7 +885,7 @@ namespace dmSound
         }
 
         SoundGroup* group = &sound->m_Groups[*index];
-        *gain = group->m_Gain.m_Next;
+        *gain = group->m_GainParameter;
         return RESULT_OK;
     }
 
@@ -1035,7 +1053,7 @@ namespace dmSound
         {
             case PARAMETER_GAIN:
                 {
-                    sound_instance->m_Gain.Set(dmMath::Max(0.0f, value.getX()), reset);
+                    sound_instance->m_Gain.Set(GainToScale(value.getX()), reset);
                     // Trigger volume scale updates as soon as we know how many channels the instance has
                     // (we might not have that info initially)
                     sound_instance->m_ScaleDirty = 1;
