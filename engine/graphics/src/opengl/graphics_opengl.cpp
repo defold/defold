@@ -480,62 +480,54 @@ static void LogFrameBufferError(GLenum status)
 
     OpenGLContext* g_Context = 0x0;
 
-    static void UpdateGLHandle(HContext context, HOpenglID idx, GLuint handle)
+    static HOpenglID AddNewGLHandle(HContext _context, GLuint handle)
     {
-        OpenGLContext* gl_context = (OpenGLContext*)context;
-        gl_context->m_AllGLHandles[idx] = handle;
-    }
+        OpenGLContext* context = (OpenGLContext*) _context;
 
-    static HOpenglID AddNewGLHandle(HContext context, GLuint handle)
-    {
-        OpenGLContext* gl_context = (OpenGLContext*)context;
-        HOpenglID result_idx = gl_context->m_AllGLHandles.Size();
-        if (!gl_context->m_FreeIndexes.Empty())
+        ScopedLock lock(context->m_GLHandlesData.m_Mutex);
+        HOpenglID result_idx = context->m_GLHandlesData.m_AllGLHandles.Size();
+        if (!context->m_GLHandlesData.m_FreeIndexes.Empty())
         {
-            result_idx = gl_context->m_FreeIndexes.Back();
-            gl_context->m_FreeIndexes.Pop();
+            result_idx = context->m_GLHandlesData.m_FreeIndexes.Back();
+            context->m_GLHandlesData.m_FreeIndexes.Pop();
         }
         else
         {
-            if (gl_context->m_AllGLHandles.Full())
+            if (context->m_GLHandlesData.m_AllGLHandles.Full())
             {
-                gl_context->m_AllGLHandles.OffsetCapacity(32);
+                context->m_GLHandlesData.m_AllGLHandles.OffsetCapacity(32);
             }
-            gl_context->m_AllGLHandles.Push(0);
+            context->m_GLHandlesData.m_AllGLHandles.Push(0);
         }
 
-        UpdateGLHandle(context, result_idx, handle);
+        context->m_GLHandlesData.m_AllGLHandles[result_idx] = handle;
         return result_idx;
     }
 
-    // Unused?
-    static bool IsGLHandleValid(HContext context, HOpenglID idx)
+    static inline GLuint GetGLHandle(HContext _context, HOpenglID idx)
     {
-        OpenGLContext* gl_context = (OpenGLContext*)context;
-        return idx < gl_context->m_AllGLHandles.Size() && gl_context->m_AllGLHandles[idx] != 0;
+        OpenGLContext* context = (OpenGLContext*) _context;
+        ScopedLock lock(context->m_GLHandlesData.m_Mutex);
+        return context->m_GLHandlesData.m_AllGLHandles[idx];
     }
 
-    static GLuint GetGLHandle(HContext context, HOpenglID idx)
+    static inline GLuint* GetGLHandlePointer(HContext _context, HOpenglID idx)
     {
-        OpenGLContext* gl_context = (OpenGLContext*)context;
-        return gl_context->m_AllGLHandles[idx];
+        OpenGLContext* context = (OpenGLContext*) _context;
+        ScopedLock lock(context->m_GLHandlesData.m_Mutex);
+        return &(context->m_GLHandlesData.m_AllGLHandles[idx]);
     }
 
-    static GLuint* GetGLHandlePointer(HContext context, HOpenglID idx)
+    static inline void CleanupGLHandle(HContext _context, HOpenglID idx)
     {
-        OpenGLContext* gl_context = (OpenGLContext*)context;
-        return &(gl_context->m_AllGLHandles[idx]);
-    }
-
-    static void CleanupGLHandle(HContext context, HOpenglID idx)
-    {
-        OpenGLContext* gl_context = (OpenGLContext*)context;
-        gl_context->m_AllGLHandles[idx] = 0;
-        if (gl_context->m_FreeIndexes.Full())
+        OpenGLContext* context = (OpenGLContext*) _context;
+        ScopedLock lock(context->m_GLHandlesData.m_Mutex);
+        context->m_GLHandlesData.m_AllGLHandles[idx] = 0;
+        if (context->m_GLHandlesData.m_FreeIndexes.Full())
         {
-            gl_context->m_FreeIndexes.OffsetCapacity(32);
+            context->m_GLHandlesData.m_FreeIndexes.OffsetCapacity(32);
         }
-        gl_context->m_FreeIndexes.Push(idx);
+        context->m_GLHandlesData.m_FreeIndexes.Push(idx);
     }
 
 
@@ -569,8 +561,8 @@ static void LogFrameBufferError(GLenum status)
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_16BPP;
         m_IndexBufferFormatSupport |= 1 << INDEXBUFFER_FORMAT_16;
 
-        m_AllGLHandles.SetCapacity(1024);
-        m_FreeIndexes.SetCapacity(256);
+        m_GLHandlesData.m_AllGLHandles.SetCapacity(1024);
+        m_GLHandlesData.m_FreeIndexes.SetCapacity(256);
 
         DM_STATIC_ASSERT(sizeof(m_TextureFormatSupport) * 8 >= TEXTURE_FORMAT_COUNT, Invalid_Struct_Size );
     }
@@ -736,6 +728,12 @@ static void LogFrameBufferError(GLenum status)
             dmAtomicStore32(&context->m_DeleteContextRequested, 1);
             AcquireAuxContextOnThread(context, false);
             ResetSetTextureAsyncState(context->m_SetTextureAsyncState);
+
+            if (context->m_GLHandlesData.m_Mutex)
+            {
+                dmMutex::Delete(context->m_GLHandlesData.m_Mutex);
+            }
+
             delete context;
             g_Context = 0x0;
         }
@@ -1498,6 +1496,8 @@ static void LogFrameBufferError(GLenum status)
 
             InitializeSetTextureAsyncState(context->m_SetTextureAsyncState);
 
+            context->m_GLHandlesData.m_Mutex = dmMutex::New();
+
             if (context->m_JobThread == 0x0)
             {
                 dmLogError("AsyncInitialize: Platform has async support but no job thread. Fallback to single thread processing.");
@@ -1507,6 +1507,12 @@ static void LogFrameBufferError(GLenum status)
             {
                 dmLogDebug("AsyncInitialize: Failed to verify async job processing. Fallback to single thread processing.");
                 context->m_AsyncProcessingSupport = 0;
+            }
+
+            if (!context->m_AsyncProcessingSupport)
+            {
+                dmMutex::Delete(context->m_GLHandlesData.m_Mutex);
+                context->m_GLHandlesData.m_Mutex = 0;
             }
         }
 
@@ -4911,11 +4917,12 @@ static void LogFrameBufferError(GLenum status)
         return GetGLHandle(_context, rt->m_Id);
     }
 
-    static void OpenGLInvalidateGraphicsHandles(HContext context)
+    static void OpenGLInvalidateGraphicsHandles(HContext _context)
     {
-        OpenGLContext* gl_context = (OpenGLContext*) context;
+        OpenGLContext* context = (OpenGLContext*) _context;
+        ScopedLock lock(context->m_GLHandlesData.m_Mutex);
         // Set all handles to 0. It indicates that handles not valid.
-        memset(gl_context->m_AllGLHandles.Begin(), 0, (gl_context->m_AllGLHandles.End() - gl_context->m_AllGLHandles.Begin()) * sizeof(uint32_t));
+        memset(context->m_GLHandlesData.m_AllGLHandles.Begin(), 0, (context->m_GLHandlesData.m_AllGLHandles.End() - context->m_GLHandlesData.m_AllGLHandles.Begin()) * sizeof(uint32_t));
     }
 
     GLenum TEXTURE_UNIT_NAMES[32] =
