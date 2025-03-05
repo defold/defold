@@ -99,6 +99,8 @@ namespace dmProfileRender
 
     void Draw(HRenderProfile render_profile, dmRender::HRenderContext render_context, dmRender::HFontMap font_map);
 
+    void DumpFrame(ProfilerFrame* frame);
+
     //
     void ClearProfilerThreadSamples(ProfilerThread* thread);
     ProfilerThread* FindOrCreateProfilerThread(ProfilerFrame* ctx, uint32_t name_hash);

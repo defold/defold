@@ -108,7 +108,7 @@ static void JobThread(void* _ctx)
         }
 
         {
-            DM_PROFILE("JobThread");
+            DM_PROFILE("JobThreadProcess");
             item.m_Result = item.m_Process(item.m_Context, item.m_Data);
             PutDone(ctx, &item);
         }
@@ -117,6 +117,7 @@ static void JobThread(void* _ctx)
 #else
 static void UpdateSingleThread(JobThreadContext* ctx)
 {
+    DM_PROFILE("SingleThread");
     if (ctx->m_Work.Empty())
         return;
     // TODO: Perhaps time scope a number of items!
@@ -200,7 +201,7 @@ uint32_t GetWorkerCount(HContext context)
 
 void Update(HContext context)
 {
-    DM_PROFILE("Update");
+    DM_PROFILE("JobThreadUpdate");
 
 #if !defined(DM_HAS_THREADS)
     UpdateSingleThread(&context->m_ThreadContext);

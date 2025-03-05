@@ -224,6 +224,16 @@ def build(bld):
                                       target       = 'profile_noasan')
         libprofile_noasan.source = libprofile.source
 
+    libprofile_includes = '. ./dlib/profile'
+    libprofile_defines = extra_defines
+
+    # defold version
+    libprofile_basic = bld.stlib(features   = libprofile_features,
+                                includes     = libprofile_includes,
+                                defines      = libprofile_defines,
+                                source       = 'dlib/profile/profile.cpp dlib/profile/profile_basic.cpp',
+                                target       = 'profile_basic')
+
     # null version
     libprofile_null = bld.stlib(features     = libprofile_features,
                                 includes     = libprofile_includes,

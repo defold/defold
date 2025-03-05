@@ -865,5 +865,75 @@ namespace dmProfileRender
         frame->m_Properties.Push(prop);
     }
 
+    static const char* GetIndent(int i)
+    {
+        static char buf[512];
+        uint32_t count = i * 4;
+        if (count >= sizeof(buf))
+            count = sizeof(buf) - 1;
+
+        memset(buf, ' ', count);
+        buf[count] = 0;
+        return buf;
+    }
+
+    static void DumpThread(ProfilerThread* thread)
+    {
+        const float ticks_per_second = 1000000.0f;
+        float frame_time_f = thread->m_SamplesTotalTime / ticks_per_second;
+        dmLogInfo("%sThread '%s': %f", GetIndent(1), dmHashReverseSafe32(thread->m_NameHash), frame_time_f);
+
+        uint32_t num_samples = thread->m_Samples.Size();
+        for (uint32_t i = 0; i < num_samples; ++i)
+        {
+            ProfilerSample& sample = thread->m_Samples[i];
+            float time = (sample.m_Time * 1000) / (float)ticks_per_second; // in milliseconds
+            float self_time = (sample.m_SelfTime * 1000) / (float)ticks_per_second; // in milliseconds
+
+            dmLogInfo("%s'%s': time: %.3f ms self: %.3f ms  count: %u", GetIndent(sample.m_Indent+1), dmHashReverseSafe32(sample.m_NameHash), time, self_time, sample.m_Count);
+        }
+    }
+
+    static void DumpProperties(ProfilerFrame* frame)
+    {
+        uint32_t num_properties = frame->m_Properties.Size();
+        for (uint32_t i = 0; i < num_properties; ++i)
+        {
+            const ProfilerProperty& property = frame->m_Properties[i];
+
+            char buffer[128];
+            switch(property.m_Type)
+            {
+            case dmProfile::PROPERTY_TYPE_BOOL:  dmSnPrintf(buffer, sizeof(buffer), "%s", property.m_Value.m_Bool?"True":"False"); break;
+            case dmProfile::PROPERTY_TYPE_S32:   dmSnPrintf(buffer, sizeof(buffer), "%d", property.m_Value.m_S32); break;
+            case dmProfile::PROPERTY_TYPE_U32:   dmSnPrintf(buffer, sizeof(buffer), "%u", property.m_Value.m_U32); break;
+            case dmProfile::PROPERTY_TYPE_F32:   dmSnPrintf(buffer, sizeof(buffer), "%f", property.m_Value.m_F32); break;
+            case dmProfile::PROPERTY_TYPE_S64:   dmSnPrintf(buffer, sizeof(buffer), "%lld", (long long)property.m_Value.m_S64); break;
+            case dmProfile::PROPERTY_TYPE_U64:   dmSnPrintf(buffer, sizeof(buffer), "%llx", (unsigned long long)property.m_Value.m_U64); break;
+            case dmProfile::PROPERTY_TYPE_F64:   dmSnPrintf(buffer, sizeof(buffer), "%g", property.m_Value.m_F64); break;
+            case dmProfile::PROPERTY_TYPE_GROUP: dmSnPrintf(buffer, sizeof(buffer), ""); break;
+            default: break;
+            }
+
+            dmLogInfo("%s'%s': %s", GetIndent(property.m_Indent+1), dmHashReverseSafe32(property.m_NameHash), buffer);
+        }
+    }
+
+    void DumpFrame(ProfilerFrame* frame)
+    {
+        dmLogInfo("**********************************************************************");
+        dmLogInfo("**********************************************************************");
+        dmLogInfo("Profiler threads:");
+        for (uint32_t i = 0; i < frame->m_Threads.Size(); ++i)
+        {
+            DumpThread(frame->m_Threads[i]);
+        }
+
+        dmLogInfo("");
+        dmLogInfo("Profiler properties:");
+
+        DumpProperties(frame);
+        dmLogInfo("**********************************************************************");
+    }
 
 } // namespace dmProfileRender
