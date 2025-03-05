@@ -510,8 +510,8 @@ static void* EngineCreate(int argc, char** argv)
     //engine->m_Test = new ComputeTest();
     //engine->m_Test = new StorageBufferTest();
     //engine->m_Test = new ReadPixelsTest();
-    //engine->m_Test = new AsyncTextureUploadTest();
-    engine->m_Test = new ClearBackbufferTest();
+    engine->m_Test = new AsyncTextureUploadTest();
+    // engine->m_Test = new ClearBackbufferTest();
     engine->m_Test->Initialize(engine);
 
     engine->m_WasCreated++;
