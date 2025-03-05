@@ -504,20 +504,23 @@ static void LogFrameBufferError(GLenum status)
         return result_idx;
     }
 
-    static inline GLuint GetGLHandle(OpenGLContext* context, HOpenglID idx)
+    static inline GLuint GetGLHandle(HContext _context, HOpenglID idx)
     {
+        OpenGLContext* context = (OpenGLContext*) _context;
         ScopedLock lock(context->m_GLHandlesData.m_Mutex);
         return context->m_GLHandlesData.m_AllGLHandles[idx];
     }
 
-    static inline GLuint* GetGLHandlePointer(OpenGLContext* context, HOpenglID idx)
+    static inline GLuint* GetGLHandlePointer(HContext _context, HOpenglID idx)
     {
+        OpenGLContext* context = (OpenGLContext*) _context;
         ScopedLock lock(context->m_GLHandlesData.m_Mutex);
         return &(context->m_GLHandlesData.m_AllGLHandles[idx]);
     }
 
-    static inline void CleanupGLHandle(OpenGLContext* context, HOpenglID idx)
+    static inline void CleanupGLHandle(HContext _context, HOpenglID idx)
     {
+        OpenGLContext* context = (OpenGLContext*) _context;
         ScopedLock lock(context->m_GLHandlesData.m_Mutex);
         context->m_GLHandlesData.m_AllGLHandles[idx] = 0;
         if (context->m_GLHandlesData.m_FreeIndexes.Full())
