@@ -1502,6 +1502,7 @@ static void LogFrameBufferError(GLenum status)
             InitializeSetTextureAsyncState(context->m_SetTextureAsyncState);
 
             context->m_GLHandlesData.m_Mutex = dmMutex::New();
+            context->m_AssetHandleContainerMutex = dmMutex::New();
 
             if (context->m_JobThread == 0x0)
             {
@@ -1517,6 +1518,10 @@ static void LogFrameBufferError(GLenum status)
             if (!context->m_AsyncProcessingSupport)
             {
                 dmMutex::Delete(context->m_GLHandlesData.m_Mutex);
+                context->m_GLHandlesData.m_Mutex = 0;
+
+                dmMutex::Delete(context->m_AssetHandleContainerMutex);
+                context->m_AssetHandleContainerMutex = 0;
             }
         }
 
@@ -3716,11 +3721,13 @@ static void LogFrameBufferError(GLenum status)
         tex->m_DataState = 0;
         tex->m_ResourceSize = 0;
 
+        ScopedLock lock(context->m_AssetHandleContainerMutex);
         return StoreAssetInContainer(context->m_AssetHandleContainer, tex, ASSET_TYPE_TEXTURE);
     }
 
     static void DoDeleteTexture(OpenGLContext* context, HTexture texture)
     {
+        ScopedLock lock(context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
 
         // Even if we check for validity when the texture was flagged for async deletion,
@@ -3750,15 +3757,16 @@ static void LogFrameBufferError(GLenum status)
         return 0;
     }
 
-    static void OpenGLDeleteTextureAsync(HTexture texture)
+    static void OpenGLDeleteTextureAsync(OpenGLContext* context, HTexture texture)
     {
-        if (g_Context->m_AsyncProcessingSupport)
+        if (context->m_AsyncProcessingSupport)
         {
-            dmJobThread::PushJob(g_Context->m_JobThread, AsyncDeleteTextureProcess, 0, (void*) g_Context, (void*) texture);
+            ScopedLock lock(context->m_AssetHandleContainerMutex);
+            dmJobThread::PushJob(context->m_JobThread, AsyncDeleteTextureProcess, 0, (void*) context, (void*) texture);
         }
         else
         {
-            DoDeleteTexture(g_Context, texture);
+            DoDeleteTexture(context, texture);
         }
     }
 
@@ -3782,7 +3790,7 @@ static void LogFrameBufferError(GLenum status)
             HTexture texture = context->m_SetTextureAsyncState.m_PostDeleteTextures[i];
             if(!(dmGraphics::GetTextureStatusFlags(texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING))
             {
-                OpenGLDeleteTextureAsync(texture);
+                OpenGLDeleteTextureAsync(context, texture);
                 context->m_SetTextureAsyncState.m_PostDeleteTextures.EraseSwap(i);
             }
             else
@@ -3807,7 +3815,7 @@ static void LogFrameBufferError(GLenum status)
         }
         else
         {
-            OpenGLDeleteTextureAsync(texture);
+            OpenGLDeleteTextureAsync(g_Context, texture);
         }
     }
 
@@ -3859,7 +3867,12 @@ static void LogFrameBufferError(GLenum status)
 
     static void OpenGLSetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
     {
+        ScopedLock lock(g_Context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
+        if (tex == 0x0)
+        {
+            return;
+        }
 
         GLenum gl_type       = GetOpenGLTextureType(tex->m_Type);
         GLenum gl_min_filter = GetOpenGLTextureFilter(minfilter == TEXTURE_FILTER_DEFAULT ? g_Context->m_DefaultTextureMinFilter : minfilter);
@@ -3892,18 +3905,21 @@ static void LogFrameBufferError(GLenum status)
 
     static uint8_t OpenGLGetNumTextureHandles(HTexture texture)
     {
+        ScopedLock lock(g_Context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
-        assert(tex);
-        return tex->m_NumTextureIds;
+        return tex ? tex->m_NumTextureIds : 0;
     }
 
     static uint32_t OpenGLGetTextureUsageHintFlags(HTexture texture)
     {
-        return GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture)->m_UsageHintFlags;
+        ScopedLock lock(g_Context->m_AssetHandleContainerMutex);
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
+        return tex ? tex->m_UsageHintFlags : 0;
     }
 
     static uint32_t OpenGLGetTextureStatusFlags(HTexture texture)
     {
+        ScopedLock lock(g_Context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
         uint32_t flags     = TEXTURE_STATUS_OK;
         if(tex && dmAtomicGet32(&tex->m_DataState))
@@ -3933,6 +3949,7 @@ static void LogFrameBufferError(GLenum status)
         SetTexture(ap.m_Texture, ap.m_Params);
         glFlush();
 
+        ScopedLock lock(context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, ap.m_Texture);
         int32_t data_state = dmAtomicGet32(&tex->m_DataState);
         data_state &= ~(1<<ap.m_Params.m_MipMap);
@@ -3959,6 +3976,7 @@ static void LogFrameBufferError(GLenum status)
     {
         if (g_Context->m_AsyncProcessingSupport)
         {
+            ScopedLock lock(g_Context->m_AssetHandleContainerMutex);
             OpenGLTexture* tex         = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
             tex->m_DataState          |= 1<<params.m_MipMap;
             uint16_t param_array_index = PushSetTextureAsyncState(g_Context->m_SetTextureAsyncState, texture, params, callback, user_data);
@@ -3977,6 +3995,7 @@ static void LogFrameBufferError(GLenum status)
 
     static HandleResult OpenGLGetTextureHandle(HTexture texture, void** out_handle)
     {
+        ScopedLock lock(g_Context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
         *out_handle = 0x0;
 
@@ -4170,6 +4189,7 @@ static void LogFrameBufferError(GLenum status)
             CHECK_GL_ERROR;
         }
 
+        ScopedLock lock(g_Context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
 
         tex->m_MipMapCount = dmMath::Max(tex->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
@@ -4405,6 +4425,7 @@ static void LogFrameBufferError(GLenum status)
     // NOTE: This is an approximation
     static uint32_t OpenGLGetTextureResourceSize(HTexture texture)
     {
+        ScopedLock lock(g_Context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
         if (!tex)
         {
@@ -4424,37 +4445,51 @@ static void LogFrameBufferError(GLenum status)
 
     static uint16_t OpenGLGetTextureWidth(HTexture texture)
     {
-        return GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture)->m_Width;
+        ScopedLock lock(g_Context->m_AssetHandleContainerMutex);
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
+        return tex ? tex->m_Width : 0;
     }
 
     static uint16_t OpenGLGetTextureHeight(HTexture texture)
     {
-        return GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture)->m_Height;
+        ScopedLock lock(g_Context->m_AssetHandleContainerMutex);
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
+        return tex ? tex->m_Height : 0;
     }
 
     static uint16_t OpenGLGetOriginalTextureWidth(HTexture texture)
     {
-        return GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture)->m_OriginalWidth;
+        ScopedLock lock(g_Context->m_AssetHandleContainerMutex);
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
+        return tex ? tex->m_OriginalWidth : 0;
     }
 
     static uint16_t OpenGLGetOriginalTextureHeight(HTexture texture)
     {
-        return GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture)->m_OriginalHeight;
+        ScopedLock lock(g_Context->m_AssetHandleContainerMutex);
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
+        return tex ? tex->m_OriginalHeight : 0;
     }
 
     static TextureType OpenGLGetTextureType(HTexture texture)
     {
-        return GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture)->m_Type;
+        ScopedLock lock(g_Context->m_AssetHandleContainerMutex);
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
+        return tex ? tex->m_Type : TEXTURE_TYPE_2D;
     }
 
     static uint16_t OpenGLGetTextureDepth(HTexture texture)
     {
-        return GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture)->m_Depth;
+        ScopedLock lock(g_Context->m_AssetHandleContainerMutex);
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
+        return tex ? tex->m_Depth : 0;
     }
 
     static uint8_t OpenGLGetTextureMipmapCount(HTexture texture)
     {
-        return GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture)->m_MipMapCount;
+        ScopedLock lock(g_Context->m_AssetHandleContainerMutex);
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
+        return tex ? tex->m_MipMapCount : 0;
     }
 
 #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
@@ -4520,7 +4555,14 @@ static void LogFrameBufferError(GLenum status)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         assert(GetAssetType(texture) == ASSET_TYPE_TEXTURE);
+
+        ScopedLock lock(context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
+        if (!tex)
+        {
+            return;
+        }
+
         assert(id_index < tex->m_NumTextureIds);
 
 #if !defined(GL_ES_VERSION_3_0) && defined(GL_ES_VERSION_2_0) && !defined(__EMSCRIPTEN__)  && !defined(ANDROID)
@@ -4553,7 +4595,14 @@ static void LogFrameBufferError(GLenum status)
 #endif
 
         OpenGLContext* context = (OpenGLContext*) _context;
-        OpenGLTexture* tex     = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
+
+        ScopedLock lock(context->m_AssetHandleContainerMutex);
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
+
+        if (!tex)
+        {
+            return;
+        }
 
         glActiveTexture(TEXTURE_UNIT_NAMES[unit]);
         CHECK_GL_ERROR;
@@ -4856,6 +4905,7 @@ static void LogFrameBufferError(GLenum status)
         OpenGLContext* context = (OpenGLContext*) _context;
         AssetType type         = GetAssetType(asset_handle);
 
+        ScopedLock lock(context->m_AssetHandleContainerMutex);
         if (type == ASSET_TYPE_TEXTURE)
         {
             return GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, asset_handle) != 0;

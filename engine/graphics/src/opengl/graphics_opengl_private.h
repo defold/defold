@@ -133,7 +133,7 @@ namespace dmGraphics
     */
     struct OpenGLHandlesData
     {
-        dmMutex::HMutex    m_Mutex;
+        dmMutex::HMutex    m_Mutex; /// Guards access to m_AllGLHandles and m_FreeIndexes
         dmArray<GLuint>    m_AllGLHandles;
         dmArray<HOpenglID> m_FreeIndexes; /// contains indexes that can be reused in m_AllGLHandles
     };
@@ -153,6 +153,7 @@ namespace dmGraphics
 
         OpenGLProgram*          m_CurrentProgram;
 
+        dmMutex::HMutex                    m_AssetHandleContainerMutex;
         dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
         OpenGLHandlesData       m_GLHandlesData;
 
