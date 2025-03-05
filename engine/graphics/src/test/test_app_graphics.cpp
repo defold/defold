@@ -162,8 +162,9 @@ struct EngineCtx
 
     uint64_t m_TimeStart;
 
-    dmPlatform::HWindow  m_Window;
-    dmGraphics::HContext m_GraphicsContext;
+    dmPlatform::HWindow   m_Window;
+    dmGraphics::HContext  m_GraphicsContext;
+    dmJobThread::HContext m_JobThread;
 
     ITest* m_Test;
     bool m_WindowClosed;
@@ -219,6 +220,109 @@ struct ReadPixelsTest : ITest
 
         dmGraphics::ReadPixels(engine->m_GraphicsContext, m_Buffer, 512 * 512 * 4);
         dmLogInfo("%d, %d, %d, %d", m_Buffer[0], m_Buffer[1], m_Buffer[2], m_Buffer[3]);
+    }
+};
+
+struct AsyncTextureUploadTest : ITest
+{
+    struct Texture
+    {
+        dmGraphics::HTexture m_Texture;
+        dmGraphics::TextureParams m_Params;
+    };
+
+    dmArray<Texture> m_Textures;
+
+    Texture NewTexture(dmGraphics::HContext context)
+    {
+        dmGraphics::TextureCreationParams creation_params;
+        dmGraphics::TextureParams params;
+
+        const uint32_t WIDTH = 128;
+        const uint32_t HEIGHT = 128;
+
+        creation_params.m_Width = WIDTH;
+        creation_params.m_Height = HEIGHT;
+        creation_params.m_OriginalWidth = WIDTH;
+        creation_params.m_OriginalHeight = HEIGHT;
+
+        params.m_DataSize = WIDTH * HEIGHT;
+        params.m_Data = new char[params.m_DataSize];
+        params.m_Width = WIDTH;
+        params.m_Height = HEIGHT;
+        params.m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
+
+        Texture texture = {};
+        texture.m_Texture = dmGraphics::NewTexture(context, creation_params);
+        texture.m_Params = params;
+
+        return texture;
+    }
+
+    void CheckTexture(dmGraphics::HContext context, dmGraphics::HTexture texture)
+    {
+        dmGraphics::SetTextureParams(texture, dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_WRAP_REPEAT, 0.0f);
+        dmGraphics::GetTextureResourceSize(texture);
+        dmGraphics::GetTextureWidth(texture);
+        dmGraphics::GetTextureHeight(texture);
+        dmGraphics::GetTextureDepth(texture);
+        dmGraphics::GetOriginalTextureWidth(texture);
+        dmGraphics::GetOriginalTextureHeight(texture);
+        dmGraphics::GetTextureMipmapCount(texture);
+        dmGraphics::GetTextureType(texture);
+        dmGraphics::GetNumTextureHandles(texture);
+        dmGraphics::GetTextureUsageHintFlags(texture);
+
+        dmGraphics::EnableTexture(context, 0, 0, texture);
+        dmGraphics::DisableTexture(context, 0, texture);
+    }
+
+    void CreateTextures(EngineCtx* engine)
+    {
+        const uint32_t TEXTURE_COUNT = 512;
+        m_Textures.SetCapacity(TEXTURE_COUNT);
+
+        for (int i = 0; i < TEXTURE_COUNT; ++i)
+        {
+            if (!m_Textures.Full())
+            {
+                Texture t = NewTexture(engine->m_GraphicsContext);
+                m_Textures.Push(t);
+
+                Texture& back = m_Textures.Back();
+
+                dmGraphics::SetTextureAsync(back.m_Texture, t.m_Params, 0, 0);
+
+                CheckTexture(engine->m_GraphicsContext, back.m_Texture);
+
+                // Immediately delete, so we simulate putting them on a post-delete-queue
+                dmGraphics::DeleteTexture(back.m_Texture);
+            }
+        }
+    }
+
+    void Initialize(EngineCtx* engine) override
+    {
+        CreateTextures(engine);
+    }
+
+    void Execute(EngineCtx* engine) override
+    {
+        for (int i = 0; i < m_Textures.Size(); ++i)
+        {
+            if (!dmGraphics::IsAssetHandleValid(engine->m_GraphicsContext, m_Textures[i].m_Texture))
+            {
+                // Texture deleted
+                free((void*)m_Textures[i].m_Params.m_Data);
+                m_Textures.EraseSwap(i);
+            }
+            else
+            {
+                CheckTexture(engine->m_GraphicsContext, m_Textures[i].m_Texture);
+            }
+        }
+
+        CreateTextures(engine);
     }
 };
 
@@ -382,6 +486,11 @@ static void* EngineCreate(int argc, char** argv)
     dmPlatform::OpenWindow(engine->m_Window, window_params);
     dmPlatform::ShowWindow(engine->m_Window);
 
+    dmJobThread::JobThreadCreationParams job_thread_create_param;
+    job_thread_create_param.m_ThreadNames[0] = "test_jobs";
+    job_thread_create_param.m_ThreadCount    = 1;
+    engine->m_JobThread = dmJobThread::Create(job_thread_create_param);
+
     dmGraphics::ContextParams graphics_context_params = {};
     graphics_context_params.m_DefaultTextureMinFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
     graphics_context_params.m_DefaultTextureMagFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
@@ -390,14 +499,15 @@ static void* EngineCreate(int argc, char** argv)
     graphics_context_params.m_Window                  = engine->m_Window;
     graphics_context_params.m_Width                   = 512;
     graphics_context_params.m_Height                  = 512;
+    graphics_context_params.m_JobThread               = engine->m_JobThread;
 
     engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
 
     //engine->m_Test = new ComputeTest();
-    //engine->m_Test = new ComputeTest();
     //engine->m_Test = new StorageBufferTest();
     //engine->m_Test = new ReadPixelsTest();
-    engine->m_Test = new ClearBackbufferTest();
+    engine->m_Test = new AsyncTextureUploadTest();
+    // engine->m_Test = new ClearBackbufferTest();
     engine->m_Test->Initialize(engine);
 
     engine->m_WasCreated++;
@@ -413,6 +523,10 @@ static void EngineDestroy(void* _engine)
     dmGraphics::CloseWindow(engine->m_GraphicsContext);
     dmGraphics::DeleteContext(engine->m_GraphicsContext);
     dmGraphics::Finalize();
+
+    if (engine->m_JobThread)
+        dmJobThread::Destroy(engine->m_JobThread);
+
     engine->m_WasDestroyed++;
 }
 
@@ -438,6 +552,8 @@ static UpdateResult EngineUpdate(void* _engine)
     {
         return RESULT_EXIT;
     }
+
+    dmJobThread::Update(engine->m_JobThread);
 
     dmGraphics::BeginFrame(engine->m_GraphicsContext);
 

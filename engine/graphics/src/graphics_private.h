@@ -293,6 +293,26 @@ namespace dmGraphics
     void                  ReturnSetTextureAsyncIndex(SetTextureAsyncState& state, uint16_t index);
     void                  PushSetTextureAsyncDeleteTexture(SetTextureAsyncState& state, HTexture texture);
 
+    struct ScopedLock
+    {
+        ScopedLock(dmMutex::HMutex mutex)
+        : m_Mutex(mutex)
+        {
+            if (m_Mutex)
+            {
+                dmMutex::Lock(m_Mutex);
+            }
+        }
+        ~ScopedLock()
+        {
+            if (m_Mutex)
+            {
+                dmMutex::Unlock(m_Mutex);
+            }
+        }
+        dmMutex::HMutex m_Mutex;
+    };
+
     static inline void ClearTextureParamsData(TextureParams& params)
     {
         params.m_Data     = 0x0;
