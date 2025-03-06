@@ -29,6 +29,8 @@ extern "C" {
     int dmGetDeviceSampleRate(int device);
     void dmDeviceJSQueue(int device, const int16_t* samples, uint32_t sample_count);
     int dmDeviceJSFreeBufferSlots(int device);
+
+    // Implementation in library_sys.js
     bool dmGetSIMDCapability();
 }
 
