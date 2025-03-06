@@ -1195,8 +1195,7 @@
   [workspace ^File file]
   (when-let [path (workspace/as-proj-path workspace (.getAbsolutePath file))]
     (when (some (partial str/ends-with? path) image/exts)
-      {:path path
-       :image (workspace/resolve-workspace-resource workspace path)})))
+      {:image (workspace/resolve-workspace-resource workspace path)})))
 
 (defn dragboard->image-msgs
   [dragboard workspace]
