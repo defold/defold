@@ -40,20 +40,21 @@
 (defn- make-resource-server [project]
   (http-server/start!
     (http-server/router-handler
-      {"{*path}" {"GET" (fn [{:keys [path]}]
-                          (if-let [node (project/get-resource-node project path)]
-                            (let [resource (g/node-value node :resource)]
-                              (if (resource/has-view-type? resource :html)
-                                (let [body (g/node-value node :html)]
-                                  (if-let [error (g/error? body)]
-                                    (http-server/response 500 (format "Couldn't render %s: %s\n"
-                                                                      (resource/resource->proj-path resource)
-                                                                      (or (:message error) "Unknown reason")))
-                                    (http-server/response 200 {"content-type" "text/html; charset=utf-8"} body)))
-                                (http-server/response 200 resource)))
-                            (do (log/warn :message (format "Cannot find resource for %s" path))
-                                http-server/not-found)))}})
-    :host "0.0.0.0"))
+      {"{*path}"
+       {"GET" (fn [{:keys [path]}]
+                (if-let [node (project/get-resource-node project path)]
+                  (let [resource (g/node-value node :resource)]
+                    (if (resource/has-view-type? resource :html)
+                      (let [body (g/node-value node :html)]
+                        (if-let [error (g/error? body)]
+                          (http-server/response 500 (format "Couldn't render %s: %s\n"
+                                                            (resource/resource->proj-path resource)
+                                                            (or (:message error) "Unknown reason")))
+                          (http-server/response 200 {"content-type" "text/html; charset=utf-8"} body)))
+                      (http-server/response 200 resource)))
+                  (do (log/warn :message (format "Cannot find resource for %s" path))
+                      http-server/not-found)))}})
+    :host "127.0.0.1"))
 
 ;; make NodeList reducible
 

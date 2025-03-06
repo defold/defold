@@ -198,39 +198,40 @@
 
 (defn router [ui-node render-reload-progress!]
   {"/command" {"GET" (constantly api-response)}
-   "/command/{command}" {"POST" (bound-fn [request]
-                                  (let [command (-> request :path-params :command keyword)]
-                                    (if-let [{:keys [ui-handler resource-sync]} (supported-commands command)]
-                                      (let [ui-handler-ctx (resolve-ui-handler-ctx ui-node ui-handler {})]
-                                        (case ui-handler-ctx
-                                          (::ui/not-active ::ui/not-enabled) http-server/forbidden
-                                          (let [{:keys [changes-view workspace]} (:env (second ui-handler-ctx))
-                                                f (future/make)
-                                                execute-command!
-                                                (bound-fn execute-command! []
-                                                  (try
-                                                    (ui/execute-handler-ctx ui-handler-ctx)
-                                                    (future/complete! f http-server/accepted)
-                                                    (catch Exception error
-                                                      (log/error :msg "Failed to handle command request"
-                                                                 :request request
-                                                                 :exception error)
-                                                      (future/complete! f http-server/internal-server-error))))]
-                                            (assert (g/node-id? changes-view))
-                                            (assert (g/node-id? workspace))
-                                            (log/info :msg "Processing request" :command command)
-                                            (if-not resource-sync
-                                              (ui/run-later (execute-command!))
-                                              (disk/async-reload!
-                                                render-reload-progress! workspace [] changes-view
-                                                (fn async-reload-continuation [success]
-                                                  ;; This callback is executed on the ui thread.
-                                                  (if success
-                                                    (execute-command!)
-                                                    (do
-                                                      ;; Explicitly refresh the UI after the reload, since
-                                                      ;; the ui-handler will not have done so on failure.
-                                                      (ui/user-data! (ui/scene ui-node) ::ui/refresh-requested? true)
-                                                      (future/complete! f http-server/internal-server-error))))))
-                                            f)))
-                                      http-server/not-found)))}})
+   "/command/{command}"
+   {"POST" (bound-fn [request]
+             (let [command (-> request :path-params :command keyword)]
+               (if-let [{:keys [ui-handler resource-sync]} (supported-commands command)]
+                 (let [ui-handler-ctx (resolve-ui-handler-ctx ui-node ui-handler {})]
+                   (case ui-handler-ctx
+                     (::ui/not-active ::ui/not-enabled) http-server/forbidden
+                     (let [{:keys [changes-view workspace]} (:env (second ui-handler-ctx))
+                           result-future (future/make)
+                           execute-command!
+                           (bound-fn execute-command! []
+                             (try
+                               (ui/execute-handler-ctx ui-handler-ctx)
+                               (future/complete! result-future http-server/accepted)
+                               (catch Exception error
+                                 (log/error :msg "Failed to handle command request"
+                                            :request request
+                                            :exception error)
+                                 (future/complete! result-future http-server/internal-server-error))))]
+                       (assert (g/node-id? changes-view))
+                       (assert (g/node-id? workspace))
+                       (log/info :msg "Processing request" :command command)
+                       (if-not resource-sync
+                         (ui/run-later (execute-command!))
+                         (disk/async-reload!
+                           render-reload-progress! workspace [] changes-view
+                           (fn async-reload-continuation [success]
+                             ;; This callback is executed on the ui thread.
+                             (if success
+                               (execute-command!)
+                               (do
+                                 ;; Explicitly refresh the UI after the reload, since
+                                 ;; the ui-handler will not have done so on failure.
+                                 (ui/user-data! (ui/scene ui-node) ::ui/refresh-requested? true)
+                                 (future/complete! result-future http-server/internal-server-error))))))
+                       result-future)))
+                 http-server/not-found)))}})

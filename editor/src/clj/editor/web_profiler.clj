@@ -25,9 +25,10 @@
     (ui/open-url (str (http-server/local-url web-server) "/profiler"))))
 
 (defn routes []
-  {"/profiler" {"GET" (fn [_]
-                        (http-server/response
-                          200
-                          {"content-type" "text/html"}
-                          (-> (slurp (io/resource "profiler_template.html"))
-                              (string/replace "$PROFILER_DATA" (Profiler/dumpJson)))))}})
+  {"/profiler"
+   {"GET" (fn [_]
+            (http-server/response
+              200
+              {"content-type" "text/html"}
+              (-> (slurp (io/resource "profiler_template.html"))
+                  (string/replace "$PROFILER_DATA" (Profiler/dumpJson)))))}})

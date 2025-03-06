@@ -21,6 +21,8 @@
             [editor.web-profiler :as web-profiler]
             [util.http-server :as http-server]))
 
+(set! *warn-on-reflection* trues)
+
 (defn handler [workspace project console-view ui-node render-reload-progress!]
   (http-server/router-handler
     (into [] cat [(engine-profiler/routes)

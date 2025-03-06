@@ -859,7 +859,7 @@ POST http://localhost:23456/echo hello world! as string => 200
                      {"/redirect/foo" {"GET" (constantly (http-server/redirect "/foo"))}
                       "/foo" {"GET" (constantly (http-server/response 200 "successfully redirected"))}
                       "/" {"GET" (constantly (http-server/response 200 ""))}
-                      "/json" {"GET" (constantly (http-server/response 200 "{\"a\": 1, \"b\": [true]}"))}
+                      "/json" {"GET" (constantly (http-server/json-response {:a 1 :b [true]}))}
                       "/echo" {"POST" (fn [request] (http-server/response 200 (:body request)))}})
                    :port 23456)
           out (StringBuilder.)]

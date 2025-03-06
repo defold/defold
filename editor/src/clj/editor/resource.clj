@@ -339,7 +339,7 @@
   (content-type [this] (http-server/ext->content-type (type-ext this)))
   http-server/DataConnection
   (data-connection [_]
-    (let [zip-file (ZipFile. ^File (io/as-file zip-uri))
+    (let [zip-file (ZipFile. (io/file zip-uri))
           entry (.getEntry zip-file zip-entry)]
       (reify
         http-server/DataLength

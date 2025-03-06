@@ -801,26 +801,27 @@
 
 (def lib-server-handler
   (http-server/router-handler
-    {"/lib/{*lib}" {"GET" (fn [request]
-                            (let [lib (-> request :path-params :lib)
-                                  path-offset (count (format "test/resources/%s/" lib))
-                                  ignored #{".internal" "build"}
-                                  file-filter (reify FilenameFilter
-                                                (accept [this file name] (not (contains? ignored name))))
-                                  files (->> (tree-seq (fn [^File f] (.isDirectory f))
-                                                       (fn [^File f] (.listFiles f ^FilenameFilter file-filter))
-                                                       (io/file (format "test/resources/%s" lib)))
-                                             (filter (fn [^File f] (not (.isDirectory f)))))
-                                  baos (ByteArrayOutputStream.)]
-                              (with-open [out (ZipOutputStream. baos)]
-                                (doseq [^File f files]
-                                  (with-open [in (FileInputStream. f)]
-                                    (let [entry (doto (ZipEntry. (subs (.getPath f) path-offset))
-                                                  (.setSize (.length f)))]
-                                      (.putNextEntry out entry)
-                                      (IOUtils/copy in out)
-                                      (.closeEntry out)))))
-                              (http-server/response 200 {"etag" "tag"} (.toByteArray baos))))}}))
+    {"/lib/{*lib}"
+     {"GET" (fn [request]
+              (let [lib (-> request :path-params :lib)
+                    path-offset (count (format "test/resources/%s/" lib))
+                    ignored #{".internal" "build"}
+                    file-filter (reify FilenameFilter
+                                  (accept [this file name] (not (contains? ignored name))))
+                    files (->> (tree-seq (fn [^File f] (.isDirectory f))
+                                         (fn [^File f] (.listFiles f ^FilenameFilter file-filter))
+                                         (io/file (format "test/resources/%s" lib)))
+                               (filter (fn [^File f] (not (.isDirectory f)))))
+                    baos (ByteArrayOutputStream.)]
+                (with-open [out (ZipOutputStream. baos)]
+                  (doseq [^File f files]
+                    (with-open [in (FileInputStream. f)]
+                      (let [entry (doto (ZipEntry. (subs (.getPath f) path-offset))
+                                    (.setSize (.length f)))]
+                        (.putNextEntry out entry)
+                        (IOUtils/copy in out)
+                        (.closeEntry out)))))
+                (http-server/response 200 {"etag" "tag"} (.toByteArray baos))))}}))
 
 (defn lib-server-uri [server lib]
   (format "%s/lib/%s" (http-server/local-url server) lib))

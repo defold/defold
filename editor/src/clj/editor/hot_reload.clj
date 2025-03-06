@@ -31,7 +31,7 @@
       (URI. str)
       (catch URISyntaxException _ nil))))
 
-(defn- body->valid-entries [workspace s]
+(defn- body->valid-entries [workspace body-string]
   (into []
         (comp
           (keep (fn [line]
@@ -44,24 +44,26 @@
                       (let [proj-path (subs path (count url-prefix))]
                         (when (= etag (workspace/etag workspace proj-path))
                           path)))))))
-        (string/split-lines s)))
+        (string/split-lines body-string)))
 
 (defn routes [workspace]
   (let [build-path (.toPath (workspace/build-path workspace))]
-    {"/build/{*path}" {"GET" (bound-fn [{:keys [path-params headers]}]
-                               (let [^String path (:path path-params)
-                                     full-path (.normalize (.resolve build-path path))]
-                                 (if (and (.startsWith full-path build-path) ;; Avoid going outside the build path with '..'
-                                          (fs/path-exists? full-path)
-                                          (not (fs/path-is-directory? full-path)))
-                                   (let [etag (workspace/etag workspace (str "/" path))
-                                         remote-etag (get headers "if-none-match")]
-                                     (if (and remote-etag (= etag remote-etag))
-                                       (http-server/response 304 {"etag" etag} nil)
-                                       (http-server/response 200 {"etag" etag} full-path)))
-                                   http-server/not-found)))}
-     "/__verify_etags__" {"POST" (bound-fn [{:keys [body]}]
-                                   (http-server/response 200 (->> body
-                                                                  slurp
-                                                                  (body->valid-entries workspace)
-                                                                  (string/join "\n"))))}}))
+    {"/build/{*path}"
+     {"GET" (bound-fn [{:keys [path-params headers]}]
+              (let [^String path (:path path-params)
+                    full-path (.normalize (.resolve build-path path))]
+                (if (and (.startsWith full-path build-path) ;; Avoid going outside the build path with '..'
+                         (fs/path-exists? full-path)
+                         (not (fs/path-is-directory? full-path)))
+                  (let [etag (workspace/etag workspace (str "/" path))
+                        remote-etag (get headers "if-none-match")]
+                    (if (and remote-etag (= etag remote-etag))
+                      (http-server/response 304 {"etag" etag} nil)
+                      (http-server/response 200 {"etag" etag} full-path)))
+                  http-server/not-found)))}
+     "/__verify_etags__"
+     {"POST" (bound-fn [{:keys [body]}]
+               (http-server/response 200 (->> body
+                                              slurp
+                                              (body->valid-entries workspace)
+                                              (string/join "\n"))))}}))

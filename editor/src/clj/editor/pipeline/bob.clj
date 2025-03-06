@@ -268,16 +268,17 @@
 
 (defn routes [project]
   (let [output-path (.toPath ^File (build-html5-output-path project))]
-    {"/html5/{*path}" {"GET" (bound-fn [{:keys [path-params]}]
-                               (let [path-str (:path path-params)]
-                                 (if (= "" path-str)
-                                   (http-server/redirect "/html5/index.html")
-                                   (let [resource-path (-> output-path
-                                                           (.resolve ^String (project-title project))
-                                                           (.resolve ^String path-str)
-                                                           (.normalize))]
-                                     (if (and (.startsWith resource-path output-path)
-                                              (fs/path-exists? resource-path)
-                                              (not (fs/path-is-directory? resource-path)))
-                                       (http-server/response 200 resource-path)
-                                       http-server/not-found)))))}}))
+    {"/html5/{*path}"
+     {"GET" (bound-fn [{:keys [path-params]}]
+              (let [path-str (:path path-params)]
+                (if (= "" path-str)
+                  (http-server/redirect "/html5/index.html")
+                  (let [resource-path (-> output-path
+                                          (.resolve ^String (project-title project))
+                                          (.resolve ^String path-str)
+                                          (.normalize))]
+                    (if (and (.startsWith resource-path output-path)
+                             (fs/path-exists? resource-path)
+                             (not (fs/path-is-directory? resource-path)))
+                      (http-server/response 200 resource-path)
+                      http-server/not-found)))))}}))

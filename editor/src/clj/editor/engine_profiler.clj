@@ -34,10 +34,11 @@
          (ui/open-url (format "http://%s:8002/" address)))))
 
 (defn routes []
-  {"/engine-profiler/{*path}" {"GET" (fn [request]
-                                       (let [path (:path (:path-params request))
-                                             path (str "engine-profiler/" (if (= "" path) "remotery/vis/patched.index.html" path))
-                                             resource (io/resource path)]
-                                         (if resource
-                                           (http-server/response 200 resource)
-                                           http-server/not-found)))}})
+  {"/engine-profiler/{*path}"
+   {"GET" (fn [request]
+            (let [path (:path (:path-params request))
+                  path (str "engine-profiler/" (if (= "" path) "remotery/vis/patched.index.html" path))
+                  resource (io/resource path)]
+              (if resource
+                (http-server/response 200 resource)
+                http-server/not-found)))}})
