@@ -64,6 +64,7 @@
                           :x (.getX drag-event)
                           :y (.getY drag-event)))
       :drag-dropped (let [drag-event ^DragEvent jfx-event]
+                      (.setDropCompleted drag-event true)
                       (assoc action
                              :x (.getX drag-event)
                              :y (.getY drag-event)
