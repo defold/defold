@@ -827,8 +827,8 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         Shaderc.ShaderCompilerOptions opts = new Shaderc.ShaderCompilerOptions();
         opts.entryPoint = "no-entry-point"; // JNI will crash if this is null!
 
-        byte[] spvCompiledResult = ShadercJni.Compile(ctx, spvCompiler, opts);
-        long spvCompiledCtx = ShadercJni.NewShaderContext(spvCompiledResult);
+        Shaderc.ShaderCompileResult spvCompiledResult = ShadercJni.Compile(ctx, spvCompiler, opts);
+        long spvCompiledCtx = ShadercJni.NewShaderContext(spvCompiledResult.data);
         Shaderc.ShaderReflection spvCompiledReflection = ShadercJni.GetReflection(spvCompiledCtx);
 
         res_position = getShaderResourceByName(spvCompiledReflection.inputs, "position");
