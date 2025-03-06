@@ -307,7 +307,7 @@ static int GetMouseLock(lua_State* L)
  * @name window.get_display_scale
  * @return scale [type:number] The display scale
  */
-static int GetScale(lua_State* L)
+static int GetDisplayScale(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 1);
 
@@ -319,7 +319,7 @@ static int GetScale(lua_State* L)
 
 /*# set the title of the window
  *
- * Sets the window title.
+ * Sets the window title. Works on desktop platforms.
  *
  * @name window.set_title
  * @param title [type:string] The title, encoded as UTF-8
@@ -336,7 +336,7 @@ static int SetTitle(lua_State* L)
 
 /*# set the size of the window
  *
- * Sets the window size.
+ * Sets the window size. Works on desktop platforms only.
  *
  * @name window.set_size
  * @param width [type:number] Width of window
@@ -375,16 +375,16 @@ static int SetPosition(lua_State* L)
 
 static const luaL_reg Module_methods[] =
 {
-    {"set_listener",   SetListener},
-    {"set_dim_mode",   SetDimMode},
-    {"set_mouse_lock", SetMouseLock},
-    {"set_title",      SetTitle},
-    {"get_dim_mode",   GetDimMode},
-    {"get_size",       GetSize},
-    {"set_size",       SetSize},
-    {"set_position",   SetPosition},
-    {"get_scale",      GetScale},
-    {"get_mouse_lock", GetMouseLock},
+    {"set_listener",      SetListener},
+    {"set_dim_mode",      SetDimMode},
+    {"set_mouse_lock",    SetMouseLock},
+    {"set_title",         SetTitle},
+    {"get_dim_mode",      GetDimMode},
+    {"get_size",          GetSize},
+    {"set_size",          SetSize},
+    {"set_position",      SetPosition},
+    {"get_display_scale", GetDisplayScale},
+    {"get_mouse_lock",    GetMouseLock},
     {0, 0}
 };
 
