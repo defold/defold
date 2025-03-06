@@ -386,7 +386,6 @@ namespace dmSound
         }
         SelectDSPImpl(dsp_impl);
 
-
         sound->m_FrameCount = sound->m_DeviceFrameCount;
         sound->m_MixRate = device_info.m_MixRate;
         sound->m_Instances.SetCapacity(max_instances);

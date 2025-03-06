@@ -225,7 +225,7 @@ namespace dmDeviceOpenAL
         assert(info);
         OpenALDevice* openal = (OpenALDevice*) device;
         info->m_MixRate = openal->m_MixRate;
-        info->m_DSPImplementation = dmSound::DSPIMPL_TYPE_FALLBACK;
+        info->m_DSPImplementation = dmSound::DSPIMPL_TYPE_DEFAULT;
     }
 
     void DeviceOpenALStart(dmSound::HDevice device)

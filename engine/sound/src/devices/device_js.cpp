@@ -95,7 +95,7 @@ namespace dmDeviceJS
         JSDevice *dev = (JSDevice*) device;
         info->m_MixRate = dmGetDeviceSampleRate(dev->devId);
 
-        info->m_DSPImplementation = dmGetSIMDCapability() ? dmSound::DSPIMPL_TYPE_WASM_SIMD128 : dmSound::DSPIMPL_TYPE_FALLBACK;
+        info->m_DSPImplementation = dmGetSIMDCapability() ? dmSound::DSPIMPL_TYPE_WASM_SIMD128 : dmSound::DSPIMPL_TYPE_CPU;
     }
 
     void DeviceJSStart(dmSound::HDevice device)

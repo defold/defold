@@ -19,10 +19,12 @@
 #include "sound_pfb.h"
 #include "dsimd.h"
 
-#if defined(DM_SIMD_SSE2)
-    #define DM_SOUND_DSP_SSE2
-#elif defined(DM_SIMD_WASM)
+#include <dlib/log.h>
+
+#if defined(DM_SIMD_WASM)
     #define DM_SOUND_DSP_WASM
+#elif defined(DM_SIMD_SSE2)
+    #define DM_SOUND_DSP_SSE2
 #endif
 
 // Make sure we use compile time selected fallback code if nothing is selected at all
@@ -797,15 +799,6 @@ static inline void ApplyClampedGain(float* out[], float* in[], uint32_t num, flo
     }
 }
 
-#include <emmintrin.h>
-#include <immintrin.h>
-#include <intrin.h>
-#include <mmintrin.h>
-#include <nmmintrin.h>
-#include <pmmintrin.h>
-#include <smmintrin.h>
-#include <xmmintrin.h>
-
 static inline void ApplyGainAndInterleaveToS16(int16_t* out, float* in[], uint32_t num, float scale, float scale_delta)
 {
     // setup ramp
@@ -1355,7 +1348,7 @@ struct DSPImpl {
      void (*DeinterleaveFromS8)(float* out[], const int8_t* in, uint32_t num);
 };
 
-#if defined(__wasm_simd128__)
+#if defined(DM_SIMD_WASM)
 static DSPImpl wasm_impl =
 {
     WASM::MixScaledMonoToStereo,
@@ -1373,7 +1366,7 @@ static DSPImpl wasm_impl =
 };
 #endif
 
-#if defined(SOUND_SSE2) && !defined(__wasm_simd128__)
+#if defined(DM_SOUND_SSE2)
 static DSPImpl sse_impl =
 {
     SSE::MixScaledMonoToStereo,
@@ -1413,12 +1406,21 @@ static inline bool SelectDSPImpl(DSPImplType impl_type)
 {
     switch(impl_type)
     {
-        case    DSPIMPL_TYPE_FALLBACK: g_DSPImpl = &fallback_impl; return true;
-#if defined(SOUND_SSE2) && !defined(__wasm_simd128__)
-        case    DSPIMPL_TYPE_SSE2: g_DSPImpl = &sse_impl; return true;
+        case DSPIMPL_TYPE_CPU:
+            dmLogOnceInfo("  DSP backend: CPU");
+            g_DSPImpl = &fallback_impl;
+            return true;
+#if defined(DM_SOUND_DSP_SSE2)
+        case DSPIMPL_TYPE_SSE2:
+            dmLogOnceInfo("  DSP backend: SSE2");
+            g_DSPImpl = &sse_impl;
+            return true;
 #endif
-#if defined(__wasm_simd128__)
-        case    DSPIMPL_TYPE_WASM_SIMD128: g_DSPImpl = &wasm_impl; return true;
+#if defined(DM_SOUND_DSP_WASM)
+        case DSPIMPL_TYPE_WASM_SIMD128:
+            dmLogOnceInfo("  DSP backend: WASM");
+            g_DSPImpl = &wasm_impl;
+            return true;
 #endif
         default: break;
     }

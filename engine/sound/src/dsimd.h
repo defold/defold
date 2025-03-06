@@ -72,9 +72,6 @@
 #if defined(DM_SIMD_SSE2) && !defined(DM_SIMD_SSE)
     #define DM_SIMD_SSE
 #endif
-#if defined(DM_SIMD_SSE) && !defined(DM_SIMD_MMX)
-    #define DM_SIMD_MMX
-#endif
 
 // https://www.g-truc.net/post-0359.html
 
@@ -95,9 +92,6 @@
 #endif
 #if defined(DM_SIMD_SSE)
     #include <xmmintrin.h>
-#endif
-#if defined(DM_SIMD_MMX)
-    #include <mmintrin.h>
 #endif
 
 #if defined(DM_SIMD_WASM)
