@@ -995,6 +995,13 @@
     :id "New Animation"
     :playback :playback-loop-forward))
 
+(defn- select-images!
+  [app-view images op-seq]
+  (g/transact
+   (concat
+    (g/operation-sequence op-seq)
+    (app-view/select app-view images))))
+
 (defn- add-animation-group-handler [app-view atlas-node]
   (let [op-seq (gensym)
         [animation-node] (g/tx-nodes-added
@@ -1003,10 +1010,7 @@
                                (g/operation-sequence op-seq)
                                (g/operation-label "Add Animation")
                                (make-atlas-animation atlas-node default-animation))))]
-    (g/transact
-      (concat
-        (g/operation-sequence op-seq)
-        (app-view/select app-view [animation-node])))))
+    (select-images! app-view [animation-node] op-seq)))
 
 (handler/defhandler :add :workbench
   (label [] "Add Animation Group")
@@ -1037,10 +1041,7 @@
                               (let [parent-node-type @(g/node-type* parent)]
                                 (throw (ex-info (str "Unsupported parent type " (:name parent-node-type))
                                                 {:parent-node-type parent-node-type})))))))]
-      (g/transact
-        (concat
-          (g/operation-sequence op-seq)
-          (app-view/select app-view image-nodes))))))
+      (select-images! app-view image-nodes op-seq))))
 
 (handler/defhandler :add-from-file :workbench
   (label [] "Add Images...")
@@ -1196,6 +1197,12 @@
     (when (some (partial str/ends-with? path) image/exts)
       {:image (workspace/resolve-workspace-resource workspace path)})))
 
+(defn dragboard->image-msgs
+  [dragboard workspace]
+  (->> (.getFiles dragboard)
+       (mapv (partial file->image-msg workspace))
+       (remove nil?)))
+
 (defn- create-dropped-images!
   [parent files op-seq]
   (g/tx-nodes-added
@@ -1216,22 +1223,17 @@
 
 (defn handle-input [self action selection-data]
   (case (:type action)
-    :drag-dropped (let [db ^Dragboard (:dragboard action)]
-                    (when (.hasFiles db)
+    :drag-dropped (let [dragboard ^Dragboard (:dragboard action)]
+                    (when (.hasFiles dragboard)
                       (let [app-view (g/node-value self :app-view)
                             selection (g/node-value app-view :selected-node-ids)
                             parent (parent-animation-or-atlas selection)
                             project (project/get-project parent)
                             workspace (project/workspace project)
-                            files (->> (.getFiles db)
-                                       (mapv (partial file->image-msg workspace))
-                                       (remove nil?))
+                            files (dragboard->image-msgs dragboard workspace)
                             op-seq (gensym)
                             image-nodes (create-dropped-images! parent files op-seq)]
-                        (g/transact
-                          (concat
-                            (g/operation-sequence op-seq)
-                            (app-view/select app-view image-nodes)))
+                        (select-images! app-view image-nodes op-seq)
                         (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
                         nil)))
     :mouse-pressed (if (first (get selection-data self))
