@@ -143,27 +143,6 @@ namespace dmGraphics
         TEXTURE_TYPE_TEXTURE_CUBE     = 7
     };
 
-    // Texture filter
-    enum TextureFilter
-    {
-        TEXTURE_FILTER_DEFAULT                = 0,
-        TEXTURE_FILTER_NEAREST                = 1,
-        TEXTURE_FILTER_LINEAR                 = 2,
-        TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST = 3,
-        TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR  = 4,
-        TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST  = 5,
-        TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR   = 6,
-    };
-
-    // Texture wrap
-    enum TextureWrap
-    {
-        TEXTURE_WRAP_CLAMP_TO_BORDER = 0,
-        TEXTURE_WRAP_CLAMP_TO_EDGE   = 1,
-        TEXTURE_WRAP_MIRRORED_REPEAT = 2,
-        TEXTURE_WRAP_REPEAT          = 3,
-    };
-
     // Face type
     enum FaceType
     {

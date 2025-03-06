@@ -288,7 +288,6 @@ namespace dmRender
 
     void DeleteMaterial(dmRender::HRenderContext render_context, HMaterial material)
     {
-        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
         dmGraphics::DeleteVertexDeclaration(material->m_VertexDeclarationPerVertex);
 
         if (material->m_VertexDeclarationPerInstance)

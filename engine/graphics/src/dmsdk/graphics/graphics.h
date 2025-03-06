@@ -263,6 +263,44 @@ namespace dmGraphics
     };
 
     /*#
+    * @enum
+    * @name TextureFilter
+    * @member TEXTURE_FILTER_DEFAULT
+    * @member TEXTURE_FILTER_NEAREST
+    * @member TEXTURE_FILTER_LINEAR
+    * @member TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST
+    * @member TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR
+    * @member TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST
+    * @member TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR
+    */
+    enum TextureFilter
+    {
+        TEXTURE_FILTER_DEFAULT                = 0,
+        TEXTURE_FILTER_NEAREST                = 1,
+        TEXTURE_FILTER_LINEAR                 = 2,
+        TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST = 3,
+        TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR  = 4,
+        TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST  = 5,
+        TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR   = 6,
+    };
+
+    /*#
+    * @enum
+    * @name TextureWrap
+    * @member TEXTURE_WRAP_CLAMP_TO_BORDER
+    * @member TEXTURE_WRAP_CLAMP_TO_EDGE
+    * @member TEXTURE_WRAP_MIRRORED_REPEAT
+    * @member TEXTURE_WRAP_REPEAT
+    */
+    enum TextureWrap
+    {
+        TEXTURE_WRAP_CLAMP_TO_BORDER = 0,
+        TEXTURE_WRAP_CLAMP_TO_EDGE   = 1,
+        TEXTURE_WRAP_MIRRORED_REPEAT = 2,
+        TEXTURE_WRAP_REPEAT          = 3,
+    };
+
+    /*#
      * Get the attachment texture from a render target. Returns zero if no such attachment texture exists.
      * @name GetRenderTargetAttachment
      * @param render_target [type: dmGraphics::HRenderTarget] the render target
