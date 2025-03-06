@@ -15,26 +15,19 @@
 #ifndef DM_SOUND_DSP_H
 #define DM_SOUND_DSP_H
 
+
 #include "sound_pfb.h"
+#include "dsimd.h"
 
-
-#if defined(_M_IX86_FP) && _M_IX86_FP == 2  // MSVC: SSE2 (or better)
-#define SOUND_SSE2
-#elif defined(__SSE2__)                     // GCC / CLang / Emscripten: SSE2
-#define SOUND_SSE2
-#endif
-
-
-#if defined(SOUND_SSE2)
-#include <immintrin.h>
-#endif
-#if defined(__wasm_simd128__)
-#include <wasm_simd128.h>
+#if defined(DM_SIMD_SSE2)
+    #define DM_SOUND_DSP_SSE2
+#elif defined(DM_SIMD_WASM)
+    #define DM_SOUND_DSP_WASM
 #endif
 
 // Make sure we use compile time selected fallback code if nothing is selected at all
-#if !defined(DM_SOUND_EXPECTED_SIMD) && !defined(SOUND_SSE2) && !defined(__wasm_simd128__)
-#define DM_SOUND_EXPECTED_SIMD Fallback
+#if !defined(DM_SOUND_DSP_IMPL) && !defined(DM_SOUND_DSP_SSE2) && !defined(DM_SOUND_DSP_WASM)
+#define DM_SOUND_DSP_IMPL Fallback
 #endif
 
 namespace dmSound
@@ -43,7 +36,7 @@ namespace dmSound
 // ----------------------------------------------------------------------------------------------------------------------------------------------------------------
 // ----------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-#if defined(__wasm_simd128__)
+#if defined(DM_SOUND_DSP_WASM)
 
 namespace WASM {
 //
@@ -512,7 +505,7 @@ static inline void DeinterleaveFromS8(float* out[], const int8_t* in, uint32_t n
 // ----------------------------------------------------------------------------------------------------------------------------------------------------------------
 // ----------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-#if defined(SOUND_SSE2) && !defined(__wasm_simd128__)
+#if defined(DM_SOUND_DSP_SSE2)
 
 //
 // SSE2
@@ -803,6 +796,15 @@ static inline void ApplyClampedGain(float* out[], float* in[], uint32_t num, flo
         scale += scale_delta;
     }
 }
+
+#include <emmintrin.h>
+#include <immintrin.h>
+#include <intrin.h>
+#include <mmintrin.h>
+#include <nmmintrin.h>
+#include <pmmintrin.h>
+#include <smmintrin.h>
+#include <xmmintrin.h>
 
 static inline void ApplyGainAndInterleaveToS16(int16_t* out, float* in[], uint32_t num, float scale, float scale_delta)
 {
@@ -1251,13 +1253,13 @@ static inline void DeinterleaveFromS8(float* out[], const int8_t* in, uint32_t n
 // ----------------------------------------------------------------------------------------------------------------------------------------------------------------
 // ----------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-#ifdef DM_SOUND_EXPECTED_SIMD
+#ifdef DM_SOUND_DSP_IMPL
 
 //
 // Compiletime selected DSP implementation
 //
 
-#define SoundImpl DM_SOUND_EXPECTED_SIMD
+#define SoundImpl DM_SOUND_DSP_IMPL
 
 static inline void SelectDSPImpl(DSPImplType /*impl_type*/)
 {
