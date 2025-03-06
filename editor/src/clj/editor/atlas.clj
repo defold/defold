@@ -51,6 +51,7 @@
             [util.digestable :as digestable]
             [util.fn :as fn]
             [util.murmur :as murmur]
+            [clojure.string :as str]
             [editor.ui :as ui])
   (:import [com.dynamo.bob.pipeline AtlasUtil ShaderUtil$Common ShaderUtil$VariantTextureArrayFallback]
            [com.dynamo.bob.textureset TextureSetGenerator$LayoutResult]
@@ -1189,32 +1190,49 @@
     (let [pivot-pos (rect->absolute-pivot-pos (-> selected-renderables util/only :user-data :rect))]
       (scene-tools/scale-factor camera viewport (Vector3d. (first pivot-pos) (second pivot-pos) 0.0)))))
 
+(defn- file->image-msg
+  [workspace ^File f]
+  (when-let [path (workspace/as-proj-path workspace (.getAbsolutePath f))]
+    (when (some (partial str/ends-with? path) image/exts)
+      {:image (workspace/resolve-workspace-resource workspace path)})))
+
+(defn- create-dropped-images!
+  [parent files op-seq]
+  (g/tx-nodes-added
+    (g/transact
+      (concat
+        (g/operation-sequence op-seq)
+        (g/operation-label "Drop images")
+        (condp g/node-instance? parent
+          AtlasNode (make-image-nodes-in-atlas parent files)
+          AtlasAnimation (make-image-nodes-in-animation parent files))))))
+
+(defn- selected-or-parent-animation-or-atlas
+  [selection]
+  (or (first (handler/adapt-every selection AtlasAnimation))
+      (core/scope-of-type (first selection) AtlasAnimation)
+      (core/scope-of-type (first selection) AtlasNode)
+      (first (handler/adapt-every selection AtlasNode))))
+
 (defn handle-input [self action selection-data]
   (case (:type action)
     :drag-dropped (let [db ^Dragboard (:dragboard action)]
                     (when (.hasFiles db)
-                      (when-let [parent (->> (g/node-value self :selected-renderables)
-                                             (map :node-id)
-                                             (filter #(or (g/node-instance? AtlasNode %)
-                                                          (g/node-instance? AtlasAnimation %)))
-                                             last)]
-                        (let [project (project/get-project parent)
-                              files (mapv (fn [^File f] 
-                                            {:image (workspace/resolve-workspace-resource project (.getCanonicalPath f))}) 
-                                          (.getFiles db))
-                              op-seq (gensym)
-                              image-nodes (g/tx-nodes-added
-                                            (g/transact
-                                              (concat
-                                                (g/operation-sequence op-seq)
-                                                (g/operation-label "Drop Images")
-                                                (condp g/node-instance? parent
-                                                  AtlasNode (make-image-nodes-in-atlas parent files)
-                                                  AtlasAnimation (make-image-nodes-in-animation parent files)))))]
-                          (g/transact
-                            (concat
-                              (g/operation-sequence op-seq)
-                              (app-view/select (ui/main-scene) image-nodes)))))))
+                      (let [selection (map :node-id (g/node-value self :selected-renderables))
+                            parent (selected-or-parent-animation-or-atlas selection)
+                            project (project/get-project parent)
+                            workspace (project/workspace project)
+                            files (->> (.getFiles db)
+                                       (mapv (partial file->image-msg workspace))
+                                       (remove nil?))
+                            op-seq (gensym)
+                            image-nodes (create-dropped-images! parent files op-seq)]
+                        (g/transact
+                          (concat
+                            (g/operation-sequence op-seq)
+                            (app-view/select (g/node-value self :app-view) image-nodes)))
+                        (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
+                        nil)))
     :mouse-pressed (if (first (get selection-data self))
                      (do
                        (g/transact
@@ -1261,7 +1279,8 @@
   (input camera g/Any)
   (input viewport g/Any)
   (input selected-renderables g/Any)
-
+  (input app-view g/NodeID)
+  
   (output scale g/Any :cached produce-scale)
   (output snap-threshold g/Any :cached (g/fnk [scale] (cond-> 0.1 scale (* ^double scale))))
   (output snap-enabled g/Bool :cached (g/fnk [start-action action] (and start-action (:shift action))))

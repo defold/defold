@@ -1374,7 +1374,8 @@
   (input camera g/Any)
   (input viewport g/Any)
   (input selected-renderables g/Any)
-
+  (input app-view g/NodeID)
+  
   (input tile-source-attributes g/Any)
   (input texture-set-data g/Any)
   (input material-shader ShaderLifecycle)
