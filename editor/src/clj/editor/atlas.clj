@@ -996,11 +996,11 @@
     :playback :playback-loop-forward))
 
 (defn- select-images!
-  [app-view images op-seq]
+  [app-view image-nodes op-seq]
   (g/transact
     (concat
       (g/operation-sequence op-seq)
-      (app-view/select app-view images))))
+      (app-view/select app-view image-nodes))))
 
 (defn- add-animation-group-handler [app-view atlas-node]
   (let [op-seq (gensym)
@@ -1195,24 +1195,26 @@
   [workspace ^File file]
   (when-let [path (workspace/as-proj-path workspace (.getAbsolutePath file))]
     (when (some (partial str/ends-with? path) image/exts)
-      {:image (workspace/resolve-workspace-resource workspace path)})))
+      {:path path
+       :image (workspace/resolve-workspace-resource workspace path)})))
 
 (defn dragboard->image-msgs
   [dragboard workspace]
   (->> (.getFiles dragboard)
-       (mapv (partial file->image-msg workspace))
+       (map (partial file->image-msg workspace))
+       (sort-by :path)
        (remove nil?)))
 
 (defn- create-dropped-images!
-  [parent files op-seq]
+  [parent image-msgs op-seq]
   (g/tx-nodes-added
     (g/transact
       (concat
         (g/operation-sequence op-seq)
         (g/operation-label "Drop images")
         (condp g/node-instance? parent
-          AtlasNode (make-image-nodes-in-atlas parent files)
-          AtlasAnimation (make-image-nodes-in-animation parent files))))))
+          AtlasNode (make-image-nodes-in-atlas parent image-msgs)
+          AtlasAnimation (make-image-nodes-in-animation parent image-msgs))))))
 
 (defn- parent-animation-or-atlas
   [selection]
@@ -1230,9 +1232,9 @@
                             parent (parent-animation-or-atlas selection)
                             project (project/get-project parent)
                             workspace (project/workspace project)
-                            files (dragboard->image-msgs dragboard workspace)
+                            image-msgs (dragboard->image-msgs dragboard workspace)
                             op-seq (gensym)
-                            image-nodes (create-dropped-images! parent files op-seq)]
+                            image-nodes (create-dropped-images! parent image-msgs op-seq)]
                         (select-images! app-view image-nodes op-seq)
                         (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
                         nil)))
