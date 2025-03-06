@@ -998,9 +998,9 @@
 (defn- select-images!
   [app-view images op-seq]
   (g/transact
-   (concat
-    (g/operation-sequence op-seq)
-    (app-view/select app-view images))))
+    (concat
+      (g/operation-sequence op-seq)
+      (app-view/select app-view images))))
 
 (defn- add-animation-group-handler [app-view atlas-node]
   (let [op-seq (gensym)
