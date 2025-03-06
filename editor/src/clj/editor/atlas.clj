@@ -1191,8 +1191,8 @@
       (scene-tools/scale-factor camera viewport (Vector3d. (first pivot-pos) (second pivot-pos) 0.0)))))
 
 (defn- file->image-msg
-  [workspace ^File f]
-  (when-let [path (workspace/as-proj-path workspace (.getAbsolutePath f))]
+  [workspace ^File file]
+  (when-let [path (workspace/as-proj-path workspace (.getAbsolutePath file))]
     (when (some (partial str/ends-with? path) image/exts)
       {:image (workspace/resolve-workspace-resource workspace path)})))
 
@@ -1207,19 +1207,20 @@
           AtlasNode (make-image-nodes-in-atlas parent files)
           AtlasAnimation (make-image-nodes-in-animation parent files))))))
 
-(defn- selected-or-parent-animation-or-atlas
+(defn- parent-animation-or-atlas
   [selection]
   (or (first (handler/adapt-every selection AtlasAnimation))
-      (core/scope-of-type (first selection) AtlasAnimation)
-      (core/scope-of-type (first selection) AtlasNode)
+      (first (map #(core/scope-of-type % AtlasAnimation) selection))
+      (first (map #(core/scope-of-type % AtlasNode) selection))
       (first (handler/adapt-every selection AtlasNode))))
 
 (defn handle-input [self action selection-data]
   (case (:type action)
     :drag-dropped (let [db ^Dragboard (:dragboard action)]
                     (when (.hasFiles db)
-                      (let [selection (map :node-id (g/node-value self :selected-renderables))
-                            parent (selected-or-parent-animation-or-atlas selection)
+                      (let [app-view (g/node-value self :app-view)
+                            selection (g/node-value app-view :selected-node-ids)
+                            parent (parent-animation-or-atlas selection)
                             project (project/get-project parent)
                             workspace (project/workspace project)
                             files (->> (.getFiles db)
@@ -1230,7 +1231,7 @@
                         (g/transact
                           (concat
                             (g/operation-sequence op-seq)
-                            (app-view/select (g/node-value self :app-view) image-nodes)))
+                            (app-view/select app-view image-nodes)))
                         (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
                         nil)))
     :mouse-pressed (if (first (get selection-data self))
