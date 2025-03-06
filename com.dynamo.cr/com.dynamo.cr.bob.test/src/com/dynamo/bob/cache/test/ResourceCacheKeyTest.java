@@ -21,6 +21,8 @@ import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -202,10 +204,14 @@ public class ResourceCacheKeyTest {
 
 	// Ensure that all parameters specified in all builders exist in Bob
 	@Test
-	public void testAllParametersExist() throws IOException, CompileExceptionError, NoSuchFieldException, IllegalAccessException {
+	public void testAllParametersExist() throws IOException, CompileExceptionError, NoSuchFieldException, IllegalAccessException, NoSuchMethodException, InvocationTargetException {
 		// Initialize project
 		Project project = new Project(new DefaultFileSystem());
 		project.scanJavaClasses();
+
+		Method method = Project.class.getDeclaredMethod("configurePreBuildProjectOptions");
+		method.setAccessible(true);
+		method.invoke(project);
 
 		// Access private static field classToParamsDigest
 		Class<?> builderClass = Builder.class;
@@ -220,6 +226,10 @@ public class ResourceCacheKeyTest {
 		// Collect all long options
 		for (Bob.CommandLineOption option : commandLineOptions) {
 			allOptions.add(option.longOpt);
+		}
+
+		for (String key :project.getOptions().keySet()) {
+			allOptions.add(key);
 		}
 
 		// Validate each parameter in classToParamsDigest

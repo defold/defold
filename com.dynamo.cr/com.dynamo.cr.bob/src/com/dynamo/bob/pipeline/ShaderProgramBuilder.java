@@ -39,7 +39,10 @@ import com.dynamo.bob.pipeline.shader.SPIRVReflector;
 
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
-@BuilderParams(name="ShaderProgramBuilder", inExts= {".shbundle", ".shbundlec"}, outExt=".spc", paramsForSignature = {"platform"})
+@BuilderParams(name="ShaderProgramBuilder", inExts= {".shbundle", ".shbundlec"}, outExt=".spc",
+        // See configurePreBuildProjectOptions in Project.java
+        paramsForSignature = {"platform", "output-spirv", "output-wgsl", "output-hlsl", "output-glsles100",
+        "output-glsles300", "output-glsl120", "output-glsl330", "output-glsl430"})
 public class ShaderProgramBuilder extends Builder {
 
     static public class ShaderBuildResult {
@@ -98,13 +101,7 @@ public class ShaderProgramBuilder extends Builder {
         }
 
         compileOptions = modules.getCompileOptions();
-
-        // Include the spir-v flag into the cache key, so we can invalidate the output results accordingly
-        String shaderCacheKey = String.format("output_spirv=%s;output_hlsl=%s;output_wgsl=%s",
-                getOutputSpirvFlag(), getOutputHlslFlag(), getOutputWGSLFlag());
-
         taskBuilder.addOutput(input.changeExt(params.outExt()));
-        taskBuilder.addExtraCacheKey(shaderCacheKey);
 
         return taskBuilder.build();
     }
@@ -158,9 +155,8 @@ public class ShaderProgramBuilder extends Builder {
     }
 
     private boolean getOutputShaderFlag(String projectOption, String projectProperty) {
-        boolean fromProjectOptions    = this.project.option(projectOption, "false").equals("true");
-        boolean fromProjectProperties = this.project.getProjectProperties().getBooleanValue("shader", projectProperty, false);
-        return fromProjectOptions || fromProjectProperties;
+        // See configurePreBuildProjectOptions in Project.java
+        return this.project.option(projectOption, "false").equals("true");
     }
 
     private boolean getOutputSpirvFlag() { return getOutputShaderFlag("output-spirv", "output_spirv"); }
