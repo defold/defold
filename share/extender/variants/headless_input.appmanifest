@@ -13,7 +13,7 @@ platforms:
 
     linux:
         context:
-            excludeLibs: ["record","vpx","sound","tremolo","graphics",""graphics_gles"","hid","platform"]
+            excludeLibs: ["record","vpx","sound","tremolo","graphics","graphics_gles","hid","platform"]
             excludeSymbols: ["DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo","GraphicsAdapterOpenGL","GraphicsAdapterVulkan", "GraphicsAdapterOpenGLES"]
             excludeDynamicLibs: ["openal","Xext","X11","Xi","GL","GLU","EGL","GLESv1_CM","GLESv2"]
             symbols: ["NullSoundDevice", "GraphicsAdapterNull"]
