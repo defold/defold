@@ -557,6 +557,7 @@
   (let [wrapper (doto (HBox.)
                   (.setPrefWidth Double/MAX_VALUE))
         pick-fn (fn [c] (set-color-value! property-fn (:ignore-alpha? edit-type) c))
+        custom-colors (ui/user-data (ui/main-stage) ::custom-colors)
         color-dropper (doto (Button. "" (jfx/get-image-view "icons/32/Icons_M_03_colorpicker.png" 16))
                         (ui/add-style! "color-dropper")
                         (AnchorPane/setRightAnchor 0.0)
@@ -583,6 +584,8 @@
                     (when-let [c (try (Color/valueOf (ui/text text))
                                       (catch Exception _e (cancel-fn nil)))]
                       (set-color-value! property-fn ignore-alpha c)))]
+    (when custom-colors
+      (.setAll (.getCustomColors color-picker) custom-colors))
     (doto text
       (AnchorPane/setTopAnchor 0.0)
       (AnchorPane/setBottomAnchor 0.0)
@@ -593,6 +596,7 @@
     (ui/on-action! color-picker (fn [_]
                                   (let [c (.getValue color-picker)]
                                     (set-color-value! property-fn ignore-alpha c)
+                                    (ui/user-data! (ui/main-stage) ::custom-colors (.getCustomColors color-picker))
                                     (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true))))
     (ui/children! wrapper [pane color-picker])
     [wrapper update-ui-fn]))
