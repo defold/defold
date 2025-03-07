@@ -141,17 +141,17 @@ $spacing-largest: 40px;
 }
 
 .dialog-with-content-header {
-  -fx-padding: $spacing-default;
+  -fx-padding: 12px $spacing-default 12px $spacing-default;
 }
 .dialog-without-content-header {
-  -fx-padding: $spacing-default $spacing-default 0 $spacing-default;
+  -fx-padding: 12px $spacing-default 0 $spacing-default;
 }
 
 .dialog-with-content-footer {
-  -fx-padding: $spacing-default;
+  -fx-padding: 12px $spacing-default 12px $spacing-default;
 }
 .dialog-without-content-footer {
-  -fx-padding: 0 $spacing-default $spacing-default $spacing-default;
+  -fx-padding: 0 $spacing-default 12px $spacing-default;
 }
 
 // text inputs
