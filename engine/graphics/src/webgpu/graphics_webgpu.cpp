@@ -1101,8 +1101,54 @@ static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams&
     return true;
 }
 
-static void DestroyWebGPUContext(WebGPUContext* context)
+static void WebGPUDestroyTexture(WebGPUTexture* texture)
 {
+    if (texture->m_Texture)
+        wgpuTextureRelease(texture->m_Texture);
+    if (texture->m_TextureView)
+        wgpuTextureViewRelease(texture->m_TextureView);
+    delete texture;
+}
+
+static void WebGPUDestroyContext(WebGPUContext* context)
+{
+    TRACE_CALL;
+    if (context->m_DefaultTexture2D)
+    {
+        WebGPUDestroyTexture(context->m_DefaultTexture2D);
+        context->m_DefaultTexture2D = NULL;
+    }
+    if (context->m_DefaultTexture2DArray) {
+        WebGPUDestroyTexture(context->m_DefaultTexture2DArray);
+        context->m_DefaultTexture2DArray = NULL;
+    }
+    if (context->m_DefaultTextureCubeMap)
+    {
+        WebGPUDestroyTexture(context->m_DefaultTextureCubeMap);
+        context->m_DefaultTextureCubeMap = NULL;
+    }
+    if (context->m_DefaultTexture2D32UI)
+    {
+        WebGPUDestroyTexture(context->m_DefaultTexture2D32UI);
+        context->m_DefaultTexture2D32UI = NULL;
+    }
+    if (context->m_DefaultStorageImage2D)
+    {
+        WebGPUDestroyTexture(context->m_DefaultStorageImage2D);
+        context->m_DefaultStorageImage2D = NULL;
+    }
+    while (!context->m_CurrentUniforms.m_Allocs.Empty())
+    {
+        WebGPUUniformBuffer::Alloc *alloc = context->m_CurrentUniforms.m_Allocs.Back();
+        context->m_CurrentUniforms.m_Allocs.Pop();
+        if (alloc->m_Buffer)
+        {
+            wgpuBufferRelease(alloc->m_Buffer);
+            alloc->m_Size = alloc->m_Used = 0;
+            alloc->m_Buffer = NULL;
+        }
+        delete alloc;
+    }
     if (context->m_Surface)
         wgpuSurfaceRelease(context->m_Surface);
     if (context->m_Adapter)
@@ -1150,7 +1196,7 @@ static void WebGPUDeleteContext(HContext _context)
     assert(g_WebGPUContext == context);
     if (context)
     {
-        DestroyWebGPUContext(context);
+        WebGPUDestroyContext(context);
         free(context);
         g_WebGPUContext = NULL;
     }
@@ -2310,6 +2356,18 @@ static HProgram WebGPUNewProgram(HContext _context, ShaderDesc* ddf, char* error
 static void WebGPUDestroyProgram(WebGPUContext* context, WebGPUProgram* program)
 {
     TRACE_CALL;
+    if(program->m_VertexModule) {
+        WebGPUDestroyShader(program->m_VertexModule);
+        program->m_VertexModule = NULL;
+    }
+    if(program->m_FragmentModule) {
+        WebGPUDestroyShader(program->m_FragmentModule);
+        program->m_FragmentModule = NULL;
+    }
+    if(program->m_ComputeModule) {
+        WebGPUDestroyShader(program->m_ComputeModule);
+        program->m_ComputeModule = NULL;
+    }
     if (program->m_UniformData)
     {
         delete[] program->m_UniformData;
@@ -2546,11 +2604,7 @@ static void WebGPUDeleteTexture(HTexture _texture)
     WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_AssetHandleContainer, _texture);
     if (texture)
     {
-        if (texture->m_Texture)
-            wgpuTextureRelease(texture->m_Texture);
-        if (texture->m_TextureView)
-            wgpuTextureViewRelease(texture->m_TextureView);
-        delete texture;
+        WebGPUDestroyTexture(texture);
         g_WebGPUContext->m_AssetHandleContainer.Release(_texture);
     }
 }
@@ -2741,10 +2795,9 @@ static HRenderTarget WebGPUNewRenderTarget(HContext _context, uint32_t buffer_ty
     return StoreAssetInContainer(context->m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
 }
 
-static void WebGPUDeleteRenderTarget(HRenderTarget _rt)
+static void WebGPUDestroyRenderTarget(WebGPURenderTarget *rt)
 {
     TRACE_CALL;
-    WebGPURenderTarget* rt = GetAssetFromContainer<WebGPURenderTarget>(g_WebGPUContext->m_AssetHandleContainer, _rt);
     for (size_t i = 0; i < rt->m_ColorBufferCount; ++i)
     {
         if (rt->m_TextureColor[i])
@@ -2755,6 +2808,13 @@ static void WebGPUDeleteRenderTarget(HRenderTarget _rt)
     if (rt->m_TextureDepthStencil)
         WebGPUDeleteTexture(rt->m_TextureDepthStencil);
     delete rt;
+}
+
+static void WebGPUDeleteRenderTarget(HRenderTarget _rt)
+{
+    TRACE_CALL;
+    WebGPURenderTarget* rt = GetAssetFromContainer<WebGPURenderTarget>(g_WebGPUContext->m_AssetHandleContainer, _rt);
+    WebGPUDestroyRenderTarget(rt);
     g_WebGPUContext->m_AssetHandleContainer.Release(_rt);
 }
 
@@ -3084,10 +3144,7 @@ static void WebGPUCloseWindow(HContext _context)
 
         if (context->m_MainRenderTarget)
         {
-            WebGPUDeleteTexture(context->m_MainRenderTarget->m_TextureResolve[0]);
-            WebGPUDeleteTexture(context->m_MainRenderTarget->m_TextureColor[0]);
-            WebGPUDeleteTexture(context->m_MainRenderTarget->m_TextureDepthStencil);
-            delete context->m_MainRenderTarget;
+            WebGPUDestroyRenderTarget(context->m_MainRenderTarget);
             context->m_MainRenderTarget = NULL;
         }
 

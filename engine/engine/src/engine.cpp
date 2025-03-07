@@ -394,19 +394,32 @@ namespace dmEngine
         if (engine->m_GuiContext)
             dmGui::DeleteContext(engine->m_GuiContext, engine->m_GuiScriptContext);
 
+        ScopedExtensionParams extension_params(engine);
         if (engine->m_SharedScriptContext) {
+            extension_params.SetLuaContext(engine->m_SharedScriptContext);
+            dmExtension::Finalize(extension_params);
+
             dmScript::Finalize(engine->m_SharedScriptContext);
             dmScript::DeleteContext(engine->m_SharedScriptContext);
         } else {
             if (engine->m_GOScriptContext) {
+                extension_params.SetLuaContext(engine->m_GOScriptContext);
+                dmExtension::Finalize(extension_params);
+
                 dmScript::Finalize(engine->m_GOScriptContext);
                 dmScript::DeleteContext(engine->m_GOScriptContext);
             }
             if (engine->m_RenderScriptContext) {
+                extension_params.SetLuaContext(engine->m_RenderScriptContext);
+                dmExtension::Finalize(extension_params);
+
                 dmScript::Finalize(engine->m_RenderScriptContext);
                 dmScript::DeleteContext(engine->m_RenderScriptContext);
             }
             if (engine->m_GuiScriptContext) {
+                extension_params.SetLuaContext(engine->m_GuiScriptContext);
+                dmExtension::Finalize(extension_params);
+
                 dmScript::Finalize(engine->m_GuiScriptContext);
                 dmScript::DeleteContext(engine->m_GuiScriptContext);
             }

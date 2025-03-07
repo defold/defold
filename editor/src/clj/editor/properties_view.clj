@@ -16,6 +16,7 @@
   (:require [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.color-dropper :as color-dropper]
             [editor.field-expression :as field-expression]
             [editor.handler :as handler]
             [editor.jfx :as jfx]
@@ -552,13 +553,21 @@
     ignore-alpha (drop-last 2)
     :always (apply str "#")))
 
-(defmethod create-property-control! types/Color [edit-type _ property-fn]
+(defmethod create-property-control! types/Color [edit-type {:keys [color-dropper-view]} property-fn]
   (let [wrapper (doto (HBox.)
                   (.setPrefWidth Double/MAX_VALUE))
+        pick-fn (fn [c] (set-color-value! property-fn (:ignore-alpha? edit-type) c))
+        color-dropper (doto (Button. "" (jfx/get-image-view "icons/32/Icons_M_03_colorpicker.png" 16))
+                        (ui/add-style! "color-dropper")
+                        (AnchorPane/setRightAnchor 0.0)
+                        (ui/on-click! (fn [^MouseEvent event] (color-dropper/activate! color-dropper-view pick-fn event))))
         text (TextField.)
         color-picker (ColorPicker.)
         ignore-alpha (:ignore-alpha? edit-type)
         value->display-color #(some-> % value->color (color->web-string ignore-alpha))
+        pane (doto (AnchorPane. (ui/node-array [text color-dropper]))
+               (HBox/setHgrow Priority/ALWAYS)
+               (ui/add-style! "color-pane"))
         update-ui-fn (fn [values message read-only?]
                        (update-text-fn text value->display-color values message read-only?)
                        (.setValue color-picker (some-> (properties/unify-values values) value->color))
@@ -575,14 +584,17 @@
                                       (catch Exception _e (cancel-fn nil)))]
                       (set-color-value! property-fn ignore-alpha c)))]
     (doto text
-      (HBox/setHgrow Priority/ALWAYS)
+      (AnchorPane/setTopAnchor 0.0)
+      (AnchorPane/setBottomAnchor 0.0)
+      (AnchorPane/setRightAnchor 0.0)
+      (AnchorPane/setLeftAnchor 0.0)
       (ui/add-style! "color-input")
       (customize! commit-fn cancel-fn))
     (ui/on-action! color-picker (fn [_]
                                   (let [c (.getValue color-picker)]
                                     (set-color-value! property-fn ignore-alpha c)
                                     (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true))))
-    (ui/children! wrapper [text color-picker])
+    (ui/children! wrapper [pane color-picker])
     [wrapper update-ui-fn]))
 
 (defmethod create-property-control! :choicebox [{:keys [options]} _ property-fn]
@@ -977,19 +989,21 @@
   (input project g/Any)
   (input app-view g/NodeID)
   (input search-results-view g/NodeID)
+  (input color-dropper-view g/NodeID)
   (input selected-node-properties g/Any)
 
-  (output pane Pane :cached (g/fnk [parent-view workspace project app-view search-results-view selected-node-properties]
+  (output pane Pane :cached (g/fnk [parent-view workspace project app-view search-results-view selected-node-properties color-dropper-view]
                                    (let [context {:workspace workspace
                                                   :project project
                                                   :app-view app-view
-                                                  :search-results-view search-results-view}]
+                                                  :search-results-view search-results-view
+                                                  :color-dropper-view color-dropper-view}]
                                      ;; Collecting the properties and then updating the view takes some time, but has no immediacy
                                      ;; This is effectively time-slicing it over two "frames" (or whenever JavaFX decides to run the second part)
                                      (ui/run-later
                                        (update-pane! parent-view context selected-node-properties))))))
 
-(defn make-properties-view [workspace project app-view search-results-view view-graph ^Node parent]
+(defn make-properties-view [workspace project app-view search-results-view view-graph color-dropper-view ^Node parent]
   (first
     (g/tx-nodes-added
       (g/transact
@@ -998,4 +1012,5 @@
           (g/connect project :_node-id view :project)
           (g/connect app-view :_node-id view :app-view)
           (g/connect app-view :selected-node-properties view :selected-node-properties)
-          (g/connect search-results-view :_node-id view :search-results-view))))))
+          (g/connect search-results-view :_node-id view :search-results-view)
+          (g/connect color-dropper-view :_node-id view :color-dropper-view))))))

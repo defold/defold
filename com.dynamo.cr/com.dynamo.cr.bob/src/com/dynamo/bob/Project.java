@@ -1145,7 +1145,7 @@ public class Project {
             File buildDir = new File(FilenameUtils.concat(outputDir, buildPlatform));
             buildDir.mkdirs();
 
-            buildEngineFutures.add(executor.submit(() -> {
+            buildEngineFutures.add(buildEngineExecutor.submit(() -> {
                 boolean buildLibrary = shouldBuildArtifact("library");
                 try {
                     if (buildLibrary) {
@@ -1174,7 +1174,7 @@ public class Project {
                 }
             }
         }
-        executor.shutdown();
+        buildEngineExecutor.shutdown();
         m.done();
     }
 
