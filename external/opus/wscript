@@ -29,8 +29,8 @@ def build(bld):
     name = '%s-%s' % (APPNAME, VERSION)
     packagedir = 'package/%s/src' % name
 
-#Q: seems one could go "celt only" -- the "old" Opus codec --> which will be much smaller & faster, but not decode everything "just encoded" these days anymore... ???
-# (which, it seems, would mean only compiling the "celt" folder and using it's API in a custom fashion...?! Related: "OPUS_CUSTOM")
+    #Q: seems one could go "celt only" -- the "old" Opus codec --> which will be much smaller & faster, but not decode everything "just encoded" these days anymore... ???
+    # (which, it seems, would mean only compiling the "celt" folder and using it's API in a custom fashion...?! Related: "OPUS_CUSTOM")
     source_files = bld.path.ant_glob(['src/opus.c',
                                       'src/opus_decoder.c',
 
@@ -152,7 +152,7 @@ def build(bld):
     #    simd_defs = simd_defs + ['OPUS_X86_MAY_HAVE_SSE', 'OPUS_X86_MAY_HAVE_SSE2', 'OPUS_X86_MAY_HAVE_SSE4_1', 'OPUS_X86_PRESUME_SSE', 'OPUS_X86_PRESUME_SSE2', 'OPUS_X86_PRESUME_SSE4_1'];
     #    source_files = source_files + x86_simd_source_files
 
-    opus_decoder    = bld.stlib(features = 'c cxx',
+    opus_decoder    = bld.stlib(features = 'c',
                                 source    = source_files,
                                 defines   = ['NDEBUG', 'OPUS_BUILD', 'VAR_ARRAYS'] + simd_defs,
                                 includes  = ['include', 'celt', 'silk', 'silk/float', 'silk/fixed', '.'],
