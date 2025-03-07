@@ -1,6 +1,6 @@
-$ext-spacing-small: 4px;
-$ext-spacing-medium: 8px;
-$ext-spacing-large: 16px;
+$ext-spacing-small: 2px;
+$ext-spacing-medium: 6px;
+$ext-spacing-large: 12px;
 $ext-line-height: 26px;
 
 .ext {
@@ -18,9 +18,9 @@ $ext-line-height: 26px;
     }
     &-padding {
         &-none        { -fx-padding: 0; }
-        &-small       { -fx-padding: 16px; }
-        &-medium      { -fx-padding: 24px; }
-        &-large       { -fx-padding: 40px; }
+        &-small       { -fx-padding: 6px; }
+        &-medium      { -fx-padding: 10px; }
+        &-large       { -fx-padding: 12px 22px 12px 22px; }
     }
     &-heading-style {
         &-h1 { -fx-font-size: 26px; -fx-font-family: "Source Sans Pro Light"; }
@@ -98,7 +98,7 @@ $ext-line-height: 26px;
         -fx-font-size: 110%;
         -fx-font-family: "Source Sans Pro";
         -fx-text-fill: -df-text;
-        -fx-label-padding: 0 0 0 $ext-spacing-small;
+        -fx-label-padding: 0 0 0 4px;
         -fx-min-height: $ext-line-height;
         -fx-max-height: $ext-line-height;
         &:warning {
