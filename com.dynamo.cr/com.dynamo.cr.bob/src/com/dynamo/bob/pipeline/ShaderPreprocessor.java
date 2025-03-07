@@ -14,14 +14,14 @@
 
 package com.dynamo.bob.pipeline;
 
+import java.io.*;
+import java.nio.file.Files;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.regex.Matcher;
 import java.util.Scanner;
-import java.io.IOException;
-import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -52,17 +52,18 @@ public class ShaderPreprocessor {
     private Project     project;
     private String      sourcePath;
     private IncludeNode root;
+    private String contentRoot;
 
-    private class IncludeNode {
+    private static class IncludeNode {
         public String                             path;
         public String                             source;
         public IncludeNode                        parent;
         public LinkedHashMap<String, IncludeNode> children = new LinkedHashMap<String, IncludeNode>();
     };
 
-    private class IncludeDirectiveTreeIterator implements Iterator<IncludeNode> {
-        private IncludeNode            root;
-        private ArrayList<IncludeNode> nodeList = new ArrayList<IncludeNode>();
+    private static class IncludeDirectiveTreeIterator implements Iterator<IncludeNode> {
+        private final IncludeNode            root;
+        private final ArrayList<IncludeNode> nodeList = new ArrayList<IncludeNode>();
         private int                    nodeIndex;
 
         public boolean hasNext() {
@@ -96,10 +97,11 @@ public class ShaderPreprocessor {
         }
     }
 
-    public ShaderPreprocessor(Project project, String fromPath, String fromSource) throws IOException, CompileExceptionError {
-        this.project    = project;
-        this.sourcePath = fromPath;
-        this.root       = buildShaderIncludeTree(null, fromPath, Common.stripComments(fromSource));
+    public ShaderPreprocessor(Project project, String fromPath, String fromSource, String contentRoot) throws IOException, CompileExceptionError {
+        this.project     = project;
+        this.sourcePath  = fromPath;
+        this.contentRoot = contentRoot;
+        this.root        = buildShaderIncludeTree(null, fromPath, Common.stripComments(fromSource));
     }
 
     public String[] getIncludes() {
@@ -167,15 +169,26 @@ public class ShaderPreprocessor {
         return relativePathRes;
     }
 
-    private String getIncludeData(String fromPath) throws CompileExceptionError, IOException
-    {
+    private String getIncludeData(String fromPath) throws CompileExceptionError, IOException  {
+        String resData = null;
         IResource res = this.project.getResource(fromPath);
-        if (res.getContent() == null) {
-            throw new CompileExceptionError(this.sourcePath + " includes '" + fromPath + "', but the file is invalid. " +
-                "Make sure that the path is relative to the project root and that the file is valid!");
+        if (res.getContent() != null) {
+            resData = new String(res.getContent(), StandardCharsets.UTF_8);
         }
 
-        String resData = new String(res.getContent(), StandardCharsets.UTF_8);
+        // Fallback to reading regular data, but only if the content root has been set.
+        // This is essentially a workaround for how content is built in the engine.
+        if (this.contentRoot != null) {
+            fromPath = this.contentRoot + "/" + fromPath;
+            File f = new File(fromPath);
+            if (f.exists() && f.isFile()) {
+                resData = Files.readString(Paths.get(f.getAbsolutePath()));
+            }
+        }
+        if (resData == null) {
+            throw new CompileExceptionError(this.sourcePath + " includes '" + fromPath + "', but the file is invalid. " +
+                    "Make sure that the path is relative to the project root and that the file is valid!");
+        }
         return Common.stripComments(resData);
     }
 

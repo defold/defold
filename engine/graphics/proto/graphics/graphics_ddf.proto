@@ -68,6 +68,8 @@ message VertexAttribute
         SEMANTIC_TYPE_TANGENT       = 7;
         SEMANTIC_TYPE_WORLD_MATRIX  = 8;
         SEMANTIC_TYPE_NORMAL_MATRIX = 9;
+        SEMANTIC_TYPE_BONE_WEIGHTS  = 10;
+        SEMANTIC_TYPE_BONE_INDICES  = 11;
     }
 
     message LongValues
