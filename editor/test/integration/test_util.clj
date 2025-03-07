@@ -62,7 +62,8 @@
             [util.http-server :as http-server]
             [util.text-util :as text-util]
             [util.thread-util :as thread-util])
-  (:import [clojure.core Vec]
+  (:import [ch.qos.logback.classic Level Logger]
+           [clojure.core Vec]
            [com.google.protobuf ByteString]
            [editor.properties Curve CurveSpread]
            [java.awt.image BufferedImage]
@@ -79,9 +80,12 @@
            [javafx.scene.paint Color]
            [javax.imageio ImageIO]
            [javax.vecmath Vector3d]
-           [org.apache.commons.io FilenameUtils IOUtils]))
+           [org.apache.commons.io FilenameUtils IOUtils]
+           [org.slf4j LoggerFactory]))
 
 (set! *warn-on-reflection* true)
+
+(.setLevel ^Logger (LoggerFactory/getLogger "org.eclipse.jetty") Level/ERROR)
 
 (def project-path "test/resources/test_project")
 
@@ -302,21 +306,16 @@
    (let [proj-graph (g/make-graph! :history true :volatility 1)
          extensions (extensions/make proj-graph)
          project (project/make-project proj-graph workspace extensions)
-         project (project/load-project project)]
+         project (project/load-project! project)]
      (g/reset-undo! proj-graph)
      project))
   ([workspace resources]
    (let [proj-graph (g/make-graph! :history true :volatility 1)
          extensions (extensions/make proj-graph)
          project (project/make-project proj-graph workspace extensions)
-         project (project/load-project project resources)]
+         project (project/load-project! project progress/null-render-progress! resources)]
      (g/reset-undo! proj-graph)
      project)))
-
-(defn load-project-nodes! [project resource-node-ids]
-  (let [{:keys [migrated-resource-node-ids node-load-infos]}
-        (#'project/load-nodes! project resource-node-ids (constantly nil) {} nil nil)]
-    (#'project/cache-loaded-save-data! node-load-infos project migrated-resource-node-ids)))
 
 (defn project-node-resources [project]
   (g/with-auto-evaluation-context evaluation-context

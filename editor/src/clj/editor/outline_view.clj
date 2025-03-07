@@ -134,6 +134,7 @@
                 :child-error? (boolean (some :child-error? data))
                 :child-overridden? (boolean (some :child-overridden? data))
                 :hideable? (contains? outline-name-paths (rest node-outline-key-path))
+                :hidden-parent? (scene-visibility/hidden-outline-key-path? hidden-node-outline-key-paths node-outline-key-path)
                 :scene-visibility (if (contains? hidden-node-outline-key-paths node-outline-key-path)
                                     :hidden
                                     :visible))]
@@ -489,7 +490,8 @@
                             (ui/add-style! "visibility-toggle")
                             (.addEventFilter MouseEvent/MOUSE_PRESSED ui/ignore-event-filter)
                             (AnchorPane/setRightAnchor 0.0))
-        text-label (Label.)
+        text-label (doto (Label.)
+                     (ui/bind-double-click! :open))
         h-box (doto (HBox. 5 (ui/node-array [image-view-icon text-label]))
                 (ui/add-style! "h-box")
                 (AnchorPane/setRightAnchor 0.0)
@@ -508,7 +510,7 @@
                        (proxy-super setGraphic nil)
                        (proxy-super setContextMenu nil)
                        (proxy-super setStyle nil))
-                     (let [{:keys [label icon link color outline-error? outline-overridden? outline-reference? outline-show-link? parent-reference? child-error? child-overridden? scene-visibility hideable? node-outline-key-path]} item
+                     (let [{:keys [label icon link color outline-error? outline-overridden? outline-reference? outline-show-link? parent-reference? child-error? child-overridden? scene-visibility hideable? node-outline-key-path hidden-parent?]} item
                            icon (if outline-error? "icons/32/Icons_E_02_error.png" icon)
                            show-link? (and (some? link)
                                            (or outline-reference? outline-show-link?))
@@ -544,6 +546,9 @@
                        (if hideable?
                          (ui/add-style! this "hideable")
                          (ui/remove-style! this "hideable"))
+                       (if hidden-parent?
+                         (ui/add-style! this "hidden-parent")
+                         (ui/remove-style! this "hidden-parent"))
                        (if hidden?
                          (ui/add-style! this "scene-visibility-hidden")
                          (ui/remove-style! this "scene-visibility-hidden")))))))]
@@ -578,7 +583,6 @@
       (.setOnDragDropped (ui/event-handler e (error-reporting/catch-all! (drag-dropped project app-view outline-view e))))
       (.setCellFactory (reify Callback (call ^TreeCell [this view] (make-tree-cell view drag-entered-handler drag-exited-handler))))
       (ui/observe-selection #(propagate-selection %2 app-view))
-      (ui/bind-double-click! :open)
       (ui/register-context-menu ::outline-menu)
       (ui/context! :outline {} (SelectionProvider. outline-view) {} {java.lang.Long :node-id
                                                                      resource/Resource :link}))))

@@ -1166,8 +1166,9 @@
                                                         (pair {} []))
                                                        ([[new-acc remove-acc] [node-id labels old-node-successors]]
                                                         (let [new-node-successors (when-some [node (gt/node-by-id-at basis node-id)]
-                                                                                    (let [node-type (gt/node-type node)
-                                                                                          deps-by-label (or (in/input-dependencies node-type) {})
+                                                                                    (let [deps (ArrayList.)
+                                                                                          node-type (gt/node-type node)
+                                                                                          deps-by-label (in/input-dependencies node-type)
                                                                                           overrides (node-id->overrides node-id)
                                                                                           labels (or labels (in/output-labels node-type))
                                                                                           arcs-by-source (if (> (count labels) 1)
@@ -1179,10 +1180,11 @@
                                                                                                              (gt/arcs-by-source basis node-id label)))]
                                                                                       (reduce (fn [new-node-successors label]
                                                                                                 (let [dep-labels (get deps-by-label label)
-                                                                                                      outgoing-arcs (arcs-by-source basis node-id label)
-                                                                                                      deps (ArrayList. (+ (count dep-labels)
-                                                                                                                          (count overrides)
-                                                                                                                          (* (long 10) (count outgoing-arcs))))]
+                                                                                                      outgoing-arcs (arcs-by-source basis node-id label)]
+                                                                                                  (.clear deps)
+                                                                                                  (.ensureCapacity deps (+ (count dep-labels)
+                                                                                                                           (count overrides)
+                                                                                                                           (* (long 10) (count outgoing-arcs))))
 
                                                                                                   ;; The internal dependent outputs.
                                                                                                   (doseq [dep-label dep-labels]

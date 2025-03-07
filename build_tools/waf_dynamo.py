@@ -77,6 +77,8 @@ def platform_supports_feature(platform, feature, data):
         return platform in ['x86_64-win32']
     if feature == 'opengl_compute':
         return platform not in ['js-web', 'wasm-web', 'x86_64-ios', 'arm64-ios', 'arm64-macos', 'x86_64-macos']
+    if feature == 'opengles':
+        return platform in ['arm64-linux']
     if feature == 'webgpu':
         return platform in ['js-web', 'wasm-web']
     return waf_dynamo_vendor.supports_feature(platform, feature, data)
@@ -276,10 +278,11 @@ def getAndroidCompileFlags(target_arch):
         return ['-D__ARM_ARCH_5__', '-D__ARM_ARCH_5T__', '-D__ARM_ARCH_5E__', '-D__ARM_ARCH_5TE__', '-DGOOGLE_PROTOBUF_NO_RTTI', '-march=armv7-a', '-mfloat-abi=softfp', '-mfpu=vfp', '-fvisibility=hidden']
 
 def getAndroidLinkFlags(target_arch):
-    if 'arm64' == target_arch:
-        return ['-Wl,--no-undefined', '-Wl,-z,noexecstack', '-landroid', '-fpic', '-z', 'text']
+    common_flags = ['-Wl,--no-undefined', '-Wl,-z,noexecstack', '-landroid', '-fpic', '-z', 'text']
+    if target_arch == 'arm64':
+        return common_flags + ['-Wl,-z,max-page-size=16384']
     else:
-        return ['-Wl,--fix-cortex-a8', '-Wl,--no-undefined', '-Wl,-z,noexecstack', '-landroid', '-fpic', '-z', 'text']
+        return ['-Wl,--fix-cortex-a8'] + common_flags
 
 # from osx.py
 def apply_framework(self):
@@ -1598,7 +1601,7 @@ def detect(conf):
         print ("Codesign disabled", Options.options.skip_codesign)
 
     # Vulkan support
-    if Options.options.with_vulkan and build_util.get_target_platform() in ('x86_64-ios','js-web','wasm-web'):
+    if Options.options.with_vulkan and build_util.get_target_platform() in ('arm64-linux', 'x86_64-ios', 'js-web', 'wasm-web'):
         conf.fatal('Vulkan is unsupported on %s' % build_util.get_target_platform())
 
     if 'win32' in platform:
@@ -1884,8 +1887,9 @@ def detect(conf):
         conf.env['LIB_OPENGL'] = ['EGL', 'GLESv1_CM', 'GLESv2']
     elif platform in ('win32', 'x86_64-win32'):
         conf.env['LINKFLAGS_OPENGL'] = ['opengl32.lib', 'glu32.lib']
-    elif platform in ('x86_64-linux','arm64-linux'):
+    elif platform in ('x86_64-linux', 'arm64-linux'):
         conf.env['LIB_OPENGL'] = ['GL', 'GLU']
+        conf.env['LIB_OPENGLES'] = ['EGL', 'GLESv1_CM', 'GLESv2']
 
     if platform in ('x86_64-macos','arm64-macos'):
         conf.env['FRAMEWORK_OPENAL'] = ['OpenAL']
@@ -1920,6 +1924,7 @@ def detect(conf):
     conf.env['STLIB_RECORD_NULL'] = 'record_null'
 
     conf.env['STLIB_GRAPHICS']          = ['graphics', 'graphics_transcoder_basisu', 'basis_transcoder']
+    conf.env['STLIB_GRAPHICS_OPENGLES'] = ['graphics_opengles', 'graphics_transcoder_basisu', 'basis_transcoder']
     conf.env['STLIB_GRAPHICS_VULKAN']   = ['graphics_vulkan', 'graphics_transcoder_basisu', 'basis_transcoder']
     conf.env['STLIB_GRAPHICS_DX12']     = ['graphics_dx12', 'graphics_transcoder_basisu', 'basis_transcoder']
     conf.env['STLIB_GRAPHICS_WEBGPU']   = ['graphics_webgpu', 'graphics_transcoder_basisu', 'basis_transcoder']

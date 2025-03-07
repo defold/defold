@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.editor-extensions-test
-  (:require [clojure.string :as string]
+  (:require [clojure.java.io :as io]
+            [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.defold-project :as project]
@@ -22,6 +23,7 @@
             [editor.editor-extensions.prefs-functions :as prefs-functions]
             [editor.editor-extensions.runtime :as rt]
             [editor.editor-extensions.vm :as vm]
+            [editor.fs :as fs]
             [editor.future :as future]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
@@ -32,9 +34,13 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [ring.adapter.jetty :as jetty]
+            [ring.util.response :as response]
             [support.test-support :as test-support]
             [util.diff :as diff])
-  (:import [org.luaj.vm2 LuaError]))
+  (:import [java.util.zip ZipEntry]
+           [org.apache.commons.compress.archivers.zip ZipArchiveInputStream]
+           [org.luaj.vm2 LuaError]))
 
 (set! *warn-on-reflection* true)
 
@@ -823,3 +829,164 @@ nesting:
                            ((vswap! hash->stable-id #(assoc % s (str "0x" (count %)))) s))))]
         (is (= actual expected-pprint-output)
             (string/join "\n" (diff/make-diff-output-lines actual expected-pprint-output 3)))))))
+
+(def expected-http-test-output
+  "GET http://localhost:23000 => error (ConnectException)
+GET not-an-url => error (URI with undefined scheme)
+HEAD http://localhost:23456 => 200
+GET http://localhost:23456 => 200
+GET http://localhost:23456/redirect/foo as string => 200
+\"successfully redirected\"
+GET http://localhost:23456/json as json => 200
+{ --[[0x0]]
+  a = 1,
+  b = { --[[0x1]]
+    true
+  }
+}
+POST http://localhost:23456/echo {\"y\":\"foo\",\"x\":4} as json => 200
+{ --[[0x2]]
+  y = \"foo\",
+  x = 4
+}
+POST http://localhost:23456/echo hello world! as string => 200
+\"hello world!\"
+")
+
+(deftest http-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/http_project"
+    (let [server (jetty/run-jetty
+                   (fn [request]
+                     (case (:uri request)
+                       "/redirect/foo" (response/redirect "/foo")
+                       "/foo" (response/response "successfully redirected")
+                       "/" (response/response "")
+                       "/json" (response/response "{\"a\": 1, \"b\": [true]}")
+                       "/echo" (response/response (slurp (:body request)))
+                       (response/not-found "404")))
+                   {:port 23456 :join? false})
+          out (StringBuilder.)]
+      (try
+        (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+        ;; See test.editor_script: the test invokes http.request with various options and prints results
+        (run-edit-menu-test-command!)
+        (let [hash->stable-id (volatile! {})
+              actual (string/replace
+                       (str out)
+                       #"0x[0-9a-f]+"
+                       (fn [s]
+                         (or (@hash->stable-id s)
+                             ((vswap! hash->stable-id #(assoc % s (str "0x" (count %)))) s))))]
+          (is (= actual expected-http-test-output)
+              (string/join "\n" (diff/make-diff-output-lines actual expected-http-test-output 3))))
+        (finally
+          (.stop server))))))
+
+(deftest zip-test
+  (test-util/with-scratch-project "test/resources/editor_extensions/zip_project"
+    (let [output (atom [])
+          root (g/node-value workspace :root)
+          list-entries (fn list-entries [path-str]
+                         (with-open [zis (ZipArchiveInputStream. (io/input-stream (fs/path root path-str)))]
+                           (loop [acc (transient #{})]
+                             (if-let [e (.getNextZipEntry zis)]
+                               (recur (conj! acc (.getName e)))
+                               (persistent! acc)))))
+          size (fn size [path-str]
+                 (fs/path-size (fs/path root path-str)))
+          list-methods (fn list-methods [path-str]
+                         (with-open [zis (ZipArchiveInputStream. (io/input-stream (fs/path root path-str)))]
+                           (loop [acc (transient {})]
+                             (if-let [e (.getNextZipEntry zis)]
+                               (recur (assoc! acc (.getName e) (condp = (.getMethod e)
+                                                                 ZipEntry/STORED :stored
+                                                                 ZipEntry/DEFLATED :deflated)))
+                               (persistent! acc)))))]
+      (reload-editor-scripts! project :display-output! #(swap! output conj [%1 %2]))
+      (run-edit-menu-test-command!)
+      ;; See test.editor_script: the script creates a bunch of archives and logs pack
+      ;; arguments with the result of execution
+      (is (= [;; Pack a single file
+              [:out "A file:"]
+              [:out "zip.pack(\"gitignore.zip\", {\".gitignore\"}) => ok"]
+              ;; Pack a directory
+              [:out "A directory:"]
+              [:out "zip.pack(\"foo.zip\", {\"foo\"}) => ok"]
+              ;; Pack multiple files
+              [:out "Multiple:"]
+              [:out "zip.pack(\"multiple.zip\", {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", {\"game.project\", \"settings.ini\"}}) => ok"]
+              ;; Pack a file from outside the project
+              [:out "Outside:"]
+              [:out (str "zip.pack(\"outside.zip\", {{\"" (System/getenv "PWD") "/project.clj\", \"project.clj\"}}) => ok")]
+              ;; Pack using stored compression method
+              [:out "Stored method:"]
+              [:out "zip.pack(\"stored.zip\", {method = \"stored\"}, {\"foo\"}) => ok"]
+              ;; Pack using different compression levels
+              [:out "Compression level 0:"]
+              [:out "zip.pack(\"level_0.zip\", {level = 0}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
+              [:out "Compression level 1:"]
+              [:out "zip.pack(\"level_1.zip\", {level = 1}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
+              [:out "Compression level 2:"]
+              [:out "zip.pack(\"level_2.zip\", {level = 2}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
+              [:out "Compression level 3:"]
+              [:out "zip.pack(\"level_3.zip\", {level = 3}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
+              [:out "Compression level 4:"]
+              [:out "zip.pack(\"level_4.zip\", {level = 4}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
+              [:out "Compression level 5:"]
+              [:out "zip.pack(\"level_5.zip\", {level = 5}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
+              [:out "Compression level 6:"]
+              [:out "zip.pack(\"level_6.zip\", {level = 6}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
+              [:out "Compression level 7:"]
+              [:out "zip.pack(\"level_7.zip\", {level = 7}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
+              [:out "Compression level 8:"]
+              [:out "zip.pack(\"level_8.zip\", {level = 8}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
+              [:out "Compression level 9:"]
+              [:out "zip.pack(\"level_9.zip\", {level = 9}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
+              ;; Different compression settings for different entries
+              [:out "Mixed compression settings:"]
+              [:out "zip.pack(\"mixed.zip\", {{\"foo\", \"9\", level = 9}, {\"foo\", \"1\", level = 1}, {\"foo\", \"0\", level = 0}, {\"foo\", \"stored\", method = \"stored\"}}) => ok"]
+              ;; Expected errors
+              [:out "Archive path is a directory:"]
+              [:out "zip.pack(\"foo\", {\"game.project\"}) => error: Output path is a directory: foo"]
+              [:out "Source path does not exist:"]
+              [:out (str "zip.pack(\"error.zip\", {\"does-not-exist.txt\"}) => error: Source path does not exist: " root "/does-not-exist.txt")]
+              [:out "Target path is absolute:"]
+              [:out (str "zip.pack(\"error.zip\", {\"" (System/getenv "HOME") "\"}) => error: Target path must be relative: " (System/getenv "HOME"))]
+              [:out "Target path is a relative path above root:"]
+              [:out "zip.pack(\"error.zip\", {{\"game.project\", \"../../game.project\"}}) => error: Target path is above archive root: ../../game.project"]
+              [:out "zip.pack(\"error.zip\", {{\"game.project\", \"foo/bar/../../../../game.project\"}}) => error: Target path is above archive root: ../../game.project"]]
+             @output))
+      (is (= #{".gitignore"} (list-entries "gitignore.zip")))
+      (is (= #{"foo/bar.txt" "foo/long.txt" "foo/subdir/baz.txt"} (list-entries "foo.zip")))
+      (is (= #{"foo/bar.txt" "foo/long.txt" "foo/subdir/baz.txt"
+               "bar/bar.txt" "bar/long.txt" "bar/subdir/baz.txt"
+               "settings.ini"
+               ".gitignore"}
+             (list-entries "multiple.zip")))
+      (is (= #{"project.clj"} (list-entries "outside.zip")))
+      ;; foo.zip and stored.zip are same archives with different compression methods
+      (is (and (= (list-entries "foo.zip") (list-entries "stored.zip"))
+               (< (size "foo.zip") (size "stored.zip"))))
+      (is (<= (size "level_9.zip")
+              (size "level_8.zip")
+              (size "level_7.zip")
+              (size "level_6.zip")
+              (size "level_5.zip")
+              (size "level_4.zip")
+              (size "level_3.zip")
+              (size "level_2.zip")
+              (size "level_1.zip")
+              (size "level_0.zip")))
+      (is (= {"0/bar.txt" :deflated
+              "0/long.txt" :deflated
+              "0/subdir/baz.txt" :deflated
+              "1/bar.txt" :deflated
+              "1/long.txt" :deflated
+              "1/subdir/baz.txt" :deflated
+              "9/bar.txt" :deflated
+              "9/long.txt" :deflated
+              "9/subdir/baz.txt" :deflated
+              "stored/bar.txt" :stored
+              "stored/long.txt" :stored
+              "stored/subdir/baz.txt" :stored}
+             (list-methods "mixed.zip"))))))

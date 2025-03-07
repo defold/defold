@@ -25,7 +25,7 @@
           :resource-paths [\"/Applications/YourKit-Java-Profiler-2023.5.app/Contents/Resources/lib/yjp-controller-api-redist.jar\"]}}
   ```"
   (:require [editor.process :as process])
-  (:import [com.yourkit.api.controller.v2 AllocationProfilingSettings Controller CpuProfilingSettings]))
+  (:import [com.yourkit.api.controller.v2 AllocationProfilingMode AllocationProfilingSettings Controller CpuProfilingSettings]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -222,7 +222,9 @@
 ;; Allocation recording
 ;; -----------------------------------------------------------------------------
 
-(def ^AllocationProfilingSettings default-allocation-profiling-settings (AllocationProfilingSettings.))
+(def ^AllocationProfilingSettings default-allocation-profiling-settings
+  (doto (AllocationProfilingSettings.)
+    (.setMode AllocationProfilingMode/HEAP_SAMPLING)))
 
 (defmacro start-allocation-recording!
   "Starts recording memory allocations. The call clears previously recorded

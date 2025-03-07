@@ -5,13 +5,13 @@ context:
                 "ResourceTypeOgg","ResourceTypeWav",
                 "ResourceProviderFile", "ResourceProviderArchive", "ResourceProviderArchiveMutable", "ResourceProviderZip", "ResourceProviderHttp",
                 "ComponentTypeScript", "ComponentTypeAnim", "ComponentTypeGui", "ComponentTypeMesh", "ComponentTypeSound", "ScriptBox2DExt", "ScriptImageExt", "ScriptModelExt", "ScriptTypesExt"]
-    allowedLibs: ["engine","engine_release","profile","profile_null","remotery","remotery_null","profilerext","profilerext_null","crashext","crashext_null","record","record_null","gameobject","ddf","resource","gamesys","gamesys_model","gamesys_rig","gamesys_model_null","gamesys_rig_null","rig_null","graphics","graphics_null","graphics_transcoder_null","graphics_transcoder_basisu","basis_transcoder","physics_2d","physics_3d","physics_null", "platform", "platform_vulkan", "platform_null", "BulletDynamics","BulletCollision","LinearMath","Box2D","render","render_font_default","script","luajit-5.1","extension","hid","hid_null","input","particle","rig","dlib","image","image_null","dmglfw","glfw3","gui","crashext","sound","sound_null","tremolo","vpx","liveupdate",
+    allowedLibs: ["engine","engine_release","profile","profile_null","remotery","remotery_null","profilerext","profilerext_null","crashext","crashext_null","record","record_null","gameobject","ddf","resource","gamesys","gamesys_model","gamesys_rig","gamesys_model_null","gamesys_rig_null","rig_null","graphics","graphics_opengles","graphics_null","graphics_transcoder_null","graphics_transcoder_basisu","basis_transcoder","physics_2d","physics_3d","physics_null", "platform", "platform_vulkan", "platform_null", "BulletDynamics","BulletCollision","LinearMath","Box2D","render","render_font_default","script","luajit-5.1","extension","hid","hid_null","input","particle","rig","dlib","image","image_null","dmglfw","glfw3","gui","crashext","sound","sound_null","tremolo","vpx","liveupdate",
                   "libengine.lib","libengine_release.lib","libprofile.lib","libprofile_null.lib","libremotery.lib","libremotery_null.lib","libprofilerext.lib","libprofilerext_null.lib","libcrashext","libcrashext_null","librecord.lib","librecord_null.lib","libgameobject.lib","libddf.lib","libresource.lib","libgamesys.lib","libgamesys_model.lib","libgamesys_rig.lib","librig.lib","libgamesys_model_null.lib","libgamesys_rig_null.lib","librig_null.lib","libgraphics.lib","libgraphics_null.lib","libgraphics_transcoder_null.lib","libgraphics_transcoder_basisu.lib","libbasis_transcoder.lib","libphysics_2d.lib","libphysics_3d.lib","libphysics_null.lib","libBulletDynamics.lib","libBulletCollision.lib","libplatform.lib","libplatform_null.lib","libLinearMath.lib","libBox2D.lib","librender.lib","librender_font_default.lib",
                   "libscript.lib","libluajit.lib-5.1","libextension.lib","libhid.lib","libhid_null.lib","libinput.lib","libparticle.lib","librig.lib","libdlib.lib","libimage.lib","libimage_null.lib","libdmglfw.lib","libgui.lib","libcrashext.lib","libsound.lib","libsound_null.lib","libtremolo.lib","libvpx.lib","libliveupdate.lib",
                   "engine_service","engine_service_null","libengine_service.lib","libengine_service_null.lib",
                   "script_box2d", "script_box2d_null", "libscript_box2d.lib", "libscript_box2d_null.lib"]
     allowedSymbols: ["DefaultSoundDevice", "NullSoundDevice", "AudioDecoderWav", "CrashExt", "AudioDecoderStbVorbis", "GraphicsAdapterWebGPU",
-                    "ProfilerExt", "GraphicsAdapterOpenGL", "GraphicsAdapterVulkan", "GraphicsAdapterNull",
+                    "ProfilerExt", "GraphicsAdapterOpenGL", "GraphicsAdapterOpenGLES", "GraphicsAdapterVulkan", "GraphicsAdapterNull",
                     "LiveUpdateExt", "ScriptBox2DExt", "ScriptImageExt", "ScriptModelExt", "ScriptTypesExt"]
     defines: ['DLIB_LOG_DOMAIN="{{extension_name_upper}}"']
 
@@ -332,7 +332,7 @@ platforms:
         defines:    ["DM_PLATFORM_ANDROID", "__aarch64__"]
 
     compileCmd: '{{env.NDK_CXX}} -c -O2 -g -gdwarf-2 -fpic -ffunction-sections -fstack-protector -march=armv8-a -fomit-frame-pointer -fno-strict-aliasing -funwind-tables -isysroot={{env.SYSROOT}} -DANDROID -Wa,--noexecstack {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{.}} {{/ext.includes}} {{#includes}}-I{{.}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{src}} -o{{tgt}}'
-    linkCmd: '{{env.NDK_CXX}} -fuse-ld={{env.NDK_LD}} -O2 -g -isysroot={{env.SYSROOT}} -static-libstdc++ {{#src}}{{.}} {{/src}} -o {{tgt}} -Wl,-soname=libdmengine.so {{#defines}}-D{{{.}}} {{/defines}} {{#linkFlags}}{{{.}}} {{/linkFlags}} -Wl,--no-undefined -Wl,-z,noexecstack -landroid -fpic -z text {{#ext.libPaths}}-L{{.}} {{/ext.libPaths}} {{#libPaths}}-L{{.}} {{/libPaths}} -Wl,-Bstatic -Wl,--start-group -lc++_static {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{.}} {{/ext.libs}} {{#engineLibs}}-l{{.}} {{/engineLibs}} -Wl,--end-group -Wl,-Bdynamic {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} -Wl,--no-undefined -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now -shared'
+    linkCmd: '{{env.NDK_CXX}} -fuse-ld={{env.NDK_LD}} -O2 -g -isysroot={{env.SYSROOT}} -static-libstdc++ {{#src}}{{.}} {{/src}} -o {{tgt}} -Wl,-soname=libdmengine.so {{#defines}}-D{{{.}}} {{/defines}} {{#linkFlags}}{{{.}}} {{/linkFlags}} -Wl,--no-undefined -Wl,-z,noexecstack -landroid -fpic -z text {{#ext.libPaths}}-L{{.}} {{/ext.libPaths}} {{#libPaths}}-L{{.}} {{/libPaths}} -Wl,-Bstatic -Wl,--start-group -lc++_static {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{.}} {{/ext.libs}} {{#engineLibs}}-l{{.}} {{/engineLibs}} -Wl,--end-group -Wl,-Bdynamic {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} -Wl,--no-undefined -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,max-page-size=16384 -Wl,-z,now -shared'
 
   web:
     # It's here to whitelist this as a platform, currently used for general settings
@@ -446,21 +446,16 @@ platforms:
 
     windresCmd:     'windres -i {{dynamo_home}}/lib/win32/engine.rc -O coff --target=pe-i386 -o {{tgt}}'
 
-  x86_64-linux:
-    env:
-      LD_LIBRARY_PATH:  '{{dynamo_home}}/lib/x86_64-linux:{{env.LD_LIBRARY_PATH}}'
-
+  linux:
     context:
-        engineLibs:     ["engine", "engine_service", "mbedtls", "zip", "profile", "remotery", "profilerext", "record", "gameobject", "ddf", "resource", "gamesys", "gamesys_model", "gamesys_rig", "script_box2d", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "Box2D", "render", "render_font_default", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "image", "glfw3", "gui", "crashext", "liveupdate", "sound", "tremolo", "vpx"]
-        libPaths:       ["{{dynamo_home}}/lib/x86_64-linux","{{dynamo_home}}/ext/lib/x86_64-linux"]
-        includes:       ["{{dynamo_home}}/include/x86_64-linux"]
+        engineLibs:     ["engine", "engine_service", "mbedtls", "zip", "profile", "remotery", "profilerext", "record", "gameobject", "ddf", "resource", "gamesys", "gamesys_model", "gamesys_rig", "script_box2d", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "Box2D", "render", "render_font_default", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "image", "glfw3", "gui", "crashext", "liveupdate", "sound", "tremolo", "vpx"]
         defines:        ["DM_PLATFORM_LINUX", "__STDC_LIMIT_MACROS"]
         flags:          ["-g", "-O2", "-D__STDC_LIMIT_MACROS", "-Wall", "-Werror=format", "-fno-exceptions", "-fPIC", "-fvisibility=hidden"]
         linkFlags:      ["-g", "-O2"]
         cxxLinkShFlags: ["-g", "-O2"]
         libs:           []
         # this happens to contain some dynamic engine libs too (openal)
-        dynamicLibs: ["openal","Xext","X11","Xi","GL","GLU","pthread","m","dl"]
+        dynamicLibs: ["openal","Xext","X11","Xi","pthread","m","dl"]
 
     exePrefix:      ''
     exeExt:         ''
@@ -477,4 +472,24 @@ platforms:
     linkCmds:       ['clang++ {{#src}}{{{.}}} {{/src}} -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} -Wl,-Bstatic -Wl,--start-group {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} -Wl,--end-group -Wl,-Bdynamic -Wl,-rpath=$ORIGIN,--enable-new-dtags {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}}',
                      'cp {{tgt}} {{tgt}}_unstripped',
                      'strip {{tgt}}']
-    libCmd:         'llvm-ar rcs {{tgt}} {{#objs}}{{.}} {{/objs}}'
+    libCmd:         'llvm-ar rcs {{tgt}} {{#objs}}{{.}} {{/objs}}'    
+
+  x86_64-linux:
+    env:
+      LD_LIBRARY_PATH:  '{{dynamo_home}}/lib/x86_64-linux:{{env.LD_LIBRARY_PATH}}'
+
+    context:
+        engineLibs:  ["graphics"]
+        libPaths:    ["{{dynamo_home}}/lib/x86_64-linux","{{dynamo_home}}/ext/lib/x86_64-linux"]
+        dynamicLibs: ["GL","GLU"]
+
+  arm64-linux:
+    env:
+      LD_LIBRARY_PATH:  '{{dynamo_home}}/lib/arm64-linux:{{env.LD_LIBRARY_PATH}}'
+
+    context:
+        symbols:        ["GraphicsAdapterOpenGLES"]
+        excludeSymbols: ["GraphicsAdapterOpenGL"]
+        engineLibs:     ["graphics_opengles"]
+        libPaths:       ["{{dynamo_home}}/lib/arm64-linux","{{dynamo_home}}/ext/lib/arm64-linux"]
+        dynamicLibs:    ["EGL", "GLESv1_CM", "GLESv2"]

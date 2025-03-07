@@ -26,8 +26,6 @@
 #include <dmsdk/resource/resource.h>
 
 #include "resources/res_collection_proxy.h"
-#include "resources/res_collision_object.h"
-#include "resources/res_convex_shape.h"
 #include "resources/res_particlefx.h"
 #include "resources/res_texture.h"
 #include "resources/res_shader_program.h"
@@ -37,6 +35,8 @@
 #include "resources/res_mesh.h"
 #include "resources/res_material.h"
 #include "resources/res_compute.h"
+#include "resources/res_collision_object.h"
+#include "resources/res_convex_shape.h"
 #include "resources/res_gui.h"
 #include "resources/res_sound.h"
 #include "resources/res_camera.h"
@@ -73,7 +73,7 @@
 #include "components/comp_tilegrid.h"
 #include "components/comp_label.h"
 
-DM_PROPERTY_GROUP(rmtp_Components, "Gameobject Components");
+DM_PROPERTY_GROUP(rmtp_Components, "Gameobject Components", 0);
 
 namespace dmGameSystem
 {
@@ -91,9 +91,10 @@ namespace dmGameSystem
 
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
 
-        REGISTER_RESOURCE_TYPE("collectionproxyc", 0, 0, ResCollectionProxyCreate, 0, ResCollectionProxyDestroy, ResCollectionProxyRecreate);
-        REGISTER_RESOURCE_TYPE("collisionobjectc", physics_context, 0, ResCollisionObjectCreate, 0, ResCollisionObjectDestroy, ResCollisionObjectRecreate);
+
         REGISTER_RESOURCE_TYPE("convexshapec", physics_context, 0, ResConvexShapeCreate, 0, ResConvexShapeDestroy, ResConvexShapeRecreate);
+        REGISTER_RESOURCE_TYPE("collisionobjectc", physics_context, 0, ResCollisionObjectCreate, 0, ResCollisionObjectDestroy, ResCollisionObjectRecreate);
+        REGISTER_RESOURCE_TYPE("collectionproxyc", 0, 0, ResCollectionProxyCreate, 0, ResCollectionProxyDestroy, ResCollectionProxyRecreate);
         REGISTER_RESOURCE_TYPE("particlefxc", 0, ResParticleFXPreload, ResParticleFXCreate, 0, ResParticleFXDestroy, ResParticleFXRecreate);
         REGISTER_RESOURCE_TYPE("texturec", graphics_context, ResTexturePreload, ResTextureCreate, ResTexturePostCreate, ResTextureDestroy, ResTextureRecreate);
         REGISTER_RESOURCE_TYPE("spc", graphics_context, ResShaderProgramPreload, ResShaderProgramCreate, 0, ResShaderProgramDestroy, ResShaderProgramRecreate);

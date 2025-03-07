@@ -49,10 +49,10 @@
 #include <dmsdk/resource/resource.h>
 
 DM_PROPERTY_EXTERN(rmtp_Components);
-DM_PROPERTY_U32(rmtp_Model, 0, FrameReset, "# components", &rmtp_Components);
-DM_PROPERTY_U32(rmtp_ModelIndexCount, 0, FrameReset, "# indices", &rmtp_Model);
-DM_PROPERTY_U32(rmtp_ModelVertexCount, 0, FrameReset, "# vertices", &rmtp_Model);
-DM_PROPERTY_U32(rmtp_ModelVertexSize, 0, FrameReset, "size of vertices in bytes", &rmtp_Model);
+DM_PROPERTY_U32(rmtp_Model, 0, PROFILE_PROPERTY_FRAME_RESET, "# components", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_ModelIndexCount, 0, PROFILE_PROPERTY_FRAME_RESET, "# indices", &rmtp_Model);
+DM_PROPERTY_U32(rmtp_ModelVertexCount, 0, PROFILE_PROPERTY_FRAME_RESET, "# vertices", &rmtp_Model);
+DM_PROPERTY_U32(rmtp_ModelVertexSize, 0, PROFILE_PROPERTY_FRAME_RESET, "size of vertices in bytes", &rmtp_Model);
 
 namespace dmGameSystem
 {
@@ -427,6 +427,10 @@ namespace dmGameSystem
         dmRender::HMaterial material = material_res->m_Material;
         dmGraphics::HVertexDeclaration instance_vx_decl = dmRender::GetVertexDeclaration(material, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE);
 
+        // Include material textures in the hash
+        MaterialInfo* material_info = &component->m_Resource->m_Materials[item.m_MaterialIndex];
+        dmHashUpdateBuffer32(state, material_info->m_Textures, sizeof(dmGameSystem::MaterialTextureInfo) * material_info->m_TexturesCount);
+
         // Local space + instancing
         if (dmRender::GetMaterialVertexSpace(material) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL && instance_vx_decl)
         {
@@ -444,8 +448,8 @@ namespace dmGameSystem
 
             dmGraphics::VertexAttributeInfos attribute_infos;
             FillAttributeInfos(0, INVALID_DYNAMIC_ATTRIBUTE_INDEX, // Dynamic vertex attributes are not supported yet
-                        component->m_Resource->m_Materials[item.m_MaterialIndex].m_Attributes,
-                        component->m_Resource->m_Materials[item.m_MaterialIndex].m_AttributeCount,
+                        material_info->m_Attributes,
+                        material_info->m_AttributeCount,
                         &material_infos,
                         &attribute_infos);
 
@@ -462,10 +466,7 @@ namespace dmGameSystem
         }
         else
         {
-            MaterialInfo* material_info = &component->m_Resource->m_Materials[item.m_MaterialIndex];
-
             HashMaterial(state, material_info->m_Material);
-            dmHashUpdateBuffer32(state, material_info->m_Textures, sizeof(dmGameSystem::MaterialTextureInfo) * material_info->m_TexturesCount);
         }
     }
 

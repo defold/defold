@@ -71,9 +71,7 @@
     #endif
 #endif
 
-#if defined(__linux__) && !defined(ANDROID)
-    #include <GL/glext.h>
-#elif defined (ANDROID)
+#if defined (ANDROID)
     #define GL_GLEXT_PROTOTYPES
     #include <GLES2/gl2ext.h>
 
@@ -82,6 +80,8 @@
     #define glVertexAttribDivisor PFN_glVertexAttribDivisor
 
 #elif defined (__MACH__)
+    // NOP
+#elif defined (__linux__)
     // NOP
 #elif defined (_WIN32)
     #ifdef GL_GLEXT_PROTOTYPES
@@ -410,9 +410,14 @@ static void LogFrameBufferError(GLenum status)
     static GraphicsAdapterFunctionTable OpenGLRegisterFunctionTable();
     static bool                         OpenGLIsSupported();
     static HContext                     OpenGLGetContext();
-    static GraphicsAdapter g_opengl_adapter(ADAPTER_FAMILY_OPENGL);
 
+    #if defined(DM_GRAPHICS_USE_OPENGLES)
+    static GraphicsAdapter g_opengl_adapter(ADAPTER_FAMILY_OPENGLES);
+    DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterOpenGLES, &g_opengl_adapter, OpenGLIsSupported, OpenGLRegisterFunctionTable, OpenGLGetContext, ADAPTER_FAMILY_PRIORITY_OPENGLES);
+    #else
+    static GraphicsAdapter g_opengl_adapter(ADAPTER_FAMILY_OPENGL);
     DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterOpenGL, &g_opengl_adapter, OpenGLIsSupported, OpenGLRegisterFunctionTable, OpenGLGetContext, ADAPTER_FAMILY_PRIORITY_OPENGL);
+    #endif
 
     static void PostDeleteTextures(OpenGLContext*, bool);
     static bool OpenGLInitialize(HContext context, const ContextParams& params);
@@ -479,52 +484,51 @@ static void LogFrameBufferError(GLenum status)
 
     OpenGLContext* g_Context = 0x0;
 
-    static void UpdateGLHandle(HContext context, HOpenglID idx, GLuint handle)
+    static HOpenglID AddNewGLHandle(HContext _context, GLuint handle)
     {
-        OpenGLContext* gl_context = (OpenGLContext*)context;
-        gl_context->m_AllGLHandles[idx] = handle;
-    }
+        OpenGLContext* context = (OpenGLContext*) _context;
 
-    static HOpenglID AddNewGLHandle(HContext context, GLuint handle)
-    {
-        OpenGLContext* gl_context = (OpenGLContext*)context;
-        HOpenglID result_idx = gl_context->m_AllGLHandles.Size();
-        if (!gl_context->m_FreeIndexes.Empty())
+        ScopedLock lock(context->m_GLHandlesData.m_Mutex);
+        HOpenglID result_idx = context->m_GLHandlesData.m_AllGLHandles.Size();
+        if (!context->m_GLHandlesData.m_FreeIndexes.Empty())
         {
-            result_idx = gl_context->m_FreeIndexes.Back();
-            gl_context->m_FreeIndexes.Pop();
+            result_idx = context->m_GLHandlesData.m_FreeIndexes.Back();
+            context->m_GLHandlesData.m_FreeIndexes.Pop();
         }
         else
         {
-            if (gl_context->m_AllGLHandles.Full())
+            if (context->m_GLHandlesData.m_AllGLHandles.Full())
             {
-                gl_context->m_AllGLHandles.OffsetCapacity(32);
+                context->m_GLHandlesData.m_AllGLHandles.OffsetCapacity(32);
             }
-            gl_context->m_AllGLHandles.Push(0);
+            context->m_GLHandlesData.m_AllGLHandles.Push(0);
         }
 
-        UpdateGLHandle(context, result_idx, handle);
+        context->m_GLHandlesData.m_AllGLHandles[result_idx] = handle;
         return result_idx;
     }
 
     static inline GLuint GetGLHandle(OpenGLContext* context, HOpenglID idx)
     {
-        return context->m_AllGLHandles[idx];
+        ScopedLock lock(context->m_GLHandlesData.m_Mutex);
+        return context->m_GLHandlesData.m_AllGLHandles[idx];
     }
 
     static inline GLuint* GetGLHandlePointer(OpenGLContext* context, HOpenglID idx)
     {
-        return &(context->m_AllGLHandles[idx]);
+        ScopedLock lock(context->m_GLHandlesData.m_Mutex);
+        return &(context->m_GLHandlesData.m_AllGLHandles[idx]);
     }
 
     static inline void CleanupGLHandle(OpenGLContext* context, HOpenglID idx)
     {
-        context->m_AllGLHandles[idx] = 0;
-        if (context->m_FreeIndexes.Full())
+        ScopedLock lock(context->m_GLHandlesData.m_Mutex);
+        context->m_GLHandlesData.m_AllGLHandles[idx] = 0;
+        if (context->m_GLHandlesData.m_FreeIndexes.Full())
         {
-            context->m_FreeIndexes.OffsetCapacity(32);
+            context->m_GLHandlesData.m_FreeIndexes.OffsetCapacity(32);
         }
-        context->m_FreeIndexes.Push(idx);
+        context->m_GLHandlesData.m_FreeIndexes.Push(idx);
     }
 
 
@@ -558,8 +562,8 @@ static void LogFrameBufferError(GLenum status)
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_16BPP;
         m_IndexBufferFormatSupport |= 1 << INDEXBUFFER_FORMAT_16;
 
-        m_AllGLHandles.SetCapacity(1024);
-        m_FreeIndexes.SetCapacity(256);
+        m_GLHandlesData.m_AllGLHandles.SetCapacity(1024);
+        m_GLHandlesData.m_FreeIndexes.SetCapacity(256);
 
         DM_STATIC_ASSERT(sizeof(m_TextureFormatSupport) * 8 >= TEXTURE_FORMAT_COUNT, Invalid_Struct_Size );
     }
@@ -725,6 +729,12 @@ static void LogFrameBufferError(GLenum status)
             dmAtomicStore32(&context->m_DeleteContextRequested, 1);
             AcquireAuxContextOnThread(context, false);
             ResetSetTextureAsyncState(context->m_SetTextureAsyncState);
+
+            if (context->m_GLHandlesData.m_Mutex)
+            {
+                dmMutex::Delete(context->m_GLHandlesData.m_Mutex);
+            }
+
             delete context;
             g_Context = 0x0;
         }
@@ -930,7 +940,11 @@ static void LogFrameBufferError(GLenum status)
 
     static void OpenGLPrintDeviceInfo(HContext context)
     {
+        #if defined(DM_GRAPHICS_USE_OPENGLES)
+        dmLogInfo("Device: OpenGL ES");
+        #else
         dmLogInfo("Device: OpenGL");
+        #endif
         dmLogInfo("Renderer: %s", (char *) glGetString(GL_RENDERER));
         dmLogInfo("Version: %s", (char *) glGetString(GL_VERSION));
         dmLogInfo("Vendor: %s", (char *) glGetString(GL_VENDOR));
@@ -1062,7 +1076,7 @@ static void LogFrameBufferError(GLenum status)
         context->m_IsGles3Version = 1; // 0 == gles 2, 1 == gles 3
         context->m_PipelineState  = GetDefaultPipelineState();
 
-#if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
+#if defined(__EMSCRIPTEN__) || defined(__ANDROID__) || defined(DM_GRAPHICS_USE_OPENGLES)
         context->m_IsShaderLanguageGles = 1;
 
         const char* version = (char *) glGetString(GL_VERSION);
@@ -1432,7 +1446,7 @@ static void LogFrameBufferError(GLenum status)
         #endif
         }
 
-#if defined(__ANDROID__) || defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__)
+#if defined(__ANDROID__) || defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__) || defined(DM_GRAPHICS_USE_OPENGLES)
         if (OpenGLIsExtensionSupported(context, "GL_OES_element_index_uint") ||
             OpenGLIsExtensionSupported(context, "OES_element_index_uint"))
         {
@@ -1487,6 +1501,9 @@ static void LogFrameBufferError(GLenum status)
 
             InitializeSetTextureAsyncState(context->m_SetTextureAsyncState);
 
+            context->m_GLHandlesData.m_Mutex = dmMutex::New();
+            context->m_AssetHandleContainerMutex = dmMutex::New();
+
             if (context->m_JobThread == 0x0)
             {
                 dmLogError("AsyncInitialize: Platform has async support but no job thread. Fallback to single thread processing.");
@@ -1496,6 +1513,15 @@ static void LogFrameBufferError(GLenum status)
             {
                 dmLogDebug("AsyncInitialize: Failed to verify async job processing. Fallback to single thread processing.");
                 context->m_AsyncProcessingSupport = 0;
+            }
+
+            if (!context->m_AsyncProcessingSupport)
+            {
+                dmMutex::Delete(context->m_GLHandlesData.m_Mutex);
+                context->m_GLHandlesData.m_Mutex = 0;
+
+                dmMutex::Delete(context->m_AssetHandleContainerMutex);
+                context->m_AssetHandleContainerMutex = 0;
             }
         }
 
@@ -2969,7 +2995,7 @@ static void LogFrameBufferError(GLenum status)
         {
             return language == ShaderDesc::LANGUAGE_GLSL_SM430;
         }
-        return language == ShaderDesc::LANGUAGE_GLSL_SM140 || language == ShaderDesc::LANGUAGE_GLSL_SM330;
+        return language == ShaderDesc::LANGUAGE_GLSL_SM330;
     }
 
     static void OpenGLEnableProgram(HContext _context, HProgram _program)
@@ -3695,11 +3721,13 @@ static void LogFrameBufferError(GLenum status)
         tex->m_DataState = 0;
         tex->m_ResourceSize = 0;
 
+        ScopedLock lock(context->m_AssetHandleContainerMutex);
         return StoreAssetInContainer(context->m_AssetHandleContainer, tex, ASSET_TYPE_TEXTURE);
     }
 
     static void DoDeleteTexture(OpenGLContext* context, HTexture texture)
     {
+        ScopedLock lock(context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
 
         // Even if we check for validity when the texture was flagged for async deletion,
@@ -3729,15 +3757,16 @@ static void LogFrameBufferError(GLenum status)
         return 0;
     }
 
-    static void OpenGLDeleteTextureAsync(HTexture texture)
+    static void OpenGLDeleteTextureAsync(OpenGLContext* context, HTexture texture)
     {
-        if (g_Context->m_AsyncProcessingSupport)
+        if (context->m_AsyncProcessingSupport)
         {
-            dmJobThread::PushJob(g_Context->m_JobThread, AsyncDeleteTextureProcess, 0, (void*) g_Context, (void*) texture);
+            ScopedLock lock(context->m_AssetHandleContainerMutex);
+            dmJobThread::PushJob(context->m_JobThread, AsyncDeleteTextureProcess, 0, (void*) context, (void*) texture);
         }
         else
         {
-            DoDeleteTexture(g_Context, texture);
+            DoDeleteTexture(context, texture);
         }
     }
 
@@ -3761,7 +3790,7 @@ static void LogFrameBufferError(GLenum status)
             HTexture texture = context->m_SetTextureAsyncState.m_PostDeleteTextures[i];
             if(!(dmGraphics::GetTextureStatusFlags(texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING))
             {
-                OpenGLDeleteTextureAsync(texture);
+                OpenGLDeleteTextureAsync(context, texture);
                 context->m_SetTextureAsyncState.m_PostDeleteTextures.EraseSwap(i);
             }
             else
@@ -3786,7 +3815,7 @@ static void LogFrameBufferError(GLenum status)
         }
         else
         {
-            OpenGLDeleteTextureAsync(texture);
+            OpenGLDeleteTextureAsync(g_Context, texture);
         }
     }
 
@@ -3838,7 +3867,12 @@ static void LogFrameBufferError(GLenum status)
 
     static void OpenGLSetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
     {
+        ScopedLock lock(g_Context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
+        if (tex == 0x0)
+        {
+            return;
+        }
 
         GLenum gl_type       = GetOpenGLTextureType(tex->m_Type);
         GLenum gl_min_filter = GetOpenGLTextureFilter(minfilter == TEXTURE_FILTER_DEFAULT ? g_Context->m_DefaultTextureMinFilter : minfilter);
@@ -3871,18 +3905,21 @@ static void LogFrameBufferError(GLenum status)
 
     static uint8_t OpenGLGetNumTextureHandles(HTexture texture)
     {
+        ScopedLock lock(g_Context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
-        assert(tex);
-        return tex->m_NumTextureIds;
+        return tex ? tex->m_NumTextureIds : 0;
     }
 
     static uint32_t OpenGLGetTextureUsageHintFlags(HTexture texture)
     {
-        return GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture)->m_UsageHintFlags;
+        ScopedLock lock(g_Context->m_AssetHandleContainerMutex);
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
+        return tex ? tex->m_UsageHintFlags : 0;
     }
 
     static uint32_t OpenGLGetTextureStatusFlags(HTexture texture)
     {
+        ScopedLock lock(g_Context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
         uint32_t flags     = TEXTURE_STATUS_OK;
         if(tex && dmAtomicGet32(&tex->m_DataState))
@@ -3912,6 +3949,7 @@ static void LogFrameBufferError(GLenum status)
         SetTexture(ap.m_Texture, ap.m_Params);
         glFlush();
 
+        ScopedLock lock(context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, ap.m_Texture);
         int32_t data_state = dmAtomicGet32(&tex->m_DataState);
         data_state &= ~(1<<ap.m_Params.m_MipMap);
@@ -3938,6 +3976,7 @@ static void LogFrameBufferError(GLenum status)
     {
         if (g_Context->m_AsyncProcessingSupport)
         {
+            ScopedLock lock(g_Context->m_AssetHandleContainerMutex);
             OpenGLTexture* tex         = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
             tex->m_DataState          |= 1<<params.m_MipMap;
             uint16_t param_array_index = PushSetTextureAsyncState(g_Context->m_SetTextureAsyncState, texture, params, callback, user_data);
@@ -3954,8 +3993,12 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
+    // JG: We should deprecate / remove this function. It's not safe to return pointers like this.
+    //     Instead, we should add functions (like we have for other APIs), that returns the actual underlying API object.
+    //     Which in this case would be just an int. And perhaps functions that check for validity of the high-level texture.
     static HandleResult OpenGLGetTextureHandle(HTexture texture, void** out_handle)
     {
+        ScopedLock lock(g_Context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
         *out_handle = 0x0;
 
@@ -4149,6 +4192,7 @@ static void LogFrameBufferError(GLenum status)
             CHECK_GL_ERROR;
         }
 
+        ScopedLock lock(g_Context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
 
         tex->m_MipMapCount = dmMath::Max(tex->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
@@ -4384,6 +4428,7 @@ static void LogFrameBufferError(GLenum status)
     // NOTE: This is an approximation
     static uint32_t OpenGLGetTextureResourceSize(HTexture texture)
     {
+        ScopedLock lock(g_Context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
         if (!tex)
         {
@@ -4403,37 +4448,51 @@ static void LogFrameBufferError(GLenum status)
 
     static uint16_t OpenGLGetTextureWidth(HTexture texture)
     {
-        return GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture)->m_Width;
+        ScopedLock lock(g_Context->m_AssetHandleContainerMutex);
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
+        return tex ? tex->m_Width : 0;
     }
 
     static uint16_t OpenGLGetTextureHeight(HTexture texture)
     {
-        return GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture)->m_Height;
+        ScopedLock lock(g_Context->m_AssetHandleContainerMutex);
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
+        return tex ? tex->m_Height : 0;
     }
 
     static uint16_t OpenGLGetOriginalTextureWidth(HTexture texture)
     {
-        return GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture)->m_OriginalWidth;
+        ScopedLock lock(g_Context->m_AssetHandleContainerMutex);
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
+        return tex ? tex->m_OriginalWidth : 0;
     }
 
     static uint16_t OpenGLGetOriginalTextureHeight(HTexture texture)
     {
-        return GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture)->m_OriginalHeight;
+        ScopedLock lock(g_Context->m_AssetHandleContainerMutex);
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
+        return tex ? tex->m_OriginalHeight : 0;
     }
 
     static TextureType OpenGLGetTextureType(HTexture texture)
     {
-        return GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture)->m_Type;
+        ScopedLock lock(g_Context->m_AssetHandleContainerMutex);
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
+        return tex ? tex->m_Type : TEXTURE_TYPE_2D;
     }
 
     static uint16_t OpenGLGetTextureDepth(HTexture texture)
     {
-        return GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture)->m_Depth;
+        ScopedLock lock(g_Context->m_AssetHandleContainerMutex);
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
+        return tex ? tex->m_Depth : 0;
     }
 
     static uint8_t OpenGLGetTextureMipmapCount(HTexture texture)
     {
-        return GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture)->m_MipMapCount;
+        ScopedLock lock(g_Context->m_AssetHandleContainerMutex);
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
+        return tex ? tex->m_MipMapCount : 0;
     }
 
 #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
@@ -4499,7 +4558,14 @@ static void LogFrameBufferError(GLenum status)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         assert(GetAssetType(texture) == ASSET_TYPE_TEXTURE);
+
+        ScopedLock lock(context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
+        if (!tex)
+        {
+            return;
+        }
+
         assert(id_index < tex->m_NumTextureIds);
 
 #if !defined(GL_ES_VERSION_3_0) && defined(GL_ES_VERSION_2_0) && !defined(__EMSCRIPTEN__)  && !defined(ANDROID)
@@ -4532,7 +4598,14 @@ static void LogFrameBufferError(GLenum status)
 #endif
 
         OpenGLContext* context = (OpenGLContext*) _context;
-        OpenGLTexture* tex     = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
+
+        ScopedLock lock(context->m_AssetHandleContainerMutex);
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
+
+        if (!tex)
+        {
+            return;
+        }
 
         glActiveTexture(TEXTURE_UNIT_NAMES[unit]);
         CHECK_GL_ERROR;
@@ -4835,6 +4908,7 @@ static void LogFrameBufferError(GLenum status)
         OpenGLContext* context = (OpenGLContext*) _context;
         AssetType type         = GetAssetType(asset_handle);
 
+        ScopedLock lock(context->m_AssetHandleContainerMutex);
         if (type == ASSET_TYPE_TEXTURE)
         {
             return GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, asset_handle) != 0;
@@ -4854,11 +4928,12 @@ static void LogFrameBufferError(GLenum status)
         return GetGLHandle(context, rt->m_Id);
     }
 
-    static void OpenGLInvalidateGraphicsHandles(HContext context)
+    static void OpenGLInvalidateGraphicsHandles(HContext _context)
     {
-        OpenGLContext* gl_context = (OpenGLContext*) context;
+        OpenGLContext* context = (OpenGLContext*) _context;
+        ScopedLock lock(context->m_GLHandlesData.m_Mutex);
         // Set all handles to 0. It indicates that handles not valid.
-        memset(gl_context->m_AllGLHandles.Begin(), 0, (gl_context->m_AllGLHandles.End() - gl_context->m_AllGLHandles.Begin()) * sizeof(uint32_t));
+        memset(context->m_GLHandlesData.m_AllGLHandles.Begin(), 0, (context->m_GLHandlesData.m_AllGLHandles.End() - context->m_GLHandlesData.m_AllGLHandles.Begin()) * sizeof(uint32_t));
     }
 
     GLenum TEXTURE_UNIT_NAMES[32] =

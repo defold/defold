@@ -583,6 +583,7 @@
                                  glyph-left-bearing :left-bearing
                                  ^GlyphVector glyph-vector :vector
                                  :as glyph}
+                                ^DistanceFieldGenerator distance-field-generator
                                 padding
                                 channel-count
                                 outline-width
@@ -605,7 +606,6 @@
         {^int width :width ^int height :height} (pad-wh padding (glyph-wh glyph))
         ^Shape glyph-outline (.getGlyphOutline glyph-vector 0)
         ^PathIterator outline-iterator (FlatteningPathIterator. (.getPathIterator glyph-outline identity-transform) 0.1)
-        ^DistanceFieldGenerator distance-field-generator (DistanceFieldGenerator.)
         segment-points (double-array 6 0.0)]
 
     (loop [x 0.0
@@ -724,23 +724,25 @@
     (dorun
       (pmap
         (fn [batch]
-          (run! (fn [[semi-glyph glyph-extents]]
-                  (let [{:keys [^bytes field]} (draw-ttf-distance-field semi-glyph padding channel-count outline-width sdf-outline sdf-spread sdf-shadow-spread edge shadow-blur shadow-alpha)
-                        {:keys [image-wh glyph-cell-wh ^int glyph-data-size ^int glyph-data-offset]} glyph-extents
-                        ^int image-width (:width image-wh)
-                        ^int image-height (:height image-wh)
-                        row-size (* (int (:width glyph-cell-wh)) channel-count)]
-                    (Arrays/fill glyph-data-bank glyph-data-offset (+ glyph-data-offset row-size) (unchecked-byte 0))
-                    (doseq [^int y (range image-height)]
-                      (let [y-offset (+ glyph-data-offset
-                                        row-size
-                                        (* y row-size))]
-                        (aset glyph-data-bank y-offset (unchecked-byte 0))
-                        (System/arraycopy field (+ (* y image-width channel-count) 0) glyph-data-bank (+ y-offset channel-count) (* image-width channel-count))
-                        (aset glyph-data-bank (+ (+ y-offset channel-count) (* image-width channel-count)) (unchecked-byte 0))))
-                    (let [last-y-offset (- (+ glyph-data-offset glyph-data-size) row-size)]
-                      (Arrays/fill glyph-data-bank last-y-offset (+ last-y-offset row-size) (unchecked-byte 0)))))
-                batch))
+          (let [distance-field-generator (DistanceFieldGenerator.)]
+            (run! (fn [[semi-glyph glyph-extents]]
+                    (set! (.-lineSegmentsEnd distance-field-generator) 0)
+                    (let [{:keys [^bytes field]} (draw-ttf-distance-field semi-glyph distance-field-generator padding channel-count outline-width sdf-outline sdf-spread sdf-shadow-spread edge shadow-blur shadow-alpha)
+                          {:keys [image-wh glyph-cell-wh ^int glyph-data-size ^int glyph-data-offset]} glyph-extents
+                          ^int image-width (:width image-wh)
+                          ^int image-height (:height image-wh)
+                          row-size (* (int (:width glyph-cell-wh)) channel-count)]
+                      (Arrays/fill glyph-data-bank glyph-data-offset (+ glyph-data-offset row-size) (unchecked-byte 0))
+                      (doseq [^int y (range image-height)]
+                        (let [y-offset (+ glyph-data-offset
+                                          row-size
+                                          (* y row-size))]
+                          (aset glyph-data-bank y-offset (unchecked-byte 0))
+                          (System/arraycopy field (+ (* y image-width channel-count) 0) glyph-data-bank (+ y-offset channel-count) (* image-width channel-count))
+                          (aset glyph-data-bank (+ (+ y-offset channel-count) (* image-width channel-count)) (unchecked-byte 0))))
+                      (let [last-y-offset (- (+ glyph-data-offset glyph-data-size) row-size)]
+                        (Arrays/fill glyph-data-bank last-y-offset (+ last-y-offset row-size) (unchecked-byte 0)))))
+                  batch)))
         (sequence (comp
                     positive-glyph-extent-pairs-xf
                     (partition-all 100))

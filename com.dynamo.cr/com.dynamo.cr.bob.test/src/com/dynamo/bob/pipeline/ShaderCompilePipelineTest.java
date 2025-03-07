@@ -34,7 +34,6 @@ public class ShaderCompilePipelineTest {
         allLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
         allLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
         allLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM120);
-        allLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM140);
         allLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
         allLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM430);
         allLanguages.add(ShaderDesc.Language.LANGUAGE_SPIRV);

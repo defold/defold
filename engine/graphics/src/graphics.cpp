@@ -24,9 +24,9 @@
 #include <dlib/profile.h>
 #include <dlib/math.h>
 
-DM_PROPERTY_GROUP(rmtp_Graphics, "Graphics");
-DM_PROPERTY_U32(rmtp_DrawCalls, 0, FrameReset, "# vertices", &rmtp_Graphics);
-DM_PROPERTY_U32(rmtp_DispatchCalls, 0, FrameReset, "# dispatches", &rmtp_Graphics);
+DM_PROPERTY_GROUP(rmtp_Graphics, "Graphics", 0);
+DM_PROPERTY_U32(rmtp_DrawCalls, 0, PROFILE_PROPERTY_FRAME_RESET, "# vertices", &rmtp_Graphics);
+DM_PROPERTY_U32(rmtp_DispatchCalls, 0, PROFILE_PROPERTY_FRAME_RESET, "# dispatches", &rmtp_Graphics);
 
 #include <dlib/log.h>
 #include <dlib/dstrings.h>
@@ -106,6 +106,8 @@ namespace dmGraphics
             return ADAPTER_FAMILY_NULL;
         if (dmStrCaseCmp("opengl", adapter_name) == 0)
             return ADAPTER_FAMILY_OPENGL;
+        if (dmStrCaseCmp("opengles", adapter_name) == 0)
+            return ADAPTER_FAMILY_OPENGLES;
         if (dmStrCaseCmp("vulkan", adapter_name) == 0)
             return ADAPTER_FAMILY_VULKAN;
         if (dmStrCaseCmp("webgpu", adapter_name) == 0)
@@ -127,6 +129,7 @@ namespace dmGraphics
             GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_NONE);
             GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_NULL);
             GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_OPENGL);
+            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_OPENGLES);
             GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_VULKAN);
             GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_VENDOR);
             GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_WEBGPU);
@@ -262,7 +265,6 @@ namespace dmGraphics
         switch(language)
         {
             SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLSL_SM120);
-            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLSL_SM140);
             SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLES_SM100);
             SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLES_SM300);
             SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLSL_SM430);

@@ -144,6 +144,7 @@ def transform_gameobject(task, msg):
         c.component = c.component.replace('.tilesource', '.t.texturesetc')
         c.component = c.component.replace('.tilemap', '.tilemapc')
         c.component = c.component.replace('.tilegrid', '.tilemapc')
+
         transform_properties(c.properties, c.property_decls)
     return msg
 
