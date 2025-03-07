@@ -1389,6 +1389,8 @@
     (.setOnMouseClicked parent event-handler)
     (.setOnMouseMoved parent event-handler)
     (.setOnMouseDragged parent event-handler)
+    (.setOnDragOver parent event-handler)
+    (.setOnDragDropped parent event-handler)
     (.setOnScroll parent event-handler)
     (.setOnKeyPressed parent (ui/event-handler e
                                (when @process-events?
@@ -1574,6 +1576,7 @@
                   (g/connect view-id         :viewport                      tool-controller :viewport)
                   (g/connect camera          :camera                        tool-controller :camera)
                   (g/connect view-id         :selected-renderables          tool-controller :selected-renderables)
+                  (g/connect app-view-id     :_node-id                      tool-controller :app-view)
 
                   (attach-tool-controller tool-controller-type tool-controller view-id resource-node)
 

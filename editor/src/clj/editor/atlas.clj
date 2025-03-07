@@ -50,7 +50,9 @@
             [schema.core :as s]
             [util.digestable :as digestable]
             [util.fn :as fn]
-            [util.murmur :as murmur])
+            [util.murmur :as murmur]
+            [clojure.string :as str]
+            [editor.ui :as ui])
   (:import [com.dynamo.bob.pipeline AtlasUtil ShaderUtil$Common ShaderUtil$VariantTextureArrayFallback]
            [com.dynamo.bob.textureset TextureSetGenerator$LayoutResult]
            [com.dynamo.gamesys.proto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage TextureSetProto$TextureSet Tile$Playback]
@@ -58,9 +60,11 @@
            [editor.gl.vertex2 VertexBuffer]
            [editor.types AABB Animation Image]
            [java.awt.image BufferedImage]
+           [java.io File]
            [java.nio ByteBuffer]
            [java.util List]
-           [javax.vecmath AxisAngle4d Matrix4d Point3d Vector3d]))
+           [javax.vecmath AxisAngle4d Matrix4d Point3d Vector3d]
+           [javafx.scene.input Dragboard]))
 
 (set! *warn-on-reflection* true)
 
@@ -991,6 +995,13 @@
     :id "New Animation"
     :playback :playback-loop-forward))
 
+(defn- select!
+  [app-view nodes op-seq]
+  (g/transact
+    (concat
+      (g/operation-sequence op-seq)
+      (app-view/select app-view nodes))))
+
 (defn- add-animation-group-handler [app-view atlas-node]
   (let [op-seq (gensym)
         [animation-node] (g/tx-nodes-added
@@ -999,10 +1010,7 @@
                                (g/operation-sequence op-seq)
                                (g/operation-label "Add Animation")
                                (make-atlas-animation atlas-node default-animation))))]
-    (g/transact
-      (concat
-        (g/operation-sequence op-seq)
-        (app-view/select app-view [animation-node])))))
+    (select! app-view [animation-node] op-seq)))
 
 (handler/defhandler :add :workbench
   (label [] "Add Animation Group")
@@ -1033,10 +1041,7 @@
                               (let [parent-node-type @(g/node-type* parent)]
                                 (throw (ex-info (str "Unsupported parent type " (:name parent-node-type))
                                                 {:parent-node-type parent-node-type})))))))]
-      (g/transact
-        (concat
-          (g/operation-sequence op-seq)
-          (app-view/select app-view image-nodes))))))
+      (select! app-view image-nodes op-seq))))
 
 (handler/defhandler :add-from-file :workbench
   (label [] "Add Images...")
@@ -1186,8 +1191,65 @@
     (let [pivot-pos (rect->absolute-pivot-pos (-> selected-renderables util/only :user-data :rect))]
       (scene-tools/scale-factor camera viewport (Vector3d. (first pivot-pos) (second pivot-pos) 0.0)))))
 
+(defn- image-path?
+  [path]
+  (some (partial str/ends-with? path) image/exts))
+
+(defn- file->image-resource
+  [workspace ^File file]
+  (when-let [path (workspace/as-proj-path workspace (.getAbsolutePath file))]
+    (when (image-path? path)
+      (workspace/resolve-workspace-resource workspace path))))
+
+(defn- dragboard->image-resources
+  [^Dragboard dragboard workspace]
+  (->> (.getFiles dragboard)
+       (map (partial file->image-resource workspace))
+       (remove nil?)
+       (sort-by resource/path)))
+
+(defn- image-resources->image-msgs
+  [image-resources]
+  (mapv (partial hash-map :image) image-resources))
+
+(defn- create-dropped-images!
+  [parent image-resources op-seq]
+  (g/tx-nodes-added
+    (g/transact
+      (concat
+        (g/operation-sequence op-seq)
+        (g/operation-label "Drop images")
+        (condp g/node-instance? parent
+          AtlasNode (let [existing-image-resources (set (g/node-value parent :image-resources))
+                          new-image? (complement existing-image-resources)]
+                      (->> (filter new-image? image-resources)
+                           (image-resources->image-msgs)
+                           (make-image-nodes-in-atlas parent)))
+          AtlasAnimation (->> (image-resources->image-msgs image-resources)
+                              (make-image-nodes-in-animation parent)))))))
+
+(defn- parent-animation-or-atlas
+  [selection]
+  (or (first (handler/adapt-every selection AtlasAnimation))
+      (first (map #(core/scope-of-type % AtlasAnimation) selection))
+      (first (map #(core/scope-of-type % AtlasNode) selection))
+      (first (handler/adapt-every selection AtlasNode))))
+
 (defn handle-input [self action selection-data]
   (case (:type action)
+    :drag-dropped (let [dragboard ^Dragboard (:dragboard action)]
+                    (when (.hasFiles dragboard)
+                      (let [app-view (g/node-value self :app-view)
+                            selection (g/node-value app-view :selected-node-ids)
+                            parent (parent-animation-or-atlas selection)
+                            project (project/get-project parent)
+                            workspace (project/workspace project)
+                            image-resources (dragboard->image-resources dragboard workspace)
+                            op-seq (gensym)
+                            image-nodes (create-dropped-images! parent image-resources op-seq)]
+                        (select! app-view image-nodes op-seq)
+                        (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
+                        nil)))
     :mouse-pressed (if (first (get selection-data self))
                      (do
                        (g/transact
@@ -1234,7 +1296,8 @@
   (input camera g/Any)
   (input viewport g/Any)
   (input selected-renderables g/Any)
-
+  (input app-view g/NodeID)
+  
   (output scale g/Any :cached produce-scale)
   (output snap-threshold g/Any :cached (g/fnk [scale] (cond-> 0.1 scale (* ^double scale))))
   (output snap-enabled g/Bool :cached (g/fnk [start-action action] (and start-action (:shift action))))
