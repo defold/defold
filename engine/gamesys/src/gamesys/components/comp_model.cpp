@@ -874,8 +874,6 @@ namespace dmGameSystem
         if (resource->m_RigScene->m_SkeletonRes)
             bone_id_to_indices = &resource->m_RigScene->m_SkeletonRes->m_BoneIndices;
 
-        SetupRequiresBindPoseCaching(component);
-
         for (uint32_t i = 0; i < resource->m_Meshes.Size(); ++i)
         {
             MeshRenderItem item;
@@ -911,6 +909,8 @@ namespace dmGameSystem
 
             component->m_RenderItems.Push(item);
         }
+
+        SetupRequiresBindPoseCaching(component);
 
         component->m_MeshAttributeRenderDatas.SetCapacity(num_custom_attributes);
         component->m_MeshAttributeRenderDatas.SetSize(num_custom_attributes);
@@ -1259,8 +1259,8 @@ namespace dmGameSystem
 
                 instance_data->m_AnimationData.setX((float) cache_offset);
                 instance_data->m_AnimationData.setY((float) GetBoneCount(instance_component->m_RigInstance));
-                instance_data->m_AnimationData.setZ(dmGraphics::GetTextureWidth(world->m_SkinnedAnimationData.m_BindPoseCacheTexture));
-                instance_data->m_AnimationData.setW(dmGraphics::GetTextureHeight(world->m_SkinnedAnimationData.m_BindPoseCacheTexture));
+                instance_data->m_AnimationData.setZ((float) dmGraphics::GetTextureWidth(world->m_SkinnedAnimationData.m_BindPoseCacheTexture));
+                instance_data->m_AnimationData.setW((float) dmGraphics::GetTextureHeight(world->m_SkinnedAnimationData.m_BindPoseCacheTexture));
 
                 if (first_free_index >= 0)
                 {
@@ -1413,8 +1413,8 @@ namespace dmGameSystem
                 dmVMath::Vector4 animation_data;
                 animation_data.setX((float) cache_offset);
                 animation_data.setY((float) GetBoneCount(component->m_RigInstance));
-                animation_data.setZ(dmGraphics::GetTextureWidth(world->m_SkinnedAnimationData.m_BindPoseCacheTexture));
-                animation_data.setW(dmGraphics::GetTextureHeight(world->m_SkinnedAnimationData.m_BindPoseCacheTexture));
+                animation_data.setZ((float) dmGraphics::GetTextureWidth(world->m_SkinnedAnimationData.m_BindPoseCacheTexture));
+                animation_data.setW((float) dmGraphics::GetTextureHeight(world->m_SkinnedAnimationData.m_BindPoseCacheTexture));
 
                 SetRenderConstant(constants, dmRender::VERTEX_STREAM_ANIMATION_DATA, &animation_data, 1);
             }
@@ -1735,6 +1735,8 @@ namespace dmGameSystem
         if (pose_matrix_count == 0)
             return;
 
+        // TODO!
+        // We should be able to write 4x3 matrices here. The last column will always be (0, 0, 0, 1)
         uint32_t num_bone_pixels = pose_matrix_count * 4;
         uint32_t max_width  = dmMath::Min(num_bone_pixels, (uint32_t) world->m_SkinnedAnimationData.m_BindPoseCacheTextureMaxWidth);
         uint32_t max_height = dmMath::Min(num_bone_pixels / world->m_SkinnedAnimationData.m_BindPoseCacheTextureMaxWidth + 1, (uint32_t) world->m_SkinnedAnimationData.m_BindPoseCacheTextureMaxHeight);
