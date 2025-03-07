@@ -1515,6 +1515,7 @@ namespace dmEngine
         script_lib_context.m_GraphicsContext = engine->m_GraphicsContext;
         script_lib_context.m_JobThread       = engine->m_JobThreadContext;
         script_lib_context.m_ConfigFile      = engine->m_Config;
+        script_lib_context.m_Window          = engine->m_Window;
 
         if (engine->m_SharedScriptContext)
         {
