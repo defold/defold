@@ -995,12 +995,12 @@
     :id "New Animation"
     :playback :playback-loop-forward))
 
-(defn- select-images!
-  [app-view image-nodes op-seq]
+(defn- select!
+  [app-view nodes op-seq]
   (g/transact
     (concat
       (g/operation-sequence op-seq)
-      (app-view/select app-view image-nodes))))
+      (app-view/select app-view nodes))))
 
 (defn- add-animation-group-handler [app-view atlas-node]
   (let [op-seq (gensym)
@@ -1010,7 +1010,7 @@
                                (g/operation-sequence op-seq)
                                (g/operation-label "Add Animation")
                                (make-atlas-animation atlas-node default-animation))))]
-    (select-images! app-view [animation-node] op-seq)))
+    (select! app-view [animation-node] op-seq)))
 
 (handler/defhandler :add :workbench
   (label [] "Add Animation Group")
@@ -1041,7 +1041,7 @@
                               (let [parent-node-type @(g/node-type* parent)]
                                 (throw (ex-info (str "Unsupported parent type " (:name parent-node-type))
                                                 {:parent-node-type parent-node-type})))))))]
-      (select-images! app-view image-nodes op-seq))))
+      (select! app-view image-nodes op-seq))))
 
 (handler/defhandler :add-from-file :workbench
   (label [] "Add Images...")
@@ -1191,29 +1191,42 @@
     (let [pivot-pos (rect->absolute-pivot-pos (-> selected-renderables util/only :user-data :rect))]
       (scene-tools/scale-factor camera viewport (Vector3d. (first pivot-pos) (second pivot-pos) 0.0)))))
 
-(defn- file->image-msg
+(defn- image-path?
+  [path]
+  (some (partial str/ends-with? path) image/exts))
+
+(defn- file->image-resource
   [workspace ^File file]
   (when-let [path (workspace/as-proj-path workspace (.getAbsolutePath file))]
-    (when (some (partial str/ends-with? path) image/exts)
-      {:image (workspace/resolve-workspace-resource workspace path)})))
+    (when (image-path? path)
+      (workspace/resolve-workspace-resource workspace path))))
 
-(defn dragboard->image-msgs
-  [dragboard workspace]
+(defn- dragboard->image-resources
+  [^Dragboard dragboard workspace]
   (->> (.getFiles dragboard)
-       (map (partial file->image-msg workspace))
-       (sort-by :path)
-       (remove nil?)))
+       (map (partial file->image-resource workspace))
+       (remove nil?)
+       (sort-by resource/path)))
+
+(defn- image-resources->image-msgs
+  [image-resources]
+  (mapv (partial hash-map :image) image-resources))
 
 (defn- create-dropped-images!
-  [parent image-msgs op-seq]
+  [parent image-resources op-seq]
   (g/tx-nodes-added
     (g/transact
       (concat
         (g/operation-sequence op-seq)
         (g/operation-label "Drop images")
         (condp g/node-instance? parent
-          AtlasNode (make-image-nodes-in-atlas parent image-msgs)
-          AtlasAnimation (make-image-nodes-in-animation parent image-msgs))))))
+          AtlasNode (let [existing-image-resources (set (g/node-value parent :image-resources))
+                          new-image? (complement existing-image-resources)]
+                      (->> (filter new-image? image-resources)
+                           (image-resources->image-msgs)
+                           (make-image-nodes-in-atlas parent)))
+          AtlasAnimation (->> (image-resources->image-msgs image-resources)
+                              (make-image-nodes-in-animation parent)))))))
 
 (defn- parent-animation-or-atlas
   [selection]
@@ -1231,10 +1244,10 @@
                             parent (parent-animation-or-atlas selection)
                             project (project/get-project parent)
                             workspace (project/workspace project)
-                            image-msgs (dragboard->image-msgs dragboard workspace)
+                            image-resources (dragboard->image-resources dragboard workspace)
                             op-seq (gensym)
-                            image-nodes (create-dropped-images! parent image-msgs op-seq)]
-                        (select-images! app-view image-nodes op-seq)
+                            image-nodes (create-dropped-images! parent image-resources op-seq)]
+                        (select! app-view image-nodes op-seq)
                         (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
                         nil)))
     :mouse-pressed (if (first (get selection-data self))
