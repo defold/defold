@@ -743,7 +743,9 @@ class Configuration(object):
         target_platform = self.target_platform
 
         # check host tools availability
-        has_host_sdk = self.has_sdk(sdkfolder, sdk.get_host_platform())
+        has_host_sdk = False
+        if sdk.get_host_platform() != target_platform:
+            has_host_sdk = self.has_sdk(sdkfolder, sdk.get_host_platform())
 
         if target_platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
             # macOS SDK
