@@ -29,6 +29,7 @@
 #include "../sound.h"
 #include "../sound_private.h"
 #include "../sound_codec.h"
+#include "../sound_pfb.h"
 #include "../stb_vorbis/stb_vorbis.h"
 
 #include "test/mono_tone_2000_22050_5512.wav.embed.h"
@@ -94,7 +95,6 @@ extern unsigned char BOOSTER_ON_SFX_WAV[];
 extern uint32_t BOOSTER_ON_SFX_WAV_SIZE;
 extern unsigned char MONO_RESAMPLE_FRAMECOUNT_16000_OGG[];
 extern uint32_t MONO_RESAMPLE_FRAMECOUNT_16000_OGG_SIZE;
-
 
 
 struct TestParams
@@ -504,6 +504,47 @@ const TestParams params_looping_test[] = {
 INSTANTIATE_TEST_CASE_P(dmSoundTestLoopingTest, dmSoundTestLoopingTest, jc_test_values_in(params_looping_test));
 #endif
 
+// Generate sine wave per given parametyers and resasmple it as needed to mimic runtimes signal path for generated test waves
+static double GenAndMixTone(uint64_t pos, float tone_frq, float sample_rate, float mix_rate, int num_frames, bool ramp_active, float scale)
+{
+    static_assert(_pfb_num_phases == 1 << 11, "PFB header does not readily offer this constant - update needed (see below)!");
+
+    int index = (int)(pos >> dmSound::RESAMPLE_FRACTION_BITS);
+
+    double a;
+    // only generate data inside samples range (assumes no looping)
+    if (index < num_frames) {
+        if (mix_rate != sample_rate) {
+            int frac = (int)(pos >> (dmSound::RESAMPLE_FRACTION_BITS - 11)) & (_pfb_num_phases - 1);
+            int32_t ti = _pfb_num_taps * frac;
+            const int32_t js = -(_pfb_num_taps / 2 - 1);
+            const int32_t je = _pfb_num_taps / 2;
+            // Polyphase FIR
+            a = 0.0;
+            for (int32_t j = js; j <= je; j++, ti++) {
+                // add only if we are past the start (assumes zeroes in history buffer)
+                int32_t idx = index + j;
+                if (idx >= 0) {
+                    // Clamp index at end of sample data (assumes samples at the end get repeated as needed for resampling)
+                    idx = dmMath::Min(idx, num_frames - 1);
+                    float ramp = ramp_active ? ((num_frames - 1) - idx) / (float) num_frames : 1.0f;
+                    double t = ramp * 0.8 * 32768.0 * sin((idx * 2.0 * M_PI * tone_frq) / sample_rate);
+                    a += t * _pfb[ti];
+                }
+            }
+            a *= scale;
+        }
+        else {
+            // 1:1
+            float ramp = ramp_active ? ((num_frames - 1) - index) / (float) num_frames : 1.0f;
+            a = scale * ramp * 0.8 * 32768.0 * sin((index * 2.0 * M_PI * tone_frq) / sample_rate);
+        }
+    }
+    else {
+        a = 0.0;
+    }
+    return a;
+}
 
 #if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !(defined(WIN32) || defined(__MACH__)))
 TEST_P(dmSoundVerifyTest, Mix)
@@ -531,20 +572,23 @@ TEST_P(dmSoundVerifyTest, Mix)
     ASSERT_EQ(dmSound::RESULT_OK, r);
 
     const uint32_t frame_count = params.m_FrameCount;
-    const float rate = params.m_ToneRate;
     const float mix_rate = params.m_MixRate;
 
-    const uint32_t device_mix_rate = dmSound::GetMixRate();
-    const int n = (frame_count * device_mix_rate) / (int) mix_rate;
+    const double f = 44100.0;
+    const int n = (int)(frame_count * (f / mix_rate));
+    const double level = sin(M_PI_4);                       // center panning introduces this
+
+    assert(g_LoopbackDevice->m_AllOutput.Size() >= n * 2);
+
+    uint64_t delta = (uint64_t)(mix_rate * (1UL << dmSound::RESAMPLE_FRACTION_BITS) / f);
+    uint64_t pos = 0;
     for (int32_t i = 0; i < n - 1; i++) {
-        const double f = device_mix_rate;
-        int index = i * mix_rate / f;
-        double level = sin(M_PI_4);
-        double a1 = 0.8 * 32768.0 * level * sin((index * 2.0 * M_PI * rate) / mix_rate);
-        double a2 = 0.8 * 32768.0 * level * sin(((index + 1) * 2.0 * M_PI * rate) / mix_rate);
-        double frac = fmod(i * mix_rate / double(device_mix_rate), 1.0);
-        double a = a1 * (1.0 - frac) + a2 * frac;
-        int16_t as = (int16_t) a;
+
+        double a = GenAndMixTone(pos, params.m_ToneRate, mix_rate, f, frame_count, false, level);
+        pos += delta;
+
+        int16_t as = (int16_t)dmMath::Clamp(a, -32768.0, 32767.0);
+
         ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i], as, 27);
         ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i + 1], as, 27);
     }
@@ -556,18 +600,20 @@ TEST_P(dmSoundVerifyTest, Mix)
     }
 
     float rms_left, rms_right;
-    dmSound::GetGroupRMS(dmHashString64("master"), params.m_BufferFrameCount / 44100.0f, &rms_left, &rms_right);
+    dmSound::GetGroupRMS(dmHashString64("master"), params.m_BufferFrameCount / f, &rms_left, &rms_right);
+    dmSound::GetGroupRMS(dmHashString64("master"), params.m_BufferFrameCount / f, &rms_left, &rms_right);
     // Theoretical RMS for a sin-function with amplitude a is a / sqrt(2)
     ASSERT_NEAR(0.8f / sqrtf(2.0f) * 0.707107f, rms_left, 0.02f);
     ASSERT_NEAR(0.8f / sqrtf(2.0f) * 0.707107f, rms_right, 0.02f);
 
     float peak_left, peak_right;
-    dmSound::GetGroupPeak(dmHashString64("master"), params.m_BufferFrameCount / 44100.0f, &peak_left, &peak_right);
+    dmSound::GetGroupPeak(dmHashString64("master"), params.m_BufferFrameCount / f, &peak_left, &peak_right);
+    dmSound::GetGroupPeak(dmHashString64("master"), params.m_BufferFrameCount / f, &peak_left, &peak_right);
     ASSERT_NEAR(0.8f* 0.707107f, peak_left, 0.01f);
     ASSERT_NEAR(0.8f* 0.707107f, peak_right, 0.01f);
 
-    int expected_queued = (frame_count * 44100) / ((int) mix_rate * params.m_BufferFrameCount)
-                            + dmMath::Min(1U, (frame_count * 44100) % ((int) mix_rate * params.m_BufferFrameCount));
+    int expected_queued = (frame_count * (int)f) / ((int) mix_rate * params.m_BufferFrameCount)
+                            + dmMath::Min(1U, (frame_count * (int)f) % ((int) mix_rate * params.m_BufferFrameCount));
     ASSERT_EQ(g_LoopbackDevice->m_TotalBuffersQueued, (uint32_t)expected_queued);
 
     r = dmSound::DeleteSoundData(sd);
@@ -1140,6 +1186,7 @@ INSTANTIATE_TEST_CASE_P(dmSoundVerifyOggTest, dmSoundVerifyOggTest, jc_test_valu
 #if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !(defined(WIN32) || defined(__MACH__)))
 TEST_P(dmSoundTestPlayTest, Play)
 {
+
     TestParams params = GetParam();
     dmSound::Result r;
     dmSound::HSoundData sd = 0;
@@ -1438,7 +1485,8 @@ TEST_P(dmSoundMixerTest, Mixer)
     r = dmSound::SetInstanceGroup(instance1, "g1");
     ASSERT_EQ(dmSound::RESULT_OK, r);
 
-    r = dmSound::NewSoundInstance(sd1, &instance2);
+    r = dmSound::NewSoundInstance(sd2, &instance2);
+    r = dmSound::NewSoundInstance(sd2, &instance2);
     ASSERT_EQ(dmSound::RESULT_OK, r);
     ASSERT_NE((dmSound::HSoundInstance) 0, instance2);
     r = dmSound::SetInstanceGroup(instance2, "g2");
@@ -1460,61 +1508,63 @@ TEST_P(dmSoundMixerTest, Mixer)
     ASSERT_EQ(dmSound::RESULT_OK, r);
 
     const uint32_t frame_count1 = params.m_FrameCount1;
-    const float rate1 = params.m_ToneRate1;
     const uint32_t frame_count2 = params.m_FrameCount2;
-    const float rate2 = params.m_ToneRate2;
     const float mix_rate1 = params.m_MixRate1;
     const float mix_rate2 = params.m_MixRate2;
 
-    uint32_t mix_rate = dmSound::GetMixRate();
+    const double f = 44100.0;
+    const double level = sin(M_PI_4);                       // center panning introduces this
 
-    const int n1 = (frame_count1 * mix_rate) / (int) mix_rate1;
-    const int n2 = (frame_count2 * mix_rate) / (int) mix_rate2;
+    const int n1 = (int)(frame_count1 * (f / mix_rate1));
+    const int n2 = (int)(frame_count2 * (f / mix_rate2));
     const int n = dmMath::Max(n1, n2);
+
+
     float sum_square = 0.0f;
     float last_rms = 0.0f;
+
+    uint64_t delta1 = (uint64_t)(mix_rate1 * (1UL << dmSound::RESAMPLE_FRACTION_BITS) / f);
+    uint64_t pos1 = 0;
+    uint64_t delta2 = (uint64_t)(mix_rate2 * (1UL << dmSound::RESAMPLE_FRACTION_BITS) / f);
+    uint64_t pos2 = 0;
     for (int32_t i = 0; i < n - 1; i++) {
-        const double f = mix_rate;
 
-        double ax = 0;
-        double ay = 0;
+        // Generate comparison data for G1 output
+        double ax = GenAndMixTone(pos1, params.m_ToneRate1, params.m_MixRate1, f, frame_count1, params.m_Ramp1, level * params.m_Gain1);
+        // Generate comparison data for G2 output
+        double ay = GenAndMixTone(pos2, params.m_ToneRate2, params.m_MixRate2, f, frame_count2, params.m_Ramp2, level * params.m_Gain2);
 
-        int index1 = i * mix_rate1 / f;
-        float ramp1 = params.m_Ramp1 ? ((n - 1) - i) / (float) n : 1.0f;
-        double a1x = ramp1 * params.m_Gain1 * 0.8 * 32768.0 * sin((index1 * 2.0 * 3.14159265 * rate1) / mix_rate1);
-        double a2x = ramp1 * params.m_Gain1 * 0.8 * 32768.0 * sin(((index1 + 1) * 2.0 * 3.14159265 * rate1) / mix_rate1);
-        double frac1 = fmod(i * mix_rate1 / double(mix_rate), 1.0);
-        ax = a1x * (1.0 - frac1) + a2x * frac1;
+        pos1 += delta1;
+        pos2 += delta2;
 
-        int index2 = i * mix_rate2 / f;
-        float ramp2 = params.m_Ramp2 ? ((n - 1) - i) / (float) n : 1.0f;
-        double a1y = ramp2 * params.m_Gain2 * 0.8 * 32768.0 * sin((index2 * 2.0 * 3.14159265 * rate2) / mix_rate2);
-        double a2y = ramp2 * params.m_Gain2 * 0.8 * 32768.0 * sin(((index2 + 1) * 2.0 * 3.14159265 * rate2) / mix_rate2);
-        double frac2 = fmod(i * mix_rate2 / double(mix_rate), 1.0);
-        ay = a1y * (1.0 - frac2) + a2y * frac2;
+        // Mix groups and apply master gain (& clamp)
+        double a = dmMath::Clamp((ax + ay) * master_gain, -32768.0, 32767.0);
 
-        double a = ax + ay;
-        a = dmMath::Min(32767.0, a);
-        a = dmMath::Max(-32768.0, a);
-
+        // Note: yes, we do this only for the output from G1
         sum_square += ax * ax;
         if (i % params.m_BufferFrameCount == 0 && i > 0) {
             last_rms = sqrtf(sum_square / (float) params.m_BufferFrameCount);
-            sum_square =0 ;
+            sum_square = 0.0f;
+            sum_square = 0.0f;
         }
 
+        // Check with actual output...
+        // Check with actual output...
         int16_t as = (int16_t) a;
 
         const int abs_error = 36;
         if ((uint32_t)i > params.m_BufferFrameCount * 2) {
-            ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i], as * master_gain * 0.707107f, abs_error);
-            ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i + 1], as * master_gain * 0.707107f, abs_error);
+            ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i], as, abs_error);
+            ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i + 1], as, abs_error);
+            ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i], as, abs_error);
+            ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i + 1], as, abs_error);
         }
     }
     last_rms /= 32767.0f;
 
     float rms_left, rms_right;
-    dmSound::GetGroupRMS(dmHashString64("g1"), params.m_BufferFrameCount / double(mix_rate), &rms_left, &rms_right);
+    dmSound::GetGroupRMS(dmHashString64("g1"), params.m_BufferFrameCount / f, &rms_left, &rms_right);
+    dmSound::GetGroupRMS(dmHashString64("g1"), params.m_BufferFrameCount / f, &rms_left, &rms_right);
     const float rms_tol = 3.0f;
     ASSERT_NEAR(rms_left, last_rms, rms_tol);
     ASSERT_NEAR(rms_right, last_rms, rms_tol);
