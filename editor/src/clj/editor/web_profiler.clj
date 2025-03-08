@@ -13,31 +13,22 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.web-profiler
-  (:require [editor.handler :as handler]
+  (:require [clojure.java.io :as io]
+            [clojure.string :as string]
+            [editor.handler :as handler]
             [editor.ui :as ui]
-            [util.http-server :as http-server]
-            [clojure.java.io :as io])
-  (:import  [com.defold.util Profiler]))
-
-(def ^:const url-prefix "/profiler")
-(def ^:private template-path "profiler_template.html")
-(def ^:private html (atom nil))
-
-(defn- dump-profiler []
-  (reset! html (-> (slurp (io/resource template-path))
-                   (clojure.string/replace "$PROFILER_DATA" (Profiler/dumpJson)))))
-
-(handler/defhandler :profile :global
-  (enabled? [] true)
-  (run [] (dump-profiler)))
+            [util.http-server :as http-server])
+  (:import [com.defold.util Profiler]))
 
 (handler/defhandler :profile-show :global
-  (enabled? [] true)
   (run [web-server]
-       (dump-profiler)
-       (ui/open-url (format "%s/profiler" (http-server/local-url web-server)))))
+    (ui/open-url (str (http-server/local-url web-server) "/profiler"))))
 
-(defn handler [req]
-  {:code 200
-   :headers {"Content-Type" "text/html"}
-   :body (or @html (dump-profiler))})
+(defn routes []
+  {"/profiler"
+   {"GET" (fn [_]
+            (http-server/response
+              200
+              {"content-type" "text/html"}
+              (-> (slurp (io/resource "profiler_template.html"))
+                  (string/replace "$PROFILER_DATA" (Profiler/dumpJson)))))}})

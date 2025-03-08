@@ -85,6 +85,7 @@
           <entry key="integration.test-util/with-logged-calls" value="-1" />
           <entry key="integration.test-util/with-prop" value="-1" />
           <entry key="integration.test-util/with-scratch-project" value="-1" />
+          <entry key="integration.test-util/with-server" value="-1" />
           <entry key="integration.test-util/with-temp-dir!" value="-1" />
           <entry key="org.httpkit.server/with-channel" value="-1" />
           <entry key="support.test-support/with-clean-system" value="-1" />

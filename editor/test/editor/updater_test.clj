@@ -13,13 +13,11 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.updater-test
-  (:require [clojure.data.json :as json]
-            [clojure.java.io :as io]
+  (:require [clojure.java.io :as io]
             [clojure.test :refer :all]
             [editor.fs :as fs]
             [editor.updater :as updater]
-            [ring.adapter.jetty :as jetty]
-            [ring.util.response :as response])
+            [util.http-server :as http-server])
   (:import [ch.qos.logback.classic Level Logger]
            [com.dynamo.bob Platform]
            [java.io File]
@@ -54,15 +52,15 @@
 
 (defn make-handler-resources [channel sha1]
   {(format "/editor2/channels/%s/update-v4.json" channel)
-   (response/response (json/write-str {:sha1 sha1}))
+   (http-server/json-response {:sha1 sha1})
 
    (format "/archive/%s/%s/editor2/Defold-%s.zip" sha1 channel (.getPair (Platform/getHostPlatform)))
-   (response/resource-response "test-update.zip")})
+   (http-server/response 200 (io/resource "test-update.zip"))})
 
 (defn- make-resource-handler [channel sha1]
   (let [resources (make-handler-resources channel sha1)]
     (fn [request]
-      (get resources (:uri request) (response/not-found "404")))))
+      (get resources (:path request) http-server/not-found))))
 
 (defn- list-files [dir]
   (->> (file-seq (io/file dir))
@@ -71,12 +69,11 @@
        (apply hash-set)))
 
 (defmacro with-server [channel sha1 & body]
-  `(let [server# (jetty/run-jetty (make-resource-handler ~channel ~sha1)
-                                  {:port ~test-port :join? false})]
+  `(let [server# (http-server/start! (make-resource-handler ~channel ~sha1) :port ~test-port)]
      (try
        ~@body
        (finally
-         (.stop server#)))))
+         (http-server/stop! server# 0)))))
 
 (defn make-updater [channel sha1]
   (#'updater/make-updater
