@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -25,32 +25,25 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
     public static final int FLAG_LIVEUPDATE = 1 << 2;
     public static final int FLAG_UNCOMPRESSED = 0xFFFFFFFF;
 
-    // Member vars, TODO make these private and add getters/setters
-    public int size;
-    public int compressedSize;
-    public int resourceOffset;
-    public int flags = 0;
-    public String relName;
-    public String fileName;
-    public byte[] hash = null;
+    private int size;
+    private int compressedSize;
+    private int resourceOffset;
+    private int flags = 0;
+    private String relName;
+    private String fileName;
+    private String hexDigest;
+    private byte[] hash = null;
+    private byte[] header = new byte[0];
 
     public ArchiveEntry(String fileName) throws IOException {
         this.fileName = fileName;
         this.relName = fileName;
     }
 
-    public ArchiveEntry(String root, String fileName, boolean doCompress, boolean isLiveUpdate) throws IOException {
-        this(root, fileName, doCompress);
-
-        if (isLiveUpdate) {
-            this.flags = this.flags | FLAG_LIVEUPDATE;
-        }
-    }
-
-    public ArchiveEntry(String root, String fileName, boolean compress) throws IOException {
+    public ArchiveEntry(String root, String fileName, boolean compress, boolean encrypt, boolean isLiveUpdate) throws IOException {
         File file = new File(fileName);
         if (!file.exists()) {
-            throw new IOException(String.format("File %s doens't exists",
+            throw new IOException(String.format("File %s does not exists",
                     fileName));
         }
 
@@ -69,8 +62,116 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
             this.compressedSize = FLAG_UNCOMPRESSED;
         }
 
+        if (encrypt) {
+            this.flags = this.flags | FLAG_ENCRYPTED;
+        }
+
+        if (isLiveUpdate) {
+            this.flags = this.flags | FLAG_LIVEUPDATE;
+        }
+
         this.relName = FilenameUtils.separatorsToUnix(fileName.substring(root.length()));
         this.fileName = fileName;
+    }
+
+    public ArchiveEntry(String root, String fileName, boolean compress, boolean encrypt) throws IOException {
+        this(root, fileName, compress, encrypt, false);
+    }
+
+    public ArchiveEntry(String root, String fileName) throws IOException {
+        this(root, fileName, false, false, false);
+    }
+
+    public void setHeader(byte[] header) {
+        this.header = header;
+    }
+
+    public byte[] getHeader() {
+        return header;
+    }
+
+    public int getSize() {
+        return size;
+    }
+
+    public void setSize(int size) {
+        this.size = size;
+    }
+
+    public int getCompressedSize() {
+        return compressedSize;
+    }
+
+    public void setCompressedSize(int compressedSize) {
+        this.compressedSize = compressedSize;
+    }
+
+    public byte[] getHash() {
+        return hash;
+    }
+
+    public void setHash(byte[] hash) {
+        this.hash = hash;
+    }
+
+    public String getHexDigest() {
+        return hexDigest;
+    }
+
+    public void setHexDigest(String hexDigest) {
+        this.hexDigest = hexDigest;
+    }
+
+    public int getResourceOffset() {
+        return resourceOffset;
+    }
+
+    public void setResourceOffset(int resourceOffset) {
+        this.resourceOffset = resourceOffset;
+    }
+
+    public String getName() {
+        return FilenameUtils.getName(fileName);
+    }
+
+    public String getFilename() {
+        return fileName;
+    }
+
+    public void setFilename(String fileName) {
+        this.fileName = fileName;
+    }
+    
+    public String getRelativeFilename() {
+        return relName;
+    }
+
+    public void setRelativeFilename(String relName) {
+        this.relName = relName;
+    }
+
+    public boolean isCompressed() {
+        return compressedSize != ArchiveEntry.FLAG_UNCOMPRESSED;
+    }
+
+    public boolean isEncrypted() {
+        return (flags & FLAG_ENCRYPTED) != 0;
+    }
+
+    public boolean isExcluded() {
+        return (flags & FLAG_LIVEUPDATE) != 0;
+    }
+
+    public int getFlags() {
+        return flags;
+    }
+
+    public void setFlags(int flags) {
+        this.flags = flags;
+    }
+
+    public void setFlag(int flag) {
+        this.flags = this.flags | flag;
     }
 
     // For checking duplicate when constructing archive
@@ -86,8 +187,7 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
         return result;
     }
 
-    public int hashCode()
-    {
+    public int hashCode() {
         return 17 * this.fileName.hashCode() + 31 * this.relName.hashCode();
     }
 
@@ -110,5 +210,10 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
         }
 
         return this.compare(this.hash, other.hash);
+    }
+
+    @Override
+    public String toString() {
+        return getClass().getName() + " " + this.fileName + ":" + this.hexDigest;
     }
 }

@@ -76,7 +76,11 @@ static int os_tmpname (lua_State *L) {
 
 
 static int os_getenv (lua_State *L) {
+#if defined(LUA_NO_GETENV) // DEFOLD
+  lua_pushnil(L); // DEFOLD
+#else
   lua_pushstring(L, getenv(luaL_checkstring(L, 1)));  /* if NULL push nil */
+#endif
   return 1;
 }
 

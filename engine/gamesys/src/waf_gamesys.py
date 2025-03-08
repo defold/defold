@@ -1,22 +1,24 @@
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2025 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
-import Task, TaskGen, Utils, re, os, sys
-from TaskGen import extension
+import waflib.Task, waflib.TaskGen, waflib.Utils, re, os, sys
+from waflib.TaskGen import extension
 from waf_content import proto_compile_task
 from threading import Lock
 from waf_dynamo import new_copy_task
+
+from google.protobuf import text_format
 
 stderr_lock = Lock()
 
@@ -63,13 +65,8 @@ def transform_texture_name(task, name):
 def transform_tilesource_name(name):
     name = name.replace('.tileset', '.t.texturesetc')
     name = name.replace('.tilesource', '.t.texturesetc')
+    name = name.replace('.atlas', '.t.texturesetc')
     return name
-
-def transform_textureset_filename(task, name):
-    name = name.replace('.tilesource', '.texturec')
-    name = name.replace('.tileset', '.texturec')
-    name = name.replace('.atlas', '.texturec')
-    return transform_texture_name(task, name)
 
 def transform_collection(task, msg):
     for i in msg.instances:
@@ -89,6 +86,7 @@ def transform_collisionobject(task, msg):
     import physics_ddf_pb2
     import google.protobuf.text_format
     import ddf.ddf_math_pb2
+    import dlib
     if msg.type != physics_ddf_pb2.COLLISION_OBJECT_TYPE_DYNAMIC:
         msg.mass = 0
 
@@ -112,6 +110,9 @@ def transform_collisionobject(task, msg):
 
         msg.collision_shape = ''
 
+    for x in msg.embedded_collision_shape.shapes:
+        x.id_hash = dlib.dmHashBuffer64(x.id)
+
     msg.collision_shape = msg.collision_shape.replace('.convexshape', '.convexshapec')
     msg.collision_shape = msg.collision_shape.replace('.tilemap', '.tilemapc')
     msg.collision_shape = msg.collision_shape.replace('.tilegrid', '.tilemapc')
@@ -128,7 +129,6 @@ def transform_gameobject(task, msg):
         c.component = c.component.replace('.camera', '.camerac')
         c.component = c.component.replace('.collectionproxy', '.collectionproxyc')
         c.component = c.component.replace('.collisionobject', '.collisionobjectc')
-        c.component = c.component.replace('.emitter', '.emitterc')
         c.component = c.component.replace('.particlefx', '.particlefxc')
         c.component = c.component.replace('.gui', '.guic')
         c.component = c.component.replace('.model', '.modelc')
@@ -144,40 +144,68 @@ def transform_gameobject(task, msg):
         c.component = c.component.replace('.tilesource', '.t.texturesetc')
         c.component = c.component.replace('.tilemap', '.tilemapc')
         c.component = c.component.replace('.tilegrid', '.tilemapc')
+
         transform_properties(c.properties, c.property_decls)
     return msg
 
 def compile_model(task):
+
+    def _replace_model_ext(orig, newext):
+        if 'dae' in orig:
+            return orig.replace(".dae", newext)
+        else:
+            return orig.replace(".gltf", newext)
+
     try:
         import google.protobuf.text_format
         import model_ddf_pb2
         import rig.rig_ddf_pb2
 
         msg = model_ddf_pb2.ModelDesc()
-        with open(task.inputs[0].srcpath(task.env), 'rb') as in_f:
+        with open(task.inputs[0].srcpath(), 'rb') as in_f:
             google.protobuf.text_format.Merge(in_f.read(), msg)
 
         msg_out = rig.rig_ddf_pb2.RigScene()
-        msg_out.mesh_set = "/" + msg.mesh.replace(".dae", ".meshsetc")
-        msg_out.skeleton = "/" + msg.mesh.replace(".dae", ".skeletonc")
-        msg_out.animation_set = "/" + msg.animations.replace(".dae", ".animationsetc")
-        with open(task.outputs[1].bldpath(task.env), 'wb') as out_f:
+        msg_out.mesh_set = "/" + _replace_model_ext(msg.mesh, ".meshsetc")
+        msg_out.skeleton = "/" + _replace_model_ext(msg.mesh, ".skeletonc")
+        msg_out.animation_set = "/" + _replace_model_ext(msg.animations, ".animationsetc")
+        with open(task.outputs[1].abspath(), 'wb') as out_f:
             out_f.write(msg_out.SerializeToString())
 
         msg_out = model_ddf_pb2.Model()
-        msg_out.rig_scene = "/" + os.path.relpath(task.outputs[1].abspath(), task.generator.content_root)
-        for i,n in enumerate(msg.textures):
-            msg_out.textures.append(transform_texture_name(task, msg.textures[i]))
-        msg_out.material = msg.material.replace(".material", ".materialc")
-        with open(task.outputs[0].bldpath(task.env), 'wb') as out_f:
+        msg_out.rig_scene = "/" + os.path.relpath(task.outputs[1].bldpath(), task.generator.content_root)
+
+        if msg.material or msg.textures:
+            material = model_ddf_pb2.Material()
+            material.name = "unknown"
+            material.material = msg.material.replace(".material", ".materialc")
+
+            for i,n in enumerate(msg.textures):
+                if not n:
+                    continue
+                texture = model_ddf_pb2.Texture()
+                texture.sampler = ""
+                texture.texture = transform_texture_name(task, msg.textures[i])
+                material.textures.append(texture)
+
+            msg_out.materials.append(material)
+
+        for i,n in enumerate(msg.materials):
+            material = msg.materials[i]
+            material.material = material.material.replace(".material", ".materialc")
+            for i,texture in enumerate(material.textures):
+                texture.texture = transform_texture_name(task, texture.texture)
+            msg_out.materials.append(material)
+
+        with open(task.outputs[0].abspath(), 'wb') as out_f:
             out_f.write(msg_out.SerializeToString())
 
         return 0
-    except google.protobuf.text_format.ParseError,e:
-        print >>sys.stderr, '%s:%s' % (task.inputs[0].srcpath(task.env), str(e))
+    except (google.protobuf.text_format.ParseError,) as e:
+        print ('%s:%s' % (task.inputs[0].srcpath(), str(e)), file=sys.stderr)
         return 1
 
-Task.task_type_from_func('model',
+waflib.Task.task_factory('model',
                          func    = compile_model,
                          color   = 'PINK')
 
@@ -191,40 +219,22 @@ def model_file(self, node):
     out_rigscene = node.change_ext(rig_ext)
     task.set_outputs([out_model, out_rigscene])
 
-
-Task.simple_task_type('vertexshader', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.VertexProgramBuilder ${SRC} ${TGT} --platform ${BOB_BUILD_PLATFORM}',
+waflib.Task.task_factory('shaderbuilder', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.ShaderProgramBuilder ${SRC} ${TGT} ${PLATFORM}',
                       color='PINK',
                       after='proto_gen_py',
-                      before='cc cxx',
+                      before='c cxx',
                       shell=False)
 
-@extension('.vp')
+@extension('.vp', '.fp', '.cp')
 def vertexprogram_file(self, node):
-    classpath = [self.env['DYNAMO_HOME'] + '/share/java/bob-light.jar']
-    shader = self.create_task('vertexshader')
+    classpath = [self.env['DYNAMO_HOME'] + '/share/java/bob-light.jar'] + self.env['PLATFORM_SHADER_COMPILER_PLUGIN_JAR']
+    shader = self.create_task('shaderbuilder')
     shader.env['CLASSPATH'] = os.pathsep.join(classpath)
     shader.set_inputs(node)
-    obj_ext = '.vpc'
+    _, ext = os.path.splitext(node.abspath())
+    obj_ext = ext + ".spc"
     out = node.change_ext(obj_ext)
     shader.set_outputs(out)
-
-Task.simple_task_type('fragmentshader', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.FragmentProgramBuilder ${SRC} ${TGT} --platform ${BOB_BUILD_PLATFORM}',
-                      color='PINK',
-                      after='proto_gen_py',
-                      before='cc cxx',
-                      shell=False)
-
-@extension('.fp')
-def fragmentprogram_file(self, node):
-    classpath = [self.env['DYNAMO_HOME'] + '/share/java/bob-light.jar']
-    shader = self.create_task('fragmentshader')
-    shader.env['CLASSPATH'] = os.pathsep.join(classpath)
-    shader.set_inputs(node)
-    obj_ext = '.fpc'
-    out = node.change_ext(obj_ext)
-    shader.set_outputs(out)
-
-
 
 def compile_animationset(task):
     try:
@@ -232,21 +242,21 @@ def compile_animationset(task):
         import rig.rig_ddf_pb2
         import dlib
         msg = rig.rig_ddf_pb2.AnimationSetDesc()
-        with open(task.inputs[0].srcpath(task.env), 'rb') as in_f:
+        with open(task.inputs[0].srcpath(), 'rb') as in_f:
             google.protobuf.text_format.Merge(in_f.read(), msg)
         msg_animset = rig.rig_ddf_pb2.AnimationSet()
         msg_riganim = msg_animset.animations.add()
         msg_riganim.id = dlib.dmHashBuffer64(os.path.splitext(os.path.basename(msg.animations[0].animation))[0])
         msg_riganim.duration = 0.0
         msg_riganim.sample_rate = 30.0
-        with open(task.outputs[0].bldpath(task.env), 'wb') as out_f:
+        with open(task.outputs[0].abspath(), 'wb') as out_f:
             out_f.write(msg_animset.SerializeToString())
         return 0
-    except google.protobuf.text_format.ParseError,e:
-        print >>sys.stderr, '%s:%s' % (task.inputs[0].srcpath(task.env), str(e))
+    except (google.protobuf.text_format.ParseError,) as e:
+        print ('%s:%s' % (task.inputs[0].srcpath(), str(e)), file=sys.stderr)
         return 1
 
-Task.task_type_from_func('animationset',
+waflib.Task.task_factory('animationset',
                          func    = compile_animationset,
                          color   = 'PINK')
 
@@ -262,10 +272,15 @@ def transform_gui(task, msg):
     msg.script = msg.script.replace('.gui_script', '.gui_scriptc')
     font_names = set()
     texture_names = set()
+    material_names = set()
+
     msg.material = msg.material.replace(".material", ".materialc")
     for f in msg.fonts:
         font_names.add(f.name)
         f.font = f.font.replace('.font', '.fontc')
+    for f in msg.materials:
+        material_names.add(f.name)
+        f.material = f.material.replace('.material', '.materialc')
     for t in msg.textures:
         texture_names.add(t.name)
         t.texture = transform_tilesource_name(transform_texture_name(task, t.texture))
@@ -275,6 +290,9 @@ def transform_gui(task, msg):
                 atlas_part = n.texture[:n.texture.index("/")]
                 if not atlas_part in texture_names:
                     raise Exception('Texture "%s" not declared in gui-file' % (n.texture))
+        if n.material:
+            if not n.material in material_names:
+                raise Exception('Material "%s" not declared in gui-file' % (n.material))
         if n.font:
             if not n.font in font_names:
                 raise Exception('Font "%s" not declared in gui-file' % (n.font))
@@ -289,14 +307,40 @@ def transform_collectionfactory(task, msg):
     return msg
 
 def transform_render(task, msg):
+    import render.render_ddf_pb2
     msg.script = msg.script.replace('.render_script', '.render_scriptc')
+
+    # Migrate from the old format to the new format for render prototypes
     for m in msg.materials:
-        m.material = m.material.replace('.material', '.materialc')
+        entry = render.render_ddf_pb2.RenderPrototypeDesc.RenderResourceDesc()
+        entry.name = m.name
+        entry.path = m.material
+        msg.render_resources.append(entry)
+
+    for r in msg.render_resources:
+        r.path = r.path.replace('.material', '.materialc')
+        r.path = r.path.replace('.render_target', '.render_targetc')
+
+    msg.materials.clear()
+    return msg
+
+def transform_render_target(task, msg):
+    msg.prototype = msg.prototype.replace('.render_target', '.render_targetc')
     return msg
 
 def transform_sprite(task, msg):
-    msg.tile_set = transform_tilesource_name(msg.tile_set)
+    import sprite_ddf_pb2
+
     msg.material = msg.material.replace('.material', '.materialc')
+    if msg.tile_set:
+        st = sprite_ddf_pb2.SpriteTexture()
+        st.sampler = ""
+        st.texture = msg.tile_set
+        msg.textures.append(st)
+        msg.tile_set = ""
+
+    for st in msg.textures:
+        st.texture = transform_tilesource_name(st.texture)
     return msg
 
 def transform_tilegrid(task, msg):
@@ -321,47 +365,52 @@ def transform_label(task, msg):
     msg.material = msg.material.replace('.material', '.materialc')
     return msg
 
+def transform_mesh(task, msg):
+    msg.vertices = msg.vertices.replace('.buffer', '.bufferc')
+    msg.vertices = msg.vertices.replace('.prebuilt_bufferc', '.prebuilt_bufferc')
+    msg.material = msg.material.replace('.material', '.materialc')
+    return msg
+
 def write_embedded(task):
     try:
-        import google.protobuf.text_format
         import gameobject_ddf_pb2
+        import google.protobuf.text_format
         msg = gameobject_ddf_pb2.PrototypeDesc()
-        with open(task.inputs[0].srcpath(task.env), 'rb') as in_f:
+        with open(task.inputs[0].srcpath(), 'rb') as in_f:
             google.protobuf.text_format.Merge(in_f.read(), msg)
 
         msg = transform_gameobject(task, msg)
 
         for i, c in enumerate(msg.embedded_components):
-            with open(task.outputs[i].bldpath(task.env), 'wb') as out_f:
+            with open(task.outputs[i].abspath(), 'wb') as out_f:
                 out_f.write(msg.SerializeToString())
 
         return 0
     except (google.protobuf.text_format.ParseError, google.protobuf.message.EncodeError) as e:
         stderr_lock.acquire()
         try:
-            print >>sys.stderr, '%s: %s' % (task.inputs[0].srcpath(task.env), str(e))
+            print ('%s: %s' % (task.inputs[0].srcpath(), str(e)), file=sys.stderr)
         finally:
             stderr_lock.release()
         return 1
 
-task = Task.task_type_from_func('write_embedded',
+task = waflib.Task.task_factory('write_embedded',
                                 func    = write_embedded,
                                 color   = 'RED',
                                 after='proto_gen_py',
-                                before='cc cxx')
+                                before='c cxx')
 
 def compile_go(task):
     try:
-        import google.protobuf.text_format
         import gameobject_ddf_pb2
+        import google.protobuf.text_format
         msg = gameobject_ddf_pb2.PrototypeDesc()
-        with open(task.inputs[0].srcpath(task.env), 'rb') as in_f:
+        with open(task.inputs[0].srcpath(), 'rb') as in_f:
             google.protobuf.text_format.Merge(in_f.read(), msg)
 
         for i, c in enumerate(msg.embedded_components):
-            with open(task.outputs[i+1].bldpath(task.env), 'wb') as out_f:
-                out_f.write(c.data)
-
+            with open(task.outputs[i+1].abspath(), 'wb') as out_f:
+                out_f.write(c.data.encode('ascii'))
             desc = msg.components.add()
             rel_path_dir = os.path.relpath(task.inputs[0].abspath(), task.generator.content_root)
             rel_path_dir = os.path.dirname(rel_path_dir)
@@ -379,34 +428,35 @@ def compile_go(task):
             desc.component = '/' + rel_path_dir + '/' + task.outputs[i+1].name
 
         msg = transform_gameobject(task, msg)
+
         while len(msg.embedded_components) > 0:
             del(msg.embedded_components[0])
 
-        with open(task.outputs[0].bldpath(task.env), 'wb') as out_f:
+        with open(task.outputs[0].abspath(), 'wb') as out_f:
             out_f.write(msg.SerializeToString())
 
         return 0
     except (google.protobuf.text_format.ParseError, google.protobuf.message.EncodeError, Exception) as e:
         stderr_lock.acquire()
         try:
-            print >>sys.stderr, '%s: %s' % (task.inputs[0].srcpath(task.env), str(e))
+            print ('%s: %s' % (task.inputs[0].srcpath(), str(e)), file=sys.stderr)
         finally:
             stderr_lock.release()
         return 1
 
-task = Task.task_type_from_func('gameobject',
+task = waflib.Task.task_factory('gameobject',
                                 func    = compile_go,
                                 color   = 'RED',
                                 after='proto_gen_py',
-                                before='cc cxx')
+                                before='c cxx')
 
 @extension('.go')
 def gofile(self, node):
     try:
-        import google.protobuf.text_format
         import gameobject_ddf_pb2
+        import google.protobuf.text_format
         msg = gameobject_ddf_pb2.PrototypeDesc()
-        with open(node.abspath(self.env), 'rb') as in_f:
+        with open(node.abspath(), 'rb') as in_f:
             google.protobuf.text_format.Merge(in_f.read(), msg)
 
         task = self.create_task('gameobject')
@@ -415,7 +465,7 @@ def gofile(self, node):
         embed_output_nodes = []
         for i, c in enumerate(msg.embedded_components):
             name = '%s_generated_%d.%s' % (node.name.split('.')[0], i, c.type)
-            embed_node = node.parent.exclusive_build_node(name)
+            embed_node = node.parent.make_node(name) # node.parent.exclusive_build_node(name)
             embed_output_nodes.append(embed_node)
 
             sub_task = self.create_task(c.type)
@@ -428,7 +478,7 @@ def gofile(self, node):
     except (google.protobuf.text_format.ParseError, google.protobuf.message.EncodeError, Exception) as e:
         stderr_lock.acquire()
         try:
-            print >>sys.stderr, '%s: %s' % (node.srcpath(self.env), str(e))
+            print ('%s: %s' % (node.srcpath(), str(e)), file=sys.stderr)
         finally:
             stderr_lock.release()
         return 1
@@ -448,14 +498,15 @@ proto_compile_task('collectionfactory', 'gamesys_ddf_pb2', 'CollectionFactoryDes
 proto_compile_task('light', 'gamesys_ddf_pb2', 'LightDesc', '.light', '.lightc')
 proto_compile_task('label', 'label_ddf_pb2', 'LabelDesc', '.label', '.labelc', transform_label)
 proto_compile_task('render', 'render.render_ddf_pb2', 'render_ddf_pb2.RenderPrototypeDesc', '.render', '.renderc', transform_render)
+proto_compile_task('render_target', 'render.render_target_ddf_pb2', 'render_target_ddf_pb2.RenderTargetDesc', '.render_target', '.render_targetc')
 proto_compile_task('sprite', 'sprite_ddf_pb2', 'SpriteDesc', '.sprite', '.spritec', transform_sprite)
 proto_compile_task('tilegrid', 'tile_ddf_pb2', 'TileGrid', '.tilegrid', '.tilemapc', transform_tilegrid)
 proto_compile_task('tilemap', 'tile_ddf_pb2', 'TileGrid', '.tilemap', '.tilemapc', transform_tilegrid)
 proto_compile_task('sound', 'sound_ddf_pb2', 'SoundDesc', '.sound', '.soundc', transform_sound)
+proto_compile_task('mesh', 'mesh_ddf_pb2', 'MeshDesc', '.mesh', '.meshc', transform_mesh)
 proto_compile_task('display_profiles', 'render.render_ddf_pb2', 'render_ddf_pb2.DisplayProfiles', '.display_profiles', '.display_profilesc')
 
 new_copy_task('project', '.project', '.projectc')
-new_copy_task('emitter', '.emitter', '.emitterc')
 
 # Copy prebuilt spine scenes
 new_copy_task('copy prebuilt animationsetc', '.prebuilt_animationsetc', '.animationsetc')
@@ -472,9 +523,9 @@ new_copy_task('copy prebuilt bufferc', '.prebuilt_bufferc', '.bufferc')
 # Copy raw data
 new_copy_task('copy raw data', '.raw', '.rawc')
 
-from cStringIO import StringIO
+from io import StringIO
 def strip_single_lua_comments(str):
-    str = str.replace("\r", "");
+    str = str.decode('utf-8').replace("\r", "");
     sb = StringIO()
     for line in str.split('\n'):
         lineTrimmed = line.strip()
@@ -514,7 +565,7 @@ def scan_lua(str):
 
 def compile_lua(task):
     import lua_ddf_pb2
-    with open(task.inputs[0].srcpath(task.env), 'rb') as in_f:
+    with open(task.inputs[0].srcpath(), 'rb') as in_f:
         script = in_f.read()
         modules = scan_lua(script)
         lua_module = lua_ddf_pb2.LuaModule()
@@ -523,24 +574,24 @@ def compile_lua(task):
         # Making the file name path relative to the source folder
         if hasattr(task.generator, "source_root"):
             base = os.path.abspath(task.generator.source_root)
-            p = os.path.abspath(task.outputs[0].bldpath(task.env))
+            p = os.path.abspath(task.outputs[0].abspath())
             p = os.path.relpath(p, base)
             # Keep the suffix
-            lua_module.source.filename = os.path.splitext(p)[0] + os.path.splitext(task.inputs[0].srcpath(task.env))[1]
+            lua_module.source.filename = os.path.splitext(p)[0] + os.path.splitext(task.inputs[0].srcpath())[1]
         else:
-            lua_module.source.filename = task.inputs[0].srcpath(task.env)
+            lua_module.source.filename = task.inputs[0].srcpath()
 
         for m in modules:
             module_file = "/%s.lua" % m.replace(".", "/")
             lua_module.modules.append(m)
             lua_module.resources.append(module_file + 'c')
 
-        with open(task.outputs[0].bldpath(task.env), 'wb') as out_f:
+        with open(task.outputs[0].abspath(), 'wb') as out_f:
             out_f.write(lua_module.SerializeToString())
 
     return 0
 
-task = Task.task_type_from_func('luascript',
+task = waflib.Task.task_factory('luascript',
                                 func    = compile_lua,
                                 color   = 'PINK')
 
@@ -569,25 +620,37 @@ def compile_mesh(task):
         import rig.rig_ddf_pb2
 
         # write skeleton, mesh set and animation set files
-        with open(task.outputs[0].bldpath(task.env), 'wb') as out_f:
+        with open(task.outputs[0].abspath(), 'wb') as out_f:
             out_f.write(rig.rig_ddf_pb2.Skeleton().SerializeToString())
-        with open(task.outputs[1].bldpath(task.env), 'wb') as out_f:
+        with open(task.outputs[1].abspath(), 'wb') as out_f:
             out_f.write(rig.rig_ddf_pb2.MeshSet().SerializeToString())
-        with open(task.outputs[2].bldpath(task.env), 'wb') as out_f:
+        with open(task.outputs[2].abspath(), 'wb') as out_f:
             out_f.write(rig.rig_ddf_pb2.AnimationSet().SerializeToString())
 
         return 0
-    except google.protobuf.text_format.ParseError,e:
-        print >>sys.stderr, '%s:%s' % (task.inputs[0].srcpath(task.env), str(e))
+    except (google.protobuf.text_format.ParseError,) as e:
+        print ('%s:%s' % (task.inputs[0].srcpath(), str(e)), file=sys.stderr)
         return 1
 
-Task.task_type_from_func('mesh',
+waflib.Task.task_factory('model_file',
                          func    = compile_mesh,
                          color   = 'PINK')
 
 @extension('.dae')
 def dae_file(self, node):
-    mesh = self.create_task('mesh')
+    mesh = self.create_task('model_file')
+    mesh.set_inputs(node)
+    ext_skeleton      = '.skeletonc'
+    ext_mesh_set      = '.meshsetc'
+    ext_animation_set = '.animationsetc'
+    out_skeleton      = node.change_ext(ext_skeleton)
+    out_mesh_set      = node.change_ext(ext_mesh_set)
+    out_animation_set = node.change_ext(ext_animation_set)
+    mesh.set_outputs([out_skeleton, out_mesh_set, out_animation_set])
+
+@extension('.gltf')
+def gltf_file(self, node):
+    mesh = self.create_task('model_file')
     mesh.set_inputs(node)
     ext_skeleton      = '.skeletonc'
     ext_mesh_set      = '.meshsetc'
@@ -613,13 +676,33 @@ def render_script_file(self, node):
     out = node.change_ext(obj_ext)
     task.set_outputs(out)
 
-Task.simple_task_type('tileset', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.tile.TileSetc ${SRC} ${TGT}',
+waflib.Task.task_factory('atlas', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.AtlasBuilder ${SRC} ${TGT} ${CONTENT_ROOT}',
                       color='PINK',
                       after='proto_gen_py',
-                      before='cc cxx',
+                      before='c cxx',
                       shell=False)
 
-@extension(['.tileset', '.tilesource'])
+@extension('.atlas')
+def tileset_file(self, node):
+    classpath = [self.env['DYNAMO_HOME'] + '/share/java/bob-light.jar']
+    atlas = self.create_task('atlas')
+    atlas.env['CLASSPATH'] = os.pathsep.join(classpath)
+    atlas.env['CONTENT_ROOT'] = atlas.generator.content_root
+
+    atlas.set_inputs(node)
+
+    texture_set = node.change_ext('.t.texturesetc')
+    texture = node.change_ext('.texturec')
+
+    atlas.set_outputs([texture_set, texture])
+
+waflib.Task.task_factory('tileset', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.tile.TileSetc ${SRC} ${TGT}',
+                      color='PINK',
+                      after='proto_gen_py',
+                      before='c cxx',
+                      shell=False)
+
+@extension('.tileset', '.tilesource')
 def tileset_file(self, node):
     classpath = [self.env['DYNAMO_HOME'] + '/share/java/bob-light.jar']
     tileset = self.create_task('tileset')
@@ -629,3 +712,30 @@ def tileset_file(self, node):
     out = node.change_ext(obj_ext)
     tileset.set_outputs(out)
 
+
+waflib.Task.task_factory('compute', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.ComputeBuilder ${SRC} ${SPC} ${TGT}',
+                      color='PINK',
+                      after='proto_gen_py',
+                      before='c cxx',
+                      shell=False)
+
+@extension('.compute')
+def compute_file(self, node):
+    import google.protobuf.text_format
+    import render.compute_ddf_pb2
+    import dlib
+
+    msg = render.compute_ddf_pb2.ComputeDesc()
+    with open(node.srcpath(), 'rb') as in_f:
+        google.protobuf.text_format.Merge(in_f.read(), msg)
+
+    shader_name = msg.compute_program + ".spc"
+    classpath = [self.env['DYNAMO_HOME'] + '/share/java/bob-light.jar']
+    compute = self.create_task('compute')
+    compute.env['CLASSPATH'] = os.pathsep.join(classpath)
+    compute.env['SPC'] = shader_name
+
+    compute.set_inputs(node)
+    obj_ext = '.computec'
+    out = node.change_ext(obj_ext)
+    compute.set_outputs(out)

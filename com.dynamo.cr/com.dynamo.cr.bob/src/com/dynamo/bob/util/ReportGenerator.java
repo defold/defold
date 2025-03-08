@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -29,6 +29,8 @@ import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.archive.ArchiveReader;
 import com.dynamo.bob.archive.ArchiveEntry;
+
+import com.dynamo.bob.archive.publisher.Publisher;
 
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
@@ -56,22 +58,26 @@ public class ReportGenerator {
         long size;
         long compressedSize;
         boolean encrypted;
-        public ResourceEntry(String path, long size) {
-            this.path = path;
-            this.size = size;
-            this.compressedSize = size;
-            this.encrypted = false;
-        }
-        public ResourceEntry(String path, long size, long compressedSize, boolean encrypted) {
+        boolean excluded;
+
+        public ResourceEntry(String path, long size, long compressedSize, boolean encrypted, boolean excluded) {
             this.path = path;
             this.size = size;
             this.compressedSize = compressedSize;
             this.encrypted = encrypted;
+            this.excluded = excluded;
+        }
+        public ResourceEntry(String path, long size, long compressedSize, boolean encrypted) {
+            this(path, size, compressedSize, encrypted, false);
+        }
+        public ResourceEntry(String path, long size) {
+            this(path, size, size, false, false);
         }
     }
 
     private Project project = null;
     private HashMap<String, ResourceEntry> resources;
+    private HashMap<String, ResourceEntry> excludedResources;
 
     /**
      * Creates a ReportGenerator that looks into the supplied project instance
@@ -83,12 +89,15 @@ public class ReportGenerator {
     public ReportGenerator(Project project) throws IOException {
         this.project = project;
         this.resources = new HashMap<String, ResourceEntry>();
+        this.excludedResources = new HashMap<String, ResourceEntry>();
 
         if (project.option("archive", "false").equals("true")) {
             parseFromDarc();
         } else {
             parseFromDisk();
         }
+
+        parseFromPublisher(project.getPublisher());
     }
 
     /**
@@ -135,21 +144,21 @@ public class ReportGenerator {
         List<ArchiveEntry> archiveEntries = ar.getEntries();
         for (int i = 0; i < archiveEntries.size(); i++) {
             ArchiveEntry archiveEntry = archiveEntries.get(i);
-            long compressedSize = archiveEntry.compressedSize != -1 ? archiveEntry.compressedSize : archiveEntry.size;
-            boolean encrypted = (archiveEntry.flags & ArchiveEntry.FLAG_ENCRYPTED) == ArchiveEntry.FLAG_ENCRYPTED;
+            long compressedSize = archiveEntry.getCompressedSize() != -1 ? archiveEntry.getCompressedSize() : archiveEntry.getSize();
+            boolean encrypted = archiveEntry.isEncrypted();
 
-            if (this.resources.containsKey(archiveEntry.fileName)) {
-                ResourceEntry resEntry = this.resources.get(archiveEntry.fileName);
+            if (this.resources.containsKey(archiveEntry.getFilename())) {
+                ResourceEntry resEntry = this.resources.get(archiveEntry.getFilename());
                 resEntry.compressedSize = compressedSize;
-                resEntry.size = archiveEntry.size;
+                resEntry.size = archiveEntry.getSize();
                 resEntry.encrypted = encrypted;
             } else {
-                ResourceEntry resEntry = new ResourceEntry(archiveEntry.fileName,
-                        archiveEntry.size,
+                ResourceEntry resEntry = new ResourceEntry(archiveEntry.getFilename(),
+                        archiveEntry.getSize(),
                         compressedSize,
                         encrypted);
 
-                this.resources.put(archiveEntry.fileName, resEntry);
+                this.resources.put(archiveEntry.getFilename(), resEntry);
             }
 
         }
@@ -157,12 +166,26 @@ public class ReportGenerator {
         ar.close();
     }
 
-    /**
-     * Generates and returns JSON, serialised as a string,
-     * from previously gathered report information.
-     */
-    public String generateJSON() throws IOException {
 
+    private void parseFromPublisher(Publisher p) {
+        Map<String, ArchiveEntry> entries = p.getEntries();
+        for (String fileName : entries.keySet()) {
+            ArchiveEntry archiveEntry = entries.get(fileName);
+            long compressedSize = archiveEntry.isCompressed() ? archiveEntry.getCompressedSize() : archiveEntry.getSize();
+            boolean encrypted = archiveEntry.isEncrypted();
+            boolean excluded = true;
+
+            ResourceEntry resEntry = new ResourceEntry(archiveEntry.getRelativeFilename(),
+                        archiveEntry.getSize(),
+                        compressedSize,
+                        encrypted,
+                        excluded);
+
+            this.excludedResources.put(archiveEntry.getRelativeFilename(), resEntry);
+        }
+    }
+
+    private String generateJSON(HashMap<String, ResourceEntry> resources) throws IOException {
         StringWriter strWriter = new StringWriter();
         BufferedWriter writer = null;
         JsonGenerator generator = null;
@@ -187,24 +210,15 @@ public class ReportGenerator {
             // Create dictionary for build options
             generator.writeFieldName("build_options");
             generator.writeStartObject();
+            String key;
             for (Map.Entry<String, String> entry : project.getOptions().entrySet() ) {
-                generator.writeFieldName(entry.getKey());
-                generator.writeString(entry.getValue());
-            }
-            generator.writeEndObject();
-
-            // Create dictionary for project properties
-            generator.writeFieldName("project_properties");
-            generator.writeStartObject();
-            for (String categoryName : projectProperties.getCategoryNames()) {
-                generator.writeFieldName(categoryName);
-
-                generator.writeStartObject();
-                for (String keyName : projectProperties.getKeys(categoryName)) {
-                    generator.writeFieldName(keyName);
-                    generator.writeString(projectProperties.getStringValue(categoryName, keyName));
+                key = entry.getKey();
+                if (key.equals("auth") || key.equals("email"))
+                {
+                    continue;
                 }
-                generator.writeEndObject();
+                generator.writeFieldName(key);
+                generator.writeString(entry.getValue());
             }
             generator.writeEndObject();
 
@@ -234,8 +248,24 @@ public class ReportGenerator {
             }
             IOUtils.closeQuietly(writer);
         }
-
         return strWriter.toString();
+    }
+
+
+    /**
+     * Generates and returns JSON, serialised as a string,
+     * from previously gathered resource information.
+     */
+    public String generateResourceReportJSON() throws IOException {
+        return generateJSON(resources);
+    }
+
+    /**
+     * Generates and returns JSON, serialised as a string,
+     * from previously gathered excluded resource information.
+     */
+    public String generateExcludedResourceReportJSON() throws IOException {
+        return generateJSON(excludedResources);
     }
 
     /**

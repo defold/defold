@@ -6,34 +6,30 @@ from BuildUtility import create_build_utility
 def configure(conf):
     build_util = create_build_utility(conf.env)
     target = build_util.get_target_os()
-    if not target in ('win32', 'osx', 'linux'):
+    if not target in ('win32', 'macos', 'linux'):
       return
-    if 'osx' == target:
+    if 'macos' == target:
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa'])
     if 'win32' in target:
         conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = search_path)
 
 def build(bld):
-    # if not desktop
-    if not bld.env.PLATFORM in ('x86_64-win32', 'x86_64-darwin', 'x86_64-linux'):
-        return
-
     build_util = create_build_utility(bld.env)
     target = build_util.get_target_os()
 
-    exe = bld.new_task_gen(features = ['cc', 'cxx', 'cprogram'],
-                           includes = ['.'],
-                           uselib = 'DLIB CARES',
-                           source = ['launcher.cpp', 'launcher_util.cpp'],
-                           target = 'launcher')
+    exe = bld.program(features  = 'c cxx',
+                       includes = ['.'],
+                       use      = 'DLIB PROFILE_NULL',
+                       source   = ['launcher.cpp', 'launcher_util.cpp'],
+                       target   = 'launcher')
 
-    if 'osx' == target:
+    if 'macos' == target:
         exe.source.append('macos_events.mm')
 
-    lib = bld.new_task_gen(features = 'cxx cstaticlib',
-                           includes = ['.'],
-                           target = 'launcherutil',
-                           source = ['launcher_util.cpp'])
+    lib = bld.stlib(features = 'cxx',
+                    includes = ['.'],
+                    target   = 'launcherutil',
+                    source   = ['launcher_util.cpp'])
 
     if 'win32' in bld.env.BUILD_PLATFORM:
         exe.linkflags = ['/subsystem:windows', '/entry:mainCRTStartup']
@@ -44,4 +40,4 @@ def build(bld):
             exe.install_path = None
             bld.install_as("${PREFIX}/bin/${PLATFORM}/launcher.exe", "launcher_signed.exe")
 
-    bld.add_subdirs('test')
+    bld.recurse('test')

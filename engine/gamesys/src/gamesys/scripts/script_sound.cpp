@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -457,13 +457,13 @@ namespace dmGameSystem
      * `speed`
      * : [type:number] sound speed where 1.0 is normal speed, 0.5 is half speed and 2.0 is double speed. The final speed of the sound will be a multiplication of this speed and the sound speed.
      *
-     * @param [complete_function] [type:function(self, message_id, message, sender))] function to call when the sound has finished playing.
+     * @param [complete_function] [type:function(self, message_id, message, sender)] function to call when the sound has finished playing or stopped manually via [ref:sound.stop].
      *
      * `self`
      * : [type:object] The current object.
      *
      * `message_id`
-     * : [type:hash] The name of the completion message, `"sound_done"`.
+     * : [type:hash] The name of the completion message, which can be either `"sound_done"` if the sound has finished playing, or `"sound_stopped"` if it was stopped manually.
      *
      * `message`
      * : [type:table] Information about the completion:
@@ -473,7 +473,7 @@ namespace dmGameSystem
      * `sender`
      * : [type:url] The invoker of the callback: the sound component.
      *
-     * @return id [type:number] The identifier for the sound voice
+     * @return play_id [type:number] The identifier for the sound voice
      *
      * @examples
      *
@@ -503,13 +503,12 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 1);
         int top = lua_gettop(L);
 
-        dmGameObject::HInstance instance = CheckGoInstance(L);
+        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
 
         dmMessage::URL receiver;
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
         float delay = 0.0f, gain = 1.0f, pan = 0.0f, speed = 1.0f;
-        uint32_t play_id = dmSound::INVALID_PLAY_ID;
 
         if (top > 1 && !lua_isnil(L,2)) // table with args
         {
@@ -535,15 +534,18 @@ namespace dmGameSystem
             lua_pop(L, 1);
         }
 
-        int functionref = 0;
+        uint32_t play_id = dmSound::GetAndIncreasePlayCounter();
+
+        // We use UINTPTR_MAX value to determine if it's a function call without a callback or a `play_sound` message call from Lua.
+        // Take a look at comp_sound -> CompSoundOnMessage for a better understanding of how it's used.
+        uintptr_t functionref = UINTPTR_MAX;
         if (top > 2) // completed cb
         {
             if (lua_isfunction(L, 3))
             {
                 lua_pushvalue(L, 3);
-                play_id = dmSound::GetAndIncreasePlayCounter();
                 // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, in order to have 0 for "no function"
-                functionref = dmScript::RefInInstance(L) - LUA_NOREF;
+                functionref = (uintptr_t)(dmScript::RefInInstance(L) - LUA_NOREF);
             }
         }
 
@@ -554,7 +556,7 @@ namespace dmGameSystem
         msg.m_Speed = speed;
         msg.m_PlayId = play_id;
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::PlaySound::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)functionref, (uintptr_t)dmGameSystemDDF::PlaySound::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::PlaySound::m_DDFDescriptor->m_NameHash, 0, functionref, (uintptr_t)dmGameSystemDDF::PlaySound::m_DDFDescriptor, &msg, sizeof(msg), 0);
 
         lua_pushnumber(L, (double) msg.m_PlayId);
 
@@ -562,10 +564,13 @@ namespace dmGameSystem
     }
 
     /*# stop a playing a sound(s)
-     * Stop playing all active voices
+     * Stop playing all active voices or just one voice if `play_id` provided
      *
      * @name sound.stop
-     * @param url [type:string|hash|url] the sound that should stop
+     * @param url [type:string|hash|url] the sound component that should stop
+     * @param [stop_properties] [type:table] optional table with properties:
+     * `play_id`
+     * : [type:number] the sequential play identifier that should be stopped (was given by the sound.play() function)
      *
      * @examples
      *
@@ -573,29 +578,42 @@ namespace dmGameSystem
      *
      * ```lua
      * sound.stop("#sound")
+     * local id = sound.play("#sound")
+     * sound.stop("#sound", {play_id = id})
      * ```
      */
     static int Sound_Stop(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        dmGameObject::HInstance instance = CheckGoInstance(L);
-
-        dmGameSystemDDF::StopSound msg;
+        int top = lua_gettop(L);
+        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
 
         dmMessage::URL receiver;
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::StopSound::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::StopSound::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        uint32_t play_id = dmSound::INVALID_PLAY_ID;
+
+        if (top > 1 && !lua_isnil(L,2)) // table with args
+        {
+            luaL_checktype(L, 2, LUA_TTABLE);
+            lua_pushvalue(L, 2);
+
+            lua_getfield(L, -1, "play_id");
+            if (!lua_isnil(L, -1))
+            {
+                play_id = luaL_checknumber(L, -1);
+            }
+            lua_pop(L, 1);
+
+            lua_pop(L, 1);
+        }
+
+        dmGameSystemDDF::StopSound msg;
+        msg.m_PlayId = play_id;
+
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::StopSound::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::StopSound::m_DDFDescriptor, &msg, sizeof(msg), 0);
         return 0;
-    }
-
-    static bool CheckBoolean(lua_State* L, int index)
-    {
-        if ( lua_isboolean( L, index ) )
-            return lua_toboolean( L, index );
-
-        return luaL_error(L, "Argument %d must be a boolean", index);
     }
 
     /*# pause a playing a sound(s)
@@ -616,16 +634,16 @@ namespace dmGameSystem
     static int Sound_Pause(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        dmGameObject::HInstance instance = CheckGoInstance(L);
+        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
 
         dmMessage::URL receiver;
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
         dmGameSystemDDF::PauseSound msg;
-        msg.m_Pause = CheckBoolean(L, 2);
+        msg.m_Pause = dmScript::CheckBoolean(L, 2);
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::PauseSound::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::PauseSound::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::PauseSound::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::PauseSound::m_DDFDescriptor, &msg, sizeof(msg), 0);
         return 0;
     }
 
@@ -652,7 +670,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 0);
 
-        dmGameObject::HInstance instance = CheckGoInstance(L);
+        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
 
         dmMessage::URL receiver;
         dmMessage::URL sender;
@@ -663,7 +681,7 @@ namespace dmGameSystem
         dmGameSystemDDF::SetGain msg;
         msg.m_Gain = gain;
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetGain::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SetGain::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetGain::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::SetGain::m_DDFDescriptor, &msg, sizeof(msg), 0);
         return 0;
     }
 
@@ -690,7 +708,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 0);
 
-        dmGameObject::HInstance instance = CheckGoInstance(L);
+        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
 
         dmMessage::URL receiver;
         dmMessage::URL sender;
@@ -701,7 +719,7 @@ namespace dmGameSystem
         dmGameSystemDDF::SetPan msg;
         msg.m_Pan = pan;
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetPan::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SetPan::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetPan::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::SetPan::m_DDFDescriptor, &msg, sizeof(msg), 0);
         return 0;
     }
 

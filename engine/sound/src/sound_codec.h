@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -14,6 +14,10 @@
 
 #ifndef DM_SOUND_CODEC_H
 #define DM_SOUND_CODEC_H
+
+namespace dmSound {
+    typedef struct SoundData* HSoundData;
+}
 
 /**
  * Sound decoding support
@@ -35,6 +39,7 @@ namespace dmSoundCodec
         RESULT_INVALID_FORMAT = -2,  //!< RESULT_INVALID_FORMAT
         RESULT_DECODE_ERROR = -3,    //!< RESULT_DECODE_ERROR
         RESULT_UNSUPPORTED = -4,     //!< RESULT_UNSUPPORTED
+        RESULT_END_OF_STREAM = -5,   //!< RESULT_END_OF_STREAM
         RESULT_UNKNOWN_ERROR = -1000,//!< RESULT_UNKNOWN_ERROR
     };
 
@@ -93,12 +98,11 @@ namespace dmSoundCodec
      * Create a new decoder
      * @param context context
      * @param format format
-     * @param buffer buffer
-     * @param buffer_size buffer size
+     * @param sound_data
      * @param decoder decoder (out)
      * @return RESULT_OK on success
      */
-    Result NewDecoder(HCodecContext context, Format format, const void* buffer, uint32_t buffer_size, HDecoder* decoder);
+    Result NewDecoder(HCodecContext context, Format format, dmSound::HSoundData sound_data, HDecoder* decoder);
 
     /**
      * Delete decoder
@@ -143,6 +147,11 @@ namespace dmSoundCodec
      * @return RESULT_OK on success
      */
     Result Reset(HCodecContext context, HDecoder decoder);
+
+    const char* ResultToString(Result result);
+
+    // Unit tests
+    int64_t GetInternalPos(HCodecContext context, HDecoder decoder);
 }
 
 #endif // #ifndef DM_SOUND_CODEC_H

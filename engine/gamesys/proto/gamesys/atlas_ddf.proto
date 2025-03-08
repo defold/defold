@@ -1,3 +1,4 @@
+syntax = "proto2";
 package dmGameSystemDDF;
 
 import "ddf/ddf_extensions.proto";
@@ -12,6 +13,8 @@ message AtlasImage
 {
     required string image                           = 1 [(resource) = true];
     optional SpriteTrimmingMode sprite_trim_mode    = 2 [default = SPRITE_TRIM_MODE_OFF];
+    optional float  pivot_x                         = 3 [default = 0.5];
+    optional float  pivot_y                         = 4 [default = 0.5];
 }
 
 message AtlasAnimation
@@ -24,11 +27,16 @@ message AtlasAnimation
     optional uint32 flip_vertical   = 6 [default = 0];
 }
 
+// Editor format. Engine format is in texture_set_ddf.proto
 message Atlas
 {
-    repeated AtlasImage images          = 1;
-    repeated AtlasAnimation animations  = 2;
-    optional uint32 margin              = 3 [default = 0];
-    optional uint32 extrude_borders     = 4 [default = 0];
-    optional uint32 inner_padding       = 5 [default = 0];
+    repeated AtlasImage images           = 1;
+    repeated AtlasAnimation animations   = 2;
+    optional uint32 margin               = 3 [default = 0];
+    optional uint32 extrude_borders      = 4 [default = 0];
+    optional uint32 inner_padding        = 5 [default = 0];
+    optional uint32 max_page_width       = 6 [default = 0];
+    optional uint32 max_page_height      = 7 [default = 0];
+    // A list of comma separated patterns to rename animations: E.g. "_nrm=,_normal="
+    optional string rename_patterns      = 8;
 }

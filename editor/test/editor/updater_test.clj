@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -21,7 +21,7 @@
             [ring.adapter.jetty :as jetty]
             [ring.util.response :as response])
   (:import [ch.qos.logback.classic Level Logger]
-           [com.defold.editor Platform]
+           [com.dynamo.bob Platform]
            [java.io File]
            [java.util Timer]
            [org.slf4j LoggerFactory]))
@@ -46,14 +46,14 @@
 
                 updater/update-url
                 (fn [archive-domain channel]
-                  (format "http://localhost:%s/editor2/channels/%s/update-v3.json"
+                  (format "http://localhost:%s/editor2/channels/%s/update-v4.json"
                           test-port channel))]
     (f)))
 
 (use-fixtures :once error-log-level-fixture test-urls-fixture)
 
 (defn make-handler-resources [channel sha1]
-  {(format "/editor2/channels/%s/update-v3.json" channel)
+  {(format "/editor2/channels/%s/update-v4.json" channel)
    (response/response (json/write-str {:sha1 sha1}))
 
    (format "/archive/%s/%s/editor2/Defold-%s.zip" sha1 channel (.getPair (Platform/getHostPlatform)))

@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -18,7 +18,9 @@
             [clojure.test :refer :all]
             [cognitect.transit :as transit]
             [dynamo.graph :as g]
-            [support.test-support :as ts]))
+            [support.test-support :as ts]
+            [util.fn :as fn])
+  (:import [internal.graph.types Arc]))
 
 (defn arc-node-references
   [fragment]
@@ -45,7 +47,7 @@
                                    (g/make-node world ProducerNode))]
     (g/transact
      (g/connect node2 :produces-value node1 :consumes-value))
-    (g/copy [node1] {:traverse? (constantly true)})))
+    (g/copy [node1] {:traverse? fn/constantly-true})))
 
 (deftest simple-copy
   (ts/with-clean-system
@@ -109,7 +111,7 @@
       (g/connect node3 :produces-value node1 :consumes-value)
       (g/connect node4 :produces-value node3 :consumes-value)
       (g/connect node4 :produces-value node2 :consumes-value)])
-    (g/copy [node1] {:traverse? (constantly true)})))
+    (g/copy [node1] {:traverse? fn/constantly-true})))
 
 (deftest diamond-copy
   (ts/with-clean-system
@@ -146,7 +148,7 @@
        [(g/connect node2 :produces-value node1 :consumes-value)
         (g/connect node3 :produces-value node2 :consumes-value)
         (g/connect node2 :produces-value node3 :consumes-value)])
-      (let [fragment            (g/copy [node1] {:traverse? (constantly true)})
+      (let [fragment            (g/copy [node1] {:traverse? fn/constantly-true})
             fragment-nodes      (:nodes fragment)
             paste-data          (g/paste world fragment {})
             paste-tx-data       (:tx-data paste-data)
@@ -175,7 +177,7 @@
       (g/transact
        [(g/connect node2 :produces-value node1 :consumes-value)
         (g/connect node3 :produces-value node2 :consumes-value)])
-      (let [fragment            (g/copy [node1] {:traverse? (constantly true)})
+      (let [fragment            (g/copy [node1] {:traverse? fn/constantly-true})
             fragment-nodes      (:nodes fragment)]
         (is (= 1 (count (:arcs fragment))))
         (is (= 2 (count fragment-nodes)))))))
@@ -186,7 +188,7 @@
 (deftest no-functions
   (ts/with-clean-system
     (let [[node1]       (ts/tx-nodes (g/make-node world FunctionPropertyNode :a-function (fn [] false)))
-          fragment      (g/copy [node1] {:traverse? (constantly false)})
+          fragment      (g/copy [node1] {:traverse? fn/constantly-false})
           fragment-node (first (:nodes fragment))]
       (is (not (contains? (:properties fragment-node) :a-function))))))
 
@@ -197,8 +199,8 @@
   (input  discards-value g/Str)
   (output produces-value g/Str (g/fnk [a-property] a-property)))
 
-(defn- stop-at-stoppers [basis [src src-label tgt tgt-label]]
-  (not (g/node-instance? StopperNode tgt)))
+(defn- stop-at-stoppers [basis ^Arc arc]
+  (not (g/node-instance? basis StopperNode (.target-id arc))))
 
 (defrecord Standin [original-id])
 
@@ -262,7 +264,7 @@
 
 (defn rich-value-fragment [world]
   (let [[node] (ts/tx-nodes (g/make-node world RichNode))]
-    (g/copy [node] {:traverse? (constantly true)})))
+    (g/copy [node] {:traverse? fn/constantly-true})))
 
 (deftest roundtrip-serialization-deserialization
   (ts/with-clean-system
@@ -311,9 +313,9 @@
   (output component-id g/Any (g/fnk [_node-id id] [id _node-id]))
   (output node-outline g/Any (g/fnk [] {})))
 
-(defn- copy-traverse [_basis [_src-node _src-label _tgt-node tgt-label]]
+(defn- copy-traverse [_basis ^Arc arc]
   ;; This is a simplification of the traversal rules from outline/default-copy-traverse.
-  (= :child-outlines tgt-label))
+  (= :child-outlines (.target-label arc)))
 
 (deftest copy-flattens-override-hierarchy
   (ts/with-clean-system

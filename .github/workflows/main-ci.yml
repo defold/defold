@@ -2,21 +2,10 @@ name: CI - Main
 
 on:
   push:
-     branches:
-       - '*'
-       - '!DEFEDIT-*'
-       - '!editor-dev'
-  pull_request:
-     branches:
-       - '*'
-       - '!DEFEDIT-*'
-       - '!editor-dev'
-  pull_request_target:
-     branches:
-       - '*'
-       - '!DEFEDIT-*'
-       - '!editor-dev'
-     types: [labeled]
+    branches-ignore:
+      - 'skip-ci-*'
+      - 'DEFEDIT-*'
+      - 'editor-dev'
   repository_dispatch: {}
 
 env:
@@ -28,43 +17,27 @@ env:
   DM_PACKAGES_URL: ${{ secrets.DM_PACKAGES_URL }}
   DM_ARCHIVE_DOMAIN: ${{ secrets.DM_ARCHIVE_DOMAIN }}
   DM_RELEASE_REPOSITORY: ${{ secrets.DM_RELEASE_REPOSITORY }}
-  WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
-  WINDOWS_CERTIFICATE_PASS: ${{ secrets.WINDOWS_CERTIFICATE_PASS }}
+  GCLOUD_EDITOR_SERVICE_KEY: ${{ secrets.GCLOUD_EDITOR_SERVICE_KEY }}
   MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
   MACOS_CERTIFICATE_PASS: ${{ secrets.MACOS_CERTIFICATE_PASS }}
   BUILD_BRANCH: ${{ github.event.client_payload.branch }}
   SERVICES_GITHUB_TOKEN: ${{ secrets.SERVICES_GITHUB_TOKEN }}
   DEFOLD_EDITOR_DISABLE_PERFORMANCE_TESTS: true
-
+  SLACK_NOTIFICATIONS_ENABLED: ${{ github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/beta' || github.ref == 'refs/heads/master' }}
 
 jobs:
-# ---- PRE-CHECK
-# ---- * Do not proceed if commit message contains "skip-ci"
-# ---- * If workflow is started from a "pull_request" event only proceed if coming from the Defold org
-# ---- * If workflow is started from a "pull_equest_target" event only proceed if it has the label "ok to test"
-  pre-check:
-    runs-on: ubuntu-20.04
-    if: |
-      !contains(github.event.head_commit.message, 'skip-ci') &&
-      (github.event_name != 'pull_request'        || (github.event_name == 'pull_request'        && github.event.pull_request.head.repo.full_name == github.repository)) &&
-      (github.event_name != 'pull_request_target' || (github.event_name == 'pull_request_target' && contains(github.event.pull_request.labels.*.name, 'ok to test')))
-    steps: [
-      {
-        shell: bash,
-        run: 'echo "Pre-check ok"'
-      }]
-
-# ---- BUILD ENGINE VERSIONS ------------------
+  # ---- BUILD ENGINE VERSIONS ------------------
   bld-eng-windows:
-    needs: [pre-check]
     strategy:
       matrix:
         platform: [win32, x86_64-win32]
+
     runs-on: windows-latest
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 2.x, architecture: x64 } },
-      { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.13', distribution: 'microsoft'} },
+      { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
+      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '21.0.5+11.0.LTS', distribution: 'temurin'} },
+      { name: 'Setup dotnet', uses: actions/setup-dotnet@v4, with: {dotnet-version: '9.x'}},
       { name: 'Install dependencies', shell: bash, run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
@@ -73,97 +46,76 @@ jobs:
         run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-builtins --skip-docs engine'
       },
       {
-       name: 'Notify if build status changed',
-       uses: homoluctus/slatify@master,
-       if: failure(),
-       with: { type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
+        name: 'Notify if build status changed',
+        uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
+        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
+        with: {type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
       }]
 
-  bld-eng-macos:
-    needs: [pre-check]
+  bld-eng-darwin:
     strategy:
       matrix:
-        platform: [x86_64-darwin]
-    runs-on: macOS-latest
+        platform: [x86_64-macos, arm64-macos, arm64-ios, x86_64-ios]
+    runs-on: macos-14
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      {
-        name: 'Install Python',
-        run: python --version
-      },
-      { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.13', distribution: 'microsoft'} },
+      { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
+      { name: 'XCode', uses: maxim-lobanov/setup-xcode@60606e260d2fc5762a71e64e74b2174e8ea3c8bd, with: { xcode-version: '16.2' } },
+      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '21.0.5+11.0.LTS', distribution: 'temurin'} },
+      { name: 'Setup dotnet', uses: actions/setup-dotnet@v4, with: {dotnet-version: '9.x'}},
       {
         name: 'Build engine',
         if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
         run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-builtins --skip-docs engine'
       },
       {
-       name: 'Notify if build status changed',
-       uses: homoluctus/slatify@master,
-       if: failure(),
-       with: { type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
-      }]
-
-  bld-eng-ios:
-    needs: [pre-check]
-    strategy:
-      matrix:
-        platform: [arm64-darwin, x86_64-ios]
-    runs-on: macOS-latest
-    steps: [
-      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 2.x, architecture: x64 } },
-      { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.13', distribution: 'microsoft'} },
-      { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
-      {
-        name: 'Build engine',
-        if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
-        run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-tests --skip-builtins --skip-docs engine'
-      },
-      {
-       name: 'Notify if build status changed',
-       uses: homoluctus/slatify@master,
-       if: failure(),
-       with: { type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
+        name: 'Notify if build status changed',
+        uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
+        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
+        with: {type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
       }]
 
   bld-eng-web:
-    needs: [pre-check]
     strategy:
       matrix:
         platform: [js-web, wasm-web]
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 2.x, architecture: x64 } },
-      { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.13', distribution: 'microsoft'} },
+      { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
+      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '21.0.5+11.0.LTS', distribution: 'temurin'} },
+      { name: 'Setup dotnet', uses: actions/setup-dotnet@v4, with: {dotnet-version: '9.x'}},
+      { name: 'Setup emsdk', uses: mymindstorm/setup-emsdk@v14, with: {version: '3.1.65'}},
+      { name: 'Verify emsdk',
+        run: 'emcc -v && export | grep EM'
+      },
+      { name: 'Install LLVM and Clang', uses: KyleMayes/install-llvm-action@v2, with: {version: "13.0"}},
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
         if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
-        run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-tests --skip-builtins --skip-docs engine'
+        run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-builtins --skip-docs engine'
       },
       {
-       name: 'Notify if build status changed',
-       uses: homoluctus/slatify@master,
-       if: failure(),
-       with: { type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
+        name: 'Notify if build status changed',
+        uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
+        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
+        with: {type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
       }]
 
   bld-eng-android:
-    needs: [pre-check]
     strategy:
       matrix:
         platform: [armv7-android, arm64-android]
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 2.x, architecture: x64 } },
-      { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.13', distribution: 'microsoft'} },
+      { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
+      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '21.0.5+11.0.LTS', distribution: 'temurin'} },
+      { name: 'Setup dotnet', uses: actions/setup-dotnet@v4, with: {dotnet-version: '9.x'}},
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
@@ -171,23 +123,23 @@ jobs:
         run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-tests --skip-builtins --skip-docs engine'
       },
       {
-       name: 'Notify if build status changed',
-       uses: homoluctus/slatify@master,
-       if: failure(),
-       with: { type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
+        name: 'Notify if build status changed',
+        uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
+        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
+        with: {type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
       }]
 
-  bld-eng-linux:
-    needs: [pre-check]
+  bld-eng-linux-x64:
     strategy:
       matrix:
         platform: [x86_64-linux]
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 2.x, architecture: x64 } },
-      { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.13', distribution: 'microsoft'} },
+      { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
+      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '21.0.5+11.0.LTS', distribution: 'temurin'} },
+      { name: 'Setup dotnet', uses: actions/setup-dotnet@v4, with: {dotnet-version: '9.x'}},
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
@@ -195,23 +147,47 @@ jobs:
         run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive engine'
       },
       {
-       name: 'Notify if build status changed',
-       uses: homoluctus/slatify@master,
-       if: failure(),
-       with: { type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
+        name: 'Notify if build status changed',
+        uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
+        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
+        with: {type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
+      }]
+
+  bld-eng-linux-arm64:
+    strategy:
+      matrix:
+        platform: [arm64-linux]
+    runs-on: ubuntu-22.04-arm
+    steps: [
+      { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
+      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '21.0.5+11.0.LTS', distribution: 'temurin'} },
+      { name: 'Setup dotnet', uses: actions/setup-dotnet@v4, with: {dotnet-version: '9.x'}},
+      { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
+      {
+        name: 'Build engine',
+        if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
+        run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive engine'
+      },
+      {
+        name: 'Notify if build status changed',
+        uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
+        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
+        with: {type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
       }]
 
   bld-eng-switch:
-    needs: [pre-check]
     strategy:
       matrix:
         platform: [arm64-nx64]
     runs-on: windows-latest
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 2.x, architecture: x64 } },
-      { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.13', distribution: 'microsoft'} },
+      { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
+      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '21.0.5+11.0.LTS', distribution: 'temurin'} },
+      { name: 'Setup dotnet', uses: actions/setup-dotnet@v4, with: {dotnet-version: '9.x'}},
       { name: 'Install dependencies', shell: bash, run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
@@ -220,23 +196,23 @@ jobs:
         run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-docs --skip-tests engine'
       },
       {
-       name: 'Notify if build status changed',
-       uses: homoluctus/slatify@master,
-       if: failure(),
-       with: { type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.GITHUB_TOKEN_READONLY }}' }
+        name: 'Notify if build status changed',
+        uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
+        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
+        with: {type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
       }]
 
-  bld-eng-ps4:
-    needs: [pre-check]
+  bld-eng-ps:
     strategy:
       matrix:
-        platform: [x86_64-ps4]
+        platform: [x86_64-ps4, x86_64-ps5]
     runs-on: windows-latest
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 2.x, architecture: x64 } },
-      { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.13', distribution: 'microsoft'} },
+      { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
+      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '21.0.5+11.0.LTS', distribution: 'temurin'} },
+      { name: 'Setup dotnet', uses: actions/setup-dotnet@v4, with: {dotnet-version: '9.x'}},
       { name: 'Install dependencies', shell: bash, run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
@@ -245,65 +221,82 @@ jobs:
         run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-docs --skip-tests engine'
       },
       {
-       name: 'Notify if build status changed',
-       uses: homoluctus/slatify@master,
-       if: failure(),
-       with: { type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.GITHUB_TOKEN_READONLY }}' }
+        name: 'Notify if build status changed',
+        uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
+        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
+        with: {type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
       }]
 
-# ---- BUILD BOB AND SDK ------------------
+  # ---- BUILD BOB AND SDK ------------------
 
   build-bob:
-    needs: [bld-eng-macos, bld-eng-ios, bld-eng-windows, bld-eng-linux, bld-eng-android, bld-eng-web, bld-eng-switch, bld-eng-ps4]
-    runs-on: ubuntu-20.04
+    needs: [bld-eng-darwin, bld-eng-windows, bld-eng-linux-x64, bld-eng-linux-arm64, bld-eng-android, bld-eng-web, bld-eng-switch, bld-eng-ps]
+    runs-on: ubuntu-22.04
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 2.x, architecture: x64 } },
-      { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.13', distribution: 'microsoft'} },
+      { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
+      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '21.0.5+11.0.LTS', distribution: 'temurin'} },
       {
         name: 'Build bob',
         if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_bob != true)),
         run: 'ci/ci.sh bob'
       },
       {
-       name: 'Notify if build status changed',
-       uses: homoluctus/slatify@master,
-       if: failure(),
-       with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
+        name: 'Upload test results',
+        if: failure(),
+        uses: actions/upload-artifact@v4,
+        with: { 
+          name: 'test-result', 
+          path: '${{ github.workspace }}/com.dynamo.cr/com.dynamo.cr.bob.test/build/reports/tests/', 
+          retention-days: 2
+        }
+      },
+      {
+        name: 'Notify if build status changed',
+        uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
+        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
+        with: {type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
       }]
 
   build-sdk:
-    needs: [bld-eng-macos, bld-eng-ios, bld-eng-windows, bld-eng-linux, bld-eng-android, bld-eng-web, bld-eng-switch, bld-eng-ps4]
-    runs-on: ubuntu-20.04
+    needs: [bld-eng-darwin, bld-eng-windows, bld-eng-linux-x64, bld-eng-linux-arm64, bld-eng-android, bld-eng-web, bld-eng-switch, bld-eng-ps]
+    runs-on: ubuntu-22.04
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 2.x, architecture: x64 } },
+      { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
       {
         name: 'Build SDK',
         if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sdk != true)),
         run: 'ci/ci.sh sdk'
       },
       {
-       name: 'Notify if build status changed',
-       uses: homoluctus/slatify@master,
-       if: failure(),
-       with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
+        name: 'Notify if build status changed',
+        uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
+        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
+        with: {type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
       }]
 
-# ---- BUILD EDITOR ------------------
+  # ---- BUILD EDITOR ------------------
 
   build-editor:
     needs: [build-bob]
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Fetch tags', run: 'git fetch --depth=1 origin +refs/tags/*:refs/tags/*' },
-      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 2.x, architecture: x64 } },
-      { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.13', distribution: 'microsoft'} },
-      { name: 'Install Leiningen', uses: DeLaGuardo/setup-clojure@master, with: { lein: 2.8.3 } },
+      {
+        name: 'Checkout',
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11,
+        with: {
+          ref: '${{env.BUILD_BRANCH}}',
+          fetch-tags: true
+        }
+      },
+      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
+      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '21.0.5+11.0.LTS', distribution: 'temurin'} },
+      { name: 'Install Leiningen', uses: DeLaGuardo/setup-clojure@bc7570e912b028bbcc22f457adec7fdf98e2f4ed, with: { lein: 2.8.3 } },
+      { name: 'Install dependencies', run: sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev },
       {
         name: 'Build editor',
         if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true)),
@@ -315,26 +308,23 @@ jobs:
         run: 'ci/ci.sh archive-editor'
       },
       {
-       name: 'Notify if build status changed',
-       uses: homoluctus/slatify@master,
-       if: failure(),
-       with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
+        name: 'Notify if build status changed',
+        uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
+        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
+        with: {type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
       }]
 
   sign-editor-darwin:
     needs: [build-editor]
-    runs-on: macOS-latest
+    runs-on: macOS-14
     strategy:
       matrix:
-        platform: [x86_64-darwin]
+        platform: [x86_64-macos, arm64-macos]
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      {
-        name: 'Install Python',
-        run: python --version
-      },
-      { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.13', distribution: 'microsoft'} },
+      { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
+      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '21.0.5+11.0.LTS', distribution: 'temurin'} },
       {
         name: 'Download editor',
         if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
@@ -353,7 +343,7 @@ jobs:
       {
         name: 'Notarize editor',
         if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
-        run: 'ci/ci.sh --notarization-username="${{env.NOTARIZATION_USERNAME}}" --notarization-password="${{env.NOTARIZATION_PASSWORD}}" --notarization-itc-provider="${{env.NOTARIZATION_ITC_PROVIDER}}" notarize-editor'
+        run: 'ci/ci.sh --platform=${{ matrix.platform }} --notarization-username="${{env.NOTARIZATION_USERNAME}}" --notarization-password="${{env.NOTARIZATION_PASSWORD}}" --notarization-itc-provider="${{env.NOTARIZATION_ITC_PROVIDER}}" notarize-editor'
       },
       {
         name: 'Archive editor',
@@ -361,24 +351,24 @@ jobs:
         run: 'ci/ci.sh archive-editor --platform=${{ matrix.platform }}'
       },
       {
-       name: 'Notify if build status changed',
-       uses: homoluctus/slatify@master,
-       if: failure(),
-       with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
+        name: 'Notify if build status changed',
+        uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
+        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
+        with: {type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
       }]
 
 
   sign-editor-windows:
     needs: [build-editor]
-    runs-on: windows-latest
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         platform: [x86_64-win32]
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 2.x, architecture: x64 } },
-      { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.13', distribution: 'microsoft'} },
+      { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
+      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '21.0.5+11.0.LTS', distribution: 'temurin'} },
       {
         name: 'Download editor',
         shell: bash,
@@ -389,7 +379,7 @@ jobs:
         name: 'Install dependencies',
         shell: bash,
         if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
-        run: 'ci/ci.sh --windows-cert-b64="${{env.WINDOWS_CERTIFICATE}}" --windows-cert-pass="${{env.WINDOWS_CERTIFICATE_PASS}}" install'
+        run: 'ci/ci.sh install'
       },
       {
         name: 'Install ext dependencies',
@@ -401,7 +391,7 @@ jobs:
         name: 'Sign editor',
         shell: bash,
         if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
-        run: 'ci/ci.sh sign-editor --windows-cert=./ci/windows_cert.pfx --windows-cert-pass=./ci/windows_cert.pass --platform=${{ matrix.platform }}'
+        run: 'ci/ci.sh sign-editor --gcloud-service-key="${{env.GCLOUD_EDITOR_SERVICE_KEY}}" --platform=${{ matrix.platform }}'
       },
       {
         name: 'Archive editor',
@@ -410,24 +400,33 @@ jobs:
         run: 'ci/ci.sh archive-editor --platform=${{ matrix.platform }}'
       },
       {
-       name: 'Notify if build status changed',
-       uses: homoluctus/slatify@master,
-       if: failure(),
-       with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
+        name: 'Notify if build status changed',
+        uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
+        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
+        with: {type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
       }]
 
-# ---- RELEASE ------------------
+  # ---- RELEASE ------------------
 
   release:
     needs: [sign-editor-darwin, sign-editor-windows]
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 2.x, architecture: x64 } },
-      { name: 'Setup git user', run: 'git config --global user.email "services@defold.se" && git config --global user.name "Defold Services"' },
       {
-        name: 'Install ext dependencies', # only needed for some python dependencies (should have a separate python setup function?)
+        name: 'Checkout',
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11,
+        with: {
+          ref: '${{env.BUILD_BRANCH}}',
+          fetch-tags: true
+        }
+      },
+      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
+      { name: 'Setup git user', run: 'git config --global user.email "services@defold.se" && git config --global user.name "Defold Services"' },
+      { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
+      {
+        # only needed for some python dependencies (should have a separate python setup function?)
+        name: 'Install ext dependencies',
         shell: bash,
         run: 'ci/ci.sh install_ext'
       },
@@ -438,18 +437,18 @@ jobs:
       {
         name: 'Publish updated API ref',
         uses: defold/repository-dispatch@1.2.1,
-        if: (github.ref == 'refs/heads/beta') || (github.ref == 'refs/heads/dev'),
+        if: (github.ref == 'refs/heads/master') || (github.ref == 'refs/heads/beta') || (github.ref == 'refs/heads/dev'),
         with: {
-            repo: 'defold/defold.github.io',
-            token: '${{ secrets.SERVICES_GITHUB_TOKEN }}',
-            user: 'services@defold.se',
-            action: 'refdoc'
+          repo: 'defold/defold.github.io',
+          token: '${{ secrets.SERVICES_GITHUB_TOKEN }}',
+          user: 'services@defold.se',
+          action: 'refdoc'
         }
       },
       {
-       name: 'Notify if build status changed',
-       uses: homoluctus/slatify@master,
-       if: failure(),
-       with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
+        name: 'Notify if build status changed',
+        uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
+        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
+        with: {type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
       }]

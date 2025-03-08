@@ -1,5 +1,5 @@
-import Task, TaskGen
-from TaskGen import extension, declare_extension
+import waflib.Task, waflib.TaskGen
+from waflib.TaskGen import extension, extension
 
 def create_simple_protoc_task(name, ext, compiled_ext, type, before, shell = True, color = 'PINK', proto_file = '../proto/particle/particle_ddf.proto'):
     def create(self, node):
@@ -9,18 +9,16 @@ def create_simple_protoc_task(name, ext, compiled_ext, type, before, shell = Tru
         task.set_outputs(out)
 
     cmd = 'protoc --encode=%s -I ../proto/particle -I ${DYNAMO_HOME}/share/proto -I ${DYNAMO_HOME}/ext/include %s < ${SRC} > ${TGT}' % (type, proto_file)
-    Task.simple_task_type(name, cmd, before=before, shell=shell, color=color)
-    declare_extension([ext], create)
-
-create_simple_protoc_task('particle_fx', '.particlefx', '.particlefxc', 'dmParticleDDF.ParticleFX', before='cc cxx')
+    waflib.Task.task_factory(name, cmd, before=before, shell=shell, color=color)
+    extension(ext)(create)
+create_simple_protoc_task('particle_fx', '.particlefx', '.particlefxc', 'dmParticleDDF.ParticleFX', before='c cxx')
 
 def build(bld):
-    test_particle = bld.new_task_gen(features = 'cc cxx cprogram test',
-                                     includes = '. .. ../../proto',
-                                     uselib = 'TESTMAIN DDF DLIB PLATFORM_SOCKET PLATFORM_THREAD',
-                                     uselib_local = 'particle',
-                                     proto_gen_py = True,
-                                     target = 'test_particle')
-    test_particle.find_sources_in_dirs(['.'])
+    test_particle = bld(features = 'c cxx cprogram test',
+                        includes = '. .. ../../proto',
+                        use = 'TESTMAIN DDF DLIB PLATFORM_NULL GRAPHICS_NULL PROFILE_NULL SOCKET PLATFORM_THREAD particle',
+                        proto_gen_py = True,
+                        source = bld.path.ant_glob(['*.particlefx', '*.cpp']),
+                        target = 'test_particle')
 
     test_particle.install_path = None

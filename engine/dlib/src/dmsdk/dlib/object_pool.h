@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -39,10 +39,9 @@
  * @name dmObjectPool
  */
 template <typename T>
-struct dmObjectPool
+class dmObjectPool
 {
-    // all fields are private
-    dmArray<T>        m_Objects; // All objects [0..Size()]
+private:
 
     struct Entry
     {
@@ -50,10 +49,12 @@ struct dmObjectPool
         uint32_t m_Next;
     };
 
+    dmArray<T>          m_Objects; // All objects [0..Size()]
     dmArray<Entry>      m_Entries;
-    uint32_t            m_FirstFree;
     dmArray<uint32_t>   m_ToLogical;
+    uint32_t            m_FirstFree;
 
+public:
 
     /*#
      * Constructor
@@ -165,6 +166,17 @@ struct dmObjectPool
         // Put in free list
         e->m_Next = m_FirstFree;
         m_FirstFree = e - m_Entries.Begin();
+    }
+
+    /*#
+     * Get the array of currently active objects
+     * @note The order of objects in this array may change if Alloc() or Free() has been called
+     * @name GetRawObjects
+     * @return object [type: dmArray<T>&] a reference to the array of objects
+     */
+    dmArray<T>& GetRawObjects()
+    {
+        return m_Objects;
     }
 
     /*#

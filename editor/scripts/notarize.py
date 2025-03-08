@@ -1,13 +1,13 @@
 #!/usr/bin/env python
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2025 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,16 +15,16 @@
 
 
 
-import os, sys, shutil, re, subprocess, time
+import os, sys, shutil, re, subprocess, time, json
 
 def _log(msg):
-    print msg
+    print(msg)
     sys.stdout.flush()
     sys.stderr.flush()
 
 def _exec_command(arg_list, **kwargs):
     arg_str = arg_list
-    if not isinstance(arg_str, basestring):
+    if not isinstance(arg_str, str):
         arg_str = ' '.join(arg_list)
     _log('[exec] %s' % arg_str)
 
@@ -45,7 +45,7 @@ def _exec_command(arg_list, **kwargs):
 
         output = ''
         while True:
-            line = process.stdout.readline()
+            line = process.stdout.readline().decode()
             if line != '':
                 output += line
                 _log(line.rstrip())
@@ -53,77 +53,66 @@ def _exec_command(arg_list, **kwargs):
                 break
 
     if process.wait() != 0:
-        raise ExecException(process.returncode, output)
+        raise Exception(f"Command failed with return code {process.returncode}\nOutput: {output}")
 
     return output
 
 
-def get_status(uuid, notarization_username, notarization_password, notarization_itc_provider = None):
-    args = [
-        'xcrun',
-        'altool',
-        '--notarization-info', uuid,
-        '-u', notarization_username,
-        '-p', notarization_password]
+def get_status(uuid, notarization_username, notarization_password, notarization_team_id = None):
+    args = ['xcrun', 'notarytool', 'info',
+            '--progress',
+            '--output-format', 'json',
+            '--apple-id', notarization_username,
+            '--password', notarization_password]
 
-    if notarization_itc_provider:
-        args.extend(['-itc_provider', notarization_itc_provider])
+    if notarization_team_id:
+        args.extend(['--team-id', notarization_team_id])
 
-    # altool will sometimes fail with "Error: Apple Services operation failed. Could not find the RequestUUID."
-    # this can happen even with a valid uuid when Apple servers are busy and
-    # there's a lag between receiving an uuid and being able to request info
-    # about it
-    # we need to catch the error from exec_command() and try again
+    args.append(uuid)
+
     status = None
     try:
-        res = _exec_command(args)
-        pattern = r".*Status: (.*)"
-        match = re.search(pattern, res)
-        if match:
-            status = match.group(1)
+        res = json.loads(_exec_command(args))
+        status = res["status"]
     except:
         pass
 
     return status
 
-
-def notarize(app, notarization_username, notarization_password, notarization_itc_provider = None):
+# https://developer.apple.com/documentation/security/notarizing_macos_software_before_distribution/customizing_the_notarization_workflow?language=objc
+def notarize(app, notarization_username, notarization_password, notarization_team_id = None):
     if notarization_username is None or notarization_password is None:
         raise Exception("Apple notarization username or password is not set")
 
     _log('Sending editor for notarization')
-    args = ['xcrun', 'altool', '--notarize-app',
-                                '--type', 'osx',
-                                '--file', app,
-                                '--primary-bundle-id', "com.defold.editor",
-                                '--username', notarization_username,
-                                '--password', notarization_password]
-    if notarization_itc_provider:
-        args.extend(['-itc_provider', notarization_itc_provider])
 
-    res = _exec_command(args)
+    args = ['xcrun', 'notarytool', 'submit',
+            '--progress',
+            '--output-format', 'json',
+            '--apple-id', notarization_username,
+            '--password', notarization_password]
 
-    _log('Getting UUID for notarization request')
+    if notarization_team_id:
+        args.extend(['--team-id', notarization_team_id])
 
-    # No errors uploading '/Users/runner/runners/2.163.1/work/defold/defold/editor/target/editor/Defold-x86_64-darwin.dmg'.
-    # RequestUUID = a062ed44-6da0-49c4-b0e6-0d1c28e1670d
-    pattern = r".*RequestUUID = (.*)"
-    match = re.search(pattern, res)
-    if not match:
-        _log("Unable to find notarization request UUID")
-        sys.exit(1)
-    uuid = match.group(1)
+    args.append(app)
+
+    res = json.loads(_exec_command(args))
+    id = res["id"]
+    _log('UUID for notarization request is "{}"'.format(id))
 
     while True:
         time.sleep(15)
-        _log('Checking notarization status for "{}"'.format(uuid))
-        status = get_status(uuid,notarization_username, notarization_password, notarization_itc_provider)
-        if status == "success":
+        _log('Checking notarization status for "{}"'.format(id))
+        status = get_status(id, notarization_username, notarization_password, notarization_team_id)
+        if status == "Accepted":
             _log('Notarization was successful')
             break
-        elif status == "invalid":
+        elif status == "Invalid":
             _log("Notarization failed")
             sys.exit(1)
+        else:
+            _log("Notarization status is {}".format(status))
 
     # staple approval
     _log('Stapling notarization approval to application')
@@ -141,10 +130,26 @@ if __name__ == '__main__':
     app = _arg(1)
     username = _arg(2)
     password = _arg(3)
-    itc_provider = _arg(4)
+    team_id = _arg(4)
 
     if not app or not username or not password:
         _log("You must provide an app, username and password")
         sys.exit(1)
 
-    notarize(app, username, password, itc_provider)
+    max_retries = 3
+    attempt = 0
+
+    while attempt < max_retries:
+        try:
+            _log(f"Notarization attempt {attempt + 1} of {max_retries}")
+            notarize(app, username, password, team_id)
+            _log("Notarization succeeded")
+            break  # Exit the loop if notarization is successful
+        except Exception as e:
+            _log(f"Notarization failed on attempt {attempt + 1}: {e}")
+            attempt += 1
+            if attempt >= max_retries:
+                _log("Max retries reached. Notarization failed.")
+                sys.exit(1)
+            else:
+                _log("Retrying notarization...")

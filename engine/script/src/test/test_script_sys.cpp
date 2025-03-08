@@ -1,98 +1,27 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#define JC_TEST_IMPLEMENTATION
-#include <jc_test/jc_test.h>
-
 #include "script.h"
+#include "test_script.h"
 
-#include <dlib/dstrings.h>
-#include <dlib/hash.h>
+#include <testmain/testmain.h>
 #include <dlib/log.h>
-#include <dlib/configfile.h>
-#include <dlib/sys.h>
-#include <resource/resource.h>
 
-extern "C"
+class ScriptSysTest : public dmScriptTest::ScriptTest
 {
-#include <lua/lauxlib.h>
-#include <lua/lualib.h>
-}
-
-#define PATH_FORMAT "build/default/src/test/%s"
-
-#if defined(__NX__)
-    #define MOUNTFS "host:/"
-#else
-    #define MOUNTFS
-#endif
-
-class ScriptSysTest : public jc_test_base_class
-{
-protected:
-    virtual void SetUp()
-    {
-        dmConfigFile::Result r = dmConfigFile::Load(MOUNTFS "src/test/test.config", 0, 0, &m_ConfigFile);
-        ASSERT_EQ(dmConfigFile::RESULT_OK, r);
-
-        dmResource::NewFactoryParams factory_params;
-        m_ResourceFactory = dmResource::NewFactory(&factory_params, ".");
-        m_Context = dmScript::NewContext(m_ConfigFile, m_ResourceFactory, true);
-
-        dmScript::Initialize(m_Context);
-
-        L = dmScript::GetLuaState(m_Context);
-    }
-
-    virtual void TearDown()
-    {
-        dmConfigFile::Delete(m_ConfigFile);
-        dmResource::DeleteFactory(m_ResourceFactory);
-        dmScript::Finalize(m_Context);
-        dmScript::DeleteContext(m_Context);
-    }
-
-    dmScript::HContext m_Context;
-    dmConfigFile::HConfig m_ConfigFile;
-    dmResource::HFactory m_ResourceFactory;
-    lua_State* L;
 };
 
-bool RunFile(lua_State* L, const char* filename)
-{
-    char path[64];
-    dmSnPrintf(path, 64, MOUNTFS PATH_FORMAT, filename);
-    if (luaL_dofile(L, path) != 0)
-    {
-        dmLogError("%s", lua_tolstring(L, -1, 0));
-        return false;
-    }
-    return true;
-}
-
-bool RunString(lua_State* L, const char* script)
-{
-    if (luaL_dostring(L, script) != 0)
-    {
-        dmLogError("%s", lua_tolstring(L, -1, 0));
-        return false;
-    }
-    return true;
-}
-
-
-#if defined(__NX__) && !defined(GITHUB_CI) // we cannot run this test unless we have a device connected
 TEST_F(ScriptSysTest, TestSys)
 {
     int top = lua_gettop(L);
@@ -116,11 +45,13 @@ TEST_F(ScriptSysTest, TestSys)
 
     ASSERT_EQ(top, lua_gettop(L));
 }
-#endif
+
+extern "C" void dmExportedSymbols();
 
 int main(int argc, char **argv)
 {
+    dmExportedSymbols();
+    TestMainPlatformInit();
     jc_test_init(&argc, argv);
-    int ret = jc_test_run_all();
-    return ret;
+    return jc_test_run_all();
 }

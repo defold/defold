@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -29,6 +29,9 @@ extern "C"
 #include <lua/lauxlib.h>
 #include <lua/lualib.h>
 }
+
+DM_PROPERTY_EXTERN(rmtp_GameObject);
+DM_PROPERTY_U32(rmtp_ComponentsAnim, 0, PROFILE_PROPERTY_FRAME_RESET, "#", &rmtp_GameObject);
 
 namespace dmGameObject
 {
@@ -158,7 +161,7 @@ namespace dmGameObject
 
     UpdateResult CompAnimUpdate(const ComponentsUpdateParams& params, ComponentsUpdateResult& update_result)
     {
-        DM_PROFILE(Animation, "Update");
+        DM_PROFILE("Update");
 
         /*
          * The update is divided into three passes.
@@ -181,7 +184,9 @@ namespace dmGameObject
         world->m_InUpdate = 1;
         uint32_t size = world->m_Animations.Size();
         uint32_t orig_size = size;
-        DM_COUNTER("animc", size);
+
+        DM_PROPERTY_ADD_U32(rmtp_ComponentsAnim, size);
+
         uint32_t i = 0;
         for (i = 0; i < size; ++i)
         {
@@ -254,7 +259,6 @@ namespace dmGameObject
             }
             // Adjust cursor
             bool completed = false;
-
             switch (anim.m_Playback)
             {
             case PLAYBACK_ONCE_FORWARD:
@@ -386,7 +390,7 @@ namespace dmGameObject
 
     static AnimWorld* GetWorld(HCollection hcollection)
     {
-        dmResource::ResourceType resource_type;
+        HResourceType resource_type;
         dmResource::Result result = dmResource::GetTypeFromExtension(dmGameObject::GetFactory(hcollection), "animc", &resource_type);
         assert(result == dmResource::RESULT_OK);
         uint32_t component_index;
@@ -703,7 +707,9 @@ namespace dmGameObject
         {
             if (INVALID_INDEX == next)
             {
-                world->m_ListenerInstanceToIndex.Erase((uintptr_t)anim->m_Userdata1);
+                uint16_t* p = world->m_ListenerInstanceToIndex.Get((uintptr_t)anim->m_Userdata1);
+                if (p != 0)
+                    world->m_ListenerInstanceToIndex.Erase((uintptr_t)anim->m_Userdata1);
             }
             else
             {

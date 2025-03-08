@@ -1,12 +1,12 @@
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2025 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -63,16 +63,16 @@ class MemProfile(object):
 def load_symbol_table(addresses, executable):
     symbol_table = {}
     if sys.platform == 'darwin':
-        p = subprocess.Popen(['atos', '-o', executable], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+        p = subprocess.Popen(['atos', '-o', executable, '-offset'], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
     else:
         p = subprocess.Popen(['addr2line', '-e', executable], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
 
     str = ''
     for s in addresses:
         str += "0x%x\n" % s
-    stdout, stderr = p.communicate(str)
+    stdout, stderr = p.communicate(str.encode())
 
-    text_symbols = stdout.split('\n')
+    text_symbols = stdout.decode().split('\n')
     symbol_table = {}
     for i,s in enumerate(addresses):
         symbol_table[s] = text_symbols[i]
@@ -83,7 +83,9 @@ def load(trace, executable):
     mem_profile = MemProfile()
     traces = []
     active_allocations = {}
-    for line in open(trace, 'rb'):
+    trace_file = open(trace, 'r')
+    for line in trace_file:
+
         type, ptr, size, trace = line.split(' ', 3)
         ptr, size = int(ptr, 16), int(size, 16)
 
@@ -93,7 +95,7 @@ def load(trace, executable):
             mem_profile.symbol_table[x] = None
             lst.append(int(s, 16))
 
-        h = hashlib.md5(trace).digest()
+        h = hashlib.md5(trace.encode()).digest()
         trace = Trace(type, ptr, size, lst, h)
         traces.append(trace)
 
@@ -102,6 +104,8 @@ def load(trace, executable):
         elif type == 'F':
             if ptr in active_allocations:
                 del(active_allocations[ptr])
+
+    trace_file.close()
 
     mem_profile.symbol_table = load_symbol_table(mem_profile.symbol_table.keys(), executable)
 
@@ -116,11 +120,11 @@ def load(trace, executable):
         lst.append(t)
         mem_profile.traces[t.back_trace_hash] = lst
 
-    for k, lst in mem_profile.traces.iteritems():
+    for k, lst in mem_profile.traces.items():
         assert not k in mem_profile.summary
         mem_profile.summary[k] = TraceSummary(lst)
 
-    for ptr, t in active_allocations.iteritems():
+    for ptr, t in active_allocations.items():
         mem_profile.summary[t.back_trace_hash].active_total += t.size
 
 
@@ -136,27 +140,27 @@ def fmt_memory(x):
 
 if __name__ == '__main__':
     if not os.path.exists(sys.argv[1]):
-        print >>sys.stderr, 'Executable %s not found' % sys.argv[1]
+        print ('Executable %s not found' % sys.argv[1], file=sys.stderr)
         sys.exit(5)
 
     if not os.path.exists(sys.argv[2]):
-        print >>sys.stderr, 'Trace file %s not found' % sys.argv[2]
+        print ('Trace file %s not found' % sys.argv[2], file=sys.stderr)
         sys.exit(5)
 
     profile = load(sys.argv[2], sys.argv[1])
 
-    lst = profile.summary.values()
-    lst.sort(lambda x,y: cmp(y.malloc_total, x.malloc_total))
+    lst = list(profile.summary.values())
+    lst.sort(reverse=True, key=lambda x: x.malloc_total)
     active_total = 0
     for s in lst:
         if s.nmalloc > 0:
             active_total += s.active_total
 
-    print '<html>'
-    print '<b>Active total: %s</b>' % fmt_memory(active_total)
-    print '<p>'
-    print '<table border="1">'
-    print '<td><b>Backtrace</b></td><td><b>Allocations</b></td><td><b>Total</b></td><td><b>Active</b></td><tr/>'
+    print ('<html>')
+    print ('<b>Active total: %s</b>' % fmt_memory(active_total))
+    print ('<p>')
+    print ('<table border="1">')
+    print ('<td><b>Backtrace</b></td><td><b>Allocations</b></td><td><b>Total</b></td><td><b>Active</b></td><tr/>')
     for s in lst:
         if s.nmalloc > 0:
             bt = ''
@@ -178,8 +182,8 @@ if __name__ == '__main__':
             elif s.active_total > 1024:
                 active = '%d K' % (s.active_total / (1024.0))
 
-            print '<td>%s</td><td>%d</td><td>%s</td><td>%s</td><tr/>' % (bt, s.nmalloc, tot, active)
+            print ('<td>%s</td><td>%d</td><td>%s</td><td>%s</td><tr/>' % (bt, s.nmalloc, tot, active))
 
-    print '</table>'
-    print '</html>'
+    print ('</table>')
+    print ('</html>')
 

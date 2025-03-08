@@ -1,32 +1,28 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.gui-clipping-test
-  (:require [clojure.test :refer :all]
-            [clojure.data :as data]
+  (:require [clojure.data :as data]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [integration.test-util :as test-util]
-            [editor.workspace :as workspace]
-            [editor.defold-project :as project]
             [editor.gui :as gui]
-            [editor.gl.pass :as pass]
-            [editor.handler :as handler]
-            [editor.types :as types]))
+            [integration.test-util :as test-util]
+            [util.fn :as fn]))
 
 (defn- gui-node [scene id]
   (let [id->node (->> (get-in (g/node-value scene :node-outline) [:children 0])
-                   (tree-seq (constantly true) :children)
+                   (tree-seq fn/constantly-true :children)
                    (map :node-id)
                    (map (fn [node-id] [(g/node-value node-id :id) node-id]))
                    (into {}))]
@@ -79,7 +75,7 @@
   (let [scene (g/node-value scene-id :scene)
         gpu {:sb (->stencil-buffer)
              :fb (->frame-buffer)}
-        scenes (filter #(contains? shapes (:node-id %)) (tree-seq (constantly true) :children scene))]
+        scenes (filter #(contains? shapes (:node-id %)) (tree-seq fn/constantly-true :children scene))]
     (-> (reduce (fn [gpu scene]
                   (let [colors (shapes (:node-id scene))
                         shape (reduce bit-or colors)
@@ -152,7 +148,7 @@
     (is (nil? act))))
 
 (defn- scene-seq [scene]
-  (tree-seq (constantly true) :children scene))
+  (tree-seq fn/constantly-true :children scene))
 
 (defn- visual-seq [scene]
   (->> scene
@@ -172,16 +168,16 @@
 
 
 
-(defn- assert-render-order [scene-id order]
+(defn- assert-render-order [scene-id expected]
   (testing "render order"
     (let [actual (-> (g/node-value scene-id :scene)
                      visual-seq
                      seq->render-order
-                     (select-keys order)
+                     (select-keys expected)
                      ((partial sort-by (fn [[nid order]] order)))
                      ((partial map first))
                      vec)]
-      (is (= actual order)))))
+      (is (= expected actual)))))
 
 (defn- assert-clipping-order [scene-id clipper visual]
   (testing "clipping order"
@@ -571,7 +567,7 @@
 ;;   - b (layer1)
 ;; - c
 ;;
-;; Expected order: a, b, c
+;; Expected order: a, c, b
 (deftest render-order-one-layer
   (test-util/with-loaded-project
     (let [scene (test-util/resource-node project "/gui/empty.gui")
@@ -580,7 +576,7 @@
           c (add-box! project scene nil)]
       (add-layers! project scene ["layer1"])
       (set-layer! b "layer1")
-      (assert-render-order scene [a b c])
+      (assert-render-order scene [a c b])
       (assert-clipping-order scene a a)
       (assert-clipping-order scene a b))))
 
@@ -589,7 +585,7 @@
 ;;   - b
 ;; - c
 ;;
-;; Expected order: a, b, c
+;; Expected order: c, a, b
 (deftest render-order-one-clipper-layer
   (test-util/with-loaded-project
     (let [scene (test-util/resource-node project "/gui/empty.gui")
@@ -598,7 +594,7 @@
           c (add-box! project scene nil)]
       (add-layers! project scene ["layer1"])
       (set-layer! a "layer1")
-      (assert-render-order scene [a b c])
+      (assert-render-order scene [c a b])
       (assert-clipping-order scene a a)
       (assert-clipping-order scene a b))))
 
@@ -607,7 +603,7 @@
 ;;   - b (layer1)
 ;; - c
 ;;
-;; Expected order: b, a, c
+;; Expected order: c, b, a
 (deftest render-order-both-layers
   (test-util/with-loaded-project
     (let [scene (test-util/resource-node project "/gui/empty.gui")
@@ -617,9 +613,8 @@
       (add-layers! project scene ["layer1" "layer2"])
       (set-layer! a "layer2")
       (set-layer! b "layer1")
-      (assert-render-order scene [b a c])
-      (assert-clipping-order scene a a)
-      (assert-clipping-order scene a b))))
+      (assert-render-order scene [c b a])
+      (assert-clipping-order scene a a))))
 
 ;; Render order for the following hierarchy:
 ;; - c
@@ -637,15 +632,14 @@
       (set-layer! a "layer2")
       (set-layer! b "layer1")
       (assert-render-order scene [c b a])
-      (assert-clipping-order scene a a)
-      (assert-clipping-order scene a b))))
+      (assert-clipping-order scene a a))))
 
 ;; Render order for the following hierarchy:
 ;; - a (inv-clipper, layer2)
 ;;   - b (layer1)
 ;; - c
 ;;
-;; Expected order: b, a, c
+;; Expected order: c, b, a
 (deftest render-order-both-layers-inv-clipper
   (test-util/with-loaded-project
     (let [scene (test-util/resource-node project "/gui/empty.gui")
@@ -655,9 +649,8 @@
       (add-layers! project scene ["layer1" "layer2"])
       (set-layer! a "layer2")
       (set-layer! b "layer1")
-      (assert-render-order scene [b a c])
-      (assert-clipping-order scene a a)
-      (assert-clipping-order scene a b))))
+      (assert-render-order scene [c b a])
+      (assert-clipping-order scene a a))))
 
 ;; Render order for the following hierarchy:
 ;; - z (clipper)
@@ -665,7 +658,7 @@
 ;;     - b (layer1)
 ;;   - c
 ;;
-;; Expected order: z, b, a, c
+;; Expected order: z, c, b, a
 (deftest render-order-both-layers-sub
   (test-util/with-loaded-project
     (let [scene (test-util/resource-node project "/gui/empty.gui")
@@ -676,12 +669,11 @@
       (add-layers! project scene ["layer1" "layer2"])
       (set-layer! a "layer2")
       (set-layer! b "layer1")
-      (assert-render-order scene [z b a c])
+      (assert-render-order scene [z c b a])
       (assert-clipping-order scene z a)
       (assert-clipping-order scene z b)
       (assert-clipping-order scene z c)
-      (assert-clipping-order scene a a)
-      (assert-clipping-order scene a b))))
+      (assert-clipping-order scene a a))))
 
 ;; Render order for the following hierarchy:
 ;; - a (clipper, layer2)
@@ -704,18 +696,16 @@
       (set-layer! b "layer4")
       (set-layer! c "layer3")
       (set-layer! d "layer1")
-      (assert-render-order scene [c b d a e])
-      (assert-clipping-order scene a d)
-      (assert-clipping-order scene a e)
-      (assert-clipping-order scene b d)
-      (assert-clipping-order scene b c))))
+      (assert-render-order scene [e d a c b])
+      (assert-clipping-order scene a c)
+      (assert-clipping-order scene a b))))
 
 ;; Render order for the following hierarchy:
 ;; - a (layer2)
 ;;   - b (clipper, layer1)
 ;;     - c (layer2)
 ;;
-;; Expected order: b, c, a
+;; Expected order: b, a, c
 (deftest render-order-complex-2
   (test-util/with-loaded-project
     (let [scene (test-util/resource-node project "/gui/empty.gui")
@@ -726,7 +716,7 @@
       (set-layer! a "layer2")
       (set-layer! b "layer1")
       (set-layer! c "layer2")
-      (assert-render-order scene [b c a]))))
+      (assert-render-order scene [b a c]))))
 
 ;; Render order for the following hierarchy:
 ;; - a (layer 2)
@@ -734,7 +724,7 @@
 ;;     - c (layer 1)
 ;;     - d (no layer)
 ;;
-;; Expected order: c, d, a
+;; Expected order: c, a, d
 (deftest render-order-complex-3
   (test-util/with-loaded-project
     (let [scene (test-util/resource-node project "/gui/empty.gui")
@@ -745,7 +735,7 @@
       (add-layers! project scene ["layer1" "layer2"])
       (set-layer! a "layer2")
       (set-layer! c "layer1")
-      (assert-render-order scene [c d a]))))
+      (assert-render-order scene [c a d]))))
 
 ;; Render order for the following hierarchy:
 ;; - a

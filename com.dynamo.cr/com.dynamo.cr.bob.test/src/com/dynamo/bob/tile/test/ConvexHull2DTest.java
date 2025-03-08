@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -50,6 +50,22 @@ public class ConvexHull2DTest {
         int[] mask = image.getAlphaRaster().getPixels(0, 0, width, height, new int[width * height]);
 
         Point[] points = ConvexHull2D.imageConvexHull(mask, width, height, planeCount);
+        return new HashSet<Point>(Arrays.asList(points));
+    }
+
+    static HashSet<Point> calcTrim(String fileName, int targetCount) throws IOException {
+        BufferedImage image = ImageIO.read(new FileInputStream(fileName));
+        int width = image.getWidth();
+        int height = image.getHeight();
+        int[] mask = image.getAlphaRaster().getPixels(0, 0, width, height, new int[width * height]);
+
+        ConvexHull2D.PointF[] pointsf = ConvexHull2D.imageConvexHullCorners(mask, width, height, targetCount);
+        Point[] points = new Point[pointsf.length];
+        for (int i = 0; i < pointsf.length; ++i) {
+            double x = (pointsf[i].x + 0.5) * (double)width;
+            double y = (pointsf[i].y + 0.5) * (double)height;
+            points[i] = new Point((int)x, (int)y);
+        }
         return new HashSet<Point>(Arrays.asList(points));
     }
 
@@ -247,6 +263,29 @@ public class ConvexHull2DTest {
         // Assert CCW
         assertTrue(simpleCross(sub(points[1], points[0]), sub(points[2], points[0])) < 0);
         assertTrue(simpleCross(sub(points[2], points[0]), sub(points[3], points[0])) < 0);
+    }
+
+    @Test
+    public void testImageHullTargetCount() throws Exception {
+        HashSet<Point> points = calcTrim("test/test_image_7389.png", 8);
+
+        // 0: 0.364769 x -0.014665  243 x 201
+        // 1: 0.144800 x -0.374244  181 x 52
+        // 2: -0.010580 x -0.479453  137 x 8
+        // 3: -0.336299 x -0.388100  45 x 46
+        // 4: -0.336299 x -0.091389  46 x 169
+        // 5: -0.005227 x 0.449809  139 x 394
+        // 6: 0.279224 x 0.370030  218 x 361
+        // 7: 0.364769 x 0.230191  243 x 303
+        assertEquals(8, points.size());
+        assertThat(points, hasItem(new Point(243, 201)));
+        assertThat(points, hasItem(new Point(181, 52)));
+        assertThat(points, hasItem(new Point(137, 8)));
+        assertThat(points, hasItem(new Point(45, 46)));
+        assertThat(points, hasItem(new Point(46, 169)));
+        assertThat(points, hasItem(new Point(139, 394)));
+        assertThat(points, hasItem(new Point(218, 361)));
+        assertThat(points, hasItem(new Point(243, 303)));
     }
 
 }

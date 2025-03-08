@@ -1,9 +1,9 @@
-def set_options(opt):
+def options(opt):
     pass
 
 def configure(conf):
     pass
 
 def build(bld):
-    bld.add_subdirs('record')
-    bld.add_subdirs('test')
+    bld.recurse('record')
+    bld.recurse('test')

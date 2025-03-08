@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -46,9 +46,12 @@ namespace dmPhysics
         JOINT_TYPE_HINGE,
         JOINT_TYPE_SLIDER,
         JOINT_TYPE_WELD,
-        JOINT_TYPE_COUNT
+        JOINT_TYPE_WHEEL,
+        JOINT_TYPE_COUNT,
+
     };
 
+    // Matches PhysicsResultString in script_physics.cpp
     enum JointResult
     {
         RESULT_OK = 0,
@@ -56,7 +59,8 @@ namespace dmPhysics
         RESULT_ID_EXISTS = 2,
         RESULT_ID_NOT_FOUND = 3,
         RESULT_NOT_CONNECTED = 4,
-        RESULT_UNKNOWN_ERROR = 5,
+        RESULT_PHYSICS_WORLD_LOCKED = 5,
+        RESULT_UNKNOWN_ERROR = 6,
     };
 
     /// 3D context handle.
@@ -305,6 +309,8 @@ namespace dmPhysics
         GetWorldTransformCallback m_GetWorldTransformCallback;
         /// param set_world_transform Callback for copying the transform from the collision object to the corresponding user data
         SetWorldTransformCallback m_SetWorldTransformCallback;
+        /// max number of collision objects
+        uint32_t m_MaxCollisionObjectsCount;
     };
 
     /**
@@ -325,6 +331,8 @@ namespace dmPhysics
      */
     HWorld2D NewWorld2D(HContext2D context, const NewWorldParams& params);
 
+    HContext3D GetContext3D(HWorld3D world);
+
     /**
      * Delete a 3D physics world
      *
@@ -338,6 +346,9 @@ namespace dmPhysics
      * @param world Physics world
      */
     void DeleteWorld2D(HContext2D context, HWorld2D world);
+
+    void* GetWorldContext2D(HWorld2D world);
+    void* GetCollisionObjectContext2D(HCollisionObject2D collision_object);
 
     /**
      * Arguments passed to the StepWorld* functions.
@@ -1074,16 +1085,16 @@ namespace dmPhysics
      */
     void SetBullet2D(HCollisionObject2D collision_object, bool value);
 
-	uint16_t GetGroup2D(HCollisionObject2D collision_object);
+    uint16_t GetGroup2D(HCollisionObject2D collision_object);
     void SetGroup2D(HCollisionObject2D collision_object, uint16_t groupbit);
-	bool GetMaskBit2D(HCollisionObject2D collision_object, uint16_t groupbit);
-	void SetMaskBit2D(HCollisionObject2D collision_object, uint16_t groupbit, bool boolvalue);
+    bool GetMaskBit2D(HCollisionObject2D collision_object, uint16_t groupbit);
+    void SetMaskBit2D(HCollisionObject2D collision_object, uint16_t groupbit, bool boolvalue);
+    bool UpdateMass2D(HCollisionObject2D collision_object, float mass);
 
-	uint16_t GetGroup3D(HCollisionObject3D collision_object);
-	void SetGroup3D(HWorld3D world, HCollisionObject3D collision_object, uint16_t groupbit);
-	bool GetMaskBit3D(HCollisionObject3D collision_object, uint16_t groupbit);
-	void SetMaskBit3D(HWorld3D world, HCollisionObject3D collision_object, uint16_t groupbit, bool boolvalue);
-
+    uint16_t GetGroup3D(HCollisionObject3D collision_object);
+    void SetGroup3D(HWorld3D world, HCollisionObject3D collision_object, uint16_t groupbit);
+    bool GetMaskBit3D(HCollisionObject3D collision_object, uint16_t groupbit);
+    void SetMaskBit3D(HWorld3D world, HCollisionObject3D collision_object, uint16_t groupbit, bool boolvalue);
 
     /**
      * Container of data for ray cast queries.
@@ -1319,6 +1330,18 @@ namespace dmPhysics
                 float m_FrequencyHz;
                 float m_DampingRatio;
             } m_WeldJointParams;
+
+            struct
+            {
+                float m_JointTranslation; // read only
+                float m_JointSpeed; // read only
+                float m_LocalAxisA[3];
+                float m_MaxMotorTorque;
+                float m_MotorSpeed;
+                bool  m_EnableMotor;
+                float m_FrequencyHz;
+                float m_DampingRatio;
+            } m_WheelJointParams;
         };
 
         ConnectJointParams()
@@ -1365,6 +1388,16 @@ namespace dmPhysics
                     m_WeldJointParams.m_FrequencyHz = 0.0f;
                     m_WeldJointParams.m_DampingRatio = 0.0f;
                     break;
+                case JOINT_TYPE_WHEEL:
+                    m_WheelJointParams.m_LocalAxisA[0] = 1.0f;
+                    m_WheelJointParams.m_LocalAxisA[1] = 0.0f;
+                    m_WheelJointParams.m_LocalAxisA[2] = 0.0f;
+                    m_WheelJointParams.m_MaxMotorTorque = 0.0f;
+                    m_WheelJointParams.m_MotorSpeed = 0.0f;
+                    m_WheelJointParams.m_EnableMotor = false;
+                    m_WheelJointParams.m_FrequencyHz = 0.0f;
+                    m_WheelJointParams.m_DampingRatio = 0.0f;
+                    break;
                 default:
                     break;
             }
@@ -1379,7 +1412,22 @@ namespace dmPhysics
     bool GetJointReactionTorque2D(HWorld2D world, HJoint joint, float& torque, float inv_dt);
     void FlipH2D(HCollisionObject2D collision_object);
     void FlipV2D(HCollisionObject2D collision_object);
+    bool IsWorldLocked(HWorld2D world);
 
+    void              ReplaceShape3D(HCollisionObject3D object, HCollisionShape3D old_shape, HCollisionShape3D new_shape);
+    HCollisionShape3D GetCollisionShape3D(HCollisionObject3D collision_object, uint32_t index);
+    void              GetCollisionShapeRadius3D(HCollisionShape3D shape, float* radius);
+    void              GetCollisionShapeHalfBoxExtents3D(HCollisionShape3D shape, float* xyz);
+    void              GetCollisionShapeCapsuleRadiusHeight3D(HCollisionShape3D shape, float* radius, float* half_height);
+    void              SetCollisionShapeRadius3D(HCollisionShape3D shape, float radius);
+    void              SetCollisionShapeHalfBoxExtents3D(HCollisionShape2D shape, float w, float h, float d);
+
+    void              GetCollisionShapeRadius2D(HWorld2D world, HCollisionShape2D shape, float* radius);
+    void              GetCollisionShapeBoxDimensions2D(HWorld2D world, HCollisionShape2D shape, dmVMath::Quat rotation, float& w, float& h);
+    HCollisionShape2D GetCollisionShape2D(HWorld2D world, HCollisionObject2D collision_object, uint32_t shape_index);
+    void              SetCollisionShapeRadius2D(HWorld2D world, HCollisionShape2D shape, float radius);
+    void              SetCollisionShapeBoxDimensions2D(HWorld2D world, HCollisionShape2D shape, dmVMath::Quat rotation, float w, float h);
+    void              SynchronizeObject2D(HWorld2D world, HCollisionObject2D collision_object);
 }
 
 #endif // DM_PHYSICS_H

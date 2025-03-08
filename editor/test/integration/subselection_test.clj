@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,17 +15,14 @@
 (ns integration.subselection-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [util.id-vec :as iv]
             [editor.app-view :as app-view]
-            [editor.types :as types]
-            [editor.defold-project :as project]
-            [editor.math :as math]
-            [editor.properties :as properties]
             [editor.particlefx :as particlefx]
+            [editor.properties :as properties]
+            [editor.types :as types]
             [integration.test-util :as test-util]
-            [support.test-support :refer [tx-nodes]])
-  (:import [javax.vecmath Matrix4d Point3d Vector3d]
-           [editor.properties Curve]))
+            [support.test-support :refer [tx-nodes]]
+            [util.id-vec :as iv])
+  (:import [javax.vecmath Matrix4d Point3d Vector3d]))
 
 (defn- select! [app-view selection]
   (let [opseq (gensym)]
@@ -47,15 +44,17 @@
 
 (defrecord Mesh [vertices]
   types/GeomCloud
-  (types/geom-aabbs [this ids] (->> (iv/iv-filter-ids vertices ids)
-                                    (iv/iv-mapv (fn [[id v]] [id [v v]]))
-                                    (into {})))
-  (types/geom-insert [this positions] (update this :vertices iv/iv-into positions))
-  (types/geom-delete [this ids] (update this :vertices iv/iv-remove-ids ids))
-  (types/geom-update [this ids f] (let [ids (set ids)]
-                                    (assoc this :vertices (iv/iv-mapv (fn [entry]
-                                                                        (let [[id v] entry]
-                                                                          (if (ids id) [id (f v)] entry))) vertices))))
+  (types/geom-aabbs [_this ids]
+    (->> (if ids
+           (iv/iv-filter-ids vertices ids)
+           vertices)
+         (iv/iv-entries)
+         (into {}
+               (map (fn [[id v]]
+                      [id [v v]])))))
+  (types/geom-insert [this positions] (assoc this :vertices (iv/iv-into vertices positions)))
+  (types/geom-delete [this ids] (assoc this :vertices (iv/iv-remove-ids vertices ids)))
+  (types/geom-update [this ids f] (assoc this :vertices (iv/iv-update-ids f vertices ids)))
   (types/geom-transform [this ids transform]
     (let [p (Point3d.)]
       (types/geom-update this ids (fn [v]

@@ -1,0 +1,145 @@
+-- Copyright 2020-2025 The Defold Foundation
+-- Copyright 2014-2020 King
+-- Copyright 2009-2014 Ragnar Svensson, Christian Murray
+-- Licensed under the Defold License version 1.0 (the "License"); you may not use
+-- this file except in compliance with the License.
+--
+-- You may obtain a copy of the License, together with FAQs at
+-- https://www.defold.com/license
+--
+-- Unless required by applicable law or agreed to in writing, software distributed
+-- under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+-- CONDITIONS OF ANY KIND, either express or implied. See the License for the
+-- specific language governing permissions and limitations under the License.
+
+-- helper function for general tests in init() function
+-- does a pcall and verify that it fails
+local function assert_error(func)
+    local r, err = pcall(func)
+    if not r then
+        print(err)
+    end
+    assert(not r)
+end
+
+local data_stream_desc = {{
+    name  = hash("data"),
+    type  = buffer.VALUE_TYPE_FLOAT32,
+    count = 3
+}}
+
+function test_create_garbage_collect(self)
+    -- buf has owner: Lua (no resource yet)
+    local buf            = buffer.create(3, data_stream_desc)
+
+    -- buf has owner: Res, and now the resource has ref:2, one for the lua 'buf' and one for the resource creation
+    -- transfer ownership is by default true!
+    local res_buffer     = resource.create_buffer("/my_buffer.bufferc", { buffer = buf })
+
+    -- the ref count should now be 3, luabuf + create + get
+    local res_buffer_obj = resource.get_buffer(res_buffer)
+
+    buf = nil
+    collectgarbage("collect")
+
+    -- the buf is GC'd and the ref should now be 2
+    resource.release(res_buffer)
+    resource.release(res_buffer)
+
+    -- two releases, so ref count is 0
+    assert_error(function() resource.get_buffer(res_buffer) end)
+
+    -- now, we should be able to create a buffer with the same path as before,
+    -- and again the ref count is zero and owner for buf_2 is lua
+    local buf_2        = buffer.create(3, data_stream_desc)
+
+    -- buf_2 has owner: Res now and the resource has a ref count of 2 (luabuf + create)
+    local res_buffer_2 = resource.create_buffer("/my_buffer.bufferc", { buffer = buf_2})
+
+    buf_2 = nil
+    collectgarbage("collect")
+
+    -- the buf_2 is GC'd and the resource ref is decreased, so it should only have one reference now
+    resource.release(res_buffer_2)
+
+    -- after release, it should not exist
+    assert_error(function() resource.get_buffer(res_buffer_2) end)
+end
+
+function test_create_get(self)
+    -- owner: lua
+    local buf = buffer.create(3, data_stream_desc)
+    -- owner: res
+    -- ref: 2 - 1 for resource 1 for the handle
+    local res_buffer = resource.create_buffer("/my_buffer.bufferc", { buffer = buf })
+    -- ref: 3
+    local res_buffer_path = resource.get_buffer(res_buffer)
+
+    resource.release(res_buffer)
+    resource.release(res_buffer)
+    resource.release(res_buffer)
+
+    -- resource should be removed now
+    assert_error(function() resource.get_buffer(res_buffer) end)
+end
+
+function test_create_ownership(self)
+    local buf             = buffer.create(3, data_stream_desc)
+    local res_buffer_path = resource.create_buffer("/my_buffer.bufferc", { buffer = buf, transfer_ownership=false })
+
+    -- gc buffer, which should release the pointer that the resource has a ref to as well
+    buf = nil
+    collectgarbage("collect")
+
+    -- the resource buffer is no longer valid!
+    assert_error(function() resource.get_buffer(res_buffer_path) end)
+
+    resource.release(res_buffer_path)
+end
+
+function test_create_ownership_data(self)
+    local buf = buffer.create(3, data_stream_desc)
+
+    -- create buffer resource and fill with data
+    local res_buffer        = resource.create_buffer("/my_buffer.bufferc", { buffer = buf, transfer_ownership=false })
+    local res_buffer_path   = resource.get_buffer(res_buffer)
+    local res_buffer_stream = buffer.get_stream(res_buffer_path, hash("data"))
+
+    res_buffer_stream[1] = 3
+    res_buffer_stream[2] = 2
+    res_buffer_stream[3] = 1
+
+    local buffer_stream = buffer.get_stream(buf, hash("data"))
+    for i=1,3 do
+        assert(buffer_stream[i] == res_buffer_stream[i])
+    end
+
+    -- We release the resource twice here to fully release the resource so we can reuse the resource name
+    -- 1 from resource.create_buffer and 1 from resource.get_buffer
+    resource.release(res_buffer)
+    resource.release(res_buffer)
+end
+
+function buffer_to_handle(buf)
+    local res_buf_str = tostring(buf)
+    local res_buf_handle = string.match(res_buf_str, "handle = (%d+)")
+    return tonumber(res_buf_handle)
+end
+
+function test_create_set(self)
+    local buf        = buffer.create(3, data_stream_desc)
+    local buf_bigger = buffer.create(6, data_stream_desc)
+    local res_buffer = resource.create_buffer("/my_buffer.bufferc", { buffer = buf })
+    resource.set_buffer("/my_buffer.bufferc", buf_bigger, { transfer_ownership=true })
+
+    -- test that transferring ownership doesn't trigger a new clone of the buffer
+    assert(buffer_to_handle(buf_bigger), buffer_to_handle(resource.get_buffer(res_buffer)))
+end
+
+function init(self)
+    test_create_garbage_collect(self)
+    test_create_get(self)
+    test_create_ownership(self)
+    test_create_ownership_data(self)
+    test_create_set(self)
+end

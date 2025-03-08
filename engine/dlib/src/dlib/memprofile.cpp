@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,10 +16,14 @@
 #include <assert.h>
 #include <stdint.h>
 #include <string.h>
-#include "profile.h"
-#include "memprofile.h"
+#include <dlib/profile/profile.h>
+#include <dlib/dstrings.h>
 
-#if !(defined(_MSC_VER) || defined(ANDROID) || defined(__EMSCRIPTEN__) || defined(__NX__))
+#include "memprofile.h"
+#include "dlib.h"
+
+// TODO: Reverse this if statement to set which platforms are actually supported!
+#if !(defined(_MSC_VER) || defined(ANDROID) || defined(__EMSCRIPTEN__) || defined(DM_PLATFORM_VENDOR))
 
 #include <stdlib.h>
 #include <dlfcn.h>
@@ -29,14 +33,71 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <pthread.h>
-#include "dlib.h"
-#include "profile.h"
 #include "shared_library.h"
 
 #ifdef __MACH__
 #include <malloc/malloc.h>
+
+
+#ifdef DM_LIBMEMPROFILE
+
+#include <mach/mach.h>
+#include <mach-o/dyld_images.h>
+
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+static void GetBaseAddress(uint64_t* out_base, uint64_t* out_size)
+{
+    *out_base = 0;
+    *out_size = 0;
+
+    struct dyld_all_image_infos* infos = 0;
+    {
+        task_dyld_info_data_t dyld_info;
+        mach_msg_type_number_t count = TASK_DYLD_INFO_COUNT;
+
+        if (task_info(mach_task_self(), TASK_DYLD_INFO, (task_info_t)&dyld_info, &count) == KERN_SUCCESS)
+        {
+            infos = (struct dyld_all_image_infos *)dyld_info.all_image_info_addr;
+        }
+    }
+
+    if (!infos)
+    {
+        return;
+    }
+
+    const dyld_image_info* last_info = &infos->infoArray[infos->infoArrayCount-1];
+    // for (int i = 0; i < infos->infoArrayCount; ++i)
+    // {
+    //     const dyld_image_info* info = &infos->infoArray[i];
+    //     printf("  module: %s  addr: %p\n", info->imageFilePath, (void*)info->imageLoadAddress);
+    // }
+
+    if (last_info)
+    {
+        *out_base = (uint64_t)last_info->imageLoadAddress;
+
+        struct stat st;
+        stat(last_info->imageFilePath, &st);
+        *out_size = (uint64_t)st.st_size;
+    }
+}
+#endif // DM_LIBMEMPROFILE
+
 #else
 #include <malloc.h>
+
+#ifdef DM_LIBMEMPROFILE
+
+static void GetBaseAddress(uint64_t* base, uint64_t* size)
+{
+}
+
+#endif // DM_LIBMEMPROFILE
+
 #endif
 
 #endif
@@ -44,6 +105,9 @@
 // Common
 namespace dmMemProfile
 {
+    uint64_t g_BaseAddress = 0;
+    uint64_t g_AppSize = 0;
+
     struct InternalData
     {
         Stats* m_Stats;
@@ -139,6 +203,9 @@ static void* LoadFunction(const char* name)
 
 static void CreateHooks(void)
 {
+    GetBaseAddress(&dmMemProfile::g_BaseAddress, &dmMemProfile::g_AppSize);
+    printf("Base Address: %p sz: %u\n", (void*)(uintptr_t)dmMemProfile::g_BaseAddress, (uint32_t)dmMemProfile::g_AppSize);
+
 #ifdef __linux__
     // dlsym uses calloc. "Known" hack to return NULL for the first allocation
     // http://code.google.com/p/chromium/issues/detail?id=28244
@@ -224,6 +291,29 @@ namespace dmMemProfile
         // We leak a mutex delibrity here
     }
 
+    void DumpBacktracePlatform(int file)
+    {
+        char buf[256];
+        const int maxbt = 32;
+        void* backt[maxbt];
+
+        uintptr_t app_start = dmMemProfile::g_BaseAddress;
+        uintptr_t app_end = app_start + dmMemProfile::g_AppSize;
+
+        int n_bt = backtrace(backt, maxbt);
+
+        for (int i = 0; i < n_bt; ++i)
+        {
+            uintptr_t addr = (uintptr_t)backt[i];
+            if (addr >= app_start && addr < app_end)
+            {
+                addr -= app_start;
+            }
+            snprintf(buf, sizeof(buf), "%p ", (void*)addr);
+            Log(file, buf);
+        }
+    }
+
     void DumpBacktrace(char type, void* ptr, uint32_t size)
     {
         static int32_atomic_t call_depth = 0;
@@ -249,19 +339,11 @@ namespace dmMemProfile
         }
 
         char buf[256];
-        const int maxbt = 32;
-        void* backt[maxbt];
-
-        int n_bt = backtrace(backt, maxbt);
-
-        sprintf(buf, "%c %p 0x%x ", type, ptr, (int32_t) size);
+        snprintf(buf, sizeof(buf), "%c %p 0x%x ", type, ptr, (int32_t) size);
         Log(g_TraceFile, buf);
 
-        for (int i = 0; i < n_bt; ++i)
-        {
-            sprintf(buf, "%p ", backt[i]);
-            Log(g_TraceFile, buf);
-        }
+        DumpBacktracePlatform(g_TraceFile);
+
         Log(g_TraceFile, "\n");
 
         dmAtomicDecrement32(&call_depth);
@@ -299,8 +381,11 @@ DM_DLLEXPORT void *malloc(size_t size)
             dmAtomicAdd32(&dmMemProfile::g_ExtStats->m_TotalActive, (uint32_t) usable_size);
             dmAtomicAdd32(&dmMemProfile::g_ExtStats->m_AllocationCount, 1U);
 
-            dmMemProfile::g_AddCounter("Memory.Allocations", 1U);
-            dmMemProfile::g_AddCounter("Memory.Amount", usable_size);
+            if (dmMemProfile::g_AddCounter)
+            {
+                dmMemProfile::g_AddCounter("Memory.Allocations", 1U);
+                dmMemProfile::g_AddCounter("Memory.Amount", usable_size);
+            }
         }
     }
     else

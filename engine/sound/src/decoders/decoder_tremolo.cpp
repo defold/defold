@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -31,10 +31,9 @@ namespace dmSoundCodec
         {
             Info m_Info;
             OggVorbis_File m_File;
-            size_t m_Size, m_Cursor;
-            const char *m_Buffer;
-            ogg_int64_t m_SeekTo;
-            ogg_int64_t m_PcmLength;
+            size_t m_Cursor;
+            dmSound::HSoundData m_SoundData;
+            uint8_t m_bEOS : 1;
         };
     }
 
@@ -44,28 +43,27 @@ namespace dmSoundCodec
     {
         DecodeStreamInfo *info = (DecodeStreamInfo*) datasource;
 
-        size_t tot = nmemb * size;
-        if (tot > (info->m_Size - info->m_Cursor)) {
-            tot = info->m_Size - info->m_Cursor;
+        if (info->m_bEOS) {
+            return 0;
         }
 
-        memcpy(ptr, &info->m_Buffer[info->m_Cursor], tot);
-        info->m_Cursor += tot;
-        return tot;
+        size_t tot = nmemb * size;
+
+        // note: this does NOT 100% emulate a fread as we are at times unable to deliver all data we are asked to deliver
+        uint32_t read = 0;
+        dmSound::Result res = dmSound::SoundDataRead(info->m_SoundData, (uint32_t)info->m_Cursor, (uint32_t)tot, ptr, &read);
+
+        info->m_bEOS = (res == dmSound::RESULT_END_OF_STREAM);
+        info->m_Cursor += read;
+
+        // Return the count of objects vs. bytes (just like C's stdio)
+        return read / size;
     }
 
     static int OggSeek(void *datasource, long long offset, int whence)
     {
-        DecodeStreamInfo *info = (DecodeStreamInfo*) datasource;
-
-        if (whence == SEEK_SET)
-            info->m_Cursor = offset;
-        else if (whence == SEEK_CUR)
-            info->m_Cursor += offset;
-        else if (whence == SEEK_END)
-            info->m_Cursor = info->m_Size + offset;
-
-        return 0;
+        (void)datasource;
+        return -1;  // we cannot seek
     }
 
     static int OggClose(void *datasource)
@@ -76,16 +74,16 @@ namespace dmSoundCodec
 
     static long OggTell(void *datasource)
     {
-        DecodeStreamInfo *info = (DecodeStreamInfo*) datasource;
-        return info->m_Cursor;
+        (void)datasource;
+        return -1;  // flag this data as non-seekable (this will deactivate any and all seeking / length-query etc. support in Tremolo)
     }
 
-    static Result TremoloOpenStream(const void* buffer, uint32_t buffer_size, HDecodeStream* stream)
+    static Result TremoloOpenStream(dmSound::HSoundData sound_data, HDecodeStream* stream)
     {
         DecodeStreamInfo *tmp = new DecodeStreamInfo();
-        tmp->m_Buffer = (const char*) buffer;
-        tmp->m_Size = buffer_size;
+        tmp->m_SoundData = sound_data;
         tmp->m_Cursor = 0;
+        tmp->m_bEOS = false;
 
         ov_callbacks cb;
         cb.read_func = OggRead;
@@ -103,12 +101,8 @@ namespace dmSoundCodec
         vorbis_info *info = ov_info(&tmp->m_File, -1);
 
         tmp->m_Info.m_Rate = info->rate;
-        tmp->m_Info.m_Size = 0;
         tmp->m_Info.m_Channels = info->channels;
         tmp->m_Info.m_BitsPerSample = 16;
-
-        tmp->m_PcmLength = ov_pcm_total(&tmp->m_File, -1);
-        tmp->m_SeekTo = -1;
 
         *stream = tmp;
         return RESULT_OK;
@@ -116,17 +110,12 @@ namespace dmSoundCodec
 
     static Result TremoloDecode(HDecodeStream stream, char* buffer, uint32_t buffer_size, uint32_t* decoded)
     {
-        DM_PROFILE(SoundCodec, "Tremolo")
+        // note: EOS detection is solely based on data consumption and hence not sample precise (the last decoded block may contain silence not part of the original material)
+
+        DM_PROFILE(__FUNCTION__);
 
         DecodeStreamInfo *streamInfo = (DecodeStreamInfo *) stream;
         uint32_t got_bytes = 0;
-
-        // Seeks are deferred to decode time.
-        if (streamInfo->m_SeekTo != -1)
-        {
-            ov_pcm_seek(&streamInfo->m_File, streamInfo->m_SeekTo);
-            streamInfo->m_SeekTo = -1;
-        }
 
         // The decoding API requires to fill up the whole buffer if possible,
         // but ov_read provides ogg frame by ogg frame, which might be significantly
@@ -134,17 +123,17 @@ namespace dmSoundCodec
         while (true)
         {
             const uint32_t remaining = buffer_size - got_bytes;
-            if (!remaining)
+            if (remaining == 0)
             {
                 break;
             }
 
             int bitstream;
-            int bytes = ov_read(&streamInfo->m_File, &buffer[buffer_size - remaining], (int) remaining, &bitstream);
+            int bytes = ov_read(&streamInfo->m_File, buffer ? &buffer[buffer_size - remaining] : NULL, (int) remaining, &bitstream);
 
-            if (!bytes)
+            if (bytes == 0)
             {
-                // reached end of file
+                // no more data available for now
                 break;
             }
 
@@ -157,43 +146,60 @@ namespace dmSoundCodec
         }
 
         *decoded = got_bytes;
-        return RESULT_OK;
+        return (got_bytes == 0 && streamInfo->m_bEOS) ? RESULT_END_OF_STREAM : RESULT_OK;
     }
 
+    // Called both when looping, and when deleting the decoder (!)
     static Result TremoloResetStream(HDecodeStream stream)
     {
         DecodeStreamInfo *streamInfo = (DecodeStreamInfo*) stream;
-        ov_raw_seek(&streamInfo->m_File, 0);
-        streamInfo->m_SeekTo = -1;
+
+        // shutdown & restart the decoder as we cannot seek anywhere if we do not hand it a seek call on the file IO level
+        ov_clear(&streamInfo->m_File);
+
+        streamInfo->m_bEOS = false;
+        streamInfo->m_Cursor = 0;
+
+        if (!dmSound::IsSoundDataValid(streamInfo->m_SoundData))
+        {
+            // Due to the decoupled decoding in relation to the resource system
+            // it is possible that the data has been removed, so we cannot actually restart the stream (nor do we want to)
+            // TODO: See if we can avoid doing the "reset" stream when stopping a sound?
+            //       It should probably be done on the "play" instead.
+            return RESULT_OK;
+        }
+
+        ov_callbacks cb;
+        cb.read_func = OggRead;
+        cb.close_func = OggClose;
+        cb.seek_func = OggSeek;
+        cb.tell_func = OggTell;
+
+        // The ov_clear call is done internally
+        int res = ov_open_callbacks(streamInfo, &streamInfo->m_File, 0, 0, cb);
+        if (res)
+        {
+            delete streamInfo;
+            return RESULT_INVALID_FORMAT;
+        }
+
         return RESULT_OK;
     }
 
     static Result TremoloSkipInStream(HDecodeStream stream, uint32_t bytes, uint32_t* skipped)
     {
-        DecodeStreamInfo *streamInfo = (DecodeStreamInfo*) stream;
-        if (streamInfo->m_PcmLength > 0)
+        // Decode to 'NIL' (unfortunately with zero cycle savings vs. a real decode)
+        char buffer[4096];
+        Result ret = RESULT_OK;
+        while(bytes && ret == RESULT_OK)
         {
-            // if in skip mode already, use that position.
-            ogg_int64_t pos = streamInfo->m_SeekTo;
-            if (pos == -1)
-                pos = ov_pcm_tell(&streamInfo->m_File);
-
-            // clamp to end of stream
-            const ogg_int64_t stride = streamInfo->m_Info.m_Channels * streamInfo->m_Info.m_BitsPerSample / 8;
-            ogg_int64_t newpos = pos + bytes / stride;
-            if (newpos > streamInfo->m_PcmLength)
-                newpos = streamInfo->m_PcmLength;
-
-            streamInfo->m_SeekTo = newpos;
-            *skipped = (uint32_t)((newpos - pos) * stride);
-            return RESULT_OK;
+            uint32_t chunk = dmMath::Min(bytes, (uint32_t)sizeof(buffer));
+            uint32_t decoded = 0;
+            ret = TremoloDecode(stream, buffer, chunk, &decoded);
+            (*skipped) += decoded;
+            bytes -= decoded;
         }
-        else
-        {
-            // unseekable stream.
-            *skipped = 0;
-            return RESULT_UNSUPPORTED;
-        }
+        return ret;
     }
 
     static void TremoloCloseStream(HDecodeStream stream)
@@ -208,6 +214,14 @@ namespace dmSoundCodec
         *out = ((DecodeStreamInfo *) stream)->m_Info;
     }
 
+    static int64_t TremoloGetInternalPos(HDecodeStream stream)
+    {
+        DecodeStreamInfo *streamInfo = (DecodeStreamInfo *) stream;
+        return (int64_t)ov_pcm_tell(&streamInfo->m_File);
+    }
+
     DM_DECLARE_SOUND_DECODER(AudioDecoderTremolo, "VorbisDecoderTremolo", FORMAT_VORBIS, 8,
-                             TremoloOpenStream, TremoloCloseStream, TremoloDecode, TremoloResetStream, TremoloSkipInStream, TremoloGetInfo);
+                             TremoloOpenStream, TremoloCloseStream, TremoloDecode,
+                             TremoloResetStream, TremoloSkipInStream, TremoloGetInfo,
+                             TremoloGetInternalPos);
 }

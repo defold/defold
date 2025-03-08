@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -14,30 +14,31 @@
 
 package com.dynamo.bob.pipeline;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.ByteArrayInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Vector;
 import java.util.Map.Entry;
 
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.ArrayUtils;
-import org.jagatoo.loaders.models.collada.datastructs.animation.Bone;
 
 import javax.vecmath.Matrix4d;
 import javax.vecmath.Matrix4f;
-import javax.vecmath.Point3d;
 import javax.vecmath.Point3f;
 import javax.vecmath.Quat4d;
 import javax.vecmath.Tuple3d;
@@ -49,6 +50,8 @@ import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
 
+// Sources:
+// https://github.com/spidasoftware/jagatoo/blob/master/src/main/java/org/jagatoo/loaders/models/collada
 import org.jagatoo.loaders.models.collada.stax.XMLAnimation;
 import org.jagatoo.loaders.models.collada.stax.XMLAnimationClip;
 import org.jagatoo.loaders.models.collada.stax.XMLAsset;
@@ -68,28 +71,27 @@ import org.jagatoo.loaders.models.collada.stax.XMLSource;
 import org.jagatoo.loaders.models.collada.stax.XMLVisualScene;
 import org.jagatoo.loaders.models.collada.stax.XMLAsset.UpAxis;
 import org.jagatoo.loaders.models.collada.stax.XMLVisualSceneExtra;
+import org.jagatoo.loaders.models.collada.datastructs.animation.Bone;
 
+import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.MathUtil;
-import com.dynamo.bob.util.RigUtil;
-
 import com.dynamo.bob.util.MurmurHash;
+import com.dynamo.bob.util.RigUtil;
 import com.dynamo.bob.util.RigUtil.AnimationKey;
 import com.dynamo.bob.util.RigUtil.Weight;
-import com.dynamo.proto.DdfMath.Point3;
-import com.dynamo.proto.DdfMath.Quat;
-import com.dynamo.proto.DdfMath.Vector3;
+import com.dynamo.bob.util.TimeProfiler;
+import com.dynamo.proto.DdfMath.Transform;
 
 import com.dynamo.rig.proto.Rig;
 import com.dynamo.rig.proto.Rig.AnimationInstanceDesc;
 import com.dynamo.rig.proto.Rig.AnimationSetDesc;
-import com.dynamo.rig.proto.Rig.MeshEntry;
-import com.dynamo.rig.proto.Rig.MeshSlot;
-import com.google.protobuf.ByteString;
 import com.google.protobuf.TextFormat;
 
 public class ColladaUtil {
 
-    static int BONE_NO_PARENT = 0xffff;
+    static int BONE_NO_PARENT = 0xffffffff;
+
+    private static Logger logger = Logger.getLogger(ColladaUtil.class.getName());
 
     static private class AssetSpace
     {
@@ -130,6 +132,26 @@ public class ColladaUtil {
         return assetSpace;
     }
 
+    // private static void printVector3d(Vector3d v) {
+    //     System.err.printf("  %f, %f, %f\n", v.getX(), v.getY(), v.getZ());
+    // }
+
+    private static void printVector4d(Vector4d v) {
+        System.err.printf("  %f, %f, %f, %f\n", v.getX(), v.getY(), v.getZ(), v.getW());
+    }
+
+    // private static void printQuat4d(Quat4d v) {
+    //     System.err.printf("  %f, %f, %f, %f\n", v.getX(), v.getY(), v.getZ(), v.getW());
+    // }
+
+    private static void printMatrix4d(Matrix4d mat) {
+        Vector4d v = new Vector4d();
+        mat.getColumn(0, v); printVector4d(v);
+        mat.getColumn(1, v); printVector4d(v);
+        mat.getColumn(2, v); printVector4d(v);
+        mat.getColumn(3, v); printVector4d(v);
+    }
+
     private static XMLInput findInput(List<XMLInput> inputs, String semantic, boolean required)
             throws LoaderException {
         for (XMLInput i : inputs) {
@@ -162,7 +184,7 @@ public class ColladaUtil {
 
     public static boolean load(InputStream is, Rig.MeshSet.Builder meshSetBuilder, Rig.AnimationSet.Builder animationSetBuilder, Rig.Skeleton.Builder skeletonBuilder) throws IOException, XMLStreamException, LoaderException {
         XMLCOLLADA collada = loadDAE(is);
-        loadMesh(collada, meshSetBuilder, true);
+        loadMesh(collada, meshSetBuilder, true, false);
         loadSkeleton(collada, skeletonBuilder, new ArrayList<String>());
         loadAnimations(collada, animationSetBuilder, "", new ArrayList<String>());
         return true;
@@ -210,11 +232,7 @@ public class ColladaUtil {
 
     private static void ExtractMatrixKeys(Bone bone, Matrix4d localToParent, AssetSpace assetSpace, XMLAnimation animation, RigUtil.AnimationTrack posTrack, RigUtil.AnimationTrack rotTrack, RigUtil.AnimationTrack scaleTrack) {
 
-        Vector3d bindP = new Vector3d();
-        Quat4d bindR = new Quat4d();
-        Vector3d bindS = new Vector3d();
-        MathUtil.decompose(localToParent, bindP, bindR, bindS);
-        bindR.inverse();
+
         Vector4d lastR = new Vector4d(0.0, 0.0, 0.0, 0.0);
 
         int keyCount = animation.getInput().length;
@@ -246,11 +264,6 @@ public class ColladaUtil {
                 rv.scale(-1.0);
             }
             lastR = rv;
-
-            // Get pose relative transform
-            p.set(p.getX() - bindP.getX(), p.getY() - bindP.getY(), p.getZ() - bindP.getZ());
-            r.mul(bindR, r);
-            s.set(s.getX() / bindS.getX(), s.getY() / bindS.getY(), s.getZ() / bindS.getZ());
 
             float t = time[key];
             AnimationKey posKey = createKey(t, false, 3);
@@ -284,34 +297,61 @@ public class ColladaUtil {
         return new Matrix4d(MathUtil.vecmath2ToVecmath1(bone.bindMatrix));
     }
 
-    private static void samplePosTrack(Rig.RigAnimation.Builder animBuilder, int boneIndex, RigUtil.AnimationTrack track, double duration, double startTime, double sampleRate, double spf, boolean interpolate) {
-        if (!track.keys.isEmpty()) {
-            Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
-            animTrackBuilder.setBoneIndex(boneIndex);
-            RigUtil.PositionBuilder positionBuilder = new RigUtil.PositionBuilder(animTrackBuilder);
-            RigUtil.sampleTrack(track, positionBuilder, new Point3d(0.0, 0.0, 0.0), startTime, duration, sampleRate, spf, true);
-            animBuilder.addTracks(animTrackBuilder.build());
-        }
+    private static void samplePosTrack(Rig.RigAnimation.Builder animBuilder, Rig.AnimationTrack.Builder animTrackBuilder, RigUtil.AnimationTrack track, double duration, double startTime, double sampleRate, double spf, boolean interpolate) {
+        if (track.keys.isEmpty())
+            return;
+
+        RigUtil.PositionBuilder positionBuilder = new RigUtil.PositionBuilder(animTrackBuilder);
+        RigUtil.sampleTrack(track, positionBuilder, startTime, duration, sampleRate, spf, true);
     }
 
-    private static void sampleRotTrack(Rig.RigAnimation.Builder animBuilder, int boneIndex, RigUtil.AnimationTrack track, double duration, double startTime, double sampleRate, double spf, boolean interpolate) {
-        if (!track.keys.isEmpty()) {
-            Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
-            animTrackBuilder.setBoneIndex(boneIndex);
-            RigUtil.QuatRotationBuilder rotationBuilder = new RigUtil.QuatRotationBuilder(animTrackBuilder);
-            RigUtil.sampleTrack(track, rotationBuilder, new Quat4d(0.0, 0.0, 0.0, 1.0), startTime, duration, sampleRate, spf, true);
-            animBuilder.addTracks(animTrackBuilder.build());
-        }
+    private static void sampleRotTrack(Rig.RigAnimation.Builder animBuilder, Rig.AnimationTrack.Builder animTrackBuilder, RigUtil.AnimationTrack track, double duration, double startTime, double sampleRate, double spf, boolean interpolate) {
+        if (track.keys.isEmpty())
+            return;
+
+        RigUtil.QuatRotationBuilder rotationBuilder = new RigUtil.QuatRotationBuilder(animTrackBuilder);
+        RigUtil.sampleTrack(track, rotationBuilder, startTime, duration, sampleRate, spf, true);
     }
 
-    private static void sampleScaleTrack(Rig.RigAnimation.Builder animBuilder, int boneIndex, RigUtil.AnimationTrack track, double duration, double startTime, double sampleRate, double spf, boolean interpolate) {
-        if (!track.keys.isEmpty()) {
-            Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
-            animTrackBuilder.setBoneIndex(boneIndex);
-            RigUtil.ScaleBuilder scaleBuilder = new RigUtil.ScaleBuilder(animTrackBuilder);
-            RigUtil.sampleTrack(track, scaleBuilder, new Vector3d(1.0, 1.0, 1.0), startTime, duration, sampleRate, spf, true);
-            animBuilder.addTracks(animTrackBuilder.build());
+    private static void sampleScaleTrack(Rig.RigAnimation.Builder animBuilder, Rig.AnimationTrack.Builder animTrackBuilder, RigUtil.AnimationTrack track, double duration, double startTime, double sampleRate, double spf, boolean interpolate) {
+        if (track.keys.isEmpty())
+            return;
+
+        RigUtil.ScaleBuilder scaleBuilder = new RigUtil.ScaleBuilder(animTrackBuilder);
+        RigUtil.sampleTrack(track, scaleBuilder, startTime, duration, sampleRate, spf, true);
+    }
+
+    public static void createAnimationTracks(Rig.RigAnimation.Builder animBuilder,
+                                             String boneName,
+                                             Bone bone,
+                                             RigUtil.AnimationTrack posTrack,
+                                             RigUtil.AnimationTrack rotTrack,
+                                             RigUtil.AnimationTrack sclTrack,
+                                            int boneIndex, double duration, double startTime, double sampleRate) {
+        double spf = 1.0 / sampleRate;
+
+        Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
+        animTrackBuilder.setBoneId(MurmurHash.hash64(boneName));
+
+        samplePosTrack(animBuilder, animTrackBuilder, posTrack, duration, startTime, sampleRate, spf, true);
+        sampleRotTrack(animBuilder, animTrackBuilder, rotTrack, duration, startTime, sampleRate, spf, true);
+        sampleScaleTrack(animBuilder, animTrackBuilder, sclTrack, duration, startTime, sampleRate, spf, true);
+
+        animBuilder.addTracks(animTrackBuilder.build());
+    }
+
+    private static class SortOnBoneIndex implements Comparator<Bone> {
+        public SortOnBoneIndex(HashMap<Long, Integer> boneRefMap) {
+            this.boneRefMap = boneRefMap;
         }
+        public int compare(Bone a, Bone b) {
+            Long boneHashA = MurmurHash.hash64(a.getSourceId());
+            Long boneHashB = MurmurHash.hash64(b.getSourceId());
+            Integer refIndexA = this.boneRefMap.getOrDefault(boneHashA, 100000);
+            Integer refIndexB = this.boneRefMap.getOrDefault(boneHashB, 100000);
+            return refIndexA - refIndexB;
+        }
+        private HashMap<Long, Integer> boneRefMap;
     }
 
     private static void boneAnimToDDF(XMLCOLLADA collada, Rig.RigAnimation.Builder animBuilder, ArrayList<Bone> boneList, HashMap<Long, Integer> boneRefMap, HashMap<String, ArrayList<XMLAnimation>> boneToAnimations, double duration) throws LoaderException {
@@ -354,6 +394,8 @@ public class ColladaUtil {
             return;
         }
 
+        boneList.sort(new SortOnBoneIndex(boneRefMap));
+
         // loop through each bone
         double spf = 1.0 / sceneFrameRate;
         for (int bi = 0; bi < boneList.size(); ++bi)
@@ -368,17 +410,28 @@ public class ColladaUtil {
             Long boneHash = MurmurHash.hash64(bone.getSourceId());
             Integer refIndex = boneRefMap.get(boneHash);
 
-            if (boneToAnimations.containsKey(boneId) && refIndex != null)
-            {
-                Matrix4d localToParent = getBoneLocalToParent(bone);
-                AssetSpace assetSpace = getAssetSpace(collada.asset);
-                if (bi != 0) {
-                    // Only apply up axis rotation for first bone.
-                    assetSpace.rotation.setIdentity();
-                }
+            if (refIndex == null)
+                continue;
 
+            String boneName = bone.getSourceId();
+            if (bi == 0 || refIndex == 0)
+            {
+                boneName = "root";
+            }
+
+            Matrix4d localToParent = getBoneLocalToParent(bone);
+            AssetSpace assetSpace = getAssetSpace(collada.asset);
+            if (bi != 0) {
+                // Only apply up axis rotation for first bone.
+                assetSpace.rotation.setIdentity();
+            }
+
+            if (boneToAnimations.containsKey(boneId))
+            {
                 // search the animations for each bone
                 ArrayList<XMLAnimation> anims = boneToAnimations.get(boneId);
+
+                boolean anim_found = false;
                 for (XMLAnimation animation : anims) {
                     if (animation.getType() == null) {
                         continue;
@@ -388,14 +441,14 @@ public class ColladaUtil {
                     posTrack.property = RigUtil.AnimationTrack.Property.POSITION;
                     RigUtil.AnimationTrack rotTrack = new RigUtil.AnimationTrack();
                     rotTrack.property = RigUtil.AnimationTrack.Property.ROTATION;
-                    RigUtil.AnimationTrack scaleTrack = new RigUtil.AnimationTrack();
-                    scaleTrack.property = RigUtil.AnimationTrack.Property.SCALE;
+                    RigUtil.AnimationTrack sclTrack = new RigUtil.AnimationTrack();
+                    sclTrack.property = RigUtil.AnimationTrack.Property.SCALE;
 
-                    ExtractKeys(bone, localToParent, assetSpace, animation, posTrack, rotTrack, scaleTrack);
+                    ExtractKeys(bone, localToParent, assetSpace, animation, posTrack, rotTrack, sclTrack);
 
-                    samplePosTrack(animBuilder, refIndex, posTrack, duration, sceneStartTime, sceneFrameRate, spf, true);
-                    sampleRotTrack(animBuilder, refIndex, rotTrack, duration, sceneStartTime, sceneFrameRate, spf, true);
-                    sampleScaleTrack(animBuilder, refIndex, scaleTrack, duration, sceneStartTime, sceneFrameRate, spf, true);
+                    createAnimationTracks(animBuilder, boneName, bone, posTrack, rotTrack, sclTrack, refIndex, (float)duration, sceneStartTime, sceneFrameRate);
+
+                    break; // we only support one animation per file/bone
                 }
             }
         }
@@ -452,7 +505,8 @@ public class ColladaUtil {
         loadAnimations(collada, animationSetBuilder, parentAnimationId, animationIds);
     }
 
-    public static void loadAnimations(XMLCOLLADA collada, Rig.AnimationSet.Builder animationSetBuilder, String parentAnimationId, ArrayList<String> animationIds) throws IOException, XMLStreamException, LoaderException {
+    public static void loadAnimations(XMLCOLLADA collada, Rig.AnimationSet.Builder animationSetBuilder, String animationId, ArrayList<String> animationIds) throws IOException, XMLStreamException, LoaderException {
+
         if (collada.libraryAnimations.size() != 1) {
             return;
         }
@@ -461,16 +515,18 @@ public class ColladaUtil {
         if (boneRefArray == null || boneRefArray.isEmpty()) {
             return;
         }
-        HashMap<Long, Integer> boneRefMap = new HashMap<Long, Integer>();
-        for (int i = 0; i < boneRefArray.size(); i++) {
-            Long boneRef = MurmurHash.hash64(boneRefArray.get(i));
-            boneRefMap.put(boneRef, i);
-            animationSetBuilder.addBoneList(boneRef);
-        }
 
         // Load skeleton to get bone bind poses
         ArrayList<String> boneIds = new ArrayList<String>();
         ArrayList<Bone> boneList = loadSkeleton(collada, boneIds);
+
+        HashMap<Long, Integer> boneRefMap = new HashMap<Long, Integer>();
+        int boneIndex = 0;
+        for (String boneId : boneIds) {
+            Long boneRef = MurmurHash.hash64(boneId);
+            boneRefMap.put(boneRef, boneIndex);
+            ++boneIndex;
+        }
 
         // Animation clips
         ArrayList<XMLLibraryAnimationClips> animClips = collada.libraryAnimationClips;
@@ -481,6 +537,7 @@ public class ColladaUtil {
             throw new LoaderException("Anmation clips are currently not supported.");
 
         } else {
+
             float totalAnimationLength = 0.0f;
             HashMap<String, ArrayList<XMLAnimation>> boneToAnimations = new HashMap<String, ArrayList<XMLAnimation>>();
 
@@ -488,8 +545,12 @@ public class ColladaUtil {
             Iterator<Entry<String, XMLAnimation>> it = libraryAnimation.animations.entrySet().iterator();
             while (it.hasNext()) {
                 XMLAnimation animation = (XMLAnimation)it.next().getValue();
+                if (animation.channels.size() == 0) {
+                    continue;
+                }
+
                 String boneTarget = animation.getTargetBone();
-                if (!boneToAnimations.containsKey(animation.getTargetBone())) {
+                if (!boneToAnimations.containsKey(boneTarget)) {
                     boneToAnimations.put(boneTarget, new ArrayList<XMLAnimation>());
                 }
                 boneToAnimations.get(boneTarget).add(animation);
@@ -504,22 +565,23 @@ public class ColladaUtil {
             // If no clips are provided, add a "Default" clip that is the whole animation as one clip
             Rig.RigAnimation.Builder animBuilder = Rig.RigAnimation.newBuilder();
             boneAnimToDDF(collada, animBuilder, boneList, boneRefMap, boneToAnimations, totalAnimationLength);
-            animBuilder.setId(MurmurHash.hash64(parentAnimationId));
-            animationIds.add(parentAnimationId);
+            animBuilder.setId(MurmurHash.hash64(animationId));
+
+            animationIds.add(animationId);
             animationSetBuilder.addAnimations(animBuilder.build());
         }
     }
 
     public static void loadMesh(InputStream is, Rig.MeshSet.Builder meshSetBuilder) throws IOException, XMLStreamException, LoaderException {
-        loadMesh(is, meshSetBuilder, false);
+        loadMesh(is, meshSetBuilder, false, false);
     }
 
-    public static void loadMesh(InputStream is, Rig.MeshSet.Builder meshSetBuilder, boolean optimize) throws IOException, XMLStreamException, LoaderException {
+    public static void loadMesh(InputStream is, Rig.MeshSet.Builder meshSetBuilder, boolean optimize, boolean splitMeshes) throws IOException, XMLStreamException, LoaderException {
         XMLCOLLADA collada = loadDAE(is);
-        loadMesh(collada, meshSetBuilder, optimize);
+        loadMesh(collada, meshSetBuilder, optimize, splitMeshes);
     }
 
-    private static XMLNode getFirstNodeWithGeoemtry(Collection<XMLVisualScene> scenes) {
+    private static XMLNode getFirstNodeWithGeometry(Collection<XMLVisualScene> scenes) {
         for (XMLVisualScene scene : scenes) {
             for (XMLNode node : scene.nodes.values()) {
                 if (node.instanceGeometries.size() > 0) {
@@ -531,7 +593,66 @@ public class ColladaUtil {
         return null;
     }
 
-    public static void loadMesh(XMLCOLLADA collada, Rig.MeshSet.Builder meshSetBuilder, boolean optimize) throws IOException, XMLStreamException, LoaderException {
+    private static float[] toFloatArray(List<Float> a) {
+        float[] floatArray = new float[a.size()];
+        for (int i = 0 ; i < a.size(); i++) {
+            floatArray[i] = (float) a.get(i);
+        }
+        return floatArray;
+    }
+
+    private static int[] toIntArray(List<Integer> a) {
+        return a.stream().mapToInt(x -> x).toArray();
+    }
+
+    private static Modelimporter.Aabb calcAabb(float[] positions) {
+        Modelimporter.Aabb aabb = ModelImporterJni.newAabb();
+        for (int i = 0; i < positions.length; i += 3) {
+            ModelImporterJni.expandAabb(aabb, positions[i+0], positions[i+1], positions[i+2]);
+        }
+        return aabb;
+    }
+
+    private static Modelimporter.Mesh createModelImporterMesh(List<Float> position_list,
+                                                              List<Float> normal_list,
+                                                              List<Float> texcoord_list,
+                                                              List<Float> bone_weights_list,
+                                                              List<Integer> bone_indices_list,
+                                                              List<Integer> mesh_index_list,
+                                                              Modelimporter.Material material) {
+        Modelimporter.Mesh mesh = new Modelimporter.Mesh();
+        mesh.name = "";
+        mesh.material = material;
+
+        mesh.positions = toFloatArray(position_list);
+        if (normal_list.size() > 0)
+            mesh.normals = toFloatArray(normal_list);
+
+        mesh.aabb = calcAabb(mesh.positions);
+
+        mesh.tangents = null;
+        mesh.colors = null;
+
+        if (bone_weights_list.size() > 0)
+            mesh.weights = toFloatArray(bone_weights_list);
+        if (bone_indices_list.size() > 0)
+            mesh.bones = toIntArray(bone_indices_list);
+
+        mesh.texCoords0NumComponents = 2;
+        if (texcoord_list.size() > 0)
+            mesh.texCoords0 = toFloatArray(texcoord_list);
+        mesh.texCoords1NumComponents = 0; // 2 or 3
+        mesh.texCoords1 = null;
+
+        if (mesh_index_list.size() > 0)
+            mesh.indices = toIntArray(mesh_index_list);
+
+        mesh.vertexCount = position_list.size() / 3;
+
+        return mesh;
+    }
+
+    public static void loadMesh(XMLCOLLADA collada, Rig.MeshSet.Builder meshSetBuilder, boolean optimize, boolean splitMeshes) throws IOException, XMLStreamException, LoaderException {
         if (collada.libraryGeometries.size() != 1) {
             if (collada.libraryGeometries.isEmpty()) {
                 return;
@@ -540,14 +661,13 @@ public class ColladaUtil {
         }
 
         // Use first geometry entry as default
-        XMLGeometry geom = collada.libraryGeometries.get(0).geometries.values()
-                .iterator().next();
+        XMLGeometry geom = collada.libraryGeometries.get(0).geometries.values().iterator().next();
 
         // Find first node in visual scene tree that has a instance geometry
         XMLNode sceneNode = null;
         Matrix4d sceneNodeMatrix = null;
         if (collada.libraryVisualScenes.size() > 0) {
-            sceneNode = getFirstNodeWithGeoemtry(collada.libraryVisualScenes.get(0).scenes.values());
+            sceneNode = getFirstNodeWithGeometry(collada.libraryVisualScenes.get(0).scenes.values());
             if (sceneNode != null) {
                 XMLInstanceGeometry instanceGeo = sceneNode.instanceGeometries.get(0);
                 String geometryId = instanceGeo.url;
@@ -652,7 +772,7 @@ public class ColladaUtil {
         normalMatrix.invert();
         normalMatrix.transpose();
 
-        List<Float> normal_list = null;
+        List<Float> normal_list = new ArrayList<Float>();
         if(normals != null) {
             normal_list = new ArrayList<Float>(normals.floatArray.count);
             for (int i = 0; i < normals.floatArray.count / 3; ++i) {
@@ -711,114 +831,160 @@ public class ColladaUtil {
 
         class MeshVertexIndex {
             public int position, texcoord0, normal;
-            public boolean equals(Object o) {
-                MeshVertexIndex m = (MeshVertexIndex) o;
-                return (this.position == m.position && this.texcoord0 == m.texcoord0 && this.normal == m.normal);
+
+            @Override
+            public final int hashCode() { // fnv 32 bit hash
+                int result = 0x811c9dc5;
+                result ^= position;
+                result *= 0x01000193;
+                result ^= texcoord0;
+                result *= 0x01000193;
+                result ^= normal;
+                result *= 0x01000193;
+                return result;
             }
         }
+
+        long tstart = System.currentTimeMillis();
+        TimeProfiler.start();
+        TimeProfiler.addData("optimizeVertices", "Colladautil");
 
         // Build an optimized list of triangles from indices and instance (make unique) any vertices common attributes (position, normal etc.).
         // We can then use this to quickly build am optimized indexed vertex buffer of any selected vertex elements in run-time without any sorting.
         boolean mesh_has_normals = normal_indices_list.size() > 0;
         List<MeshVertexIndex> shared_vertex_indices = new ArrayList<MeshVertexIndex>(mesh.triangles.count*3);
+        Map<Integer, Integer> shared_vertex_index_map = new HashMap<>();
+
         List<Integer> mesh_index_list = new ArrayList<Integer>(mesh.triangles.count*3);
         for (int i = 0; i < mesh.triangles.count*3; ++i) {
             MeshVertexIndex ci = new MeshVertexIndex();
             ci.position = position_indices_list.get(i);
             ci.texcoord0 = texcoord_indices_list.get(i);
             ci.normal = mesh_has_normals ? normal_indices_list.get(i) : 0;
-            int index = optimize ? shared_vertex_indices.indexOf(ci) : -1;
+            int index = optimize ? (int)shared_vertex_index_map.getOrDefault(ci.hashCode(), -1) : -1;
             if(index == -1) {
                 // create new vertex as this is not equal to any existing in generated list
-                mesh_index_list.add(shared_vertex_indices.size());
+                index = shared_vertex_indices.size();
+                mesh_index_list.add(index);
                 shared_vertex_indices.add(ci);
+                shared_vertex_index_map.put(ci.hashCode(), index);
             } else {
                 // shared vertex, add index to existing vertex in generating list instead of adding new
                 mesh_index_list.add(index);
             }
         }
-        List<Rig.MeshVertexIndices> mesh_vertex_indices = new ArrayList<Rig.MeshVertexIndices>(mesh.triangles.count*3);
-        for (int i = 0; i < shared_vertex_indices.size() ; ++i) {
-            Rig.MeshVertexIndices.Builder b = Rig.MeshVertexIndices.newBuilder();
-            MeshVertexIndex ci = shared_vertex_indices.get(i);
-            b.setPosition(ci.position);
-            b.setTexcoord0(ci.texcoord0);
-            b.setNormal(ci.normal);
-            mesh_vertex_indices.add(b.build());
-        }
 
-        Rig.IndexBufferFormat indices_format;
-        ByteBuffer indices_bytes;
-        if(shared_vertex_indices.size() <= 65536)
-        {
-            // if we only need 16-bit indices, use this primarily. Less data to upload to GPU and ES2.0 core functionality.
-            indices_format = Rig.IndexBufferFormat.INDEXBUFFER_FORMAT_16;
-            indices_bytes = ByteBuffer.allocateDirect(mesh_index_list.size() * 2);
-            indices_bytes.order(ByteOrder.LITTLE_ENDIAN).asShortBuffer();
-            for (int i = 0; i < mesh_index_list.size();) {
-                indices_bytes.putShort(mesh_index_list.get(i++).shortValue());
-            }
-        }
-        else
-        {
-            indices_format = Rig.IndexBufferFormat.INDEXBUFFER_FORMAT_32;
-            indices_bytes = ByteBuffer.allocateDirect(mesh_index_list.size() * 4);
-            indices_bytes.order(ByteOrder.LITTLE_ENDIAN).asIntBuffer();
-            for (int i = 0; i < mesh_index_list.size();) {
-                indices_bytes.putInt(mesh_index_list.get(i++));
-            }
-        }
-        indices_bytes.rewind();
+        TimeProfiler.stop();
+        long tend = System.currentTimeMillis();
+        logger.fine("ColladaUtil: Creating %d vertices (optimize: %s) took %f s", shared_vertex_indices.size(), optimize?"on":"off", (tend-tstart)/1000.0);
 
-        List<Integer> bone_indices_list = new ArrayList<Integer>(position_list.size()*4);
-        List<Float> bone_weights_list = new ArrayList<Float>(position_list.size()*4);
+        int vertex_count = shared_vertex_indices.size();
+
+        ArrayList<Integer> bone_indices_list = new ArrayList<Integer>(vertex_count*4);
+        ArrayList<Float> bone_weights_list = new ArrayList<Float>(vertex_count*4);
         int max_bone_count = loadVertexWeights(collada, bone_weights_list, bone_indices_list);
 
-        // We currently only support one mesh per collada file
-        // This result in one dmRigDDF::Mesh, one dmRigDDF::MeshEntry with only one MeshSlot.
-        // The MeshSlot will only contain one "mesh attachment" pointing to the Mesh (index: 0),
-        // the active index should be 0 to indicate the one and only attachment.
+        // Bake the values again into our format
+        Float baked_position_list[] = new Float[vertex_count*3];
+        Float baked_normal_list[] = new Float[0];
+        Float baked_texcoord_list[] = new Float[0];
+        Integer baked_bone_indices_list[] = new Integer[0];
+        Float baked_bone_weights_list[] = new Float[0];
 
-        Rig.Mesh.Builder meshBuilder = Rig.Mesh.newBuilder();
-        meshBuilder.addAllVertices(mesh_vertex_indices);
-        meshBuilder.setIndices(ByteString.copyFrom(indices_bytes));
-        meshBuilder.setIndicesFormat(indices_format);
-        if(normals != null) {
-            meshBuilder.addAllNormals(normal_list);
-            meshBuilder.addAllNormalsIndices(normal_indices_list);
+        if (normal_list.size() > 0) {
+            baked_normal_list = new Float[vertex_count*3];
         }
-        meshBuilder.addAllPositions(position_list);
-        meshBuilder.addAllTexcoord0(texcoord_list);
-        meshBuilder.addAllPositionIndices(position_indices_list);
-        meshBuilder.addAllTexcoord0Indices(texcoord_indices_list);
-        meshBuilder.addAllWeights(bone_weights_list);
-        meshBuilder.addAllBoneIndices(bone_indices_list);
+        if (texcoord_list.size() > 0) {
+            baked_texcoord_list = new Float[vertex_count*2];
+        }
+        if (bone_indices_list.size() > 0) {
+            baked_bone_indices_list = new Integer[vertex_count*4];
+            baked_bone_weights_list = new Float[vertex_count*4];
+        }
 
-        MeshSlot.Builder meshSlotBuilder = MeshSlot.newBuilder();
-        meshSlotBuilder.addMeshAttachments(0);
-        meshSlotBuilder.setActiveIndex(0);
-        meshSlotBuilder.addSlotColor(1.0f);
-        meshSlotBuilder.addSlotColor(1.0f);
-        meshSlotBuilder.addSlotColor(1.0f);
-        meshSlotBuilder.addSlotColor(1.0f);
+        for (int index : mesh_index_list) {
+            MeshVertexIndex ci = shared_vertex_indices.get(index);
 
-        MeshEntry.Builder meshEntryBuilder = MeshEntry.newBuilder();
-        meshEntryBuilder.addMeshSlots(meshSlotBuilder);
-        meshEntryBuilder.setId(0);
+            for (int c = 0; c < 3; ++c)
+            {
+                baked_position_list[index*3+c] = position_list.get(ci.position*3+c);
+                if (normal_list.size() > 0)
+                    baked_normal_list[index*3+c] = normal_list.get(ci.normal*3+c);
+            }
 
-        meshSetBuilder.addMeshAttachments(meshBuilder);
-        meshSetBuilder.addMeshEntries(meshEntryBuilder);
+            if (texcoord_list.size() > 0)
+            {
+                for (int c = 0; c < 2; ++c)
+                {
+                    baked_texcoord_list[index*2+c] = texcoord_list.get(ci.texcoord0*2+c);
+                }
+            }
+
+            if (bone_indices_list.size() > 0)
+            {
+                // For the bones we use the index of the position
+                for (int c = 0; c < 4; ++c)
+                {
+                    baked_bone_indices_list[index*4+c] = bone_indices_list.get(ci.position*4+c);
+                    baked_bone_weights_list[index*4+c] = bone_weights_list.get(ci.position*4+c);
+                }
+            }
+        }
+
+        Rig.Model.Builder modelBuilder = Rig.Model.newBuilder();
+
+        Modelimporter.Material material = new Modelimporter.Material();
+
+        List<Modelimporter.Mesh> allMeshes = new ArrayList<>();
+        Modelimporter.Mesh miMesh = createModelImporterMesh(new ArrayList<>(Arrays.asList(baked_position_list)),
+                                                            new ArrayList<>(Arrays.asList(baked_normal_list)),
+                                                            new ArrayList<>(Arrays.asList(baked_texcoord_list)),
+                                                            new ArrayList<>(Arrays.asList(baked_bone_weights_list)),
+                                                            new ArrayList<>(Arrays.asList(baked_bone_indices_list)),
+                                                            mesh_index_list,
+                                                            material);
+
+        if (splitMeshes && vertex_count >= 65536) {
+            ModelUtil.splitMesh(miMesh, allMeshes);
+        } else {
+            allMeshes.add(miMesh);
+        }
+
+        for (Modelimporter.Mesh newMesh : allMeshes) {
+            modelBuilder.addMeshes(ModelUtil.loadMesh(newMesh));
+        }
+
+        String name = sceneNode != null ? sceneNode.name : null;
+        if (name == null) {
+            name = geom.name;
+        }
+        if (name == null) {
+            name = "unnamed";
+        }
+
+        modelBuilder.setId(MurmurHash.hash64(name));
+
+        Matrix4d transformd = new Matrix4d();
+        transformd.setIdentity();
+
+        Vector3d tPos = new Vector3d();
+        Quat4d tRot = new Quat4d();
+        Vector3d tScale = new Vector3d();
+        MathUtil.decompose(transformd, tPos, tRot, tScale);
+        Transform transform = MathUtil.vecmathToDDF(tPos, tRot, tScale);
+
+        modelBuilder.setLocal(transform);
+
+        meshSetBuilder.addModels(modelBuilder);
         meshSetBuilder.setMaxBoneCount(max_bone_count);
-        meshSetBuilder.setSlotCount(1);
 
-        List<String> boneRefArray = createBoneReferenceList(collada);
-        if (boneRefArray != null && !boneRefArray.isEmpty()) {
-            for (int i = 0; i < boneRefArray.size(); i++) {
-                meshSetBuilder.addBoneList(MurmurHash.hash64(boneRefArray.get(i)));
+        ArrayList<Modelimporter.Bone> bones = loadSkeleton(collada);
+        if (bones != null) {
+            for (Modelimporter.Bone bone : bones) {
+                meshSetBuilder.addBoneList(MurmurHash.hash64(bone.name));
             }
         }
     }
-
 
     public static void loadSkeleton(InputStream is, com.dynamo.rig.proto.Rig.Skeleton.Builder skeletonBuilder, ArrayList<String> boneIds) throws IOException, XMLStreamException, LoaderException {
         loadSkeleton(loadDAE(is), skeletonBuilder, boneIds);
@@ -1046,9 +1212,12 @@ public class ColladaUtil {
             return;
         }
 
+        Matrix4d identity = new Matrix4d();
+        identity.setIdentity();
+
         // Generate DDF representation of bones.
         ArrayList<com.dynamo.rig.proto.Rig.Bone> ddfBones = new ArrayList<com.dynamo.rig.proto.Rig.Bone>();
-        toDDF(ddfBones, boneList.get(0), BONE_NO_PARENT);
+        toDDF(ddfBones, boneList.get(0), BONE_NO_PARENT, identity);
         skeletonBuilder.addAllBones(ddfBones);
     }
 
@@ -1096,15 +1265,50 @@ public class ColladaUtil {
         return rootSkeletonNode;
     }
 
+    private static boolean validateMatrix4d(Matrix4d m) {
+        try {
+            Matrix4d inv = new Matrix4d(m);
+            inv.invert();
+            return true;
+        } catch(javax.vecmath.SingularMatrixException e) {
+            return false;
+        }
+    }
+
     // Generate skeleton DDF data of bones.
     // It will extract the position, rotation and scale from the bone transform as needed by the runtime.
-    private static void toDDF(ArrayList<com.dynamo.rig.proto.Rig.Bone> ddfBones, Bone bone, int parentIndex) {
+    private static void toDDF(ArrayList<com.dynamo.rig.proto.Rig.Bone> ddfBones, Bone bone, int parentIndex, Matrix4d parentWorldTransform) {
         com.dynamo.rig.proto.Rig.Bone.Builder b = com.dynamo.rig.proto.Rig.Bone.newBuilder();
 
-        b.setParent(parentIndex);
-        b.setId(MurmurHash.hash64(bone.getSourceId()));
+        // We'd like to do it outside, but since the Bone instances are read-only, we cannot do it.
+        if (parentIndex == BONE_NO_PARENT) {
+            b.setName("root");
+            b.setId(MurmurHash.hash64("root"));
+        } else {
+            b.setName(bone.getName());
+            b.setId(MurmurHash.hash64(bone.getSourceId()));
+        }
 
-        Matrix4d matrix = new Matrix4d(MathUtil.vecmath2ToVecmath1(bone.bindMatrix));
+        b.setParent(parentIndex);
+
+        Matrix4d localMatrix = getBoneLocalToParent(bone);
+        if (!validateMatrix4d(localMatrix)) {
+            logger.severe(String.format("Found invalid local matrix in bone '%s', replacing with identity matrix", bone.getName()));
+            printMatrix4d(localMatrix);
+            localMatrix.setIdentity();
+        }
+
+        Matrix4d worldMatrix = new Matrix4d();
+        worldMatrix.mul(parentWorldTransform, localMatrix);
+
+        if (!validateMatrix4d(worldMatrix)) {
+            logger.severe(String.format("Found invalid world matrix in bone '%s', replacing with identity matrix", bone.getName()));
+            printMatrix4d(worldMatrix);
+            worldMatrix.setIdentity();
+        }
+
+        Matrix4d invBindMatrix = new Matrix4d(worldMatrix);
+        invBindMatrix.invert();
 
         /*
          * Decompose pos, rot and scale from bone matrix.
@@ -1112,22 +1316,23 @@ public class ColladaUtil {
         Vector3d position = new Vector3d();
         Quat4d rotation = new Quat4d();
         Vector3d scale = new Vector3d();
-        MathUtil.decompose(matrix, position, rotation, scale);
+        MathUtil.decompose(localMatrix, position, rotation, scale);
 
-        Point3 ddfpos = MathUtil.vecmathToDDF(new Point3d(position));
-        b.setPosition(ddfpos);
+        Transform local = MathUtil.vecmathToDDF(position, rotation, scale);
+        b.setLocal(local);
 
-        Quat ddfrot = MathUtil.vecmathToDDF(rotation);
-        b.setRotation(ddfrot);
+        MathUtil.decompose(worldMatrix, position, rotation, scale);
+        Transform world = MathUtil.vecmathToDDF(position, rotation, scale);
+        b.setWorld(world);
 
-        Vector3 ddfscale = MathUtil.vecmathToDDF(scale);
-        b.setScale(ddfscale);
+        MathUtil.decompose(invBindMatrix, position, rotation, scale);
+        Transform inv_bind_pose = MathUtil.vecmathToDDF(position, rotation, scale);
+        b.setInverseBindPose(inv_bind_pose);
 
         /*
          * Collada "bones" are just joints and don't have any length.
          */
         b.setLength(0.0f);
-        b.setInheritScale(true);
 
         /*
          * Add bone to bone list and keep track of bone id (we use "sid"/"source id").
@@ -1137,7 +1342,7 @@ public class ColladaUtil {
 
         for(int i = 0; i < bone.numChildren(); i++) {
             Bone childBone = bone.getChild(i);
-            toDDF(ddfBones, childBone, parentIndex);
+            toDDF(ddfBones, childBone, parentIndex, worldMatrix);
         }
     }
 
@@ -1206,8 +1411,255 @@ public class ColladaUtil {
                 boneWeightsList.add(w.weight);
             }
         }
+
+        XMLInput jointInput = findInput(skin.jointsInputs, "JOINT", true);
+        XMLSource jointSource = sourcesMap.get(jointInput.source);
+
+        ArrayList<String> jointsArray = new ArrayList<>();
+        if(jointSource.nameArray != null)
+            jointsArray = new ArrayList<>(Arrays.asList(jointSource.nameArray.names));
+
+        HashMap<String, Integer> toJointIndex = new HashMap<String, Integer>();
+        for (int i = 0; i < jointsArray.size(); i++) {
+            toJointIndex.put(jointsArray.get(i), i);
+        }
+
+        // Load skeleton to get correct bone indices
+        ArrayList<String> boneIds = new ArrayList<String>();
+        ArrayList<Bone> boneList = loadSkeleton(collada, boneIds);
+
+        HashMap<Integer, Integer> toBoneIndex = new HashMap<Integer, Integer>();
+
+        int boneIndex = 0;
+        for (String boneId : boneIds) {
+            // The list of joints may be shorter than the actual skeleton
+            // It's ok, it just means that the bone influences won't reference the bone
+            int jointIndex = toJointIndex.getOrDefault(boneId, 10000);
+            toBoneIndex.put(jointIndex, boneIndex);
+            ++boneIndex;
+        }
+
+        // Convert to bone indices
+        for (int i = 0; i < boneIndicesList.size(); ++i)
+        {
+            int oldIndex = boneIndicesList.get(i);
+            int newIndex = toBoneIndex.get(oldIndex);
+            boneIndicesList.set(i, newIndex);
+        }
+
         return maxBoneCount;
     }
 
+    // ************************************************************
+    // Editor API to mimic the ModelUtil importer
+
+    public static XMLCOLLADA loadScene(InputStream is) throws IOException, XMLStreamException, LoaderException {
+        return loadDAE(is);
+    }
+
+    private static void flattenBoneTree(Bone colladaBone, Modelimporter.Bone parent, ArrayList<Modelimporter.Bone> out) {
+        String originalName = colladaBone.getSourceId();
+        String newName = originalName;
+        if (parent == null)
+            newName = "root";
+
+        Modelimporter.Bone bone = new Modelimporter.Bone();
+        bone.name           = newName;
+        bone.parent         = parent;
+        bone.node           = null;
+        bone.index          = out.size();
+        bone.invBindPose    = null;
+
+        out.add(bone);
+
+        for (int i = 0 ; i < colladaBone.numChildren(); ++i) {
+            Bone child = colladaBone.getChild(i);
+            flattenBoneTree(child, bone, out);
+        }
+    }
+
+    public static ArrayList<Modelimporter.Bone> loadSkeleton(XMLCOLLADA scene) throws IOException, XMLStreamException, LoaderException  {
+        ArrayList<String> boneIds = new ArrayList<>();
+        ArrayList<Bone> colladaBones = loadSkeleton(scene, boneIds);
+
+        if (colladaBones == null)
+            return null;
+
+        ArrayList<Modelimporter.Bone> bones = new ArrayList<>();
+        flattenBoneTree(colladaBones.get(0), null, bones);
+        return bones;
+    }
+
+    public static ArrayList<Modelimporter.Bone> loadSkeleton(byte[] content) throws IOException, IOException {
+        try {
+            XMLCOLLADA collada = loadDAE(new ByteArrayInputStream(content));
+            return loadSkeleton(collada);
+        }
+        catch (XMLStreamException|LoaderException e) {
+            throw new IOException("Failed to load skeleton", e);
+        }
+    }
+
+    public static ArrayList<String> loadMaterialNames(XMLCOLLADA scene) {
+        return new ArrayList<String>();
+    }
+
+    public static void loadSkeleton(XMLCOLLADA collada, com.dynamo.rig.proto.Rig.Skeleton.Builder skeletonBuilder) throws IOException {
+        ArrayList<Bone> boneList = null;
+        try {
+            boneList = loadSkeleton(collada, new ArrayList<String>());
+        }
+        catch (XMLStreamException|LoaderException e) {
+            throw new IOException("Failed to load skeleton", e);
+        }
+
+        // No bones found, cannot create a skeleton with zero bones.
+        if (boneList == null) {
+            return;
+        }
+
+        Matrix4d identity = new Matrix4d();
+        identity.setIdentity();
+
+        // Generate DDF representation of bones.
+        ArrayList<com.dynamo.rig.proto.Rig.Bone> ddfBones = new ArrayList<>();
+        toDDF(ddfBones, boneList.get(0), BONE_NO_PARENT, identity);
+        skeletonBuilder.addAllBones(ddfBones);
+    }
+
+    public static void loadModels(XMLCOLLADA scene, Rig.MeshSet.Builder meshSetBuilder) throws IOException, XMLStreamException, LoaderException {
+        try {
+            loadMesh(scene, meshSetBuilder, true, false);
+        } catch(IOException e) {
+            throw e;
+        } catch(Exception e) {
+            throw new IOException("Failed to load Collada scene: " + e.getMessage(), e);
+        }
+    }
+
+
+// $ java -cp ~/work/defold/tmp/dynamo_home/share/java/bob-light.jar com.dynamo.bob.pipeline.ColladaUtil model_asset.dae
+    public static void main(String[] args) throws IOException {
+        if (args.length < 1) {
+            System.err.println("No model specified!");
+            return;
+        }
+
+        File file = new File(args[0]);
+        System.out.printf("Loading '%s'\n", file);
+        if (!file.exists()) {
+            System.out.printf("File '%s' does not exist!\n", file);
+            return;
+        }
+
+        XMLCOLLADA scene;
+        try {
+            long timeStart = System.currentTimeMillis();
+
+            InputStream is = new FileInputStream(file);
+            scene = loadScene(is);
+
+            long timeEnd = System.currentTimeMillis();
+            System.out.printf("Loading took %d ms\n", (timeEnd - timeStart));
+
+        } catch (Exception e) {
+            System.out.printf("Failed reading '%s':\n%s\n", file, e.getMessage());
+            return;
+        }
+
+        if (scene == null){
+            System.out.printf("Failed to load '%s'\n", file);
+            return;
+        }
+
+        // System.out.printf("--------------------------------------------\n");
+        // System.out.printf("Scene Nodes:\n");
+
+        // for (Node node : scene.nodes) {
+        //     System.out.printf("  Scene Node: %s  index: %d  id: %d  parent: %s\n", node.name, node.index, Modelimporter.AddressOf(node), node.parent != null ? node.parent.name : "");
+        //     System.out.printf("      local: id: %d\n", Modelimporter.AddressOf(node.local));
+        //     ModelImporterJni.DebugPrintTransform(node.local, 3);
+        // }
+
+
+        // if (scene.skins.length > 0)
+        // {
+        //     System.out.printf("--------------------------------------------\n");
+        //     System.out.printf("Scene Bones:\n");
+
+        //     for (Bone bone : scene.skins[0].bones) {
+        //         System.out.printf("  Scene Bone: %s  index: %d  id: %d  nodeid: %d  parent: %s\n", bone.name, bone.index,
+        //                                     Modelimporter.AddressOf(bone), Modelimporter.AddressOf(bone.node),
+        //                                     bone.parent != null ? bone.parent.name : "");
+        //         System.out.printf("      local: id: %d\n", Modelimporter.AddressOf(bone.node.local));
+        //         ModelImporterJni.DebugPrintTransform(bone.node.local, 3);
+        //         System.out.printf("      inv_bind_poser:\n");
+        //         ModelImporterJni.DebugPrintTransform(bone.invBindPose, 3);
+        //     }
+
+        //     System.out.printf("--------------------------------------------\n");
+        // }
+
+        try {
+            System.out.printf("Bones:\n");
+            ArrayList<Modelimporter.Bone> bones = loadSkeleton(scene);
+            if (bones != null) {
+                for (Modelimporter.Bone bone : bones) {
+                    System.out.printf("  Bone: %s  index: %d  parent: %s node: %s\n", bone.name, bone.index, bone.parent != null ? bone.parent.name : "null", bone.node != null ? bone.node.name : "null");
+                    if (bone.node != null) {
+                        System.out.printf("      local:\n");
+                        ModelImporterJni.DebugPrintTransform(bone.node.local, 3);
+                    }
+                }
+                System.out.printf("--------------------------------------------\n");
+            }
+
+            System.out.printf("Materials:\n");
+            ArrayList<String> materials = loadMaterialNames(scene);
+            for (String material : materials) {
+                System.out.printf("  Material: %s\n", material);
+            }
+            System.out.printf("--------------------------------------------\n");
+
+            Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
+            loadModels(scene, meshSetBuilder);
+
+            Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
+            loadSkeleton(scene, skeletonBuilder);
+
+            System.out.printf("Animations:\n");
+
+            Rig.AnimationSet.Builder animationSetBuilder = Rig.AnimationSet.newBuilder();
+            ArrayList<String> animationIds = new ArrayList<>();
+            loadAnimations(scene, animationSetBuilder, file.getName(), animationIds);
+
+            for (String animation : animationIds) {
+                System.out.printf("  Animation: %s\n", animation);
+            }
+            System.out.printf("--------------------------------------------\n");
+
+
+            // Something a bit more verbose
+            for (int i = 0; i < meshSetBuilder.getModelsCount(); ++i) {
+                Rig.Model model = meshSetBuilder.getModels(i);
+
+                for (int m = 0; m < model.getMeshesCount(); ++m) {
+                    Rig.Mesh mesh = model.getMeshes(m);
+
+                    int positionCount = mesh.getPositionsCount();
+                    if (positionCount > 5)
+                        positionCount = 5;
+                    for (int v = 0; v < positionCount; ++v) {
+                        System.out.printf("pos %d: %f, %f, %f\n", v, mesh.getPositions(v*3+0), mesh.getPositions(v*3+1),mesh.getPositions(v*3+2));
+                    }
+                }
+            }
+
+        } catch (Exception e) {
+            System.out.printf("Failed reading '%s':\n%s\n", file, e.getMessage());
+            e.printStackTrace();
+            return;
+        }
+    }
 
 }

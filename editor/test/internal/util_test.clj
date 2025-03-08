@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -19,8 +19,8 @@
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
             [dynamo.graph :as g]
-            [integration.test-util :as test-util]
-            [internal.util :as util]))
+            [internal.util :as util]
+            [util.fn :as fn]))
 
 (deftest test-parse-number-parse-int
   (are [input expected-number expected-int]
@@ -105,9 +105,9 @@
   (is (nil? (util/first-where even? [1 3 5])))
 
   (testing "stops calling pred after first true"
-    (let [pred (test-util/make-call-logger (constantly true))]
+    (let [pred (fn/make-call-logger fn/constantly-true)]
       (is (= 0 (util/first-where pred (range 10))))
-      (is (= 1 (count (test-util/call-logger-calls pred)))))))
+      (is (= 1 (count (fn/call-logger-calls pred)))))))
 
 (deftest first-index-where-test
   (is (= 1 (util/first-index-where even? (range 1 4))))
@@ -122,9 +122,9 @@
   (is (nil? (util/first-index-where even? [1 3 5])))
 
   (testing "stops calling pred after first true"
-    (let [pred (test-util/make-call-logger (constantly true))]
+    (let [pred (fn/make-call-logger fn/constantly-true)]
       (is (= 0 (util/first-index-where pred (range 10))))
-      (is (= 1 (count (test-util/call-logger-calls pred)))))))
+      (is (= 1 (count (fn/call-logger-calls pred)))))))
 
 (deftest only-test
   (is (= :a (util/only [:a])))
@@ -138,3 +138,153 @@
   (is (nil? (util/only #{:a :b})))
   (is (nil? (util/only '(:a :b))))
   (is (nil? (util/only {:a 1 :b 2}))))
+
+(deftest into-multiple-test
+
+  (testing "Standard operation."
+    (is (= [] (util/into-multiple)))
+    (is (= [] (util/into-multiple [])))
+    (is (= [[]] (util/into-multiple [[]])))
+    (is (= [{}] (util/into-multiple [{}])))
+    (is (= [#{}] (util/into-multiple [#{}])))
+    (is (= [#{0 1 2 3 4 5 6 7 8 9}]
+           (util/into-multiple [#{}] (range 10))))
+    (is (= [#{0 1 2 3 4 5 6 7 8 9} [0 1 2 3 4 5 6 7 8 9]]
+           (util/into-multiple [#{} []] (range 10))))
+    (is (= [#{0 1 2 3 4 5 6 7 8 9} [0 1 2 3 4 5 6 7 8 9] [0 1 2 3 4 5 6 7 8 9]]
+           (util/into-multiple [#{} [] []] (range 10))))
+    (is (= [[1 3 5 7 9]]
+           (util/into-multiple [[]] [(filter odd?)] (range 10))))
+    (is (= [[1 3 5 7 9] [0 2 4 6 8]]
+           (util/into-multiple [[] []] [(filter odd?) (filter even?)] (range 10))))
+    (is (= [[1 3 5 7 9] [0 2 4 6 8] [1 2 3 4 5 6 7 8 9 10]]
+           (util/into-multiple [[] [] []] [(filter odd?) (filter even?) (map inc)] (range 10))))
+    (let [[a] (util/into-multiple [[]] [(take 10)] (repeatedly rand))]
+      (is (= 10 (count a))))
+    (let [[a b] (util/into-multiple [[] []] [(take 10) (take 10)] (repeatedly rand))]
+      (is (= a b)))
+    (let [[a b c] (util/into-multiple [[] [] []] [(take 10) (take 10) (take 10)] (repeatedly rand))]
+      (is (= a b c))))
+
+  (testing "Reduced and completion steps."
+
+    (testing "Take."
+      (letfn [(xf []
+                (take 3))]
+        (is (= [[0 1 2]]
+               (util/into-multiple [[]] [(xf)] (range 9))))
+        (is (= [[0 1 2]
+                [0 1 2]]
+               (util/into-multiple [[] []] [(xf) (xf)] (range 9))))
+        (is (= [[0 1 2]
+                [0 1 2]
+                [0 1 2]]
+               (util/into-multiple [[] [] []] [(xf) (xf) (xf)] (range 9))))))
+
+    (testing "Partition."
+      (letfn [(xf []
+                (partition-all 2))]
+        (is (= [[[0 1] [2 3] [4 5] [6 7] [8]]]
+               (util/into-multiple [[]] [(xf)] (range 9))))
+        (is (= [[[0 1] [2 3] [4 5] [6 7] [8]]
+                [[0 1] [2 3] [4 5] [6 7] [8]]]
+               (util/into-multiple [[] []] [(xf) (xf)] (range 9))))
+        (is (= [[[0 1] [2 3] [4 5] [6 7] [8]]
+                [[0 1] [2 3] [4 5] [6 7] [8]]
+                [[0 1] [2 3] [4 5] [6 7] [8]]]
+               (util/into-multiple [[] [] []] [(xf) (xf) (xf)] (range 9))))))
+
+    (testing "Take, then partition."
+      (letfn [(xf []
+                (comp (take 3)
+                      (partition-all 2)))]
+        (is (= [[[0 1] [2]]]
+               (util/into-multiple [[]] [(xf)] (range 9))))
+        (is (= [[[0 1] [2]]
+                [[0 1] [2]]]
+               (util/into-multiple [[] []] [(xf) (xf)] (range 9))))
+        (is (= [[[0 1] [2]]
+                [[0 1] [2]]
+                [[0 1] [2]]]
+               (util/into-multiple [[] [] []] [(xf) (xf) (xf)] (range 9))))))
+
+    (testing "Partition, then take."
+      (letfn [(xf []
+                (comp (partition-all 2)
+                      (take 3)))]
+        (is (= [[[0 1] [2 3] [4 5]]]
+               (util/into-multiple [[]] [(xf)] (range 9))))
+        (is (= [[[0 1] [2 3] [4 5]]
+                [[0 1] [2 3] [4 5]]]
+               (util/into-multiple [[] []] [(xf) (xf)] (range 9))))
+        (is (= [[[0 1] [2 3] [4 5]]
+                [[0 1] [2 3] [4 5]]
+                [[0 1] [2 3] [4 5]]]
+               (util/into-multiple [[] [] []] [(xf) (xf) (xf)] (range 9)))))))
+
+  (testing "Asserts when the number of destinations differ from the number of xforms."
+    (let [xf (map inc)
+          coll (range 10)]
+      (is (thrown? AssertionError (util/into-multiple [] [xf] coll)))
+
+      (is (thrown? AssertionError (util/into-multiple [[]] [] coll)))
+      (is (thrown? AssertionError (util/into-multiple [[]] [xf xf] coll)))
+
+      (is (thrown? AssertionError (util/into-multiple [[] []] [] coll)))
+      (is (thrown? AssertionError (util/into-multiple [[] []] [xf] coll)))
+      (is (thrown? AssertionError (util/into-multiple [[] []] [xf xf xf] coll)))
+
+      (is (thrown? AssertionError (util/into-multiple [[] [] []] [] coll)))
+      (is (thrown? AssertionError (util/into-multiple [[] [] []] [xf] coll)))
+      (is (thrown? AssertionError (util/into-multiple [[] [] []] [xf xf] coll)))
+      (is (thrown? AssertionError (util/into-multiple [[] [] []] [xf xf xf xf] coll))))))
+
+(defn elements-identical? [a b]
+  (every? true? (map identical? a b)))
+
+(deftest make-dedupe-fn-test
+  (let [original-items (mapv #(str (mod % 10)) (range 100))
+        dedupe-fn (util/make-dedupe-fn original-items)
+        additional-items (mapv #(str (mod % 10)) (range 100))
+        partitions (partition 10 (map dedupe-fn (concat original-items additional-items)))]
+    (is (every? (partial elements-identical? (first partitions))
+                partitions))))
+
+(deftest name-index-test
+  (testing "renames"
+    (letfn [(renames [xs ys]
+              (util/detect-renames
+                (util/name-index xs identity)
+                (util/name-index ys identity)))]
+      (is (= {}
+             (renames [:a :b :c]
+                      [:b :c :a])))
+      (is (= {[:a 0] [:d 0]}
+             (renames [:a :b :c]
+                      [:b :c :d])))
+      (is (= {[:a 1] [:c 0]}
+             (renames [:a :b :b :a]
+                      [:b :a :b :c])))
+      (is (= {}
+             (renames [:b :a :b :c]
+                      [:a :b])))
+      (is (= {}
+             (renames [:a :b]
+                      [:b :a :b :c])))))
+  (testing "deletions"
+    (letfn [(deletions [xs ys]
+              (util/detect-deletions
+                (util/name-index xs identity)
+                (util/name-index ys identity)))]
+      (is (= #{[:b 0]}
+             (deletions [:a :b :c]
+                        [:a :c])))
+      (is (= #{}
+             (deletions [:a :b :c]
+                        [:a :c :d :e])))
+      (is (= #{[:a 0] [:b 0]}
+             (deletions [:a :b :c]
+                        [:c])))
+      (is (= #{[:b 0] [:c 0]}
+             (deletions [:a :b :c]
+                        [:d]))))))

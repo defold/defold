@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -27,6 +27,7 @@
  *
  * ```cpp
  * dmArray<int> a;
+ * a.SetCapacity(1);
  * a.Push(1);
  * int b = a[0];
  * ```
@@ -281,6 +282,18 @@ public:
      */
     void SetSize(uint32_t size);
 
+    /*# Set user-allocated memory
+     *
+     * user-allocated array with initial size and capacity
+     *
+     * @name dmArray
+     * @param user_array [type:T*] User-allocated array to be used as storage.
+     * @param size [type:uint32_t] Initial size
+     * @param capacity [type:uint32_t] Initial capacity
+     * @param user_allocated [type:bool] If false, the ownership is transferred to the dmArray
+     */
+    void Set(T* user_array, uint32_t size, uint32_t capacity, bool user_allocated);
+
     /*# array eraseswap
      *
      * Remove the element at the specified index.
@@ -373,12 +386,8 @@ dmArray<T>::dmArray()
 template <typename T>
 dmArray<T>::dmArray(T *user_array, uint32_t size, uint32_t capacity)
 {
-    assert(user_array != 0);
-    assert(size  <= capacity);
-    m_Front = user_array;
-    m_End = user_array + size;
-    m_Back = user_array + capacity;
-    m_UserAllocated = 1;
+    memset(this, 0, sizeof(*this));
+    Set(user_array, size, capacity, true);
 }
 
 template <typename T>
@@ -504,6 +513,22 @@ void dmArray<T>::SetSize(uint32_t size)
 {
     assert(size <= Capacity());
     m_End = m_Front + size;
+}
+
+template <typename T>
+void dmArray<T>::Set(T* user_array, uint32_t size, uint32_t capacity, bool user_allocated)
+{
+    assert(user_array != 0);
+    assert(size  <= capacity);
+
+    if (!m_UserAllocated && m_Front)
+    {
+        delete[] (uint8_t*) m_Front;
+    }
+    m_Front = user_array;
+    m_End = user_array + size;
+    m_Back = user_array + capacity;
+    m_UserAllocated = user_allocated;
 }
 
 template <typename T>

@@ -1,0 +1,136 @@
+$ext-spacing-small: 4px;
+$ext-spacing-medium: 8px;
+$ext-spacing-large: 16px;
+$ext-line-height: 26px;
+
+.ext {
+    &-spacing {
+        &-none        { -fx-spacing: 0; }
+        &-small       { -fx-spacing: $ext-spacing-small; }
+        &-medium      { -fx-spacing: $ext-spacing-medium; }
+        &-large       { -fx-spacing: $ext-spacing-large; }
+    }
+    &-grid-spacing {
+        &-none        { -fx-hgap: 0; -fx-vgap: 0; }
+        &-small       { -fx-hgap: $ext-spacing-small; -fx-vgap: $ext-spacing-small; }
+        &-medium      { -fx-hgap: $ext-spacing-medium; -fx-vgap: $ext-spacing-medium; }
+        &-large       { -fx-hgap: $ext-spacing-large; -fx-vgap: $ext-spacing-large; }
+    }
+    &-padding {
+        &-none        { -fx-padding: 0; }
+        &-small       { -fx-padding: 16px; }
+        &-medium      { -fx-padding: 24px; }
+        &-large       { -fx-padding: 40px; }
+    }
+    &-heading-style {
+        &-h1 { -fx-font-size: 26px; -fx-font-family: "Source Sans Pro Light"; }
+        &-h2 { -fx-font-size: 24px; -fx-font-family: "Source Sans Pro Light"; }
+        &-h3 { -fx-font-size: 22px; -fx-font-family: "Source Sans Pro Light"; }
+        &-h4 { -fx-font-size: 20px; }
+        &-h5 { -fx-font-size: 18px; }
+        &-h6 { -fx-font-size: 16px; }
+        &-form { -fx-font-size: 26px; -fx-font-family: "Source Sans Pro Light"; } // same as h1
+        &-dialog { -fx-font-size: 22px; -fx-font-family: "Source Sans Pro Light"; } // same as h3
+    }
+    &-scroll-pane {
+        > .scroll-bar .thumb {
+            -fx-background-color: -df-component-dark;
+            &:hover {
+                -fx-background-color: -df-component-lighter;
+            }
+        }
+    }
+    &-separator {
+        -fx-min-width: 1px;
+        -fx-min-height: 1px;
+        -fx-background-color: -df-background-light;
+        &:horizontal {
+            -fx-max-height: 1px;
+        }
+        &:vertical {
+            -fx-max-width: 1px;
+        }
+    }
+    &-icon-container {
+        -fx-min-width: $ext-line-height;
+        -fx-min-height: $ext-line-height;
+        -fx-max-width: $ext-line-height;
+        -fx-max-height: $ext-line-height;
+    }
+    &-label {
+        -fx-padding: 4px 0px; // padding to make a single line label fit into 26px line-height
+        &-color {
+            &-text     {}
+            &-hint     { -fx-text-fill: -df-text-dark; }
+            &-override { -fx-text-fill: -df-defold-blue-lighter; }
+            &-warning  { -fx-text-fill: -df-error-severity-warning; }
+            &-error    { -fx-text-fill: -df-error-severity-fatal; }
+        }
+    }
+    &-button {
+        -fx-background-color: -df-component-dark;
+        -fx-background-radius: 2px;
+        -fx-border-radius: 2px;
+        -fx-font-size: 110%;
+        -fx-font-family: "Source Sans Pro";
+        -fx-text-fill: -df-text;
+        -fx-graphic-text-gap: 0;
+        -fx-min-height: $ext-line-height;
+        -fx-max-height: $ext-line-height;
+        &:hover {
+            -fx-background-color: -df-component-lighter;
+            -fx-text-fill: -df-text-selected;
+        }
+        &:armed {
+            -fx-background-color: -df-component-light;
+            -fx-text-fill: -df-text-selected;
+        }
+        &:disabled { -fx-opacity: 0.4; }
+        &-icon {} // no padding: icon is line-height x line-height already
+        &-text { -fx-padding: 0 8px; } // only horizontal padding
+        &-text-and-icon { -fx-padding: 0 8px 0 1px; } // smaller padding on the left because icon uses some space
+    }
+    &-check-box {
+        & > .box {
+            -fx-border-radius: 2px;
+            -fx-background-radius: 2px;
+        }
+        -fx-font-size: 110%;
+        -fx-font-family: "Source Sans Pro";
+        -fx-text-fill: -df-text;
+        -fx-label-padding: 0 0 0 $ext-spacing-small;
+        -fx-min-height: $ext-line-height;
+        -fx-max-height: $ext-line-height;
+        &:warning {
+            & > .box { -fx-border-color: -df-error-severity-warning-dim; }
+            &:focused > .box { -fx-border-color: -df-error-severity-warning-dim -df-error-severity-warning-dim -df-error-severity-warning -df-error-severity-warning-dim; }
+        }
+        &:error {
+            & > .box { -fx-border-color: -df-error-severity-fatal-dim; }
+            &:focused > .box { -fx-border-color: -df-error-severity-fatal-dim -df-error-severity-fatal-dim -df-error-severity-fatal -df-error-severity-fatal-dim; }
+        }
+    }
+    &-text-field {
+        -fx-min-height: $ext-line-height;
+        -fx-max-height: $ext-line-height;
+        -fx-min-width: 40px;
+        -fx-pref-width: 160px;
+        -fx-max-width: Infinity;
+        -fx-border-radius: 2px;
+        -fx-background-radius: 2px;
+        &:focused {
+            -fx-border-radius: 2px;
+            -fx-background-radius: 2px;
+        }
+        &:warning {
+            -fx-border-color: -df-error-severity-warning-dim;
+            &:hover {  -fx-border-color: -df-error-severity-warning; }
+            &:focused { -fx-border-color: -df-error-severity-warning-dim -df-error-severity-warning-dim -df-error-severity-warning -df-error-severity-warning-dim; }
+        }
+        &:error {
+            -fx-border-color: -df-error-severity-fatal-dim;
+            &:hover {  -fx-border-color: -df-error-severity-fatal; }
+            &:focused { -fx-border-color: -df-error-severity-fatal-dim -df-error-severity-fatal-dim -df-error-severity-fatal -df-error-severity-fatal-dim; }
+        }
+    }
+}

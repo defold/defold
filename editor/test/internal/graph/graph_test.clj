@@ -1,28 +1,28 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns internal.graph.graph-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.core.cache :as cc]
+            [clojure.string :as string]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
             [internal.graph :as ig]
-            [internal.system :as is]
-            [clojure.core.cache :as cc]
             [internal.graph.generator :as ggen]
             [internal.graph.types :as gt]
             [internal.node :as in]
             [schema.core :as s]
-            [support.test-support :refer [with-clean-system tx-nodes]]))
+            [support.test-support :refer [tx-nodes with-clean-system]]))
 
 (defn occurrences [coll]
   (vals (frequencies coll)))
@@ -124,7 +124,7 @@
   (property str-prop g/Str
             (value (g/fnk [str-in] str-in))
             (dynamic str-prop-dynamic (g/fnk [] 123)))
-  (input str-in g/Str)
+  (input str-in g/Str :cascade-delete)
   (output str-out g/Str :cached (g/fnk [str-in] str-in)))
 
 (deftest graph-override-cleanup
@@ -170,22 +170,22 @@
       (let [[n] (tx-nodes (g/make-nodes world [n (TestNode :val "original")]))]
         (is (= "original" (g/node-value n :val)))
 
-        (is (= ::miss (cc/lookup (g/cache) [n :val-val] ::miss)))
+        (is (= ::miss (cc/lookup (g/cache) (gt/endpoint n :val-val) ::miss)))
         (is (= "originaloriginal" (g/node-value n :val-val)))
-        (is (= "originaloriginal" (cc/lookup (g/cache) [n :val-val] ::miss)))
+        (is (= "originaloriginal" (cc/lookup (g/cache) (gt/endpoint n :val-val) ::miss)))
 
         (let [clone (g/clone-system)]
           (g/with-system clone
-            (is (= "originaloriginal" (cc/lookup (g/cache) [n :val-val] ::miss)))
+            (is (= "originaloriginal" (cc/lookup (g/cache) (gt/endpoint n :val-val) ::miss)))
 
             (g/transact (g/set-property n :val "cloned"))
             (is (= "cloned" (g/node-value n :val)))
 
-            (is (= ::miss (cc/lookup (g/cache) [n :val-val] ::miss)))
+            (is (= ::miss (cc/lookup (g/cache) (gt/endpoint n :val-val) ::miss)))
             (is (= "clonedcloned" (g/node-value n :val-val)))
-            (is (= "clonedcloned" (cc/lookup (g/cache) [n :val-val] ::miss)))))
+            (is (= "clonedcloned" (cc/lookup (g/cache) (gt/endpoint n :val-val) ::miss)))))
 
-        (is (= "originaloriginal" (cc/lookup (g/cache) [n :val-val] :miss)))))))
+        (is (= "originaloriginal" (cc/lookup (g/cache) (gt/endpoint n :val-val) :miss)))))))
 
 (deftest evaluation-context
   (testing "node-value sees state of graphs as given in evaluation-context"
@@ -209,11 +209,11 @@
                                                   n2 PassthroughNode]
                                            (g/connect n :val n2 :str-in)))
             init-ec (g/make-evaluation-context)]
-        (is (= ::miss (cc/lookup (g/cache) [n2 :str-out] ::miss)))
+        (is (= ::miss (cc/lookup (g/cache) (gt/endpoint n2 :str-out) ::miss)))
         (g/node-value n2 :str-out init-ec)
-        (is (= ::miss (cc/lookup (g/cache) [n2 :str-out] ::miss)))
+        (is (= ::miss (cc/lookup (g/cache) (gt/endpoint n2 :str-out) ::miss)))
         (g/update-cache-from-evaluation-context! init-ec)
-        (is (= "initial" (cc/lookup (g/cache) [n2 :str-out]))))))
+        (is (= "initial" (cc/lookup (g/cache) (gt/endpoint n2 :str-out)))))))
 
   (testing "Updating cache does not change entries for invalidated outputs"
     (with-clean-system
@@ -222,13 +222,13 @@
                                            (g/connect n :val n2 :str-in)))
             init-ec (g/make-evaluation-context)]
         (g/node-value n2 :str-out init-ec)
-        (is (= ::miss (cc/lookup (g/cache) [n2 :str-out] ::miss)))
+        (is (= ::miss (cc/lookup (g/cache) (gt/endpoint n2 :str-out) ::miss)))
 
         (g/transact (g/set-property n :val "change that invalidates n2 :str-out"))
 
         (g/update-cache-from-evaluation-context! init-ec)
 
-        (is (= ::miss (cc/lookup (g/cache) [n2 :str-out] ::miss))))))
+        (is (= ::miss (cc/lookup (g/cache) (gt/endpoint n2 :str-out) ::miss))))))
 
   (testing "Update cache does not add entries for deleted nodes"
     (with-clean-system
@@ -237,13 +237,13 @@
                                            (g/connect n :val n2 :str-in)))
             init-ec (g/make-evaluation-context)]
         (g/node-value n2 :str-out init-ec)
-        (is (= ::miss (cc/lookup (g/cache) [n2 :str-out] ::miss)))
+        (is (= ::miss (cc/lookup (g/cache) (gt/endpoint n2 :str-out) ::miss)))
 
         (g/transact (g/delete-node n2))
 
         (g/update-cache-from-evaluation-context! init-ec)
 
-        (is (= ::miss (cc/lookup (g/cache) [n2 :str-out] ::miss)))))))
+        (is (= ::miss (cc/lookup (g/cache) (gt/endpoint n2 :str-out) ::miss)))))))
 
 (deftest tracer
   (with-clean-system
@@ -411,3 +411,108 @@
                       :state :fail}],
                     :state :fail}],
                   :state :fail})))))))
+
+(deftest valid-node-value
+  (with-clean-system
+    (let [[error-node consumer-node]
+          (tx-nodes
+            (g/make-nodes
+              world [error-node (TestNode :val "initial")
+                     consumer-node PassthroughNode]
+              (g/connect error-node :val consumer-node :str-in)))]
+      (is (= (g/node-value consumer-node :str-out)
+             (g/valid-node-value consumer-node :str-out)))
+      (g/mark-defective! error-node (g/error-fatal "bad"))
+      (let [error-value (g/node-value consumer-node :str-out)]
+        (is (g/error? error-value))
+        (when (is (thrown? Exception (g/valid-node-value consumer-node :str-out)))
+          (try
+            (g/valid-node-value consumer-node :str-out)
+            (catch Exception exception
+              (let [ex-message (ex-message exception)
+                    ex-data (ex-data exception)]
+                (is (string/includes? ex-message (name (in/type-name PassthroughNode))))
+                (is (string/includes? ex-message (str consumer-node)))
+                (is (string/includes? ex-message (str :str-out)))
+                (is (string/includes? ex-message "produced an ErrorValue"))
+                (when (is (map? ex-data))
+                  (is (= :internal.graph.graph-test/PassthroughNode (:node-type-kw ex-data)))
+                  (is (= :str-out (:label ex-data)))
+                  (is (= error-value (:error ex-data))))))))))))
+
+(deftest maybe-node-value
+  (with-clean-system
+    (let [check-valid-nodes!
+          (fn check-valid-nodes! [producer-node consumer-node]
+            (is (not (g/defective? producer-node)))
+            (is (not (g/defective? consumer-node)))
+            (testing "Declared property."
+              (is (= "initial" (g/maybe-node-value producer-node :val))))
+            (testing "Declared input."
+              (is (= "initial" (g/maybe-node-value consumer-node :str-in))))
+            (testing "Declared output."
+              (is (= "initial" (g/maybe-node-value consumer-node :str-out))))
+            (testing "Missing output."
+              (is (nil? (g/maybe-node-value producer-node :non-existing-label))))
+            (testing "Extern property."
+              (is (= producer-node (g/maybe-node-value producer-node :_node-id))))
+            (testing "Implicit :_properties."
+              (is (= "initial" (get-in (g/maybe-node-value producer-node :_properties) [:properties :val :value]))))
+            (testing "Implicit :_declared-properties."
+              (is (= "initial" (get-in (g/maybe-node-value producer-node :_declared-properties) [:properties :val :value])))))
+
+          check-defective-nodes!
+          (fn check-defective-nodes! [producer-node consumer-node]
+            (is (g/defective? producer-node))
+            (is (not (g/defective? consumer-node)))
+            (testing "Declared property."
+              (is (nil? (g/maybe-node-value producer-node :val))))
+            (testing "Declared input."
+              (is (nil? (g/maybe-node-value consumer-node :str-in))))
+            (testing "Declared output."
+              (is (nil? (g/maybe-node-value consumer-node :str-out))))
+            (testing "Missing output."
+              (is (nil? (g/maybe-node-value producer-node :non-existing-label))))
+            (testing "Extern property."
+              (is (= producer-node (g/maybe-node-value producer-node :_node-id))))
+            (testing "Implicit :_properties."
+              (is (nil? (g/maybe-node-value producer-node :_properties))))
+            (testing "Implicit :_declared-properties."
+              (is (= "initial" (get-in (g/maybe-node-value producer-node :_declared-properties) [:properties :val :value])))))
+
+          [producer-node consumer-node]
+          (tx-nodes
+            (g/make-nodes
+              world [producer-node (TestNode :val "initial")
+                     consumer-node PassthroughNode]
+              (g/connect producer-node :val consumer-node :str-in)))
+
+          [or-consumer-node or-producer-node]
+          (tx-nodes
+            (g/override consumer-node))]
+
+      (testing "Nil arguments."
+        (is (nil? (g/maybe-node-value nil nil)))
+        (is (nil? (g/maybe-node-value nil :_node-id)))
+        (is (nil? (g/maybe-node-value producer-node nil))))
+
+      (testing "Non-defective producer-node."
+        (testing "Original nodes."
+          (check-valid-nodes! producer-node consumer-node))
+        (testing "Override nodes."
+          (check-valid-nodes! or-producer-node or-consumer-node)))
+
+      (g/mark-defective! producer-node (g/error-fatal "bad"))
+
+      (testing "Defective producer-node."
+        (testing "Original nodes."
+          (check-defective-nodes! producer-node consumer-node))
+        (testing "Override nodes."
+          (check-defective-nodes! or-producer-node or-consumer-node))))))
+
+(deftest defective?-test
+  (with-clean-system
+    (let [error-node (g/make-node! world TestNode :val "initial")]
+      (is (false? (g/defective? error-node)))
+      (g/mark-defective! error-node (g/error-fatal "bad"))
+      (is (true? (g/defective? error-node))))))

@@ -6,7 +6,7 @@
 }
 
 #toolbar {
-    -fx-background-color: -df-component-darker;
+    -fx-background-color: -df-component-dark;
     -fx-border-width: 0;
     -fx-border-insets: 0;
     -fx-background-insets: 0;
@@ -24,29 +24,37 @@
         -fx-border-width: 0;
         -fx-alignment: center;
 
-        .image-view {
+        & > .image-view {
             -fx-effect: innershadow(gaussian, -df-text, 20, 0.3, 0, 0) !important;
         }
 
         &:hover {
-            .image-view {
+            & > .image-view {
                 -fx-effect: innershadow(gaussian, -df-text-selected, 20, 0.3, 0, 0) !important;
+            }
+
+            SVGPath {
+                -fx-fill: -df-text-selected;
             }
         }
         &:selected {
             -fx-background-color: -df-background-light;
-            .image-view {
+            & > .image-view {
                 -fx-effect: innershadow(gaussian, -df-text-selected, 20, 0.3, 0, 0) !important;
+            }
+
+            SVGPath {
+                -fx-fill: -df-text-selected;
             }
         }
     }
 
-    #show-visibility-settings {
-        #eye-icon {
+    #visibility-settings-graphic {
+        & > #eye-icon {
             -fx-translate-y: 1px;
         }
 
-        #active-indicator {
+        & > #active-indicator {
             visibility: hidden;
             -fx-fill: -df-defold-orange;
             -fx-stroke: -df-component-darker;
@@ -54,25 +62,26 @@
             -fx-translate-x: 3.5px;
             -fx-translate-y: -5px;
         }
-
-        &:selected #active-indicator {
+    }
+    .toggle-button {
+        &:selected > #visibility-settings-graphic > #active-indicator {
             -fx-stroke: -df-background-light;
         }
 
-        &.filters-active #active-indicator {
+        &.filters-active > #visibility-settings-graphic > #active-indicator {
             visibility: visible;
         }
     }
 
     .visibility-toggles-list {
-        -fx-background-color: -df-component-darker;
+        -fx-background-color: -df-component-dark;
         -fx-background-radius: 4px;
         -fx-padding: 0px 0px 7px 0px;
 
         > .first-entry {
             -fx-background-radius: 4px 4px 0px 0px;
             -fx-padding: 10px 8px 10px 8px;
-            -fx-background-color: -df-component-darker;
+            -fx-background-color: -df-component-dark;
         }
 
         > HBox {
@@ -81,7 +90,7 @@
 
         > Separator {
             -fx-padding: 7px 0px;
-            -fx-background-color: -df-component-darker;
+            -fx-background-color: -df-component-dark;
         }
     }
 
@@ -93,21 +102,18 @@
 
     SVGPath {
         -fx-fill: -df-text;
-        &:hover, &:pressed, &:focused {
-            -fx-fill: -df-text-selected;
-        }
     }
 
     .separator {
         &:horizontal {
             .line {
-                -fx-border-color: -df-component;
+                -fx-border-color: -df-component-lighter;
             }
         }
 
         &:vertical {
             .line {
-                -fx-border-color: -df-component;
+                -fx-border-color: -df-component-lighter;
             }
         }
     }
@@ -120,26 +126,26 @@
         -fx-border-width: 0;
         -fx-border-insets: 0;
         -fx-background-color: transparent;
-        .image-view {
+        >.image-view {
             -fx-effect: innershadow(gaussian, -df-text, 20, 0.3, 0, 0) !important;
         }
         >.choice-box {
             -fx-border-width: 0;
             -fx-pref-width: 90px;
             >.label {
-                -fx-background-color: -df-component-darker;
+                -fx-background-color: -df-component-dark;
                 -fx-text-fill: -df-text;
             }
             .open-button {
                 -fx-border-width: 0;
-                -fx-background-color: -df-component-darker;
+                -fx-background-color: -df-component-dark;
                 .arrow {
                     -fx-background-color: -df-text;
                 }
             }
             &:hover, &:pressed, &:focused {
                 .open-button {
-                    -fx-background-color: -df-component-darker;
+                    -fx-background-color: -df-component-dark;
                     .arrow {
                         -fx-background-color: -df-text-selected;
                     }

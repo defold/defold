@@ -1,43 +1,62 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef RESOURCE_H
-#define RESOURCE_H
+#ifndef DM_RESOURCE_H
+#define DM_RESOURCE_H
 
-#include <dmsdk/resource/resource.h>
-#include <ddf/ddf.h>
+#include <stdint.h>
 #include <dlib/array.h>
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
+#include <dlib/http_cache.h>
 #include <dlib/mutex.h>
-#include <resource/liveupdate_ddf.h>
-#include "resource_archive.h"
+
+struct ResourceDescriptor;
+
+#include <dmsdk/resource/resource.h>
+
+static const uint32_t RESOURCE_INVALID_PRELOAD_SIZE = 0xFFFFFFFF;
+
+typedef struct ResourcePreloader* HResourcePreloader;
+
+namespace dmResourceArchive
+{
+    typedef struct ArchiveIndexContainer* HArchiveIndexContainer;
+}
+
+namespace dmResourceMounts
+{
+    typedef struct ResourceMountsContext* HContext;
+}
+
+namespace dmResourceProvider
+{
+    typedef struct Archive* HArchive;
+}
 
 namespace dmResource
 {
-    const static uint32_t MANIFEST_MAGIC_NUMBER = 0x43cb6d06;
+    // This is both for the total resource path, ie m_UriParts.X concatenated with relative path
+    const uint32_t RESOURCE_PATH_MAX = 1024;
 
-    const static uint32_t MANIFEST_VERSION = 0x04;
-
-    const uint32_t MANIFEST_PROJ_ID_LEN = 41; // SHA1 + NULL terminator
+    const uint16_t RESOURCE_VERSION_INVALID = 0xFFFF;
 
     /**
      * Configuration key used to tweak the max number of resources allowed.
      */
     extern const char* MAX_RESOURCES_KEY;
 
-    extern const char* BUNDLE_MANIFEST_FILENAME;
     extern const char* BUNDLE_INDEX_FILENAME;
     extern const char* BUNDLE_DATA_FILENAME;
 
@@ -52,29 +71,12 @@ namespace dmResource
     #define RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT (1 << 0)
 
     /**
-     * Enable HTTP cache
-     */
-    #define RESOURCE_FACTORY_FLAGS_HTTP_CACHE     (1 << 2)
-
-    /**
      * Enable Live update
      */
-    #define RESOURCE_FACTORY_FLAGS_LIVE_UPDATE    (1 << 3)
+    #define RESOURCE_FACTORY_FLAGS_LIVE_UPDATE_MOUNTS_ON_START    (1 << 3)
 
-    struct Manifest
-    {
-        Manifest()
-        {
-            memset(this, 0, sizeof(Manifest));
-        }
-
-        dmResourceArchive::HArchiveIndexContainer   m_ArchiveIndex;
-        dmLiveUpdateDDF::ManifestFile*              m_DDF;
-        dmLiveUpdateDDF::ManifestData*              m_DDFData;
-    };
-
-    typedef uintptr_t ResourceType;
-
+    typedef dmArray<char> LoadBufferType;
+    typedef HResourcePreloader HPreloader;
 
     Result RegisterTypes(HFactory factory, dmHashTable64<void*>* contexts);
     Result DeregisterTypes(HFactory factory, dmHashTable64<void*>* contexts);
@@ -133,6 +135,8 @@ namespace dmResource
         EmbeddedResource m_ArchiveData;
         EmbeddedResource m_ArchiveManifest;
 
+        dmHttpCache::HCache m_HttpCache;
+
         uint32_t m_Reserved[5];
 
         NewFactoryParams()
@@ -144,7 +148,7 @@ namespace dmResource
     /**
      * Create a new factory
      * @param params New factory parameters
-     * @param uri Resource root uri, e.g. http://locahost:5000 or build/default/content
+     * @param uri Resource root uri, e.g. http://locahost:5000 or build/content
      * @return Factory handle. NULL if out of memory or invalid uri.
      */
     HFactory NewFactory(NewFactoryParams* params, const char* uri);
@@ -165,20 +169,40 @@ namespace dmResource
      * Find a resource by a canonical path hash.
      * @param factory Factory handle
      * @param path_hash Resource path hash
-     * @return SResourceDescriptor* pointer to the resource descriptor
+     * @return ResourceDescriptor* pointer to the resource descriptor
      */
-    SResourceDescriptor* FindByHash(HFactory factory, uint64_t canonical_path_hash);
+    ResourceDescriptor* FindByHash(HFactory factory, uint64_t canonical_path_hash);
 
     /**
-     * Get raw resource data. Unregistered resources can be loaded with this function.
-     * The returned resource data must be deallocated with free()
+     * Creates and inserts a resource into the factory
      * @param factory Factory handle
-     * @param name Resource name
-     * @param resource Resource data
-     * @param resource_size Resource size
+     * @param name Name of the resource
+     * @param data Resource data
+     * @param data_size Resource data size
+     * @param resource Will contain a pointer to the resource after this function has completed
      * @return RESULT_OK on success
      */
-    Result GetRaw(HFactory factory, const char* name, void** resource, uint32_t* resource_size);
+    Result CreateResource(HFactory factory, const char* name, void* data, uint32_t data_size, void** resource);
+
+    /**
+     * Creates and inserts a resource into the factory
+     * @param factory Factory handle
+     * @param type The resource type. May be null, and then the path suffix will be used as a lookup.
+     * @param path Path of the resource
+     * @param data Resource data
+     * @param data_size Partial resource data size
+     * @param file_size Full resource size
+     * @param resource Will contain a pointer to the resource after this function has completed
+     * @return RESULT_OK on success
+     */
+    Result CreateResourcePartial(HFactory factory, HResourceType type, const char* path, void* data, uint32_t data_size, uint32_t file_size, void** resource);
+
+    /**
+     * Get a resource extension from a path, i.e resource.ext will return .ext. Note the included dot in the output.
+     * @param path The path to the resource
+     * @return Pointer to extension string if success (same as buffer), 0 otherwise
+     */
+    const char* GetExtFromPath(const char* path);
 
     /**
      * Updates a preexisting resource with new data
@@ -206,7 +230,7 @@ namespace dmResource
      * @param out_descriptor The resource descriptor as an output argument. It will not be written to if null, otherwise it will always be written to.
      * @see Get
      */
-    Result ReloadResource(HFactory factory, const char* name, SResourceDescriptor** out_descriptor);
+    Result ReloadResource(HFactory factory, const char* name, ResourceDescriptor** out_descriptor);
 
     /**
      * Get type for resource
@@ -215,7 +239,7 @@ namespace dmResource
      * @param type Returned type
      * @return RESULT_OK on success
      */
-    Result GetType(HFactory factory, void* resource, ResourceType* type);
+    Result GetType(HFactory factory, void* resource, HResourceType* type);
 
     /**
      * Get type from extension
@@ -224,7 +248,16 @@ namespace dmResource
      * @param type Returned type
      * @return RESULT_OK on success
      */
-    Result GetTypeFromExtension(HFactory factory, const char* extension, ResourceType* type);
+    Result GetTypeFromExtension(HFactory factory, const char* extension, HResourceType* type);
+
+    /**
+     * Get type from extension hash
+     * @param factory Factory handle
+     * @param extension File extension
+     * @param type Returned type
+     * @return RESULT_OK on success
+     */
+    Result GetTypeFromExtensionHash(HFactory factory, dmhash_t extension_hash, HResourceType* type);
 
     /**
      * Get extension from type
@@ -233,16 +266,7 @@ namespace dmResource
      * @param extension Returned extension
      * @return RESULT_OK on success
      */
-    Result GetExtensionFromType(HFactory factory, ResourceType type, const char** extension);
-
-    /**
-     * Get resource descriptor from resource (name)
-     * @param factory Factory handle
-     * @param name Resource name
-     * @param descriptor Returned resource descriptor
-     * @return RESULT_OK on success
-     */
-    Result GetDescriptor(HFactory factory, const char* name, SResourceDescriptor* descriptor);
+    Result GetExtensionFromType(HFactory factory, HResourceType type, const char** extension);
 
     /**
      * Get resource descriptor from resource (hash) with supplied extensions
@@ -253,7 +277,7 @@ namespace dmResource
      * @param descriptor pointer to write result to in case of RESULT_OK
      * @return RESULT_OK on success
      */
-    Result GetDescriptorWithExt(HFactory factory, uint64_t hashed_name, const uint64_t* exts, uint32_t ext_count, SResourceDescriptor* descriptor);
+    Result GetDescriptorWithExt(HFactory factory, uint64_t hashed_name, const uint64_t* exts, uint32_t ext_count, HResourceDescriptor* descriptor);
 
     /**
      * Increase resource reference count
@@ -261,6 +285,22 @@ namespace dmResource
      * @param resource Resource
      */
     void IncRef(HFactory factory, void* resource);
+
+    /**
+     * Increase resource reference count
+     * @param factory Factory handle
+     * @param resource Resource descriptor
+     */
+    void IncRef(HFactory factory, HResourceDescriptor rd);
+
+    /**
+     * Get the resource version. The resource version is a sequential serial number
+     * that increases with every resource insertion into the resource system.
+     * This is useful for checking resource validity for resource pointers.
+     * @param factory Factory handle
+     * @param resource Resource
+     */
+    uint16_t GetVersion(HFactory factory, void* resource);
 
     /**
      * Create a new preloader
@@ -297,43 +337,6 @@ namespace dmResource
      */
     void DeletePreloader(HPreloader preloader);
 
-    Manifest* GetManifest(HFactory factory);
-
-    /**
-     * Set a new manifest to the factory
-     */
-    void SetManifest(HFactory factory, Manifest* manifest);
-
-    /**
-     * Delete the manifest and all its resources
-     */
-    void DeleteManifest(Manifest* manifest);
-
-
-// Uses LiveUpdateDDF
-    Result ManifestLoadMessage(const uint8_t* manifest_msg_buf, uint32_t size, dmResource::Manifest*& out_manifest);
-
-// Called from liveupdate after storing a manifest
-    /**
-     * Verify that all resources the manifest expects to be bundled actually are bundled.
-     */
-    Result VerifyResourcesBundled(dmResourceArchive::HArchiveIndexContainer base_archive, const Manifest* manifest);
-
-    /**
-     * Loads the public RSA key from the bundle.
-     * Uses the public key to decrypt the manifest signature to get the content hash.
-     * Compares the decrypted content hash to the expected content hash.
-     * Diagram of what to do; https://crypto.stackexchange.com/questions/12768/why-hash-the-message-before-signing-it-with-rsa
-     * Inspect asn1 key content; http://lapo.it/asn1js/#
-     */
-    Result VerifyManifestHash(const char* app_path, const Manifest* manifest, const uint8_t* expected_digest, uint32_t expected_len);
-
-    /**
-     * Determines if the resource could be unique
-     * @param name Resource name
-    */
-    bool IsPathTagged(const char* name);
-
     /**
      * Returns the mutex held when loading asynchronous
      * @param factory Factory handle
@@ -341,45 +344,56 @@ namespace dmResource
     */
     dmMutex::HMutex GetLoadMutex(const dmResource::HFactory factory);
 
+
+    /**
+     * @name
+     * @param factory [type: dmResource::HFactory] The factory handle
+     * @return mounts_ctx [type: dmResourceMounts::HContext] the mounts context
+     */
+    dmResourceMounts::HContext GetMountsContext(const dmResource::HFactory factory);
+
+    struct SGetDependenciesParams
+    {
+        dmhash_t m_UrlHash;         // The requested url
+        bool m_OnlyMissing;         // Only report assets that aren't available in the mounts
+        bool m_Recursive;           // Traverse down for each resource that has dependencies
+        bool m_IncludeRequestedUrl; // If requested url should be included into result
+    };
+
+    struct SGetDependenciesResult
+    {
+        dmhash_t m_UrlHash;
+        uint8_t* m_HashDigest;
+        uint32_t m_HashDigestLength;
+        bool     m_Missing;
+    };
+
+    /**
+     * Returns the dependencies for a resource
+     * @name GetDependencies
+     * @note Only reports dependencies from mounts that have a .dmanifest available
+     * @param factory [type: dmResource::HFactory] Factory handle
+     * @param url_hash [type: dmhash_t] url hash
+     * @return result [type: dmResource::Result] resource result
+    */
+    typedef void (*FGetDependency)(void* context, const SGetDependenciesResult* result);
+    dmResource::Result GetDependencies(const dmResource::HFactory factory, const SGetDependenciesParams* params, FGetDependency callback, void* callback_context);
+
+    /**
+     * Returns the path to the public key, or null if it was not found
+     **/
+    const char* GetPublicKeyPath(HFactory factory);
+
+    /**
+     * Returns the base archive mount. It is always of type "archive", or it will return 0.
+     **/
+    dmResourceProvider::HArchive GetBaseArchive(HFactory factory);
+
     /**
      * Releases the builtins manifest
      * Use when it's no longer needed, e.g. the user project loaded properly
      */
-    void ReleaseBuiltinsManifest(HFactory factory);
-
-    /**
-     * Returns the length in bytes of the supplied hash algorithm
-     */
-    uint32_t HashLength(dmLiveUpdateDDF::HashAlgorithm algorithm);
-
-    /**
-     * Converts the supplied byte buffer to hexadecimal string representation
-     * @param byte_buf The byte buffer
-     * @param byte_buf_len The byte buffer length
-     * @param out_buf The output string buffer
-     * @param out_len The output buffer length
-     */
-    void BytesToHexString(const uint8_t* byte_buf, uint32_t byte_buf_len, char* out_buf, uint32_t out_len);
-
-    /**
-     * Byte-wise comparison of two hash buffers
-     * @param digest The hash digest to compare
-     * @param len The hash digest length
-     * @param buf The expected hash digest
-     * @param buflen The expected hash digest length
-     * @return RESULT_OK if the hashes are equal in length and content
-     */
-    Result HashCompare(const uint8_t* digest, uint32_t len, const uint8_t* expected_digest, uint32_t expected_len);
-
-    // Platform specific implementation of archive and manifest loading. Data written into mount_info must
-    // be provided for unloading and may contain information about memory mapping etc.
-    Result MountArchiveInternal(const char* index_path, const char* data_path, dmResourceArchive::HArchiveIndexContainer* archive, void** mount_info);
-    void UnmountArchiveInternal(dmResourceArchive::HArchiveIndexContainer &archive, void* mount_info);
-    Result MountManifest(const char* manifest_filename, void*& out_map, uint32_t& out_size);
-    Result UnmountManifest(void *& map, uint32_t size);
-    // Files mapped with this function should be unmapped with UnmapFile(...)
-    Result MapFile(const char* filename, void*& map, uint32_t& size);
-    Result UnmapFile(void*& map, uint32_t size);
+    void ReleaseBuiltinsArchive(HFactory factory);
 
     /**
      * Struct returned from the resource iterator api
@@ -403,16 +417,25 @@ namespace dmResource
      */
     void IterateResources(HFactory factory, FResourceIterator callback, void* user_ctx);
 
-    /**
+    /*#
      */
     const char* ResultToString(Result result);
 
+    // *****************************************************************************
+    // Preloader api
 
-    /*# Get the support path for the project, with the hashed project name at the end
-     */
-    Result GetApplicationSupportPath(const Manifest* manifest, char* buffer, uint32_t buffer_len);
+    // load with default internal buffer and its management, returns buffer ptr in 'buffer'
+    Result LoadResource(HFactory factory, const char* path, const char* original_name, void** buffer, uint32_t* buffer_size, uint32_t* resource_size);
+    // load with own buffer
+    Result LoadResourceToBuffer(HFactory factory, const char* path, const char* original_name, uint32_t preload_size, uint32_t* resource_size, uint32_t* buffer_size, LoadBufferType* buffer);
 
-    void RegisterArchiveLoader();
+    // *****************************************************************************
+    // Streaming api
+
+    // In the callback, use ResourceDescriptorGetData to retrieve the data
+    typedef int (*FPreloadDataCallback)(HFactory factory, void* cbk_ctx, HResourceDescriptor resource, uint32_t offset, uint32_t nread, uint8_t* buffer);
+
+    Result PreloadData(HFactory factory, const char* path, uint32_t offset, uint32_t size, FPreloadDataCallback cbk, void* cbk_ctx);
 }
 
-#endif // RESOURCE_H
+#endif // DM_RESOURCE_H

@@ -1,3 +1,4 @@
+syntax = "proto2";
 package dmGuiDDF;
 
 import "ddf/ddf_extensions.proto";
@@ -18,13 +19,13 @@ message NodeDesc
     // NOTE: Enum values must correspond to the enum values in dmGui
     enum Type
     {
-        TYPE_BOX  = 0 [(displayName) = "Box"];
-        TYPE_TEXT = 1 [(displayName) = "Text"];
-        TYPE_PIE  = 2 [(displayName) = "Pie"];
-        TYPE_TEMPLATE = 3 [(displayName) = "Template"];
-        TYPE_SPINE = 4 [(displayName) = "Spine"]; // Deprecated
+        TYPE_BOX        = 0 [(displayName) = "Box"];
+        TYPE_TEXT       = 1 [(displayName) = "Text"];
+        TYPE_PIE        = 2 [(displayName) = "Pie"];
+        TYPE_TEMPLATE   = 3 [(displayName) = "Template"];
+        TYPE_SPINE      = 4 [(displayName) = "Spine"]; // Deprecated
         TYPE_PARTICLEFX = 5 [(displayName) = "ParticleFX"];
-        TYPE_CUSTOM = 6 [(displayName) = "Custom"];
+        TYPE_CUSTOM     = 6 [(displayName) = "Custom"];
     }
 
     // NOTE: Enum values must correspond to the enum values in dmGui
@@ -75,8 +76,8 @@ message NodeDesc
 
     enum AdjustMode
     {
-        ADJUST_MODE_FIT = 0 [(displayName) = "Fit"];
-        ADJUST_MODE_ZOOM = 1 [(displayName) = "Zoom"];
+        ADJUST_MODE_FIT     = 0 [(displayName) = "Fit"];
+        ADJUST_MODE_ZOOM    = 1 [(displayName) = "Zoom"];
         ADJUST_MODE_STRETCH = 2 [(displayName) = "Stretch"];
     };
 
@@ -95,9 +96,9 @@ message NodeDesc
 
     optional dmMath.Vector4 position = 1;
     optional dmMath.Vector4 rotation = 2;
-    optional dmMath.Vector4 scale    = 3;
+    optional dmMath.Vector4One scale = 3;
     optional dmMath.Vector4 size     = 4;
-    optional dmMath.Vector4 color    = 5;
+    optional dmMath.Vector4One color = 5;
     optional Type       type         = 6;
     optional BlendMode  blend_mode   = 7 [default = BLEND_MODE_ALPHA];
     optional string     text         = 8;
@@ -107,8 +108,8 @@ message NodeDesc
     optional XAnchor    xanchor      = 12 [default = XANCHOR_NONE];
     optional YAnchor    yanchor      = 13 [default = YANCHOR_NONE];
     optional Pivot      pivot        = 14 [default = PIVOT_CENTER];
-    optional dmMath.Vector4 outline  = 15;
-    optional dmMath.Vector4 shadow   = 16;
+    optional dmMath.Vector4WOne outline = 15;
+    optional dmMath.Vector4WOne shadow = 16;
     optional AdjustMode adjust_mode  = 17 [default = ADJUST_MODE_FIT];
     optional bool       line_break   = 18 [default = false];
     optional string     parent       = 19;
@@ -150,6 +151,12 @@ message NodeDesc
     optional string particlefx              = 43;
 
     optional uint32 custom_type             = 44 [default = 0]; // for custom types
+
+    optional bool enabled                   = 45 [default = true];
+    optional bool visible                   = 46 [default = true];
+
+    optional string material                = 47;
+
 }
 
 message SceneDesc
@@ -166,20 +173,30 @@ message SceneDesc
         required string name    = 1;
         required string font    = 2 [(resource)=true];
     }
+
     message TextureDesc
     {
         required string name    = 1;
         required string texture = 2 [(resource)=true];
     }
+
     message LayerDesc
     {
         required string name    = 1;
     }
+
     message LayoutDesc
     {
         required string   name  = 1;
         repeated NodeDesc nodes = 2;
     }
+
+    message MaterialDesc
+    {
+        required string name     = 1;
+        required string material = 2 [(resource)=true];
+    }
+
     message SpineSceneDesc
     {
         required string name         = 1;
@@ -198,27 +215,21 @@ message SceneDesc
         required string particlefx  = 2 [(resource)=true];
     }
 
-    required string      script                  = 1 [(resource)=true];
-    repeated FontDesc    fonts                   = 2;
-    repeated TextureDesc textures                = 3;
-    optional dmMath.Vector4 background_color     = 4;
-
-    repeated NodeDesc    nodes                   = 6;
-    repeated LayerDesc   layers                  = 7;
-
-    optional string      material                = 8 [(resource)=true, default="/builtins/materials/gui.material"];
-
-    repeated LayoutDesc  layouts                 = 9;
-
-    optional AdjustReference adjust_reference    = 10 [default = ADJUST_REFERENCE_LEGACY];
-
-    optional uint32      max_nodes               = 11 [default = 512];
-
-    repeated SpineSceneDesc spine_scenes         = 12;
-
-    repeated ParticleFXDesc particlefxs          = 13;
-
-    repeated ResourceDesc resources              = 14;
+    optional string          script               = 1 [(resource)=true];
+    repeated FontDesc        fonts                = 2;
+    repeated TextureDesc     textures             = 3;
+    optional dmMath.Vector4  background_color     = 4; // Deprecated
+    repeated NodeDesc        nodes                = 6;
+    repeated LayerDesc       layers               = 7;
+    optional string          material             = 8 [(resource)=true, default="/builtins/materials/gui.material"];
+    repeated LayoutDesc      layouts              = 9;
+    optional AdjustReference adjust_reference     = 10 [default = ADJUST_REFERENCE_LEGACY];
+    optional uint32          max_nodes            = 11 [default = 512];
+    repeated SpineSceneDesc  spine_scenes         = 12;
+    repeated ParticleFXDesc  particlefxs          = 13;
+    repeated ResourceDesc    resources            = 14;
+    repeated MaterialDesc    materials            = 15;
+    optional uint32          max_dynamic_textures = 16 [default = 128];
 }
 
 /*# reports a layout change

@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -17,6 +17,8 @@
             [clojure.string :as str]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [editor.build :as build]
+            [editor.resource :as resource]
             [editor.workspace :as workspace]
             [editor.defold-project :as project]
             [editor.code-completion :refer :all]
@@ -41,40 +43,40 @@
           module2-node     (project/get-resource-node project module2-resource)]
       (testing "are empty when no modules have been required"
         (is (not (g/error? (g/node-value script-node :build-targets))))
-        (is (empty? (g/node-value script-node :module-build-targets)))
+        (is (empty? (:dynamic-deps (first (g/node-value script-node :build-targets)))))
         (is (empty? (g/node-value script-node :module-completion-infos))))
       (testing "are added when a module is required"
-        (test-util/code-editor-source! script-node "local x = require('module1')")
+        (test-util/set-code-editor-source! script-node "local x = require('module1')")
         (is (not (g/error? (g/node-value script-node :build-targets))))
-        (is (= (g/node-value script-node :module-build-targets)
-               [(g/node-value module1-node :build-targets)]))
+        (is (= (:dynamic-deps (first (g/node-value script-node :build-targets)))
+               [(resource/proj-path module1-resource)]))
         (is (= (g/node-value script-node :module-completion-infos)
                [(g/node-value module1-node :completion-info)])))
       (testing "are updated when a requirements change"
-        (test-util/code-editor-source! script-node "local x = require('module1')\nlocal y = require('module2')")
+        (test-util/set-code-editor-source! script-node "local x = require('module1')\nlocal y = require('module2')")
         (is (not (g/error? (g/node-value script-node :build-targets))))
-        (is (= (set (g/node-value script-node :module-build-targets))
-               #{(g/node-value module1-node :build-targets)
-                 (g/node-value module2-node :build-targets)}))
+        (is (= (set (:dynamic-deps (first (g/node-value script-node :build-targets))))
+               #{(resource/proj-path module1-resource)
+                 (resource/proj-path module2-resource)}))
         (is (= (set (g/node-value script-node :module-completion-infos))
                #{(g/node-value module1-node :completion-info)
                  (g/node-value module2-node :completion-info)})))
       (testing "are updated when a required module is no longer required"
-        (test-util/code-editor-source! script-node "local x = require('module2')")
+        (test-util/set-code-editor-source! script-node "local x = require('module2')")
         (is (not (g/error? (g/node-value script-node :build-targets))))
-        (is (= (g/node-value script-node :module-build-targets)
-               [(g/node-value module2-node :build-targets)]))
+        (is (= (:dynamic-deps (first (g/node-value script-node :build-targets)))
+               [(resource/proj-path module2-resource)]))
         (is (= (g/node-value script-node :module-completion-infos)
                [(g/node-value module2-node :completion-info)])))
       (testing "are removed when a module is no longer required"
-        (test-util/code-editor-source! script-node "local x = 4711")
+        (test-util/set-code-editor-source! script-node "local x = 4711")
         (is (not (g/error? (g/node-value script-node :build-targets))))
-        (is (empty? (g/node-value script-node :module-build-targets)))
+        (is (empty? (:dynamic-deps (first (g/node-value script-node :build-targets)))))
         (is (empty? (g/node-value script-node :module-completion-infos))))
       (testing "ignores invalid requires"
-        (test-util/code-editor-source! script-node "require \"\"")
-        (test-util/code-editor-source! script-node "require \"\"\"\"")
-        (test-util/code-editor-source! script-node "require \"a.b.c\"\"")))))
+        (test-util/set-code-editor-source! script-node "require \"\"")
+        (test-util/set-code-editor-source! script-node "require \"\"\"\"")
+        (test-util/set-code-editor-source! script-node "require \"a.b.c\"\"")))))
 
 (defn- lines [& args] (str (str/join "\n" args) "\n"))
 
@@ -96,9 +98,9 @@
             project          (test-util/setup-project! workspace [module1-resource module2-resource script-resource])
             script-node      (project/get-resource-node project script-resource)
             completions      (g/node-value script-node :completions)]
-        (is (= #{"a.f1" "a.f2"}
+        (is (= #{"f1" "f2"}
                (set (map :name (get completions "a")))))
-        (is (= #{"b.f3"}
+        (is (= #{"f3"}
                (set (map :name (get completions "b"))))))))
   (testing "does not include completions from transitive requires"
     (test-util/with-loaded-project "test/resources/empty_project"
@@ -116,7 +118,7 @@
             project          (test-util/setup-project! workspace [module1-resource module2-resource script-resource])
             script-node      (project/get-resource-node project script-resource)
             completions      (g/node-value script-node :completions)]
-        (is (= #{"a.f"}
+        (is (= #{"f"}
                (set (map :name (get completions "a")))))))))
 
 (deftest inexact-require-casing-produces-build-error
@@ -130,7 +132,7 @@
                                                         "return M"))
           project          (test-util/setup-project! workspace [module-resource script-resource])
           script-node      (project/get-resource-node project script-resource)
-          build-targets    (g/node-value script-node :build-targets)
+          build-targets    (build/resolve-node-dependencies script-node project)
           error-message    (some :message (tree-seq :causes :causes build-targets))]
       (is (g/error? build-targets))
       (is (= (str "The file '/MODULE.lua' could not be found.") error-message)))))

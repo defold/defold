@@ -1,0 +1,17 @@
+name: "main"
+instances {
+  id: "spineboy"
+  prototype: "/main/spineboy.go"
+  position {
+    x: 700.0
+  }
+  rotation {
+    y: 1.0
+    w: 6.123234E-17
+  }
+}
+instances {
+  id: "gui"
+  prototype: "/main/gui.go"
+}
+scale_along_z: 0

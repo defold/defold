@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -17,16 +17,12 @@ package com.dynamo.bob.pipeline;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.net.URL;
 import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.ArrayList;
@@ -35,6 +31,7 @@ import java.util.Map;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
+import com.dynamo.bob.fs.*;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
@@ -46,13 +43,8 @@ import org.junit.rules.TemporaryFolder;
 import java.security.CodeSource;
 import com.defold.extender.client.ExtenderResource;
 import com.dynamo.bob.ClassLoaderScanner;
-import com.dynamo.bob.ClassLoaderResourceScanner;
-import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
-import com.dynamo.bob.fs.ZipMountPoint;
-import com.dynamo.bob.fs.FileSystemWalker;
-import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.test.util.MockFileSystem;
 
 
@@ -60,7 +52,7 @@ public class BundleResourcesTest {
 
     private MockFileSystem fileSystem;
     private Project project;
-    private ZipMountPoint mp;
+    private IMountPoint mp;
 
     @Rule
     public TemporaryFolder tmpFolder = new TemporaryFolder();
@@ -81,9 +73,19 @@ public class BundleResourcesTest {
         project.scan(scanner, "com.dynamo.bob.pipeline");
 
         CodeSource src = getClass().getProtectionDomain().getCodeSource();
-        String jarPath = new File(src.getLocation().toURI()).getAbsolutePath();
-        this.mp = new ZipMountPoint(null, jarPath, false);
-        this.mp.mount();
+        File sourceFile = new File(src.getLocation().toURI());
+        String path = sourceFile.getAbsolutePath();
+        if (sourceFile.isDirectory()) {
+            DefaultFileSystem fs = new DefaultFileSystem();
+            fs.setRootDirectory(path);
+            this.mp = new FileSystemMountPoint(this.fileSystem, fs);
+            this.mp.mount();
+            this.fileSystem.addMountPoint(this.mp);
+        }
+        else {
+            this.mp = new ZipMountPoint(null, path, false);
+            this.mp.mount();
+        }
 
         addResourceDirectory("/testextension");
         addResourceDirectory("/testappmanifest");
@@ -105,9 +107,9 @@ public class BundleResourcesTest {
     class Walker extends FileSystemWalker {
 
         private String basePath;
-        private ZipMountPoint mp;
+        private IMountPoint mp;
 
-        public Walker(ZipMountPoint mp, String basePath) {
+        public Walker(IMountPoint mp, String basePath) {
             this.mp = mp;
             this.basePath = basePath;
             if (basePath.startsWith("/")) {
@@ -299,12 +301,13 @@ public class BundleResourcesTest {
 
         // Test data
         Map<Platform, String[]> expected = new HashMap<Platform, String[]>();
-        expected.put(Platform.X86_64Darwin, new String[] { "osx.txt", "x86_64-osx.txt" });
+        expected.put(Platform.X86_64MacOS, new String[] { "osx.txt", "x86_64-osx.txt" });
+        expected.put(Platform.Arm64MacOS, new String[] { "osx.txt", "arm64-osx.txt" });
         expected.put(Platform.X86_64Linux, new String[] { "linux.txt", "x86_64-linux.txt" });
         expected.put(Platform.X86Win32, new String[] { "win32.txt", "x86-win32.txt" });
         expected.put(Platform.X86_64Win32, new String[] { "win32.txt", "x86_64-win32.txt" });
         expected.put(Platform.Armv7Android, new String[] { "android.txt" });
-        expected.put(Platform.Arm64Darwin, new String[] { "ios.txt", "arm64-ios.txt" });
+        expected.put(Platform.Arm64Ios, new String[] { "ios.txt", "arm64-ios.txt" });
         expected.put(Platform.JsWeb, new String[] { "web.txt" });
 
         // Should find bundle resources inside the extension1 folder
@@ -346,7 +349,7 @@ public class BundleResourcesTest {
     // Extension source collecting
     @Test
     public void testExtensionSources() throws Exception {
-        List<ExtenderResource> resources = ExtenderUtil.getExtensionSources(project, Platform.X86_64Darwin, null);
+        List<ExtenderResource> resources = ExtenderUtil.getExtensionSources(project, Platform.X86_64MacOS, null);
         assertEquals(7, resources.size());
 
         assertTrue(findInResourceList(resources, "_app/app.manifest") != null);
@@ -359,7 +362,7 @@ public class BundleResourcesTest {
 
         Map<String, String> appmanifestOptions = new HashMap<String,String>();
         appmanifestOptions.put("baseVariant", "release");
-        resources = ExtenderUtil.getExtensionSources(project, Platform.Arm64Darwin, appmanifestOptions);
+        resources = ExtenderUtil.getExtensionSources(project, Platform.Arm64Ios, appmanifestOptions);
         assertEquals(6, resources.size());
 
         assertTrue(findInResourceList(resources, "extension1/ext.manifest") != null);
@@ -381,7 +384,7 @@ public class BundleResourcesTest {
         appmanifestOptions.put("baseVariant", "debug");
 
         project.getProjectProperties().putStringValue("native_extension", "app_manifest", "myapp.appmanifest");
-        List<ExtenderResource> resources = ExtenderUtil.getExtensionSources(project, Platform.X86_64Darwin, appmanifestOptions);
+        List<ExtenderResource> resources = ExtenderUtil.getExtensionSources(project, Platform.X86_64MacOS, appmanifestOptions);
         assertEquals(7, resources.size());
         ExtenderResource appManifest = findInResourceList(resources, ExtenderUtil.appManifestPath);
         String patchedManifest = new String(appManifest.getContent());

@@ -1,0 +1,93 @@
+script: "/gui/texture_resources/texture_resources.gui_script"
+textures {
+  name: "atlas"
+  texture: "/atlas/valid.atlas"
+}
+textures {
+  name: "texture"
+  texture: "/texture/valid_png.png"
+}
+background_color {
+  x: 0.0
+  y: 0.0
+  z: 0.0
+  w: 0.0
+}
+material: "/gui/gui.material"
+adjust_reference: ADJUST_REFERENCE_PARENT
+max_nodes: 512
+
+nodes {
+  position {
+    x: 1.0
+    y: 0.0
+    z: 0.0
+    w: 0.0
+  }
+  rotation {
+    x: 1.0
+    y: 0.0
+    z: 0.0
+    w: 0.0
+  }
+  scale {
+    x: 1.0
+    y: 0.0
+    z: 0.0
+    w: 0.0
+  }
+  size {
+    x: 1.0
+    y: 0.0
+    z: 0.0
+    w: 0.0
+  }
+  color {
+    x: 1.0
+    y: 0.0
+    z: 0.0
+    w: 0.0
+  }
+  id: "box1"
+  type: TYPE_BOX
+  blend_mode: BLEND_MODE_ALPHA
+  texture: "texture"
+}
+
+nodes {
+  position {
+    x: 1.0
+    y: 0.0
+    z: 0.0
+    w: 0.0
+  }
+  rotation {
+    x: 1.0
+    y: 0.0
+    z: 0.0
+    w: 0.0
+  }
+  scale {
+    x: 1.0
+    y: 0.0
+    z: 0.0
+    w: 0.0
+  }
+  size {
+    x: 1.0
+    y: 0.0
+    z: 0.0
+    w: 0.0
+  }
+  color {
+    x: 1.0
+    y: 0.0
+    z: 0.0
+    w: 0.0
+  }
+  id: "box2"
+  type: TYPE_BOX
+  blend_mode: BLEND_MODE_ALPHA
+  texture: "atlas/valid_png_128"
+}
+

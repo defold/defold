@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -27,7 +27,9 @@
             [editor.handler :as handler]
             [editor.input :as i]
             [editor.math :as math]
+            [editor.pose :as pose]
             [editor.properties :as properties]
+            [editor.protobuf :as protobuf]
             [editor.render :as render]
             [editor.resource :as resource]
             [editor.rulers :as rulers]
@@ -38,16 +40,19 @@
             [editor.scene-shapes :as scene-shapes]
             [editor.scene-text :as scene-text]
             [editor.scene-tools :as scene-tools]
+            [editor.scene-visibility :as scene-visibility]
             [editor.system :as system]
             [editor.types :as types]
             [editor.ui :as ui]
             [editor.view :as view]
             [editor.workspace :as workspace]
             [service.log :as log]
+            [util.coll :as coll]
             [util.profiler :as profiler])
   (:import [com.jogamp.opengl GL GL2 GLAutoDrawable GLContext GLOffscreenAutoDrawable]
            [com.jogamp.opengl.glu GLU]
            [com.jogamp.opengl.util GLPixelStorageModes]
+           [editor.pose Pose]
            [editor.types AABB Camera Rect Region]
            [java.awt.image BufferedImage]
            [java.lang Math Runnable]
@@ -64,6 +69,32 @@
 
 (set! *warn-on-reflection* true)
 
+(def default-position protobuf/vector3-zero)
+
+(def default-rotation protobuf/quat-identity)
+
+(def default-scale protobuf/vector3-one)
+
+(def identity-transform-properties
+  {:position default-position
+   :rotation default-rotation
+   :scale default-scale})
+
+(defn significant-scale? [value]
+  (cond
+    (nil? value)
+    false
+
+    (vector? value)
+    (not= default-scale value)
+
+    (number? value)
+    (not= 1.0 value)
+
+    :else
+    (throw (ex-info "Unsupported scale value."
+                    {:value value}))))
+
 (defn overlay-text [^GL2 gl ^String text x y]
   (scene-text/overlay gl text x y))
 
@@ -71,27 +102,35 @@
   (let [{:keys [resource] :as resource-node} (and node-id (g/node-by-id node-id))]
     (and resource (resource/resource-name resource))))
 
-(defn- root-causes
-  [error]
-  (->> (tree-seq :causes :causes error)
-       (filter :message)
-       (remove :causes)))
-
 (defn- render-error
   [gl render-args renderables nrenderables]
   (when (= pass/overlay (:pass render-args))
-    (let [errors (->> renderables
-                      (map (comp :error :user-data))
-                      (mapcat root-causes)
-                      (map #(select-keys % [:_node-id :message]))
-                      set)]
+    (let [rendered-errors 15
+          errors (into []
+                       (comp
+                         (map (comp :error :user-data))
+                         (mapcat #(tree-seq :causes :causes %))
+                         (filter :message)
+                         (remove :causes)
+                         (map #(select-keys % [:_node-id :message]))
+                         (distinct)
+                         ;; don't go through all errors since traversing deep trees is too slow
+                         (take (inc rendered-errors)))
+                       renderables)]
       (scene-text/overlay gl "Render error:" 24.0 -22.0)
-      (doseq [[n error] (partition 2 (interleave (range) errors))]
-        (let [message (format "- %s: %s"
-                              (or (get-resource-name (:_node-id error))
-                                  "unknown")
-                              (:message error))]
-          (scene-text/overlay gl message 24.0 (- -22.0 (* 14 (inc n)))))))))
+      (->> errors
+           (eduction
+             (take rendered-errors)
+             (map-indexed vector))
+           (run!
+             (fn [[n error]]
+               (let [message (format "- %s: %s"
+                                     (or (get-resource-name (:_node-id error))
+                                         "unknown")
+                                     (:message error))]
+                 (scene-text/overlay gl message 24.0 (- -22.0 (* 14 (inc n))))))))
+      (when (< rendered-errors (count errors))
+        (scene-text/overlay gl "...and more" 24.0 (- -22.0 (* 14 (inc rendered-errors))))))))
 
 (defn substitute-render-data
   [error]
@@ -144,9 +183,12 @@
    (if topmost? Long/MAX_VALUE (- Long/MAX_VALUE (z-distance view-proj world-transform)))
    (or index 0)])
 
-(defn- outline-render-key [^Matrix4d view-proj ^Matrix4d world-transform index topmost? selected?]
+(defn- outline-render-key [^Matrix4d view-proj ^Matrix4d world-transform index topmost? selection-state]
   ;; Draw selection outlines on top of other outlines.
-  [(boolean selected?)
+  [(case selection-state
+     :self-selected 2
+     :parent-selected 1
+     0)
    (boolean topmost?)
    (if topmost? Long/MAX_VALUE (- Long/MAX_VALUE (z-distance view-proj world-transform)))
    (or index 0)])
@@ -178,7 +220,8 @@
         (log/error :exception e
                    :pass (:pass render-args)
                    :render-fn render-fn
-                   :message "skipping renderable")))))
+                   :message "skipping renderable"
+                   :ex-data (ex-data e))))))
 
 (defn batch-render [gl render-args renderables key-fn]
   (loop [renderables renderables
@@ -311,6 +354,7 @@
           passes))
 
 (defn- flatten-scene-renderables! [pass-renderables
+                                   parent-shows-children
                                    scene
                                    selection-set
                                    hidden-renderable-tags
@@ -330,8 +374,16 @@
         world-translation (math/transform parent-world-transform (math/translation local-transform))
         world-rotation (doto (Quat4d. parent-world-rotation) (.mul local-rotation))
         world-scale (math/multiply-vector parent-world-scale (math/scale local-transform))
-        appear-selected? (some? (some selection-set node-id-path)) ; Child nodes appear selected if parent is.
-        picking-node-id (or (:picking-node-id scene) (peek node-id-path))
+        node-id (peek node-id-path)
+        picking-node-id (or (:picking-node-id scene) node-id)
+        selection-state (cond
+                          (contains? selection-set node-id) :self-selected ; This node is selected.
+                          (some selection-set node-id-path) :parent-selected) ; Child nodes appear dimly selected if their parent is selected.
+        visible? (and parent-shows-children
+                      (:visible-self? renderable true)
+                      (not (scene-visibility/hidden-outline-key-path? hidden-node-outline-key-paths node-outline-key-path))
+                      (not-any? (partial contains? hidden-renderable-tags) (:tags renderable)))
+        aabb ^AABB (if visible? (:aabb scene geom/null-aabb) geom/null-aabb)
         flat-renderable (-> scene
                             (dissoc :children :renderable)
                             (assoc :node-id-path node-id-path
@@ -345,14 +397,15 @@
                                    :world-scale world-scale
                                    :world-transform world-transform
                                    :parent-world-transform parent-world-transform
-                                   :selected appear-selected?
+                                   :selected selection-state
                                    :user-data (:user-data renderable)
                                    :batch-key (:batch-key renderable)
-                                   :aabb (geom/aabb-transform ^AABB (:aabb scene geom/null-aabb) world-transform)
+                                   :aabb (geom/aabb-transform aabb world-transform)
                                    :render-key (render-key view-proj world-transform (:index renderable) (:topmost? renderable))
-                                   :pass-overrides {pass/outline {:render-key (outline-render-key view-proj world-transform (:index renderable) (:topmost? renderable) appear-selected?)}}))
-        visible? (and (not (contains? hidden-node-outline-key-paths node-outline-key-path))
-                      (not-any? (partial contains? hidden-renderable-tags) (:tags flat-renderable)))
+                                   :pass-overrides {pass/outline {:render-key (outline-render-key view-proj world-transform (:index renderable) (:topmost? renderable) selection-state)}}))
+        flat-renderable (if visible?
+                          flat-renderable
+                          (dissoc flat-renderable :updatable))
         drawn-passes (cond
                        ;; Draw to all passes unless hidden.
                        visible?
@@ -366,7 +419,7 @@
                        ;; within their outlines, and more importantly, the
                        ;; manipulator disappears, since it aligns to selection
                        ;; pass renderables.
-                       appear-selected?
+                       selection-state
                        (filterv #(or (= pass/outline %)
                                      (= pass/selection %))
                                 (:passes renderable)))
@@ -381,6 +434,7 @@
                                                   node-outline-key-path
                                                   (conj node-outline-key-path (:node-outline-key child-scene)))]
                 (flatten-scene-renderables! pass-renderables
+                                            (and parent-shows-children (:visible-children? renderable true))
                                             child-scene
                                             selection-set
                                             hidden-renderable-tags
@@ -428,7 +482,8 @@
         parent-world-transform geom/Identity4d
         parent-world-scale (Vector3d. 1 1 1)]
     (-> (make-pass-renderables)
-        (flatten-scene-renderables! scene
+        (flatten-scene-renderables! true
+                                    scene
                                     selection-set
                                     hidden-renderable-tags
                                     hidden-node-outline-key-paths
@@ -618,8 +673,7 @@
 (defn map-scene [f scene]
   (letfn [(scene-fn [scene]
             (let [children (:children scene)]
-              (cond-> scene
-                true (f)
+              (cond-> (f scene)
                 children (update :children (partial mapv scene-fn)))))]
     (scene-fn scene)))
 
@@ -635,10 +689,10 @@
   ;; its children. Note that sub-elements can still be selected using the
   ;; Outline view should the need arise.
   (let [old-node-id (:node-id scene)
-        child-f (partial claim-child-scene old-node-id new-node-id new-node-outline-key)
         children (:children scene)]
     (cond-> (assoc scene :node-id new-node-id :node-outline-key new-node-outline-key)
-      children (update :children (partial mapv (partial map-scene child-f))))))
+            children (assoc :children (mapv (partial map-scene (partial claim-child-scene old-node-id new-node-id new-node-outline-key))
+                                            children)))))
 
 (defn- box-selection? [^Rect picking-rect]
   (or (> (.width picking-rect) selection/min-pick-size)
@@ -825,7 +879,7 @@
   (output tool-selection g/Any :cached produce-tool-selection)
   (output selected-tool-renderables g/Any :cached produce-selected-tool-renderables))
 
-(defn refresh-scene-view! [node-id]
+(defn refresh-scene-view! [node-id dt]
   (g/with-auto-evaluation-context evaluation-context
     (let [image-view (g/node-value node-id :image-view evaluation-context)]
       (when-not (ui/inside-hidden-tab? image-view)
@@ -840,7 +894,7 @@
               (do (ui/text! info-label info-text)
                   (ui/visible! info-label true))))
           (when (and (some? drawable) (some? async-copy-state-atom))
-            (update-image-view! image-view drawable async-copy-state-atom evaluation-context)))))))
+            (update-image-view! image-view drawable async-copy-state-atom evaluation-context dt)))))))
 
 (defn dispose-scene-view! [node-id]
   (when-let [scene (g/node-by-id node-id)]
@@ -853,6 +907,7 @@
       (.destroy drawable))
     (when-let [^GLAutoDrawable picking-drawable (g/node-value node-id :picking-drawable)]
       (gl/with-drawable-as-current picking-drawable
+        (scene-cache/drop-context! gl)
         (.glFinish gl))
       (.destroy picking-drawable))
     (g/transact
@@ -934,21 +989,28 @@
   (run [app-view] (when-let [view (active-scene-view app-view)]
                     (stop-handler view))))
 
-(defn set-camera! [camera-node start-camera end-camera animate?]
-  (if animate?
-    (let [duration 0.5]
-      (ui/anim! duration
-                (fn [^double t]
-                  (let [t (- (* t t 3) (* t t t 2))
-                        cam (c/interpolate start-camera end-camera t)]
-                    (g/transact
-                      (g/set-property camera-node :local-camera cam))))
-                (fn []
-                  (g/transact
-                    (g/set-property camera-node :local-camera end-camera)))))
-    (g/transact
-      (g/set-property camera-node :local-camera end-camera)))
-  nil)
+(defn set-camera!
+  ([camera-node start-camera end-camera animate?]
+   (set-camera! camera-node start-camera end-camera animate? nil))
+  ([camera-node start-camera end-camera animate? on-animation-end]
+   (if animate?
+     (let [duration 0.5]
+       (g/transact (g/set-property camera-node :animating true))
+       (ui/anim! duration
+                 (fn [^double t]
+                   (let [t (- (* t t 3) (* t t t 2))
+                         cam (c/interpolate start-camera end-camera t)]
+                     (g/transact
+                       (g/set-property camera-node :local-camera cam))))
+                 (fn []
+                   (g/transact
+                     [(g/set-property camera-node :local-camera end-camera)
+                      (g/set-property camera-node :animating false)])
+                   (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
+                   (when on-animation-end (on-animation-end)))))
+     (g/transact
+       (g/set-property camera-node :local-camera end-camera)))
+   nil))
 
 (defn- fudge-empty-aabb
   ^AABB [^AABB aabb]
@@ -966,21 +1028,16 @@
                           (cond-> (.y max-p) zero-y inc)
                           (cond-> (.z max-p) zero-z inc)]))))
 
-(defn frame-selection [view animate?]
-  (let [aabb (fudge-empty-aabb (g/node-value view :selected-aabb))
-        camera (view->camera view)
-        viewport (g/node-value view :viewport)
-        local-cam (g/node-value camera :local-camera)
-        end-camera (c/camera-frame-aabb local-cam viewport aabb)]
-    (set-camera! camera local-cam end-camera animate?)))
-
-(defn realign-camera [view animate?]
-  (let [aabb (fudge-empty-aabb (g/node-value view :selected-aabb))
-        camera (view->camera view)
-        viewport (g/node-value view :viewport)
-        local-cam (g/node-value camera :local-camera)
-        end-camera (c/camera-orthographic-realign (c/camera-ensure-orthographic local-cam) viewport aabb)]
-    (set-camera! camera local-cam end-camera animate?)))
+(defn frame-selection
+  ([view animate?]
+   (let [aabb (fudge-empty-aabb (g/node-value view :selected-aabb))]
+     (frame-selection view animate? aabb)))
+  ([view animate? aabb]
+   (let [camera (view->camera view)
+         viewport (g/node-value view :viewport)
+         local-cam (g/node-value camera :local-camera)
+         end-camera (c/camera-frame-aabb local-cam viewport aabb)]
+     (set-camera! camera local-cam end-camera animate?))))
 
 (defn set-camera-type! [view projection-type]
   (let [camera-controller (view->camera view)
@@ -992,6 +1049,60 @@
                          :perspective (c/camera-orthographic->perspective old-camera c/fov-y-35mm-full-frame))]
         (set-camera! camera-controller old-camera new-camera false)))))
 
+(defn- sync-camera-position
+  [^Camera camera-a ^Camera camera-b viewport]
+  (let [focus ^Vector4d (:focus-point camera-b)
+        point (c/camera-project camera-b viewport (Point3d. (.x focus) (.y focus) (.z focus)))
+        world (c/camera-unproject camera-a viewport (.x point) (.y point) (.z point))
+        delta (c/camera-unproject camera-b viewport (.x point) (.y point) (.z point))]
+    (.sub delta world)
+    (cond-> camera-a
+      :always
+      (-> (c/camera-ensure-orthographic)
+          (c/camera-move (.x delta) (.y delta) (.z delta))
+          (assoc :fov-x (:fov-x camera-b)
+                 :fov-y (:fov-y camera-b)))
+
+      (= (:type camera-a) :perspective)
+      (c/camera-orthographic->perspective c/fov-y-35mm-full-frame))))
+
+(defn- get-3d-camera
+  [camera]
+  (or (g/node-value camera :cached-3d-camera)
+      (c/tumble (g/node-value camera :local-camera) 200.0 -100.0)))
+
+(defn- camera-2d?
+  [view]
+  (some-> (view->camera view)
+          (g/node-value :local-camera)
+          (c/mode-2d?)))
+
+(defmulti realign-camera (fn [view _animate?] (if (camera-2d? view) :2d :3d)))
+
+(defmethod realign-camera :2d
+  [view animate?]
+  (let [camera-node (view->camera view)
+        local-cam (g/node-value camera-node :local-camera)
+        viewport (g/node-value view :viewport)
+        camera-3d (-> (get-3d-camera camera-node)
+                      (sync-camera-position local-cam viewport))
+        local-cam (cond-> local-cam
+                    (= (:type camera-3d) :perspective)
+                    (c/camera-orthographic->perspective c/fov-y-35mm-full-frame))]
+    (set-camera! camera-node local-cam camera-3d animate?)))
+
+(defmethod realign-camera :3d
+  [view animate?]
+  (let [camera-node (view->camera view)
+        local-cam (g/node-value camera-node :local-camera)
+        is-perspective (= (:type local-cam) :perspective)]
+    (g/transact (g/set-property camera-node :cached-3d-camera local-cam))
+    (let [end-camera (cond-> local-cam
+                       is-perspective c/camera-perspective->orthographic
+                       :always c/camera-orthographic-realign
+                       is-perspective (c/camera-orthographic->perspective c/fov-y-35mm-full-frame))]
+      (set-camera! camera-node local-cam end-camera animate? #(set-camera-type! view :orthographic)))))
+
 (handler/defhandler :frame-selection :global
   (active? [app-view evaluation-context]
            (active-scene-view app-view evaluation-context))
@@ -999,14 +1110,21 @@
             (when-let [view (active-scene-view app-view evaluation-context)]
               (let [selected (g/node-value view :selection evaluation-context)]
                 (not (empty? selected)))))
-  (run [app-view] (when-let [view (active-scene-view app-view)]
-                    (frame-selection view true))))
+  (run [app-view] (some-> (active-scene-view app-view)
+                          (frame-selection true))))
+
+(defn- camera-animating?
+  [app-view]
+  (some-> (active-scene-view app-view)
+          (view->camera)
+          (g/node-value :animating)))
 
 (handler/defhandler :realign-camera :global
   (active? [app-view evaluation-context]
            (active-scene-view app-view evaluation-context))
-  (run [app-view] (when-let [view (active-scene-view app-view)]
-                    (realign-camera view true))))
+  (enabled? [app-view] (not (camera-animating? app-view)))
+  (run [app-view] (some-> (active-scene-view app-view) 
+                          (realign-camera true))))
 
 (handler/defhandler :set-camera-type :global
   (active? [app-view evaluation-context]
@@ -1019,10 +1137,20 @@
                  (g/node-value :camera-type)
                  (= (:camera-type user-data)))))
 
+(handler/defhandler :toggle-2d-mode :workbench
+  (active? [app-view evaluation-context]
+           (active-scene-view app-view evaluation-context))
+  (enabled? [app-view] (not (camera-animating? app-view)))
+  (run [app-view] (some-> (active-scene-view app-view) 
+                          (realign-camera true)))
+  (state [app-view] (camera-2d? (active-scene-view app-view))))
+
 ;; Used in the scene view tool bar.
 (handler/defhandler :toggle-perspective-camera :workbench
   (active? [app-view evaluation-context]
            (active-scene-view app-view evaluation-context))
+  (enabled? [app-view] (and (not (camera-2d? (active-scene-view app-view)))
+                            (not (camera-animating? app-view))))
   (run [app-view]
        (when-some [view (active-scene-view app-view)]
          (set-camera-type! view
@@ -1053,7 +1181,7 @@
   (state [prefs] (scene-tools/move-whole-pixels? prefs))
   (run [prefs] (scene-tools/set-move-whole-pixels! prefs (not (scene-tools/move-whole-pixels? prefs)))))
 
-(handler/register-menu! ::menubar :editor.app-view/edit-end
+(handler/register-menu! ::menubar-edit :editor.app-view/edit-end
   [{:label :separator}
    {:label "World Space"
     :command :set-manip-space
@@ -1068,7 +1196,7 @@
     :command :toggle-move-whole-pixels
     :check true}])
 
-(handler/register-menu! ::menubar :editor.app-view/view-end
+(handler/register-menu! ::menubar-view :editor.app-view/view-end
   [{:label "Toggle Visibility Filters"
     :command :toggle-visibility-filters}
    {:label "Toggle Component Guides"
@@ -1076,12 +1204,10 @@
    {:label "Toggle Grid"
     :command :toggle-grid}
    {:label :separator}
-   {:label "Hide Selected Objects"
-    :command :hide-selected}
+   {:label "Show/Hide Selected Objects"
+    :command :hide-toggle-selected}
    {:label "Hide Unselected Objects"
     :command :hide-unselected}
-   {:label "Show Selected Objects"
-    :command :show-selected}
    {:label "Show Last Hidden Objects"
     :command :show-last-hidden}
    {:label "Show All Hidden Objects"
@@ -1113,9 +1239,8 @@
           action input-handlers))
 
 (defn- update-updatables
-  [updatable-states play-mode active-updatables]
-  (let [dt 1/60 ; fixed dt for deterministic playback
-        context {:dt (if (= play-mode :playing) dt 0)}]
+  [updatable-states play-mode active-updatables dt]
+  (let [context {:dt (if (= play-mode :playing) dt 0)}]
     (reduce (fn [ret {:keys [update-fn node-id world-transform initial-state]}]
               (let [context (assoc context
                               :world-transform world-transform
@@ -1125,7 +1250,7 @@
             {}
             active-updatables)))
 
-(defn update-image-view! [^ImageView image-view ^GLAutoDrawable drawable async-copy-state-atom evaluation-context]
+(defn update-image-view! [^ImageView image-view ^GLAutoDrawable drawable async-copy-state-atom evaluation-context dt]
   (when-let [view-id (ui/user-data image-view ::view-id)]
     (let [action-queue (g/node-value view-id :input-action-queue evaluation-context)
           render-mode (g/node-value view-id :render-mode evaluation-context)
@@ -1134,7 +1259,7 @@
           active-updatables (g/node-value view-id :active-updatables evaluation-context)
           updatable-states (g/node-value view-id :updatable-states evaluation-context)
           new-updatable-states (if (seq active-updatables)
-                                 (profiler/profile "updatables" -1 (update-updatables updatable-states play-mode active-updatables))
+                                 (profiler/profile "updatables" -1 (update-updatables updatable-states play-mode active-updatables dt))
                                  updatable-states)
           renderables (g/node-value view-id :all-renderables evaluation-context)
           last-renderables (ui/user-data image-view ::last-renderables)
@@ -1165,15 +1290,26 @@
               (ui/user-data! image-view ::last-frame-version frame-version)
               (scene-cache/prune-context! gl)
               (reset! async-copy-state-atom (scene-async/finish-image! (scene-async/begin-read! @async-copy-state-atom gl) gl))))))
+      ;; call frame-selection if it's the very first aabb change for the scene
+      (let [prev-aabb (ui/user-data image-view ::prev-scene-aabb)
+            scene-aabb (g/node-value view-id :scene-aabb evaluation-context)
+            active-view (g/node-value view-id :active-view evaluation-context)
+            reframe? (and prev-aabb
+                          (geom/predefined-aabb? prev-aabb)
+                          (not (geom/predefined-aabb? scene-aabb)))]
+        (ui/user-data! image-view ::prev-scene-aabb scene-aabb)
+        (when reframe?
+          (when active-view
+            (frame-selection active-view true scene-aabb))))
       (let [new-image (scene-async/image @async-copy-state-atom)]
         (when-not (identical? (.getImage image-view) new-image)
           (.setImage image-view new-image))))))
 
 (defn- nudge! [scene-node-ids ^double dx ^double dy ^double dz]
   (g/transact
-    (for [node-id scene-node-ids
-          :let [[^double x ^double y ^double z] (g/node-value node-id :position)]]
-      (g/set-property node-id :position [(+ x dx) (+ y dy) (+ z dz)]))))
+    (g/with-auto-evaluation-context evaluation-context
+      (for [node-id scene-node-ids]
+        (scene-tools/manip-move evaluation-context node-id (Vector3d. dx dy dz))))))
 
 (declare selection->movable)
 
@@ -1401,67 +1537,64 @@
                                (:grid opts) (:grid opts)
                                :else grid/Grid)
         tool-controller-type (get opts :tool-controller scene-tools/ToolController)]
-    (concat
-      (g/make-nodes view-graph
-                    [background      background/Background
-                     selection       [selection/SelectionController :select-fn (fn [selection op-seq]
-                                                                                 (g/transact
-                                                                                   (concat
-                                                                                     (g/operation-sequence op-seq)
-                                                                                     (g/operation-label "Select")
-                                                                                     (select-fn selection))))]
-                     camera          [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic identity {:fov-x 1000 :fov-y 1000}))]
-                     grid            grid-type
-                     tool-controller [tool-controller-type :prefs prefs]
-                     rulers          [rulers/Rulers]]
+    (g/make-nodes view-graph
+                  [background      background/Background
+                   selection       [selection/SelectionController :select-fn (fn [selection op-seq]
+                                                                               (g/transact
+                                                                                 (concat
+                                                                                   (g/operation-sequence op-seq)
+                                                                                   (g/operation-label "Select")
+                                                                                   (select-fn selection))))]
+                   camera          [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic identity {:fov-x 1000 :fov-y 1000}))]
+                   grid            grid-type
+                   tool-controller [tool-controller-type :prefs prefs]
+                   rulers          [rulers/Rulers]]
 
-                    (g/connect resource-node   :scene                         view-id         :scene)
+                  (g/connect resource-node   :scene                         view-id         :scene)
 
-                    (g/connect background      :renderable                    view-id         :aux-renderables)
+                  (g/connect background      :renderable                    view-id         :aux-renderables)
 
-                    (g/connect camera          :camera                        view-id         :camera)
-                    (g/connect camera          :input-handler                 view-id         :input-handlers)
-                    (g/connect view-id         :scene-aabb                    camera          :scene-aabb)
-                    (g/connect view-id         :viewport                      camera          :viewport)
+                  (g/connect camera          :camera                        view-id         :camera)
+                  (g/connect camera          :input-handler                 view-id         :input-handlers)
+                  (g/connect view-id         :scene-aabb                    camera          :scene-aabb)
+                  (g/connect view-id         :viewport                      camera          :viewport)
 
-                    (g/connect app-view-id     :selected-node-ids             view-id         :selection)
-                    (g/connect app-view-id     :active-view                   view-id         :active-view)
-                    (g/connect app-view-id     :active-tool                   view-id         :active-tool)
-                    (g/connect app-view-id     :manip-space                   view-id         :manip-space)
-                    (g/connect app-view-id     :hidden-renderable-tags        view-id         :hidden-renderable-tags)
-                    (g/connect app-view-id     :hidden-node-outline-key-paths view-id         :hidden-node-outline-key-paths)
+                  (g/connect app-view-id     :selected-node-ids             view-id         :selection)
+                  (g/connect app-view-id     :active-view                   view-id         :active-view)
+                  (g/connect app-view-id     :active-tool                   view-id         :active-tool)
+                  (g/connect app-view-id     :manip-space                   view-id         :manip-space)
+                  (g/connect app-view-id     :hidden-renderable-tags        view-id         :hidden-renderable-tags)
+                  (g/connect app-view-id     :hidden-node-outline-key-paths view-id         :hidden-node-outline-key-paths)
 
-                    (g/connect tool-controller :input-handler                 view-id         :input-handlers)
-                    (g/connect tool-controller :info-text                     view-id         :tool-info-text)
-                    (g/connect tool-controller :renderables                   view-id         :tool-renderables)
-                    (g/connect view-id         :active-tool                   tool-controller :active-tool)
-                    (g/connect view-id         :manip-space                   tool-controller :manip-space)
-                    (g/connect view-id         :viewport                      tool-controller :viewport)
-                    (g/connect camera          :camera                        tool-controller :camera)
-                    (g/connect view-id         :selected-renderables          tool-controller :selected-renderables)
+                  (g/connect tool-controller :input-handler                 view-id         :input-handlers)
+                  (g/connect tool-controller :info-text                     view-id         :tool-info-text)
+                  (g/connect tool-controller :renderables                   view-id         :tool-renderables)
+                  (g/connect view-id         :active-tool                   tool-controller :active-tool)
+                  (g/connect view-id         :manip-space                   tool-controller :manip-space)
+                  (g/connect view-id         :viewport                      tool-controller :viewport)
+                  (g/connect camera          :camera                        tool-controller :camera)
+                  (g/connect view-id         :selected-renderables          tool-controller :selected-renderables)
 
-                    (attach-tool-controller tool-controller-type tool-controller view-id resource-node)
+                  (attach-tool-controller tool-controller-type tool-controller view-id resource-node)
 
-                    (if (:grid opts)
-                      (attach-grid grid-type grid view-id resource-node camera)
-                      (g/delete-node grid))
+                  (if (:grid opts)
+                    (attach-grid grid-type grid view-id resource-node camera)
+                    (g/delete-node grid))
 
-                    (g/connect resource-node   :_node-id                      selection       :root-id)
-                    (g/connect selection       :renderable                    view-id         :tool-renderables)
-                    (g/connect selection       :input-handler                 view-id         :input-handlers)
-                    (g/connect selection       :picking-rect                  view-id         :picking-rect)
-                    (g/connect view-id         :picking-selection             selection       :picking-selection)
-                    (g/connect view-id         :selection                     selection       :selection)
+                  (g/connect resource-node   :_node-id                      selection       :root-id)
+                  (g/connect selection       :renderable                    view-id         :tool-renderables)
+                  (g/connect selection       :input-handler                 view-id         :input-handlers)
+                  (g/connect selection       :picking-rect                  view-id         :picking-rect)
+                  (g/connect view-id         :picking-selection             selection       :picking-selection)
+                  (g/connect view-id         :selection                     selection       :selection)
 
-                    (g/connect camera :camera rulers :camera)
-                    (g/connect rulers :renderables view-id :aux-renderables)
-                    (g/connect view-id :viewport rulers :viewport)
-                    (g/connect view-id :cursor-pos rulers :cursor-pos)
+                  (g/connect camera :camera rulers :camera)
+                  (g/connect rulers :renderables view-id :aux-renderables)
+                  (g/connect view-id :viewport rulers :viewport)
+                  (g/connect view-id :cursor-pos rulers :cursor-pos)
 
-                    (when-not (:manual-refresh? opts)
-                      (g/connect view-id :_node-id app-view-id :scene-view-ids)))
-      (when-let [node-id (:select-node opts)]
-        (select-fn [node-id])))))
+                  (when-not (:manual-refresh? opts)
+                    (g/connect view-id :_node-id app-view-id :scene-view-ids)))))
 
 (defn make-view [graph ^Parent parent resource-node opts]
   (let [view-id (make-scene-view graph parent opts)]
@@ -1500,35 +1633,58 @@
                                 :focus-fn focus-view))
 
 (g/defnk produce-transform [position rotation scale]
-  (let [position-v3 (doto (Vector3d.) (math/clj->vecmath position))
-        rotation-q4 (doto (Quat4d.) (math/clj->vecmath rotation))
-        scale-v3 (Vector3d. (double-array scale))]
-    (math/->mat4-non-uniform position-v3 rotation-q4 scale-v3)))
+  (math/clj->mat4 position rotation scale))
+
+(g/defnk produce-pose [position rotation scale]
+  (pose/make position rotation scale))
 
 (def produce-no-transform-properties (g/constantly #{}))
 (def produce-scalable-transform-properties (g/constantly #{:position :rotation :scale}))
 (def produce-unscalable-transform-properties (g/constantly #{:position :rotation}))
 
 ;; Arbitrarily small value to avoid 0-determinants
-(def ^:private ^:const scale-min 0.000001)
+(def ^:private ^:const ^float scale-min-float (float 0.000001))
 
-(defn- non-zeroify-scale [^double v]
-  (if (< (Math/abs v) scale-min) (Math/copySign scale-min v) v))
+(def ^:private ^:const ^double scale-min-double 0.000001)
+
+(defn- non-zeroify-component [num]
+  (cond
+    (instance? Float num)
+    (let [num-float (float num)]
+      (if (< (Math/abs num-float) scale-min-float)
+        (Math/copySign scale-min-float num-float)
+        num-float))
+
+    (double? num)
+    (let [num-double (double num)]
+      (if (< (Math/abs num-double) scale-min-double)
+        (Math/copySign scale-min-double num-double)
+        num-double))
+
+    :else
+    num))
+
+(defn non-zeroify-scale [scale]
+  (into (coll/empty-with-meta scale)
+        (map non-zeroify-component)
+        scale))
 
 (g/defnode SceneNode
-  (property position types/Vec3 (default [0.0 0.0 0.0])
+  (property position types/Vec3 (default default-position)
             (dynamic visible (g/fnk [transform-properties] (contains? transform-properties :position))))
-  (property rotation types/Vec4 (default [0.0 0.0 0.0 1.0])
+  (property rotation types/Vec4 (default default-rotation)
             (dynamic visible (g/fnk [transform-properties] (contains? transform-properties :rotation)))
-            (dynamic edit-type (g/constantly (properties/quat->euler))))
-  (property scale types/Vec3 (default [1.0 1.0 1.0])
+            (dynamic edit-type (g/constantly properties/quat-rotation-edit-type)))
+  (property scale types/Vec3 (default default-scale)
+            (dynamic edit-type (g/constantly {:type types/Vec3 :precision 0.1}))
             (dynamic visible (g/fnk [transform-properties] (contains? transform-properties :scale)))
             (set (fn [_evaluation-context self _old-value new-value]
                    (when (some? new-value)
-                     (g/set-property self :scale (mapv non-zeroify-scale new-value))))))
+                     (g/set-property self :scale (non-zeroify-scale new-value))))))
 
   (output transform-properties g/Any :abstract)
   (output transform Matrix4d :cached produce-transform)
+  (output pose Pose produce-pose)
   (output scene g/Any :cached (g/fnk [^g/NodeID _node-id ^Matrix4d transform] {:node-id _node-id :transform transform})))
 
 (defmethod scene-tools/manip-movable? ::SceneNode [node-id]
@@ -1540,27 +1696,50 @@
 (defmethod scene-tools/manip-scalable? ::SceneNode [node-id]
   (contains? (g/node-value node-id :transform-properties) :scale))
 
+(defn- manip-scene-node [apply-delta-fn prop-kw evaluation-context node-id vecmath-delta]
+  (g/set-property node-id prop-kw
+    (-> (g/node-value node-id prop-kw evaluation-context)
+        (apply-delta-fn vecmath-delta))))
+
+(defn apply-move-delta [old-clj-position vecmath-delta]
+  (let [old-vecmath-position (doto (Vector3d.) (math/clj->vecmath old-clj-position))
+        new-vecmath-position (math/add-vector old-vecmath-position vecmath-delta)
+        num-fn (if (math/float32? (first old-clj-position))
+                 properties/round-scalar-float
+                 properties/round-scalar)]
+    (into (coll/empty-with-meta old-clj-position)
+          (map num-fn)
+          (math/vecmath->clj new-vecmath-position))))
+
+(def manip-move-scene-node (partial manip-scene-node apply-move-delta :position))
+
 (defmethod scene-tools/manip-move ::SceneNode [evaluation-context node-id delta]
-  (let [orig-p ^Vector3d (doto (Vector3d.) (math/clj->vecmath (g/node-value node-id :position evaluation-context)))
-        p (math/add-vector orig-p delta)]
-    (g/set-property node-id :position (properties/round-vec (math/vecmath->clj p)))))
+  (manip-move-scene-node evaluation-context node-id delta))
+
+(defn apply-rotate-delta [old-clj-rotation vecmath-delta]
+  ;; Note! The rotation is not rounded here like we do for apply-move-delta and
+  ;; apply-scale-delta. As the user-facing property is the euler angles, they
+  ;; will be rounded in properties/quat->euler.
+  (let [new-vecmath-rotation (doto (Quat4d.) (math/clj->vecmath old-clj-rotation) (.mul vecmath-delta))]
+    (if (math/float32? (first old-clj-rotation))
+      (into (coll/empty-with-meta old-clj-rotation)
+            (map float)
+            (math/vecmath->clj new-vecmath-rotation))
+      (math/vecmath-into-clj new-vecmath-rotation
+                             (coll/empty-with-meta old-clj-rotation)))))
+
+(def manip-rotate-scene-node (partial manip-scene-node apply-rotate-delta :rotation))
 
 (defmethod scene-tools/manip-rotate ::SceneNode [evaluation-context node-id delta]
-  (let [new-rotation (math/vecmath->clj
-                       (doto (Quat4d.)
-                         (math/clj->vecmath (g/node-value node-id :rotation evaluation-context))
-                         (.mul delta)))]
-    ;; Note! The rotation is not rounded here like manip-move and manip-scale.
-    ;; As the user-facing property is the euler angles, they are rounded in properties/quat->euler.
-    (g/set-property node-id :rotation new-rotation)))
+  (manip-rotate-scene-node evaluation-context node-id delta))
+
+(defn apply-scale-delta [old-scale vecmath-delta]
+  (properties/scale-and-round-vec old-scale vecmath-delta))
+
+(def manip-scale-scene-node (partial manip-scene-node apply-scale-delta :scale))
 
 (defmethod scene-tools/manip-scale ::SceneNode [evaluation-context node-id delta]
-  (let [s (Vector3d. (double-array (g/node-value node-id :scale evaluation-context)))
-        ^Vector3d d delta]
-    (.setX s (* (.x s) (.x d)))
-    (.setY s (* (.y s) (.y d)))
-    (.setZ s (* (.z s) (.z d)))
-    (g/set-property node-id :scale (properties/round-vec [(.x s) (.y s) (.z s)]))))
+  (manip-scale-scene-node evaluation-context node-id delta))
 
 (defn selection->movable [selection]
   (handler/selection->node-ids selection scene-tools/manip-movable?))

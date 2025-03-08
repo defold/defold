@@ -1,0 +1,591 @@
+local M = {}
+
+-- LINUX
+
+local linux_platforms = {"x86_64-linux", "arm64-linux"}
+local linux_platform_to_string = editor.bundle.make_to_string_lookup({["x86_64-linux"] = "X64", ["arm64-linux"] = "Arm64"})
+local linux_bundle_dialog = editor.ui.component(function(props)
+    local config, set_config = editor.ui.use_state(props.config)
+    return editor.bundle.dialog("Bundle linux Application", config, nil, nil, {
+        editor.bundle.grid_row("Platform", editor.bundle.select_box(config, set_config, "platform", linux_platforms, linux_platform_to_string)),
+        editor.bundle.desktop_variant_grid_row(config, set_config),
+        editor.bundle.texture_compression_grid_row(config, set_config),
+        editor.bundle.check_boxes_grid_row(config, set_config)
+    })
+end)
+
+local function bundle_linux(show_dialog)
+    local config = editor.bundle.config(show_dialog, "bundle.linux", linux_bundle_dialog)
+    local output_directory = editor.bundle.output_directory(show_dialog, config.platform)
+    editor.bundle.create(config, output_directory, {platform = config.platform, architectures = config.platform})
+end
+
+-- MACOS
+
+local function macos_errors(config)
+    if not next(config.architectures) then
+        return "At least one architecture must be selected."
+    end
+end
+
+local macos_bundle_dialog = editor.ui.component(function(props)
+    local config, set_config = editor.ui.use_state(props.config)
+    local architecture_error = macos_errors(config)
+    return editor.bundle.dialog("Bundle macOS Application", config, nil, architecture_error, {
+        editor.bundle.grid_row("Architectures", {
+            editor.bundle.set_element_check_box(config, set_config, "architectures", "x86_64-macos", "x86_64", architecture_error),
+            editor.bundle.set_element_check_box(config, set_config, "architectures", "arm64-macos", "arm64", architecture_error)
+        }),
+        editor.bundle.desktop_variant_grid_row(config, set_config),
+        editor.bundle.texture_compression_grid_row(config, set_config),
+        editor.bundle.check_boxes_grid_row(config, set_config)
+    })
+end)
+
+local function bundle_macos(show_dialog)
+    local config = editor.bundle.config(show_dialog, "bundle.macos", macos_bundle_dialog, macos_errors)
+    local arm64 = config.architectures["arm64-macos"]
+    local x86_64 = config.architectures["x86_64-macos"]
+    local output_subdir = (arm64 and x86_64 and "universal-macos") or (arm64 and "arm64-macos") or "x86_64-macos"
+    local output_directory = editor.bundle.output_directory(show_dialog, output_subdir)
+    local architectures = (arm64 and x86_64 and "arm64-macos,x86_64-macos") or (arm64 and "arm64-macos") or "x86_64-macos"
+    editor.bundle.create(config, output_directory, {platform = "x86_64-macos", architectures = architectures})
+end
+
+-- HTML5
+
+local function html5_errors(config)
+    if not next(config.architectures) then
+        return "At least one architecture must be selected."
+    end
+end
+
+local html5_bundle_dialog = editor.ui.component(function(props)
+    local config, set_config = editor.ui.use_state(props.config)
+    local architecture_error = html5_errors(config)
+    return editor.bundle.dialog("Bundle HTML5 Application", config, nil, architecture_error, {
+        editor.bundle.grid_row("Architectures", {
+            editor.bundle.set_element_check_box(config, set_config, "architectures", "js-web", "asm.js", architecture_error),
+            editor.bundle.set_element_check_box(config, set_config, "architectures", "wasm-web", "WebAssembly (wasm)", architecture_error)
+        }),
+        editor.bundle.common_variant_grid_row(config, set_config),
+        editor.bundle.texture_compression_grid_row(config, set_config),
+        editor.bundle.check_boxes_grid_row(config, set_config)
+    })
+end)
+
+local function bundle_html5(show_dialog)
+    local config = editor.bundle.config(show_dialog, "bundle.html5", html5_bundle_dialog, html5_errors)
+    local js = config.architectures["js-web"]
+    local wasm = config.architectures["wasm-web"]
+    local output_subdir = (js and wasm and "universal-web") or (js and "js-web") or "wasm-web"
+    local output_directory = editor.bundle.output_directory(show_dialog, output_subdir)
+    local architectures = (js and wasm and "js-web,wasm-web") or (js and "js-web") or "wasm-web"
+    editor.bundle.create(config, output_directory, {platform = "js-web", architectures = architectures})
+end
+
+--- WINDOWS
+
+local windows_platforms = {"x86_64-win32", "x86-win32"}
+local windows_platform_to_string = editor.bundle.make_to_string_lookup({["x86_64-win32"] = "64-bit", ["x86-win32"] = "32-bit"})
+local windows_bundle_dialog = editor.ui.component(function(props)
+    local config, set_config = editor.ui.use_state(props.config)
+    return editor.bundle.dialog("Bundle Windows Application", config, nil, nil, {
+        editor.bundle.grid_row("Platform", editor.bundle.select_box(config, set_config, "platform", windows_platforms, windows_platform_to_string)),
+        editor.bundle.desktop_variant_grid_row(config, set_config),
+        editor.bundle.texture_compression_grid_row(config, set_config),
+        editor.bundle.check_boxes_grid_row(config, set_config)
+    })
+end)
+
+local function bundle_windows(show_dialog)
+    local config = editor.bundle.config(show_dialog, "bundle.windows", windows_bundle_dialog)
+    local output_directory = editor.bundle.output_directory(show_dialog, config.platform)
+    editor.bundle.create(config, output_directory, {platform = config.platform, architectures = config.platform})
+end
+
+--- IOS
+
+local function make_setter_with_validation(set_config, set_error, errors_fn)
+    return function(...)
+        local new_config = set_config(...)
+        set_error(errors_fn(new_config))
+    end
+end
+
+local function find_existing_path(paths)
+    for i = 1, #paths do
+        local path = paths[i]
+        local resolved_path
+        if type(path) == "table" then -- editor.execute call
+            local args = {}
+            for j = 1, #path do args[#args+1] = path[j] end
+            args[#args+1] = {reload_resources = false, out = "capture"}
+            local success, result = pcall(editor.execute, table.unpack(args))
+            -- take the first line in case e.g. `where` returns multiple matches
+            resolved_path = success and result and (result:match("^(.-)\r?\n") or result)
+        else -- string
+            local success, result = pcall(string.gsub, path, "%$(%w+)", function(var)
+                return assert(os.getenv(var))
+            end)
+            resolved_path = success and result
+        end
+        if resolved_path and editor.external_file_attributes(resolved_path).exists then
+            return resolved_path
+        end
+    end
+    return nil
+end
+
+local function get_ios_deploy_command()
+    local prefs_path = editor.prefs.get("tools.ios-deploy-path")
+    if #prefs_path > 0 then
+        if editor.external_file_attributes(prefs_path).exists then
+            return prefs_path
+        else
+            print(("ios-deploy path defined in preferences does not exist: '%s'"):format(prefs_path))
+            error(editor.bundle.abort_message)
+        end
+    end
+    local path = find_existing_path({{"which", "ios-deploy"}, "/opt/homebrew/bin/ios-deploy"})
+    if path then
+        return path
+    else
+        print("Could not find 'ios-deploy' on this system, please install it and try again.\nIf it's already installed, configure its path in the Preferences' Tools pane.")
+        error(editor.bundle.abort_message)
+    end
+end
+
+local function get_ios_device(ios_deploy)
+    local success, output = pcall(editor.execute, ios_deploy, "--detect", "--json", "--timeout", "1", {reload_resources = false, out = "capture"})
+    if not success then
+        print("Failed to list devices")
+        error(editor.bundle.abort_message)
+    end
+    local events = json.decode(output, {all=true})
+    for i = 1, #events do
+        local e = events[i]
+        if e.Event == "DeviceDetected" then
+            return {id = e.Device.DeviceIdentifier, label = e.Device.DeviceName}
+        end
+    end
+    print("No devices are connected")
+    error(editor.bundle.abort_message)
+end
+
+local function install_ios_app(ios_deploy, device_id, app_path)
+    local success = pcall(editor.execute, ios_deploy, "--id", device_id, "--bundle", app_path, {reload_resources = false})
+    if not success then
+        print("Failed to install the app")
+        error(editor.bundle.abort_message)
+    end
+end
+
+local function launch_ios_app(ios_deploy, device_id, app_path)
+    local success = pcall(editor.execute, ios_deploy, "--id", device_id, "--bundle", app_path, "--justlaunch", "--noinstall", {reload_resources = false})
+    if not success then
+        print("Failed to launch the app")
+        error(editor.bundle.abort_message)
+    end
+end
+
+local identity_to_string = editor.bundle.make_to_string_lookup({[""] = "None"})
+
+local function bundle_ios(show_dialog)
+    local identities_string = editor.execute("security", "find-identity", "-v", "-p", "codesigning", {
+        reload_resources = false,
+        out = "capture"
+    })
+    -- For matching lines like:
+    --   1) 0123456789ABCDEF0123456789ABCDEF01234567 "iPhone Developer: developer@company.com (0123ASDF)"
+    --                                                ^-match------------------------------------------^
+    local identities = {}
+    for name in string.gmatch(identities_string, "%s+%d+%)%s+[0-9A-Z]+%s+\"(.-)\"\n") do
+        identities[#identities+1] = name
+    end
+
+    local function ios_errors(config)
+        local ret = {}
+        if config.sign and #identities == 0 then
+            ret.sign = "No code signing identities found on this computer."
+        end
+        if config.sign and #config["code-signing-identity"] == 0 then
+            ret.identity = "Code signing identity must be set to sign the application."
+        end
+        if config.sign then
+            if #config["provisioning-profile"] == 0 then
+                ret.mobileprovisioning = "Provisioning profile must be set to sign the application."
+            elseif config["provisioning-profile"]:sub(-#".mobileprovision") ~= ".mobileprovision" then
+                ret.mobileprovisioning = "Invalid provisioning profile."
+            else
+                local attrs = editor.external_file_attributes(config["provisioning-profile"])
+                if not attrs.exists then
+                    ret.mobileprovisioning = "Provisioning profile file not found."
+                elseif not attrs.is_file then
+                    ret.mobileprovisioning = "Provisioning profile must be a file."
+                end
+            end
+        end
+        if not next(config.architectures) then
+            ret.architectures = "At least one architecture must be selected."
+        end
+        if next(ret) then
+            return ret
+        end
+    end
+
+    local identity_options = {""}
+    for i = 1, #identities do
+        identity_options[#identity_options+1] = identities[i]
+    end
+
+    local ios_dialog = editor.ui.component(function(props)
+        local config, set_config_raw = editor.ui.use_state(props.config)
+        local errors, set_errors = editor.ui.use_state(props.errors)
+        local set_config = editor.ui.use_memo(make_setter_with_validation, set_config_raw, set_errors, ios_errors)
+        return editor.bundle.dialog("Bundle iOS Application", config, nil, errors and select(2, next(errors)), {
+            editor.bundle.grid_row("Sign Application", editor.bundle.check_box(config, set_config, "sign", nil, {
+                issue = errors and errors.sign and {
+                    severity = editor.ui.ISSUE_SEVERITY.ERROR,
+                    message = errors.sign
+                }
+            })),
+            editor.bundle.grid_row("Code signing identity", editor.bundle.select_box(config, set_config, "code-signing-identity", identity_options, identity_to_string, {
+                enabled = config.sign and #identities > 0,
+                issue = errors and errors.identity and {
+                    severity = editor.ui.ISSUE_SEVERITY.ERROR,
+                    message = errors.identity
+                }
+            })),
+            editor.bundle.grid_row("Provisioning profile", editor.bundle.external_file_field(config, set_config, "provisioning-profile", errors and errors.mobileprovisioning, {
+                enabled = config.sign,
+                title = "Choose Provisioning Profile",
+                filters = {{
+                    description = "Provisioning Profiles (*.mobileprovision)",
+                    extensions = {"*.mobileprovision"}
+                }}
+            })),
+            editor.bundle.grid_row("Architectures", {
+                editor.bundle.set_element_check_box(config, set_config, "architectures", "arm64-ios", "64-bit (arm64)", errors and errors.architectures),
+                editor.bundle.set_element_check_box(config, set_config, "architectures", "x86_64-ios", "Simulator (x86_64)", errors and errors.architectures)
+            }),
+            editor.bundle.common_variant_grid_row(config, set_config),
+            editor.bundle.texture_compression_grid_row(config, set_config),
+            editor.bundle.check_boxes_grid_row(config, set_config),
+            {editor.ui.separator({column_span=2})},
+            editor.bundle.grid_row("On Bundled", {
+                editor.bundle.check_box(config, set_config, "install", "Install on connected device"),
+                editor.bundle.check_box(config, set_config, "launch", "Launch installed app", { enabled = config.install })
+            })
+        })
+    end)
+
+    local config = editor.bundle.config(show_dialog, "bundle.ios", ios_dialog, ios_errors)
+
+    local arm64 = config.architectures["arm64-ios"]
+    local x86_64 = config.architectures["x86_64-ios"]
+    local output_subdir = (arm64 and x86_64 and "universal-ios") or (arm64 and "arm64-ios") or "x86_64-ios"
+
+    local output_directory = editor.bundle.output_directory(show_dialog, output_subdir)
+
+    editor.bundle.create(config, output_directory, {
+        platform = "arm64-ios",
+        architectures = (arm64 and x86_64 and "arm64-ios,x86_64-ios") or (arm64 and "arm64-ios") or "x86_64-ios",
+        mobileprovisioning = config.sign and config["provisioning-profile"] or nil,
+        identity = config.sign and config["code-signing-identity"] or nil
+    })
+
+    if config.install then
+        print("Resolving ios-deploy location...")
+        local ios_deploy = get_ios_deploy_command()
+        print(("Resolved to '%s', listing devices..."):format(ios_deploy))
+        local device = get_ios_device(ios_deploy)
+        print(("Installing on '%s'"):format(device.label))
+        local project_title = editor.get("/game.project", "project.title")
+        local app_path = output_directory .. "/" .. project_title .. ".app"
+        install_ios_app(ios_deploy, device.id, app_path)
+        if config.launch then
+            print(("Launching %s..."):format(project_title))
+            launch_ios_app(ios_deploy, device.id, app_path)
+            print("Install and launch done.")
+        else
+            print("Install done.")
+        end
+    end
+end
+
+--- ANDROID
+
+local function android_errors(config)
+    local errors = {}
+    local keystore = #config.keystore > 0 and config.keystore or nil
+    local keystore_pass = #config["keystore-pass"] > 0 and config["keystore-pass"] or nil
+    if keystore and not editor.external_file_attributes(keystore).exists then
+        errors.keystore = "Keystore file not found."
+    elseif keystore and keystore:sub(-#".keystore") ~= ".keystore" and keystore:sub(-#".jks") ~= ".jks" then
+        errors.keystore = "Invalid keystore."
+    elseif not keystore and keystore_pass then
+        errors.keystore = "Keystore must be set if keystore password is specified."
+    end
+    if keystore_pass and not editor.external_file_attributes(keystore_pass).exists then
+        errors.keystore_pass = "Keystore password file not found."
+    elseif keystore_pass and keystore_pass:sub(-#".txt") ~= ".txt" then
+        errors.keystore_pass = "Invalid keystore password file."
+    elseif keystore and not keystore_pass then
+        errors.keystore_pass = "Keystore password must be set if keystore is specified."
+    end
+    local key_pass = #config["key-pass"] > 0 and config["key-pass"] or nil
+    if key_pass and not editor.external_file_attributes(key_pass).exists then
+        errors.key_pass = "Key password file not found."
+    elseif key_pass and key_pass:sub(-#".txt") ~= ".txt" then
+        errors.key_pass = "Invalid key password file."
+    elseif key_pass and not keystore then
+        errors.key_pass = "Keystore must be set if key password is specified."
+    end
+    if not next(config.architectures) then
+        errors.architectures = "At least one architecture must be selected."
+    end
+    if not next(config.bundle_format) then
+        errors.bundle_format = "No bundle format selected."
+    end
+    if next(errors) then
+        return errors
+    end
+end
+
+local android_dialog = editor.ui.component(function(props)
+    local config, set_config_raw = editor.ui.use_state(props.config)
+    local errors, set_errors = editor.ui.use_state(props.errors)
+    local set_config = editor.ui.use_memo(make_setter_with_validation, set_config_raw, set_errors, android_errors)
+    local hint = #config.keystore == 0 and "Set keystore, or leave blank to sign with an auto-generated debug certificate." or nil
+    local can_install_and_launch = config.bundle_format.apk or false -- may be nil, but we need a boolean
+    return editor.bundle.dialog("Bundle Android Application", config, hint, errors and select(2, next(errors)), {
+        editor.bundle.grid_row("Keystore", editor.bundle.external_file_field(config, set_config, "keystore", errors and errors.keystore, {
+            title = "Choose Keystore",
+            filters = {{
+                description = "Keystore (*.keystore, *.jks)",
+                extensions = {"*.keystore", "*.jks"}
+            }}
+        })),
+        editor.bundle.grid_row("Keystore Password", editor.bundle.external_file_field(config, set_config, "keystore-pass", errors and errors.keystore_pass, {
+            title = "Choose Keystore password",
+            filters = {{
+                description = "Keystore password (*.txt)",
+                extensions = {"*.txt"}
+            }}
+        })),
+        editor.bundle.grid_row("Key Password", editor.bundle.external_file_field(config, set_config, "key-pass", errors and errors.key_pass, {
+            title = "Choose Key password",
+            filters = {{
+                description = "Key password (*.txt)",
+                extensions = {"*.txt"}
+            }}
+        })),
+        editor.bundle.grid_row("Architectures", {
+            editor.bundle.set_element_check_box(config, set_config, "architectures", "armv7-android", "32-bit (armv7)", errors and errors.architectures),
+            editor.bundle.set_element_check_box(config, set_config, "architectures", "arm64-android", "64-bit (arm64)", errors and errors.architectures)
+        }),
+        editor.bundle.grid_row("Bundle Format", {
+            editor.bundle.set_element_check_box(config, set_config, "bundle_format", "apk", "APK", errors and errors.bundle_format),
+            editor.bundle.set_element_check_box(config, set_config, "bundle_format", "aab", "AAB", errors and errors.bundle_format)
+        }),
+        editor.bundle.common_variant_grid_row(config, set_config),
+        editor.bundle.texture_compression_grid_row(config, set_config),
+        editor.bundle.check_boxes_grid_row(config, set_config),
+        {editor.ui.separator({column_span=2})},
+        editor.bundle.grid_row("On Bundled", {
+            editor.bundle.check_box(config, set_config, "install", "Install on connected device", {enabled = can_install_and_launch}),
+            editor.bundle.check_box(config, set_config, "launch", "Launch installed app", { enabled = config.install and can_install_and_launch })
+        })
+    })
+end)
+
+local function get_adb_command()
+    local prefs_path = editor.prefs.get("tools.adb-path")
+    if #prefs_path > 0 then
+        if editor.external_file_attributes(prefs_path).exists then
+            return prefs_path
+        else
+            print(("ADB path defined in preferences does not exist: '%s'"):format(prefs_path))
+            error(editor.bundle.abort_message)
+        end
+    end
+    local os_name = editor.platform:match("^[^-]+-(.+)$")
+    local paths = {
+        macos = {
+            "$ANDROID_HOME/platform-tools/adb",
+            {"which", "adb"},
+            "$HOME/Library/Android/sdk/platform-tools/adb",
+            "/opt/homebrew/bin/adb"
+        },
+        linux = {
+            "$ANDROID_HOME/platform-tools/adb",
+            {"which", "adb"},
+            "$HOME/Android/Sdk/platform-tools/adb",
+            "/usr/bin/adb",
+            "/usr/lib/android-sdk/platform-tools/adb"
+        },
+        win32 = {
+            "$ANDROID_HOME\\platform-tools\\adb.exe",
+            {"where", "adb.exe"},
+            "$HOME\\AppData\\Local\\Android\\sdk\\platform-tools\\adb.exe",
+            "C:\\Program Files (x86)\\Android\\android-sdk\\platform-tools\\adb.exe"
+        }
+    }
+    local path = find_existing_path(paths[os_name])
+    if path then
+        return path
+    else
+        print("Could not find ADB on this system, please install it and try again")
+        print("If it's already installed, configure its path in the Preferences' Tools pane.")
+        error(editor.bundle.abort_message)
+    end
+end
+
+local function get_android_device(adb)
+    local devices_output = editor.execute(adb, "devices", "-l", {reload_resources = false, out = "capture"})
+    local id, kvs = devices_output:match("\n(%S+)%s+device%s([^\n]+)")
+    if not id then
+        print("No devices are connected")
+        error(editor.bundle.abort_message)
+    else
+        local model = kvs:match("model:(%S+)")
+        local device = kvs:match("device:(%S+)")
+        return {id = id, label = (device and model and (device .. " " .. model)) or device or model or id}
+    end
+end
+
+local function install_android_app(adb, device_id, apk_path)
+    local success = pcall(editor.execute, adb, "-s", device_id, "install", "-r", apk_path, {reload_resources = false})
+    if not success then
+        print("Failed to install APK")
+        error(editor.bundle.abort_message)
+    end
+end
+
+local function launch_android_app(adb, device_id, package)
+    local activity = package .. "/com.dynamo.android.DefoldActivity"
+    local success = pcall(editor.execute, adb, "-s", device_id, "shell", "am", "start", "-n", activity, {reload_resources = false})
+    if not success then
+        print("Failed to launch the app")
+        error(editor.bundle.abort_message)
+    end
+end
+
+local function bundle_android(show_dialog)
+    local config = editor.bundle.config(show_dialog, "bundle.android", android_dialog, android_errors)
+
+    local armv7 = config.architectures["armv7-android"]
+    local arm64 = config.architectures["arm64-android"]
+    local output_subdir = (armv7 and arm64 and "universal-android") or (armv7 and "armv7-android") or "arm64-android"
+    local output_directory = editor.bundle.output_directory(show_dialog, output_subdir)
+
+    local apk = config.bundle_format.apk
+    local aab = config.bundle_format.aab
+
+    editor.bundle.create(config, output_directory, {
+        platform = "armv7-android",
+        architectures = (armv7 and arm64 and "armv7-android,arm64-android") or (armv7 and "armv7-android") or "arm64-android",
+        bundle_format = (apk and aab and "apk,aab") or (apk and "apk") or "aab",
+        keystore = #config.keystore > 0 and config.keystore or nil,
+        keystore_pass = #config["keystore-pass"] > 0 and config["keystore-pass"] or nil,
+        key_pass = #config["key-pass"] > 0 and config["key-pass"] or nil
+    })
+
+    if apk and config.install then
+        print("Resolving ADB location...")
+        local adb = get_adb_command()
+        print(("Resolved to '%s', listing devices..."):format(adb))
+        local device = get_android_device(adb)
+        print(("Installing on '%s'..."):format(device.label))
+        local project_title = editor.get("/game.project", "project.title")
+        local binary_name = editor.bundle.project_binary_name(project_title)
+        local apk_path = output_directory .. "/" .. binary_name  .. "/" .. binary_name .. ".apk"
+        install_android_app(adb, device.id, apk_path)
+        if config.launch then
+            print(("Launching %s..."):format(project_title))
+            launch_android_app(adb, device.id, editor.get("/game.project", "android.package"))
+            print("Install and launch done.")
+        else
+            print("Install done.")
+        end
+    end
+end
+
+--- EDITOR EXTENSIONS
+
+local is_macos = editor.platform:sub(-#"macos") == "macos"
+
+function M.get_commands()
+    return {
+        editor.bundle.command("iOS Application...", "bundle-ios", bundle_ios, {
+            active = function() return is_macos end
+        }),
+        editor.bundle.command("Android Application...", "bundle-android", bundle_android),
+        editor.bundle.command("macOS Application...", "bundle-macos", bundle_macos),
+        editor.bundle.command("Windows Application...", "bundle-windows", bundle_windows),
+        editor.bundle.command("Linux Application...", "bundle-linux", bundle_linux),
+        editor.bundle.command("HTML5 Application...", "bundle-html5", bundle_html5),
+    }
+end
+
+function M.get_prefs_schema()
+    return {
+        -- legacy bundle settings: shared between all platforms
+        bundle = editor.prefs.schema.object({scope = editor.prefs.SCOPE.PROJECT, properties = {
+            variant = editor.prefs.schema.enum({values = {"debug", "release", "headless"}}),
+            ["texture-compression"] = editor.prefs.schema.enum({values = {"enabled", "disabled", "editor"}}),
+            ["debug-symbols"] = editor.prefs.schema.boolean({default = true}),
+            ["build-report"] = editor.prefs.schema.boolean(),
+            liveupdate = editor.prefs.schema.boolean(),
+            contentless = editor.prefs.schema.boolean()
+        }}),
+        -- new, per-platform bundle settings
+        ["bundle.linux"] = editor.bundle.config_schema(editor.bundle.desktop_variant_schema, {
+            platform = editor.prefs.schema.enum({values = linux_platforms})
+        }),
+        ["bundle.macos"] = editor.bundle.config_schema(editor.bundle.desktop_variant_schema, {
+            architectures = editor.prefs.schema.set({
+                item = editor.prefs.schema.enum({values = {"x86_64-macos", "arm64-macos"}}),
+                default = {["x86_64-macos"] = true, ["arm64-macos"] = true}
+            })
+        }),
+        ["bundle.html5"] = editor.bundle.config_schema(editor.bundle.common_variant_schema, {
+            architectures = editor.prefs.schema.set({
+                item = editor.prefs.schema.enum({values = {"js-web", "wasm-web"}}),
+                default = {["wasm-web"] = true}
+            })
+        }),
+        ["bundle.windows"] = editor.bundle.config_schema(editor.bundle.desktop_variant_schema, {
+            platform = editor.prefs.schema.enum({values = windows_platforms})
+        }),
+        ["bundle.ios"] = editor.bundle.config_schema(editor.bundle.common_variant_schema, {
+            sign = editor.prefs.schema.boolean({default = true}),
+            ["code-signing-identity"] = editor.prefs.schema.string(),
+            ["provisioning-profile"] = editor.prefs.schema.string(),
+            architectures = editor.prefs.schema.set({
+                item = editor.prefs.schema.enum({values = {"arm64-ios", "x86_64-ios"}}),
+                default = {["arm64-ios"] = true}
+            }),
+            install = editor.prefs.schema.boolean(),
+            launch = editor.prefs.schema.boolean()
+        }),
+        ["bundle.android"] = editor.bundle.config_schema(editor.bundle.common_variant_schema, {
+            keystore = editor.prefs.schema.string(),
+            ["keystore-pass"] = editor.prefs.schema.string(),
+            ["key-pass"] = editor.prefs.schema.string(),
+            architectures = editor.prefs.schema.set({
+                item = editor.prefs.schema.enum({values = {"armv7-android", "arm64-android"}}),
+                default = {["armv7-android"] = true}
+            }),
+            bundle_format = editor.prefs.schema.set({
+                item = editor.prefs.schema.enum({values = {"apk", "aab"}}),
+                default = {apk = true}
+            }),
+            install = editor.prefs.schema.boolean(),
+            launch = editor.prefs.schema.boolean()
+        })
+    }
+end
+
+return M

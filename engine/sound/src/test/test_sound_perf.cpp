@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -39,6 +39,9 @@ DEF_EMBED(MUSIC_LOW_OGG)
 
 #undef DEF_EMBED
 
+#define MAX_BUFFERS 32
+#define MAX_SOURCES 16
+
 class dmSoundTest : public jc_test_base_class
 {
 public:
@@ -55,7 +58,7 @@ public:
 
     char m_UnCache[4*1024*1024];
 
-    void DecodeAndTime(const dmSoundCodec::DecoderInfo *decoder, unsigned char *buf, uint32_t size, const char *decoder_name, bool skip, const char *test_name)
+    void DecodeAndTime(const dmSoundCodec::DecoderInfo *decoder, unsigned char *buf, uint32_t size, const char *decoder_name, dmSound::SoundDataType sound_datatype,  bool skip, const char *test_name)
     {
         int junk = 0;
         for (unsigned int i=0;i<size;i+=4096)
@@ -66,9 +69,12 @@ public:
         char tmp[4096];
         dmSoundCodec::HDecodeStream stream;
 
-        const uint64_t time_beg = dmTime::GetTime();
-        ASSERT_EQ(decoder->m_OpenStream(buf, size, &stream), dmSoundCodec::RESULT_OK);
-        const uint64_t time_open = dmTime::GetTime();
+        dmSound::HSoundData sd = 0;
+        dmSound::NewSoundData(buf, size, sound_datatype, &sd, dmHashString64(test_name));
+
+        const uint64_t time_beg = dmTime::GetMonotonicTime();
+        ASSERT_EQ(decoder->m_OpenStream(sd, &stream), dmSoundCodec::RESULT_OK);
+        const uint64_t time_open = dmTime::GetMonotonicTime();
 
         uint64_t max_chunk_time = 0;
         uint64_t iterations = 0;
@@ -80,7 +86,7 @@ public:
 
             uint32_t decoded;
 
-            const uint64_t chunk_begin = dmTime::GetTime();
+            const uint64_t chunk_begin = dmTime::GetMonotonicTime();
 
             if (skip)
                 decoder->m_SkipInStream(stream, sizeof(tmp), &decoded);
@@ -92,14 +98,14 @@ public:
             if (decoded != sizeof(tmp))
                 break;
 
-            const uint64_t chunk_time = dmTime::GetTime() - chunk_begin;
+            const uint64_t chunk_time = dmTime::GetMonotonicTime() - chunk_begin;
             if (chunk_time > max_chunk_time)
                 max_chunk_time = chunk_time;
         }
 
         const float t2s = 0.000001f;
         const float t2ms = 0.001f;
-        const uint64_t time_done = dmTime::GetTime();
+        const uint64_t time_done = dmTime::GetMonotonicTime();
 
         dmSoundCodec::Info streamInfo;
         decoder->m_GetStreamInfo(stream, &streamInfo);
@@ -114,24 +120,40 @@ public:
         printf(" | In %.1f kbps | Out: %.1f Kb/s\n", (float)size / (128.0f * audio_length), (float)bytes_per_second / 1024.0f);
 
         decoder->m_CloseStream(stream);
+
+        dmSound::DeleteSoundData(sd);
     }
 
     void RunSuite(const char *decoder_name, bool skip)
     {
+        dmSound::InitializeParams params;
+        params.m_MaxBuffers = MAX_BUFFERS;
+        params.m_MaxSources = MAX_SOURCES;
+        params.m_OutputDevice = "default";
+        params.m_FrameCount = 2048;//512;//GetParam().m_BufferFrameCount;
+        params.m_UseThread = true; // all our desktop platforms support this
+
+        dmSound::Result r = dmSound::Initialize(0, &params);
+        assert(r == dmSound::RESULT_OK);
+
         const dmSoundCodec::DecoderInfo *info = dmSoundCodec::FindDecoderByName(decoder_name);
+        const dmSound::SoundDataType sound_datatype = dmSound::SOUND_DATA_TYPE_OGG_VORBIS;
         ASSERT_NE((void*) 0, info);
-        DecodeAndTime(info, AMBIENCE_OGG,     AMBIENCE_OGG_SIZE, decoder_name, skip, "Cymbal");
-        DecodeAndTime(info, GLOCKENSPIEL_OGG, GLOCKENSPIEL_OGG_SIZE, decoder_name, skip, "Glockenspiel");
-        DecodeAndTime(info, EXPLOSION_OGG,    EXPLOSION_OGG_SIZE, decoder_name, skip, "Explosion");
-        DecodeAndTime(info, EXPLOSION_LOW_MONO_OGG,EXPLOSION_LOW_MONO_OGG_SIZE, decoder_name, skip, "Explosion Low Mono");
-        DecodeAndTime(info, MUSIC_OGG,        MUSIC_OGG_SIZE, decoder_name, skip, "Music");
-        DecodeAndTime(info, MUSIC_LOW_OGG,    MUSIC_LOW_OGG_SIZE, decoder_name, skip, "Music Low");
-        DecodeAndTime(info, CYMBAL_OGG,       CYMBAL_OGG_SIZE, decoder_name, skip, "Cymbal");
+        DecodeAndTime(info, AMBIENCE_OGG,     AMBIENCE_OGG_SIZE, decoder_name, sound_datatype, skip, "Ambience");
+        DecodeAndTime(info, GLOCKENSPIEL_OGG, GLOCKENSPIEL_OGG_SIZE, decoder_name, sound_datatype, skip, "Glockenspiel");
+        DecodeAndTime(info, EXPLOSION_OGG,    EXPLOSION_OGG_SIZE, decoder_name, sound_datatype, skip, "Explosion");
+        DecodeAndTime(info, EXPLOSION_LOW_MONO_OGG,EXPLOSION_LOW_MONO_OGG_SIZE, decoder_name, sound_datatype, skip, "Explosion Low Mono");
+        DecodeAndTime(info, MUSIC_OGG,        MUSIC_OGG_SIZE, decoder_name, sound_datatype, skip, "Music");
+        DecodeAndTime(info, MUSIC_LOW_OGG,    MUSIC_LOW_OGG_SIZE, decoder_name, sound_datatype, skip, "Music Low");
+        DecodeAndTime(info, CYMBAL_OGG,       CYMBAL_OGG_SIZE, decoder_name, sound_datatype, skip, "Cymbal");
 
         if (dmSoundCodec::FindBestDecoder(dmSoundCodec::FORMAT_VORBIS) == info)
             printf("%s is used by default with current build settings on this platform\n", decoder_name);
         else
             printf("%s is NOT used by default with current build settings on this platform\n", decoder_name);
+
+        r = dmSound::Finalize();
+        assert(r == dmSound::RESULT_OK);
     }
 };
 
@@ -157,8 +179,11 @@ TEST_F(dmSoundTest, MeasureTremoloSkip)
 }
 #endif
 
+extern "C" void dmExportedSymbols();
+
 int main(int argc, char **argv)
 {
+    dmExportedSymbols();
     jc_test_init(&argc, argv);
     return jc_test_run_all();
 }

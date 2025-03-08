@@ -1,6 +1,8 @@
+syntax = "proto2";
 package dmGraphics;
 
 import "ddf/ddf_extensions.proto";
+import "ddf/ddf_math.proto";
 
 option java_package = "com.dynamo.graphics.proto";
 option java_outer_classname = "Graphics";
@@ -15,14 +17,116 @@ message Cubemap
     required string back        = 6 [(resource)=true];
 }
 
+enum CoordinateSpace
+{
+    // Used when building the default "manufactured" attributes.
+    // This setting mean that we use the vertex coordinate system setting
+    // from the material (in case of models).
+    COORDINATE_SPACE_DEFAULT = 0;
+    COORDINATE_SPACE_WORLD   = 1;
+    COORDINATE_SPACE_LOCAL   = 2;
+}
+
+enum VertexStepFunction
+{
+    VERTEX_STEP_FUNCTION_VERTEX   = 0;
+    VERTEX_STEP_FUNCTION_INSTANCE = 1;
+}
+
+message VertexAttribute
+{
+    enum DataType
+    {
+        TYPE_BYTE             = 1;
+        TYPE_UNSIGNED_BYTE    = 2;
+        TYPE_SHORT            = 3;
+        TYPE_UNSIGNED_SHORT   = 4;
+        TYPE_INT              = 5;
+        TYPE_UNSIGNED_INT     = 6;
+        TYPE_FLOAT            = 7;
+    }
+
+    enum VectorType
+    {
+        VECTOR_TYPE_SCALAR = 1;
+        VECTOR_TYPE_VEC2   = 2;
+        VECTOR_TYPE_VEC3   = 3;
+        VECTOR_TYPE_VEC4   = 4;
+        VECTOR_TYPE_MAT2   = 5;
+        VECTOR_TYPE_MAT3   = 6;
+        VECTOR_TYPE_MAT4   = 7;
+    }
+
+    enum SemanticType
+    {
+        SEMANTIC_TYPE_NONE          = 1;
+        SEMANTIC_TYPE_POSITION      = 2;
+        SEMANTIC_TYPE_TEXCOORD      = 3;
+        SEMANTIC_TYPE_PAGE_INDEX    = 4;
+        SEMANTIC_TYPE_COLOR         = 5;
+        SEMANTIC_TYPE_NORMAL        = 6;
+        SEMANTIC_TYPE_TANGENT       = 7;
+        SEMANTIC_TYPE_WORLD_MATRIX  = 8;
+        SEMANTIC_TYPE_NORMAL_MATRIX = 9;
+    }
+
+    message LongValues
+    {
+        repeated int64 v = 1 [packed = true]; // We use int64 so we can represent the entire signed and unsigned int32 range as human-readable integers in the project files.
+    }
+
+    message DoubleValues
+    {
+        repeated double v = 1 [packed = true];
+    }
+
+    required string          name             = 1;
+    optional uint64          name_hash        = 2 [(runtime_only) = true];
+    optional SemanticType    semantic_type    = 3 [default = SEMANTIC_TYPE_NONE];
+    optional int32           element_count    = 4 [default = 0]; // Deprecated
+    optional bool            normalize        = 5 [default = false];
+    optional DataType        data_type        = 6 [default = TYPE_FLOAT];
+    optional CoordinateSpace coordinate_space = 7 [default = COORDINATE_SPACE_LOCAL];
+    optional VertexStepFunction step_function = 11 [default = VERTEX_STEP_FUNCTION_VERTEX];
+    optional VectorType vector_type           = 12 [default = VECTOR_TYPE_VEC4];
+
+    // Note: Add a channel field here for identifying a semantic "channel", i.e a second UV set
+
+    oneof values
+    {
+        LongValues   long_values   = 8;  // Saved integer values (project files only)
+        DoubleValues double_values = 9;  // Saved floating point values (project files only)
+        bytes        binary_values = 10 [(runtime_only) = true]; // Packed binary representation of the input values (engine only)
+    }
+}
+
+enum DepthStencilFormat
+{
+    DEPTH_STENCIL_FORMAT_D32F     = 1;
+    DEPTH_STENCIL_FORMAT_D32F_S8U = 2;
+    DEPTH_STENCIL_FORMAT_D16U_S8U = 3;
+    DEPTH_STENCIL_FORMAT_D24U_S8U = 4;
+    DEPTH_STENCIL_FORMAT_S8U      = 5;
+}
+
+// Engine only, values corresponds to TextureUsageHint in graphics.h
+enum TextureUsageFlag
+{
+    TEXTURE_USAGE_FLAG_SAMPLE     = 1;
+    TEXTURE_USAGE_FLAG_MEMORYLESS = 2;
+    TEXTURE_USAGE_FLAG_STORAGE    = 4;
+    TEXTURE_USAGE_FLAG_INPUT      = 8;
+    TEXTURE_USAGE_FLAG_COLOR      = 16;
+}
+
 message TextureImage
 {
     enum Type
     {
-        // Corresponds to GL_TEXTURE_2D
-        TYPE_2D      = 1;
-        // Corresponds to GL_TEXTURE_CUBE_MAP
-        TYPE_CUBEMAP = 2;
+        TYPE_2D       = 1;
+        TYPE_CUBEMAP  = 2;
+        TYPE_2D_ARRAY = 3;
+        TYPE_2D_IMAGE = 4;
     }
 
     enum CompressionType
@@ -37,6 +141,8 @@ message TextureImage
         COMPRESSION_TYPE_BASIS_UASTC = 3;
         // Basis ETC1S
         COMPRESSION_TYPE_BASIS_ETC1S = 4;
+        // ASTC
+        COMPRESSION_TYPE_ASTC = 5;
     }
 
     enum CompressionFlags
@@ -47,6 +153,8 @@ message TextureImage
 
     enum TextureFormat
     {
+        option allow_alias = true;
+
         TEXTURE_FORMAT_LUMINANCE         = 0;
         TEXTURE_FORMAT_RGB               = 1;
         TEXTURE_FORMAT_RGBA              = 2;
@@ -62,28 +170,54 @@ message TextureImage
         TEXTURE_FORMAT_LUMINANCE_ALPHA   = 10;
 
         TEXTURE_FORMAT_RGBA_ETC2         = 11;
-        TEXTURE_FORMAT_RGBA_ASTC_4x4     = 12;
+
+        TEXTURE_FORMAT_RGBA_ASTC_4X4     = 12;
+        TEXTURE_FORMAT_RGBA_ASTC_4x4     = 12; // Deprecated!
 
         TEXTURE_FORMAT_RGB_BC1           = 13;
         TEXTURE_FORMAT_RGBA_BC3          = 14;
         TEXTURE_FORMAT_R_BC4             = 15;
         TEXTURE_FORMAT_RG_BC5            = 16;
         TEXTURE_FORMAT_RGBA_BC7          = 17;
+
+        TEXTURE_FORMAT_RGB16F            = 18;
+        TEXTURE_FORMAT_RGB32F            = 19;
+        TEXTURE_FORMAT_RGBA16F           = 20;
+        TEXTURE_FORMAT_RGBA32F           = 21;
+        TEXTURE_FORMAT_R16F              = 22;
+        TEXTURE_FORMAT_RG16F             = 23;
+        TEXTURE_FORMAT_R32F              = 24;
+        TEXTURE_FORMAT_RG32F             = 25;
+
+        // ASTC Formats
+        TEXTURE_FORMAT_RGBA_ASTC_5X4     = 26;
+        TEXTURE_FORMAT_RGBA_ASTC_5X5     = 27;
+        TEXTURE_FORMAT_RGBA_ASTC_6X5     = 28;
+        TEXTURE_FORMAT_RGBA_ASTC_6X6     = 29;
+        TEXTURE_FORMAT_RGBA_ASTC_8X5     = 30;
+        TEXTURE_FORMAT_RGBA_ASTC_8X6     = 31;
+        TEXTURE_FORMAT_RGBA_ASTC_8X8     = 32;
+        TEXTURE_FORMAT_RGBA_ASTC_10X5    = 33;
+        TEXTURE_FORMAT_RGBA_ASTC_10X6    = 34;
+        TEXTURE_FORMAT_RGBA_ASTC_10X8    = 35;
+        TEXTURE_FORMAT_RGBA_ASTC_10X10   = 36;
+        TEXTURE_FORMAT_RGBA_ASTC_12X10   = 37;
+        TEXTURE_FORMAT_RGBA_ASTC_12X12   = 38;
     }
 
     message Image
     {
-        required uint32 width           = 1;
-        required uint32 height          = 2;
-        required uint32 original_width  = 3;
-        required uint32 original_height = 4;
-        required TextureFormat format   = 5;
-        repeated uint32 mip_map_offset  = 6;
-        repeated uint32 mip_map_size    = 7;    // always uncompressed (native) size
-        required bytes data             = 8;
-        optional CompressionType compression_type = 9 [default = COMPRESSION_TYPE_DEFAULT];
-        optional uint64 compression_flags = 10;
-        repeated uint32 mip_map_size_compressed  = 11;
+        required uint32 width                     = 1;
+        required uint32 height                    = 2;
+        required uint32 original_width            = 3;
+        required uint32 original_height           = 4;
+        required TextureFormat format             = 5;
+        repeated uint32 mip_map_offset            = 6;
+        repeated uint32 mip_map_size              = 7; // always uncompressed (native) size
+        optional CompressionType compression_type = 8 [default = COMPRESSION_TYPE_DEFAULT];
+        repeated uint32 mip_map_size_compressed   = 9;
+        repeated uint32 mip_map_dimensions        = 10; // w0, h0, w1, h1, ...
+        optional uint32 data_size                 = 11;
     }
 
     repeated Image alternatives = 1;
@@ -91,23 +225,33 @@ message TextureImage
     // When count > 1 count mipmaps are laid out contiguously in memory and
     // the mip_map_offset should reflect that, e.g. times 6 for cubemaps
     required uint32 count       = 3;
+
+    // Runtime only, used for specifying how the texture should be used.
+    // Possible values are specified in dmsdk/graphics.h
+    optional uint32 usage_flags = 4 [(runtime_only) = true, default = 1];
+    // Runtime only, when creating textures in runtime we want to avoid
+    // making a copy of the texture data just to create the resource.
+    // This field can instead be used to store a pointer to the actual data.
+    optional uint64 image_data_address = 5 [(runtime_only) = true];
 }
 
 // We encapsulate the texture format in its own message due
 // to we cant have repeated enums.
 message TextureFormatAlternative
 {
-
-    enum CompressionLevel {
+    enum CompressionLevel
+    {
         FAST    = 0;
         NORMAL  = 1;
         HIGH    = 2;
         BEST    = 3;
     }
 
-    required TextureImage.TextureFormat format  = 1;
-    required CompressionLevel compression_level = 2;
-    optional TextureImage.CompressionType compression_type = 3 [default = COMPRESSION_TYPE_DEFAULT];
+    required TextureImage.TextureFormat format             = 1;
+    optional CompressionLevel compression_level            = 2;                                      // DEPRECATED, use compressor + compressor_preset instead
+    optional TextureImage.CompressionType compression_type = 3 [default = COMPRESSION_TYPE_DEFAULT]; // DEPRECATED, use compressor + compressor_preset instead
+    optional string compressor                             = 4;
+    optional string compressor_preset                      = 5;
 }
 
 message PathSettings
@@ -128,6 +272,9 @@ message PlatformProfile
         OS_ID_ANDROID = 5;
         OS_ID_WEB     = 6;
         OS_ID_SWITCH  = 7;
+        OS_ID_PS4     = 8;
+        OS_ID_PS5     = 9;
+        OS_ID_XBOX    = 10;
     }
 
     required OS os                              = 1;
@@ -155,46 +302,130 @@ message ShaderDesc
 {
     enum Language
     {
-        LANGUAGE_GLSL_SM120 = 1; // OpenGLES 2 compatible
-        LANGUAGE_GLSL_SM140 = 2; // OpenGLES 3 compatible
-        LANGUAGE_GLES_SM100 = 3; // OpenGLES 2 / WebGL 1
-        LANGUAGE_GLES_SM300 = 4; // OpenGLES 3 / WebGL 2
-        LANGUAGE_SPIRV      = 5;
-     }
+        LANGUAGE_GLSL_SM120 = 1;  // OpenGL 2 compatible
+        LANGUAGE_GLES_SM100 = 2;  // OpenGLES 2 / WebGL 1
+        LANGUAGE_GLES_SM300 = 3;  // OpenGLES 3 / WebGL 2
+        LANGUAGE_SPIRV      = 4;  // Vulkan / MoltenVK
+        LANGUAGE_PSSL       = 5;  // Playstation
+        LANGUAGE_GLSL_SM430 = 6;  // OpenGL 4.3+ compatible
+        LANGUAGE_GLSL_SM330 = 7;  // OpenGL 3.3 (used for desktop platforms)
+        LANGUAGE_WGSL       = 8;  // WebGPU
+        LANGUAGE_HLSL       = 9;  // Windows / XBox compatible
+    }
+
+    enum ShaderType
+    {
+        SHADER_TYPE_VERTEX   = 0;
+        SHADER_TYPE_FRAGMENT = 1;
+        SHADER_TYPE_COMPUTE  = 2;
+    }
 
     enum ShaderDataType
     {
-        SHADER_TYPE_UNKNOWN      = 0;
-        SHADER_TYPE_INT          = 1;
-        SHADER_TYPE_UINT         = 2;
-        SHADER_TYPE_FLOAT        = 3;
-        SHADER_TYPE_VEC2         = 4;
-        SHADER_TYPE_VEC3         = 5;
-        SHADER_TYPE_VEC4         = 6;
-        SHADER_TYPE_MAT2         = 7;
-        SHADER_TYPE_MAT3         = 8;
-        SHADER_TYPE_MAT4         = 9;
-        SHADER_TYPE_SAMPLER2D    = 10;
-        SHADER_TYPE_SAMPLER3D    = 11;
-        SHADER_TYPE_SAMPLER_CUBE = 12;
+        SHADER_TYPE_UNKNOWN         = 0;
+        SHADER_TYPE_INT             = 1;
+        SHADER_TYPE_UINT            = 2;
+        SHADER_TYPE_FLOAT           = 3;
+        SHADER_TYPE_VEC2            = 4;
+        SHADER_TYPE_VEC3            = 5;
+        SHADER_TYPE_VEC4            = 6;
+        SHADER_TYPE_MAT2            = 7;
+        SHADER_TYPE_MAT3            = 8;
+        SHADER_TYPE_MAT4            = 9;
+        SHADER_TYPE_SAMPLER2D       = 10;
+        SHADER_TYPE_SAMPLER3D       = 11;
+        SHADER_TYPE_SAMPLER_CUBE    = 12;
+        SHADER_TYPE_SAMPLER2D_ARRAY = 13;
+        SHADER_TYPE_UNIFORM_BUFFER  = 14;
+
+        // Extended types (not universally supported)
+        SHADER_TYPE_UVEC2             = 15;
+        SHADER_TYPE_UVEC3             = 16;
+        SHADER_TYPE_UVEC4             = 17;
+        SHADER_TYPE_TEXTURE2D         = 18;
+        SHADER_TYPE_UTEXTURE2D        = 19;
+        SHADER_TYPE_RENDER_PASS_INPUT = 20;
+        SHADER_TYPE_UIMAGE2D          = 21;
+        SHADER_TYPE_IMAGE2D           = 22;
+        SHADER_TYPE_SAMPLER           = 23;
+        SHADER_TYPE_STORAGE_BUFFER    = 24;
+        SHADER_TYPE_TEXTURE2D_ARRAY   = 25;
+        SHADER_TYPE_TEXTURE_CUBE      = 26;
+    }
+
+    message ResourceType
+    {
+        oneof Type
+        {
+            ShaderDataType shader_type = 1;
+            int32          type_index  = 2;
+        }
+
+        // The engine doesn't know which of the oneofs has been set
+        // (we should at some point support that for oneofs)
+        optional bool use_type_index = 3;
+    }
+
+    message ResourceMember
+    {
+        required string         name          = 1;
+        required uint64         name_hash     = 2;
+        required ResourceType   type          = 3;
+        optional uint32         element_count = 4;
+        optional uint32         offset        = 5;
+    }
+
+    message ResourceTypeInfo
+    {
+        required string         name          = 1;
+        required uint64         name_hash     = 2;
+        repeated ResourceMember members       = 3;
     }
 
     message ResourceBinding
     {
-        required string         name          = 1;
-        required ShaderDataType type          = 2;
-        optional uint32         element_count = 3 [default=1];
-        optional uint32         set           = 4 [default=0];
-        optional uint32         binding       = 5 [default=0];
+        required string         name               = 1;
+        required uint64         name_hash          = 2;
+        required ResourceType   type               = 3;
+        optional uint32         id                 = 4;
+        optional string         instance_name      = 5;
+        optional uint64         instance_name_hash = 6;
+        optional uint32         set                = 7;
+        optional uint32         binding            = 8;
+        optional uint32         element_count      = 9;
+        optional uint32         stage_flags        = 10; // 0x1=vert, 0x2=frag, 0x4=compute
+
+        oneof BindingInfo
+        {
+            // Uniform buffer block size
+            uint32 block_size = 11;
+            // Sampler object index
+            // Since we split combined samplers into
+            // a texture + sampler object we need to
+            // keep track of which of the textures
+            // the sampler originally is pointing to.
+            uint32 sampler_texture_index = 12;
+        }
+    }
+
+    message ShaderReflection
+    {
+        repeated ResourceBinding  uniform_buffers = 1;
+        repeated ResourceBinding  storage_buffers = 2;
+        repeated ResourceBinding  textures        = 3;
+        repeated ResourceBinding  inputs          = 4;
+        repeated ResourceBinding  outputs         = 5;
+        repeated ResourceTypeInfo types           = 6;
     }
 
     message Shader
     {
-        required Language        language   = 1;
-        optional bytes           source     = 2;
-        repeated ResourceBinding uniforms   = 4;
-        repeated ResourceBinding attributes = 5;
+        required bytes      source                = 1;
+        required ShaderType shader_type           = 2;
+        required Language   language              = 3;
+        optional bool       variant_texture_array = 4 [default = false];
     }
 
-    repeated Shader shaders = 1;
+    repeated Shader shaders              = 1;
+    optional ShaderReflection reflection = 2;
 }

@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -14,10 +14,9 @@
 
 (ns editor.buffers-test
   (:require [clojure.test :refer :all]
-            [support.test-support :refer [array=]]
-            [editor.buffers :as b])
-  (:import [java.nio ByteBuffer]
-           [com.google.protobuf ByteString]))
+            [editor.buffers :as b]
+            [support.test-support :refer [array=]])
+  (:import [java.nio ByteBuffer]))
 
 (defn- buffer-with-contents ^ByteBuffer [byte-values]
   (doto (b/new-byte-buffer (count byte-values))
@@ -189,3 +188,153 @@
       (doto (b/new-byte-buffer 4) (.put (byte 1)) (.put (byte 2)) .flip)
       (doto (b/new-byte-buffer 2) (.put (byte 1)) (.put (byte 2)) .flip .get)
       (doto (b/new-byte-buffer 4) (.put (byte 1)) (.put (byte 2)) .flip .get))))
+
+;; -----------------------------------------------------------------------------
+;; Buffer push! and put! tests
+;; -----------------------------------------------------------------------------
+
+(defn- element-at-offset-fn [data-type]
+  (case data-type
+    (:double) #(.getDouble ^ByteBuffer %1 ^long %2)
+    (:float) #(.getFloat ^ByteBuffer %1 ^long %2)
+    (:int :uint) #(.getInt ^ByteBuffer %1 ^long %2)
+    (:short :ushort) #(.getShort ^ByteBuffer %1 ^long %2)
+    (:byte :ubyte) #(.get ^ByteBuffer %1 ^long %2)))
+
+(defn- buffer->data-fn [data-type]
+  (let [primitive-type-kw (b/primitive-type-kw data-type)
+        element-byte-size (b/type-size data-type)
+        element-at-offset-fn (element-at-offset-fn data-type)]
+    (fn buffer->data [^ByteBuffer buffer]
+      (into (vector-of primitive-type-kw)
+            (map #(element-at-offset-fn buffer %))
+            (range 0 (.capacity buffer) element-byte-size)))))
+
+(defn- buffer->bytes [^ByteBuffer buffer]
+  (into (vector-of :byte)
+        (map #(.get buffer ^long %))
+        (range 0 (.capacity buffer) Byte/BYTES)))
+
+(defn- out-data-fn [data-type]
+  (partial vector-of (b/primitive-type-kw data-type)))
+
+(defn- limits [data-type normalize]
+  (let [out-min
+        (case data-type
+          :double Double/MIN_VALUE
+          :float Float/MIN_VALUE
+          :int Integer/MIN_VALUE
+          :uint (int 0)
+          :short Short/MIN_VALUE
+          :ushort (short 0)
+          :byte Byte/MIN_VALUE
+          :ubyte (byte 0))
+
+        in-min
+        (case data-type
+          (:double :float) out-min
+          (:int :short :byte) (if normalize -1.0 out-min)
+          (:uint :ushort :ubyte) (if normalize 0.0 out-min))
+
+        out-max
+        (case data-type
+          :double Double/MAX_VALUE
+          :float Float/MAX_VALUE
+          :int Integer/MAX_VALUE
+          :uint (unchecked-int 0xffffffff)
+          :short Short/MAX_VALUE
+          :ushort (unchecked-short 0xffff)
+          :byte Byte/MAX_VALUE
+          :ubyte (unchecked-byte 0xff))
+
+        in-max
+        (if normalize
+          (case data-type
+            (:double :float) out-max
+            (:int :uint :short :ushort :byte :ubyte) 1.0)
+          (case data-type
+            :double Double/MAX_VALUE
+            :float Float/MAX_VALUE
+            :int (long Integer/MAX_VALUE)
+            :uint (long 0xffffffff)
+            :short (long Short/MAX_VALUE)
+            :ushort (long 0xffff)
+            :byte (long Byte/MAX_VALUE)
+            :ubyte (long 0xff)))]
+
+    [in-min in-max out-min out-max]))
+
+(defn- make-buffer
+  ^ByteBuffer [byte-size]
+  (b/little-endian (b/new-byte-buffer byte-size)))
+
+(deftest blit!-test
+  (let [min Byte/MIN_VALUE
+        max Byte/MAX_VALUE
+        buffer->data (buffer->data-fn :byte)
+        out-data (out-data-fn :byte)
+        in-bytes (comp byte-array out-data)
+        buf (make-buffer 4)]
+    (is (identical? buf (b/blit! buf 0 (in-bytes min min min min))) "Returns self")
+    (is (zero? (.position buf)) "Position is unaffected")
+    (is (= (out-data min min min min) (buffer->data buf)))
+    (b/blit! buf 1 (in-bytes max max))
+    (is (= (out-data min max max min) (buffer->data buf)))))
+
+(deftest put-floats!-test
+  (let [min Float/MIN_VALUE
+        max Float/MAX_VALUE
+        element-byte-size (b/type-size :float)
+        buffer->data (buffer->data-fn :float)
+        out-data (out-data-fn :float)
+        buf (make-buffer (* 4 element-byte-size))]
+    (is (identical? buf (b/put-floats! buf 0 (vector min min min min))) "Put returns self")
+    (is (zero? (.position buf)) "Position is unaffected")
+    (is (= (out-data min min min min) (buffer->data buf)))
+    (b/put-floats! buf element-byte-size (vector max max))
+    (is (= (out-data min max max min) (buffer->data buf)))))
+
+(deftest put!-test
+  (doseq [normalize [false true]
+          data-type [:double :float :int :uint :short :ushort :byte :ubyte]]
+    (let [[in-min in-max out-min out-max] (limits data-type normalize)
+          element-byte-size (b/type-size data-type)
+          buffer->data (buffer->data-fn data-type)
+          out-data (out-data-fn data-type)
+          buf (make-buffer (* 4 element-byte-size))]
+      (testing (format "%s %ss" (if normalize "Normalized" "Non-normalized") (name data-type))
+        (is (identical? buf (b/put! buf 0 data-type normalize (vector in-min in-min in-min in-min))) "Returns self")
+        (is (zero? (.position buf)) "Position is unaffected")
+        (is (= (out-data out-min out-min out-min out-min) (buffer->data buf)))
+        (b/put! buf element-byte-size data-type normalize (vector in-max in-max))
+        (is (= (out-data out-min out-max out-max out-min) (buffer->data buf)))))))
+
+(deftest push-floats!-test
+  (let [min Float/MIN_VALUE
+        max Float/MAX_VALUE
+        element-byte-size (b/type-size :float)
+        buffer->data (buffer->data-fn :float)
+        out-data (out-data-fn :float)
+        buf (make-buffer (* 4 element-byte-size))]
+    (is (identical? buf (b/push-floats! buf (vector min min))) "Returns self")
+    (is (= (* 2 element-byte-size) (.position buf)) "Position advances")
+    (is (= (out-data min min 0 0) (buffer->data buf)))
+    (b/push-floats! buf (vector max max))
+    (is (= (* 4 element-byte-size) (.position buf)) "Position advances")
+    (is (= (out-data min min max max) (buffer->data buf)))))
+
+(deftest push!-test
+  (doseq [normalize [false true]
+          data-type [:double :float :int :uint :short :ushort :byte :ubyte]]
+    (let [[in-min in-max out-min out-max] (limits data-type normalize)
+          element-byte-size (b/type-size data-type)
+          buffer->data (buffer->data-fn data-type)
+          out-data (out-data-fn data-type)
+          buf (make-buffer (* 4 element-byte-size))]
+      (testing (format "%s %ss" (if normalize "Normalized" "Non-normalized") (name data-type))
+        (is (identical? buf (b/push! buf data-type normalize (vector in-min in-min))) "Returns self")
+        (is (= (* 2 element-byte-size) (.position buf)) "Position advances")
+        (is (= (out-data out-min out-min 0 0) (buffer->data buf)))
+        (b/push! buf data-type normalize (vector in-max in-max))
+        (is (= (* 4 element-byte-size) (.position buf)) "Position advances")
+        (is (= (out-data out-min out-min out-max out-max) (buffer->data buf)))))))

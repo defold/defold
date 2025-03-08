@@ -1,0 +1,24 @@
+function init(self)
+	self.count = 0
+	msg.post("#collectionproxy", "async_load")
+end
+
+function update(self, dt)
+	self.count = self.count + 1
+
+	if self.count > 100 then
+		print("Waited too long to load!")
+		sys.exit(1)
+	end
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == hash("proxy_loaded") then
+		msg.post(sender, "init")
+		msg.post(sender, "enable")
+
+		-- The issue was that the loading became messed up, and we'd wait forever
+		print("Loaded!")
+		sys.exit(0)
+	end
+end

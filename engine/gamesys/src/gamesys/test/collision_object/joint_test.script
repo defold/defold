@@ -1,12 +1,12 @@
--- Copyright 2020-2022 The Defold Foundation
+-- Copyright 2020-2025 The Defold Foundation
 -- Copyright 2014-2020 King
 -- Copyright 2009-2014 Ragnar Svensson, Christian Murray
 -- Licensed under the Defold License version 1.0 (the "License"); you may not use
 -- this file except in compliance with the License.
--- 
+--
 -- You may obtain a copy of the License, together with FAQs at
 -- https://www.defold.com/license
--- 
+--
 -- Unless required by applicable law or agreed to in writing, software distributed
 -- under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 -- CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -65,6 +65,8 @@ function init(self)
     physics.destroy_joint(self.a_coll, self.joint_id)
     physics.create_joint(physics.JOINT_TYPE_WELD, self.a_coll, self.joint_id, zp, self.b_coll, zp)
     physics.destroy_joint(self.a_coll, self.joint_id)
+    physics.create_joint(physics.JOINT_TYPE_WHEEL, self.a_coll, self.joint_id, zp, self.b_coll, zp)
+    physics.destroy_joint(self.a_coll, self.joint_id)
 
     -- Recreate with joint specific parameters + verify properties
     local properties = {}
@@ -95,6 +97,12 @@ function init(self)
     physics.create_joint(physics.JOINT_TYPE_WELD, self.a_coll, self.joint_id, zp, self.b_coll, zp, { reference_angle = 1 })
     properties = physics.get_joint_properties(self.a_coll, self.joint_id)
     assert(properties.reference_angle == 1)
+    physics.destroy_joint(self.a_coll, self.joint_id)
+
+    physics.create_joint(physics.JOINT_TYPE_WHEEL, self.a_coll, self.joint_id, zp, self.b_coll, zp, { enable_motor = true, motor_speed = 20 })
+    properties = physics.get_joint_properties(self.a_coll, self.joint_id)
+    assert(properties.enable_motor)
+    assert(properties.motor_speed == 20)
     physics.destroy_joint(self.a_coll, self.joint_id)
 end
 
@@ -144,6 +152,7 @@ local joint_type_to_string = {
     [physics.JOINT_TYPE_HINGE] = "JOINT_TYPE_HINGE",
     [physics.JOINT_TYPE_SLIDER] = "JOINT_TYPE_SLIDER",
     [physics.JOINT_TYPE_WELD] = "JOINT_TYPE_WELD",
+    [physics.JOINT_TYPE_WHEEL] = "JOINT_TYPE_WHEEL",
 }
 
 -- list of test
@@ -373,7 +382,61 @@ local joint_tests = {
             -- Cleanup, for next test
             physics.destroy_joint(self.a_coll, self.joint_id)
         end
-    }
+    },
+    {
+    joint_type = physics.JOINT_TYPE_WHEEL,
+    test_func = function(self, dt)
+        go.set_position(zp, self.a)
+        new_b_obj(self, vmath.vector3(19,-98,0))
+
+        -- spawn a new b object with the factory
+        local new_c = factory.create(self.a .. "#factory", vmath.vector3(20,-98,0))
+        self.c = new_c
+
+        -- update the collisionobject url
+        local t_url = msg.url(new_c)
+        t_url.fragment = "collisionobject"
+        self.c_coll = t_url
+
+        -- Setup WHEEL joint
+        physics.create_joint(physics.JOINT_TYPE_WHEEL, self.b_coll, self.joint_id, vmath.vector3(0), self.c_coll, vmath.vector3(0,0,0), { local_axis_a = vmath.vector3(0,1,0), max_motor_torque = 1000})
+            
+        -- give it a few updates to let the physics sim settle
+        coroutine.yield()
+
+        local p_c = go.get_position(self.c)
+        local p_b = go.get_position(self.b)
+        local length = vmath.length(p_b - p_c)
+        assert_near(1, length)
+        assert_near(20, p_c.x)
+
+        -- Turn on motor
+        local current_properties = physics.get_joint_properties(self.b_coll, self.joint_id)
+        current_properties.enable_motor = true
+        current_properties.motor_speed = 100
+        current_properties.max_motor_force = 1000
+        current_properties.damping = 1
+        physics.set_joint_properties(self.b_coll, self.joint_id, current_properties)
+
+        -- give it a few updates to let the physics sim settle
+        for i=1,101 do
+            coroutine.yield()
+        end
+
+
+        -- Verify that the position has changed
+        local p_c = go.get_position(self.c)
+        local p_b = go.get_position(self.b)
+        local length = vmath.length(p_c - p_b)
+        assert_near(70.472, length)
+        assert_near(54.736, p_b.x)
+
+        -- Cleanup, for next test
+        physics.destroy_joint(self.b_coll, self.joint_id)
+        go.delete(self.c_coll)
+        coroutine.yield()
+    end
+}
 }
 local current_test = nil
 tests_done = false

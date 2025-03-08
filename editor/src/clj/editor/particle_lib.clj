@@ -1,42 +1,33 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.particle-lib
-  (:require [dynamo.graph :as g]
+  (:require [editor.buffers :as buffers]
+            [editor.graphics :as graphics]
             [editor.math :as math]
             [editor.protobuf :as protobuf]
-            [editor.gl.vertex :as vertex]
-            [editor.gl.shader :as shader])
-  (:import [com.dynamo.particle.proto Particle$ParticleFX]
-           [com.defold.libs ParticleLibrary ParticleLibrary$Vector3 ParticleLibrary$Vector4 ParticleLibrary$Quat
-            ParticleLibrary$AnimationData ParticleLibrary$FetchAnimationCallback
-            ParticleLibrary$FetchAnimationResult ParticleLibrary$AnimPlayback
-            ParticleLibrary$Stats ParticleLibrary$InstanceStats
-            ParticleLibrary$RenderInstanceCallback]
+            [util.murmur :as murmur])
+  (:import [com.defold.libs ParticleLibrary ParticleLibrary$AnimPlayback ParticleLibrary$AnimationData ParticleLibrary$FetchAnimationCallback ParticleLibrary$FetchAnimationResult ParticleLibrary$InstanceStats ParticleLibrary$VertexAttributeInfo ParticleLibrary$VertexAttributeInfos ParticleLibrary$Quat ParticleLibrary$RenderInstanceCallback ParticleLibrary$Stats ParticleLibrary$Vector3 ParticleLibrary$Vector4]
+           [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType Graphics$VertexAttribute$VectorType Graphics$VertexStepFunction]
+           [com.dynamo.particle.proto Particle$ParticleFX]
+           [com.jogamp.common.nio Buffers]
            [com.sun.jna Pointer]
            [com.sun.jna.ptr IntByReference]
-           [com.jogamp.common.nio Buffers]
            [java.nio ByteBuffer]
-           [javax.vecmath Point3d Quat4d Vector3d Matrix4d]
-           [com.google.protobuf Message]))
+           [javax.vecmath Matrix4d Point3d Quat4d Vector3d]))
 
 (set! *warn-on-reflection* true)
-
-(vertex/defvertex vertex-format
-  (vec3 position)
-  (vec4 color true)
-  (vec2 texcoord0 true))
 
 (defn- create-context [max-emitter-count max-particle-count]
   (ParticleLibrary/Particle_CreateContext max-emitter-count max-particle-count))
@@ -90,39 +81,30 @@
     (if (or (nil? data) (nil? (:texture-set-anim data)))
       ParticleLibrary$FetchAnimationResult/FETCH_ANIMATION_NOT_FOUND
       (let [anim (:texture-set-anim data)]
-        (do
-          (assert (= hash (ParticleLibrary/Particle_Hash (:id anim))) "Animation id does not match")
-          (set! (. out-data texture) (Pointer. index))
-          (set! (. out-data texCoords) (.asFloatBuffer ^ByteBuffer (:tex-coords data)))
-          (set! (. out-data playback) (get playback-map (:playback anim)))
-          (set! (. out-data tileWidth) (int (:width anim)))
-          (set! (. out-data tileHeight) (int (:height anim)))
-          (set! (. out-data startTile) (:start anim))
-          (set! (. out-data endTile) (:end anim))
-          (set! (. out-data fps) (:fps anim))
-          (set! (. out-data hFlip) (:flip-horizontal anim))
-          (set! (. out-data vFlip) (:flip-vertical anim))
-          (set! (. out-data structSize) (.size out-data))
-          ParticleLibrary$FetchAnimationResult/FETCH_ANIMATION_OK)))))
+        (assert (= hash (ParticleLibrary/Particle_Hash (:id anim))) "Animation id does not match")
+        (set! (. out-data texture) (Pointer. index))
+        (set! (. out-data texCoords) (.asFloatBuffer ^ByteBuffer (:tex-coords data)))
+        (set! (. out-data pageIndices) (.asIntBuffer ^ByteBuffer (:page-indices data)))
+        (set! (. out-data frameIndices) (.asIntBuffer ^ByteBuffer (:frame-indices data)))
+        (set! (. out-data playback) (get playback-map (:playback anim)))
+        (set! (. out-data tileWidth) (int (:width anim)))
+        (set! (. out-data tileHeight) (int (:height anim)))
+        (set! (. out-data startTile) (:start anim))
+        (set! (. out-data endTile) (:end anim))
+        (set! (. out-data fps) (:fps anim))
+        (set! (. out-data hFlip) (:flip-horizontal anim))
+        (set! (. out-data vFlip) (:flip-vertical anim))
+        (set! (. out-data structSize) (.size out-data))
+        ParticleLibrary$FetchAnimationResult/FETCH_ANIMATION_OK))))
 
 (defn- create-instance [^Pointer context ^Pointer prototype ^Pointer emitter-state-callback-data ^Matrix4d transform]
   (let [^Pointer instance (ParticleLibrary/Particle_CreateInstance context prototype emitter-state-callback-data)]
     (set-instance-transform context instance transform)))
 
-(defn vertex-buffer-size [format particle-count]
-  (let [native-format (case format :go 0 :gui 1)]
-    (ParticleLibrary/Particle_GetVertexBufferSize particle-count native-format)))
-
 (defn- make-byte-buffer [size]
   (Buffers/newDirectByteBuffer ^int size))
-
-(defn- make-raw-vbufs [emitters]
-  (into []
-        (comp
-          (map :max-particle-count)
-          (map (partial vertex-buffer-size :go))
-          (map make-byte-buffer))
-        emitters))
+(defn- make-raw-vbuf [max-particle-count vertex-size]
+  (make-byte-buffer (ParticleLibrary/Particle_GetVertexBufferSize max-particle-count vertex-size)))
 
 (defn make-sim [max-emitter-count max-particle-count prototype-msg instance-transforms]
   (let [context (create-context max-emitter-count max-particle-count)
@@ -131,7 +113,7 @@
     {:context context
      :prototype prototype
      :instances instances
-     :raw-vbufs (make-raw-vbufs (:emitters prototype-msg))
+     :raw-vbufs (vec (repeat max-emitter-count nil))
      :elapsed-time 0}))
 
 (defn destroy-sim [sim]
@@ -175,20 +157,103 @@
       (assoc :last-dt dt)
       (update :elapsed-time #(+ % dt)))))
 
-(defn gen-emitter-vertex-data [sim emitter-index color]
-  (let [context (:context sim)
-        raw-vbuf ^ByteBuffer ((:raw-vbufs sim) emitter-index)
-        dt (:last-dt sim)
-        out-size (IntByReference. 0)
-        [r g b a] color
-        instances (:instances sim)]
-    (assert (= 1 (count instances)))
-    (ParticleLibrary/Particle_GenerateVertexData context dt (first instances) emitter-index (ParticleLibrary$Vector4. r g b a) raw-vbuf (.capacity raw-vbuf) out-size 0)
-    (.limit raw-vbuf (.getValue out-size))
-    sim))
+(defn- attribute-name-key->byte-buffer ^ByteBuffer [name-key vertex-attribute-bytes]
+  (when-let [attribute-bytes (get vertex-attribute-bytes name-key)]
+    (buffers/wrap-byte-array attribute-bytes)))
 
-(defn get-emitter-vertex-data [sim emitter-index]
-  (vertex/vertex-overlay vertex-format ((:raw-vbufs sim) emitter-index)))
+(defn- semantic-type->int [semantic-type]
+  (case semantic-type
+    :semantic-type-none Graphics$VertexAttribute$SemanticType/SEMANTIC_TYPE_NONE_VALUE
+    :semantic-type-position Graphics$VertexAttribute$SemanticType/SEMANTIC_TYPE_POSITION_VALUE
+    :semantic-type-texcoord Graphics$VertexAttribute$SemanticType/SEMANTIC_TYPE_TEXCOORD_VALUE
+    :semantic-type-page-index Graphics$VertexAttribute$SemanticType/SEMANTIC_TYPE_PAGE_INDEX_VALUE
+    :semantic-type-color Graphics$VertexAttribute$SemanticType/SEMANTIC_TYPE_COLOR_VALUE
+    :semantic-type-normal Graphics$VertexAttribute$SemanticType/SEMANTIC_TYPE_NORMAL_VALUE))
+
+(defn- coordinate-space->int [coordinate-space]
+  (case coordinate-space
+    :coordinate-space-world Graphics$CoordinateSpace/COORDINATE_SPACE_WORLD_VALUE
+    :coordinate-space-local Graphics$CoordinateSpace/COORDINATE_SPACE_LOCAL_VALUE
+    Graphics$CoordinateSpace/COORDINATE_SPACE_LOCAL_VALUE))
+
+(defn- data-type->int [data-type]
+  (case data-type
+    :type-byte Graphics$VertexAttribute$DataType/TYPE_BYTE_VALUE
+    :type-unsigned-byte Graphics$VertexAttribute$DataType/TYPE_UNSIGNED_BYTE_VALUE
+    :type-short Graphics$VertexAttribute$DataType/TYPE_SHORT_VALUE
+    :type-unsigned-short Graphics$VertexAttribute$DataType/TYPE_UNSIGNED_SHORT_VALUE
+    :type-int  Graphics$VertexAttribute$DataType/TYPE_INT_VALUE
+    :type-unsigned-int Graphics$VertexAttribute$DataType/TYPE_UNSIGNED_INT_VALUE
+    :type-float Graphics$VertexAttribute$DataType/TYPE_FLOAT_VALUE))
+
+(defn- vertex-step-function->int [vertex-step-function]
+  (case vertex-step-function
+    :vertex-step-function-vertex Graphics$VertexStepFunction/VERTEX_STEP_FUNCTION_VERTEX_VALUE
+    :vertex-step-function-instance Graphics$VertexStepFunction/VERTEX_STEP_FUNCTION_INSTANCE_VALUE))
+
+(defn- vector-type->int [vertex-vector-type]
+  (case vertex-vector-type
+    :vector-type-scalar Graphics$VertexAttribute$VectorType/VECTOR_TYPE_SCALAR_VALUE
+    :vector-type-vec2 Graphics$VertexAttribute$VectorType/VECTOR_TYPE_VEC2_VALUE
+    :vector-type-vec3 Graphics$VertexAttribute$VectorType/VECTOR_TYPE_VEC3_VALUE
+    :vector-type-vec4 Graphics$VertexAttribute$VectorType/VECTOR_TYPE_VEC4_VALUE
+    :vector-type-mat2 Graphics$VertexAttribute$VectorType/VECTOR_TYPE_MAT2_VALUE
+    :vector-type-mat3 Graphics$VertexAttribute$VectorType/VECTOR_TYPE_MAT3_VALUE
+    :vector-type-mat4 Graphics$VertexAttribute$VectorType/VECTOR_TYPE_MAT4_VALUE))
+
+(defn- attribute-info->particle-attribute-info [^Pointer context attribute-info vertex-attribute-bytes]
+  (let [attribute-name-hash (murmur/hash64 (:name attribute-info))
+        attribute-semantic-type (semantic-type->int (:semantic-type attribute-info))
+        attribute-coordinate-space (coordinate-space->int (:coordinate-space attribute-info))
+        attribute-data-type (data-type->int (:data-type attribute-info))
+        attribute-vector-type (vector-type->int (:vector-type attribute-info))
+        attribute-bytes (attribute-name-key->byte-buffer (:name-key attribute-info) vertex-attribute-bytes)
+        attribute-bytes-count (if (nil? attribute-bytes)
+                                0
+                                (.capacity attribute-bytes))
+        particle-attribute-info (ParticleLibrary$VertexAttributeInfo.)
+        context-attribute-scratch-ptr (ParticleLibrary/Particle_WriteAttributeToScratchBuffer context attribute-bytes attribute-bytes-count)]
+    (set! (. particle-attribute-info nameHash) attribute-name-hash)
+    (set! (. particle-attribute-info semanticType) attribute-semantic-type)
+    (set! (. particle-attribute-info dataType) attribute-data-type)
+    (set! (. particle-attribute-info vectorType) attribute-vector-type)
+    (set! (. particle-attribute-info stepFunction) (vertex-step-function->int (:step-function attribute-info)))
+    (set! (. particle-attribute-info coordinateSpace) attribute-coordinate-space)
+    (set! (. particle-attribute-info valuePtr) context-attribute-scratch-ptr)
+    (set! (. particle-attribute-info valueVectorType) attribute-vector-type)
+    (set! (. particle-attribute-info normalize) (boolean (:normalize attribute-info)))
+    particle-attribute-info))
+
+(defn- make-attribute-infos [^Pointer context vertex-description attribute-infos vertex-attribute-bytes]
+  (let [vertex-stride (:size vertex-description)
+        infos (ParticleLibrary$VertexAttributeInfos.)
+        num-attribute-infos (count attribute-infos)]
+    (ParticleLibrary/Particle_ResetAttributeScratchBuffer context)
+    (doseq [i (range num-attribute-infos)]
+      (aset (.infos infos) i (attribute-info->particle-attribute-info context (get attribute-infos i) vertex-attribute-bytes)))
+    (set! (. infos vertexStride) (int vertex-stride))
+    (set! (. infos numInfos) (int num-attribute-infos))
+    infos))
+
+(defn- emitter-vertex-data [sim emitter-index max-particle-count vertex-description]
+  (or (get (:raw-vbufs sim) emitter-index)
+      (make-raw-vbuf max-particle-count (:size vertex-description))))
+
+(defn gen-emitter-vertex-data [sim emitter-index color max-particle-count vertex-description attribute-infos vertex-attribute-bytes]
+  (when-let [raw-vbuf ^ByteBuffer (emitter-vertex-data sim emitter-index max-particle-count vertex-description)]
+    (let [context (:context sim)
+          dt (:last-dt sim)
+          out-size (IntByReference. 0)
+          [r g b a] color
+          instances (:instances sim)
+          attribute-infos (make-attribute-infos context vertex-description attribute-infos vertex-attribute-bytes)]
+      (assert (= 1 (count instances)))
+      (.position raw-vbuf 0)
+      (.limit raw-vbuf (.capacity raw-vbuf))
+      (ParticleLibrary/Particle_GenerateVertexData context dt (first instances) emitter-index attribute-infos (ParticleLibrary$Vector4. r g b a) raw-vbuf (.capacity raw-vbuf) out-size)
+      (.position raw-vbuf (.getValue out-size))
+      (.flip raw-vbuf)
+      raw-vbuf)))
 
 (defn render-emitter [sim emitter-index]
   (let [context (:context sim)
@@ -222,4 +287,4 @@
     (doseq [instance (:instances sim)]
       (ParticleLibrary/Particle_ReloadInstance context instance true))
     (ParticleLibrary/Particle_SetContextMaxParticleCount context ^int max-particle-count))
-  (assoc sim :raw-vbufs (make-raw-vbufs (:emitters prototype-msg))))
+  (assoc sim :raw-vbufs (vec (repeat (count (:emitters prototype-msg)) nil))))

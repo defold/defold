@@ -1,0 +1,43 @@
+local M = {}
+
+function M.get_commands()
+    return {{
+        label = "Test",
+        locations = {"Edit"},
+        run = function()
+            print("scalars:")
+            pprint(1, true, print, "string")
+            
+            print("empty:")
+            pprint({})
+            
+            print("array only:")
+            pprint({1, 2, 3, "a"})
+
+            print("hash only:")
+            pprint({a = 1, b = 2})
+
+            print("array and hash:")
+            pprint({1, 2, a = 3, b = 4})
+
+            print("non-identifier keys:")
+            pprint({["foo-bar"] = 1})
+
+            print("circular refs:")
+            local t = {1, 2}
+            t.circular_ref = t
+            pprint(t)
+
+            print("nesting:")
+            pprint({
+                1,
+                false,
+                {a = 1},
+                {[{"table", "key"}] = 1},
+                "a"
+            })
+        end
+    }}
+end
+
+return M

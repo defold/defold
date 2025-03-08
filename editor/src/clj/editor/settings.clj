@@ -1,30 +1,29 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.settings
-  (:require [clojure.string :as string]
-            [clojure.java.io :as io]
+  (:require [camel-snake-kebab :as camel]
+            [clojure.string :as string]
             [dynamo.graph :as g]
-            [util.murmur :as murmur]
-            [editor.graph-util :as gu]
             [editor.core :as core]
-            [editor.settings-core :as settings-core]
             [editor.defold-project :as project]
-            [camel-snake-kebab :as camel]
-            [editor.workspace :as workspace]
+            [editor.graph-util :as gu]
             [editor.resource :as resource]
-            [service.log :as log]))
+            [editor.resource-node :as resource-node]
+            [editor.settings-core :as settings-core]
+            [editor.validation :as validation]
+            [editor.workspace :as workspace]))
 
 (g/defnode ResourceSettingNode
   (property resource-connections g/Any) ; [target-node-id [connections]]
@@ -55,19 +54,26 @@
 (defn- set-raw-setting [settings {:keys [path] :as meta-setting} value]
   (settings-core/set-setting settings path (settings-core/render-raw-setting-value meta-setting value)))
 
-(defn- set-form-op [{:keys [node-id resource-setting-nodes meta-settings]} path value]
+(defn set-tx-data [{:keys [node-id resource-setting-nodes meta-settings] :as _user-data} path value]
   (let [meta-setting (settings-core/get-meta-setting meta-settings path)]
     (if-let [resource-setting-node-id (resource-setting-nodes path)]
-      (do
-        (g/set-property! resource-setting-node-id :value value)
-        (g/update-property! node-id :raw-settings set-raw-setting meta-setting (resource/resource->proj-path value)))
-      (g/update-property! node-id :raw-settings set-raw-setting meta-setting value))))
+      (concat
+        (g/set-property resource-setting-node-id :value value)
+        (g/update-property node-id :raw-settings set-raw-setting meta-setting (resource/resource->proj-path value)))
+      (g/update-property node-id :raw-settings set-raw-setting meta-setting value))))
 
-(defn- clear-form-op [{:keys [node-id resource-setting-nodes meta-settings]} path]
-  (when-let [resource-setting-node-id (resource-setting-nodes path)]
-    (let [default-resource (settings-core/get-default-setting meta-settings path)]
-      (g/set-property! resource-setting-node-id :value default-resource)))
-  (g/update-property! node-id :raw-settings settings-core/clear-setting path))
+(defn- set-form-op [user-data path value]
+  (g/transact (set-tx-data user-data path value)))
+
+(defn clear-tx-data [{:keys [node-id resource-setting-nodes meta-settings] :as _user-data} path]
+  (concat
+    (when-some [resource-setting-node-id (resource-setting-nodes path)]
+      (let [default-resource (settings-core/get-default-setting meta-settings path)]
+        (g/set-property resource-setting-node-id :value default-resource)))
+    (g/update-property node-id :raw-settings settings-core/clear-setting path)))
+
+(defn- clear-form-op [user-data path]
+  (g/transact (clear-tx-data user-data path)))
 
 (defn- make-form-ops [node-id resource-setting-nodes meta-settings]
   {:user-data {:node-id node-id :resource-setting-nodes resource-setting-nodes :meta-settings meta-settings}
@@ -77,32 +83,25 @@
 (defn- make-form-values-map [settings]
   (settings-core/make-settings-map settings))
 
-(defn- label [key]
-  (-> key
-      name
-      camel/->Camel_Snake_Case_String
-      (string/replace "_" " ")))
-
 (defn- make-form-field [setting]
   (cond-> (assoc setting
-                 :label (or (:label setting) (label (second (:path setting))))
+                 :label (or (:label setting) (settings-core/label (second (:path setting))))
                  :optional true
                  :hidden? (:hidden? setting false))
 
     (contains? setting :options)
     (assoc :type :choicebox)
 
-    (= :library-list (:type setting))
-    (assoc :type :list :element {:type :url :default "https://url.to/library"})
-
     (= :comma-separated-list (:type setting))
-    (assoc :type :list :element {:type :string :default (or (first (:default setting)) "item")})))
+    (assoc :type :list)))
+
+(defn- section-title [category-name category-info]
+  (or (:title category-info)
+      (settings-core/label category-name)))
 
 (defn- make-form-section [category-name category-info settings]
-  {:title (or (:title category-info)
-              (->> (string/split category-name #"(_|\s+)")
-                   (mapv string/capitalize)
-                   (string/join " ")))
+  {:title (section-title category-name category-info)
+   :group (:group category-info "Other")
    :help (:help category-info)
    :fields (mapv make-form-field settings)})
 
@@ -111,8 +110,28 @@
         categories (distinct (mapv settings-core/presentation-category meta-settings))
         category->settings (group-by settings-core/presentation-category meta-settings)
         sections (mapv #(make-form-section % (get-in meta-info [:categories %]) (category->settings %)) categories)
-        values (make-form-values-map settings)]
-    {:form-ops form-ops :sections sections :values values :meta-settings meta-settings}))
+        values (make-form-values-map settings)
+        group-order (into {}
+                          (map-indexed (fn [i v]
+                                         [v i]))
+                          (:group-order meta-info))]
+    {:form-ops form-ops
+     :sections sections
+     :values values
+     :meta-settings meta-settings
+     :group-order group-order
+     :default-section-name (when-let [category-name (:default-category meta-info)]
+                             (section-title category-name (get-in meta-info [:categories category-name])))}))
+
+(defn get-setting-build-error [setting-value meta-setting label]
+  (if (and (some? setting-value))
+    (let [max-error (when (some? (:maximum meta-setting))
+                      (validation/prop-maximum-check? (:maximum meta-setting) setting-value (string/join "." (:path meta-setting))))
+          min-error (when (some? (:minimum meta-setting))
+                      (validation/prop-minimum-check? (:minimum meta-setting) setting-value (string/join "." (:path meta-setting))))]
+      (cond
+        (some? max-error) (g/->error nil label :fatal nil max-error)
+        (some? min-error) (g/->error nil label :fatal nil min-error)))))
 
 (defn get-setting-error [setting-value meta-setting label]
   (cond
@@ -124,16 +143,19 @@
     (and (some? setting-value) (:deprecated meta-setting))
     (if (not= setting-value (:default meta-setting))
       (g/->error nil label (:severity-override meta-setting) nil (:help meta-setting))
-      (g/->error nil label (:severity-default meta-setting) nil (:help meta-setting)))))
+      (g/->error nil label (:severity-default meta-setting) nil (:help meta-setting)))
+
+    :else
+    (get-setting-build-error setting-value meta-setting label)))
 
 (defn get-settings-errors [form-data]
   (let [meta-settings (:meta-settings form-data)
         setting-values (:values form-data)]
-    (into {}
+    (into []
           (keep (fn [[setting-path setting-value]]
                   (let [meta-setting (settings-core/get-meta-setting meta-settings setting-path)]
-                    (when-some [error (get-setting-error setting-value meta-setting :build-targets)]
-                      [setting-path error]))))
+                    (when-some [error (get-setting-build-error setting-value meta-setting :build-targets)]
+                      error))))
           setting-values)))
 
 (g/defnk produce-form-data [_node-id meta-info raw-settings resource-setting-nodes resource-settings]
@@ -219,3 +241,35 @@
                         (when resource
                           (g/set-property resource-setting-node :value resource))
                         (g/connect resource-setting-node :resource-setting-reference self :resource-setting-references)))))))
+
+(g/defnode SimpleSettingsResourceNode
+  (inherits resource-node/ResourceNode)
+
+  (input form-data g/Any)
+  (output form-data g/Any (gu/passthrough form-data))
+
+  (input save-value g/Any)
+  (output save-value g/Any (gu/passthrough save-value))
+
+  (input settings-map g/Any)
+  (output settings-map g/Any (gu/passthrough settings-map)))
+
+(defn- load-simple-settings-resource-node [meta-info project self resource source-value]
+  (let [graph-id (g/node-id->graph-id self)]
+    (concat
+      (g/make-nodes graph-id [settings-node SettingsNode]
+        (g/connect settings-node :_node-id self :nodes)
+        (g/connect settings-node :save-value self :save-value)
+        (g/connect settings-node :form-data self :form-data)
+        (g/connect settings-node :settings-map self :settings-map)
+        (load-settings-node settings-node resource source-value meta-info nil)))))
+
+(defn register-simple-settings-resource-type [workspace & {:keys [ext label icon meta-info]}]
+  (resource-node/register-settings-resource-type workspace
+    :ext ext
+    :label label
+    :icon icon
+    :node-type SimpleSettingsResourceNode
+    :load-fn (partial load-simple-settings-resource-node meta-info)
+    :meta-settings (:settings meta-info)
+    :view-types [:cljfx-form-view :text]))

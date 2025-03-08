@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -17,7 +17,6 @@
             [clojure.stacktrace :as stack]
             [clojure.tools.cli :as cli]
             [editor.analytics :as analytics]
-            [editor.code.view :as code-view]
             [editor.connection-properties :refer [connection-properties]]
             [editor.dialogs :as dialogs]
             [editor.error-reporting :as error-reporting]
@@ -31,6 +30,7 @@
             [service.log :as log]
             [util.repo :as repo])
   (:import [com.defold.editor Shutdown]
+           [com.dynamo.bob.archive EngineVersion]
            [java.util Arrays]
            [javax.imageio ImageIO]))
 
@@ -39,35 +39,46 @@
 (def namespace-counter (atom 0))
 (def namespace-progress-reporter (atom nil))
 
-(alter-var-root (var clojure.core/load-lib)
-                (fn [f]
-                  (fn [prefix lib & options]
-                    (swap! namespace-counter inc)
-                    (when @namespace-progress-reporter
-                      (@namespace-progress-reporter
-                       #(progress/jump %
-                                       @namespace-counter
-                                       (str "Initializing editor " (if prefix
-                                                                     (str prefix "." lib)
-                                                                     (str lib))))))
-                    (apply f prefix lib options))))
+(alter-var-root
+  (var clojure.core/load-lib)
+  (fn [core-load-lib-fn]
+    (fn [prefix lib & options]
+      (when-let [progress-reporter @namespace-progress-reporter]
+        (let [pos (swap! namespace-counter inc)
+              msg (str "Initializing editor " (if prefix
+                                                (str prefix "." lib)
+                                                (str lib)))]
+          (progress-reporter
+            #(progress/jump % pos msg))))
+      (apply core-load-lib-fn prefix lib options))))
 
 (defn- open-project-with-progress-dialog
-  [namespace-loader prefs project updater newly-created?]
+  [namespace-loader user-prefs project updater newly-created?]
   (dialogs/make-load-project-dialog
     (fn [render-progress!]
-      (let [namespace-progress (progress/make "Loading editor" 1471) ; Magic number from printing namespace-counter after load. Connecting a REPL skews the result!
+      (let [namespace-progress (progress/make "Loading editor" 2867) ; Magic number from printing namespace-counter after load. Connecting a REPL skews the result!
             render-namespace-progress! (progress/nest-render-progress render-progress! (progress/make "Loading" 5 0) 1)
             render-project-progress! (progress/nest-render-progress render-progress! (progress/make "Loading" 5 1) 4)
-            project-file (io/file project)]
+            project-file (io/file project)
+            project-dir (.getParentFile project-file)
+            project-prefs (doto (prefs/project project-dir user-prefs) prefs/migrate-project-prefs!)]
+        (welcome/add-recent-project! project-prefs project-file)
         (reset! namespace-progress-reporter #(render-namespace-progress! (% namespace-progress)))
-        ;; ensure that namespace loading has completed
+
+        ;; Ensure that namespace loading has completed.
         @namespace-loader
-        (code-view/initialize! prefs)
-        (apply (var-get (ns-resolve 'editor.boot-open-project 'initialize-project)) [])
-        (welcome/add-recent-project! prefs project-file)
-        (apply (var-get (ns-resolve 'editor.boot-open-project 'open-project)) [project-file prefs render-project-progress! updater newly-created?])
-        (reset! namespace-progress-reporter nil)))))
+
+        ;; Disable namespace progress reporting after the built-in namespaces
+        ;; have finished loading. We don't want to report progress from plugin
+        ;; namespaces, since that would "roll back" the progress bar.
+        (reset! namespace-progress-reporter nil)
+        (log/info :message "Finished loading editor namespaces." :namespace-counter @namespace-counter)
+
+        ;; Initialize the system and load the project.
+        (let [system-config (apply (var-get (ns-resolve 'editor.shared-editor-settings 'load-project-system-config)) [project-dir])]
+          (apply (var-get (ns-resolve 'editor.boot-open-project 'initialize-systems!)) [project-prefs])
+          (apply (var-get (ns-resolve 'editor.boot-open-project 'initialize-project!)) [system-config])
+          (apply (var-get (ns-resolve 'editor.boot-open-project 'open-project!)) [project-file project-prefs render-project-progress! updater newly-created?]))))))
 
 (defn- select-project-from-welcome
   [namespace-loader prefs updater]
@@ -88,13 +99,9 @@
     (when-some [editor-sha1 (repo/detect-editor-sha1)]
       (system/set-defold-editor-sha1! editor-sha1)))
 
-  ;; Try to find the engine revision by looking at the VERSION file in the root
-  ;; of the Defold repo. On a stable engine branch, the contents of this file
-  ;; will correspond to a Git tag. If the tag is present, it will point to the
-  ;; engine revision. This is required when building native extensions.
+  ;; If we don't have an engine sha1 specified, use the sha1 from Bob.
   (when (empty? (system/defold-engine-sha1))
-    (when-some [engine-sha1 (repo/detect-engine-sha1)]
-      (system/set-defold-engine-sha1! engine-sha1))))
+    (system/set-defold-engine-sha1! EngineVersion/sha1)))
 
 (defn disable-imageio-cache!
   []
@@ -120,20 +127,21 @@
   (let [args (Arrays/asList args)
         opts (cli/parse-opts args cli-options)
         prefs (if-let [prefs-path (get-in opts [:options :preferences])]
-                (prefs/load-prefs prefs-path)
-                (prefs/make-prefs "defold"))
+                (prefs/global prefs-path)
+                (doto (prefs/global) prefs/migrate-global-prefs!))
         updater (updater/start!)
-        analytics-url "https://www.google-analytics.com/batch"
+        analytics-url (get connection-properties :analytics-url)
         analytics-send-interval 300]
     (when (some? updater)
       (updater/delete-backup-files! updater))
-    (analytics/start! analytics-url analytics-send-interval true)
+    (analytics/start! analytics-url analytics-send-interval)
     (Shutdown/addShutdownAction analytics/shutdown!)
     (try
-      (let [game-project-path (get-in opts [:arguments 0])]
+      (let [game-project-path (get-in opts [:arguments 0])
+            game-project-file (io/file game-project-path)]
         (if (and game-project-path
-                 (.exists (io/file game-project-path)))
-          (open-project-with-progress-dialog namespace-loader prefs game-project-path updater false)
+                 (.exists game-project-file))
+          (open-project-with-progress-dialog namespace-loader prefs (.getAbsolutePath game-project-file) updater false)
           (select-project-from-welcome namespace-loader prefs updater)))
       (catch Throwable t
         (log/error :exception t)

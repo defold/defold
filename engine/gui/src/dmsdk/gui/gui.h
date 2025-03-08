@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -29,6 +29,12 @@
  */
 namespace dmGui
 {
+    /*#
+     * A handle to a gui context
+     * @name HContext
+     * @type typedef
+     */
+     typedef struct Context* HContext;
 
     /*#
      * A handle to a gui scene
@@ -43,6 +49,21 @@ namespace dmGui
      * @type typedef
      */
     typedef uint32_t HNode;
+
+    /*#
+     * A handle to a gui script
+     * @name HScript
+     * @type typedef
+     */
+    typedef struct Script* HScript;
+
+    /*#
+     * A handle to a texture source, which can be a pointer to a resource,
+     * a dmGraphics::HTexture or a dynamic texture created from a gui script.
+     * @name HTextureSource
+     * @type typedef
+     */
+    typedef uint64_t HTextureSource;
 
     /*#
      * Invalid node handle
@@ -95,14 +116,12 @@ namespace dmGui
      * @member NODE_TEXTURE_TYPE_NONE
      * @member NODE_TEXTURE_TYPE_TEXTURE
      * @member NODE_TEXTURE_TYPE_TEXTURE_SET
-     * @member NODE_TEXTURE_TYPE_DYNAMIC
      */
     enum NodeTextureType
     {
         NODE_TEXTURE_TYPE_NONE,
         NODE_TEXTURE_TYPE_TEXTURE,
         NODE_TEXTURE_TYPE_TEXTURE_SET,
-        NODE_TEXTURE_TYPE_DYNAMIC
     };
 
     // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
@@ -281,8 +300,10 @@ namespace dmGui
         PROPERTY_SLICE9     = 7,
         PROPERTY_PIE_PARAMS = 8,
         PROPERTY_TEXT_PARAMS= 9,
+        PROPERTY_EULER      = 10,
+        PROPERTY_PREV_EULER = 11, // Used to automatically detect if the euler property has been animated
 
-        PROPERTY_COUNT      = 10,
+        PROPERTY_COUNT      = 12,
     };
 
     /*#
@@ -369,7 +390,7 @@ namespace dmGui
      * @param type [type:NodeTextureType] the type of texture
      * @param texture [type: void*] A pointer to a e.g. dmGameSystem::TextureSetResource*
      */
-    Result SetNodeTexture(HScene scene, HNode node, NodeTextureType type, void* texture);
+    Result SetNodeTexture(HScene scene, HNode node, NodeTextureType type, HTextureSource texture);
 
     // possibly use "add texture instead"
 

@@ -1,6 +1,6 @@
 [project]
 title = Game Project Properties
-dependencies = http://test.com/test.zip
+dependencies = http://test.com/not-responding.zip
 
 [bootstrap]
 main_collection = main.collectionc

@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,9 +16,9 @@
   (:require [clojure.java.io :as io]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [editor.build :as build]
             [editor.defold-project :as project]
             [editor.game-project :as game-project]
-            [editor.pipeline :as pipeline]
             [editor.placeholder-resource :refer [PlaceholderResourceNode]]
             [editor.resource :as resource]
             [editor.system :as system]
@@ -33,16 +33,14 @@
 
 (def ^:private project-path "test/resources/all_types_project")
 
-(defn- digest-string [value]
-  (with-open [writer (StringWriter.)]
-    (digestable/digest! value writer)
-    (.flush writer)
-    (.toString writer)))
-
-(defn- make-lua-memory-resource [workspace source]
-  (assert (string? source))
-  (let [resource-type (workspace/get-resource-type workspace "lua")]
-    (resource/make-memory-resource workspace resource-type source)))
+(defn- digest-string
+  ([value]
+   (digest-string value nil))
+  ([value opts]
+   (with-open [writer (StringWriter.)]
+     (digestable/digest! value writer opts)
+     (.flush writer)
+     (.toString writer))))
 
 (defn- make-fake-file-resource [workspace path text]
   (let [root-dir (workspace/project-path workspace)]
@@ -64,7 +62,7 @@
           file-resource-node (project/get-resource-node project file-resource)
           zip-resource (workspace/find-resource workspace  "/builtins/graphics/particle_blob.png")
           zip-resource-node (project/get-resource-node project zip-resource)
-          memory-resource (make-lua-memory-resource workspace "return {key = 123}")
+          memory-resource (workspace/make-memory-resource workspace :editable "lua" "return {key = 123}")
           build-resource (workspace/make-build-resource memory-resource)
           fake-file-resource (make-fake-file-resource workspace "docs/readme.txt" "Defold")
           custom-resource (game-project/->CustomResource fake-file-resource)]
@@ -103,8 +101,8 @@
         (are [result value]
           (= result (digest-string value))
 
-          "#dg/Bytes [0, 32, 64]" (byte-array [0 32 64])
-          "#dg/ByteString [65, 66, 67]" (ByteString/copyFrom "ABC" "UTF-8")
+          "#dg/Bytes 0x002040" (byte-array [0 32 64])
+          "#dg/ByteString 0x414243" (ByteString/copyFrom "ABC" "UTF-8")
           "#dg/Class java.io.StringWriter" StringWriter
           "#dg/Function editor.build-target-test/mock-module-level-function" mock-module-level-function
           "#dg/Matrix4d [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0]" (doto (Matrix4d.) .setIdentity)
@@ -147,28 +145,53 @@
           "{[#dg/Class java.lang.Byte] {#dg/Class java.lang.Byte #dg/Class java.lang.Byte}}"
           {[Byte] {Byte Byte}}))
 
+      (testing "Ignored entries in maps"
+        (are [value]
+          (and (= "{}" (digest-string value))
+               (= "{}" (digest-string (into (sorted-map) value))))
+
+          {:digest-ignored/node-id zip-resource-node}
+          {:digest-ignored/error-node-id zip-resource-node}
+          {:digest-ignored/any-key-that-ends-in-node-id zip-resource-node}))
+
       (testing "Allowed node id entries in maps"
         ;; Node ids are only allowed in maps. The key must end with "node-id",
-        ;; and the node must have a :sha256 output. The other tests below will
-        ;; fail in case these restrictions are violated.
-        (are [result value]
-          (and (= result (digest-string value))
-               (= result (digest-string (into (sorted-map) value))))
+        ;; and the node-id must be included in a :node-id->persistent-value map
+        ;; in the opts map provided to the digest! function. The other tests
+        ;; below will fail in case these restrictions are violated.
+        (let [opts {:node-id->persistent-value {zip-resource-node (resource/proj-path zip-resource)}}]
+          (are [result value]
+            (and (= result (digest-string value opts))
+                 (= result (digest-string (into (sorted-map) value) opts)))
 
-          "{:node-id #dg/Node [editor.image/ImageNode, \"620a6d01e955915786374a5eaf8250bdd417a99e3839ca935e97c77faef3a431\"]}"
-          {:node-id zip-resource-node}
+            "{:node-id #dg/Node \"/builtins/graphics/particle_blob.png\"}"
+            {:node-id zip-resource-node}
 
-          "{:_node-id #dg/Node [editor.image/ImageNode, \"620a6d01e955915786374a5eaf8250bdd417a99e3839ca935e97c77faef3a431\"]}"
-          {:_node-id zip-resource-node}
+            "{:_node-id #dg/Node \"/builtins/graphics/particle_blob.png\"}"
+            {:_node-id zip-resource-node}
 
-          "{:any-key-that-ends-in-node-id #dg/Node [editor.image/ImageNode, \"620a6d01e955915786374a5eaf8250bdd417a99e3839ca935e97c77faef3a431\"]}"
-          {:any-key-that-ends-in-node-id zip-resource-node}))
+            "{:any-key-that-ends-in-node-id #dg/Node \"/builtins/graphics/particle_blob.png\"}"
+            {:any-key-that-ends-in-node-id zip-resource-node})))
 
-      (testing "ByteString UTF-8 code points"
-        (is (= "#dg/ByteString [-30, -122, -110]"
-               (digest-string (ByteString/copyFrom "\u2192" "UTF-8"))))
-        (is (= "\u2192"
-               (.toString (ByteString/copyFrom (byte-array [-30 -122 -110])) "UTF-8")))))))
+      (testing "Byte array details"
+        (is (= "#dg/Bytes 0x0" (digest-string (byte-array []))))
+        (is (= "#dg/Bytes 0x00" (digest-string (byte-array [0]))))
+        (is (= "#dg/Bytes 0x1122334455"
+               (digest-string (byte-array [0x11 0x22 0x33 0x44 0x55]))))
+        (is (= "#dg/Bytes 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff"
+               (digest-string (byte-array (range 0 256)))))
+        (is (= "#dg/Bytes 0x808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f"
+               (digest-string (byte-array (range -128 128))))))
+
+      (testing "ByteString details"
+        (is (= "#dg/ByteString 0x0"
+               (digest-string (ByteString/copyFrom "" "UTF-8"))))
+        (is (= "#dg/ByteString 0x00"
+               (digest-string (ByteString/copyFrom "\0" "UTF-8"))))
+        (is (= "#dg/ByteString 0x1122334455"
+               (digest-string (ByteString/copyFrom (byte-array [0x11 0x22 0x33 0x44 0x55])))))
+        (is (= "#dg/ByteString 0xe28692"
+               (digest-string (ByteString/copyFrom "\u2192" "UTF-8")))))))) ; Rightwards arrow.
 
 (defn- built-resource-node? [resource-node]
   (not (g/node-instance? PlaceholderResourceNode resource-node)))
@@ -178,24 +201,18 @@
     (try
       (g/node-value resource-node :build-targets)
       (catch Throwable error
-        (g/error-fatal (.getMessage error))))))
+        (g/error-fatal (.getMessage error)
+                       (ex-data error))))))
 
 (defn- all-build-targets [project]
-  (transduce (comp (map second)
-                   (map build-targets-or-error)
-                   (remove g/error?)
-                   (remove empty?))
-             (completing
-               (fn [all-build-targets resource-build-targets]
-                 (let [seen-content-hashes (into #{}
-                                                 (map :content-hash)
-                                                 all-build-targets)]
-                   (into all-build-targets
-                         (pipeline/flatten-build-targets
-                           resource-build-targets seen-content-hashes)))))
-             []
-             (sort-by key
-                      (g/node-value project :nodes-by-resource-path))))
+  (build/resolve-dependencies
+    (->> (g/node-value project :nodes-by-resource-path)
+         (sort-by key)
+         (map val)
+         (map build-targets-or-error)
+         (remove g/error?)
+         (remove empty?))
+    project))
 
 (defn- build-target-content-hashes-by-path [project]
   (into (sorted-map)
@@ -218,7 +235,7 @@
                                (keep (fn [[resource-path build-targets]]
                                        (when-not (g/error? build-targets)
                                          (try
-                                           (pipeline/flatten-build-targets build-targets)
+                                           (build/resolve-dependencies build-targets project)
                                            nil
                                            (catch Throwable error
                                              [resource-path (g/error-fatal (.getMessage error))])))))
@@ -229,8 +246,9 @@
 (deftest build-target-content-hashes-are-unaffected-by-node-ids
   ;; This test ensures the build target content hashes do not change in case a
   ;; node id differs between editing sessions. If a node id is needed inside a
-  ;; build target, it must be in a map under a key that ends with "node-id".
-  ;; The node itself must have a :sha256 output. All resource nodes have this.
+  ;; build target, it must be in a map under a key that ends with "node-id", and
+  ;; a :node-id->persistent-value map must be provided in the opts map argument
+  ;; to build-target/with-content-hash.
   (let [session1-content-hashes-by-path
         (test-util/with-loaded-project project-path
           (build-target-content-hashes-by-path project))

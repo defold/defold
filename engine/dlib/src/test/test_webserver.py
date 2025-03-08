@@ -1,12 +1,12 @@
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2025 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,7 +15,7 @@
 import os
 import sys
 import unittest
-import httplib
+import http.client
 import random
 import atexit
 
@@ -27,7 +27,7 @@ PORT = 8501
 class TestHttpServer(unittest.TestCase):
 
     def testMulNumbers(self):
-        c = httplib.HTTPConnection('localhost:%d' % PORT)
+        c = http.client.HTTPConnection('localhost:%d' % PORT)
         for i in range(40):
             a = random.randint(1, 1024)
             b = random.randint(1, 1024)
@@ -38,7 +38,7 @@ class TestHttpServer(unittest.TestCase):
             self.assertEqual(a + b, int(buf))
 
     def testMulHeadersNumbers(self):
-        c = httplib.HTTPConnection('localhost:%d' % PORT)
+        c = http.client.HTTPConnection('localhost:%d' % PORT)
         for i in range(40):
             a = random.randint(1, 1024)
             b = random.randint(1, 1024)
@@ -51,7 +51,7 @@ class TestHttpServer(unittest.TestCase):
 
 if __name__ == '__main__':
     def shutdown_server():
-        c = httplib.HTTPConnection('localhost:%d' % PORT)
+        c = http.client.HTTPConnection('localhost:%d' % PORT)
         c.request('GET', '/quit')
         r = c.getresponse()
         assert r.status == 200

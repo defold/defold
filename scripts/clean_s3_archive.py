@@ -1,13 +1,13 @@
 #!/usr/bin/env python
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2025 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -36,9 +36,15 @@ keep = [
     "editor-alpha"
 ]
 
-for key in bucket.list(prefix = archive_root):
-    parts = key.name.split("/")
+for object_summary in bucket.objects.filter(Prefix=archive_root):
+    objects_to_delete = []
+    parts = object_summary.key.split("/")
     sha1 = parts[1]
     if sha1 not in keep:
-        print("Deleting %s" % key.name)
-        key.delete()
+        print("Schedule for deleting %s" % object_summary.key)
+        objects_to_delete.append({'Key': object_summary.key})
+    bucket.delete_objects(
+        Delete={
+            'Objects': objects_to_delete
+        }
+    )

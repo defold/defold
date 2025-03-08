@@ -1,21 +1,21 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
 #include <dlib/dstrings.h>
+#include <dlib/align.h>
 #include <dlib/hash.h>
 #include <dlib/message.h>
 #include <resource/resource.h>
@@ -24,19 +24,24 @@
 #include "../gameobject_script.h"
 #include "../proto/gameobject/gameobject_ddf.h"
 #include "../gameobject_props.h"
+#include "../gameobject_props_lua.h"
+
+#include <dmsdk/resource/resource.h>
+
+#include <dmsdk/resource/resource.hpp>
 
 using namespace dmVMath;
 
-dmResource::Result ResCreate(const dmResource::ResourceCreateParams& params)
+dmResource::Result ResCreate(const dmResource::ResourceCreateParams* params)
 {
     // The resource is not relevant for this test
-    params.m_Resource->m_Resource = (void*)new uint8_t[4];
+    ResourceDescriptorSetResource(params->m_Resource, new uint8_t[4]);
     return dmResource::RESULT_OK;
 }
-dmResource::Result ResDestroy(const dmResource::ResourceDestroyParams& params)
+dmResource::Result ResDestroy(const dmResource::ResourceDestroyParams* params)
 {
     // The resource is not relevant for this test
-    delete [] (uint8_t*)params.m_Resource->m_Resource;
+    delete [] (uint8_t*)ResourceDescriptorGetResource(params->m_Resource);
     return dmResource::RESULT_OK;
 }
 
@@ -66,9 +71,10 @@ protected:
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
-        m_Path = "build/default/src/gameobject/test/props";
+        m_Path = "build/src/gameobject/test/props";
         m_Factory = dmResource::NewFactory(&params, m_Path);
-        m_ScriptContext = dmScript::NewContext(0, 0, true);
+        dmScript::ContextParams script_context_params = {};
+        m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
         m_Register = dmGameObject::NewRegister();
         dmGameObject::Initialize(m_Register, m_ScriptContext);
@@ -93,7 +99,7 @@ protected:
         dmResource::Result e = dmResource::RegisterType(m_Factory, "no_user_datac", this, 0, ResCreate, 0, ResDestroy, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
-        dmResource::ResourceType resource_type;
+        HResourceType resource_type;
         dmGameObject::Result result;
 
         e = dmResource::GetTypeFromExtension(m_Factory, "no_user_datac", &resource_type);
@@ -153,11 +159,11 @@ static void SetProperties(dmGameObject::HInstance instance)
     }
 }
 
-static dmGameObject::HInstance Spawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, const Vector3& scale)
+static dmGameObject::HInstance Spawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* prototype_name, dmhash_t id, dmGameObject::HPropertyContainer properties, const Point3& position, const Quat& rotation, const Vector3& scale)
 {
     dmGameObject::HPrototype prototype = 0x0;
     if (dmResource::Get(factory, prototype_name, (void**)&prototype) == dmResource::RESULT_OK) {
-        dmGameObject::HInstance result = dmGameObject::Spawn(collection, prototype, prototype_name, id, property_buffer, property_buffer_size, position, rotation, scale);
+        dmGameObject::HInstance result = dmGameObject::Spawn(collection, prototype, prototype_name, id, properties, position, rotation, scale);
         dmResource::Release(factory, prototype);
         return result;
     }
@@ -171,9 +177,9 @@ TEST_F(PropsTest, PropsDefault)
     SetProperties(go);
     bool result = dmGameObject::Init(m_Collection);
     ASSERT_TRUE(result);
-    ASSERT_EQ(dmResource::RESULT_OK, ReloadResource(m_Factory, "/props_default.scriptc", 0x0));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, "/props_default.scriptc", 0x0));
     // Twice since we had crash here
-    ASSERT_EQ(dmResource::RESULT_OK, ReloadResource(m_Factory, "/props_default.scriptc", 0x0));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, "/props_default.scriptc", 0x0));
     dmGameObject::Delete(m_Collection, go, false);
 }
 
@@ -184,7 +190,7 @@ TEST_F(PropsTest, PropsGO)
     SetProperties(go);
     bool result = dmGameObject::Init(m_Collection);
     ASSERT_TRUE(result);
-    ASSERT_EQ(dmResource::RESULT_OK, ReloadResource(m_Factory, "/props_go.scriptc", 0x0));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, "/props_go.scriptc", 0x0));
     dmGameObject::Delete(m_Collection, go, false);
 }
 
@@ -195,7 +201,7 @@ TEST_F(PropsTest, PropsCollection)
     ASSERT_EQ(dmResource::RESULT_OK, res);
     bool result = dmGameObject::Init(collection);
     ASSERT_TRUE(result);
-    ASSERT_EQ(dmResource::RESULT_OK, ReloadResource(m_Factory, "/props_coll.scriptc", 0x0));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, "/props_coll.scriptc", 0x0));
     dmResource::Release(m_Factory, collection);
 }
 
@@ -224,43 +230,44 @@ TEST_F(PropsTest, PropsSpawn)
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);
     int top = lua_gettop(L);
     lua_newtable(L);
-    lua_pushliteral(L, "number");
+
     lua_pushnumber(L, 200);
-    lua_rawset(L, -3);
-    lua_pushliteral(L, "hash");
+    lua_setfield(L, -2, "number");
+
     dmScript::PushHash(L, dmHashString64("hash"));
-    lua_rawset(L, -3);
+    lua_setfield(L, -2, "hash");
+
     dmMessage::URL url;
     dmMessage::ResetURL(&url);
     url.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
     url.m_Path = dmHashString64("/path");
-    lua_pushliteral(L, "url");
     dmScript::PushURL(L, url);
-    lua_rawset(L, -3);
-    lua_pushliteral(L, "vector3");
+    lua_setfield(L, -2, "url");
+
     dmScript::PushVector3(L, Vector3(1, 2, 3));
-    lua_rawset(L, -3);
-    lua_pushliteral(L, "vector4");
+    lua_setfield(L, -2, "vector3");
+
     dmScript::PushVector4(L, Vector4(1, 2, 3, 4));
-    lua_rawset(L, -3);
-    lua_pushliteral(L, "quat");
+    lua_setfield(L, -2, "vector4");
+
     dmScript::PushQuat(L, Quat(1, 2, 3, 4));
-    lua_rawset(L, -3);
-    uint8_t buffer[1024];
-    uint32_t buffer_size = 1024;
-    uint32_t size_used = dmScript::CheckTable(L, (char*)buffer, buffer_size, -1);
+    lua_setfield(L, -2, "quat");
+
+    dmGameObject::HPropertyContainer properties = dmGameObject::PropertyContainerCreateFromLua(L, -1);
     lua_pop(L, 1);
+
     ASSERT_EQ(top, lua_gettop(L));
-    ASSERT_LT(0u, size_used);
-    ASSERT_LT(size_used, buffer_size);
-    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/props_spawn.goc", dmHashString64("test_id"), buffer, buffer_size, Point3(0.0f, 0.0f, 0.0f), Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
+    ASSERT_NE((dmGameObject::HPropertyContainer)0, properties);
+    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/props_spawn.goc", dmHashString64("test_id"), properties, Point3(0.0f, 0.0f, 0.0f), Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
     // Script init is run in spawn which verifies the properties
     ASSERT_NE((void*)0u, instance);
+
+    dmGameObject::PropertyContainerDestroy(properties);
 }
 
 TEST_F(PropsTest, PropsSpawnNoProperties)
 {
-    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/props_go.goc", dmHashString64("test_id"), 0x0, 0, Point3(0.0f, 0.0f, 0.0f), Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
+    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/props_go.goc", dmHashString64("test_id"), 0, Point3(0.0f, 0.0f, 0.0f), Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
     // Script init is run in spawn which verifies the properties
     ASSERT_NE((void*)0u, instance);
 }
@@ -552,7 +559,7 @@ TEST_F(PropsTest, PropsGetSetScript)
 }
 
 #define ASSERT_SPAWN_FAILS(path)\
-    dmGameObject::HInstance i = Spawn(m_Factory, m_Collection, path, dmHashString64("id"), (uint8_t*)0x0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));\
+    dmGameObject::HInstance i = Spawn(m_Factory, m_Collection, path, dmHashString64("id"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));\
     ASSERT_EQ(0, i);
 
 TEST_F(PropsTest, PropsGetBadURL)
@@ -597,7 +604,7 @@ TEST_F(PropsTest, PropsSetCompNotFound)
 
 #undef ASSERT_SPAWN_FAILS
 
-TEST(GameObjectProps, TestCreatePropertyContainer)
+TEST(GameObjectProps, TestPropertyContainerCreate)
 {
     const float numberFirst = 1.f;
     const float numberSecond = 2.f;
@@ -615,7 +622,7 @@ TEST(GameObjectProps, TestCreatePropertyContainer)
     bool boolFirst = true;
     bool boolSecond = false;
 
-    dmGameObject::PropertyContainerParameters params;
+    dmGameObject::PropertyContainerBuilderParams params;
     params.m_NumberCount = 2;
     params.m_HashCount = 1;
     params.m_URLStringCount = 2;
@@ -626,21 +633,21 @@ TEST(GameObjectProps, TestCreatePropertyContainer)
     params.m_BoolCount = 2;
     params.m_URLStringSize += strlen("url_string_first") + 1;
     params.m_URLStringSize += strlen("url_string_second") + 1;
-    dmGameObject::HPropertyContainerBuilder builder = dmGameObject::CreatePropertyContainerBuilder(params);
+    dmGameObject::HPropertyContainerBuilder builder = dmGameObject::PropertyContainerCreateBuilder(params);
     ASSERT_NE(builder, (dmGameObject::HPropertyContainerBuilder)0x0);
-    dmGameObject::PushFloatType(builder, dmHashString64("NumberFirst"), dmGameObject::PROPERTY_TYPE_NUMBER, &numberFirst);
-    dmGameObject::PushFloatType(builder, dmHashString64("NumberSecond"), dmGameObject::PROPERTY_TYPE_NUMBER, &numberSecond);
-    dmGameObject::PushHash(builder, dmHashString64("HashFirst"), hashFirst);
-    dmGameObject::PushURLString(builder, dmHashString64("URLStringFirst"), urlStringFirst);
-    dmGameObject::PushURLString(builder, dmHashString64("URLStringSecond"), urlStringSecond);
-    dmGameObject::PushURL(builder, dmHashString64("URLFirst"), urlFirst);
-    dmGameObject::PushFloatType(builder, dmHashString64("Vector3First"), dmGameObject::PROPERTY_TYPE_VECTOR3, vector3First);
-    dmGameObject::PushFloatType(builder, dmHashString64("Vector3Second"), dmGameObject::PROPERTY_TYPE_VECTOR3, vector3Second);
-    dmGameObject::PushFloatType(builder, dmHashString64("Vector4First"), dmGameObject::PROPERTY_TYPE_VECTOR4, vector4First);
-    dmGameObject::PushFloatType(builder, dmHashString64("QuatFirst"), dmGameObject::PROPERTY_TYPE_QUAT, quatFirst);
-    dmGameObject::PushBool(builder, dmHashString64("BoolFirst"), boolFirst);
-    dmGameObject::PushBool(builder, dmHashString64("BoolSecond"), boolSecond);
-    dmGameObject::HPropertyContainer c = dmGameObject::CreatePropertyContainer(builder);
+    dmGameObject::PropertyContainerPushFloat(builder, dmHashString64("NumberFirst"), numberFirst);
+    dmGameObject::PropertyContainerPushFloat(builder, dmHashString64("NumberSecond"), numberSecond);
+    dmGameObject::PropertyContainerPushHash(builder, dmHashString64("HashFirst"), hashFirst);
+    dmGameObject::PropertyContainerPushURLString(builder, dmHashString64("URLStringFirst"), urlStringFirst);
+    dmGameObject::PropertyContainerPushURLString(builder, dmHashString64("URLStringSecond"), urlStringSecond);
+    dmGameObject::PropertyContainerPushURL(builder, dmHashString64("URLFirst"), urlFirst);
+    dmGameObject::PropertyContainerPushVector3(builder, dmHashString64("Vector3First"), vector3First);
+    dmGameObject::PropertyContainerPushVector3(builder, dmHashString64("Vector3Second"), vector3Second);
+    dmGameObject::PropertyContainerPushVector4(builder, dmHashString64("Vector4First"), vector4First);
+    dmGameObject::PropertyContainerPushQuat(builder, dmHashString64("QuatFirst"), quatFirst);
+    dmGameObject::PropertyContainerPushBool(builder, dmHashString64("BoolFirst"), boolFirst);
+    dmGameObject::PropertyContainerPushBool(builder, dmHashString64("BoolSecond"), boolSecond);
+    dmGameObject::HPropertyContainer c = dmGameObject::PropertyContainerCreate(builder);
     ASSERT_NE(c, (dmGameObject::HPropertyContainer)0x0);
     dmGameObject::PropertyVar var;
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_NOT_FOUND, dmGameObject::PropertyContainerGetPropertyCallback(0x0, (uintptr_t)c, dmHashString64("NonExistant"), var));
@@ -685,7 +692,7 @@ TEST(GameObjectProps, TestCreatePropertyContainer)
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::PropertyContainerGetPropertyCallback(0x0, (uintptr_t)c, dmHashString64("BoolSecond"), var));
     ASSERT_EQ(dmGameObject::PROPERTY_TYPE_BOOLEAN, var.m_Type);
     ASSERT_EQ(boolSecond, var.m_Bool);
-    dmGameObject::DestroyPropertyContainer(c);
+    dmGameObject::PropertyContainerDestroy(c);
 }
 
 TEST(GameObjectProps, TestMergePropertyContainer)
@@ -700,37 +707,37 @@ TEST(GameObjectProps, TestMergePropertyContainer)
     float VECTOR3_OVERIDE[3] = {-1, -2, -3};
     float VECTOR3_2[3] = {10, -21, -30};
 
-    dmGameObject::PropertyContainerParameters params;
+    dmGameObject::PropertyContainerBuilderParams params;
     params.m_NumberCount = 1;
     params.m_URLStringCount = 1;
     params.m_URLCount = 0;
     params.m_Vector3Count = 1;
     params.m_URLStringSize += strlen("/url") + 1;
-    dmGameObject::HPropertyContainerBuilder builder = dmGameObject::CreatePropertyContainerBuilder(params);
+    dmGameObject::HPropertyContainerBuilder builder = dmGameObject::PropertyContainerCreateBuilder(params);
     ASSERT_NE(builder, (dmGameObject::HPropertyContainerBuilder)0x0);
-    dmGameObject::PushFloatType(builder, dmHashString64("number"), dmGameObject::PROPERTY_TYPE_NUMBER, &NUMBER);
-    dmGameObject::PushURLString(builder, dmHashString64("url"), URL);
-    dmGameObject::PushFloatType(builder, dmHashString64("vector3"), dmGameObject::PROPERTY_TYPE_VECTOR3, VECTOR3);
+    dmGameObject::PropertyContainerPushFloat(builder, dmHashString64("number"), NUMBER);
+    dmGameObject::PropertyContainerPushURLString(builder, dmHashString64("url"), URL);
+    dmGameObject::PropertyContainerPushVector3(builder, dmHashString64("vector3"), VECTOR3);
 
-    dmGameObject::HPropertyContainer c = dmGameObject::CreatePropertyContainer(builder);
+    dmGameObject::HPropertyContainer c = dmGameObject::PropertyContainerCreate(builder);
     ASSERT_NE(c, (dmGameObject::HPropertyContainer)0x0);
 
-    params = dmGameObject::PropertyContainerParameters();
+    params = dmGameObject::PropertyContainerBuilderParams();
     params.m_URLCount = 1;
     params.m_Vector3Count = 2;
-    builder = dmGameObject::CreatePropertyContainerBuilder(params);
+    builder = dmGameObject::PropertyContainerCreateBuilder(params);
     ASSERT_NE(builder, (dmGameObject::HPropertyContainerBuilder)0x0);
-    dmGameObject::PushURL(builder, dmHashString64("url"), URL_OVERIDE);
-    dmGameObject::PushFloatType(builder, dmHashString64("vector3"), dmGameObject::PROPERTY_TYPE_VECTOR3, VECTOR3_OVERIDE);
-    dmGameObject::PushFloatType(builder, dmHashString64("vector3-2"), dmGameObject::PROPERTY_TYPE_VECTOR3, VECTOR3_2);
+    dmGameObject::PropertyContainerPushURL(builder, dmHashString64("url"), URL_OVERIDE);
+    dmGameObject::PropertyContainerPushVector3(builder, dmHashString64("vector3"), VECTOR3_OVERIDE);
+    dmGameObject::PropertyContainerPushVector3(builder, dmHashString64("vector3-2"), VECTOR3_2);
 
-    dmGameObject::HPropertyContainer o = dmGameObject::CreatePropertyContainer(builder);
+    dmGameObject::HPropertyContainer o = dmGameObject::PropertyContainerCreate(builder);
     ASSERT_NE(o, (dmGameObject::HPropertyContainer)0x0);
 
-    dmGameObject::HPropertyContainer m = dmGameObject::MergePropertyContainers(c, o);
+    dmGameObject::HPropertyContainer m = dmGameObject::PropertyContainerMerge(c, o);
     ASSERT_NE(m, (dmGameObject::HPropertyContainer)0x0);
-    dmGameObject::DestroyPropertyContainer(c);
-    dmGameObject::DestroyPropertyContainer(o);
+    dmGameObject::PropertyContainerDestroy(c);
+    dmGameObject::PropertyContainerDestroy(o);
 
     dmGameObject::PropertyVar var;
 
@@ -754,13 +761,5 @@ TEST(GameObjectProps, TestMergePropertyContainer)
     ASSERT_EQ(VECTOR3_2[1], var.m_V4[1]);
     ASSERT_EQ(VECTOR3_2[2], var.m_V4[2]);
 
-    dmGameObject::DestroyPropertyContainer(m);
-}
-
-int main(int argc, char **argv)
-{
-    dmDDF::RegisterAllTypes();
-    jc_test_init(&argc, argv);
-    int ret = jc_test_run_all();
-    return ret;
+    dmGameObject::PropertyContainerDestroy(m);
 }

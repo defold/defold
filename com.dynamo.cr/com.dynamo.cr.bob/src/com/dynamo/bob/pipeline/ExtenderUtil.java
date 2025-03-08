@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,6 +15,12 @@
 package com.dynamo.bob.pipeline;
 
 import static org.apache.commons.io.FilenameUtils.normalize;
+
+import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.bob.fs.FileSystemWalker;
+import com.dynamo.bob.fs.ZipMountPoint;
+import com.dynamo.bob.util.MiscUtil;
+import com.dynamo.bob.util.TextureUtil;
 import org.apache.commons.io.filefilter.DirectoryFileFilter;
 import org.apache.commons.io.filefilter.RegexFileFilter;
 
@@ -28,6 +34,8 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -35,6 +43,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -51,11 +60,13 @@ import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.BobProjectProperties;
+import com.dynamo.bob.util.FileUtil;
 
 public class ExtenderUtil {
 
     public static final String appManifestPath = "_app/" + ExtenderClient.appManifestFilename;
     public static final String proguardPath = "_app/app.pro";
+    public static final String privacyManifestPath = "_app/PrivacyInfo.xcprivacy";
     public static final String JAR_RE = "(.+\\.jar)";
 
     private static class FSExtenderResource implements ExtenderResource {
@@ -69,12 +80,6 @@ public class ExtenderUtil {
             return resource;
         }
 
-        @Override
-        public byte[] sha1() throws IOException {
-            return resource.sha1();
-        }
-
-        @Override
         public String getAbsPath() {
             return resource.getAbsPath().replace('\\', '/');
         }
@@ -107,27 +112,6 @@ public class ExtenderUtil {
         public FileExtenderResource(File file, String path) {
             this.file = file;
             this.path = path;
-        }
-
-        @Override
-        public byte[] sha1() throws IOException {
-            byte[] content = getContent();
-            if (content == null) {
-                throw new IllegalArgumentException(String.format("Resource '%s' is not created", getPath()));
-            }
-            MessageDigest sha1;
-            try {
-                sha1 = MessageDigest.getInstance("SHA1");
-            } catch (NoSuchAlgorithmException e) {
-                throw new RuntimeException(e);
-            }
-            sha1.update(content);
-            return sha1.digest();
-        }
-
-        @Override
-        public String getAbsPath() {
-            return path;
         }
 
         @Override
@@ -166,13 +150,19 @@ public class ExtenderUtil {
         }
     }
 
-    private static class EmptyResource implements IResource {
+    private static class DynamicResource implements IResource {
     	private String rootDir;
     	private String path;
+        private byte[] content;
 
-    	public EmptyResource(String rootDir, String path) {
+        public DynamicResource(String rootDir, String path, byte[] content) {
             this.rootDir = rootDir;
             this.path = path;
+            this.content = content;
+        }
+
+    	public DynamicResource(String rootDir, String path) {
+            this(rootDir, path, new byte[0]);
         }
 
     	@Override
@@ -182,18 +172,27 @@ public class ExtenderUtil {
 
 		@Override
 		public byte[] getContent() throws IOException {
-			return new byte[0];
+			return content;
 		}
 
 		@Override
 		public void setContent(byte[] content) throws IOException {
+            this.content = content;
 		}
 
-		@Override
-		public byte[] sha1() throws IOException {
+        @Override
+        public void appendContent(byte[] content) throws IOException {
+            ArrayList<byte[]> parts = new ArrayList<>();
+            parts.add(this.content);
+            parts.add(content);
+            this.content = MiscUtil.concatenateArrays(parts);
+        }
+
+        @Override
+        public byte[] sha1() throws IOException {
             byte[] content = getContent();
             if (content == null) {
-                throw new IllegalArgumentException(String.format("Resource '%s' is not created", getPath()));
+                throw new IllegalArgumentException(String.format("Resource '%s' is not created", path));
             }
             MessageDigest sha1;
             try {
@@ -203,7 +202,7 @@ public class ExtenderUtil {
             }
             sha1.update(content);
             return sha1.digest();
-		}
+        }
 
 		@Override
 		public boolean exists() {
@@ -281,22 +280,6 @@ public class ExtenderUtil {
 
         public IResource getResource() {
             return resource;
-        }
-
-        @Override
-        public byte[] sha1() throws IOException {
-            byte[] content = getContent();
-            if (content == null) {
-                throw new IllegalArgumentException(String.format("Resource '%s' is not created", getPath()));
-            }
-            MessageDigest sha1;
-            try {
-                sha1 = MessageDigest.getInstance("SHA1");
-            } catch (NoSuchAlgorithmException e) {
-                throw new RuntimeException(e);
-            }
-            sha1.update(content);
-            return sha1.digest();
         }
 
         @Override
@@ -416,6 +399,37 @@ public class ExtenderUtil {
         }
     }
 
+    /***
+     * @return true if a path is an ext.manifest that defines engine extensions (i.e. should be built remotely)
+     */
+    private static boolean isEngineExtensionManifest(Project project, String path) {
+        File f = new File(path);
+        if (f.getName().equals(ExtenderClient.extensionFilename)) {
+            String parent = f.getParent();
+            if (parent != null) {
+                ArrayList<String> siblings = new ArrayList<>();
+                project.findResourceDirs(parent, siblings);
+                return siblings.stream().anyMatch(x -> x.endsWith("src") || x.endsWith("commonsrc"));
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Get a list of paths to engine extension directories in the project (i.e. extensions
+     * that need to be built remotely)
+     * @param project
+     * @return A list of paths to engine extension directories
+     */
+    public static List<String> getEngineExtensionFolders(Project project) {
+        ArrayList<String> paths = new ArrayList<>();
+        project.findResourcePaths("", paths);
+        return paths.stream()
+                .filter(p -> isEngineExtensionManifest(project, p))
+                .map(p -> new File(p).getParent())
+                .collect(Collectors.toList());
+    }
+
     /**
      * Get a list of paths to extension directories in the project.
      * @param project
@@ -435,6 +449,14 @@ public class ExtenderUtil {
         return folders;
     }
 
+
+    public static List<File> getPipelinePlugins(Project project) {
+        String outputDir = project.getBinaryOutputDirectory();
+        Platform hostPlatform = Platform.getHostPlatform();
+        File buildDir = new File(FilenameUtils.concat(outputDir, hostPlatform.getExtenderPair()));
+        List<File> files = listFilesRecursive(buildDir, JAR_RE);
+        return files;
+    }
     private static boolean hasPropertyResource(Project project, BobProjectProperties projectProperties, String section, String key) {
         String path = projectProperties.getStringValue(section, key, "");
         if (!path.isEmpty()) {
@@ -445,6 +467,25 @@ public class ExtenderUtil {
         }
         return false;
     }
+
+
+
+    public static List<File> getNativeExtensionEngineBinaries(Project project, Platform platform) throws IOException {
+        final File platformDir = new File(project.getBinaryOutputDirectory(), platform.getExtenderPair());
+        List<String> binaryNames = platform.formatBinaryName("dmengine");
+        List<File> binaryFiles = new ArrayList<File>();
+        for (String binaryName : binaryNames) {
+            File extenderExe = new File(platformDir, binaryName);
+
+            // All binaries must exist, otherwise return null
+            if (!extenderExe.exists()) {
+                return null;
+            }
+            binaryFiles.add(extenderExe);
+        }
+        return binaryFiles;
+    }
+
 
     /**
      * Returns true if the project should build remotely
@@ -461,27 +502,17 @@ public class ExtenderUtil {
 
         ArrayList<String> paths = new ArrayList<>();
         project.findResourcePaths("", paths);
-        for (String p : paths) {
-            File f = new File(p);
-            if (f.getName().equals(ExtenderClient.extensionFilename)) {
-                return true;
-            }
-        }
-        return false;
+        return paths.stream().anyMatch(v -> isEngineExtensionManifest(project, v));
     }
 
-    private static IResource getPropertyResource(Project project, BobProjectProperties projectProperties, String section, String key) throws CompileExceptionError {
-        String path = projectProperties.getStringValue(section, key, "");
-        if (!path.isEmpty()) {
-            IResource resource = project.getResource(path);
-            if (resource.exists()) {
-                return resource;
-            } else {
-                IResource projectResource = project.getResource("game.project");
-                throw new CompileExceptionError(projectResource, 0, String.format("No such resource: %s.%s: %s", section, key, path));
-            }
+    private static IResource getProjectResource(Project project, String section, String key) throws CompileExceptionError, IOException {
+        IResource resource = project.getResource(section, key, false);
+        if (resource != null && !resource.exists()) {
+            IResource projectResource = project.getGameProjectResource();
+            String path               = project.getProjectProperties().getStringValue(section, key);
+            throw new CompileExceptionError(projectResource, 0, String.format("No such resource: %s.%s: %s", section, key, path));
         }
-        return null;
+        return resource;
     }
 
     /**
@@ -489,7 +520,7 @@ public class ExtenderUtil {
      * @param project
      * @return A list of ExtenderResource that can be supplied to ExtenderClient
      */
-    public static List<ExtenderResource> getExtensionSources(Project project, Platform platform, Map<String, String> appmanifestOptions) throws CompileExceptionError {
+    public static List<ExtenderResource> getExtensionSources(Project project, Platform platform, Map<String, String> appmanifestOptions) throws CompileExceptionError, IOException {
         List<ExtenderResource> sources = new ArrayList<>();
 
         List<String> platformFolderAlternatives = new ArrayList<String>();
@@ -497,23 +528,38 @@ public class ExtenderUtil {
         platformFolderAlternatives.add("common");
 
         // Find app manifest if there is one
-        BobProjectProperties projectProperties = project.getProjectProperties();
         {
-            IResource resource = getPropertyResource(project, projectProperties, "native_extension", "app_manifest");
+            IResource resource = getProjectResource(project, "native_extension", "app_manifest");
             if (resource == null) {
-                 resource = new EmptyResource(project.getRootDirectory(), appManifestPath);
+                 resource = new DynamicResource(project.getRootDirectory(), appManifestPath);
             }
+
             sources.add( new FSAppManifestResource(resource, project.getRootDirectory(), appManifestPath, appmanifestOptions ));
         }
+        // Find a Proguard file if specified
         {
-            IResource resource = getPropertyResource(project, projectProperties, "android", "proguard");
+            IResource resource = getProjectResource(project, "android", "proguard");
             if (resource != null) {
                 sources.add(new FSAliasResource(resource, project.getRootDirectory(), proguardPath));
             }
         }
 
-        // Find extension folders
-        List<String> extensionFolders = getExtensionFolders(project);
+        // For iOS and macOS only: Add the project privacy manifest 
+        if (platform == Platform.Arm64Ios || platform == Platform.X86_64Ios) {
+            IResource resource = getProjectResource(project, "ios", "privacymanifest");
+            if (resource != null) {
+                sources.add(new FSAliasResource(resource, project.getRootDirectory(), privacyManifestPath));
+            }
+        }
+        else if (platform == Platform.Arm64MacOS || platform == Platform.X86_64MacOS) {
+            IResource resource = getProjectResource(project, "osx", "privacymanifest");
+            if (resource != null) {
+                sources.add(new FSAliasResource(resource, project.getRootDirectory(), privacyManifestPath));
+            }
+        }
+
+        // Find engine extension folders
+        List<String> extensionFolders = getEngineExtensionFolders(project);
         for (String extension : extensionFolders) {
             IResource resource = project.getResource(extension + "/" + ExtenderClient.extensionFilename);
             if (!resource.exists()) {
@@ -531,6 +577,88 @@ public class ExtenderUtil {
                 sources.addAll( listFilesRecursive( project, extension + "/lib/" + platformAlt + "/") );
                 sources.addAll( listFilesRecursive( project, extension + "/manifests/" + platformAlt + "/") );
                 sources.addAll( listFilesRecursive( project, extension + "/res/" + platformAlt + "/") );
+            }
+        }
+
+        return sources;
+    }
+
+    static private String createExtensionManifest(String name, Platform platform, Map<String, Object> options) {
+        String ln = System.getProperty("line.separator");
+        String s = String.format("name: %s", name) + ln;
+        s += "platforms:" + ln;
+        s += String.format("  %s:", platform.getExtenderPair()) + ln;
+        s += String.format("    context:" + ln);
+
+        for (String key : options.keySet()) {
+            Object value = options.get(key);
+            String svalue = null;
+            if (value instanceof String) {
+                svalue = (String)value;
+            } else if (value instanceof List) {
+                svalue = "[";
+                List<Object> l = (List<Object>)value;
+                int length = l.size();
+                for (int i = 0; i < length; ++i) {
+                    String vv = (String)l.get(i);
+                    svalue += "'" + vv + "'";
+                    if (i < length-1) {
+                        svalue += ", ";
+                    }
+                }
+                svalue += "]" + ln;
+            }
+            s += String.format("      %s: %s", key, svalue) + ln;
+        }
+        return s;
+    }
+
+    public static List<ExtenderResource> getLibrarySources(Project project, Platform platform,
+                                                        Map<String, String> appmanifestOptions,
+                                                        Map<String, Object> compilerOptions,
+                                                        String libraryName,
+                                                        List<String> sourceDirs) throws CompileExceptionError, IOException {
+        List<ExtenderResource> sources = new ArrayList<>();
+
+        String rootDirectory = project.getRootDirectory();
+
+        // Find app manifest if there is one
+        {
+            IResource resource = getProjectResource(project, "native_extension", "app_manifest");
+            if (resource == null) {
+                 resource = new DynamicResource(rootDirectory, appManifestPath);
+            }
+
+            sources.add( new FSAppManifestResource(resource, rootDirectory, appManifestPath, appmanifestOptions ));
+        }
+
+        String manifestContent = ExtenderUtil.createExtensionManifest(libraryName, platform, compilerOptions);
+
+        // Create dummy extension manifest
+        IResource manifestResource = new DynamicResource(rootDirectory, "ext.manifest", manifestContent.getBytes());
+        sources.add(new FSExtenderResource(manifestResource));
+
+        File rootDirectoryFile = new File(rootDirectory);
+        for (String path : sourceDirs) {
+            File dir = new File(path);
+
+            if (dir.isDirectory() && dir.exists()) {
+                sources.addAll(listFilesRecursive(dir, dir));
+            } else {
+
+                ArrayList<String> paths = new ArrayList<>();
+                project.findResourcePaths(path, paths);
+                for (String p : paths) {
+                    IResource r = project.getResource(p);
+                    // Note: findResourcePaths will return the supplied path even if it's not a file.
+                    // We need to check if the resource is not a directory before adding it to the list of paths found.
+                    if (!r.isFile()) {
+                        continue;
+                    }
+
+                    String alias = String.format("%s/src/%s", libraryName, r.getPath());
+                    sources.add(new FSAliasResource(r, project.getRootDirectory(), alias));
+                }
             }
         }
 
@@ -561,7 +689,7 @@ public class ExtenderUtil {
 
     /** Get the platform manifests from the extensions
      */
-    public static List<IResource> getExtensionPlatformManifests(Project project, Platform platform, String name) throws CompileExceptionError {
+    public static List<IResource> getExtensionPlatformManifests(Project project, Platform platform) throws CompileExceptionError {
         List<IResource> out = new ArrayList<>();
 
         List<String> platformFolderAlternatives = new ArrayList<String>();
@@ -575,10 +703,8 @@ public class ExtenderUtil {
                 for (ExtenderResource r : files) {
                     if (!(r instanceof FSExtenderResource))
                         continue;
-                    File f = new File(r.getAbsPath());
-                    if (f.getName().equals(name)) {
-                        out.add( ((FSExtenderResource)r).getResource() );
-                    }
+                    File f = new File(((FSExtenderResource)r).getAbsPath());
+                    out.add( ((FSExtenderResource)r).getResource() );
                 }
             }
         }
@@ -716,24 +842,10 @@ public class ExtenderUtil {
         return false;
     }
 
-    public static byte[] createSha1(File file) throws Exception  {
-        MessageDigest digest = MessageDigest.getInstance("SHA1");
-        InputStream fis = new FileInputStream(file);
-        int n = 0;
-        byte[] buffer = new byte[8192];
-        while (n != -1) {
-            n = fis.read(buffer);
-            if (n > 0) {
-                digest.update(buffer, 0, n);
-            }
-        }
-        return digest.digest();
-    }
-
     private static boolean areFilesIdentical(IResource src, File tgt) {
         try {
             byte[] sha1_src = src.sha1();
-            byte[] sha1_tgt = createSha1(tgt);
+            byte[] sha1_tgt = FileUtil.calculateSha1(tgt);
             return Arrays.equals(sha1_src, sha1_tgt);
         } catch(Exception e) {
             return false;
@@ -762,26 +874,72 @@ public class ExtenderUtil {
         }
     }
 
+    private static boolean isPluginZip(String resourcePath) {
+        Platform hostPlatform = Platform.getHostPlatform();
+        return resourcePath.endsWith("plugins/common.zip")
+                || resourcePath.endsWith("plugins/" + hostPlatform.getPair() + ".zip")
+                || resourcePath.endsWith("plugins/" + hostPlatform.getOs() + ".zip");
+    }
+
+    private static int getPluginZipSpecificity(String resourcePath) {
+        String baseName = FilenameUtils.getBaseName(resourcePath);
+        if (baseName.equals("common")) {
+            return 0;
+        } else if (baseName.contains("-")) {
+            return 2;
+        } else {
+            return 1;
+        }
+    }
+
+    private static File storeResource(File targetDirectory, IResource resource) throws CompileExceptionError {
+        String relativePath = resource.getPath();
+        File outputFile = new File(targetDirectory, relativePath);
+        if (!outputFile.getParentFile().exists()) {
+            outputFile.getParentFile().mkdirs();
+        }
+
+        // We do this because we might be called from within the editor, which might have the .dll's locked.
+        // and so we don't want to fail copying those if we can avoid it.
+        if (outputFile.exists() && areFilesIdentical(resource, outputFile)) {
+            return outputFile;
+        }
+
+        try {
+            byte[] data = resource.getContent();
+            FileUtils.writeByteArrayToFile(outputFile, data);
+            String outputPath = outputFile.toString();
+            if (outputPath.contains("/plugins/bin/")) {
+                outputFile.setExecutable(true);
+            }
+            return outputFile;
+        } catch (Exception e) {
+            throw new CompileExceptionError(resource, 0, e);
+        }
+    }
+
     public static void storeResources(File targetDirectory, List<IResource> resources) throws CompileExceptionError {
-        for (IResource resource : resources) {
-            String relativePath = resource.getPath();
-            File outputFile = new File(targetDirectory, relativePath);
-            if (!outputFile.getParentFile().exists()) {
-                outputFile.getParentFile().mkdirs();
-            }
-
-            // We do this because we might be called from within the editor, which ight have the .dll's locked.
-            // and so we don't want to fail copying those if we can avoid it.
-            if (outputFile.exists() && areFilesIdentical(resource, outputFile)) {
-                continue;
-            }
-
+        Map<Boolean, List<IResource>> separatedResources = resources.stream().collect(Collectors.groupingBy(r -> isPluginZip(r.getPath())));
+        // sort plugin zips in specificity order, then extract
+        List<IResource> pluginZips = separatedResources.getOrDefault(true, Collections.emptyList());
+        pluginZips.sort(Comparator.comparingInt(zip -> getPluginZipSpecificity(zip.getPath())));
+        for (IResource zipResource : pluginZips) {
+            File outputFile = storeResource(targetDirectory, zipResource);
+            ZipMountPoint zip = new ZipMountPoint(new DefaultFileSystem(), outputFile.toString(), false);
             try {
-                byte[] data = resource.getContent();
-                FileUtils.writeByteArrayToFile(outputFile, data);
-            } catch (Exception e) {
-                throw new CompileExceptionError(resource, 0, e);
+                zip.mount();
+                ArrayList<String> results = new ArrayList<>();
+                zip.walk("", new FileSystemWalker(), results);
+                storeResources(outputFile.getParentFile(), results.stream().map(zip::get).collect(Collectors.toList()));
+            } catch (IOException e) {
+                throw new CompileExceptionError(zipResource, 0, e);
+            } finally {
+                zip.unmount();
             }
+        }
+        // simply extract other resources
+        for (IResource resource : separatedResources.getOrDefault(false, Collections.emptyList())) {
+            storeResource(targetDirectory, resource);
         }
     }
 

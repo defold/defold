@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -97,7 +97,7 @@ size_t dmStrlCpy(char *dst, const char *src, size_t size);
  * Size-bounded string concatenation. Same as OpenBSD 2.4 [strlcat](http://www.manpagez.com/man/3/strlcat).
  * Appends src to string dst of size siz (unlike strncat, siz is the full size of dst, not space left).
  * At most siz-1 characters will be copied.  Always NUL terminates (unless siz == 0).
- * Returns strlen(src); if retval >= siz, truncation occurred.
+ * Returns strlen(dst) + strlen(src); if retval >= siz, truncation occurred.
  *
  * @name dmStrlCat
  * @param dst Destination string
@@ -131,5 +131,24 @@ size_t dmStrlCat(char *dst, const char *src, size_t size);
  * ```
  */
 int dmStrCaseCmp(const char *s1, const char *s2);
+
+/*# Error code to string representation
+ *
+ * Error code to string representation. Wrapper for thread-safe strerror_s/r variants.
+ * If the size of the buffer is too small, the message will be truncated to fit the buffer.
+ * If the buffer is null, or if size is zero, nothing will happen.
+ *
+ * @name dmStrError
+ * @param dst Destination string that carries the error message
+ * @param size Max size of destination string in bytes
+ * @return a null-terminated error message
+ * @examples
+ *
+ * ```cpp
+ * char buf[128];
+ * dmStrError(buf, sizeof(buf), ENOENT); // buf => "No such file or directory"
+ * ```
+ */
+void dmStrError(char* dst, size_t size, int err);
 
 #endif //DMSDK_DSTRINGS_H

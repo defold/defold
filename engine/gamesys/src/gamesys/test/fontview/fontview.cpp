@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -22,10 +22,11 @@
 
 #include "../../gamesys.h"
 
-#include "../../resources/res_font_map.h"
-#include "../../resources/res_fragment_program.h"
-#include "../../resources/res_vertex_program.h"
+#include "../../resources/res_font.h"
+#include "../../resources/res_shader_program.h"
 #include "../../resources/res_material.h"
+
+#include <dmsdk/resource/resource.h>
 
 #ifdef __MACH__
 // Potential name clash with ddf. If included before ddf/ddf.h (TYPE_BOOL)
@@ -74,7 +75,7 @@ namespace dmFontView
             if (dmHID::GetKey(&keybdata, dmHID::KEY_ESC))
                 break;
 
-            dmGraphics::Clear(context->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT, 0, 0, 0, 0, 1.0, 0);
+            dmGraphics::Clear(context->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT, 0, 0, 0, 0, 1.0, 0);
             dmGraphics::SetViewport(context->m_GraphicsContext, 0, 0, context->m_ScreenWidth, context->m_ScreenHeight);
 
             uint16_t x = 10;
@@ -124,13 +125,15 @@ namespace dmFontView
             else
                 context->m_TestString = "The quick brown fox jumps over the lazy dog";
 
-            dmGraphics::WindowParams window_params;
+            context->m_Window = dmPlatform::NewWindow();
 
-            window_params.m_Width = 960;
-            window_params.m_Height = 540;
-            window_params.m_Title = "FontView";
-            window_params.m_Fullscreen = false;
-            window_params.m_PrintDeviceInfo = false;
+            dmPlatform::WindowParams window_params = {};
+            window_params.m_Width            = 960;
+            window_params.m_Height           = 540;
+            window_params.m_Title            = "FontView";
+            window_params.m_ContextAlphabits = 8;
+
+            dmPlatform::OpenWindow(context->m_Window, window_params);
 
             context->m_ScreenWidth = window_params.m_Width;
             context->m_ScreenHeight = window_params.m_Height;
@@ -138,10 +141,12 @@ namespace dmFontView
             context->m_HidContext = dmHID::NewContext(dmHID::NewContextParams());
             dmHID::Init(context->m_HidContext);
 
-            dmGraphics::Initialize();
-            context->m_GraphicsContext = dmGraphics::NewContext(dmGraphics::ContextParams());
+            dmGraphics::InstallAdapter();
 
-            dmGraphics::OpenWindow(context->m_GraphicsContext, &window_params);
+            dmGraphics::ContextParams graphics_context_params;
+            graphics_context_params.m_Window = context->m_Window;
+
+            context->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
 
             dmGraphics::EnableState(context->m_GraphicsContext, dmGraphics::STATE_DEPTH_TEST);
 
@@ -149,6 +154,7 @@ namespace dmFontView
             render_params.m_MaxRenderTypes = 10;
             render_params.m_MaxInstances = 100;
             render_params.m_MaxCharacters = 1024;
+            render_params.m_MaxBatches = 128;
             context->m_RenderContext = dmRender::NewRenderContext(context->m_GraphicsContext, render_params);
             dmRender::SetViewMatrix(context->m_RenderContext, Matrix4::identity());
             dmRender::SetProjectionMatrix(context->m_RenderContext, Matrix4::identity());
@@ -167,9 +173,8 @@ namespace dmFontView
                 return false;\
             }\
 
-            REGISTER_RESOURCE_TYPE("fontc", 0, dmGameSystem::ResFontMapCreate, 0, dmGameSystem::ResFontMapDestroy, dmGameSystem::ResFontMapRecreate);
-            REGISTER_RESOURCE_TYPE("vpc", dmGameSystem::ResVertexProgramPreload, dmGameSystem::ResVertexProgramCreate, 0, dmGameSystem::ResVertexProgramDestroy, dmGameSystem::ResVertexProgramRecreate);
-            REGISTER_RESOURCE_TYPE("fpc", dmGameSystem::ResFragmentProgramPreload, dmGameSystem::ResFragmentProgramCreate, 0, dmGameSystem::ResFragmentProgramDestroy, dmGameSystem::ResFragmentProgramRecreate);
+            REGISTER_RESOURCE_TYPE("fontc", 0, dmGameSystem::ResFontCreate, 0, dmGameSystem::ResFontDestroy, dmGameSystem::ResFontRecreate);
+            REGISTER_RESOURCE_TYPE("spc", dmGameSystem::ResShaderProgramPreload, dmGameSystem::ResShaderProgramCreate, 0, dmGameSystem::ResShaderProgramDestroy, dmGameSystem::ResShaderProgramRecreate);
             REGISTER_RESOURCE_TYPE("materialc", 0, dmGameSystem::ResMaterialCreate, 0, dmGameSystem::ResMaterialDestroy, 0);
 
     #undef REGISTER_RESOURCE_TYPE
@@ -203,5 +208,8 @@ namespace dmFontView
         if (context->m_RenderContext)
             dmRender::DeleteRenderContext(context->m_RenderContext, 0);
         dmGraphics::DeleteContext(context->m_GraphicsContext);
+
+        dmPlatform::CloseWindow(context->m_Window);
+        dmPlatform::DeleteWindow(context->m_Window);
     }
 }

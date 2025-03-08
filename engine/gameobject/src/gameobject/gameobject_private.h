@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -49,21 +49,21 @@ namespace dmGameObject
         struct Component
         {
             Component(void* resource,
-                      uint32_t resource_type,
                       dmhash_t id,
                       dmhash_t resource_id,
                       ComponentType* type,
                       uint32_t type_index,
                       const Point3& position,
-                      const Quat& rotation) :
+                      const Quat& rotation,
+                      const Vector3& scale) :
                 m_Id(id),
                 m_ResourceId(resource_id),
                 m_Type(type),
                 m_TypeIndex(type_index),
                 m_Resource(resource),
-                m_ResourceType(resource_type),
                 m_Position(position),
                 m_Rotation(rotation),
+                m_Scale(scale),
                 m_PropertySet()
             {
             }
@@ -73,9 +73,9 @@ namespace dmGameObject
             ComponentType*  m_Type;
             uint32_t        m_TypeIndex;
             void*           m_Resource;
-            uint32_t        m_ResourceType;
             Point3          m_Position;
             Quat            m_Rotation;
+            Vector3         m_Scale;
             PropertySet     m_PropertySet;
         };
 
@@ -194,7 +194,6 @@ namespace dmGameObject
         uint32_t                    m_ComponentTypeCount;
         ComponentType               m_ComponentTypes[MAX_COMPONENT_TYPES];
         uint16_t                    m_ComponentTypesOrder[MAX_COMPONENT_TYPES];
-        uint32_t                    m_ComponentProfileCounterIndex[MAX_COMPONENT_TYPES];
         dmMutex::HMutex             m_Mutex;
 
         // All collections. Protected by m_Mutex
@@ -225,8 +224,6 @@ namespace dmGameObject
 
         // Component type specific worlds
         void*                    m_ComponentWorlds[MAX_COMPONENT_TYPES];
-        // Component type specific instance counters
-        uint32_t                 m_ComponentInstanceCount[MAX_COMPONENT_TYPES];
 
         // Maximum number of instances
         uint32_t                 m_MaxInstances;
@@ -258,6 +255,9 @@ namespace dmGameObject
 
         // Stack keeping track of which instance has the input focus
         dmArray<Instance*>       m_InputFocusStack;
+
+        // Array of dynamically created resources (i.e runtime-only resources)
+        dmArray<dmhash_t>        m_DynamicResources;
 
         // Name-hash of the collection.
         dmhash_t                 m_NameHash;
@@ -302,11 +302,10 @@ namespace dmGameObject
         Collection* m_Collection;
     };
 
-    ComponentType* FindComponentType(Register* regist, uint32_t resource_type, uint32_t* index);
-
     // Used by res_collection.cpp
     HInstance NewInstance(Collection* collection, Prototype* proto, const char* prototype_name);
-    HInstance GetInstanceFromIdentifier(Collection* collection, dmhash_t identifier);
+    HInstance GetInstanceFromIdentifier(Collection* collection, dmhash_t identifier); // TODO: Mostly duplicate: replace with HCollection version
+
     void ReleaseInstanceIndex(uint32_t index, HCollection collection);
     Result SetIdentifier(Collection* collection, HInstance instance, const char* identifier);
     void ReleaseIdentifier(Collection* collection, HInstance instance);

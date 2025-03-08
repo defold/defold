@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -19,6 +19,7 @@
 
 #include <errno.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 #include <dlib/file_descriptor.h>
 
@@ -31,15 +32,6 @@
 #include <mbedtls/ssl.h>
 #include <mbedtls/pk.h>
 #include <mbedtls/x509_crt.h>
-
-// For the select stuff. We could possibly use our own select from socket.h
-#if defined(__linux__) || defined(__MACH__) || defined(ANDROID) || defined(__EMSCRIPTEN__) || defined(__NX__)
-#include <sys/select.h>
-#elif defined(_WIN32)
-#include <winsock2.h>
-#else
-#error "Unsupported platform"
-#endif
 
 #define MBED_DEBUG_LEVEL 1
 
@@ -69,20 +61,19 @@ struct CustomNetContext
 
 struct SSLSocket
 {
-    mbedtls_ssl_context*    m_SSLContext;
-    CustomNetContext*       m_SSLNetContext;
-    uint64_t                m_TimeStart;  // for read timeouts
-    uint64_t                m_TimeLimit1;
-    uint64_t                m_TimeLimit2;
+    mbedtls_entropy_context*    m_MbedEntropy;
+    mbedtls_ctr_drbg_context*   m_MbedCtrDrbg;
+    mbedtls_ssl_config*         m_MbedConf;
+    mbedtls_ssl_context*        m_SSLContext;
+    CustomNetContext*           m_SSLNetContext;
+    uint64_t                    m_TimeStart;  // for read timeouts
+    uint64_t                    m_TimeLimit1;
+    uint64_t                    m_TimeLimit2;
 };
 
 struct SSLSocketContext
 {
-    mbedtls_entropy_context     m_MbedEntropy;
-    mbedtls_ctr_drbg_context    m_MbedCtrDrbg;
-    mbedtls_ssl_config          m_MbedConf;
-    mbedtls_x509_crt            m_x509CertChain;
-    bool                        m_SslKeysSet;
+    mbedtls_x509_crt*           m_x509CertChain;
 } g_SSLSocketContext;
 
 #define MBEDTLS_RESULT_TO_STRING_CASE(x) case x: return #x;
@@ -163,57 +154,37 @@ static dmSocket::Result SSLToSocket(int r) {
 
 Result Initialize()
 {
-    g_SSLSocketContext.m_SslKeysSet = false;
-    mbedtls_ssl_config_init( &g_SSLSocketContext.m_MbedConf );
-    mbedtls_ctr_drbg_init( &g_SSLSocketContext.m_MbedCtrDrbg );
-    mbedtls_entropy_init( &g_SSLSocketContext.m_MbedEntropy );
-
-#if defined(MBEDTLS_DEBUG_C)
-    mbedtls_debug_set_threshold( MBED_DEBUG_LEVEL );
-    mbedtls_ssl_conf_dbg( &g_SSLSocketContext.m_MbedConf, mbedtls_debug, 0 );
-#endif
-    int ret = 0;
-
-    const char* pers = "defold_ssl_client";
-    if( ( ret = mbedtls_ctr_drbg_seed( &g_SSLSocketContext.m_MbedCtrDrbg, mbedtls_entropy_func, &g_SSLSocketContext.m_MbedEntropy,
-                               (const unsigned char *) pers,
-                               strlen( pers ) ) ) != 0 )
-    {
-        SSL_LOGE("mbedtls_ctr_drbg_seed failed", ret);
-        return RESULT_SSL_INIT_FAILED;
-    }
-
-    if( ( ret = mbedtls_ssl_config_defaults( &g_SSLSocketContext.m_MbedConf,
-                    MBEDTLS_SSL_IS_CLIENT,
-                    MBEDTLS_SSL_TRANSPORT_STREAM,
-                    MBEDTLS_SSL_PRESET_DEFAULT ) ) != 0 )
-    {
-        SSL_LOGE("mbedtls_ssl_config_defaults failed", ret);
-        return RESULT_SSL_INIT_FAILED;
-    }
-
-    mbedtls_ssl_conf_rng( &g_SSLSocketContext.m_MbedConf, mbedtls_ctr_drbg_random, &g_SSLSocketContext.m_MbedCtrDrbg );
-    mbedtls_ssl_conf_authmode( &g_SSLSocketContext.m_MbedConf, MBEDTLS_SSL_VERIFY_NONE );
-
+    g_SSLSocketContext.m_x509CertChain = 0;
     return RESULT_OK;
 }
 
 Result Finalize()
 {
-    if (g_SSLSocketContext.m_SslKeysSet)
+    if (g_SSLSocketContext.m_x509CertChain)
     {
-        mbedtls_x509_crt_free( &g_SSLSocketContext.m_x509CertChain );
+        mbedtls_x509_crt_free( g_SSLSocketContext.m_x509CertChain );
+        free((void*)g_SSLSocketContext.m_x509CertChain);
     }
-    mbedtls_ssl_config_free( &g_SSLSocketContext.m_MbedConf );
-    mbedtls_ctr_drbg_free( &g_SSLSocketContext.m_MbedCtrDrbg );
-    mbedtls_entropy_free( &g_SSLSocketContext.m_MbedEntropy );
+    g_SSLSocketContext.m_x509CertChain = 0;
     return RESULT_OK;
 }
 
 Result SetSslPublicKeys(const uint8_t* key, uint32_t keylen)
 {
     // The size of buf, including the terminating \c NULL byte in case of PEM encoded data.
-    int ret = mbedtls_x509_crt_parse(&g_SSLSocketContext.m_x509CertChain, key, keylen + 1);
+    if (g_SSLSocketContext.m_x509CertChain)
+    {
+        mbedtls_x509_crt_free( g_SSLSocketContext.m_x509CertChain );
+        free((void*)g_SSLSocketContext.m_x509CertChain);
+    }
+
+    g_SSLSocketContext.m_x509CertChain = (mbedtls_x509_crt*)calloc(1, sizeof(mbedtls_x509_crt));
+    if (!g_SSLSocketContext.m_x509CertChain)
+    {
+        return RESULT_UNKNOWN;
+    }
+
+    int ret = mbedtls_x509_crt_parse(g_SSLSocketContext.m_x509CertChain, key, keylen + 1);
     if (ret != 0)
     {
         char buffer[512] = "";
@@ -221,15 +192,13 @@ Result SetSslPublicKeys(const uint8_t* key, uint32_t keylen)
         dmLogError("SSLSocket mbedtls_x509_crt_parse: %s0x%04x - %s", ret < 0 ? "-":"", ret < 0 ? -ret:ret, buffer);
         return RESULT_SSL_INIT_FAILED;
     }
-    g_SSLSocketContext.m_SslKeysSet = true;
-    mbedtls_ssl_conf_authmode( &g_SSLSocketContext.m_MbedConf, MBEDTLS_SSL_VERIFY_REQUIRED );
     return RESULT_OK;
 }
 
 static void TimingSetDelay(void* data, uint32_t int_ms, uint32_t fin_ms)
 {
     SSLSocket* socket = (SSLSocket*)data;
-    socket->m_TimeStart = dmTime::GetTime();
+    socket->m_TimeStart = dmTime::GetMonotonicTime();
     socket->m_TimeLimit1 = int_ms; // intermediate limit
     socket->m_TimeLimit2 = fin_ms; // final limit
 }
@@ -240,7 +209,7 @@ static int TimingGetDelay(void* data)
     if( socket->m_TimeLimit2 == 0 )
         return -1;
 
-    uint64_t t = dmTime::GetTime();
+    uint64_t t = dmTime::GetMonotonicTime();
     uint64_t elapsed_ms = (t - socket->m_TimeStart) / 1000;
 
     if( elapsed_ms >= socket->m_TimeLimit2 )
@@ -294,10 +263,51 @@ static int RecvTimeout( void* _ctx, unsigned char *buf, size_t len, uint32_t tim
 
 Result New(dmSocket::Socket socket, const char* host, uint64_t timeout, SSLSocket** sslsocket)
 {
-    uint64_t handshakestart = dmTime::GetTime();
+    uint64_t handshakestart = dmTime::GetMonotonicTime();
 
     SSLSocket* c = (SSLSocket*)malloc(sizeof(SSLSocket));
     memset(c, 0, sizeof(SSLSocket));
+
+#define MBED_CALLOC(_TYPE) (_TYPE*)calloc(1, sizeof(_TYPE))
+
+    c->m_MbedConf       = MBED_CALLOC(mbedtls_ssl_config);
+    c->m_MbedCtrDrbg    = MBED_CALLOC(mbedtls_ctr_drbg_context);
+    c->m_MbedEntropy    = MBED_CALLOC(mbedtls_entropy_context);
+    c->m_SSLContext     = MBED_CALLOC(mbedtls_ssl_context);
+    c->m_SSLNetContext  = MBED_CALLOC(CustomNetContext);
+
+#undef MBED_CALLOC
+
+    mbedtls_ssl_config_init( c->m_MbedConf );
+    mbedtls_ctr_drbg_init( c->m_MbedCtrDrbg );
+    mbedtls_entropy_init( c->m_MbedEntropy );
+
+#if defined(MBEDTLS_DEBUG_C)
+    mbedtls_debug_set_threshold( MBED_DEBUG_LEVEL );
+    mbedtls_ssl_conf_dbg( c->m_MbedConf, mbedtls_debug, 0 );
+#endif
+    int ret = 0;
+
+    const char* pers = "defold_ssl_client";
+    if( ( ret = mbedtls_ctr_drbg_seed( c->m_MbedCtrDrbg, mbedtls_entropy_func, c->m_MbedEntropy,
+                               (const unsigned char *) pers,
+                               strlen( pers ) ) ) != 0 )
+    {
+        SSL_LOGE("mbedtls_ctr_drbg_seed failed", ret);
+        return RESULT_SSL_INIT_FAILED;
+    }
+
+    if( ( ret = mbedtls_ssl_config_defaults( c->m_MbedConf,
+                    MBEDTLS_SSL_IS_CLIENT,
+                    MBEDTLS_SSL_TRANSPORT_STREAM,
+                    MBEDTLS_SSL_PRESET_DEFAULT ) ) != 0 )
+    {
+        SSL_LOGE("mbedtls_ssl_config_defaults failed", ret);
+        return RESULT_SSL_INIT_FAILED;
+    }
+
+    mbedtls_ssl_conf_rng( c->m_MbedConf, mbedtls_ctr_drbg_random, c->m_MbedCtrDrbg );
+    mbedtls_ssl_conf_authmode( c->m_MbedConf, MBEDTLS_SSL_VERIFY_NONE );
 
     // In order to not have it block (unless timeout == 0)
     dmSocket::SetSendTimeout(socket, (int)timeout);
@@ -308,23 +318,22 @@ Result New(dmSocket::Socket socket, const char* host, uint64_t timeout, SSLSocke
         int mbed_ssl_timeout = dmMath::Max((int)timeout, dmSocket::SOCKET_TIMEOUT) / 1000;
         mbed_ssl_timeout = dmMath::Max(1, mbed_ssl_timeout);
         // Never go below 1 second, since that's the lowest supported by this function anyways
-        mbedtls_ssl_conf_handshake_timeout(&g_SSLSocketContext.m_MbedConf, 1, mbed_ssl_timeout);
+        mbedtls_ssl_conf_handshake_timeout(c->m_MbedConf, 1, mbed_ssl_timeout);
     }
 
     // See comment about timeout in c->m_SSLNetContext
-    c->m_SSLContext     = (mbedtls_ssl_context*)malloc(sizeof(mbedtls_ssl_context));
-    c->m_SSLNetContext  = (CustomNetContext*)malloc(sizeof(CustomNetContext));
     c->m_SSLNetContext->m_Timeout = timeout;
-
     mbedtls_ssl_init( c->m_SSLContext );
 
-    if (g_SSLSocketContext.m_SslKeysSet)
+
+    // The size of buf, including the terminating \c NULL byte in case of PEM encoded data.
+    if (g_SSLSocketContext.m_x509CertChain)
     {
-        mbedtls_ssl_conf_ca_chain( &g_SSLSocketContext.m_MbedConf, &g_SSLSocketContext.m_x509CertChain, NULL);
+        mbedtls_ssl_conf_authmode( c->m_MbedConf, MBEDTLS_SSL_VERIFY_REQUIRED );
+        mbedtls_ssl_conf_ca_chain( c->m_MbedConf, g_SSLSocketContext.m_x509CertChain, NULL);
     }
 
-    int ret = 0;
-    if( ( ret = mbedtls_ssl_setup( c->m_SSLContext, &g_SSLSocketContext.m_MbedConf ) ) != 0 )
+    if( ( ret = mbedtls_ssl_setup( c->m_SSLContext, c->m_MbedConf ) ) != 0 )
     {
         SSL_LOGE("mbedtls_ssl_setup failed", ret);
         return RESULT_HANDSHAKE_FAILED;
@@ -350,7 +359,7 @@ Result New(dmSocket::Socket socket, const char* host, uint64_t timeout, SSLSocke
     } while (ret == MBEDTLS_ERR_SSL_WANT_READ ||
              ret == MBEDTLS_ERR_SSL_WANT_WRITE);
 
-    uint64_t currenttime = dmTime::GetTime();
+    uint64_t currenttime = dmTime::GetMonotonicTime();
     if( timeout > 0 && int(currenttime - handshakestart) > timeout )
     {
         ret = MBEDTLS_ERR_SSL_TIMEOUT;
@@ -398,6 +407,10 @@ Result Delete(SSLSocket* socket)
         socket->m_SSLNetContext->m_Context.fd = -1;
         mbedtls_net_free( (mbedtls_net_context*)socket->m_SSLNetContext );
         mbedtls_ssl_free( socket->m_SSLContext );
+        mbedtls_ssl_config_free( socket->m_MbedConf );
+        mbedtls_ctr_drbg_free( socket->m_MbedCtrDrbg );
+        mbedtls_entropy_free( socket->m_MbedEntropy );
+
         free(socket->m_SSLNetContext);
         free(socket->m_SSLContext);
         free(socket);

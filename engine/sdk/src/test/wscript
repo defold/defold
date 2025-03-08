@@ -1,9 +1,10 @@
 #! /usr/bin/env python
-import os
-from TaskGen import feature, before
+import os, sys, shutil
+from waflib.TaskGen import feature, before, after
+from waf_dynamo import platform_supports_feature
 
 @feature('sdk_include_filter')
-@before('cc')
+@before('c')
 def sdk_include_filter(self):
     dynamo_home = self.env['DYNAMO_HOME']
     new_cpppath = [os.path.join(self.env['DYNAMO_HOME'], 'sdk', 'include'),
@@ -11,20 +12,136 @@ def sdk_include_filter(self):
     for path in self.env['CPPPATH']:
         if dynamo_home not in path or 'SDKs' in path:
             new_cpppath.append(path)
-    self.env['CPPPATH'] = new_cpppath
+    self.env['CPPATH'] = new_cpppath
+
+@feature('sdk_include_filter')
+@before('process_source')
+@after('c')
+@after('cxx')
+def include_filter(self):
+    dynamo_home = self.env['DYNAMO_HOME']
+    skip_includes = [os.path.join(dynamo_home, 'include')]
+    paths = []
+    for path in self.env['INCLUDES']:
+        if path in skip_includes:
+            continue
+        paths.append(path)
+    self.env['INCLUDES'] = paths
+
+def copy_file_task(bld, src_dir, src, dst_dir_node):
+    copy = 'copy /Y' if sys.platform == 'win32' else 'cp'
+    relative_path = os.path.relpath(src, src_dir)
+    dst = dst_dir_node.find_or_declare(relative_path)
+    return bld( rule = '%s %s ${TGT}' % (copy, src),
+                target = dst,
+                shell = True)
 
 def build(bld):
-    bld.new_task_gen(features = 'cxx cstaticlib test sdk_include_filter',
-                     includes = '.',
-                     source = 'test_sdk_lib.cpp',
-                     target = 'test_sdk_lib',
-                     always=True)
 
-    bld.new_task_gen(features = 'cc cxx cprogram embed test',
-                      includes = '.',
-                      uselib = 'TESTMAIN EXTENSION DLIB LUA',
-                      uselib_local = 'test_sdk_lib',
-                      exported_symbols = ["TestSdk"],
-                      target = 'test_sdk',
-                      source = 'test_sdk.cpp',
-                      always=True)
+    # copy the semi-public dmsdk files (*_ddf.h + res_*.h)
+    extra_includes = []
+    extra_include_dir = os.path.join(bld.env['DYNAMO_HOME'], "include")
+    for root, dirs, files in os.walk(extra_include_dir):
+        for file in files:
+            if file.endswith('.h') and ('ddf' in file or file.startswith('res_')):
+                extra_includes.append(os.path.join(root, file))
+
+    extra_node = bld.path.find_or_declare('extra')
+    if os.path.exists(extra_node.abspath()):
+        shutil.rmtree(extra_node.abspath())
+
+    extra_node.mkdir()
+
+    for extra_include in extra_includes:
+        copy_file_task(bld, extra_include_dir, extra_include, extra_node)
+
+    bld.add_group()
+
+    bld.stlib(features = 'cxx test sdk_include_filter',
+              includes = ['.','../'] + [extra_node],
+              source   = 'test_sdk_lib.cpp',
+              target   = 'test_sdk_lib',
+              always   = True)
+
+    bld.program(features         = 'c cxx embed test',
+                includes         = '.',
+                use              = 'TESTMAIN EXTENSION DLIB SOCKET LUA PROFILE_NULL test_sdk_lib',
+                exported_symbols = ['TestSdk'],
+                target           = 'test_sdk',
+                source           = 'test_sdk.cpp',
+                always           = True)
+
+    # gather the includes that we wish to test
+
+    sdk_dir = os.path.join(bld.env['DYNAMO_HOME'], 'sdk', 'include', 'dmsdk')
+    exclude_dirs = ['vectormath', 'external', 'lua']
+    exclude_files = ['sdk.h']
+    exclude_endings = ['_gen.hpp', '_posix.h', '_win32.h', '_mach.h', '_android.h', '_pthread.h', '_vendor.h', '_nx64.h', '_ps4.h', '_ps5.h']
+
+    if not platform_supports_feature(bld.env.PLATFORM, 'opengl', {}):
+        exclude_dirs.append('glfw')
+
+    includes = []
+    for root, dirs, files in os.walk(sdk_dir):
+        dirs[:] = [d for d in dirs if d not in exclude_dirs]
+        for f in files:
+            if f in exclude_files:
+                continue
+            # for the platform specific files, we have a "main" header which includes these
+            def ends_with(s, patterns):
+                for p in patterns:
+                    if s.endswith(p):
+                        return True
+                return False
+            if ends_with(f, exclude_endings):
+                continue
+
+            ext = os.path.splitext(f)[1]
+            if ext in ['.h', '.hpp']:
+                path = os.path.join(root, f)
+                includes.append(path)
+
+    # Create the test files and try to build them
+    with open('src/test/test_include.cpp', 'rt', encoding='utf-8') as f:
+        template_cpp = f.read()
+
+    with open('src/test/test_include.c', 'rt', encoding='utf-8') as f:
+        template_c = f.read()
+
+    # Make sure that our C api holds up using only C compiler
+    c_includes = ['extension.h',
+                  'configfile.h',
+                  'resource.h']
+
+    for index, include in enumerate(includes):
+        suffix_cpp = '_%d.cpp' % index
+        suffix_c = '_%d.c' % index
+        basename = os.path.basename(include).replace('.', '_')
+        basename_cpp = basename + suffix_cpp
+        basename_c = basename + suffix_c
+        source_cpp = 'test_include_%s' % basename_cpp
+        source_c = 'test_include_%s' % basename_c
+
+        source_node_cpp = bld.path.find_or_declare(source_cpp)
+        source_node_c = bld.path.find_or_declare(source_c)
+
+        with open(source_node_cpp.abspath(), 'wt') as f:
+            content = template_cpp.replace('{custom_include}', include)
+            f.write(content)
+
+        bld.stlib(features = 'cxx sdk_include_filter test',
+              includes = ['.','../'] + [extra_node],
+              source   = source_cpp,
+              target   = 'test_include_cpp_%s_%d' % (basename_cpp, index),
+              always   = True)
+
+        if os.path.basename(include) in c_includes:
+            with open(source_node_c.abspath(), 'wt') as f:
+                content = template_c.replace('{custom_include}', include)
+                f.write(content)
+
+            bld.stlib(features = 'c sdk_include_filter',
+                  includes = ['.','../'] + [extra_node],
+                  source   = source_c,
+                  target   = 'test_include_c_%s_%d' % (basename_c, index),
+                  always   = True)

@@ -30,8 +30,7 @@ var LibraryDmSys = {
         dmSysGetUserPersistentDataRoot: function() {
             if (null == DMSYS._cstr) {
                 var str = DMSYS.GetUserPersistentDataRoot();
-                DMSYS._cstr = _malloc(str.length + 1);
-                Module.stringToUTF8(str, DMSYS._cstr, str.length + 1);
+                DMSYS._cstr = stringToNewUTF8(str);
             }
             return DMSYS._cstr;
         },
@@ -43,24 +42,19 @@ var LibraryDmSys = {
         dmSysGetUserPreferredLanguage: function(defaultlang) {
             var jsdefault = UTF8ToString(defaultlang);
             var preferred = navigator == undefined ? jsdefault : (navigator.languages ? (navigator.languages[0] || jsdefault) : (navigator.language || navigator.userLanguage || navigator.browserLanguage || navigator.systemLanguage || jsdefault) );
-            var buffer = _malloc(preferred.length + 1);
-            Module.stringToUTF8(preferred, buffer, preferred.length + 1);
+            var buffer = stringToNewUTF8(preferred);
             return buffer;
         },
 
         dmSysGetUserAgent: function() {
             var useragent = navigator.userAgent;
-            var buffer = _malloc(useragent.length + 1);
-            Module.stringToUTF8(useragent, buffer, useragent.length + 1);
+            var buffer = stringToNewUTF8(useragent);
             return buffer;
         },
 
         dmSysGetApplicationPath: function() {
             var path = location.href.substring(0, location.href.lastIndexOf("/"));
-             // 'path.length' would return the length of the string as UTF-16 units, but Emscripten C strings operate as UTF-8.
-            var lengthBytes = lengthBytesUTF8(path) + 1;
-            var buffer = _malloc(lengthBytes);
-            Module.stringToUTF8(path, buffer, lengthBytes);
+            var buffer = stringToNewUTF8(path);
             return buffer;
         },
 
@@ -72,12 +66,8 @@ var LibraryDmSys = {
             {
                 jstarget = "_self";
             }
-            if (window.open(jsurl, jstarget) == null) {
-                window.location = jsurl;
-            }
-
-            return true;
+            return window.open(jsurl, jstarget) != null;
         }
 };
 autoAddDeps(LibraryDmSys, '$DMSYS');
-mergeInto(LibraryManager.library, LibraryDmSys);
+addToLibrary(LibraryDmSys);

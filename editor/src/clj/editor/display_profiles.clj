@@ -1,27 +1,27 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.display-profiles
-  (:require [editor.protobuf :as protobuf]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
             [editor.build-target :as bt]
-            [editor.workspace :as workspace]
+            [editor.graph-util :as gu]
+            [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
-            [editor.graph-util :as gu]
+            [editor.workspace :as workspace]
             [util.text-util :as text-util])
-  (:import (com.dynamo.render.proto Render$DisplayProfiles)))
+  (:import [com.dynamo.render.proto Render$DisplayProfile Render$DisplayProfileQualifier Render$DisplayProfiles]))
 
 (set! *warn-on-reflection* true)
 
@@ -29,23 +29,32 @@
              :label "Display Profiles"
              :view-types [:cljfx-form-view :text]
              :icon "icons/32/Icons_50-Display-profiles.png"
+             :icon-class :property
              :pb-class Render$DisplayProfiles})
 
+(def ^:private comma-separated-string->non-empty-vector
+  (comp not-empty text-util/parse-comma-separated-string))
+
+(defn- qualifier-form-value->pb [qualifier]
+  (protobuf/make-map-without-defaults Render$DisplayProfileQualifier
+    :width (:width qualifier)
+    :height (:height qualifier)
+    :device-models (comma-separated-string->non-empty-vector (:device-models qualifier))))
+
+(g/defnk produce-profile-pb-msg [name qualifiers]
+  (protobuf/make-map-without-defaults Render$DisplayProfile
+    :name name
+    :qualifiers (mapv qualifier-form-value->pb qualifiers)))
+
 (g/defnode ProfileNode
-  (property name g/Str)
-  (property qualifiers g/Any)
+  (property name g/Str) ; Required protobuf field.
+  (property qualifiers g/Any) ; Vector always assigned in load-fn.
 
   (output form-values g/Any (g/fnk [_node-id name qualifiers]
                               {:node-id _node-id
                                :name name
                                :qualifiers qualifiers}))
-  (output pb-msg g/Any (g/fnk [form-values]
-                         (-> form-values
-                             (dissoc :node-id)
-                             (update :qualifiers
-                                     (fn [qualifiers]
-                                       (mapv #(update % :device-models text-util/parse-comma-separated-string)
-                                             qualifiers))))))
+  (output pb-msg g/Any produce-profile-pb-msg)
   (output profile-data g/Any (g/fnk [_node-id pb-msg]
                                     (assoc pb-msg :node-id _node-id))))
 
@@ -103,12 +112,12 @@
                             (:dep-resources user-data)))]
     {:resource resource :content (protobuf/map->bytes (:pb-class pb-def) pb)}))
 
-(g/defnk produce-build-targets [_node-id resource pb-msg]
+(g/defnk produce-build-targets [_node-id resource save-value]
   [(bt/with-content-hash
      {:node-id _node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-pb
-      :user-data {:pb pb-msg
+      :user-data {:pb save-value
                   :pb-class (:pb-class pb-def)}
       :deps []})])
 
@@ -116,7 +125,9 @@
   (inherits resource-node/ResourceNode)
 
   (input profile-msgs g/Any :array)
-  (output pb-msg g/Any (g/fnk [profile-msgs] {:profiles profile-msgs}))
+  (output save-value g/Any :cached (g/fnk [profile-msgs]
+                                     (protobuf/make-map-without-defaults Render$DisplayProfiles
+                                       :profiles profile-msgs)))
   (input profile-form-values g/Any :array)
   (output form-values g/Any (g/fnk [profile-form-values] {[:profiles] profile-form-values}))
   (output form-data-desc g/Any :cached produce-form-data-desc)
@@ -124,12 +135,14 @@
 
   (input profile-data g/Any :array)
   (output profile-data g/Any (gu/passthrough profile-data))
-  (output save-value g/Any (gu/passthrough pb-msg))
   (output build-targets g/Any :cached produce-build-targets))
 
-(defn load-display-profiles [project self resource pb]
-  (for [p (:profiles pb)]
-    (add-profile self (:name p) (:qualifiers p))))
+(defn load-display-profiles [_project self _resource display-profiles]
+  {:pre [(map? display-profiles)]} ; Render$DisplayProfiles in map format.
+  ;; Inject any missing defaults into the stripped pb-map for form-view editing.
+  (let [with-defaults (protobuf/inject-defaults Render$DisplayProfiles display-profiles)]
+    (for [display-profile (:profiles with-defaults)]
+      (add-profile self (:name display-profile) (:qualifiers display-profile)))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
@@ -138,6 +151,7 @@
     :build-ext (:build-ext pb-def)
     :node-type DisplayProfilesNode
     :ddf-type Render$DisplayProfiles
-    :load-fn (fn [project self resource pb] (load-display-profiles project self resource pb))
+    :load-fn load-display-profiles
     :icon (:icon pb-def)
+    :icon-class (:icon-class pb-def)
     :view-types (:view-types pb-def)))

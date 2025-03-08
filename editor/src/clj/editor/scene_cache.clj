@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -14,7 +14,8 @@
 
 (ns editor.scene-cache
   (:require [clojure.core.cache :as cache]
-            [editor.volatile-cache :as vcache]))
+            [editor.volatile-cache :as vcache]
+            [util.coll :refer [pair]]))
 
 (set! *warn-on-reflection* true)
 
@@ -105,3 +106,23 @@
 
 (defn drop-context! [context]
   (swap! object-caches drop-context context))
+
+(defn cache-stats
+  "Returns a sorted map where the keys are pairs of [context-id cache-id],
+  mapped to the number of entries in the cache for that context and cache-id
+  combination. The number of entries represent the number of unique request-ids
+  in the cache. The contexts are typically OpenGL contexts, so in order to group
+  the results, we use a string representation of the identity hash code of the
+  OpenGL context as the context-id."
+  []
+  (into (sorted-map)
+        (mapcat (fn [[cache-id {caches-by-context :caches}]]
+                  (keep (fn [[context cached-values-by-request-id]]
+                          (let [entry-count (count cached-values-by-request-id)]
+                            (when (pos? entry-count)
+                              (let [context-ptr (or (some-> context (System/identityHashCode)) (int 0))
+                                    context-id (format "0x%08x" context-ptr)
+                                    stats-key (pair context-id cache-id)]
+                                (pair stats-key entry-count)))))
+                        caches-by-context)))
+        @object-caches))

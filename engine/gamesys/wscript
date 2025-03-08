@@ -6,20 +6,26 @@ APPNAME='gamesys'
 srcdir = '.'
 blddir = 'build'
 
-import sys, os, re
+import sys, os, re, socket, time
 import waf_ddf, waf_graphics, waf_dynamo, waf_physics, waf_render
 from waf_dynamo import platform_supports_feature
+import waflib.Options
+import TestContext
 
-def init():
-    pass
+test_context = None
 
-def set_options(opt):
-    opt.sub_options('src')
-    opt.tool_options('waf_dynamo')
+def init(ctx):
+    global test_context
+    if 'build' in waflib.Options.commands:
+        test_context = TestContext.create_test_context()
+
+def options(opt):
+    opt.recurse('src')
+    opt.load('waf_dynamo')
 
 def configure(conf):
-    conf.check_tool('waf_dynamo')
-    conf.check_tool('java')
+    conf.load('waf_dynamo')
+    conf.load('java')
 
     waf_ddf.configure(conf)
     waf_graphics.configure(conf)
@@ -28,52 +34,105 @@ def configure(conf):
 
     platform = conf.env['PLATFORM']
 
-    if platform == "darwin" or platform == "x86_64-darwin":
+    if platform in ("x86_64-macos",):
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo', '-framework', 'QuartzCore'])
-    elif platform in ('arm64-darwin', 'x86_64-ios'):
+    elif platform in ('arm64-ios', 'x86_64-ios'):
         pass
     elif re.match('arm.*?android', platform):
         conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2', '-landroid'])
-    elif platform == "linux" or platform == "x86_64-linux":
-        conf.env['LIB_X'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']
     elif "win32" in platform:
-        conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib'])
+        conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'dinput8.lib', 'dxguid.lib'])
 
-    conf.env.append_value('CPPPATH', "default/src")
-    conf.env['STATICLIB_DLIB'] = ['dlib', 'mbedtls', 'zip']
-    conf.env['STATICLIB_DDF'] = 'ddf'
-    conf.env['STATICLIB_RESOURCE'] = 'resource'
-    conf.env['STATICLIB_GAMEOBJECT'] = 'gameobject'
-    conf.env['STATICLIB_EXTENSION'] = 'extension'
-    conf.env['STATICLIB_SCRIPT'] = 'script'
-    conf.env['STATICLIB_RENDER'] = 'render'
-    conf.env['STATICLIB_PARTICLE'] = 'particle'
-    conf.env['STATICLIB_RIG'] = 'rig'
-    conf.env['STATICLIB_GUI'] = 'gui'
-    conf.env['STATICLIB_SOUND_NULL'] = 'sound_null'
-    conf.env['STATICLIB_INPUT'] = 'input'
-    conf.env['STATICLIB_HID'] = 'hid'
-    conf.env['STATICLIB_HID_NULL'] = 'hid_null'
-    conf.env['STATICLIB_LIVEUPDATE'] = 'liveupdate'
+    conf.env.append_value('INCLUDES', "default/src")
+    conf.env['STLIB_DLIB'] = ['dlib', 'mbedtls', 'zip']
+    conf.env['STLIB_DDF'] = 'ddf'
+    conf.env['STLIB_RESOURCE'] = 'resource'
+    conf.env['STLIB_GAMEOBJECT'] = 'gameobject'
+    conf.env['STLIB_EXTENSION'] = 'extension'
+    conf.env['STLIB_SCRIPT'] = 'script'
+    conf.env['STLIB_RENDER'] = 'render render_font_default'.split()
+    conf.env['STLIB_PARTICLE'] = 'particle'
+    conf.env['STLIB_RIG'] = 'rig'
+    conf.env['STLIB_GUI'] = 'gui'
+    conf.env['STLIB_SOUND_NULL'] = 'sound_null'
+    conf.env['STLIB_INPUT'] = 'input'
+    conf.env['STLIB_HID'] = 'hid'
+    conf.env['STLIB_HID_NULL'] = 'hid_null'
+    conf.env['STLIB_PLATFORM_NULL'] = 'platform_null'
+    conf.env['STLIB_GRAPHICS_GAMESYS_TEST'] = ['graphics_null', 'graphics_transcoder_basisu', 'basis_transcoder']
+    conf.env['STLIB_SCRIPT'] = 'script'
+    conf.env['STLIB_TEST_SCRIPT'] = 'test_script'
 
-    conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="GAMESYS"')
-    conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="GAMESYS"')
-
-    conf.sub_config('src')
+    conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="GAMESYS"')
+    conf.recurse('src')
 
 def build(bld):
+    global test_context
     sys.path.insert(0, bld.path.find_dir('src').abspath())
-    sys.path.insert(0, os.path.abspath('build/default/proto/gamesys'))
+    sys.path.insert(0, os.path.abspath('build/proto/gamesys'))
     sys.path.insert(0, os.path.join(bld.env.PREFIX, 'lib/python/gameobject'))
     sys.path.insert(0, os.path.join(bld.env.PREFIX, 'lib/python/input'))
+    sys.path.insert(0, os.path.abspath('src/gamesys/test'))
 
-    bld.add_subdirs('content')
+    bld.recurse('content')
     bld.add_group()
-    bld.add_subdirs('src')
+    bld.recurse('src')
 
-import Build, Options
-import os, subprocess
-def shutdown():
-    if not Options.commands['build']:
+    TestContext.initialize_test_context(test_context, bld)
+
+def _get_local_ip(self):
+    hostname = socket.gethostname()
+    try:
+        local_ip = socket.gethostbyname(hostname)
+    except socket.gaierror as e:
+        print(e)
+        print(f"Hostname was '{hostname}', now trying empty ('') string now")
+        local_ip = socket.gethostbyname("")
+    return local_ip
+
+def server(self):
+    import test_script_server
+
+    local_ip = _get_local_ip(self)
+
+    PORT=9001
+    configfile = waf_dynamo.create_test_server_config(self, port=PORT, ip=local_ip, config_name="unittest.cfg")
+
+    serv = test_script_server.Server(port=PORT, ip=local_ip)
+    serv.start()
+
+    count = 500
+    while count > 0:
+        count -= 1
+        try:
+            time.sleep(1)
+        except KeyboardInterrupt as e:
+            sys.exit(0)
+
+
+def shutdown(self):
+
+    if not TestContext.is_valid(test_context):
         return
-    waf_dynamo.run_tests(valgrind = True)
+
+    if getattr(waflib.Options.options, 'skip_tests', False):
+        return
+
+    import test_script_server
+
+    local_ip = _get_local_ip(self)
+
+    if test_context.env.PLATFORM in ('win32', 'x86_64-win32', 'x86_64-linux', 'x86_64-macos', 'arm64-macos'):
+        local_ip = "localhost"
+
+    PORT=9001
+    configfile = waf_dynamo.create_test_server_config(self, port=PORT, ip=local_ip)
+
+    serv = test_script_server.Server(port=PORT, ip=local_ip)
+    serv.start()
+    try:
+        waf_dynamo.run_tests(test_context, valgrind = True, configfile = configfile)
+    finally:
+        if serv:
+            serv.stop()
+        os.remove(configfile)

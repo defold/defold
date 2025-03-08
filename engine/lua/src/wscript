@@ -1,19 +1,26 @@
 #! /usr/bin/env python
 import os
 
+from waflib import Options
 from waf_dynamo import apidoc_extract_task
 from waf_dynamo import dmsdk_add_files
 
-def set_options(opt):
+def options(opt):
     pass
 
 def configure(conf):
-    conf.env.append_value('CPPPATH', "../src")
+    conf.env.append_value('INCLUDES', "../src")
+    conf.recurse('test')
 
 def build(bld):
     apidoc_extract_task(bld, ['lua_base.doc_h', 'lua_string.doc_h', 'lua_coroutine.doc_h',
                             'lua_debug.doc_h', 'lua_io.doc_h', 'lua_math.doc_h', 'lua_os.doc_h',
                             'lua_package.doc_h', 'lua_table.doc_h'])
-    bld.add_subdirs('lua')
+    bld.recurse('lua')
 
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
+    dmsdk_add_files(bld, '${PREFIX}/sdk/cs/dmsdk', 'cs/dmsdk')
+
+    if not Options.options.skip_build_tests:
+        bld.add_group() # until the csharp rule correctly uses "use" for dependencies
+        bld.recurse('test')

@@ -23,9 +23,6 @@
             -fx-background-insets: 0;
             .tab-label {
                 -fx-text-fill: -df-text-selected;
-                .image-view {
-                    @include effect-lighten();
-                }
             }
         }
         &:selected {
@@ -35,9 +32,6 @@
 
             .tab-label {
                 -fx-text-fill: -df-text-selected;
-                .image-view {
-                    @include effect-lighten();
-                }
             }
             .focus-indicator {
                 -fx-border-width: 0;
@@ -55,7 +49,7 @@
 
     &.inactive .tab {
         &:selected {
-            -fx-border-color: -df-component;
+            -fx-border-color: -df-component-lighter;
         }
     }
 }
@@ -123,7 +117,7 @@
                 -fx-pref-width: 17px;
                 -fx-pref-height: 17px;
             }
-            .image-view {
+            & > .graphic-container > .image-view {
                 -fx-scale-x: 0.5;
                 -fx-scale-y: 0.5;
             }

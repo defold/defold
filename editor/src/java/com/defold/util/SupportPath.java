@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -18,7 +18,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-import com.defold.editor.Platform;
+import com.dynamo.bob.Platform;
 
 public class SupportPath {
 
@@ -27,7 +27,7 @@ public class SupportPath {
         switch(platform.getOs()) {
             case "win32":
                 return getWindowsSupportPath(applicationName);
-            case "darwin":
+            case "macos":
                 return getMacSupportPath(applicationName);
             case "linux":
                 return getLinuxSupportPath(applicationName);
@@ -87,16 +87,14 @@ public class SupportPath {
     // linux
 
     private static Path getLinuxSupportPath(String applicationName) {
-        final String userHome = System.getProperty("user.home");
-        if (userHome == null) {
-            return null;
-        }
-        final Path home = Paths.get(userHome);
-        if (Files.isDirectory(home)) {
-            return home.resolve("." + applicationName);
+        final String xdgStateHome = System.getenv("XDG_STATE_HOME");
+        if (xdgStateHome != null) {
+            // 1. $XDG_STATE_HOME
+            return Path.of(xdgStateHome, applicationName);
         }
 
-        return null;
+        // 2. ~/.local/state
+        return Path.of(System.getProperty("user.home"), ".local", "state", applicationName);
     }
 
     public static void main(String[] args) {

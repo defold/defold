@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,14 +15,15 @@
 #include <stdint.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
-#include <dlib/thread.h>
+#include <dlib/atomic.h>
 #include <dlib/mutex.h>
+#include <dlib/thread.h>
 #include <dlib/time.h>
 
 struct ThreadArg
 {
-    volatile uint32_t       m_Value;
-    dmMutex::HMutex m_Mutex;
+    int32_atomic_t      m_Value;
+    dmMutex::HMutex     m_Mutex;
 };
 
 static void ThreadFunctionBasic(void* arg)
@@ -58,11 +59,11 @@ static void ThreadFunctionTryLock(void* arg)
     ThreadArg* a = (ThreadArg*) arg;
 
     dmMutex::Lock(a->m_Mutex);
-    a->m_Value = 0;
-    while(a->m_Value == 0)
+    dmAtomicStore32(&a->m_Value, 0);
+    while(dmAtomicGet32(&a->m_Value) == 0)
         dmTime::Sleep(10*1000);
     dmMutex::Unlock(a->m_Mutex);
-    a->m_Value = 0;
+    dmAtomicStore32(&a->m_Value, 0);
 }
 
 TEST(Mutex, TryLock)
@@ -72,10 +73,10 @@ TEST(Mutex, TryLock)
     a.m_Mutex = dmMutex::New();
 
     dmThread::Thread t1 = dmThread::New(&ThreadFunctionTryLock, 0x80000, &a, "t1");
-    while(a.m_Value == 1)
+    while(dmAtomicGet32(&a.m_Value) == 1)
         dmTime::Sleep(10*1000);
     ASSERT_FALSE(dmMutex::TryLock(a.m_Mutex));
-    a.m_Value = 1;
+    dmAtomicStore32(&a.m_Value, 1);
     dmThread::Join(t1);
 
     ASSERT_TRUE(dmMutex::TryLock(a.m_Mutex));

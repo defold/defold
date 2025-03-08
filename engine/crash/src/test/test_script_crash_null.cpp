@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,7 +15,7 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 #include <script/script.h>
-#include <extension/extension.h>
+#include <extension/extension.hpp>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
@@ -35,7 +35,7 @@ extern "C"
     #define MOUNTFS ""
 #endif
 
-#define PATH_FORMAT "build/default/src/test/%s"
+#define PATH_FORMAT "build/src/test/%s"
 
 class ScriptCrashTest : public jc_test_base_class
 {
@@ -49,7 +49,11 @@ protected:
 
         dmResource::NewFactoryParams factory_params;
         m_ResourceFactory = dmResource::NewFactory(&factory_params, ".");
-        m_Context = dmScript::NewContext(m_ConfigFile, m_ResourceFactory, true);
+
+        dmScript::ContextParams script_context_params = {};
+        script_context_params.m_Factory = m_ResourceFactory;
+        script_context_params.m_ConfigFile = m_ConfigFile;
+        m_Context = dmScript::NewContext(script_context_params);
 
         dmExtension::AppParams app_params;
         app_params.m_ConfigFile = m_ConfigFile;
@@ -114,8 +118,11 @@ TEST_F(ScriptCrashTest, TestCrashNull)
     ASSERT_EQ(top, lua_gettop(L));
 }
 
+extern "C" void dmExportedSymbols();
+
 int main(int argc, char **argv)
 {
+    dmExportedSymbols();
     jc_test_init(&argc, argv);
 
     int ret = jc_test_run_all();

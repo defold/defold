@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -20,13 +20,15 @@ import java.util.Set;
 import java.util.HashMap;
 import java.lang.reflect.Modifier;
 
-import com.dynamo.bob.Bob;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.IClassScanner;
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.logging.Logger;
 
 
 public class PluginScanner {
+
+	private static Logger logger = Logger.getLogger(PluginScanner.class.getName());
 
 	private static HashMap<String, Object> pluginsCache = new HashMap<>();
 
@@ -48,11 +50,32 @@ public class PluginScanner {
 	 */
 	public static <T> T getOrCreatePlugin(String packageName, Class<T> pluginBaseClass) throws CompileExceptionError {
 
-		IClassScanner scanner = Project.getClassLoaderScanner();
-		if (scanner == null) {
-			Bob.verbose("PluginScanner has no class loader scanner");
-			return null;
+		List<T> plugins = getOrCreatePlugins(packageName, pluginBaseClass);
+		T plugin = null;
+		if (plugins != null) {
+			if (plugins.size() > 1) {
+				throw new CompileExceptionError("PluginScanner found more than one class implementing " + pluginBaseClass + " in package " + packageName);
+			}
+			// get the plugin (or null if none was found) and cache it
+			plugin = (T)plugins.get(0);
 		}
+		return plugin;
+	}
+	
+	/**
+	 * Get a previously cached instances or find and create instances of classes
+	 * extending a specific base class and located within a specific package. The
+	 * class must:
+	 * 
+	 * - Not be private
+	 * - Not be abstract
+	 * - Extend the base class
+	 * 
+	 * @param packageName 
+	 * @param pluginBaseClass
+	 * @return List with class instances or null if no class was found
+	 */
+	public static <T> List<T> getOrCreatePlugins(String packageName, Class<T> pluginBaseClass) throws CompileExceptionError {
 
 		// check if we've already searched for and cached a plugin for this package path and base class
 		// and if that is the case return the cached instance
@@ -60,11 +83,21 @@ public class PluginScanner {
 		// return null if we have searched for and not found a plugin
 		String pluginKey = packageName + pluginBaseClass;
 		if (pluginsCache.containsKey(pluginKey)) {
-			Bob.verbose("PluginScanner has cached plugin for key %s: %s", pluginKey, pluginsCache.get(pluginKey));
-			return (T)pluginsCache.get(pluginKey);
+			List<T> plugins = (List<T>)pluginsCache.get(pluginKey);
+			if (plugins != null)
+			{
+				logger.info("PluginScanner has %d cached plugins for key %s", plugins.size(), pluginKey);
+			}
+			return plugins;
 		}
 
-		Bob.verbose("PluginScanner searching %s for base class %s", packageName, pluginBaseClass);
+		IClassScanner scanner = Project.getClassLoaderScanner();
+		if (scanner == null) {
+			logger.warning("PluginScanner has no class loader scanner");
+			return null;
+		}
+
+		logger.fine("PluginScanner searching %s for base class %s", packageName, pluginBaseClass);
 		
 		List<T> plugins = new ArrayList<>();
 		Set<String> classNames = scanner.scan(packageName);
@@ -75,10 +108,7 @@ public class PluginScanner {
 				boolean isAbstract = Modifier.isAbstract(klass.getModifiers());
 				boolean isPrivate = Modifier.isPrivate(klass.getModifiers());
 				if (pluginBaseClass.isAssignableFrom(klass) && !isAbstract && !isPrivate) {
-					Bob.verbose("Found plugin " + className);
-					if (plugins.size() == 1) {
-						throw new CompileExceptionError("PluginScanner found more than one class implementing " + pluginBaseClass + " in package " + packageName);
-					}
+					logger.fine("Found plugin " + className);
 					plugins.add((T)klass.newInstance());
 				}
 			}
@@ -91,8 +121,8 @@ public class PluginScanner {
 		}
 
 		// get the plugin (or null if none was found) and cache it
-		T plugin = plugins.isEmpty() ? null : (T)plugins.get(0);
-		pluginsCache.put(pluginKey, plugin);
-		return plugin;
+		plugins = plugins.isEmpty() ? null : plugins;
+		pluginsCache.put(pluginKey, plugins);
+		return plugins;
 	}
 }

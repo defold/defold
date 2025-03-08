@@ -1,0 +1,172 @@
+name: "test_attributes"
+tags: "tile"
+vertex_program: "/materials/test_attributes.vp"
+fragment_program: "/materials/test_attributes.fp"
+vertex_space: VERTEX_SPACE_WORLD
+vertex_constants {
+  name: "view_proj"
+  type: CONSTANT_TYPE_VIEWPROJ
+  value {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 0.0
+  }
+}
+samplers {
+  name: "texture0"
+  wrap_u: WRAP_MODE_REPEAT
+  wrap_v: WRAP_MODE_REPEAT
+  filter_min: FILTER_MODE_MIN_NEAREST
+  filter_mag: FILTER_MODE_MAG_NEAREST
+  max_anisotropy: 0.0
+}
+max_page_count: 0
+attributes {
+  name: "position"
+  semantic_type: SEMANTIC_TYPE_POSITION
+  element_count: 3
+  normalize: false
+  data_type: TYPE_FLOAT
+  coordinate_space: COORDINATE_SPACE_WORLD
+  double_values {
+    v: 0.0
+    v: 0.0
+    v: 0.0
+  }
+}
+attributes {
+  name: "texcoord0"
+  semantic_type: SEMANTIC_TYPE_TEXCOORD
+  element_count: 3
+  normalize: false
+  data_type: TYPE_FLOAT
+  coordinate_space: COORDINATE_SPACE_LOCAL
+  double_values {
+    v: 0.0
+    v: 0.0
+    v: 0.0
+  }
+}
+attributes {
+  name: "page_index0"
+  semantic_type: SEMANTIC_TYPE_PAGE_INDEX
+  element_count: 1
+  normalize: false
+  data_type: TYPE_UNSIGNED_INT
+  coordinate_space: COORDINATE_SPACE_LOCAL
+  long_values {
+    v: 0
+  }
+}
+attributes {
+  name: "color"
+  semantic_type: SEMANTIC_TYPE_COLOR
+  element_count: 4
+  normalize: true
+  data_type: TYPE_UNSIGNED_BYTE
+  coordinate_space: COORDINATE_SPACE_LOCAL
+  double_values {
+    v: 0.125
+    v: 0.25
+    v: 0.5
+    v: 1.0
+  }
+}
+attributes {
+  name: "normal"
+  semantic_type: SEMANTIC_TYPE_NONE
+  element_count: 3
+  normalize: true
+  data_type: TYPE_SHORT
+  coordinate_space: COORDINATE_SPACE_LOCAL
+  double_values {
+    v: 0.707
+    v: 0.707
+    v: 0.0
+  }
+}
+attributes {
+  name: "byte"
+  semantic_type: SEMANTIC_TYPE_NONE
+  element_count: 2
+  normalize: false
+  data_type: TYPE_BYTE
+  coordinate_space: COORDINATE_SPACE_LOCAL
+  long_values {
+    v: -128
+    v: 127
+  }
+}
+attributes {
+  name: "ubyte"
+  semantic_type: SEMANTIC_TYPE_NONE
+  element_count: 2
+  normalize: false
+  data_type: TYPE_UNSIGNED_BYTE
+  coordinate_space: COORDINATE_SPACE_LOCAL
+  long_values {
+    v: 0
+    v: 255
+  }
+}
+attributes {
+  name: "short"
+  semantic_type: SEMANTIC_TYPE_NONE
+  element_count: 2
+  normalize: false
+  data_type: TYPE_SHORT
+  coordinate_space: COORDINATE_SPACE_LOCAL
+  long_values {
+    v: -32768
+    v: 32767
+  }
+}
+attributes {
+  name: "ushort"
+  semantic_type: SEMANTIC_TYPE_NONE
+  element_count: 2
+  normalize: false
+  data_type: TYPE_UNSIGNED_SHORT
+  coordinate_space: COORDINATE_SPACE_LOCAL
+  long_values {
+    v: 0
+    v: 65535
+  }
+}
+attributes {
+  name: "int"
+  semantic_type: SEMANTIC_TYPE_NONE
+  element_count: 2
+  normalize: false
+  data_type: TYPE_INT
+  coordinate_space: COORDINATE_SPACE_LOCAL
+  long_values {
+    v: -2147483648
+    v: 2147483647
+  }
+}
+attributes {
+  name: "uint"
+  semantic_type: SEMANTIC_TYPE_NONE
+  element_count: 2
+  normalize: false
+  data_type: TYPE_UNSIGNED_INT
+  coordinate_space: COORDINATE_SPACE_LOCAL
+  long_values {
+    v: 0
+    v: 4294967295
+  }
+}
+attributes {
+  name: "float"
+  semantic_type: SEMANTIC_TYPE_NONE
+  element_count: 2
+  normalize: false
+  data_type: TYPE_FLOAT
+  coordinate_space: COORDINATE_SPACE_LOCAL
+  double_values {
+    v: -3.4028234663852886E38
+    v: 3.4028234663852886E38
+  }
+}

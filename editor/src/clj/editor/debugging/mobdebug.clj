@@ -1,19 +1,19 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.debugging.mobdebug
-  (:refer-clojure :exclude [eval run!])
+  (:refer-clojure :exclude [run!])
   (:require [clojure.edn :as edn]
             [clojure.string :as string]
             [editor.error-reporting :as error-reporting]
@@ -95,6 +95,101 @@
   (.println out command)
   (.flush out))
 
+(defn- remove-filename-prefix
+  [^String s]
+  (if (or (.startsWith s "=") (.startsWith s "@"))
+    (subs s 1)
+    s))
+
+(defn lua-module?
+  [^String s]
+  (.matches (re-matcher #"([^\./]+)(\.[^\./]+)*" s)))
+
+(defn- module->path
+  [^String s]
+  (if (lua-module? s)
+    (lua/lua-module->path s)
+    s))
+
+(def sanitize-path (comp module->path chunk-name-to-luajit-path remove-filename-prefix))
+
+;;------------------------------------------------------------------------------
+;; session management
+
+(defprotocol IDebugSession
+  (-state [this] "return the session state")
+  (-set-state! [this state] "set the session state")
+  (-push-suspend-callback! [this f])
+  (-pop-suspend-callback! [this]))
+
+(deftype DebugSession [^Object lock
+                       ^:volatile-mutable state
+                       ^Socket socket
+                       ^BufferedReader in
+                       ^PrintWriter out
+                       ^Stack suspend-callbacks
+                       on-closed]
+  IDebugSession
+  (-state [this] state)
+  (-set-state! [this new-state] (set! state new-state))
+  (-push-suspend-callback! [this f] (.push suspend-callbacks f))
+  (-pop-suspend-callback! [this] (.pop suspend-callbacks)))
+
+(defn- make-debug-session
+  [^Socket socket on-closed]
+  (let [in  (BufferedReader. (InputStreamReader. (.getInputStream socket)))
+        out (PrintWriter. (.getOutputStream socket))]
+    (DebugSession. (Object.) :suspended socket in out (Stack.) on-closed)))
+
+(defn- try-connect!
+  [address port]
+  (try
+    (doto (Socket.)
+      (.connect (InetSocketAddress. ^String address (int port)) 2000))
+    (catch java.lang.Exception _ nil)))
+
+(defn connect!
+  [address port on-connected on-closed on-error]
+  (thread
+    (try
+      (loop [retries 0]
+        (if-some [socket (try-connect! address port)]
+          (let [debug-session (make-debug-session socket on-closed)]
+            (on-connected debug-session))
+          (if (< retries 50)
+            (do (Thread/sleep 200) (recur (inc retries)))
+            (throw (ex-info (format "Failed to connect to debugger on %s:%d." address port)
+                            {:address address
+                             :port port})))))
+      (catch Exception e
+        (on-error e)))))
+
+(defn close!
+  ([debug-session]
+   (close! debug-session :closed))
+  ([^DebugSession debug-session end-state]
+   (when-some [^Socket socket (.socket debug-session)]
+     (try
+       (.close socket)
+       (catch IOException _)))
+   (-set-state! debug-session end-state)
+   (when-some [on-closed (.on-closed debug-session)]
+     (on-closed debug-session))))
+
+(defmacro with-session
+  [debug-session & body]
+  `(locking (.lock ~(with-meta debug-session {:tag `DebugSession}))
+     (try
+       ~@body
+       (catch IOException ex#
+         (close! ~debug-session))
+       (catch Throwable t#
+         (log/error :exception t#)
+         (close! ~debug-session :error)))))
+
+(defn state
+  [^DebugSession debug-session]
+  (-state debug-session))
 
 ;;--------------------------------------------------------------------
 ;; data decoding
@@ -109,31 +204,114 @@
 
 (defrecord LuaRef [address])
 
-;; A representation of lua table that supports circular references. Acts like a
-;; read-only map (no assoc/dissoc) that creates sub-structures on demand.
+(defn- tuple->map-entry
+  ^MapEntry [[k v]]
+  (MapEntry. k v))
 
-(deftype LuaStructure [value refs]
+(defn- sequence->map-entries [coll]
+  (sequence (comp (partition-all 2)
+                  (map tuple->map-entry))
+            coll))
+
+(defn- classify-type [x]
+  (cond (number? x) :number
+        (string? x) :string
+        (instance? Comparable x) :comparable
+        :else :other))
+
+(defn- compare-keys [a b]
+  (let [a-type (classify-type a)
+        b-type (classify-type b)]
+    (case a-type
+      :number (case b-type
+                :number (compare a b)
+                (:string :comparable :other) -1)
+      :string (case b-type
+                :number 1
+                :string (compare a b)
+                (:comparable :other) -1)
+      :comparable (case b-type
+                    (:number :string) 1
+                    :comparable (compare a b)
+                    :other -1)
+      :other (case b-type
+               (:number :string :comparable) 1
+               :other (compare (System/identityHashCode a)
+                               (System/identityHashCode b))))))
+
+(defn- read-lua-table [{:keys [content string]}]
+  (with-meta (into (sorted-map-by compare-keys)
+                   (sequence->map-entries content))
+             {:string string}))
+
+(declare ->LuaStructure)
+
+(defn- decode-serialized-data
+  [debug-session edn-string]
+  (try
+    (edn/read-string
+      {:readers {'lua/table read-lua-table
+                 'lua/ref ->LuaRef
+                 'lua/structure (fn [{:keys [value refs]}]
+                                  (->LuaStructure debug-session value refs))}
+       :default ->LuaBlackBox}
+      edn-string)
+    (catch Exception e
+      (throw (ex-info "Error decoding serialized data" {:input edn-string} e)))))
+
+;; A representation of lua table that supports circular references. Acts like a
+;; read-only map (no assoc/dissoc) that creates/loads sub-structures on demand.
+
+(defn- maybe-ref->structure [^DebugSession debug-session x refs]
+  (if-not (instance? LuaRef x)
+    x
+    (if (contains? refs x)
+      (->LuaStructure debug-session x refs)
+      ;; We have a reference that was not serialized, load it:
+      (with-session debug-session
+        (when (= :suspended (-state debug-session))
+          (let [out (.-out debug-session)
+                in (.-in debug-session)]
+            (send-command! out (format "REF %s --{maxlevel=4}" (:address x)))
+            (let [[status rest] (read-status in)]
+              (case status
+                "200"
+                (when-let [[edn-string] (re-match #"^OK\s+" rest)]
+                  (let [loaded-refs (::refs (decode-serialized-data debug-session edn-string))]
+                    (->LuaStructure debug-session x (into refs loaded-refs))))
+
+                "401"
+                (when-let [[size] (re-match #"^Error in Execution\s+(\d+)$" rest)]
+                  (let [message (read-data in (Integer/parseInt size))]
+                    (log/warn :message "Failed to serialize the ref"
+                              :ref (:address x)
+                              :error-message message)
+                    nil))
+
+                "400"
+                (do (log/warn :message "Couldn't load lua table for a ref: not registered on a server"
+                              :ref (:address x)
+                              :error-message rest)
+                    nil)))))))))
+
+(deftype LuaStructure [^DebugSession debug-session value refs]
   ILookup
   (valAt [this k]
     (.valAt this k nil))
   (valAt [_ k not-found]
-    (let [lookup-key (if (instance? LuaStructure k)
-                       (.-value ^LuaStructure k)
-                       k)
-          ret (get-in refs [value lookup-key] not-found)]
-      (if (instance? LuaRef ret)
-        (LuaStructure. ret refs)
-        ret)))
+    (case k
+      ::refs refs
+      (let [lookup-key (if (instance? LuaStructure k)
+                         (.-value ^LuaStructure k)
+                         k)
+            ret (get-in refs [value lookup-key] not-found)]
+        (maybe-ref->structure debug-session ret refs))))
 
   Seqable
   (seq [_]
     (seq (map (fn [[k v]]
-                (MapEntry. (if (instance? LuaRef k)
-                             (LuaStructure. k refs)
-                             k)
-                           (if (instance? LuaRef v)
-                             (LuaStructure. v refs)
-                             v)))
+                (MapEntry. (maybe-ref->structure debug-session k refs)
+                           (maybe-ref->structure debug-session v refs)))
               (get refs value))))
 
   Counted
@@ -141,8 +319,9 @@
     (count (get refs value))))
 
 (defn- lua-ref->identity-string [ref structure-refs]
-  (let [lua-table (get structure-refs ref)]
-    (format "<%s>" (:string (meta lua-table)))))
+  (if-let [lua-table (get structure-refs ref)]
+    (format "<%s>" (:string (meta lua-table)))
+    (str "..." (:address ref))))
 
 (defn lua-value->identity-string
   "Returns string representing identity of a lua value. Does not show internal
@@ -225,152 +404,6 @@
     :else
     (lua-value->identity-string x)))
 
-(defn- tuple->map-entry
-  ^MapEntry [[k v]]
-  (MapEntry. k v))
-
-(defn- sequence->map-entries [coll]
-  (sequence (comp (partition-all 2)
-                  (map tuple->map-entry))
-            coll))
-
-(defn- classify-type [x]
-  (cond (number? x) :number
-        (string? x) :string
-        (instance? Comparable x) :comparable
-        :else :other))
-
-(defn- compare-keys [a b]
-  (let [a-type (classify-type a)
-        b-type (classify-type b)]
-    (case a-type
-      :number (case b-type
-                :number (compare a b)
-                (:string :comparable :other) -1)
-      :string (case b-type
-                :number 1
-                :string (compare a b)
-                (:comparable :other) -1)
-      :comparable (case b-type
-                    (:number :string) 1
-                    :comparable (compare a b)
-                    :other -1)
-      :other (case b-type
-               (:number :string :comparable) 1
-               :other (compare (System/identityHashCode a)
-                               (System/identityHashCode b))))))
-
-(def ^:private lua-readers
-  {'lua/table (fn [{:keys [content string]}]
-                (with-meta (into (sorted-map-by compare-keys)
-                                 (sequence->map-entries content))
-                           {:string string}))
-   'lua/ref (fn [address]
-              (LuaRef. address))
-   'lua/structure (fn [{:keys [value refs]}]
-                    (LuaStructure. value refs))})
-
-(defn- decode-serialized-data
-  [^String s]
-  (try
-    (edn/read-string {:readers lua-readers :default ->LuaBlackBox} s)
-    (catch Exception e
-      (throw (ex-info "Error decoding serialized data" {:input s} e)))))
-
-(defn- remove-filename-prefix
-  [^String s]
-  (if (or (.startsWith s "=") (.startsWith s "@"))
-    (subs s 1)
-    s))
-
-(defn lua-module?
-  [^String s]
-  (.matches (re-matcher #"([^\./]+)(\.[^\./]+)*" s)))
-
-(defn- module->path
-  [^String s]
-  (if (lua-module? s)
-    (lua/lua-module->path s)
-    s))
-
-(def sanitize-path (comp module->path chunk-name-to-luajit-path remove-filename-prefix))
-
-;;------------------------------------------------------------------------------
-;; session management
-
-(defprotocol IDebugSession
-  (-state [this] "return the session state")
-  (-state! [this state] "set the session state")
-  (-push-suspend-callback! [this f])
-  (-pop-suspend-callback! [this]))
-
-(deftype DebugSession [^Object lock
-                       ^:volatile-mutable state
-                       ^Socket socket
-                       ^BufferedReader in
-                       ^PrintWriter out
-                       ^Stack suspend-callbacks
-                       on-closed]
-  IDebugSession
-  (-state [this] state)
-  (-state! [this new-state] (set! state new-state))
-  (-push-suspend-callback! [this f] (.push suspend-callbacks f))
-  (-pop-suspend-callback! [this] (.pop suspend-callbacks)))
-
-(defn- make-debug-session
-  [^Socket socket on-closed]
-  (let [in  (BufferedReader. (InputStreamReader. (.getInputStream socket)))
-        out (PrintWriter. (.getOutputStream socket))]
-    (DebugSession. (Object.) :suspended socket in out (Stack.) on-closed)))
-
-(defn- try-connect!
-  [address port]
-  (try
-    (doto (Socket.)
-      (.connect (InetSocketAddress. ^String address (int port)) 2000))
-    (catch java.lang.Exception _ nil)))
-
-(defn connect!
-  [address port on-connected on-closed]
-  (thread
-    (loop [retries 0]
-      (if-some [socket (try-connect! address port)]
-        (let [debug-session (make-debug-session socket on-closed)]
-          (on-connected debug-session))
-        (if (< retries 50)
-          (do (Thread/sleep 200) (recur (inc retries)))
-          (throw (ex-info (format "Failed to connect to debugger on %s:%d" address port)
-                          {:address address
-                           :port port})))))))
-
-(defn close!
-  ([debug-session]
-   (close! debug-session :closed))
-  ([^DebugSession debug-session end-state]
-   (when-some [^Socket socket (.socket debug-session)]
-     (try
-       (.close socket)
-       (catch IOException _)))
-   (-state! debug-session end-state)
-   (when-some [on-closed (.on-closed debug-session)]
-     (on-closed debug-session))))
-
-(defmacro with-session
-  [debug-session & body]
-  `(locking (.lock ~(with-meta debug-session {:tag `DebugSession}))
-     (try
-       ~@body
-       (catch IOException ex#
-         (close! ~debug-session))
-       (catch Throwable t#
-         (log/error :exception t#)
-         (close! ~debug-session :error)))))
-
-(defn state
-  [^DebugSession debug-session]
-  (-state debug-session))
-
-
 ;;--------------------------------------------------------------------
 ;; commands
 
@@ -417,7 +450,7 @@
           (let [[status rest] (read-status in)]
             (case status
               "200" (do
-                      (-state! debug-session :running)
+                      (-set-state! debug-session :running)
                       (when on-suspended (-push-suspend-callback! debug-session on-suspended))
                       (thread (when-some [suspend-event (try
                                                           (await-suspend debug-session)
@@ -426,7 +459,7 @@
                                                             nil))]
                                 (when-some [f (with-session debug-session
                                                 (assert (= :running (-state debug-session)))
-                                                (-state! debug-session :suspended)
+                                                (-set-state! debug-session :suspended)
                                                 (-pop-suspend-callback! debug-session))]
                                   (f debug-session suspend-event))))
                       (when on-resumed (on-resumed debug-session)))))
@@ -491,52 +524,53 @@
   (with-session debug-session
     (let [out (.out debug-session)
           in (.in debug-session)]
-      (send-command! out "STACK")
+      (send-command! out "STACK --{maxlevel=2}")
       (let [[status rest] (read-status in)]
         (case status
-          "200" (when-let [[stack] (re-match #"^OK\s+(.*)$" rest)]
-                  {:stack (stack-data (decode-serialized-data stack))})
+          "200" (when-let [[stack] (re-match #"^OK\s+" rest)]
+                  {:stack (stack-data (decode-serialized-data debug-session stack))})
           "401" (when-let [[size] (re-match #"^Error in Execution\s+(\d+)$" rest)]
                   (let [n (Integer/parseInt size)]
                     {:error (read-data in n)})))))))
 
-(defn exec
-  ([debug-session code]
-   (exec debug-session code 0))
-  ([^DebugSession debug-session code frame]
-   (with-session debug-session
-     (let [out (.out debug-session)
-           in (.in debug-session)]
-       (send-command! out (format "EXEC %s --{stack=%s}" code frame))
-       (let [[status rest] (read-status in)]
-         (case status
-           "200" (when-let [[size] (re-match #"^OK\s+(\d+)$" rest)]
-                   (let [n (Integer/parseInt size)]
-                     {:result (decode-serialized-data (read-data in n))}))
-           "400" {:error :bad-request}
-           "401" (when-let [[size] (re-match #"^Error in Expression\s+(\d+)$" rest)]
-                   (let [n (Integer/parseInt size)]
-                     {:error (read-data in n)}))))))))
-
-(defn eval
-  ([debug-session code]
-   (eval debug-session code 0))
-  ([debug-session code frame]
-   (exec debug-session (str "return " code) frame)))
+(defn exec [^DebugSession debug-session code frame]
+  (with-session debug-session
+    (let [out (.out debug-session)
+          in (.in debug-session)]
+      (send-command! out (format "EXEC return %s --{stack=%s}" code frame))
+      (let [[status rest] (read-status in)]
+        (case status
+          "200" (when-let [[size] (re-match #"^OK\s+(\d+)$" rest)]
+                  (let [n (Integer/parseInt size)]
+                    {:result (decode-serialized-data debug-session (read-data in n))}))
+          "400" {:error :bad-request}
+          "401" (when-let [[size] (re-match #"^Error in Expression\s+(\d+)$" rest)]
+                  (let [n (Integer/parseInt size)]
+                    {:error (read-data in n)})))))))
 
 
-;; A note on "SETB file line":
+;; A note on "SETB file line condition":
 ;; * In LuaBuilder.java we add '@' in front of the filename to tell Lua to
 ;; truncate the short_src name to the last 60 characters of the filename.
 ;; * mobdebug.lua will remove the '@' in the debug hook which means that we
 ;; must send SETB without the '@' in front of the filename
 (defn set-breakpoint!
-  [^DebugSession debug-session file line]
+  "Set a breakpoint in Lua runtime
+
+  Args:
+    debug-session    DebugSession instance
+    file             lua file path, a string
+    line             1-indexed line in the file
+    condition        optional condition, a string or nil"
+  [^DebugSession debug-session file line condition]
   (with-session debug-session
     (assert (= :suspended (-state debug-session)))
     (let [in (.in debug-session)
           out (.out debug-session)]
-      (send-command! out (format "SETB %s %d" (luajit-path-to-chunk-name file) line))
+      (send-command! out (format "SETB %s %d%s"
+                                 (luajit-path-to-chunk-name file)
+                                 line
+                                 (if condition (str " " condition) "")))
       (let [[status rest :as line] (read-status in)]
         (case status
           "200" :ok

@@ -1,61 +1,29 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#define JC_TEST_IMPLEMENTATION
-#include <jc_test/jc_test.h>
-
 #include "script.h"
 #include "script_private.h"
-
-#include <dlib/dstrings.h>
-#include <dlib/hash.h>
-#include <dlib/log.h>
-
-extern "C"
-{
-#include <lua/lauxlib.h>
-#include <lua/lualib.h>
-}
-
-#define PATH_FORMAT "build/default/src/test/%s"
-
-#if defined(__NX__)
-    #define MOUNTFS "host:/"
-#else
-    #define MOUNTFS
-#endif
+#include "test_script.h"
 
 #include <script/lua_source_ddf.h>
 
-class ScriptModuleTest : public jc_test_base_class
+#include <testmain/testmain.h>
+#include <dlib/hash.h>
+#include <dlib/log.h>
+
+class ScriptModuleTest : public dmScriptTest::ScriptTest
 {
-protected:
-    virtual void SetUp()
-    {
-        m_Context = dmScript::NewContext(0, 0, true);
-        dmScript::Initialize(m_Context);
-        L = dmScript::GetLuaState(m_Context);
-    }
-
-    virtual void TearDown()
-    {
-        dmScript::Finalize(m_Context);
-        dmScript::DeleteContext(m_Context);
-    }
-
-    dmScript::HContext m_Context;
-    lua_State* L;
 };
 
 // NOTE: we don't generate actual bytecode for this test-data, so
@@ -72,20 +40,6 @@ static dmLuaDDF::LuaSource* LuaSourceFromText(const char *text)
     tmp.m_Bytecode64.m_Count = strlen(text);
     tmp.m_Filename = "dummy";
     return &tmp;
-}
-
-bool RunFile(lua_State* L, const char* filename)
-{
-    char path[64];
-    dmSnPrintf(path, 64, MOUNTFS PATH_FORMAT, filename);
-    if (luaL_dofile(L, path) != 0)
-    {
-        const char* str = lua_tostring(L, -1);
-        dmLogError("%s", str);
-        lua_pop(L, 1);
-        return false;
-    }
-    return true;
 }
 
 TEST_F(ScriptModuleTest, TestModule)
@@ -169,7 +123,8 @@ TEST_F(ScriptModuleTest, TestModuleMissing)
 {
     int top = lua_gettop(L);
     ASSERT_FALSE(RunFile(L, "test_module_missing.luac"));
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top+1, lua_gettop(L));
+    lua_pop(L, lua_gettop(L)-top);
 }
 
 TEST_F(ScriptModuleTest, TestReloadNotLoaded)
@@ -180,43 +135,12 @@ TEST_F(ScriptModuleTest, TestReloadNotLoaded)
     ASSERT_EQ(top, lua_gettop(L));
 }
 
-struct ChunknameParam
-{
-    const char* m_Input;
-    const char* m_Expected;
-};
-
-class ChunknameTests : public jc_test_params_class<ChunknameParam>
-{
-protected:
-    void SetUp() {};
-    void TearDown() {};
-};
-
-// Verify that Lua chunknames are prefixed with '=' and the last parts
-// of the paths are taken, not from the start.
-TEST_P(ChunknameTests, Chunkname)
-{
-    const ChunknameParam& param = GetParam();
-    char tmp[61];
-    dmScript::PrefixFilename(dmScript::FindSuitableChunkname(param.m_Input), '=', tmp, sizeof(tmp));
-    ASSERT_EQ('=', tmp[0]);
-    ASSERT_STREQ(param.m_Expected, tmp);
-}
-
-ChunknameParam chunkname_tests[] = {
-    {"", "="},
-    {"a.script", "=a.script"},
-    {"abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.script", "=abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.script"},
-    {"abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.script", "=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.script"},
-    {"aabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.script", "=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.script"},
-};
-INSTANTIATE_TEST_CASE_P(Test, ChunknameTests, jc_test_values_in(chunkname_tests));
+extern "C" void dmExportedSymbols();
 
 int main(int argc, char **argv)
 {
+    dmExportedSymbols();
+    TestMainPlatformInit();
     jc_test_init(&argc, argv);
-
-    int ret = jc_test_run_all();
-    return ret;
+    return jc_test_run_all();
 }

@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -14,16 +14,18 @@
 
 (ns integration.asset-browser-test
   (:require [clojure.java.io :as io]
-            [clojure.test :refer :all]
             [clojure.string :as string]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.asset-browser :as asset-browser]
-            [editor.dialogs :as dialogs]
-            [editor.workspace :as workspace]
             [editor.defold-project :as project]
+            [editor.dialogs :as dialogs]
             [editor.fs :as fs]
+            [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.resource-watch :as resource-watch]
+            [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [support.test-support :refer [with-clean-system]]))
 
@@ -43,7 +45,8 @@
                   :let [results (project/find-resources project query)]]
             (is (= 1 (count results)))
             (let [resource-node (get (first results) 1)
-                  resource-type (project/get-resource-type resource-node)
+                  resource (resource-node/resource resource-node)
+                  resource-type (resource/resource-type resource)
                   view-type (first (:view-types resource-type))
                   make-preview-fn (:make-preview-fn view-type)
                   view-opts (assoc ((:id view-type) (:view-opts resource-type))
@@ -250,3 +253,19 @@
             (is (some? (resource-map "/collection/game.project")))
             (is (not (some? (resource-map "/car/car.script"))))
             (is (some? (resource-map "/collection/car.script")))))))))
+
+(deftest replace-template-name
+  (are [name]
+    (= name
+       (->> name
+            (asset-browser/replace-template-name "string_value: \"{{NAME}}\"")
+            (protobuf/str->pb com.defold.editor.test.TestDdf$DefaultValue)
+            (.getStringValue)))
+
+    "single-quoted: 'text in quotes'"
+    "double-quoted: \"text in quotes\""
+    "slash: /"
+    "backslash: \\"
+    "newline: \n"
+    "carriage-return: \r"
+    "unicode: \u3042"))

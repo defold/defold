@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -30,8 +30,6 @@ import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.spec.InvalidKeySpecException;
-import java.util.ArrayList;
-import java.util.List;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
@@ -42,7 +40,10 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.dynamo.bob.archive.ManifestBuilder;
-import com.dynamo.bob.pipeline.ResourceNode;
+import com.dynamo.bob.Project;
+import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.bob.pipeline.graph.ResourceNode;
+import com.dynamo.bob.pipeline.graph.ResourceGraph;
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
 import com.dynamo.liveupdate.proto.Manifest.HashDigest;
 import com.dynamo.liveupdate.proto.Manifest.ManifestData;
@@ -63,7 +64,7 @@ public class ManifestTest {
         public final String privateKeyFilepath = "test/private_rsa_1024_1.der";
         public final String publicKeyFilepath = "test/public_rsa_1024_1.der";
         public final String[][] resources;
-        public final ResourceNode dependencies;
+        public final ResourceGraph resourceGraph;
         public final PublicKey publicKey;
 
         public ManifestBuilder manifestBuilder = new ManifestBuilder();
@@ -76,22 +77,22 @@ public class ManifestTest {
 
         public ManifestInstance() throws IOException, NoSuchAlgorithmException, InvalidKeySpecException {
             this.resources = this.createResources();
-            this.dependencies = this.createDependencies();
+            this.resourceGraph = this.createResourceGraph();
             this.publicKey = ManifestBuilder.CryptographicOperations.loadPublicKey(this.publicKeyFilepath, SignAlgorithm.SIGN_RSA);
             manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_SHA1);
             manifestBuilder.setSignatureHashAlgorithm(HashAlgorithm.HASH_SHA1);
             manifestBuilder.setSignatureSignAlgorithm(SignAlgorithm.SIGN_RSA);
             manifestBuilder.setProjectIdentifier(projectIdentifier);
             manifestBuilder.setPrivateKeyFilepath(privateKeyFilepath);
-            manifestBuilder.setRoot(this.dependencies);
-            manifestBuilder.setExcludedResources(this.getExcludedResources());
+            manifestBuilder.setResourceGraph(this.resourceGraph);
 
             for (String supportedEngineVersion : this.supportedEngineVersions) {
                 manifestBuilder.addSupportedEngineVersion(supportedEngineVersion);
             }
 
             for (String[] entry : this.resources) {
-                manifestBuilder.addResourceEntry(entry[0], entry[1].getBytes(), ResourceEntryFlag.BUNDLED.getNumber());
+                byte[] data = entry[1].getBytes();
+                manifestBuilder.addResourceEntry(entry[0], data, data.length, data.length, ResourceEntryFlag.BUNDLED.getNumber());
             }
 
             this.manifestHeader = manifestBuilder.buildManifestHeader();
@@ -120,47 +121,62 @@ public class ManifestTest {
             return resources;
         }
 
-        private ResourceNode createDependencies() {
-            ResourceNode root = new ResourceNode("<Anonymous Root>", "<Anonymous Root>");
-            ResourceNode main_collectionc = new ResourceNode("/main/main.collectionc", "test/main/main.collectionc");
-            ResourceNode main_goc = new ResourceNode("/main/main.goc", "test/main/main.goc");
+        private ResourceGraph createResourceGraph() {
+            Project project = new Project(new DefaultFileSystem());
+            ResourceGraph graph = new ResourceGraph(project);
 
-            ResourceNode dynamic_collectionc = new ResourceNode("/main/dynamic.collectionc", "test/main/dynamic.collectionc");
+            /*
+            root
+            |
+            +--/main/main.collectionc
+               +--/main/main.goc
+               |  +--/main/main.scriptc
+               |
+               +--/main/shared_go.goc
+               |
+               +--/main/dynamic.collectionc
+               |  +--/main/dynamic.goc
+               |
+               +--/main/level1.collectionproxyc
+                  +--/main/level1.collectionc
+                     +--/main/dynamic.goc
+                     +--/main/level1.goc
+                     |  +--/main/level1.scriptc
+                     |  +--/main/shared_go.goc
+                     |
+                     +--/main/level2.collectionproxyc
+                        +--/main/level2.collectionc
+                            +--/main/dynamic.goc
+                            +--/main/level2.goc
+                            +--/main/level2.soundc
+            */
 
-            ResourceNode level1_collectionproxyc = new ResourceNode("/main/level1.collectionproxyc", "test/main/level1.collectionproxyc");
-            ResourceNode level1_collectionc = new ResourceNode("/main/level1.collectionc", "test/main/level1.collectionc");
-            ResourceNode level1_goc = new ResourceNode("/main/level1.goc", "test/main/level1.goc");
-            ResourceNode level2_collectionproxyc = new ResourceNode("/main/level2.collectionproxyc", "test/main/level2.collectionproxyc");
-            ResourceNode level2_collectionc = new ResourceNode("/main/level2.collectionc", "test/main/level2.collectionc");
-            ResourceNode level2_goc = new ResourceNode("/main/level2.goc", "/test/main/level2.goc");
+            ResourceNode root = graph.getRootNode();
+            ResourceNode main_collectionc = graph.add("/main/main.collectionc", root);
+            ResourceNode main_goc = graph.add("/main/main.goc", main_collectionc);
+            ResourceNode main_scriptc = graph.add("/main/main.scriptc", main_goc);
+            ResourceNode dynamic_collectionc = graph.add("/main/dynamic.collectionc", main_collectionc);
+            ResourceNode dynamic_goc = graph.add("/main/dynamic.goc", dynamic_collectionc);
+            ResourceNode shared_goc = graph.add("/main/shared_go.goc", main_collectionc);
 
-            root.addChild(main_collectionc);
-            main_collectionc.addChild(main_goc);
-            main_goc.addChild(new ResourceNode("/main/main.scriptc", "/test/main/main.scriptc"));
-            main_goc.addChild(level1_collectionproxyc);
-            main_collectionc.addChild(new ResourceNode("/main/shared_go.goc", "/test/main/shared_go.goc"));
+            ResourceNode level1_collectionproxyc = graph.add("/main/level1.collectionproxyc", main_goc);
+            ResourceNode level1_collectionc = graph.add("/main/level1.collectionc", level1_collectionproxyc);
+            level1_collectionproxyc.setType(ResourceNode.Type.ExcludedCollectionProxy);
+            level1_collectionc.setType(ResourceNode.Type.ExcludedCollection);
+            ResourceNode level1_goc = graph.add("/main/level1.goc", level1_collectionc);
+            ResourceNode level1_scriptc = graph.add("/main/level1.scriptc", level1_goc);
 
-            main_collectionc.addChild(dynamic_collectionc);
-            dynamic_collectionc.addChild(new ResourceNode("/main/dynamic.goc", "test/main/main.goc"));
+            ResourceNode level2_collectionproxyc = graph.add("/main/level2.collectionproxyc", level1_goc);
+            ResourceNode level2_collectionc = graph.add("/main/level2.collectionc", level2_collectionproxyc);
+            ResourceNode level2_goc = graph.add("/main/level2.goc", level2_collectionc);
+            ResourceNode level2_soundc = graph.add("/main/level2.soundc", level2_goc);
 
-            level1_collectionproxyc.addChild(level1_collectionc);
-            level1_collectionc.addChild(new ResourceNode("/main/dynamic.goc", "test/main/main.goc"));
-            level1_collectionc.addChild(level1_goc);
-            level1_goc.addChild(new ResourceNode("/main/level1.scriptc", "/test/main/level1.scriptc"));
-            level1_goc.addChild(level2_collectionproxyc);
-            level1_goc.addChild(new ResourceNode("/main/shared_go.goc", "/test/main/shared_go.goc"));
-            level2_collectionproxyc.addChild(level2_collectionc);
-            level2_collectionc.addChild(new ResourceNode("/main/dynamic.goc", "test/main/main.goc"));
-            level2_collectionc.addChild(level2_goc);
-            level2_goc.addChild(new ResourceNode("/main/level2.soundc", "/test/main/level2.soundc"));
+            graph.add(dynamic_goc, level1_collectionc);
+            graph.add(dynamic_goc, level2_collectionc);
+            graph.add(shared_goc,  level1_goc);
 
-            return root;
-        }
-
-        private List<String> getExcludedResources() {
-            List<String> excluded = new ArrayList<>();
-            excluded.add("/main/level1.collectionproxyc");
-            return excluded;
+            graph.findAllResourcesReferencedFromMainCollection();
+            return graph;
         }
 
         public HashDigest projectIdentifierHash() {
@@ -386,8 +402,7 @@ public class ManifestTest {
         ManifestData data = ManifestData.parseFrom(manifestFile2.getData());
         ManifestHeader header = data.getHeader();
 
-        assertEquals(ManifestBuilder.CONST_MAGIC_NUMBER, header.getMagicNumber());
-        assertEquals(ManifestBuilder.CONST_VERSION, header.getVersion());
+        assertEquals(ManifestBuilder.CONST_VERSION, manifestFile2.getVersion());
         assertEquals(HashAlgorithm.HASH_SHA1, header.getResourceHashAlgorithm());
         assertEquals(HashAlgorithm.HASH_SHA1, header.getSignatureHashAlgorithm());
         assertEquals(SignAlgorithm.SIGN_RSA, header.getSignatureSignAlgorithm());
@@ -415,8 +430,6 @@ public class ManifestTest {
         ManifestInstance instance = new ManifestInstance();
         ManifestHeader header = instance.manifestHeader;
 
-        assertEquals(ManifestBuilder.CONST_MAGIC_NUMBER, header.getMagicNumber());
-        assertEquals(ManifestBuilder.CONST_VERSION, header.getVersion());
         assertEquals(HashAlgorithm.HASH_SHA1, header.getResourceHashAlgorithm());
         assertEquals(HashAlgorithm.HASH_SHA1, header.getSignatureHashAlgorithm());
         assertEquals(SignAlgorithm.SIGN_RSA, header.getSignatureSignAlgorithm());
@@ -442,12 +455,25 @@ public class ManifestTest {
 
             assertTrue(foundMatch);
         }
+    }  
+
+    // Help function for debug that prints paths
+    private void printDeps(ManifestData data, ResourceEntry searchFor) {
+        for (int i = 0; i < data.getResourcesCount(); ++i) {
+            ResourceEntry current = data.getResources(i);
+            for (long hash:searchFor.getDependantsList()) {
+                if (hash == current.getUrlHash()) {
+                    System.out.println(current.getUrl());
+                }
+            }
+        }
     }
 
     @Test
     public void testCreateManifest_Resources() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
         ManifestInstance instance = new ManifestInstance();
         ManifestData data = instance.manifestData;
+        System.out.println(instance.resourceGraph.toJSON());
 
         assertEquals(instance.resources.length, data.getResourcesCount());
 
@@ -461,91 +487,11 @@ public class ManifestTest {
                 assertEquals(0, current.getDependantsCount());
             }
 
-            if (current.getUrl().equals("/main/level1.collectionproxyc")) {
-                assertEquals(5, current.getDependantsCount());
+            // Now we have dependencies in excluded collection proxies
+            if (current.getUrl().equals("/main/level1.collectionc")) {
+                printDeps(data, current);
+                assertEquals(3, current.getDependantsCount());
             }
         }
     }
-
-    @Test
-    public void testGetParentCollectionProxy() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
-        ManifestInstance instance = new ManifestInstance();
-        String filepath = "/main/level1.goc";
-        List<ArrayList<String>> parents = instance.manifestBuilder.getParentCollections(filepath);
-
-        assertEquals(1, parents.size());
-        assertEquals(3, parents.get(0).size());
-        assertEquals("/main/level1.collectionc",        parents.get(0).get(0));
-        assertEquals("/main/level1.collectionproxyc",   parents.get(0).get(1));
-        assertEquals("/main/main.collectionc",          parents.get(0).get(2));
-    }
-
-    @Test
-    public void testGetParentCollectionsDeep() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
-        ManifestInstance instance = new ManifestInstance();
-        String filepath = "/main/level2.goc";
-        List<ArrayList<String>> parents = instance.manifestBuilder.getParentCollections(filepath);
-
-        assertEquals(1, parents.size());
-        assertEquals(5, parents.get(0).size());
-        assertEquals("/main/level2.collectionc",        parents.get(0).get(0));
-        assertEquals("/main/level2.collectionproxyc",   parents.get(0).get(1));
-        assertEquals("/main/level1.collectionc",        parents.get(0).get(2));
-        assertEquals("/main/level1.collectionproxyc",   parents.get(0).get(3));
-        assertEquals("/main/main.collectionc",          parents.get(0).get(4));
-    }
-
-    @Test
-    public void testGetParentCollectionsShared() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
-        ManifestInstance instance = new ManifestInstance();
-        String filepath = "/main/shared_go.goc";
-        List<ArrayList<String>> parents = instance.manifestBuilder.getParentCollections(filepath);
-
-        assertEquals(2, parents.size());
-        assertEquals(3, parents.get(0).size());
-        assertEquals(1, parents.get(1).size());
-
-        assertEquals("/main/level1.collectionc",        parents.get(0).get(0));
-        assertEquals("/main/level1.collectionproxyc",   parents.get(0).get(1));
-        assertEquals("/main/main.collectionc",          parents.get(0).get(2));
-
-        assertEquals("/main/main.collectionc",          parents.get(1).get(0));
-    }
-
-    @Test
-    public void testGetParentCollectionProxyNotExcluded() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
-        ManifestInstance instance = new ManifestInstance();
-        String filepath = "/main/dynamic.goc";
-        List<ArrayList<String>> parents = instance.manifestBuilder.getParentCollections(filepath);
-
-        assertEquals(3, parents.size());
-        assertEquals(3, parents.get(0).size());
-        assertEquals(5, parents.get(1).size());
-        assertEquals(2, parents.get(2).size());
-
-        assertEquals("/main/level1.collectionc",        parents.get(0).get(0));
-        assertEquals("/main/level1.collectionproxyc",   parents.get(0).get(1));
-        assertEquals("/main/main.collectionc",          parents.get(0).get(2));
-
-        assertEquals("/main/level2.collectionc",        parents.get(1).get(0));
-        assertEquals("/main/level2.collectionproxyc",   parents.get(1).get(1));
-        assertEquals("/main/level1.collectionc",        parents.get(1).get(2));
-        assertEquals("/main/level1.collectionproxyc",   parents.get(1).get(3));
-        assertEquals("/main/main.collectionc",          parents.get(1).get(4));
-
-        assertEquals("/main/dynamic.collectionc",       parents.get(2).get(0));
-        assertEquals("/main/main.collectionc",          parents.get(2).get(1));
-    }
-
-    @Test
-    public void testGetParentCollectionsNull() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
-        ManifestInstance instance = new ManifestInstance();
-        String filepath = "/main/level1.collectionproxyc";
-        List<ArrayList<String>> parents = instance.manifestBuilder.getParentCollections(filepath);
-
-        assertEquals(1, parents.size());
-        assertEquals(1, parents.get(0).size());
-        assertEquals("/main/main.collectionc",          parents.get(0).get(0));
-    }
-
 }

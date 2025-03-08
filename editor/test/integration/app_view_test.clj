@@ -1,31 +1,34 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.app-view-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.set :as set]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.asset-browser :as asset-browser]
             [editor.build :as build]
-            [editor.fs :as fs]
-            [editor.git :as git]
             [editor.defold-project :as project]
+            [editor.git :as git]
             [editor.progress :as progress]
+            [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
-            [support.test-support :refer [spit-until-new-mtime with-clean-system]])
-  (:import [java.io File]))
+            [internal.graph.types :as gt]
+            [internal.node :as in]
+            [support.test-support :refer [spit-until-new-mtime with-clean-system]]))
 
 (deftest open-editor
   (testing "Opening editor only alters undo history by selection"
@@ -98,11 +101,17 @@
     (-> git (.commit) (.setMessage "init repo") (.call))
     git))
 
-(defn- edit-and-save! [workspace atlas margin]
-  (g/set-property! atlas :margin margin)
-  (let [save-data (g/node-value atlas :save-data)]
-    (spit-until-new-mtime (:resource save-data) (:content save-data))
-    (workspace/resource-sync! workspace [])))
+(defn- external-edit-and-save! [workspace atlas margin]
+  ;; Fake an external edit of the atlas file by overwriting it with save-data
+  ;; that differ from the editor state.
+  (let [previous-margin (g/node-value atlas :margin)]
+    (g/set-property! atlas :margin margin)
+    (let [save-data (g/node-value atlas :save-data)
+          resource (:resource save-data)
+          content (resource-node/save-data-content save-data)]
+      (g/set-property! atlas :margin previous-margin)
+      (spit-until-new-mtime resource content)
+      (workspace/resource-sync! workspace []))))
 
 (defn- revert-all! [workspace git]
   (let [status (git/unified-status git)
@@ -131,7 +140,7 @@
       (revert-all! workspace git)
       (is (= atlas-res (g/node-value app-view :active-resource)))
       (app-view/select! app-view [(:node-id (atlas-outline [0]))])
-      (edit-and-save! workspace atlas 1)
+      (external-edit-and-save! workspace atlas 1)
       ;; Ensure reload has happened
       (is (not= atlas (g/node-value app-view :active-resource-node)))
       (is (= atlas-res (g/node-value app-view :active-resource)))
@@ -154,7 +163,7 @@
         (is (seq (:artifacts build-results)))
         (is (not (g/error? (:error build-results))))
         (workspace/artifact-map! workspace (:artifact-map build-results)))
-      (asset-browser/rename main-dir "/blahonga")
+      (asset-browser/rename [main-dir] "blahonga")
       (is (nil? (workspace/find-resource workspace "/main")))
       (is (workspace/find-resource workspace "/blahonga"))
       (let [old-artifact-map (workspace/artifact-map workspace)
@@ -162,3 +171,56 @@
         (is (seq (:artifacts build-results)))
         (is (not (g/error? (:error build-results))))
         (workspace/artifact-map! workspace (:artifact-map build-results))))))
+
+(deftest build-targets-remain-in-cache-after-build
+  (let [project-path "test/resources/build_project/SideScroller"
+        cache-size 50
+        retained-labels #{:build-targets}]
+    (letfn [(cached-endpoints []
+              (into (sorted-set)
+                    (keys (g/cache))))
+            (node-cacheable-build-target-endpoints [node-id]
+              (let [node-type (g/node-type* node-id)
+                    cached-outputs (in/cached-outputs node-type)]
+                (map (partial gt/endpoint node-id)
+                     (set/intersection cached-outputs retained-labels))))]
+      (with-clean-system {:cache-size cache-size
+                          :cache-retain? project/cache-retain?}
+        (let [workspace (test-util/setup-workspace! world project-path)
+              project (test-util/setup-project! workspace)
+              artifact-map (workspace/artifact-map workspace)
+              game-project (test-util/resource-node project "/game.project")
+              expected-cached-build-target-endpoints (into (sorted-set)
+                                                           (mapcat (fn [{build-resource :resource :as build-target}]
+                                                                     (let [source-resource (:resource build-resource)]
+                                                                       (when (and (some? (resource/proj-path source-resource))
+                                                                                  (not (some-> (:node-id build-target) g/override?)))
+                                                                         ;; This is a project (i.e. not embedded) resource node.
+                                                                         (when-some [source-node-id (test-util/resource-node project source-resource)]
+                                                                           (node-cacheable-build-target-endpoints source-node-id))))))
+                                                           (build/resolve-node-dependencies game-project project))]
+          (test-util/run-event-loop!
+            (fn [exit-event-loop!]
+              (g/clear-system-cache!)
+              (app-view/async-build! project
+                                     :debug false
+                                     :build-engine false
+                                     :old-artifact-map artifact-map
+                                     :prefs (test-util/make-test-prefs)
+                                     :result-fn (fn [build-results]
+                                                  (when (is (nil? (:error build-results)))
+
+                                                    (testing "Build targets remain in cache even though we've exceeded the cache limit."
+                                                      (is (set/subset? expected-cached-build-target-endpoints (cached-endpoints))))
+
+                                                    (testing "Build targets are always evicted from the cache after their dependencies change."
+                                                      (let [background-atlas (test-util/resource-node project "/background/background.atlas")]
+                                                        (is (contains? (cached-endpoints) (gt/endpoint background-atlas :build-targets)))
+                                                        (test-util/prop! background-atlas :margin 10)
+                                                        (is (not (contains? (cached-endpoints) (gt/endpoint background-atlas :build-targets))))))
+
+                                                    (testing "Build targets are always evicted from the cache when it is explicitly cleared."
+                                                      (g/clear-system-cache!)
+                                                      (is (empty? (g/cache)))))
+
+                                                  (exit-event-loop!))))))))))

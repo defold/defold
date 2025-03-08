@@ -19,12 +19,24 @@
    :default "",
    :presentation-category "Amazon"
    :path ["liveupdate" "amazon-prefix"]}
-  {:type :directory
+  {:type :boolean
+   :title "Save zip in bundle folder"
+   :help "Moves zip into bundle directory after the bundle process"
+   :default false
+   :presentation-category "Zip"
+   :path ["liveupdate" "save-zip-in-bundle-folder"]}
+   {:type :directory
    :title "Select Zip output directory"
    :help "Zip directory"
    :default ""
    :presentation-category "Zip"
    :path ["liveupdate" "zip-filepath"]}
+   {:type :string
+   :title "Select Zip filename"
+   :help "Zip filename"
+   :default ""
+   :presentation-category "Zip"
+   :path ["liveupdate" "zip-filename"]}
   {:type :file,
    :title "Select Manifest Public Key"
    :filter [["Public key (*.der)" "*.der"]]
@@ -43,7 +55,9 @@
    :help "List of supported engine versions",
    :default ["0.0.0"],
    :presentation-category "Manifest"
-   :path ["liveupdate" "supported-versions"]}]
+   :path ["liveupdate" "supported-versions"]
+   :element {:type :string
+             :default "0.0.0"}}]
  :categories
  {"liveupdate" {:title "Live Update"}
   "Amazon" {}

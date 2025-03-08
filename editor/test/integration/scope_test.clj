@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -18,6 +18,7 @@
             [dynamo.graph :as g]
             [editor.defold-project :as project]
             [editor.editor-extensions :as extensions]
+            [editor.progress :as progress]
             [integration.test-util :as test-util]
             [internal.graph :as ig]
             [support.test-support :refer [with-clean-system]]))
@@ -31,7 +32,7 @@
           proj-graph-id (g/make-graph! :history true :volatility 1)
           extensions (extensions/make proj-graph-id)
           project-id (project/make-project proj-graph-id workspace extensions)]
-      (project/load-project project-id)
+      (project/load-project! project-id)
       (is (not= 0 (node-count (g/graph proj-graph-id))))
       (g/delete-node! project-id)
       (let [final-node-ids (set (ig/node-ids (g/graph proj-graph-id)))
@@ -45,8 +46,12 @@
           old-count (node-count (g/graph graph-id))
           old-node-ids (set (ig/node-ids (g/graph graph-id)))
           old-basis (g/now)
-          mem-resource (project/make-embedded-resource project resource-type-name inline-resource)]
-      (#'project/load-nodes! project (#'project/make-nodes! project [mem-resource]) (constantly nil) {})
+          mem-resource (project/make-embedded-resource project :editable resource-type-name inline-resource)
+          node-id+resource-pairs (project/node-id+resource-pairs graph-id [mem-resource])
+          node-load-infos (project/read-nodes node-id+resource-pairs progress/null-render-progress! {} {} nil)
+          prelude-tx-data (project/make-resource-nodes-tx-data project node-id+resource-pairs)
+          migrated-resource-node-ids (project/load-nodes! project prelude-tx-data node-load-infos progress/null-render-progress! nil nil)]
+      (project/cache-loaded-save-data! node-load-infos project migrated-resource-node-ids)
       (let [new-resource-node (project/get-resource-node project mem-resource)
             new-count (node-count (g/graph graph-id))]
         (is (> new-count old-count))
@@ -55,6 +60,7 @@
               final-node-ids (set (ig/node-ids (g/graph graph-id)))
               new (clojure.set/difference final-node-ids old-node-ids)
               remainders (clojure.set/difference old-node-ids final-node-ids)]
+          (is (= old-count final-count))
           (is (= [] (map #(g/node-type* old-basis %) remainders)))
           (is (= [] (map g/node-type* new))))))))
 

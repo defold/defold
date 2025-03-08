@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -387,8 +387,39 @@ TEST(dmHashTable, Iterate)
             int context = 0;
             ht.Iterate(IterateCallback, &context);
             ASSERT_EQ(sum, context);
+        }
+    }
+}
 
+TEST(dmHashTable, Iterator)
+{
+    for (uint32_t table_size = 1; table_size < 27; ++table_size)
+    {
+        for (uint32_t capacity = 1; capacity < 100; ++capacity)
+        {
+            dmHashTable<uint32_t, int> ht;
+            ht.SetCapacity(table_size, capacity);
 
+            int sum = 0;
+            uint32_t key_sum = 0;
+            for (uint32_t i = 0; i < capacity; ++i)
+            {
+                int x = rand();
+                ht.Put(i, x);
+                sum += x;
+                key_sum += i;
+            }
+
+            int result = 0;
+            int keyresult = 0;
+            dmHashTable<uint32_t, int>::Iterator iter = ht.GetIterator();
+            while(iter.Next())
+            {
+                keyresult += iter.GetKey();
+                result += iter.GetValue();
+            }
+            ASSERT_EQ(sum, result);
+            ASSERT_EQ(key_sum, keyresult);
         }
     }
 }

@@ -1,0 +1,2 @@
+prototype: "/collision_object/joint_test_b.go"
+load_dynamically: false

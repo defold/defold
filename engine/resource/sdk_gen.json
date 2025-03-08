@@ -1,0 +1,116 @@
+{
+	"basepath": "src",
+	
+	"includes": [
+		"src",
+		"${DYNAMO_HOME}/sdk/include"
+	],
+
+	"files": [
+		{"file": "src/dmsdk/resource/resource.h", "languages": {
+			"cpp": {
+				"namespace": "dmResource",
+				"ignore": [
+					"HResourceType",
+					"ResourcePreloadGetFactory",
+					"ResourcePreloadGetType",
+					"ResourcePreloadGetFilename",
+					"ResourcePreloadGetFileData",
+					"ResourcePreloadGetFileDataSize",
+					"ResourcePreloadGetHintInfo",
+					"ResourcePreloadSetPreloadData",
+
+					"ResourceCreateGetFactory",
+					"ResourceCreateGetType",
+					"ResourceCreateGetFilename",
+					"ResourceCreateGetFileData",
+					"ResourceCreateGetFileDataSize",
+					"ResourceCreateGetDescriptor",
+					"ResourceCreateGetPreloadData",
+
+					"ResourcePostCreateGetFactory",
+					"ResourcePostCreateGetType",
+					"ResourcePostCreateGetFilename",
+					"ResourcePostCreateGetPreloadData",
+					"ResourcePostCreateGetDescriptor",
+
+					"ResourceDestroyGetFactory",
+					"ResourceDestroyGetType",
+					"ResourceDestroyGetDescriptor",
+
+					"ResourceRegisterReloadedCallback",
+					"ResourceUnregisterReloadedCallback",
+
+					"FResourceDecryption",
+					"ResourceRegisterDecryptionFunction",
+
+					"HResourceTypeContext",
+					"ResourceRegisterType",
+					"ResourceTypeSetPreloadFn",
+					"ResourceTypeSetCreateFn",
+					"ResourceTypeSetPostCreateFn",
+					"ResourceTypeSetDestroyFn",
+					"ResourceTypeSetRecreateFn",
+					"ResourceRegisterTypeCreatorDesc",
+					"ResourceTypeGetFactory",
+					"ResourceTypeGetContextByHash",
+					"ResourceTypeGetType",
+					"ResourceTypeContextGetFactory",
+					"ResourceTypeContextGetContextByHash",
+					"FResourceTypeRegister",
+					"FResourceTypeDeregister",
+
+					"ResourceTypeRegisterGetFactory",
+					"ResourceTypeRegisterGetContextByHash",
+					"ResourceTypeRegisterSetContextByHash",
+					"ResourceTypeGetContext",
+					"ResourceTypeSetContext",
+					"ResourceTypeGetName",
+					"ResourceTypeGetNameHash",
+
+					"FResourcePreload",
+					"FResourceCreate",
+					"FResourcePostCreate",
+					"FResourceDestroy",
+					"FResourceRecreate",
+
+					""
+				],
+				"rename": {
+					"FResourceDecryption": "FDecryptResource",
+					"HResource": "H",
+					"HType": "HResourceType",
+					"FResource": "F",
+					"ResourceResult": "Result",
+					"RESOURCE_RESULT_": "RESULT_",
+					"ResourceRegister": "Register",
+					"ResourceGet": "Get",
+					"ResourceGetByHash": "Get",
+					"ResourceRelease": "Release",
+					"ResourcePreloadHint": "PreloadHint",
+					"ResourceGetPath": "GetPath",
+					"ResourceAddFile": "AddFile",
+					"ResourceRemoveFile": "RemoveFile",
+
+					"ResourceTypeRegisterGetFactory": "GetFactory",
+					"ResourceTypeRegisterGetContextByHash": "GetContextByHash",
+					"ResourceTypeRegisterSetContextByHash": "SetContextByHash",
+					"ResourceTypeGetContext": "GetContext",
+					"ResourceTypeSetContext": "SetContext",
+					"ResourceTypeGetName": "GetName",
+					"ResourceTypeGetNameHash": "GetNameHash",
+
+					"ResourceDescriptorGetNameHash": "GetNameHash",
+					"ResourceDescriptorSetResource": "SetResource",
+					"ResourceDescriptorGetResource": "GetResource",
+					"ResourceDescriptorSetPrevResource": "SetPrevResource",
+					"ResourceDescriptorGetPrevResource": "GetPrevResource",
+					"ResourceDescriptorSetResourceSize": "SetResourceSize",
+					"ResourceDescriptorGetResourceSize": "GetResourceSize",
+					"ResourceDescriptorGetType": "GetType"
+				}
+
+			}
+		}}
+	]
+}

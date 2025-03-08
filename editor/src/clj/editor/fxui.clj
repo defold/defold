@@ -1,39 +1,56 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.fxui
-  (:refer-clojure :exclude [partial])
   (:require [cljfx.api :as fx]
             [cljfx.coerce :as fx.coerce]
             [cljfx.component :as fx.component]
+            [cljfx.fx.anchor-pane :as fx.anchor-pane]
+            [cljfx.fx.button :as fx.button]
+            [cljfx.fx.column-constraints :as fx.column-constraints]
+            [cljfx.fx.grid-pane :as fx.grid-pane]
+            [cljfx.fx.label :as fx.label]
             [cljfx.fx.list-cell :as fx.list-cell]
+            [cljfx.fx.popup :as fx.popup]
+            [cljfx.fx.stage :as fx.stage]
+            [cljfx.fx.svg-path :as fx.svg-path]
+            [cljfx.fx.text-area :as fx.text-area]
+            [cljfx.fx.text-field :as fx.text-field]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
             [cljfx.prop :as fx.prop]
             [editor.error-reporting :as error-reporting]
-            [editor.ui :as ui]
-            [editor.util :as eutil])
-  (:import [clojure.lang Fn IFn IHashEq MultiFn]
+            [editor.os :as os]
+            [editor.ui :as ui])
+  (:import [clojure.lang MultiFn]
            [com.defold.control ListCell]
+           [java.util Collection]
            [javafx.application Platform]
-           [javafx.scene Node]
            [javafx.beans.property ReadOnlyProperty]
            [javafx.beans.value ChangeListener]
-           [javafx.scene.control TextInputControl ListView]
+           [javafx.collections ObservableList]
+           [javafx.event Event]
+           [javafx.scene Node]
+           [javafx.scene.control ListView ScrollPane TextInputControl]
+           [javafx.stage Popup Window]
            [javafx.util Callback]))
 
 (set! *warn-on-reflection* true)
+
+(defn event->window
+  ^Window [^Event event]
+  (.getWindow (.getScene ^Node (.getSource event))))
 
 (def ext-value
   "Extension lifecycle that returns value on `:value` key"
@@ -43,6 +60,35 @@
     (advance [_ _ desc _]
       (:value desc))
     (delete [_ _ _])))
+
+(defn identity-aware-observable-list-mutator [get-list-fn]
+  (let [set-all! #(.setAll ^ObservableList (get-list-fn %1) ^Collection %2)]
+    (reify fx.mutator/Mutator
+      (assign! [_ instance coerce value]
+        (set-all! instance (coerce value)))
+      (replace! [_ instance coerce old-value new-value]
+        (when-not (identical? old-value new-value)
+          (set-all! instance (coerce new-value))))
+      (retract! [_ instance _ _]
+        (set-all! instance [])))))
+
+(def ^:private tuple-lifecycle-instance-meta
+  {`fx.component/instance #(mapv fx.component/instance %)})
+
+(defn tuple-lifecycle [& lifecycles]
+  (let [lifecycles (vec lifecycles)
+        len (count lifecycles)]
+    (reify fx.lifecycle/Lifecycle
+      (create [_ descs opts]
+        (assert (= len (count descs)))
+        (with-meta (mapv #(fx.lifecycle/create %1 %2 opts) lifecycles descs)
+                   tuple-lifecycle-instance-meta))
+      (advance [_ components descs opts]
+        (assert (= len (count descs)))
+        (with-meta (mapv #(fx.lifecycle/advance %1 %2 %3 opts) lifecycles components descs)
+                   tuple-lifecycle-instance-meta))
+      (delete [_ components opts]
+        (mapv #(fx.lifecycle/delete %1 %2 opts) lifecycles components)))))
 
 (extend-protocol fx.lifecycle/Lifecycle
   MultiFn
@@ -86,6 +132,89 @@
     (delete [_ component opts]
       (binding [fx.lifecycle/*in-progress?* false]
         (fx.lifecycle/delete fx.lifecycle/dynamic component opts)))))
+
+(def ^:private ext-ensure-scroll-pane-child-visible-impl
+  (fx/make-ext-with-props
+    {:ensure-visible
+     (fx.prop/make
+       (fx.mutator/setter
+         (fn [^ScrollPane pane ^Node child]
+           (when child
+             (let [content-height (-> pane .getContent .getBoundsInLocal .getHeight)
+                   viewport-bounds (.getViewportBounds pane)
+                   viewport-height (.getHeight viewport-bounds)
+                   viewport-bottom (- (.getHeight viewport-bounds) (.getMinY viewport-bounds))
+                   child-bounds (-> pane .getContent (.sceneToLocal (.localToScene child (.getBoundsInLocal child))))]
+               (when (< viewport-height content-height)
+                 (cond
+                   ;; when child view is below viewport, scroll down
+                   (< viewport-bottom (.getMaxY child-bounds))
+                   (.setVvalue pane (/ (- (.getMaxY child-bounds) (.getHeight viewport-bounds))
+                                       (- content-height viewport-height)))
+                   ;; when child view is above viewport, scroll down
+                   (< (.getMinY child-bounds) (- (.getMinY viewport-bounds)))
+                   (.setVvalue pane (/ (.getMinY child-bounds)
+                                       (- content-height viewport-height)))))))))
+       fx.lifecycle/dynamic)}))
+
+(def ext-with-anchor-pane-props
+  (fx/make-ext-with-props fx.anchor-pane/props))
+
+(defn ext-ensure-scroll-pane-child-visible
+  "Extension lifecycle that ensures ScrollPane's child node is visible
+
+  This extension will perform scroll whenever the child node is changed
+
+  Expected props:
+
+    :scroll-pane-desc    cljfx description (required) that resolves to
+                         a ScrollPane instance
+    :child-desc          cljfx description (optional) that resolves to a Node
+                         that is also present in the ScrollPane's content. This
+                         can be achieved using fx/ext-let-refs + fx/ext-get-ref"
+  [{:keys [scroll-pane-desc child-desc]}]
+  {:fx/type ext-ensure-scroll-pane-child-visible-impl
+   :props (if (some? child-desc)
+            {:ensure-visible child-desc}
+            {})
+   :desc scroll-pane-desc})
+
+(def child-instance-meta
+  {`fx.component/instance #(-> % :child fx.component/instance)})
+
+(def ext-memo
+  "Extension lifecycle similar to react's useMemo hook
+
+  The result of invoking :fn with :args will be memoized in the cljfx tree and
+  supplied as a value at :key to the child :desc
+
+  Expected props (all required):
+    :fn      function that will be invoked to produce a memoized value
+    :args    a vector of args to the function
+    :key     a key that will be used to assoc memoized value into a child desc
+    :desc    description of the underlying component"
+  (reify fx.lifecycle/Lifecycle
+    (create [_ {:keys [fn args key desc]} opts]
+      (let [value (apply fn args)]
+        (with-meta {:fn fn
+                    :args args
+                    :value value
+                    :child (fx.lifecycle/create fx.lifecycle/dynamic (assoc desc key value) opts)}
+                   child-instance-meta)))
+    (advance [_ component {:keys [fn args key desc]} opts]
+      (if (and (= (:fn component) fn)
+               (= (:args component) args))
+        (update component :child #(fx.lifecycle/advance
+                                    fx.lifecycle/dynamic
+                                    %
+                                    (assoc desc key (:value component))
+                                    opts))
+        (let [value (apply fn args)]
+          (-> component
+              (assoc :fn fn :args args :value value)
+              (update :child #(fx.lifecycle/advance fx.lifecycle/dynamic % (assoc desc key value) opts))))))
+    (delete [_ component opts]
+      (fx.lifecycle/delete fx.lifecycle/dynamic (:child component) opts))))
 
 (defn make-event-filter-prop
   "Creates a prop-config that will add event filter for specified `event-type`
@@ -185,7 +314,7 @@
       (with-meta
         {:desc desc
          :child (fx.lifecycle/create lifecycle desc opts)}
-        {`fx.component/instance #(-> % :child fx.component/instance)}))
+        child-instance-meta))
     (advance [_ component desc opts]
       (if (= desc (:desc component))
         component
@@ -218,6 +347,7 @@
     (future
       (error-reporting/catch-all!
         (let [result @result-promise]
+          (fx/unmount-renderer state-atom renderer)
           (fx/on-fx-thread
             (Platform/exitNestedEventLoop event-loop-key result)))))
     (add-watch state-atom event-loop-key
@@ -234,25 +364,30 @@
 
 (defn show-dialog-and-await-result!
   "Creates a dialog, shows it and block current thread until dialog has a result
-  (which is checked by presence of a `:result` key in state map)
+  (which is checked by the presence of a ::result key in the state map)
 
-  Options:
-  - `:initial-state` (optional, default `{}`) - map containing initial state of
-    a dialog, should not contain `::result` key to be shown
-  - `:event-handler` (required) - 2-argument event handler, receives current
-    state as first argument and event map as second, returns new state. Once
-    state of a dialog has `::result` key in it, dialog interaction is considered
-    complete and dialog will close
-  - `:description` (required) - fx description used for this dialog, gets merged
-    into current state map, meaning that state map contents, including
-    eventually a `::result` key, will also be present in description props. You
-    can use `editor.fxui/dialog-showing?` and pass it resulting props to check
-    if dialog stage's `:showing` property should be set to true"
-  [& {:keys [initial-state event-handler description]
-      :or {initial-state {}}}]
+  Kv-args:
+    :event-handler    required, 2-argument event handler, receives current state
+                      as a first argument and event map as second, returns new
+                      state. Once state of a dialog has ::result key in it, the
+                      dialog interaction is considered complete and dialog will
+                      close
+    :description      required, fx description used for this dialog, gets merged
+                      into current state map, meaning that state map contents,
+                      including eventually a ::result key, will also be present
+                      in description props. Use `editor.fxui/dialog-showing?`
+                      and pass it resulting props to check if dialog stage's
+                      :showing property should be set to true
+    :initial-state    optional, defaults to {}, map containing initial state of
+                      a dialog, should not contain ::result key to be shown
+    :error-handler    optional, 1-arg Throwable handler, by default it shows an
+                      error dialog and reports the exception to sentry"
+  [& {:keys [initial-state event-handler description error-handler]
+      :or {initial-state {}
+           error-handler error-reporting/report-exception!}}]
   (let [state-atom (atom initial-state)
         renderer (fx/create-renderer
-                   :error-handler error-reporting/report-exception!
+                   :error-handler error-handler
                    :opts {:fx.opt/map-event-handler #(swap! state-atom event-handler %)}
                    :middleware (fx/wrap-map-desc merge description))]
     (mount-renderer-and-await-result! state-atom renderer)))
@@ -261,9 +396,9 @@
   "Generic `:stage` that mirrors behavior of `editor.ui/make-stage`"
   [props]
   (assoc props
-    :fx/type :stage
+    :fx/type fx.stage/lifecycle
     :on-focused-changed ui/focus-change-listener
-    :icons (if (eutil/is-mac-os?) [] [ui/application-icon-image])))
+    :icons (if (os/is-mac-os?) [] [ui/application-icon-image])))
 
 (defn dialog-stage
   "Generic dialog `:stage` that mirrors behavior of `editor.ui/make-dialog-stage`"
@@ -305,7 +440,7 @@
     :or {variant :label}
     :as props}]
   (-> props
-      (assoc :fx/type :label)
+      (assoc :fx/type fx.label/lifecycle)
       (dissoc :variant)
       (provide-defaults :wrap-text true)
       (add-style-classes (case variant
@@ -322,7 +457,7 @@
     :or {variant :secondary}
     :as props}]
   (-> props
-      (assoc :fx/type :button)
+      (assoc :fx/type fx.button/lifecycle)
       (dissoc :variant)
       (add-style-classes "button" (case variant
                                     :primary "button-primary"
@@ -335,9 +470,9 @@
   columns, useful for multiple label + input fields"
   [props]
   (-> props
-      (assoc :fx/type :grid-pane
-             :column-constraints [{:fx/type :column-constraints}
-                                  {:fx/type :column-constraints
+      (assoc :fx/type fx.grid-pane/lifecycle
+             :column-constraints [{:fx/type fx.column-constraints/lifecycle}
+                                  {:fx/type fx.column-constraints/lifecycle
                                    :hgrow :always}])
       (add-style-classes "input-grid-pane")
       (update :children (fn [children]
@@ -364,7 +499,7 @@
     :or {variant :default}
     :as props}]
   (-> props
-      (assoc :fx/type :text-field)
+      (assoc :fx/type fx.text-field/lifecycle)
       (dissoc :variant)
       (add-style-classes "text-field" (case variant
                                         :default "text-field-default"
@@ -380,12 +515,48 @@
     :or {variant :default}
     :as props}]
   (-> props
-      (assoc :fx/type :text-area)
+      (assoc :fx/type fx.text-area/lifecycle)
       (dissoc :variant)
       (add-style-classes "text-area" (case variant
                                        :default "text-area-default"
                                        :error "text-area-error"
                                        :borderless "text-area-borderless"))))
+
+(def ^:private ext-with-popup-on-props
+  (fx/make-ext-with-props
+    {:on (fx.prop/make
+           (fx.mutator/adder-remover
+             (fn [^Popup popup [^Node on anchor-x anchor-y]]
+               (condp instance? on
+                 Node (.show popup ^Node on (double anchor-x) (double anchor-y))
+                 Window (.show popup ^Window on (double anchor-x) (double anchor-y))))
+             (fn [^Popup popup _]
+               (.hide popup)))
+           (tuple-lifecycle fx.lifecycle/dynamic fx.lifecycle/scalar fx.lifecycle/scalar))}))
+
+(defn with-popup
+  "Helper popup lifecycle that adds a managed popup to :desc node
+
+  Supported props:
+    :desc        node or window desc that will show a popup
+    :showing     whether the popup is showing
+    :anchor-x    screen anchor x
+    :anchor-y    screen anchor y
+    ...the rest of :popup props"
+  [{:keys [desc showing anchor-x anchor-y]
+    :or {anchor-x 0.0
+         anchor-y 0.0}
+    :as props}]
+  {:fx/type fx/ext-let-refs
+   :refs {::on desc}
+   :desc {:fx/type fx/ext-let-refs
+          :refs {::popup {:fx/type ext-with-popup-on-props
+                          :props (when showing
+                                   {:on [{:fx/type fx/ext-get-ref :ref ::on} anchor-x anchor-y]})
+                          :desc (-> props
+                                    (dissoc :desc :showing :anchor-x :anchor-y)
+                                    (assoc :fx/type fx.popup/lifecycle))}}
+          :desc {:fx/type fx/ext-get-ref :ref ::on}}})
 
 (defn icon
   "An `:svg-path` with content being managed by `:type` key
@@ -394,7 +565,7 @@
   - `:type` (required) - icon type, see :icon/* keywords"
   [{:keys [type] :as props}]
   (-> props
-      (assoc :fx/type :svg-path
+      (assoc :fx/type fx.svg-path/lifecycle
              :content (case type
                         :icon/android "M28.5,11c-0.6,0-1.1,0.2-1.5,0.5v0c0-3.4-1.8-6.3-4.4-8l1.1-2.2c0.1-0.2,0-0.5-0.2-0.7c-0.2-0.1-0.5,0-0.7,0.2L21.7,3c-1.3-0.6-2.7-1-4.2-1s-2.9,0.4-4.2,1l-1.1-2.1c-0.1-0.2-0.4-0.3-0.7-0.2c-0.2,0.1-0.3,0.4-0.2,0.7l1.1,2.2C9.8,5.2,8,8.1,8,11.5v0C7.6,11.2,7.1,11,6.5,11C5.1,11,4,12.1,4,13.5v8C4,22.9,5.1,24,6.5,24c0.6,0,1.1-0.2,1.5-0.5v1c0,1.4,1.1,2.5,2.5,2.5H11v4.5c0,1.4,1.1,2.5,2.5,2.5s2.5-1.1,2.5-2.5V27h3v4.6c0,1.3,1.1,2.4,2.4,2.4h0.3c1.3,0,2.4-1.1,2.4-2.4V27h0.5c1.4,0,2.5-1.1,2.5-2.5v-1c0.4,0.3,0.9,0.5,1.5,0.5c1.4,0,2.5-1.1,2.5-2.5v-8C31,12.1,29.9,11,28.5,11zM17.5,3c4.5,0,8.2,3.5,8.5,8H9C9.3,6.5,13,3,17.5,3zM6.5,23C5.7,23,5,22.3,5,21.5v-8C5,12.7,5.7,12,6.5,12S8,12.7,8,13.5v8C8,22.3,7.3,23,6.5,23zM26,24.5c0,0.8-0.7,1.5-1.5,1.5H23v5.6c0,0.8-0.6,1.4-1.4,1.4h-0.3c-0.8,0-1.4-0.6-1.4-1.4V26h-5v5.5c0,0.8-0.7,1.5-1.5,1.5S12,32.3,12,31.5V26h-1.5C9.7,26,9,25.3,9,24.5v-3v-8V12h17v1.5v8V24.5zM30,21.5c0,0.8-0.7,1.5-1.5,1.5S27,22.3,27,21.5v-8c0-0.8,0.7-1.5,1.5-1.5s1.5,0.7,1.5,1.5V21.5zM12.5,7.3c0-0.5,0.4-0.8,0.8-0.8c0.5,0,0.9,0.4,0.9,0.8s-0.4,0.9-0.9,0.9C12.9,8.2,12.5,7.8,12.5,7.3zM20.8,7.3c0-0.5,0.4-0.8,0.9-0.8c0.5,0,0.8,0.4,0.8,0.8s-0.4,0.9-0.8,0.9C21.2,8.2,20.8,7.8,20.8,7.3z"
                         :icon/apple "M16.5,8.6l0.4,0c0.1,0,0.2,0,0.4,0c1.4,0,2.6-0.5,3.8-1.5c1.6-1.3,2.5-3,2.9-5C24,1.6,24,1.1,24,0.5l0-0.5h-0.5c-0.1,0-0.4,0-0.5,0.1c-1.1,0.2-2.2,0.6-3.1,1.2c-1.8,1.2-2.9,2.9-3.4,5c-0.1,0.6-0.2,1.2-0.1,1.9L16.5,8.6zM17.4,6.5c0.4-1.9,1.4-3.4,3-4.4c0.8-0.5,1.6-0.9,2.6-1c0,0.3,0,0.6-0.1,0.9c-0.3,1.8-1.1,3.3-2.5,4.4c-1,0.8-2,1.2-3.1,1.2C17.3,7.2,17.4,6.9,17.4,6.5zM30.6,24.3c-2.6-1.3-4-3.2-4.2-5.8c-0.2-2.6,0.9-4.6,3.3-6.3l0.3-0.3l-0.2-0.4c0-0.1-0.1-0.1-0.1-0.2c-0.8-1-1.8-1.8-2.9-2.4c-1.6-0.8-3.2-1-4.9-0.8c-1.2,0.2-2.3,0.6-3.4,1.1c-1,0.4-1.7,0.4-2.4,0.1c-0.6-0.3-1.2-0.5-1.8-0.7c-0.7-0.3-1.5-0.5-2.3-0.5c-2.7,0-4.9,1-6.7,3.2c-1.2,1.5-2,3.3-2.2,5.5c-0.3,2.5,0.1,5.1,1,8c0.6,1.7,1.3,3.2,2.2,4.6c0.8,1.2,1.7,2.6,3,3.6c0.9,0.7,1.8,1.1,2.7,1.1c0.1,0,0.2,0,0.4,0c0.7-0.1,1.5-0.3,2.4-0.7c1.8-0.8,3.4-0.8,5.1-0.1l0.2,0.1c0.3,0.1,0.7,0.3,1,0.4c1.5,0.5,2.8,0.4,4-0.3c0.7-0.4,1.3-1,1.9-1.7c0.8-1,1.9-2.5,2.7-4.1c0.3-0.6,0.5-1.2,0.8-1.8l0.5-1.2L30.6,24.3zM29.6,25.4c-0.2,0.6-0.5,1.2-0.8,1.7c-0.7,1.5-1.7,2.9-2.5,3.9c-0.5,0.7-1.1,1.2-1.7,1.5c-0.9,0.5-1.9,0.6-3.2,0.2c-0.3-0.1-0.6-0.2-0.9-0.4l-0.2-0.1c-1.9-0.8-3.9-0.8-5.9,0.1c-0.8,0.4-1.5,0.6-2.1,0.6c-0.8,0.1-1.6-0.2-2.4-0.9c-1.2-1-2-2.3-2.8-3.4c-0.8-1.3-1.5-2.7-2.1-4.3c-0.9-2.7-1.2-5.1-1-7.5c0.2-2,0.9-3.6,2-5c1.5-1.9,3.5-2.8,5.8-2.8c0,0,0,0,0.1,0c0.7,0,1.4,0.2,2,0.4c0.6,0.2,1.2,0.4,1.8,0.7c1.3,0.5,2.4,0.2,3.3-0.1c1.1-0.4,2-0.8,3.1-1c1.5-0.2,2.9,0,4.4,0.7c0.9,0.4,1.7,1,2.4,1.9c-2.4,1.8-3.5,4.2-3.3,6.9c0.2,2.8,1.6,5,4.3,6.4L29.6,25.4z"
@@ -464,66 +635,3 @@
                                 :icon/circle-check "#65c647"
                                 (:icon/triangle-error :icon/triangle-sad) "#e32f44"
                                 "#9fb0be"))))
-
-(deftype PartialFn [pfn fn args]
-  Fn
-  IFn
-  (invoke [_]
-    (pfn))
-  (invoke [_ a]
-    (pfn a))
-  (invoke [_ a b]
-    (pfn a b))
-  (invoke [_ a b c]
-    (pfn a b c))
-  (invoke [_ a b c d]
-    (pfn a b c d))
-  (invoke [_ a b c d e]
-    (pfn a b c d e))
-  (invoke [_ a b c d e f]
-    (pfn a b c d e f))
-  (invoke [_ a b c d e f g]
-    (pfn a b c d e f g))
-  (invoke [_ a b c d e f g h]
-    (pfn a b c d e f g h))
-  (invoke [_ a b c d e f g h i]
-    (pfn a b c d e f g h i))
-  (invoke [_ a b c d e f g h i j]
-    (pfn a b c d e f g h i j))
-  (invoke [_ a b c d e f g h i j k]
-    (pfn a b c d e f g h i j k))
-  (invoke [_ a b c d e f g h i j k l]
-    (pfn a b c d e f g h i j k l))
-  (invoke [_ a b c d e f g h i j k l m]
-    (pfn a b c d e f g h i j k l m))
-  (invoke [_ a b c d e f g h i j k l m n]
-    (pfn a b c d e f g h i j k l m n))
-  (invoke [_ a b c d e f g h i j k l m n o]
-    (pfn a b c d e f g h i j k l m n o))
-  (invoke [_ a b c d e f g h i j k l m n o p]
-    (pfn a b c d e f g h i j k l m n o p))
-  (invoke [_ a b c d e f g h i j k l m n o p q]
-    (pfn a b c d e f g h i j k l m n o p q))
-  (invoke [_ a b c d e f g h i j k l m n o p q r]
-    (pfn a b c d e f g h i j k l m n o p q r))
-  (invoke [_ a b c d e f g h i j k l m n o p q r s]
-    (pfn a b c d e f g h i j k l m n o p q r s))
-  (invoke [_ a b c d e f g h i j k l m n o p q r s t]
-    (pfn a b c d e f g h i j k l m n o p q r s t))
-  (invoke [_ a b c d e f g h i j k l m n o p q r s t rest]
-    (apply pfn a b c d e f g h i j k l m n o p q r s t rest))
-  (applyTo [_ arglist]
-    (apply pfn arglist))
-  IHashEq
-  (hasheq [_]
-    (hash [fn args]))
-  Object
-  (equals [_ obj]
-    (if (instance? PartialFn obj)
-      (let [^PartialFn that obj]
-        (and (= fn (.-fn that))
-             (= args (.-args that))))
-      false)))
-
-(defn partial [f & args]
-  (PartialFn. (apply clojure.core/partial f args) f args))

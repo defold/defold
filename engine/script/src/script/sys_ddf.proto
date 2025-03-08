@@ -1,3 +1,4 @@
+syntax = "proto2";
 package dmSystemDDF;
 
 import "ddf/ddf_extensions.proto";
@@ -168,7 +169,7 @@ message StopRecord
  *
  * ```lua
  * local arg1 = '--config=bootstrap.main_collection=/my.collectionc'
- * local arg2 = 'build/default/game.projectc'
+ * local arg2 = 'build/game.projectc'
  * msg.post("@system:", "reboot", {arg1 = arg1, arg2 = arg2})
  * ```
  */
@@ -231,4 +232,19 @@ message SetVsync
 message SetUpdateFrequency
 {
     required int32 frequency = 1;
+}
+
+/*# resume rendering
+ * Resume rendering.
+ * This message can only be sent to the designated `@system` socket.
+ *
+ * @message
+ * @name resume_rendering
+ * @examples
+ * <pre>
+ * msg.post("@system:", "resume_rendering")
+ * </pre>
+ */
+message ResumeRendering
+{
 }

@@ -1,0 +1,145 @@
+-- Copyright 2020-2025 The Defold Foundation
+-- Copyright 2014-2020 King
+-- Copyright 2009-2014 Ragnar Svensson, Christian Murray
+-- Licensed under the Defold License version 1.0 (the "License"); you may not use
+-- this file except in compliance with the License.
+--
+-- You may obtain a copy of the License, together with FAQs at
+-- https://www.defold.com/license
+--
+-- Unless required by applicable law or agreed to in writing, software distributed
+-- under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+-- CONDITIONS OF ANY KIND, either express or implied. See the License for the
+-- specific language governing permissions and limitations under the License.
+
+local tests_left = 8
+tests_done = false
+
+local function test_done(response, data_str)
+    assert(response.status         == 200)
+    assert(response.headers.server == "Dynamo 1.0")
+    assert(response.response       == data_str)
+    tests_left = tests_left - 1
+    if tests_left <= 0 then
+        tests_done = true
+    end
+end
+
+function test_get(self)
+    local chunked_data   = ""
+    local chunk_size_tot = 64 * 1024 * 2
+
+    for i=1,chunk_size_tot do
+        chunked_data = chunked_data .. "A"
+    end
+
+    -- 1
+    http.request(ADDRESS, "GET",
+        function(self, id, response)
+            test_done(response, "Hello")
+        end)
+
+    -- 2
+    http.request(ADDRESS .. "/test_progress", "GET",
+        function(self, id, response)
+            local data_str = "test_progress_complete"
+            if not self.test_1_progress then
+                assert(response.bytes_received == #data_str)
+                -- no content-length headers
+                assert(response.bytes_total == -1)
+                self.test_1_progress = true
+            else
+                test_done(response, data_str)
+            end
+        end,
+        nil, nil, { report_progress = true })
+
+    -- 3
+    http.request(ADDRESS .. "/test_progress_content_length", "GET",
+        function(self, id, response)
+            local data_str = "test_progress_complete"
+            if not self.test_2_progress then
+                assert(response.bytes_received == #data_str)
+                -- no content-length headers
+                assert(response.bytes_total == #data_str)
+                self.test_2_progress = true
+            else
+                test_done(response, data_str)
+            end
+        end,
+        nil, nil, { report_progress = true })
+
+
+    -- 4
+    http.request(ADDRESS .. "/test_progress_chunked", "GET",
+        function(self, id, response)
+            if not self.test_3_progress then
+                if response.bytes_received == chunk_size_tot then
+                    self.test_3_progress = true
+                end
+            else
+                test_done(response, chunked_data)
+            end
+        end,
+        nil, nil, { report_progress = true })
+end
+
+function test_post(self)
+    -- 5
+    http.request(ADDRESS, "POST",
+        function(self, id, response)
+            test_done(response, "PONG")
+        end)
+
+    -- 6
+    local test_post_1_data_str = "test_post_progress"
+    self.test_post_1_received = 0
+    self.test_post_1_sent = 0
+    http.request(ADDRESS .. "/test_post_progress", "POST",
+        function(self, id, response)
+
+            -- The server prepends "PONG" to whatever we send
+            local data_str = "PONG" .. test_post_1_data_str
+
+            if response.status ~= nil then
+                test_done(response, data_str)
+            elseif response.bytes_sent > 0 then
+                assert(response.bytes_sent == #test_post_1_data_str)
+                assert(response.bytes_total == #test_post_1_data_str)
+            elseif response.bytes_received > 0 then
+                -- ignore
+            else
+                assert(false)
+            end
+        end,
+        nil, test_post_1_data_str, { report_progress = true })
+end
+
+function test_head(self)
+    -- 7
+    http.request(ADDRESS .. "/test_head", "HEAD",
+        function(self, id, response)
+            assert(response.headers["content-length"] == "1234")
+            test_done(response, "")
+        end)
+
+    -- 8
+    http.request(ADDRESS .. "/test_head_progress", "HEAD",
+        function(self, id, response)
+            if not self.test_8_progress then
+                assert(response.bytes_received == 0)
+                assert(response.bytes_total    == 1234)
+                self.test_8_progress = true
+            else
+                test_done(response, "")
+            end
+        end,
+        nil, nil, { report_progress = true })
+end
+
+function init(self)
+    test_get(self)
+    test_post(self)
+    test_head(self)
+end
+

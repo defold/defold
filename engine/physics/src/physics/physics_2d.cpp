@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -22,8 +22,8 @@
 #include <dlib/math.h>
 #include <dlib/profile.h>
 
-#include "Box2D/Box2D.h"
-#include "Box2D/Dynamics/Contacts/b2ContactSolver.h"
+#include <Box2D/Box2D.h>
+#include <Box2D/Dynamics/Contacts/b2ContactSolver.h>
 
 #include "physics_2d.h"
 
@@ -223,7 +223,7 @@ namespace dmPhysics
         context->m_AllowDynamicTransforms = params.m_AllowDynamicTransforms;
         b2ContactSolver::setVelocityThreshold(params.m_VelocityThreshold * params.m_Scale); // overrides fixed b2_velocityThreshold in b2Settings.h. Includes compensation for the scale factor so that velocityThreshold corresponds to the velocity values used in the game.
         dmMessage::Result result = dmMessage::NewSocket(PHYSICS_SOCKET_NAME, &context->m_Socket);
-        if (result != dmMessage::RESULT_OK)
+        if (result != dmMessage::RESULT_OK && result != dmMessage::RESULT_SOCKET_EXISTS)
         {
             dmLogFatal("Could not create socket '%s'.", PHYSICS_SOCKET_NAME);
             DeleteContext2D(context);
@@ -272,6 +272,16 @@ namespace dmPhysics
             if (context->m_Worlds[i] == world)
                 context->m_Worlds.EraseSwap(i);
         delete world;
+    }
+
+    void* GetWorldContext2D(HWorld2D world)
+    {
+        return (void*)&world->m_World;
+    }
+
+    void* GetCollisionObjectContext2D(HCollisionObject2D collision_object)
+    {
+        return (void*) collision_object;
     }
 
     static void UpdateOverlapCache(OverlapCache* cache, HContext2D context, b2Contact* contact_list, const StepWorldContext& step_context);
@@ -350,6 +360,11 @@ namespace dmPhysics
         FlipBody(collision_object, 1, -1);
     }
 
+    bool IsWorldLocked(HWorld2D world)
+    {
+        return world->m_World.IsLocked();
+    }
+
     static inline float GetUniformScale2D(dmTransform::Transform& transform)
     {
         const float* v = transform.GetScalePtr();
@@ -414,7 +429,7 @@ namespace dmPhysics
         // Update transforms of kinematic bodies
         if (world->m_GetWorldTransformCallback)
         {
-            DM_PROFILE(Physics, "UpdateKinematic");
+            DM_PROFILE("UpdateKinematic");
             for (b2Body* body = world->m_World.GetBodyList(); body; body = body->GetNext())
             {
                 bool retrieve_gameworld_transform = world->m_AllowDynamicTransforms && body->GetType() != b2_staticBody;
@@ -455,7 +470,7 @@ namespace dmPhysics
             }
         }
         {
-            DM_PROFILE(Physics, "StepSimulation");
+            DM_PROFILE("StepSimulation");
             world->m_ContactListener.SetStepWorldContext(&step_context);
             world->m_World.Step(dt, 10, 10);
             float inv_scale = world->m_Context->m_InvScale;
@@ -478,7 +493,7 @@ namespace dmPhysics
         uint32_t size = world->m_RayCastRequests.Size();
         if (size > 0)
         {
-            DM_PROFILE(Physics, "RayCasts");
+            DM_PROFILE("RayCasts");
             ProcessRayCastResultCallback2D callback;
             callback.m_Context = world->m_Context;
             for (uint32_t i = 0; i < size; ++i)
@@ -499,7 +514,7 @@ namespace dmPhysics
         // Report sensor collisions
         if (step_context.m_CollisionCallback)
         {
-            DM_PROFILE(Physics, "CollisionCallbacks");
+            DM_PROFILE("CollisionCallbacks");
             for (b2Contact* contact = world->m_World.GetContactList(); contact; contact = contact->GetNext())
             {
                 b2Fixture* fixture_a = contact->GetFixtureA();
@@ -523,7 +538,7 @@ namespace dmPhysics
 
     void UpdateOverlapCache(OverlapCache* cache, HContext2D context, b2Contact* contact_list, const StepWorldContext& step_context)
     {
-        DM_PROFILE(Physics, "TriggerCallbacks");
+        DM_PROFILE("TriggerCallbacks");
         OverlapCacheReset(cache);
         OverlapCacheAddData add_data;
         add_data.m_TriggerEnteredCallback = step_context.m_TriggerEnteredCallback;
@@ -715,7 +730,7 @@ namespace dmPhysics
         filter.maskBits = mask;
         fixture->SetFilterData(filter, child);
     }
-    
+
     void DeleteCollisionShape2D(HCollisionShape2D shape)
     {
         delete (b2Shape*)shape;
@@ -969,15 +984,14 @@ namespace dmPhysics
             f_def.filter.categoryBits = data.m_Group;
             f_def.filter.maskBits = data.m_Mask;
             f_def.shape = s;
-            b2MassData mass_data;
-            f_def.shape->ComputeMass(&mass_data, 1.0f);
-            f_def.density = data.m_Mass / mass_data.mass;
+            f_def.density = 1.0f;
             f_def.friction = data.m_Friction;
             f_def.restitution = data.m_Restitution;
             f_def.isSensor = data.m_Type == COLLISION_OBJECT_TYPE_TRIGGER;
             b2Fixture* fixture = body->CreateFixture(&f_def);
             (void)fixture;
         }
+        UpdateMass2D(body, data.m_Mass);
         return body;
     }
 
@@ -1014,6 +1028,84 @@ namespace dmPhysics
             fixture = fixture->GetNext();
         }
         return i;
+    }
+
+    HCollisionShape2D GetCollisionShape2D(HWorld2D world, HCollisionObject2D collision_object, uint32_t shape_index)
+    {
+        b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
+        uint32_t i = 0;
+        while(i <= shape_index && fixture)
+        {
+            if (i == shape_index)
+                return fixture->GetShape();
+            fixture = fixture->GetNext();
+            i++;
+        }
+        return 0;
+    }
+
+    void GetCollisionShapeRadius2D(HWorld2D world, HCollisionShape2D _shape, float* radius)
+    {
+        b2Shape* shape = (b2Shape*) _shape;
+        *radius = shape->m_radius * world->m_Context->m_InvScale;
+    }
+
+    void SetCollisionShapeRadius2D(HWorld2D world, HCollisionShape2D _shape, float radius)
+    {
+        b2Shape* shape = (b2Shape*) _shape;
+        shape->m_radius = radius * world->m_Context->m_Scale;
+        shape->m_creationScale = shape->m_radius;
+    }
+
+    void SynchronizeObject2D(HWorld2D world, HCollisionObject2D collision_object)
+    {
+        ((b2Body*)collision_object)->SynchronizeFixtures();
+    }
+
+    void SetCollisionShapeBoxDimensions2D(HWorld2D world, HCollisionShape2D _shape, Quat rotation, float w, float h)
+    {
+        b2Shape* shape = (b2Shape*) _shape;
+        if (shape->m_type == b2Shape::e_polygon)
+        {
+            float angle = atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()), 1.0f - 2.0f * (rotation.getY() * rotation.getY() + rotation.getZ() * rotation.getZ()));
+            b2PolygonShape* polygon_shape = (b2PolygonShape*) _shape;
+            float scale = world->m_Context->m_Scale;
+            polygon_shape->SetAsBox(w * scale, h * scale, polygon_shape->m_centroid, angle);
+            for (int32 i = 0; i < polygon_shape->m_vertexCount; ++i)
+            {
+                polygon_shape->m_verticesOriginal[i] = polygon_shape->m_vertices[i];
+            }
+        }
+    }
+
+    void GetCollisionShapeBoxDimensions2D(HWorld2D world, HCollisionShape2D _shape, Quat rotation, float& w, float& h)
+    {
+        b2Shape* shape = (b2Shape*) _shape;
+        if (shape->m_type == b2Shape::e_polygon)
+        {
+            b2Vec2 t;
+            ToB2(Vector3(0), t, world->m_Context->m_Scale);
+            b2Rot r;
+            r.SetComplex(1 - 2 * rotation.getZ() * rotation.getZ(), 2 * rotation.getZ() * rotation.getW());
+            b2Transform transform(t, r);
+            b2PolygonShape* polygon_shape = (b2PolygonShape*) _shape;
+            b2Vec2* vertices = polygon_shape->m_vertices;
+            float min_x = INT32_MAX,
+              min_y = INT32_MAX,
+              max_x = -INT32_MAX,
+              max_y = -INT32_MAX;
+            float inv_scale = world->m_Context->m_InvScale;
+            for (int i = 0; i < polygon_shape->GetVertexCount(); i += 1)
+            {
+                b2Vec2 v1 = FromTransformScaleB2(transform, inv_scale, vertices[i]);
+                min_x = dmMath::Min(min_x, v1.x);
+                max_x = dmMath::Max(max_x, v1.x);
+                min_y = dmMath::Min(min_y, v1.y);
+                max_y = dmMath::Max(max_y, v1.y);
+            }
+            w = (max_x - min_x);
+            h = (max_y - min_y);
+        }
     }
 
     void SetCollisionObjectUserData2D(HCollisionObject2D collision_object, void* user_data)
@@ -1091,7 +1183,7 @@ namespace dmPhysics
 
     void SetEnabled2D(HWorld2D world, HCollisionObject2D collision_object, bool enabled)
     {
-        DM_PROFILE(Physics, "SetEnabled");
+        DM_PROFILE("SetEnabled2D");
         bool prev_enabled = IsEnabled2D(collision_object);
         // Avoid multiple adds/removes
         if (prev_enabled == enabled)
@@ -1175,59 +1267,87 @@ namespace dmPhysics
         b2Body* body = ((b2Body*)collision_object);
         body->SetBullet(value);
     }
-        
+
     void SetGroup2D(HCollisionObject2D collision_object, uint16_t groupbit) {
-		b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
-		while (fixture) {
-			// do sth with the fixture
-			if (fixture->GetType() != b2Shape::e_grid) {
-				b2Filter filter = fixture->GetFilterData(0); // all non-grid shapes have only one filter item indexed at position 0
-				filter.categoryBits = groupbit;
-				fixture->SetFilterData(filter, 0);
-			}
-			fixture = fixture->GetNext();	// NOTE: No guard condition in loop. Assumes proper state of Box2D fixture list.
-		}		
-	}
-	
-	uint16_t GetGroup2D(HCollisionObject2D collision_object) {
-		b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
-		if (fixture) {
-			if (fixture->GetType() != b2Shape::e_grid) {
-				b2Filter filter = fixture->GetFilterData(0);
-				return filter.categoryBits;
-			}
-		}	
-		return 0;
-	}
-	
-	// updates a specific group bit of a collision object's current mask
-	void SetMaskBit2D(HCollisionObject2D collision_object, uint16_t groupbit, bool boolvalue) {
-		b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
-		while (fixture) {
-			// do sth with the fixture
-			if (fixture->GetType() != b2Shape::e_grid) {
-				b2Filter filter = fixture->GetFilterData(0); // all non-grid shapes have only one filter item indexed at position 0
-				if (boolvalue)
-					filter.maskBits |= groupbit;
-				else
-					filter.maskBits &= ~groupbit;
-				fixture->SetFilterData(filter, 0);
-			}
-			fixture = fixture->GetNext();
-		}			
-	}
-	
-	bool GetMaskBit2D(HCollisionObject2D collision_object, uint16_t groupbit) {
-		b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
-		if (fixture) {
-			if (fixture->GetType() != b2Shape::e_grid) {
-				b2Filter filter = fixture->GetFilterData(0);
-				return !!(filter.maskBits & groupbit);
-			}
-		}	
-		return false;		
-	}
-	
+        b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
+        while (fixture) {
+            // do sth with the fixture
+            if (fixture->GetType() != b2Shape::e_grid) {
+                b2Filter filter = fixture->GetFilterData(0); // all non-grid shapes have only one filter item indexed at position 0
+                filter.categoryBits = groupbit;
+                fixture->SetFilterData(filter, 0);
+            }
+            fixture = fixture->GetNext();   // NOTE: No guard condition in loop. Assumes proper state of Box2D fixture list.
+        }
+    }
+
+    uint16_t GetGroup2D(HCollisionObject2D collision_object) {
+        b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
+        if (fixture) {
+            if (fixture->GetType() != b2Shape::e_grid) {
+                b2Filter filter = fixture->GetFilterData(0);
+                return filter.categoryBits;
+            }
+        }
+        return 0;
+    }
+
+    // updates a specific group bit of a collision object's current mask
+    void SetMaskBit2D(HCollisionObject2D collision_object, uint16_t groupbit, bool boolvalue) {
+        b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
+        while (fixture) {
+            // do sth with the fixture
+            if (fixture->GetType() != b2Shape::e_grid) {
+                b2Filter filter = fixture->GetFilterData(0); // all non-grid shapes have only one filter item indexed at position 0
+                if (boolvalue)
+                    filter.maskBits |= groupbit;
+                else
+                    filter.maskBits &= ~groupbit;
+                fixture->SetFilterData(filter, 0);
+            }
+            fixture = fixture->GetNext();
+        }
+    }
+
+    bool UpdateMass2D(HCollisionObject2D collision_object, float mass) {
+        b2Body* body = (b2Body*)collision_object;
+        if (body->GetType() != b2_dynamicBody) {
+            return false;
+        }
+        b2Fixture* fixture = body->GetFixtureList();
+        float total_area = 0.0f;
+        while (fixture) {
+            b2MassData mass_data;
+            fixture->GetShape()->ComputeMass(&mass_data, 1.0f);
+            // Since density is 1.0, massData.mass represents the area.
+            total_area += mass_data.mass;
+            fixture = fixture->GetNext();
+
+        }
+        fixture = body->GetFixtureList();
+        if (total_area <= 0.0f) {
+            return false;
+        }
+        float new_density = mass / total_area;
+        while (fixture) {
+            fixture->SetDensity(new_density);
+            fixture = fixture->GetNext();
+        }
+        body->ResetMassData();
+        return true;
+    }
+
+    bool GetMaskBit2D(HCollisionObject2D collision_object, uint16_t groupbit) {
+        b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
+        if (fixture) {
+            if (fixture->GetType() != b2Shape::e_grid) {
+                b2Filter filter = fixture->GetFilterData(0);
+                return !!(filter.maskBits & groupbit);
+            }
+        }
+        return false;
+    }
+
     void RequestRayCast2D(HWorld2D world, const RayCastRequest& request)
     {
         if (!world->m_RayCastRequests.Full())
@@ -1261,7 +1381,7 @@ namespace dmPhysics
 
     void RayCast2D(HWorld2D world, const RayCastRequest& request, dmArray<RayCastResponse>& results)
     {
-        DM_PROFILE(Physics, "RayCasts");
+        DM_PROFILE("RayCast2D");
 
         const Point3 from2d = Point3(request.m_From.getX(), request.m_From.getY(), 0.0);
         const Point3 to2d = Point3(request.m_To.getX(), request.m_To.getY(), 0.0);
@@ -1327,15 +1447,14 @@ namespace dmPhysics
             for (b2Body* body = context->m_Worlds[i]->m_World.GetBodyList(); body; body = body->GetNext())
             {
                 b2Fixture* fixture = body->GetFixtureList();
+                float mass = body->GetMass();
                 while (fixture)
                 {
                     b2Fixture* next_fixture = fixture->GetNext();
                     if (fixture->GetShape() == old_shape)
                     {
-                        b2MassData mass_data;
-                        ((b2Shape*)new_shape)->ComputeMass(&mass_data, 1.0f);
                         b2FixtureDef def;
-                        def.density = body->GetMass() / mass_data.mass;
+                        def.density = 1.0f;
                         def.filter = fixture->GetFilterData(0);
                         def.friction = fixture->GetFriction();
                         def.isSensor = fixture->IsSensor();
@@ -1375,6 +1494,7 @@ namespace dmPhysics
                     }
                     fixture = next_fixture;
                 }
+                UpdateMass2D(body, mass);
             }
         }
     }
@@ -1473,6 +1593,26 @@ namespace dmPhysics
                     joint = world->m_World.CreateJoint(&jointDef);
                 }
                 break;
+            case dmPhysics::JOINT_TYPE_WHEEL:
+                {
+                    b2WheelJointDef jointDef;
+                    jointDef.bodyA            = b2_obj_a;
+                    jointDef.bodyB            = b2_obj_b;
+                    jointDef.localAnchorA     = pa;
+                    jointDef.localAnchorB     = pb;
+                    b2Vec2 axis;
+                    Vector3 apa(params.m_WheelJointParams.m_LocalAxisA[0], params.m_WheelJointParams.m_LocalAxisA[1], params.m_WheelJointParams.m_LocalAxisA[2]);
+                    ToB2(apa, axis, 1.0f);
+                    jointDef.localAxisA       = axis;
+                    jointDef.maxMotorTorque   = params.m_WheelJointParams.m_MaxMotorTorque;
+                    jointDef.motorSpeed       = params.m_WheelJointParams.m_MotorSpeed;
+                    jointDef.enableMotor      = params.m_WheelJointParams.m_EnableMotor;
+                    jointDef.frequencyHz      = params.m_WheelJointParams.m_FrequencyHz;
+                    jointDef.dampingRatio     = params.m_WheelJointParams.m_DampingRatio;
+                    jointDef.collideConnected = params.m_CollideConnected;
+                    joint = world->m_World.CreateJoint(&jointDef);
+                }
+                break;
             default:
                 return 0x0;
         }
@@ -1525,6 +1665,16 @@ namespace dmPhysics
                     b2WeldJoint* typed_joint = (b2WeldJoint*)joint;
                     typed_joint->SetFrequency(params.m_WeldJointParams.m_FrequencyHz);
                     typed_joint->SetDampingRatio(params.m_WeldJointParams.m_DampingRatio);
+                }
+                break;
+            case dmPhysics::JOINT_TYPE_WHEEL:
+                {
+                    b2WheelJoint* typed_joint = (b2WheelJoint*)joint;
+                    typed_joint->SetMaxMotorTorque(params.m_WheelJointParams.m_MaxMotorTorque * scale);
+                    typed_joint->SetMotorSpeed(params.m_WheelJointParams.m_MotorSpeed);
+                    typed_joint->EnableMotor(params.m_WheelJointParams.m_EnableMotor);
+                    typed_joint->SetSpringFrequencyHz(params.m_WheelJointParams.m_FrequencyHz);
+                    typed_joint->SetSpringDampingRatio(params.m_WheelJointParams.m_DampingRatio);
                 }
                 break;
             default:
@@ -1603,6 +1753,24 @@ namespace dmPhysics
 
                     // Read only properties
                     params.m_WeldJointParams.m_ReferenceAngle = typed_joint->GetReferenceAngle();
+                }
+                break;
+            case dmPhysics::JOINT_TYPE_WHEEL:
+                {
+                    b2WheelJoint* typed_joint = (b2WheelJoint*)joint;
+                    b2Vec2 axis = typed_joint->GetLocalAxisA();
+                    params.m_WheelJointParams.m_LocalAxisA[0] = axis.x;
+                    params.m_WheelJointParams.m_LocalAxisA[1] = axis.y;
+                    params.m_WheelJointParams.m_LocalAxisA[2] = 0.0f;
+                    params.m_WheelJointParams.m_MaxMotorTorque = typed_joint->GetMaxMotorTorque() * inv_scale;
+                    params.m_WheelJointParams.m_MotorSpeed = typed_joint->GetMotorSpeed();
+                    params.m_WheelJointParams.m_EnableMotor = typed_joint->IsMotorEnabled();
+                    params.m_WheelJointParams.m_FrequencyHz = typed_joint->GetSpringFrequencyHz();
+                    params.m_WheelJointParams.m_DampingRatio = typed_joint->GetSpringDampingRatio();
+
+                    // Read only properties
+                    params.m_WheelJointParams.m_JointTranslation = typed_joint->GetJointTranslation();
+                    params.m_WheelJointParams.m_JointSpeed = typed_joint->GetJointSpeed();
                 }
                 break;
             default:

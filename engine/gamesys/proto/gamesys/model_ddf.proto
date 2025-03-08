@@ -1,31 +1,49 @@
+syntax = "proto2";
 package dmModelDDF;
 
 import "ddf/ddf_extensions.proto";
 import "ddf/ddf_math.proto";
+import "graphics/graphics_ddf.proto";
 
 option java_package = "com.dynamo.gamesys.proto";
 option java_outer_classname = "ModelProto";
 
 // TODO: Add documentation for messages, see https://github.com/defold/extension-spine/blob/main/defold-spine/commonsrc/spine_ddf.proto
 
+message Texture
+{
+    required string sampler     = 1; // the name of the sampler
+    required string texture     = 2 [(resource)=true];
+}
+
+message Material
+{
+    required string name                           = 1; // the name of the material in the model file
+    required string material                       = 2 [(resource)=true];
+    repeated Texture textures                      = 3;
+    repeated dmGraphics.VertexAttribute attributes = 4;
+}
+
+// The source format (.model)
 message ModelDesc
 {
     required string mesh        = 2 [(resource)=true];
-    required string material    = 3 [(resource)=true];
-    repeated string textures    = 4 [(resource)=true];
+    optional string material    = 3 [(resource)=true]; // Deprecated
+    repeated string textures    = 4 [(resource)=true]; // Deprecated
     optional string skeleton    = 5 [(resource)=true];
     optional string animations  = 6 [(resource)=true];
     optional string default_animation  = 7;
 
     optional string name        = 10; // Deprecated
+    repeated Material materials = 11;
 }
 
+// The engine format (.modelc)
 message Model
 {
     required string rig_scene   = 1 [(resource)=true];
-    required string material    = 2 [(resource)=true];
-    repeated string textures    = 3 [(resource)=true];
-    optional string default_animation  = 4;
+    optional string default_animation  = 2;
+    repeated Material materials = 3;
 }
 
 message ResetConstant

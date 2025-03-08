@@ -12,49 +12,56 @@ blddir = 'build'
 import os, sys, re
 sys.path = ["src"] + sys.path
 import waf_ddf, waf_dynamo
+import waflib.Options
+import TestContext
 
-def init():
-    pass
+test_context = None
 
-def set_options(opt):
-    opt.sub_options('src')
-    opt.tool_options('waf_dynamo')
+def init(ctx):
+    global test_context
+    if 'build' in waflib.Options.commands:
+        test_context = TestContext.create_test_context()
+
+def options(opt):
+    opt.recurse('src')
+    opt.load('waf_dynamo')
 
 def configure(conf):
     # Replace version number in python file.
-    ddfc_py_str = ddfc_py_str_orig = open('src/ddfc.py', 'rb').read()
-    ddfc_py_str = re.sub('DDF_MAJOR_VERSION=(\d*)', 'DDF_MAJOR_VERSION=%d' % DDF_MAJOR_VERSION, ddfc_py_str)
-    ddfc_py_str = re.sub('DDF_MINOR_VERSION=(\d*)', 'DDF_MINOR_VERSION=%d' % DDF_MINOR_VERSION, ddfc_py_str)
+    ddfc_py_str = ddfc_py_str_orig = open('src/ddfc.py', 'r').read()
+    ddfc_py_str = re.sub('DDF_MAJOR_VERSION=(\d*)', 'DDF_MAJOR_VERSION=%d' % DDF_MAJOR_VERSION, str(ddfc_py_str))
+    ddfc_py_str = re.sub('DDF_MINOR_VERSION=(\d*)', 'DDF_MINOR_VERSION=%d' % DDF_MINOR_VERSION, str(ddfc_py_str))
     if ddfc_py_str != ddfc_py_str_orig:
-        open('src/ddfc.py', 'wb').write(ddfc_py_str)
+        open('src/ddfc.py', 'w').write(ddfc_py_str)
 
     # Create config.h with version numbers
     conf.define('DDF_MAJOR_VERSION', DDF_MAJOR_VERSION)
     conf.define('DDF_MINOR_VERSION', DDF_MINOR_VERSION)
     conf.write_config_header('config.h')
 
-    conf.check_tool('waf_dynamo')
+    conf.load('waf_dynamo')
 
-    conf.sub_config('src')
+    conf.recurse('src')
 
     conf.find_program('ddfc_cxx', var='DDFC_CXX', path_list = [os.path.abspath('src')], mandatory = True)
 
-    conf.env['STATICLIB_DLIB'] = 'dlib'
-    conf.env['STATICLIB_PROTOBUF'] = 'protobuf'
-    if conf.env.PLATFORM == 'linux':
-        conf.env['LIB_PTHREAD'] = 'pthread'
+    conf.env['STLIB_DLIB'] = ['dlib', 'mbedtls']
+    conf.env['STLIB_PROTOBUF'] = ['protobuf']
 
-    conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="DDF"')
-    conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="DDF"')
+    if conf.env.PLATFORM == 'linux':
+        conf.env['LIB_PTHREAD'] = ['pthread']
+
+    conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="DDF"')
 
 def build(bld):
+    global test_context
     # We need to add default/src/ddf to PYTHONPATH here. (ddf_extensions_pb2.py and plugin_pb2.py)
     # Only required 'in' ddf-lib.
     python_path = os.environ.get('PYTHONPATH', '')
-    os.environ['PYTHONPATH'] = 'default/src' + os.pathsep + 'default/src/ddf' + os.pathsep + python_path
-    bld.add_subdirs('src')
+    os.environ['PYTHONPATH'] = 'src' + os.pathsep + 'src/ddf' + os.pathsep + python_path
 
-def shutdown():
-    import Options, Build
+    bld.recurse('src')
+    TestContext.initialize_test_context(test_context, bld)
 
-    waf_dynamo.run_tests(valgrind = True)
+def shutdown(ctx):
+    waf_dynamo.run_tests(test_context, valgrind = True)

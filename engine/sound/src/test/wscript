@@ -1,9 +1,9 @@
 #! /usr/bin/env python
 
-import os, re, wave, cStringIO, math, struct
-import Task, TaskGen, Options
+import os, re, wave, io, math, struct
+import waflib.Task, waflib.TaskGen, waflib.Options
 from waf_dynamo import copy_file_task
-from TaskGen import extension, declare_extension
+from waflib.TaskGen import extension, extension
 
 def gen_tone(task):
     tone_freq = int(task.generator.tone)
@@ -12,11 +12,11 @@ def gen_tone(task):
     channels = int(task.generator.channels)
     ramp = bool(task.generator.ramp)
 
-    f = wave.open(task.outputs[0].abspath(task.env), "wb")
+    f = wave.open(task.outputs[0].abspath(), "wb")
     f.setnchannels(channels)
     f.setsampwidth(2)
     f.setframerate(sample_freq)
-    buf = cStringIO.StringIO()
+    buf = io.BytesIO()
 
     frames = []
     for i in range(sample_count):
@@ -38,11 +38,11 @@ def gen_dc(task):
     sample_count = int(task.generator.frames)
     channels = int(task.generator.channels)
 
-    f = wave.open(task.outputs[0].abspath(task.env), "wb")
+    f = wave.open(task.outputs[0].abspath(), "wb")
     f.setnchannels(channels)
     f.setsampwidth(2)
     f.setframerate(sample_freq)
-    buf = cStringIO.StringIO()
+    buf = io.BytesIO()
 
     frames = []
     for i in range(sample_count):
@@ -57,18 +57,15 @@ def gen_dc(task):
     return 0
 
 def build(bld):
+    if waflib.Options.options.skip_build_tests:
+        return
+
     platform = bld.env['PLATFORM']
 
     if 'web' in platform:
         lib_dirs = {}
         lib_dirs['library_sound.js'] = '../src/js'
         bld.env['JS_LIB_PATHS'] = lib_dirs
-
-    elif 'win32' in platform:
-        src_dir = "%s/ext/lib/%s" % (bld.env['PREFIX'], platform)
-        if not Options.options.skip_build_tests:
-          copy_file_task(bld, "%s/OpenAL32.dll" % src_dir)
-          copy_file_task(bld, "%s/wrap_oal.dll" % src_dir)
 
     wavs = ["booster_on_sfx.wav",
             "door_opening.wav",
@@ -77,67 +74,66 @@ def build(bld):
             "osc2_sin_440hz.wav",
             "def2938.wav"]
 
-    if not Options.options.skip_build_tests:
-      for rate in [22050, 32000, 44000, 44100]:
-          for tone in [440, 2000]:
-              for channels in [1, 2]:
-                  frames = 2 * rate
-                  name = '%s_tone_%d_%d_%d.wav' % (["mono", "stereo"][channels-1], tone, rate, frames)
-                  wavs.append(name)
-                  bld.new_task_gen(target = name,
-                                   tone = tone,
-                                   rate = rate,
-                                   frames = frames,
-                                   channels = channels,
-                                   ramp = False,
-                                   rule = gen_tone,)
+    for tone in [440, 2000]:
+        for rate in [22050, 32000, 44000, 44100, 48000]:
+            for channels in [1, 2]:
+                for length in  [0.25, 2.0]: # seconds
+                    frames = length * rate
+                    name = '%s_tone_%d_%d_%d.wav' % (["mono", "stereo"][channels-1], tone, rate, frames)
+                    wavs.append(name)
+                    bld(target = name,
+                        tone = tone,
+                        rate = rate,
+                        frames = frames,
+                        channels = channels,
+                        ramp = False,
+                        rule = gen_tone)
 
-      for rate in [32000]:
-          for tone in [440]:
-              channels = 1
-              frames = 2 * rate
-              name = '%s_toneramp_%d_%d_%d.wav' % (["mono", "stereo"][channels-1], tone, rate, frames)
-              wavs.append(name)
-              bld.new_task_gen(target = name,
-                               tone = tone,
-                               rate = rate,
-                               frames = frames,
-                               channels = channels,
-                               ramp = True,
-                               rule = gen_tone)
+    for rate in [32000]:
+        for tone in [440]:
+            channels = 1
+            frames = 2 * rate
+            name = '%s_toneramp_%d_%d_%d.wav' % (["mono", "stereo"][channels-1], tone, rate, frames)
+            wavs.append(name)
+            bld(target = name,
+                tone = tone,
+                rate = rate,
+                frames = frames,
+                channels = channels,
+                ramp = True,
+                rule = gen_tone)
 
-      for rate in [44100]:
-          channels = 1
-          frames = 2 * rate
-          name = '%s_dc_%d_%d.wav' % (["mono", "stereo"][channels-1], rate, frames)
-          wavs.append(name)
-          bld.new_task_gen(target = name,
-                           rate = rate,
-                           frames = frames,
-                           channels = channels,
-                           ramp = True,
-                           rule = gen_dc)
+    for rate in [44100]:
+        channels = 1
+        frames = 2 * rate
+        name = '%s_dc_%d_%d.wav' % (["mono", "stereo"][channels-1], rate, frames)
+        wavs.append(name)
+        bld(target = name,
+            rate = rate,
+            frames = frames,
+            channels = channels,
+            ramp = True,
+            rule = gen_dc)
 
-      bld.add_group()
+    bld.add_group()
 
-    embedded_wavs = bld.new_task_gen(features = 'cxx cstaticlib embed test',
+    embedded_wavs = bld.stlib(features = 'cxx embed test',
                                      target = 'embedded_wavs',
                                      source = 'dummy.cpp',  # Make waf happy
                                      embed_source = wavs)
-
-    embedded_oggs = bld.new_task_gen(features = 'cxx cstaticlib embed test',
+    embedded_oggs = bld.stlib(features = 'cxx embed test',
                                      target = 'embedded_oggs',
                                      source = 'dummy.cpp',  # Make waf happy
-                                     embed_source = bld.path.ant_glob('**/*.ogg'))
+                                     embed_source = [x.name for x in bld.path.ant_glob('**/*.ogg')])
 
-    soundlibs = []
-    if bld.env.PLATFORM in ['js-web', 'wasm-web', 'win32', 'x86_64-win32', 'arm64-nx64']:
+    soundlibs = ['SOUND']
+    if bld.env.PLATFORM in ['js-web', 'wasm-web', 'win32', 'x86_64-win32', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5']:
         exported_symbols = ["DefaultSoundDevice", "AudioDecoderWav", "AudioDecoderStbVorbis"]
     else:
         exported_symbols = ["DefaultSoundDevice", "AudioDecoderWav", "AudioDecoderStbVorbis", "AudioDecoderTremolo"]
         soundlibs.append('TREMOLO')
 
-    if bld.env.PLATFORM in ['arm64-nx64']:
+    if bld.env.PLATFORM in ['arm64-nx64', 'x86_64-ps4']:
         pass
     else:
         soundlibs.append('OPENAL')
@@ -145,30 +141,32 @@ def build(bld):
         soundlibs.append('OPENGL')
 
     if 'TREMOLO' in soundlibs:
-        bld.new_task_gen(features = 'cxx cprogram embed test',
-                          includes = '../../../src .',
-                          uselib = 'TESTMAIN DLIB PLATFORM_SOCKET CARES'.split() + soundlibs,
-                          uselib_local = 'sound embedded_wavs embedded_oggs',
-                          web_libs = ['library_sound.js'],
-                          exported_symbols = exported_symbols,
-                          target = 'test_sound_perf',
-                          source = 'test_sound_perf.cpp')
-
-    bld.new_task_gen(features = 'cxx cprogram embed test',
-                    includes = '../../../src .',
-                    uselib = 'TESTMAIN DLIB PLATFORM_SOCKET CARES'.split() + soundlibs,
-                    uselib_local = 'sound embedded_wavs embedded_oggs',
+        bld.program(features = 'cxx embed test',
+                    includes = '../../src .',
+                    use = 'TESTMAIN DLIB SOCKET PROFILE_NULL sound embedded_wavs embedded_oggs'.split() + soundlibs,
                     web_libs = ['library_sound.js'],
                     exported_symbols = exported_symbols,
-                    target = 'test_sound',
-                    source = 'test_sound.cpp')
+                    target = 'test_sound_perf',
+                    source = 'test_sound_perf.cpp')
+
+    extra_features = []
+    if waflib.Options.options.with_asan and bld.env.PLATFORM in ['win32', 'x86_64-win32']:
+        extra_features = ['skip_test']
+        print("Skipping sound test since current version throws an error with ASan")
+
+    foo = bld.program(features = 'cxx embed test'.split() + extra_features,
+                includes = '../../src .',
+                use = 'TESTMAIN DLIB SOCKET PROFILE_NULL sound embedded_wavs embedded_oggs'.split() + soundlibs,
+                web_libs = ['library_sound.js'],
+                exported_symbols = exported_symbols + ['LoopBackDevice'],
+                target = 'test_sound',
+                source = 'test_sound.cpp')
 
     # test that the linkage doesn't break again
     exported_symbols = 'NullSoundDevice TestNullDevice'
-    bld.new_task_gen(features = 'cxx cprogram embed test',
-                    includes = '../../../src .',
-                    uselib = 'TESTMAIN DLIB PLATFORM_SOCKET CARES',
-                    uselib_local = 'sound_null embedded_wavs embedded_oggs',
+    bld.program(features = 'cxx embed test',
+                    includes = '../../src .',
+                    use = 'TESTMAIN DLIB SOCKET PROFILE_NULL sound_null embedded_wavs embedded_oggs',
                     web_libs = ['library_sound.js'],
                     exported_symbols = exported_symbols,
                     target = 'test_sound_null',

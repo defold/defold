@@ -1,8 +1,9 @@
+
 def configure(conf):
     pass
 
 def build(bld):
-    box2d = bld.new_task_gen(features = 'cxx cstaticlib',
-                                   includes = '..',
-                                   target = 'Box2D')
-    box2d.find_sources_in_dirs('. Collision Collision/Shapes Common Dynamics Dynamics/Contacts Dynamics/Joints')
+    box2d = bld.stlib(features = 'cxx',
+                      includes = '..',
+                      source = bld.path.ant_glob('**/*.cpp'),
+                      target = 'Box2D')

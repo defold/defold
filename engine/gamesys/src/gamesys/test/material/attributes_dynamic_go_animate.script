@@ -1,0 +1,37 @@
+-- Copyright 2020-2025 The Defold Foundation
+-- Copyright 2014-2020 King
+-- Copyright 2009-2014 Ragnar Svensson, Christian Murray
+-- Licensed under the Defold License version 1.0 (the "License"); you may not use
+-- this file except in compliance with the License.
+--
+-- You may obtain a copy of the License, together with FAQs at
+-- https://www.defold.com/license
+--
+-- Unless required by applicable law or agreed to in writing, software distributed
+-- under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+-- CONDITIONS OF ANY KIND, either express or implied. See the License for the
+-- specific language governing permissions and limitations under the License.
+
+local EPSILON = 0.001
+local function assert_near_vector4(a,b)
+    assert(math.abs(a.x-b.x) < EPSILON)
+    assert(math.abs(a.y-b.y) < EPSILON)
+    assert(math.abs(a.z-b.z) < EPSILON)
+    assert(math.abs(a.w-b.w) < EPSILON)
+end
+
+function init(self)
+    assert_near_vector4(vmath.vector4(0.1, 0.1, 0.1, 0.1), go.get("#sprite", "custom_color"))
+
+    self.color_orig = vmath.vector4(0.25, 0.5, 0.75, 0.9)
+    go.set("#sprite", "custom_color", self.color_orig)
+    go.animate("#sprite", "custom_color", go.PLAYBACK_ONCE_FORWARD, vmath.vector4(1, 1, 1, 1), go.EASING_LINEAR, 1)
+end
+
+function update(self, dt)
+    local c = go.get("#sprite", "custom_color")
+    assert(c.x >= self.color_orig.x)
+    assert(c.y >= self.color_orig.y)
+    assert(c.z >= self.color_orig.z)
+    assert(c.w >= self.color_orig.w)
+end

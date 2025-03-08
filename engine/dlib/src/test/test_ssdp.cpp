@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,7 +16,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
-#include <string>
 #include <map>
 #include "../dlib/ssdp.h"
 #include "../dlib/time.h"
@@ -24,6 +23,7 @@
 #include "../dlib/dstrings.h"
 #include "../dlib/hash.h"
 #include "../dlib/socket.h"
+#include "../dlib/sys.h"
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
@@ -327,6 +327,7 @@ TEST_F(dmSSDPTest, Renew)
 
 #endif
 
+#if !defined(DM_NO_POPEN_FUNCTION)
 #if !defined(_WIN32) && !defined(GITHUB_CI)
 #include <sys/select.h>
 
@@ -396,10 +397,10 @@ TEST_F(dmSSDPTest, JavaClient)
 
     printf("(C++) Sending USN1 = \"%s\"\n", device1_usn);
     printf("(C++) Sending USN2 = \"%s\"\n", device2_usn);
-    char* dynamo_home = getenv("DYNAMO_HOME");
+    char* dynamo_home = dmSys::GetEnv("DYNAMO_HOME");
     char command[2048];
     dmSnPrintf(command, sizeof(command),
-            "java -cp build/default/src/java:build/default/src/java_test:%s/ext/share/java/junit-4.6.jar -DUSN1=%s -DUSN2=%s org.junit.runner.JUnitCore com.dynamo.upnp.SSDPTest", dynamo_home, device1_usn, device2_usn);
+            "java -cp build/src/java:build/src/java_test:%s/ext/share/java/junit-4.6.jar -DUSN1=%s -DUSN2=%s org.junit.runner.JUnitCore com.dynamo.upnp.SSDPTest", dynamo_home, device1_usn, device2_usn);
 
 #if !defined(__EMSCRIPTEN__) // no support for popen
     const char* mode = "r";
@@ -441,11 +442,12 @@ TEST_F(dmSSDPTest, JavaClient)
 }
 
 #endif
+#endif // DM_NO_POPEN_FUNCTION
 
 int main(int argc, char **argv)
 {
     srand(time(NULL));
-    dmLog::Setlevel(dmLog::LOG_SEVERITY_DEBUG);
+    dmLogSetLevel(LOG_SEVERITY_DEBUG);
     dmSocket::Initialize();
     jc_test_init(&argc, argv);
     int ret = jc_test_run_all();

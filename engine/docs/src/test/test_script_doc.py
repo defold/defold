@@ -1,12 +1,12 @@
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2025 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -25,14 +25,14 @@ class TestParse(unittest.TestCase):
  */
 """
         elements = script_doc.parse_document(doc).elements
-        self.assertEquals(0, len(elements))
+        self.assertEqual(0, len(elements))
 
     def test_empty2(self):
         doc= """
 foobar
 """
         elements = script_doc.parse_document(doc).elements
-        self.assertEquals(0, len(elements))
+        self.assertEqual(0, len(elements))
 
     def test_simple(self):
         doc= """
@@ -43,7 +43,7 @@ foobar
  */
 """
         elements = script_doc.parse_document(doc).elements
-        self.assertEquals(1, len(elements))
+        self.assertEqual(1, len(elements))
         self.assertEqual(u'MY_DESC', elements[0].brief)
         self.assertEqual(u'MY_DESC', elements[0].description)
         self.assertEqual('MY_NAME', elements[0].name)
@@ -57,7 +57,7 @@ foobar
  */
 """
         elements = script_doc.parse_document(doc).elements
-        self.assertEquals(1, len(elements))
+        self.assertEqual(1, len(elements))
         self.assertEqual(u'MY_BRIEF', elements[0].brief)
         self.assertEqual(u'MY_BRIEF', elements[0].description)
         self.assertEqual('MY_NAME', elements[0].name)
@@ -72,7 +72,7 @@ foobar
  */
 """
         elements = script_doc.parse_document(doc).elements
-        self.assertEquals(1, len(elements))
+        self.assertEqual(1, len(elements))
         self.assertEqual(u'MY_DESC', elements[0].description)
         self.assertEqual('MY_NAME', elements[0].name)
         self.assertEqual('MY_NAME', elements[0].name)
@@ -89,7 +89,7 @@ foobar
  */
 """
         elements = script_doc.parse_document(doc).elements
-        self.assertEquals(1, len(elements))
+        self.assertEqual(1, len(elements))
         self.assertEqual(u'<em>EMPHASIS</em>\n<ul>\n<li>MY_DESC</li>\n<li>MY_DESC</li>\n</ul>', elements[0].description)
         self.assertEqual('MY_NAME', elements[0].name)
 
@@ -107,7 +107,7 @@ foobar
 
 """
         elements = script_doc.parse_document(doc).elements
-        self.assertEquals(2, len(elements))
+        self.assertEqual(2, len(elements))
         self.assertEqual(u'MY_DESC1', elements[0].description)
         self.assertEqual('MY_NAME1', elements[0].name)
         self.assertEqual(u'MY_DESC2', elements[1].description)
@@ -125,7 +125,7 @@ foobar
  */
 """
         elements = script_doc.parse_document(doc).elements
-        self.assertEquals(1, len(elements))
+        self.assertEqual(1, len(elements))
         self.assertEqual(u'MY_DESC', elements[0].description)
         self.assertEqual('MY_NAME', elements[0].name)
         self.assertEqual(2, len(elements[0].parameters))
@@ -155,7 +155,7 @@ foobar
  */
 """
         elements = script_doc.parse_document(doc).elements
-        self.assertEquals(1, len(elements))
+        self.assertEqual(1, len(elements))
         self.assertEqual(u'MY_DESC', elements[0].description)
         self.assertEqual('MY_NAME', elements[0].name)
         self.assertEqual(4, len(elements[0].parameters))
@@ -202,7 +202,7 @@ foobar
  */
 """
         elements = script_doc.parse_document(doc).elements
-        self.assertEquals(1, len(elements))
+        self.assertEqual(1, len(elements))
         self.assertEqual(script_doc_ddf_pb2.MESSAGE, elements[0].type)
         self.assertEqual(u'MY_DESC', elements[0].description)
         self.assertEqual('MY_MESSAGE', elements[0].name)
@@ -219,7 +219,7 @@ foobar
  */
 """
         elements = script_doc.parse_document(doc).elements
-        self.assertEquals(1, len(elements))
+        self.assertEqual(1, len(elements))
         self.assertEqual(script_doc_ddf_pb2.MESSAGE, elements[0].type)
         self.assertEqual(u'MY_DESC', elements[0].description)
         self.assertEqual('MY_MESSAGE', elements[0].name)
@@ -239,11 +239,11 @@ foobar
  */
 """
         elements = script_doc.parse_document(doc).elements
-        self.assertEquals(1, len(elements))
+        self.assertEqual(1, len(elements))
         self.assertEqual(script_doc_ddf_pb2.MESSAGE, elements[0].type)
         self.assertEqual(u'MY_DESC', elements[0].description)
         self.assertEqual('MY_MESSAGE', elements[0].name)
-        self.assertEqual(u'example:\n<div class="codehilite"><pre><span></span>MY_EXAMPLE\n</pre></div>', elements[0].examples)
+        self.assertEqual(u'example:\n<div class="codehilite"><pre><span></span><code>MY_EXAMPLE\n</code></pre></div>', elements[0].examples)
         p1 = elements[0].parameters[0]
         self.assertEqual('param_x', p1.name)
         self.assertEqual(u'DOC X', p1.doc)
@@ -258,7 +258,7 @@ foobar
  */
 """
         elements = script_doc.parse_document(doc).elements
-        self.assertEquals(1, len(elements))
+        self.assertEqual(1, len(elements))
         self.assertEqual(script_doc_ddf_pb2.MESSAGE, elements[0].type)
         self.assertEqual(u'MY_DESC', elements[0].description)
         self.assertEqual('MY_MESSAGE', elements[0].name)
@@ -273,7 +273,7 @@ foobar
  */
 """
         elements = script_doc.parse_document(doc).elements
-        self.assertEquals(1, len(elements))
+        self.assertEqual(1, len(elements))
         self.assertEqual(u'MY_DESC', elements[0].description)
         self.assertEqual('MY_MESSAGE', elements[0].name)
         self.assertEqual(u'MY_REPLACEMENT', elements[0].replaces)
@@ -289,7 +289,7 @@ foobar
  */
 """
         elements = script_doc.parse_document(doc).elements
-        self.assertEquals(1, len(elements))
+        self.assertEqual(1, len(elements))
         self.assertEqual(u'MY_DESC', elements[0].description)
         self.assertEqual('MY_MESSAGE', elements[0].name)
         self.assertEqual(u'example:\nSee <a href="/ref/some#some.func">some.func</a> for example or <a href="#func">func</a>', elements[0].examples)
@@ -304,7 +304,7 @@ foobar
  */
 """
         elements = script_doc.parse_document(doc).elements
-        self.assertEquals(1, len(elements))
+        self.assertEqual(1, len(elements))
         self.assertEqual(u'MY_DESC @test', elements[0].description)
         self.assertEqual('MY_MESSAGE', elements[0].name)
         self.assertEqual(u'example:\nMY_EXAMPLE @test', elements[0].examples)

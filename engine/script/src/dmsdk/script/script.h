@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -27,10 +27,6 @@ extern "C"
 {
 #include <dmsdk/lua/lua.h>
 #include <dmsdk/lua/lauxlib.h>
-}
-
-namespace dmJson {
-    struct Document;
 }
 
 namespace dmScript
@@ -410,9 +406,18 @@ namespace dmScript
      * @name dmScript::IsHash
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] Index of the value
-     * @return true if the value at #index is a hash
+     * @return result [type:bool] true if the value at #index is a hash
      */
     bool IsHash(lua_State *L, int index);
+
+    /*#
+     * Check if the value at #index is a hash
+     * @name dmScript::ToHash
+     * @param L [type:lua_State*] Lua state
+     * @param index [type:int] Index of the value
+     * @return hash [type: dmhash_t*] pointer to hash or 0 if it's not a hash
+     */
+    dmhash_t* ToHash(lua_State *L, int index);
 
     /*#
      * Push a hash value onto the supplied lua state, will increase the stack by 1.
@@ -452,28 +457,37 @@ namespace dmScript
     */
     const char* GetStringFromHashOrString(lua_State* L, int index, char* buffer, uint32_t bufferlength);
 
-    /*# convert a dmJson::Document to a Lua table
-     * Convert a dmJson::Document document to Lua table.
-     *
-     * @name dmJson::Type
-     * @param L [type:lua_State*] lua state
-     * @param doc [type:dmJson::Document] JSON document
-     * @param index [type:int] index of JSON node
-     * @param error_str_out [type:char*] if an error is encountered, the error string is written to this argument
-     * @param error_str_size [type:size_t] size of error_str_out
-     * @return int [type:int] <0 if it fails. >=0 if it succeeds.
-     */
-    int JsonToLua(lua_State* L, dmJson::Document* doc, int index, char* error_str_out, size_t error_str_size);
-
-
     /*#
      * Push DDF message to Lua stack
      * @param L [type: lua_State*] the Lua state
      * @param descriptor [type: const dmDDF::Descriptor*] field descriptor
-     * @param pointers_are_offets [type: bool] True if pointers are offsets
      * @param data [type: const char*] the message data (i.e. the message struct)
+     * @param pointers_are_offsets [type: bool] True if pointers are offsets
      */
     void PushDDF(lua_State*L, const dmDDF::Descriptor* descriptor, const char* data, bool pointers_are_offsets);
+
+    /*# convert a Json string to a Lua table
+     * Convert a Json string to Lua table.
+     * @note Throws Lua error if it fails to parser the json
+     *
+     * @name dmScript::JsonToLua
+     * @param L [type:lua_State*] lua state
+     * @param json [type:const char*] json string
+     * @param json_len [type:size_t] length of json string
+     * @return int [type:int] 1 if it succeeds. Throws a Lua error if it fails
+     */
+    int JsonToLua(lua_State* L, const char* json, size_t json_len);
+
+    /*# convert a Lua table to a Json string
+     * Convert a Lua table to a Json string
+     *
+     * @name dmScript::LuaToJson
+     * @param L [type:lua_State*] lua state
+     * @param json [type:char**] [out] Pointer to char*, which will receive a newly allocated string. Use free().
+     * @param json_len [type:size_t*] length of json string
+     * @return int [type:int] <0 if it fails. >=0 if it succeeds.
+     */
+    int LuaToJson(lua_State* L, char** json, size_t* json_len);
 
     /*# callback info struct
      * callback info struct that will hold the relevant info needed to make a callback into Lua
@@ -658,6 +672,37 @@ namespace dmScript
      * @return buffer [type:const char*] returns the passed in buffer
      */
     const char* UrlToString(const dmMessage::URL* url, char* buffer, uint32_t buffer_size);
+
+    /**
+     * Get the size of a table when serialized
+     * @name CheckTableSize
+     * @param L [type: lua_State*] Lua state
+     * @param index [type: int] Index of the table
+     * @return result [type: uint32_t] Number of bytes required for the serialized table
+     */
+    uint32_t CheckTableSize(lua_State* L, int index);
+
+    /*#
+     * Serialize a table to a buffer
+     * Supported types: LUA_TBOOLEAN, LUA_TNUMBER, LUA_TSTRING, Point3, Vector3, Vector4 and Quat
+     * Keys must be strings
+     * @name CheckTable
+     * @param L [type: lua_State*] Lua state
+     * @param buffer [type: char*] Buffer that will be written to (must be DM_ALIGNED(16))
+     * @param buffer_size [type: uint32_t] Buffer size
+     * @param index [type: int] Index of the table
+     * @return result [type: uint32_t] Number of bytes used in buffer
+     */
+    uint32_t CheckTable(lua_State* L, char* buffer, uint32_t buffer_size, int index);
+
+    /**
+     * Push a serialized table to the supplied lua state, will increase the stack by 1.
+     * * @name PushTable
+     * @param L [type: lua_State*] Lua state
+     * @param data [type: const char*] Buffer with serialized table to push
+     * @param data_size [type: uint32_t] Size of buffer of serialized data
+     */
+    void PushTable(lua_State* L, const char* data, uint32_t data_size);
 }
 
 #endif // DMSDK_SCRIPT_SCRIPT_H

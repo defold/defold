@@ -1,18 +1,17 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
 #include <stdio.h>
@@ -20,49 +19,14 @@
 
 #include "script.h"
 #include "script_vmath.h"
+#include "test_script.h"
 
+#include <testmain/testmain.h>
 #include <dlib/log.h>
-#include <dlib/dstrings.h>
 
-extern "C"
+class ScriptLuasocketTest : public dmScriptTest::ScriptTest
 {
-#include <lua/lauxlib.h>
-#include <lua/lualib.h>
-}
-
-#define PATH_FORMAT "build/default/src/test/%s"
-
-class ScriptLuasocketTest : public jc_test_base_class
-{
-protected:
-    virtual void SetUp()
-    {
-        m_Context = dmScript::NewContext(0, 0, true);
-        dmScript::Initialize(m_Context);
-        L = dmScript::GetLuaState(m_Context);
-    }
-
-    virtual void TearDown()
-    {
-        dmScript::Finalize(m_Context);
-        dmScript::DeleteContext(m_Context);
-    }
-
-    dmScript::HContext m_Context;
-    lua_State* L;
 };
-
-bool RunFile(lua_State* L, const char* filename)
-{
-    char path[64];
-    dmSnPrintf(path, 64, PATH_FORMAT, filename);
-    if (luaL_dofile(L, path) != 0)
-    {
-        dmLogError("%s", lua_tolstring(L, -1, 0));
-        return false;
-    }
-    return true;
-}
 
 TEST_F(ScriptLuasocketTest, TestLuasocket)
 {
@@ -92,15 +56,17 @@ TEST_F(ScriptLuasocketTest, TestLuasocket)
             ASSERT_EQ(0, result);
         }
         lua_pop(L, 1);
-	}
+    }
 
     ASSERT_EQ(top, lua_gettop(L));
 }
 
+extern "C" void dmExportedSymbols();
+
 int main(int argc, char **argv)
 {
+    dmExportedSymbols();
+    TestMainPlatformInit();
     jc_test_init(&argc, argv);
-
-    int ret = jc_test_run_all();
-    return ret;
+    return jc_test_run_all();
 }

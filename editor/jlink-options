@@ -1,7 +1,8 @@
 --add-modules=java.base
 --add-modules=java.desktop # editor use java.awt.*
---add-modules=java.management # used by amazonica
+--add-modules=java.management # used by internal.low-memory ns
 --add-modules=java.naming # used by slf4j
+--add-modules=java.net.http
 --add-modules=java.security.jgss # needed for https to work?
 --add-modules=java.scripting # needed for fxml
 --add-modules=java.sql # clojure needs it
@@ -18,4 +19,4 @@
 --no-man-pages
 --dedup-legal-notices=error-if-not-same-content
 --no-header-files
---compress=2 # 0 - no compression, 1 - constant string sharing, 2 - zip
+--compress=zip-9 # zip-0 (no compression) to zip-9 (max compression)

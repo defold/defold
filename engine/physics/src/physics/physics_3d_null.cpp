@@ -1,19 +1,18 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
 #include <stdint.h>
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
 #include <dlib/hash.h>
 #include <dlib/message.h>
@@ -192,12 +191,12 @@ namespace dmPhysics
         return 0;
     }
 
-    uint16_t GetGroup3D(HCollisionObject3D collision_object) 
+    uint16_t GetGroup3D(HCollisionObject3D collision_object)
     {
         return 0;
     }
 
-    void SetGroup3D(HWorld3D world, HCollisionObject3D collision_object, uint16_t groupbit) 
+    void SetGroup3D(HWorld3D world, HCollisionObject3D collision_object, uint16_t groupbit)
     {
     }
 
@@ -205,8 +204,8 @@ namespace dmPhysics
     {
         return false;
     }
-	
-    void SetMaskBit3D(HWorld3D world, HCollisionObject3D collision_object, uint16_t groupbit, bool boolvalue) 
+
+    void SetMaskBit3D(HWorld3D world, HCollisionObject3D collision_object, uint16_t groupbit, bool boolvalue)
     {
     }
 
@@ -232,6 +231,41 @@ namespace dmPhysics
     }
 
     void ReplaceShape3D(HContext3D context, HCollisionShape3D old_shape, HCollisionShape3D new_shape)
+    {
+    }
+
+    HContext3D GetContext3D(HWorld3D world)
+    {
+        return 0;
+    }
+
+
+    void ReplaceShape3D(HCollisionObject3D object, HCollisionShape3D old_shape, HCollisionShape3D new_shape)
+    {
+    }
+
+    HCollisionShape3D GetCollisionShape3D(HCollisionObject3D collision_object, uint32_t index)
+    {
+        return 0;
+    }
+
+    void GetCollisionShapeRadius3D(HCollisionShape3D shape, float* radius)
+    {
+    }
+
+    void GetCollisionShapeHalfBoxExtents3D(HCollisionShape3D shape, float* xyz)
+    {
+    }
+
+    void GetCollisionShapeCapsuleRadiusHeight3D(HCollisionShape3D shape, float* radius, float* half_height)
+    {
+    }
+
+    void SetCollisionShapeRadius3D(HCollisionShape3D shape, float radius)
+    {
+    }
+
+    void SetCollisionShapeHalfBoxExtents3D(HCollisionShape2D shape, float w, float h, float d)
     {
     }
 }

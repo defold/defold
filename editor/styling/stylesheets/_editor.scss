@@ -55,10 +55,28 @@ Links:
 
 /* Overrides */
 
+.override-inspector-hyperlink {
+  -fx-text-fill: -df-text;
+  &:hover {
+    -fx-underline: true;
+  }
+}
+
 .overridden {
   -fx-text-inner-color: -df-defold-blue-lighter;
   -fx-text-color-base: -df-defold-blue-lighter;
   -fx-text-fill: -df-defold-blue-lighter; }
+
+.override-inspector-check-box {
+    -fx-opacity: 1;
+    -fx-padding: -2 0 0 0;
+    & > .box {
+      -fx-background-color: transparent !important;
+    }
+    &.overridden > .box > .mark {
+      -fx-background-color: -df-defold-blue-lighter;
+    }
+}
 
 .copyable-label, .copyable-label:focused {
   -fx-background-color: transparent;
@@ -67,12 +85,12 @@ Links:
 }
 
 .about-value {
-  -fx-text-fill: -df-component;
+  -fx-text-fill: -df-component-lighter;
 }
 
 #progress-hbox {
   .label {
-    -fx-text-fill: -df-component;
+    -fx-text-fill: -df-component-lighter;
   }
   -fx-alignment: center-left;
   -fx-spacing: 10px;
@@ -80,7 +98,7 @@ Links:
 
 /* Status bar */
 #status-label {
-  -fx-text-fill: -df-component;
+  -fx-text-fill: -df-component-lighter;
   -fx-padding: 7 0 7 15;
 }
 
@@ -103,7 +121,7 @@ Links:
 }
 
 #status-pane #progress-hbox #progress-cancel-button {
-    -fx-background-color: -df-background-lighter;
+    -fx-background-color: -df-background-dark;
     -cross-color: -df-text;
     -fx-background-radius: 50%;
     -fx-border-width: 0;
@@ -114,7 +132,7 @@ Links:
     -fx-max-height: 16px;
     -fx-content-display: center;
     &:hover {
-        -fx-background-color: -df-component-darker;
+        -fx-background-color: -df-component-lighter;
         -cross-color: -df-text-selected;
     }
     &:armed {
@@ -127,19 +145,7 @@ Links:
     -fx-background-color: -cross-color;
     -fx-max-width: 10px;
     -fx-max-height: 10px;
-    -fx-shape: "M 2 0
-                L  5  3
-                L  8  0
-                L 10  2
-                L  7  5
-                L 10  8
-                L  8 10
-                L  5  7
-                L  2 10
-                L  0  8
-                L  3  5
-                L  0  2
-                Z";
+    -fx-shape: "M 2 0 L 5 3 L 8 0 L 10 2 L 7 5 L 10 8 L 8 10 L 5 7 L 2 10 L 0 8 L 3 5 L 0 2 Z";
 }
 
 #main-window {
@@ -194,4 +200,16 @@ Links:
 
 #sponsor-push > .hyperlink:hover {
   -fx-text-fill: #89d2ff;
+}
+
+#quick-help-items .key-button {
+    -fx-background-color: #8080802b;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.8), 10, 0, 0, 0);
+    -fx-padding: 2px 7px;
+    -fx-border-radius: 3px;
+    -fx-background-radius: 3px;
+}
+
+#quick-help-logo {
+    -fx-opacity: 0.1;
 }

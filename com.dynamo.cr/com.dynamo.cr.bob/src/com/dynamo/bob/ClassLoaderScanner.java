@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,7 +16,6 @@ package com.dynamo.bob;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.URL;
 import java.net.URLDecoder;
 import java.util.List;
 import java.util.ArrayList;
@@ -36,11 +35,22 @@ public class ClassLoaderScanner implements IClassScanner {
     private List<URL> extraJars = new ArrayList<>();
     URLClassLoader classLoader = null;
     private boolean dirty = true;
+    private ClassLoader baseClassLoader = null;
+
+    public ClassLoaderScanner() {
+        baseClassLoader = this.getClass().getClassLoader();
+    }
+
+    public ClassLoaderScanner(ClassLoader loader) {
+        baseClassLoader = loader;
+    }
 
     private static void scanDir(File dir, String packageName, Set<String> classes) {
         File[] files = dir.listFiles();
         for (File file : files) {
-            if (file.getName().endsWith(".class")) {
+            if (file.isDirectory()) {
+                scanDir(file, packageName + "." + file.getName(), classes);
+            } else if (file.getName().endsWith(".class")) {
                 String name = file.getName();
                 name = name.replace("/", ".").replace("\\", ".");
                 name = name.substring(0, name.length() - 6);
@@ -69,10 +79,6 @@ public class ClassLoaderScanner implements IClassScanner {
         }
     }
 
-    protected URL resolveURL(URL url) throws IOException {
-        return url;
-    }
-
     // Implemented as a stack
     // The last inserted file takes precedence
     @Override
@@ -91,7 +97,7 @@ public class ClassLoaderScanner implements IClassScanner {
         if (classLoader == null || dirty) {
             try {
                 URL[] urls = extraJars.toArray(new URL[0]);
-                classLoader = new URLClassLoader(urls, this.getClass().getClassLoader());
+                classLoader = new URLClassLoader(urls, baseClassLoader);
             } catch (Exception e) {
                 throw new RuntimeException(String.format("Couldn't create custom class loader"), e);
             }
@@ -100,11 +106,11 @@ public class ClassLoaderScanner implements IClassScanner {
         return classLoader;
     }
 
-    private void scanLoader(ClassLoader classLoader, String pkg, Set<String> classes) {
+    private static void scanLoader(ClassLoader classLoader, String pkg, Set<String> classes) {
         try {
             Enumeration<URL> e = classLoader.getResources(pkg.replace(".", "/"));
             while (e.hasMoreElements()) {
-                URL url = resolveURL(e.nextElement());
+                URL url = e.nextElement();
                 String protocol = url.getProtocol();
                 if (protocol.equals("file")) {
                     File dir = new File(url.getFile());
@@ -118,13 +124,16 @@ public class ClassLoaderScanner implements IClassScanner {
         }
     }
 
+    public static Set<String> scanClassLoader(ClassLoader classLoader, String pkg) {
+        // Called by the editor.
+        Set<String> classes = new HashSet<String>();
+        scanLoader(classLoader, pkg, classes);
+        return classes;
+    }
+
     @Override
     public Set<String> scan(String pkg) {
-        Set<String> classes = new HashSet<String>();
-
         ClassLoader classLoader = getClassLoader();
-        scanLoader(classLoader, pkg, classes);
-
-        return classes;
+        return scanClassLoader(classLoader, pkg);
     }
 }

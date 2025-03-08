@@ -1,0 +1,11 @@
+file: "/checked.tpinfo"
+rename_patterns: "_normal="
+animations {
+  id: "animation"
+  images: "sprite"
+  playback: PLAYBACK_LOOP_PINGPONG
+  fps: 15
+  flip_horizontal: 1
+  flip_vertical: 1
+}
+is_paged_atlas: true

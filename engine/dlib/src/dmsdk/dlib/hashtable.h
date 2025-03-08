@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -46,6 +46,9 @@ class dmHashTable
         STATE_USER_ALLOCATED    = 0x1
     };
 
+    static const uint32_t INVALID_INDEX = 0xFFFFFFFF;
+    static const uint32_t MAX_SIZE      = 0xFFFFFFFF;
+
 public:
     struct Entry
     {
@@ -61,7 +64,7 @@ public:
     dmHashTable()
     {
         memset(this, 0, sizeof(*this));
-        m_FreeEntries = 0xffffffff;
+        m_FreeEntries = INVALID_INDEX;
     }
 
     /**
@@ -74,10 +77,10 @@ public:
      */
     dmHashTable(void *user_allocated, uint32_t table_size, uint32_t capacity)
     {
-        assert(table_size < 0xffffffff);
-        assert(capacity < 0xffffffff);
+        assert(table_size < MAX_SIZE);
+        assert(capacity < MAX_SIZE);
         memset(this, 0, sizeof(*this));
-        m_FreeEntries = 0xffffffff;
+        m_FreeEntries = MAX_SIZE;
 
         m_HashTableSize = table_size;
         m_HashTable = (uint32_t*) user_allocated;
@@ -97,7 +100,7 @@ public:
     {
         memset(m_HashTable, 0xff, sizeof(uint32_t) * m_HashTableSize);
         m_InitialEntriesNextFree = m_InitialEntries;
-        m_FreeEntries = 0xffffffff;
+        m_FreeEntries = INVALID_INDEX;
         m_Count = 0;
     }
 
@@ -151,8 +154,8 @@ public:
     void SetCapacity(uint32_t table_size, uint32_t capacity)
     {
         assert(table_size > 0);
-        assert(table_size < 0xffffffff);
-        assert(capacity < 0xffffffff);
+        assert(table_size < MAX_SIZE);
+        assert(capacity < MAX_SIZE);
         assert(capacity >= Capacity());
 
         if (m_InitialEntries == 0)
@@ -180,6 +183,33 @@ public:
             new_ht.m_HashTable = 0;
             new_ht.m_InitialEntries = 0;
         }
+    }
+
+    /**
+     * Set hashtable capacity. New capacity must be greater or equal to current capacity
+     * @name SetCapacity
+     * @param capacity Capacity. capacity < 0xffffffff
+     */
+    void SetCapacity(uint32_t capacity)
+    {
+        uint32_t size = (capacity * 2) / 3;
+        if (size == 0)
+            size = 1;
+        SetCapacity(size, capacity);
+    }
+
+    /*# hashtable offset capacity
+     *
+     * Relative change of capacity
+     * Equivalent to SetCapacity(Capacity() + offset).
+     * Only allowed for auto-allocated hash tables and will result in a new dynamic allocation
+     *
+     * @name OffsetCapacity
+     * @param offset [type:uint32_t] relative amount of elements to change the capacity
+     */
+    void OffsetCapacity(int32_t offset)
+    {
+        SetCapacity(Capacity() + offset);
     }
 
     /**
@@ -238,11 +268,11 @@ public:
             entry = AllocateEntry();
             entry->m_Key = key;
             entry->m_Value = value;
-            entry->m_Next = 0xffffffff;
+            entry->m_Next = INVALID_INDEX;
 
             uint32_t bucket_index = (uint32_t) (key % m_HashTableSize);
             uint32_t entry_ptr = m_HashTable[bucket_index];
-            if (entry_ptr == 0xffffffff)
+            if (entry_ptr == INVALID_INDEX)
             {
                 m_HashTable[bucket_index] = (uint32_t)(uintptr_t)(entry - m_InitialEntries); // Store the index of the entry
             }
@@ -250,12 +280,12 @@ public:
             {
                 // We need to traverse the list of entries for the bucket
                 Entry* prev_entry;
-                while (entry_ptr != 0xffffffff)
+                while (entry_ptr != INVALID_INDEX)
                 {
                     prev_entry = &m_InitialEntries[entry_ptr];
                     entry_ptr = prev_entry->m_Next;
                 }
-                assert(prev_entry->m_Next == 0xffffffff);
+                assert(prev_entry->m_Next == INVALID_INDEX);
 
                 // Link prev entry to this
                 prev_entry->m_Next = (uint32_t)(uintptr_t)(entry - m_InitialEntries);
@@ -334,10 +364,10 @@ public:
         uint32_t entry_ptr = m_HashTable[bucket_index];
 
         // Empty list?
-        assert(entry_ptr != 0xffffffff);
+        assert(entry_ptr != INVALID_INDEX);
 
         Entry* prev_e = 0;
-        while (entry_ptr != 0xffffffff)
+        while (entry_ptr != INVALID_INDEX)
         {
             Entry* e = &m_InitialEntries[entry_ptr];
             if (e->m_Key == key)
@@ -374,17 +404,81 @@ public:
     {
         for (uint32_t i = 0; i < m_HashTableSize; ++i)
         {
-            if (m_HashTable[i] != 0xffffffff)
+            uint32_t entry_ptr = m_HashTable[i];
+            while (entry_ptr != INVALID_INDEX)
             {
-                uint32_t entry_ptr = m_HashTable[i];
-                while (entry_ptr != 0xffffffff)
-                {
-                    Entry*e = &m_InitialEntries[entry_ptr];
-                    call_back(context, &e->m_Key, &e->m_Value);
-                    entry_ptr = e->m_Next;
-                }
+                Entry* e = &m_InitialEntries[entry_ptr];
+                call_back(context, &e->m_Key, &e->m_Value);
+                entry_ptr = e->m_Next;
             }
         }
+    }
+
+    /*#
+     * Iterator to the key/value pairs of a hash table
+     * @struct
+     * @name Iterator
+     * @member GetKey()
+     * @member GetValue()
+     */
+    struct Iterator
+    {
+        // public
+        const KEY&  GetKey()    { return m_EntryPtr->m_Key; }
+        const T&    GetValue()  { return m_EntryPtr->m_Value; }
+
+        Iterator(dmHashTable<KEY, T>& table)
+            : m_Table(table)
+            , m_EntryPtr(0)
+            , m_Entry(INVALID_INDEX)
+            , m_BucketIndex(0)
+        {
+        }
+
+        bool Next() {
+            if (m_EntryPtr)
+                m_Entry = m_EntryPtr->m_Next;
+
+            if (m_Entry == INVALID_INDEX)
+            {
+                for (uint32_t i = m_BucketIndex; i < m_Table.m_HashTableSize; ++i)
+                {
+                    if (m_Table.m_HashTable[i] != INVALID_INDEX)
+                    {
+                        m_Entry = m_Table.m_HashTable[i];
+                        m_BucketIndex = i+1;
+                        break;
+                    }
+                }
+            }
+            m_EntryPtr = m_Entry == INVALID_INDEX ? 0 : &m_Table.m_InitialEntries[m_Entry];
+            return m_EntryPtr != 0;
+        }
+
+        // private
+        dmHashTable<KEY, T>&    m_Table;
+        Entry*                  m_EntryPtr;
+        uint32_t                m_Entry;
+        uint32_t                m_BucketIndex;
+    };
+
+    /*#
+     * Get an iterator for the key/value pairs
+     * @name GetIterator
+     * @return iterator [type: dmHashTable<T>::Iterator] the iterator
+     * @examples
+     * ```cpp
+     * dmHashTable<dmhash_t, int>::Iterator iter = ht.GetIterator();
+     * while(iter.Next())
+     * {
+     *     printf("%s: %d\n", dmHashReverseSafe64(iter.GetKey()), iter.GetValue());
+     * }
+     * ```
+     */
+    Iterator GetIterator()
+    {
+        Iterator iter(*this);
+        return Iterator(*this);
     }
 
     /**
@@ -539,4 +633,3 @@ template <typename T>
 class dmHashTable64 : public dmHashTable<uint64_t, T> {};
 
 #endif // DMSDK_HASHTABLE_H
-

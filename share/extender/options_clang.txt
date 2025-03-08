@@ -426,8 +426,8 @@
 #--param <arg>
 #--param={{arg}}
 
--std=(c89|c99|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17)
-#--std=(c89|c99|c++0x|c++11|c++14|c++17)
+-std=(c89|c99|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17|c\\+\\+20)
+#--std=(c89|c99|c++0x|c++11|c++14|c++17|c++20)
 #--std <arg> # Language standard to compile for
 
 # Preprocessor flags

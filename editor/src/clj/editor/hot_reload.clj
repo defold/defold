@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,12 +15,11 @@
 (ns editor.hot-reload
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
-            [dynamo.graph :as g]
-            [editor.pipeline :as pipeline]
             [editor.workspace :as workspace]
-            [editor.resource :as resource])
-  (:import [java.io FileNotFoundException]
+            [util.http-util :as http-util])
+  (:import [java.io IOException]
            [java.net URI]
+           [java.nio.file Paths Files]
            [org.apache.commons.io FilenameUtils IOUtils]))
 
 (set! *warn-on-reflection* true)
@@ -28,35 +27,45 @@
 (def ^:const url-prefix "/build")
 (def ^:const verify-etags-url-prefix "/__verify_etags__")
 
-(def ^:const not-found {:code 404})
-(def ^:const bad-request {:code 400})
-
 (defn- content->bytes [content]
   (-> content io/input-stream IOUtils/toByteArray))
 
-(defn- handler [workspace project {:keys [url method headers]}]
+(defn- handler [workspace _project {:keys [url method headers]}]
   (let [build-path (FilenameUtils/normalize (str (workspace/build-path workspace)))
         path (subs url (count url-prefix))
         full-path (format "%s%s" build-path path)]
-   ;; Avoid going outside the build path with '..'
-   (if (string/starts-with? full-path build-path)
-     (let [etag (workspace/etag workspace path)
-           remote-etag (first (get headers "If-none-match"))
-           cached? (when remote-etag (= etag remote-etag))
-           content (when (not cached?)
-                     (try
-                       (with-open [is (io/input-stream full-path)]
-                         (IOUtils/toByteArray is))
-                       (catch FileNotFoundException _
-                         :not-found)))]
-       (if (= content :not-found)
-         not-found
-         (let [response-headers (cond-> {"ETag" etag}
-                                  (= method "GET") (assoc "Content-Length" (if content (str (count content)) "-1")))]
-           (cond-> {:code (if cached? 304 200)
-                    :headers response-headers}
-             (and (= method "GET") (not cached?)) (assoc :body content)))))
-     not-found)))
+    ;; Avoid going outside the build path with '..'
+    (if-not (string/starts-with? full-path build-path)
+      http-util/not-found-response
+      (let [etag (workspace/etag workspace path)
+            remote-etag (first (get headers "If-None-Match"))
+            is-cached (when remote-etag (= etag remote-etag))
+            file (io/file full-path)
+            content-length (if is-cached
+                             ;; The engine does not support a cached response
+                             ;; that contains a content-length other than zero.
+                             0
+                             ;; Returns zero if not found.
+                             (.length file))
+            content (when (and (= method "GET") (not is-cached))
+                      (try
+                        (Files/readAllBytes (.toPath file))
+                        (catch IOException _
+                          :not-found)))]
+        (if (= content :not-found)
+          http-util/not-found-response
+          (let [response-headers
+                (cond-> {"ETag" etag}
+
+                        (or (= method "GET")
+                            (= method "HEAD"))
+                        (assoc "Content-Length" (str content-length)))]
+            (cond-> {:code (if is-cached 304 200)
+                     :headers response-headers}
+
+                    (and content
+                         (= method "GET"))
+                    (assoc :body content))))))))
 
 (defn build-handler [workspace project request]
   (handler workspace project request))
@@ -86,11 +95,11 @@
 
 (defn- v-e-handler [workspace project {:keys [url method headers ^bytes body]}]
   (if (not= method "POST")
-    bad-request
+    http-util/bad-request-response
     (let [body-str (string/join "\n" (body->valid-entries workspace body))
           body (.getBytes body-str "UTF-8")]
       {:code 200
-       :headers {"Content-Length" (str (count body))}
+       :headers {"Content-Length" (str (alength ^bytes body))}
        :body body})))
 
 (defn verify-etags-handler [workspace project request]

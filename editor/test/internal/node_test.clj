@@ -1,36 +1,31 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns internal.node-test
-  (:require [clojure.string :as str]
+  (:require [clojure.set :as set]
+            [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [internal.graph.types :as gt]
             [internal.node :as in]
-            [internal.system :as is]
-            [internal.util :as util]
-            [schema.core :as s]
-            [support.test-support :refer [tx-nodes with-clean-system]]
-            [internal.graph.types :as gt])
+            [support.test-support :refer [tx-nodes with-clean-system]])
   (:import clojure.lang.ExceptionInfo))
 
 (def ^:dynamic *calls*)
 
 (defn tally [node fn-symbol]
   (swap! *calls* update-in [(:_node-id node) fn-symbol] (fnil inc 0)))
-
-(defn get-tally [node fn-symbol]
-  (get-in @*calls* [(:_node-id node) fn-symbol] 0))
 
 (g/defnk string-value [] "uff-da")
 
@@ -166,7 +161,7 @@
   (with-clean-system
     (let [[node-id] (tx-nodes (g/make-node world node-type :foo "one"))
           tx-result (g/transact (f node-id))]
-      (let [modified (into #{} (map second (:outputs-modified tx-result)))]
+      (let [modified (into #{} (map gt/endpoint-label) (:outputs-modified tx-result))]
         (is (= properties modified))))))
 
 (deftest invalidating-properties-output
@@ -175,7 +170,7 @@
                    (fn [node-id] (g/set-property    node-id :foo "two")))
   (expect-modified SimpleTestNode
                    #{:_declared-properties :_properties :foo}
-                   (fn [node-id] (g/update-property node-id :foo str/reverse)))
+                   (fn [node-id] (g/update-property node-id :foo string/reverse)))
   (expect-modified SimpleTestNode #{} (fn [node-id] (g/set-property    node-id :foo "one")))
   (expect-modified SimpleTestNode #{} (fn [node-id] (g/update-property node-id :foo identity))))
 
@@ -187,7 +182,9 @@
                                                               target VisibilityTestNode]
                                                        (g/connect source :foo target :bar)))
           tx-result                     (g/set-property! source :foo "hi")
-          properties-modified-on-target (set (keep #(when (= (first %) target) (second %)) (:outputs-modified tx-result)))]
+          properties-modified-on-target (set (keep #(when (= (gt/endpoint-node-id %) target)
+                                                      (gt/endpoint-label %))
+                                                   (:outputs-modified tx-result)))]
       (is (= #{:_declared-properties :baz :_properties} properties-modified-on-target)))))
 
 (deftest visibility-properties
@@ -205,8 +202,8 @@
                                   (g/make-node world EnablementTestNode))]
       (g/transact (g/connect snode :foo enode :bar))
       (let [tx-result     (g/transact (g/set-property snode :foo 1))
-            enode-results (filter #(= (first %) enode) (:outputs-modified tx-result))
-            modified      (into #{} (map second enode-results))]
+            enode-results (filter #(= (gt/endpoint-node-id %) enode) (:outputs-modified tx-result))
+            modified      (into #{} (map gt/endpoint-label) enode-results)]
         (is (= #{:_declared-properties :baz :_properties} modified))))))
 
 (deftest enablement-properties
@@ -322,24 +319,24 @@
   (testing "output dependent on itself"
     (with-clean-system
       (let [[node] (tx-nodes (g/make-node world DependencyNode))]
-        (is (thrown? AssertionError (g/node-value node :out-from-self))))))
+        (is (thrown? ExceptionInfo (g/node-value node :out-from-self))))))
   (testing "output dependent on itself connected to downstream input"
     (with-clean-system
       (let [[node0 node1] (tx-nodes (g/make-node world DependencyNode) (g/make-node world DependencyNode))]
         (g/transact
          (g/connect node0 :out-from-self node1 :in))
-        (is (thrown? AssertionError (g/node-value node1 :out-from-in))))))
+        (is (thrown? ExceptionInfo (g/node-value node1 :out-from-in))))))
   (testing "cycle of period 1"
     (with-clean-system
       (let [[node] (tx-nodes (g/make-node world DependencyNode))]
         (g/transact (g/connect node :out-from-in node :in))
-        (is (thrown? AssertionError (g/node-value node :out-from-in))))))
+        (is (thrown? ExceptionInfo (g/node-value node :out-from-in))))))
   (testing "cycle of period 2 (single transaction)"
     (with-clean-system
       (let [[node0 node1] (tx-nodes (g/make-node world DependencyNode) (g/make-node world DependencyNode))]
         (g/transact [(g/connect node0 :out-from-in node1 :in)
                      (g/connect node1 :out-from-in node0 :in)])
-        (is (thrown? AssertionError (g/node-value node1 :out-from-in)))))))
+        (is (thrown? ExceptionInfo (g/node-value node1 :out-from-in)))))))
 
 (g/defnode BasicNode
   (input basic-input g/Int)
@@ -366,9 +363,9 @@
       (is (:string-property      (-> (g/construct BasicNode)         g/node-type g/declared-properties)))
       (is (:string-property      (-> (g/construct InheritsBasicNode) g/node-type g/declared-properties)))
       (is (:property-to-override (-> (g/construct InheritsBasicNode) g/node-type g/declared-properties)))
-      (is (= nil                 (-> (g/construct BasicNode)         :property-to-override  )))
-      (is (= "override"          (-> (g/construct InheritsBasicNode) :property-to-override   )))
-      (is (= "multiple"          (-> (g/construct InheritsBasicNode) :property-from-multiple )))))
+      (is (= nil                 (-> (g/construct BasicNode)         :property-to-override)))
+      (is (= "override"          (-> (g/construct InheritsBasicNode) :property-to-override)))
+      (is (= "multiple"          (-> (g/construct InheritsBasicNode) :property-from-multiple)))))
 
   (testing "transforms"
     (is (every? (-> (g/construct BasicNode) g/node-type g/output-labels)
@@ -607,3 +604,553 @@
         (reset! production-count 0)
         (is (= (g/node-value consumer :result (g/make-evaluation-context {:no-local-temp false})) ""))
         (is (= @production-count 1))))))
+
+(g/defnode CachedDependencyTestNode
+  (property property g/Any)
+  (input regular-input g/Any)
+  (input array-input g/Any :array)
+
+  ;; Dependent on property.
+  (output uncached-output<=property g/Any (g/fnk [property] property))
+  (output cached-output<=property g/Any :cached (g/fnk [property] property))
+  (output uncached-secondary-output<=uncached-output<=property g/Any (g/fnk [uncached-output<=property] uncached-output<=property))
+  (output cached-secondary-output<=uncached-output<=property g/Any :cached (g/fnk [uncached-output<=property] uncached-output<=property))
+  (output uncached-secondary-output<=cached-output<=property g/Any (g/fnk [cached-output<=property] cached-output<=property))
+  (output cached-secondary-output<=cached-output<=property g/Any :cached (g/fnk [cached-output<=property] cached-output<=property))
+
+  ;; Dependent on regular-input.
+  (output uncached-output<=regular-input g/Any (g/fnk [regular-input] regular-input))
+  (output cached-output<=regular-input g/Any :cached (g/fnk [regular-input] regular-input))
+  (output uncached-secondary-output<=uncached-output<=regular-input g/Any (g/fnk [uncached-output<=regular-input] uncached-output<=regular-input))
+  (output cached-secondary-output<=uncached-output<=regular-input g/Any :cached (g/fnk [uncached-output<=regular-input] uncached-output<=regular-input))
+  (output uncached-secondary-output<=cached-output<=regular-input g/Any (g/fnk [cached-output<=regular-input] cached-output<=regular-input))
+  (output cached-secondary-output<=cached-output<=regular-input g/Any :cached (g/fnk [cached-output<=regular-input] cached-output<=regular-input))
+
+  ;; Dependent on array-input.
+  (output uncached-output<=array-input g/Any (g/fnk [array-input] array-input))
+  (output cached-output<=array-input g/Any :cached (g/fnk [array-input] array-input))
+  (output uncached-secondary-output<=uncached-output<=array-input g/Any (g/fnk [uncached-output<=array-input] uncached-output<=array-input))
+  (output cached-secondary-output<=uncached-output<=array-input g/Any :cached (g/fnk [uncached-output<=array-input] uncached-output<=array-input))
+  (output uncached-secondary-output<=cached-output<=array-input g/Any (g/fnk [cached-output<=array-input] cached-output<=array-input))
+  (output cached-secondary-output<=cached-output<=array-input g/Any :cached (g/fnk [cached-output<=array-input] cached-output<=array-input)))
+
+(deftest dependency-caching
+  (letfn [(cacheable-property-dependent-endpoints [node-id]
+            #{(gt/endpoint node-id :cached-output<=property)
+              (gt/endpoint node-id :cached-secondary-output<=uncached-output<=property)
+              (gt/endpoint node-id :cached-secondary-output<=cached-output<=property)})
+
+          (evaluate-and-check-property-dependents! [node-id expected-value]
+            (is (= expected-value (g/node-value node-id :property)))
+            (is (= expected-value (g/node-value node-id :uncached-output<=property)))
+            (is (= expected-value (g/node-value node-id :cached-output<=property)))
+            (is (= expected-value (g/node-value node-id :uncached-secondary-output<=uncached-output<=property)))
+            (is (= expected-value (g/node-value node-id :cached-secondary-output<=uncached-output<=property)))
+            (is (= expected-value (g/node-value node-id :uncached-secondary-output<=cached-output<=property)))
+            (is (= expected-value (g/node-value node-id :cached-secondary-output<=cached-output<=property))))
+
+          (cacheable-regular-input-dependent-endpoints [node-id]
+            #{(gt/endpoint node-id :cached-output<=regular-input)
+              (gt/endpoint node-id :cached-secondary-output<=uncached-output<=regular-input)
+              (gt/endpoint node-id :cached-secondary-output<=cached-output<=regular-input)})
+
+          (evaluate-and-check-regular-input-dependents! [node-id expected-value]
+            (is (= expected-value (g/node-value node-id :regular-input)))
+            (is (= expected-value (g/node-value node-id :uncached-output<=regular-input)))
+            (is (= expected-value (g/node-value node-id :cached-output<=regular-input)))
+            (is (= expected-value (g/node-value node-id :uncached-secondary-output<=uncached-output<=regular-input)))
+            (is (= expected-value (g/node-value node-id :cached-secondary-output<=uncached-output<=regular-input)))
+            (is (= expected-value (g/node-value node-id :uncached-secondary-output<=cached-output<=regular-input)))
+            (is (= expected-value (g/node-value node-id :cached-secondary-output<=cached-output<=regular-input))))
+
+          (cacheable-array-input-dependent-endpoints [node-id]
+            #{(gt/endpoint node-id :cached-output<=array-input)
+              (gt/endpoint node-id :cached-secondary-output<=uncached-output<=array-input)
+              (gt/endpoint node-id :cached-secondary-output<=cached-output<=array-input)})
+
+          (evaluate-and-check-array-input-dependents! [node-id expected-value]
+            (is (= expected-value (g/node-value node-id :array-input)))
+            (is (= expected-value (g/node-value node-id :uncached-output<=array-input)))
+            (is (= expected-value (g/node-value node-id :cached-output<=array-input)))
+            (is (= expected-value (g/node-value node-id :uncached-secondary-output<=uncached-output<=array-input)))
+            (is (= expected-value (g/node-value node-id :cached-secondary-output<=uncached-output<=array-input)))
+            (is (= expected-value (g/node-value node-id :uncached-secondary-output<=cached-output<=array-input)))
+            (is (= expected-value (g/node-value node-id :cached-secondary-output<=cached-output<=array-input))))]
+
+    (with-clean-system
+      (let [[consumer
+             regular-input-producer
+             array-input-producer-one
+             array-input-producer-two]
+            (tx-nodes (g/make-node world CachedDependencyTestNode)
+                      (g/make-node world CachedDependencyTestNode)
+                      (g/make-node world CachedDependencyTestNode)
+                      (g/make-node world CachedDependencyTestNode))
+
+            [ov-consumer]
+            (tx-nodes (g/override consumer))]
+
+        (is (= #{} (set (keys (g/cache)))))
+
+        (testing "No connections between nodes, property on consumer not set."
+          (evaluate-and-check-property-dependents! consumer nil)
+          (evaluate-and-check-property-dependents! ov-consumer nil)
+          (is (= (set/union
+                   (cacheable-property-dependent-endpoints consumer)
+                   (cacheable-property-dependent-endpoints ov-consumer))
+                 (set (keys (g/cache)))))
+
+          (evaluate-and-check-regular-input-dependents! consumer nil)
+          (evaluate-and-check-regular-input-dependents! ov-consumer nil)
+          (is (= (set/union
+                   (cacheable-property-dependent-endpoints consumer)
+                   (cacheable-property-dependent-endpoints ov-consumer)
+                   (cacheable-regular-input-dependent-endpoints consumer)
+                   (cacheable-regular-input-dependent-endpoints ov-consumer))
+                 (set (keys (g/cache)))))
+
+          (evaluate-and-check-array-input-dependents! consumer [])
+          (evaluate-and-check-array-input-dependents! ov-consumer [])
+          (is (= (set/union
+                   (cacheable-property-dependent-endpoints consumer)
+                   (cacheable-property-dependent-endpoints ov-consumer)
+                   (cacheable-regular-input-dependent-endpoints consumer)
+                   (cacheable-regular-input-dependent-endpoints ov-consumer)
+                   (cacheable-array-input-dependent-endpoints consumer)
+                   (cacheable-array-input-dependent-endpoints ov-consumer))
+                 (set (keys (g/cache))))))
+
+        ;; Set property on consumer.
+        (g/transact
+          (g/set-property consumer :property "first change to consumer"))
+
+        (testing "Setting consumer property invalidates cached dependents."
+          (is (= (set/union
+                   (cacheable-regular-input-dependent-endpoints consumer)
+                   (cacheable-regular-input-dependent-endpoints ov-consumer)
+                   (cacheable-array-input-dependent-endpoints consumer)
+                   (cacheable-array-input-dependent-endpoints ov-consumer))
+                 (set (keys (g/cache))))))
+
+        (testing "Outputs dependent on consumer property reflect new state."
+          (evaluate-and-check-property-dependents! consumer "first change to consumer")
+          (evaluate-and-check-property-dependents! ov-consumer "first change to consumer"))
+
+        (testing "Outputs dependent on consumer property enter the cache after evaluation."
+          (is (= (set/union
+                   (cacheable-property-dependent-endpoints consumer)
+                   (cacheable-property-dependent-endpoints ov-consumer)
+                   (cacheable-regular-input-dependent-endpoints consumer)
+                   (cacheable-regular-input-dependent-endpoints ov-consumer)
+                   (cacheable-array-input-dependent-endpoints consumer)
+                   (cacheable-array-input-dependent-endpoints ov-consumer))
+                 (set (keys (g/cache))))))
+
+        ;; Set property on consumer a second time.
+        (g/transact
+          (g/set-property consumer :property "second change to consumer"))
+
+        (testing "Outputs dependent on consumer property reflect new state."
+          (evaluate-and-check-property-dependents! consumer "second change to consumer")
+          (evaluate-and-check-property-dependents! ov-consumer "second change to consumer"))
+
+        ;; Connect regular-input-producer to regular-input on consumer.
+        (g/transact
+          (g/connect regular-input-producer :uncached-output<=property consumer :regular-input))
+
+        (testing "Connecting to regular-input on consumer invalidates cached dependents."
+          (is (= (set/union
+                   (cacheable-property-dependent-endpoints consumer)
+                   (cacheable-property-dependent-endpoints ov-consumer)
+                   (cacheable-array-input-dependent-endpoints consumer)
+                   (cacheable-array-input-dependent-endpoints ov-consumer))
+                 (set (keys (g/cache))))))
+
+        (testing "Connected to regular-input, property on regular-input-producer not set."
+          (evaluate-and-check-regular-input-dependents! consumer nil)
+          (evaluate-and-check-regular-input-dependents! ov-consumer nil)
+          (is (= (set/union
+                   (cacheable-property-dependent-endpoints consumer)
+                   (cacheable-property-dependent-endpoints ov-consumer)
+                   (cacheable-regular-input-dependent-endpoints consumer)
+                   (cacheable-regular-input-dependent-endpoints ov-consumer)
+                   (cacheable-array-input-dependent-endpoints consumer)
+                   (cacheable-array-input-dependent-endpoints ov-consumer))
+                 (set (keys (g/cache))))))
+
+        ;; Set property on regular-input-producer.
+        (g/transact
+          (g/set-property regular-input-producer :property "first change to regular-input-producer"))
+
+        (testing "Setting regular-input-producer property invalidates cached dependents."
+          (is (= (set/union
+                   (cacheable-property-dependent-endpoints consumer)
+                   (cacheable-property-dependent-endpoints ov-consumer)
+                   (cacheable-array-input-dependent-endpoints consumer)
+                   (cacheable-array-input-dependent-endpoints ov-consumer))
+                 (set (keys (g/cache))))))
+
+        (testing "Outputs dependent on regular-input-producer property reflect new state."
+          (evaluate-and-check-regular-input-dependents! consumer "first change to regular-input-producer")
+          (evaluate-and-check-regular-input-dependents! ov-consumer "first change to regular-input-producer"))
+
+        (testing "Outputs dependent on regular-input-producer property enter the cache after evaluation."
+          (is (= (set/union
+                   (cacheable-property-dependent-endpoints consumer)
+                   (cacheable-property-dependent-endpoints ov-consumer)
+                   (cacheable-regular-input-dependent-endpoints consumer)
+                   (cacheable-regular-input-dependent-endpoints ov-consumer)
+                   (cacheable-array-input-dependent-endpoints consumer)
+                   (cacheable-array-input-dependent-endpoints ov-consumer))
+                 (set (keys (g/cache))))))
+
+        ;; Set property on regular-input-producer a second time.
+        (g/transact
+          (g/set-property regular-input-producer :property "second change to regular-input-producer"))
+
+        (testing "Outputs dependent on consumer property reflect new state."
+          (evaluate-and-check-regular-input-dependents! consumer "second change to regular-input-producer")
+          (evaluate-and-check-regular-input-dependents! ov-consumer "second change to regular-input-producer"))
+
+        ;; Connect array-input-producer-one to array-input on consumer.
+        (g/transact
+          (g/connect array-input-producer-one :uncached-output<=property consumer :array-input))
+
+        (testing "Connecting to array-input on consumer invalidates cached dependents."
+          (is (= (set/union
+                   (cacheable-property-dependent-endpoints consumer)
+                   (cacheable-property-dependent-endpoints ov-consumer)
+                   (cacheable-regular-input-dependent-endpoints consumer)
+                   (cacheable-regular-input-dependent-endpoints ov-consumer))
+                 (set (keys (g/cache))))))
+
+        (testing "Connected to array-input, property on array-input-producer-one not set."
+          (evaluate-and-check-array-input-dependents! consumer [nil])
+          (evaluate-and-check-array-input-dependents! ov-consumer [nil])
+          (is (= (set/union
+                   (cacheable-property-dependent-endpoints consumer)
+                   (cacheable-property-dependent-endpoints ov-consumer)
+                   (cacheable-regular-input-dependent-endpoints consumer)
+                   (cacheable-regular-input-dependent-endpoints ov-consumer)
+                   (cacheable-array-input-dependent-endpoints consumer)
+                   (cacheable-array-input-dependent-endpoints ov-consumer))
+                 (set (keys (g/cache))))))
+
+        ;; Set property on array-input-producer-one.
+        (g/transact
+          (g/set-property array-input-producer-one :property "first change to array-input-producer-one"))
+
+        (testing "Setting array-input-producer-one property invalidates cached dependents."
+          (is (= (set/union
+                   (cacheable-property-dependent-endpoints consumer)
+                   (cacheable-property-dependent-endpoints ov-consumer)
+                   (cacheable-regular-input-dependent-endpoints consumer)
+                   (cacheable-regular-input-dependent-endpoints ov-consumer))
+                 (set (keys (g/cache))))))
+
+        (testing "Outputs dependent on array-input-producer-one property reflect new state."
+          (evaluate-and-check-array-input-dependents! consumer ["first change to array-input-producer-one"])
+          (evaluate-and-check-array-input-dependents! ov-consumer ["first change to array-input-producer-one"]))
+
+        (testing "Outputs dependent on array-input-producer-one property enter the cache after evaluation."
+          (is (= (set/union
+                   (cacheable-property-dependent-endpoints consumer)
+                   (cacheable-property-dependent-endpoints ov-consumer)
+                   (cacheable-regular-input-dependent-endpoints consumer)
+                   (cacheable-regular-input-dependent-endpoints ov-consumer)
+                   (cacheable-array-input-dependent-endpoints consumer)
+                   (cacheable-array-input-dependent-endpoints ov-consumer))
+                 (set (keys (g/cache))))))
+
+        ;; Set property on array-input-producer-one a second time.
+        (g/transact
+          (g/set-property array-input-producer-one :property "second change to array-input-producer-one"))
+
+        (testing "Outputs dependent on consumer property reflect new state."
+          (evaluate-and-check-array-input-dependents! consumer ["second change to array-input-producer-one"])
+          (evaluate-and-check-array-input-dependents! ov-consumer ["second change to array-input-producer-one"]))
+
+        ;; Connect array-input-producer-two to array-input on consumer.
+        (g/transact
+          (g/connect array-input-producer-two :uncached-output<=property consumer :array-input))
+
+        (testing "Connecting to array-input on consumer invalidates cached dependents."
+          (is (= (set/union
+                   (cacheable-property-dependent-endpoints consumer)
+                   (cacheable-property-dependent-endpoints ov-consumer)
+                   (cacheable-regular-input-dependent-endpoints consumer)
+                   (cacheable-regular-input-dependent-endpoints ov-consumer))
+                 (set (keys (g/cache))))))
+
+        (testing "Connected to array-input, property on array-input-producer-two not set."
+          (evaluate-and-check-array-input-dependents! consumer ["second change to array-input-producer-one" nil])
+          (evaluate-and-check-array-input-dependents! ov-consumer ["second change to array-input-producer-one" nil])
+          (is (= (set/union
+                   (cacheable-property-dependent-endpoints consumer)
+                   (cacheable-property-dependent-endpoints ov-consumer)
+                   (cacheable-regular-input-dependent-endpoints consumer)
+                   (cacheable-regular-input-dependent-endpoints ov-consumer)
+                   (cacheable-array-input-dependent-endpoints consumer)
+                   (cacheable-array-input-dependent-endpoints ov-consumer))
+                 (set (keys (g/cache))))))
+
+        ;; Set property on array-input-producer-two.
+        (g/transact
+          (g/set-property array-input-producer-two :property "first change to array-input-producer-two"))
+
+        (testing "Setting array-input-producer-two property invalidates cached dependents."
+          (is (= (set/union
+                   (cacheable-property-dependent-endpoints consumer)
+                   (cacheable-property-dependent-endpoints ov-consumer)
+                   (cacheable-regular-input-dependent-endpoints consumer)
+                   (cacheable-regular-input-dependent-endpoints ov-consumer))
+                 (set (keys (g/cache))))))
+
+        (testing "Outputs dependent on array-input-producer-two property reflect new state."
+          (evaluate-and-check-array-input-dependents! consumer ["second change to array-input-producer-one" "first change to array-input-producer-two"])
+          (evaluate-and-check-array-input-dependents! ov-consumer ["second change to array-input-producer-one" "first change to array-input-producer-two"]))
+
+        (testing "Outputs dependent on array-input-producer-two property enter the cache after evaluation."
+          (is (= (set/union
+                   (cacheable-property-dependent-endpoints consumer)
+                   (cacheable-property-dependent-endpoints ov-consumer)
+                   (cacheable-regular-input-dependent-endpoints consumer)
+                   (cacheable-regular-input-dependent-endpoints ov-consumer)
+                   (cacheable-array-input-dependent-endpoints consumer)
+                   (cacheable-array-input-dependent-endpoints ov-consumer))
+                 (set (keys (g/cache))))))
+
+        ;; Set property on array-input-producer-two a second time.
+        (g/transact
+          (g/set-property array-input-producer-two :property "second change to array-input-producer-two"))
+
+        (testing "Outputs dependent on consumer property reflect new state."
+          (evaluate-and-check-array-input-dependents! consumer ["second change to array-input-producer-one" "second change to array-input-producer-two"])
+          (evaluate-and-check-array-input-dependents! ov-consumer ["second change to array-input-producer-one" "second change to array-input-producer-two"]))
+
+        ;; Disconnect array-input-producer-one from array-input on consumer.
+        (g/transact
+          (g/disconnect array-input-producer-one :uncached-output<=property consumer :array-input))
+
+        (testing "Disconnecting from array-input on consumer invalidates cached dependents."
+          (is (= (set/union
+                   (cacheable-property-dependent-endpoints consumer)
+                   (cacheable-property-dependent-endpoints ov-consumer)
+                   (cacheable-regular-input-dependent-endpoints consumer)
+                   (cacheable-regular-input-dependent-endpoints ov-consumer))
+                 (set (keys (g/cache))))))
+
+        (testing "Only array-input-producer-two connected to array-input."
+          (evaluate-and-check-array-input-dependents! consumer ["second change to array-input-producer-two"])
+          (evaluate-and-check-array-input-dependents! ov-consumer ["second change to array-input-producer-two"])
+          (is (= (set/union
+                   (cacheable-property-dependent-endpoints consumer)
+                   (cacheable-property-dependent-endpoints ov-consumer)
+                   (cacheable-regular-input-dependent-endpoints consumer)
+                   (cacheable-regular-input-dependent-endpoints ov-consumer)
+                   (cacheable-array-input-dependent-endpoints consumer)
+                   (cacheable-array-input-dependent-endpoints ov-consumer))
+                 (set (keys (g/cache))))))))))
+
+(g/defnode OverrideSuccessorsTestNode
+  (property property g/Any)
+  (input owning-input g/Any :cascade-delete :array)
+  (input external-input g/Any)
+
+  ;; Dependent on property.
+  (output output<=property g/Any (g/fnk [property] property))
+  (output secondary-output<=output<=property g/Any (g/fnk [output<=property] output<=property))
+
+  ;; Dependent on external-input.
+  (output output<=external-input g/Any (g/fnk [external-input] external-input))
+  (output secondary-output<=output<=external-input g/Any (g/fnk [output<=external-input] output<=external-input)))
+
+(defn- successor-output-endpoints
+  ([node-id output-label]
+   (successor-output-endpoints (g/now) node-id output-label))
+  ([basis node-id output-label]
+   (assert (g/has-output? (g/node-type* basis node-id) output-label) "Only outputs have successors.")
+   (let [graph-id (g/node-id->graph-id node-id)]
+     (into (sorted-set)
+           (get-in basis [:graphs graph-id :successors node-id output-label])))))
+
+(defn- dependent-internal-output-endpoints
+  ([node-id label]
+   (dependent-internal-output-endpoints (g/now) node-id label))
+  ([basis node-id label]
+   (let [node-type (g/node-type* basis node-id)
+         label->dependent-internal-output-labels (in/input-dependencies node-type)]
+     (into (sorted-set)
+           (map #(g/endpoint node-id %))
+           (label->dependent-internal-output-labels label)))))
+
+(defn- dependent-immediate-override-output-endpoints
+  ([node-id label]
+   (dependent-immediate-override-output-endpoints (g/now) node-id label))
+  ([basis node-id label]
+   (into (sorted-set)
+         (map #(gt/endpoint % label))
+         (g/overrides basis node-id))))
+
+(deftest override-successors
+  ;; This test recreates a scenario discovered when working on the gui system.
+  ;; We discovered an issue where the successors stored in the graph would not
+  ;; correct after adding a gui node to a scene imported as a template from
+  ;; another scene.
+  (with-clean-system
+    (let [[referenced-scene
+           referenced-scene-node-tree
+           referenced-scene-text
+           referenced-scene-added-text
+           referencing-scene
+           referencing-scene-node-tree
+           referencing-scene-button
+           referencing-scene-referenced-scene
+           referencing-scene-referenced-scene-node-tree
+           referencing-scene-referenced-scene-text]
+          (g/tx-nodes-added
+            (g/transact
+              (g/make-nodes
+                world [referenced-scene [OverrideSuccessorsTestNode :property "referenced-scene"]
+                       referenced-scene-node-tree [OverrideSuccessorsTestNode :property "referenced-scene-node-tree"]
+                       referenced-scene-text [OverrideSuccessorsTestNode :property "referenced-scene-text"]
+                       referenced-scene-added-text [OverrideSuccessorsTestNode :property "referenced-scene-added-text"]
+                       referencing-scene [OverrideSuccessorsTestNode :property "referencing-scene"]
+                       referencing-scene-node-tree [OverrideSuccessorsTestNode :property "referencing-scene-node-tree"]
+                       referencing-scene-button [OverrideSuccessorsTestNode :property "referencing-scene-button"]]
+                (g/connect referenced-scene-text :_node-id referenced-scene-node-tree :owning-input)
+                (g/connect referenced-scene-node-tree :_node-id referenced-scene :owning-input)
+                (g/connect referenced-scene :output<=property referenced-scene-node-tree :external-input)
+                (g/connect referenced-scene-node-tree :output<=external-input referenced-scene-text :external-input)
+                (g/connect referencing-scene-button :_node-id referencing-scene-node-tree :owning-input)
+                (g/connect referencing-scene-node-tree :_node-id referencing-scene :owning-input)
+                (g/connect referencing-scene :output<=property referencing-scene-node-tree :external-input)
+                (g/connect referencing-scene-node-tree :output<=external-input referencing-scene-button :external-input)
+                (g/override referenced-scene {}
+                  (fn [_evaluation-context id-mapping]
+                    (let [referencing-scene-referenced-scene (get id-mapping referenced-scene)
+                          referencing-scene-referenced-scene-node-tree (get id-mapping referenced-scene-node-tree)
+                          referencing-scene-referenced-scene-text (get id-mapping referenced-scene-text)]
+                      (concat
+                        (g/set-property referencing-scene-referenced-scene :property "referencing-scene-referenced-scene")
+                        (g/set-property referencing-scene-referenced-scene-node-tree :property "referencing-scene-referenced-scene-node-tree")
+                        (g/set-property referencing-scene-referenced-scene-text :property "referencing-scene-referenced-scene-text")
+                        (g/connect referencing-scene-referenced-scene :_node-id referencing-scene-button :owning-input)
+                        (g/connect referencing-scene-button :output<=external-input referencing-scene-referenced-scene :external-input))))))))]
+
+      ;; Connect referenced-scene-added-text to referenced-scene-node-tree after the override has been established.
+      (g/transact
+        (concat
+          (g/connect referenced-scene-added-text :_node-id referenced-scene-node-tree :owning-input)
+          (g/connect referenced-scene-node-tree :output<=external-input referenced-scene-added-text :external-input)))
+
+      (let [referencing-scene-referenced-scene-added-text (first (g/overrides referenced-scene-added-text))
+
+            node-id->symbol
+            {referenced-scene 'referenced-scene
+             referenced-scene-node-tree 'referenced-scene-node-tree
+             referenced-scene-text 'referenced-scene-text
+             referenced-scene-added-text 'referenced-scene-added-text
+             referencing-scene 'referencing-scene
+             referencing-scene-node-tree 'referencing-scene-node-tree
+             referencing-scene-button 'referencing-scene-button
+             referencing-scene-referenced-scene 'referencing-scene-referenced-scene
+             referencing-scene-referenced-scene-node-tree 'referencing-scene-referenced-scene-node-tree
+             referencing-scene-referenced-scene-text 'referencing-scene-referenced-scene-text
+             referencing-scene-referenced-scene-added-text 'referencing-scene-referenced-scene-added-text}
+
+            endpoint->symbol+label
+            (fn endpoint->symbol+label [endpoint]
+              (let [node-id (g/endpoint-node-id endpoint)
+                    label (g/endpoint-label endpoint)
+                    symbol (node-id->symbol node-id)]
+                (assert (symbol? symbol) "Supplied node-id not found in node-id->symbol map.")
+                [symbol label]))
+
+            endpoints->symbol+labels
+            (fn endpoints->symbol+labels [endpoints]
+              (into (sorted-set)
+                    (map endpoint->symbol+label)
+                    endpoints))
+
+            dependent-immediate-override-outputs (comp endpoints->symbol+labels dependent-immediate-override-output-endpoints)
+            dependent-internal-outputs (comp endpoints->symbol+labels dependent-internal-output-endpoints)
+            successor-outputs (comp endpoints->symbol+labels successor-output-endpoints)]
+
+        (testing "Created nodes are returned in expected order."
+          (is (= "referenced-scene" (g/node-value referenced-scene :property)))
+          (is (= "referenced-scene-node-tree" (g/node-value referenced-scene-node-tree :property)))
+          (is (= "referenced-scene-text" (g/node-value referenced-scene-text :property)))
+          (is (= "referenced-scene-added-text" (g/node-value referenced-scene-added-text :property)))
+          (is (= "referencing-scene" (g/node-value referencing-scene :property)))
+          (is (= "referencing-scene-node-tree" (g/node-value referencing-scene-node-tree :property)))
+          (is (= "referencing-scene-button" (g/node-value referencing-scene-button :property)))
+          (is (= "referencing-scene-referenced-scene" (g/node-value referencing-scene-referenced-scene :property)))
+          (is (= "referencing-scene-referenced-scene-node-tree" (g/node-value referencing-scene-referenced-scene-node-tree :property)))
+          (is (= "referencing-scene-referenced-scene-text" (g/node-value referencing-scene-referenced-scene-text :property))))
+
+        (testing "Successors in referenced scene."
+          (is (= (set/union
+                   (dependent-immediate-override-outputs referenced-scene :property)
+                   (dependent-internal-outputs referenced-scene :property))
+                 (successor-outputs referenced-scene :property)))
+
+          (is (= (set/union
+                   (dependent-immediate-override-outputs referenced-scene :output<=property)
+                   (dependent-internal-outputs referenced-scene :output<=property)
+                   (dependent-internal-outputs referenced-scene-node-tree :external-input))
+                 (successor-outputs referenced-scene :output<=property)))
+
+          (is (= (set/union
+                   (dependent-immediate-override-outputs referenced-scene-node-tree :output<=external-input)
+                   (dependent-internal-outputs referenced-scene-node-tree :output<=external-input)
+                   (dependent-internal-outputs referenced-scene-text :external-input)
+                   (dependent-internal-outputs referenced-scene-added-text :external-input))
+                 (successor-outputs referenced-scene-node-tree :output<=external-input)))
+
+          (is (= (set/union
+                   (dependent-immediate-override-outputs referenced-scene-text :output<=external-input)
+                   (dependent-internal-outputs referenced-scene-text :output<=external-input))
+                 (successor-outputs referenced-scene-text :output<=external-input)))
+
+          (is (= (set/union
+                   (dependent-immediate-override-outputs referenced-scene-added-text :output<=external-input)
+                   (dependent-internal-outputs referenced-scene-added-text :output<=external-input))
+                 (successor-outputs referenced-scene-added-text :output<=external-input))))
+
+        (testing "Successors in referencing scene."
+          (is (= (dependent-internal-outputs referencing-scene :property)
+                 (successor-outputs referencing-scene :property)))
+
+          (is (= (dependent-internal-outputs referencing-scene :output<=external-input)
+                 (successor-outputs referencing-scene :output<=external-input)))
+
+          (is (= (dependent-internal-outputs referencing-scene :output<=external-input)
+                 (successor-outputs referencing-scene :output<=external-input)))
+
+          (is (= (set/union
+                   (dependent-internal-outputs referencing-scene-node-tree :output<=external-input)
+                   (dependent-internal-outputs referencing-scene-button :external-input))
+                 (successor-outputs referencing-scene-node-tree :output<=external-input)))
+
+          (is (= (set/union
+                   (dependent-internal-outputs referencing-scene-button :output<=external-input)
+                   (dependent-internal-outputs referencing-scene-referenced-scene :external-input))
+                 (successor-outputs referencing-scene-button :output<=external-input)))
+
+          (is (= (set/union
+                   (dependent-internal-outputs referencing-scene-referenced-scene :output<=property)
+                   (dependent-internal-outputs referencing-scene-referenced-scene-node-tree :external-input))
+                 (successor-outputs referencing-scene-referenced-scene :output<=property)))
+
+          (is (= (set/union
+                   (dependent-internal-outputs referencing-scene-referenced-scene-node-tree :output<=external-input)
+                   (dependent-internal-outputs referencing-scene-referenced-scene-text :external-input)
+                   (dependent-internal-outputs referencing-scene-referenced-scene-added-text :external-input))
+                 (successor-outputs referencing-scene-referenced-scene-node-tree :output<=external-input)))
+
+          (is (= (dependent-internal-outputs referencing-scene-referenced-scene-text :output<=external-input)
+                 (successor-outputs referencing-scene-referenced-scene-text :output<=external-input)))
+
+          (is (= (dependent-internal-outputs referencing-scene-referenced-scene-added-text :output<=external-input)
+                 (successor-outputs referencing-scene-referenced-scene-added-text :output<=external-input))))))))

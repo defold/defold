@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -22,6 +22,7 @@
 
 #define DDF_OFFSET_OF(T, F) (((uintptr_t) (&((T*) 16)->F)) - 16)
 #define DDF_MAX_FIELDS (128)
+#define DDF_NO_ONE_OF_INDEX 0
 
 namespace dmDDF
 {
@@ -51,6 +52,8 @@ namespace dmDDF
         Descriptor* m_MessageDescriptor;
         uint32_t    m_Offset;
         const char* m_DefaultValue;
+        uint8_t     m_OneOfIndex : 7;
+        uint8_t     m_OneOfSet   : 1;
     };
 
     struct Descriptor
@@ -172,6 +175,12 @@ namespace dmDDF
      * @return RESULT_OK on success
      */
     Result SaveMessageSize(const void* message, const Descriptor* desc, uint32_t* size);
+
+    /**
+     * Deep copy message
+     * Use dmDDF::FreeMessage to free the message
+     */
+    Result CopyMessage(const void* message, const dmDDF::Descriptor* desc, void** out);
 
     /**
      * Get enum value for name. NOTE: Using this function for undefined names is considered as a fatal run-time error.

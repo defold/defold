@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2025 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,9 +15,9 @@
 
 
 
-# Download and install Visual Studio 2019
+# Download and install Visual Studio
 # 	https://visualstudio.microsoft.com/downloads/
-# Download Windows SDK 8 and 10
+# Download Windows SDK 10
 #  	https://developer.microsoft.com/en-us/windows/downloads/sdk-archive
 
 # Run from msys
@@ -25,16 +25,28 @@
 
 set -e
 
-SDK_10_VERSION="10.0.18362.0"
-MSVC_VERSION="14.25.28610"
+VSWHERE=./scripts/windows/vswhere2/vswhere2.exe
 
-VC_PATH="/c/Program Files (x86)/Microsoft Visual Studio/2019/Community"
+# E.g. 14.36.32532
+MSVC_VERSION="$(${VSWHERE} | grep -e vs_version | cut -d' ' -f2-)"
+# E.g. 10.0.19041.0
+SDK_VERSION="$(${VSWHERE} | grep -e sdk_version | cut -d' ' -f2-)"
+# E.g. C:\Program Files (x86)\Windows Kits\10\
+SDK_ROOT="$(${VSWHERE} | grep -e sdk_root | cut -d' ' -f2-)"
+SDK_PATH="$(dirname "${SDK_ROOT}")"
+# E.g. C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.36.32532
+VS_ROOT="$(${VSWHERE} | grep -e vs_root | cut -d' ' -f2-)"
+YEAR="$(echo ${VS_ROOT} | cut -d "\\" -f4- | cut -d "\\" -f1)"
 
-SDK_PATH="C:\Program Files (x86)\Windows Kits"
+echo "Found MSVC_VERSION=${MSVC_VERSION}"
+echo "Found VS_ROOT=${VS_ROOT}"
+echo "Found YEAR=${YEAR}"
+echo "Found SDK_VERSION=${SDK_VERSION}"
+echo "Found SDK_ROOT=${SDK_ROOT}"
 
-PACKAGES_WIN32_TOOLCHAIN="Microsoft-Visual-Studio-2019-${MSVC_VERSION}.tar.gz"
-PACKAGES_WIN32_SDK_8="WindowsKits-8.1.tar.gz"
-PACKAGES_WIN32_SDK_10="WindowsKits-${SDK_10_VERSION}.tar.gz"
+
+PACKAGES_WIN32_TOOLCHAIN="Microsoft-Visual-Studio-${YEAR}-${MSVC_VERSION}.tar.gz"
+PACKAGES_WIN32_SDK_10="WindowsKits-${SDK_VERSION}.tar.gz"
 
 
 TARGET_PATH=$(pwd)/local_sdks
@@ -43,37 +55,32 @@ if [ ! -d "${TMP_PATH}" ]; then
 	mkdir -p ${TMP_PATH}
 fi
 
-# if [ ! -e "${TARGET_PATH}/${PACKAGES_WIN32_SDK_8}" ]; then
-# 	echo "Packing to ${PACKAGES_WIN32_SDK_8}"
-# 	GZIP=-9 tar czf ${TARGET_PATH}/${PACKAGES_WIN32_SDK_8} -C "${SDK_PATH}" 8.1/Include 8.1/Lib 8.1/sdk_license.rtf 8.1/sdk_third_party_notices.rtf
-# else
-# 	echo "Package ${TARGET_PATH}/${PACKAGES_WIN32_SDK_8} already existed"
-# fi
 
 if [ ! -e "${TARGET_PATH}/${PACKAGES_WIN32_SDK_10}" ]; then
 	echo "Packing to ${PACKAGES_WIN32_SDK_10}"
-	GZIP=-9 tar czf ${TARGET_PATH}/${PACKAGES_WIN32_SDK_10} -C "${SDK_PATH}" 10/Include/${SDK_10_VERSION} 10/Lib/${SDK_10_VERSION}/um/x86 10/Lib/${SDK_10_VERSION}/um/x64 10/Lib/${SDK_10_VERSION}/ucrt/x86 10/Lib/${SDK_10_VERSION}/ucrt/x64 10/Licenses 10/bin/${SDK_10_VERSION}/x64 10/bin/${SDK_10_VERSION}/x86
+	GZIP=-9 tar czf ${TARGET_PATH}/${PACKAGES_WIN32_SDK_10} -C "${SDK_PATH}" 10/Include/${SDK_VERSION} 10/Lib/${SDK_VERSION}/um/x86 10/Lib/${SDK_VERSION}/um/x64 10/Lib/${SDK_VERSION}/ucrt/x86 10/Lib/${SDK_VERSION}/ucrt/x64 10/Licenses 10/bin/${SDK_VERSION}/x64 10/bin/${SDK_VERSION}/x86
 else
 	echo "Package ${TARGET_PATH}/${PACKAGES_WIN32_SDK_10} already existed"
 fi
 
 if [ ! -e "${TARGET_PATH}/${PACKAGES_WIN32_TOOLCHAIN}" ]; then
 	echo "Packing to ${PACKAGES_WIN32_TOOLCHAIN}"
-	TMP=${TMP_PATH}/MicrosoftVisualStudio2019
+	TMP=${TMP_PATH}/MicrosoftVisualStudio${YEAR}
+	TMP_VS_ROOT=${TMP}/VC/Tools/MSVC/${MSVC_VERSION}
 
-	mkdir -p $TMP/VC/Tools/MSVC/$MSVC_VERSION/bin/Hostx64
-	mkdir -p $TMP/VC/Tools/MSVC/$MSVC_VERSION/bin/Hostx86
-	mkdir -p $TMP/VC/Tools/MSVC/$MSVC_VERSION/include
-	mkdir -p $TMP/VC/Tools/MSVC/$MSVC_VERSION/lib/x64
-	mkdir -p $TMP/VC/Tools/MSVC/$MSVC_VERSION/lib/x86
-	mkdir -p $TMP/VC/Tools/MSVC/$MSVC_VERSION/atlmfc
+	mkdir -p ${TMP_VS_ROOT}/bin/Hostx64
+	mkdir -p ${TMP_VS_ROOT}/bin/Hostx86
+	mkdir -p ${TMP_VS_ROOT}/include
+	mkdir -p ${TMP_VS_ROOT}/lib/x64
+	mkdir -p ${TMP_VS_ROOT}/lib/x86
+	mkdir -p ${TMP_VS_ROOT}/atlmfc
 
-	cp -r -v "$VC_PATH/VC/Tools/MSVC/$MSVC_VERSION/bin/Hostx64/x64" "$TMP/VC/Tools/MSVC/$MSVC_VERSION/bin/Hostx64"
-	cp -r -v "$VC_PATH/VC/Tools/MSVC/$MSVC_VERSION/bin/Hostx64/x86" "$TMP/VC/Tools/MSVC/$MSVC_VERSION/bin/Hostx86"
-	cp -r -v "$VC_PATH/VC/Tools/MSVC/$MSVC_VERSION/include" "$TMP/VC/Tools/MSVC/$MSVC_VERSION"
-	cp -r -v "$VC_PATH/VC/Tools/MSVC/$MSVC_VERSION/lib/x64" "$TMP/VC/Tools/MSVC/$MSVC_VERSION/lib"
-	cp -r -v "$VC_PATH/VC/Tools/MSVC/$MSVC_VERSION/lib/x86" "$TMP/VC/Tools/MSVC/$MSVC_VERSION/lib"
-	cp -r -v "$VC_PATH/VC/Tools/MSVC/$MSVC_VERSION/atlmfc"  "$TMP/VC/Tools/MSVC/$MSVC_VERSION"
+	cp -r -v "${VS_ROOT}/bin/Hostx64/x64" "${TMP_VS_ROOT}/bin/Hostx64"
+	cp -r -v "${VS_ROOT}/bin/Hostx64/x86" "${TMP_VS_ROOT}/bin/Hostx86"
+	cp -r -v "${VS_ROOT}/include" "${TMP_VS_ROOT}"
+	cp -r -v "${VS_ROOT}/lib/x64" "${TMP_VS_ROOT}/lib"
+	cp -r -v "${VS_ROOT}/lib/x86" "${TMP_VS_ROOT}/lib"
+	cp -r -v "${VS_ROOT}/atlmfc"  "${TMP_VS_ROOT}"
 
 	GZIP=-9 tar czf ${TARGET_PATH}/${PACKAGES_WIN32_TOOLCHAIN} -C "$TMP" VC
 else

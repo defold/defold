@@ -1,30 +1,34 @@
 #!/usr/bin/env python
 
-def init():
+from waf_dynamo import apidoc_extract_task
+
+def init(ctx):
     pass
 
-def set_options(opt):
+def options(opt):
     pass
 
 def configure(conf):
     pass
 
 def build(bld):
-    liveupdate = bld.new_task_gen(features = 'cxx cstaticlib',
-                                  includes = '.',
-                                  target = 'liveupdate')
+    liveupdate = bld.stlib(features = 'cxx',
+                           includes = '.',
+                           source   = bld.path.ant_glob('*.cpp'),
+                           target   = 'liveupdate')
 
-    liveupdate.find_sources_in_dirs('.')
-    liveupdate.source = [x for x in liveupdate.source if not 'null' in x]
+    liveupdate.source = [x for x in liveupdate.source if not 'null' in x.name]
 
-    liveupdate_null = bld.new_task_gen(features = 'cxx cstaticlib',
-                                  includes = '.',
-                                  source = 'liveupdate_null.cpp',
-                                  target = 'liveupdate_null')
+    liveupdate_null = bld.stlib(features     = 'cxx',
+                                includes     = '.',
+                                source       = 'liveupdate_null.cpp',
+                                target       = 'liveupdate_null')
 
-    bld.add_subdirs('test')
+    bld.recurse('test')
+
+    apidoc_extract_task(bld, ['script_liveupdate.h'])
 
     bld.install_files('${PREFIX}/include/liveupdate', 'liveupdate.h')
 
-def shutdown():
+def shutdown(self):
     pass

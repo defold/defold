@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PublishAot>true</PublishAot>
+    <!-- Workaround for restoring iOS runtime packs for NativeAOT -->
+    <PublishAotUsingRuntimePack>true</PublishAotUsingRuntimePack>
+    <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
+    <HybridGlobalization>true</HybridGlobalization>
+    <TargetName>$(MSBuildProjectName)</TargetName>
+    <TargetName Condition="'$(OS)' != 'Windows_NT'">lib$(TargetName)</TargetName>
+    <StackTraceSupport>true</StackTraceSupport>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- <PackageReference Include="Microsoft.DotNet.ILCompiler" Version="8.0.0" /> -->
+    <!-- <DirectPInvoke Include="dlib" /> -->
+  </ItemGroup>
+
+</Project>

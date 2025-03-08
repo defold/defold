@@ -1,0 +1,36 @@
+# Derived from src/engine/wscript, release target: Removes Engine Service
+platforms:
+    common:
+        context:
+            defines: ["DM_RELEASE"]
+
+    osx:
+        context:
+            excludeLibs: ["engine", "engine_service", "profile", "remotery", "profilerext", "record", "vpx"]
+            libs: ["engine_release", "engine_service_null", "profile_null", "remotery_null", "profilerext_null", "record_null"]
+
+    linux:
+        context:
+            excludeLibs: ["engine", "engine_service", "profile", "remotery", "profilerext", "record", "vpx"]
+            libs: ["engine_release", "engine_service_null", "profile_null", "remotery_null", "profilerext_null", "record_null"]
+
+    web:
+        context:
+            excludeLibs: ["engine", "engine_service", "profile", "remotery", "profilerext"]
+            libs: ["engine_release", "engine_service_null", "profile_null", "remotery_null", "profilerext_null"]
+
+    win32:
+        context:
+            excludeLibs: ["libengine", "libengine_service", "libprofile", "libremotery", "libprofilerext", "librecord", "vpx"]
+            libs: ["libengine_release.lib", "libengine_service_null.lib", "libprofile_null.lib", "libremotery_null.lib", "libprofilerext_null.lib", "librecord_null.lib"]
+            linkFlags: ["-Wl,/subsystem:windows"]
+
+    android:
+        context:
+            excludeLibs: ["engine", "engine_service", "profile", "remotery", "profilerext"]
+            libs: ["engine_release", "engine_service_null", "profile_null", "remotery_null", "profilerext_null"]
+
+    arm64-ios:
+        context:
+            excludeLibs: ["engine", "engine_service", "profile", "remotery", "profilerext"]
+            libs: ["engine_release", "engine_service_null", "profile_null", "remotery_null", "profilerext_null"]

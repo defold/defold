@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -158,6 +158,7 @@
 (defmacro gl-bind-buffer [gl type name]                                  `(.glBindBuffer ~gl ~type ~name))
 (defmacro gl-buffer-data [gl type size data usage]                       `(.glBufferData ~gl ~type ~size ~data ~usage))
 (defmacro gl-vertex-attrib-pointer [gl idx size type norm stride offset] `(.glVertexAttribPointer ~gl ~idx ~size ~type ~norm ~stride ~offset))
+(defmacro gl-vertex-attrib-divisor [gl idx divisor]                      `(.glVertexAttribDivisor ~gl ~idx ~divisor))
 (defmacro gl-enable-vertex-attrib-array [gl idx]                         `(.glEnableVertexAttribArray ~gl ~idx))
 (defmacro gl-disable-vertex-attrib-array [gl idx]                        `(.glDisableVertexAttribArray ~gl ~idx))
 (defmacro gl-use-program [gl idx]                                        `(.glUseProgram ~gl ~idx))
@@ -176,6 +177,12 @@
 (defn gl-max-texture-units
   [^GL2 gl]
   (first (gl-get-integer-v gl GL2/GL_MAX_TEXTURE_UNITS 1)))
+
+(defn gl-active-texture
+  ^long [^GL2 gl]
+  (let [out (int-array 1)]
+    (.glGetIntegerv gl GL2/GL_ACTIVE_TEXTURE out 0)
+    (aget out 0)))
 
 (defn gl-current-program [^GL2 gl]
   (first (gl-get-integer-v gl GL2/GL_CURRENT_PROGRAM 1)))

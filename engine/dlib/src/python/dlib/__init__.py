@@ -1,12 +1,12 @@
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2025 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -19,12 +19,16 @@ import ctypes, os, sys, platform
 if platform.architecture()[0] == '32bit':
     raise Exception("32 bit hosts are not supported!")
 
+machine = platform.machine() # x86_64 or arm64
 if sys.platform == "darwin":
     libname = "libdlib_shared.dylib"
-    libdir = "lib/x86_64-darwin"
-elif sys.platform == "linux2":
+    libdir = "lib/%s-macos" % machine
+elif sys.platform in ("linux", "linux2"): # support both python3 and python2
     libname = "libdlib_shared.so"
-    libdir = "lib/x86_64-linux"
+    if machine == 'aarch64':
+        libdir = "lib/arm64-linux"
+    else:
+        libdir = "lib/x86_64-linux"
 elif sys.platform == "win32":
     libname = "dlib_shared.dll"
     libdir = "lib/x86_64-win32"
@@ -69,10 +73,10 @@ dlib.DecryptXTeaCTR.restype = ctypes.c_int
 
 
 def dmHashBuffer32(buf):
-    return dlib.dmHashBuffer32(buf, len(buf))
+    return dlib.dmHashBuffer32(buf.encode('ascii'), len(buf))
 
 def dmHashBuffer64(buf):
-    return dlib.dmHashBuffer64(buf, len(buf))
+    return dlib.dmHashBuffer64(buf.encode('ascii'), len(buf))
 
 def dmLZ4MaxCompressedSize(uncompressed_size):
     mcs = ctypes.c_int()

@@ -1,30 +1,30 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
 #include <dlib/math.h>
+#include <dlib/log.h>
 
 #include "graphics_vulkan_defines.h"
-#include "../graphics.h"
 #include "graphics_vulkan_private.h"
 
 namespace dmGraphics
 {
-    void InitializeVulkanTexture(Texture* t)
+    void InitializeVulkanTexture(VulkanTexture* t)
     {
         t->m_Type                = TEXTURE_TYPE_2D;
         t->m_GraphicsFormat      = TEXTURE_FORMAT_RGBA;
-        t->m_DeviceBuffer        = VK_IMAGE_USAGE_SAMPLED_BIT;
+        t->m_DeviceBuffer        = 0;
         t->m_Format              = VK_FORMAT_UNDEFINED;
         t->m_Width               = 0;
         t->m_Height              = 0;
@@ -37,82 +37,267 @@ namespace dmGraphics
     }
 
     RenderTarget::RenderTarget(const uint32_t rtId)
-        : m_TextureColor(0)
+        : m_SubPasses(0)
         , m_TextureDepthStencil(0)
-        , m_RenderPass(VK_NULL_HANDLE)
-        , m_Framebuffer(VK_NULL_HANDLE)
         , m_Id(rtId)
         , m_IsBound(0)
+        , m_SubPassCount(0)
+        , m_SubPassIndex(0)
     {
         m_Extent.width  = 0;
         m_Extent.height = 0;
+        memset(m_TextureColor, 0, sizeof(m_TextureColor));
+        memset(&m_Handle, 0, sizeof(m_Handle));
     }
 
-    Program::Program()
+    static inline VkFormat GetVertexAttributeFormat(Type type, uint16_t size, bool normalized)
     {
-        memset(this, 0, sizeof(*this));
-    }
-
-    static uint16_t FillVertexInputAttributeDesc(HVertexDeclaration vertexDeclaration, VkVertexInputAttributeDescription* vk_vertex_input_descs)
-    {
-        uint16_t num_attributes = 0;
-        for (uint16_t i = 0; i < vertexDeclaration->m_StreamCount; ++i)
+        if (type == TYPE_FLOAT)
         {
-            if (vertexDeclaration->m_Streams[i].m_Location == 0xffff)
+            switch(size)
             {
-                continue;
+                case 1:  return VK_FORMAT_R32_SFLOAT;
+                case 2:  return VK_FORMAT_R32G32_SFLOAT;
+                case 3:  return VK_FORMAT_R32G32B32_SFLOAT;
+                case 4:  return VK_FORMAT_R32G32B32A32_SFLOAT;
+                case 9:  return VK_FORMAT_R32G32B32_SFLOAT;
+                case 16: return VK_FORMAT_R32G32B32A32_SFLOAT;
+                default:break;
             }
-
-            vk_vertex_input_descs[num_attributes].binding  = 0;
-            vk_vertex_input_descs[num_attributes].location = vertexDeclaration->m_Streams[i].m_Location;
-            vk_vertex_input_descs[num_attributes].format   = vertexDeclaration->m_Streams[i].m_Format;
-            vk_vertex_input_descs[num_attributes].offset   = vertexDeclaration->m_Streams[i].m_Offset;
-
-            num_attributes++;
+        }
+        else if (type == TYPE_INT)
+        {
+            switch(size)
+            {
+                case 1: return VK_FORMAT_R32_SINT;
+                case 2: return VK_FORMAT_R32G32_SINT;
+                case 3: return VK_FORMAT_R32G32B32_SINT;
+                case 4: return VK_FORMAT_R32G32B32A32_SINT;
+                case 9: return VK_FORMAT_R32G32B32_SINT;
+                case 16: return VK_FORMAT_R32G32B32A32_SINT;
+                default:break;
+            }
+        }
+        else if (type == TYPE_UNSIGNED_INT)
+        {
+            switch(size)
+            {
+                case 1: return VK_FORMAT_R32_UINT;
+                case 2: return VK_FORMAT_R32G32_UINT;
+                case 3: return VK_FORMAT_R32G32B32_UINT;
+                case 4: return VK_FORMAT_R32G32B32A32_UINT;
+                case 9: return VK_FORMAT_R32G32B32_UINT;
+                case 16: return VK_FORMAT_R32G32B32A32_UINT;
+                default:break;
+            }
+        }
+        else if (type == TYPE_BYTE)
+        {
+            switch(size)
+            {
+                case 1: return normalized ? VK_FORMAT_R8_SNORM : VK_FORMAT_R8_SINT;
+                case 2: return normalized ? VK_FORMAT_R8G8_SNORM : VK_FORMAT_R8G8_SINT;
+                case 3: return normalized ? VK_FORMAT_R8G8B8_SNORM : VK_FORMAT_R8G8B8_SINT;
+                case 4: return normalized ? VK_FORMAT_R8G8B8A8_SNORM : VK_FORMAT_R8G8B8A8_SINT;
+                case 9: return normalized ? VK_FORMAT_R8G8B8_SNORM : VK_FORMAT_R8G8B8_SINT;
+                case 16: return normalized ? VK_FORMAT_R8G8B8A8_SNORM : VK_FORMAT_R8G8B8A8_SINT;
+                default:break;
+            }
+        }
+        else if (type == TYPE_UNSIGNED_BYTE)
+        {
+            switch(size)
+            {
+                case 1: return normalized ? VK_FORMAT_R8_UNORM : VK_FORMAT_R8_UINT;
+                case 2: return normalized ? VK_FORMAT_R8G8_UNORM : VK_FORMAT_R8G8_UINT;
+                case 3: return normalized ? VK_FORMAT_R8G8B8_UNORM : VK_FORMAT_R8G8B8_UINT;
+                case 4: return normalized ? VK_FORMAT_R8G8B8A8_UNORM : VK_FORMAT_R8G8B8A8_UINT;
+                case 9: return normalized ? VK_FORMAT_R8G8B8_UNORM : VK_FORMAT_R8G8B8_UINT;
+                case 16: return normalized ? VK_FORMAT_R8G8B8A8_UNORM : VK_FORMAT_R8G8B8A8_UINT;
+                default:break;
+            }
+        }
+        else if (type == TYPE_SHORT)
+        {
+            switch(size)
+            {
+                case 1: return normalized ? VK_FORMAT_R16_SNORM : VK_FORMAT_R16_SINT;
+                case 2: return normalized ? VK_FORMAT_R16G16_SNORM : VK_FORMAT_R16G16_SINT;
+                case 3: return normalized ? VK_FORMAT_R16G16B16_SNORM : VK_FORMAT_R16G16B16_SINT;
+                case 4: return normalized ? VK_FORMAT_R16G16B16A16_SNORM : VK_FORMAT_R16G16B16A16_SINT;
+                case 9: return normalized ? VK_FORMAT_R16G16B16_SNORM : VK_FORMAT_R16G16B16_SINT;
+                case 16: return normalized ? VK_FORMAT_R16G16B16A16_SNORM : VK_FORMAT_R16G16B16A16_SINT;
+                default:break;
+            }
+        }
+        else if (type == TYPE_UNSIGNED_SHORT)
+        {
+            switch(size)
+            {
+                case 1: return normalized ? VK_FORMAT_R16_UNORM : VK_FORMAT_R16_UINT;
+                case 2: return normalized ? VK_FORMAT_R16G16_UNORM : VK_FORMAT_R16G16_UINT;
+                case 3: return normalized ? VK_FORMAT_R16G16B16_UNORM : VK_FORMAT_R16G16B16_UINT;
+                case 4: return normalized ? VK_FORMAT_R16G16B16A16_UNORM : VK_FORMAT_R16G16B16A16_UINT;
+                case 9: return normalized ? VK_FORMAT_R16G16B16_UNORM : VK_FORMAT_R16G16B16_UINT;
+                case 16: return normalized ? VK_FORMAT_R16G16B16A16_UNORM : VK_FORMAT_R16G16B16A16_UINT;
+                default:break;
+            }
+        }
+        else if (type == TYPE_FLOAT_MAT4 || type == TYPE_FLOAT_MAT3 || type == TYPE_FLOAT_MAT2)
+        {
+            return VK_FORMAT_R32_SFLOAT;
+        }
+        else if (type == TYPE_FLOAT_VEC4)
+        {
+            return VK_FORMAT_R32G32B32A32_SFLOAT;
         }
 
-        return num_attributes;
+        assert(0 && "Unable to deduce type from dmGraphics::Type");
+        return VK_FORMAT_UNDEFINED;
     }
 
-    VkResult DescriptorAllocator::Allocate(VkDevice vk_device, VkDescriptorSetLayout* vk_descriptor_set_layout, uint8_t setCount, VkDescriptorSet** vk_descriptor_set_out)
+    static VkResult AllocateDescriptorPool(DescriptorAllocator* allocator, VkDevice vk_device)
     {
-        assert(m_DescriptorMax >= (m_DescriptorIndex + setCount));
-        *vk_descriptor_set_out  = &m_Handle.m_DescriptorSets[m_DescriptorIndex];
-        m_DescriptorIndex      += setCount;
+        VkDescriptorPool pool_handle = VK_NULL_HANDLE;
+        VkResult res = CreateDescriptorPool(vk_device, allocator->m_DescriptorsPerPool, &pool_handle);
+
+        DescriptorPool new_pool    = {};
+        new_pool.m_DescriptorPool  = pool_handle;
+        new_pool.m_DescriptorCount = 0;
+
+        allocator->m_DescriptorPools.OffsetCapacity(1);
+        allocator->m_DescriptorPools.Push(new_pool);
+
+        return res;
+    }
+
+    static void AllocateDescriptorSets(DescriptorAllocator* allocator)
+    {
+        if (allocator->m_DescriptorSets == 0)
+        {
+            allocator->m_DescriptorSets = (VkDescriptorSet*) malloc(sizeof(VkDescriptorSet) * allocator->m_DescriptorSetMax);
+        }
+        else
+        {
+            allocator->m_DescriptorSets = (VkDescriptorSet*) realloc(allocator->m_DescriptorSets, sizeof(VkDescriptorSet) * allocator->m_DescriptorSetMax);
+        }
+    }
+
+    static VkResult Prepare(DescriptorAllocator* allocator, VkDevice vk_device, uint32_t num_descriptors, uint32_t num_sets)
+    {
+        VkResult res = VK_SUCCESS;
+
+        DescriptorPool& pool = allocator->m_DescriptorPools[allocator->m_DescriptorPoolIndex];
+
+        if ((allocator->m_DescriptorsPerPool - pool.m_DescriptorCount) < num_descriptors)
+        {
+            allocator->m_DescriptorPoolIndex++;
+            if (allocator->m_DescriptorPoolIndex >= allocator->m_DescriptorPools.Size())
+            {
+                res = AllocateDescriptorPool(allocator, vk_device);
+            }
+        }
+
+        if ((allocator->m_DescriptorSetMax - allocator->m_DescriptorSetIndex) < num_sets)
+        {
+            allocator->m_DescriptorSetMax += allocator->m_DescriptorsPerPool;
+            AllocateDescriptorSets(allocator);
+        }
+
+    #ifdef _DEBUG
+        if (allocator->m_DescriptorsPerPool * allocator->m_DescriptorPools.Size() > 16384)
+        {
+            dmLogOnceWarning("Vulkan: There are more than 16768 descriptors (%d) in flight, this might be a performance issue.", m_DescriptorPools.Size());
+        }
+    #endif
+        return res;
+    }
+
+    VkResult DescriptorAllocator::Allocate(VkDevice vk_device, VkDescriptorSetLayout* vk_descriptor_set_layout, uint8_t setCount, uint32_t descriptor_count, VkDescriptorSet** vk_descriptor_set_out)
+    {
+        Prepare(this, vk_device, descriptor_count, setCount);
+
+        *vk_descriptor_set_out  = &m_DescriptorSets[m_DescriptorSetIndex];
+        m_DescriptorSetIndex   += setCount;
+
+        DescriptorPool& pool    = m_DescriptorPools[m_DescriptorPoolIndex];
+        pool.m_DescriptorCount += descriptor_count;
 
         VkDescriptorSetAllocateInfo vk_descriptor_set_alloc;
         vk_descriptor_set_alloc.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-        vk_descriptor_set_alloc.descriptorSetCount = DM_MAX_SET_COUNT;
+        vk_descriptor_set_alloc.descriptorSetCount = setCount;
         vk_descriptor_set_alloc.pSetLayouts        = vk_descriptor_set_layout;
-        vk_descriptor_set_alloc.descriptorPool     = m_Handle.m_DescriptorPool;
+        vk_descriptor_set_alloc.descriptorPool     = pool.m_DescriptorPool;
         vk_descriptor_set_alloc.pNext              = 0;
 
         return vkAllocateDescriptorSets(vk_device, &vk_descriptor_set_alloc, *vk_descriptor_set_out);
     }
 
-    void DescriptorAllocator::Release(VkDevice vk_device)
+    void DescriptorAllocator::Reset(VkDevice vk_device)
     {
-        if (m_DescriptorIndex > 0)
+        if (m_DescriptorSetIndex > 0)
         {
-            vkFreeDescriptorSets(vk_device, m_Handle.m_DescriptorPool, m_DescriptorIndex, m_Handle.m_DescriptorSets);
-            m_DescriptorIndex = 0;
+            for (int i = 0; i < m_DescriptorPools.Size(); ++i)
+            {
+                vkResetDescriptorPool(vk_device, m_DescriptorPools[i].m_DescriptorPool, 0);
+                m_DescriptorPools[i].m_DescriptorCount = 0;
+            }
+            m_DescriptorSetIndex  = 0;
+            m_DescriptorPoolIndex = 0;
         }
     }
 
-    const VulkanResourceType DescriptorAllocator::GetType()
+    VkResult OneTimeCommandBuffer::Begin()
     {
-        return RESOURCE_TYPE_DESCRIPTOR_ALLOCATOR;
+        assert(m_Context != 0);
+
+        VkCommandBuffer vk_command_buffer;
+        CreateCommandBuffers(m_Context->m_LogicalDevice.m_Device, m_Context->m_LogicalDevice.m_CommandPool, 1, &vk_command_buffer);
+        VkCommandBufferBeginInfo vk_command_buffer_begin_info;
+        memset(&vk_command_buffer_begin_info, 0, sizeof(VkCommandBufferBeginInfo));
+
+        vk_command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        vk_command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+        VkResult res = vkBeginCommandBuffer(vk_command_buffer, &vk_command_buffer_begin_info);
+        m_CmdBuffer = vk_command_buffer;
+        return res;
+    }
+
+    VkResult OneTimeCommandBuffer::End()
+    {
+        vkEndCommandBuffer(m_CmdBuffer);
+
+        VkSubmitInfo vk_submit_info = {};
+        vk_submit_info.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        vk_submit_info.commandBufferCount = 1;
+        vk_submit_info.pCommandBuffers    = &m_CmdBuffer;
+
+        VkResult res = vkQueueSubmit(m_Context->m_LogicalDevice.m_GraphicsQueue, 1, &vk_submit_info, VK_NULL_HANDLE);
+        vkQueueWaitIdle(m_Context->m_LogicalDevice.m_GraphicsQueue);
+        vkFreeCommandBuffers(m_Context->m_LogicalDevice.m_Device, m_Context->m_LogicalDevice.m_CommandPool, 1, &m_CmdBuffer);
+
+        m_Context   = 0;
+        m_CmdBuffer = VK_NULL_HANDLE;
+        return res;
     }
 
     VkResult DeviceBuffer::MapMemory(VkDevice vk_device, uint32_t offset, uint32_t size)
     {
+        if (m_MappedDataPtr)
+        {
+            return VK_SUCCESS;
+        }
         return vkMapMemory(vk_device, m_Handle.m_Memory, offset, size > 0 ? size : m_MemorySize, 0, &m_MappedDataPtr);
     }
 
     void DeviceBuffer::UnmapMemory(VkDevice vk_device)
     {
-        assert(m_MappedDataPtr);
+        if (m_MappedDataPtr == 0)
+        {
+            return;
+        }
         vkUnmapMemory(vk_device, m_Handle.m_Memory);
+        m_MappedDataPtr = 0;
     }
 
     const VulkanResourceType DeviceBuffer::GetType()
@@ -120,14 +305,19 @@ namespace dmGraphics
         return RESOURCE_TYPE_DEVICE_BUFFER;
     }
 
-    const VulkanResourceType Texture::GetType()
+    const VulkanResourceType VulkanTexture::GetType()
     {
         return RESOURCE_TYPE_TEXTURE;
     }
 
-    const VulkanResourceType Program::GetType()
+    const VulkanResourceType VulkanProgram::GetType()
     {
         return RESOURCE_TYPE_PROGRAM;
+    }
+
+    const VulkanResourceType RenderTarget::GetType()
+    {
+        return RESOURCE_TYPE_RENDER_TARGET;
     }
 
     uint32_t GetPhysicalDeviceCount(VkInstance vkInstance)
@@ -137,7 +327,7 @@ namespace dmGraphics
         return vk_device_count;
     }
 
-    void GetPhysicalDevices(VkInstance vkInstance, PhysicalDevice** deviceListOut, uint32_t deviceListSize)
+    void GetPhysicalDevices(VkInstance vkInstance, PhysicalDevice** deviceListOut, uint32_t deviceListSize, void* pNextFeatures)
     {
         assert(deviceListOut);
         PhysicalDevice* device_list = *deviceListOut;
@@ -151,8 +341,12 @@ namespace dmGraphics
             VkPhysicalDevice vk_device = vk_device_list[i];
             uint32_t vk_device_extension_count, vk_queue_family_count;
 
+            device_list[i].m_Features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+            device_list[i].m_Features2.pNext = pNextFeatures;
+
             vkGetPhysicalDeviceProperties(vk_device, &device_list[i].m_Properties);
             vkGetPhysicalDeviceFeatures(vk_device, &device_list[i].m_Features);
+            vkGetPhysicalDeviceFeatures2(vk_device, &device_list[i].m_Features2);
             vkGetPhysicalDeviceMemoryProperties(vk_device, &device_list[i].m_MemoryProperties);
 
             vkGetPhysicalDeviceQueueFamilyProperties(vk_device, &vk_queue_family_count, 0);
@@ -229,7 +423,7 @@ namespace dmGraphics
     {
         VkSampleCountFlags vk_sample_count = VK_SAMPLE_COUNT_FLAG_BITS_MAX_ENUM;
 
-        if (bufferFlagBits & BUFFER_TYPE_COLOR_BIT)
+        if (bufferFlagBits & BUFFER_TYPE_COLOR0_BIT)
         {
             vk_sample_count = physicalDevice->m_Properties.limits.framebufferColorSampleCounts;
         }
@@ -244,7 +438,7 @@ namespace dmGraphics
             vk_sample_count = dmMath::Min<VkSampleCountFlags>(vk_sample_count, physicalDevice->m_Properties.limits.framebufferStencilSampleCounts);
         }
 
-        const uint8_t sample_count_index_requested = (uint8_t) sampleCount == 0 ? 0 : log2f((float) sampleCount);
+        const uint8_t sample_count_index_requested = (uint8_t) sampleCount == 0 ? 0 : (uint8_t) log2f((float) sampleCount);
         const uint8_t sample_count_index_max       = (uint8_t) log2f((float) vk_sample_count);
         const VkSampleCountFlagBits vk_count_bits[] = {
             VK_SAMPLE_COUNT_1_BIT,
@@ -259,31 +453,24 @@ namespace dmGraphics
         return vk_count_bits[dmMath::Min<uint8_t>(sample_count_index_requested, sample_count_index_max)];
     }
 
-    VkResult TransitionImageLayout(VkDevice vk_device, VkCommandPool vk_command_pool, VkQueue vk_graphics_queue, VkImage vk_image,
-        VkImageAspectFlags vk_image_aspect, VkImageLayout vk_from_layout, VkImageLayout vk_to_layout,
+    VkResult TransitionImageLayout(VkDevice vk_device, VkCommandPool vk_command_pool, VkQueue vk_graphics_queue, VulkanTexture* texture,
+        VkImageAspectFlags vk_image_aspect, VkImageLayout vk_to_layout,
         uint32_t baseMipLevel, uint32_t layer_count)
     {
-        // Create a one-time-execute command buffer that will only be used for the transition
-        VkCommandBuffer vk_command_buffer;
-        CreateCommandBuffers(vk_device, vk_command_pool, 1, &vk_command_buffer);
+        VkImageLayout vk_from_layout = texture->m_ImageLayout[baseMipLevel];
 
-        VkCommandBufferBeginInfo vk_command_buffer_begin_info;
-        memset(&vk_command_buffer_begin_info, 0, sizeof(VkCommandBufferBeginInfo));
+        if (vk_from_layout == vk_to_layout)
+        {
+            return VK_SUCCESS;
+        }
 
-        vk_command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        vk_command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-        vkBeginCommandBuffer(vk_command_buffer, &vk_command_buffer_begin_info);
-
-        VkImageMemoryBarrier vk_memory_barrier;
-        memset(&vk_memory_barrier, 0, sizeof(vk_memory_barrier));
-
+        VkImageMemoryBarrier vk_memory_barrier            = {};
         vk_memory_barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
         vk_memory_barrier.oldLayout                       = vk_from_layout;
         vk_memory_barrier.newLayout                       = vk_to_layout;
         vk_memory_barrier.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
         vk_memory_barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
-        vk_memory_barrier.image                           = vk_image;
+        vk_memory_barrier.image                           = texture->m_Handle.m_Image;
         vk_memory_barrier.subresourceRange.aspectMask     = vk_image_aspect;
         vk_memory_barrier.subresourceRange.baseMipLevel   = baseMipLevel;
         vk_memory_barrier.subresourceRange.levelCount     = 1;
@@ -307,7 +494,7 @@ namespace dmGraphics
             vk_source_stage      = VK_PIPELINE_STAGE_HOST_BIT;
             vk_destination_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
         }
-        else if (vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED && vk_to_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+        else if ((vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED || vk_from_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) && vk_to_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
         {
             vk_memory_barrier.srcAccessMask = 0;
             vk_memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
@@ -339,10 +526,37 @@ namespace dmGraphics
             vk_source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
             vk_destination_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
         }
+        else if ((vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED || vk_from_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) && vk_to_layout == VK_IMAGE_LAYOUT_GENERAL)
+        {
+            vk_memory_barrier.srcAccessMask = 0;
+            vk_memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+
+            vk_source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+            vk_destination_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        }
+        else if (vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED && vk_to_layout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
+        {
+            vk_memory_barrier.srcAccessMask = 0;
+            vk_memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+            vk_source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+            vk_destination_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+        }
         else
         {
-            assert(0);
+            // Transition not supported, so we early out.
+            return VK_SUCCESS;
         }
+
+        // Create a one-time-execute command buffer that will only be used for the transition
+        VkCommandBuffer vk_command_buffer;
+        CreateCommandBuffers(vk_device, vk_command_pool, 1, &vk_command_buffer);
+
+        VkCommandBufferBeginInfo vk_command_buffer_begin_info = {};
+        vk_command_buffer_begin_info.sType                    = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        vk_command_buffer_begin_info.flags                    = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+        vkBeginCommandBuffer(vk_command_buffer, &vk_command_buffer_begin_info);
 
         vkCmdPipelineBarrier(
             vk_command_buffer,
@@ -364,6 +578,8 @@ namespace dmGraphics
         vkQueueWaitIdle(vk_graphics_queue);
         vkFreeCommandBuffers(vk_device, vk_command_pool, 1, &vk_command_buffer);
 
+        texture->m_ImageLayout[baseMipLevel] = vk_to_layout;
+
         return VK_SUCCESS;
     }
 
@@ -371,7 +587,7 @@ namespace dmGraphics
     {
         assert(buffer);
 
-        VkResult res = buffer->MapMemory(vk_device, offset, size);
+        VkResult res = buffer->MapMemory(vk_device, (uint32_t) offset, (uint32_t) size);
 
         if (res != VK_SUCCESS)
         {
@@ -392,16 +608,27 @@ namespace dmGraphics
         return res;
     }
 
-    VkResult CreateDescriptorPool(VkDevice vk_device, VkDescriptorPoolSize* vk_pool_sizes, uint8_t numPoolSizes, uint16_t maxDescriptors, VkDescriptorPool* vk_descriptor_pool_out)
+    VkResult CreateDescriptorPool(VkDevice vk_device, uint16_t max_descriptors, VkDescriptorPool* vk_descriptor_pool_out)
     {
         assert(vk_descriptor_pool_out && *vk_descriptor_pool_out == VK_NULL_HANDLE);
+
+        VkDescriptorPoolSize vk_pool_size[] = {
+            {VK_DESCRIPTOR_TYPE_SAMPLER,                max_descriptors},
+            {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,       max_descriptors},
+            {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, max_descriptors},
+            {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, max_descriptors},
+            {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,          max_descriptors},
+            {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,         max_descriptors},
+            {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,          max_descriptors},
+        };
+
         VkDescriptorPoolCreateInfo vk_pool_create_info;
         memset(&vk_pool_create_info, 0, sizeof(vk_pool_create_info));
 
         vk_pool_create_info.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-        vk_pool_create_info.poolSizeCount = numPoolSizes;
-        vk_pool_create_info.pPoolSizes    = vk_pool_sizes;
-        vk_pool_create_info.maxSets       = maxDescriptors;
+        vk_pool_create_info.poolSizeCount = DM_ARRAY_SIZE(vk_pool_size);
+        vk_pool_create_info.pPoolSizes    = vk_pool_size;
+        vk_pool_create_info.maxSets       = max_descriptors;
         vk_pool_create_info.flags         = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
 
         return vkCreateDescriptorPool(vk_device, &vk_pool_create_info, 0, vk_descriptor_pool_out);
@@ -423,13 +650,12 @@ namespace dmGraphics
         return vkCreateFramebuffer(vk_device, &vk_framebuffer_create_info, 0, vk_framebuffer_out);
     }
 
-    VkResult DestroyFrameBuffer(VkDevice vk_device, VkFramebuffer vk_framebuffer)
+    void DestroyFrameBuffer(VkDevice vk_device, VkFramebuffer vk_framebuffer)
     {
         if (vk_framebuffer != VK_NULL_HANDLE)
         {
             vkDestroyFramebuffer(vk_device, vk_framebuffer, 0);
         }
-        return VK_SUCCESS;
     }
 
     VkResult CreateCommandBuffers(VkDevice vk_device, VkCommandPool vk_command_pool, uint32_t numBuffersToCreate, VkCommandBuffer* vk_command_buffers_out)
@@ -445,7 +671,7 @@ namespace dmGraphics
         return vkAllocateCommandBuffers(vk_device, &vk_buffers_allocate_info, vk_command_buffers_out);
     }
 
-    VkResult CreateShaderModule(VkDevice vk_device, const void* source, uint32_t sourceSize, ShaderModule* shaderModuleOut)
+    VkResult CreateShaderModule(VkDevice vk_device, const void* source, uint32_t sourceSize, VkShaderStageFlagBits stage_flag, ShaderModule* shaderModuleOut)
     {
         assert(shaderModuleOut);
 
@@ -461,7 +687,21 @@ namespace dmGraphics
         dmHashUpdateBuffer64(&shader_hash_state, source, (uint32_t) sourceSize);
         shaderModuleOut->m_Hash = dmHashFinal64(&shader_hash_state);
 
-        return vkCreateShaderModule( vk_device, &vk_create_info_shader, 0, &shaderModuleOut->m_Module);
+        VkResult res = vkCreateShaderModule( vk_device, &vk_create_info_shader, 0, &shaderModuleOut->m_Module);
+        if (res != VK_SUCCESS)
+        {
+            return res;
+        }
+
+        VkPipelineShaderStageCreateInfo shader_create_info = {};
+        shader_create_info.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        shader_create_info.stage  = stage_flag;
+        shader_create_info.module = shaderModuleOut->m_Module;
+        shader_create_info.pName  = "main";
+
+        shaderModuleOut->m_PipelineStageInfo = shader_create_info;
+
+        return VK_SUCCESS;
     }
 
     VkResult CreateDeviceBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
@@ -526,20 +766,10 @@ bail:
 
     VkResult CreateDescriptorAllocator(VkDevice vk_device, uint32_t descriptor_count, DescriptorAllocator* descriptorAllocator)
     {
-        assert(descriptor_count < 0x8000); // Should match the bit count in graphics_vulkan_private.h
-
-        VkDescriptorPoolSize vk_pool_size[] = {
-            {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, descriptor_count},
-            {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, descriptor_count}
-        };
-
-        descriptorAllocator->m_Handle.m_DescriptorPool = VK_NULL_HANDLE;
-        descriptorAllocator->m_Handle.m_DescriptorSets = new VkDescriptorSet[descriptor_count];
-        descriptorAllocator->m_DescriptorMax           = descriptor_count;
-        descriptorAllocator->m_DescriptorIndex         = 0;
-        descriptorAllocator->m_Destroyed               = 0;
-
-        return CreateDescriptorPool(vk_device, vk_pool_size, sizeof(vk_pool_size) / sizeof(vk_pool_size[0]), descriptor_count, &descriptorAllocator->m_Handle.m_DescriptorPool);
+        descriptorAllocator->m_DescriptorSetMax   = descriptor_count;
+        descriptorAllocator->m_DescriptorsPerPool = descriptor_count;
+        AllocateDescriptorSets(descriptorAllocator);
+        return AllocateDescriptorPool(descriptorAllocator, vk_device);
     }
 
     VkResult CreateScratchBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
@@ -583,6 +813,7 @@ bail:
         VkDevice              vk_device,
         uint32_t              imageWidth,
         uint32_t              imageHeight,
+        uint32_t              imageLayers,
         uint16_t              imageMips,
         VkSampleCountFlagBits vk_sample_count,
         VkFormat              vk_format,
@@ -590,14 +821,13 @@ bail:
         VkImageUsageFlags     vk_usage,
         VkMemoryPropertyFlags vk_memory_flags,
         VkImageAspectFlags    vk_aspect,
-        VkImageLayout         vk_initial_layout,
-        Texture*              textureOut)
+        VulkanTexture*        textureOut)
     {
         DeviceBuffer& device_buffer = textureOut->m_DeviceBuffer;
         TextureType tex_type = textureOut->m_Type;
 
-        VkImageCreateInfo vk_image_create_info;
-        memset(&vk_image_create_info, 0, sizeof(vk_image_create_info));
+        VkImageCreateInfo vk_image_create_info = {};
+        VkImageViewType vk_view_type = VK_IMAGE_VIEW_TYPE_2D;
 
         vk_image_create_info.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
         vk_image_create_info.imageType     = VK_IMAGE_TYPE_2D;
@@ -605,10 +835,10 @@ bail:
         vk_image_create_info.extent.height = imageHeight;
         vk_image_create_info.extent.depth  = 1;
         vk_image_create_info.mipLevels     = imageMips;
-        vk_image_create_info.arrayLayers   = 1;
+        vk_image_create_info.arrayLayers   = imageLayers;
         vk_image_create_info.format        = vk_format;
         vk_image_create_info.tiling        = vk_tiling;
-        vk_image_create_info.initialLayout = vk_initial_layout;
+        vk_image_create_info.initialLayout = textureOut->m_ImageLayout[0];
         vk_image_create_info.usage         = vk_usage;
         vk_image_create_info.samples       = vk_sample_count;
         vk_image_create_info.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
@@ -616,23 +846,21 @@ bail:
 
         if (tex_type == TEXTURE_TYPE_CUBE_MAP)
         {
-            vk_image_create_info.arrayLayers = 6;
-            vk_image_create_info.flags      |= VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+            assert(imageLayers == 6);
+            vk_image_create_info.flags |= VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+            vk_view_type   = VK_IMAGE_VIEW_TYPE_CUBE;
+        }
+        else if (tex_type == TEXTURE_TYPE_2D_ARRAY)
+        {
+            assert(imageLayers > 0);
+            vk_image_create_info.flags |= VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT;
+            vk_view_type = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
         }
 
         VkResult res = vkCreateImage(vk_device, &vk_image_create_info, 0, &textureOut->m_Handle.m_Image);
         if (res != VK_SUCCESS)
         {
             return res;
-        }
-
-        // Handle cubemap vs 2D
-        VkImageViewType vk_view_type = VK_IMAGE_VIEW_TYPE_2D;
-        uint8_t vk_layer_count       = 1;
-        if (tex_type == TEXTURE_TYPE_CUBE_MAP)
-        {
-            vk_view_type   = VK_IMAGE_VIEW_TYPE_CUBE;
-            vk_layer_count = 6;
         }
 
         // Allocate GPU memory to hold texture
@@ -647,6 +875,13 @@ bail:
         vk_memory_alloc_info.memoryTypeIndex = 0;
 
         uint32_t memory_type_index = 0;
+
+        // Lazy / memorless might not be supported on this platform
+        if (vk_memory_flags & VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT && !GetMemoryTypeIndex(vk_physical_device, vk_memory_req.memoryTypeBits, vk_memory_flags, &memory_type_index))
+        {
+            vk_memory_flags ^= VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT;
+        }
+
         if (!GetMemoryTypeIndex(vk_physical_device, vk_memory_req.memoryTypeBits, vk_memory_flags, &memory_type_index))
         {
             res = VK_ERROR_INITIALIZATION_FAILED;
@@ -680,7 +915,7 @@ bail:
         vk_view_create_info.subresourceRange.baseMipLevel   = 0;
         vk_view_create_info.subresourceRange.levelCount     = imageMips;
         vk_view_create_info.subresourceRange.baseArrayLayer = 0;
-        vk_view_create_info.subresourceRange.layerCount     = vk_layer_count;
+        vk_view_create_info.subresourceRange.layerCount     = imageLayers;
 
         textureOut->m_Format                   = vk_format;
         textureOut->m_Destroyed                = 0;
@@ -699,7 +934,7 @@ bail:
     }
 
     VkResult CreateTextureSampler(VkDevice vk_device, VkFilter vk_min_filter, VkFilter vk_mag_filter, VkSamplerMipmapMode vk_mipmap_mode,
-        VkSamplerAddressMode vk_wrap_u, VkSamplerAddressMode vk_wrap_v, float minLod, float maxLod, VkSampler* vk_sampler_out)
+        VkSamplerAddressMode vk_wrap_u, VkSamplerAddressMode vk_wrap_v, float minLod, float maxLod, float max_anisotropy, VkSampler* vk_sampler_out)
     {
         VkSamplerCreateInfo vk_sampler_create_info;
         memset(&vk_sampler_create_info, 0, sizeof(vk_sampler_create_info));
@@ -710,7 +945,8 @@ bail:
         vk_sampler_create_info.addressModeU            = vk_wrap_u;
         vk_sampler_create_info.addressModeV            = vk_wrap_v;
         vk_sampler_create_info.addressModeW            = vk_wrap_u;
-        vk_sampler_create_info.maxAnisotropy           = 0; // TODO
+        vk_sampler_create_info.anisotropyEnable        = max_anisotropy > 1.0f;
+        vk_sampler_create_info.maxAnisotropy           = max_anisotropy;
         vk_sampler_create_info.borderColor             = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
         vk_sampler_create_info.unnormalizedCoordinates = VK_FALSE;
         vk_sampler_create_info.compareEnable           = VK_FALSE;
@@ -747,12 +983,17 @@ bail:
 
             attachment_color.format         = colorAttachments[i].m_Format;
             attachment_color.samples        = vk_sample_flags;
-            attachment_color.loadOp         = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-            attachment_color.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
+            attachment_color.loadOp         = colorAttachments[i].m_LoadOp;
+            attachment_color.storeOp        = colorAttachments[i].m_StoreOp;
             attachment_color.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
             attachment_color.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
             attachment_color.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
             attachment_color.finalLayout    = colorAttachments[i].m_ImageLayout;
+
+            if (colorAttachments[i].m_LoadOp != VK_ATTACHMENT_LOAD_OP_DONT_CARE)
+            {
+                attachment_color.initialLayout = colorAttachments[i].m_ImageLayoutInitial;
+            }
 
             VkAttachmentReference& ref = vk_attachment_color_ref[i];
             ref.attachment = i;
@@ -847,6 +1088,55 @@ bail:
         }
     }
 
+    static uint16_t FillVertexInputAttributeDesc(HVertexDeclaration vertexDeclaration, VkVertexInputAttributeDescription* vk_vertex_input_descs, uint32_t binding)
+    {
+        uint16_t num_attributes = 0;
+        for (uint16_t i = 0; i < vertexDeclaration->m_StreamCount; ++i)
+        {
+            if (vertexDeclaration->m_Streams[i].m_Location == -1)
+            {
+                continue;
+            }
+
+            VertexDeclaration::Stream& stream = vertexDeclaration->m_Streams[i];
+            VkFormat fmt = GetVertexAttributeFormat(stream.m_Type, stream.m_Size, stream.m_Normalize);
+
+            #define PUT_ATTRIBUTE(ix, loc, ofs, fmt) \
+                vk_vertex_input_descs[ix].binding = binding; \
+                vk_vertex_input_descs[ix].location = loc; \
+                vk_vertex_input_descs[ix].offset = ofs; \
+                vk_vertex_input_descs[ix].format = fmt;
+
+            uint32_t stream_data_size = GetGraphicsTypeDataSize(stream.m_Type);
+
+            // TODO: This doesn't support 2x2 matrices - we can't distinguish between a vec4 and a 2x2 matrix here currently
+            switch(stream.m_Size)
+            {
+            case 9: // 3x3 matrix
+                PUT_ATTRIBUTE(num_attributes + 0, (stream.m_Location + 0), (stream.m_Offset + 0 * stream_data_size * 3), fmt);
+                PUT_ATTRIBUTE(num_attributes + 1, (stream.m_Location + 1), (stream.m_Offset + 1 * stream_data_size * 3), fmt);
+                PUT_ATTRIBUTE(num_attributes + 2, (stream.m_Location + 2), (stream.m_Offset + 2 * stream_data_size * 3), fmt);
+                num_attributes += 3;
+                break;
+            case 16: // 4x4 matrix
+                PUT_ATTRIBUTE(num_attributes + 0, (stream.m_Location + 0), (stream.m_Offset + 0 * stream_data_size * 4), fmt);
+                PUT_ATTRIBUTE(num_attributes + 1, (stream.m_Location + 1), (stream.m_Offset + 1 * stream_data_size * 4), fmt);
+                PUT_ATTRIBUTE(num_attributes + 2, (stream.m_Location + 2), (stream.m_Offset + 2 * stream_data_size * 4), fmt);
+                PUT_ATTRIBUTE(num_attributes + 3, (stream.m_Location + 3), (stream.m_Offset + 3 * stream_data_size * 4), fmt);
+                num_attributes += 4;
+                break;
+            default:
+                PUT_ATTRIBUTE(num_attributes, stream.m_Location, stream.m_Offset, fmt);
+                num_attributes++;
+                break;
+            }
+
+            #undef PUT_ATTRIBUTE
+        }
+
+        return num_attributes;
+    }
+
     // These lookup values should match the ones in graphics_vulkan_constants.cpp
     static const VkPrimitiveTopology g_vk_primitive_types[] = {
         VK_PRIMITIVE_TOPOLOGY_LINE_LIST,
@@ -897,29 +1187,51 @@ bail:
         VK_COMPARE_OP_ALWAYS
     };
 
-    VkResult CreatePipeline(VkDevice vk_device, VkRect2D vk_scissor, VkSampleCountFlagBits vk_sample_count,
-        PipelineState pipelineState, Program* program, DeviceBuffer* vertexBuffer,
-        HVertexDeclaration vertexDeclaration, const VkRenderPass vk_render_pass, Pipeline* pipelineOut)
+    VkResult CreateComputePipeline(VkDevice vk_device, VulkanProgram* program, Pipeline* pipelineOut)
     {
         assert(pipelineOut && *pipelineOut == VK_NULL_HANDLE);
 
-        VkVertexInputAttributeDescription vk_vertex_input_descs[DM_MAX_VERTEX_STREAM_COUNT];
-        uint16_t active_attributes = FillVertexInputAttributeDesc(vertexDeclaration, vk_vertex_input_descs);
+        VkComputePipelineCreateInfo vk_pipeline_create_info = {};
+        vk_pipeline_create_info.sType              = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+        vk_pipeline_create_info.basePipelineHandle = 0;
+        vk_pipeline_create_info.basePipelineIndex  = 0;
+        vk_pipeline_create_info.flags              = 0;
+        vk_pipeline_create_info.layout             = program->m_Handle.m_PipelineLayout;
+        vk_pipeline_create_info.pNext              = 0;
+        vk_pipeline_create_info.stage              = program->m_ComputeModule->m_PipelineStageInfo;
+        return vkCreateComputePipelines(vk_device, 0, 1, &vk_pipeline_create_info, 0, pipelineOut);
+    }
+
+    VkResult CreateGraphicsPipeline(VkDevice vk_device, VkRect2D vk_scissor, VkSampleCountFlagBits vk_sample_count,
+        PipelineState pipelineState, VulkanProgram* program, VertexDeclaration** vertexDeclarations, uint32_t vertexDeclarationCount,
+        RenderTarget* render_target, Pipeline* pipelineOut)
+    {
+        assert(pipelineOut && *pipelineOut == VK_NULL_HANDLE);
+
+        // This differs from MAX_VERTEX_STREAM_COUNT, since mat4 exhausts 4 desc slots
+        const uint32_t MAX_VERTEX_INPUT_DESCS_COUNT = 32;
+
+        uint16_t active_attributes = 0;
+        VkVertexInputAttributeDescription vk_vertex_input_descs[MAX_VERTEX_INPUT_DESCS_COUNT] = {};
+        VkVertexInputBindingDescription vk_vx_input_descriptions[MAX_VERTEX_BUFFERS] = {};
+
+        for (int i = 0; i < vertexDeclarationCount; ++i)
+        {
+            active_attributes += FillVertexInputAttributeDesc(vertexDeclarations[i], &vk_vertex_input_descs[active_attributes], i);
+
+            vk_vx_input_descriptions[i].binding   = i;
+            vk_vx_input_descriptions[i].stride    = vertexDeclarations[i]->m_Stride;
+            vk_vx_input_descriptions[i].inputRate = vertexDeclarations[i]->m_StepFunction == VERTEX_STEP_FUNCTION_VERTEX ?
+                                                        VK_VERTEX_INPUT_RATE_VERTEX : VK_VERTEX_INPUT_RATE_INSTANCE;
+        }
+
         assert(active_attributes != 0);
 
-        VkVertexInputBindingDescription vk_vx_input_description;
-        memset(&vk_vx_input_description, 0, sizeof(vk_vx_input_description));
-
-        vk_vx_input_description.binding   = 0;
-        vk_vx_input_description.stride    = vertexDeclaration->m_Stride;
-        vk_vx_input_description.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
-        VkPipelineVertexInputStateCreateInfo vk_vertex_input_info;
-        memset(&vk_vertex_input_info, 0, sizeof(vk_vertex_input_info));
+        VkPipelineVertexInputStateCreateInfo vk_vertex_input_info = {};
 
         vk_vertex_input_info.sType                           = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-        vk_vertex_input_info.vertexBindingDescriptionCount   = 1;
-        vk_vertex_input_info.pVertexBindingDescriptions      = &vk_vx_input_description;
+        vk_vertex_input_info.vertexBindingDescriptionCount   = vertexDeclarationCount;
+        vk_vertex_input_info.pVertexBindingDescriptions      = vk_vx_input_descriptions;
         vk_vertex_input_info.vertexAttributeDescriptionCount = active_attributes;
         vk_vertex_input_info.pVertexAttributeDescriptions    = vk_vertex_input_descs;
 
@@ -977,24 +1289,37 @@ bail:
         vk_multisampling.alphaToCoverageEnable = VK_FALSE;
         vk_multisampling.alphaToOneEnable      = VK_FALSE;
 
-        VkPipelineColorBlendAttachmentState vk_color_blend_attachment;
-        memset(&vk_color_blend_attachment, 0, sizeof(vk_color_blend_attachment));
+        VkPipelineColorBlendAttachmentState vk_color_blend_attachments[MAX_BUFFER_COLOR_ATTACHMENTS];
+        memset(&vk_color_blend_attachments, 0, sizeof(vk_color_blend_attachments));
 
         uint8_t state_write_mask    = pipelineState.m_WriteColorMask;
         uint8_t vk_color_write_mask = 0;
-        vk_color_write_mask        |= (state_write_mask & DMGRAPHICS_STATE_WRITE_R) ? VK_COLOR_COMPONENT_R_BIT : 0;
-        vk_color_write_mask        |= (state_write_mask & DMGRAPHICS_STATE_WRITE_G) ? VK_COLOR_COMPONENT_G_BIT : 0;
-        vk_color_write_mask        |= (state_write_mask & DMGRAPHICS_STATE_WRITE_B) ? VK_COLOR_COMPONENT_B_BIT : 0;
-        vk_color_write_mask        |= (state_write_mask & DMGRAPHICS_STATE_WRITE_A) ? VK_COLOR_COMPONENT_A_BIT : 0;
 
-        vk_color_blend_attachment.colorWriteMask      = vk_color_write_mask;
-        vk_color_blend_attachment.blendEnable         = pipelineState.m_BlendEnabled;
-        vk_color_blend_attachment.srcColorBlendFactor = g_vk_blend_factors[pipelineState.m_BlendSrcFactor];
-        vk_color_blend_attachment.dstColorBlendFactor = g_vk_blend_factors[pipelineState.m_BlendDstFactor];
-        vk_color_blend_attachment.colorBlendOp        = VK_BLEND_OP_ADD;
-        vk_color_blend_attachment.srcAlphaBlendFactor = g_vk_blend_factors[pipelineState.m_BlendSrcFactor];
-        vk_color_blend_attachment.dstAlphaBlendFactor = g_vk_blend_factors[pipelineState.m_BlendDstFactor];
-        vk_color_blend_attachment.alphaBlendOp        = VK_BLEND_OP_ADD;
+        vk_color_write_mask        |= (state_write_mask & DM_GRAPHICS_STATE_WRITE_R) ? VK_COLOR_COMPONENT_R_BIT : 0;
+        vk_color_write_mask        |= (state_write_mask & DM_GRAPHICS_STATE_WRITE_G) ? VK_COLOR_COMPONENT_G_BIT : 0;
+        vk_color_write_mask        |= (state_write_mask & DM_GRAPHICS_STATE_WRITE_B) ? VK_COLOR_COMPONENT_B_BIT : 0;
+        vk_color_write_mask        |= (state_write_mask & DM_GRAPHICS_STATE_WRITE_A) ? VK_COLOR_COMPONENT_A_BIT : 0;
+
+        uint8_t blend_attachment_count = render_target->m_ColorAttachmentCount;
+
+        if (render_target->m_SubPasses)
+        {
+            SubPass& sub_pass_desc = render_target->m_SubPasses[render_target->m_SubPassIndex];
+            blend_attachment_count = sub_pass_desc.m_ColorAttachments.Size();
+        }
+
+        for (int i = 0; i < blend_attachment_count; ++i)
+        {
+            VkPipelineColorBlendAttachmentState& blend_attachment = vk_color_blend_attachments[i];
+            blend_attachment.colorWriteMask      = vk_color_write_mask;
+            blend_attachment.blendEnable         = pipelineState.m_BlendEnabled;
+            blend_attachment.srcColorBlendFactor = g_vk_blend_factors[pipelineState.m_BlendSrcFactor];
+            blend_attachment.dstColorBlendFactor = g_vk_blend_factors[pipelineState.m_BlendDstFactor];
+            blend_attachment.colorBlendOp        = VK_BLEND_OP_ADD;
+            blend_attachment.srcAlphaBlendFactor = g_vk_blend_factors[pipelineState.m_BlendSrcFactor];
+            blend_attachment.dstAlphaBlendFactor = g_vk_blend_factors[pipelineState.m_BlendDstFactor];
+            blend_attachment.alphaBlendOp        = VK_BLEND_OP_ADD;
+        }
 
         VkPipelineColorBlendStateCreateInfo vk_color_blending;
         memset(&vk_color_blending, 0, sizeof(vk_color_blending));
@@ -1002,23 +1327,29 @@ bail:
         vk_color_blending.sType             = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
         vk_color_blending.logicOpEnable     = VK_FALSE;
         vk_color_blending.logicOp           = VK_LOGIC_OP_COPY;
-        vk_color_blending.attachmentCount   = 1;
-        vk_color_blending.pAttachments      = &vk_color_blend_attachment;
+        vk_color_blending.attachmentCount   = blend_attachment_count;
+        vk_color_blending.pAttachments      = vk_color_blend_attachments;
         vk_color_blending.blendConstants[0] = 0.0f;
         vk_color_blending.blendConstants[1] = 0.0f;
         vk_color_blending.blendConstants[2] = 0.0f;
         vk_color_blending.blendConstants[3] = 0.0f;
 
-        VkStencilOpState vk_stencil_op_state;
-        memset(&vk_stencil_op_state, 0, sizeof(vk_stencil_op_state));
+        VkStencilOpState vk_stencil_op_state_front;
+        memset(&vk_stencil_op_state_front, 0, sizeof(vk_stencil_op_state_front));
 
-        vk_stencil_op_state.failOp      = g_vk_stencil_ops[pipelineState.m_StencilOpFail];
-        vk_stencil_op_state.depthFailOp = g_vk_stencil_ops[pipelineState.m_StencilOpDepthFail];
-        vk_stencil_op_state.passOp      = g_vk_stencil_ops[pipelineState.m_StencilOpPass];
-        vk_stencil_op_state.compareOp   = g_vk_compare_funcs[pipelineState.m_StencilTestFunc];
-        vk_stencil_op_state.compareMask = pipelineState.m_StencilCompareMask;
-        vk_stencil_op_state.writeMask   = pipelineState.m_StencilWriteMask;
-        vk_stencil_op_state.reference   = pipelineState.m_StencilReference;
+        vk_stencil_op_state_front.failOp      = g_vk_stencil_ops[pipelineState.m_StencilFrontOpFail];
+        vk_stencil_op_state_front.depthFailOp = g_vk_stencil_ops[pipelineState.m_StencilFrontOpDepthFail];
+        vk_stencil_op_state_front.passOp      = g_vk_stencil_ops[pipelineState.m_StencilFrontOpPass];
+        vk_stencil_op_state_front.compareOp   = g_vk_compare_funcs[pipelineState.m_StencilFrontTestFunc];
+        vk_stencil_op_state_front.compareMask = pipelineState.m_StencilCompareMask;
+        vk_stencil_op_state_front.writeMask   = pipelineState.m_StencilWriteMask;
+        vk_stencil_op_state_front.reference   = pipelineState.m_StencilReference;
+
+        VkStencilOpState vk_stencil_op_state_back = vk_stencil_op_state_front;
+        vk_stencil_op_state_back.failOp           = g_vk_stencil_ops[pipelineState.m_StencilBackOpFail];
+        vk_stencil_op_state_back.depthFailOp      = g_vk_stencil_ops[pipelineState.m_StencilBackOpDepthFail];
+        vk_stencil_op_state_back.passOp           = g_vk_stencil_ops[pipelineState.m_StencilBackOpPass];
+        vk_stencil_op_state_back.compareOp        = g_vk_compare_funcs[pipelineState.m_StencilBackTestFunc];
 
         VkPipelineDepthStencilStateCreateInfo vk_depth_stencil_create_info;
         memset(&vk_depth_stencil_create_info, 0, sizeof(vk_depth_stencil_create_info));
@@ -1031,8 +1362,8 @@ bail:
         vk_depth_stencil_create_info.minDepthBounds        = 0.0f;
         vk_depth_stencil_create_info.maxDepthBounds        = 1.0f;
         vk_depth_stencil_create_info.stencilTestEnable     = pipelineState.m_StencilEnabled ? VK_TRUE : VK_FALSE;
-        vk_depth_stencil_create_info.front                 = vk_stencil_op_state;
-        vk_depth_stencil_create_info.back                  = vk_stencil_op_state;
+        vk_depth_stencil_create_info.front                 = vk_stencil_op_state_front;
+        vk_depth_stencil_create_info.back                  = vk_stencil_op_state_back;
 
         const VkDynamicState vk_dynamic_state[2] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
 
@@ -1043,12 +1374,27 @@ bail:
         vk_dynamic_state_create_info.dynamicStateCount = sizeof(vk_dynamic_state) / sizeof(VkDynamicState);
         vk_dynamic_state_create_info.pDynamicStates    = vk_dynamic_state;
 
+        VkPipelineShaderStageCreateInfo vk_stage_create_infos[2] = {};
+        uint32_t stage_count = 0;
+        if (program->m_ComputeModule)
+        {
+            vk_stage_create_infos[stage_count++] = program->m_ComputeModule->m_PipelineStageInfo;
+        }
+        if (program->m_VertexModule)
+        {
+            vk_stage_create_infos[stage_count++] = program->m_VertexModule->m_PipelineStageInfo;
+        }
+        if (program->m_FragmentModule)
+        {
+            vk_stage_create_infos[stage_count++] = program->m_FragmentModule->m_PipelineStageInfo;
+        }
+
         VkGraphicsPipelineCreateInfo vk_pipeline_info;
         memset(&vk_pipeline_info, 0, sizeof(vk_pipeline_info));
 
         vk_pipeline_info.sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-        vk_pipeline_info.stageCount          = sizeof(program->m_PipelineStageInfo) / sizeof(VkPipelineShaderStageCreateInfo);
-        vk_pipeline_info.pStages             = program->m_PipelineStageInfo;
+        vk_pipeline_info.stageCount          = stage_count;
+        vk_pipeline_info.pStages             = vk_stage_create_infos;
         vk_pipeline_info.pVertexInputState   = &vk_vertex_input_info;
         vk_pipeline_info.pInputAssemblyState = &vk_input_assembly;
         vk_pipeline_info.pViewportState      = &vk_viewport_state;
@@ -1058,8 +1404,8 @@ bail:
         vk_pipeline_info.pColorBlendState    = &vk_color_blending;
         vk_pipeline_info.pDynamicState       = &vk_dynamic_state_create_info;
         vk_pipeline_info.layout              = program->m_Handle.m_PipelineLayout;
-        vk_pipeline_info.renderPass          = vk_render_pass;
-        vk_pipeline_info.subpass             = 0;
+        vk_pipeline_info.renderPass          = render_target->m_Handle.m_RenderPass;
+        vk_pipeline_info.subpass             = render_target->m_SubPassIndex;
         vk_pipeline_info.basePipelineHandle  = VK_NULL_HANDLE;
         vk_pipeline_info.basePipelineIndex   = -1;
 
@@ -1069,11 +1415,11 @@ bail:
     void ResetScratchBuffer(VkDevice vk_device, ScratchBuffer* scratchBuffer)
     {
         assert(scratchBuffer);
-        scratchBuffer->m_DescriptorAllocator->Release(vk_device);
+        scratchBuffer->m_DescriptorAllocator->Reset(vk_device);
         scratchBuffer->m_MappedDataCursor = 0;
     }
 
-    void DestroyProgram(VkDevice vk_device, Program::VulkanHandle* handle)
+    void DestroyProgram(VkDevice vk_device, VulkanProgram::VulkanHandle* handle)
     {
         assert(handle);
         if (handle->m_PipelineLayout != VK_NULL_HANDLE)
@@ -1082,12 +1428,12 @@ bail:
             handle->m_PipelineLayout = VK_NULL_HANDLE;
         }
 
-        for (int i = 0; i < Program::MODULE_TYPE_COUNT; ++i)
+        for (int i = 0; i < handle->m_DescriptorSetLayoutsCount; ++i)
         {
-            if (handle->m_DescriptorSetLayout[i] != VK_NULL_HANDLE)
+            if (handle->m_DescriptorSetLayouts[i] != VK_NULL_HANDLE)
             {
-                vkDestroyDescriptorSetLayout(vk_device, handle->m_DescriptorSetLayout[i], 0);
-                handle->m_DescriptorSetLayout[i] = VK_NULL_HANDLE;
+                vkDestroyDescriptorSetLayout(vk_device, handle->m_DescriptorSetLayouts[i], 0);
+                handle->m_DescriptorSetLayouts[i] = VK_NULL_HANDLE;
             }
         }
     }
@@ -1109,23 +1455,19 @@ bail:
         memset((void*)device, 0, sizeof(*device));
     }
 
-    void DestroyDescriptorAllocator(VkDevice vk_device, DescriptorAllocator::VulkanHandle* handle)
+    void DestroyDescriptorAllocator(VkDevice vk_device, DescriptorAllocator* allocator)
     {
-        assert(handle);
-        if (handle->m_DescriptorSets)
-        {
-            delete[] handle->m_DescriptorSets;
-            handle->m_DescriptorSets = 0x0;
-        }
+        assert(allocator);
+        delete[] allocator->m_DescriptorSets;
+        allocator->m_DescriptorSets = 0x0;
 
-        if (handle->m_DescriptorPool != VK_NULL_HANDLE)
+        for (int i = 0; i < allocator->m_DescriptorPools.Size(); ++i)
         {
-            vkDestroyDescriptorPool(vk_device, handle->m_DescriptorPool, 0);
-            handle->m_DescriptorPool = VK_NULL_HANDLE;
+            vkDestroyDescriptorPool(vk_device, allocator->m_DescriptorPools[i].m_DescriptorPool, 0);
         }
     }
 
-    void DestroyTexture(VkDevice vk_device, Texture::VulkanHandle* handle)
+    void DestroyTexture(VkDevice vk_device, VulkanTexture::VulkanHandle* handle)
     {
         assert(handle);
         if (handle->m_ImageView != VK_NULL_HANDLE)
@@ -1149,6 +1491,14 @@ bail:
             vkDestroySampler(vk_device, sampler->m_Sampler, 0);
             sampler->m_Sampler = VK_NULL_HANDLE;
         }
+    }
+
+    void DestroyRenderTarget(VkDevice vk_device, RenderTarget::VulkanHandle* handle)
+    {
+        DestroyFrameBuffer(vk_device, handle->m_Framebuffer);
+        DestroyRenderPass(vk_device, handle->m_RenderPass);
+        handle->m_Framebuffer = VK_NULL_HANDLE;
+        handle->m_RenderPass = VK_NULL_HANDLE;
     }
 
     void DestroyDeviceBuffer(VkDevice vk_device, DeviceBuffer::VulkanHandle* handle)
@@ -1259,7 +1609,7 @@ bail:
     VkResult CreateLogicalDevice(PhysicalDevice* device, const VkSurfaceKHR surface, const QueueFamily queueFamily,
         const char** deviceExtensions, const uint8_t deviceExtensionCount,
         const char** validationLayers, const uint8_t validationLayerCount,
-        LogicalDevice* logicalDeviceOut)
+        void* pNext, LogicalDevice* logicalDeviceOut)
     {
         assert(device);
 
@@ -1294,9 +1644,10 @@ bail:
         memset(&vk_device_create_info, 0, sizeof(vk_device_create_info));
 
         vk_device_create_info.sType                   = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+        vk_device_create_info.pNext                   = pNext;
         vk_device_create_info.pQueueCreateInfos       = vk_device_queue_create_info;
         vk_device_create_info.queueCreateInfoCount    = queue_family_c;
-        vk_device_create_info.pEnabledFeatures        = 0;
+        vk_device_create_info.pEnabledFeatures        = &device->m_Features;
         vk_device_create_info.enabledExtensionCount   = deviceExtensionCount;
         vk_device_create_info.ppEnabledExtensionNames = deviceExtensions;
         vk_device_create_info.enabledLayerCount       = validationLayerCount;

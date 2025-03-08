@@ -1,24 +1,25 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.keymap-test
-  (:require [clojure.test :refer [are deftest is testing]]
-            [editor.keymap :as keymap]))
+  (:require [clojure.test :refer [deftest is]]
+            [editor.keymap :as keymap]
+            [util.fn :as fn]))
 
 (deftest default-bindings-are-valid
   (doseq [[platform key-bindings] keymap/platform->default-key-bindings]
-    (is (keymap/make-keymap key-bindings {:valid-command? (constantly true)
+    (is (keymap/make-keymap key-bindings {:valid-command? fn/constantly-true
                                           :platform platform
                                           :throw-on-error? true}))))
 
@@ -33,7 +34,7 @@
                               ["Alt+T" :t]
                               ["Ctrl+Alt+U" :u]
                               ["Shift+Alt+X" :x]]
-                             :darwin)
+                             :macos)
          #{{:type :typable-shortcut :command :s :shortcut "S"}
            {:type :typable-shortcut :command :t :shortcut "Alt+T"}
            {:type :typable-shortcut :command :u :shortcut "Ctrl+Alt+U"}

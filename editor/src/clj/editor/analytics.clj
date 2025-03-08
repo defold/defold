@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -33,15 +33,15 @@
 ;; Set this to true to see the events that get sent when testing.
 (defonce ^:private log-events? false)
 
-(defonce ^:private batch-size 16)
+(defonce ^:private batch-size 25)
 (defonce ^:private cid-regex #"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 (defonce ^:private config-atom (atom nil))
 (defonce ^:private event-queue-atom (atom PersistentQueue/EMPTY))
 (defonce ^:private max-failed-send-attempts 5)
-(defonce ^:private payload-content-type "application/x-www-form-urlencoded; charset=UTF-8")
+(defonce ^:private payload-content-type "application/json")
 (defonce ^:private shutdown-timeout 1000)
-(defonce ^:private uid-regex #"[0-9A-F]{16}")
 (defonce ^:private worker-atom (atom nil))
+(defonce ^:private session-id (rand))
 
 ;; -----------------------------------------------------------------------------
 ;; Validation
@@ -51,8 +51,7 @@
   (and (string? value)
        (try
          (let [url (URL. value)]
-           (and (nil? (.getQuery url))
-                (nil? (.getRef url))
+           (and (nil? (.getRef url))
                 (let [protocol (.getProtocol url)]
                   (or (= "http" protocol)
                       (= "https" protocol)))))
@@ -63,26 +62,11 @@
   (and (string? value)
        (.matches (re-matcher cid-regex value))))
 
-(defn- valid-uid? [value]
-  (and (string? value)
-       (.matches (re-matcher uid-regex value))))
-
 (defn- valid-config? [config]
   (and (map? config)
-       (= #{:cid :uid} (set (keys config)))
-       (let [{:keys [cid uid]} config]
-         (and (valid-cid? cid)
-              (or (nil? uid)
-                  (valid-uid? uid))))))
-
-(def ^:private valid-event?
-  (every-pred map?
-              (comp nil? :cd1) ; Custom Dimension 1 is reserved for the uid.
-              (comp (every-pred string? not-empty) :t)
-              (partial every?
-                       (every-pred (comp keyword? key)
-                                   (comp string? val)
-                                   (comp not-empty val)))))
+       (= #{:cid} (set (keys config)))
+       (let [{:keys [cid]} config]
+         (valid-cid? cid))))
 
 ;; -----------------------------------------------------------------------------
 ;; Configuration
@@ -90,19 +74,15 @@
 
 (defn- make-config []
   {:post [(valid-config? %)]}
-  {:cid (str (UUID/randomUUID))
-   :uid nil})
+  {:cid (str (UUID/randomUUID))})
 
 (defn- config-file
   ^File []
   (.toFile (.resolve (Editor/getSupportPath) ".defold-analytics")))
 
-(defn- write-config-to-file! [{:keys [cid uid]} ^File config-file]
-  {:pre [(valid-cid? cid)
-         (or (nil? uid) (valid-uid? uid))]}
-  (let [json (if (some? uid)
-               {"cid" cid "uid" uid}
-               {"cid" cid})]
+(defn- write-config-to-file! [{:keys [cid]} ^File config-file]
+  {:pre [(valid-cid? cid)]}
+  (let [json {"cid" cid}]
     (with-open [writer (io/writer config-file)]
       (json/write json writer))))
 
@@ -115,10 +95,10 @@
 
 (defn- read-config-from-file! [^File config-file]
   (with-open [reader (io/reader config-file)]
-    (let [{cid "cid" uid "uid"} (json/read reader)]
-      {:cid cid :uid uid})))
+    (let [{cid "cid"} (json/read reader)]
+      {:cid cid})))
 
-(defn- read-config! [invalidate-uid?]
+(defn- read-config! []
   {:post [(valid-config? %)]}
   (let [config-file (config-file)
         config-from-file (try
@@ -129,47 +109,23 @@
                              nil))
         config (if-not (valid-config? config-from-file)
                  (make-config)
-                 (cond-> config-from-file
-                         (and invalidate-uid?
-                              (contains? config-from-file :uid))
-                         (assoc :uid nil)))]
+                 config-from-file)]
     (when (not= config-from-file config)
       (write-config! config))
     config))
 
 ;; -----------------------------------------------------------------------------
 ;; Internals
+;; https://developers.google.com/analytics/devguides/collection/protocol/ga4/reference?client_type=gtag
 ;; -----------------------------------------------------------------------------
-
-;; Entries sent to Google Analytics must be both UTF-8 and URL Encoded.
-;; See the "URL Encoding Values" section here for details:
-;; https://developers.google.com/analytics/devguides/collection/protocol/v1/reference
-(def encode-string (partial url/encode url/x-www-form-urlencoded-safe-character? false StandardCharsets/UTF_8))
-
-(defn- encode-key-value-pair
-  ^String [[k v]]
-  (str (encode-string (name k)) "=" (encode-string v)))
-
-(defn- event->line
-  ^String [event {:keys [cid uid] :as _config}]
-  {:pre [(valid-event? event)
-         (valid-cid? cid)
-         (or (nil? uid) (valid-uid? uid))]}
-  (let [tid (str "tid=" (get-in connection-properties [:google-analytics :tid]))
-        common-pairs (if (some? uid) ; NOTE: The uid is also supplied as Custom Dimension 1.
-                       ["v=1" tid (str "cid=" cid) (str "uid=" uid) (str "cd1=" uid)]
-                       ["v=1" tid (str "cid=" cid)])
-        pairs (into common-pairs
-                    (map encode-key-value-pair)
-                    event)]
-    (string/join "&" pairs)))
 
 (defn- batch->payload
   ^bytes [batch]
-  {:pre [(vector? batch)
-         (not-empty batch)]}
-  (let [text (string/join "\n" batch)]
-    (.getBytes text StandardCharsets/UTF_8)))
+  (let [config @config-atom
+        cid (get config :cid)
+        payload { :client_id cid :events batch }
+        ^String payload-json (json/write-str payload)]
+    (.getBytes payload-json StandardCharsets/UTF_8)))
 
 (defn- get-response-code!
   "Wrapper rebound to verify response from dev server in tests."
@@ -183,7 +139,6 @@
     (doto connection
       (.setRequestMethod "POST")
       (.setDoOutput true)
-      (.setFixedLengthStreamingMode (count payload))
       (.setRequestProperty "Content-Type" content-type)
       (.connect))
     (with-open [output-stream (.getOutputStream connection)]
@@ -193,13 +148,16 @@
 (defn- ok-response-code? [^long response-code]
   (<= 200 response-code 299))
 
-(defn- send-payload! [analytics-url ^bytes payload]
+(defn- send-payload! [analytics-url ^bytes payload-json]
   (try
-    (let [response-code (get-response-code! (post! analytics-url payload-content-type payload))]
+    (let [connection (post! analytics-url payload-content-type payload-json)
+          response-message (.getResponseMessage connection)
+          response-code (get-response-code! connection)
+          response-body (slurp (.getInputStream connection))]
       (if (ok-response-code? response-code)
         true
         (do
-          (log/warn :msg (str "Analytics server sent non-OK response code " response-code))
+          (log/warn :msg (str "Analytics server sent non-OK response code " response-code " " response-message " " response-body))
           false)))
     (catch Exception error
       (log/warn :msg "An exception was thrown when sending analytics data" :exception error)
@@ -279,19 +237,18 @@
 
 (defn- append-event! [event]
   (when-some [config @config-atom]
-    (let [line (event->line event config)]
-      (when (enabled?)
-        (swap! event-queue-atom conj line))
-      (when log-events?
-        (log/info :msg line)))))
+    (when (enabled?)
+      (swap! event-queue-atom conj event))
+    (when log-events?
+      (log/info :msg event))))
 
 ;; -----------------------------------------------------------------------------
 ;; Public interface
 ;; -----------------------------------------------------------------------------
 
-(defn start! [^String analytics-url send-interval invalidate-uid?]
+(defn start! [^String analytics-url send-interval]
   {:pre [(valid-analytics-url? analytics-url)]}
-  (reset! config-atom (read-config! invalidate-uid?))
+  (reset! config-atom (read-config!))
   (when (some? (sys/defold-version))
     (swap! worker-atom
            (fn [started-worker]
@@ -311,37 +268,28 @@
 (defn enabled? []
   (some? @worker-atom))
 
-(defn set-uid! [^String uid]
-  {:pre [(or (nil? uid) (valid-uid? uid))]}
-  (swap! config-atom
-         (fn [config]
-           (let [config (or config (read-config! false))
-                 updated-config (assoc config :uid uid)]
-             (when (not= config updated-config)
-               (write-config! updated-config))
-             updated-config))))
-
 (defn track-event!
   ([^String category ^String action]
-   (append-event! {:t "event"
-                   :ec category
-                   :ea action}))
+   (append-event! {:name "select_content"
+                   :params {:content_type (str category "-" action)
+                            :engagement_time_msec "100"
+                            :session_id session-id}}))
   ([^String category ^String action ^String label]
-   (append-event! {:t "event"
-                   :ec category
-                   :ea action
-                   :el label})))
+   (append-event! {:name "select_content"
+                   :params {:content_type (str category "-" action)
+                            :item_id label
+                            :engagement_time_msec "100"
+                            :session_id session-id}})))
 
 (defn track-exception! [^Throwable exception]
-  (append-event! {:t "exception"
-                  :exd (.getSimpleName (class exception))}))
+  (append-event! {:name "exception"
+                  :params {:name (.getSimpleName (class exception)) 
+                           :engagement_time_msec "100"
+                           :session_id session-id}}))
 
 (defn track-screen! [^String screen-name]
-  (if-some [version (sys/defold-version)]
-    (append-event! {:t "screenview"
-                    :an "defold"
-                    :av version
-                    :cd screen-name})
-    (append-event! {:t "screenview"
-                    :an "defold"
-                    :cd screen-name})))
+    (append-event! {:name "page_view"
+                    :params {:page_location screen-name
+                             :engagement_time_msec "100"
+                             :session_id session-id}}))
+

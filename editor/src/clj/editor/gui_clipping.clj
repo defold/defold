@@ -1,22 +1,22 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.gui-clipping
-  (:require [dynamo.graph :as g]
-            [clojure.pprint :refer [cl-format]])
-  (:import [com.jogamp.opengl GL GL2]
-           [clojure.lang ExceptionInfo]))
+  (:require [clojure.pprint :refer [cl-format]]
+            [dynamo.graph :as g]
+            [util.coll :refer [pair]])
+  (:import [com.jogamp.opengl GL GL2]))
 
 ;;
 ;; Clipping
@@ -206,7 +206,7 @@
 ;;
 ;; The implementation is mostly concerned with counting different types
 ;; of clippers in the scopes, assigning ref and mask values, and
-;; transfering these to the scene nodes so the clipping is applied when
+;; transferring these to the scene nodes so the clipping is applied when
 ;; drawing.
 ;;
 ;; Visible Clippers
@@ -222,15 +222,16 @@
 ;; Layers and rendering order
 ;;
 ;; For clipping to work properly, the clipper must be drawn before its
-;; children. Normally we can change the draw order of nodes (starting out
-;; as depth first, in order traversal) by assigning layers to nodes. But
-;; doing that for clipper child nodes to draw it before the clipper would
-;; be pointless. Instead the meaning of layers within clippers is changed
-;; to only affect the relative draw order of the nodes in its scope. The
-;; layer set on the clipper node itself does not affect its draw order -
-;; but it *is* inherited by any child node with no layer set (like
-;; outside clippers) and especially by the node representing a visible
-;; clipper. The clipper is effectively drawn in the "null" layer.
+;; children. However, users can change the draw order of nodes (starting out
+;; as depth first, in order traversal) by assigning layers to nodes. The clipper
+;; nodes follow the same layer rules as regular gui nodes, so it is possible to
+;; configure a draw order that does not appear to make sense. For example, one
+;; could create a situation where the clipped nodes are drawn before the clipper
+;; has written to the stencil buffer, effectively rendering the clipped nodes
+;; invisible. Previously we had a much more complicated rule set for clipping,
+;; layers and render order, but it ended up causing a lot of confusion and did
+;; not really provide more flexibility, so we changed it back to using the same
+;; rules as everything else.
 ;;
 ;; Bit overflow
 ;;
@@ -589,51 +590,26 @@
   [(:node-id scene) (get-in scene [:renderable :user-data :clipping-state])])
 
 (defn- trickle-down-default-layers
-  "Perform inheritance of parent node layer to child nodes with no
-  layer assigned, and strip layer from clipper nodes."
+  "Perform inheritance of parent node layer to child nodes without layer."
   ([scene]
    (trickle-down-default-layers nil scene))
   ([default-layer scene]
    (let [layer (get-in scene [:renderable :layer-index])]
      (if (and layer (>= layer 0))
-       (cond-> (update scene :children #(mapv (partial trickle-down-default-layers layer) %))
-         (clipper-scene? scene)
-         (assoc-in [:renderable :layer-index] nil)) ; clipper nodes render in the null layer (first)
-       (cond-> (update scene :children #(mapv (partial trickle-down-default-layers default-layer) %))
-         (not (clipper-scene? scene))
-         (assoc-in [:renderable :layer-index] default-layer))))))
+       (update scene :children #(mapv (partial trickle-down-default-layers layer) %))
+       (-> scene
+           (update :children #(mapv (partial trickle-down-default-layers default-layer) %))
+           (assoc-in [:renderable :layer-index] default-layer))))))
 
-(defn- scope-scenes
-  "Collect scenes in depth first pre order (parent visited before children), stopping at clipper nodes."
-  [scene]
-  (loop [children-stack (list (:children scene))
-         scenes []]
-    (cond
-      (not (seq children-stack))
-      scenes
-
-      (not (seq (first children-stack)))
-      (recur (rest children-stack) scenes)
-
-      true
-      (let [child (ffirst children-stack)
-            next-children (if (clipper-scene? child) [] (:children child))]
-        (recur (cons next-children (cons (rest (first children-stack)) (rest children-stack)))
-               (conj scenes child))))))
-
-(defn- render-keys
-  ([scene]
-   (render-keys {} (scope-scenes scene)))
-  ([assignment unsorted-scenes]
-   (let [scenes (sort-by #(get-in % [:renderable :layer-index]) unsorted-scenes)]
-     (reduce (fn [assignment scene]
-               (if (clipper-scene? scene)
-                 (-> assignment
-                     (assoc (scene-key scene) (count assignment))
-                     (render-keys (scope-scenes scene)))
-                 (assoc assignment (scene-key scene) (count assignment))))
-             assignment
-             scenes))))
+(defn- render-keys [scene]
+  (into {}
+        (map-indexed (fn [index scene]
+                       (pair (scene-key scene)
+                             index)))
+        (sort-by #(get-in % [:renderable :layer-index])
+                 (tree-seq (comp seq :children)
+                           :children
+                           scene))))
 
 (defn scene->render-keys [scene]
   (-> scene

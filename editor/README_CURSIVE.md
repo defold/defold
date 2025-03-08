@@ -4,39 +4,43 @@
 
 2. Start IntelliJ and customize it to your liking. You might want to disable some of the plugins that you know for sure you will not use.
 
-3. On the Welcome Screen, click the **Configure** button and choose **Plugins** from the dropdown menu that appears. You can also reach the Plugins dialog from **Settings > Plugins** within IntelliJ.
+3. On the Welcome Screen, select **Plugins** from the menu on the right. You can also reach the plugin manager from the **Preferences** window within IntelliJ.
 
-4. In the plugins window, press **Browse Repositories...** and search for "Cursive". Install Cursive using the green install button, then close the Browse Repositories window and the Settings window. Restart IntelliJ when it prompts you to.
+4. In the plugin manager, select the **Marketplace** tab and type "Cursive" in the search box. Install Cursive using the green **Install** button. Restart IntelliJ when it prompts you to.
 
 ## Configuring Cursive preferences
 
-Once the IntelliJ restarts, we should make some changes to the Cursive preferences to make it easier to work with. On the Welcome Screen, click the **Configure** button and choose **Preferences** from the dropdown menu and select the **Languages & Frameworks > Clojure** page.
+Once the IntelliJ restarts, we should make some changes to the Cursive preferences to make it easier to work with. You are not required to change these preferences, but we recommend you do, especially if this is your first time using Clojure.
+
+On the Welcome Screen, select **Customize** from the menu on the right and click the **All settings...** link at the bottom. Inside the **Preferences** window that appears, navigate to the **Languages & Frameworks > Clojure** page.
 
 1. Enable **Rainbow parentheses**. This colors parentheses and brackets in the editor so it will be easier to distinguish between nested scopes.
 
-2. Disable **Highlight unresolved symbols**. For some reason Cursive is not able to resolve all the symbols in the editor project. When enabled, this clutters up the editor with a lot of noisy highlighting that doesn't really help.
+2. Disable **Load out-of-date file dependencies transitively**. By default, Cursive will automatically reload any edited files that are referenced from the file you're reloading. This can cause type errors if a referenced file re-defines a Java class. It is better to manually refresh only the changed forms, because once you trigger a type error the editor needs to be restarted to get it back on track.
 
-3. Disable **Load out-of-date file dependencies transitively**. By default, Cursive will automatically reload any edited files that are referenced from the file you're reloading. This can cause type errors if a referenced file re-defines a Java class. It is better to manually refresh only the changed forms, because once you trigger a type error the editor needs to be restarted to get it back on track.
-
-4. Disable **Add forms send from the editor to REPL history**. It is preferable to have the REPL history only contain the evaluations you sent from the REPL window when experimenting.
+3. Disable **Add forms sent from the editor to REPL history**. It is preferable to have the REPL history only contain the evaluations you sent from the REPL window when experimenting.
 
 ## Setting up the Defold Editor project
 
 Time to open the Defold Editor project. The first time you open it, you'll need to configure some things.
 
-1. Choose **Open** from the Welcome screen and select the `defold/editor` directory. Choose **Open as Project** when prompted.
+1. Choose **Open** from the Welcome screen and select the `defold/editor` directory. Choose to trust the project when prompted.
 
-2. You need to choose the target Java SDK for the project. Choose **File > Project Structure** from the menu bar and go to the **Project Settings > Project** page.
+2. Open the **Project** sidebar on the left of the IDE window and locate the `project.clj` file at root level. Right-click it and select **Add as Leiningen Project** from the context menu. The "Stub Generation Required" notification that might appear can be safely ignored.
 
-3. Under the Project SDK section, choose Java version **11.0.2** from the dropdown. If that's not available from the dropdown, you'll need to tell IntelliJ where to find it. In that case you must browse for the JDK folder by clicking the **New...** button. Close the Project settings dialog when you're done.
+3. You need to choose the target Java SDK for the project. Choose **File > Project Structure** from the menu bar and go to the **Project Settings > Project** page.
 
-4. Select **Edit Configurations...** from the dropdown in the toolbar of the main IntelliJ window to open the Run/Debug Configurations dialog.
+4. Under the Project SDK section, choose Java version **21.0.5** from the dropdown. If that's not available from the dropdown, you'll need to tell IntelliJ where to find it. In that case you must browse for the JDK folder by selecting **Add JDK...** from the dropdown.
 
-5. Click the plus button in the top left of the dialog and select **Clojure REPL > Local**. Name the configuration `local repl` and select **nREPL** for the type of REPL to run. Under the **How to run it** section, select **Run with Leiningen** and type `+local-repl` into the **Profiles** field. Scroll down and uncheck **Activate tool window** at the bottom to prevent the Output panel from opening when we run this. The REPL view will capture standard output, so there is no need for it.
+5. Go to the **Project Settings > Modules** page and navigate to the Clojure tab. Uncheck the **Create stubs if required** checkbox. This gets rid of the "Stub Generation Required" notification whenever you reopen the project. Click **OK** to close the Project settings dialog when you're done.
 
-6. Optionally you can also create a configuration with a standalone REPL. This lets you run code and tests without starting the editor, and is sometimes useful when fixing failing unit tests. If you don't care about that, you can safely skip this step. Otherwise, click the plus button in the top left of the dialog and select **Clojure REPL > Local**. Name the configuration `standalone repl`. Under the **How to run it** section, select **Run with Leiningen**, and uncheck **Activate tool window** for this one as well.
+6. Select **Edit Configurations...** from the **Run Configuration** dropdown in the toolbar (this likely says "Current File" before you change it) of the main IntelliJ window to open the Run/Debug Configurations dialog.
 
-7. Press **OK** to close the dialog. You should now be able to select the `local repl` configuration and launch the editor from the toolbar by pressing the play button. Launching the editor will also open a REPL window that you can use to evaluate code, redefine functions, or experiment with function calls while the editor is running.
+7. Click the plus button in the top left of the dialog and select **Clojure REPL > Remote**. Name the configuration `connect repl` and select **nREPL** for the **Connection type**. Under **Connection details**, select **Use port from REPL file** and select the `defold-editor` project from the **Project** dropdown. Make sure **Use standard port file** is selected, then click **OK** to close the dialog.
+
+8. From a command-line prompt, `cd` into the `defold/editor` directory and type `lein run` to start the editor. Once you reach the Welcome window, run the `connect repl` configuration from the IntelliJ toolbar to connect to the running process. From here, you can evaluate expressions, redefine functions, run tests, and interact with the running editor from the REPL window.
+
+9. Alternatively, you can type `lein repl` to quickly start a process you can connect to where you're able to run tests and play around with the code without starting the editor. Type `exit` to terminate it from the command-line.
 
 ## Recommended keyboard shortcuts
 
@@ -46,7 +50,7 @@ The defaults for these might depend on the keymap you selected when installing I
 Suggested shortcut: **Cmd+D**. Adds the word around the cursor to the selection, or adds the next occurrence of the selected word to the selection.
 
 #### Extend Selection
-Suggested shortcut: **Cmd+W**. Extends the selection to encompass the entire form directly after or around the cursor. This is very useful when moving code around, or when you want to insert a form directly after another.
+Suggested shortcut: **Cmd+E**. Extends the selection to encompass the entire form directly after or around the cursor. This is very useful when moving code around, or when you want to insert a form directly after another.
 
 #### Auto-Indent Lines
 Suggested shortcut: **Cmd+Alt+I**. Fixes the indentation on the selected lines.

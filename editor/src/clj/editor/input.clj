@@ -1,39 +1,21 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.input
-  (:require [dynamo.graph :as g]
-            [schema.core :as s])
-  (:import [com.defold.editor Start UIUtil]
-           [com.jogamp.opengl.util.awt TextRenderer]
-           [editor.types Camera AABB Region]
-           [java.awt Font]
-           [java.awt.image BufferedImage]
-           [javafx.application Platform]
-           [javafx.collections FXCollections ObservableList]
-           [javafx.embed.swing SwingFXUtils]
-           [javafx.event ActionEvent EventHandler EventType]
-           [javafx.fxml FXMLLoader]
-           [javafx.scene Scene Node Parent]
-           [javafx.scene.control Button TitledPane TextArea TreeItem Menu MenuItem MenuBar Tab ProgressBar]
-           [javafx.scene.image Image ImageView WritableImage PixelWriter]
-           [javafx.scene.input InputEvent MouseEvent MouseButton ScrollEvent]
-           [javafx.scene.layout AnchorPane StackPane HBox Priority]
-           [javafx.stage Stage FileChooser]
-           [java.io File]
-           [java.lang Runnable System]
-           [javax.vecmath Point3d Matrix4d Vector4d Matrix3d Vector3d]))
+  (:require [schema.core :as s])
+  (:import [javafx.event EventType]
+           [javafx.scene.input InputEvent MouseEvent MouseButton ScrollEvent]))
 
 (set! *warn-on-reflection* true)
 
@@ -83,4 +65,7 @@
                :shift (.isShiftDown mouse-event)
                :meta (.isMetaDown mouse-event)
                :control (.isControlDown mouse-event)
-               :click-count (.getClickCount mouse-event))))))
+               :click-count (.getClickCount mouse-event)
+               :target (.getTarget mouse-event)
+               :screen-x (.getScreenX mouse-event)
+               :screen-y (.getScreenY mouse-event))))))

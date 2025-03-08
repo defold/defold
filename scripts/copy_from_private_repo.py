@@ -1,13 +1,13 @@
 #!/usr/bin/env python
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2025 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -18,7 +18,7 @@
 import os, sys, shutil, subprocess
 
 PLATFORMS=[]
-for p in ['nx64', 'ps4']:
+for p in ['vendor','nx64', 'ps4', 'ps5']:
     PLATFORMS.append(p)
     PLATFORMS.append(p.upper())
 
@@ -31,13 +31,17 @@ FILE_PATTERNS.append('private.appmanifest')
 FILE_PATTERNS.append('.appmanifest')
 
 FILE_PATTERNS.append('SwitchBundler.java') # todo: Rename to "NX64Bundler.java"
-FILE_PATTERNSS.append('switch')
+FILE_PATTERNS.append('switch')
+FILE_PATTERNS.append('ps4')
+FILE_PATTERNS.append('ps5')
 
 FILE_PATTERNS.append('meta.edn') # TODO: create meta.edn plugins for extensions
 FILE_PATTERNS.append('meta.properties') # TODO: create meta.edn plugins for extensions
 FILE_PATTERNS.append('build.xml') # TODO: make a strategy here
 
-FILE_PATTERNS.append('com.dynamo.cr.bob') # TODO: until we've fixed the above bob cases
+FILE_PATTERNS.append('platform.sdks.json')
+
+#FILE_PATTERNS.append('com.dynamo.cr.bob') # TODO: until we've fixed the above bob cases
 
 LOCAL_PATTERNS=[]
 LOCAL_PATTERNS.append('.pyc')
@@ -47,6 +51,7 @@ LOCAL_PATTERNS.append('dist/')
 LOCAL_PATTERNS.append('build/')
 LOCAL_PATTERNS.append('editor/target/classes/')
 LOCAL_PATTERNS.append('dynamo_home')
+LOCAL_PATTERNS.append('local_sdks')
 
 def is_local_file(path):
     for pattern in LOCAL_PATTERNS:
@@ -57,7 +62,7 @@ def is_local_file(path):
 def is_private_file(path):
     for pattern in PLATFORMS+FILE_PATTERNS:
         if pattern in path:
-            print "Skipping", path
+            print("Skipping", path)
             return True
     return False
 
@@ -93,18 +98,21 @@ if __name__ == '__main__':
     src = sys.argv[1]
     tgt = sys.argv[2]
 
+    src = os.path.normpath(src)
+    tgt = os.path.normpath(tgt)
+
     for root, dirs, files in os.walk(src):
         for f in files:
             path = os.path.join(root, f)
             path = path.replace('\\', '/')
 
-            if is_local_file(path):
-                continue
-            if is_private_file(path):
-                continue
-
             relative_path = os.path.relpath(path, src)
             relative_path = relative_path.replace('\\', '/')
+
+            if is_local_file(relative_path):
+                continue
+            if is_private_file(relative_path):
+                continue
 
             tgtfile = tgt + '/' + relative_path
 

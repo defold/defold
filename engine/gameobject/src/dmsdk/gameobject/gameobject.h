@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -86,6 +86,34 @@ namespace dmGameObject
      */
     typedef struct CollectionHandle* HCollection;
 
+    /*#
+     * Handle to a list of properties (gameobject_props.h)
+     * @typedef
+     * @name HPropertyContainer
+     */
+    typedef struct PropertyContainer* HPropertyContainer;
+
+    /*#
+     * Opaque handle to component instance
+     * @typedef
+     * @name HComponent
+     */
+    typedef void* HComponent;
+
+    /*#
+     * Opaque handle to internal representation of a component instance
+     * @typedef
+     * @name HComponentInternal
+     */
+    typedef uintptr_t HComponentInternal;
+
+    /*#
+     * Opaque handle to a component world
+     * @typedef
+     * @name HComponentWorld
+     */
+    typedef void* HComponentWorld;
+
     typedef void* HCollectionDesc;
 
     /*#
@@ -160,6 +188,7 @@ namespace dmGameObject
         PROPERTY_TYPE_VECTOR4 = 4,
         PROPERTY_TYPE_QUAT = 5,
         PROPERTY_TYPE_BOOLEAN = 6,
+        PROPERTY_TYPE_MATRIX4 = 7,
         PROPERTY_TYPE_COUNT
     };
 
@@ -181,6 +210,7 @@ namespace dmGameObject
      * @member dmGameObject::PROPERTY_RESULT_RESOURCE_NOT_FOUND
      * @member dmGameObject::PROPERTY_RESULT_INVALID_INDEX
      * @member dmGameObject::PROPERTY_RESULT_INVALID_KEY
+     * @member dmGameObject::PROPERTY_RESULT_READ_ONLY
      */
     enum PropertyResult
     {
@@ -197,6 +227,7 @@ namespace dmGameObject
         PROPERTY_RESULT_RESOURCE_NOT_FOUND = -10,
         PROPERTY_RESULT_INVALID_INDEX = -11,
         PROPERTY_RESULT_INVALID_KEY = -12,
+        PROPERTY_RESULT_READ_ONLY = -13,
     };
 
     /*#
@@ -281,6 +312,8 @@ namespace dmGameObject
         };
 
         uint8_t m_HasKey : 1;
+
+        PropertyOptions();
     };
 
     /*# property variant
@@ -305,6 +338,7 @@ namespace dmGameObject
         PropertyVar(dmVMath::Vector3 v);
         PropertyVar(dmVMath::Vector4 v);
         PropertyVar(dmVMath::Quat v);
+        PropertyVar(dmVMath::Matrix4 v);
         PropertyVar(bool v);
 
         PropertyType m_Type;
@@ -315,6 +349,7 @@ namespace dmGameObject
             // NOTE: We can't store an URL as is due to constructor
             char  m_URL[32]; // the same size as the dmMessage::URL
             float m_V4[4];
+            float m_M4[16];
             bool m_Bool;
         };
     };
@@ -341,17 +376,19 @@ namespace dmGameObject
      * @member m_ElementIds [type: dmhash_t] For composite properties (float arrays), these ids name each element
      * @member m_Variant [type: PropertyVar] Variant holding the value
      * @member m_ValuePtr [type: float*] Pointer to the value, only set for mutable values. The actual data type is described by the variant.
-     * @member m_ReadOnly [type: bool] Determines whether we are permitted to write to this property.
-     * @member m_ValueType [type: uint8_t] Indicates type of the property.
+     * @member m_ReadOnly [type: uint16_t] Determines whether we are permitted to write to this property.
+     * @member m_ValueType [type: uint16_t] Indicates type of the property (of type PropertyValueType).
+     * @member m_ArrayLength [type: uint16_t] Number of array entries, if the property is an array and zero otherwise. Max supported length is 2^14 (16384 elements)
      */
     struct PropertyDesc
     {
         PropertyDesc();
-        dmhash_t m_ElementIds[4];
+        dmhash_t    m_ElementIds[4];
         PropertyVar m_Variant;
-        float* m_ValuePtr;
-        bool m_ReadOnly;
-        uint8_t m_ValueType : 1;
+        float*      m_ValuePtr;
+        uint16_t    m_ReadOnly    : 1;
+        uint16_t    m_ValueType   : 1;
+        uint16_t    m_ArrayLength : 14;
     };
 
     /*#
@@ -405,7 +442,12 @@ namespace dmGameObject
         float m_ScreenDX;
         /// Cursor dy since last frame, in screen space
         float m_ScreenDY;
-        float m_AccX, m_AccY, m_AccZ;
+        /// Accelerometer x value (if present)
+        float m_AccX;
+        /// Accelerometer y value (if present)
+        float m_AccY;
+        /// Accelerometer z value (if present)
+        float m_AccZ;
         /// Touch data
         dmHID::Touch m_Touch[dmHID::MAX_TOUCH_COUNT];
         /// Number of m_Touch
@@ -414,9 +456,11 @@ namespace dmGameObject
         char     m_Text[dmHID::MAX_CHAR_COUNT];
         uint32_t m_TextCount;
         uint32_t m_GamepadIndex;
+        uint32_t m_UserID;
         dmHID::GamepadPacket m_GamepadPacket;
 
         uint8_t  m_IsGamepad : 1;
+        uint8_t  m_GamepadUnknown : 1;
         uint8_t  m_GamepadDisconnected : 1;
         uint8_t  m_GamepadConnected : 1;
         uint8_t  m_HasGamepadPacket : 1;
@@ -458,6 +502,22 @@ namespace dmGameObject
      * @return socket [type: dmMessage::HSocket] The message socket of the specified collection
      */
     dmMessage::HSocket GetMessageSocket(HCollection collection);
+
+    /*# spawn a new game object
+     * Spawns a new gameobject instance. The actual creation is performed after the update is completed.
+     * @name Spawn
+     * @param collection [type: HCollection] Gameobject collection
+     * @param prototype [type: HPrototype] Prototype
+     * @param prototype_name [type: const char*] Prototype file name (.goc)
+     * @param id [type: dmhash_t] Id of the spawned instance
+     * @param properties [type: HPropertyContainer] Container with override properties
+     * @param position [type: dmVMath::Vector3] Position of the spawed object
+     * @param rotation [type: dmVMath::Quat] Rotation of the spawned object
+     * @param scale [type: dmVMath::Vector3] Scale of the spawned object
+     * return instance [type: HInstance] the spawned instance, 0 at failure
+     */
+    HInstance Spawn(HCollection collection, HPrototype prototype, const char* prototype_name, dmhash_t id,
+                      HPropertyContainer properties, const dmVMath::Point3& position, const dmVMath::Quat& rotation, const dmVMath::Vector3& scale);
 
     /*#
      * Retrieve a collection from the specified instance
@@ -541,10 +601,21 @@ namespace dmGameObject
      * @name GetComponentId
      * @param instance [type: dmGameObject::HInstance] Instance
      * @param component_index [type: uint16_t] Component index
-     * @param component_id [type: dmhash_t* Component id as out-argument
-     * @return result [type: dmGameObject::Result] RESULT_OK if the comopnent was found
+     * @param component_id [type: dmhash_t*] Component id as out-argument
+     * @return result [type: dmGameObject::Result] RESULT_OK if the component was found
      */
     Result GetComponentId(HInstance instance, uint16_t component_index, dmhash_t* component_id);
+
+    /*#
+     * Get the component, component type and its world
+     * @param instance [type: dmGameObject::HInstance] Instance
+     * @param component_id [type: dmhash_t] Component id
+     * @param component_type [type: uint32_t*] (out) Component type. Used for validation.
+     * @param component [type: HComponent*] (out) The component.
+     * @param world [type: HComponentWorld*] (out) The component world. May be 0.
+     * @return result [type: dmGameObject::Result] RESULT_OK if the component was found
+     */
+    Result GetComponent(HInstance instance, dmhash_t component_id, uint32_t* component_type, HComponent* component, HComponentWorld* out_world);
 
     /*# set position
      * Set gameobject instance position
@@ -713,6 +784,31 @@ namespace dmGameObject
      * @return parent [type: dmGameObject::HInstance] Parent instance. NULL if passed instance is root
      */
     HInstance GetParent(HInstance instance);
+
+    /*#
+     * Get the component type index
+     * @name GetComponentTypeIndex
+     * @param collection Collection handle
+     * @param type_hash [type:dhmash_t] The hashed name of the registered component type (e.g. dmHashString("guic"))
+     * @return type_index [type:uint32_t] The component type index. 0xFFFFFFFF if not found
+     */
+    uint32_t GetComponentTypeIndex(HCollection collection, dmhash_t type_hash);
+
+    /*#
+     * Retrieve the world in the collection connected to the supplied component
+     * @param collection Collection handle
+     * @param component_type_index index of the component type
+     * @return world [type:void*] The pointer to the world, 0x0 if not found
+     */
+    HComponentWorld GetWorld(HCollection collection, uint32_t component_type_index);
+
+    /*#
+     * Retrieve the context for a component type
+     * @param collection Collection handle
+     * @param component_type_index index of the component type
+     * @return context [type:void*] The pointer to the context, 0x0 if not found
+     */
+    void* GetContext(HCollection collection, uint32_t component_type_index);
 
 
     // These functions are used for profiling functionality

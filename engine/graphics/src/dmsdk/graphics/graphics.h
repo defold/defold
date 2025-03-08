@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,6 +16,8 @@
 #define DMSDK_GRAPHICS_H
 
 #include <stdint.h>
+
+#include <graphics/graphics_ddf.h>
 
 /*# Graphics API documentation
  * [file:<dmsdk/graphics/graphics.h>]
@@ -34,30 +36,21 @@ namespace dmGraphics
      * @typedef
      * @name HContext
      */
-    typedef struct Context* HContext;
+    typedef void* HContext;
 
     /*#
      * Texture handle
      * @typedef
      * @name HTexture
      */
-    typedef struct Texture* HTexture;
-
-    typedef struct RenderTarget* HRenderTarget; // Where is this currently used?
+    typedef uint64_t HTexture;
 
     /*#
-     * Vertex program handle
+     * Rendertarget handle
      * @typedef
-     * @name HVertexProgram
+     * @name HRenderTarget
      */
-    typedef uintptr_t HVertexProgram;
-
-    /*#
-     * Fragment program handle
-     * @typedef
-     * @name HFragmentProgram
-     */
-    typedef uintptr_t HFragmentProgram;
+    typedef uint64_t HRenderTarget; // Where is this currently used?
 
     /*#
      * Program handle
@@ -81,12 +74,61 @@ namespace dmGraphics
     typedef uintptr_t HIndexBuffer;
 
     /*#
+     * Storage buffer handle
+     * @typedef
+     * @name HStorageBuffer
+     */
+    typedef uintptr_t HStorageBuffer;
+
+    /*#
+     * Uniform location handle
+     * @typedef
+     * @name HUniformLocation
+     */
+    typedef int64_t HUniformLocation;
+
+    /*#
      * Vertex declaration handle
      * @typedef
      * @name HVertexDeclaration
      */
     typedef struct VertexDeclaration* HVertexDeclaration;
 
+    /*#
+     * Vertex stream declaration handle
+     * @typedef
+     * @name HVertexStreamDeclaration
+     */
+    typedef struct VertexStreamDeclaration* HVertexStreamDeclaration;
+
+    /*#
+     * PipelineState handle
+     * @typedef
+     * @name HPipelineState
+     */
+    typedef struct PipelineState* HPipelineState;
+
+    /*#
+     * Invalid stream offset
+     * @constant
+     * @name INVALID_STREAM_OFFSET
+     */
+    const uint32_t INVALID_STREAM_OFFSET = 0xFFFFFFFF;
+
+    /*#
+     * Max buffer color attachments
+     * @constant
+     * @name MAX_BUFFER_COLOR_ATTACHMENTS
+     */
+    const uint8_t  MAX_BUFFER_COLOR_ATTACHMENTS = 4;
+
+    /*#
+     * @enum
+     * @name HandleResult
+     * @member HANDLE_RESULT_OK
+     * @member HANDLE_RESULT_NOT_AVAILABLE
+     * @member HANDLE_RESULT_ERROR
+     */
     enum HandleResult
     {
         HANDLE_RESULT_OK = 0,
@@ -94,6 +136,14 @@ namespace dmGraphics
         HANDLE_RESULT_ERROR = -2
     };
 
+    /*#
+     * @enum
+     * @name RenderTargetAttachment
+     * @member ATTACHMENT_COLOR
+     * @member ATTACHMENT_DEPTH
+     * @member ATTACHMENT_STENCIL
+     * @member MAX_ATTACHMENT_COUNT
+     */
     enum RenderTargetAttachment
     {
         ATTACHMENT_COLOR     = 0,
@@ -102,9 +152,134 @@ namespace dmGraphics
         MAX_ATTACHMENT_COUNT = 3
     };
 
-    HTexture GetRenderTargetAttachment(HRenderTarget render_target, RenderTargetAttachment attachment_type);
-    HandleResult GetTextureHandle(HTexture texture, void** out_handle);
+    /*#
+     * @enum
+     * @name AttachmentOp
+     * @member ATTACHMENT_OP_DONT_CARE
+     * @member ATTACHMENT_OP_LOAD
+     * @member ATTACHMENT_OP_STORE
+     * @member ATTACHMENT_OP_CLEAR
+     */
+    enum AttachmentOp
+    {
+        ATTACHMENT_OP_DONT_CARE,
+        ATTACHMENT_OP_LOAD,
+        ATTACHMENT_OP_STORE,
+        ATTACHMENT_OP_CLEAR,
+    };
 
+    /*#
+     * @enum
+     * @name TextureFormat
+     * @member TEXTURE_FORMAT_LUMINANCE
+     * @member TEXTURE_FORMAT_LUMINANCE_ALPHA
+     * @member TEXTURE_FORMAT_RGB
+     * @member TEXTURE_FORMAT_RGBA
+     * @member TEXTURE_FORMAT_RGB_16BPP
+     * @member TEXTURE_FORMAT_RGBA_16BPP
+     * @member TEXTURE_FORMAT_DEPTH
+     * @member TEXTURE_FORMAT_STENCIL
+     * @member TEXTURE_FORMAT_RGB_PVRTC_2BPPV1
+     * @member TEXTURE_FORMAT_RGB_PVRTC_4BPPV1
+     * @member TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1
+     * @member TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1
+     * @member TEXTURE_FORMAT_RGB_ETC1
+     * @member TEXTURE_FORMAT_R_ETC2
+     * @member TEXTURE_FORMAT_RG_ETC2
+     * @member TEXTURE_FORMAT_RGBA_ETC2
+     * @member TEXTURE_FORMAT_RGBA_ASTC_4x4
+     * @member TEXTURE_FORMAT_RGB_BC1
+     * @member TEXTURE_FORMAT_RGBA_BC3
+     * @member TEXTURE_FORMAT_R_BC4
+     * @member TEXTURE_FORMAT_RG_BC5
+     * @member TEXTURE_FORMAT_RGBA_BC7
+     * @member TEXTURE_FORMAT_RGB16F
+     * @member TEXTURE_FORMAT_RGB32F
+     * @member TEXTURE_FORMAT_RGBA16F
+     * @member TEXTURE_FORMAT_RGBA32F
+     * @member TEXTURE_FORMAT_R16F
+     * @member TEXTURE_FORMAT_RG16F
+     * @member TEXTURE_FORMAT_R32F
+     * @member TEXTURE_FORMAT_RG32F
+     * @member TEXTURE_FORMAT_RGBA32UI
+     * @member TEXTURE_FORMAT_COUNT
+     */
+    enum TextureFormat
+    {
+        TEXTURE_FORMAT_LUMINANCE            = 0,
+        TEXTURE_FORMAT_LUMINANCE_ALPHA      = 1,
+        TEXTURE_FORMAT_RGB                  = 2,
+        TEXTURE_FORMAT_RGBA                 = 3,
+        TEXTURE_FORMAT_RGB_16BPP            = 4,
+        TEXTURE_FORMAT_RGBA_16BPP           = 5,
+        TEXTURE_FORMAT_DEPTH                = 6,
+        TEXTURE_FORMAT_STENCIL              = 7,
+        // Compressed formats
+        TEXTURE_FORMAT_RGB_PVRTC_2BPPV1     = 8,
+        TEXTURE_FORMAT_RGB_PVRTC_4BPPV1     = 9,
+        TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1    = 10,
+        TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1    = 11,
+        TEXTURE_FORMAT_RGB_ETC1             = 12,
+        TEXTURE_FORMAT_R_ETC2               = 13,
+        TEXTURE_FORMAT_RG_ETC2              = 14,
+        TEXTURE_FORMAT_RGBA_ETC2            = 15,
+        TEXTURE_FORMAT_RGBA_ASTC_4x4        = 16,
+        TEXTURE_FORMAT_RGBA_ASTC_4X4        = 16,
+        TEXTURE_FORMAT_RGB_BC1              = 17,
+        TEXTURE_FORMAT_RGBA_BC3             = 18,
+        TEXTURE_FORMAT_R_BC4                = 19,
+        TEXTURE_FORMAT_RG_BC5               = 20,
+        TEXTURE_FORMAT_RGBA_BC7             = 21,
+        // Floating point texture formats
+        TEXTURE_FORMAT_RGB16F               = 22,
+        TEXTURE_FORMAT_RGB32F               = 23,
+        TEXTURE_FORMAT_RGBA16F              = 24,
+        TEXTURE_FORMAT_RGBA32F              = 25,
+        TEXTURE_FORMAT_R16F                 = 26,
+        TEXTURE_FORMAT_RG16F                = 27,
+        TEXTURE_FORMAT_R32F                 = 28,
+        TEXTURE_FORMAT_RG32F                = 29,
+        // Internal formats (not exposed via script APIs)
+        TEXTURE_FORMAT_RGBA32UI             = 30,
+        TEXTURE_FORMAT_BGRA8U               = 31,
+        TEXTURE_FORMAT_R32UI                = 32,
+
+        // ASTC Formats
+        TEXTURE_FORMAT_RGBA_ASTC_5X4        = 33,
+        TEXTURE_FORMAT_RGBA_ASTC_5X5        = 34,
+        TEXTURE_FORMAT_RGBA_ASTC_6X5        = 35,
+        TEXTURE_FORMAT_RGBA_ASTC_6X6        = 36,
+        TEXTURE_FORMAT_RGBA_ASTC_8X5        = 37,
+        TEXTURE_FORMAT_RGBA_ASTC_8X6        = 38,
+        TEXTURE_FORMAT_RGBA_ASTC_8X8        = 39,
+        TEXTURE_FORMAT_RGBA_ASTC_10X5       = 40,
+        TEXTURE_FORMAT_RGBA_ASTC_10X6       = 41,
+        TEXTURE_FORMAT_RGBA_ASTC_10X8       = 42,
+        TEXTURE_FORMAT_RGBA_ASTC_10X10      = 43,
+        TEXTURE_FORMAT_RGBA_ASTC_12X10      = 44,
+        TEXTURE_FORMAT_RGBA_ASTC_12X12      = 45,
+
+        TEXTURE_FORMAT_COUNT
+    };
+
+    /*#
+     * Get the attachment texture from a render target. Returns zero if no such attachment texture exists.
+     * @name GetRenderTargetAttachment
+     * @param render_target [type: dmGraphics::HRenderTarget] the render target
+     * @param attachment_type [type: dmGraphics::RenderTargetAttachment] the attachment to get
+     * @return attachment [type: dmGraphics::HTexture] the attachment texture
+     */
+    HTexture GetRenderTargetAttachment(HRenderTarget render_target, RenderTargetAttachment attachment_type);
+
+    /*#
+     * Get the native graphics API texture object from an engine texture handle. This depends on the graphics backend and is not
+     * guaranteed to be implemented on the currently running adapter.
+     * @name GetTextureHandle
+     * @param texture [type: dmGraphics::HTexture] the texture handle
+     * @param out_handle [type: void**] a pointer to where the raw object should be stored
+     * @return handle_result [type: dmGraphics::HandleResult] the result of the query
+     */
+    HandleResult GetTextureHandle(HTexture texture, void** out_handle);
 
     /*#
      * @enum
@@ -178,6 +353,7 @@ namespace dmGraphics
         BUFFER_USAGE_STREAM_DRAW  = 0,
         BUFFER_USAGE_DYNAMIC_DRAW = 1,
         BUFFER_USAGE_STATIC_DRAW  = 2,
+        BUFFER_USAGE_TRANSFER     = 4,
     };
 
     /*#
@@ -237,27 +413,42 @@ namespace dmGraphics
      * @member TYPE_FLOAT_MAT4
      * @member TYPE_SAMPLER_2D
      * @member TYPE_SAMPLER_CUBE
+     * @member TYPE_SAMPLER_2D_ARRAY
+     * @member TYPE_FLOAT_VEC2
+     * @member TYPE_FLOAT_VEC3
+     * @member TYPE_FLOAT_MAT2
+     * @member TYPE_FLOAT_MAT3
+     * @member TYPE_IMAGE_2D
      */
     enum Type
     {
-        TYPE_BYTE           = 0,
-        TYPE_UNSIGNED_BYTE  = 1,
-        TYPE_SHORT          = 2,
-        TYPE_UNSIGNED_SHORT = 3,
-        TYPE_INT            = 4,
-        TYPE_UNSIGNED_INT   = 5,
-        TYPE_FLOAT          = 6,
-        TYPE_FLOAT_VEC4     = 7,
-        TYPE_FLOAT_MAT4     = 8,
-        TYPE_SAMPLER_2D     = 9,
-        TYPE_SAMPLER_CUBE   = 10,
+        TYPE_BYTE             = 0,
+        TYPE_UNSIGNED_BYTE    = 1,
+        TYPE_SHORT            = 2,
+        TYPE_UNSIGNED_SHORT   = 3,
+        TYPE_INT              = 4,
+        TYPE_UNSIGNED_INT     = 5,
+        TYPE_FLOAT            = 6,
+        TYPE_FLOAT_VEC4       = 7,
+        TYPE_FLOAT_MAT4       = 8,
+        TYPE_SAMPLER_2D       = 9,
+        TYPE_SAMPLER_CUBE     = 10,
+        TYPE_SAMPLER_2D_ARRAY = 11,
+        TYPE_FLOAT_VEC2       = 12,
+        TYPE_FLOAT_VEC3       = 13,
+        TYPE_FLOAT_MAT2       = 14,
+        TYPE_FLOAT_MAT3       = 15,
+        TYPE_IMAGE_2D         = 16,
+        TYPE_TEXTURE_2D       = 17,
+        TYPE_SAMPLER          = 18,
+        TYPE_TEXTURE_2D_ARRAY = 19,
+        TYPE_TEXTURE_CUBE     = 20
     };
-
 
     /*#
      * Blend factor
      * @enum
-     * @name Type
+     * @name BlendFactor
      * @member BLEND_FACTOR_ZERO
      * @member BLEND_FACTOR_ONE
      * @member BLEND_FACTOR_SRC_COLOR
@@ -294,43 +485,72 @@ namespace dmGraphics
     };
 
     /*#
-     * @struct
-     * @name VertexElement
-     * @member m_Name [type: const char*] name of the element (e.g. "position")
-     * @member m_Stream [type: uint32_t] stream index
-     * @member m_Size [type: uint32_t] number of elements (e.g. 3 for "position")
-     * @member m_Type [type: dmGraphics::Type] data type
-     * @member m_Normalize [type: bool] if set, will normalize the output in the program
+     * Create new vertex stream declaration. A stream declaration contains a list of vertex streams
+     * that should be used to create a vertex declaration from.
+     * @name NewVertexStreamDeclaration
+     * @param context [type: dmGraphics::HContext] the context
+     * @return declaration [type: dmGraphics::HVertexStreamDeclaration] the vertex declaration
      */
-    struct VertexElement
-    {
-        const char*     m_Name;
-        uint32_t        m_Stream;
-        uint32_t        m_Size;
-        Type            m_Type;
-        bool            m_Normalize;
-    };
+    HVertexStreamDeclaration NewVertexStreamDeclaration(HContext context);
 
     /*#
-     * Create new vertex declaration
+     * Create new vertex stream declaration. A stream declaration contains a list of vertex streams
+     * that should be used to create a vertex declaration from.
+     * @name NewVertexStreamDeclaration
+     * @param context [type: dmGraphics::HContext] the context
+     * @param step_function [type: dmGraphics::VertexStepFunction] the vertex step function to use
+     * @return declaration [type: dmGraphics::HVertexStreamDeclaration] the vertex declaration
+     */
+    HVertexStreamDeclaration NewVertexStreamDeclaration(HContext context, VertexStepFunction step_function);
+
+    /*#
+     * Adds a stream to a stream declaration
+     * @name AddVertexStream
+     * @param context [type: dmGraphics::HContext] the context
+     * @param name [type: const char*] the name of the stream
+     * @param size [type: uint32_t] the size of the stream, i.e number of components
+     * @param type [type: dmGraphics::Type] the data type of the stream
+     * @param normalize [type: bool] true if the stream should be normalized in the 0..1 range
+     */
+    void AddVertexStream(HVertexStreamDeclaration stream_declaration, const char* name, uint32_t size, Type type, bool normalize);
+
+    /*#
+     * Adds a stream to a stream declaration
+     * @name AddVertexStream
+     * @param context [type: dmGraphics::HContext] the context
+     * @param name_hash [type: uint64_t] the name hash of the stream
+     * @param size [type: uint32_t] the size of the stream, i.e number of components
+     * @param type [type: dmGraphics::Type] the data type of the stream
+     * @param normalize [type: bool] true if the stream should be normalized in the 0..1 range
+     */
+    void AddVertexStream(HVertexStreamDeclaration stream_declaration, uint64_t name_hash, uint32_t size, Type type, bool normalize);
+
+    /*#
+     * Delete vertex stream declaration
+     * @name DeleteVertexStreamDeclaration
+     * @param stream_declaration [type: dmGraphics::HVertexStreamDeclaration] the vertex stream declaration
+     */
+    void DeleteVertexStreamDeclaration(HVertexStreamDeclaration stream_declaration);
+
+    /*#
+     * Create new vertex declaration from a vertex stream declaration
      * @name NewVertexDeclaration
      * @param context [type: dmGraphics::HContext] the context
-     * @param element [type: dmGraphics::VertexElement*] the array of vertex elements
-     * @param count [type: uint32_t] the number of items in the element array
+     * @param stream_declaration [type: dmGraphics::HVertexStreamDeclaration] the vertex stream declaration
      * @return declaration [type: dmGraphics::HVertexDeclaration] the vertex declaration
      */
-    HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count);
+    HVertexDeclaration NewVertexDeclaration(HContext context, HVertexStreamDeclaration stream_declaration);
 
     /*#
-     * Create new vertex declaration
+     * Create new vertex declaration from a vertex stream declaration and an explicit stride value,
+     * where the stride is the number of bytes between each consecutive vertex in a vertex buffer
      * @name NewVertexDeclaration
      * @param context [type: dmGraphics::HContext] the context
-     * @param element [type: dmGraphics::VertexElement*] the array of vertex elements
-     * @param count [type: uint32_t] the number of items in the element array
+     * @param stream_declaration [type: dmGraphics::HVertexStreamDeclaration] the vertex stream declaration
      * @param stride [type: uint32_t] the stride between the start of each vertex (in bytes)
      * @return declaration [type: dmGraphics::HVertexDeclaration] the vertex declaration
      */
-    HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count, uint32_t stride);
+    HVertexDeclaration NewVertexDeclaration(HContext context, HVertexStreamDeclaration stream_declaration, uint32_t stride);
 
     /*#
      * Delete vertex declaration
@@ -338,6 +558,15 @@ namespace dmGraphics
      * @param vertex_declaration [type: dmGraphics::HVertexDeclaration] the vertex declaration
      */
     void DeleteVertexDeclaration(HVertexDeclaration vertex_declaration);
+
+    /*#
+     * Get the physical offset into the vertex data for a particular stream
+     * @name GetVertexStreamOffset
+     * @param vertex_declaration [type: dmGraphics::HVertexDeclaration] the vertex declaration
+     * @param name_hash [type: uint64_t] the name hash of the vertex stream (as passed into AddVertexStream())
+     * @return Offset in bytes into the vertex or INVALID_STREAM_OFFSET if not found
+     */
+    uint32_t GetVertexStreamOffset(HVertexDeclaration vertex_declaration, uint64_t name_hash);
 
     /*#
      * Create new vertex buffer with initial data
@@ -444,10 +673,18 @@ namespace dmGraphics
     /*# check if an extension is supported
      * @name IsExtensionSupported
      * @param context [type:dmGraphics::HContext] the context
-     * @param extension [type:const char*] the extension. Comparison is
+     * @param extension [type:const char*] the extension.
      * @return result [type:bool] true if the extension was supported
      */
     bool IsExtensionSupported(HContext context, const char* extension);
+
+    /*# check if a specific texture format is supported
+     * @name IsTextureFormatSupported
+     * @param context [type:dmGraphics::HContext] the context
+     * @param format [type:TextureFormat] the texture format.
+     * @return result [type:bool] true if the texture format was supported
+     */
+    bool IsTextureFormatSupported(HContext context, TextureFormat format);
 
     /*#
      * @name GetNumSupportedExtensions

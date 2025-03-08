@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,17 +15,18 @@
 #ifndef DM_LIVEUPDATE_H
 #define DM_LIVEUPDATE_H
 
+#include <stdint.h>
 #include <dlib/hash.h>
-
-namespace dmResource
-{
-    typedef struct SResourceFactory* HFactory;
-    struct Manifest;
-}
+#include <resource/resource.h>
 
 namespace dmResourceArchive
 {
     struct LiveUpdateResource;
+}
+
+namespace dmResourceMounts
+{
+    typedef struct ResourceMountsContext* HContext;
 }
 
 namespace dmLiveUpdate
@@ -46,47 +47,35 @@ namespace dmLiveUpdate
         RESULT_BUNDLED_RESOURCE_MISMATCH = -8,
         RESULT_FORMAT_ERROR              = -9,
         RESULT_IO_ERROR                  = -10,
+        RESULT_INVAL                     = -11,
+        RESULT_NOT_INITIALIZED           = -12,
+        RESULT_UNKNOWN                   = -1000,
     };
 
-    const int MAX_MANIFEST_COUNT = 8;
-    const int CURRENT_MANIFEST = 0x0ac83fcc;
-    const uint32_t PROJ_ID_LEN = 41; // SHA1 + NULL terminator
+    const char* ResultToString(Result result);
 
-    void Initialize(const dmResource::HFactory factory);
-    void Finalize();
-    void Update();
+    // Scripting
+    bool HasLiveUpdateMount();
 
-    void RegisterArchiveLoaders();
+    Result ResourceResultToLiveupdateResult(dmResource::Result r);
 
-    uint32_t GetMissingResources(const dmhash_t urlHash, char*** buffer);
+    // For .arci/.arcd storage using the "archive" provider
+    Result StoreResourceAsync(const char* expected_digest, uint32_t expected_digest_length,
+                                    const dmResourceArchive::LiveUpdateResource* resource, void (*callback)(bool, void*), void* callback_data);
 
-    /*
-     * Verifies the manifest cryptographic signature and that the manifest supports the current running dmengine version.
-     */
-    Result VerifyManifest(const dmResource::Manifest* manifest);
+    Result StoreManifestAsync(const uint8_t* manifest_data, uint32_t manifest_len, void (*callback)(int, void*), void* callback_data);
 
-    Result VerifyManifestReferences(const dmResource::Manifest* manifest);
 
-    Result VerifyResource(const dmResource::Manifest* manifest, const char* expected, uint32_t expected_length, const char* data, uint32_t data_length);
+    // For .zip storage using the "zip" provider
+    // Registers an archive (.zip) on disc
+    Result StoreArchiveAsync(const char* path, void (*callback)(const char*, int, void*), void* callback_data, const char* mountname, int priority, bool verify_archive);
 
-    Result StoreResourceAsync(dmResource::Manifest* manifest, const char* expected_digest, const uint32_t expected_digest_length, const dmResourceArchive::LiveUpdateResource* resource, void (*callback)(bool, void*), void* callback_data);
 
-    /*# Registers an archive (.zip) on disc
-     */
-    Result StoreArchiveAsync(const char* path, void (*callback)(bool, void*), void* callback_data, bool verify_archive);
+    // The new api
+    Result AddMountAsync(const char* name, const char* uri, int priority, void (*callback)(const char*, const char*, int, void*), void* cbk_ctx);
+    Result RemoveMountSync(const char* name);
 
-    Result StoreManifest(dmResource::Manifest* manifest);
-
-    Result ParseManifestBin(uint8_t* manifest_data, uint32_t manifest_len, dmResource::Manifest* manifest);
-
-    dmResource::Manifest* GetCurrentManifest();
-
-    // -1: not using liveupdate
-    // 0: single files
-    // 1: zip file
-    int GetLiveupdateType();
-
-    char* DecryptSignatureHash(const uint8_t* pub_key_buf, uint32_t pub_key_len, uint8_t* signature, uint32_t signature_len, uint32_t* out_digest_len);
+    bool IsBuiltWithExcludedFiles();
 };
 
 #endif // DM_LIVEUPDATE_H

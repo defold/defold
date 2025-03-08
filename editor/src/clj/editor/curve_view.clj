@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -33,7 +33,8 @@
             [editor.types :as types]
             [editor.ui :as ui]
             [util.id-vec :as iv])
-  (:import [com.jogamp.opengl GL GL2 GLAutoDrawable]
+  (:import [com.defold.control DefoldStringConverter]
+           [com.jogamp.opengl GL GL2 GLAutoDrawable]
            [editor.properties Curve CurveSpread]
            [editor.types AABB Rect Region]
            [java.lang Runnable]
@@ -43,7 +44,7 @@
            [javafx.scene.control.cell CheckBoxListCell]
            [javafx.scene.image ImageView]
            [javafx.scene.layout AnchorPane]
-           [javafx.util Callback StringConverter]
+           [javafx.util Callback]
            [javax.vecmath Matrix4d Point3d Vector3d Vector4d]))
 
 (set! *warn-on-reflection* true)
@@ -88,11 +89,13 @@
           (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)))))))
 
-(defn- curve? [[_ p]]
-  (let [t (g/value-type-dispatch-value (:type p))
-        v (:value p)]
-    (when (or (= t Curve) (= t CurveSpread))
-      (< 1 (count (properties/curve-vals v))))))
+(defn- has-control-points? [[_ prop-info]]
+  (let [value (:value prop-info)]
+    (and (some? value)
+         (let [type (g/value-type-dispatch-value (:type prop-info))]
+           (if (or (= type Curve) (= type CurveSpread))
+             (< 1 (properties/curve-point-count value))
+             false)))))
 
 (def ^:private x-steps 100)
 (def ^:private xs (reduce (fn [res s] (conj res (double (/ s (- x-steps 1))))) [] (range x-steps)))
@@ -209,10 +212,10 @@
 
 (g/defnk produce-curves [selected-node-properties]
   (let [curves (mapcat (fn [p] (->> (:properties p)
-                                 (filter curve?)
+                                 (filter has-control-points?)
                                  (map (fn [[k p]] {:node-id (:node-id p)
                                                    :property k
-                                                   :curve (iv/iv-mapv identity (:points (:value p)))}))))
+                                                   :curve (iv/iv-entries (:points (:value p)))}))))
                        selected-node-properties)
         ccount (count curves)
         hue-f (/ 360.0 ccount)
@@ -263,7 +266,7 @@
                                                       p [(.x p) (.y p) (.z p)]
                                                       new-curve (-> (g/node-value nid property)
                                                                   (types/geom-insert [p]))
-                                                      id (last (iv/iv-ids (:points new-curve)))
+                                                      id (iv/iv-added-id (:points new-curve))
                                                       select-fn (g/node-value self :select-fn)]
                                                   (select-fn [[nid property id]] op-seq)
                                                   (g/set-property nid property new-curve)))))
@@ -635,11 +638,10 @@
           (ui/context! parent :curve-view {:view-id node-id} (SubSelectionProvider. app-view))
           (ui/fill-control pane)
           (ui/children! view [pane])
-          (let [converter (proxy [StringConverter] []
-                            (fromString ^Object [s] nil)
-                            (toString ^String [item] (if (:property item)
-                                                       (properties/label (:property item))
-                                                       "")))
+          (let [converter (DefoldStringConverter.
+                            #(if (:property %)
+                               (properties/label (:property %))
+                               ""))
                 selected-callback (reify Callback
                                     (call ^ObservableValue [this item]
                                       (let [hidden-curves (g/node-value node-id :hidden-curves)]

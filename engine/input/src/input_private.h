@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -66,6 +66,7 @@ namespace dmInput
         uint32_t m_DeviceId;
         uint8_t m_Index;
         uint8_t m_Connected : 1;
+        uint8_t m_Unknown : 1;
         uint8_t m_NoMapWarning : 1;
     };
 
@@ -104,18 +105,17 @@ namespace dmInput
 
     struct Binding
     {
-        Context* m_Context;
-        KeyboardBinding* m_KeyboardBinding;
-        MouseBinding* m_MouseBinding;
-        dmArray<GamepadBinding*> m_GamepadBindings;
-        TouchDeviceBinding* m_TouchDeviceBinding;
-        AccelerationBinding* m_AccelerationBinding;
-        TextBinding* m_TextBinding;
-        dmHashTable64< Action > m_Actions;
-
+        Context*                    m_Context;
+        KeyboardBinding*            m_KeyboardBinding;
+        MouseBinding*               m_MouseBinding;
+        dmArray<GamepadBinding*>    m_GamepadBindings;
+        TouchDeviceBinding*         m_TouchDeviceBinding;
+        AccelerationBinding*        m_AccelerationBinding;
+        TextBinding*                m_TextBinding;
+        dmHashTable64<Action>       m_Actions;
+        dmArray<uint32_t>           m_DisconnectedGamepadIndices;
         dmInputDDF::GamepadTrigger* m_DDFGamepadTriggersData;
-        uint32_t m_DDFGamepadTriggersCount;
-        dmArray<uint32_t> m_DisconnectedGamepadIndices;
+        uint32_t                    m_DDFGamepadTriggersCount;
     };
 
     struct GamepadInput
@@ -137,12 +137,14 @@ namespace dmInput
 
     struct Context
     {
-        dmIndexPool8 m_GamepadIndices;
-        dmHashTable32< GamepadConfig > m_GamepadMaps;
-        dmHID::HContext m_HidContext;
-        float m_RepeatDelay;
-        float m_RepeatInterval;
-        float m_PressedThreshold;
+        dmIndexPool8                    m_GamepadIndices;
+        dmHashTable32< GamepadConfig >  m_GamepadMaps;
+        dmHashTable32<bool>             m_UnmappedGamepads;
+        dmHID::HContext                 m_HidContext;
+        Binding*                        m_Binding;
+        float                           m_RepeatDelay;
+        float                           m_RepeatInterval;
+        float                           m_PressedThreshold;
     };
 }
 

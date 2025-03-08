@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -17,12 +17,13 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [support.test-support :as ts]
+            [internal.graph.types :as gt]
             [internal.util :refer :all]
             [internal.system :as is]))
 
 (defn- dependencies
   [& pairs]
-  (ts/graph-dependencies (g/now) (partition 2 pairs)))
+  (ts/graph-dependencies (g/now) (map #(apply gt/endpoint %) (partition 2 pairs))))
 
 (g/defnode SingleOutput
   (output out-from-inline g/Str (g/fnk [] "out-from-inline")))
@@ -40,7 +41,7 @@
       (let [[a] (ts/tx-nodes (g/make-node world SingleOutput))
             deps (dependencies a :out-from-inline)]
         (is (= deps
-               #{[a :out-from-inline]})))))
+               #{(gt/endpoint a :out-from-inline)})))))
 
   (testing "without outputs, nobody cares"
     (ts/with-clean-system
@@ -49,7 +50,7 @@
             _     (g/transact (g/connect a :out-from-inline b :unused-input))
             deps  (dependencies a :out-from-inline)]
         (is (= deps
-               #{[a :out-from-inline]})))))
+               #{(gt/endpoint a :out-from-inline)})))))
 
   (testing "direct dependent outputs appear"
     (ts/with-clean-system
@@ -58,8 +59,8 @@
             _     (g/transact (g/connect a :out-from-inline b :string-input))
             deps  (dependencies a :out-from-inline)]
         (is (= deps
-               #{[a :out-from-inline]
-                 [b :out-from-input]}))))))
+               #{(gt/endpoint a :out-from-inline)
+                 (gt/endpoint b :out-from-input)}))))))
 
 (deftest fan-in
   (testing "results include inputs"
@@ -74,10 +75,10 @@
                                c :out-from-inline
                                d :out-from-inline)]
         (is (= deps
-               #{[a :out-from-inline]
-                 [b :out-from-inline]
-                 [c :out-from-inline]
-                 [d :out-from-inline]})))))
+               #{(gt/endpoint a :out-from-inline)
+                 (gt/endpoint b :out-from-inline)
+                 (gt/endpoint c :out-from-inline)
+                 (gt/endpoint d :out-from-inline)})))))
 
   (testing "multi-path dependency only appears once"
     (ts/with-clean-system
@@ -97,11 +98,11 @@
                                       c :out-from-inline
                                       d :out-from-inline)]
         (is (= deps
-               #{[a :out-from-inline]
-                 [b :out-from-inline]
-                 [c :out-from-inline]
-                 [d :out-from-inline]
-                 [x :out-from-input]}))))))
+               #{(gt/endpoint a :out-from-inline)
+                 (gt/endpoint b :out-from-inline)
+                 (gt/endpoint c :out-from-inline)
+                 (gt/endpoint d :out-from-inline)
+                 (gt/endpoint x :out-from-input)}))))))
 
 
 (deftest fan-out
@@ -121,11 +122,11 @@
             deps        (dependencies a :out-from-inline)]
         (def basis* (g/now))
         (is (= deps
-               #{[a :out-from-inline]
-                 [w :out-from-input]
-                 [x :out-from-input]
-                 [y :out-from-input]
-                 [z :out-from-input]}))))))
+               #{(gt/endpoint a :out-from-inline)
+                 (gt/endpoint w :out-from-input)
+                 (gt/endpoint x :out-from-input)
+                 (gt/endpoint y :out-from-input)
+                 (gt/endpoint z :out-from-input)}))))))
 
 (g/defnode MultipleOutputs
   (output output-1 g/Str (g/fnk [] "1"))
@@ -158,8 +159,8 @@
                     (g/connect a :out-from-inline x :input-5)))
             deps  (dependencies a :out-from-inline)]
         (is (= deps
-               #{[a :out-from-inline]
-                 [x :input-counter]})))))
+               #{(gt/endpoint a :out-from-inline)
+                 (gt/endpoint x :input-counter)})))))
 
   (testing "several outputs to one input"
     (ts/with-clean-system
@@ -174,12 +175,12 @@
                     (g/connect a :output-5 x :input-5)))
             deps  (dependencies a :output-1 a :output-2 a :output-3 a :output-4 a :output-5)]
         (is (= deps
-               #{[a :output-1]
-                 [a :output-2]
-                 [a :output-3]
-                 [a :output-4]
-                 [a :output-5]
-                 [x :input-counter]}))))))
+               #{(gt/endpoint a :output-1)
+                 (gt/endpoint a :output-2)
+                 (gt/endpoint a :output-3)
+                 (gt/endpoint a :output-4)
+                 (gt/endpoint a :output-5)
+                 (gt/endpoint x :input-counter)}))))))
 
 (g/defnode SelfDependent
   (input string-input g/Str)
@@ -200,9 +201,9 @@
                    (g/connect a :out-from-inline x :string-input))
             deps  (dependencies a :out-from-inline)]
         (is (= deps
-               #{[a :out-from-inline]
-                 [x :uppercased]
-                 [x :counted]})))))
+               #{(gt/endpoint a :out-from-inline)
+                 (gt/endpoint x :uppercased)
+                 (gt/endpoint x :counted)})))))
 
   (testing "outputs can depend on inputs with the same name"
     (ts/with-clean-system
@@ -212,8 +213,8 @@
                    (g/connect a :out-from-inline x :string-value))
             deps  (dependencies a :out-from-inline)]
         (is (= deps
-               #{[a :out-from-inline]
-                 [x :string-value]}))))))
+               #{(gt/endpoint a :out-from-inline)
+                 (gt/endpoint x :string-value)}))))))
 
 (g/defnode SingleOutput
   (output out-from-inline g/Str (g/fnk [] "out-from-inline")))
@@ -240,10 +241,10 @@
                           (g/connect c :out-from-input  d :string-input)))
             deps        (dependencies a :out-from-inline)]
         (is (= deps
-               #{[a :out-from-inline]
-                 [b :out-from-input]
-                 [c :out-from-input]
-                 [d :out-from-input]}))))))
+               #{(gt/endpoint a :out-from-inline)
+                 (gt/endpoint b :out-from-input)
+                 (gt/endpoint c :out-from-input)
+                 (gt/endpoint d :out-from-input)}))))))
 
 (g/defnode TwoIndependentOutputs
   (input input-1 g/Str)
@@ -265,8 +266,8 @@
             a-deps  (dependencies a :out-from-inline)
             b-deps  (dependencies b :out-from-inline)]
         (is (= a-deps
-               #{[a :out-from-inline]
-                 [x :output-1]}))
+               #{(gt/endpoint a :out-from-inline)
+                 (gt/endpoint x :output-1)}))
         (is (= b-deps
-               #{[b :out-from-inline]
-                 [x :output-2]}))))))
+               #{(gt/endpoint b :out-from-inline)
+                 (gt/endpoint x :output-2)}))))))

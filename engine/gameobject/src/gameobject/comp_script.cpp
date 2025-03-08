@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -24,11 +24,16 @@
 #include "gameobject_private.h"
 #include "gameobject_props_lua.h"
 
+#include "gameobject/gameobject_ddf.h"
+
 extern "C"
 {
 #include <lua/lauxlib.h>
 #include <lua/lualib.h>
 }
+
+DM_PROPERTY_EXTERN(rmtp_GameObject);
+DM_PROPERTY_U32(rmtp_ScriptCount, 0, PROFILE_PROPERTY_FRAME_RESET, "# components", &rmtp_GameObject);
 
 namespace dmGameObject
 {
@@ -70,7 +75,7 @@ namespace dmGameObject
         CompScriptWorld* script_world = (CompScriptWorld*)params.m_World;
         if (script_world->m_Instances.Full())
         {
-            dmLogError("Could not create script component, out of resources.");
+            dmLogError("Could not create script component, out of resources. Increase the 'collection.max_instances' value in [game.project](defold://open?path=/game.project)");
             return CREATE_RESULT_UNKNOWN_ERROR;
         }
 
@@ -98,7 +103,7 @@ namespace dmGameObject
 
     ScriptResult RunScript(lua_State* L, HScript script, ScriptFunction script_function, HScriptInstance script_instance, const RunScriptParams& params)
     {
-        DM_PROFILE(Script, "RunScript");
+        DM_PROFILE("RunScript");
 
         ScriptResult result = SCRIPT_RESULT_OK;
 
@@ -128,9 +133,10 @@ namespace dmGameObject
             }
 
             {
-                uint32_t profiler_hash = 0;
-                const char* profiler_string = dmScript::GetProfilerString(L, 0, script->m_LuaModule->m_Source.m_Filename, SCRIPT_FUNCTION_NAMES[script_function], 0, &profiler_hash);
-                DM_PROFILE_DYN(Script, profiler_string, profiler_hash);
+                char buffer[128];
+                const char* profiler_string = dmScript::GetProfilerString(L, 0, script->m_LuaModule->m_Source.m_Filename, SCRIPT_FUNCTION_NAMES[script_function], 0, buffer, sizeof(buffer));
+                DM_PROFILE_DYN(profiler_string, 0);
+
                 if (dmScript::PCall(L, arg_count, 0) != 0)
                 {
                     result = SCRIPT_RESULT_FAILED;
@@ -180,10 +186,8 @@ namespace dmGameObject
         {
             return CREATE_RESULT_UNKNOWN_ERROR;
         }
-        else
-        {
-            return CREATE_RESULT_OK;
-        }
+        script_instance->m_Initialized = 1;
+        return CREATE_RESULT_OK;
     }
 
     CreateResult CompScriptFinal(const ComponentFinalParams& params)
@@ -208,8 +212,13 @@ namespace dmGameObject
     CreateResult CompScriptAddToUpdate(const ComponentAddToUpdateParams& params)
     {
         HScriptInstance script_instance = (HScriptInstance)*params.m_UserData;
-        script_instance->m_Update = 1;
-        return CREATE_RESULT_OK;
+        if (script_instance->m_Initialized)
+        {
+            HScript script = script_instance->m_Script;
+            script_instance->m_Update = script->m_FunctionReferences[SCRIPT_FUNCTION_UPDATE] != LUA_NOREF || script->m_FunctionReferences[SCRIPT_FUNCTION_FIXED_UPDATE] != LUA_NOREF;
+            return CREATE_RESULT_OK;
+        }
+        return CREATE_RESULT_UNKNOWN_ERROR;
     }
 
 
@@ -246,6 +255,7 @@ namespace dmGameObject
     {
         CompScriptWorld* script_world = (CompScriptWorld*)params.m_World;
         dmScript::UpdateScriptWorld(script_world->m_ScriptWorld, params.m_UpdateContext->m_DT);
+        DM_PROPERTY_ADD_U32(rmtp_ScriptCount, script_world->m_Instances.Size());
         return CompScriptUpdateInternal(params, SCRIPT_FUNCTION_UPDATE, update_result);
     }
 
@@ -254,6 +264,25 @@ namespace dmGameObject
         CompScriptWorld* script_world = (CompScriptWorld*)params.m_World;
         dmScript::FixedUpdateScriptWorld(script_world->m_ScriptWorld, params.m_UpdateContext->m_DT);
         return CompScriptUpdateInternal(params, SCRIPT_FUNCTION_FIXED_UPDATE, update_result);
+    }
+
+    static UpdateResult HandleUnrefMessage(void* context, ScriptInstance* script_instance, int reference)
+    {
+        lua_State* L = GetLuaState(context);
+        DM_LUA_STACK_CHECK(L, 0);
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
+        dmScript::SetInstance(L);
+
+        dmScript::ResolveInInstance(L, reference);
+        dmScript::UnrefInInstance(L, reference);
+
+        lua_pop(L, 1);
+
+        lua_pushnil(L);
+        dmScript::SetInstance(L);
+
+        return UPDATE_RESULT_OK;
     }
 
     static UpdateResult HandleMessage(void* context, ScriptInstance* script_instance, dmMessage::Message* message, int function_ref, bool is_callback, bool deref_function_ref)
@@ -267,7 +296,8 @@ namespace dmGameObject
         lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
         dmScript::SetInstance(L);
 
-        if (is_callback) {
+        if (is_callback)
+        {
             dmScript::ResolveInInstance(L, function_ref);
             if (!lua_isfunction(L, -1))
             {
@@ -307,7 +337,7 @@ namespace dmGameObject
         }
         else
         {
-            if (dmProfile::g_IsInitialized)
+            if (dmProfile::IsInitialized())
             {
                 // Try to find the message name via id and reverse hash
                 message_name = (const char*)dmHashReverse64(message->m_Id, 0);
@@ -322,9 +352,10 @@ namespace dmGameObject
 
         // An on_message function shouldn't return anything.
         {
-            uint32_t profiler_hash = 0;
-            const char* profiler_string = dmScript::GetProfilerString(L, is_callback ? -5 : 0, script_instance->m_Script->m_LuaModule->m_Source.m_Filename, SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONMESSAGE], message_name, &profiler_hash);
-            DM_PROFILE_DYN(Script, profiler_string, profiler_hash);
+            char buffer[128];
+            const char* profiler_string = dmScript::GetProfilerString(L, is_callback ? -5 : 0, script_instance->m_Script->m_LuaModule->m_Source.m_Filename, SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONMESSAGE], message_name, buffer, sizeof(buffer));
+            DM_PROFILE_DYN(profiler_string, 0);
+
             if (dmScript::PCall(L, 4, 0) != 0)
             {
                 result = UPDATE_RESULT_UNKNOWN_ERROR;
@@ -340,7 +371,7 @@ namespace dmGameObject
 
     UpdateResult CompScriptOnMessage(const ComponentOnMessageParams& params)
     {
-        DM_PROFILE(Script, "RunScript");
+        DM_PROFILE("RunScript");
         UpdateResult result = UPDATE_RESULT_OK;
 
         ScriptInstance* script_instance = (ScriptInstance*)*params.m_UserData;
@@ -402,6 +433,11 @@ namespace dmGameObject
                     function_ref = script_instance->m_Script->m_FunctionReferences[SCRIPT_FUNCTION_ONMESSAGE];
                 }
             }
+            else if (params.m_Message->m_Id == dmGameObjectDDF::ScriptUnrefMessage::m_DDFDescriptor->m_NameHash)
+            {
+                dmGameObjectDDF::ScriptUnrefMessage* unref_message = (dmGameObjectDDF::ScriptUnrefMessage*) params.m_Message->m_Data;
+                return HandleUnrefMessage(params.m_Context, script_instance, unref_message->m_Reference + LUA_NOREF);
+            }
         }
 
         // Is it using the old code path?
@@ -436,7 +472,7 @@ namespace dmGameObject
 
     InputResult CompScriptOnInput(const ComponentOnInputParams& params)
     {
-        DM_PROFILE(Script, "RunScript");
+        DM_PROFILE("RunScript");
         InputResult result = INPUT_RESULT_IGNORED;
 
         ScriptInstance* script_instance = (ScriptInstance*)*params.m_UserData;
@@ -470,9 +506,14 @@ namespace dmGameObject
 
             if (params.m_InputAction->m_IsGamepad)
             {
-                lua_pushliteral(L, "gamepad");
                 lua_pushnumber(L, params.m_InputAction->m_GamepadIndex);
-                lua_settable(L, action_table);
+                lua_setfield(L, action_table, "gamepad");
+
+                lua_pushinteger(L, params.m_InputAction->m_UserID);
+                lua_setfield(L, action_table, "userid");
+
+                lua_pushboolean(L, params.m_InputAction->m_GamepadUnknown);
+                lua_setfield(L, action_table, "gamepad_unknown");
             }
 
             if (params.m_InputAction->m_GamepadConnected)
@@ -495,8 +536,8 @@ namespace dmGameObject
                 lua_settable(L, -3);
 
                 lua_pushliteral(L, "gamepad_buttons");
-                lua_createtable(L, dmHID::MAX_GAMEPAD_AXIS_COUNT, 0);
-                for (int i = 0; i < dmHID::MAX_GAMEPAD_AXIS_COUNT; ++i)
+                lua_createtable(L, dmHID::MAX_GAMEPAD_BUTTON_COUNT, 0);
+                for (int i = 0; i < dmHID::MAX_GAMEPAD_BUTTON_COUNT; ++i)
                 {
                     lua_pushinteger(L, (lua_Integer) (i+1));
                     lua_pushnumber(L, dmHID::GetGamepadButton(&gamepadPacket, i));
@@ -644,11 +685,11 @@ namespace dmGameObject
                     lua_pushinteger(L, (lua_Integer) t.m_DY);
                     lua_settable(L, -3);
 
-                    lua_pushstring(L, "screen_dx");
+                    lua_pushliteral(L, "screen_dx");
                     lua_pushnumber(L, (lua_Integer) t.m_ScreenDX);
                     lua_rawset(L, -3);
 
-                    lua_pushstring(L, "screen_dy");
+                    lua_pushliteral(L, "screen_dy");
                     lua_pushnumber(L, (lua_Integer) t.m_ScreenDY);
                     lua_rawset(L, -3);
 
@@ -662,7 +703,7 @@ namespace dmGameObject
                 int tc = params.m_InputAction->m_TextCount;
                 lua_pushliteral(L, "text");
                 if (tc == 0) {
-                    lua_pushstring(L, "");
+                    lua_pushliteral(L, "");
                 } else {
                     lua_pushlstring(L, params.m_InputAction->m_Text, tc);
                 }
@@ -673,9 +714,10 @@ namespace dmGameObject
             int input_ret = lua_gettop(L) - arg_count;
             int ret;
             {
-                uint32_t profiler_hash = 0;
-                const char* profiler_string = dmScript::GetProfilerString(L, 0, script_instance->m_Script->m_LuaModule->m_Source.m_Filename, SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONINPUT], 0, &profiler_hash);
-                DM_PROFILE_DYN(Message, profiler_string, profiler_hash);
+                char buffer[128];
+                const char* profiler_string = dmScript::GetProfilerString(L, 0, script_instance->m_Script->m_LuaModule->m_Source.m_Filename, SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONINPUT], 0, buffer, sizeof(buffer));
+                DM_PROFILE_DYN(profiler_string, 0);
+
                 ret = dmScript::PCall(L, arg_count, LUA_MULTRET);
             }
             const char* function_name = SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONINPUT];

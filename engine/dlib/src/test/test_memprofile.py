@@ -1,12 +1,12 @@
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2025 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -19,25 +19,25 @@ def debug_print(profile):
     print("MAWE DEBUG: (remove once we've fixed the issue!)")
 
     print("    SYMBOLS")
-    for k, s in profile.symbol_table.iteritems():
+    for k, s in profile.symbol_table.items():
         print("%lu\t\t%s" % (k, s))
 
     print("    TRACES")
-    for k, t in profile.traces.iteritems():
+    for k, t in profile.traces.items():
         print("  %s\t%s" % (k, t))
 
     print("    SUMMARY")
-    for k, s in profile.summary.iteritems():
+    for k, s in profile.summary.items():
         print("  %s\t%s" % (k, str(s)) )
 
 
 class TestDlib(unittest.TestCase):
 
     def testMemprofile(self):
-        profile = memprofile.load('memprofile.trace', 'build/default/src/test/test_memprofile')
+        profile = memprofile.load('memprofile.trace', 'build/src/test/test_memprofile')
 
         try:
-            for k, s in profile.summary.iteritems():
+            for k, s in profile.summary.items():
                 tmp = str(s.back_trace)
                 if 'func1a' in tmp and 'func2' in tmp:
                     self.assertEqual(16 * 8, s.nmalloc)

@@ -1,0 +1,6 @@
+material: "/builtins/materials/model.material"
+vertices: "/checked.buffer"
+textures: "/referenced/images/white.png"
+primitive_type: PRIMITIVE_TRIANGLE_STRIP
+position_stream: "position"
+normal_stream: "normal"

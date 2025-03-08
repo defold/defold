@@ -1,13 +1,13 @@
 #!/usr/bin/env python
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2025 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -18,16 +18,23 @@
 import re
 import logging
 import sys
-import StringIO
+import io
 from optparse import OptionParser
 from markdown import Markdown
 from markdown import Extension
 from markdown.util import etree, AtomicString
 from markdown.inlinepatterns import Pattern
 from pprint import pprint
-import yaml
+from google.protobuf.descriptor import FieldDescriptor
+from google.protobuf.message import Message
 
+import json
+import yaml
 import script_doc_ddf_pb2
+
+
+# JG: reference pattern is 15 in blockprocessors.py, so I'm guessing it's supposed to be lower?
+REF_PATTERN_PRIORITY_VALUE = 14
 
 #
 #   This extension allows the use of [ref:go.animate] or [ref:animate] reference tags in source
@@ -41,8 +48,9 @@ class RefExtension(Extension):
         tp = RefPattern(pattern)
         tp.md = md
         tp.ext = self
+
         # Add inline pattern before "reference" pattern
-        md.inlinePatterns.add("ref", tp, "<reference")
+        md.inlinePatterns.register(tp, "ref", REF_PATTERN_PRIORITY_VALUE)
 
 class RefPattern(Pattern):
     def getCompiledRegExp(self):
@@ -73,7 +81,7 @@ class IconExtension(Extension):
         tp.md = md
         tp.ext = self
         # Add inline pattern before "reference" pattern
-        md.inlinePatterns.add("icon", tp, "<reference")
+        md.inlinePatterns.register(tp, "icon", REF_PATTERN_PRIORITY_VALUE)
 
 class IconPattern(Pattern):
     def getCompiledRegExp(self):
@@ -97,7 +105,7 @@ class TypeExtension(Extension):
         tp.md = md
         tp.ext = self
         # Add inline pattern before "reference" pattern
-        md.inlinePatterns.add("type", tp, "<reference")
+        md.inlinePatterns.register(tp, "type", REF_PATTERN_PRIORITY_VALUE)
 
 class TypePattern(Pattern):
     def getCompiledRegExp(self):
@@ -127,7 +135,7 @@ class ClassExtension(Extension):
         cp.md = md
         cp.ext = self
         # Add inline pattern before "reference" pattern
-        md.inlinePatterns.add("class", cp, "<reference")
+        md.inlinePatterns.register(cp, "class", REF_PATTERN_PRIORITY_VALUE)
 
 class ClassPattern(Pattern):
     def getCompiledRegExp(self):
@@ -204,7 +212,7 @@ def _parse_comment(text):
             document_comment = True
 
     if not name_found:
-        logging.warn('Missing tag @name in "%s"' % text)
+        logging.warning('Missing tag @name in "%s"' % text)
         return None
 
     desc_start = min(len(text), text.find('\n'))
@@ -238,6 +246,8 @@ def _parse_comment(text):
         md.reset()
         if tag == 'name':
             element.name = value
+        elif tag == 'note':
+            element.notes.append(value)
         elif tag == 'return':
             """ Some of the possible variations:
             @return name
@@ -299,16 +309,18 @@ def _parse_comment(text):
             # only care for @namespace in @document comments.
             element.namespace = value
             namespace_found = True
+        elif tag == 'language':
+            element.language = value
 
     if document_comment and not namespace_found:
-        logging.warn('Missing tag @namespace in "%s"' % str)
+        logging.warning('Missing tag @namespace in "%s"' % str)
         return None
 
     return element
 
 def extract_type_from_docstr(s):
     # try to extract the type information
-    m = re.search(r'^\s*(?:\s*\[type:\s*(.*)\])+\s*([\w\W]*)', s)
+    m = re.search(r'^\s*(?:\s*\[type:\s*([^\]]*)\])+\s*([\w\W]*)', s)
     if m and m.group(1):
         type_list = m.group(1).split("|")
         if len(type_list) == 1:
@@ -362,7 +374,7 @@ def _parse_comment_yaml(str):
             element_type = "document"
 
     if not name_found:
-        logging.warn('Missing tag @name in "%s"' % str)
+        logging.warning('Missing tag @name in "%s"' % str)
         return None
 
     desc_start = min(len(str), str.find('\n'))
@@ -378,12 +390,16 @@ def _parse_comment_yaml(str):
     element["members"] = []
     element["tparams"] = []
     element["params"] = []
+    element["notes"] = []
 
     namespace_found = False
     for (tag, value) in lst:
         value = value.strip()
         if tag == 'name':
             element["name"] = value
+
+        elif tag == 'note':
+            element["notes"].append(value)
 
         elif tag == 'return':
             tmp = value.split(' ', 1)
@@ -434,7 +450,7 @@ def _parse_comment_yaml(str):
             namespace_found = True
 
     if element_type == 'document' and not namespace_found:
-        logging.warn('Missing tag @namespace in "%s"' % str)
+        logging.warning('Missing tag @namespace in "%s"' % str)
         return None
 
     return element
@@ -465,7 +481,7 @@ def parse_document(doc_str):
         element = _parse_comment(comment_str)
         if type(element) is script_doc_ddf_pb2.Element:
             element_list.append(element)
-        if type(element) is script_doc_ddf_pb2.Info:
+        elif type(element) is script_doc_ddf_pb2.Info:
             doc_info = element
 
     if doc_info:
@@ -476,10 +492,6 @@ def parse_document(doc_str):
 
     return doc
 
-from google.protobuf.descriptor import FieldDescriptor
-from google.protobuf.message import Message
-import json
-
 # add a ref doc group to each document
 # this can be used to build a menu with the ref docs grouped in a certain way
 def add_group_to_doc_dict(doc_dict):
@@ -489,7 +501,7 @@ def add_group_to_doc_dict(doc_dict):
         refdocgroups = [
             {
                 "group": "SYSTEM",
-                "namespaces": ["crash", "gui", "go", "profiler", "render", "resource", "sys", "window", "engine", "physics"]
+                "namespaces": ["crash", "gui", "go", "graphics", "profiler", "render", "resource", "sys", "window", "engine", "physics", "b2d", "b2d.body", "types"]
             },
             {
                 "group": "COMPONENTS",
@@ -565,10 +577,14 @@ def doc_to_ydict(info, elements):
         if len(elem_desc) == 0:
             elem_desc = element["brief"]
 
+        # notes
+        elem_notes = element["notes"]
+
         entry = {
             'name': elem_name,
             'type': elem_type,
-            'desc': elem_desc
+            'desc': elem_desc,
+            'notes': elem_notes
         }
 
         # type specific fields
@@ -620,16 +636,15 @@ if __name__ == '__main__':
 
     doc_str = ''
     for name in args[:-1]:
-        f = open(name, 'rb')
-        doc_str += f.read()
-        f.close()
+        with open(name, 'r') as f:
+            doc_str += f.read()
 
     doc = parse_document(doc_str)
     if doc:
         output_file = args[-1]
-        f = open(output_file, "wb")
+        f = open(output_file, "w")
         if options.type == 'protobuf':
-            f.write(doc.SerializeToString())
+            f.write(str(doc))
         elif options.type == 'json':
             doc_dict = message_to_dict(doc)
             add_group_to_doc_dict(doc_dict)
@@ -638,9 +653,8 @@ if __name__ == '__main__':
             info, elements = parse_document_yaml(doc_str)
             doc_dict = doc_to_ydict(info, elements)
             yaml.dump(doc_dict, f, default_flow_style = False)
-            # print(yaml.dump(doc_dict, default_flow_style = False))
         else:
-            print 'Unknown type: %s' % options.type
+            print ('Unknown type: %s' % options.type)
             sys.exit(5)
         f.close()
 

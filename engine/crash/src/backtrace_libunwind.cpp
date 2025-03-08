@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -36,9 +36,6 @@ namespace dmCrash
     static bool g_CrashDumpEnabled = true;
     static FCallstackExtraInfoCallback  g_CrashExtraInfoCallback = 0;
     static void*                        g_CrashExtraInfoCallbackCtx = 0;
-
-    // This array contains the default behavior for each signal.
-    static struct sigaction sigdfl[SIGNAL_MAX];
 
     void EnableHandler(bool enable)
     {
@@ -197,12 +194,22 @@ namespace dmCrash
         OnCrash(0xDEAD);
     }
 
+    static void ResetToDefaultHandler(const int signum)
+    {
+        struct sigaction sa;
+        memset(&sa, 0, sizeof(sa));
+        sigemptyset(&sa.sa_mask);
+        sa.sa_handler = SIG_DFL;
+        sa.sa_flags = 0;
+        sigaction(signum, &sa, NULL);
+    }
+
     static void Handler(const int signum, siginfo_t *const si, void *const sc)
     {
-        // The previous (default) behavior is restored for the signal.
+        // The default behavior is restored for the signal.
         // Unless this is done first thing in the signal handler we'll
         // be stuck in a signal-handler loop forever.
-        sigaction(signum, &sigdfl[signum], NULL);
+        ResetToDefaultHandler(signum);
         OnCrash(signum);
     }
 
@@ -215,9 +222,8 @@ namespace dmCrash
         sigemptyset(&sa.sa_mask);
         sa.sa_sigaction = Handler;
         sa.sa_flags = SA_SIGINFO;
-
-        // The current (default) behavior is stored in sigdfl.
-        sigaction(signum, &sa, &sigdfl[signum]);
+        
+        sigaction(signum, &sa, NULL);
     }
 
     void SetCrashFilename(const char*)

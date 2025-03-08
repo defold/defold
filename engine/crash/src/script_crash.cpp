@@ -1,22 +1,21 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
 #include <assert.h>
-#include <extension/extension.h>
+#include <extension/extension.hpp>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
-#include <dmsdk/dlib/json.h>
 #include <script/script.h>
 #include <stdlib.h>
 
@@ -85,7 +84,7 @@ namespace dmCrash
      * load, so loading is one-shot.
      *
      * @name crash.load_previous
-     * @return handle [type:number] handle to the loaded dump, or nil if no dump was found
+     * @return handle [type:number|nil] handle to the loaded dump, or `nil` if no dump was found
      */
     static int Crash_LoadPrevious(lua_State* L)
     {
@@ -171,13 +170,13 @@ namespace dmCrash
             lua_pushnumber(L, i+1);
 
             lua_newtable(L);
-            lua_pushstring(L, "name");
+            lua_pushliteral(L, "name");
             lua_pushstring(L, name);
             lua_settable(L, -3);
 
             char str[64];
             sprintf(str, "%p", addr);
-            lua_pushstring(L, "address");
+            lua_pushliteral(L, "address");
             lua_pushstring(L, str);
             lua_settable(L, -3);
 
@@ -222,7 +221,7 @@ namespace dmCrash
      * @name crash.get_sys_field
      * @param handle [type:number] crash dump handle
      * @param index [type:number] system field enum. Must be less than [ref:crash.SYSFIELD_MAX]
-     * @return value [type:string] value recorded in the crash dump, or nil if it didn't exist
+     * @return value [type:string|nil] value recorded in the crash dump, or `nil` if it didn't exist
      */
     static int Crash_GetSysField(lua_State* L)
     {
@@ -443,4 +442,3 @@ namespace dmCrash
 
     DM_DECLARE_EXTENSION(CrashExt, "Crash", 0, 0, InitializeCrash, 0, 0, FinalizeCrash)
 }
-

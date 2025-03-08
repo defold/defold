@@ -1,13 +1,13 @@
 #!/bin/sh
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2025 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -22,12 +22,19 @@ if [ -z "$PACKAGE" ]; then
     exit 1
 fi
 
-ANDROID_HOME=$DYNAMO_HOME/ext/SDKs/android-sdk
+if [ -z "$ANDROID_HOME" ]; then
+    echo "No system ANDROID_HOME set, testing DYNAMO_HOME"
+    if [ -z "$DYNAMO_HOME" ]; then
+        echo "No "
+        exit 1
+    fi
+    ANDROID_HOME=$DYNAMO_HOME/ext/SDKs/android-sdk
+fi
 
 ADB=$(find $ANDROID_HOME -iname "adb")
-AAPT=$(find $ANDROID_HOME -iname "aapt")
+AAPT2=$(find $ANDROID_HOME -iname "aapt2")
 
-PACKAGENAME=`$AAPT dump badging "$PACKAGE" | grep package:\ name | cut -d \' -f 2`
+PACKAGENAME=`$AAPT2 dump badging "$PACKAGE" | grep package:\ name | cut -d \' -f 2`
 
 echo "Package name = $PACKAGENAME"
 
@@ -52,5 +59,3 @@ PID=`$ADB shell ps | grep $PACKAGENAME | awk '{ print $2 }'`
 echo PID=$PID
 
 $ADB logcat | grep $PID
-
-

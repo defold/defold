@@ -1,19 +1,19 @@
 #! /usr/bin/env python
-import os
-import Options
+import waflib.Options
 from waf_dynamo import dmsdk_add_files
 
 def configure(conf):
     pass
 
 def build(bld):
-    resource = bld.new_task_gen(features = 'cxx cstaticlib ddf',
-                                includes = '. ../proto',
-                                protoc_includes = '../proto',
-                                proto_gen_py = True,
-                                target = 'resource')
-    resource.find_sources_in_dirs('.')
+    resource = bld.stlib(features = 'cxx ddf',
+                         includes = '. ../proto',
+                         source = bld.path.ant_glob('*.cpp') + bld.path.ant_glob('providers/*.cpp'),
+                         protoc_includes = '../proto',
+                         proto_gen_py = True,
+                         target = 'resource')
 
+    resource.source.append('async/load_queue.cpp');
     if 'web' in bld.env.PLATFORM:
          resource.source.append('async/load_queue_sync.cpp');
     else:
@@ -21,15 +21,15 @@ def build(bld):
 
     if bld.env.PLATFORM in ('armv7-android','arm64-android'):
         resource.source.append('mount/mount_android.cpp');
-    elif bld.env.PLATFORM in ('x86_64-linux','x86_64-darwin','arm64-darwin','x86_64-ios'):
+    elif bld.env.PLATFORM in ('x86_64-linux','x86_64-macos','arm64-macos','arm64-ios','x86_64-ios'):
         resource.source.append('mount/mount_mmap.cpp');
     else:
         resource.source.append('mount/mount_generic.cpp');
 
-    resource.find_sources_in_dirs('../proto/resource')
+    resource.source += bld.path.parent.ant_glob('proto/resource/*')
 
-    if not Options.options.skip_build_tests:
-        bld.add_subdirs('test')
+    if not waflib.Options.options.skip_build_tests:
+        bld.recurse('test')
 
     # the dmsdk_add_files needs to be after a build group for some reason
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
@@ -39,6 +39,12 @@ def build(bld):
 
     bld.install_files('${PREFIX}/include/resource', 'resource.h')
     bld.install_files('${PREFIX}/include/resource', 'resource_archive.h')
+    bld.install_files('${PREFIX}/include/resource', 'resource_chunk_cache.h')
+    bld.install_files('${PREFIX}/include/resource', 'resource_manifest.h')
+    bld.install_files('${PREFIX}/include/resource', 'resource_mounts.h')
+    bld.install_files('${PREFIX}/include/resource', 'resource_util.h')
+    bld.install_files('${PREFIX}/include/resource', 'resource_verify.h')
+    bld.install_files('${PREFIX}/include/resource/providers', 'providers/provider.h')
     bld.install_files('${PREFIX}/lib/python', 'waf_resource.py')
     bld.install_files('${PREFIX}/bin', 'arcc.py')
 

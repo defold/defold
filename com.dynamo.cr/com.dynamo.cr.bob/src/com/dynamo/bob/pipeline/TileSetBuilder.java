@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -18,50 +18,47 @@ import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStreamReader;
 
 import javax.imageio.ImageIO;
 
+import com.dynamo.bob.ProtoBuilder;
+import com.dynamo.bob.ProtoParams;
+import com.dynamo.bob.BuilderParams;
+import com.dynamo.bob.Task;
+import com.dynamo.bob.CompileExceptionError;
 import org.apache.commons.io.FilenameUtils;
 
-import com.dynamo.bob.Bob;
-import com.dynamo.bob.Builder;
-import com.dynamo.bob.BuilderParams;
-import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.Project;
-import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.textureset.TextureSetGenerator.TextureSetResult;
 import com.dynamo.bob.tile.TileSetGenerator;
 import com.dynamo.bob.util.TextureUtil;
-import com.dynamo.graphics.proto.Graphics.TextureImage;
+import com.dynamo.bob.logging.Logger;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
 import com.dynamo.gamesys.proto.Tile.TileSet;
-import com.google.protobuf.TextFormat;
 
-@BuilderParams(name = "TileSet", inExts = {".tileset", ".tilesource"}, outExt = ".t.texturesetc")
-public class TileSetBuilder extends Builder<Void>  {
+@ProtoParams(srcClass = TileSet.class, messageClass = TileSet.class)
+@BuilderParams(name = "TileSet", inExts = {".tileset", ".tilesource"}, outExt = ".t.texturesetc", isCacheble = true, paramsForSignature = {"texture-compression"})
+public class TileSetBuilder extends ProtoBuilder<TileSet.Builder> {
+
+    private static Logger logger = Logger.getLogger(TileSetBuilder.class.getName());
 
     @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-        TileSet.Builder builder = TileSet.newBuilder();
-        TextFormat.merge(new InputStreamReader(new ByteArrayInputStream(input.getContent())), builder);
-        TileSet tileSet = builder.build();
-        String imgPath = tileSet.getImage();
-        String collisionPath = tileSet.getCollision();
+    public Task create(IResource input) throws IOException, CompileExceptionError {
+        TileSet.Builder builder = getSrcBuilder(input);
+        String imgPath = builder.getImage();
+        String collisionPath = builder.getCollision();
         IResource image = this.project.getResource(imgPath);
         IResource collision = this.project.getResource(collisionPath);
         if (image.exists() || collision.exists()) {
-            TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
+            TaskBuilder taskBuilder = Task.newBuilder(this)
                     .setName(params.name())
                     .addInput(input)
                     .addOutput(input.changeExt(params.outExt()));
             String texturePath = String.format("%s__%s_tilesource.%s", FilenameUtils.getPath(input.getPath()),
-                    FilenameUtils.getBaseName(input.getPath()),
- "texturec");
-            taskBuilder.addOutput(input.getResource(texturePath).output());
+                    FilenameUtils.getBaseName(input.getPath()), "texturec");
+            taskBuilder.addOutput(this.project.getResource(texturePath).output());
             if (image.exists()) {
                 taskBuilder.addInput(image);
             }
@@ -69,12 +66,7 @@ public class TileSetBuilder extends Builder<Void>  {
                 taskBuilder.addInput(collision);
             }
 
-            // If there is a texture profiles file, we need to make sure
-            // it has been read before building this tile set, add it as an input.
-            String textureProfilesPath = this.project.getProjectProperties().getStringValue("graphics", "texture_profiles");
-            if (textureProfilesPath != null) {
-                taskBuilder.addInput(this.project.getResource(textureProfilesPath));
-            }
+            TextureUtil.addTextureProfileInput(taskBuilder, project);
 
             return taskBuilder.build();
         } else {
@@ -91,14 +83,13 @@ public class TileSetBuilder extends Builder<Void>  {
     }
 
     @Override
-    public void build(Task<Void> task) throws CompileExceptionError,
+    public void build(Task task) throws CompileExceptionError,
             IOException {
 
-        TextureProfile texProfile = TextureUtil.getTextureProfileByPath(this.project.getTextureProfiles(), task.input(0).getPath());
-        Bob.verbose("Compiling %s using profile %s", task.input(0).getPath(), texProfile!=null?texProfile.getName():"<none>");
+        TextureProfile texProfile = TextureUtil.getTextureProfileByPath(task.lastInput(), task.firstInput().getPath());
+        logger.fine("Compiling %s using profile %s", task.firstInput().getPath(), texProfile!=null?texProfile.getName():"<none>");
 
-        TileSet.Builder builder = TileSet.newBuilder();
-        ProtoUtil.merge(task.input(0), builder);
+        TileSet.Builder builder = getSrcBuilder(task.firstInput());
         TileSet tileSet = builder.build();
 
         String imgPath = tileSet.getImage();
@@ -112,7 +103,7 @@ public class TileSetBuilder extends Builder<Void>  {
             image = ImageIO.read(new ByteArrayInputStream(imageRes.getContent()));
         }
         if (image != null && (image.getWidth() < tileSet.getTileWidth() || image.getHeight() < tileSet.getTileHeight())) {
-            throw new CompileExceptionError(task.input(0), -1, String.format(
+            throw new CompileExceptionError(task.firstInput(), -1, String.format(
                     "the image dimensions (%dx%d) are smaller than the tile dimensions (%dx%d)", image.getWidth(),
                     image.getHeight(), tileSet.getTileWidth(), tileSet.getTileHeight()));
         }
@@ -143,15 +134,15 @@ public class TileSetBuilder extends Builder<Void>  {
         String texturePath = task.output(1).getPath().substring(buildDirLen);
         TextureSet textureSet = textureSetBuilder.setTexture(texturePath).build();
 
-        TextureImage texture;
+        TextureGenerator.GenerateResult generateResult;
         try {
             boolean compress = project.option("texture-compression", "false").equals("true");
-            texture = TextureGenerator.generate(result.image, texProfile, compress);
+            generateResult = TextureGenerator.generate(result.images.get(0), texProfile, compress);
         } catch (TextureGeneratorException e) {
             throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
         }
 
         task.output(0).setContent(textureSet.toByteArray());
-        task.output(1).setContent(texture.toByteArray());
+        TextureUtil.writeGenerateResultToResource(generateResult, task.output(1));
     }
 }

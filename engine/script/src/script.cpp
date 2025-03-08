@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -26,20 +26,20 @@
 #include "script_vmath.h"
 #include "script_sys.h"
 #include "script_module.h"
-#include "script_image.h"
+#include "script_graphics.h"
 #include "script_json.h"
-#include "script_http.h"
 #include "script_zlib.h"
 #include "script_html5.h"
 #include "script_luasocket.h"
 #include "script_bitop.h"
 #include "script_timer.h"
-#include "script_extensions.h"
 
 extern "C"
 {
 #include <lua/lualib.h>
 }
+
+DM_PROPERTY_GROUP(rmtp_Script, "", 0);
 
 namespace dmScript
 {
@@ -63,6 +63,7 @@ namespace dmScript
     const char META_TABLE_GET_USER_DATA[]            = "__get_user_data";
     const char META_TABLE_IS_VALID[]                 = "__is_valid";
     const char META_GET_INSTANCE_CONTEXT_TABLE_REF[] = "__get_instance_context_table_ref";
+    const char META_GET_INSTANCE_DATA_TABLE_REF[]    = "__get_instance_data_table_ref";
 
     const char SCRIPT_METATABLE_TYPE_HASH_KEY_NAME[] = "__dmengine_type";
     static const uint32_t SCRIPT_METATABLE_TYPE_HASH_KEY = dmHashBufferNoReverse32(SCRIPT_METATABLE_TYPE_HASH_KEY_NAME, sizeof(SCRIPT_METATABLE_TYPE_HASH_KEY_NAME) - 1);
@@ -70,18 +71,18 @@ namespace dmScript
     // A debug value for profiling lua references
     int g_LuaReferenceCount = 0;
 
-    HContext NewContext(dmConfigFile::HConfig config_file, dmResource::HFactory factory, bool enable_extensions)
+    HContext NewContext(const ContextParams& params)
     {
         Context* context = new Context();
         context->m_Modules.SetCapacity(127, 256);
         context->m_PathToModule.SetCapacity(127, 256);
         context->m_HashInstances.SetCapacity(443, 256);
         context->m_ScriptExtensions.SetCapacity(8);
-        context->m_ConfigFile = config_file;
-        context->m_ResourceFactory = factory;
+        context->m_ConfigFile = params.m_ConfigFile;
+        context->m_ResourceFactory = params.m_Factory;
+        context->m_GraphicsContext = params.m_GraphicsContext;
         context->m_LuaState = lua_open();
         context->m_ContextTableRef = LUA_NOREF;
-        context->m_EnableExtensions = enable_extensions;
         return context;
     }
 
@@ -165,12 +166,12 @@ namespace dmScript
         InitializeVmath(L);
         InitializeSys(L);
         InitializeModule(L);
-        InitializeImage(L);
         InitializeJson(L);
         InitializeZlib(L);
         InitializeHtml5(L);
         InitializeLuasocket(L);
         InitializeBitop(L);
+        InitializeGraphics(L, context->m_GraphicsContext);
 
         lua_register(L, "print", LuaPrint);
         lua_register(L, "pprint", LuaPPrint);
@@ -204,12 +205,7 @@ namespace dmScript
         lua_newtable(L);
         context->m_ContextTableRef = Ref(L, LUA_REGISTRYINDEX);
 
-        InitializeHttp(context);
         InitializeTimer(context);
-        if (context->m_EnableExtensions)
-        {
-            InitializeExtensions(context);
-        }
 
         for (HScriptExtension* l = context->m_ScriptExtensions.Begin(); l != context->m_ScriptExtensions.End(); ++l)
         {
@@ -359,11 +355,12 @@ namespace dmScript
 
     dmConfigFile::HConfig GetConfigFile(HContext context)
     {
-        if (context != 0x0)
-        {
-            return context->m_ConfigFile;
-        }
-        return 0x0;
+        return context ? context->m_ConfigFile : 0;
+    }
+
+    dmResource::HFactory GetResourceFactory(HContext context)
+    {
+        return context ? context->m_ResourceFactory : 0;
     }
 
     int LuaPrint(lua_State* L)
@@ -697,6 +694,23 @@ namespace dmScript
 
         return type_hash;
     }
+
+
+    uint32_t RegisterUserTypeLocal(lua_State* L, const char* name, const luaL_reg meta[])
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        luaL_newmetatable(L, name);
+        uint32_t type_hash = SetUserType(L, -1, name);
+
+        luaL_register (L, 0, meta);
+        lua_pushvalue(L, -1);
+        lua_setfield(L, -1, "__index");
+        lua_pop(L, 1);
+
+        return type_hash;
+    }
+
 
     uint32_t RegisterUserType(lua_State* L, const char* name, const luaL_reg methods[], const luaL_reg meta[]) {
         DM_LUA_STACK_CHECK(L, 0);
@@ -1399,7 +1413,7 @@ namespace dmScript
             dmLogError("%s\n%s", lua_tostring(L, -2), lua_tostring(L, -1));
             lua_getfield(L, LUA_GLOBALSINDEX, "debug");
             if (lua_istable(L, -1)) {
-                lua_pushstring(L, SCRIPT_ERROR_HANDLER_VAR);
+                lua_pushliteral(L, SCRIPT_ERROR_HANDLER_VAR);
                 lua_rawget(L, -2);
                 if (lua_isfunction(L, -1)) {
                     lua_pushlstring(L, "lua", 3); // 1st arg: source = 'lua'
@@ -1768,9 +1782,10 @@ namespace dmScript
 
         int ret;
         {
-            uint32_t profiler_hash = 0;
-            const char* profiler_string = GetProfilerString(L, -(number_of_arguments + 1), "?", "on_timer", 0, &profiler_hash);
-            DM_PROFILE_DYN(Script, profiler_string, profiler_hash);
+            char buffer[128];
+            const char* profiler_string = GetProfilerString(L, -(number_of_arguments + 1), "?", "on_timer", 0, buffer, sizeof(buffer)); // TODO: Why "on_timer" ???
+            DM_PROFILE_DYN(profiler_string, 0);
+
             ret = PCall(L, number_of_arguments, 0);
         }
 
@@ -1817,7 +1832,7 @@ namespace dmScript
     // to calculate the length of the input string or output string
     static char* ConcatString(char* w_ptr, const char* w_ptr_end, const char* str)
     {
-        while ((w_ptr != w_ptr_end) && *str)
+        while ((w_ptr != w_ptr_end) && str && *str)
         {
             *w_ptr++ = *str++;
         }
@@ -1832,60 +1847,58 @@ namespace dmScript
     * Building this string is particularly expensive on low end devices and using this more optimal way reduces
     * the overhead of the profiler when enabled.
     */
-    const char* GetProfilerString(lua_State* L, int optional_callback_index, const char* source_file_name, const char* function_name, const char* optional_message_name, uint32_t* out_profiler_hash)
+    const char* GetProfilerString(lua_State* L, int optional_callback_index, const char* source_file_name, const char* function_name, const char* optional_message_name, char* buffer, uint32_t buffer_size)
     {
-        const char* profiler_string = 0;
-        if (dmProfile::g_IsInitialized)
+        if (!dmProfile::IsInitialized())
+            return 0;
+
+        char* w_ptr = buffer;
+        const char* w_ptr_end = buffer + buffer_size - 1;
+
+        const char* function_source = source_file_name;
+
+        if (optional_callback_index != 0)
         {
-            char buffer[128];
-            char* w_ptr = buffer;
-            const char* w_ptr_end = &buffer[sizeof(buffer) - 1];
-
-            const char* function_source = source_file_name;
-
-            if (optional_callback_index != 0)
+            LuaFunctionInfo fi;
+            if (dmScript::GetLuaFunctionRefInfo(L, optional_callback_index, &fi))
             {
-                LuaFunctionInfo fi;
-                if (dmScript::GetLuaFunctionRefInfo(L, optional_callback_index, &fi))
+                if (fi.m_FileName)
                 {
                     function_source = fi.m_FileName;
-                    if (fi.m_OptionalName)
-                    {
-                        w_ptr = ConcatString(w_ptr, w_ptr_end, fi.m_OptionalName);
-                    }
-                    else
-                    {
-                        char function_line_number_buffer[16];
-                        dmSnPrintf(function_line_number_buffer, sizeof(function_line_number_buffer), "l(%d)", fi.m_LineNumber);
-                        w_ptr = ConcatString(w_ptr, w_ptr_end, function_line_number_buffer);
-                    }
+                }
+                if (fi.m_OptionalName)
+                {
+                    w_ptr = ConcatString(w_ptr, w_ptr_end, fi.m_OptionalName);
                 }
                 else
                 {
-                    w_ptr = ConcatString(w_ptr, w_ptr_end, "<unknown>");
+                    char function_line_number_buffer[16];
+                    dmSnPrintf(function_line_number_buffer, sizeof(function_line_number_buffer), "l(%d)", fi.m_LineNumber);
+                    w_ptr = ConcatString(w_ptr, w_ptr_end, function_line_number_buffer);
                 }
-
             }
             else
             {
-                w_ptr = ConcatString(w_ptr, w_ptr_end, function_name);
+                w_ptr = ConcatString(w_ptr, w_ptr_end, "<unknown>");
             }
 
-            if (optional_message_name)
-            {
-                w_ptr = ConcatString(w_ptr, w_ptr_end, "[");
-                w_ptr = ConcatString(w_ptr, w_ptr_end, optional_message_name);
-                w_ptr = ConcatString(w_ptr, w_ptr_end, "]");
-            }
-            w_ptr = ConcatString(w_ptr, w_ptr_end, "@");
-            w_ptr = ConcatString(w_ptr, w_ptr_end, function_source);
-            uint32_t str_len = (uint32_t)(w_ptr - buffer);
-            uint32_t hash = dmProfile::GetNameHash(buffer, str_len);
-            *w_ptr++ = 0;
-            profiler_string = dmProfile::Internalize(buffer, str_len, hash);
-            *out_profiler_hash = hash;
         }
-        return profiler_string;
+        else
+        {
+            w_ptr = ConcatString(w_ptr, w_ptr_end, function_name);
+        }
+
+        if (optional_message_name)
+        {
+            w_ptr = ConcatString(w_ptr, w_ptr_end, "[");
+            w_ptr = ConcatString(w_ptr, w_ptr_end, optional_message_name);
+            w_ptr = ConcatString(w_ptr, w_ptr_end, "]");
+        }
+        w_ptr = ConcatString(w_ptr, w_ptr_end, "@");
+        w_ptr = ConcatString(w_ptr, w_ptr_end, function_source);
+        *w_ptr++ = 0;
+
+        return buffer;
     }
 
     const char* GetTableStringValue(lua_State* L, int table_index, const char* key, const char* default_value)
@@ -1930,4 +1943,17 @@ namespace dmScript
         return r;
     }
 
+    bool CheckBoolean(lua_State* L, int index)
+    {
+        if (lua_isboolean(L, index))
+        {
+            return lua_toboolean(L, index);
+        }
+        return luaL_error(L, "Argument %d must be a boolean", index);
+    }
+
+    void PushBoolean(lua_State* L, bool v)
+    {
+        lua_pushboolean(L, v);
+    }
 } // dmScript

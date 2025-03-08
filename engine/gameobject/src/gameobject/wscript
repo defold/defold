@@ -6,22 +6,22 @@ def configure(conf):
     pass
 
 def build(bld):
-    gameobject = bld.new_task_gen(features = 'cxx cstaticlib ddf',
-                                  includes = '. .. ../../src ../../proto ../dmsdk',
-                                  proto_gen_py = True,
-                                  protoc_includes = ['../../proto', bld.env['PREFIX'] + '/share'],
-                                  protopy_includes = bld.env['PREFIX'] + '/lib/python',
-                                  # NOTE: default/... is hardcoded. How to solve?
-                                  target = 'gameobject')
-
-    gameobject.find_sources_in_dirs(['.', '../../proto/gameobject'])
+    gameobject = bld.stlib(features = 'cxx ddf',
+                           includes = '. .. ../../src ../../proto ../dmsdk',
+                           source = bld.path.ant_glob('*.cpp') + bld.path.parent.parent.ant_glob('proto/gameobject/*'),
+                           proto_gen_py = True,
+                           protoc_includes = ['../../proto', bld.env['PREFIX'] + '/share'],
+                           protopy_includes = bld.env['PREFIX'] + '/lib/python',
+                           target = 'gameobject')
     bld.add_group()
 
-    bld.add_subdirs('test')
+    bld.recurse('test')
 
     apidoc_extract_task(bld, ['../../proto/gameobject/gameobject_ddf.proto', 'gameobject_script.cpp'])
 
     bld.install_files('${PREFIX}/include/gameobject', 'gameobject.h')
+    bld.install_files('${PREFIX}/include/gameobject', 'gameobject_props.h')
+    bld.install_files('${PREFIX}/include/gameobject', 'gameobject_props_lua.h')
     bld.install_files('${PREFIX}/include/gameobject', 'component.h')
     bld.install_files('${PREFIX}/include/gameobject', 'script.h')
     bld.install_files('${PREFIX}/include/gameobject', 'gameobject_script_util.h')

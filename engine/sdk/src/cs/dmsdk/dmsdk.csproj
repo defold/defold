@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PublishAot>true</PublishAot>
+    <NativeLib>static</NativeLib>
+    <OutputType>Library</OutputType>
+    <PublishTrimmed>true</PublishTrimmed>
+    <IlcDehydrate>false</IlcDehydrate>
+    <Optimize>true</Optimize>
+    <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
+
+    <!-- Workaround for restoring iOS runtime packs for NativeAOT -->
+    <PublishAotUsingRuntimePack>true</PublishAotUsingRuntimePack>
+    <HybridGlobalization>false</HybridGlobalization>
+
+    <!-- In order to build Win32 on Linux -->
+    <IlcUseEnvironmentalTools>True</IlcUseEnvironmentalTools>
+    <DisableUnsupportedError>True</DisableUnsupportedError>
+
+    <TargetName>$(MSBuildProjectName)</TargetName>
+    <StackTraceSupport>true</StackTraceSupport>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+  </PropertyGroup>
+
+</Project>

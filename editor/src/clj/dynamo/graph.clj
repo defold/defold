@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -14,7 +14,7 @@
 
 (ns dynamo.graph
   "Main api for graph and node"
-  (:refer-clojure :exclude [deftype constantly])
+  (:refer-clojure :exclude [constantly deftype])
   (:require [clojure.tools.macro :as ctm]
             [cognitect.transit :as transit]
             [internal.cache :as c]
@@ -26,19 +26,25 @@
             [internal.transaction :as it]
             [internal.util :as util]
             [potemkin.namespaces :as namespaces]
-            [schema.core :as s])
+            [schema.core :as s]
+            [service.log :as log]
+            [util.coll :as coll]
+            [util.fn :as fn])
   (:import [internal.graph.error_values ErrorValue]
+           [internal.graph.types Arc]
            [java.io ByteArrayInputStream ByteArrayOutputStream]))
 
 (set! *warn-on-reflection* true)
 
-(namespaces/import-vars [internal.graph.types node-id->graph-id node->graph-id sources targets connected? dependencies Node node-id node-id? produce-value node-by-id-at])
+(namespaces/import-vars [internal.graph.types node-id->graph-id node->graph-id sources targets connected? dependencies Node node-id node-id? produce-value node-by-id-at endpoint endpoint-node-id endpoint-label])
 
-(namespaces/import-vars [internal.graph.error-values ->error error-aggregate error-fatal error-fatal? error-info error-info? error-message error-package? error-warning error-warning? error? flatten-errors map->error package-errors precluding-errors unpack-errors worse-than])
+(namespaces/import-vars [internal.graph.error-values ->error error-aggregate error-fatal error-fatal? error-info error-info? error-message error-package? error-warning error-warning? error-value? error? flatten-errors map->error package-errors precluding-errors unpack-errors worse-than package-if-error])
 
-(namespaces/import-vars [internal.node value-type-schema value-type? isa-node-type? value-type-dispatch-value has-input? has-output? has-property? type-compatible? merge-display-order NodeType supertypes declared-properties declared-property-labels declared-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels property-display-order])
+(namespaces/import-vars [internal.node value-type-schema value-type? node-type? value-type-dispatch-value inherits? has-input? has-output? has-property? type-compatible? merge-display-order NodeType supertypes declared-properties declared-property-labels declared-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels abstract-output-labels property-display-order])
 
-(namespaces/import-vars [internal.graph arc node-ids pre-traverse])
+(namespaces/import-vars [internal.graph arc explicit-arcs-by-source explicit-arcs-by-target node-ids pre-traverse])
+
+(namespaces/import-vars [internal.system endpoint-invalidated-since? evaluation-context-invalidate-counters])
 
 (let [graph-id ^java.util.concurrent.atomic.AtomicInteger (java.util.concurrent.atomic.AtomicInteger. 0)]
   (defn next-graph-id [] (.getAndIncrement graph-id)))
@@ -91,8 +97,44 @@
   (when node
     (gt/node-type node)))
 
+(defn node-type-kw
+  "Return the fully-qualified keyword that corresponds to the node type of the
+  specified node id, or nil if the node does not exist."
+  ([node-id]
+   (:k (node-type* (now) node-id)))
+  ([basis node-id]
+   (:k (node-type* basis node-id))))
+
 (defn node-override? [node]
   (some? (gt/original node)))
+
+(defn invalidate-counters
+  "The current state of the invalidate counters in the system."
+  []
+  (is/invalidate-counters @*the-system*))
+
+(defn flag-nodes-as-migrated! [evaluation-context migrated-node-ids]
+  (let [tx-data-context (:tx-data-context evaluation-context)]
+    (swap! tx-data-context update :migrated-node-ids coll/into-set migrated-node-ids)
+    nil))
+
+(defn endpoint-invalidated-pred
+  "Return a predicate function that takes an Endpoint and returns a boolean
+  signalling if it has been invalidated since the supplied
+  snapshot-invalidate-counters based on the system-invalidate-counters. If
+  snapshot-invalidate-counters is nil, returns fn/constantly-false. If
+  system-invalidate-counters is not supplied, use the invalidate-counters
+  from the current system."
+  ([snapshot-invalidate-counters]
+   (endpoint-invalidated-pred snapshot-invalidate-counters (invalidate-counters)))
+  ([snapshot-invalidate-counters system-invalidate-counters]
+   {:pre [(or (nil? snapshot-invalidate-counters) (map? snapshot-invalidate-counters))
+          (map? system-invalidate-counters)]}
+   (if (or (nil? snapshot-invalidate-counters)
+           (identical? snapshot-invalidate-counters system-invalidate-counters))
+     fn/constantly-false
+     (fn endpoint-invalidated? [endpoint]
+       (endpoint-invalidated-since? endpoint snapshot-invalidate-counters system-invalidate-counters)))))
 
 (defn cache "The system cache of node values"
   []
@@ -102,13 +144,19 @@
   "Clears a cache (default *the-system* cache), useful when debugging"
   ([] (clear-system-cache! *the-system*))
   ([sys-atom]
-   (swap! sys-atom assoc :cache (is/make-cache {}))
-   nil)
+   (let [cleared-cache (c/cache-clear (:cache @sys-atom))]
+     (swap! sys-atom assoc :cache cleared-cache)
+     nil))
   ([sys-atom node-id]
    (let [outputs (cached-outputs (node-type* node-id))
-         entries (map (partial vector node-id) outputs)]
+         entries (map (partial endpoint node-id) outputs)]
      (swap! sys-atom update :cache c/cache-invalidate entries)
      nil)))
+
+(defn cache-info
+  "Return a map detailing cache utilization."
+  ([] (c/cache-info (cache)))
+  ([cache] (c/cache-info cache)))
 
 (defn graph "Given a graph id, returns the particular graph in the system at the current point in time"
   [graph-id]
@@ -141,16 +189,24 @@
   Transaction result-keys:
   `[:status :basis :graphs-modified :nodes-added :nodes-modified :nodes-deleted :outputs-modified :label :sequence-label]`
   "
-  [txs]
-  (when *tps-debug*
-    (send-off tps-counter tick (System/nanoTime)))
-  (let [basis     (is/basis @*the-system*)
-        id-generators   (is/id-generators @*the-system*)
-        override-id-generator (is/override-id-generator @*the-system*)
-        tx-result (it/transact* (it/new-transaction-context basis id-generators override-id-generator) txs)]
-    (when (= :ok (:status tx-result))
-      (swap! *the-system* is/merge-graphs (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result) (:nodes-deleted tx-result)))
-    tx-result))
+  ([txs]
+   (transact nil txs))
+  ([opts txs]
+   (when *tps-debug*
+     (send-off tps-counter tick (System/nanoTime)))
+   (let [system (deref *the-system*)
+         basis (is/basis system)
+         id-generators (is/id-generators system)
+         override-id-generator (is/override-id-generator system)
+         tx-data-context-map (or (:tx-data-context-map opts) {})
+         metrics-collector (:metrics opts)
+         track-changes (:track-changes opts true)
+         transaction-context (it/new-transaction-context basis id-generators override-id-generator tx-data-context-map metrics-collector track-changes)
+         tx-result (it/transact* transaction-context txs)]
+     (when (and (not (:dry-run opts))
+                (= :ok (:status tx-result)))
+       (swap! *the-system* is/merge-graphs (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result) (:nodes-deleted tx-result)))
+     tx-result)))
 
 ;; ---------------------------------------------------------------------------
 ;; Using transaction data
@@ -169,40 +225,23 @@
 ;; ---------------------------------------------------------------------------
 (defn tx-nodes-added
  "Returns a list of the node-ids added given a result from a transaction, (tx-result)."
-  [transaction]
-  (:nodes-added transaction))
-
-(defn is-modified?
-  "Returns a boolean if a node, or node and output, was modified as a result of a transaction given a tx-result."
-  ([transaction node-id]
-   (boolean (contains? (:outputs-modified transaction) node-id)))
-  ([transaction node-id output]
-   (boolean (get-in transaction [:outputs-modified node-id output]))))
-
-(defn is-added?
-  "Returns a boolean if a node was added as a result of a transaction given a tx-result and node."
-  [transaction node-id]
-  (contains? (:nodes-added transaction) node-id))
-
-(defn is-deleted?
-  "Returns a boolean if a node was delete as a result of a transaction given a tx-result and node."
-  [transaction node-id]
-  (contains? (:nodes-deleted transaction) node-id))
-
-(defn outputs-modified
-  "Returns the pairs of node-id and label of the outputs that were modified for a node as the result of a transaction given a tx-result and node"
-  [transaction node-id]
-  (get-in transaction [:outputs-modified node-id]))
+  [tx-result]
+  (:nodes-added tx-result))
 
 (defn transaction-basis
   "Returns the final basis from the result of a transaction given a tx-result"
-  [transaction]
-  (:basis transaction))
+  [tx-result]
+  (:basis tx-result))
 
 (defn pre-transaction-basis
   "Returns the original, starting basis from the result of a transaction given a tx-result"
-  [transaction]
-  (:original-basis transaction))
+  [tx-result]
+  (:original-basis tx-result))
+
+(defn migrated-node-ids
+  "Returns the set of node-ids that were flagged as migrated from the result of a transaction given a tx-result."
+  [tx-result]
+  (-> tx-result :tx-data-context-map (:migrated-node-ids #{})))
 
 ;; ---------------------------------------------------------------------------
 ;; Intrinsics
@@ -222,6 +261,7 @@
   (let [param        (gensym "m")
         [alias argv] (strip-alias (vec argv))
         kargv        (mapv keyword argv)
+        annotations  (into {} (map (juxt keyword meta)) argv)
         arglist      (interleave argv (map #(list `get param %) kargv))]
     (if alias
       `(with-meta
@@ -229,11 +269,13 @@
            (let [~alias (select-keys ~param ~kargv)
                  ~@(vec arglist)]
              ~@tail))
-         {:arguments (quote ~kargv)})
+         {:arguments (quote ~kargv)
+          :annotations (quote ~annotations)})
       `(with-meta
          (fn [~param]
            (let ~(vec arglist) ~@tail))
-         {:arguments (quote ~kargv)}))))
+         {:arguments (quote ~kargv)
+          :annotations (quote ~annotations)}))))
 
 (defmacro defnk
   [symb & body]
@@ -331,6 +373,15 @@
   Define an output to produce values of type. The ':cached' flag is
   optional. _producer_ may be a var that names an fn, or fnk.  It may
   also be a function tail as [arglist] + forms.
+
+  In the arglist, you can specify ^:raw or ^:try metadata tags on arguments to
+  control how dependencies are evaluated. Tagging a property argument with ^:raw
+  will bypass any (value _getter_) declared for the property, and instead
+  produce the raw value assigned to the property map in the node or its override
+  chain. Tagging an argument with ^:try allows the computation of the output
+  even when some of its arguments are errors. Note that adding ^:try metadata on
+  an :array input will not supply an ErrorValue to the fnk; instead, it will
+  provide an array where some items might be ErrorValues.
 
   Values produced on an output with the :cached flag will be cached in
   memory until the node is affected by some change in inputs or
@@ -448,6 +499,22 @@
                                  (last))]
       (:sequence-label prev-step))))
 
+(defn take-node-ids
+  "Given a count, returns a realized sequence of claimed, unique node-ids in the
+  specified graph."
+  [^long graph-id ^long node-id-count]
+  (when (pos? node-id-count)
+    (is/take-node-ids @*the-system* graph-id node-id-count)))
+
+(def add-node
+  "Returns the transaction step for adding a node to the graph. The node will
+  typically have been constructed beforehand using the construct function.
+
+  Example:
+
+  `(transact (add-node (construct SimpleTestNode)))`"
+  it/new-node)
+
 (defn- construct-node-with-id
   [graph-id node-type args]
   (apply construct node-type :_node-id (is/next-node-id @*the-system* graph-id) (mapcat identity args)))
@@ -503,6 +570,12 @@
   "Call the specified function with args when reaching the transaction step"
   [f & args]
   (it/callback f args))
+
+(defn callback-ec
+  "Same as callback, but injects the in-transaction evaluation-context
+  as the first argument to the update-fn."
+  [f & args]
+  (it/callback-ec f args))
 
 (defn connect
   "Make a connection from an output of the source node to an input on the target node.
@@ -561,6 +634,8 @@
    (assert target-id)
    (it/disconnect-sources basis target-id target-label)))
 
+(defn- set-value-from-first-arg [_ b] b)
+
 (defn set-property
   "Creates the transaction step to assign a value to a node's property (or properties) value(s).  It will take effect when the transaction
   is applies in a transact.
@@ -572,7 +647,7 @@
   (assert node-id)
   (mapcat
    (fn [[p v]]
-     (it/update-property node-id p (clojure.core/constantly v) []))
+     (it/update-property node-id p set-value-from-first-arg [v]))
    (partition-all 2 kvs)))
 
 (defn set-property!
@@ -597,6 +672,13 @@
   [node-id p f & args]
   (assert node-id)
   (it/update-property node-id p f args))
+
+(defn update-property-ec
+  "Same as update-property, but injects the in-transaction evaluation-context
+  as the first argument to the update-fn."
+  [node-id p f & args]
+  (assert node-id)
+  (it/update-property-ec node-id p f args))
 
 (defn update-property!
   "Create the transaction step to apply a function to a node's property in a transaction. Then it applies the transaction.
@@ -654,6 +736,10 @@
   (-> (swap! *the-system* (fn [sys] (apply is/update-user-data sys node-id key f args)))
       (is/user-data node-id key)))
 
+(defn user-data-merge! [values-by-key-by-node-id]
+  (swap! *the-system* is/merge-user-data values-by-key-by-node-id)
+  nil)
+
 (defn invalidate
  "Creates the transaction step to invalidate all the outputs of the node.  It will take effect when the transaction is
   applied in a transact.
@@ -664,6 +750,18 @@
   [node-id]
   (assert node-id)
   (it/invalidate node-id))
+
+(defn invalidate-output
+  "Creates a transaction step to invalidate the specified output of the node.
+  It will take effect when the transaction is applied in a transact call.
+
+   Example:
+
+   `(transact (invalidate-output node-id :output-label))`"
+  [node-id output-label]
+  {:pre [(node-id? node-id)
+         (keyword? output-label)]}
+  (it/invalidate-output node-id output-label))
 
 (defn mark-defective
   "Creates the transaction step to mark a node as _defective_.
@@ -696,6 +794,16 @@
   [node-id defective-value]
   (assert node-id)
   (transact (mark-defective node-id defective-value)))
+
+(defn defective?
+  "Returns true if the specified node-id has been marked as _defective_, or
+  false otherwise. The node-id must refer to a valid node."
+  ([node-id]
+   (defective? (now) node-id))
+  ([basis node-id]
+   (let [node (node-by-id basis node-id)]
+     (assert node)
+     (pos? (count (gt/get-property node basis :_output-jammers))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Tracing
@@ -801,12 +909,9 @@
        (update-cache-from-evaluation-context! ~ec))
      result#))
 
-(defn- do-node-value [node-id label evaluation-context]
-  (is/node-value @*the-system* node-id label evaluation-context))
-
 (defn node-value
   "Pull a value from a node's output, property or input, identified by `label`.
-  The value may be cached or it may be computed on demand. This is
+  The value may be cached, or it may be computed on demand. This is
   transparent to the caller.
 
   This uses the value of the node and its output at the time the
@@ -824,9 +929,80 @@
   `(node-value node-id :chained-output)`"
   ([node-id label]
    (with-auto-evaluation-context evaluation-context
-     (do-node-value node-id label evaluation-context)))
+     (node-value node-id label evaluation-context)))
   ([node-id label evaluation-context]
-   (do-node-value node-id label evaluation-context)))
+   (when (some? node-id)
+     (let [basis (:basis evaluation-context)
+           node (gt/node-by-id-at basis node-id)]
+       (in/node-value node label evaluation-context)))))
+
+(defn valid-node-value
+  "Like the node-value function, but throws an exception if evaluation produced
+  an ErrorValue."
+  ([node-id label]
+   (with-auto-evaluation-context evaluation-context
+     (valid-node-value node-id label evaluation-context)))
+  ([node-id label evaluation-context]
+   (let [value (node-value node-id label evaluation-context)]
+     (if-not (error? value)
+       value
+       (let [node-type-kw (node-type-kw (:basis evaluation-context) node-id)]
+         (throw
+           (ex-info
+             (format "Evaluation produced an ErrorValue from %s on %s %d."
+                     label
+                     (symbol node-type-kw)
+                     node-id)
+             {:node-type-kw node-type-kw
+              :label label
+              :error value})))))))
+
+(defn maybe-node-value
+  "Like the node-value function, but returns nil if evaluation produced an
+  ErrorValue or the label does not exist on the node."
+  ([node-id label]
+   (with-auto-evaluation-context evaluation-context
+     (maybe-node-value node-id label evaluation-context)))
+  ([node-id label evaluation-context]
+   (when (some? node-id)
+     (let [basis (:basis evaluation-context)
+           node (gt/node-by-id-at basis node-id)]
+       (when (some-> node gt/node-type (in/behavior label))
+         (let [value (in/node-value node label evaluation-context)]
+           (when-not (error? value)
+             value)))))))
+
+(defn tx-cached-node-value
+  "Like the node-value function, but caches the result in the :tx-data-context
+  of the supplied evaluation-context if it doesn't have a cache. This is mostly
+  a workaround for the fact that the evaluation-context supplied to property
+  setters inside transactions does not contain a cache. Some operations, like
+  resource lookups, can benefit hugely from caching the lookup maps. However,
+  beware that this function bypasses the regular cache invalidation mechanism.
+  Don't use it on outputs that might otherwise have been invalidated between two
+  calls in the same transaction. The lack of a cache inside transactions has
+  previously been reported as DEFEDIT-1411."
+  [node-id label evaluation-context]
+  (cond
+    (nil? node-id)
+    nil
+
+    (some? (:cache evaluation-context))
+    (node-value node-id label evaluation-context)
+
+    :else
+    (let [tx-data-context-atom (:tx-data-context evaluation-context)
+          cache-key (gt/endpoint node-id label)
+          cached-value (-> tx-data-context-atom
+                           (deref)
+                           (:tx-cache)
+                           (get cache-key ::not-found))]
+      (case cached-value
+        ::not-found
+        (let [evaluated-value (node-value node-id label evaluation-context)]
+          (swap! tx-data-context-atom assoc-in [:tx-cache cache-key] evaluated-value)
+          evaluated-value)
+        cached-value))))
 
 (defn graph-value
   "Returns the graph from the system given a graph-id and key.  It returns the graph at the point in time of the bais, if provided.
@@ -918,18 +1094,27 @@
 
 (defn invalidate-outputs!
   "Invalidate the given outputs and _everything_ that could be
-  affected by them. Outputs are specified as pairs of [node-id label]
+  affected by them. Outputs are specified as a seq of Endpoints
   for both the argument and return value."
   ([outputs]
-   (swap! *the-system* is/invalidate-outputs outputs)
-   nil))
+   (when-not (coll/empty? outputs)
+     (swap! *the-system* is/invalidate-outputs outputs)
+     nil)))
+
+(defn cache-output-values!
+  "Write the supplied key-value pairs to the cache. Downstream endpoints will be
+  invalidated if the value differs from the previously cached entry."
+  [endpoint+value-pairs]
+  (when-not (coll/empty? endpoint+value-pairs)
+    (swap! *the-system* is/cache-output-values endpoint+value-pairs)
+    nil))
 
 (defn node-instance*?
   "Returns true if the node is a member of a given type, including
    supertypes."
   [type node]
-  (if-let [nt (and type (node-type node))]
-    (isa? (:key @nt) (:key @type))
+  (if-let [nt (and type (gt/node-type node))]
+    (in/inherits? nt type)
     false))
 
 (defn node-instance?
@@ -939,6 +1124,25 @@
    (node-instance? (now) type node-id))
   ([basis type node-id]
    (node-instance*? type (gt/node-by-id-at basis node-id))))
+
+(defn node-instance-match*
+  "Returns the first node-type from the provided sequence of node-types that
+  matches the node or one of its supertypes, or nil if no match was found."
+  [node node-types]
+  (when-some [node-type-key (-> node gt/node-type deref :key)]
+    (some (fn [type]
+            (let [type-key (:key @type)]
+              (when (isa? node-type-key type-key)
+                type)))
+          node-types)))
+
+(defn node-instance-match
+  "Returns the first node-type from the provided sequence of node-types that
+  matches the node or one of its supertypes, or nil if no match was found."
+  ([node-id node-types]
+   (node-instance-match (now) node-id node-types))
+  ([basis node-id node-types]
+   (node-instance-match* (gt/node-by-id-at basis node-id) node-types)))
 
 ;; ---------------------------------------------------------------------------
 ;; Support for serialization, copy & paste, and drag & drop
@@ -966,24 +1170,85 @@
      (transit/write writer fragment)
      (.toString out "UTF-8"))))
 
-(defn- serialize-arc [id-dictionary arc]
-  (let [[source-id source-label]  (gt/source arc)
-        [target-id target-label]  (gt/target arc)]
-    [(id-dictionary source-id) source-label (id-dictionary target-id) target-label]))
+(defn- serialize-arc [id-dictionary ^Arc arc]
+  [(id-dictionary (.source-id arc))
+   (.source-label arc)
+   (id-dictionary (.target-id arc))
+   (.target-label arc)])
 
-(defn- in-same-graph? [_ arc]
-  (apply = (map node-id->graph-id (take-nth 2 arc))))
-
+(defn- in-same-graph? [_ ^Arc arc]
+  (= (node-id->graph-id (.source-id arc))
+     (node-id->graph-id (.target-id arc))))
 
 (defn- every-arc-pred [& preds]
-  (fn [basis arc]
-    (reduce (fn [v pred] (and v (pred basis arc))) true preds)))
+  (fn [basis ^Arc arc]
+    (reduce (fn [_ pred]
+              (if (pred basis arc)
+                true
+                (reduced false)))
+            true
+            preds)))
 
 (defn- predecessors [pred basis node-id]
   (into []
-        (comp (filter #(pred basis %))
-              (map first))
-        (inputs basis node-id)))
+        (keep (fn [^Arc arc]
+                (when (pred basis arc)
+                  (.source-id arc))))
+        (ig/inputs basis node-id)))
+
+(defn override-predecessors
+  "This is an optimized version of the predecessors function above that is used
+  when processing overrides. We do this a lot, since a complex project can have
+  a lot of override nodes. Instead of taking a general traversal predicate, this
+  optimized function inlines some aspects of the graph traversal, with a few
+  minor optimizations that apply specifically to overrides. Specifically, this
+  function will only traverse :cascade-delete inputs, and will ignore all
+  connections that span multiple graphs."
+  [pred basis ^long target-id]
+  (when-some [target-node (gt/node-by-id-at basis target-id)]
+    (let [graph-id (gt/node-id->graph-id target-id)
+          graph (ig/node-id->graph basis target-id)
+          graph-tarcs (:tarcs graph)]
+      (loop [result []
+             node-id target-id
+             override-chain '()
+             followed-inputs (in/cascade-deletes (gt/node-type target-node))]
+        (let [arcs-by-input-label (graph-tarcs node-id)
+              explicit-arcs (when arcs-by-input-label
+                              (into []
+                                    (comp
+                                      (mapcat arcs-by-input-label)
+                                      (filter (fn [^Arc arc]
+                                                (and (= graph-id (gt/node-id->graph-id (.source-id arc)))
+                                                     (pred basis arc)))))
+                                    followed-inputs))
+              source-node-ids (into []
+                                    (comp
+                                      (map gt/source-id)
+                                      (distinct))
+                                    explicit-arcs)
+              result' (if (zero? (count source-node-ids))
+                        result
+                        (into result
+                              (reduce (fn [source-node-ids override-id]
+                                        (mapv (fn [source-node-id]
+                                                (or (ig/override-of graph source-node-id override-id)
+                                                    source-node-id))
+                                              source-node-ids))
+                                      source-node-ids
+                                      override-chain)))
+              node (ig/node-id->node graph node-id)
+              original-node-id (gt/original node)]
+          (if (nil? original-node-id)
+            result'
+            (recur result'
+                   (long original-node-id)
+                   (conj override-chain (gt/override-id node))
+                   (persistent!
+                     (transduce (map gt/target-label)
+                                disj!
+                                (transient followed-inputs)
+                                explicit-arcs)))))))))
 
 (defn- input-traverse
   [basis pred root-ids]
@@ -994,11 +1259,13 @@
         all-node-properties    (into {} (map (fn [[key value]] [key (:value value)])
                                              (:properties (node-value node-id :_declared-properties))))
         properties-without-fns (util/filterm (comp not fn? val) all-node-properties)]
-    {:node-type  (node-type node)
+    {:node-type  (gt/node-type node)
      :properties properties-without-fns}))
 
 (def opts-schema {(s/optional-key :traverse?) Runnable
-                  (s/optional-key :serializer) Runnable})
+                  (s/optional-key :serializer) Runnable
+                  (s/optional-key :external-refs) {s/Int s/Keyword}
+                  (s/optional-key :external-labels) {s/Int #{s/Keyword}}})
 
 (defn override-originals
   "Given a node id, returns a sequence of node ids starting with the
@@ -1031,7 +1298,7 @@
   predicate returns true, then that node --- or a stand-in for it ---
   will be included in the fragment.
 
-  `:traverse?` will be called with the basis and arc data.
+  `:traverse?` will be called with the basis and an Arc.
 
    The `:serializer` function determines _how_ to represent the node
   in the fragment.  `dynamo.graph/default-node-serializer` adds a map
@@ -1049,36 +1316,55 @@
   will be flattened to source or target the serialized node instead of
   the nodes that it overrides.
 
+   You can use `:external-refs` and `:external-labels` to add
+  connections to nodes that are not copied, even when there exist
+  connections to these nodes. To do this, need to specify a mapping
+  from external node id to it's referenced id keyword (`:external-refs`)
+  and then specify which labels of that node we are interested in when
+  performing a copy (`:external-labels`). Note that you need to provide
+  an inverse map of external refs (a map from reference id keyword to
+  node id) when doing paste for it to succeed.
+
   Example:
 
-  `(g/copy root-ids {:traverse? (comp not resource? #(nth % 3))
-                     :serializer (some-fn custom-serializer default-node-serializer %)})"
+  `(g/copy root-ids {:traverse? (comp not resource-node-id? (fn [basis ^Arc arc] (.target-id arc))
+                     :serializer (some-fn custom-serializer default-node-serializer %)
+                     :external-refs {project :project}
+                     :external-labels {project #{:settings}}})"
   ([root-ids opts]
    (copy (now) root-ids opts))
-  ([basis root-ids {:keys [traverse? serializer] :or {traverse? (clojure.core/constantly false) serializer default-node-serializer} :as opts}]
+  ([basis root-ids {:keys [traverse? serializer external-refs external-labels]
+                    :or {traverse? fn/constantly-false
+                         serializer default-node-serializer}
+                    :as opts}]
    (s/validate opts-schema opts)
    (let [arcs-by-source (partial deep-arcs-by-source basis)
          arcs-by-target (partial gt/arcs-by-target basis)
-         serializer     #(assoc (serializer (gt/node-by-id-at basis %2)) :serial-id %1)
-         original-ids   (input-traverse basis traverse? root-ids)
-         replacements   (zipmap original-ids (map-indexed serializer original-ids))
-         serial-ids     (into {}
-                              (mapcat (fn [[original-id {serial-id :serial-id}]]
-                                        (map #(vector % serial-id)
-                                             (override-originals basis original-id))))
-                              replacements)
-         include-arc?   (partial ig/arc-endpoints-p (partial contains? serial-ids))
-         serialize-arc  (partial serialize-arc serial-ids)
-         incoming-arcs  (mapcat arcs-by-target original-ids)
-         outgoing-arcs  (mapcat arcs-by-source original-ids)
-         fragment-arcs  (into []
-                              (comp (filter include-arc?)
-                                    (map serialize-arc)
-                                    (distinct))
-                              (concat incoming-arcs outgoing-arcs))]
-     {:roots              (mapv serial-ids root-ids)
-      :nodes              (vec (vals replacements))
-      :arcs               fragment-arcs
+         serializer #(assoc (serializer (gt/node-by-id-at basis %2)) :serial-id %1)
+         original-ids (input-traverse basis traverse? root-ids)
+         replacements (zipmap original-ids (map-indexed serializer original-ids))
+         serial-ids (into {}
+                          (mapcat (fn [[original-id {serial-id :serial-id}]]
+                                    (map #(vector % serial-id)
+                                         (override-originals basis original-id))))
+                          replacements)
+         include-arc? (partial ig/arc-endpoints-p
+                               (fn [id label]
+                                 (or (contains? serial-ids id)
+                                     (and (contains? external-refs id)
+                                          (contains? (get external-labels id) label)))))
+         serialize-dictionary (into serial-ids external-refs)
+         serialize-arc (partial serialize-arc serialize-dictionary)
+         incoming-arcs (mapcat arcs-by-target original-ids)
+         outgoing-arcs (mapcat arcs-by-source original-ids)
+         fragment-arcs (into []
+                             (comp (filter include-arc?)
+                                   (map serialize-arc)
+                                   (distinct))
+                             (concat incoming-arcs outgoing-arcs))]
+     {:roots (mapv serial-ids root-ids)
+      :nodes (vec (vals replacements))
+      :arcs fragment-arcs
       :node-id->serial-id serial-ids})))
 
 (defn- deserialize-arc
@@ -1108,19 +1394,28 @@
   instances, or anything else. The deserializer _must_ return valid
   transaction data, even if that data is just an empty vector.
 
+  If you serialized any arcs to external nodes when doing a copy, you
+  need to provide `:external-refs` here to resolve references to
+  external nodes - a map from reference id keyword to a referenced
+  node id.
+
   Example:
 
-  `(g/paste (graph project) fragment {:deserializer default-node-deserializer})"
+  `(g/paste (graph project) fragment {:deserializer default-node-deserializer
+                                      :external-refs {:project project}})"
   ([graph-id fragment opts]
    (paste (now) graph-id fragment opts))
-  ([basis graph-id fragment {:keys [deserializer] :or {deserializer default-node-deserializer} :as opts}]
+  ([basis graph-id fragment {:keys [deserializer external-refs]
+                             :or {deserializer default-node-deserializer
+                                  external-refs {}}}]
    (let [deserializer  (partial deserializer basis graph-id)
          nodes         (map deserializer (:nodes fragment))
          new-nodes     (remove #(gt/node-by-id-at basis (gt/node-id %)) nodes)
          node-txs      (vec (mapcat it/new-node new-nodes))
          node-ids      (map gt/node-id nodes)
          id-dictionary (zipmap (map :serial-id (:nodes fragment)) node-ids)
-         connect-txs   (mapcat #(deserialize-arc id-dictionary %) (:arcs fragment))]
+         deserialize-dictionary (into id-dictionary external-refs)
+         connect-txs   (mapcat #(deserialize-arc deserialize-dictionary %) (:arcs fragment))]
      {:root-node-ids      (map id-dictionary (:roots fragment))
       :nodes              node-ids
       :tx-data            (into node-txs connect-txs)
@@ -1129,17 +1424,36 @@
 ;; ---------------------------------------------------------------------------
 ;; Sub-graph instancing
 ;; ---------------------------------------------------------------------------
-(defn- traverse-cascade-delete [basis [source-id source-label target-id target-label]]
-  (get (cascade-deletes (node-type* basis target-id)) target-label))
+
+(defn make-override-traverse-fn [traverse?]
+  (partial override-predecessors traverse?))
+
+(def always-override-traverse-fn
+  (make-override-traverse-fn
+    (fn always-override-traverse-fn [_basis ^Arc _arc]
+      true)))
+
+(def never-override-traverse-fn
+  (make-override-traverse-fn
+    (fn never-override-traverse-fn [_basis ^Arc _arc]
+      false)))
+
+(defn default-override-init-fn [_evaluation-context _original-node-id->override-node-id]
+  [])
+
+(defn default-override-properties-by-node-id [_node-id]
+  {})
 
 (defn override
   ([root-id]
-   (override root-id {}))
+   (override root-id {} default-override-init-fn))
   ([root-id opts]
-   (override root-id opts (clojure.core/constantly [])))
-  ([root-id {:keys [traverse? properties-by-node-id] :or {traverse? (clojure.core/constantly true) properties-by-node-id (clojure.core/constantly {})}} init-fn]
-   (let [traverse-fn (partial predecessors (every-arc-pred in-same-graph? traverse-cascade-delete traverse?))]
-     (it/override root-id traverse-fn init-fn properties-by-node-id))))
+   (override root-id opts default-override-init-fn))
+  ([root-id opts init-fn]
+   (let [{:keys [traverse-fn init-props-fn properties-by-node-id]
+          :or {traverse-fn always-override-traverse-fn
+               properties-by-node-id default-override-properties-by-node-id}} opts]
+     (it/override root-id traverse-fn init-props-fn init-fn properties-by-node-id))))
 
 (defn transfer-overrides [from-id->to-id]
   (it/transfer-overrides from-id->to-id))
@@ -1195,14 +1509,6 @@
    (if (override? basis node-id)
      (property-overridden? basis node-id prop-kw)
      true)))
-
-(defn node-type-kw
-  "Returns the fully-qualified keyword that corresponds to the node type of the
-  specified node id, or nil if the node does not exist."
-  ([node-id]
-   (:k (node-type* node-id)))
-  ([basis node-id]
-   (:k (node-type* basis node-id))))
 
 (defmulti node-key
   "Used to identify a node uniquely within a scope. This has various uses,
@@ -1291,7 +1597,10 @@
   "Set up the initial system including graphs, caches, and disposal queues"
   [config]
   (reset! *the-system* (is/make-system config))
-  (low-memory/add-callback! clear-system-cache!))
+  (low-memory/add-callback!
+    (fn low-memory-callback! []
+      (log/info :message "Clearing the system cache in desperation due to low-memory conditions.")
+      (clear-system-cache!))))
 
 (defn make-graph!
   "Create a new graph in the system with optional values of `:history` and `:volatility`. If no
@@ -1381,3 +1690,12 @@
   [graph-id sequence-id]
   (swap! *the-system* is/cancel graph-id sequence-id)
   nil)
+
+(defn evaluation-context?
+  "Check if a value is an evaluation context"
+  [x]
+  (and (map? x)
+       (contains? x :basis)
+       (contains? x :in-production)
+       (contains? x :local)
+       (contains? x :hits)))

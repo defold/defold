@@ -14,42 +14,143 @@ env:
 
 
 jobs:
-  build-engine-darwin-64:
-    runs-on: macOS-latest
+  bld-eng-macos-64:
+    runs-on: macOS-14
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2 },
-      {
-        name: 'Install Python',
-        run: python --version
-      },
-      { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.13', distribution: 'microsoft'} },
+      { name: 'Checkout', uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 },
+      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12} },
+      { name: 'XCode', uses: maxim-lobanov/setup-xcode@60606e260d2fc5762a71e64e74b2174e8ea3c8bd, with: { xcode-version: '15.4' } },
+      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '21.0.5+11.0.LTS', distribution: 'temurin'} },
+      { name: 'Setup dotnet', uses: actions/setup-dotnet@v4, with: {dotnet-version: '9.x'}},
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
       {
-        name: 'Build engine',
-        run: 'ci/ci.sh --platform=x86_64-darwin --with-asan --with-vanilla-lua --skip-builtins --skip-docs engine'
+        name: 'ASAN',
+        run: 'ci/ci.sh --platform=x86_64-macos --with-asan --skip-builtins --skip-docs engine'
+      },
+      {
+        name: 'UBSAN',
+        run: 'ci/ci.sh --platform=x86_64-macos --with-ubsan --skip-builtins --skip-docs engine'
+      },
+      {
+        name: 'TSAN',
+        run: 'ci/ci.sh --platform=x86_64-macos --with-tsan --skip-builtins --skip-docs engine'
       },
       {
          name: 'Notify if build status changed',
-         uses: homoluctus/slatify@master,
+         uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
          if: failure(),
          with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
                mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
       }]
 
-  build-engine-linux-64:
-    runs-on: ubuntu-20.04
+  bld-eng-linux-x64:
+    runs-on: ubuntu-22.04
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2 },
-      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 2.x, architecture: x64 } },
-      { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.13', distribution: 'microsoft'} },
+      { name: 'Checkout', uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 },
+      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12} },
+      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '21.0.5+11.0.LTS', distribution: 'temurin'} },
+      { name: 'Setup dotnet', uses: actions/setup-dotnet@v4, with: {dotnet-version: '9.x'}},
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
       {
-        name: 'Build engine',
+        name: 'ASAN',
+        run: 'ci/ci.sh --platform=x86_64-linux --with-asan --skip-builtins --skip-docs engine'
+      },
+      {
+        name: 'UBSAN',
+        run: 'ci/ci.sh --platform=x86_64-linux --with-ubsan --skip-builtins --skip-docs engine'
+      },
+      {
+        name: 'TSAN',
+        run: 'ci/ci.sh --platform=x86_64-linux --with-tsan --skip-builtins --skip-docs engine'
+      },
+      {
+        name: 'VALGRIND',
         run: 'ci/ci.sh --platform=x86_64-linux --with-valgrind --skip-builtins --skip-docs engine'
       },
       {
          name: 'Notify if build status changed',
-         uses: homoluctus/slatify@master,
+         uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
+         if: failure(),
+         with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
+      }]
+
+  bld-eng-linux-arm64:
+    runs-on: ubuntu-22.04-arm
+    steps: [
+      { name: 'Checkout', uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 },
+      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12} },
+      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '21.0.5+11.0.LTS', distribution: 'temurin'} },
+      { name: 'Setup dotnet', uses: actions/setup-dotnet@v4, with: {dotnet-version: '9.x'}},
+      { name: 'Install dependencies', run: 'ci/ci.sh install' },
+      {
+        name: 'ASAN',
+        run: 'ci/ci.sh --platform=arm64-linux --with-asan --skip-builtins --skip-docs engine'
+      },
+      {
+        name: 'UBSAN',
+        run: 'ci/ci.sh --platform=arm64-linux --with-ubsan --skip-builtins --skip-docs engine'
+      },
+      {
+        name: 'TSAN',
+        run: 'ci/ci.sh --platform=arm64-linux --with-tsan --skip-builtins --skip-docs engine'
+      },
+      {
+        name: 'VALGRIND',
+        run: 'ci/ci.sh --platform=arm64-linux --with-valgrind --skip-builtins --skip-docs engine'
+      },
+      {
+         name: 'Notify if build status changed',
+         uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
+         if: failure(),
+         with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
+      }]
+
+  bld-eng-web:
+    strategy:
+      matrix:
+        platform: [js-web, wasm-web]
+    runs-on: ubuntu-22.04
+    steps: [
+      { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12} },
+      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '21.0.5+11.0.LTS', distribution: 'temurin'} },
+      { name: 'Setup dotnet', uses: actions/setup-dotnet@v4, with: {dotnet-version: '9.x'}},
+      { name: 'Setup emsdk', uses: mymindstorm/setup-emsdk@v14, with: {version: '3.1.65'}},
+      { name: 'Verify emsdk',
+        run: 'emcc -v && export | grep EM'
+      },
+      { name: 'Install LLVM and Clang', uses: KyleMayes/install-llvm-action@v2, with: {version: "13.0"}},
+      { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
+      {
+        name: 'Build engine',
+        if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
+        run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-builtins --skip-docs engine'
+      },
+      {
+       name: 'Notify if build status changed',
+       uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
+       if: failure(),
+       with: { type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
+      }]
+
+  bld-eng-win:
+    runs-on: windows-latest
+    steps: [
+      { name: 'Checkout', uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 },
+      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12} },
+      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '21.0.5+11.0.LTS', distribution: 'temurin'} },
+      { name: 'Setup dotnet', uses: actions/setup-dotnet@v4, with: {dotnet-version: '9.x'}},
+      { name: 'Install dependencies', run: 'ci/ci.sh install' },
+      {
+        name: 'ASAN',
+        run: 'ci/ci.sh --platform=x86_64-win32 --with-asan --skip-builtins --skip-docs engine'
+      },
+      {
+         name: 'Notify if build status changed',
+         uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
          if: failure(),
          with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
                mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }

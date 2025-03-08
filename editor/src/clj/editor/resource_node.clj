@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -17,68 +17,127 @@
   ordinary paths."
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
+            [editor.code.util :as code.util]
             [editor.core :as core]
+            [editor.outline :as outline]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
             [editor.settings-core :as settings-core]
+            [editor.types :as types]
             [editor.workspace :as workspace]
-            [editor.outline :as outline])
-  (:import [org.apache.commons.codec.digest DigestUtils]
-           [java.io StringReader]))
+            [internal.graph.types :as gt]
+            [internal.util :as util]
+            [util.coll :as coll :refer [pair]]
+            [util.digest :as digest]))
 
 (set! *warn-on-reflection* true)
 
 (def unknown-icon "icons/32/Icons_29-AT-Unknown.png")
 
-(defn resource-node-dependencies [resource-node-id evaluation-context]
-  (let [resource (g/node-value resource-node-id :resource evaluation-context)]
-    (when-some [dependencies-fn (:dependencies-fn (resource/resource-type resource))]
-      (let [source-value (g/node-value resource-node-id :source-value evaluation-context)]
-        (dependencies-fn source-value)))))
+(defn make-save-data [node-id resource save-value dirty]
+  {:pre [(g/node-id? node-id)
+         (resource/resource? resource)
+         (boolean? dirty)]}
+  {:node-id node-id ; Used to update the source-value after saving.
+   :resource resource
+   :dirty dirty
+   :save-value save-value})
 
-(g/defnk produce-undecorated-save-data [_node-id resource save-value]
-  (let [write-fn (:write-fn (resource/resource-type resource))]
-    (cond-> {:resource resource :value save-value :node-id _node-id}
-            (and write-fn save-value) (assoc :content (write-fn save-value)))))
+(defn save-content
+  ^String [save-value resource-type]
+  (when (some? save-value)
+    (when-let [write-fn (:write-fn resource-type)]
+      (write-fn save-value))))
 
-(g/defnk produce-save-data [undecorated-save-data dirty?]
-  (assoc undecorated-save-data :dirty? dirty?))
+(defn save-data-content
+  ^String [{:keys [resource save-value]}]
+  (let [resource-type (resource/resource-type resource)]
+    (save-content save-value resource-type)))
+
+(defn save-data-sha256 [save-data]
+  (if (g/error-value? save-data)
+    save-data
+    (if-some [content (save-data-content save-data)]
+      ;; TODO(save-value-cleanup): Can we digest the save-value without converting it to a string?
+      (digest/string->sha256-hex content)
+      (let [resource (:resource save-data)
+            node-id (:node-id save-data)
+            workspace (resource/workspace resource)
+            node-id->disk-sha256 (g/node-value workspace :disk-sha256s-by-node-id)]
+        (or (node-id->disk-sha256 node-id)
+            (resource-io/with-error-translation resource node-id :sha256
+              (resource/resource->sha256-hex resource)))))))
+
+(defn save-value->source-value [save-value resource-type]
+  (if (or (nil? save-value)
+          (g/error-value? save-value))
+    save-value
+    (if-some [source-value-fn (:source-value-fn resource-type)]
+      (source-value-fn save-value)
+      save-value)))
+
+(defn dirty-save-value? [save-value source-value resource-type]
+  (and (some? source-value)
+       (some? save-value)
+       (not= source-value (save-value->source-value save-value resource-type))))
+
+(g/defnk produce-save-data [_node-id resource save-value source-value]
+  (let [resource-type (resource/resource-type resource)
+        dirty (dirty-save-value? save-value source-value resource-type)]
+    (make-save-data _node-id resource save-value dirty)))
+
+(g/defnk produce-source-value [_node-id resource]
+  ;; The source-value is managed by the save system. When a file is loaded, we
+  ;; store the value returned by the :read-fn (or an ErrorValue in case of an
+  ;; error) as user-data for the node, and then subsequently update it whenever
+  ;; the file is saved. We make sure to invalidate anything downstream of the
+  ;; source-value output when doing so.
+  (if (resource/exists? resource)
+    (g/user-data _node-id :source-value)
+    (resource-io/file-not-found-error _node-id :source-value :fatal resource)))
+
+(defn set-source-value! [node-id source-value]
+  (g/user-data! node-id :source-value source-value)
+  (g/invalidate-outputs! [(g/endpoint node-id :source-value)]))
+
+(defn merge-source-values! [node-id+source-value-pairs]
+  (let [[invalidated-endpoints
+         user-data-values-by-key-by-node-id]
+        (util/into-multiple
+          (pair []
+                {})
+          (pair (map (fn [[node-id]]
+                       (g/endpoint node-id :source-value)))
+                (map (fn [[node-id source-value]]
+                       (pair node-id {:source-value source-value}))))
+          node-id+source-value-pairs)]
+    (g/user-data-merge! user-data-values-by-key-by-node-id)
+    (g/invalidate-outputs! invalidated-endpoints)))
+
+(g/defnk produce-lines [_node-id resource save-value]
+  (if (nil? save-value)
+    (resource-io/with-error-translation resource _node-id :lines
+      (let [content (slurp resource)]
+        (code.util/split-lines content)))
+    (let [resource-type (resource/resource-type resource)
+          content (save-content save-value resource-type)]
+      (code.util/split-lines content))))
+
+(g/defnk produce-sha256 [save-data]
+  (save-data-sha256 save-data))
 
 (g/defnode ResourceNode
   (inherits core/Scope)
   (inherits outline/OutlineNode)
   (inherits resource/ResourceNode)
 
-  (property editable? g/Bool :unjammable
-            (default true)
-            (dynamic visible (g/constantly false)))
-
-  (output undecorated-save-data g/Any produce-undecorated-save-data)
   (output save-data g/Any :cached produce-save-data)
-  (output source-value g/Any :cached (g/fnk [_node-id resource editable?]
-                                       (when-some [read-fn (:read-fn (resource/resource-type resource))]
-                                         (when (and editable? (resource/exists? resource))
-                                           (resource-io/with-error-translation resource _node-id :source-value
-                                             (read-fn resource))))))
-  (output reload-dependencies g/Any :cached (g/fnk [_node-id resource save-value]
-                                              (when-some [dependencies-fn (:dependencies-fn (resource/resource-type resource))]
-                                                (dependencies-fn save-value))))
-  
   (output save-value g/Any (g/constantly nil))
+  (output source-value g/Any :unjammable produce-source-value)
+  (output lines types/Lines produce-lines)
 
-  (output cleaned-save-value g/Any (g/fnk [_node-id resource save-value editable?]
-                                          (when editable?
-                                            (let [resource-type (resource/resource-type resource)
-                                                  read-fn (:read-fn resource-type)
-                                                  write-fn (:write-fn resource-type)]
-                                              (if (and read-fn write-fn)
-                                                (with-open [reader (StringReader. (write-fn save-value))]
-                                                  (resource-io/with-error-translation resource _node-id :cleaned-save-value
-                                                    (read-fn reader)))
-                                                save-value)))))
-  (output dirty? g/Bool (g/fnk [cleaned-save-value source-value editable?]
-                          (and editable? (some? cleaned-save-value) (not= cleaned-save-value source-value))))
+  (output dirty g/Bool (g/fnk [save-data] (:dirty save-data false)))
   (output node-id+resource g/Any :unjammable (g/fnk [_node-id resource] [_node-id resource]))
   (output valid-node-id+type+resource g/Any (g/fnk [_node-id _this resource] [_node-id (g/node-type _this) resource])) ; Jammed when defective.
   (output own-build-errors g/Any (g/constantly nil))
@@ -97,51 +156,165 @@
               :children children
               :outline-error? (g/error-fatal? own-build-errors)
               :outline-overridden? (not (empty? _overridden-properties))})))
+  (output sha256 g/Str :cached produce-sha256))
 
-  (output sha256 g/Str :cached (g/fnk [resource save-data]
-                                 ;; Careful! This might throw if resource has been removed
-                                 ;; outside the editor. Use from editor.engine.native-extensions seems
-                                 ;; to catch any exceptions.
-                                 (let [content (get save-data :content ::no-content)]
-                                   (if (= ::no-content content)
-                                     (with-open [s (io/input-stream resource)]
-                                       (DigestUtils/sha256Hex ^java.io.InputStream s))
-                                     (DigestUtils/sha256Hex ^String content))))))
+;; TODO(save-value-cleanup): Can we remove this now?
+(g/defnode NonEditableResourceNode
+  (inherits ResourceNode)
 
-(defn defective? [resource-node]
-  (let [value (g/node-value resource-node :valid-node-id+type+resource)]
-    (and (g/error? value)
-         (g/error-fatal? value))))
+  (output save-data g/Any (g/constantly nil))
+  (output save-value g/Any (g/constantly nil)))
 
-(defn make-ddf-dependencies-fn [ddf-type]
-  (fn [source-value]
-    (into []
-          (comp
-            (filter seq)
-            (distinct))
-          ((protobuf/get-fields-fn (protobuf/resource-field-paths ddf-type)) source-value))))
+(definline ^:private resource-node-resource [basis resource-node]
+  ;; This is faster than g/node-value, and doesn't require creating an
+  ;; evaluation-context. The resource property is unjammable and properties
+  ;; aren't cached, so there is no need to do a full g/node-value.
+  `(gt/get-property ~resource-node ~basis :resource))
 
-(defn register-ddf-resource-type [workspace & {:keys [ext node-type ddf-type load-fn dependencies-fn sanitize-fn icon view-types tags tag-opts label] :as args}]
-  (let [read-fn (comp (or sanitize-fn identity) (partial protobuf/read-text ddf-type))
-        args (assoc args
-               :textual? true
-               :load-fn (fn [project self resource]
-                          (let [source-value (read-fn resource)]
-                            (load-fn project self resource source-value)))
-               :dependencies-fn (or dependencies-fn (make-ddf-dependencies-fn ddf-type))
-               :read-fn read-fn
-               :write-fn (partial protobuf/map->str ddf-type))]
+(defn resource
+  ([resource-node-id]
+   (resource (g/now) resource-node-id))
+  ([basis resource-node-id]
+   (let [resource-node (g/node-by-id basis resource-node-id)]
+     (assert (g/node-instance*? resource/ResourceNode resource-node))
+     (resource-node-resource basis resource-node))))
+
+(defn as-resource
+  ([node-id]
+   (as-resource (g/now) node-id))
+  ([basis node-id]
+   (when-some [node (g/node-by-id basis node-id)]
+     (when (g/node-instance*? resource/ResourceNode node)
+       (resource-node-resource basis node)))))
+
+(defn as-resource-original
+  ([node-id]
+   (as-resource-original (g/now) node-id))
+  ([basis node-id]
+   (when-some [node (g/node-by-id basis node-id)]
+     (when (and (nil? (gt/original node))
+                (g/node-instance*? resource/ResourceNode node))
+       (resource-node-resource basis node)))))
+
+(defn dirty?
+  ([resource-node-id]
+   (g/valid-node-value resource-node-id :dirty))
+  ([resource-node-id evaluation-context]
+   (g/valid-node-value resource-node-id :dirty evaluation-context)))
+
+(defn- make-ddf-dependencies-fn-raw [ddf-type]
+  (let [get-fields (protobuf/get-fields-fn (protobuf/resource-field-path-specs ddf-type))]
+    (fn [source-value]
+      (into []
+            (comp
+              (filter seq)
+              (distinct))
+            (get-fields source-value)))))
+
+(def make-ddf-dependencies-fn (memoize make-ddf-dependencies-fn-raw))
+
+(defn owner-resource-node-id
+  ([node-id]
+   (owner-resource-node-id (g/now) node-id))
+  ([basis node-id]
+   ;; The owner resource node is the first non-override ResourceNode we find by
+   ;; traversing the explicit :cascade-delete connections between nodes. I.e, we
+   ;; want to find the ResourceNode that will delete our node if the resource is
+   ;; deleted from the project.
+   (let [node (g/node-by-id basis node-id)]
+     ;; Embedded resources will be represented by ResourceNodes, but we want the
+     ;; ultimate owner of the embedded resource, so we keep looking if we
+     ;; encounter an override node or a ResourceNode whose resource does not
+     ;; have a valid proj-path.
+     (if (and (nil? (gt/original node))
+              (g/node-instance*? ResourceNode node)
+              (some? (resource/proj-path (resource-node-resource basis node))))
+
+       ;; We found our owner ResourceNode. Return its node-id.
+       node-id
+
+       ;; This is not our owner ResourceNode. Recursively follow the outgoing
+       ;; connections that connect to a :cascade-delete input.
+       (some->> (core/owner-node-id basis node-id)
+                (owner-resource-node-id basis))))))
+
+(defn owner-resource
+  ([node-id]
+   (owner-resource (g/now) node-id))
+  ([basis node-id]
+   (some->> (owner-resource-node-id basis node-id)
+            (resource basis))))
+
+(defn sha256-or-throw
+  ^String [resource-node-id evaluation-context]
+  (let [sha256-or-error (g/node-value resource-node-id :sha256 evaluation-context)]
+    (if-not (g/error? sha256-or-error)
+      sha256-or-error
+      (let [basis (:basis evaluation-context)
+            resource (resource basis resource-node-id)
+            proj-path (resource/proj-path resource)]
+        (throw (ex-info (str "Failed to calculate sha256 hash of resource: " proj-path)
+                        {:proj-path proj-path
+                         :error-value sha256-or-error}))))))
+
+(defn default-ddf-resource-search-fn
+  ([search-string]
+   (protobuf/make-map-search-match-fn search-string))
+  ([pb-map match-fn]
+   (mapv (fn [[text-match path]]
+           (assoc text-match
+             :match-type :match-type-protobuf
+             :path path))
+         (coll/search-with-path pb-map [] match-fn))))
+
+(defn make-ddf-resource-search-fn [init-path path-fn]
+  (defn search-fn
+    ([search-string]
+     (protobuf/make-map-search-match-fn search-string))
+    ([pb-map match-fn]
+     (mapv (fn [[text-match path]]
+             (assoc text-match
+               :match-type :match-type-protobuf
+               :path (path-fn pb-map path)))
+           (coll/search-with-path pb-map init-path match-fn)))))
+
+(defn register-ddf-resource-type [workspace & {:keys [editable ext node-type ddf-type read-defaults load-fn dependencies-fn sanitize-fn search-fn string-encode-fn icon view-types tags tag-opts label built-pb-class] :as args}]
+  {:pre [(protobuf/pb-class? ddf-type)
+         (or (nil? built-pb-class) (protobuf/pb-class? built-pb-class))]}
+  (let [read-defaults (boolean read-defaults)
+        read-raw-fn (if read-defaults
+                      (partial protobuf/read-map-with-defaults ddf-type)
+                      (partial protobuf/read-map-without-defaults ddf-type))
+        read-fn (cond->> read-raw-fn
+                         (some? sanitize-fn) (comp sanitize-fn))
+        write-fn (cond-> (partial protobuf/map->str ddf-type)
+                         (some? string-encode-fn) (comp string-encode-fn))
+        search-fn (or search-fn default-ddf-resource-search-fn)
+        args (-> args
+                 (dissoc :read-defaults :string-encode-fn)
+                 (assoc :textual? true
+                        :dependencies-fn (or dependencies-fn (make-ddf-dependencies-fn ddf-type))
+                        :read-fn read-fn
+                        :write-fn write-fn
+                        :search-fn search-fn
+                        :test-info {:type :ddf
+                                    :ddf-type ddf-type
+                                    :read-defaults read-defaults
+                                    :built-pb-class (or built-pb-class ddf-type)}))]
     (apply workspace/register-resource-type workspace (mapcat identity args))))
 
-(defn register-settings-resource-type [workspace & {:keys [ext node-type load-fn icon view-types tags tag-opts label] :as args}]
+(defn register-settings-resource-type [workspace & {:keys [ext node-type load-fn meta-settings icon view-types tags tag-opts label] :as args}]
+  {:pre [(seqable? meta-settings)]}
   (let [read-fn (fn [resource]
                   (with-open [setting-reader (io/reader resource)]
                     (settings-core/parse-settings setting-reader)))
+        write-fn (comp #(settings-core/settings->str % meta-settings :multi-line-list)
+                       settings-core/settings-with-value)
         args (assoc args
                :textual? true
-               :load-fn (fn [project self resource]
-                          (let [source-value (read-fn resource)]
-                            (load-fn project self resource source-value)))
                :read-fn read-fn
-               :write-fn (comp settings-core/settings->str settings-core/settings-with-value))]
+               :write-fn write-fn
+               :search-fn settings-core/raw-settings-search-fn
+               :test-info {:type :settings
+                           :meta-settings meta-settings})]
     (apply workspace/register-resource-type workspace (mapcat identity args))))

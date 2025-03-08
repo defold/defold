@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,21 +15,12 @@
 package com.dynamo.bob.pipeline;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.HashMap;
-import java.util.HashSet;
+import java.util.*;
+import java.util.stream.Collectors;
 
 import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
 import javax.vecmath.Vector3d;
-
-import org.apache.commons.io.FilenameUtils;
 
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
@@ -41,6 +32,7 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.PropertiesUtil;
+import com.dynamo.bob.util.ComponentsCounter;
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 import com.dynamo.gameobject.proto.GameObject.CollectionInstanceDesc;
 import com.dynamo.gameobject.proto.GameObject.ComponentPropertyDesc;
@@ -48,48 +40,26 @@ import com.dynamo.gameobject.proto.GameObject.EmbeddedInstanceDesc;
 import com.dynamo.gameobject.proto.GameObject.InstanceDesc;
 import com.dynamo.gameobject.proto.GameObject.InstancePropertyDesc;
 import com.dynamo.gameobject.proto.GameObject.PropertyDesc;
-import com.dynamo.gameobject.proto.GameObject.ComponenTypeDesc;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
-
-import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
-import com.dynamo.gameobject.proto.GameObject.EmbeddedComponentDesc;
-import com.dynamo.gameobject.proto.GameObject.ComponentDesc;
-import com.dynamo.gamesys.proto.GameSystem.CollectionFactoryDesc;
-import com.dynamo.gamesys.proto.GameSystem.FactoryDesc;
 
 @ProtoParams(srcClass = CollectionDesc.class, messageClass = CollectionDesc.class)
 @BuilderParams(name="Collection", inExts=".collection", outExt=".collectionc")
 public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
+    private Map<IResource, Integer> compCounterInputsCount = new HashMap<>();
 
-    private Map<Long, IResource> uniqueResources = new HashMap<>();
-    private Set<Long> productsOfThisTask = new HashSet<>();
-    private List<Task<?>> embedTasks = new ArrayList<>();
-
-    private HashMap<String, Integer> components = new HashMap<>();
-    private HashMap<String, Integer> componentsInFactories = new HashMap<>();
-
-    private void collectSubCollections(CollectionDesc.Builder collection, Set<IResource> subCollections) throws CompileExceptionError, IOException {
+    private void collectSubCollections(CollectionDesc.Builder collection, Map<IResource, Integer> subCollections) throws CompileExceptionError, IOException {
         for (CollectionInstanceDesc sub : collection.getCollectionInstancesList()) {
             IResource subResource = project.getResource(sub.getCollection());
-            subCollections.add(subResource);
+            subCollections.put(subResource, subCollections.getOrDefault(subResource, 0) + 1);
             CollectionDesc.Builder builder = CollectionDesc.newBuilder();
             ProtoUtil.merge(subResource, builder);
             collectSubCollections(builder, subCollections);
         }
     }
 
-    private int countEmbeddedOutputs(CollectionDesc.Builder builder) throws IOException, CompileExceptionError {
-        int count = 0;
-        count += builder.getEmbeddedInstancesCount();
-        for (CollectionInstanceDesc c : builder.getCollectionInstancesList()) {
-            CollectionDesc.Builder b = CollectionDesc.newBuilder();
-            ProtoUtil.merge(project.getResource(c.getCollection()), b);
-            count += countEmbeddedOutputs(b);
-        }
-        return count;
-    }
+    private void createGeneratedResources(Project project, CollectionDesc.Builder builder,
+        Map<Long, IResource> uniqueResources, Map<Long, IResource> allResources) throws IOException, CompileExceptionError {
 
-    private void createGeneratedResources(Project project, CollectionDesc.Builder builder) throws IOException, CompileExceptionError {
         for (EmbeddedInstanceDesc desc : builder.getEmbeddedInstancesList()) {
             byte[] data = desc.getData().getBytes();
             long hash = MurmurHash.hash64(data, data.length);
@@ -102,10 +72,9 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
                 // If the file isn't created here <EmbeddedComponent>#create
                 // can't access generated resource data (embedded component desc)
                 genResource.setContent(data);
-
                 uniqueResources.put(hash, genResource);
-                productsOfThisTask.add(hash);
             }
+            allResources.put(hash, genResource);
         }
 
         for (CollectionInstanceDesc c : builder.getCollectionInstancesList()) {
@@ -113,198 +82,65 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
             CollectionDesc.Builder subCollectionBuilder = CollectionDesc.newBuilder();
             ProtoUtil.merge(collectionResource, subCollectionBuilder);
 
-            createGeneratedResources(project, subCollectionBuilder);
-        }
-    }
-
-    // TODO: do we really need this?
-    // This method is never called. Is it mistake?
-    private int buildEmbedded(IResource input, CollectionDesc.Builder builder, Task<Void> task, int embedIndex) throws IOException, CompileExceptionError {
-        for (EmbeddedInstanceDesc desc : builder.getEmbeddedInstancesList()) {
-            IResource genResource = task.getOutputs().get(embedIndex+1);
-
-            // TODO: This is a hack!
-            // If the file isn't created here GameObjectBuilder#create
-            // can't run as the generated file is loaded in GameObjectBuilder#create
-            // to search for embedded components.
-            // How to solve?
-            genResource.setContent(desc.getData().getBytes());
-
-            Task<?> embedTask = project.createTask(genResource);
-            if (embedTask == null) {
-                throw new CompileExceptionError(input,
-                                                0,
-                                                String.format("Failed to create build task for component '%s'", desc.getId()));
-            }
-            embedTask.setProductOf(task);
-            ++embedIndex;
-        }
-
-        for (CollectionInstanceDesc c : builder.getCollectionInstancesList()) {
-            IResource collResource = this.project.getResource(c.getCollection());
-            CollectionDesc.Builder subCollBuilder = CollectionDesc.newBuilder();
-            ProtoUtil.merge(collResource, subCollBuilder);
-            embedIndex = buildEmbedded(input, subCollBuilder, task, embedIndex);
-        }
-
-        return embedIndex;
-    }
-
-    private void addOneComponent(String component, Map<String, Integer> target) {
-        target.put(component, target.getOrDefault(component, 0) + 1);
-    }
-
-    private void countComponentsInFactory(Project project, IResource input, String type) throws IOException, CompileExceptionError {
-        if (type.equals("factory")) {
-            FactoryDesc.Builder factoryDesc = FactoryDesc.newBuilder();
-            ProtoUtil.merge(input, factoryDesc);
-            IResource res = project.getResource(factoryDesc.getPrototype());
-
-            countComponentInResource(project, res, componentsInFactories);
-        } else if (type.equals("collectionfactory")) {
-            CollectionFactoryDesc.Builder factoryDesc = CollectionFactoryDesc.newBuilder();
-            ProtoUtil.merge(input, factoryDesc);
-            IResource res = project.getResource(factoryDesc.getPrototype());
-            CollectionDesc.Builder builder = CollectionDesc.newBuilder();
-            ProtoUtil.merge(res, builder);
-
-            countComponentsInCollectionRecursively(project, builder, componentsInFactories);
-        }
-    }
-
-    private boolean isFactoryType(String type) throws IOException, CompileExceptionError {
-        return type.equals("factory") || type.equals("collectionfactory");
-    }
-
-    private void countComponentInResource(Project project, IResource res, Map<String, Integer> target) throws IOException, CompileExceptionError {
-        PrototypeDesc.Builder prot = PrototypeDesc.newBuilder();
-        ProtoUtil.merge(res, prot);
-
-        for (EmbeddedComponentDesc cd : prot.getEmbeddedComponentsList()) {
-            String type = cd.getType();
-            addOneComponent(type, target);
-            if (isFactoryType(type)) {
-                byte[] data = cd.getData().getBytes();
-                long hash = MurmurHash.hash64(data, data.length);
-                IResource resource = project.getGeneratedResource(hash, type);
-                resource.setContent(data);
-                countComponentsInFactory(project, resource, type);
-            }
-        }
-        for (ComponentDesc cd : prot.getComponentsList()) {
-            String comp = cd.getComponent();
-            String type = FilenameUtils.getExtension(comp);
-            addOneComponent(type, target);
-            if (isFactoryType(type)) {
-                IResource resource = project.getResource(comp);
-                countComponentsInFactory(project, resource, type);
-            }
-        }
-    }
-
-    private void countComponentsInCollectionRecursively(Project project, CollectionDesc.Builder builder, Map<String, Integer> target) throws IOException, CompileExceptionError {
-        for (InstanceDesc inst : builder.getInstancesList()) {
-            IResource res = project.getResource(inst.getPrototype());
-            countComponentInResource(project, res, target);
-        }
-        for (EmbeddedInstanceDesc desc : builder.getEmbeddedInstancesList()) {
-            byte[] data = desc.getData().getBytes();
-            long hash = MurmurHash.hash64(data, data.length);
-
-            IResource res = project.getGeneratedResource(hash, "go");
-            countComponentInResource(project, res, target);
-        }
-        for (CollectionInstanceDesc collInst : builder.getCollectionInstancesList()) {
-            IResource collResource = project.getResource(collInst.getCollection());
-            CollectionDesc.Builder subCollBuilder = CollectionDesc.newBuilder();
-            ProtoUtil.merge(collResource, subCollBuilder);
-            countComponentsInCollectionRecursively(project, subCollBuilder, target);
-        }
-    }
-
-    private String replaceComponentName(Project project, String in) {
-        return project.replaceExt("." + in).substring(1);
-    }
-
-    private void countAllComponentTypes(Project project, CollectionDesc.Builder builder) throws IOException, CompileExceptionError {
-        countComponentsInCollectionRecursively(this.project, builder, components);
-
-        HashMap<String, Integer> mergedComponents =  new HashMap<>();
-
-        for (Map.Entry<String, Integer> entry : components.entrySet()) {
-            String name = replaceComponentName(project, entry.getKey());
-            // different input component names may have the same output name
-            // for example wav ans sound both are soundc
-            if (mergedComponents.containsKey(name)) {
-                mergedComponents.put(name, mergedComponents.get(name) + entry.getValue());
-            } else {
-                mergedComponents.put(name, entry.getValue());
-            }
-        }
-
-        // if component is in factory or collectionfactory use 0xFFFFFFFF
-        for (Map.Entry<String, Integer> entry : componentsInFactories.entrySet()) {
-            mergedComponents.put(replaceComponentName(project, entry.getKey()), 0xFFFFFFFF);
-        }
-
-        for (Map.Entry<String, Integer> entry : mergedComponents.entrySet()) {
-            ComponenTypeDesc.Builder componentTypeDesc = ComponenTypeDesc.newBuilder();
-            componentTypeDesc.setNameHash(MurmurHash.hash64(entry.getKey())).setMaxCount(entry.getValue());
-            builder.addComponentTypes(componentTypeDesc);
-        }
-    }
-
-    private void createResourcePropertyTasks(List<ComponentPropertyDesc> overrideProps, IResource input) throws CompileExceptionError {
-        for (ComponentPropertyDesc compProp : overrideProps) {
-            Collection<String> resources = PropertiesUtil.getPropertyDescResources(project, compProp.getPropertiesList());
-            for(String r : resources) {
-                IResource resource = BuilderUtil.checkResource(project, input, "resource", r);
-                PropertiesUtil.createResourcePropertyTasks(project, resource, input);
-            }
+            createGeneratedResources(project, subCollectionBuilder, uniqueResources, allResources);
         }
     }
 
     @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-        Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
+    public Task create(IResource input) throws IOException, CompileExceptionError {
+        Task.TaskBuilder taskBuilder = Task.newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
-                .addOutput(input.changeExt(params.outExt()));
-        CollectionDesc.Builder builder = CollectionDesc.newBuilder();
-        ProtoUtil.merge(input, builder);
-        Set<IResource> subCollections = new HashSet<IResource>();
+                .addOutput(input.changeExt(params.outExt()))
+                .addOutput(input.changeExt(ComponentsCounter.EXT_COL));
+        CollectionDesc.Builder builder = getSrcBuilder(input);
+        createSubTasks(builder, taskBuilder);
+
+        Map<IResource, Integer> subCollections = new HashMap<>();
         collectSubCollections(builder, subCollections);
-        for (IResource subCollection : subCollections) {
-            taskBuilder.addInput(subCollection);
+        for (IResource subCollection : subCollections.keySet()) {
+            IResource compCounterInput = input.getResource(ComponentsCounter.replaceExt(subCollection)).output();
+            compCounterInputsCount.put(compCounterInput, 1);
         }
 
         for (InstanceDesc inst : builder.getInstancesList()) {
             InstanceDesc.Builder instBuilder = InstanceDesc.newBuilder(inst);
             List<ComponentPropertyDesc> sourceProperties = instBuilder.getComponentPropertiesList();
-            createResourcePropertyTasks(sourceProperties, input);
+            for (ComponentPropertyDesc compProp : sourceProperties) {
+                Map<String, String> resources = PropertiesUtil.getPropertyDescResources(project, compProp.getPropertiesList());
+                for (Map.Entry<String, String> entry : resources.entrySet()) {
+                    createSubTask(entry.getValue(), entry.getKey(), taskBuilder);
+                }
+            }
+
+            IResource res = project.getResource(inst.getPrototype());
+            IResource compCounterInput = input.getResource(ComponentsCounter.replaceExt(res)).output();
+            compCounterInputsCount.put(compCounterInput, 1);
         }
 
-        createGeneratedResources(this.project, builder);
+        Map<Long, IResource> uniqueResources = new HashMap<>();
+        Map<Long, IResource> allResources = new HashMap<>();
+        createGeneratedResources(this.project, builder, uniqueResources, allResources);
 
+        List<Task> embedTasks = new ArrayList<>();
         for (long hash : uniqueResources.keySet()) {
             IResource genResource = uniqueResources.get(hash);
+            Task embedTask = createSubTask(genResource, taskBuilder);
+            embedTasks.add(embedTask);
+        }
 
-            taskBuilder.addOutput(genResource);
-
-            if (productsOfThisTask.contains(hash)) {
-
-                Task<?> embedTask = project.createTask(genResource);
-                if (embedTask == null) {
-                    throw new CompileExceptionError(input,
-                                                    0,
-                                                    String.format("Failed to create build task for component '%s'", genResource.getPath()));
-                }
-                embedTasks.add(embedTask);
+        for (IResource genResource : allResources.values()) {
+            Task embedTask = createSubTask(genResource, taskBuilder);
+            // if embeded objects have factories, they should be in input for our collection
+            Set<IResource> counterInputs = ComponentsCounter.getCounterInputs(embedTask);
+            for(IResource res : counterInputs) {
+                taskBuilder.addInput(res);
+                compCounterInputsCount.put(res, ComponentsCounter.DYNAMIC_VALUE);
             }
         }
 
-        Task<Void> task = taskBuilder.build();
-        for (Task<?> et : embedTasks) {
+        Task task = taskBuilder.build();
+        for (Task et : embedTasks) {
             et.setProductOf(task);
         }
         return task;
@@ -422,7 +258,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
                     Quat4d instR = MathUtil.ddfToVecmath(inst.getRotation());
                     instR.mul(r, instR);
                     instBuilder.setRotation(MathUtil.vecmathToDDF(instR));
-                    instBuilder.setScale3(MathUtil.vecmathToDDF(instS));
+                    instBuilder.setScale3(MathUtil.vecmathToDDFOne(instS));
                 }
                 // adjust child ids
                 for (int i = 0; i < instBuilder.getChildrenCount(); ++i) {
@@ -466,7 +302,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
                     Quat4d instR = MathUtil.ddfToVecmath(inst.getRotation());
                     instR.mul(r, instR);
                     instBuilder.setRotation(MathUtil.vecmathToDDF(instR));
-                    instBuilder.setScale3(MathUtil.vecmathToDDF(instS));
+                    instBuilder.setScale3(MathUtil.vecmathToDDFOne(instS));
                 }
                 // adjust child ids
                 for (int i = 0; i < instBuilder.getChildrenCount(); ++i) {
@@ -479,12 +315,66 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         collectionBuilder.clearCollectionInstances();
     }
 
+    // Sort instances by hierarchy
+    private List<InstanceDesc.Builder> sortInstancesByHierarchy(IResource resource, List<InstanceDesc.Builder> instances) {
+        Map<String, InstanceDesc.Builder> instanceMap = new HashMap<>();
+        Map<String, List<String>> children = new HashMap<>();
+
+        for (InstanceDesc.Builder inst : instances) {
+            instanceMap.put(inst.getId(), inst);
+            children.put(inst.getId(), inst.getChildrenList());
+        }
+
+        Map<String, Integer> depthMap = new HashMap<>();
+        for (String id : instanceMap.keySet()) {
+            calculateDepth(id, children, depthMap, 0);
+        }
+
+        Map<Integer, List<InstanceDesc.Builder>> depthGroups = new HashMap<>();
+        for (Map.Entry<String, Integer> entry : depthMap.entrySet()) {
+            Integer depth = entry.getValue();
+            if (!depthGroups.containsKey(depth)) {
+                depthGroups.put(depth, new ArrayList<InstanceDesc.Builder>());
+            }
+            depthGroups.get(depth).add(instanceMap.get(entry.getKey()));
+        }
+
+        List<InstanceDesc.Builder> sortedInstances = new ArrayList<>();
+        List<Integer> depths = new ArrayList<>(depthGroups.keySet());
+        Collections.sort(depths);
+        for (Integer depth : depths) {
+            List<InstanceDesc.Builder> group = depthGroups.get(depth);
+            Collections.sort(group, new Comparator<InstanceDesc.Builder>() {
+                public int compare(InstanceDesc.Builder o1, InstanceDesc.Builder o2) {
+                    return o1.getId().compareTo(o2.getId());
+                }
+            });
+            sortedInstances.addAll(group);
+        }
+
+        return sortedInstances;
+    }
+
+    // Recursive function to calculate the depth of each instance
+    private void calculateDepth(String id, Map<String, List<String>> children, Map<String, Integer> depthMap, int currentDepth) {
+        if (depthMap.containsKey(id)) {
+            return;
+        }
+
+        depthMap.put(id, currentDepth);
+        if (children.containsKey(id)) {
+            for (String childId : children.get(id)) {
+                calculateDepth(childId, children, depthMap, currentDepth + 1);
+            }
+        }
+    }
+
     @Override
-    protected CollectionDesc.Builder transform(Task<Void> task, IResource resource, CollectionDesc.Builder messageBuilder) throws CompileExceptionError, IOException {
-        countAllComponentTypes(project, messageBuilder);
-
+    protected CollectionDesc.Builder transform(Task task, IResource resource, CollectionDesc.Builder messageBuilder) throws CompileExceptionError, IOException {
+        Integer countOfRealEmbededObjects = messageBuilder.getEmbeddedInstancesCount();
+        int goCount = messageBuilder.getInstancesCount();
         mergeSubCollections(resource, messageBuilder);
-
+        ComponentsCounter.Storage compStorage = ComponentsCounter.createStorage();
         int embedIndex = 0;
         for (EmbeddedInstanceDesc desc : messageBuilder.getEmbeddedInstancesList()) {
             byte[] data = desc.getData().getBytes();
@@ -495,6 +385,12 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
             // TODO: We have to set content again here as distclean might have removed everything at this point
             // See comment in create. Should tasks be recreated after distclean (or before actual build?). See Project.java
             genResource.setContent(data);
+
+            // mergeSubCollections() embeds instances, but we want to count only "real" embeded instances
+            if (embedIndex < countOfRealEmbededObjects) {
+                ComponentsCounter.countComponentsInEmbededObjects(project, genResource, data, compStorage);
+                goCount++;
+            }
 
             int buildDirLen = project.getBuildDirectory().length();
             String path = genResource.getPath().substring(buildDirLen);
@@ -512,13 +408,23 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
                 instBuilder.setScale3(desc.getScale3());
             } else {
                 double s = desc.getScale();
-                instBuilder.setScale3(MathUtil.vecmathToDDF(new Vector3d(s, s, s)));
+                instBuilder.setScale3(MathUtil.vecmathToDDFOne(new Vector3d(s, s, s)));
             }
 
             messageBuilder.addInstances(instBuilder);
             ++embedIndex;
         }
         messageBuilder.clearEmbeddedInstances();
+
+        // Sort instances by children/parent hierarchy
+        List<InstanceDesc.Builder> sortedInstanceBuilders = sortInstancesByHierarchy(resource, messageBuilder.getInstancesList().stream()
+                .map(InstanceDesc::newBuilder)
+                .collect(Collectors.toList()));
+
+        messageBuilder.clearInstances();
+        for (InstanceDesc.Builder builder : sortedInstanceBuilders) {
+            messageBuilder.addInstances(builder.build());
+        }
 
         Collection<String> propertyResources = new HashSet<String>();
         for (int i = 0; i < messageBuilder.getInstancesCount(); ++i) {
@@ -531,7 +437,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
             // Promote to scale3
             if (!b.hasScale3()) {
                 double s = b.getScale();
-                b.setScale3(MathUtil.vecmathToDDF(new Vector3d(s, s, s)));
+                b.setScale3(MathUtil.vecmathToDDFOne(new Vector3d(s, s, s)));
             }
 
             b.setPrototype(BuilderUtil.replaceExt(b.getPrototype(), ".go", ".goc"));
@@ -550,7 +456,17 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         }
         messageBuilder.addAllPropertyResources(propertyResources);
 
+        compStorage.add("goc", goCount);
+        ComponentsCounter.sumInputs(compStorage, task.getInputs(), compCounterInputsCount);
+        ComponentsCounter.copyDataToBuilder(compStorage, project, messageBuilder);
+        task.output(1).setContent(compStorage.toByteArray());
+
         return messageBuilder;
     }
 
+    @Override
+    public void clearState() {
+        super.clearState();
+        compCounterInputsCount = null;
+    }
 }

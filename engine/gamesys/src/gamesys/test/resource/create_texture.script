@@ -1,0 +1,299 @@
+-- Copyright 2020-2025 The Defold Foundation
+-- Copyright 2014-2020 King
+-- Copyright 2009-2014 Ragnar Svensson, Christian Murray
+-- Licensed under the Defold License version 1.0 (the "License"); you may not use
+-- this file except in compliance with the License.
+--
+-- You may obtain a copy of the License, together with FAQs at
+-- https://www.defold.com/license
+--
+-- Unless required by applicable law or agreed to in writing, software distributed
+-- under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+-- CONDITIONS OF ANY KIND, either express or implied. See the License for the
+-- specific language governing permissions and limitations under the License.
+
+local function assert_error(func)
+    local r, err = pcall(func)
+    if not r then
+        print(err)
+    end
+    assert(not r)
+end
+
+function init(self)
+    self.update_counter = 0
+end
+
+local tparams = {
+    width          = 128,
+    height         = 128,
+    type           = graphics.TEXTURE_TYPE_2D,
+    format         = graphics.TEXTURE_FORMAT_RGBA,
+}
+
+local tparams_invalid = {
+    width          = 0,
+    height         = 0,
+    type           = graphics.TEXTURE_TYPE_2D,
+    format         = graphics.TEXTURE_FORMAT_RGBA,
+}
+
+local tparams_cube = {
+    width          = 128,
+    height         = 128,
+    type           = graphics.TEXTURE_TYPE_CUBE_MAP,
+    format         = graphics.TEXTURE_FORMAT_RGBA,
+}
+
+local tparams_compressed = {
+    type             = graphics.TEXTURE_TYPE_2D,
+    width            = 32,
+    height           = 32,
+    format           = graphics.TEXTURE_FORMAT_RGB_ETC1,
+    compression_type = graphics.COMPRESSION_TYPE_BASIS_UASTC,
+}
+
+function test_simple()
+    local t_id = resource.create_texture("/test_simple.texturec", tparams)
+    go.set("#model", "texture0", t_id)
+end
+
+function test_invalid()
+    assert_error(function()
+        resource.create_texture("/test_invalid.texturec", tparams_invalid)
+    end)
+end
+
+function test_with_buffer()
+    local tex_buffer = buffer.create(tparams.width * tparams.height, {{name = hash("data"), type = buffer.VALUE_TYPE_UINT8, count = 4 }})
+    local t_id = resource.create_texture("/test_with_buffer.texturec", tparams, tex_buffer)
+    go.set("#model", "texture0", t_id)
+end
+
+function test_release()
+    resource.release("/test_simple.texturec")
+    resource.release("/test_simple.texturec")
+end
+
+function test_wrong_ext()
+    assert_error(function()
+        resource.create_texture("no_ext", tparams)
+    end)
+end
+
+function test_already_exist()
+    assert_error(function()
+        resource.create_texture("/test_exists.texturec", tparams)
+        resource.create_texture("/test_exists.texturec", tparams)
+    end)
+end
+
+function test_release_not_found()
+    assert_error(function()
+        resource.release("/not_found")
+    end)
+end
+
+function test_compressed()
+    local host_path = sys.get_host_path("src/gamesys/test/resource/blank.basis")
+    local f     = io.open(host_path, "rb")
+    local c     = f:read("*all")
+    local fsize = f:seek("end")
+    f:close()
+
+    local tex_buffer = buffer.create(fsize, {{name = hash("data"), type = buffer.VALUE_TYPE_UINT8, count = 1 }})
+    local stream     = buffer.get_stream(tex_buffer, hash("data"))
+
+    for i=1, fsize do
+        stream[i] = c:byte(i)
+    end
+
+    resource.create_texture("/test_compressed.texturec", tparams_compressed, tex_buffer)
+end
+
+function test_compressed_fail()
+    -- Note: res_texture won't yield an error here, we need to check the result of this operation on the C side
+    local tex_buffer = buffer.create(128, {{name = hash("data"), type = buffer.VALUE_TYPE_UINT8, count = 1 }})
+    resource.create_texture("/test_compressed_fail.texturec", tparams_compressed, tex_buffer)
+end
+
+async_test_done = false
+async_tests_complete = 0
+
+function async_test_completed(self)
+    async_tests_complete = async_tests_complete + 1
+    async_test_done = async_tests_complete == #self.requests
+end
+
+function test_async_simple(self)
+    self.requests = {}
+
+    -- Request with buffer + callback
+    local tex_buffer = buffer.create(tparams.width * tparams.height, {{name = hash("data"), type = buffer.VALUE_TYPE_UINT8, count = 4 }})
+    self.requests[1] = {}
+    self.requests[1].path, self.requests[1].id = resource.create_texture_async("/test_async_simple.texturec", tparams, tex_buffer,
+        function(self, request_id, result)
+            assert(request_id  == self.requests[1].id)
+            assert(result.path == self.requests[1].path)
+
+            local t_info = resource.get_texture_info(result.path)
+            assert(t_info.width == tparams.width)
+            assert(t_info.height == tparams.height)
+            async_test_completed(self)
+        end)
+
+    local t_info = resource.get_texture_info(self.requests[1].path)
+    assert(t_info.width  == 1)
+    assert(t_info.height == 1)
+
+    -- Request with no buffer + callback
+    self.requests[2] = {}
+    self.requests[2].path, self.requests[2].id = resource.create_texture_async("/test_async_no_buffer.texturec", tparams, nil,
+        function(self, request_id, result)
+            assert(request_id  == self.requests[2].id)
+            assert(result.path == self.requests[2].path)
+
+            local t_info = resource.get_texture_info(result.path)
+            assert(t_info.width == tparams.width)
+            assert(t_info.height == tparams.height)
+            async_test_completed(self)
+        end)
+
+    local t_info = resource.get_texture_info(self.requests[2].path)
+    assert(t_info.width  == 1)
+    assert(t_info.height == 1)
+
+    -- Request with garbagecollected buffer
+    local tex_buffer_gc = buffer.create(tparams.width * tparams.height, {{name = hash("data"), type = buffer.VALUE_TYPE_UINT8, count = 4 }})
+    self.requests[3] = {}
+    self.requests[3].path, self.requests[3].id = resource.create_texture_async("/test_async_gc_buffer.texturec", tparams, tex_buffer_gc,
+        function(self, request_id, result)
+            assert(request_id  == self.requests[3].id)
+            assert(result.path == self.requests[3].path)
+
+            local t_info = resource.get_texture_info(result.path)
+            assert(t_info.width == tparams.width)
+            assert(t_info.height == tparams.height)
+            async_test_completed(self)
+        end)
+
+    local t_info = resource.get_texture_info(self.requests[3].path)
+    assert(t_info.width  == 1)
+    assert(t_info.height == 1)
+
+    tex_buffer_gc = nil
+    collectgarbage("collect")
+end
+
+async_basis_test_done = false
+async_basis_tests_complete = 0
+
+function async_basis_test_completed(self)
+    async_basis_tests_complete = async_basis_tests_complete + 1
+    async_basis_test_done = async_basis_tests_complete == #self.requests_basis
+end
+
+function test_async_basis(self)
+    local host_path = sys.get_host_path("src/gamesys/test/resource/blank.basis")
+    local f     = io.open(host_path, "rb")
+    local c     = f:read("*all")
+    local fsize = f:seek("end")
+    f:close()
+
+    local tex_buffer = buffer.create(fsize, {{name = hash("data"), type = buffer.VALUE_TYPE_UINT8, count = 1 }})
+    local stream     = buffer.get_stream(tex_buffer, hash("data"))
+
+    for i=1, fsize do
+        stream[i] = c:byte(i)
+    end
+
+    local tparams = {
+        type             = graphics.TEXTURE_TYPE_2D,
+        width            = 32,
+        height           = 32,
+        format           = graphics.TEXTURE_FORMAT_RGB_ETC1,
+        compression_type = graphics.COMPRESSION_TYPE_BASIS_UASTC,
+    }
+
+    self.requests_basis = {}
+
+    -- Request with buffer + callback
+    self.requests_basis[1] = {}
+    self.requests_basis[1].path, self.requests_basis[1].id = resource.create_texture_async("/test_async_basis.texturec", tparams, tex_buffer,
+        function(self, request_id, result)
+            assert(request_id  == self.requests_basis[1].id)
+            assert(result.path == self.requests_basis[1].path)
+
+            local t_info = resource.get_texture_info(result.path)
+            assert(t_info.width == tparams.width)
+            assert(t_info.height == tparams.height)
+            async_basis_test_completed(self)
+        end)
+
+    local t_info = resource.get_texture_info(self.requests_basis[1].path)
+    assert(t_info.width  == 1)
+    assert(t_info.height == 1)
+end
+
+function test_get_texture_info()
+    local t_id   = resource.create_texture("/test_get_texture_info.texturec", tparams)
+    local t_info = resource.get_texture_info(t_id)
+
+    assert(t_info.width  == tparams.width)
+    assert(t_info.height == tparams.height)
+    assert(t_info.type   == tparams.type)
+
+    local t_info_by_handle = resource.get_texture_info(t_info.handle)
+    assert(t_info_by_handle.width   == 128)
+    assert(t_info_by_handle.height  == 128)
+    assert(t_info_by_handle.depth   == 1)
+    assert(t_info_by_handle.mipmaps == 1)
+    assert(t_info_by_handle.type    == graphics.TEXTURE_TYPE_2D)
+
+    resource.release(t_id)
+
+    local t_id_cube   = resource.create_texture("/test_get_texture_info_cube.texturec", tparams_cube)
+    local t_info_cube = resource.get_texture_info(t_id_cube)
+
+    assert(t_info_cube.width   == 128)
+    assert(t_info_cube.height  == 128)
+    assert(t_info_cube.depth   == 6)
+    assert(t_info_cube.mipmaps == 1)
+    assert(t_info_cube.type    == graphics.TEXTURE_TYPE_CUBE_MAP)
+
+    resource.release(t_id_cube)
+
+    -- test incorrect handles by basic types
+    assert_error(function() resource.get_texture_info(nil) end)
+    assert_error(function() resource.get_texture_info(false) end)
+    assert_error(function() resource.get_texture_info("invalid_type") end)
+    assert_error(function() resource.get_texture_info(1) end)
+
+    -- test incorrect handles by explicitly removed resource id
+    assert_error(function() resource.get_texture_info(t_id) end)
+end
+
+function update(self)
+    self.update_counter = self.update_counter + 1
+
+    local tests = {
+        test_simple,
+        test_release,
+        test_wrong_ext,
+        test_already_exist,
+        test_release_not_found,
+        test_compressed,
+        test_compressed_fail,
+        test_get_texture_info,
+        test_invalid,
+        test_async_simple,
+        test_async_basis,
+    }
+
+    if tests[self.update_counter] ~= nil then
+        tests[self.update_counter](self)
+    else
+        -- some tests can take more iterations, so we roll back here
+        self.update_counter = self.update_counter - 1
+    end
+end

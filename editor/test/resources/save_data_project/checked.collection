@@ -1,0 +1,269 @@
+name: "test"
+instances {
+  id: "referenced_go"
+  prototype: "/referenced/referenced.go"
+  children: "collection_embedded_child_go"
+  position {
+    x: 0.1
+    y: 0.2
+    z: 0.3
+  }
+  rotation {
+    x: 8.7722944E-4
+    y: 0.0017476063
+    z: 0.0026164628
+    w: 0.99999464
+  }
+  component_properties {
+    id: "referenced_script"
+    properties {
+      id: "boolean"
+      value: "true"
+      type: PROPERTY_TYPE_BOOLEAN
+    }
+    properties {
+      id: "number"
+      value: "1.0"
+      type: PROPERTY_TYPE_NUMBER
+    }
+    properties {
+      id: "vector3"
+      value: "0.1, 0.2, 0.3"
+      type: PROPERTY_TYPE_VECTOR3
+    }
+    properties {
+      id: "vector4"
+      value: "0.1, 0.2, 0.3, 0.4"
+      type: PROPERTY_TYPE_VECTOR4
+    }
+    properties {
+      id: "quat"
+      value: "8.772E-4, 0.0017476, 0.0026165, 0.9999947"
+      type: PROPERTY_TYPE_QUAT
+    }
+    properties {
+      id: "url"
+      value: "#referenced_script"
+      type: PROPERTY_TYPE_URL
+    }
+    properties {
+      id: "texture"
+      value: "/referenced/images/red.png"
+      type: PROPERTY_TYPE_HASH
+    }
+  }
+  scale3 {
+    x: 1.1
+    y: 1.2
+    z: 1.3
+  }
+}
+collection_instances {
+  id: "referenced"
+  collection: "/referenced/referenced.collection"
+  position {
+    x: 0.1
+    y: 0.2
+    z: 0.3
+  }
+  rotation {
+    x: 8.7722944E-4
+    y: 0.0017476063
+    z: 0.0026164628
+    w: 0.99999464
+  }
+  instance_properties {
+    id: "referenced_go"
+    properties {
+      id: "referenced_script"
+      properties {
+        id: "boolean"
+        value: "true"
+        type: PROPERTY_TYPE_BOOLEAN
+      }
+      properties {
+        id: "number"
+        value: "1.0"
+        type: PROPERTY_TYPE_NUMBER
+      }
+      properties {
+        id: "vector3"
+        value: "0.1, 0.2, 0.3"
+        type: PROPERTY_TYPE_VECTOR3
+      }
+      properties {
+        id: "vector4"
+        value: "0.1, 0.2, 0.3, 0.4"
+        type: PROPERTY_TYPE_VECTOR4
+      }
+      properties {
+        id: "quat"
+        value: "8.772E-4, 0.0017476, 0.0026165, 0.9999947"
+        type: PROPERTY_TYPE_QUAT
+      }
+      properties {
+        id: "url"
+        value: "#referenced_script"
+        type: PROPERTY_TYPE_URL
+      }
+      properties {
+        id: "texture"
+        value: "/referenced/images/red.png"
+        type: PROPERTY_TYPE_HASH
+      }
+    }
+  }
+  scale3 {
+    x: 1.1
+    y: 1.2
+    z: 1.3
+  }
+}
+scale_along_z: 1
+embedded_instances {
+  id: "embedded_go"
+  children: "embedded_child_go"
+  data: "components {\n"
+  "  id: \"referenced_sprite\"\n"
+  "  component: \"/checked.sprite\"\n"
+  "  position {\n"
+  "    x: 0.1\n"
+  "    y: 0.2\n"
+  "    z: 0.3\n"
+  "  }\n"
+  "  rotation {\n"
+  "    x: 8.7722944E-4\n"
+  "    y: 0.0017476063\n"
+  "    z: 0.0026164628\n"
+  "    w: 0.99999464\n"
+  "  }\n"
+  "  scale {\n"
+  "    x: 1.1\n"
+  "    y: 1.2\n"
+  "    z: 1.3\n"
+  "  }\n"
+  "}\n"
+  "components {\n"
+  "  id: \"referenced_script\"\n"
+  "  component: \"/checked.script\"\n"
+  "  properties {\n"
+  "    id: \"boolean\"\n"
+  "    value: \"true\"\n"
+  "    type: PROPERTY_TYPE_BOOLEAN\n"
+  "  }\n"
+  "  properties {\n"
+  "    id: \"number\"\n"
+  "    value: \"1.0\"\n"
+  "    type: PROPERTY_TYPE_NUMBER\n"
+  "  }\n"
+  "  properties {\n"
+  "    id: \"vector3\"\n"
+  "    value: \"0.1, 0.2, 0.3\"\n"
+  "    type: PROPERTY_TYPE_VECTOR3\n"
+  "  }\n"
+  "  properties {\n"
+  "    id: \"vector4\"\n"
+  "    value: \"0.1, 0.2, 0.3, 0.4\"\n"
+  "    type: PROPERTY_TYPE_VECTOR4\n"
+  "  }\n"
+  "  properties {\n"
+  "    id: \"quat\"\n"
+  "    value: \"8.772E-4, 0.0017476, 0.0026165, 0.9999947\"\n"
+  "    type: PROPERTY_TYPE_QUAT\n"
+  "  }\n"
+  "  properties {\n"
+  "    id: \"url\"\n"
+  "    value: \"#referenced_script\"\n"
+  "    type: PROPERTY_TYPE_URL\n"
+  "  }\n"
+  "  properties {\n"
+  "    id: \"texture\"\n"
+  "    value: \"/referenced/images/red.png\"\n"
+  "    type: PROPERTY_TYPE_HASH\n"
+  "  }\n"
+  "}\n"
+  "embedded_components {\n"
+  "  id: \"embedded_sprite\"\n"
+  "  type: \"sprite\"\n"
+  "  data: \"default_animation: \\\"diamond\\\"\\n"
+  "material: \\\"/checked.material\\\"\\n"
+  "textures {\\n"
+  "  sampler: \\\"texture0\\\"\\n"
+  "  texture: \\\"/checked.atlas\\\"\\n"
+  "}\\n"
+  "\"\n"
+  "  position {\n"
+  "    x: 0.1\n"
+  "    y: 0.2\n"
+  "    z: 0.3\n"
+  "  }\n"
+  "  rotation {\n"
+  "    x: 8.7722944E-4\n"
+  "    y: 0.0017476063\n"
+  "    z: 0.0026164628\n"
+  "    w: 0.99999464\n"
+  "  }\n"
+  "  scale {\n"
+  "    x: 1.1\n"
+  "    y: 1.2\n"
+  "    z: 1.3\n"
+  "  }\n"
+  "}\n"
+  ""
+  position {
+    x: 0.1
+    y: 0.2
+    z: 0.3
+  }
+  rotation {
+    x: 8.7722944E-4
+    y: 0.0017476063
+    z: 0.0026164628
+    w: 0.99999464
+  }
+  scale3 {
+    x: 1.1
+    y: 1.2
+    z: 1.3
+  }
+}
+embedded_instances {
+  id: "embedded_child_go"
+  data: ""
+  position {
+    x: 0.1
+    y: 0.2
+    z: 0.3
+  }
+  rotation {
+    x: 8.7722944E-4
+    y: 0.0017476063
+    z: 0.0026164628
+    w: 0.99999464
+  }
+  scale3 {
+    x: 1.1
+    y: 1.2
+    z: 1.3
+  }
+}
+embedded_instances {
+  id: "collection_embedded_child_go"
+  data: ""
+  position {
+    x: 0.1
+    y: 0.2
+    z: 0.3
+  }
+  rotation {
+    x: 8.7722944E-4
+    y: 0.0017476063
+    z: 0.0026164628
+    w: 0.99999464
+  }
+  scale3 {
+    x: 1.1
+    y: 1.2
+    z: 1.3
+  }
+}

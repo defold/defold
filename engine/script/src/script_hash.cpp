@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -18,10 +18,11 @@
 #include <string.h>
 
 #include <dlib/dstrings.h>
-#include <dlib/hash.h>
 #include <dlib/math.h>
 #include <dlib/crypt.h>
 #include "script_private.h"
+
+#include <dmsdk/dlib/hash.h>
 
 extern "C"
 {
@@ -45,6 +46,11 @@ namespace dmScript
 
     bool IsHash(lua_State *L, int index)
     {
+        return dmScript::ToUserType(L, index, SCRIPT_HASH_TYPE_HASH) != 0;
+    }
+
+    dmhash_t* ToHash(lua_State *L, int index)
+    {
         return (dmhash_t*)dmScript::ToUserType(L, index, SCRIPT_HASH_TYPE_HASH);
     }
 
@@ -67,14 +73,15 @@ namespace dmScript
      * end
      * ```
      */
-    static int Script_Hash(lua_State* L)
+    static int Hash_new(lua_State* L)
     {
         int top = lua_gettop(L);
 
         dmhash_t hash;
-        if(IsHash(L, 1))
+        dmhash_t* phash = ToHash(L, 1);
+        if (phash != 0)
         {
-            hash = *(dmhash_t*)lua_touserdata(L, 1);
+            hash = *phash;
         }
         else
         {
@@ -102,7 +109,7 @@ namespace dmScript
      * print(hexstr) --> a2bc06d97f580aab
      * ```
      */
-    static int Script_HashToHex(lua_State* L)
+    static int HashToHex(lua_State* L)
     {
         int top = lua_gettop(L);
 
@@ -115,7 +122,7 @@ namespace dmScript
         return 1;
     }
 
-    static int Script_HashMD5(lua_State* L)
+    static int HashMD5(lua_State* L)
     {
         int top = lua_gettop(L);
 
@@ -209,11 +216,10 @@ namespace dmScript
 
     dmhash_t CheckHashOrString(lua_State* L, int index)
     {
-        dmhash_t* lua_hash = 0x0;
-        if (IsHash(L, index))
+        dmhash_t* phash = ToHash(L, index);
+        if (phash != 0)
         {
-            lua_hash = (dmhash_t*)lua_touserdata(L, index);
-            return *lua_hash;
+            return *phash;
         }
         else if( lua_type(L, index) == LUA_TSTRING )
         {
@@ -228,34 +234,27 @@ namespace dmScript
 
     const char* GetStringFromHashOrString(lua_State* L, int index, char* buffer, uint32_t bufferlength)
     {
-        if (lua_type(L, index) == LUA_TSTRING)
+        dmhash_t* phash = ToHash(L, index);
+        if (phash != 0)
+        {
+            DM_HASH_REVERSE_MEM(hash_ctx, 128);
+            const char* reverse = (const char*) dmHashReverseSafe64Alloc(&hash_ctx, *phash);
+            dmStrlCpy(buffer, reverse, bufferlength);
+        }
+        else if (lua_type(L, index) == LUA_TSTRING)
         {
             size_t len = 0;
             const char* s = lua_tolstring(L, index, &len);
-            memcpy(buffer, (void*)s, dmMath::Min<uint32_t>(len, bufferlength));
-            buffer[len < bufferlength ? len : bufferlength-1 ] = 0;
-        }
-        else if (IsHash(L, index))
-        {
-            dmhash_t* hash = (dmhash_t*)lua_touserdata(L, index);
-            const char* s = (const char*)dmHashReverse64(*hash, 0);
-            if (s)
-            {
-                dmSnPrintf(buffer, bufferlength, "%s", s);
-            }
-            else
-            {
-                dmSnPrintf(buffer, bufferlength, "%llu", (unsigned long long)*hash);
-            }
+            dmStrlCpy(buffer, s, bufferlength);
         }
         else
         {
-            dmSnPrintf(buffer, bufferlength, "%s", "<unknown>");
+            dmStrlCpy(buffer, "<unknown type>", bufferlength);
         }
         return buffer;
     }
 
-    static int Script_eq(lua_State* L)
+    static int Hash_eq(lua_State* L)
     {
         void* userdata_1 = lua_touserdata(L, 1);
         void* userdata_2 = lua_touserdata(L, 2);
@@ -266,83 +265,49 @@ namespace dmScript
         return 1;
     }
 
-    static int Script_tostring(lua_State* L)
+    static int Hash_tostring(lua_State* L)
     {
         dmhash_t hash = CheckHash(L, 1);
-        char buffer[64];
-        const char* reverse = (const char*) dmHashReverse64(hash, 0);
-        if (reverse != 0x0)
-        {
-            dmSnPrintf(buffer, sizeof(buffer), "%s: [%s]", SCRIPT_TYPE_NAME_HASH, reverse);
-        }
-        else
-        {
-            dmSnPrintf(buffer, sizeof(buffer), "%s: [%llu (unknown)]", SCRIPT_TYPE_NAME_HASH, (unsigned long long)hash);
-        }
+        DM_HASH_REVERSE_MEM(hash_ctx, 64);
+        const char* reverse = (const char*) dmHashReverseSafe64Alloc(&hash_ctx, hash);
+        char buffer[256];
+        dmSnPrintf(buffer, sizeof(buffer), "%s: [%s]", SCRIPT_TYPE_NAME_HASH, reverse);
+
         lua_pushstring(L, buffer);
         return 1;
     }
 
-    static const char* GetStringHelper(lua_State *L, int index, bool& allocated)
+    static void PushStringHelper(lua_State* L, int index)
     {
-        if (dmScript::IsHash(L, index))
+        dmhash_t* phash = ToHash(L, index);
+        if (phash != 0)
         {
-            dmhash_t hash = *(dmhash_t*)lua_touserdata(L, index);
-            const char* reverse = (const char*) dmHashReverse64(hash, 0);
-
-            allocated = true;
-            char* s = 0;
-            if (reverse)
-            {
-                size_t size = strlen(reverse) + 3;
-                s = (char*)malloc(size);
-                dmSnPrintf(s, size, "[%s]", reverse);
-            }
-            else
-            {
-                s = (char*)malloc(64);
-                dmSnPrintf(s, 64, "[%llu (unknown)]", (unsigned long long)hash);
-            }
-            return s;
+            char buffer[256];
+            DM_HASH_REVERSE_MEM(hash_ctx, 256);
+            dmSnPrintf(buffer, sizeof(buffer), "[%s]", dmHashReverseSafe64Alloc(&hash_ctx, *phash));
+            lua_pushstring(L, buffer);
         }
-        allocated = false;
-        return luaL_checkstring(L, index);
+        else
+        {
+            lua_pushstring(L, luaL_checkstring(L, index));
+        }
     }
 
-    static int Script_concat(lua_State *L)
+    static int Hash_concat(lua_State *L)
     {
         // string .. hash
         // hash .. string
         // hash .. hash
-        bool allocated1 = false;
-        const char* s1 = GetStringHelper(L, 1, allocated1);
+        PushStringHelper(L, 1);
+        PushStringHelper(L, 2);
 
-        bool allocated2 = false;
-        const char* s2 = GetStringHelper(L, 2, allocated2);
-
-        size_t size1 = strlen(s1);
-        size_t size2 = strlen(s2);
-        size_t size = size1 + size2 + 1;
-
-        char* buffer = (char*)malloc(size);
-        buffer[0] = 0;
-
-        dmStrlCpy(buffer, s1, size);
-        dmStrlCat(buffer, s2, size);
-
-        if (allocated1)
-            free((void*)s1);
-        if (allocated2)
-            free((void*)s2);
-
-        lua_pushstring(L, buffer);
-        free((void*)buffer);
+        lua_concat(L, 2);
         return 1;
     }
 
     static const luaL_reg ScriptHash_methods[] =
     {
-        {SCRIPT_TYPE_NAME_HASH, Script_Hash},
+        {SCRIPT_TYPE_NAME_HASH, Hash_new},
         {0, 0}
     };
 
@@ -355,25 +320,25 @@ namespace dmScript
 
         luaL_openlib(L, 0x0, ScriptHash_methods, 0);
 
-        lua_pushstring(L, "__eq");
-        lua_pushcfunction(L, Script_eq);
+        lua_pushliteral(L, "__eq");
+        lua_pushcfunction(L, Hash_eq);
         lua_settable(L, -3);
 
-        lua_pushstring(L, "__tostring");
-        lua_pushcfunction(L, Script_tostring);
+        lua_pushliteral(L, "__tostring");
+        lua_pushcfunction(L, Hash_tostring);
         lua_settable(L, -3);
 
-        lua_pushstring(L, "__concat");
-        lua_pushcfunction(L, Script_concat);
+        lua_pushliteral(L, "__concat");
+        lua_pushcfunction(L, Hash_concat);
         lua_settable(L, -3);
 
-        lua_pushcfunction(L, Script_Hash);
+        lua_pushcfunction(L, Hash_new);
         lua_setglobal(L, SCRIPT_TYPE_NAME_HASH);
 
-        lua_pushcfunction(L, Script_HashToHex);
+        lua_pushcfunction(L, HashToHex);
         lua_setglobal(L, "hash_to_hex");
 
-        lua_pushcfunction(L, Script_HashMD5);
+        lua_pushcfunction(L, HashMD5);
         lua_setglobal(L, "hashmd5");
 
         lua_pop(L, 1);

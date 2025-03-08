@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -18,6 +18,7 @@
 #include <dmsdk/dlib/vmath.h>
 #include <render/render.h>
 #include <dmsdk/gamesys/render_constants.h>
+#include <dmsdk/resource/resource.h>
 
 namespace dmGameSystem
 {
@@ -264,16 +265,17 @@ dmGameObject::PropertyResult SetResourceProperty(dmResource::HFactory factory, c
     if (value.m_Type != dmGameObject::PROPERTY_TYPE_HASH) {
         return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
     }
-    dmResource::SResourceDescriptor rd;
+    HResourceDescriptor rd;
     dmResource::Result res = dmResource::GetDescriptorWithExt(factory, value.m_Hash, exts, ext_count, &rd);
     if (res == dmResource::RESULT_OK)
     {
-        if (*out_resource != rd.m_Resource) {
-            dmResource::IncRef(factory, rd.m_Resource);
+        void* resource = dmResource::GetResource(rd);
+        if (*out_resource != resource) {
+            dmResource::IncRef(factory, rd);
             if (*out_resource) {
                 dmResource::Release(factory, *out_resource);
             }
-            *out_resource = rd.m_Resource;
+            *out_resource = resource;
         }
         return dmGameObject::PROPERTY_RESULT_OK;
     }
@@ -318,6 +320,15 @@ HComponentRenderConstants CreateRenderConstants()
 
 void DestroyRenderConstants(HComponentRenderConstants constants)
 {
+    uint32_t num_constants = constants->m_RenderConstants.Size();
+    for (uint32_t i = 0; i < num_constants; ++i)
+    {
+        if (constants->m_RenderConstants[i])
+        {
+            dmRender::DeleteConstant(constants->m_RenderConstants[i]);
+        }
+    }
+
     dmRender::DeleteNamedConstantBuffer(constants->m_ConstantBuffer);
     delete constants;
 }
@@ -409,13 +420,23 @@ static dmRender::HConstant FindOrCreateConstant(HComponentRenderConstants consta
 
     uint32_t num_values;
     dmVMath::Vector4* values = dmRender::GetConstantValues(material_constant, &num_values);
+    dmRenderDDF::MaterialDesc::ConstantType constant_type = dmRender::GetConstantType(material_constant);
 
     if (values)
     {
         dmRender::SetConstantValues(constant, values, num_values);
+        dmRender::SetConstantType(constant, constant_type);
     } else {
-        dmVMath::Vector4 zero(0,0,0,0);
-        dmRender::SetConstantValues(constant, &zero, 1);
+        if (constant_type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4)
+        {
+            dmVMath::Matrix4 zero(0.0f);
+            dmRender::SetConstantValues(constant, (dmVMath::Vector4*) &zero, 4);
+        }
+        else
+        {
+            dmVMath::Vector4 zero(0,0,0,0);
+            dmRender::SetConstantValues(constant, &zero, 1);
+        }
     }
 
     return constant;
@@ -444,6 +465,12 @@ void SetRenderConstant(HComponentRenderConstants constants, dmRender::HMaterial 
 
     uint32_t num_values = 0;
     dmVMath::Vector4* values = dmRender::GetConstantValues(constant, &num_values);
+    bool is_matrix4_type = dmRender::GetConstantType(constant) == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4;
+
+    if (is_matrix4_type)
+    {
+        value_index *= 4;
+    }
 
     if (value_index >= num_values)
     {
@@ -451,10 +478,23 @@ void SetRenderConstant(HComponentRenderConstants constants, dmRender::HMaterial 
         return; // We should really handle
     }
     dmVMath::Vector4* v = &values[value_index];
-    if (element_index == 0x0)
-        *v = Vector4(var.m_V4[0], var.m_V4[1], var.m_V4[2], var.m_V4[3]);
+
+    if (is_matrix4_type)
+    {
+        if (element_index != 0x0)
+        {
+            dmLogError("Setting a specific element in a matrix constant for the property %s[%u] is not supported.", dmHashReverseSafe64(name_hash), value_index);
+            return;
+        }
+        memcpy(v, var.m_M4, sizeof(var.m_M4));
+    }
     else
-        v->setElem(*element_index, (float)var.m_Number);
+    {
+        if (element_index == 0x0)
+            *v = Vector4(var.m_V4[0], var.m_V4[1], var.m_V4[2], var.m_V4[3]);
+        else
+            v->setElem(*element_index, (float)var.m_Number);
+    }
 
     UpdateChecksums(constants, name_hash, values, num_values);
 }

@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -24,7 +24,6 @@ import java.lang.Math;
 import javax.vecmath.Vector2d;
 
 // for easier debugging standalone
-import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.File;
 import javax.imageio.ImageIO;
@@ -115,8 +114,8 @@ public class ConvexHull2D {
     }
 
     public static class PointF {
-        double x;
-        double y;
+        public double x;
+        public double y;
 
         public PointF(double x, double y) {
             this.x = x;
@@ -438,7 +437,7 @@ public class ConvexHull2D {
                 }
 
                 // calculate the area of triangle [p1, p2, I]
-                double area = ConvexHull2D.areaX2(p1, pf, p2);
+                double area = ConvexHull2D.areaX2(p1, p2, pf);
                 if (area < leastArea) {
                     indexOfLeastSignificance = i;
                     leastArea = area;
@@ -488,6 +487,8 @@ public class ConvexHull2D {
         Vector2d[] points = new Vector2d[nplanes];
         Vector2d[] tangents = new Vector2d[nplanes];
 
+        double max_dim = (double)Math.max(width, height);
+
         Vector2d dir = new Vector2d();
         for (int i = 0; i < nplanes; ++i) {
             double angle = i * 2.0 * Math.PI / ((double) nplanes - 0);
@@ -501,8 +502,8 @@ public class ConvexHull2D {
 
             // Create a point from the direction and distance
             dir.scale(max);
-            dir.x /= (double)width;
-            dir.y /= (double)height;
+            dir.x /= max_dim;
+            dir.y /= max_dim;
 
             points[i] = new Vector2d(dir.x, dir.y);
         }
@@ -510,6 +511,7 @@ public class ConvexHull2D {
         PointF[] result = new PointF[nplanes];
         int npoints = 0;
         for (int i = 0; i < nplanes; ++i) {
+            // Calculate the intersection point between two planes
             Vector2d p0 = points[i];
             Vector2d p1 = points[(i + 1) % nplanes];
 
@@ -520,11 +522,16 @@ public class ConvexHull2D {
             Vector2d inter = new Vector2d(d0);
             inter.scaleAdd(t, p0);
 
-            PointF p = new PointF(inter.x, inter.y);
-            p.x = roundEdgeValue(p.x);
-            p.y = roundEdgeValue(p.y);
+            // Currently the the point is expressed in the unit space of (1 / max_dim)
+            // We need it to be in the space(s) of the (1/width, 1/height)
+            double x = inter.x * max_dim;
+            double y = inter.y * max_dim;
+            x = x / (double)width;
+            y = y / (double)height;
 
-            result[npoints++] = p;
+            x = roundEdgeValue(x);
+            y = roundEdgeValue(y);
+            result[npoints++] = new PointF(x, y);
         }
 
         // Reverse the list to make it CW
@@ -565,6 +572,7 @@ public class ConvexHull2D {
         return tmp;
     }
 
+    // Use helper script test_convexhull2d.sh to run this main function
     public static void main(String[] args) throws IOException {
         if (args.length < 1) {
             System.out.println("No image specified!");
@@ -646,24 +654,10 @@ public class ConvexHull2D {
         g2d.setStroke(bs);
 
         g2d.setColor(Color.BLUE);
-        g2d.drawLine(minX, height-minY, minX, height-maxY);
-        g2d.drawLine(maxX, height-minY, maxX, height-maxY);
-        g2d.drawLine(minX, height-minY, maxX, height-minY);
-        g2d.drawLine(minX, height-maxY, maxX, height-maxY);
-
-        g2d.setColor(Color.YELLOW);
-        System.out.println(String.format("Points: %d", points.length));
-        for (int i = 0; i < points.length; ++i) {
-            PointF point = points[i];
-            PointF pointNext = points[(i+1)%points.length];
-
-            Point ipoint = new Point((int)((point.getX() + 0.5) * width), (int)((point.getY() + 0.5) * height));
-            Point ipointNext = new Point((int)((pointNext.getX() + 0.5) * width), (int)((pointNext.getY() + 0.5) * height));
-
-            System.out.println(String.format("  %2d: %f x %f  %d x %d", i, point.getX(), point.getY(), ipoint.getX(), ipoint.getY()));
-
-            g2d.drawLine(ipoint.getX(), height-ipoint.getY(), ipointNext.getX(), height-ipointNext.getY());
-        }
+        g2d.drawLine(minX, minY, minX, maxY);
+        g2d.drawLine(maxX, minY, maxX, maxY);
+        g2d.drawLine(minX, minY, maxX, minY);
+        g2d.drawLine(minX, maxY, maxX, maxY);
 
         g2d.setColor(Color.RED);
 

@@ -1,0 +1,22 @@
+images {
+  image: "/referenced/spine/images/squirrel_1.png"
+}
+images {
+  image: "/referenced/spine/images/squirrel_2.png"
+}
+images {
+  image: "/referenced/spine/images/squirrel_3.png"
+}
+images {
+  image: "/referenced/spine/images/squirrel_4.png"
+}
+images {
+  image: "/referenced/spine/images/squirrel_5.png"
+}
+images {
+  image: "/referenced/spine/images/squirrel_6.png"
+}
+images {
+  image: "/referenced/spine/images/squirrel_7.png"
+}
+extrude_borders: 2

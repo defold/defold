@@ -1,0 +1,36 @@
+textures {
+  name: "window_texture"
+  texture: "/assets/window.atlas"
+}
+nodes {
+  type: TYPE_TEMPLATE
+  id: "panel"
+  inherit_alpha: true
+  template: "/gui/template/panel.gui"
+}
+nodes {
+  type: TYPE_TEMPLATE
+  id: "panel/button"
+  parent: "panel"
+  template_node_child: true
+}
+nodes {
+  color {
+    x: 0.0
+    y: 0.0
+  }
+  type: TYPE_BOX
+  texture: "window_texture/button_cloudy"
+  id: "panel/button/box"
+  parent: "panel/button"
+  layer: "window_layer"
+  overridden_fields: 5
+  overridden_fields: 9
+  overridden_fields: 20
+  template_node_child: true
+}
+layers {
+  name: "window_layer"
+}
+material: "/builtins/materials/gui.material"
+adjust_reference: ADJUST_REFERENCE_PARENT

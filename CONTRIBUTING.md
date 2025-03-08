@@ -23,7 +23,7 @@ Note that the API reference is generated from the source code of the Defold engi
 ## Feature requests
 We value your ideas on how to improve Defold! You can submit feature requests to our public issue tracker using the [Feature Request template](https://github.com/defold/defold/issues/new?assignees=&labels=feature+request&template=feature_request.md&title=). Some guidelines:
 
-* Please [search already submitted feature requests](https://github.com/defold/defold/labels/feature_request) before submitting your feature request. Maybe someone has already suggested the same thing or something only slightly different?
+* Please [search already submitted feature requests](https://github.com/defold/defold/labels/feature%20request) before submitting your feature request. Maybe someone has already suggested the same thing or something only slightly different?
   * If there is an already submitted feature request we appreciate if you add additional information instead of creating a new feature request.
   * We will close any duplicate feature requests.
 * If you do submit a new Feature Request it is important that you fill in all fields marked as required.
@@ -69,15 +69,11 @@ If you want to add new functionality there are several additional steps that mus
 
 * New functionality must be well designed and useful to not only your own project.
   * For game engine code there is always the option to create a native extension and share it via the Asset Portal if the functionality is specific to a certain type of project or in other ways not suitable for inclusion in the engine.
-* You should start by creating a [Feature Design ticket](https://github.com/defold/defold/issues/new?assignees=&labels=feature_design&title=) to discuss the proposed solution.
+* You should start by creating a Feature Request if one isn't already created.
+  * Write a Feature Design post (in the GitHub issue) to discuss the proposed solution.
   * The Feature Design should discuss the pros and cons of different solutions and it should document why a decision is made to implement the feature in a certain way.
-  * Never submit a PR without first creating a design ticket.
-  * Pull requests for new features without a corresponding GitHub issue will not be approved.
-  * Reference any existing Feature Request covered by the design.
   * Any new API that is introduced should be well designed and future proof as we always try to avoid introducing breaking changes.
     * New engine functionality that breaks existing functionality should be avoided at all costs.
-  * When the final design has been agreed upon the PR will be locked from further updates.
-* Reference the Feature Design in the PR.
 
 
 ### API reference

@@ -11,4 +11,23 @@
             }
         }
     }
+
+    .label.draggable {
+        -fx-cursor: h-resize;
+
+        &:hover {
+            -fx-text-fill: -df-text-selected;
+        }
+    }
+}
+@mixin script-property-text-field-icon-template($icon) {
+  -fx-background-image: url('icons/32/Icons_#{$icon}.png');
+  -fx-background-repeat: no-repeat;
+  -fx-background-size: 16px;
+  -fx-background-position: right 6px center;
+}
+.script-property-text-field-icon {
+    &-number { @include script-property-text-field-icon-template("55-123") }
+    &-hash { @include script-property-text-field-icon-template("54-Hash") }
+    &-url { @include script-property-text-field-icon-template("53-Url") }
 }

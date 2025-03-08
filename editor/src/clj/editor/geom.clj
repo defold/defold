@@ -1,22 +1,22 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.geom
-  (:require [schema.core :as s]
+  (:require [editor.math :as math]
             [editor.types :as types]
-            [editor.math :as math]
-            [internal.util :as util])
+            [internal.util :as util]
+            [schema.core :as s])
   (:import [com.defold.util Geometry]
            [com.dynamo.bob.textureset TextureSetGenerator$UVTransform]
            [editor.types AABB Frustum Rect]
@@ -32,9 +32,10 @@
 (def +& (lift-f1 +))
 (def -& (lift-f1 -))
 
-; -------------------------------------
-; 2D geometry
-; -------------------------------------
+;; -----------------------------------------------------------------------------
+;; 2D geometry
+;; -----------------------------------------------------------------------------
+
 (s/defn area :- double
   [r :- Rect]
   (if r
@@ -180,9 +181,9 @@
   [^Float fuv]
   (Geometry/toShortUV fuv))
 
-; -------------------------------------
-; Transformations
-; -------------------------------------
+;; -----------------------------------------------------------------------------
+;; Transformations
+;; -----------------------------------------------------------------------------
 
 (s/defn world-space [node :- {:world-transform Matrix4d s/Any s/Any} point :- Point3d]
   (let [p             (Point3d. point)
@@ -194,9 +195,10 @@
 (def ^Matrix3d Identity3d (doto (Matrix3d.) (.setIdentity)))
 (def ^Matrix4d Identity4d (doto (Matrix4d.) (.setIdentity)))
 
-; -------------------------------------
-; Matrix sloshing
-; -------------------------------------
+;; -----------------------------------------------------------------------------
+;; Matrix sloshing
+;; -----------------------------------------------------------------------------
+
 (defprotocol AsArray
   (^doubles as-array [this]))
 
@@ -242,9 +244,9 @@
   (doto (Matrix4d.)
     (.setIdentity)))
 
-; -------------------------------------
-; 3D geometry
-; -------------------------------------
+;; -----------------------------------------------------------------------------
+;; 3D geometry
+;; -----------------------------------------------------------------------------
 
 (defrecord DoubleRange [^double min ^double max])
 
@@ -387,6 +389,17 @@
          (= (.y min-p) (.y max-p))
          (= (.z min-p) (.z max-p)))))
 
+(def minimal-xy-aabb (coords->aabb [0 0 0] [0.0011 0.0011 0]))
+
+(defn minimal-xy-aabb? [^AABB aabb]
+  (let [min-p ^Point3d (.min aabb)
+        max-p ^Point3d (.max aabb)]
+    (and (= (.x min-p) (- (.x max-p) 0.0011))
+         (= (.y min-p) (- (.y max-p) 0.0011)))))
+
+(defn predefined-aabb? [^AABB aabb]
+  (or (null-aabb? aabb) (empty-aabb? aabb) (minimal-xy-aabb? aabb)))
+
 ;; From Graphics Gems:
 ;; https://github.com/erich666/GraphicsGems/blob/master/gems/TransBox.c
 (defn aabb-transform [^AABB aabb ^Matrix4d transform]
@@ -470,10 +483,9 @@
                                (math/edge-normal near-br far-br)])]
     (types/->Frustum corners planes unique-edge-normals unique-face-normals)))
 
-; -------------------------------------
-; Primitive shapes as vertex arrays
-; -------------------------------------
-
+;; -----------------------------------------------------------------------------
+;; Primitive shapes as vertex arrays
+;; -----------------------------------------------------------------------------
 
 (s/defn unit-sphere-pos-nrm [lats longs]
   (for [lat-i (range lats)
@@ -513,9 +525,10 @@
     (let [q (math/euler->quat euler)
           tmp-v (Vector3d.)]
       (let [res (mapv (fn [[^double x ^double y ^double z]]
-                    (.set tmp-v x y z)
-                    (let [v (math/rotate q tmp-v)]
-                      [(.x v) (.y v) (.z v)])) ps)]
+                        (.set tmp-v x y z)
+                        (let [v (math/rotate q tmp-v)]
+                          (vector-of :double (.x v) (.y v) (.z v))))
+                      ps)]
         res))))
 
 (defn transf-p
@@ -524,8 +537,49 @@
     (let [res (mapv (fn [[^double x ^double y ^double z]]
                       (.set p x y z)
                       (.transform m4d p)
-                      [(.x p) (.y p) (.z p)]) ps)]
+                      (vector-of :double (.x p) (.y p) (.z p)))
+                    ps)]
       res)))
+
+(defn transf-p4
+  [^Matrix4d m4d ps]
+  (let [p (Point3d.)]
+    (let [res (mapv (fn [[^double x ^double y ^double z]]
+                      (.set p x y z)
+                      (.transform m4d p)
+                      (vector-of :double (.x p) (.y p) (.z p) 1.0))
+                    ps)]
+      res)))
+
+(defn transf-n
+  [^Matrix4d m4d normals]
+  (let [n (Vector3d.)]
+    (mapv (fn [[^double x ^double y ^double z]]
+            (.set n x y z)
+            (.transform m4d n)
+            (.normalize n) ; Need to normalize since the matrix may be scaled.
+            (vector-of :double (.x n) (.y n) (.z n)))
+          normals)))
+
+(defn transf-n4
+  [^Matrix4d m4d normals]
+  (let [n (Vector3d.)]
+    (mapv (fn [[^double x ^double y ^double z]]
+            (.set n x y z)
+            (.transform m4d n)
+            (.normalize n) ; Need to normalize since the matrix may be scaled.
+            (vector-of :double (.x n) (.y n) (.z n) 0.0))
+          normals)))
+
+(defn transf-tangents
+  [^Matrix4d m4d tangents]
+  (let [n (Vector3d.)]
+    (mapv (fn [[^double x ^double y ^double z w]]
+            (.set n x y z)
+            (.transform m4d n)
+            (.normalize n) ; Need to normalize since the matrix may be scaled.
+            (vector-of :double (.x n) (.y n) (.z n) (or w 1.0)))
+          tangents)))
 
 (defn chain [n f ps]
   (loop [i n
@@ -555,3 +609,32 @@
              (.apply uv-trans p)
              [(.x p) (.y p)]) ps))
     ps))
+
+;; -----------------------------------------------------------------------------
+;; GUI Pivots
+;; -----------------------------------------------------------------------------
+
+(defn gui-pivot->h-align [gui-pivot]
+  (case gui-pivot
+    (:pivot-e :pivot-ne :pivot-se) :right
+    (:pivot-center :pivot-n :pivot-s) :center
+    (:pivot-w :pivot-nw :pivot-sw) :left))
+
+(defn gui-pivot->v-align [gui-pivot]
+  (case gui-pivot
+    (:pivot-ne :pivot-n :pivot-nw) :top
+    (:pivot-e :pivot-center :pivot-w) :middle
+    (:pivot-se :pivot-s :pivot-sw) :bottom))
+
+(defn gui-pivot-offset [gui-pivot size]
+  (let [h-align (gui-pivot->h-align gui-pivot)
+        v-align (gui-pivot->v-align gui-pivot)
+        xs (case h-align
+             :right -0.5
+             :center 0.0
+             :left 0.5)
+        ys (case v-align
+             :top -0.5
+             :middle 0.0
+             :bottom 0.5)]
+    (mapv * size [xs ys 0.0 0.0])))

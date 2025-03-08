@@ -1,3 +1,4 @@
+syntax = "proto2";
 package dmGameSystemDDF;
 
 import "ddf/ddf_extensions.proto";
@@ -7,18 +8,20 @@ import "gamesys/tile_ddf.proto";
 option java_package = "com.dynamo.gamesys.proto";
 option java_outer_classname = "TextureSetProto";
 
+// Engine formats. Editor formats are either atlas_ddf.proto or tile_ddf.proto
+
 message TextureSetAnimation
 {
     required string id              = 1;
     required uint32 width           = 2;
     required uint32 height          = 3;
-    required uint32 start           = 4;
-    required uint32 end             = 5;
+    required uint32 start           = 4;    // Frame index. Absolute offset into TextureSet.frame_indices/TextureSet.image_name_hashes.
+    required uint32 end             = 5;    // Frame index (not included in animation)
+
     optional uint32 fps             = 6 [default = 30];
     optional Playback playback      = 7 [default = PLAYBACK_ONCE_FORWARD];
     optional uint32 flip_horizontal = 8 [default = 0];
     optional uint32 flip_vertical   = 9 [default = 0];
-    optional uint32 is_animation    = 10 [default = 0]; // Deprecated
 }
 
 // * Vertices are relative to the center of the sprite
@@ -29,48 +32,84 @@ message SpriteGeometry
     // The width and height of the image this geometry was generated from
     required uint32 width   = 1;
     required uint32 height  = 2;
+
+    // The center location of the image
+    required float center_x = 3;
+    required float center_y = 4;
+
+    required bool  rotated  = 5; // If true, then the image is rotated 90 degrees (ccw)
+
+    // From the atlas image
+    required SpriteTrimmingMode trim_mode = 6 [default = SPRITE_TRIM_MODE_OFF];
+
     // A list of 2-tuples, each making up a point in a hull: [p0.x, p0.y, p1.x, p1.y, ... pN.x, pN.y] where N is (convex_hull_size-1)
-    // Each point is relative to the sprite center
-    repeated float  vertices= 3;
-    // A list of 2-tuples, corresponding directly to the vertices
-    repeated float  uvs     = 4;
+    // Coords are in local UV space [-0.5, 0.5], origin is at the sprite center
+    // The vertices are not rotated
+    repeated float  vertices= 7;
+    // A list of 2-tuples, corresponding directly to the vertices (deprecated)
+    repeated float  uvs     = 8;
     // list of 3-tuples, each defining a triangle in the vertex/uv list
-    repeated uint32 indices = 5;
+    repeated uint32 indices = 9;
+
+    // In unit coords [-0.5, 0.5]. Default [0, 0]
+    optional float pivot_x  = 10 [default = 0];
+    optional float pivot_y  = 11 [default = 0];
 }
 
 message TextureSet
 {
     required string texture                 = 1 [(resource)=true];
-    repeated TextureSetAnimation animations = 2;
-    repeated ConvexHull convex_hulls        = 3;
+
+    required uint32 width                   = 2;
+    required uint32 height                  = 3;
+
+    // A hash of the texture name/path. Not written at compile time, but instead used at runtime
+    optional uint64 texture_hash            = 4;
+
+    repeated TextureSetAnimation animations = 5;
 
     // Only used when the source is a tile-source
     // tile_width and tile_height should only be used in tilemap
-    optional uint32 tile_width              = 4;
-    optional uint32 tile_height             = 5;
+    optional uint32 tile_width              = 6;
+    optional uint32 tile_height             = 7;
     // This is the number of rects stored before the animation frames (atlas and tile source)
-    optional uint32 tile_count              = 6;
+    optional uint32 tile_count              = 8; // This is the actual number of unique frames in the set
 
-    repeated float collision_hull_points    = 16;
-    repeated string collision_groups        = 17;
+    repeated float collision_hull_points    = 9;
+    repeated string collision_groups        = 10;
+    repeated ConvexHull convex_hulls        = 11;
+
+    // Hash mapping from image name to animation index
+    // { hash("animA/image_name0", hash("animA/image_name1"), hash("animB/image_name0", ...}
+    // Usage: Find the hash in this array. Use the index and get the frame index: frame_indices[ find_hash(hash, image_name_hashes) ]
+    repeated uint64 image_name_hashes       = 12; //  (length == tile_count + sum([num_frames(anim) for anim in animations])
+
+    // Maps animation frames to frame index
+    // It is a flattened array, where each animation has a start and end number of frames
+    //    [ tile0, tile1, tile2, ..., animation0_frame_start, ..., animation0_frame_end-1, ]
+    repeated uint32 frame_indices           = 13; // length = tile_count + sum([num_frames(anim) for anim in animations])
 
     // A series of four float pairs of UV coords, representing quad texture coordinates and
     // allowing for rotation on texture atlases.
     // For unrotated quads, the order is: [(minU,maxV),(minU,minV),(maxU,minV),(maxU,maxV)]
     // For rotated quads, the order is: [(minU,minV),(maxU,minV),(maxU,maxV),(minU,maxV)]
     // (See TextureSetGenerator.java)
-    // Only used in the editor now.
-    required bytes tex_coords               = 18;
+    required bytes tex_coords               = 14; // (length = (tile_count * 4 * 2))
 
     // A series of two float pairs of dimensions representing quad texture width and height in texels.
-    optional bytes tex_dims                 = 19;
+    optional bytes tex_dims                 = 15; // (length = len(frame_indices) * 2)
 
     // One geometry struct per image
-    repeated SpriteGeometry geometries      = 20;
+    repeated SpriteGeometry geometries      = 16; // (length == tile_count)
 
     // If false, uses the legacy code path
-    optional uint32 use_geometries          = 21;
+    optional uint32 use_geometries          = 17;
 
-    // Maps animation frames to geometry index
-    repeated uint32 frame_indices           = 22;
+    // Maps animation frames to atlas page index
+    repeated uint32 page_indices            = 18; // (length == tile_count)
+
+    // Number of pages the texture contains. If the texture is non-paged, this value will be zero
+    // Note: We currently only need this for validation in bob, the engine can get this
+    //       value from the number of images in the texture resource
+    optional uint32 page_count              = 19 [default = 0];
 }

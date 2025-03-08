@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -20,9 +20,10 @@
             [editor.defold-project :as project]
             [editor.field-expression :as field-expression]
             [editor.resource :as resource])
-  (:import [com.dynamo.bob CompileExceptionError LibraryException MultipleCompileException MultipleCompileException$Info Task TaskResult]
+  (:import [com.dynamo.bob Bob$OptionValidationException CompileExceptionError LibraryException MultipleCompileException MultipleCompileException$Info Task TaskResult]
            [com.dynamo.bob.bundle BundleHelper$ResourceInfo]
            [com.dynamo.bob.fs IResource]
+           [java.net UnknownHostException]
            [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
@@ -435,11 +436,11 @@
 
 (defn unsupported-platform-error [platform]
   (ex-info (str "Unsupported platform " platform)
-           {:type ::unsupported-platform-error
+           {:ex-type ::unsupported-platform-error
             :platform platform}))
 
 (defn unsupported-platform-error? [exception]
-  (= ::unsupported-platform-error (:type (ex-data exception))))
+  (= ::unsupported-platform-error (:ex-type (ex-data exception))))
 
 (defn unsupported-platform-error-causes [project evaluation-context]
   [(g/map->error
@@ -449,12 +450,12 @@
 
 (defn missing-resource-error [prop-name referenced-proj-path referencing-node-id]
   (ex-info (format "%s '%s' could not be found" prop-name referenced-proj-path)
-           {:type ::missing-resource-error
+           {:ex-type ::missing-resource-error
             :node-id referencing-node-id
             :proj-path referenced-proj-path}))
 
 (defn- missing-resource-error? [exception]
-  (= ::missing-resource-error (:type (ex-data exception))))
+  (= ::missing-resource-error (:ex-type (ex-data exception))))
 
 (defn- missing-resource-error-causes [^Throwable exception]
   [(g/map->error
@@ -462,15 +463,11 @@
       :message (.getMessage exception)
       :severity :fatal})])
 
-(defn build-error [platform status log]
-  (ex-info (format "Failed to build engine, status %d: %s" status log)
-           {:type ::build-error
-            :platform platform
-            :status status
-            :log log}))
+(defn build-error [message log]
+  (ex-info message {:ex-type ::build-error :log log}))
 
 (defn build-error? [exception]
-  (= ::build-error (:type (ex-data exception))))
+  (= ::build-error (:ex-type (ex-data exception))))
 
 (defn- build-error-causes [project evaluation-context exception]
   (let [log (:log (ex-data exception))
@@ -489,6 +486,7 @@
     [(g/map->error
       {:_node-id nil ;; The editor cannot currently reference files in the /build folder
        :message (str "For the full log, see " log-path)
+       :file-path log-path
        :severity :warning})]))
 
 (defn- multiple-compile-exception-error-causes [project evaluation-context ^MultipleCompileException exception]
@@ -510,31 +508,43 @@
       :message (.getMessage exception)
       :severity :fatal})])
 
-(defn handle-build-error! [render-error! project evaluation-context exception]
-  (cond
-    (unsupported-platform-error? exception)
-    (do (render-error! {:causes (unsupported-platform-error-causes project evaluation-context)})
-        true)
+(defn- invalid-build-server-url-causes [ex]
+  [(g/map->error {:message (str "Invalid build server URL: " (ex-message ex))
+                  :severity :fatal})])
 
-    (missing-resource-error? exception)
-    (do (render-error! {:causes (missing-resource-error-causes exception)})
-        true)
+(defn- generic-error-causes [ex]
+  [(g/map->error {:message (str (or (some-> ex class .getSimpleName) "Failed") ": " (ex-message ex))
+                  :severity :fatal})])
 
-    (build-error? exception)
-    (do (render-error! {:causes (build-error-causes project evaluation-context exception)})
-        true)
+(def ^:private invalid-option-causes
+  [(g/map->error {:message "Invalid bob option supplied, see console output for more details"})])
 
-    (instance? CompileExceptionError exception)
-    (do (render-error! {:causes (compile-exception-error-causes project evaluation-context exception)})
-        true)
+(defn exception->error-value [exception project evaluation-context]
+  (g/map->error
+    {:causes (cond
+               (unsupported-platform-error? exception)
+               (unsupported-platform-error-causes project evaluation-context)
 
-    (instance? MultipleCompileException exception)
-    (do (render-error! {:causes (multiple-compile-exception-error-causes project evaluation-context exception)})
-        true)
+               (missing-resource-error? exception)
+               (missing-resource-error-causes exception)
 
-    (instance? LibraryException exception)
-    (do (render-error! {:causes (library-exception-error-causes project evaluation-context exception)})
-        true)
+               (build-error? exception)
+               (build-error-causes project evaluation-context exception)
 
-    :else
-    false))
+               (instance? CompileExceptionError exception)
+               (compile-exception-error-causes project evaluation-context exception)
+
+               (instance? MultipleCompileException exception)
+               (multiple-compile-exception-error-causes project evaluation-context exception)
+
+               (instance? LibraryException exception)
+               (library-exception-error-causes project evaluation-context exception)
+
+               (instance? UnknownHostException exception)
+               (invalid-build-server-url-causes exception)
+
+               (instance? Bob$OptionValidationException exception)
+               invalid-option-causes
+
+               :else
+               (generic-error-causes exception))}))

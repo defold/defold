@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,16 +16,9 @@
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
-            [editor.collection :as collection]
-            [editor.collision-object :as collision-object]
-            [editor.handler :as handler]
             [editor.defold-project :as project]
             [editor.workspace :as workspace]
-            [editor.types :as types]
-            [editor.properties :as properties]
-            [integration.test-util :as test-util])
-  (:import [editor.types Region]
-           [javax.vecmath Point3d Matrix4d]))
+            [integration.test-util :as test-util]))
 
 (defn- outline-seq
   [outline]
@@ -78,3 +71,37 @@
                  (doseq [[prop value] props]
                    (test-util/with-prop [shape prop value]
                     (is (g/error? (test-util/prop-error shape prop)))))))))))
+
+(deftest manip-scale-preserves-types
+  (test-util/with-loaded-project
+    (let [project-graph (g/node-id->graph-id project)
+          collision-object-path "/collision_object/three_shapes.collisionobject"
+          collision-object (project/get-resource-node project collision-object-path)
+          [[sphere-shape] [box-shape] [capsule-shape]] (g/sources-of collision-object :child-scenes)]
+
+      (testing "Sphere Shape"
+        (doseq [original-diameter [(float 10.0) (double 10.0)]]
+          (with-open [_ (test-util/make-graph-reverter project-graph)]
+            (g/set-property! sphere-shape :diameter original-diameter)
+            (test-util/manip-scale! sphere-shape [2.0 2.0 2.0])
+            (test-util/ensure-number-type-preserving! original-diameter (g/node-value sphere-shape :diameter)))))
+
+      (testing "Box Shape"
+        (doseq [original-dimensions
+                (mapv #(with-meta % {:version "original"})
+                      [[(float 10.0) (float 10.0) (float 10.0)]
+                       [(double 10.0) (double 10.0) (double 10.0)]
+                       (vector-of :float 10.0 10.0 10.0)
+                       (vector-of :double 10.0 10.0 10.0)])]
+          (with-open [_ (test-util/make-graph-reverter project-graph)]
+            (g/set-property! box-shape :dimensions original-dimensions)
+            (test-util/manip-scale! box-shape [2.0 2.0 2.0])
+            (test-util/ensure-number-type-preserving! original-dimensions (g/node-value box-shape :dimensions)))))
+
+      (testing "Capsule Shape"
+        (doseq [original-value [(float 10.0) (double 10.0)]]
+          (with-open [_ (test-util/make-graph-reverter project-graph)]
+            (g/set-property! capsule-shape :diameter original-value :height original-value)
+            (test-util/manip-scale! capsule-shape [2.0 2.0 2.0])
+            (test-util/ensure-number-type-preserving! original-value (g/node-value capsule-shape :diameter))
+            (test-util/ensure-number-type-preserving! original-value (g/node-value capsule-shape :height))))))))

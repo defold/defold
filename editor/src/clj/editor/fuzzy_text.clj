@@ -1,20 +1,20 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.fuzzy-text
-  (:require [clojure.string :as string])
-  (:import (clojure.lang MapEntry)))
+  (:require [clojure.string :as string]
+            [util.coll :refer [pair]]))
 
 ;; Sublime Text-style fuzzy text matching.
 ;;
@@ -61,9 +61,6 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(defn- pair [a b]
-  (MapEntry. a b))
-
 (defn- case-insensitive-character-indices
   "Returns a vector of indices where the specified code point exists in the
   string. Both upper- and lower-case matches are returned."
@@ -106,7 +103,7 @@
           pattern-length (.length pattern)
           string-length (.length string)]
       (loop [pattern-index 1
-             matching-index-permutations (map vector (case-insensitive-character-indices string (.codePointAt pattern 0) from-index))]
+             matching-index-permutations (mapv vector (case-insensitive-character-indices string (.codePointAt pattern 0) from-index))]
         (if (= pattern-length pattern-index)
           matching-index-permutations
           (let [pattern-whitespace-length (whitespace-length pattern pattern-length pattern-index)
@@ -119,8 +116,8 @@
                                                       (+ 2 prev-matching-index)
                                                       (inc prev-matching-index))]
                                      (when (not= string-length from-index)
-                                       (map (partial conj matching-indices)
-                                            (case-insensitive-character-indices string (.codePointAt pattern pattern-index) from-index))))))
+                                       (mapv (partial conj matching-indices)
+                                             (case-insensitive-character-indices string (.codePointAt pattern pattern-index) from-index))))))
                          matching-index-permutations))))))))
 
 (defn- every-character-is-letter-or-digit?

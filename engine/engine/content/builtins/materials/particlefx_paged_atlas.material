@@ -1,0 +1,20 @@
+name: "particle_paged_atlas"
+tags: "particle"
+vertex_program: "/builtins/materials/particlefx_paged_atlas.vp"
+fragment_program: "/builtins/materials/particlefx_paged_atlas.fp"
+vertex_space: VERTEX_SPACE_WORLD
+vertex_constants {
+  name: "view_proj"
+  type: CONSTANT_TYPE_VIEWPROJ
+}
+fragment_constants {
+  name: "tint"
+  type: CONSTANT_TYPE_USER
+  value {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+    w: 1.0
+  }
+}
+max_page_count: 4

@@ -182,7 +182,7 @@ static int io_popen (lua_State *L) {
 
 static int io_tmpfile (lua_State *L) {
 #if defined(LUA_NO_TMPFILE) // DEFOLD
-    return NULL;
+    return 0;
 #else
   FILE **pf = newfile(L);
   *pf = tmpfile();

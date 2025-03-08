@@ -1,3 +1,4 @@
+syntax = "proto2";
 package dmGameSystemDDF;
 
 import "ddf/ddf_extensions.proto";
@@ -10,12 +11,14 @@ message FactoryDesc
 {
     required string prototype = 1 [(resource)=true];
     optional bool load_dynamically = 2 [default=false];
+    optional bool dynamic_prototype = 3 [default=false];
 }
 
 message CollectionFactoryDesc
 {
     required string prototype = 1 [(resource)=true];
     optional bool load_dynamically = 2 [default=false];
+    optional bool dynamic_prototype = 3 [default=false];
 }
 
 message Create
@@ -93,6 +96,7 @@ message PlaySound
 
 message StopSound
 {
+    optional uint32 play_id = 1 [default=0xffffffff]; // Must be same as dmSound::INVALID_PLAY_ID
 }
 
 message PauseSound
@@ -100,7 +104,7 @@ message PauseSound
     optional bool pause     = 1 [default=true];
 }
 
-message SoundDone
+message SoundEvent
 {
     optional int32 play_id = 1 [default = 0];
 }
@@ -122,12 +126,15 @@ message SetSpeed
 
 /* Documented in scripts/script_particlefx.cpp */
 message PlayParticleFX {}
-message StopParticleFX {}
+message StopParticleFX {
+    optional bool clear_particles     = 1 [default=false];
+}
 message SetConstantParticleFX
 {
     required uint64         emitter_id  = 1;
     required uint64         name_hash   = 2;
-    required dmMath.Vector4 value       = 3 [(field_align)=true];
+    required dmMath.Matrix4 value       = 3 [(field_align)=true];
+    optional bool           is_matrix4  = 4;
 }
 message ResetConstantParticleFX
 {

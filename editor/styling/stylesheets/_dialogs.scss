@@ -4,8 +4,9 @@ $spacing-default: 24px;
 $spacing-larger: 32px;
 $spacing-largest: 40px;
 
+@use "sass:string";
 @mixin font-size-default { -fx-font-size: 110%; }
-@mixin font-size-header { -fx-font-size: 170%; }
+@mixin font-size-header { -fx-font-size: 22px; }
 @mixin font-default { -fx-font-family: $default-font; }
 @mixin font-light { -fx-font-family: $default-font-light; }
 @mixin text-fill-text-color { -fx-text-fill: -df-text; }
@@ -94,7 +95,7 @@ $spacing-largest: 40px;
   -fx-text-fill: -df-text;
   -fx-background-radius: 2px;
   -fx-border-radius: 2px;
-  -fx-background-color: -df-background-lighter;
+  -fx-background-color: -df-component-dark;
   -fx-padding: 0;
   -fx-min-width: 28px;
   -fx-max-width: 28px;
@@ -105,7 +106,7 @@ $spacing-largest: 40px;
   -fx-focus-traversable: false;
   -fx-border-width: 0;
   &:hover {
-    -fx-background-color: -df-component;
+    -fx-background-color: -df-component-lighter;
   }
   &:armed {
     -fx-background-color: -df-background-light !important;
@@ -160,8 +161,8 @@ $spacing-largest: 40px;
   @include font-size-default();
   -fx-highlight-fill: -df-component-light;
   -fx-text-fill: -df-text-selected;
-  -fx-prompt-text-fill: -df-component;
-  -fx-background-color: -df-background-darker;
+  -fx-prompt-text-fill: -df-component-light;
+  -fx-background-color: -df-background-input;
   -fx-border-width: 1px;
 
   &:readonly {
@@ -239,14 +240,18 @@ $spacing-largest: 40px;
     -fx-background-radius: 5px;
     -fx-background-insets: 1px;
     &:hover {
-      -fx-background-color: -df-component;
+      -fx-background-color: -df-component-light;
     }
     &:pressed {
-      -fx-background-color: -df-component-lighter;
+      -fx-background-color: -df-component-light;
     }
   }
   &:vertical {
     -fx-pref-width: 10px;
+    > .increment-button, > .decrement-button {
+      // this actually sets minimum scrollbar thumb height...
+      -fx-pref-width: 15px;
+    }
   }
   &:horizontal {
     -fx-pref-height: 10px;
@@ -255,7 +260,7 @@ $spacing-largest: 40px;
   > .increment-button > .increment-arrow,
   > .decrement-button,
   > .decrement-button > .decrement-arrow {
-    -fx-shape: null;
+    -fx-shape: string.unquote("null");
     -fx-padding: 0;
   }
 }
@@ -264,10 +269,45 @@ $spacing-largest: 40px;
   > .viewport {
     -fx-background-color: transparent;
   }
-  > .corner {
-    -fx-background-color: transparent;
-  }
 }
+
+.corner {
+  -fx-background-color: transparent;
+}
+
+// file extensions
+
+@mixin icon-extension-template($color, $active-color){
+    & > .content > .image-view {
+        -fx-effect: innershadow(gaussian, $color, 20, 0.3, 0, 0);
+    }
+    &:selected > .content > .image-view, &:hover > .content > .image-view {
+        -fx-effect: innershadow(gaussian, $active-color, 20, 0.3, 0, 0);
+    }
+}
+
+@mixin icon-extensions () {
+    &.resource {
+        @include icon-extension-template(-df-unknown-file, -df-unknown-file-active)
+    }
+
+    &.resource-folder {
+        @include icon-extension-template(-df-folder, -df-folder-active)
+    }
+
+    &.resource-kind {
+        &-script {
+            @include icon-extension-template(-df-script-file, -df-script-file-active);
+        }
+        &-design {
+            @include icon-extension-template(-df-design-file, -df-design-file-active);
+        }
+        &-property {
+            @include icon-extension-template(-df-property-file, -df-property-file-active);
+        }
+    }
+}
+
 
 // components
 
@@ -309,12 +349,12 @@ Text {
   }
 
   .track {
-    -fx-background-color: -df-component;
+    -fx-background-color: -df-component-light;
   }
 }
 
 .context-menu {
-  -fx-background-color: -df-component;
+  -fx-background-color: -df-component-light;
   -fx-background-radius: 2px;
   -fx-padding: 5px;
   .menu-item {
@@ -345,4 +385,55 @@ Text {
       -fx-pref-width: 1;
     }
   }
+}
+
+.list-view {
+  -fx-background-color: transparent;
+  &:focused > .virtual-flow > .clipped-container > .sheet > .list-cell:selected {
+    -fx-border-color: -df-defold-orange;
+  }
+}
+.list-cell {
+  @include font-size-default();
+  @include font-default();
+  @include text-fill-text-color();
+  -fx-background-color: transparent;
+  -fx-border-width: 0 0 0 2;
+  -fx-border-color: transparent;
+
+  &:selected {
+    -fx-background-color: -df-background-light;
+  }
+
+  &:hover {
+    -fx-text-fill: -df-text-selected;
+    & > .content > TextFlow > Text {
+      -fx-fill: -df-text-selected;
+      &.matched {
+        -fx-fill: -df-defold-blue-lighter;
+      }
+    }
+  }
+
+  @include icon-extensions()
+}
+
+Text {
+  -fx-font-smoothing-type: lcd;
+  -fx-fill: -df-text;
+  &.diminished {
+    -fx-opacity: 0.5;
+  }
+  &.matched {
+    -fx-fill: -df-defold-blue-lighter;
+  }
+}
+
+.hover-popup {
+  -fx-background-color: -df-background-lighter;
+  -fx-border-color: -df-background;
+}
+.hover-separator {
+  -fx-min-height: 1px;
+  -fx-background-color: -df-background;
 }

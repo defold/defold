@@ -1,3 +1,4 @@
+syntax = "proto2";
 package dmScriptDoc;
 
 option java_package = "com.dynamo.scriptdoc.proto";
@@ -53,6 +54,7 @@ message Element
     repeated Member tparams = 10;
     repeated Member members = 11;
     repeated string notes = 12;
+    optional string language = 13;
 }
 
 message Info
@@ -63,6 +65,8 @@ message Info
     required string description = 4;
     required string path = 5;
     required string file = 6;
+    repeated string notes = 7;
+    optional string language = 8;
 }
 
 message Document

@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,9 +16,9 @@
 #define DM_PARTICLE_H
 
 #include <dmsdk/dlib/vmath.h>
-#include <dlib/configfile.h>
 #include <dlib/hash.h>
 #include <ddf/ddf.h>
+#include <graphics/graphics.h>
 #include "particle/particle_ddf.h"
 
 /*extern "C"
@@ -62,16 +62,19 @@ namespace dmParticle
     extern const char* MAX_INSTANCE_COUNT_KEY;
     /// Config key to use for tweaking maximum number of emitters in a context.
     extern const char* MAX_EMITTER_COUNT_KEY;
-    /// Config key to use for tweaking the total maximum number of particles in a context.
-    extern const char* MAX_PARTICLE_COUNT_KEY;
+    /// Config key to use for tweaking the total maximum number of particles in a context in GPU buffer.
+    extern const char* MAX_PARTICLE_GPU_COUNT_KEY;
+    /// Config key to use for tweaking the total maximum number of particles in a context in CPU buffer.
+    extern const char* MAX_PARTICLE_CPU_COUNT_KEY;
 
     /**
      * Render constants supplied to the render callback.
      */
     struct RenderConstant
     {
-        dmhash_t m_NameHash;
-        dmVMath::Vector4 m_Value;
+        dmhash_t         m_NameHash;
+        dmVMath::Matrix4 m_Value;
+        bool             m_IsMatrix4;
     };
 
     /**
@@ -101,6 +104,8 @@ namespace dmParticle
         void* m_Texture;
         float* m_TexCoords;
         float* m_TexDims;
+        uint32_t* m_PageIndices;
+        uint32_t* m_FrameIndices;
         AnimPlayback m_Playback;
         uint32_t m_TileWidth;
         uint32_t m_TileHeight;
@@ -128,10 +133,11 @@ namespace dmParticle
         EMITTER_STATE_POSTSPAWN = 3,
     };
 
-    enum ParticleVertexFormat
+    enum GenerateVertexDataResult
     {
-        PARTICLE_GO = 0,
-        PARTICLE_GUI = 1,
+        GENERATE_VERTEX_DATA_OK                     = 0,
+        GENERATE_VERTEX_DATA_INVALID_INSTANCE       = 1,
+        GENERATE_VERTEX_DATA_MAX_PARTICLES_EXCEEDED = 2,
     };
 
     struct EmitterRenderData
@@ -141,16 +147,18 @@ namespace dmParticle
             memset(this, 0x0, sizeof(EmitterRenderData));
         }
 
-        dmVMath::Matrix4            m_Transform;
-        void*                       m_Material; // dmRender::HMaterial
-        dmParticleDDF::BlendMode    m_BlendMode;
-        void*                       m_Texture; // dmGraphics::HTexture
-        RenderConstant*             m_RenderConstants;
-        uint32_t                    m_RenderConstantsSize;
-        HInstance                   m_Instance; // Particle instance handle
-        uint32_t                    m_EmitterIndex;
-        uint32_t                    m_MixedHash;
-        uint32_t                    m_MixedHashNoMaterial;
+        dmVMath::Matrix4             m_Transform;
+        void*                        m_Material; // dmRender::HMaterial
+        dmParticleDDF::BlendMode     m_BlendMode;
+        void*                        m_Texture; // dmGraphics::HTexture
+        dmGraphics::VertexAttribute* m_Attributes;
+        uint32_t                     m_AttributeCount;
+        RenderConstant*              m_RenderConstants;
+        uint32_t                     m_RenderConstantsSize;
+        HInstance                    m_Instance; // Particle instance handle
+        uint32_t                     m_EmitterIndex;
+        uint32_t                     m_MixedHash;
+        uint32_t                     m_MixedHashNoMaterial;
     };
 
     /**
@@ -204,34 +212,6 @@ namespace dmParticle
 
         float m_Time;
         uint32_t m_StructSize;
-    };
-
-    /**
-     * Particle vertex format
-     */
-    struct Vertex
-    {
-        // Offset 0
-        float m_X, m_Y, m_Z;
-        // Offset 12
-        float m_Red, m_Green, m_Blue, m_Alpha;
-        // Offset 28
-        float m_U, m_V;
-        // Offset 36
-    };
-
-    /**
-     * Particle gui vertex format (must match dmGui::ParticleGuiVertex)
-     */
-    struct ParticleGuiVertex
-    {
-        // Offset 0
-        float    m_Position[3];
-        // Offset 12
-        float    m_UV[2];
-        // Offset 20
-        float    m_Color[4];
-        // Offset 36
     };
 
     // For tests
@@ -298,11 +278,12 @@ namespace dmParticle
     DM_PARTICLE_PROTO(void, StartInstance, HParticleContext context, HInstance instance);
     /**
      * Stop the specified instance, which means it will stop spawning particles.
-     * Any spawned particles will still be simulated until they die.
+     * Any spawned particles will still be simulated until they die, unless clear_particles is true.
      * @param context Context in which the instance exists.
      * @param instance Instance to start, can be invalid.
+     * @param clear_particles true if particles should be immediately removed
      */
-    DM_PARTICLE_PROTO(void, StopInstance, HParticleContext context, HInstance instance);
+    DM_PARTICLE_PROTO(void, StopInstance, HParticleContext context, HInstance instance, bool clear_particles);
     /**
      * Retire the specified instance, which means it will stop spawning particles at the closest convenient time.
      * In practice this means that looping emitters will continue for the current life cycle and then stop, like a once emitter.
@@ -375,12 +356,48 @@ namespace dmParticle
      * @param dt Time step.
      * @param instance Particle instance handle
      * @param emitter_index Emitter index for which to generate vertex data for
+     * @param attribute_infos Attribute information on the streams to write
+     * @param color The particle color to (potentially) write
      * @param vertex_buffer Vertex buffer into which to store the particle vertex data. If this is 0x0, no data will be generated.
      * @param vertex_buffer_size Size in bytes of the supplied vertex buffer.
      * @param out_vertex_buffer_size Size in bytes of the total data written to vertex buffer.
-     * @param vertex_format Which vertex format to use
+     * @return Result enum value
      */
-    DM_PARTICLE_PROTO(void, GenerateVertexData, HParticleContext context, float dt, HInstance instance, uint32_t emitter_index, const dmVMath::Vector4& color, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size, ParticleVertexFormat vertex_format);
+    DM_PARTICLE_PROTO(GenerateVertexDataResult, GenerateVertexData, HParticleContext context, float dt, HInstance instance, uint32_t emitter_index, const dmGraphics::VertexAttributeInfos& attribute_infos, const dmVMath::Vector4& color, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size);
+
+    /**
+     * Gets the particle count for an emitter
+     * @param context Particle context
+     * @param dt Time step.
+     * @param instance Particle instance handle
+     * @param emitter_index Emitter index for which to generate vertex data for
+     * @param attribute_infos Attribute information on the streams to write
+     * @param color The particle color to (potentially) write
+     * @param offset The particle index to start from
+     * @param count The number of particles to update
+     * @param vertex_buffer Vertex buffer into which to store the particle vertex data. If this is 0x0, no data will be generated.
+     * @param vertex_buffer_size Size in bytes of the supplied vertex buffer.
+     * @param out_vertex_buffer_size Size in bytes of the total data written to vertex buffer.
+     * @return Result enum value
+     */
+    DM_PARTICLE_PROTO(uint32_t, GetParticleCount, HParticleContext context, HInstance instance, uint32_t emitter_index);
+
+    /**
+     * Generates partial vertex data for an emitter
+     * @param context Particle context
+     * @param dt Time step.
+     * @param instance Particle instance handle
+     * @param emitter_index Emitter index for which to generate vertex data for
+     * @param particle_start The particle index to start from
+     * @param particle_count The number of particles to update
+     * @param attribute_infos Attribute information on the streams to write
+     * @param color The particle color to (potentially) write
+     * @param vertex_buffer Vertex buffer into which to store the particle vertex data. If this is 0x0, no data will be generated.
+     * @param vertex_buffer_size Size in bytes of the supplied vertex buffer.
+     * @param out_vertex_buffer_size Size in bytes of the total data written to vertex buffer.
+     * @return Result enum value
+     */
+    DM_PARTICLE_PROTO(GenerateVertexDataResult, GenerateVertexDataPartial, HParticleContext context, float dt, HInstance instance, uint32_t emitter_index, uint32_t particle_start, uint32_t particle_count, const dmGraphics::VertexAttributeInfos& attribute_infos, const dmVMath::Vector4& color, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size);
 
     /**
      * Debug render the status of the instances within the specified context.
@@ -478,6 +495,7 @@ namespace dmParticle
      * @return pointer to the tile source
      */
     DM_PARTICLE_PROTO(void*, GetTileSource, HPrototype prototype, uint32_t emitter_index);
+
     /**
      * Set material in the emitter in the supplied prototype
      * @param prototype Prototype
@@ -502,6 +520,17 @@ namespace dmParticle
      * @param value Value to set the constant to
      */
     DM_PARTICLE_PROTO(void, SetRenderConstant, HParticleContext context, HInstance instance, dmhash_t emitter_id, dmhash_t name_hash, dmVMath::Vector4 value);
+
+    /**
+     * Set a matrix4 render constant for the emitter with the specified id
+     * @param context Particle context
+     * @param instance Instance containing the emitter
+     * @param emitter_id Id of the emitter
+     * @param name_hash Hashed name of the constant to set
+     * @param value Value to set the constant to
+     */
+    DM_PARTICLE_PROTO(void, SetRenderConstantM4, HParticleContext context, HInstance instance, dmhash_t emitter_id, dmhash_t name_hash, dmVMath::Matrix4 value);
+
     /**
      * Reset a render constant for the emitter with the specified id
      * @param context Particle context
@@ -529,18 +558,10 @@ namespace dmParticle
     /**
      * Get required vertex buffer size
      * @param particle_count number of particles in vertex buffer
-     * @param vertex_format Which vertex format to use
+     * @param vertex_size Size of the vertex in bytes
      * @return Required vertex buffer size in bytes
      */
-    DM_PARTICLE_PROTO(uint32_t, GetVertexBufferSize, uint32_t particle_count, ParticleVertexFormat vertex_format);
-
-    /**
-     * Get the required vertex buffer size for a context
-     * @param context Particle context
-     * @param vertex_format Which vertex format to use
-     * @return Required vertex buffer size in bytes
-     */
-    DM_PARTICLE_PROTO(uint32_t, GetMaxVertexBufferSize, HParticleContext context, ParticleVertexFormat vertex_format);
+    DM_PARTICLE_PROTO(uint32_t, GetVertexBufferSize, uint32_t particle_count, uint32_t vertex_size);
 
     /**
      * Rehash all emitters on an instance
@@ -548,6 +569,21 @@ namespace dmParticle
      * @param instance Instance containing the emitters to be rehashed
      */
     DM_PARTICLE_PROTO(void, ReHash, HParticleContext context, HInstance instance);
+
+    /**
+     * Sets the current scratch data cursor to 0
+     * @param context Particle context
+     */
+    DM_PARTICLE_PROTO(void, ResetAttributeScratchBuffer, HParticleContext context);
+
+    /**
+     * Copies the bytes into the scratch buffer
+     * @param context Particle context
+     * @param bytes Data bytes to copy into the buffer
+     * @param byte_count Data byte count to copy
+     * @return pointer to the start of the data written into the buffer
+     */
+    DM_PARTICLE_PROTO(void*, WriteAttributeToScratchBuffer, HParticleContext context, void* bytes, uint32_t byte_count);
 
     /**
      * Wrapper for dmHashString64

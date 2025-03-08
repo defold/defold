@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -19,8 +19,10 @@
             [editor.core :as core]
             [editor.resource :as resource]
             [editor.util :as util]
+            [internal.cache :as c]
             [schema.core :as s]
-            [service.log :as log]))
+            [service.log :as log])
+  (:import [internal.graph.types Arc]))
 
 (set! *warn-on-reflection* true)
 
@@ -120,21 +122,31 @@
         (assoc :attachments attachments)
         (update :arcs (partial filterv #(not (contains? tx-attach-arcs %)))))))
 
-(defn- default-copy-traverse [basis [src-node src-label tgt-node tgt-label]]
-  (and (g/node-instance? OutlineNode tgt-node)
-       (or (= :child-outlines tgt-label)
-           (= :source-outline tgt-label))
-       (not (and (g/node-instance? basis resource/ResourceNode src-node)
-                 (some? (resource/path (g/node-value src-node :resource (g/make-evaluation-context {:basis basis}))))))))
+(defn- default-copy-traverse [basis ^Arc arc]
+  (let [src-node (.source-id arc)
+        tgt-node (.target-id arc)
+        tgt-label (.target-label arc)]
+    (or (= :copied-nodes tgt-label)
+        (and (or (= :child-outlines tgt-label)
+                 (= :source-outline tgt-label))
+             (g/node-instance? basis OutlineNode tgt-node)
+             (not (and (g/node-instance? basis resource/ResourceNode src-node)
+                       (some? (resource/path (g/node-value src-node :resource (g/make-evaluation-context {:basis basis :cache c/null-cache}))))))))))
 
 (defn copy
-  ([src-item-iterators]
-    (copy src-item-iterators default-copy-traverse))
-  ([src-item-iterators traverse?]
-    (let [root-ids (mapv #(:node-id (value %)) src-item-iterators)
-          fragment (-> (g/copy root-ids {:traverse? traverse?})
-                       (add-attachments root-ids))]
-      (serialize fragment))))
+  ([project src-item-iterators]
+   (copy project src-item-iterators default-copy-traverse))
+  ([project src-item-iterators traverse?]
+   (let [root-ids (mapv #(:node-id (value %)) src-item-iterators)
+         fragment (-> (g/copy root-ids {:traverse? traverse?
+                                        :external-refs {project :project}
+                                        :external-labels {project #{:collision-group-nodes
+                                                                    :collision-groups-data
+                                                                    :default-tex-params
+                                                                    :settings}}})
+                      (add-attachments root-ids))]
+
+     (serialize fragment))))
 
 (defn- read-only? [item-it]
   (:read-only (value item-it) false))
@@ -164,25 +176,25 @@
        true))))
 
 (defn cut!
-  ([src-item-iterators]
-    (cut! src-item-iterators []))
-  ([src-item-iterators extra-tx-data]
-    (let [data     (copy src-item-iterators)
-          root-ids (mapv #(:node-id (value %)) src-item-iterators)]
-      (g/transact
-        (concat
-          (g/operation-label "Cut")
-          (for [id root-ids]
-            (g/delete-node (g/override-root id)))
-          extra-tx-data))
-      data)))
+  ([project src-item-iterators]
+   (cut! project src-item-iterators []))
+  ([project src-item-iterators extra-tx-data]
+   (let [data (copy project src-item-iterators)
+         root-ids (mapv #(:node-id (value %)) src-item-iterators)]
+     (g/transact
+       (concat
+         (g/operation-label "Cut")
+         (for [id root-ids]
+           (g/delete-node (g/override-root id)))
+         extra-tx-data))
+     data)))
 
 (defn- deserialize
   [text]
   (g/read-graph text (core/read-handlers)))
 
-(defn- paste [graph fragment]
-  (g/paste graph fragment {}))
+(defn- paste [project fragment]
+  (g/paste (g/node-id->graph-id project) fragment {:external-refs {:project project}}))
 
 (defn- nodes-by-id
   [paste-data]
@@ -240,27 +252,27 @@
           (g/operation-sequence op-seq)
           (select-fn (mapv :_node-id root-nodes)))))))
 
-(defn- paste-target [graph item-iterator data]
-  (let [paste-data (paste graph (deserialize data))
+(defn- paste-target [project item-iterator data]
+  (let [paste-data (paste project (deserialize data))
         root-nodes (root-nodes paste-data)]
     (find-target-item item-iterator root-nodes)))
 
-(defn paste! [graph item-iterator data select-fn]
+(defn paste! [project item-iterator data select-fn]
   (let [fragment (deserialize data)
-        paste-data (paste graph fragment)
+        paste-data (paste project fragment)
         root-nodes (root-nodes paste-data)]
     (when-let [[item reqs] (find-target-item item-iterator root-nodes)]
       (do-paste! "Paste" (gensym) paste-data (:attachments fragment) item reqs select-fn))))
 
-(defn paste? [graph item-iterator data]
+(defn paste? [project item-iterator data]
   (try
-    (some? (paste-target graph item-iterator data))
+    (some? (paste-target project item-iterator data))
     (catch Exception e
       (log/warn :exception e)
       ; TODO - ignore
       false)))
 
-(defn drag? [graph item-iterators]
+(defn drag? [item-iterators]
   (delete? item-iterators))
 
 (defn- descendant? [src-item item-iterator]
@@ -270,7 +282,7 @@
       (recur src-item (parent item-iterator)))
     false))
 
-(defn drop? [graph src-item-iterators item-iterator data]
+(defn drop? [project src-item-iterators item-iterator data]
   (and
     ; src is not descendant of target
     (not
@@ -278,15 +290,15 @@
                                  (descendant? (value it) item-iterator)))
               false src-item-iterators))
     ; pasting is allowed
-    (when-let [[tgt _] (paste-target graph item-iterator data)]
+    (when-let [[tgt _] (paste-target project item-iterator data)]
       (not (reduce (fn [parent? it]
                      (let [parent-item (value (parent it))]
                        (or parent? (= parent-item tgt) (= (:alt-outline parent-item) tgt)))) false src-item-iterators)))))
 
-(defn drop! [graph src-item-iterators item-iterator data select-fn]
-  (when (drop? graph src-item-iterators item-iterator data)
+(defn drop! [project src-item-iterators item-iterator data select-fn]
+  (when (drop? project src-item-iterators item-iterator data)
     (let [fragment (deserialize data)
-          paste-data (paste graph fragment)
+          paste-data (paste project fragment)
           root-nodes (root-nodes paste-data)]
       (when-let [[item reqs] (find-target-item item-iterator root-nodes)]
         (let [op-seq (gensym)]

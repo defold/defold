@@ -1,0 +1,495 @@
+context:
+    includes: ['{{dynamo_home}}/include', '{{dynamo_home}}/sdk/include', '{{dynamo_home}}/ext/include']
+    symbols: ["DefaultSoundDevice", "AudioDecoderWav", "CrashExt", "AudioDecoderStbVorbis", "ProfilerExt", "GraphicsAdapterOpenGL","LiveUpdateExt",
+                "ResourceTypeGameObject", "ResourceTypeCollection", "ResourceTypeScript", "ResourceTypeLua", "ResourceTypeAnim", "ResourceTypeAnimationSet", "ResourceTypeGui", "ResourceTypeGuiScript",
+                "ResourceTypeOgg","ResourceTypeWav",
+                "ResourceProviderFile", "ResourceProviderArchive", "ResourceProviderArchiveMutable", "ResourceProviderZip", "ResourceProviderHttp",
+                "ComponentTypeScript", "ComponentTypeAnim", "ComponentTypeGui", "ComponentTypeMesh", "ComponentTypeSound", "ScriptBox2DExt", "ScriptImageExt", "ScriptModelExt", "ScriptTypesExt"]
+    allowedLibs: ["engine","engine_release","profile","profile_null","remotery","remotery_null","profilerext","profilerext_null","crashext","crashext_null","record","record_null","gameobject","ddf","resource","gamesys","gamesys_model","gamesys_rig","gamesys_model_null","gamesys_rig_null","rig_null","graphics","graphics_opengles","graphics_null","graphics_transcoder_null","graphics_transcoder_basisu","basis_transcoder","physics_2d","physics_3d","physics_null", "platform", "platform_vulkan", "platform_null", "BulletDynamics","BulletCollision","LinearMath","Box2D","render","render_font_default","script","luajit-5.1","extension","hid","hid_null","input","particle","rig","dlib","image","image_null","dmglfw","glfw3","gui","crashext","sound","sound_null","tremolo","vpx","liveupdate",
+                  "libengine.lib","libengine_release.lib","libprofile.lib","libprofile_null.lib","libremotery.lib","libremotery_null.lib","libprofilerext.lib","libprofilerext_null.lib","libcrashext","libcrashext_null","librecord.lib","librecord_null.lib","libgameobject.lib","libddf.lib","libresource.lib","libgamesys.lib","libgamesys_model.lib","libgamesys_rig.lib","librig.lib","libgamesys_model_null.lib","libgamesys_rig_null.lib","librig_null.lib","libgraphics.lib","libgraphics_null.lib","libgraphics_transcoder_null.lib","libgraphics_transcoder_basisu.lib","libbasis_transcoder.lib","libphysics_2d.lib","libphysics_3d.lib","libphysics_null.lib","libBulletDynamics.lib","libBulletCollision.lib","libplatform.lib","libplatform_null.lib","libLinearMath.lib","libBox2D.lib","librender.lib","librender_font_default.lib",
+                  "libscript.lib","libluajit.lib-5.1","libextension.lib","libhid.lib","libhid_null.lib","libinput.lib","libparticle.lib","librig.lib","libdlib.lib","libimage.lib","libimage_null.lib","libdmglfw.lib","libgui.lib","libcrashext.lib","libsound.lib","libsound_null.lib","libtremolo.lib","libvpx.lib","libliveupdate.lib",
+                  "engine_service","engine_service_null","libengine_service.lib","libengine_service_null.lib",
+                  "script_box2d", "script_box2d_null", "libscript_box2d.lib", "libscript_box2d_null.lib"]
+    allowedSymbols: ["DefaultSoundDevice", "NullSoundDevice", "AudioDecoderWav", "CrashExt", "AudioDecoderStbVorbis", "GraphicsAdapterWebGPU",
+                    "ProfilerExt", "GraphicsAdapterOpenGL", "GraphicsAdapterOpenGLES", "GraphicsAdapterVulkan", "GraphicsAdapterNull",
+                    "LiveUpdateExt", "ScriptBox2DExt", "ScriptImageExt", "ScriptModelExt", "ScriptTypesExt"]
+    defines: ['DLIB_LOG_DOMAIN="{{extension_name_upper}}"']
+
+main: |
+    #include <stdio.h>
+
+    #if __cplusplus
+    extern "C" {
+    #endif
+
+    {{#symbols}}
+    void {{{.}}}();
+    {{/symbols}}
+
+    {{#ext.symbols}}
+    void {{{.}}}();
+    {{/ext.symbols}}
+
+    #if __cplusplus
+    }
+    #endif
+
+    extern "C" void dmExportedSymbols() { // Called by engine_main.cpp:EngineMain
+        {{#symbols}}
+        {{{.}}}();
+        {{/symbols}}
+        {{#ext.symbols}}
+        {{{.}}}();
+        {{/ext.symbols}}
+    }
+
+    extern int engine_main(int argc, char* argv[]);
+
+    int main(int argc, char *argv[])
+    {
+        return engine_main(argc, argv);
+    }
+
+    #ifdef DM_PLATFORM_ANDROID
+
+    #if __cplusplus
+    extern "C" {
+    #endif
+
+    struct android_app;
+    extern void _glfwPreMain(struct android_app* state);
+    extern void app_dummy();
+
+    void android_main(struct android_app* state)
+    {
+        // Make sure glue isn't stripped.
+        app_dummy();
+        _glfwPreMain(state);
+    }
+
+    #if __cplusplus
+    }
+    #endif
+    #endif
+
+
+platforms:
+
+  common:
+    env:
+      ZIG_PATH:      '{{env.ZIG_PATH_0_11}}'
+      PYTHONPATH:    '{{dynamo_home}}/lib/python:{{dynamo_home}}/ext/lib/python'
+    context:
+      protoIncludes:    ['{{dynamo_home}}/share/proto', '{{dynamo_home}}/ext/include']
+
+      # C++
+      defines:          ['DDF_EXPOSE_DESCRIPTORS']
+      cxxFlags:         []
+      cxxShFlags:       ['-fno-rtti']
+      cxxLinkFlags:     []
+      cxxLinkShFlags:   []
+      cxxLibs:          []
+      cxxShLibs:        [] #"dlib_shared" # not shared libs, but libs used for linking a shared library
+      libStartGroup:    ['-Wl,--start-group']
+      libEndGroup:      ['-Wl,--end-group']
+      # Java
+      javaFlags:        []
+      javaPipelineClasspath: ['{{dynamo_home}}/share/java/bob-light.jar']
+
+    # Generates the ddf format files for use in the engine
+    protoEngineCxxCmd:  '{{dynamo_home}}/ext/bin/{{host_platform}}/protoc --plugin=protoc-gen-ddf={{dynamo_home}}/bin/ddfc_cxx --ddf_out={{out_dir}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#protoIncludes}}-I{{{.}}} {{/protoIncludes}} {{src}}'
+    # Generates the language specific (cpp, java and python) format bindings for use in the pipeline plugins
+    protoPipelineCmd:       '{{dynamo_home}}/ext/bin/{{host_platform}}/protoc --proto_path={{proto_path}} --{{language}}_out={{out_dir}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#protoIncludes}}-I{{{.}}} {{/protoIncludes}} {{src}}'
+    protoPipelineOutputRe:  '*.pb.h|*.pb.cc|*_pb2.py'
+
+    # C++
+    compileCmdCXX:      'clang++ -c {{#systemIncludes}}-isystem {{{.}}} {{/systemIncludes}} {{#defines}}-D{{{.}}} {{/defines}} {{#cxxFlags}}{{{.}}} {{/cxxFlags}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -o{{tgt}}'
+    compileCmdCXXSh:    'clang++ -c {{#systemIncludes}}-isystem {{{.}}} {{/systemIncludes}} {{#defines}}-D{{{.}}} {{/defines}} {{#cxxShFlags}}{{{.}}} {{/cxxShFlags}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -o{{tgt}}'
+    linkCmdCXX:         'clang++ -o {{tgt}} {{#cxxLinkFlags}}{{{.}}} {{/cxxLinkFlags}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#ext.frameworks}}-framework {{{.}}} {{/ext.frameworks}} {{#frameworks}}-framework {{{.}}} {{/frameworks}} {{#src}}{{{.}}} {{/src}}'
+    linkCmdCXXSh:       'clang++ -shared -o {{tgt}} {{#cxxLinkShFlags}}{{{.}}} {{/cxxLinkShFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#src}}{{{.}}} {{/src}} {{#libStartGroup}}{{{.}}} {{/libStartGroup}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#libEndGroup}}{{{.}}} {{/libEndGroup}} {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#ext.frameworks}}-framework {{{.}}} {{/ext.frameworks}} {{#frameworks}}-framework {{{.}}} {{/frameworks}}'
+
+    # Java (for pipeline plugins)
+    javaSourceRe:   '(?i).+(\.java)$'
+    javacCmd:       'javac -d {{classesDir}} {{#javaFlags}}{{{.}}} {{/javaFlags}} -classpath {{classPath}} @{{sourcesListFile}}'
+    jarCmd:         'jar cf {{outputJar}} -C {{classesDir}} .'
+
+    # Zig
+    zigSourceRe:    '(?i).*(\.zig)'
+    zigCompileCmd:  '{{env.ZIG_PATH}}/zig build-obj -target {{zig-target}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#includes}}-I{{{.}}} {{/includes}} {{#defines}}-D{{{.}}} {{/defines}} {{src}} -femit-bin={{tgt}} -O ReleaseFast'
+
+    # C#
+    csSourceRe:     '(?i).*(\.cs)'
+
+  osx:
+    env:
+        PATH:                   "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_16_VERSION}}.xctoolchain/usr/bin:{{env.PATH}}"
+        PLATFORMSDK_DIR:        "{{env.PLATFORMSDK_DIR}}"
+        MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
+        XCODE_VERSION:          "{{env.XCODE_16_VERSION}}"
+        XCODE_CLANG_VERSION:    "{{env.XCODE_16_CLANG_VERSION}}"
+        MACOS_VERSION:          "{{env.MACOS_15_VERSION}}"
+        MACOS_VERSION_MIN:      "{{env.MACOS_VERSION_MIN}}"
+        SWIFT_VERSION:          "{{env.SWIFT_5_5_VERSION}}"
+        SYSROOT:                "{{env.PLATFORMSDK_DIR}}/MacOSX{{env.MACOS_15_VERSION}}.sdk"
+    context:
+        frameworks:     ["Foundation", "AppKit", "Cocoa", "OpenGL", "OpenAL", "AGL", "IOKit", "Carbon", "CoreVideo", "QuartzCore"]
+        engineLibs:     ["engine", "engine_service", "mbedtls", "zip", "profile", "remotery", "profilerext", "record", "gameobject", "ddf", "resource", "gamesys", "gamesys_model", "gamesys_rig", "script_box2d", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "Box2D", "render", "render_font_default", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "image", "glfw3", "gui", "crashext", "sound", "tremolo", "vpx", "liveupdate"]
+        libPaths:       ["{{env.SYSROOT}}/usr/lib/swift", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/swift-{{env.SWIFT_VERSION}}/macosx", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/clang/{{env.XCODE_CLANG_VERSION}}/lib/darwin"]
+        defines:        ["DM_PLATFORM_MACOS", "DM_PLATFORM_OSX", "GL_DO_NOT_WARN_IF_MULTI_GL_VERSION_HEADERS_INCLUDED"]
+        systemIncludes: ["{{env.SYSROOT}}/usr/include/c++/v1"]
+        flags:          ["-O2", "-g", "-stdlib=libc++", "-mmacosx-version-min={{osMinVersion}}", "-isysroot", "{{env.SYSROOT}}", "-nostdinc++", "-fno-exceptions", "-fvisibility=hidden", "-Werror=format"]
+        linkFlags:      ["-O2", "-g", "-stdlib=libc++", "-mmacosx-version-min={{osMinVersion}}", "-isysroot", "{{env.SYSROOT}}", "-Wl,-rpath,@loader_path/.", "-Wl,-U,_objc_loadClassref"]
+        cxxLinkShFlags: ["-O2", "-g", "-stdlib=libc++", "-mmacosx-version-min={{osMinVersion}}", "-isysroot", "{{env.SYSROOT}}", "-Wl,-rpath,@loader_path/.", "-Wl,-U,_objc_loadClassref"]
+        libs:           ['clang_rt.osx']
+        dynamicLibs:    []
+        symbols:        ["AudioDecoderTremolo"]
+        libStartGroup_replace:  []
+        libEndGroup_replace:    []
+        osMinVersion:   "{{env.MACOS_VERSION_MIN}}"
+        swiftFlags:     ["-swift-version", "{{swiftVersion}}", "-sdk", "{{env.SYSROOT}}"]
+        swiftVersion:   "5"
+
+    exePrefix: ''
+    exeExt: ''
+    shlibRe: 'lib(.+)\.dylib'
+    stlibRe: 'lib(.+)\.a'
+    sourceRe: '(?i).*(\.cpp|\.c|\.cc|\.cxx|\.c\+\+|.mm|.m)'
+    writeLibPattern: 'lib%s.a'
+    writeShLibPattern: 'lib%s.dylib'
+    writeExePattern: 'dmengine'
+    symbolsPattern: '.*dSYM'
+    zipContentPattern: 'dmengine'
+    allowedLibs:    ["(\\w[\\w\\.+-]+)"]
+    allowedFlags: ["-ObjC","-ObjC\\+\\+","-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17|c\\+\\+20)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-f(no-)?objc-arc(-exceptions)?","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-Wl,[-_a-zA-Z0-9,/@]+","-fno-rtti","-f\\w[\\w-=]+","-x","c"]
+    compileCmd: 'clang++ -c {{#systemIncludes}}-isystem {{{.}}} {{/systemIncludes}} {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -o{{tgt}}'
+    linkCmd: 'clang++ -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#ext.frameworks}}-framework {{{.}}} {{/ext.frameworks}} {{#frameworks}}-framework {{{.}}} {{/frameworks}} {{#src}}{{{.}}} {{/src}}'
+    libCmd: 'ar rcs {{tgt}} {{#objs}}{{{.}}} {{/objs}}'
+    symbolCmd: 'dsymutil -o {{src}}.dSYM {{src}}'
+    manifestName:     'Info.plist'
+    manifestMergeCmd: 'java -jar {{env.MANIFEST_MERGE_TOOL}} --platform {{platform}} --main {{mainManifest}} {{#libraries}} --lib {{.}} {{/libraries}} --out {{target}}'
+    emitSwiftHeaderCmd: '{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/bin/swiftc         {{#swiftFlags}}{{{.}}} {{/swiftFlags}} -module-name {{moduleName}} {{#swiftSourceFiles}}{{{.}}} {{/swiftSourceFiles}} {{#includes}}-I{{{.}}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} -DCOCOAPODS -DSWIFT_PACKAGE {{#defines}}-D{{{.}}} {{/defines}} -enable-bare-slash-regex -enforce-exclusivity=checked -emit-object -emit-objc-header -emit-objc-header-path {{swiftHeaderPath}}'
+    emitSwiftModuleCmd: '{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/bin/swiftc         {{#swiftFlags}}{{{.}}} {{/swiftFlags}} -module-name {{moduleName}} {{#swiftSourceFiles}}{{{.}}} {{/swiftSourceFiles}} {{#includes}}-I{{{.}}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} -DCOCOAPODS -DSWIFT_PACKAGE {{#defines}}-D{{{.}}} {{/defines}} -enable-bare-slash-regex -enforce-exclusivity=checked -emit-object -emit-module -emit-module-path {{swiftModulePath}}'
+    compileSwiftCmd:    '{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/bin/swift-frontend {{#swiftFlags}}{{{.}}} {{/swiftFlags}} -module-name {{moduleName}} {{#swiftSourceFiles}}{{{.}}} {{/swiftSourceFiles}} {{#includes}}-I{{{.}}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} -DCOCOAPODS -DSWIFT_PACKAGE {{#defines}}-D{{{.}}} {{/defines}} -enable-bare-slash-regex -enforce-exclusivity=checked -emit-object -import-underlying-module -enable-objc-interop -parse-as-library -primary-file {{swiftPrimarySourceFile}} -o{{tgt}}'
+    bitcodeStripCmd:    '{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/bin/bitcode_strip {{source}} -r -o {{target}}'
+
+  arm64-osx:
+    context:
+        libPaths:       ["{{dynamo_home}}/lib/arm64-macos", "{{dynamo_home}}/ext/lib/arm64-macos"]
+        flags:          ["-arch", "arm64", "-target", "arm64-apple-darwin19", "-m64"]
+        linkFlags:      ["-arch", "arm64", "-target", "arm64-apple-darwin19", "-m64"]
+        cxxLinkShFlags: ["-arch", "arm64", "-target", "arm64-apple-darwin19", "-m64"]
+        zig-target:     'aarch64-macos'
+        swiftFlags:     ["-target", "arm-apple-darwin19"]
+
+  x86_64-osx:
+    context:
+        libPaths:       ["{{dynamo_home}}/lib/x86_64-macos", "{{dynamo_home}}/ext/lib/x86_64-macos"]
+        flags:          ["-arch", "x86_64", "-target", "x86_64-apple-darwin19", "-m64"]
+        linkFlags:      ["-arch", "x86_64", "-target", "x86_64-apple-darwin19", "-m64"]
+        cxxLinkShFlags: ["-arch", "x86_64", "-target", "x86_64-apple-darwin19", "-m64"]
+        zig-target:     'x86_64-macos'
+        swiftFlags:     ["-target", "x86_64-apple-darwin19"]
+
+  x86-osx:
+    # Intentionally left empty to allow users to have old versions in their manifests
+
+  ios:
+    env:
+        PATH:                   "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_16_VERSION}}.xctoolchain/usr/bin:{{env.PATH}}"
+        PLATFORMSDK_DIR:        "{{env.PLATFORMSDK_DIR}}"
+        MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
+        XCODE_VERSION:          "{{env.XCODE_16_VERSION}}"
+        XCODE_CLANG_VERSION:    "{{env.XCODE_16_CLANG_VERSION}}"
+        SWIFT_VERSION:          "{{env.SWIFT_5_5_VERSION}}"
+        IOS_VERSION:            "{{env.IOS_18_VERSION}}"
+        IOS_VERSION_MIN:        "{{env.IOS_VERSION_MIN}}"
+
+    context:
+        weakFrameworks: ["Foundation"]
+        frameworks: ["OpenGLES", "OpenAL", "QuartzCore", "CoreGraphics", "AudioToolbox", "SystemConfiguration", "CoreVideo", "UIKit", "AVFoundation"]
+        engineLibs: ["engine", "engine_service", "mbedtls", "zip", "profile", "remotery", "profilerext", "record_null", "gameobject", "ddf", "resource", "gamesys", "gamesys_model", "gamesys_rig", "script_box2d", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "Box2D", "render", "render_font_default", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "image", "dmglfw", "gui", "crashext", "sound", "tremolo", "liveupdate", "resolv"]
+        systemIncludes:    ["{{env.SYSROOT}}/usr/include/c++/v1"]
+        dynamicLibs: []
+        symbols:    ["AudioDecoderTremolo"]
+        osMinVersion:   "{{env.IOS_VERSION_MIN}}"
+        swiftFlags:     ["-swift-version", "{{swiftVersion}}", "-sdk", "{{env.SYSROOT}}"]
+        swiftVersion:   "5"
+
+    exePrefix: ''
+    exeExt: ''
+    shlibRe: 'lib(.+)\.dylib'
+    stlibRe: 'lib(.+)\.a'
+    sourceRe: '(?i).*(\.cpp|\.c|\.cc|\.cxx|\.c\+\+|\.mm|\.m)'
+    writeLibPattern: 'lib%s.a'
+    writeExePattern: 'dmengine'
+    zipContentPattern: 'dmengine'
+    allowedLibs:    ["(\\w[\\w\\.+-]+)"]
+    symbolCmd: 'dsymutil -o {{src}}.dSYM {{src}}'
+    symbolsPattern: '.*dSYM'
+    libCmd: 'ar rcs {{tgt}} {{#objs}}{{{.}}} {{/objs}}'
+    emitSwiftHeaderCmd: '{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/bin/swiftc         {{#swiftFlags}}{{{.}}} {{/swiftFlags}} -module-name {{moduleName}} {{#swiftSourceFiles}}{{{.}}} {{/swiftSourceFiles}} {{#includes}}-I{{{.}}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} -DCOCOAPODS -DSWIFT_PACKAGE {{#defines}}-D{{{.}}} {{/defines}} -enable-bare-slash-regex -enforce-exclusivity=checked -emit-object -emit-objc-header -emit-objc-header-path {{swiftHeaderPath}}'
+    emitSwiftModuleCmd: '{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/bin/swiftc         {{#swiftFlags}}{{{.}}} {{/swiftFlags}} -module-name {{moduleName}} {{#swiftSourceFiles}}{{{.}}} {{/swiftSourceFiles}} {{#includes}}-I{{{.}}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} -DCOCOAPODS -DSWIFT_PACKAGE {{#defines}}-D{{{.}}} {{/defines}} -enable-bare-slash-regex -enforce-exclusivity=checked -emit-object -emit-module -emit-module-path {{swiftModulePath}}'
+    compileSwiftCmd:    '{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/bin/swift-frontend {{#swiftFlags}}{{{.}}} {{/swiftFlags}} -module-name {{moduleName}} {{#swiftSourceFiles}}{{{.}}} {{/swiftSourceFiles}} {{#includes}}-I{{{.}}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} -DCOCOAPODS -DSWIFT_PACKAGE {{#defines}}-D{{{.}}} {{/defines}} -enable-bare-slash-regex -enforce-exclusivity=checked -emit-object -import-underlying-module -enable-objc-interop -parse-as-library -primary-file {{swiftPrimarySourceFile}} -o{{tgt}}'
+    bitcodeStripCmd:    '{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/bin/bitcode_strip {{source}} -r -o {{target}}'
+    manifestName:     'Info.plist'
+    manifestMergeCmd: 'java -jar {{env.MANIFEST_MERGE_TOOL}} --platform {{platform}} --main {{mainManifest}} {{#libraries}} --lib {{.}} {{/libraries}} --out {{target}}'
+
+  arm64-ios:
+    env:
+        SYSROOT:    "{{env.PLATFORMSDK_DIR}}/iPhoneOS{{env.IOS_18_VERSION}}.sdk"
+    context:
+        libPaths:   ["{{dynamo_home}}/lib/arm64-ios", "{{dynamo_home}}/ext/lib/arm64-ios", "{{env.SYSROOT}}/usr/lib", "{{env.SYSROOT}}/usr/lib/swift", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/swift-{{env.SWIFT_VERSION}}/iphoneos", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/swift/iphoneos", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/clang/{{env.XCODE_CLANG_VERSION}}/lib/darwin"]
+        defines:    ["DM_PLATFORM_IOS"]
+        flags:      ["-fno-exceptions", "-fvisibility=hidden"]
+        linkFlags:  ['-fobjc-link-runtime', '-dead_strip', '-Wl,-U,_objc_loadClassref']
+        libs:       ['clang_rt.ios']
+        swiftFlags: ["-target", "arm64-apple-ios{{env.IOS_VERSION_MIN}}"]
+
+    allowedFlags: ["-ObjC","-ObjC\\+\\+","-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17|c\\+\\+20)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-f(no-)?objc-arc(-exceptions)?","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-Wl,[-_a-zA-Z0-9,/@]+","-fno-rtti","-f\\w[\\w-=]+","-x","c"]
+    compileCmd: 'clang++ -c -arch arm64 -target arm-apple-ios{{env.IOS_VERSION_MIN}} -m64 -O2 -g -stdlib=libc++ -miphoneos-version-min={{env.IOS_VERSION_MIN}} -isysroot {{env.SYSROOT}} -nostdinc++ {{#systemIncludes}}-isystem {{{.}}} {{/systemIncludes}} {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#includes}}-I{{{.}}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{src}} -o{{tgt}}'
+    linkCmd: 'clang++ -arch arm64 -target arm-apple-ios{{env.IOS_VERSION_MIN}} -m64 -O2 -g -stdlib=libc++ -miphoneos-version-min={{env.IOS_VERSION_MIN}} -isysroot {{env.SYSROOT}} -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#ext.frameworks}}-framework {{{.}}} {{/ext.frameworks}} {{#frameworks}}-framework {{{.}}} {{/frameworks}} {{#weakFrameworks}}-weak_framework {{{.}}} {{/weakFrameworks}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#src}}{{{.}}} {{/src}}'
+
+  # armv7-ios removed in Defold 1.2.193
+
+  x86_64-ios:
+    env:
+        SYSROOT:                "{{env.PLATFORMSDK_DIR}}/iPhoneSimulator{{env.IOS_18_VERSION}}.sdk"
+    context:
+        libPaths:   ["{{dynamo_home}}/lib/x86_64-ios", "{{dynamo_home}}/ext/lib/x86_64-ios", "{{env.SYSROOT}}/usr/lib", "{{env.SYSROOT}}/usr/lib/swift", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/swift-{{env.SWIFT_VERSION}}/iphonesimulator", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/swift/iphonesimulator", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/clang/{{env.XCODE_CLANG_VERSION}}/lib/darwin"]
+        defines:    ["IOS_SIMULATOR", "DM_PLATFORM_IOS", "LUA_BYTECODE_ENABLE_32"]
+        flags:      ["-fno-exceptions", "-fvisibility=hidden"]
+        linkFlags:  ['-fobjc-link-runtime', '-dead_strip', '-pagezero_size', '10000', '-image_base', '100000000', '-Wl,-U,_objc_loadClassref']
+        libs:       ['clang_rt.iossim']
+        swiftFlags: ["-target", "x86_64-apple-ios{{env.IOS_VERSION_MIN}}-simulator"]
+
+    allowedFlags: ["-ObjC","-ObjC\\+\\+","-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17|c\\+\\+20)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-f(no-)?objc-arc(-exceptions)?","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-Wl,[-_a-zA-Z0-9,/@]+","-fno-rtti","-f\\w[\\w-=]+","-x","c"]
+    compileCmd: 'clang++ -c -arch x86_64 -target x86_64-apple-ios{{env.IOS_VERSION_MIN}}-simulator -m64 -O2 -g -stdlib=libc++ -miphoneos-version-min={{env.IOS_VERSION_MIN}} -isysroot {{env.SYSROOT}} -nostdinc++ {{#systemIncludes}}-isystem {{{.}}} {{/systemIncludes}} {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#includes}}-I{{{.}}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{src}} -o{{tgt}}'
+    linkCmd: 'clang++ -arch x86_64 -target x86_64-apple-ios{{env.IOS_VERSION_MIN}}-simulator -m64 -O2 -g -stdlib=libc++ -miphoneos-version-min={{env.IOS_VERSION_MIN}} -isysroot {{env.SYSROOT}} -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#ext.frameworks}}-framework {{{.}}} {{/ext.frameworks}} {{#frameworks}}-framework {{{.}}} {{/frameworks}} {{#weakFrameworks}}-weak_framework {{{.}}} {{/weakFrameworks}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#src}}{{{.}}} {{/src}}'
+
+  android:
+    env:
+        PROGUARD:                 "{{env.ANDROID_PROGUARD}}"
+        LIBRARYJAR:               "{{env.ANDROID_LIBRARYJAR_35}}"
+        NDK_PATH:                 "{{env.ANDROID_NDK25_PATH}}"
+        SYSROOT:                  "{{env.ANDROID_NDK25_SYSROOT}}"
+        MANIFEST_MERGE_TOOL:      "{{env.MANIFEST_MERGE_TOOL}}"
+        PATH:                     "{{env.PATH}}"
+        NDK_LD:                   "{{env.ANDROID_NDK25_BIN_PATH}}/ld.lld"
+        NDK_AR:                   "{{env.ANDROID_NDK25_BIN_PATH}}/llvm-ar"
+        ANDROID_SDK_VERSION:      "{{env.ANDROID_SDK_VERSION_35}}"
+        ANDROID_BUILD_TOOLS_PATH: "{{env.ANDROID_SDK_BUILD_TOOLS_PATH_35}}"
+    context:
+        engineJars: ["{{dynamo_home}}/ext/share/java/android-support-multidex.jar", "{{dynamo_home}}/ext/share/java/androidx-multidex.jar", "{{dynamo_home}}/ext/share/java/glfw_android.jar", "{{dynamo_home}}/share/java/gamesys_android.jar", "{{dynamo_home}}/share/java/sound_android.jar"]
+        engineLibs: ["engine", "engine_service", "mbedtls", "zip", "profile", "remotery", "profilerext", "record_null", "gameobject", "ddf", "resource", "gamesys", "gamesys_model", "gamesys_rig", "script_box2d", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "Box2D", "render", "render_font_default", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "image", "dmglfw", "gui", "crashext", "sound", "tremolo", "liveupdate", "unwind"]
+        platformIncludes:   ["{{env.NDK_PATH}}/sources/android/native_app_glue", "{{env.NDK_PATH}}/sources/android/cpufeatures"]
+        flags:      ["-fno-exceptions", "-fvisibility=hidden"]
+        linkFlags:  ["-Wl,--build-id=uuid"]
+        libs:       []
+        dynamicLibs: ["EGL","GLESv1_CM","GLESv2","OpenSLES","m","log","c"]
+        symbols:    ["AudioDecoderTremolo"]
+
+    exePrefix: 'lib'
+    exeExt: '.so'
+    shlibRe: 'lib(.+)\.so'
+    stlibRe: 'lib(.+)\.a'
+    sourceRe: '(?i).+(\.cpp|\.c|\.cc|\.cxx|\.c\+\+)$'
+    javaSourceRe: '(?i).+(\.java)$'
+    writeLibPattern: 'lib%s.a'
+    writeExePattern: 'libdmengine.so'
+    zipContentPattern: 'libdmengine.so'
+    allowedLibs:    ["(\\w[\\w\\.+-]+)"]
+    allowedFlags: ["-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17|c\\+\\+20)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-rdynamic","-Wl,[-_a-zA-Z0-9,/@]+","-fno-rtti","-fpermissive","-f\\w[\\w-=]+","-x","c"]
+    libCmd: '{{env.NDK_AR}} rcs {{tgt}} {{#objs}}{{.}} {{/objs}}'
+    javacCmd: 'javac -source 1.8 -target 1.8 -J-Xms2048m -J-Xmx2048m -classpath {{env.LIBRARYJAR}}:{{classPath}} -d {{classesDir}} @{{sourcesListFile}}'
+    jarCmd: 'jar cf {{outputJar}} -C {{classesDir}} .'
+    # mainDexList is automatically created by listing all classes inside the engine jars
+    dxCmd: '{{env.ANDROID_BUILD_TOOLS_PATH}}/d8 --main-dex-rules {{mainDexList}} --output {{classes_dex_dir}} --release --lib {{env.LIBRARYJAR}} {{#jars}}{{.}} {{/jars}}'
+    proGuardCmd: 'java -jar {{env.PROGUARD}} {{#src}}-include {{.}} {{/src}} -libraryjars {{env.LIBRARYJAR}} {{#jars}}-injars {{.}} {{/jars}} {{#libraryjars}}-libraryjars {{.}} {{/libraryjars}} -outjar {{tgt}} -printmapping {{mapping}}'
+    proGuardSourceRe: '(?i).+(\.pro)$'
+    aapt2compileCmd: '{{env.ANDROID_BUILD_TOOLS_PATH}}/aapt2 compile {{resourceFile}} -o {{outputDirectory}}'
+    aapt2linkCmd: '{{env.ANDROID_BUILD_TOOLS_PATH}}/aapt2 link {{#extraPackages.length}}--extra-packages {{#extraPackages}}{{.}}{{/extraPackages}}{{/extraPackages.length}} --proto-format --non-final-ids --auto-add-overlay --manifest {{manifestFile}} -I {{env.LIBRARYJAR}} --java {{outJavaDirectory}} -o {{outApkFile}} --emit-ids {{resourceIdsFile}} -R @{{resourceListFile}}'
+    manifestName:     'AndroidManifest.xml'
+    manifestMergeCmd: 'java -jar {{env.MANIFEST_MERGE_TOOL}} --platform {{platform}} --main {{mainManifest}} {{#libraries}} --lib {{.}} {{/libraries}} --out {{target}}'
+
+
+  armv7-android:
+    env:
+        NDK_VERSION:            "{{env.ANDROID_NDK25_API_VERSION}}"
+        NDK_CXX:                "{{env.ANDROID_NDK25_BIN_PATH}}/armv7a-linux-androideabi{{env.ANDROID_NDK25_API_VERSION}}-clang++"
+    context:
+        libPaths:   ["{{dynamo_home}}/lib/armv7-android", "{{dynamo_home}}/ext/lib/armv7-android"]
+        defines:    ["DM_PLATFORM_ANDROID", "LUA_BYTECODE_ENABLE_32", "__ARM_ARCH_5__", "__ARM_ARCH_5T__", "__ARM_ARCH_5E__", "__ARM_ARCH_5TE__"]
+
+    compileCmd: '{{env.NDK_CXX}} -c -O2 -g -gdwarf-2 -fpic -ffunction-sections -fstack-protector -march=armv7-a -mfloat-abi=softfp -mfpu=vfp -fomit-frame-pointer -fno-strict-aliasing -funwind-tables -isysroot={{env.SYSROOT}} -DANDROID -Wa,--noexecstack {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{.}} {{/ext.includes}} {{#includes}}-I{{.}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{src}} -o{{tgt}}'
+    linkCmd: '{{env.NDK_CXX}} -fuse-ld={{env.NDK_LD}} -O2 -g -isysroot={{env.SYSROOT}} -static-libstdc++ {{#src}}{{.}} {{/src}} -o {{tgt}} -Wl,-soname=libdmengine.so {{#defines}}-D{{{.}}} {{/defines}} {{#linkFlags}}{{{.}}} {{/linkFlags}} -Wl,--fix-cortex-a8 -Wl,--no-undefined -Wl,-z,noexecstack -landroid -fpic -z text {{#ext.libPaths}}-L{{.}} {{/ext.libPaths}} {{#libPaths}}-L{{.}} {{/libPaths}} -Wl,-Bstatic -Wl,--start-group -lc++_static {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{.}} {{/ext.libs}} {{#engineLibs}}-l{{.}} {{/engineLibs}} -Wl,--end-group -Wl,-Bdynamic {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} -Wl,--no-undefined -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now -shared'
+
+  arm64-android:
+    env:
+        NDK_VERSION:            "{{env.ANDROID_64_NDK25_API_VERSION}}"
+        NDK_CXX:                "{{env.ANDROID_NDK25_BIN_PATH}}/aarch64-linux-android{{env.ANDROID_64_NDK25_API_VERSION}}-clang++"
+    context:
+        libPaths:   ["{{dynamo_home}}/lib/arm64-android", "{{dynamo_home}}/ext/lib/arm64-android"]
+        defines:    ["DM_PLATFORM_ANDROID", "__aarch64__"]
+
+    compileCmd: '{{env.NDK_CXX}} -c -O2 -g -gdwarf-2 -fpic -ffunction-sections -fstack-protector -march=armv8-a -fomit-frame-pointer -fno-strict-aliasing -funwind-tables -isysroot={{env.SYSROOT}} -DANDROID -Wa,--noexecstack {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{.}} {{/ext.includes}} {{#includes}}-I{{.}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{src}} -o{{tgt}}'
+    linkCmd: '{{env.NDK_CXX}} -fuse-ld={{env.NDK_LD}} -O2 -g -isysroot={{env.SYSROOT}} -static-libstdc++ {{#src}}{{.}} {{/src}} -o {{tgt}} -Wl,-soname=libdmengine.so {{#defines}}-D{{{.}}} {{/defines}} {{#linkFlags}}{{{.}}} {{/linkFlags}} -Wl,--no-undefined -Wl,-z,noexecstack -landroid -fpic -z text {{#ext.libPaths}}-L{{.}} {{/ext.libPaths}} {{#libPaths}}-L{{.}} {{/libPaths}} -Wl,-Bstatic -Wl,--start-group -lc++_static {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{.}} {{/ext.libs}} {{#engineLibs}}-l{{.}} {{/engineLibs}} -Wl,--end-group -Wl,-Bdynamic {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} -Wl,--no-undefined -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,max-page-size=16384 -Wl,-z,now -shared'
+
+  web:
+    # It's here to whitelist this as a platform, currently used for general settings
+    env:
+        EM_CACHE:               "{{env.EMSCRIPTEN_CACHE_3_1_65}}"
+        EM_CONFIG:              "{{env.EMSCRIPTEN_CONFIG_3_1_65}}"
+        EMSDK_PYTHON:           "{{env.EMSCRIPTEN_PYTHON_3_1_65}}"
+        PATH:                   "{{env.EMSCRIPTEN_PATH_3_1_65}}:{{env.PATH}}"
+        EMSCRIPTEN_HOME:        "{{env.EMSCRIPTEN_HOME_3_1_65}}"
+        EMSCRIPTEN_BIN:         "{{env.EMSCRIPTEN_BIN_3_1_65}}"
+        MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
+    context:
+        optLevel: 3
+        stackSize: 5242880
+        minFirefoxVersion: 34
+        minChromeVersion: 32
+        minSafariVersion: 90000
+        initialMemory: 33554432
+        engineJsLibs:   ["sys", "script", "sound", "render"]
+        externalJsLibs: ["glfw"]
+        engineLibs: ["engine", "engine_service", "mbedtls", "zip", "profile_null", "remotery_null", "profilerext_null", "record_null", "gameobject", "ddf", "resource", "gamesys", "gamesys_model", "gamesys_rig", "script_box2d", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "Box2D", "render", "render_font_default", "script", "lua", "extension", "hid", "input", "particle", "rig", "dlib", "image", "dmglfw", "gui", "crashext", "liveupdate", "sound"]
+        defines:    ["DM_PLATFORM_HTML5", "GL_ES_VERSION_2_0"]
+        flags:      ["-fno-exceptions", "-fno-rtti", "-fPIC"]
+        linkFlags:  ["--emit-symbol-map", "-O{{optLevel}}"]
+        emscriptenFlags: ["DISABLE_EXCEPTION_CATCHING=1"]
+        emscriptenLinkFlags: ["INITIAL_MEMORY={{initialMemory}}", "DISABLE_EXCEPTION_CATCHING=1", "ALLOW_UNIMPLEMENTED_SYSCALLS=0", "IMPORTED_MEMORY=1", "EXPORTED_FUNCTIONS=_JSWriteDump,_main,_dmExportedSymbols,_malloc,_free", "EXPORTED_RUNTIME_METHODS=[\"ccall\",\"callMain\",\"UTF8ToString\",\"HEAPU8\",\"stringToNewUTF8\"]", "ERROR_ON_UNDEFINED_SYMBOLS=1", "MAX_WEBGL_VERSION=2", "STACK_SIZE={{stackSize}}", "MIN_FIREFOX_VERSION={{minFirefoxVersion}}", "MIN_SAFARI_VERSION={{minSafariVersion}}", "MIN_CHROME_VERSION={{minChromeVersion}}"]
+        libs:       ["idbfs.js"]
+    exePrefix:      ''
+    exeExt:         '.js'
+    shlibRe:        'lib(.+)\.so'
+    stlibRe:        'lib(.+)\.a'
+    sourceRe:       '(?i).*(\.cpp|\.c|\.cc|\.cxx|\.c\+\+)'
+    writeLibPattern: 'lib%s.a'
+    writeExePattern: 'dmengine.js'
+    allowedLibs:    ["(\\w[\\w\\.+-]+)"]
+    allowedFlags:   ["--bind","--tracing","-gseparate-dwarf","--emit-module-names","-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17|c\\+\\+20)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-f\\w[\\w-=]+","-x","c","-l\\w+.js"]
+    compileCmd:     '{{env.EMSCRIPTEN_BIN}}/em++ -c -O{{optLevel}} -g {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#emscriptenFlags}}-s {{{.}}} {{/emscriptenFlags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -o {{tgt}}'
+    libCmd:         '{{env.EMSCRIPTEN_BIN}}/emar rcs {{tgt}} {{#objs}}{{{.}}} {{/objs}}'
+    manifestName:     'engine_template.html'
+    manifestMergeCmd: 'java -jar {{env.MANIFEST_MERGE_TOOL}} --platform {{platform}} --main {{mainManifest}} {{#libraries}} --lib {{.}} {{/libraries}} --out {{target}}'
+
+  js-web:
+    context:
+        libPaths:   ["{{dynamo_home}}/lib/js-web", "{{dynamo_home}}/ext/lib/js-web"]
+        emscriptenLinkFlags: ["WASM=0", "LEGACY_VM_SUPPORT=1"]
+
+    symbolsPattern:  'dmengine.js.symbols'
+    zipContentPattern: 'dmengine.js'
+    linkCmd:        '{{env.EMSCRIPTEN_BIN}}/em++ {{#src}}{{{.}}} {{/src}} -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#emscriptenLinkFlags}}-s {{{.}}} {{/emscriptenLinkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} -Wl,--start-group {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} -Wl,--end-group {{#ext.jsLibs}}--js-library {{{.}}} {{/ext.jsLibs}} {{#engineJsLibs}}--js-library {{dynamo_home}}/lib/js-web/js/library_{{{.}}}.js {{/engineJsLibs}} {{#externalJsLibs}}--js-library {{dynamo_home}}/ext/lib/js-web/js/library_{{{.}}}.js {{/externalJsLibs}}'
+
+  wasm-web:
+    context:
+        libPaths:   ["{{dynamo_home}}/lib/wasm-web", "{{dynamo_home}}/ext/lib/wasm-web"]
+        emscriptenLinkFlags: ["ALLOW_MEMORY_GROWTH=1", "WASM=1"]
+
+    symbolsPattern:  'dmengine.(js.symbols|wasm.debug.wasm)'
+    zipContentPattern: 'dmengine.(wasm|js)'
+    allowedFlags:   ["--profiling", "-msimd128"]
+    linkCmd:        '{{env.EMSCRIPTEN_BIN}}/em++ {{#src}}{{{.}}} {{/src}} -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#emscriptenLinkFlags}}-s {{{.}}} {{/emscriptenLinkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} -Wl,--start-group {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} -Wl,--end-group {{#ext.jsLibs}}--js-library {{{.}}} {{/ext.jsLibs}} {{#engineJsLibs}}--js-library {{dynamo_home}}/lib/wasm-web/js/library_{{{.}}}.js {{/engineJsLibs}} {{#externalJsLibs}}--js-library {{dynamo_home}}/ext/lib/js-web/js/library_{{{.}}}.js {{/externalJsLibs}}'
+
+  win32:
+    env:
+        TMP:                "{{build_folder}}"
+        TEMP:               "{{build_folder}}"
+        MSVC_DIR:           "{{env.WINDOWS_MSVC_DIR_2022}}"
+        VCINSTALLDIR:       "{{env.WINDOWS_VCINSTALLDIR_2022}}"
+        VSINSTALLDIR:       "{{env.WINDOWS_VSINSTALLDIR_2022}}"
+        SDK10_DIR:          "{{env.WINDOWS_SDK_10_DIR}}"
+        SDK10_VERSION:      "{{env.WINDOWS_SDK_10_20348_VERSION}}"
+        CLANG_HOME:         "{{env.CLANG_17_RESOURCE_DIR}}"
+    context:
+        systemIncludes: ["{{env.CLANG_HOME}}/include", "{{env.MSVC_DIR}}/include", "{{env.MSVC_DIR}}/atlmfc/include", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/ucrt", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/winrt", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/um", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/shared"]
+        engineLibs:     ["libengine","libengine_service","libmbedtls","libzip","libprofile","libremotery","libprofilerext","librecord","libgameobject","libddf","libresource","libgamesys","libgamesys_model","libgamesys_rig","libscript_box2d","libgraphics","libgraphics_transcoder_basisu","libbasis_transcoder","libphysics","libBulletDynamics","libBulletCollision","libplatform","libLinearMath","libBox2D","librender","librender_font_default","libscript","libluajit-5.1","libextension","libhid","libinput","libparticle","librig","libdlib", "libimage", "libglfw3","libgui","libcrashext","libliveupdate","libsound","vpx"]
+        libs:           ["OpenGL32", "delayimp", "User32", "shell32", "Xinput9_1_0", "dinput8", "dxguid", "WS2_32", "iphlpapi", "DbgHelp", "AdvAPI32", "Psapi", "Gdi32", "ole32"]
+        symbols:        []
+
+    exePrefix:      ''
+    exeExt:         '.exe'
+    shlibRe:        '(.+)\.dll'
+    stlibRe:        '(.+)\.lib'
+    sourceRe:       '(?i).*(\.cpp|\.c|\.cc|\.cxx|\.c\+\+)'
+    writeLibPattern: '%s.lib'
+    writeShLibPattern: 'lib%s.dll'
+    writeExePattern: 'dmengine.exe'
+    zipContentPattern: 'dmengine.exe'
+    symbolsPattern:  '.*pdb'
+    allowedLibs:    ["(\\w[\\w\\.+-]+)"]
+    allowedFlags:   ["-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17|c\\+\\+20)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-rdynamic","-Wl,[-_a-zA-Z0-9,/@]+","-fno-rtti","-fpermissive","-Wl,/subsystem:(console|windows)","-Wl,/entry:\\w+","-f\\w[\\w-=]+","-x","c"]
+    compileCmd:     'clang++ {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} -nostdinc++ {{#systemIncludes}}-isystem {{{.}}} {{/systemIncludes}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -c -o {{tgt}}'
+    linkCmd:        'clang++ -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#src}}{{{.}}} {{/src}}'
+    libCmd:         '/usr/bin/ar rcs {{tgt}} {{#objs}}{{{.}}} {{/objs}}'
+
+  x86_64-win32:
+
+    context:
+        libPaths:   ["{{dynamo_home}}/lib/x86_64-win32", "{{dynamo_home}}/ext/lib/x86_64-win32", "{{env.MSVC_DIR}}/lib/x64", "{{env.MSVC_DIR}}/atlmfc/lib/x64", "{{env.SDK10_DIR}}/Lib/{{env.SDK10_VERSION}}/ucrt/x64", "{{env.SDK10_DIR}}/Lib/{{env.SDK10_VERSION}}/um/x64"]
+        defines:        ["DM_PLATFORM_WINDOWS", "_CRT_SECURE_NO_WARNINGS", "_CRT_USE_BUILTIN_OFFSETOF", "_WINSOCK_DEPRECATED_NO_WARNINGS", "__STDC_LIMIT_MACROS", "WINVER=0x0600", "WIN32", "NOMINMAX"]
+        flags:          ["-target", "x86_64-pc-win32-msvc", "-m64", "-O2", "-g", "-gcodeview", "-O2", "-Wall", "-Werror=format", "-fvisibility=hidden", "-nostdinc++"]
+        linkFlags:      ["-target", "x86_64-pc-win32-msvc", "-m64", "-O2", "-g", "-O2", "-fuse-ld=lld", "-Wl,/entry:mainCRTStartup", "-Wl,/safeseh:no"]
+        cxxLinkShFlags: ["-target", "x86_64-pc-win32-msvc", "-m64", "-O2", "-g", "-O2", "-fuse-ld=lld", "-Wl,/safeseh:no"]
+
+    windresCmd:     'windres -i {{dynamo_home}}/lib/x86_64-win32/engine.rc -O coff -o {{tgt}}'
+
+  x86-win32:
+    context:
+        libPaths:   ["{{dynamo_home}}/lib/win32","{{dynamo_home}}/ext/lib/win32","{{env.MSVC_DIR}}/lib/x86", "{{env.MSVC_DIR}}/atlmfc/lib/x86", "{{env.SDK10_DIR}}/Lib/{{env.SDK10_VERSION}}/ucrt/x86", "{{env.SDK10_DIR}}/Lib/{{env.SDK10_VERSION}}/um/x86"]
+        defines:        ["DM_PLATFORM_WINDOWS", "LUA_BYTECODE_ENABLE_32", "_CRT_SECURE_NO_WARNINGS", "_CRT_USE_BUILTIN_OFFSETOF", "_WINSOCK_DEPRECATED_NO_WARNINGS", "__STDC_LIMIT_MACROS", "WINVER=0x0600", "WIN32", "NOMINMAX"]
+        flags:          ["-target", "i386-pc-win32-msvc", "-m32", "-O2", "-g", "-gcodeview", "-Wall", "-Werror=format", "-fvisibility=hidden", "-nostdinc++"]
+        linkFlags:      ["-target", "i386-pc-win32-msvc", "-m32", "-O2", "-g", "-fuse-ld=lld", "-Wl,/entry:mainCRTStartup", "-Wl,/safeseh:no"]
+        cxxLinkShFlags: ["-target", "i386-pc-win32-msvc", "-m32", "-O2", "-g", "-fuse-ld=lld", "-Wl,/safeseh:no"]
+
+    windresCmd:     'windres -i {{dynamo_home}}/lib/win32/engine.rc -O coff --target=pe-i386 -o {{tgt}}'
+
+  linux:
+    context:
+        engineLibs:     ["engine", "engine_service", "mbedtls", "zip", "profile", "remotery", "profilerext", "record", "gameobject", "ddf", "resource", "gamesys", "gamesys_model", "gamesys_rig", "script_box2d", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "Box2D", "render", "render_font_default", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "image", "glfw3", "gui", "crashext", "liveupdate", "sound", "tremolo", "vpx"]
+        defines:        ["DM_PLATFORM_LINUX", "__STDC_LIMIT_MACROS"]
+        flags:          ["-g", "-O2", "-D__STDC_LIMIT_MACROS", "-Wall", "-Werror=format", "-fno-exceptions", "-fPIC", "-fvisibility=hidden"]
+        linkFlags:      ["-g", "-O2"]
+        cxxLinkShFlags: ["-g", "-O2"]
+        libs:           []
+        # this happens to contain some dynamic engine libs too (openal)
+        dynamicLibs: ["openal","Xext","X11","Xi","pthread","m","dl"]
+
+    exePrefix:      ''
+    exeExt:         ''
+    shlibRe:        'lib(.+)\.so'
+    stlibRe:        'lib(.+)\.a'
+    sourceRe:       '(?i).*(\.cpp|\.c|\.cc|\.cxx|\.c\+\+)'
+    writeLibPattern: 'lib%s.a'
+    writeShLibPattern: 'lib%s.so'
+    writeExePattern: 'dmengine'
+    zipContentPattern: 'dmengine|dmengine_unstripped'
+    allowedLibs:    ["(\\w[\\w\\.+-]+)"]
+    allowedFlags:   ["-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17|c\\+\\+20)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-rdynamic","-Wl,[-_a-zA-Z0-9,/@]+","-fno-rtti","-fpermissive","-f\\w[\\w-=]+","-x","c"]
+    compileCmd:     'clang++ {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -c -o {{tgt}}'
+    linkCmds:       ['clang++ {{#src}}{{{.}}} {{/src}} -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} -Wl,-Bstatic -Wl,--start-group {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} -Wl,--end-group -Wl,-Bdynamic -Wl,-rpath=$ORIGIN,--enable-new-dtags {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}}',
+                     'cp {{tgt}} {{tgt}}_unstripped',
+                     'strip {{tgt}}']
+    libCmd:         'llvm-ar rcs {{tgt}} {{#objs}}{{.}} {{/objs}}'    
+
+  x86_64-linux:
+    env:
+      LD_LIBRARY_PATH:  '{{dynamo_home}}/lib/x86_64-linux:{{env.LD_LIBRARY_PATH}}'
+
+    context:
+        engineLibs:  ["graphics"]
+        libPaths:    ["{{dynamo_home}}/lib/x86_64-linux","{{dynamo_home}}/ext/lib/x86_64-linux"]
+        dynamicLibs: ["GL","GLU"]
+
+  arm64-linux:
+    env:
+      LD_LIBRARY_PATH:  '{{dynamo_home}}/lib/arm64-linux:{{env.LD_LIBRARY_PATH}}'
+
+    context:
+        symbols:        ["GraphicsAdapterOpenGLES"]
+        excludeSymbols: ["GraphicsAdapterOpenGL"]
+        engineLibs:     ["graphics_opengles"]
+        libPaths:       ["{{dynamo_home}}/lib/arm64-linux","{{dynamo_home}}/ext/lib/arm64-linux"]
+        dynamicLibs:    ["EGL", "GLESv1_CM", "GLESv2"]

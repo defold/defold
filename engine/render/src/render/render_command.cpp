@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -25,20 +25,20 @@ namespace dmRender
         m_Type = type;
     }
 
-    Command::Command(CommandType type, uintptr_t op0)
+    Command::Command(CommandType type, uint64_t op0)
     {
         m_Type = type;
         m_Operands[0] = op0;
     }
 
-    Command::Command(CommandType type, uintptr_t op0, uintptr_t op1)
+    Command::Command(CommandType type, uint64_t op0, uint64_t op1)
     {
         m_Type = type;
         m_Operands[0] = op0;
         m_Operands[1] = op1;
     }
 
-    Command::Command(CommandType type, uintptr_t op0, uintptr_t op1, uintptr_t op2)
+    Command::Command(CommandType type, uint64_t op0, uint64_t op1, uint64_t op2)
     {
         m_Type = type;
         m_Operands[0] = op0;
@@ -46,7 +46,7 @@ namespace dmRender
         m_Operands[2] = op2;
     }
 
-    Command::Command(CommandType type, uintptr_t op0, uintptr_t op1, uintptr_t op2, uintptr_t op3)
+    Command::Command(CommandType type, uint64_t op0, uint64_t op1, uint64_t op2, uint64_t op3)
     {
         m_Type = type;
         m_Operands[0] = op0;
@@ -76,17 +76,25 @@ namespace dmRender
                 }
                 case COMMAND_TYPE_SET_RENDER_TARGET:
                 {
-                    dmGraphics::SetRenderTarget(context, (dmGraphics::HRenderTarget)c->m_Operands[0], c->m_Operands[1] );
+                    dmGraphics::SetRenderTarget(context, c->m_Operands[0], c->m_Operands[1]);
                     break;
                 }
                 case COMMAND_TYPE_ENABLE_TEXTURE:
                 {
-                    render_context->m_Textures[c->m_Operands[0]] = (dmGraphics::HTexture)c->m_Operands[1];
+                    // operand order: Hash, Unit, Texture
+                    if (c->m_Operands[0])
+                        dmRender::SetTextureBindingByHash(render_context, c->m_Operands[0], c->m_Operands[2]);
+                    else
+                        dmRender::SetTextureBindingByUnit(render_context, c->m_Operands[1], c->m_Operands[2]);
                     break;
                 }
                 case COMMAND_TYPE_DISABLE_TEXTURE:
                 {
-                    render_context->m_Textures[c->m_Operands[0]] = 0;
+                    // operand order: Hash, Unit, Texture
+                    if (c->m_Operands[0])
+                        dmRender::SetTextureBindingByHash(render_context, c->m_Operands[0], 0);
+                    else
+                        dmRender::SetTextureBindingByUnit(render_context, c->m_Operands[1], 0);
                     break;
                 }
                 case COMMAND_TYPE_CLEAR:
@@ -168,18 +176,18 @@ namespace dmRender
                 }
                 case COMMAND_TYPE_DRAW:
                 {
-                    dmVMath::Matrix4* matrix = (dmVMath::Matrix4*)c->m_Operands[2];
+                    FrustumOptions* frustum_options = (FrustumOptions*)c->m_Operands[2];
                     dmRender::DrawRenderList(render_context, (dmRender::Predicate*)c->m_Operands[0],
                                                              (dmRender::HNamedConstantBuffer)c->m_Operands[1],
-                                                             matrix);
-                    delete matrix;
+                                                             frustum_options);
+                    delete frustum_options;
                     break;
                 }
                 case COMMAND_TYPE_DRAW_DEBUG3D:
                 {
-                    dmVMath::Matrix4* matrix = (dmVMath::Matrix4*)c->m_Operands[0];
-                    dmRender::DrawDebug3d(render_context, matrix);
-                    delete matrix;
+                    FrustumOptions* frustum_options = (FrustumOptions*)c->m_Operands[0];
+                    dmRender::DrawDebug3d(render_context, frustum_options);
+                    delete frustum_options;
                     break;
                 }
                 case COMMAND_TYPE_DRAW_DEBUG2D:
@@ -197,6 +205,23 @@ namespace dmRender
                     render_context->m_Material = 0;
                     break;
                 }
+                case COMMAND_TYPE_SET_COMPUTE:
+                {
+                    render_context->m_ComputeProgram = (HComputeProgram) c->m_Operands[0];
+                    break;
+                }
+                case COMMAND_TYPE_DISPATCH_COMPUTE:
+                {
+                    dmRender::DispatchCompute(render_context,
+                        c->m_Operands[0], c->m_Operands[1], c->m_Operands[2], // group x,y,z
+                        (dmRender::HNamedConstantBuffer) c->m_Operands[3]);
+                    break;
+                }
+                case COMMAND_TYPE_SET_RENDER_CAMERA:
+                {
+                    render_context->m_CurrentRenderCamera           = (HRenderCamera) c->m_Operands[0];
+                    render_context->m_CurrentRenderCameraUseFrustum = c->m_Operands[1];
+                } break;
                 default:
                 {
                     dmLogError("No such render command (%d).", c->m_Type);

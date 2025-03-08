@@ -1,0 +1,17 @@
+#! /usr/bin/env python
+
+def configure(conf):
+    pass
+
+def build(bld):
+    if bld.env.DOTNET:
+        bld.stlib(features= 'cs_stlib',
+                  project = 'cs/test_lua_cs.csproj')
+        bld.add_group()
+        t = bld.program(features = 'cxx test',
+                        includes = '../../src .',
+                        use = 'TESTMAIN DLIB PROFILE_NULL SOCKET CSHARP LUA',
+                        target = 'test_lua_csharp',
+                        source = 'test_lua_csharp.cpp')
+        t.env.append_value('LINKFLAGS', [t.env.LIB_ST % 'test_lua_cs'])
+        t.env.append_value('LINKFLAGS', ['-Lsrc/test/cs'])

@@ -1,0 +1,431 @@
+pages {
+  name: "anim_trim.png"
+  size {
+    width: 128.0
+    height: 128.0
+  }
+  sprites {
+    name: "sq9"
+    trimmed: true
+    rotated: false
+    is_solid: false
+    untrimmed_size {
+      width: 128.0
+      height: 128.0
+    }
+    corner_offset {
+      x: 13.0
+      y: 25.0
+    }
+    source_rect {
+      x: 13.0
+      y: 25.0
+      width: 34.0
+      height: 54.0
+    }
+    frame_rect {
+      x: 0.0
+      y: 0.0
+      width: 34.0
+      height: 54.0
+    }
+    vertices {
+      x: 41.0
+      y: 79.0
+    }
+    vertices {
+      x: 13.0
+      y: 51.0
+    }
+    vertices {
+      x: 47.0
+      y: 25.0
+    }
+    indices: 0
+    indices: 1
+    indices: 2
+  }
+  sprites {
+    name: "sq7"
+    trimmed: true
+    rotated: false
+    is_solid: false
+    untrimmed_size {
+      width: 128.0
+      height: 128.0
+    }
+    corner_offset {
+      x: 65.0
+      y: 70.0
+    }
+    source_rect {
+      x: 65.0
+      y: 70.0
+      width: 34.0
+      height: 54.0
+    }
+    frame_rect {
+      x: 32.0
+      y: 0.0
+      width: 34.0
+      height: 54.0
+    }
+    vertices {
+      x: 93.0
+      y: 124.0
+    }
+    vertices {
+      x: 65.0
+      y: 96.0
+    }
+    vertices {
+      x: 99.0
+      y: 70.0
+    }
+    indices: 0
+    indices: 1
+    indices: 2
+  }
+  sprites {
+    name: "sq8"
+    trimmed: true
+    rotated: false
+    is_solid: false
+    untrimmed_size {
+      width: 128.0
+      height: 128.0
+    }
+    corner_offset {
+      x: 38.0
+      y: 49.0
+    }
+    source_rect {
+      x: 38.0
+      y: 49.0
+      width: 34.0
+      height: 54.0
+    }
+    frame_rect {
+      x: 32.0
+      y: 0.0
+      width: 34.0
+      height: 54.0
+    }
+    vertices {
+      x: 66.0
+      y: 103.0
+    }
+    vertices {
+      x: 38.0
+      y: 75.0
+    }
+    vertices {
+      x: 72.0
+      y: 49.0
+    }
+    indices: 0
+    indices: 1
+    indices: 2
+  }
+  sprites {
+    name: "sq6"
+    trimmed: true
+    rotated: false
+    is_solid: false
+    untrimmed_size {
+      width: 128.0
+      height: 128.0
+    }
+    corner_offset {
+      x: 89.0
+      y: 88.0
+    }
+    source_rect {
+      x: 89.0
+      y: 88.0
+      width: 32.0
+      height: 40.0
+    }
+    frame_rect {
+      x: 64.0
+      y: 0.0
+      width: 32.0
+      height: 40.0
+    }
+    vertices {
+      x: 117.0
+      y: 128.0
+    }
+    vertices {
+      x: 89.0
+      y: 128.0
+    }
+    vertices {
+      x: 89.0
+      y: 111.0
+    }
+    vertices {
+      x: 121.0
+      y: 88.0
+    }
+    indices: 0
+    indices: 2
+    indices: 3
+    indices: 0
+    indices: 1
+    indices: 2
+  }
+  sprites {
+    name: "sq1"
+    trimmed: true
+    rotated: false
+    is_solid: false
+    untrimmed_size {
+      width: 128.0
+      height: 128.0
+    }
+    corner_offset {
+      x: 15.0
+      y: 20.0
+    }
+    source_rect {
+      x: 15.0
+      y: 20.0
+      width: 34.0
+      height: 34.0
+    }
+    frame_rect {
+      x: 0.0
+      y: 41.0
+      width: 34.0
+      height: 34.0
+    }
+    vertices {
+      x: 49.0
+      y: 37.0
+    }
+    vertices {
+      x: 15.0
+      y: 54.0
+    }
+    vertices {
+      x: 15.0
+      y: 20.0
+    }
+    indices: 0
+    indices: 1
+    indices: 2
+  }
+  sprites {
+    name: "sq2"
+    trimmed: true
+    rotated: false
+    is_solid: false
+    untrimmed_size {
+      width: 128.0
+      height: 128.0
+    }
+    corner_offset {
+      x: 33.0
+      y: 18.0
+    }
+    source_rect {
+      x: 33.0
+      y: 18.0
+      width: 34.0
+      height: 34.0
+    }
+    frame_rect {
+      x: 0.0
+      y: 41.0
+      width: 34.0
+      height: 34.0
+    }
+    vertices {
+      x: 67.0
+      y: 35.0
+    }
+    vertices {
+      x: 33.0
+      y: 52.0
+    }
+    vertices {
+      x: 33.0
+      y: 18.0
+    }
+    indices: 0
+    indices: 1
+    indices: 2
+  }
+  sprites {
+    name: "sq3"
+    trimmed: true
+    rotated: false
+    is_solid: false
+    untrimmed_size {
+      width: 128.0
+      height: 128.0
+    }
+    corner_offset {
+      x: 51.0
+      y: 14.0
+    }
+    source_rect {
+      x: 51.0
+      y: 14.0
+      width: 34.0
+      height: 34.0
+    }
+    frame_rect {
+      x: 0.0
+      y: 41.0
+      width: 34.0
+      height: 34.0
+    }
+    vertices {
+      x: 85.0
+      y: 31.0
+    }
+    vertices {
+      x: 51.0
+      y: 48.0
+    }
+    vertices {
+      x: 51.0
+      y: 14.0
+    }
+    indices: 0
+    indices: 1
+    indices: 2
+  }
+  sprites {
+    name: "sq4"
+    trimmed: true
+    rotated: false
+    is_solid: false
+    untrimmed_size {
+      width: 128.0
+      height: 128.0
+    }
+    corner_offset {
+      x: 84.0
+      y: 10.0
+    }
+    source_rect {
+      x: 84.0
+      y: 10.0
+      width: 34.0
+      height: 34.0
+    }
+    frame_rect {
+      x: 0.0
+      y: 41.0
+      width: 34.0
+      height: 34.0
+    }
+    vertices {
+      x: 118.0
+      y: 27.0
+    }
+    vertices {
+      x: 84.0
+      y: 44.0
+    }
+    vertices {
+      x: 84.0
+      y: 10.0
+    }
+    indices: 0
+    indices: 1
+    indices: 2
+  }
+  sprites {
+    name: "sq5"
+    trimmed: true
+    rotated: false
+    is_solid: false
+    untrimmed_size {
+      width: 128.0
+      height: 128.0
+    }
+    corner_offset {
+      x: 92.0
+      y: 45.0
+    }
+    source_rect {
+      x: 92.0
+      y: 45.0
+      width: 34.0
+      height: 34.0
+    }
+    frame_rect {
+      x: 0.0
+      y: 41.0
+      width: 34.0
+      height: 34.0
+    }
+    vertices {
+      x: 126.0
+      y: 62.0
+    }
+    vertices {
+      x: 92.0
+      y: 79.0
+    }
+    vertices {
+      x: 92.0
+      y: 45.0
+    }
+    indices: 0
+    indices: 1
+    indices: 2
+  }
+  sprites {
+    name: "sq10"
+    trimmed: true
+    rotated: false
+    is_solid: false
+    untrimmed_size {
+      width: 128.0
+      height: 128.0
+    }
+    corner_offset {
+      x: 63.0
+      y: 28.0
+    }
+    source_rect {
+      x: 63.0
+      y: 28.0
+      width: 12.0
+      height: 12.0
+    }
+    frame_rect {
+      x: 37.0
+      y: 0.0
+      width: 12.0
+      height: 12.0
+    }
+    vertices {
+      x: 75.0
+      y: 40.0
+    }
+    vertices {
+      x: 63.0
+      y: 40.0
+    }
+    vertices {
+      x: 63.0
+      y: 28.0
+    }
+    vertices {
+      x: 75.0
+      y: 28.0
+    }
+    indices: 1
+    indices: 2
+    indices: 3
+    indices: 0
+    indices: 1
+    indices: 3
+  }
+}

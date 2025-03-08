@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/.idea/com.dynamo.cr.iml" filepath="$PROJECT_DIR$/.idea/com.dynamo.cr.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/com.dynamo.cr.bob.iml" filepath="$PROJECT_DIR$/.idea/modules/com.dynamo.cr.bob.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/com.dynamo.cr.bob.main.iml" filepath="$PROJECT_DIR$/.idea/modules/com.dynamo.cr.bob.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/com.dynamo.cr.bob.test.iml" filepath="$PROJECT_DIR$/.idea/modules/com.dynamo.cr.bob.test.iml" />
+    </modules>
+  </component>
+</project>

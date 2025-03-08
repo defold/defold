@@ -1,7 +1,6 @@
 #! /usr/bin/env python
-import os, re
 from waf_dynamo import apidoc_extract_task
-import Options
+import waflib.Options
 
 def configure(conf):
     pass
@@ -12,21 +11,25 @@ def build(bld):
     source = 'profiler.cpp profile_render.cpp'
     source_null = 'profiler_null.cpp'
 
-    if 'darwin' in bld.env.PLATFORM:
+    if 'macos' in bld.env.PLATFORM or 'ios' in bld.env.PLATFORM:
         source += ' profiler_cocoa.mm'
-    elif 'android' in bld.env.PLATFORM or 'linux' in bld.env.PLATFORM:
+    elif 'android' in bld.env.PLATFORM:
+        source += ' profiler_android.cpp'
+        source += ' profiler_proc_utils.cpp'
+    elif 'linux' in bld.env.PLATFORM:
         source += ' profiler_linux.cpp'
+        source += ' profiler_proc_utils.cpp'
     elif 'win32' in bld.env.PLATFORM:
         source += ' profiler_win32.cpp'
     else:
         source += ' profiler_unsupported.cpp'
 
-    profiler = bld.new_task_gen(features = 'cxx cstaticlib',
+    profiler = bld.stlib(features = 'cxx',
                             includes = '.',
                             source = source,
                             target = 'profilerext')
 
-    profiler = bld.new_task_gen(features = 'cxx cstaticlib',
+    profiler = bld.stlib(features = 'cxx',
                             includes = '.',
                             source = source_null,
                             target = 'profilerext_null')
@@ -35,5 +38,5 @@ def build(bld):
 
     apidoc_extract_task(bld, ['profiler.cpp'])
 
-    if not Options.options.skip_build_tests:
-        bld.add_subdirs('test')
+    if not waflib.Options.options.skip_build_tests:
+        bld.recurse('test')

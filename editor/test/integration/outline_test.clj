@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -14,25 +14,24 @@
 
 (ns integration.outline-test
   (:require [clojure.test :refer :all]
-            [service.log :as log]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system]]
             [editor.app-view :as app-view]
             [editor.collection :as collection]
-            [editor.defold-project :as project]
             [editor.game-object :as game-object]
             [editor.outline :as outline]
-            [integration.test-util :as test-util]))
+            [integration.test-util :as test-util]
+            [service.log :as log]
+            [support.test-support :refer [with-clean-system]]))
 
 (defn- outline
   ([node]
-    (outline node []))
+   (outline node []))
   ([node path]
-    (loop [outline (g/node-value node :node-outline)
-           path path]
-      (if-let [segment (first path)]
-        (recur (get (vec (:children outline)) segment) (rest path))
-        outline))))
+   (loop [outline (g/node-value node :node-outline)
+          path path]
+     (if-let [segment (first path)]
+       (recur (get (vec (:children outline)) segment) (rest path))
+       outline))))
 
 (def ^:private ^:dynamic *clipboard* nil)
 (def ^:private ^:dynamic *dragboard* nil)
@@ -54,53 +53,53 @@
   (when (delete? node path)
     (g/delete-node! (g/override-root (:node-id (outline node path))))))
 
-(defn- copy! [node path]
-  (let [data (outline/copy [(->iterator node path)])]
+(defn- copy! [project node path]
+  (let [data (outline/copy project [(->iterator node path)])]
     (alter-var-root #'*clipboard* (constantly data))))
 
 (defn- cut? [node & paths]
   (outline/cut? (mapv #(->iterator node %) paths)))
 
-(defn- cut! [node & paths]
-  (let [data (outline/cut! (mapv #(->iterator node %) paths))]
+(defn- cut! [project node & paths]
+  (let [data (outline/cut! project (mapv #(->iterator node %) paths))]
     (alter-var-root #'*clipboard* (constantly data))))
 
 (defn- paste!
   ([project app-view node]
-    (paste! project app-view node []))
+   (paste! project app-view node []))
   ([project app-view node path]
-    (let [it (->iterator node path)]
-      (assert (outline/paste? (project/graph project) it *clipboard*))
-      (outline/paste! (project/graph project) it *clipboard* (partial app-view/select app-view)))))
+   (let [it (->iterator node path)]
+     (assert (outline/paste? project it *clipboard*))
+     (outline/paste! project it *clipboard* (partial app-view/select app-view)))))
 
 (defn- copy-paste! [project app-view node path]
-  (copy! node path)
+  (copy! project node path)
   (paste! project app-view node (butlast path)))
 
 (defn- drag? [node path]
-  (outline/drag? (g/node-id->graph-id node) [(->iterator node path)]))
+  (outline/drag? [(->iterator node path)]))
 
-(defn- drag! [node path]
+(defn- drag! [project node path]
   (let [src-item-iterators [(->iterator node path)]
-        data (outline/copy src-item-iterators)]
+        data (outline/copy project src-item-iterators)]
     (alter-var-root #'*dragboard* (constantly data))
     (alter-var-root #'*drag-source-iterators* (constantly src-item-iterators))))
 
 (defn- drop!
   ([project app-view node]
-    (drop! project app-view node []))
+   (drop! project app-view node []))
   ([project app-view node path]
-    (outline/drop! (project/graph project) *drag-source-iterators* (->iterator node path) *dragboard* (partial app-view/select app-view))))
+   (outline/drop! project *drag-source-iterators* (->iterator node path) *dragboard* (partial app-view/select app-view))))
 
 (defn- drop?
   ([project node]
-    (drop? project node []))
+   (drop? project node []))
   ([project node path]
-    (outline/drop? (project/graph project) *drag-source-iterators* (->iterator node path) *dragboard*)))
+   (outline/drop? project *drag-source-iterators* (->iterator node path) *dragboard*)))
 
 (defn- child-count
   ([node]
-    (child-count node []))
+   (child-count node []))
   ([node path]
    (count (:children (outline node path)))))
 
@@ -126,7 +125,7 @@
     (let [root (test-util/resource-node project "/collection/embedded_embedded_sounds.collection")]
       ; 2 go instance
       (is (= 2 (child-count root)))
-      (copy! root [0])
+      (copy! project root [0])
       (paste! project app-view root)
       ; 3 go instances
       (is (= 3 (child-count root))))))
@@ -136,7 +135,7 @@
     (let [root (test-util/resource-node project "/collection/embedded_embedded_sounds.collection")]
       ; 1 comp instance
       (is (= 1 (child-count root [0])))
-      (copy! root [0 0])
+      (copy! project root [0 0])
       (paste! project app-view root [0])
       ; 2 comp instances
       (is (= 2 (child-count root [0]))))))
@@ -146,12 +145,12 @@
     (let [root (test-util/resource-node project "/logic/atlas_sprite.go")]
       ; 1 comp instance
       (is (= 1 (child-count root)))
-      (copy! root [0])
+      (copy! project root [0])
       (paste! project app-view root)
       ; 2 comp instances
       (is (= 2 (child-count root)))
       (is (contains? (outline root [1]) :icon))
-      (cut! root [0])
+      (cut! project root [0])
       ; 1 comp instances
       (is (= 1 (child-count root))))))
 
@@ -174,7 +173,7 @@
       (is (= 1 (child-count root)))
       ; 1 sprite comp
       (is (= 1 (child-count root [0])))
-      (copy! root [0]) ;; copy go-instance
+      (copy! project root [0]) ;; copy go-instance
       (paste! project app-view root) ;; paste into root
       ; 2 go instances
       (is (= 2 (child-count root)))
@@ -185,7 +184,7 @@
       (is (= 2 (child-count root [0])))
       ; go instance can be cut
       (is (cut? root [0 0]))
-      (cut! root [0 0])
+      (cut! project root [0 0])
       ; 1 sprite
       (is (= 1 (child-count root [0]))))))
 
@@ -199,7 +198,7 @@
           tgt-root (test-util/resource-node project "/collection/test.collection")]
       ; 0 go instance
       (is (= 0 (child-count tgt-root)))
-      (copy! src-root [0]) ;; copy go-instance from source
+      (copy! project src-root [0]) ;; copy go-instance from source
       (paste! project app-view tgt-root) ;; paste into target root
       ; 1 go instance
       (is (= 1 (child-count tgt-root))))))
@@ -216,20 +215,20 @@
       (is (= 1 (child-count root)))
       ; 2 go instances
       (is (= 2 (child-count root [0])))
-      (copy! root [0])
+      (copy! project root [0])
       (paste! project app-view root)
       (is (= 2 (child-count root)))
       ; 2 go instances in referenced collection
       (is (= 2 (child-count root [0])))
       (is (= 2 (child-count root [1])))
-      (cut! root [0 0])
+      (cut! project root [0 0])
       ; 1 go instance remains in referenced collection
       (is (= 1 (child-count root [0])))
       (is (= 1 (child-count root [1])))
       (paste! project app-view root)
       ; 2 collection instances + 1 go instances
       (is (= 3 (child-count root)))
-      (cut! root [2])
+      (cut! project root [2])
       (paste! project app-view root [0])
       ; 2 collection instances
       (is (= 2 (child-count root)))
@@ -242,20 +241,20 @@
     (let [root (test-util/resource-node project "/logic/atlas_sprite.collection")]
       (is (= 1 (child-count root)))
       (let [first-id (get (outline root [0]) :label)]
-        (drag! root [0])
+        (drag! project root [0])
         (is (not (drop? project root)))
         (is (not (drop? project root [0])))
         (copy-paste! project app-view root [0])
         (is (= 2 (child-count root)))
         (let [second-id (get (outline root [1]) :label)]
           (is (not= first-id second-id))
-          (drag! root [1])
+          (drag! project root [1])
           (is (drop? project root [0]))
           (drop! project app-view root [0])
           (is (= 1 (child-count root)))
           (is (= 2 (child-count root [0])))
           (is (= second-id (get (outline root [0 0]) :label)))
-          (drag! root [0 0])
+          (drag! project root [0 0])
           (drop! project app-view root)
           (is (= 2 (child-count root)))
           (is (= second-id (get (outline root [1]) :label))))))))
@@ -264,7 +263,7 @@
   (test-util/with-loaded-project
     (let [root (test-util/resource-node project "/logic/atlas_sprite.collection")]
       (copy-paste! project app-view root [0])
-      (drag! root [0])
+      (drag! project root [0])
       (drop! project app-view root [1]))))
 
 (deftest read-only-items
@@ -280,12 +279,12 @@
     (let [root (test-util/resource-node project "/logic/main.gui")]
       (let [first-id (get (outline root [0 1]) :label)
             next-id (get (outline root [0 2]) :label)]
-        (drag! root [0 1])
+        (drag! project root [0 1])
         (drop! project app-view root [0 0])
         (let [second-id (get (outline root [0 0 0]) :label)]
           (is (= first-id second-id))
           (is (= next-id (get (outline root [0 1]) :label)))
-          (drag! root [0 0 0])
+          (drag! project root [0 0 0])
           (drop! project app-view root [0])
           (is (= second-id (get (outline root [0 5]) :label))))))))
 
@@ -356,7 +355,7 @@
       (is (not (nil? (outline root (conj tmpl-path 0)))))
       (let [sub-id (:node-id (outline root (conj tmpl-path 0)))]
         (g/transact (g/set-property sub-id :position new-pos)))
-      (drag! root tmpl-path)
+      (drag! project root tmpl-path)
       (drop! project app-view root [0 0])
       (let [tmpl-path [0 0 1]]
         (is (= -100.0 (get-in (prop root tmpl-path :template) [:overrides "sub_box" :position 0])))
@@ -447,7 +446,7 @@
       ; + primary (emitter)
       ; + secondary (emitter)
       (is (= 4 (child-count root)))
-      (copy! root [2])
+      (copy! project root [2])
       (paste! project app-view root)
       (is (= 5 (child-count root)))
       (is (some? (g/node-value (:node-id (outline root [3])) :scene))))))
@@ -466,7 +465,7 @@
 
       ;; Copy "props_embedded" game_object.
       (is (= "props_embedded" (:label (outline root [0 0 1]))))
-      (let [{:keys [arcs attachments nodes]} (#'outline/deserialize (copy! root [0 0 1]))
+      (let [{:keys [arcs attachments nodes]} (#'outline/deserialize (copy! project root [0 0 1]))
             serial-id->node-type (into {} (map (juxt :serial-id :node-type)) nodes)]
 
         (is (= {0 collection/EmbeddedGOInstanceNode
@@ -490,8 +489,7 @@
                 [1 :proto-msg 0 :proto-msg]
                 [1 :resource 0 :source-resource]
                 [1 :resource-property-build-targets 0 :resource-property-build-targets]
-                [1 :scene 0 :scene]
-                [1 :undecorated-save-data 0 :source-save-data]]
+                [1 :scene 0 :scene]]
                (sort arcs)))))))
 
 (deftest drag-drop-between-referenced-collections
@@ -510,7 +508,7 @@
       (is (= "props_embedded" (:label (outline root [0 0 1]))))
       (is (= 1 (child-count root)))
       (is (= 2 (child-count root [0 0])))
-      (drag! root [0 0 1])
+      (drag! project root [0 0 1])
       (drop! project app-view root)
       (is (= 2 (child-count root)))
       (is (= 1 (child-count root [0 0])))
@@ -534,7 +532,7 @@
       (is (= "props" (:label (outline root [0 0 0]))))
       (is (= 2 (child-count root)))
       (is (= 1 (child-count root [0 0 0])))
-      (drag! root [1])
+      (drag! project root [1])
       (drop! project app-view root [0 0 0])
       (is (= 1 (child-count root)))
       (is (= 2 (child-count root [0 0 0])))
@@ -567,7 +565,7 @@
       ;; Cut "props_embedded" game_object and paste it below "sub_props".
       (is (= "props_embedded" (:label (outline root [0 0 1]))))
       (is (= 2 (child-count root [0 0])))
-      (cut! root [0 0 1])
+      (cut! project root [0 0 1])
       (is (= 1 (child-count root [0 0])))
 
       (is (= "sub_props" (:label (outline root [0]))))
@@ -593,7 +591,7 @@
       ;; Cut "props" game_object and paste it below the root collection.
       (is (= "props" (:label (outline root [0 0 0]))))
       (is (= 1 (child-count root [0 0])))
-      (cut! root [0 0 0])
+      (cut! project root [0 0 0])
       (is (= 0 (child-count root [0 0])))
 
       (is (= "Collection" (:label (outline root))))
@@ -632,7 +630,7 @@
       ;; Cut "scene/pie" and paste it below "scene/sub_scene/sub_box".
       (is (= "scene/pie" (:label (outline root [0 0 0 0]))))
       (is (= 1 (child-count root [0 0 0])))
-      (cut! root [0 0 0 0])
+      (cut! project root [0 0 0 0])
       (is (= 0 (child-count root [0 0 0])))
 
       (is (= "scene/sub_scene/sub_box" (:label (outline root [0 0 1 0]))))
@@ -661,7 +659,7 @@
       ;; Cut "scene/sub_scene/sub_box" and paste it below "Nodes" in the root gui.
       (is (= "scene/sub_scene" (:label (outline root [0 0 1]))))
       (is (= 1 (child-count root [0 0 1])))
-      (cut! root [0 0 1 0])
+      (cut! project root [0 0 1 0])
       (is (= 0 (child-count root [0 0 1])))
 
       (is (= "Nodes" (:label (outline root [0]))))
@@ -702,7 +700,7 @@
       (is (= 2 (child-count root)))
       (testing "Cut `left_child` and `right`"
         (is (true? (cut? root [0 0] [1])))
-        (cut! root [0 0] [1])
+        (cut! project root [0 0] [1])
         (is (= 0 (child-count root [0])))
         (is (= 1 (child-count root))))
       (testing "Paste `left_child` and `right` below `root`"
@@ -745,7 +743,7 @@
                ; + collisionobject1
                (is (= 1 (child-count root [0])))
                (is (= 0 (child-count root [1])))
-               (drag! root [0 0])
+               (drag! project root [0 0])
                (drop! project app-view root [1])
                ; Game Object
                ; + collisionobject
@@ -774,7 +772,7 @@
                ;   + Box (shape)
                ;   + Capsule (shape)
                ; + sprite
-               (drag! root [0 0])
+               (drag! project root [0 0])
                ;; Not possible to drag to the second collisionobject1 since they are references to the same file
                (is (not (drop? project root [1])))))))
 

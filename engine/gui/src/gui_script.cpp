@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -22,6 +22,9 @@
 #include <dmsdk/dlib/vmath.h>
 
 #include <script/script.h>
+
+#include <gameobject/gameobject_props_lua.h>
+#include <gameobject/gameobject_script_util.h>
 
 #include "gui.h"
 #include "gui_private.h"
@@ -48,7 +51,7 @@ namespace dmGui
 
     /*# [type:hash] gui material
      *
-     * The material used when rendering the gui. The type of the property is hash.
+     * The main material (the default material assigned to a GUI) used when rendering the gui. The type of the property is hash.
      *
      * @name material
      * @property
@@ -62,6 +65,29 @@ namespace dmGui
      *
      * function init(self)
      *   go.set("#gui", "material", self.desaturate_material)
+     * end
+     * ```
+     */
+
+    /*# [type:hash] gui materials
+     *
+     * The materials used when rendering the gui. The type of the property is hash.
+     * Key must be specified in options table.
+     *
+     * @name materials
+     * @property
+     *
+     * @examples
+     *
+     * How to change a named material resource using a script property from a script
+     *
+     * ```lua
+     * go.property("my_material", resource.material("/my_material.material"))
+     *
+     * function init(self)
+     *   -- this will update the "my_gui_material" entry in the GUI to use the material
+     *   -- specified in the "my_material" script property.
+     *   go.set("#gui", "materials", self.my_material, { key = "my_gui_material" })
      * end
      * ```
      */
@@ -255,6 +281,16 @@ namespace dmGui
         return 1;
     }
 
+    static int GuiScriptGetInstanceDataTableRef(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        Scene* i = (Scene*)lua_touserdata(L, 1);
+        lua_pushnumber(L, i ? i->m_DataReference : LUA_NOREF);
+
+        return 1;
+    }
+
     static const luaL_reg GuiScriptInstance_methods[] =
     {
         {0,0}
@@ -269,6 +305,7 @@ namespace dmGui
         {dmScript::META_TABLE_RESOLVE_PATH,             GuiScriptInstanceResolvePath},
         {dmScript::META_TABLE_IS_VALID,                 GuiScriptInstanceIsValid},
         {dmScript::META_GET_INSTANCE_CONTEXT_TABLE_REF, GuiScriptGetInstanceContextTableRef},
+        {dmScript::META_GET_INSTANCE_DATA_TABLE_REF,    GuiScriptGetInstanceDataTableRef},
         {0, 0}
     };
 
@@ -361,7 +398,7 @@ namespace dmGui
         }
         else
         {
-            lua_pushstring(L,"<foreign scene node>");
+            lua_pushliteral(L, "<foreign scene node>");
         }
 
         return 1;
@@ -443,7 +480,7 @@ namespace dmGui
      * gui.set_color(node, red)
      * ```
      */
-    int LuaGetNode(lua_State* L)
+    static int LuaGetNode(lua_State* L)
     {
         int top = lua_gettop(L);
         (void) top;
@@ -499,7 +536,7 @@ namespace dmGui
      * print(id) --> hash: [my_node]
      * ```
      */
-    int LuaGetId(lua_State* L)
+    static int LuaGetId(lua_State* L)
     {
         int top = lua_gettop(L);
         (void) top;
@@ -512,6 +549,48 @@ namespace dmGui
         assert(top + 1 == lua_gettop(L));
 
         return 1;
+    }
+
+    /*# gets the node type
+     *
+     * @name gui.get_type
+     * @param node [type:node] node from which to get the type
+     * @return type [type:constant] type
+     *
+     * - `gui.TYPE_BOX`
+     * - `gui.TYPE_TEXT`
+     * - `gui.TYPE_PIE`
+     * - `gui.TYPE_PARTICLEFX`
+     * - `gui.TYPE_CUSTOM`
+     * 
+     * @return subtype [type:integer|nil] id of the custom type
+     */
+    static int LuaGetType(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        dmGui::HScene scene = dmGui::GuiScriptInstance_Check(L);
+
+        HNode hnode;
+        LuaCheckNodeInternal(L, 1, &hnode);
+
+        dmGui::NodeType type = dmGui::GetNodeType(scene, hnode);
+        lua_pushnumber(L, type);
+
+        if (type == NODE_TYPE_CUSTOM)
+        {
+            uint32_t subtype = dmGui::GetNodeCustomType(scene, hnode);
+            lua_pushnumber(L, (lua_Number) subtype);
+        }
+        else
+        {
+            lua_pushnil(L);
+        }
+
+        assert(top + 2 == lua_gettop(L));
+
+        return 2;
     }
 
     /*# sets the id of the specified node
@@ -538,7 +617,7 @@ namespace dmGui
      * gui.set_id(node, "my_new_node")
      * ```
      */
-    int LuaSetId(lua_State* L)
+    static int LuaSetId(lua_State* L)
     {
         int top = lua_gettop(L);
         (void) top;
@@ -561,6 +640,304 @@ namespace dmGui
         assert(top == lua_gettop(L));
 
         return 0;
+    }
+
+    /*# gets the named property of a specified gui node 
+     * 
+     * Instead of using specific getters such as gui.get_position or gui.get_scale,
+     * you can use gui.get instead and supply the property as a string or a hash.
+     * While this function is similar to go.get, there are a few more restrictions
+     * when operating in the gui namespace. Most notably, only these explicitly named properties are supported:
+     *
+     * - `"position"`
+     * - `"rotation"`
+     * - `"euler"`
+     * - `"scale"`
+     * - `"color"`
+     * - `"outline"`
+     * - `"shadow"`
+     * - `"size"`
+     * - `"fill_angle"` (pie)
+     * - `"inner_radius"` (pie)
+     * - `"leading"` (text)
+     * - `"tracking"` (text)
+     * - `"slice9"` (slice9)
+     *
+     * The value returned will either be a vmath.vector4 or a single number, i.e getting the "position"
+     * property will return a vec4 while getting the "position.x" property will return a single value.
+     * You can also use this function to get material constants.
+     *
+     * @name gui.get
+     * @param node [type:node] node to get the property for
+     * @param property [type:string|hash|constant] the property to retrieve 
+     * @param [options] [type:table] optional options table (only applicable for material constants)
+     * - `index` [type:integer] index into array property (1 based)
+     *
+     * @examples
+     *
+     * Get properties on existing nodes:
+     *
+     * ```lua
+     * local node = gui.get_node("my_box_node")
+     * local node_position = gui.get(node, "position")
+     * ```
+     */
+    static int LuaGet(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        HNode hnode;
+        LuaCheckNodeInternal(L, 1, &hnode);
+
+        dmhash_t property_id = dmScript::CheckHashOrString(L, 2);
+
+        dmGui::PropDesc* pd = dmGui::GetPropertyDesc(property_id);
+        if (pd)
+        {
+            Vector4 base_value = dmGui::GetNodeProperty(scene, hnode, pd->m_Property);
+
+            if (pd->m_Component == 0xff)
+            {
+                if (pd->m_Property == PROPERTY_ROTATION)
+                {
+                    dmVMath::Quat r = dmVMath::Quat(base_value);
+                    dmScript::PushQuat(L, r);
+                }
+                else
+                {
+                    dmScript::PushVector4(L, base_value);
+                }
+            }
+            else
+            {
+                lua_pushnumber(L, base_value.getElem(pd->m_Component));
+            }
+
+            return 1;
+        }
+
+        dmGameObject::PropertyOptions property_options = {};
+        bool index_requested = false;
+
+        if (lua_gettop(L) >= 3)
+        {
+            dmGameObject::LuaToPropertyOptions(L, 3, &property_options, property_id, &index_requested);
+        }
+
+        dmMessage::URL target = {};
+        dmGameObject::PropertyDesc property_desc;
+        dmGameObject::PropertyResult property_res = dmGui::GetMaterialProperty(scene, hnode, property_id, property_desc, &property_options) ?
+             dmGameObject::PROPERTY_RESULT_OK : dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+
+        bool is_matrix_type = property_desc.m_Variant.m_Type == dmGameObject::PROPERTY_TYPE_MATRIX4;
+        uint32_t array_size = property_desc.m_ArrayLength;
+        if (is_matrix_type)
+        {
+            array_size = property_desc.m_ArrayLength / 4;
+        }
+
+        if (property_res == dmGameObject::PROPERTY_RESULT_OK && !index_requested && property_desc.m_ValueType == dmGameObject::PROP_VALUE_ARRAY && array_size > 1)
+        {
+            lua_newtable(L);
+
+            // We already have the first value, so no need to get it again.
+            // But we do need to check the result, we could still get errors even if the result is OK
+            int handle_go_get_result = dmGameObject::CheckGetPropertyResult(L, "gui", property_res, property_desc, property_id, target, property_options, index_requested);
+            if (handle_go_get_result != 1)
+            {
+                return handle_go_get_result;
+            }
+
+            lua_rawseti(L, -2, 1);
+
+            for (int i = 1; i < array_size; ++i)
+            {
+                property_options.m_Index = i;
+                property_res = dmGui::GetMaterialProperty(scene, hnode, property_id, property_desc, &property_options) ?
+                        dmGameObject::PROPERTY_RESULT_OK : dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+
+                handle_go_get_result = dmGameObject::CheckGetPropertyResult(L, "gui", property_res, property_desc, property_id, target, property_options, index_requested);
+                if (handle_go_get_result != 1)
+                {
+                    return handle_go_get_result;
+                }
+
+                lua_rawseti(L, -2, i + 1);
+            }
+
+            return 1;
+        }
+
+        return dmGameObject::CheckGetPropertyResult(L, "gui", property_res, property_desc, property_id, target, property_options, index_requested);
+    }
+
+    /*# sets the named property of a specified gui node 
+     * 
+     * Instead of using specific setteres such as gui.set_position or gui.set_scale,
+     * you can use gui.set instead and supply the property as a string or a hash.
+     * While this function is similar to go.get and go.set, there are a few more restrictions
+     * when operating in the gui namespace. Most notably, only these named properties identifiers are supported:
+     *
+     * - `"position"`
+     * - `"rotation"`
+     * - `"euler"`
+     * - `"scale"`
+     * - `"color"`
+     * - `"outline"`
+     * - `"shadow"`
+     * - `"size"`
+     * - `"fill_angle"` (pie)
+     * - `"inner_radius"` (pie)
+     * - `"leading"` (text)
+     * - `"tracking"` (text)
+     * - `"slice9"` (slice9)
+     *
+     * The value to set must either be a vmath.vector4, vmath.vector3, vmath.quat or a single number and depends on the property name you want to set.
+     * I.e when setting the "position" property, you need to use a vmath.vector4 and when setting a single component of the property,
+     * such as "position.x", you need to use a single value.
+     *
+     * Note: When setting the rotation using the "rotation" property, you need to pass in a vmath.quat. This behaviour is different than from the gui.set_rotation function,
+     * the intention is to move new functionality closer to go namespace so that migrating between gui and go is easier. To set the rotation using degrees instead,
+     * use the "euler" property instead. The rotation and euler properties are linked, changing one of them will change the backing data of the other.
+     *
+     * Similar to go.set, you can also use gui.set for setting material constant values on a node. E.g if a material has specified a constant called `tint` in
+     * the .material file, you can use gui.set to set the value of that constant by calling `gui.set(node, "tint", vmath.vec4(1,0,0,1))`, or `gui.set(node, "matrix", vmath.matrix4())`
+     * if the constant is a matrix. Arrays are also supported by gui.set - to set an array constant, you need to pass in an options table with the 'index' key set.
+     * If the material has a constant array called 'tint_array' specified in the material, you can use `gui.set(node, "tint_array", vmath.vec4(1,0,0,1), { index = 4})` to set the fourth array element to a different value.
+     *
+     * @name gui.set
+     * @param node [type:node] node to set the property for
+     * @param property [type:string|hash|constant] the property to set 
+     * @param value [type:number|vector4|vector3|quat] the property to set
+     * @param [options] [type:table] optional options table (only applicable for material constants)
+     * - `index` [type:integer] index into array property (1 based)
+     *
+     * @examples
+     *
+     * Updates the position property on an existing node:
+     *
+     * ```lua
+     * local node = gui.get_node("my_box_node")
+     * local node_position = gui.get(node, "position")
+     * gui.set(node, "position.x", node_position.x + 128)
+     * ```
+     *
+     * Updates the rotation property on an existing node:
+     *
+     * ```lua
+     * local node = gui.get_node("my_box_node")
+     * gui.set(node, "rotation", vmath.quat_rotation_z(math.rad(45)))
+     * -- this is equivalent to:
+     * gui.set(node, "euler.z", 45)
+     * -- or using the entire vector:
+     * gui.set(node, "euler", vmath.vector3(0,0,45))
+     * -- or using the set_rotation
+     * gui.set_rotation(node, vmath.vector3(0,0,45))
+     * ```
+     *
+     * Sets various material constants for a node:
+     *
+     * ```lua
+     * local node = gui.get_node("my_box_node")
+     * gui.set(node, "tint", vmath.vector4(1,0,0,1))
+     * -- matrix4 is also supported
+     * gui.set(node, "light_matrix", vmath.matrix4())
+     * -- update a constant in an array at position 4. the array is specified in the shader as:
+     * -- uniform vec4 tint_array[4]; // lua is 1 based, shader is 0 based
+     * gui.set(node, "tint_array", vmath.vector4(1,0,0,1), { index = 4 })
+     * -- update a matrix constant in an array at position 4. the array is specified in the shader as:
+     * -- uniform mat4 light_matrix_array[4];
+     * gui.set(node, "light_matrix_array", vmath.matrix4(), { index = 4 })
+     * -- update a sub-element in a constant
+     * gui.set(node, "tint.x", 1)
+     * -- update a sub-element in an array constant at position 4
+     * gui.set(node, "tint_array.x", 1, {index = 4})
+     * ```
+     */
+    static int LuaSet(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        HNode hnode;
+        LuaCheckNodeInternal(L, 1, &hnode);
+
+        dmhash_t property_hash = dmScript::CheckHashOrString(L, 2);
+        dmGui::PropDesc* pd = dmGui::GetPropertyDesc(property_hash);
+
+        if (pd)
+        {
+            if (pd->m_Component == 0xff)
+            {
+                if (pd->m_Property == dmGui::PROPERTY_ROTATION)
+                {
+                    Quat* q = dmScript::ToQuat(L, 3);
+                    if (q)
+                    {
+                        dmGui::SetNodeProperty(scene, hnode, pd->m_Property, Vector4(*q));
+                        return 0;
+                    }
+                    return DM_LUA_ERROR("Unable to set property '%s', the value must be a vmath.quat", dmHashReverseSafe64(property_hash));
+                }
+                else
+                {
+                    Vector4* v4 = dmScript::ToVector4(L, 3);
+
+                    if (v4)
+                    {
+                        Vector4* new_value = dmScript::ToVector4(L, 3);
+                        dmGui::SetNodeProperty(scene, hnode, pd->m_Property, *new_value);
+                        return 0;
+                    }
+
+                    Vector3* v3 = dmScript::ToVector3(L, 3);
+
+                    if (v3)
+                    {
+                        Vector3* new_value = dmScript::ToVector3(L, 3);
+                        Vector4 current_value = dmGui::GetNodeProperty(scene, hnode, pd->m_Property);
+                        current_value.setXYZ(*new_value);
+                        dmGui::SetNodeProperty(scene, hnode, pd->m_Property, current_value);
+                        return 0;
+                    }
+
+                    return DM_LUA_ERROR("Unable to set property '%s', the value must be a vmath.vector4 or a vmath.vector3", dmHashReverseSafe64(property_hash));
+                }
+            }
+            else if (!lua_isnumber(L, 3))
+            {
+                return DM_LUA_ERROR("Unable to set property '%s', vector elements can only be set by numbers", dmHashReverseSafe64(property_hash));
+            }
+
+            Vector4 current_value = dmGui::GetNodeProperty(scene, hnode, pd->m_Property);
+            float new_element_value = (float) lua_tonumber(L, 3);
+            current_value.setElem(pd->m_Component, new_element_value);
+            dmGui::SetNodeProperty(scene, hnode, pd->m_Property, current_value);
+            return 0;
+        }
+
+        dmGameObject::PropertyVar property_var;
+        dmGameObject::PropertyOptions property_options = {};
+        dmGameObject::PropertyResult result = dmGameObject::LuaToVar(L, 3, property_var);
+
+        if (lua_gettop(L) > 3)
+        {
+            int options_result = LuaToPropertyOptions(L, 4, &property_options, property_hash, 0);
+            if (options_result != 0)
+            {
+                return options_result;
+            }
+        }
+
+        if (result == dmGameObject::PROPERTY_RESULT_OK && dmGui::SetMaterialProperty(scene, hnode, property_hash, property_var, &property_options))
+        {
+            return 0;
+        }
+
+        return DM_LUA_ERROR("property '%s' not found", dmHashReverseSafe64(property_hash));
     }
 
     /*# gets the index of the specified node
@@ -587,7 +964,7 @@ namespace dmGui
      * end
      * ```
      */
-    int LuaGetIndex(lua_State* L)
+    static int LuaGetIndex(lua_State* L)
     {
         int top = lua_gettop(L);
         (void) top;
@@ -632,7 +1009,7 @@ namespace dmGui
      * gui.delete_node(node)
      * ```
      */
-    int LuaDeleteNode(lua_State* L)
+    static int LuaDeleteNode(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -649,7 +1026,7 @@ namespace dmGui
         return 0;
     }
 
-    void LuaCurveRelease(dmEasing::Curve* curve)
+    static void LuaCurveRelease(dmEasing::Curve* curve)
     {
         HScene scene = (HScene)curve->userdata1;
         lua_State* L = scene->m_Context->m_LuaState;
@@ -684,7 +1061,7 @@ namespace dmGui
         lua_pop(L, 1);
     }
 
-    void LuaAnimationComplete(HScene scene, HNode node, bool finished, void* userdata1, void* userdata2)
+    static void LuaAnimationComplete(HScene scene, HNode node, bool finished, void* userdata1, void* userdata2)
     {
         lua_State* L = scene->m_Context->m_LuaState;
         DM_LUA_STACK_CHECK(L, 0);
@@ -966,6 +1343,7 @@ namespace dmGui
      *
      * - `"position"`
      * - `"rotation"`
+     * - `"euler"`
      * - `"scale"`
      * - `"color"`
      * - `"outline"`
@@ -973,12 +1351,15 @@ namespace dmGui
      * - `"size"`
      * - `"fill_angle"` (pie)
      * - `"inner_radius"` (pie)
+     * - `"leading"` (text)
+     * - `"tracking"` (text)
      * - `"slice9"` (slice9)
      *
      * The following property constants are defined equaling the corresponding property string names.
      *
      * - `gui.PROP_POSITION`
      * - `gui.PROP_ROTATION`
+     * - `gui.PROP_EULER`
      * - `gui.PROP_SCALE`
      * - `gui.PROP_COLOR`
      * - `gui.PROP_OUTLINE`
@@ -986,9 +1367,11 @@ namespace dmGui
      * - `gui.PROP_SIZE`
      * - `gui.PROP_FILL_ANGLE`
      * - `gui.PROP_INNER_RADIUS`
+     * - `gui.PROP_LEADING`
+     * - `gui.PROP_TRACKING`
      * - `gui.PROP_SLICE9`
      *
-     * @param to [type:vector3|vector4] target property value
+     * @param to [type:number|vector3|vector4|quaternion] target property value
      * @param easing [type:constant|vector] easing to use during animation.
      *      Either specify one of the `gui.EASING_*` constants or provide a
      *      [type:vector] with a custom curve. See the <a href="/manuals/animation#_easing">animation guide</a> for more information.
@@ -1050,7 +1433,7 @@ namespace dmGui
      * end
      * ```
      */
-    int LuaAnimate(lua_State* L)
+    static int LuaAnimate(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -1073,6 +1456,7 @@ namespace dmGui
         }
 
         Vector3* v3;
+        Quat*   q;
         Vector4 to;
         if (lua_isnumber(L, 3))
         {
@@ -1082,6 +1466,10 @@ namespace dmGui
         {
             Vector4 original = dmGui::GetNodePropertyHash(scene, hnode, property_hash);
             to = Vector4(*v3, original.getW());
+        }
+        else if ((q = dmScript::ToQuat(L, 3)))
+        {
+            to = Vector4(*q);
         }
         else
         {
@@ -1158,6 +1546,7 @@ namespace dmGui
      *
      * - `"position"`
      * - `"rotation"`
+     * - `"euler"`
      * - `"scale"`
      * - `"color"`
      * - `"outline"`
@@ -1165,6 +1554,8 @@ namespace dmGui
      * - `"size"`
      * - `"fill_angle"` (pie)
      * - `"inner_radius"` (pie)
+     * - `"leading"` (text)
+     * - `"tracking"` (text)
      * - `"slice9"` (slice9)
      *
      * @examples
@@ -1182,7 +1573,7 @@ namespace dmGui
      * gui.cancel_animation(node, "position.x")
      * ```
      */
-    int LuaCancelAnimation(lua_State* L)
+    static int LuaCancelAnimation(lua_State* L)
     {
         int top = lua_gettop(L);
         (void) top;
@@ -1276,8 +1667,6 @@ namespace dmGui
         const char* text = luaL_checkstring(L, 2);
         Scene* scene = GuiScriptInstance_Check(L);
         void* font = scene->m_DefaultFont;
-        if (font == 0x0)
-            font = scene->m_Context->m_DefaultFont;
         Vector3 size = Vector3(1,1,1);
         if (font != 0x0)
         {
@@ -1325,7 +1714,7 @@ namespace dmGui
      *
      * @name gui.set_text
      * @param node [type:node] node to set text for
-     * @param text [type:string] text to set
+     * @param text [type:string|number] text to set
      */
     static int LuaSetText(lua_State* L)
     {
@@ -1359,7 +1748,7 @@ namespace dmGui
      *
      * @name gui.set_line_break
      * @param node [type:node] node to set line-break for
-     * @param line_break [type:boolean] true or false
+     * @param line_break [type:boolean] `true` or `false`
      */
     static int LuaSetLineBreak(lua_State* L)
     {
@@ -1382,6 +1771,7 @@ namespace dmGui
      * - `gui.BLEND_ADD`
      * - `gui.BLEND_ADD_ALPHA`
      * - `gui.BLEND_MULT`
+     * - `gui.BLEND_SCREEN`
      */
     static int LuaGetBlendMode(lua_State* L)
     {
@@ -1402,6 +1792,7 @@ namespace dmGui
      * - `gui.BLEND_ADD`
      * - `gui.BLEND_ADD_ALPHA`
      * - `gui.BLEND_MULT`
+     * - `gui.BLEND_SCREEN`
      */
     static int LuaSetBlendMode(lua_State* L)
     {
@@ -1670,7 +2061,7 @@ namespace dmGui
      * Dynamically create a new texture.
      *
      * @name gui.new_texture
-     * @param texture [type:string|hash] texture id
+     * @param texture_id [type:string|hash] texture id
      * @param width [type:number] texture width
      * @param height [type:number] texture height
      * @param type [type:string|constant] texture type
@@ -1728,7 +2119,8 @@ namespace dmGui
         Scene* scene = GuiScriptInstance_Check(L);
 
         bool flip = false;
-        if (top > 5) {
+        if (top > 5)
+        {
             luaL_checktype(L, 6, LUA_TBOOLEAN);
             flip = (bool)lua_toboolean(L, 6);
         }
@@ -1741,13 +2133,18 @@ namespace dmGui
 
         dmImage::Type type = ToImageType(L, type_str);
         Result r = NewDynamicTexture(scene, name, width, height, type, flip, buffer, buffer_size);
-        if (r == RESULT_OK) {
+
+        if (r == RESULT_OK)
+        {
             lua_pushboolean(L, 1);
             lua_pushnil(L);
-        } else {
+        }
+        else
+        {
             lua_pushboolean(L, 0);
             lua_pushnumber(L, r);
         }
+
         assert(top + 2 == lua_gettop(L));
         return 2;
     }
@@ -1872,6 +2269,109 @@ namespace dmGui
 
         assert(top + 1 == lua_gettop(L));
         return 1;
+    }
+
+    /*# gets the assigned node material
+     * Returns the material of a node.
+     * The material must be mapped to the gui scene in the gui editor.
+     *
+     * @name gui.get_material
+     * @param node [type:node] node to get the material for
+     * @return materal [type:hash] material id
+     * @examples
+     *
+     * Getting the material for a node, and assign it to another node:
+     *
+     * ```lua
+     * local node1 = gui.get_node("my_node")
+     * local node2 = gui.get_node("other_node")
+     * local node1_material = gui.get_material(node1)
+     * gui.set_material(node2, node1_material)
+     * ```
+     */
+    static int LuaGetMaterial(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
+        (void)n;
+
+        dmScript::PushHash(L, dmGui::GetNodeMaterialId(scene, hnode));
+
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
+    /*# sets the node material
+     * Set the material on a node. The material must be mapped to the gui scene in the gui editor, 
+     * and assigning a material is supported for all node types. To set the default material that
+     * is assigned to the gui scene node, use `gui.reset_material(node_id)` instead.
+     *
+     * @name gui.set_material
+     * @param node [type:node] node to set material for
+     * @param material [type:string|hash] material id
+     * @examples
+     *
+     * Assign an existing material to a node:
+     *
+     * ```lua
+     * local node = gui.get_node("my_node")
+     * gui.set_material(node, "my_material")
+     * ```
+     */
+    static int LuaSetMaterial(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
+        (void)n;
+
+        dmhash_t material_id = dmScript::CheckHashOrString(L, 2);
+
+        if (SetNodeMaterial(scene, hnode, material_id) != RESULT_OK)
+        {
+            luaL_error(L, "Material '%s' is not specified in scene", dmHashReverseSafe64(material_id));
+        }
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
+    /*# resets the node material
+     * Resets the node material to the material assigned in the gui scene.
+     *
+     * @name gui.reset_material
+     * @param node [type:node] node to reset the material for
+     * @examples
+     *
+     * Resetting the material for a node:
+     *
+     * ```lua
+     * local node = gui.get_node("my_node")
+     * gui.reset_material(node)
+     * ```
+     */
+    static int LuaResetMaterial(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
+        (void)n;
+
+        SetNodeMaterial(scene, hnode, (dmhash_t) 0);
+        assert(top == lua_gettop(L));
+        return 0;
     }
 
     /*# gets the node font
@@ -2102,7 +2602,7 @@ namespace dmGui
      *
      * @name gui.get_clipping_visible
      * @param node [type:node] node from which to get the clipping visibility state
-     * @return visible [type:boolean] true or false
+     * @return visible [type:boolean] `true` or `false`
      */
     static int LuaGetClippingVisible(lua_State* L)
     {
@@ -2117,7 +2617,7 @@ namespace dmGui
      *
      * @name gui.set_clipping_visible
      * @param node [type:node] node to set clipping visibility for
-     * @param visible [type:boolean] true or false
+     * @param visible [type:boolean] `true` or `false`
      */
     static int LuaSetClippingVisible(lua_State* L)
     {
@@ -2133,7 +2633,7 @@ namespace dmGui
      *
      * @name gui.get_clipping_inverted
      * @param node [type:node] node from which to get the clipping inverted state
-     * @return inverted [type:boolean] true or false
+     * @return inverted [type:boolean] `true` or `false`
      */
     static int LuaGetClippingInverted(lua_State* L)
     {
@@ -2148,7 +2648,7 @@ namespace dmGui
      *
      * @name gui.set_clipping_inverted
      * @param node [type:node] node to set clipping inverted state for
-     * @param inverted [type:boolean] true or false
+     * @param inverted [type:boolean] `true` or `false`
      */
     static int LuaSetClippingInverted(lua_State* L)
     {
@@ -2873,7 +3373,7 @@ namespace dmGui
      *
      * @name gui.is_enabled
      * @param node [type:node] node to query
-     * @param recursive [type:boolean] check hierarchy recursively
+     * @param [recursive] [type:boolean] check hierarchy recursively
      * @return enabled [type:boolean] whether the node is enabled or not
      */
     static int LuaIsEnabled(lua_State* L)
@@ -2910,6 +3410,50 @@ namespace dmGui
         Scene* scene = GuiScriptInstance_Check(L);
 
         dmGui::SetNodeEnabled(scene, hnode, enabled != 0);
+
+        return 0;
+    }
+
+   /*# returns if a node is visible or not
+     * Returns `true` if a node is visible and `false` if it's not.
+     * Invisible nodes are not rendered.
+     *
+     * @name gui.get_visible
+     * @param node [type:node] node to query
+     * @return visible [type:boolean] whether the node is visible or not
+     */
+    static int LuaGetVisible(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        HNode hnode;
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
+        (void) n;
+
+        Scene* scene = GuiScriptInstance_Check(L);
+        lua_pushboolean(L, dmGui::GetNodeVisible(scene, hnode));
+
+        return 1;
+    }
+
+    /*# set visibility for a node
+     * Set if a node should be visible or not. Only visible nodes are rendered.
+     *
+     * @name gui.set_visible
+     * @param node [type:node] node to be visible or not
+     * @param visible [type:boolean] whether the node should be visible or not
+     */
+    static int LuaSetVisible(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        HNode hnode;
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
+        (void) n;
+
+        int visible = lua_toboolean(L, 2);
+
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        dmGui::SetNodeVisible(scene, hnode, visible != 0);
 
         return 0;
     }
@@ -2953,6 +3497,7 @@ namespace dmGui
         InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         int adjust_mode = (int) luaL_checknumber(L, 2);
         n->m_Node.m_AdjustMode = (AdjustMode) adjust_mode;
+        n->m_Node.m_DirtyLocal = 1;
         return 0;
     }
 
@@ -3010,7 +3555,7 @@ namespace dmGui
      *
      * @name gui.move_above
      * @param node [type:node] to move
-     * @param node [type:node|nil] reference node above which the first node should be moved
+     * @param reference [type:node|nil] reference node above which the first node should be moved
      */
     static int LuaMoveAbove(lua_State* L)
     {
@@ -3033,7 +3578,7 @@ namespace dmGui
      *
      * @name gui.move_below
      * @param node [type:node] to move
-     * @param node [type:node|nil] reference node below which the first node should be moved
+     * @param reference [type:node|nil] reference node below which the first node should be moved
      */
     static int LuaMoveBelow(lua_State* L)
     {
@@ -3055,7 +3600,7 @@ namespace dmGui
      *
      * @name gui.get_parent
      * @param node [type:node] the node from which to retrieve its parent
-     * @return parent [type:node] parent instance or nil
+     * @return parent [type:node|nil] parent instance or `nil`
      */
     int LuaGetParent(lua_State* L)
     {
@@ -3086,8 +3631,8 @@ namespace dmGui
      *
      * @name gui.set_parent
      * @param node [type:node] node for which to set its parent
-     * @param parent [type:node] parent node to set
-     * @param keep_scene_transform [type:boolean] optional flag to make the scene position being perserved
+     * @param [parent] [type:node] parent node to set, pass `nil` to remove parent
+     * @param [keep_scene_transform] [type:boolean] optional flag to make the scene position being perserved
      */
     static int LuaSetParent(lua_State* L)
     {
@@ -3122,7 +3667,9 @@ namespace dmGui
     }
 
     /*# clone a node
-     * Make a clone instance of a node.
+     * Make a clone instance of a node. The cloned node will be identical to the
+     * original node, except the id which is generated as the string "node" plus
+     * a sequential unsigned integer value.
      * This function does not clone the supplied node's children nodes.
      * Use gui.clone_tree for that purpose.
      *
@@ -3191,16 +3738,32 @@ namespace dmGui
     {
         uint32_t index = start_index;
         dmGui::Result result = dmGui::RESULT_OK;
+
+        dmArray<uint32_t> indices;
+
+        // Make sure we know the indices to copy up front, as the cloning will modify the "node->m_NextIndex" list.
         while (index != INVALID_INDEX && result == dmGui::RESULT_OK)
         {
+            if (indices.Full())
+                indices.OffsetCapacity(32);
+
+            indices.Push(index);
+
             InternalNode* node = &scene->m_Nodes[index];
+            index = node->m_NextIndex;
+        }
+
+        for (uint32_t i = 0; i < indices.Size(); ++i)
+        {
+            index = indices[i];
+            InternalNode* node = &scene->m_Nodes[index];
+
             dmGui::HNode out_node;
             result = CloneNodeToTable(L, scene, node, &out_node);
             if (result == dmGui::RESULT_OK)
             {
                 dmGui::SetNodeParent(scene, out_node, parent, false);
             }
-            index = node->m_NextIndex;
         }
         return result;
     }
@@ -3261,6 +3824,64 @@ namespace dmGui
             lua_pop(L, 1);
             return luaL_error(L, "An unexpected error occurred");
         }
+    }
+
+    static void PushNodeListToTable(lua_State* L, dmGui::HScene scene, uint16_t start_index);
+
+    static void PushNodeToTable(lua_State* L, dmGui::HScene scene, InternalNode* n)
+    {
+        dmGui::HNode node = GetNodeHandle(n);
+        dmScript::PushHash(L, n->m_NameHash);
+        LuaPushNode(L, scene, node);
+        lua_rawset(L, -3);
+        PushNodeListToTable(L, scene, n->m_ChildHead);
+    }
+
+    static void PushNodeListToTable(lua_State* L, dmGui::HScene scene, uint16_t start_index)
+    {
+        uint32_t index = start_index;
+        while (index != INVALID_INDEX)
+        {
+            InternalNode* node = &scene->m_Nodes[index];
+            PushNodeToTable(L, scene, node);
+            index = node->m_NextIndex;
+        }
+    }
+
+    /*# get a node including its children
+     * Get a node and all its children as a Lua table.
+     *
+     * @name gui.get_tree
+     * @param node [type:node] root node to get node tree from
+     * @return clones [type:table] a table mapping node ids to the corresponding nodes
+     */
+    static int LuaGetTree(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void)top;
+
+        lua_newtable(L);
+
+        // Set meta table to convert string indices to hashes
+        lua_createtable(L, 0, 1);
+        lua_pushcfunction(L, HashTableIndex);
+        lua_setfield(L, -2, "__index");
+        lua_setmetatable(L, -2);
+
+        Scene* scene = GuiScriptInstance_Check(L);
+        if (!lua_isnil(L, 1))
+        {
+            dmGui::HNode hnode;
+            InternalNode* root = LuaCheckNodeInternal(L, 1, &hnode);
+            PushNodeToTable(L, scene, root);
+        }
+        else
+        {
+            PushNodeListToTable(L, scene, scene->m_RenderHead);
+        }
+
+        assert(top + 1 == lua_gettop(L));
+        return 1;
     }
 
     /*# resets all nodes to initial state
@@ -3393,9 +4014,27 @@ namespace dmGui
 
     /*# gets the node rotation
      * Returns the rotation of the supplied node.
-     * The rotation is expressed in degree Euler angles.
+     * The rotation is expressed as a quaternion
      *
      * @name gui.get_rotation
+     * @param node [type:node] node to get the rotation from
+     * @return rotation [type:quaternion] node rotation
+     */
+
+    /*# sets the node rotation
+     * Sets the rotation of the supplied node.
+     * The rotation is expressed as a quaternion
+     *
+     * @name gui.set_rotation
+     * @param node [type:node] node to set the rotation for
+     * @param rotation [type:quaternion|vector4] new rotation
+     */
+
+    /*# gets the node rotation
+     * Returns the rotation of the supplied node.
+     * The rotation is expressed in degree Euler angles.
+     *
+     * @name gui.get_euler
      * @param node [type:node] node to get the rotation from
      * @return rotation [type:vector3] node rotation
      */
@@ -3404,7 +4043,7 @@ namespace dmGui
      * Sets the rotation of the supplied node.
      * The rotation is expressed in degree Euler angles.
      *
-     * @name gui.set_rotation
+     * @name gui.set_euler
      * @param node [type:node] node to set the rotation for
      * @param rotation [type:vector3|vector4] new rotation
      */
@@ -3549,7 +4188,7 @@ namespace dmGui
     {
         InternalNode* n = LuaCheckNodeInternal(L, 1, 0);
         const Vector4& v = n->m_Node.m_Properties[PROPERTY_ROTATION];
-        dmScript::PushVector3(L, Vector3(v.getX(), v.getY(), v.getZ()));
+        dmScript::PushQuat(L, Quat(v));
         return 1;
     }
 
@@ -3560,23 +4199,73 @@ namespace dmGui
         if (n->m_Node.m_IsBone) {
             return 0;
         }
+        Quat r;
         Vector4 v;
         Vector3* v3;
         Vector4* v4;
         if ((v3 = dmScript::ToVector3(L, 2)))
         {
             Scene* scene = GetScene(L);
-            Vector4 original = dmGui::GetNodeProperty(scene, hnode, PROPERTY_ROTATION);
+            Vector4 original = dmGui::GetNodeProperty(scene, hnode, PROPERTY_EULER);
             v = Vector4(*v3, original.getW());
-        } else if ((v4 = dmScript::ToVector4(L, 2))) {
-            v = *v4;
-        } else {
-            Scene* scene = GetScene(L);
-            Vector4 original = dmGui::GetNodeProperty(scene, hnode, PROPERTY_ROTATION);
-            Quat* q = dmScript::CheckQuat(L, 2);
-            v = Vector4(dmVMath::QuatToEuler(q->getX(), q->getY(), q->getZ(), q->getW()), original.getW());
+            r = dmVMath::EulerToQuat(v.getXYZ());
         }
-        n->m_Node.m_Properties[PROPERTY_ROTATION] = v;
+        else if ((v4 = dmScript::ToVector4(L, 2)))
+        {
+            v = *v4;
+            r = dmVMath::EulerToQuat(v.getXYZ());
+        }
+        else
+        {
+            Quat* q = dmScript::CheckQuat(L, 2);
+            v = Vector4(dmVMath::QuatToEuler(q->getX(), q->getY(), q->getZ(), q->getW()));
+            r = *q;
+        }
+
+        n->m_Node.m_Properties[PROPERTY_ROTATION] = Vector4(r);
+        n->m_Node.m_Properties[PROPERTY_EULER] = v;
+        n->m_Node.m_DirtyLocal = 1;
+        return 0;
+    }
+
+
+    // Euler
+    int LuaGetEuler(lua_State* L)
+    {
+        InternalNode* n = LuaCheckNodeInternal(L, 1, 0);
+        const Vector4& v = n->m_Node.m_Properties[PROPERTY_EULER];
+        dmScript::PushVector3(L, v.getXYZ());
+        return 1;
+    }
+
+    int LuaSetEuler(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
+        if (n->m_Node.m_IsBone) {
+            return 0;
+        }
+        Quat r;
+        Vector4 v;
+        Vector3* v3;
+        Vector4* v4;
+        if ((v3 = dmScript::ToVector3(L, 2)))
+        {
+            v = Vector4(*v3, 0.0f);
+            r = dmVMath::EulerToQuat(v.getXYZ());
+        }
+        else if ((v4 = dmScript::ToVector4(L, 2)))
+        {
+            v = *v4;
+            r = dmVMath::EulerToQuat(v.getXYZ());
+        }
+        else
+        {
+            return luaL_argerror(L, 2, "Valid types are vmath.vector3 and vmath.vector4");
+        }
+
+        n->m_Node.m_Properties[PROPERTY_ROTATION] = Vector4(r);
+        n->m_Node.m_Properties[PROPERTY_EULER] = v;
         n->m_Node.m_DirtyLocal = 1;
         return 0;
     }
@@ -3706,7 +4395,7 @@ namespace dmGui
      *
      * @name gui.get_flipbook_cursor
      * @param node [type:node] node to get the cursor for (node)
-     * @return cursor value [type:number] cursor value
+     * @return cursor [type:number] cursor value
      */
     static int LuaGetFlipbookCursor(lua_State* L)
     {
@@ -3979,6 +4668,9 @@ namespace dmGui
      *
      * @name gui.stop_particlefx
      * @param node [type:node] node to stop particle fx for
+     * @param [options] [type:table] options when stopping the particle fx. Supported options:
+     *
+     * - [type:boolean] `clear`: instantly clear spawned particles
      */
     static int LuaParticlefxStop(lua_State* L)
     {
@@ -3988,8 +4680,28 @@ namespace dmGui
         Scene* scene = GuiScriptInstance_Check(L);
         LuaCheckNodeInternal(L, 1, &hnode);
 
+        int clear_particles = 0;
+        if (!lua_isnone(L, 2)) {
+            luaL_checktype(L, 2, LUA_TTABLE);
+            lua_pushvalue(L, 2);
+            lua_pushnil(L);
+            while (lua_next(L, -2)) {
+                const char* option = lua_tostring(L, -2);
+                if (strcmp(option, "clear") == 0)
+                {
+                    clear_particles = lua_toboolean(L, -1);
+                }
+                else
+                {
+                    dmLogWarning("Unknown option to gui.stop_particlefx() %s", option);
+                }
+                lua_pop(L, 1);
+            }
+            lua_pop(L, 1);
+        }
+
         dmGui::Result res;
-        res = dmGui::StopNodeParticlefx(scene, hnode);
+        res = dmGui::StopNodeParticlefx(scene, hnode, clear_particles);
 
         if (res == RESULT_WRONG_TYPE)
         {
@@ -4034,7 +4746,7 @@ namespace dmGui
      *
      * @name gui.get_particlefx
      * @param node [type:node] node to get particle fx for
-     * @return [type:hash] particle fx id
+     * @return particlefx [type:hash] particle fx id
      */
     static int LuaGetParticlefx(lua_State* L)
     {
@@ -4057,6 +4769,7 @@ namespace dmGui
      *
      * @name gui.get_inherit_alpha
      * @param node [type:node] node from which to get the inherit alpha state
+     * @return inherit_alpha [type:boolean] `true` or `false`
      */
     static int LuaGetInheritAlpha(lua_State* L)
     {
@@ -4074,7 +4787,7 @@ namespace dmGui
      *
      * @name gui.set_inherit_alpha
      * @param node [type:node] node from which to set the inherit alpha state
-     * @param inherit_alpha [type:boolean] true or false
+     * @param inherit_alpha [type:boolean] `true` or `false`
      */
     static int LuaSetInheritAlpha(lua_State* L)
     {
@@ -4093,6 +4806,7 @@ namespace dmGui
      *
      * @name gui.get_alpha
      * @param node [type:node] node from which to get alpha
+     * @return alpha [type:number] alpha
      */
     static int LuaGetAlpha(lua_State* L)
     {
@@ -4141,6 +4855,9 @@ namespace dmGui
         {"get_node",        LuaGetNode},
         {"get_id",          LuaGetId},
         {"set_id",          LuaSetId},
+        {"get_type",        LuaGetType},
+        {"get",             LuaGet},
+        {"set",             LuaSet},
         {"get_index",       LuaGetIndex},
         {"delete_node",     LuaDeleteNode},
         {"animate",         LuaAnimate},
@@ -4168,6 +4885,9 @@ namespace dmGui
         {"new_texture",     LuaNewTexture},
         {"delete_texture",  LuaDeleteTexture},
         {"set_texture_data",LuaSetTextureData},
+        {"get_material",    LuaGetMaterial},
+        {"set_material",    LuaSetMaterial},
+        {"reset_material",  LuaResetMaterial},
         {"get_font",        LuaGetFont},
         {"get_font_resource", LuaGetFontResource},
         {"set_font",        LuaSetFont},
@@ -4189,6 +4909,8 @@ namespace dmGui
         {"pick_node",       LuaPickNode},
         {"is_enabled",      LuaIsEnabled},
         {"set_enabled",     LuaSetEnabled},
+        {"get_visible",     LuaGetVisible},
+        {"set_visible",     LuaSetVisible},
         {"get_adjust_mode", LuaGetAdjustMode},
         {"set_adjust_mode", LuaSetAdjustMode},
         {"get_size_mode",   LuaGetSizeMode},
@@ -4199,6 +4921,7 @@ namespace dmGui
         {"set_parent",      LuaSetParent},
         {"clone",           LuaClone},
         {"clone_tree",      LuaCloneTree},
+        {"get_tree",        LuaGetTree},
         {"show_keyboard",   LuaShowKeyboard},
         {"hide_keyboard",   LuaHideKeyboard},
         {"reset_keyboard",  LuaResetKeyboard},
@@ -4237,6 +4960,7 @@ namespace dmGui
 
         REGGETSET(Position, position)
         REGGETSET(Rotation, rotation)
+        REGGETSET(Euler, euler)
         REGGETSET(Scale, scale)
         REGGETSET(Color, color)
         REGGETSET(Outline, outline)
@@ -4255,6 +4979,12 @@ namespace dmGui
     /*# rotation property
      *
      * @name gui.PROP_ROTATION
+     * @variable
+     */
+
+    /*# euler property
+     *
+     * @name gui.PROP_EULER
      * @variable
      */
 
@@ -4300,6 +5030,18 @@ namespace dmGui
      * @variable
      */
 
+    /*# leading property
+     *
+     * @name gui.PROP_LEADING
+     * @variable
+     */
+
+    /*# tracking property
+     *
+     * @name gui.PROP_TRACKING
+     * @variable
+     */
+
     /*# slice9 property
      *
      * @name gui.PROP_SLICE9
@@ -4327,6 +5069,12 @@ namespace dmGui
     /*# multiply blending
      *
      * @name gui.BLEND_MULT
+     * @variable
+     */
+
+    /*# screen blending
+     *
+     * @name gui.BLEND_SCREEN
      * @variable
      */
 
@@ -4418,6 +5166,32 @@ namespace dmGui
      * @variable
      */
 
+    /*# box type
+     *
+     * @name gui.TYPE_BOX
+     * @variable
+     */
+    /*# text type
+     *
+     * @name gui.TYPE_TEXT
+     * @variable
+     */
+    /*# pie type
+     *
+     * @name gui.TYPE_PIE
+     * @variable
+     */
+    /*# particlefx type
+     *
+     * @name gui.TYPE_PARTICLEFX
+     * @variable
+     */
+    /*# custom type
+     *
+     * @name gui.TYPE_CUSTOM
+     * @variable
+     */
+
     /*# fit adjust mode
      * Adjust mode is used when the screen resolution differs from the project settings.
      * The fit mode ensures that the entire node is visible in the adjusted gui scene.
@@ -4504,6 +5278,7 @@ namespace dmGui
 
         SETPROP(position, POSITION)
         SETPROP(rotation, ROTATION)
+        SETPROP(euler, EULER)
         SETPROP(scale, SCALE)
         SETPROP(color, COLOR)
         SETPROP(outline, OUTLINE)
@@ -4511,9 +5286,23 @@ namespace dmGui
         SETPROP(size, SIZE)
         SETPROP(fill_angle, FILL_ANGLE)
         SETPROP(inner_radius, INNER_RADIUS)
+        SETPROP(leading, LEADING)
+        SETPROP(tracking, TRACKING)
         SETPROP(slice9, SLICE9)
 
 #undef SETPROP
+
+#define SETTYPE(name) \
+    lua_pushnumber(L, (lua_Number) NODE_TYPE_##name); \
+    lua_setfield(L, -2, "TYPE_"#name);\
+
+    SETTYPE(BOX)
+    SETTYPE(TEXT)
+    SETTYPE(PIE)
+    SETTYPE(PARTICLEFX)
+    SETTYPE(CUSTOM)
+
+#undef SETTYPE
 
 // For backwards compatibility
 #define SETEASINGOLD(name, easing) \
@@ -4584,6 +5373,7 @@ namespace dmGui
         SETBLEND(ADD)
         SETBLEND(ADD_ALPHA)
         SETBLEND(MULT)
+        SETBLEND(SCREEN)
 
 #undef SETBLEND
 
@@ -4594,7 +5384,7 @@ namespace dmGui
         SETCLIPPINGMODE(NONE)
         SETCLIPPINGMODE(STENCIL)
 
-#undef SETBLEND
+#undef SETCLIPPINGMODE
 
 #define SETKEYBOARD(name) \
         lua_pushnumber(L, (lua_Number) dmHID::KEYBOARD_TYPE_##name); \
@@ -4855,7 +5645,7 @@ namespace dmGui
      * @param self [type:object] reference to the script state to be used for storing data
      * @param action_id [type:hash] id of the received input action, as mapped in the input_binding-file
      * @param action [type:table] a table containing the input data, see above for a description
-     * @return [consume] [type:boolean] optional boolean to signal if the input should be consumed (not passed on to others) or not, default is false
+     * @return consume [type:boolean|nil] optional boolean to signal if the input should be consumed (not passed on to others) or not, default is false
      * @examples
      *
      * ```lua

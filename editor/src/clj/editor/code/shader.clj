@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -17,13 +17,16 @@
             [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.code.resource :as r]
-            [editor.gl.shader :as shader]
+            [editor.defold-project :as project]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
-            [editor.workspace :as workspace])
-  (:import (com.dynamo.bob.pipeline ShaderProgramBuilder ShaderUtil$ES2ToES3Converter$ShaderType ShaderUtil$SPIRVReflector$Resource)
-           (com.dynamo.graphics.proto Graphics$ShaderDesc Graphics$ShaderDesc$Language)
-           (com.google.protobuf ByteString)))
+            [editor.resource-node :as resource-node]
+            [editor.types :as types]
+            [editor.workspace :as workspace]
+            [schema.core :as s])
+  (:import [com.dynamo.bob.pipeline ShaderProgramBuilderEditor ]
+           [com.dynamo.graphics.proto Graphics$ShaderDesc Graphics$ShaderDesc$Language Graphics$ShaderDesc$ShaderType]
+           [com.dynamo.bob.pipeline.shader ShaderCompilePipeline$ShaderModuleDesc]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -48,7 +51,7 @@
                :name "keyword.operator.glsl"}
               {:match #"\b(break|case|continue|default|discard|do|else|for|if|return|switch|while)\b"
                :name "keyword.control.glsl"}
-              {:match #"^\s*#\s*(define|elif|else|endif|error|extension|if|ifdef|ifndef|line|pragma|undef|version)\b"
+              {:match #"^\s*#\s*(define|elif|else|endif|error|extension|if|ifdef|ifndef|line|pragma|undef|version|include)\b"
                :name "keyword.preprocessor.glsl"}
               {:match #"\b(bool|bvec[2-4]|dmat[2-4]|dmat[2-4]x[2-4]|double|dvec[2-4]|float|int|isampler2DMS|isampler2DMSArray|isampler2DRect|isamplerBuffer|isamplerCube|isampler[1-3]D|isampler[12]DArray|ivec[2-4]|mat[2-4]|mat[2-4]x[2-4]|sampler2DMS|sampler2DMSArray|sampler2DRect|sampler2DRectShadow|samplerBuffer|samplerCube|sampler[1-3]D|sampler[12]DArray|sampler[12]DArrayShadow|sampler[12]DShadow|struct|uint|usampler2DMS|usampler2DMSArray|usampler2DRect|usamplerBuffer|usamplerCube|usampler[1-3]D|usampler[12]DArray|uvec[2-4]|vec[2-4]|void)\b"
                :name "storage.type.glsl"}
@@ -74,138 +77,166 @@
 (def ^:private glsl-opts {:code {:grammar glsl-grammar}})
 
 (def shader-defs [{:ext "vp"
+                   :language "glsl"
                    :label "Vertex Program"
                    :icon "icons/32/Icons_32-Vertex-shader.png"
+                   :icon-class :script
                    :view-types [:code :default]
                    :view-opts glsl-opts}
                   {:ext "fp"
+                   :language "glsl"
                    :label "Fragment Program"
                    :icon "icons/32/Icons_33-Fragment-shader.png"
+                   :icon-class :script
+                   :view-types [:code :default]
+                   :view-opts glsl-opts}
+                  {:ext "cp"
+                   :language "glsl"
+                   :label "Compute Program"
+                   :icon "icons/64/Icons_29-AT-Unknown.png"
+                   :icon-class :script
+                   :view-types [:code :default]
+                   :view-opts glsl-opts}
+                  {:ext "glsl"
+                   :label "Shader Include"
+                   :icon "icons/64/Icons_29-AT-Unknown.png"
+                   :icon-class :script
                    :view-types [:code :default]
                    :view-opts glsl-opts}])
 
-(defn- shader-type-from-str [^String shader-type-in]
-  (case shader-type-in
-    "int" :shader-type-int
-    "uint" :shader-type-uint
-    "float" :shader-type-float
-    "vec2" :shader-type-vec2
-    "vec3" :shader-type-vec3
-    "vec4" :shader-type-vec4
-    "mat2" :shader-type-mat2
-    "mat3" :shader-type-mat3
-    "mat4" :shader-type-mat4
-    "sampler2D" :shader-type-sampler2d
-    "sampler3D" :shader-type-sampler3d
-    "samplerCube" :shader-type-sampler-cube
-    :shader-type-unknown))
-
-(defn- shader-stage-from-ext
-  ^ShaderUtil$ES2ToES3Converter$ShaderType [^String resource-ext]
+(defn shader-type-from-ext
+  ^Graphics$ShaderDesc$ShaderType [^String resource-ext]
   (case resource-ext
-    "fp" ShaderUtil$ES2ToES3Converter$ShaderType/FRAGMENT_SHADER
-    "vp" ShaderUtil$ES2ToES3Converter$ShaderType/VERTEX_SHADER))
+    "fp" Graphics$ShaderDesc$ShaderType/SHADER_TYPE_FRAGMENT
+    "vp" Graphics$ShaderDesc$ShaderType/SHADER_TYPE_VERTEX
+    "cp" Graphics$ShaderDesc$ShaderType/SHADER_TYPE_COMPUTE))
 
-(defn- shader-language-from-str [name]
-  (case name
-    "glsl_sm120" :language-glsl-sm120
-    "glsl_sm140" :language-glsl-sm140
-    "gles_sm100" :language-gles-sm100
-    "gles_sm300" :language-gles-sm300
-    "spirv" :language-spirv))
-
-(defn- shader-language-to-java
+(defn shader-language-to-java
   ^Graphics$ShaderDesc$Language [language]
   (case language
     :language-glsl-sm120 Graphics$ShaderDesc$Language/LANGUAGE_GLSL_SM120
-    :language-glsl-sm140 Graphics$ShaderDesc$Language/LANGUAGE_GLSL_SM140
+    :language-glsl-sm430 Graphics$ShaderDesc$Language/LANGUAGE_GLSL_SM430
     :language-gles-sm100 Graphics$ShaderDesc$Language/LANGUAGE_GLES_SM100
     :language-gles-sm300 Graphics$ShaderDesc$Language/LANGUAGE_GLES_SM300
+    :language-glsl-sm330 Graphics$ShaderDesc$Language/LANGUAGE_GLSL_SM330
     :language-spirv Graphics$ShaderDesc$Language/LANGUAGE_SPIRV))
 
 (defn- error-string->error-value [^String error-string]
   (g/error-fatal (string/trim error-string)))
 
-(defn- shader-resource->map [^ShaderUtil$SPIRVReflector$Resource shader-resource]
-  {:name (.name shader-resource)
-   :type (shader-type-from-str (.type shader-resource))
-   :element-count (.elementCount shader-resource)
-   :set (.set shader-resource)
-   :binding (.binding shader-resource)})
+(defonce ^:private ^"[Lcom.dynamo.graphics.proto.Graphics$ShaderDesc$Language;" java-shader-languages-with-spirv
+  (into-array Graphics$ShaderDesc$Language
+              (map shader-language-to-java
+                   ;; TODO: WGSL support (:language-wgsl)
+                   [:language-glsl-sm330 :language-gles-sm300 :language-gles-sm100 :language-glsl-sm430 :language-spirv])))
 
-(defn- make-glsl-shader [^String glsl-source resource-ext resource-path language]
-  (let [shader-stage (shader-stage-from-ext resource-ext)
-        shader-language (shader-language-from-str language)
-        is-debug true
-        glsl-compile-result (ShaderProgramBuilder/compileGLSL glsl-source shader-stage (shader-language-to-java shader-language) resource-path is-debug)]
-    {:language shader-language
-     :source (ByteString/copyFrom (.getBytes glsl-compile-result "UTF-8"))}))
+(defn- build-shader [build-resource _dep-resources user-data]
+  (let [resource-path (resource/path build-resource)
+        max-page-count (:max-page-count user-data)
+        shader-module-descs (into-array ShaderCompilePipeline$ShaderModuleDesc
+                                        (mapv (fn [shader-info]
+                                                (let [shader-module-desc (ShaderCompilePipeline$ShaderModuleDesc.)]
+                                                  (set! (. shader-module-desc source) (:source shader-info))
+                                                  (set! (. shader-module-desc resourcePath) (:resource-path shader-info))
+                                                  (set! (. shader-module-desc type) (shader-type-from-ext (:ext shader-info)))
+                                                  shader-module-desc))
+                                              (:shader-infos user-data)))
+        result (ShaderProgramBuilderEditor/makeShaderDescWithVariants resource-path shader-module-descs java-shader-languages-with-spirv max-page-count)
+        compile-warning-messages (.-buildWarnings result)
+        compile-error-values (mapv error-string->error-value compile-warning-messages)]
+    (g/precluding-errors compile-error-values
+      {:resource build-resource
+       :content (protobuf/pb->bytes (.-shaderDesc result))})))
 
-(defn- make-spirv-shader [^String glsl-source resource-ext resource-path]
-  (let [shader-stage (shader-stage-from-ext resource-ext)
-        spirv-compile-result (ShaderProgramBuilder/compileGLSLToSPIRV glsl-source shader-stage resource-path "" false true)
-        compile-warnings (. spirv-compile-result compile-warnings)]
-    (if (seq compile-warnings)
-      (mapv error-string->error-value compile-warnings)
-      {:language :language-spirv
-       :source (ByteString/copyFrom (. spirv-compile-result source))
-       :uniforms (mapv shader-resource->map (. spirv-compile-result resource-list))
-       :attributes (mapv shader-resource->map (. spirv-compile-result attributes))})))
+(defn make-shader-build-target [node-id shader-source-infos max-page-count]
+  {:pre [(vector? shader-source-infos)
+         (pos? (count shader-source-infos))
+         (integer? max-page-count)]}
+  (let [workspace (resource/workspace (:resource (first shader-source-infos)))
+        user-data {:max-page-count max-page-count
+                   :shader-infos (mapv (fn [shader-source-info]
+                                         {:source (:shader-source shader-source-info)
+                                          :resource-path (resource/proj-path (:resource shader-source-info))
+                                          :ext (resource/type-ext (:resource shader-source-info))})
+                                       shader-source-infos)}]
+    (bt/with-content-hash
+      {:node-id node-id
+       :resource (workspace/make-placeholder-build-resource workspace "sp")
+       :build-fn build-shader
+       :user-data user-data})))
 
-(defn- build-shader [resource _dep-resources user-data]
-  (let [{:keys [compile-spirv resource-ext lines]} user-data
-        source (string/join "\n" lines)
-        resource-path (resource/path resource)
-        spirv-shader-or-errors-or-nil (when compile-spirv
-                                        (make-spirv-shader source resource-ext resource-path))]
-    (g/precluding-errors spirv-shader-or-errors-or-nil
-      (let [glsl-140-shader (make-glsl-shader source resource-ext resource-path "glsl_sm140")
-            gles-300-shader (make-glsl-shader source resource-ext resource-path "gles_sm300")
-            gles-100-shader (make-glsl-shader source resource-ext resource-path "gles_sm100")
-            shaders (filterv some? [glsl-140-shader gles-300-shader gles-100-shader spirv-shader-or-errors-or-nil])
-            shader-desc {:shaders shaders}
-            content (protobuf/map->bytes Graphics$ShaderDesc shader-desc)]
-        {:resource resource
-         :content content}))))
+(def ^:private include-pattern #"^\s*\#include\s+(?:<([^\"<>]+)>|\"([^\"<>]+)\")\s*(?:\/\/.*)?$")
 
-(g/defnk produce-build-targets [_node-id compile-spirv lines resource]
-  [(bt/with-content-hash
-     {:node-id _node-id
-      :resource (workspace/make-build-resource resource)
-      :build-fn build-shader
-      :user-data {:compile-spirv compile-spirv
-                  :lines lines
-                  :resource-ext (resource/type-ext resource)}})])
+(defn- try-parse-include [^String line]
+  ;; #include "../shaders/light.glsl" -> "../shaders/light.glsl"
+  (->> line
+       (re-seq include-pattern)
+       (first)
+       (drop 1)
+       (filter (complement nil?))
+       (first)))
 
-;; Used for rendering in the editor
-(g/defnk produce-full-source [resource lines]
-  (let [source (string/join "\n" lines)
-        resource-ext (resource/type-ext resource)
-        resource-path (resource/path resource)
-        shader-stage (shader-stage-from-ext resource-ext)
-        is-debug true
-        shader-language (shader-language-from-str "glsl_sm120") ;; use the old gles2 compatible shaders
-        glsl-compile-result (ShaderProgramBuilder/compileGLSL source shader-stage (shader-language-to-java shader-language) resource-path is-debug)]
-    glsl-compile-result))
+(defn- try-parse-included-proj-path [base-resource ^String line]
+  (some->> (try-parse-include line)
+           (workspace/resolve-resource base-resource)
+           (resource/proj-path)))
+
+(g/defnk produce-proj-path+full-lines [resource lines proj-path->full-lines]
+  (let [proj-path (resource/proj-path resource)
+        full-lines (into []
+                         (mapcat (fn [line]
+                                   (if-some [included-proj-path (try-parse-included-proj-path resource line)]
+                                     (proj-path->full-lines included-proj-path)
+                                     [line])))
+                         lines)]
+    [proj-path full-lines]))
+
+(g/defnk produce-shader-source-info [_node-id resource proj-path+full-lines]
+  {:node-id _node-id
+   :resource resource
+   :shader-source (string/join "\n" (second proj-path+full-lines))})
+
+(g/deftype ^:private ProjPath+Lines [(s/one s/Str "proj-path") (s/one [String] "lines")])
 
 (g/defnode ShaderNode
   (inherits r/CodeEditorResourceNode)
 
-  (input project-settings g/Any)
+  ;; Overrides modified-lines property in CodeEditorResourceNode.
+  (property modified-lines types/Lines
+            (dynamic visible (g/constantly false))
+            (set (fn [_evaluation-context self _old-value new-value]
+                   (let [includes (into #{}
+                                        (keep try-parse-include)
+                                        new-value)]
+                     (g/set-property self :includes includes)))))
 
-  (output compile-spirv g/Bool (g/fnk [project-settings]
-                                 (get project-settings ["shader" "output_spirv"] false)))
+  (property includes g/Any
+            (dynamic visible (g/constantly false))
+            (set (fn [evaluation-context self _old-value new-value]
+                   (let [basis (:basis evaluation-context)
+                         resource (resource-node/resource basis self)
+                         project (project/get-project basis self)
+                         connections [[:proj-path+full-lines :included-proj-paths+full-lines]]]
+                     (concat
+                       (g/disconnect-sources basis self :included-proj-paths+full-lines)
+                       (map (fn [include]
+                              (let [included-resource (workspace/resolve-resource resource include)]
+                                (:tx-data (project/connect-resource-node evaluation-context project included-resource self connections))))
+                            new-value))))))
 
-  (output build-targets g/Any :cached produce-build-targets)
-  (output full-source g/Str :cached produce-full-source))
+  (input included-proj-paths+full-lines ProjPath+Lines :array)
 
-(defn- additional-load-fn [project self _resource]
-  (g/connect project :settings self :project-settings))
+  (output proj-path->full-lines g/Any (g/fnk [included-proj-paths+full-lines]
+                                                (into {} included-proj-paths+full-lines)))
+  (output proj-path+full-lines ProjPath+Lines :cached produce-proj-path+full-lines)
+  (output shader-source-info g/Any :cached produce-shader-source-info))
 
 (defn register-resource-types [workspace]
-  (for [def shader-defs
-        :let [args (assoc def
-                     :node-type ShaderNode
-                     :eager-loading? true
-                     :additional-load-fn additional-load-fn)]]
-    (apply r/register-code-resource-type workspace (mapcat identity args))))
+  ;; "sp" is the build output resource type
+  [(workspace/register-resource-type workspace :ext "sp")
+   (for [def shader-defs
+         :let [args (assoc def
+                      :node-type ShaderNode
+                      :built-pb-class Graphics$ShaderDesc
+                      :lazy-loaded false)]]
+     (apply r/register-code-resource-type workspace (mapcat identity args)))])

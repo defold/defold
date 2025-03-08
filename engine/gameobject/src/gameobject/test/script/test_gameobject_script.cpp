@@ -1,28 +1,26 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
-#include <algorithm>
-#include <map>
-#include <dlib/hash.h>
-#include <dlib/message.h>
 #include <dlib/dstrings.h>
-#include <dlib/time.h>
+#include <dlib/hash.h>
 #include <dlib/log.h>
+#include <dlib/message.h>
 #include <dlib/sys.h>
+#include <dlib/testutil.h>
+#include <dlib/time.h>
 #include <resource/resource.h>
 #include "../gameobject.h"
 #include "../gameobject_private.h"
@@ -31,12 +29,6 @@
 #include "../proto/gameobject/lua_ddf.h"
 
 using namespace dmVMath;
-
-#if defined(__NX__)
-    #define MOUNTFS "host:/"
-#else
-    #define MOUNTFS ""
-#endif
 
 class ScriptTest : public jc_test_base_class
 {
@@ -48,10 +40,16 @@ protected:
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
-        m_Path = "build/default/src/gameobject/test/script";
-        m_Factory = dmResource::NewFactory(&params, MOUNTFS "build/default/src/gameobject/test/script");
-        m_ScriptContext = dmScript::NewContext(0, m_Factory, true);
+        m_Path = "build/src/gameobject/test/script";
+
+        m_Factory = dmResource::NewFactory(&params, m_Path);
+        ASSERT_NE((dmResource::HFactory)0, m_Factory);
+
+        dmScript::ContextParams script_context_params = {};
+        script_context_params.m_Factory = m_Factory;
+        m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
+
         m_Register = dmGameObject::NewRegister();
         dmGameObject::Initialize(m_Register, m_ScriptContext);
         m_ModuleContext.m_ScriptContexts.SetCapacity(1);
@@ -178,10 +176,10 @@ TEST_F(ScriptTest, TestFailingScript02)
     // Test init failure
 
     // Avoid logging expected errors. Better solution?
-    dmLog::Setlevel(dmLog::LOG_SEVERITY_FATAL);
+    dmLogSetLevel(LOG_SEVERITY_FATAL);
     dmGameObject::New(m_Collection, "/go2.goc");
     bool result = dmGameObject::Init(m_Collection);
-    dmLog::Setlevel(dmLog::LOG_SEVERITY_WARNING);
+    dmLogSetLevel(LOG_SEVERITY_WARNING);
     EXPECT_FALSE(result);
     result = dmGameObject::Final(m_Collection);
     EXPECT_FALSE(result);
@@ -196,9 +194,9 @@ TEST_F(ScriptTest, TestFailingScript03)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     // Avoid logging expected errors. Better solution?
-    dmLog::Setlevel(dmLog::LOG_SEVERITY_FATAL);
+    dmLogSetLevel(LOG_SEVERITY_FATAL);
     ASSERT_FALSE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    dmLog::Setlevel(dmLog::LOG_SEVERITY_WARNING);
+    dmLogSetLevel(LOG_SEVERITY_WARNING);
     dmGameObject::Delete(m_Collection, go, false);
 }
 
@@ -234,11 +232,11 @@ TEST_F(ScriptTest, TestReload)
 {
     const char* script_resource_name = "/__test__.scriptc";
     char script_file_name[512];
-    dmSnPrintf(script_file_name, sizeof(script_file_name), "%s%s%s", MOUNTFS, m_Path, script_resource_name);
+    dmTestUtil::MakeHostPathf(script_file_name, sizeof(script_file_name), "%s%s", m_Path, script_resource_name);
 
     const char* go_resource_name = "/__go__.goc";
     char go_file_name[512];
-    dmSnPrintf(go_file_name, sizeof(go_file_name), "%s%s%s", MOUNTFS, m_Path, go_resource_name);
+    dmTestUtil::MakeHostPathf(go_file_name, sizeof(go_file_name), "%s%s", m_Path, go_resource_name);
 
     dmGameObjectDDF::PrototypeDesc prototype;
     memset(&prototype, 0, sizeof(prototype));
@@ -333,7 +331,7 @@ TEST_F(ScriptTest, TestReloadModule)
 {
     const char* script_resource_name = "/test_reload_mod.luac";
     char script_file_name[512];
-    dmSnPrintf(script_file_name, sizeof(script_file_name), "%s%s%s", MOUNTFS, m_Path, script_resource_name);
+    dmTestUtil::MakeHostPathf(script_file_name, sizeof(script_file_name), "%s%s", m_Path, script_resource_name);
 
     // NOTE: +1 to remove /
     CreateScriptFile(script_file_name,
@@ -565,10 +563,16 @@ TEST_F(ScriptTest, TestInstanceContext)
     dmGameObject::PostUpdate(m_Collection);
 }
 
-int main(int argc, char **argv)
+
+TEST_F(ScriptTest, TestExists)
 {
-    dmDDF::RegisterAllTypes();
-    jc_test_init(&argc, argv);
-    int ret = jc_test_run_all();
-    return ret;
+    dmGameObject::HInstance go_null = dmGameObject::New(m_Collection, "/null.goc");
+    ASSERT_NE((void*) 0, (void*) go_null);
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go_null, "a"));
+
+    dmGameObject::HInstance go_exists = dmGameObject::New(m_Collection, "/exists.goc");
+    ASSERT_NE((void*) 0, (void*) go_exists);
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go_exists, "b"));
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
 }

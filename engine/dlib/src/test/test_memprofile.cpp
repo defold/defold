@@ -1,29 +1,30 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
 #include <stdint.h>
+#include <string.h> // memset
 #include <stdlib.h> // posix_memalign
 #ifdef __linux__
 #include <malloc.h>
 #endif
 #if defined(__EMSCRIPTEN__)
-#include <libc/malloc.h>
+#include <malloc.h>
 #endif
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 #include "../dlib/memprofile.h"
-#include "../dlib/profile.h"
+#include "../dlib/profile/profile.h"
 
 bool g_MemprofileActive = false;
 
@@ -31,7 +32,7 @@ extern void dmMemProfileInternalData();
 
 void* g_dont_optimize = 0;
 
-#if !(defined(SANITIZE_ADDRESS) || defined(SANITIZE_MEMORY)) // until we can load the dylibs properly
+#if !defined(DM_SANITIZE_ADDRESS) // until we can load the dylibs properly
 
 TEST(dmMemProfile, TestMalloc)
 {
@@ -335,7 +336,7 @@ int main(int argc, char **argv)
     g_MemprofileActive = argc >= 3;
 
     dmMemProfile::Initialize();
-    dmProfile::Initialize(128, 1024 * 1024, 16);
+    dmProfile::Initialize(0);
 
     jc_test_init(&argc, argv);
     int ret = jc_test_run_all();

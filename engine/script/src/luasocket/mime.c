@@ -88,7 +88,7 @@ MIME_API int luaopen_mime_core(lua_State *L)
     luaL_openlib(L, "mime", func, 0);
 #endif
     /* make version string available to scripts */
-    lua_pushstring(L, "_VERSION");
+    lua_pushliteral(L, "_VERSION");
     lua_pushstring(L, MIME_VERSION);
     lua_rawset(L, -3);
     /* initialize lookup tables */

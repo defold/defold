@@ -1,0 +1,22 @@
+script: "/gui/material_script_functions.gui_script"
+material: "/builtins/materials/gui.material"
+
+nodes {
+  id: "node_1"
+  material: ""
+}
+
+nodes {
+  id: "node_2"
+  material: "material_b"
+}
+
+materials {
+	name: "material_a"
+	material: "/gui/material_script_functions_a.material"
+}
+materials {
+	name: "material_b"
+	material: "/gui/material_script_functions_b.material"
+}
+
