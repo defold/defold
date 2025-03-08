@@ -419,6 +419,55 @@ namespace dmRender
     Result AddToRender(HRenderContext context, RenderObject* ro);
 
     /*#
+    * Gets the current view matrix that is set on the render context
+    * @name GetViewMatrix
+    * @param render_context [type: dmRender::HRenderContext] the render context
+    * @return matrix [type: dmVMath::Matrix4] the view matrix
+    */
+    const dmVMath::Matrix4& GetViewMatrix(HRenderContext render_context);
+
+    /*#
+    * Creates a new material from a shader program
+    * @name NewMaterial
+    * @param render_context [type: dmRender::HRenderContext] the render context
+    * @param program [type: dmGraphics::HProgram] the shader program
+    * @return material [type: dmRender::HMaterial] the material, or NULL if no material could be created
+    */
+    HMaterial NewMaterial(dmRender::HRenderContext render_context, dmGraphics::HProgram program);
+
+    /*#
+    * Deletes a material
+    * @name DeleteMaterial
+    * @param render_context [type: dmRender::HRenderContext] the render context
+    * @param material [type: dmRender::HMaterial] the material
+    */
+    void DeleteMaterial(dmRender::HRenderContext render_context, HMaterial material);
+
+    /*#
+    * Sets the material tags for a material
+    * @name SetMaterialTags
+    * @param material [type: dmGraphics::HMaterial] the material
+    * @param tag_count [type: uint32_t] the number of tags to use
+    * @param tags [type: const dmhash_t*] an array of tags
+    */
+    void SetMaterialTags(HMaterial material, uint32_t tag_count, const dmhash_t* tags);
+
+    /*#
+    * Configures a texture sampler on a material
+    * @name SetMaterialSampler
+    * @param material [type: dmGraphics::HMaterial] the material
+    * @param name_hash [type: dmhash_t] the name hash of the sampler to set
+    * @param unit [type: uint32_t] the texture unit to configure the sampler for
+    * @param u_wrap [type: dmGraphics::TextureWrap] the U wrap parameter
+    * @param v_wrap [type: dmGraphics::TextureWrap] the V wrap parameter
+    * @param min_filter [type: dmGraphics::TextureFilter] the minification filter
+    * @param mag_filter [type: dmGraphics::TextureFilter] the magification filter
+    * @param max_anisotropy [type: float] the max anisotropy value
+    * @return result [type: bool] true if the sampler was found
+    */
+    bool SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);
+
+    /*#
      * Gets the key to the material tag list
      * @name GetMaterialTagListKey
      * @param material [type: dmGraphics::HMaterial] the material
