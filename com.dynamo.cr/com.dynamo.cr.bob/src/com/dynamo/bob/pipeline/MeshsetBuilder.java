@@ -37,7 +37,7 @@ import com.dynamo.rig.proto.Rig.MeshSet;
 import com.dynamo.rig.proto.Rig.Skeleton;
 
 
-@BuilderParams(name="Meshset", inExts={".dae",".gltf",".glb"}, outExt=".meshsetc")
+@BuilderParams(name="Meshset", inExts={".dae",".gltf",".glb"}, outExt=".meshsetc", paramsForSignature = {"model-split-large-meshes"})
 public class MeshsetBuilder extends Builder  {
     public static class ResourceDataResolver implements ModelImporterJni.DataResolver
     {
@@ -83,7 +83,7 @@ public class MeshsetBuilder extends Builder  {
         ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);
         MeshSet.Builder meshSetBuilder = MeshSet.newBuilder();
 
-        boolean split_meshes = this.project.getProjectProperties().getIntValue("model", "split_large_meshes", 0) != 0;
+        boolean split_meshes = this.project.option("model-split-large-meshes", "false").equals("true");
         try {
             ColladaUtil.loadMesh(collada_is, meshSetBuilder, true, split_meshes);
         } catch (XMLStreamException e) {
@@ -147,8 +147,8 @@ public class MeshsetBuilder extends Builder  {
         {
             MeshSet.Builder meshSetBuilder = MeshSet.newBuilder();
 
-            int split_meshes = this.project.getProjectProperties().getIntValue("model", "split_large_meshes", 0);
-            if (split_meshes != 0) {
+            boolean split_meshes = this.project.option("model-split-large-meshes", "false").equals("true");
+            if (split_meshes) {
                 ModelUtil.splitMeshes(scene);
             }
 

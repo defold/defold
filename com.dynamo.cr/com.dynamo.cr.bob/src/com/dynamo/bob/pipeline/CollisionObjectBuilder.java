@@ -18,14 +18,14 @@ import java.io.IOException;
 import java.util.List;
 
 @ProtoParams(srcClass = CollisionObjectDesc.class, messageClass = CollisionObjectDesc.class)
-@BuilderParams(name="CollisionObject", inExts=".collisionobject", outExt=".collisionobjectc")
+@BuilderParams(name="CollisionObject", inExts=".collisionobject", outExt=".collisionobjectc", paramsForSignature = {"physics-type-2D"})
 public class CollisionObjectBuilder extends ProtoBuilder<CollisionObjectDesc.Builder> {
 
-    private void ValidateShapeTypes(List<CollisionShape.Shape> shapeList, IResource resource, String physicsTypeStr) throws IOException, CompileExceptionError {
+    private void ValidateShapeTypes(List<CollisionShape.Shape> shapeList, IResource resource, boolean isPhysics2D) throws IOException, CompileExceptionError {
         for(Shape shape : shapeList) {
             if(shape.getShapeType() == Type.TYPE_CAPSULE) {
-                if(physicsTypeStr.contains("2D")) {
-                    throw new CompileExceptionError(resource, 0, BobNLS.bind(Messages.CollisionObjectBuilder_MISMATCHING_SHAPE_PHYSICS_TYPE, "Capsule", physicsTypeStr ));
+                if(isPhysics2D) {
+                    throw new CompileExceptionError(resource, 0, BobNLS.bind(Messages.CollisionObjectBuilder_MISMATCHING_SHAPE_PHYSICS_TYPE, "Capsule", "2D" ));
                 }
             }
         }
@@ -37,19 +37,19 @@ public class CollisionObjectBuilder extends ProtoBuilder<CollisionObjectDesc.Bui
             BuilderUtil.checkResource(this.project, resource, "collision shape", messageBuilder.getCollisionShape());
         }
 
-        String physicsTypeStr = StringUtil.toUpperCase(this.project.getProjectProperties().getStringValue("physics", "type", "2D"));
+        boolean isPhysics2D = this.project.option("physics-type-2D", "true").equals("true");
 
         // Merge convex shape resource with collision object
         // NOTE: Special case for tilegrid resources. They are left as is
         if(messageBuilder.hasEmbeddedCollisionShape()) {
-            ValidateShapeTypes(messageBuilder.getEmbeddedCollisionShape().getShapesList(), resource, physicsTypeStr);
+            ValidateShapeTypes(messageBuilder.getEmbeddedCollisionShape().getShapesList(), resource, isPhysics2D);
         }
         if (messageBuilder.hasCollisionShape() && !messageBuilder.getCollisionShape().isEmpty() && !(messageBuilder.getCollisionShape().endsWith(".tilegrid") || messageBuilder.getCollisionShape().endsWith(".tilemap"))) {
             IResource shapeResource = project.getResource(messageBuilder.getCollisionShape().substring(1));
             ConvexShape.Builder cb = ConvexShape.newBuilder();
             ProtoUtil.merge(shapeResource, cb);
             CollisionShape.Builder eb = CollisionShape.newBuilder().mergeFrom(messageBuilder.getEmbeddedCollisionShape());
-            ValidateShapeTypes(eb.getShapesList(), shapeResource, physicsTypeStr);
+            ValidateShapeTypes(eb.getShapesList(), shapeResource, isPhysics2D);
             Shape.Builder sb = Shape.newBuilder()
                     .setShapeType(CollisionShape.Type.valueOf(cb.getShapeType().getNumber()))
                     .setPosition(Point3.newBuilder())
