@@ -86,7 +86,7 @@ public class ShaderProgramBuilder extends Builder {
             // SPIR-v tools cannot handle carriage return
             source = source.replace("\r", "");
 
-            ShaderPreprocessor shaderPreprocessor = new ShaderPreprocessor(this.project, input.getPath(), source);
+            ShaderPreprocessor shaderPreprocessor = new ShaderPreprocessor(this.project, input.getPath(), source, null);
             String[] includes = shaderPreprocessor.getIncludes();
 
             for (String includePath : includes) {
@@ -490,7 +490,11 @@ public class ShaderProgramBuilder extends Builder {
         return builder;
     }
 
-    private static String GetShaderSource(Project project, String path) throws IOException, CompileExceptionError {
+    private static ShaderCompilePipeline.ShaderModuleDesc GetShaderDesc(Project project, String path, String contentRoot) throws IOException, CompileExceptionError {
+        ShaderDesc.ShaderType shaderType = parseShaderTypeFromPath(path);
+        ShaderCompilePipeline.ShaderModuleDesc desc = new ShaderCompilePipeline.ShaderModuleDesc();
+        desc.type = shaderType;
+
         try (BufferedInputStream is = new BufferedInputStream(new FileInputStream(path))) {
             byte[] inBytes = new byte[is.available()];
             is.read(inBytes);
@@ -498,21 +502,15 @@ public class ShaderProgramBuilder extends Builder {
             String source = new String(inBytes, StandardCharsets.UTF_8);
             source = source.replace("\r", "");
 
-            ShaderPreprocessor shaderPreprocessor = new ShaderPreprocessor(project, path, source);
-            return shaderPreprocessor.getCompiledSource();
+            ShaderPreprocessor shaderPreprocessor = new ShaderPreprocessor(project, path, source, contentRoot);
+            desc.source = shaderPreprocessor.getCompiledSource();
         }
-    }
 
-    private static ShaderCompilePipeline.ShaderModuleDesc GetShaderDesc(Project project, String path) throws IOException, CompileExceptionError {
-        ShaderDesc.ShaderType shaderType = parseShaderTypeFromPath(path);
-        ShaderCompilePipeline.ShaderModuleDesc desc = new ShaderCompilePipeline.ShaderModuleDesc();
-        desc.type = shaderType;
-        desc.source = GetShaderSource(project, path);
         return desc;
     }
 
     // Running standalone:
-    // java -classpath $DYNAMO_HOME/share/java/bob-light.jar com.dynamo.bob.pipeline.ShaderProgramBuilder <path-in.fp|vp|cp> <path-out.fpc|vpc|cpc> <platform>
+    // java -classpath $DYNAMO_HOME/share/java/bob-light.jar com.dynamo.bob.pipeline.ShaderProgramBuilder <path-in.fp|vp|cp> <path-out.fpc|vpc|cpc> <platform> <content-root>
     public static void main(String[] args) throws IOException, CompileExceptionError {
         System.setProperty("java.awt.headless", "true");
         ShaderProgramBuilder builder = new ShaderProgramBuilder();
@@ -528,17 +526,19 @@ public class ShaderProgramBuilder extends Builder {
 
         ArrayList<ShaderCompilePipeline.ShaderModuleDesc> modules = new ArrayList<>();
 
-        String outputPath, platform;
+        String outputPath, platform, contentRoot;
 
-        if (args.length == 3) {
-            modules.add(GetShaderDesc(project, args[0]));
+        if (args.length == 4) {
             outputPath   = args[1];
             platform     = args[2];
+            contentRoot  = args[3];
+            modules.add(GetShaderDesc(project, args[0], contentRoot));
         } else {
-            modules.add(GetShaderDesc(project, args[0]));
-            modules.add(GetShaderDesc(project, args[1]));
             outputPath   = args[2];
             platform     = args[3];
+            contentRoot  = args[4];
+            modules.add(GetShaderDesc(project, args[0], contentRoot));
+            modules.add(GetShaderDesc(project, args[1], contentRoot));
         }
 
         assert platform != null;

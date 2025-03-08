@@ -413,6 +413,11 @@ namespace dmPlatform
         }
     }
 
+    void SetWindowTitle(HWindow window, const char* title)
+    {
+        glfwSetWindowTitle(window->m_Window, title);
+    }
+
     void SetWindowSize(HWindow window, uint32_t width, uint32_t height)
     {
         glfwSetWindowSize(window->m_Window, (int) width, (int) height);
@@ -423,6 +428,11 @@ namespace dmPlatform
         {
             window->m_ResizeCallback(window->m_ResizeCallbackUserData, window->m_Width, window->m_Height);
         }
+    }
+
+    void SetWindowPosition(HWindow window, int32_t x, int32_t y)
+    {
+        glfwSetWindowPos(window->m_Window, x, y);
     }
 
     float GetDisplayScaleFactor(HWindow window)

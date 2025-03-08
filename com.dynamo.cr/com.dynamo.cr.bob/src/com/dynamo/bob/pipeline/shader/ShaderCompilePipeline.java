@@ -14,7 +14,6 @@
 
 package com.dynamo.bob.pipeline.shader;
 
-import java.lang.reflect.Array;
 import java.nio.charset.StandardCharsets;
 import java.io.File;
 import java.io.IOException;
@@ -37,6 +36,7 @@ import org.apache.commons.io.FileUtils;
 public class ShaderCompilePipeline {
     public static class Options {
         public boolean splitTextureSamplers;
+        public ArrayList<String> defines = new ArrayList<>();
     }
 
     public static class ShaderModuleDesc {
@@ -175,17 +175,28 @@ public class ShaderCompilePipeline {
     }
 
     private void generateSPIRv(String resourcePath, ShaderDesc.ShaderType shaderType, String pathFileInGLSL, String pathFileOutSpv) throws IOException, CompileExceptionError {
-        Result result = Exec.execResult(glslangExe,
-            "-w",
-            "--entry-point", "main",
-            "--auto-map-bindings",
-            "--auto-map-locations",
-            "-Os",
-            "--resource-set-binding", "frag", "1",
-            "-S", shaderTypeToSpirvStage(shaderType),
-            "-o", pathFileOutSpv,
-            "-V",
-            pathFileInGLSL);
+        ArrayList<String> args = new ArrayList<>();
+        args.add(glslangExe);
+        args.add("-w");
+        args.add("--entry-point");
+        args.add("main");
+        args.add("--auto-map-bindings");
+        args.add("--auto-map-locations");
+        args.add("-Os");
+        args.add("--resource-set-binding");
+        args.add("frag");
+        args.add("1");
+        args.add("-S");
+        args.add(shaderTypeToSpirvStage(shaderType));
+        args.add("-o");
+        args.add(pathFileOutSpv);
+        args.add("-V");
+        for (String define : this.options.defines) {
+            args.add("-D" + define);
+        }
+        args.add(pathFileInGLSL);
+
+        Result result = Exec.execResult(args.toArray(new String[0]));
         checkResult(resourcePath, result);
     }
 

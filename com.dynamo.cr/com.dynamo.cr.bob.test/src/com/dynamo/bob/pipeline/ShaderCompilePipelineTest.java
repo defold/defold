@@ -22,7 +22,6 @@ import java.util.ArrayList;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.pipeline.shader.ShaderCompilePipelineLegacy;
-import com.dynamo.bob.util.Exec;
 import org.junit.Test;
 
 import com.dynamo.bob.pipeline.shader.ShaderCompilePipeline;
@@ -159,12 +158,67 @@ public class ShaderCompilePipelineTest {
 
         boolean didException = false;
         try {
-            byte[] bytes = pipelineFragment.crossCompile(fsDesc.type, ShaderDesc.Language.LANGUAGE_GLES_SM100);
+            pipelineFragment.crossCompile(fsDesc.type, ShaderDesc.Language.LANGUAGE_GLES_SM100);
         } catch (CompileExceptionError e) {
             didException = true;
         }
         assertTrue(didException);
         ShaderCompilePipeline.destroyShaderPipeline(pipelineFragment);
+    }
+
+    @Test
+    public void testExtraDefines() throws Exception {
+        String fsShader =
+               """
+               #version 140
+               out vec4 color;
+               void main() {
+               #ifdef TEST_DEFINE
+                    color = vec4(1.0);
+               #else
+                    color = vec4(0.25);
+               #endif
+               }    
+               """;
+
+        ShaderCompilePipeline.ShaderModuleDesc fsDesc = new ShaderCompilePipeline.ShaderModuleDesc();
+        fsDesc.source = fsShader;
+        fsDesc.type = ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT;
+
+        ShaderCompilePipeline.Options options = new ShaderCompilePipeline.Options();
+        options.defines.add("TEST_DEFINE");
+
+        ShaderCompilePipeline pipelineFragment = new ShaderCompilePipeline("testFragment");
+        ShaderCompilePipeline.createShaderPipeline(pipelineFragment, fsDesc, options);
+
+        byte[] compiledSrc = pipelineFragment.crossCompile(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, ShaderDesc.Language.LANGUAGE_GLSL_SM330);
+        String compiledStr = new String(compiledSrc);
+
+        assertTrue(compiledStr.contains("color = vec4(1.0);"));
+        ShaderCompilePipeline.destroyShaderPipeline(pipelineFragment);
+
+        String fsShaderLegacy =
+                """
+                void main() {
+                #ifdef TEST_DEFINE
+                     gl_FragColor = vec4(1.0);
+                #else
+                     gl_FragColor = vec4(0.25);
+                #endif
+                }
+                """;
+
+        ShaderCompilePipeline.ShaderModuleDesc fsDescLegacy = new ShaderCompilePipeline.ShaderModuleDesc();
+        fsDescLegacy.source = fsShaderLegacy;
+        fsDescLegacy.type = ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT;
+        ShaderCompilePipelineLegacy pipelineFragmentLegacy = new ShaderCompilePipelineLegacy("testFragment");
+        ShaderCompilePipeline.createShaderPipeline(pipelineFragmentLegacy, fsDescLegacy, new ShaderCompilePipeline.Options());
+
+        compiledSrc = pipelineFragmentLegacy.crossCompile(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, ShaderDesc.Language.LANGUAGE_GLSL_SM330);
+        compiledStr = new String(compiledSrc);
+
+        assertTrue(compiledStr.contains("_DMENGINE_GENERATED_gl_FragColor_0 = vec4(1.0);"));
+        ShaderCompilePipeline.destroyShaderPipeline(pipelineFragmentLegacy);
     }
 
     @Test

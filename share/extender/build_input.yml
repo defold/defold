@@ -5,7 +5,7 @@ context:
                 "ResourceTypeOgg","ResourceTypeWav",
                 "ResourceProviderFile", "ResourceProviderArchive", "ResourceProviderArchiveMutable", "ResourceProviderZip", "ResourceProviderHttp",
                 "ComponentTypeScript", "ComponentTypeAnim", "ComponentTypeGui", "ComponentTypeMesh", "ComponentTypeSound", "ScriptBox2DExt", "ScriptImageExt", "ScriptModelExt", "ScriptTypesExt"]
-    allowedLibs: ["engine","engine_release","profile","profile_null","remotery","remotery_null","profilerext","profilerext_null","crashext","crashext_null","record","record_null","gameobject","ddf","resource","gamesys","gamesys_model","gamesys_rig","gamesys_model_null","gamesys_rig_null","rig_null","graphics","graphics_null","graphics_transcoder_null","graphics_transcoder_basisu","basis_transcoder","physics_2d","physics_3d","physics_null", "platform", "platform_vulkan", "platform_null", "BulletDynamics","BulletCollision","LinearMath","Box2D","render","render_font_default","script","luajit-5.1","extension","hid","hid_null","input","particle","rig","dlib","image","image_null","dmglfw","glfw3","gui","crashext","sound","sound_null","tremolo","vpx","liveupdate",
+    allowedLibs: ["engine","engine_release","profile","profile_null","remotery","remotery_null","profilerext","profilerext_null","crashext","crashext_null","record","record_null","gameobject","ddf","resource","gamesys","gamesys_model","gamesys_rig","gamesys_model_null","gamesys_rig_null","rig_null","graphics","graphics_opengles","graphics_null","graphics_transcoder_null","graphics_transcoder_basisu","basis_transcoder","physics_2d","physics_3d","physics_null", "platform", "platform_vulkan", "platform_null", "BulletDynamics","BulletCollision","LinearMath","Box2D","render","render_font_default","script","luajit-5.1","extension","hid","hid_null","input","particle","rig","dlib","image","image_null","dmglfw","glfw3","gui","crashext","sound","sound_null","tremolo","vpx","liveupdate",
                   "libengine.lib","libengine_release.lib","libprofile.lib","libprofile_null.lib","libremotery.lib","libremotery_null.lib","libprofilerext.lib","libprofilerext_null.lib","libcrashext","libcrashext_null","librecord.lib","librecord_null.lib","libgameobject.lib","libddf.lib","libresource.lib","libgamesys.lib","libgamesys_model.lib","libgamesys_rig.lib","librig.lib","libgamesys_model_null.lib","libgamesys_rig_null.lib","librig_null.lib","libgraphics.lib","libgraphics_null.lib","libgraphics_transcoder_null.lib","libgraphics_transcoder_basisu.lib","libbasis_transcoder.lib","libphysics_2d.lib","libphysics_3d.lib","libphysics_null.lib","libBulletDynamics.lib","libBulletCollision.lib","libplatform.lib","libplatform_null.lib","libLinearMath.lib","libBox2D.lib","librender.lib","librender_font_default.lib",
                   "libscript.lib","libluajit.lib-5.1","libextension.lib","libhid.lib","libhid_null.lib","libinput.lib","libparticle.lib","librig.lib","libdlib.lib","libimage.lib","libimage_null.lib","libdmglfw.lib","libgui.lib","libcrashext.lib","libsound.lib","libsound_null.lib","libtremolo.lib","libvpx.lib","libliveupdate.lib",
                   "engine_service","engine_service_null","libengine_service.lib","libengine_service_null.lib",
@@ -448,14 +448,14 @@ platforms:
 
   linux:
     context:
-        engineLibs:     ["engine", "engine_service", "mbedtls", "zip", "profile", "remotery", "profilerext", "record", "gameobject", "ddf", "resource", "gamesys", "gamesys_model", "gamesys_rig", "script_box2d", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "Box2D", "render", "render_font_default", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "image", "glfw3", "gui", "crashext", "liveupdate", "sound", "tremolo", "vpx"]
+        engineLibs:     ["engine", "engine_service", "mbedtls", "zip", "profile", "remotery", "profilerext", "record", "gameobject", "ddf", "resource", "gamesys", "gamesys_model", "gamesys_rig", "script_box2d", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "Box2D", "render", "render_font_default", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "image", "glfw3", "gui", "crashext", "liveupdate", "sound", "tremolo", "vpx"]
         defines:        ["DM_PLATFORM_LINUX", "__STDC_LIMIT_MACROS"]
         flags:          ["-g", "-O2", "-D__STDC_LIMIT_MACROS", "-Wall", "-Werror=format", "-fno-exceptions", "-fPIC", "-fvisibility=hidden"]
         linkFlags:      ["-g", "-O2"]
         cxxLinkShFlags: ["-g", "-O2"]
         libs:           []
         # this happens to contain some dynamic engine libs too (openal)
-        dynamicLibs: ["openal","Xext","X11","Xi","GL","GLU","pthread","m","dl"]
+        dynamicLibs: ["openal","Xext","X11","Xi","pthread","m","dl"]
 
     exePrefix:      ''
     exeExt:         ''
@@ -479,11 +479,17 @@ platforms:
       LD_LIBRARY_PATH:  '{{dynamo_home}}/lib/x86_64-linux:{{env.LD_LIBRARY_PATH}}'
 
     context:
-        libPaths:       ["{{dynamo_home}}/lib/x86_64-linux","{{dynamo_home}}/ext/lib/x86_64-linux"]
+        engineLibs:  ["graphics"]
+        libPaths:    ["{{dynamo_home}}/lib/x86_64-linux","{{dynamo_home}}/ext/lib/x86_64-linux"]
+        dynamicLibs: ["GL","GLU"]
 
   arm64-linux:
     env:
       LD_LIBRARY_PATH:  '{{dynamo_home}}/lib/arm64-linux:{{env.LD_LIBRARY_PATH}}'
 
     context:
+        symbols:        ["GraphicsAdapterOpenGLES"]
+        excludeSymbols: ["GraphicsAdapterOpenGL"]
+        engineLibs:     ["graphics_opengles"]
         libPaths:       ["{{dynamo_home}}/lib/arm64-linux","{{dynamo_home}}/ext/lib/arm64-linux"]
+        dynamicLibs:    ["EGL", "GLESv1_CM", "GLESv2"]
