@@ -698,6 +698,9 @@ class Configuration(object):
         if sys.version_info.major != 3:
             self.fatal("The build scripts requires Python 3!")
 
+    def has_sdk(self, sdkfolder, target_platform):
+        return None != sdk.get_sdk_info(sdkfolder, target_platform, False)
+
     def check_sdk(self):
         sdkfolder = join(self.ext, 'SDKs')
 
@@ -737,8 +740,11 @@ class Configuration(object):
 
     def install_sdk(self):
         sdkfolder = join(self.ext, 'SDKs')
-
         target_platform = self.target_platform
+
+        # check host tools availability
+        has_host_sdk = self.has_sdk(sdkfolder, target_platform)
+
         if target_platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
             # macOS SDK
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_MACOS_SDK), join(sdkfolder, sdk.PACKAGES_MACOS_SDK))
@@ -749,7 +755,7 @@ class Configuration(object):
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_IOS_SDK), join(sdkfolder, sdk.PACKAGES_IOS_SDK))
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_IOS_SIMULATOR_SDK), join(sdkfolder, sdk.PACKAGES_IOS_SIMULATOR_SDK))
 
-        if 'win32' in target_platform or ('win32' in self.host):
+        if 'win32' in target_platform or ('win32' in self.host and not has_host_sdk):
             win32_sdk_folder = join(self.ext, 'SDKs', 'Win32')
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_WIN32_TOOLCHAIN), join(win32_sdk_folder, 'MicrosoftVisualStudio14.0'), strip_components=0 )
