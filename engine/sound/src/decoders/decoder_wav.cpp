@@ -282,16 +282,11 @@ namespace dmSoundCodec
     static inline void DecodeNibble(uint32_t n, int32_t& pred, int32_t& step_index, int32_t& step)
     {
             step_index = dmMath::Clamp(step_index + ima_index_table[n & 15], 0, 88);
-        #if 0
-//broken??
-            pred = dmMath::Clamp(pred + (((((int32_t)(n << 28) >> 27) + 1) * step) >> 3), -32768, 32767);
-        #else
-            int32_t diff = (step >> 3);
+            int32_t diff = step >> 3;
             diff += (n & 1) ? (step >> 2) : 0;
             diff += (n & 2) ? (step >> 1) : 0;
             diff += (n & 4) ?  step       : 0;
             pred = (n & 8) ? dmMath::Max(pred - diff, -32768) : dmMath::Min(pred + diff, 32767);
-        #endif
             step = ima_step_table[step_index];
     }
 
