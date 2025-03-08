@@ -380,7 +380,9 @@ def download_sdk(conf, url, targetfolder, strip_components=1, force_extract=Fals
         print ("SDK already installed:", targetfolder)
 
 class Configuration(object):
-    def __init__(self, dynamo_home = None,
+    def __init__(self,
+                 defold_home = None,
+                 dynamo_home = None,
                  target_platform = None,
                  skip_tests = False,
                  skip_codesign = False,
@@ -419,7 +421,8 @@ class Configuration(object):
         else:
             home = os.environ['HOME']
 
-        self.dynamo_home = dynamo_home if dynamo_home else join(os.getcwd(), 'tmp', 'dynamo_home')
+        self.defold_home = os.path.normpath(join(os.path.dirname(__file__), '..'))
+        self.dynamo_home = dynamo_home if dynamo_home else join(self.defold_home, 'tmp', 'dynamo_home')
         self.ext = join(self.dynamo_home, 'ext')
         self.dmsdk = join(self.dynamo_home, 'sdk')
         self.defold = normpath(join(dirname(abspath(__file__)), '..'))
@@ -1783,7 +1786,7 @@ class Configuration(object):
 
 
     def shell(self):
-        print ('Setting up shell with DYNAMO_HOME, PATH, JAVA_HOME, and LD_LIBRARY_PATH/DYLD_LIBRARY_PATH (where applicable) set')
+        print ('Setting up shell with DEFOLD_HOME, DYNAMO_HOME, PATH, JAVA_HOME, and LD_LIBRARY_PATH/DYLD_LIBRARY_PATH (where applicable) set')
 
         args = [SHELL, '-l']
 
@@ -2445,6 +2448,7 @@ class Configuration(object):
             self.fatal("Failed to find JAVA_HOME environment variable or valid java executable")
         env['JAVA_HOME'] = os.environ['JAVA_HOME']
 
+        env['DEFOLD_HOME'] = self.defold_home
         env['DYNAMO_HOME'] = self.dynamo_home
 
         android_host = self.host
@@ -2706,7 +2710,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
             needs_dynamo_home = False
             break
     if needs_dynamo_home:
-        for env_var in ['DYNAMO_HOME', 'PYTHONPATH', 'JAVA_HOME']:
+        for env_var in ['DEFOLD_HOME', 'DYNAMO_HOME', 'PYTHONPATH', 'JAVA_HOME']:
             if not env_var in os.environ:
                 c._log("CMD: " + ' '.join(sys.argv))
                 msg = f"{env_var} was not found in environment.\nDid you use './scripts/build.py shell'?"
