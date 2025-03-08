@@ -210,6 +210,7 @@ namespace dmShaderc
     struct ShaderCompileResult
     {
         dmArray<uint8_t> m_Data;
+        const char*      m_LastError;
     };
 
     // Shader context

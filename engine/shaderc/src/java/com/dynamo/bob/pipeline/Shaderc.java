@@ -259,6 +259,7 @@ public class Shaderc {
     };
     public static class ShaderCompileResult {
         public byte[] data;
+        public String lastError;
     };
 }
 

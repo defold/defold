@@ -173,6 +173,7 @@ namespace dmShaderc
         result->m_Data.SetCapacity(compiler->m_SPIRVCodeSize);
         result->m_Data.SetSize(compiler->m_SPIRVCodeSize);
         memcpy(result->m_Data.Begin(), compiler->m_SPIRVCode, compiler->m_SPIRVCodeSize);
+        result->m_LastError = "";
         return result;
     }
 }

@@ -15,11 +15,12 @@
 package com.dynamo.bob.pipeline;
 
 import static com.dynamo.bob.pipeline.ShaderProgramBuilder.resourceTypeToShaderDataType;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
+import java.io.IOException;
 import java.util.ArrayList;
 
+import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.pipeline.shader.ShaderCompilePipelineLegacy;
 import org.junit.Test;
 
@@ -135,6 +136,37 @@ public class ShaderCompilePipelineTest {
     }
 
     @Test
+    public void testFailingCrossCompilation() throws IOException, CompileExceptionError {
+        String fsShader =
+                """
+                #version 140
+                uniform sampler2D sampler_2d;
+                out vec4 color;
+                void main()
+                {
+                    ivec2 sampler_size = textureSize(sampler_2d, 0);
+                    color = vec4( float(sampler_size.x), float(sampler_size.y), 0, 1);
+                }
+                """;
+
+        ShaderCompilePipeline.ShaderModuleDesc fsDesc = new ShaderCompilePipeline.ShaderModuleDesc();
+        fsDesc.source = fsShader;
+        fsDesc.type = ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT;
+
+        ShaderCompilePipeline pipelineFragment = new ShaderCompilePipeline("testFragment");
+        ShaderCompilePipeline.createShaderPipeline(pipelineFragment, fsDesc, new ShaderCompilePipeline.Options());
+
+        boolean didException = false;
+        try {
+            pipelineFragment.crossCompile(fsDesc.type, ShaderDesc.Language.LANGUAGE_GLES_SM100);
+        } catch (CompileExceptionError e) {
+            didException = true;
+        }
+        assertTrue(didException);
+        ShaderCompilePipeline.destroyShaderPipeline(pipelineFragment);
+    }
+
+    @Test
     public void testExtraDefines() throws Exception {
         String fsShader =
                """
@@ -148,6 +180,7 @@ public class ShaderCompilePipelineTest {
                #endif
                }    
                """;
+
         ShaderCompilePipeline.ShaderModuleDesc fsDesc = new ShaderCompilePipeline.ShaderModuleDesc();
         fsDesc.source = fsShader;
         fsDesc.type = ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT;

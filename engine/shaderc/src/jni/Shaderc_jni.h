@@ -85,6 +85,7 @@ struct ShaderReflectionJNI {
 struct ShaderCompileResultJNI {
     jclass cls;
     jfieldID data;
+    jfieldID lastError;
 };
 struct TypeInfos {
     ShaderCompilerOptionsJNI m_ShaderCompilerOptionsJNI;
