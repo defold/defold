@@ -483,7 +483,8 @@ class Configuration(object):
             os._exit(5)
 
     def get_python(self):
-        return ['python']
+        self.check_python()
+        return [sys.executable]
 
     def _create_common_dirs(self):
         for p in ['ext/lib/python', 'share', 'lib/js-web/js', 'lib/wasm-web/js']:
@@ -692,6 +693,10 @@ class Configuration(object):
             print("Error. Could not download %s" % path)
             sys.exit(1)
         return path
+
+    def check_python(self):
+        if sys.version_info.major != 3:
+            self.fatal("The build scripts requires Python 3!")
 
     def check_sdk(self):
         sdkfolder = join(self.ext, 'SDKs')
@@ -1786,6 +1791,7 @@ class Configuration(object):
 
 
     def shell(self):
+        self.check_python()
         print ('Setting up shell with DEFOLD_HOME, DYNAMO_HOME, PATH, JAVA_HOME, and LD_LIBRARY_PATH/DYLD_LIBRARY_PATH (where applicable) set')
 
         args = [SHELL, '-l']
@@ -1798,6 +1804,7 @@ class Configuration(object):
             sys.exit(process.returncode)
 
     def fatal(self, msg):
+        self._log("****************************************************")
         self._log(msg)
         sys.exit(1)
 
