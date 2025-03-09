@@ -15,6 +15,7 @@
 package com.dynamo.bob.pipeline;
 
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.pipeline.shader.SPIRVReflector;
 import com.dynamo.bob.pipeline.shader.ShaderCompilePipeline;
 import com.dynamo.graphics.proto.Graphics;
 
@@ -105,6 +106,12 @@ public class ShaderProgramBuilderEditor {
                 }
 
                 byte[] source = pipeline.crossCompile(shaderModule.type, shaderLanguage);
+                if (source == null) {
+                    String[] shaderWarnings = new String[] { "Unable to cross-compile " + shaderModule.type + " to " + shaderLanguage};
+                    shaderBuildResults.add(new ShaderProgramBuilder.ShaderBuildResult(shaderWarnings));
+                    continue;
+                }
+
                 boolean variantTextureArray = false;
 
                 if (ShaderUtil.VariantTextureArrayFallback.isRequired(shaderLanguage)) {
@@ -129,11 +136,13 @@ public class ShaderProgramBuilderEditor {
         ShaderProgramBuilder.ShaderCompileResult compileResult = new ShaderProgramBuilder.ShaderCompileResult();
 
         for(Graphics.ShaderDesc.ShaderType type : shaderTypeKeys.keySet()) {
-            compileResult.reflectors.add(pipeline.getReflectionData(type));
+            SPIRVReflector reflector = pipeline.getReflectionData(type);
+            if (reflector != null) {
+                compileResult.reflectors.add(reflector);
+            }
         }
 
         compileResult.shaderBuildResults = shaderBuildResults;
-
         return buildResultsToShaderDescBuildResults(compileResult);
     }
 }

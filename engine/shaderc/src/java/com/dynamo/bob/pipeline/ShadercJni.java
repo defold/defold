@@ -89,7 +89,7 @@ public class ShadercJni {
     public static native void SetResourceBinding(long context, long compiler, long nameHash, int binding);
     public static native void SetResourceSet(long context, long compiler, long nameHash, int set);
 
-    public static native byte[] Compile(long context, long compiler, Shaderc.ShaderCompilerOptions options);
+    public static native Shaderc.ShaderCompileResult Compile(long context, long compiler, Shaderc.ShaderCompilerOptions options);
 
     public static byte[] ReadFile(File file) throws IOException
     {
@@ -160,10 +160,10 @@ public class ShadercJni {
         options.stage      = stage;
         options.entryPoint = "main";
 
-        byte[] res = Compile(context, compiler, options);
+        Shaderc.ShaderCompileResult res = Compile(context, compiler, options);
 
         System.out.println("Result:");
-        System.out.println(new String(res));
+        System.out.println(new String(res.data));
 
         DeleteShaderCompiler(compiler);
     }

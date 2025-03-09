@@ -498,11 +498,17 @@ namespace dmShaderc
         memset(result, 0, sizeof(ShaderCompileResult));
         result->m_Data.SetCapacity(compile_result_size);
         result->m_Data.SetSize(compile_result_size);
+        result->m_LastError = "";
 
         if (compile_result)
         {
             memcpy(result->m_Data.Begin(), compile_result, result->m_Data.Size());
         }
+        else
+        {
+            result->m_LastError = spvc_context_get_last_error_string(context->m_SPVCContext);
+        }
+
         return result;
     }
 

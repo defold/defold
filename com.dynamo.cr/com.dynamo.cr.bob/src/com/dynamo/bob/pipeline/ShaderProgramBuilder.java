@@ -49,6 +49,10 @@ public class ShaderProgramBuilder extends Builder {
         public ShaderBuildResult(ShaderDesc.Shader.Builder fromBuilder) {
             this.shaderBuilder = fromBuilder;
         }
+
+        public ShaderBuildResult(String[] buildWarnings) {
+            this.buildWarnings = buildWarnings;
+        }
     }
 
     static public class ShaderDescBuildResult {
