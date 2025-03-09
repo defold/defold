@@ -12,8 +12,10 @@ newoption {
     trigger     = "target",
     description = "Platform target",
     allowed     = {
-        { "x86_64-darwin", ""},
+        { "x86_64-macos", ""},
+        { "arm64-macos", ""},
         { "x86_64-linux", ""},
+        { "arm64-linux", ""},
         { "x86_64-win32", ""},
     }
 }
@@ -24,7 +26,7 @@ function M.get_host_platform()
         return os.is64bit() and "x86_64-win32" or "win32"
     end
     if os.get() == "macosx" then
-        return os.is64bit() and "x86_64-darwin" or "darwin"
+        return os.is64bit() and "x86_64-macos" or "macos"
     end
     if os.get() == "linux" then
         return os.is64bit() and "x86_64-linux" or "linux"
@@ -46,10 +48,10 @@ function M.setup()
             "Release",
         }
 
-        platforms {
-            "x32",
-            "x64"
-        }
+        -- platforms {
+        --     "x32",
+        --     "x64"
+        -- }
 
         language "C++"
         --toolset ("clang") -- https://premake.github.io/docs/toolset/
@@ -60,11 +62,15 @@ function M.setup()
             path.join(M.DYNAMO_HOME, "ext/include"),
         }
 
-        configuration {"macosx"}
-            libdirs {
-                path.join(M.DYNAMO_HOME, "lib/x86_64-darwin"),
-                path.join(M.DYNAMO_HOME, "ext/lib/x86_64-darwin"),
+        configuration {"x86_64-macos or arm64-macos"}
+            xcodeprojectopts {
+                MACOSX_DEPLOYMENT_TARGET = "10.13",
             }
+
+        libdirs {
+            path.join(M.DYNAMO_HOME, "lib/" .. _OPTIONS['target']),
+            path.join(M.DYNAMO_HOME, "ext/lib/" .. _OPTIONS['target']),
+        }
 
         configuration {}
 

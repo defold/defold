@@ -27,16 +27,6 @@ proj = dm_library.setup_project(PROJ_DIR, "HID")
 -------------------------------------------------------------------------------------------------------------------
 -- Local projects
 
-project "hid"
-    kind "StaticLib"
-
-    files {
-        path.join(PROJ_DIR, "src/glfw/*.cpp"),
-        path.join(PROJ_DIR, "src/hid.cpp"),
-        path.join(PROJ_DIR, "src/**/*.h"),
-    }
-
-
 project "hid_null"
     kind "StaticLib"
 
@@ -46,31 +36,37 @@ project "hid_null"
         path.join(PROJ_DIR, "src/**/*.h"),
     }
 
+project "hid"
+    kind "StaticLib"
+
+    files {
+        path.join(PROJ_DIR, "src/native/*.cpp"),
+        path.join(PROJ_DIR, "src/hid.cpp"),
+        path.join(PROJ_DIR, "src/**/*.h"),
+    }
+
 -------------------------------------------------------------------------------------------------------------------
 -- Tests
 
 project "test_hid"
     kind "ConsoleApp"
-
-    links { "hid_null", "dlib", "profile", "remotery", "dmglfw" }
     wholearchive { "hid_null" } --tests use unstripped libraries
 
-    configuration {"x86_64-darwin"}
-         links { "Cocoa.framework", "QuartzCore.framework", "IOKit.framework", "OpenGL.framework", "CoreVideo.framework" }
+    configuration {}
+        links { "hid_null", "dlib", "profile_null", "platform_null"}
 
     files {
         path.join(PROJ_DIR, "src/test/test_hid.cpp"),
         path.join(PROJ_DIR, "src/test/*.h"),
     }
 
-
 project "test_app_hid"
     kind "ConsoleApp"
 
-    links { "hid", "dlib", "profile", "remotery", "dmglfw" }
+    links { "hid", "dlib", "profile_null", "platform", "glfw3", "graphics_null"}
     wholearchive { "hid" } --tests use unstripped libraries
 
-    configuration {"x86_64-darwin"}
+    configuration {"x86_64-macos or arm64-macos"}
         links { "Cocoa.framework", "QuartzCore.framework", "IOKit.framework", "OpenGL.framework", "CoreVideo.framework" }
 
     files {
@@ -78,25 +74,34 @@ project "test_app_hid"
         path.join(PROJ_DIR, "src/test/*.h"),
     }
 
+-- -------------------------------------------------------------------------------------------------------------------
+-- -- Add to solution
 
--------------------------------------------------------------------------------------------------------------------
--- Add to solution
+-- -- solution "Defold"
 
-solution "Defold"
-    group "HID"
-        project "hid"
-        project "hid_null"
-        project "test_hid"
-        project "test_app_hid"
+-- --     group "HID"
+-- --         project "hid"
+-- --         project "hid_null"
+
+-- --     group "HID - Tests"
+-- --         project "test_hid"
+-- --         project "test_app_hid"
 
 
--------------------------------------------------------------------------------------------------------------------
--- Install
+-- -------------------------------------------------------------------------------------------------------------------
+-- -- Install
 
-configuration {"x86_64-darwin"}
-    postbuildcommands {
-        string.format("echo INSTALLING from %s to %s", proj.build_dir, dm_solution.get_libs_installdir()),
-        string.format("mkdir -p %s", dm_solution.get_libs_installdir()),
-        string.format("cp -v %s/*.a %s", proj.build_dir, dm_solution.get_libs_installdir()),
-    }
+-- configuration {"x86_64-macos"}
+--     postbuildcommands {
+--         string.format("echo INSTALLING from %s to %s", proj.build_dir, dm_solution.get_libs_installdir()),
+--         string.format("mkdir -p %s", dm_solution.get_libs_installdir()),
+--         string.format("cp -v %s/*.a %s", proj.build_dir, dm_solution.get_libs_installdir()),
+--     }
+
+-- configuration {"arm64-macos"}
+--     postbuildcommands {
+--         string.format("echo INSTALLING from %s to %s", proj.build_dir, dm_solution.get_libs_installdir()),
+--         string.format("mkdir -p %s", dm_solution.get_libs_installdir()),
+--         string.format("cp -v %s/*.a %s", proj.build_dir, dm_solution.get_libs_installdir()),
+--     }
 

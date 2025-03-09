@@ -7,22 +7,23 @@ M.BUILD_DIR = "build/default"
 
 function M.setup_project(proj_dir, log_domain)
 
-    location( path.join(proj_dir, "build/" .. _ACTION) ) -- the solution files
+    solution "Defold"
+        location( path.join(proj_dir, "build/" .. _ACTION) ) -- the solution files
 
-    targetdir( path.join(proj_dir, M.BUILD_DIR) ) -- the binary output files
+        targetdir( path.join(proj_dir, M.BUILD_DIR) ) -- the binary output files
 
-    debugdir (proj_dir) -- the working directory when debugging the binary files
+        debugdir (proj_dir) -- the working directory when debugging the binary files
 
-    defines {
-        string.format("DLIB_LOG_DOMAIN=\"%s\"", log_domain),
-        "GL_DO_NOT_WARN_IF_MULTI_GL_VERSION_HEADERS_INCLUDED",
-        "GL_SILENCE_DEPRECATION",
-    }
+        defines {
+            string.format("DLIB_LOG_DOMAIN=\\\"%s\\\"", log_domain),
+            "GL_DO_NOT_WARN_IF_MULTI_GL_VERSION_HEADERS_INCLUDED",
+            "GL_SILENCE_DEPRECATION",
+        }
 
-    includedirs {
-        path.join(proj_dir, "src/include"),
-        path.join(proj_dir, "src"),
-    }
+        includedirs {
+            path.join(proj_dir, "src/include"),
+            path.join(proj_dir, "src"),
+        }
 
     m = {}
     m.build_dir = proj_dir .. "/" .. M.BUILD_DIR
