@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
+import com.dynamo.bob.pipeline.Shaderc;
 import com.dynamo.bob.pipeline.ShadercJni;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.FileUtil;
@@ -247,7 +248,11 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
             String result = compileSPIRVToWGSL(module.desc.resourcePath, module.spirvResult.source, this.pipelineName);
             return result.getBytes();
         } else if(shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL) {
-            return this.generateCrossCompiledShader(shaderType, shaderLanguage, 50);
+            Shaderc.ShaderCompileResult result = this.generateCrossCompiledShader(shaderType, shaderLanguage, 50);
+            if (result.data == null) {
+                throw new CompileExceptionError("Cannot cross-compile shader of type: " + shaderType + ", to language: " + shaderLanguage + ", reason: " + result.lastError);
+            }
+            return result.data;
         } else if (canBeCrossCompiled(shaderLanguage)) {
             String result = ShaderUtil.Common.compileGLSL(module.desc.source, shaderType, shaderLanguage, false, false, this.options.splitTextureSamplers);
             return result.getBytes();

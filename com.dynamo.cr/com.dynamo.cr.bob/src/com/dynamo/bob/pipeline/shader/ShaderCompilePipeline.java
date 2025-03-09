@@ -138,6 +138,9 @@ public class ShaderCompilePipeline {
     protected static String intermediateResourceToProjectPath(String message, String projectPath) {
         String[] knownFileExtensions = new String[] { "glsl", "spv", "wgsl", "hlsl" };
         String replacementRegex = String.format("/[^\\s:]+\\.(%s)(?=:)", String.join("|", knownFileExtensions));
+        if (projectPath == null) {
+            return message;
+        }
         return message.replaceAll(replacementRegex, projectPath);
     }
 
@@ -204,7 +207,7 @@ public class ShaderCompilePipeline {
         return null;
     }
 
-    protected byte[] generateCrossCompiledShader(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, int versionOut) {
+    protected Shaderc.ShaderCompileResult generateCrossCompiledShader(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, int versionOut) {
 
         long compiler = 0;
 
@@ -237,7 +240,7 @@ public class ShaderCompilePipeline {
             opts.glslEs = 1;
         }
 
-        byte[] result = ShadercJni.Compile(module.spirvContext, compiler, opts);
+        Shaderc.ShaderCompileResult result = ShadercJni.Compile(module.spirvContext, compiler, opts);
         ShadercJni.DeleteShaderCompiler(compiler);
         return result;
     }
@@ -304,7 +307,13 @@ public class ShaderCompilePipeline {
             generateWGSL(module.desc.resourcePath, module.spirvFile.getAbsolutePath(), fileCrossCompiled.getAbsolutePath());
             return FileUtils.readFileToByteArray(fileCrossCompiled);
         } else if (canBeCrossCompiled(shaderLanguage)) {
-            byte[] bytes = generateCrossCompiledShader(shaderType, shaderLanguage, version);
+            Shaderc.ShaderCompileResult result = generateCrossCompiledShader(shaderType, shaderLanguage, version);
+
+            if (!result.lastError.isEmpty()) {
+                throw new CompileExceptionError("Cross-compilation of shader type: " + shaderType + ", to language: " + shaderLanguage + " failed, reason: " + result.lastError);
+            }
+
+            byte[] bytes = result.data;
 
             // JG: spirv-cross renames samplers for GLSL based shaders, so we have to run a second pass to force renaming them back.
             //     There doesn't seem to be a simpler way to do this in spirv-cross from what I can understand.

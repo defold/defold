@@ -71,7 +71,7 @@ static jlong NewShaderCompiler(JNIEnv* env, jclass cls, jlong context, jint lang
     return (jlong) compiler;
 }
 
-static jbyteArray Compile(JNIEnv* env, jclass cls, jlong context, jlong compiler, jobject options)
+static jobject Compile(JNIEnv* env, jclass cls, jlong context, jlong compiler, jobject options)
 {
     dmShaderc::jni::ScopedContext jni_scope(env);
     dmShaderc::jni::TypeInfos* types = &jni_scope.m_TypeInfos;
@@ -84,14 +84,7 @@ static jbyteArray Compile(JNIEnv* env, jclass cls, jlong context, jlong compiler
 
     dmShaderc::ShaderCompileResult* res = dmShaderc::Compile(shader_ctx, shader_compiler, shader_options);
 
-    if (!res->m_Data.Size())
-    {
-        dmLogError("Failed to compile shader");
-        return 0;
-    }
-
-    jbyteArray result = env->NewByteArray((jsize) res->m_Data.Size());
-    env->SetByteArrayRegion(result, 0, (jsize) res->m_Data.Size(), (jbyte*) res->m_Data.Begin());
+    jobject result = C2J_CreateShaderCompileResult(env, types, res);
 
     dmShaderc::FreeShaderCompileResult(res);
 
@@ -99,9 +92,9 @@ static jbyteArray Compile(JNIEnv* env, jclass cls, jlong context, jlong compiler
 }
 
 // public static native byte[] Compile(long context, long compiler, Shaderc.ShaderCompilerOptions options);
-JNIEXPORT jbyteArray JNICALL Java_ShadercJni_Compile(JNIEnv* env, jclass cls, jlong context, jlong compiler, jobject options)
+JNIEXPORT jobject JNICALL Java_ShadercJni_Compile(JNIEnv* env, jclass cls, jlong context, jlong compiler, jobject options)
 {
-    jbyteArray result;
+    jobject result;
     DM_JNI_GUARD_SCOPE_BEGIN();
     {
         result = Compile(env, cls, context, compiler, options);
@@ -223,7 +216,7 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
         { (char*) "DeleteShaderContext", (char*) "(J)V", reinterpret_cast<void*>(Java_ShadercJni_DeleteShaderContext)},
         { (char*) "NewShaderCompiler", (char*) "(JI)J", reinterpret_cast<void*>(Java_ShadercJni_NewShaderCompiler)},
         { (char*) "DeleteShaderCompiler", (char*) "(J)V", reinterpret_cast<void*>(Java_ShadercJni_DeleteShaderCompiler)},
-        { (char*) "Compile", (char*) "(JJL" CLASS_NAME "$ShaderCompilerOptions;)[B", reinterpret_cast<void*>(Java_ShadercJni_Compile)},
+        { (char*) "Compile", (char*) "(JJL" CLASS_NAME "$ShaderCompilerOptions;)L" CLASS_NAME "$ShaderCompileResult;", reinterpret_cast<void*>(Java_ShadercJni_Compile)},
         { (char*) "GetReflection", (char*) "(J)L" CLASS_NAME "$ShaderReflection;", reinterpret_cast<void*>(Java_ShadercJni_GetReflection)},
         { (char*) "SetResourceLocation", (char*) "(JJJI)V", reinterpret_cast<void*>(Java_ShadercJni_SetResourceLocation)},
         { (char*) "SetResourceBinding", (char*) "(JJJI)V", reinterpret_cast<void*>(Java_ShadercJni_SetResourceBinding)},
