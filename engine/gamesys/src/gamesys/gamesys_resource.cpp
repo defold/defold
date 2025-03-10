@@ -43,7 +43,7 @@ namespace dmGameSystem
             // This is a quirk from how the OpenGL adapter is implemented, and should probably be fixed.
             uint32_t data_size_per_slice  = mm_width * mm_height * params.m_TextureBpp;
             data_size                    += data_size_per_slice * layer_count;
-            mip_map_data_size[i]              = data_size_per_slice / 8;
+            mip_map_data_size[i]          = data_size_per_slice / 8;
 
             mm_width                     /= 2;
             mm_height                    /= 2;
