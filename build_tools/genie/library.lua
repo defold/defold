@@ -2,16 +2,14 @@
 local M = {}
 
 
-M.BUILD_DIR = "build/default"
-M.GEN_DIR = "build/gen"
-
-
 function M.setup_project(proj_dir, log_domain)
+    local BUILD_DIR = path.join(proj_dir, "build/" .. _ACTION)
+    local GEN_DIR = path.join(proj_dir, "build/gen")
 
     solution "Defold"
-        location( path.join(proj_dir, "build/" .. _ACTION) ) -- the solution files
+        location( BUILD_DIR ) -- the solution files
 
-        targetdir( path.join(proj_dir, M.BUILD_DIR) ) -- the binary output files
+        targetdir( BUILD_DIR ) -- the binary output files
 
         debugdir (proj_dir) -- the working directory when debugging the binary files
 
@@ -27,9 +25,16 @@ function M.setup_project(proj_dir, log_domain)
         }
 
     m = {}
-    m.build_dir = proj_dir .. "/" .. M.BUILD_DIR
+    m.BUILD_DIR = BUILD_DIR
+    m.GEN_DIR = GEN_DIR
     return m
 end
 
+function M.run_command(command)
+    local handle = io.popen(command)
+    local result = handle:read("*a")
+    handle:close()
+    print(result)
+end
 
 return M
