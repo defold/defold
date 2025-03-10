@@ -66,12 +66,12 @@
                           :y (.getY drag-event)))
       :drag-dropped (let [drag-event ^DragEvent jfx-event]
                       (assoc action
-                             :x (.getX drag-event)
-                             :y (.getY drag-event)
-                             :dragboard (.getDragboard drag-event)
-                             :transfer-mode (.getTransferMode drag-event)
-                             :gesture-target (.getGestureTarget drag-event)
-                             :gesture-source (.getGestureSource drag-event)))
+                        :x (.getX drag-event)
+                        :y (.getY drag-event)
+                        :dragboard (.getDragboard drag-event)
+                        :transfer-mode (.getTransferMode drag-event)
+                        :gesture-target (.getGestureTarget drag-event)
+                        :gesture-source (.getGestureSource drag-event)))
       (let [mouse-event ^MouseEvent jfx-event]
         (assoc action
                :button (translate-button (.getButton mouse-event))
