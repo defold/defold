@@ -22,7 +22,6 @@ import static org.junit.Assert.assertTrue;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -208,10 +207,6 @@ public class ResourceCacheKeyTest {
 		Project project = new Project(new DefaultFileSystem());
 		project.scanJavaClasses();
 		project.configurePreBuildProjectOptions();
-
-		Method method = Project.class.getDeclaredMethod("configurePreBuildProjectOptions");
-		method.setAccessible(true);
-		method.invoke(project);
 
 		// Access private static field classToParamsDigest
 		Class<?> builderClass = Builder.class;
