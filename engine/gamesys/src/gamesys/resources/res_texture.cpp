@@ -138,6 +138,36 @@ namespace dmGameSystem
         dmGraphics::SetTextureAsync(texture, params, 0, (void*) 0);
     }
 
+    static bool ValidateTextureParams(uint32_t tex_width_full, uint32_t tex_height_full, const dmGraphics::TextureParams& params)
+    {
+        uint16_t tex_width_mipmap  = dmMath::Max((uint16_t) 1, dmGraphics::GetMipmapSize(tex_width_full, params.m_MipMap));
+        uint16_t tex_height_mipmap = dmMath::Max((uint16_t) 1, dmGraphics::GetMipmapSize(tex_height_full, params.m_MipMap));
+        uint8_t  tex_mipmap_count  = dmGraphics::GetMipmapCount(dmMath::Max(tex_width_full, tex_height_full));
+
+        // Validate mipmap dimensions
+        if (params.m_MipMap > tex_mipmap_count || tex_width_mipmap != params.m_Width || tex_height_mipmap != params.m_Height)
+        {
+            return false;
+        }
+
+        // Validate data size (this should be true even if a NULL pointer is passed for the data, i.e blank texture)
+        uint32_t bitspp = dmGraphics::GetTextureFormatBitsPerPixel(params.m_Format);
+
+        // NOTE! The params.m_Depth is NOT included here. This is because of how the pipeline (and I think, OpenGL adapter is built),
+        //       the data size is supposed to be per slice and not the full data size.
+        uint32_t data_size = params.m_Width * params.m_Height * bitspp / 8;
+
+        // NOTE! We can't check that the _exact_ size matches here (data_size != params.m_DataSize) because the data may be
+        //       passed in from a buffer, which can align the data buffer being passed in. So best we can do is make sure
+        //       the upload data is big enough.
+        if (data_size > params.m_DataSize)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
     static dmResource::Result AcquireResources(const char* path, dmGraphics::HContext context, ImageDesc* image_desc,
         ResTextureUploadParams upload_params, dmGraphics::HTexture texture, dmGraphics::HTexture* texture_out)
     {
@@ -265,6 +295,12 @@ namespace dmGameSystem
                     params.m_Data     = image_desc->m_DecompressedData[0];
                     params.m_DataSize = image_desc->m_DecompressedDataSize[0];
                 }
+
+                if (!ValidateTextureParams(image->m_Width, image->m_Height, params))
+                {
+                    dmLogError("Unable to create mipmap %d, texture parameters are invalid.", params.m_MipMap);
+                    return dmResource::RESULT_FORMAT_ERROR;
+                }
                 dmGraphics::SetTextureAsync(texture, params, 0, 0);
             }
             else
@@ -283,16 +319,13 @@ namespace dmGameSystem
                     }
 
                     params.m_MipMap = i;
-                    params.m_Width  = image->m_MipMapDimensions[i * 2];
-                    params.m_Height = image->m_MipMapDimensions[i * 2 + 1];
+                    params.m_Width  = dmMath::Max((uint32_t) 1, image->m_MipMapDimensions[i * 2]);
+                    params.m_Height = dmMath::Max((uint32_t) 1, image->m_MipMapDimensions[i * 2 + 1]);
 
-                    if (params.m_Width == 0)
+                    if (!ValidateTextureParams(image->m_Width, image->m_Height, params))
                     {
-                        params.m_Width = 1;
-                    }
-                    if (params.m_Height == 0)
-                    {
-                        params.m_Height = 1;
+                        dmLogError("Unable to create mipmap %d, texture parameters are invalid.", params.m_MipMap);
+                        return dmResource::RESULT_FORMAT_ERROR;
                     }
 
                     dmGraphics::SetTextureAsync(texture, params, 0, 0);
