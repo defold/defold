@@ -879,16 +879,6 @@ namespace dmGraphics
         return (TextureType) -1;
     }
 
-    static inline bool IsContextLanguageGlsl(ShaderDesc::Language language)
-    {
-        return language == ShaderDesc::LANGUAGE_GLSL_SM120 ||
-               language == ShaderDesc::LANGUAGE_GLSL_SM140 ||
-               language == ShaderDesc::LANGUAGE_GLSL_SM330 ||
-               language == ShaderDesc::LANGUAGE_GLSL_SM430 ||
-               language == ShaderDesc::LANGUAGE_GLES_SM100 ||
-               language == ShaderDesc::LANGUAGE_GLES_SM300;
-    }
-
     static inline uint32_t VectorTypeToElementCount(VertexAttribute::VectorType vector_type)
     {
         switch(vector_type)
