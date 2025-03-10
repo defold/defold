@@ -1432,9 +1432,20 @@ public class Project {
 
         return false;
     }
-    private static class UniOption {
+
+    /**
+     *  Options from the `game.project` file that may affect build outputs.
+     */
+    private static class GameProjectBuildOption {
         public String inputOption, outputOption, propertyCategory, propertyKey, appManifestSymbol;
-        public UniOption(String inputOption, String outputOption, String propertyCategory, String propertyKey, String appManifestSymbol) {
+        /**
+         * @param inputOption        Option that may be used with Bob.
+         * @param outputOption       How the option will be saved in project options using project.setOption() for future use.
+         * @param propertyCategory   Category in the `game.project` file.
+         * @param propertyKey        Key in the `game.project` file.
+         * @param appManifestSymbol  A symbol from appManifest that makes this option true.
+         */
+        public GameProjectBuildOption(String inputOption, String outputOption, String propertyCategory, String propertyKey, String appManifestSymbol) {
             this.inputOption = inputOption;
             this.outputOption = outputOption;
             this.propertyCategory = propertyCategory;
@@ -1443,22 +1454,22 @@ public class Project {
         }
     }
 
-    private void configurePreBuildProjectOptions() throws IOException, CompileExceptionError {
-        List<UniOption> options = new ArrayList<>();
-        options.add(new UniOption("debug-output-spirv", "output-spirv", "shader","output_spirv","GraphicsAdapterVulkan"));
-        options.add(new UniOption("debug-output-hlsl", "output-hlsl", "shader","output_hlsl","GraphicsAdapterDX12"));
-        options.add(new UniOption("debug-output-wgsl", "output-wgsl", "shader","output_wgsl","GraphicsAdapterWebGPU"));
-        options.add(new UniOption("output-glsles100", "output-glsles100", "shader","output_glsl_es100",null));
-        options.add(new UniOption("output-glsles300", "output-glsles300", "shader","output_glsl_es300",null));
-        options.add(new UniOption("output-glsl120", "output-glsl120", "shader","output_glsl120",null));
-        options.add(new UniOption("output-glsl330", "output-glsl330", "shader","output_glsl330",null));
-        options.add(new UniOption("output-glsl430", "output-glsl430", "shader","output_glsl430",null));
+    public void configurePreBuildProjectOptions() throws IOException, CompileExceptionError {
+        List<GameProjectBuildOption> options = new ArrayList<>();
+        options.add(new GameProjectBuildOption("debug-output-spirv", "output-spirv", "shader","output_spirv","GraphicsAdapterVulkan"));
+        options.add(new GameProjectBuildOption("debug-output-hlsl", "output-hlsl", "shader","output_hlsl","GraphicsAdapterDX12"));
+        options.add(new GameProjectBuildOption("debug-output-wgsl", "output-wgsl", "shader","output_wgsl","GraphicsAdapterWebGPU"));
+        options.add(new GameProjectBuildOption("output-glsles100", "output-glsles100", "shader","output_glsl_es100",null));
+        options.add(new GameProjectBuildOption("output-glsles300", "output-glsles300", "shader","output_glsl_es300",null));
+        options.add(new GameProjectBuildOption("output-glsl120", "output-glsl120", "shader","output_glsl120",null));
+        options.add(new GameProjectBuildOption("output-glsl330", "output-glsl330", "shader","output_glsl330",null));
+        options.add(new GameProjectBuildOption("output-glsl430", "output-glsl430", "shader","output_glsl430",null));
 
-        options.add(new UniOption("sound-stream-enabled", "sound-stream-enabled", "sound","stream_enabled",null));
-        options.add(new UniOption("model-split-large-meshes", "model-split-large-meshes", "model","split_meshes",null));
-        options.add(new UniOption("prometheus-disabled", "prometheus-disabled", "prometheus","disabled",null));
+        options.add(new GameProjectBuildOption("sound-stream-enabled", "sound-stream-enabled", "sound","stream_enabled",null));
+        options.add(new GameProjectBuildOption("model-split-large-meshes", "model-split-large-meshes", "model","split_meshes",null));
+        options.add(new GameProjectBuildOption("prometheus-disabled", "prometheus-disabled", "prometheus","disabled",null));
 
-        for(UniOption option:options) {
+        for(GameProjectBuildOption option:options) {
             boolean fromProjectProperties = this.getProjectProperties().getBooleanValue(option.propertyCategory, option.propertyKey, false);
             if (this.hasOption(option.inputOption)) {
                 boolean fromProjectOptions = this.option(option.inputOption, "false").equals("true");

@@ -208,10 +208,7 @@ public class ResourceCacheKeyTest {
 		// Initialize project
 		Project project = new Project(new DefaultFileSystem());
 		project.scanJavaClasses();
-
-		Method method = Project.class.getDeclaredMethod("configurePreBuildProjectOptions");
-		method.setAccessible(true);
-		method.invoke(project);
+		project.configurePreBuildProjectOptions();
 
 		// Access private static field classToParamsDigest
 		Class<?> builderClass = Builder.class;
