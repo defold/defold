@@ -13,25 +13,31 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.properties-view
-  (:require [clojure.string :as string]
+  (:require [clojure.java.io :as io]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.color-dropper :as color-dropper]
             [editor.field-expression :as field-expression]
+            [editor.game-project-core :as game-project-core]
             [editor.handler :as handler]
             [editor.jfx :as jfx]
             [editor.math :as math]
             [editor.properties :as properties]
             [editor.resource :as resource]
             [editor.resource-dialog :as resource-dialog]
+            [editor.settings-core :as settings-core]
             [editor.types :as types]
             [editor.ui :as ui]
             [editor.ui.fuzzy-combo-box :as fuzzy-combo-box]
             [editor.workspace :as workspace]
             [util.coll :as coll :refer [pair]]
             [util.id-vec :as iv]
-            [util.profiler :as profiler])
+            [util.profiler :as profiler]
+            [editor.defold-project :as project])
   (:import [editor.properties Curve CurveSpread]
+           [java.io File]
+           [javafx.collections ObservableList]
            [javafx.geometry Insets Point2D]
            [javafx.scene Node Parent]
            [javafx.scene.control Button CheckBox ColorPicker Control Label Slider TextArea TextField TextInputControl ToggleButton Tooltip]
@@ -553,11 +559,33 @@
     ignore-alpha (drop-last 2)
     :always (apply str "#")))
 
-(defmethod create-property-control! types/Color [edit-type {:keys [color-dropper-view]} property-fn]
+(defn- read-project-settings [^File project-file]
+  (with-open [reader (io/reader project-file)]
+    (settings-core/parse-settings reader)))
+
+(defn- write-saved-colors! [^File project-file colors]
+  (let [settings (read-project-settings project-file)]
+    (spit project-file
+        (-> (reduce-kv (fn [settings i color] (settings-core/set-setting settings ["project" (str "color-palette#" i)] color)) settings colors)
+            (settings-core/settings->str game-project-core/meta-settings :multi-line-list)))))
+
+(defn- save-colors!
+  [^ColorPicker color-picker project]
+  (let [workspace (project/workspace project)
+        project-path (workspace/project-path workspace)
+        project-file (io/file project-path "game.project")
+        custom-colors ^ObservableList (.getCustomColors color-picker)]
+    (->> custom-colors
+         (mapv #(color->web-string % false))
+         (write-saved-colors! project-file))))
+
+(defmethod create-property-control! types/Color [edit-type {:keys [color-dropper-view project]} property-fn]
   (let [wrapper (doto (HBox.)
                   (.setPrefWidth Double/MAX_VALUE))
         pick-fn (fn [c] (set-color-value! property-fn (:ignore-alpha? edit-type) c))
-        custom-colors (ui/user-data (ui/main-stage) ::custom-colors)
+        settings (project/settings project)
+        color-palette (get settings ["project" "color-palette"])
+        custom-colors (mapv #(Color/valueOf ^String %) color-palette)
         color-dropper (doto (Button. "" (jfx/get-image-view "icons/32/Icons_M_03_colorpicker.png" 16))
                         (ui/add-style! "color-dropper")
                         (AnchorPane/setRightAnchor 0.0)
@@ -585,7 +613,8 @@
                                       (catch Exception _e (cancel-fn nil)))]
                       (set-color-value! property-fn ignore-alpha c)))]
     (when custom-colors
-      (.setAll (.getCustomColors color-picker) custom-colors))
+      (let [current-custom-colors ^ObservableList (.getCustomColors color-picker)]
+        (.setAll current-custom-colors custom-colors)))
     (doto text
       (AnchorPane/setTopAnchor 0.0)
       (AnchorPane/setBottomAnchor 0.0)
@@ -596,7 +625,7 @@
     (ui/on-action! color-picker (fn [_]
                                   (let [c (.getValue color-picker)]
                                     (set-color-value! property-fn ignore-alpha c)
-                                    (ui/user-data! (ui/main-stage) ::custom-colors (.getCustomColors color-picker))
+                                    (save-colors! color-picker project)
                                     (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true))))
     (ui/children! wrapper [pane color-picker])
     [wrapper update-ui-fn]))
