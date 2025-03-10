@@ -19,11 +19,11 @@ import clojure.lang.RT;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
-public class DefoldVarArgFn extends VarArgFunction {
+public class DefoldLuaFn extends VarArgFunction {
 
     private final IFn fn;
 
-    public DefoldVarArgFn(IFn fn) {
+    public DefoldLuaFn(IFn fn) {
         this.fn = fn;
     }
 

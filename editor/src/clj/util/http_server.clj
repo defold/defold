@@ -17,13 +17,13 @@
             [clojure.java.io :as io]
             [clojure.string :as string]
             [editor.error-reporting :as error-reporting]
+            [editor.fs :as fs]
             [editor.future :as future]
             [editor.util :as util]
             [reitit.core :as reitit]
             [service.log :as log])
   (:import [com.sun.net.httpserver Headers HttpHandler HttpServer]
-           [java.io File IOException]
-           [java.lang AutoCloseable]
+           [java.io Closeable File IOException]
            [java.net InetSocketAddress URI URL]
            [java.nio.charset StandardCharsets]
            [java.nio.file Files Path]
@@ -93,26 +93,40 @@
 ;;   the file content would still be recognized by the server that responds with
 ;;   the cached response.
 ;; To achieve this, we use these protocols:
-(defprotocol ContentType (content-type [body] "content-type string or nil if unknown; default nil"))
-(defprotocol ContentData (content-data [body] "convert body response argument to reusable data; default identity"))
-(defprotocol DataLength (data-length [data] "data length in bytes (long) or nil if unknown; default nil"))
-(defprotocol DataConnection (data-connection [data] "convert data to connection that might know content-type and data-length when sent, should be io/IOFactory, could be AutoCloseable; default identity"))
+(defprotocol ContentType (content-type [body] "static content-type string or nil if unknown; default nil"))
+(defprotocol ContentLength (content-length [body] "static content-length in bytes (long) or nil if unknown; default nil"))
+(defprotocol ->Data (->data [body] "convert body to reusable immutable data"))
+(defprotocol ->Connection (->connection [data] "open connection to HTTP response data that might know it's content-type and content-length when sent, should be io/IOFactory, could be Closeable; default identity"))
+(defprotocol ConnectionContentType (connection-content-type [connection] "dynamic content-type string or nil if unknown; default nil"))
+(defprotocol ConnectionContentLength (connection-content-length [connection] "dynamic content-length in bytes (long) or nil if unknown; default nil"))
 ;; During response creation, if content-length and content-type weren't
 ;; explicitly provided, we try to infer them. We use `content-type` fn on a
-;; provided body, then we convert it to reusable data using `content-data`, and
-;; finally we try to get the content length by invoking `data-length` on data.
-;; This prepares the immutable part of the response.
+;; provided body, and then try it on the data produced using `->data`. We
+;; similarly try to get the content length by invoking `content-length` on body
+;; and data. This prepares the immutable part of the response.
 ;; Then comes the dynamic part: when sending the response, we open the
 ;; connection to data. This connection might know its type and length when it's
 ;; established. For example, if response body is an HTTP URL/URI, the editor
 ;; server performs an HTTP request to a remote server that may respond to the
 ;; editor server with content-type and content-length headers. So, after opening
 ;; the connection, if we still don't know the content length and type of the
-;; response, we ask the connection for its `content-type` and `data-length`.
+;; response, we ask the connection for its `connection-content-type` and
+;; `connection-content-length`. We don't reuse the `content-type` and
+;; `content-length` protocol fns here to make the developer aware that the
+;; functions serve different purposes: `content-type` and `content-length` are
+;; essentially static and don't change for a given response body, while
+;; `connection-content-type` and `connection-content-length` are dynamic and may
+;; change between responses given the same body.
+
+(extend-protocol ->Data
+  String (->data [s] (.getBytes s StandardCharsets/UTF_8))
+  File (->data [f] (.toPath f))
+  Object (->data [x] x)
+  nil (->data [x] x))
 
 (extend-protocol ContentType
   String (content-type [_] "text/plain; charset=utf-8")
-  File (content-type [file] (path-content-type (str file)))
+  byte/1 (content-type [_] "application/octet-stream")
   Path (content-type [path] (path-content-type (str path)))
   URL (content-type [url]
         (case (.getProtocol url)
@@ -121,16 +135,10 @@
   Object (content-type [_])
   nil (content-type [_]))
 
-(extend-protocol ContentData
-  String (content-data [s] (.getBytes s StandardCharsets/UTF_8))
-  File (content-data [file] (.toPath file))
-  Object (content-data [x] x)
-  nil (content-data [x] x))
-
-(extend-protocol DataLength
-  byte/1 (data-length [bytes] (count bytes))
-  Object (data-length [_])
-  nil (data-length [_]))
+(extend-protocol ContentLength
+  byte/1 (content-length [bytes] (count bytes))
+  Object (content-length [_])
+  nil (content-length [_]))
 
 (defmacro ^:private provide-header [headers key value]
   `(let [k# ~key
@@ -159,21 +167,30 @@
    {:pre [(integer? status) (or (nil? headers) (map? headers))]}
    (let [;; Convert body to reduce unnecessary transformations when sending the
          ;; response in case this response is going to be reused
-         data (content-data body)
+         data (->data body)
+         data-is-body (identical? body data)
          ;; Infer length if possible to do immediately
-         length (data-length data)
+         length (or (some-> (get headers "content-length") parse-long)
+                    (content-length body)
+                    (when-not data-is-body (content-length data)))
          headers (-> headers
-                     (provide-header "content-type" (content-type body))
+                     (provide-header "content-type" (or (content-type body)
+                                                        (when-not data-is-body (content-type data))))
                      (provide-header "content-length" length))]
      (cond-> {:status status}
              headers (assoc :headers headers)
              (and data (or (not length) (pos? length))) (assoc :body data)))))
 
-(defn json-response [json-value]
-  (let [baos (ByteArrayOutputStream.)]
-    (with-open [writer (io/writer baos)]
-      (json/write json-value writer))
-    (response 200 {"content-type" "application/json"} (.toByteArray baos))))
+(defn json-response
+  ([json-value]
+   (json-response json-value 200 nil))
+  ([json-value status]
+   (json-response json-value status nil))
+  ([json-value status headers]
+   (let [baos (ByteArrayOutputStream.)]
+     (with-open [writer (io/writer baos)]
+       (json/write json-value writer))
+     (response status (provide-header headers "content-type" "application/json") (.toByteArray baos)))))
 
 (defn- make-status-response [status body]
   (response status (str status \space body \newline)))
@@ -185,47 +202,49 @@
 (def internal-server-error (make-status-response 500 "Internal Server Error"))
 (defn redirect [location] (response 302 {"location" location} nil))
 
-(defn port [^HttpServer server]
-  (.getPort (.getAddress server)))
+(deftype ServerWithHandler [server handler]
+  Closeable
+  (close [_] (.stop ^HttpServer server 0)))
+
+(defn port [^ServerWithHandler server]
+  (.getPort (.getAddress ^HttpServer (.-server server))))
 
 (defn local-url [server]
   (format "http://localhost:%d" (port server)))
 
-(defn url [^HttpServer server]
-  (let [address (.getAddress server)]
+(defn url [^ServerWithHandler server]
+  (let [address (.getAddress ^HttpServer (.-server server))]
     (format "http://%s:%d" (.getHostString address) (.getPort address))))
 
-(extend-protocol DataConnection
-  Path (data-connection [path]
-         (reify
-           DataLength
-           (data-length [_] (Files/size path))
-           io/IOFactory
-           (make-input-stream [_ opts] (io/make-input-stream path opts))
-           (make-output-stream [_ opts] (io/make-output-stream path opts))
-           (make-reader [_ opts] (io/make-reader path opts))
-           (make-writer [_ opts] (io/make-writer path opts))))
-  URL (data-connection [url]
+(extend-protocol ConnectionContentLength
+  Path (connection-content-length [path] (fs/path-size path))
+  Object (connection-content-length [_])
+  nil (connection-content-length [_]))
+
+(extend-protocol ConnectionContentType
+  Object (connection-content-type [_])
+  nil (connection-content-type [_]))
+
+(extend-protocol ->Connection
+  URL (->connection [url]
         (let [connection (.openConnection url)]
           (reify
-            DataLength
-            (data-length [_]
+            ConnectionContentLength
+            (connection-content-length [_]
               (let [len (.getContentLengthLong connection)]
                 (when-not (= -1 len) len)))
-            ContentType
-            (content-type [_]
-              (.getContentType connection))
+            ConnectionContentType
+            (connection-content-type [_] (.getContentType connection))
             io/IOFactory
             (make-input-stream [_ opts] (io/make-input-stream (.getInputStream connection) opts))
             (make-output-stream [_ opts] (io/make-output-stream (.getOutputStream connection) opts))
             (make-reader [_ opts] (io/make-reader (.getInputStream connection) opts))
             (make-writer [_ opts] (io/make-writer (.getOutputStream connection) opts))
-            AutoCloseable
-            (close [_]
-              (.close (.getInputStream connection))))))
-  URI (data-connection [uri] (data-connection (.toURL uri)))
-  Object (data-connection [x] x)
-  nil (data-connection [x] x))
+            Closeable
+            (close [_] (.close (.getInputStream connection))))))
+  URI (->connection [uri] (->connection (.toURL uri)))
+  Object (->connection [x] x)
+  nil (->connection [x] x))
 
 (defn start!
   "Start a generic HTTP server
@@ -247,7 +266,7 @@
                  :body       optional response body, could be nil, string
                              content, or anything that satisfies io/IOFactory
                              (e.g. InputStream, File, Path etc.). If body is
-                             AutoCloseable, it will be closed even if it's not
+                             Closeable, it will be closed even if it's not
                              written (which might happen when responding to HEAD
                              requests)
                Use [[response]] fn to produce the response
@@ -256,8 +275,8 @@
     :host    HTTP server host, string
     :port    HTTP server port, integer. If not provided, the server will get a
              random available port"
-  ^HttpServer [handler & {:keys [host port]
-                          :or {port 0}}]
+  ^ServerWithHandler [handler & {:keys [host port]
+                                 :or {port 0}}]
   (let [server (HttpServer/create
                  (if host
                    (InetSocketAddress. ^String host ^int port)
@@ -276,9 +295,12 @@
                                  :headers (persistent!
                                             (reduce
                                               (fn [acc e]
-                                                (let [k (key e)
-                                                      v (val e)]
-                                                  (assoc! acc (util/lower-case* k) (if (< 1 (count v)) (vec v) (.get ^List v 0)))))
+                                                (let [k (.intern (util/lower-case* (key e)))
+                                                      v (val e)
+                                                      v (if (< 1 (count v))
+                                                          (vec v)
+                                                          (.get ^List v 0))]
+                                                  (assoc! acc k v)))
                                               (transient {})
                                               (.entrySet (.getRequestHeaders exchange))))
                                  :body (.getRequestBody exchange)}
@@ -295,68 +317,81 @@
                   (fn [response]
                     (future/io
                       (try
-                        (let [{:keys [status headers body]} response
-                              connection (data-connection body)
-                              ;; Infer content-length and content-type for responses that
-                              ;; can't do that during response creation. For example, we
-                              ;; might cache a response with a particular file, but
-                              ;; the file itself might change between requests
-                              headers (-> headers
-                                          (provide-header "content-type" (content-type connection))
-                                          (provide-header "content-length" (data-length connection)))
-
-                              connection (if (or (= "HEAD" request-method)
-                                                 (= 304 status))
-                                           (do
-                                             (when (instance? AutoCloseable connection)
-                                               (.close ^AutoCloseable connection))
-                                             nil)
-                                           connection)]
+                        (let [{:keys [status headers body]} response]
                           (when-not (integer? status)
                             (throw (ex-info (str "Invalid response status: " status) {:status status})))
                           (when-not (or (nil? headers) (map? headers))
                             (throw (ex-info (str "Invalid response headers: " headers) {:headers headers})))
-                          (reduce-kv #(doto ^Headers %1 (.add %2 %3)) (.getResponseHeaders exchange) headers)
-                          (.sendResponseHeaders
-                            exchange
-                            status
-                            ;; Response length argument:
-                            ;; -1 means empty response body (0 bytes)
-                            ;; 0 is unknown size (chunked)
-                            ;; positive is exact size
-                            (if (nil? connection)
-                              -1
-                              (if-let [explicit-length (get headers "content-length")]
-                                (let [n (Long/parseUnsignedLong explicit-length)]
-                                  (if (zero? n) -1 n))
-                                0)))
-                          (when connection
+                          (let [connection (->connection body)]
                             (try
-                              (with-open [is (io/input-stream connection)]
-                                (try
-                                  (io/copy is (.getResponseBody exchange))
-                                  ;; A browser or remote http client can close
-                                  ;; the connection before we finished sending
-                                  ;; the response: ignore such exceptions since
-                                  ;; it's not an issue.
-                                  (catch IOException _)))
+                              (let [;; Infer content-length and content-type for responses that
+                                    ;; can't do that during response creation. For example, we
+                                    ;; might cache a response with a particular file, but
+                                    ;; the file itself might change between requests
+                                    headers (-> headers
+                                                (provide-header "content-type" (connection-content-type connection))
+                                                (provide-header "content-length" (connection-content-length connection)))
+                                    ;; Maybe don't write the data at all (we still need
+                                    ;; to create the connection to infer content headers)
+                                    connection (if (or (= "HEAD" request-method)
+                                                       (= 304 status))
+                                                 nil
+                                                 connection)]
+                                (reduce-kv #(doto ^Headers %1 (.add %2 %3)) (.getResponseHeaders exchange) headers)
+                                (.sendResponseHeaders
+                                  exchange
+                                  status
+                                  ;; Response length argument:
+                                  ;; -1 means empty response body (0 bytes)
+                                  ;; 0 is unknown size (chunked)
+                                  ;; positive is exact size
+                                  (if (nil? connection)
+                                    -1
+                                    (if-let [explicit-length (get headers "content-length")]
+                                      (let [n (Long/parseUnsignedLong explicit-length)]
+                                        (if (zero? n) -1 n))
+                                      0)))
+                                (when connection
+                                  (with-open [is (io/input-stream connection)]
+                                    (io/copy is (.getResponseBody exchange)))))
+                              ;; A browser or remote http client can close the
+                              ;; connection before we finished sending the response
+                              ;; headers/body: we only log such exceptions since
+                              ;; they are not an issue that needs to be fixed.
+                              (catch IOException e
+                                (log/warn :exception e))
                               (finally
-                                (when (instance? AutoCloseable connection)
-                                  (.close ^AutoCloseable connection))))))
+                                (when (instance? Closeable connection)
+                                  (.close ^Closeable connection))))))
                         (catch Throwable e
                           (error-reporting/report-exception! e))
                         (finally
                           (.close exchange)))))))))))
     (.start server)
-    (when-not (Boolean/getBoolean "defold.tests")
-      (log/info :msg "Http server running" :local-url (local-url server)))
-    server))
+    (let [server (->ServerWithHandler server handler)]
+      (when-not (Boolean/getBoolean "defold.tests")
+        (log/info :msg "Http server running" :local-url (local-url server)))
+      server)))
+
+(defn handler
+  "Get the server request handler function"
+  [^ServerWithHandler server]
+  (.-handler server))
 
 (defn stop!
-  ^HttpServer
+  ^ServerWithHandler
   ([server] (stop! server 2))
-  ([^HttpServer server delay-seconds]
-   (doto server (.stop delay-seconds))))
+  ([^ServerWithHandler server delay-seconds]
+   (.stop ^HttpServer (.-server server) delay-seconds)
+   server))
+
+(defn- allowed-methods [method->handler]
+  (let [method-set (-> method->handler keys set (conj "OPTIONS"))
+        method-set (cond-> method-set (contains? method-set "GET") (conj "HEAD"))]
+    (string/join ", " (sort method-set))))
+
+(defn- invoke-handler [handler request match]
+  (handler (assoc request :path-params (:path-params match))))
 
 (defn router-handler
   "Create HTTP request handler function from reitit routes
@@ -397,13 +432,7 @@
   See also:
     https://cljdoc.org/d/metosin/reitit-core/0.8.0-alpha1/doc/introduction"
   [routes]
-  (let [allowed-methods (fn allowed-methods [method->handler]
-                          (let [method-set (-> method->handler keys set (conj "OPTIONS"))
-                                method-set (cond-> method-set (contains? method-set "GET") (conj "HEAD"))]
-                            (string/join ", " (sort method-set))))
-        invoke-handler (fn invoke-handler [handler request match]
-                         (handler (assoc request :path-params (:path-params match))))
-        router (reitit/router routes {:syntax :bracket})]
+  (let [router (reitit/router routes {:syntax :bracket})]
     (fn route-request [request]
       (let [path (:path request)]
         (if-let [match (or (reitit/match-by-path router path)

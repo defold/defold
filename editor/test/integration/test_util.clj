@@ -793,11 +793,6 @@
     handler/selection))
 
 ;; Extension library server
-(defmacro with-server [handler & body]
-  `(let [~'server (http-server/start! ~handler)]
-     (try
-       (do ~@body)
-       (finally (http-server/stop! ~'server 0)))))
 
 (def lib-server-handler
   (http-server/router-handler

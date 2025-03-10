@@ -27,7 +27,8 @@
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [service.log :as log]
-            [support.test-support :refer [spit-until-new-mtime with-clean-system]])
+            [support.test-support :refer [spit-until-new-mtime with-clean-system]]
+            [util.http-server :as http-server])
   (:import [java.net URI]
            [org.apache.commons.io FileUtils]
            [org.apache.commons.codec.digest DigestUtils]))
@@ -131,7 +132,7 @@
 (deftest open-project
   (with-clean-system
     (test-util/with-ui-run-later-rebound
-      (test-util/with-server test-util/lib-server-handler
+      (with-open [server (http-server/start! test-util/lib-server-handler)]
         (let [workspace (test-util/setup-scratch-workspace! world "test/resources/test_project")
               uri (test-util/lib-server-uri server "lib_resource_project")
               game-project-res (workspace/resolve-workspace-resource workspace "/game.project")]
@@ -157,7 +158,7 @@
 
 (deftest fetch-libraries
   (with-clean-system
-    (test-util/with-server test-util/lib-server-handler
+    (with-open [server (http-server/start! test-util/lib-server-handler)]
       (let [[workspace project] (log/without-logging (setup-scratch world))
             uri (test-util/lib-server-uri server "lib_resource_project")
             game-project (project/get-resource-node project "/game.project")]
@@ -174,7 +175,7 @@
 
 (deftest fetch-libraries-from-library-archive-with-nesting
   (with-clean-system
-    (test-util/with-server test-util/lib-server-handler
+    (with-open [server (http-server/start! test-util/lib-server-handler)]
       (let [[workspace project] (log/without-logging (setup-scratch world))
             uri (test-util/lib-server-uri server "lib_resource_project_with_nesting")
             game-project (project/get-resource-node project "/game.project")]

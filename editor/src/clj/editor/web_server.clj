@@ -13,21 +13,30 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.web-server
-  (:require [editor.command-requests :as command-requests]
-            [editor.console :as console]
-            [editor.engine-profiler :as engine-profiler]
-            [editor.hot-reload :as hot-reload]
-            [editor.pipeline.bob :as bob]
-            [editor.web-profiler :as web-profiler]
-            [util.http-server :as http-server]))
+  (:require [util.http-server :as http-server]))
 
-(set! *warn-on-reflection* trues)
+(set! *warn-on-reflection* true)
 
-(defn handler [workspace project console-view ui-node render-reload-progress!]
-  (http-server/router-handler
-    (into [] cat [(engine-profiler/routes)
-                  (web-profiler/routes)
-                  (console/routes console-view)
-                  (hot-reload/routes workspace)
-                  (bob/routes project)
-                  (command-requests/router ui-node render-reload-progress!)])))
+(defn create-dynamic-handler
+  "Create an HTTP request handler that supports setting dynamic routes
+
+  See [[set-dynamic-routes!]]"
+  [built-in-routes]
+  (let [current-handler (atom (http-server/router-handler built-in-routes))]
+    ^{::built-in-routes built-in-routes
+      ::state current-handler}
+    (fn handle-request [request]
+      (@current-handler request))))
+
+(defn set-dynamic-routes!
+  "Set dynamic routes on the HTTP request handler
+
+  If the new route set causes a conflict, throws an exception where ex-data is
+  a map with the following keys:
+    :type    :path-conflicts
+    :data    a map from path+route-data to a set of conflicting path+route-data"
+  [web-handler dynamic-routes]
+  {:pre [(contains? (meta web-handler) ::state)]}
+  (let [{::keys [built-in-routes state]} (meta web-handler)]
+    (reset! state (http-server/router-handler (into built-in-routes dynamic-routes))))
+  nil)

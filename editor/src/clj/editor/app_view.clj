@@ -2597,7 +2597,7 @@ If you do not specifically require different script states, consider changing th
       (when-let [handler+context (handler/active command [_context] false)]
         (handler/run handler+context)))))
 
-(defn reload-extensions! [app-view project kind workspace changes-view build-errors-view prefs]
+(defn reload-extensions! [app-view project kind workspace changes-view build-errors-view prefs web-server]
   (extensions/reload!
     project kind
     :prefs prefs
@@ -2669,10 +2669,11 @@ If you do not specifically require different script states, consider changing th
                                                     (future/complete! f nil)
                                                     (future/fail! f (LuaError. "Bob invocation failed")))
                                                   (.close out)))))
-                     f)))
+                     f))
+    :web-server web-server)
   (ui/invalidate-menubar-item! ::project/bundle))
 
-(defn- fetch-libraries [app-view workspace project changes-view build-errors-view prefs]
+(defn- fetch-libraries [app-view workspace project changes-view build-errors-view prefs web-server]
   (let [library-uris (project/project-dependencies project)
         hosts (into #{} (map url/strip-path) library-uris)]
     (if-let [first-unreachable-host (first-where (complement url/reachable?) hosts)]
@@ -2695,28 +2696,28 @@ If you do not specifically require different script states, consider changing th
                   (disk/async-reload! render-install-progress! workspace [] changes-view
                                       (fn [success]
                                         (when success
-                                          (reload-extensions! app-view project :library workspace changes-view build-errors-view prefs)))))))))))))
+                                          (reload-extensions! app-view project :library workspace changes-view build-errors-view prefs web-server)))))))))))))
 
 (handler/defhandler :add-dependency :global
   (enabled? [] (disk-availability/available?))
-  (run [selection app-view workspace project changes-view user-data build-errors-view prefs]
-       (let [game-project (project/get-resource-node project "/game.project")
-             dependencies (game-project/get-setting game-project ["project" "dependencies"])
-             dependency-uri (.toURI (URL. (:dep-url user-data)))]
-         (when (not-any? (partial = dependency-uri) dependencies)
-           (game-project/set-setting! game-project ["project" "dependencies"]
-                                      (conj (vec dependencies) dependency-uri))
-           (fetch-libraries app-view workspace project changes-view build-errors-view prefs)))))
+  (run [selection app-view workspace project changes-view user-data build-errors-view prefs web-server]
+    (let [game-project (project/get-resource-node project "/game.project")
+          dependencies (game-project/get-setting game-project ["project" "dependencies"])
+          dependency-uri (.toURI (URL. (:dep-url user-data)))]
+      (when (not-any? (partial = dependency-uri) dependencies)
+        (game-project/set-setting! game-project ["project" "dependencies"]
+                                   (conj (vec dependencies) dependency-uri))
+        (fetch-libraries app-view workspace project changes-view build-errors-view prefs web-server)))))
 
 (handler/defhandler :fetch-libraries :global
   (enabled? [] (disk-availability/available?))
-  (run [app-view workspace project changes-view build-errors-view prefs]
-       (fetch-libraries app-view workspace project changes-view build-errors-view prefs)))
+  (run [app-view workspace project changes-view build-errors-view prefs web-server]
+    (fetch-libraries app-view workspace project changes-view build-errors-view prefs web-server)))
 
 (handler/defhandler :reload-extensions :global
   (enabled? [] (disk-availability/available?))
-  (run [app-view project workspace changes-view build-errors-view prefs]
-       (reload-extensions! app-view project :all workspace changes-view build-errors-view prefs)))
+  (run [app-view project workspace changes-view build-errors-view prefs web-server]
+    (reload-extensions! app-view project :all workspace changes-view build-errors-view prefs web-server)))
 
 (defn- ensure-exists-and-open-for-editing! [proj-path app-view changes-view prefs project]
   (let [workspace (project/workspace project)
