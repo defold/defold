@@ -453,7 +453,7 @@
 
 (deftest coercer-test
   (let [vm (vm/make)
-        coerce #(coerce/coerce vm %1 (vm/->lua %2))]
+        coerce #(coerce/coerce vm %1 (apply rt/->varargs %&))]
 
     (testing "enum"
       (let [foo-str "foo"
@@ -601,7 +601,39 @@
         (is (thrown? LuaError (coerce by-key {"type" "dot"})))
         (is (thrown? LuaError (coerce by-key {"kind" "rect"})))
         (is (thrown? LuaError (coerce by-key "not a table")))
-        (is (thrown? LuaError (coerce by-key 42)))))))
+        (is (thrown? LuaError (coerce by-key 42)))))
+
+    (testing "regex"
+      (let [empty (coerce/regex)]
+        (is (= {} (coerce empty)))
+        (is (thrown-with-msg? LuaError #"nil is unexpected" (coerce empty nil)))
+        (is (thrown-with-msg? LuaError #"1 is unexpected" (coerce empty 1))))
+      (let [all-required (coerce/regex :first-name coerce/string
+                                       :last-name coerce/string
+                                       :age coerce/integer)]
+        (is (= {:first-name "Foo"
+                :last-name "Bar"
+                :age 18}
+               (coerce all-required "Foo" "Bar" 18)))
+        (is (thrown-with-msg? LuaError #"more arguments expected" (coerce all-required "Foo" "Bar")))
+        (is (thrown-with-msg? LuaError #"0 is unexpected" (coerce all-required "Foo" "Bar" 12 0)))
+        1)
+      (let [some-optional (coerce/regex :path coerce/string
+                                        :method :? (coerce/enum :get :post :put :delete :head :options)
+                                        :as :? (coerce/enum :string :json))]
+        (is (= {:path "/foo" :method :get :as :json}
+               (coerce some-optional "/foo" :get :json)))
+        (is (= {:path "/foo" :as :json} (coerce some-optional "/foo" :json)))
+        (is (= {:path "/foo" :method :options} (coerce some-optional "/foo" :options)))
+        (is (= {:path "/foo"} (coerce some-optional "/foo")))
+        (is (thrown-with-msg? LuaError #"true is not a string" (coerce some-optional true))))
+      (let [required-after-optional (coerce/regex :string coerce/string
+                                                  :boolean :? coerce/boolean
+                                                  :integer coerce/integer)]
+        (is (= {:string "foo" :boolean true :integer 1} (coerce required-after-optional "foo" true 1)))
+        (is (= {:string "foo" :integer 1} (coerce required-after-optional "foo" 1)))
+        (is (thrown-with-msg? LuaError #"more arguments expected" (coerce required-after-optional "foo")))
+        (is (thrown-with-msg? LuaError #"(\"bar\" is not a boolean)\n.+(\"bar\" is not an integer)" (coerce required-after-optional "foo" "bar")))))))
 
 (deftest external-file-attributes-test
   (test-util/with-loaded-project "test/resources/editor_extensions/external_file_attributes_project"
