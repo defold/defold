@@ -30,7 +30,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.BuilderParams;
@@ -208,6 +207,7 @@ public class ResourceCacheKeyTest {
 		// Initialize project
 		Project project = new Project(new DefaultFileSystem());
 		project.scanJavaClasses();
+		project.configurePreBuildProjectOptions();
 
 		Method method = Project.class.getDeclaredMethod("configurePreBuildProjectOptions");
 		method.setAccessible(true);

@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
+import com.dynamo.bob.pipeline.Shaderc;
 import com.dynamo.bob.pipeline.ShadercJni;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.FileUtil;
@@ -163,17 +164,29 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
             FileUtil.deleteOnExit(file_out_spv);
 
             String spirvShaderStage = (shaderType == ShaderDesc.ShaderType.SHADER_TYPE_VERTEX ? "vert" : "frag");
-            result = Exec.execResult(glslangExe,
-                    "-w",
-                    "-V",
-                    "--entry-point", "main",
-                    "--auto-map-bindings",
-                    "--auto-map-locations",
-                    "--resource-set-binding", "frag", "1",
-                    "-Os",
-                    "-S", spirvShaderStage,
-                    "-o", file_out_spv.getAbsolutePath(),
-                    file_in_glsl.getAbsolutePath());
+
+            ArrayList<String> glslangArgs = new ArrayList<>();
+            glslangArgs.add(glslangExe);
+            glslangArgs.add("-w");
+            glslangArgs.add("--entry-point");
+            glslangArgs.add("main");
+            glslangArgs.add("--auto-map-bindings");
+            glslangArgs.add("--auto-map-locations");
+            glslangArgs.add("-Os");
+            glslangArgs.add("--resource-set-binding");
+            glslangArgs.add("frag");
+            glslangArgs.add("1");
+            glslangArgs.add("-S");
+            glslangArgs.add(spirvShaderStage);
+            glslangArgs.add("-o");
+            glslangArgs.add(file_out_spv.getAbsolutePath());
+            glslangArgs.add("-V");
+            for (String define : this.options.defines) {
+                glslangArgs.add("-D" + define);
+            }
+            glslangArgs.add(file_in_glsl.getAbsolutePath());
+
+            result = Exec.execResult(glslangArgs.toArray(new String[0]));
         }
 
         String resultString = getResultString(result);
@@ -247,7 +260,11 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
             String result = compileSPIRVToWGSL(module.desc.resourcePath, module.spirvResult.source, this.pipelineName);
             return result.getBytes();
         } else if(shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL) {
-            return this.generateCrossCompiledShader(shaderType, shaderLanguage, 50);
+            Shaderc.ShaderCompileResult result = this.generateCrossCompiledShader(shaderType, shaderLanguage, 50);
+            if (result.data == null) {
+                throw new CompileExceptionError("Cannot cross-compile shader of type: " + shaderType + ", to language: " + shaderLanguage + ", reason: " + result.lastError);
+            }
+            return result.data;
         } else if (canBeCrossCompiled(shaderLanguage)) {
             String result = ShaderUtil.Common.compileGLSL(module.desc.source, shaderType, shaderLanguage, false, false, this.options.splitTextureSamplers);
             return result.getBytes();
