@@ -1400,38 +1400,6 @@ public class Project {
         return executor.submit(callable);
     }
 
-    private boolean hasSymbol(String symbolName) throws IOException, CompileExceptionError {
-        IResource appManifestResource = this.getResource("native_extension", "app_manifest", false);
-        if (appManifestResource != null && appManifestResource.exists()) {
-            Map<String, Object> yamlAppManifest = ExtenderUtil.readYaml(appManifestResource);
-            Map<String, Object> yamlPlatforms = (Map<String, Object>) yamlAppManifest.getOrDefault("platforms", null);
-
-            if (yamlPlatforms != null) {
-                String targetPlatform = this.getPlatform().toString();
-                Map<String, Object> yamlPlatform = (Map<String, Object>) yamlPlatforms.getOrDefault(targetPlatform, null);
-
-                if (yamlPlatform != null) {
-                    Map<String, Object> yamlPlatformContext = (Map<String, Object>) yamlPlatform.getOrDefault("context", null);
-
-                    if (yamlPlatformContext != null) {
-                        boolean symbolFound = false;
-
-                        List<String> symbols = (List<String>) yamlPlatformContext.getOrDefault("symbols", new ArrayList<String>());
-
-                        for (String symbol : symbols) {
-                            if (symbol.equals(symbolName)) {
-                                symbolFound = true;
-                                break;
-                            }
-                        }
-                        return symbolFound;
-                    }
-                }
-            }
-        }
-
-        return false;
-    }
     private static class UniOption {
         public String inputOption, outputOption, propertyCategory, propertyKey, appManifestSymbol;
         public UniOption(String inputOption, String outputOption, String propertyCategory, String propertyKey, String appManifestSymbol) {
@@ -1458,13 +1426,31 @@ public class Project {
         options.add(new UniOption("model-split-large-meshes", "model-split-large-meshes", "model","split_meshes",null));
         options.add(new UniOption("prometheus-disabled", "prometheus-disabled", "prometheus","disabled",null));
 
+        Platform currentPlatform = getPlatform();
+        final List<Platform> architectures = Platform.getArchitecturesFromString(this.option("architectures", ""), currentPlatform);
+        Set<String> architectureSet = new HashSet<>();
+        for (Platform platform : architectures) {
+            architectureSet.add(platform.toString());
+        }
+        for (String path : currentPlatform.getExtenderPaths()) {
+            architectureSet.add(path);
+        }
+        List<Map<String, Object>> platformsSettings = new ArrayList<>();
+        for(String arch : architectureSet) {
+            platformsSettings.add(ExtenderUtil.getPlatformSettings(this, arch));
+        }
+
         for(UniOption option:options) {
             boolean fromProjectProperties = this.getProjectProperties().getBooleanValue(option.propertyCategory, option.propertyKey, false);
             if (this.hasOption(option.inputOption)) {
                 boolean fromProjectOptions = this.option(option.inputOption, "false").equals("true");
                 this.setOption(option.outputOption, Boolean.toString(fromProjectProperties || fromProjectOptions));
             } else if (option.appManifestSymbol != null) {
-                this.setOption(option.outputOption, Boolean.toString(hasSymbol(option.appManifestSymbol) || fromProjectProperties));
+                boolean hasSymbol = true;
+                for(Map<String, Object>platfromSetting : platformsSettings) {
+                    hasSymbol &= ExtenderUtil.hasSymbol(option.appManifestSymbol, platfromSetting);
+                }
+                this.setOption(option.outputOption, Boolean.toString(hasSymbol || fromProjectProperties));
             } else {
                 this.setOption(option.outputOption, Boolean.toString(fromProjectProperties));
             }

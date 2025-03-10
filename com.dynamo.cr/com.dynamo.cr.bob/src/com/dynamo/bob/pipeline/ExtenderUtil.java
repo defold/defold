@@ -20,7 +20,6 @@ import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.fs.FileSystemWalker;
 import com.dynamo.bob.fs.ZipMountPoint;
 import com.dynamo.bob.util.MiscUtil;
-import com.dynamo.bob.util.TextureUtil;
 import org.apache.commons.io.filefilter.DirectoryFileFilter;
 import org.apache.commons.io.filefilter.RegexFileFilter;
 
@@ -624,7 +623,7 @@ public class ExtenderUtil {
 
         // Find app manifest if there is one
         {
-            IResource resource = getProjectResource(project, "native_extension", "app_manifest");
+            IResource resource = getProjectResource(project,  "native_extension", "app_manifest");
             if (resource == null) {
                  resource = new DynamicResource(rootDirectory, appManifestPath);
             }
@@ -1190,34 +1189,65 @@ public class ExtenderUtil {
         for (String folder : folders) {
             IResource resource = project.getResource(folder + "/" + ExtenderClient.extensionFilename);
 
-            Map<String, Object> manifest = null;
-            try {
-                manifest = ExtenderUtil.readYaml(resource);
-            } catch (Exception e) {
-                throw new CompileExceptionError(resource, -1, e);
-            }
-
-            if (manifest == null) {
-                throw new CompileExceptionError(resource, -1, "Could not parse extension manifest file.");
-            }
-
-            Map<String, Object> platforms = (Map<String, Object>)manifest.getOrDefault("platforms", null);
-            if (platforms == null) {
-                continue;
-            }
-
-            Map<String, Object> platform_ctx = (Map<String, Object>)platforms.getOrDefault(platform, null);
-            if (platform_ctx == null) {
-                continue;
-            }
-
-            try {
-                ctx = mergeManifestContext(ctx, platform_ctx);
-            } catch (RuntimeException e) {
-                e.printStackTrace(System.out);
-                throw new CompileExceptionError(resource, -1, String.format("Extension manifest '%s' contains invalid values: %s", resource.getAbsPath(), e.toString()));
-            }
+            ctx = addManifest(resource, ctx, platform);
         }
         return ctx;
+    }
+
+    public static Map<String, Object> addManifest(IResource resource, Map<String, Object> ctx, String platform) throws CompileExceptionError {
+        Map<String, Object> manifest = null;
+        try {
+            manifest = ExtenderUtil.readYaml(resource);
+        } catch (Exception e) {
+            throw new CompileExceptionError(resource, -1, e);
+        }
+
+        if (manifest == null) {
+            throw new CompileExceptionError(resource, -1, "Could not parse extension manifest file.");
+        }
+
+        Map<String, Object> platforms = (Map<String, Object>) manifest.getOrDefault("platforms", null);
+        if (platforms == null) {
+            return ctx;
+        }
+
+        Map<String, Object> platform_ctx = (Map<String, Object>) platforms.getOrDefault(platform, null);
+        if (platform_ctx == null) {
+            return ctx;
+        }
+
+        try {
+            ctx = mergeManifestContext(ctx, platform_ctx);
+        } catch (RuntimeException e) {
+            e.printStackTrace(System.out);
+            throw new CompileExceptionError(resource, -1, String.format("Extension manifest '%s' contains invalid values: %s", resource.getAbsPath(), e.toString()));
+        }
+        return ctx;
+    }
+
+    public static Map<String, Object>getPlatformSettings(Project project, String platform) throws CompileExceptionError, IOException {
+        Map<String, Object> platformSettingsFromExtensions = getPlatformSettingsFromExtensions(project, platform);
+        Map<String, Object> platformSettings = addManifest(getProjectResource(project, "native_extension", "app_manifest"), platformSettingsFromExtensions, platform);
+        return platformSettings;
+    }
+
+    public static boolean hasSymbol(String symbolName, Map<String, Object> platformSettings) throws IOException, CompileExceptionError {
+        Map<String, Object> yamlPlatforms = (Map<String, Object>) platformSettings.getOrDefault("platforms", null);
+
+        Map<String, Object> yamlPlatformContext = (Map<String, Object>) platformSettings.getOrDefault("context", null);
+        if (yamlPlatformContext != null) {
+            boolean symbolFound = false;
+            List<String> symbols = (List<String>) yamlPlatformContext.getOrDefault("symbols", new ArrayList<String>());
+
+            for (String symbol : symbols) {
+                if (symbol.equals(symbolName)) {
+                    symbolFound = true;
+                    break;
+                }
+            }
+            return symbolFound;
+        }
+
+        return false;
     }
 }
