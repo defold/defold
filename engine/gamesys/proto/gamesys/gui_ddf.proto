@@ -88,7 +88,7 @@ message NodeDesc
         SIZE_MODE_AUTO      = 1 [(displayName) = "Auto"];
     }
 
-    enum PieBounds
+    enum PieBounds : uint8_t
     {
         PIEBOUNDS_RECTANGLE = 0 [(displayName) = "Rectangle"];
         PIEBOUNDS_ELLIPSE   = 1 [(displayName) = "Ellipse"];
