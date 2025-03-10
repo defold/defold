@@ -353,7 +353,7 @@ namespace dmGui
 
     // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
     // Don't forget to change gui_ddf.proto if you change here
-    enum PieBounds
+    enum PieBounds : uint8_t
     {
         PIEBOUNDS_RECTANGLE = 0,
         PIEBOUNDS_ELLIPSE   = 1,
