@@ -1239,6 +1239,7 @@
     :drag-dropped (let [dragboard ^Dragboard (:dragboard action)]
                     (when (.hasFiles dragboard)
                       (let [image-view (:gesture-target action)
+                            _ (ui/request-focus! image-view)
                             ui-context (first (ui/node-contexts image-view false))
                             {:keys [app-view selection workspace]} (:env ui-context)]
                         (when-let [parent (parent-animation-or-atlas selection)]
@@ -1247,6 +1248,7 @@
                                 image-nodes (create-dropped-images! parent image-resources op-seq)
                                 drag-event ^DragEvent (:event action)]
                             (when (seq image-nodes)
+                              (.consume drag-event)
                               (select! app-view image-nodes op-seq)
                               (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
                               (.setDropCompleted drag-event true))))
