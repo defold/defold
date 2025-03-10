@@ -138,8 +138,8 @@ namespace dmGameSystem
 
     static bool ValidateTextureParams(uint32_t tex_width_full, uint32_t tex_height_full, const dmGraphics::TextureParams& params)
     {
-        uint16_t tex_width_mipmap  = dmGraphics::GetMipmapSize(tex_width_full, params.m_MipMap);
-        uint16_t tex_height_mipmap = dmGraphics::GetMipmapSize(tex_height_full, params.m_MipMap);
+        uint16_t tex_width_mipmap  = dmMath::Max((uint16_t) 1, dmGraphics::GetMipmapSize(tex_width_full, params.m_MipMap));
+        uint16_t tex_height_mipmap = dmMath::Max((uint16_t) 1, dmGraphics::GetMipmapSize(tex_height_full, params.m_MipMap));
         uint8_t  tex_mipmap_count  = dmGraphics::GetMipmapCount(dmMath::Max(tex_width_full, tex_height_full));
 
         // Validate mipmap dimensions
