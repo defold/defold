@@ -178,7 +178,7 @@ public class ShaderCompilePipelineTest {
                #else
                     color = vec4(0.25);
                #endif
-               }    
+               }
                """;
 
         ShaderCompilePipeline.ShaderModuleDesc fsDesc = new ShaderCompilePipeline.ShaderModuleDesc();
