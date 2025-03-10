@@ -15,7 +15,7 @@
 (ns editor.input
   (:require [schema.core :as s])
   (:import [javafx.event EventType]
-           [javafx.scene.input InputEvent MouseEvent MouseButton ScrollEvent DragEvent TransferMode]))
+           [javafx.scene.input DragEvent InputEvent MouseEvent MouseButton ScrollEvent TransferMode]))
 
 (set! *warn-on-reflection* true)
 

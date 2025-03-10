@@ -44,6 +44,7 @@
             [editor.scene-tools :as scene-tools]
             [editor.texture-set :as texture-set]
             [editor.types :as types]
+            [editor.ui :as ui]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [internal.util :as util]
@@ -51,8 +52,7 @@
             [util.digestable :as digestable]
             [util.fn :as fn]
             [util.murmur :as murmur]
-            [clojure.string :as str]
-            [editor.ui :as ui])
+            [clojure.string :as str])
   (:import [com.dynamo.bob.pipeline AtlasUtil ShaderUtil$Common ShaderUtil$VariantTextureArrayFallback]
            [com.dynamo.bob.textureset TextureSetGenerator$LayoutResult]
            [com.dynamo.gamesys.proto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage TextureSetProto$TextureSet Tile$Playback]
@@ -1193,7 +1193,7 @@
 
 (defn- image-path?
   [path]
-  (some (partial str/ends-with? path) image/exts))
+  (boolean (some (partial str/ends-with? path) image/exts)))
 
 (defn- get-image-resource-from-file
   [workspace ^File file]
@@ -1238,19 +1238,18 @@
   (case (:type action)
     :drag-dropped (let [dragboard ^Dragboard (:dragboard action)]
                     (when (.hasFiles dragboard)
-                      (let [app-view (g/node-value self :app-view)
-                            selection (g/node-value app-view :selected-node-ids)
-                            parent (parent-animation-or-atlas selection)
-                            project (project/get-project parent)
-                            workspace (project/workspace project)
-                            image-resources (get-image-resources-from-dragboard dragboard workspace)
-                            op-seq (gensym)
-                            image-nodes (create-dropped-images! parent image-resources op-seq)
-                            drag-event ^DragEvent (:event action)]
-                        (when (seq image-nodes)
-                          (select! app-view image-nodes op-seq)
-                          (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
-                          (.setDropCompleted drag-event true))
+                      (let [image-view (:gesture-target action)
+                            ui-context (first (ui/node-contexts image-view false))
+                            {:keys [app-view selection workspace]} (:env ui-context)]
+                        (when-let [parent (parent-animation-or-atlas selection)]
+                          (let [image-resources (get-image-resources-from-dragboard dragboard workspace)
+                                op-seq (gensym)
+                                image-nodes (create-dropped-images! parent image-resources op-seq)
+                                drag-event ^DragEvent (:event action)]
+                            (when (seq image-nodes)
+                              (select! app-view image-nodes op-seq)
+                              (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
+                              (.setDropCompleted drag-event true))))
                         nil)))
     :mouse-pressed (if (first (get selection-data self))
                      (do
@@ -1298,7 +1297,6 @@
   (input camera g/Any)
   (input viewport g/Any)
   (input selected-renderables g/Any)
-  (input app-view g/NodeID)
   
   (output scale g/Any :cached produce-scale)
   (output snap-threshold g/Any :cached (g/fnk [scale] (cond-> 0.1 scale (* ^double scale))))

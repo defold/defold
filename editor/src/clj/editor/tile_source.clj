@@ -859,7 +859,6 @@
   (input camera g/Any)
   (input viewport g/Any)
   (input selected-renderables g/Any)
-  (input app-view g/NodeID)
 
   ;; additional inputs
   (input tile-source-node g/NodeID)
