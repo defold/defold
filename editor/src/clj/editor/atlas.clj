@@ -64,7 +64,7 @@
            [java.nio ByteBuffer]
            [java.util List]
            [javax.vecmath AxisAngle4d Matrix4d Point3d Vector3d]
-           [javafx.scene.input Dragboard]))
+           [javafx.scene.input Dragboard DragEvent]))
 
 (set! *warn-on-reflection* true)
 
@@ -1195,17 +1195,16 @@
   [path]
   (some (partial str/ends-with? path) image/exts))
 
-(defn- file->image-resource
+(defn- get-image-resource-from-file
   [workspace ^File file]
   (when-let [path (workspace/as-proj-path workspace (.getAbsolutePath file))]
     (when (image-path? path)
       (workspace/resolve-workspace-resource workspace path))))
 
-(defn- dragboard->image-resources
+(defn- get-image-resources-from-dragboard
   [^Dragboard dragboard workspace]
   (->> (.getFiles dragboard)
-       (map (partial file->image-resource workspace))
-       (remove nil?)
+       (keep (partial get-image-resource-from-file workspace))
        (sort-by resource/path)))
 
 (defn- image-resources->image-msgs
@@ -1244,11 +1243,14 @@
                             parent (parent-animation-or-atlas selection)
                             project (project/get-project parent)
                             workspace (project/workspace project)
-                            image-resources (dragboard->image-resources dragboard workspace)
+                            image-resources (get-image-resources-from-dragboard dragboard workspace)
                             op-seq (gensym)
-                            image-nodes (create-dropped-images! parent image-resources op-seq)]
-                        (select! app-view image-nodes op-seq)
-                        (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
+                            image-nodes (create-dropped-images! parent image-resources op-seq)
+                            drag-event ^DragEvent (:event action)]
+                        (when (seq image-nodes)
+                          (select! app-view image-nodes op-seq)
+                          (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
+                          (.setDropCompleted drag-event true))
                         nil)))
     :mouse-pressed (if (first (get selection-data self))
                      (do

@@ -45,7 +45,8 @@
 
 (defn action-from-jfx [^InputEvent jfx-event]
   (let [type (translate-action (.getEventType jfx-event))
-        action {:type type}]
+        action {:type type
+                :event jfx-event}]
     (case type
       :undefined action
       :scroll (let [scroll-event ^ScrollEvent jfx-event]
@@ -64,7 +65,6 @@
                           :x (.getX drag-event)
                           :y (.getY drag-event)))
       :drag-dropped (let [drag-event ^DragEvent jfx-event]
-                      (.setDropCompleted drag-event true)
                       (assoc action
                              :x (.getX drag-event)
                              :y (.getY drag-event)
