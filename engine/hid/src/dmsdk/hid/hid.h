@@ -462,8 +462,9 @@ namespace dmHID
      */
     struct MousePacket
     {
-        int32_t m_PositionX, m_PositionY;
-        int32_t m_Wheel;
+        int32_t  m_PositionX;
+        int32_t  m_PositionY;
+        int32_t  m_Wheel;
         uint32_t m_Buttons[MAX_MOUSE_BUTTON_COUNT / 32 + 1];
     };
 

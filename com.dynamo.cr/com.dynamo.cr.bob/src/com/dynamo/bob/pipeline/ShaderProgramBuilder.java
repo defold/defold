@@ -25,12 +25,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 
+import com.dynamo.bob.*;
+import com.dynamo.bob.fs.DefaultFileSystem;
 import com.google.protobuf.ByteString;
 
-import com.dynamo.bob.Builder;
-import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.Task;
-import com.dynamo.bob.Platform;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ShaderUtil.Common;
 import com.dynamo.bob.util.MurmurHash;
@@ -41,9 +39,8 @@ import com.dynamo.bob.pipeline.shader.SPIRVReflector;
 
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
-public abstract class ShaderProgramBuilder extends Builder {
-
-    ShaderPreprocessor shaderPreprocessor;
+@BuilderParams(name="ShaderProgramBuilder", inExts= {".shbundle", ".shbundlec"}, outExt=".spc", paramsForSignature = {"platform"})
+public class ShaderProgramBuilder extends Builder {
 
     static public class ShaderBuildResult {
         public ShaderDesc.Shader.Builder shaderBuilder;
@@ -51,6 +48,10 @@ public abstract class ShaderProgramBuilder extends Builder {
 
         public ShaderBuildResult(ShaderDesc.Shader.Builder fromBuilder) {
             this.shaderBuilder = fromBuilder;
+        }
+
+        public ShaderBuildResult(String[] buildWarnings) {
+            this.buildWarnings = buildWarnings;
         }
     }
 
@@ -61,42 +62,103 @@ public abstract class ShaderProgramBuilder extends Builder {
 
     static public class ShaderCompileResult {
         public ArrayList<ShaderBuildResult> shaderBuildResults;
-        public SPIRVReflector               reflector;
+        public ArrayList<SPIRVReflector>    reflectors = new ArrayList<>();
     }
+
+    ArrayList<ShaderCompilePipeline.ShaderModuleDesc> modulesDescs = new ArrayList<>();
+    ArrayList<ShaderPreprocessor> modulePreprocessors = new ArrayList<>();
+
+    IShaderCompiler.CompileOptions compileOptions = new IShaderCompiler.CompileOptions();
 
     @Override
     public Task create(IResource input) throws IOException, CompileExceptionError {
+        Task.TaskBuilder taskBuilder = Task.newBuilder(this)
+                .setName(params.name())
+                .addInput(input);
 
-        Task.TaskBuilder<ShaderPreprocessor> taskBuilder = Task.<ShaderPreprocessor>newBuilder(this)
-            .setName(params.name())
-            .addInput(input);
+        ShaderProgramBuilderBundle.ModuleBundle modules = ShaderProgramBuilderBundle.ModuleBundle.load(input);
+        for (String path : modules.getModules()) {
+            IResource moduleInput = this.project.getResource(path);
 
-        // Parse source for includes and add the include nodes as inputs/dependancies to the shader
-        String source = new String(input.getContent(), StandardCharsets.UTF_8);
+            // Parse source for includes and add the include-nodes as inputs/dependencies to the shader
+            String source = new String(moduleInput.getContent(), StandardCharsets.UTF_8);
 
-        // SPIR-v tools cannot handle carriage return
-        source = source.replace("\r", "");
+            // SPIR-v tools cannot handle carriage return
+            source = source.replace("\r", "");
 
-        shaderPreprocessor = new ShaderPreprocessor(this.project, input.getPath(), source);
-        String[] includes = shaderPreprocessor.getIncludes();
+            ShaderPreprocessor shaderPreprocessor = new ShaderPreprocessor(this.project, input.getPath(), source, null);
+            String[] includes = shaderPreprocessor.getIncludes();
 
-        for (String path : includes) {
-            taskBuilder.addInput(this.project.getResource(path));
+            for (String includePath : includes) {
+                taskBuilder.addInput(this.project.getResource(includePath));
+            }
+
+            ShaderCompilePipeline.ShaderModuleDesc moduleDesc = new ShaderCompilePipeline.ShaderModuleDesc();
+            moduleDesc.type = parseShaderTypeFromPath(moduleInput.getPath());
+            moduleDesc.resourcePath = path;
+
+            modulesDescs.add(moduleDesc);
+            modulePreprocessors.add(shaderPreprocessor);
         }
 
-        String platformString = this.project.getPlatformStrings()[0];
+        compileOptions = modules.getCompileOptions();
 
-        // Include the spir-v flag into the cache key so we can invalidate the output results accordingly
-        // NOTE: We include the platform string as well for the same reason as spirv, but it doesn't seem to work correctly.
-        //       Keeping the build folder and rebuilding for a different platform _should_ invalidate the cache, but it doesn't.
-        //       Needs further investigation!
-        String shaderCacheKey = String.format("output_spirv=%s;output_hlsl=%s;output_wgsl=%s;platform_key=%s",
-                getOutputSpirvFlag(), getOutputHlslFlag(), getOutputWGSLFlag(),  platformString);
+        // Include the spir-v flag into the cache key, so we can invalidate the output results accordingly
+        String shaderCacheKey = String.format("output_spirv=%s;output_hlsl=%s;output_wgsl=%s",
+                getOutputSpirvFlag(), getOutputHlslFlag(), getOutputWGSLFlag());
 
         taskBuilder.addOutput(input.changeExt(params.outExt()));
         taskBuilder.addExtraCacheKey(shaderCacheKey);
 
         return taskBuilder.build();
+    }
+
+    @Override
+    public void build(Task task) throws IOException, CompileExceptionError {
+        String resourceOutputPath = task.getOutputs().get(0).getPath();
+
+        String platform = this.project.getPlatformStrings()[0];
+        Platform platformKey = Platform.get(platform);
+        if(platformKey == null) {
+            throw new CompileExceptionError("Unknown platform for shader program '" + resourceOutputPath + "'': " + platform);
+        }
+
+        for (int i = 0; i < this.modulesDescs.size(); i++) {
+            this.modulesDescs.get(i).source = this.modulePreprocessors.get(i).getCompiledSource();
+        }
+
+        if (getOutputHlslFlag()) {
+            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_HLSL);
+        }
+        if (getOutputSpirvFlag()) {
+            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_SPIRV);
+        }
+        if (getOutputWGSLFlag()) {
+            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_WGSL);
+        }
+        if (getOutputGLSLESFlag(100)) {
+            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
+        }
+        if (getOutputGLSLESFlag(300)) {
+            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
+        }
+        if (getOutputGLSLFlag(120)) {
+            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM120);
+        }
+        if (getOutputGLSLFlag(330)) {
+            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
+        }
+        if (getOutputGLSLFlag(430)) {
+            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM430);
+        }
+
+        IShaderCompiler shaderCompiler              = project.getShaderCompiler(platformKey);
+        ShaderCompileResult shaderCompilerResult    = shaderCompiler.compile(this.modulesDescs, resourceOutputPath, compileOptions);
+        ShaderDescBuildResult shaderDescBuildResult = buildResultsToShaderDescBuildResults(shaderCompilerResult);
+
+        handleShaderDescBuildResult(shaderDescBuildResult, resourceOutputPath);
+
+        task.output(0).setContent(shaderDescBuildResult.shaderDesc.toByteArray());
     }
 
     private boolean getOutputShaderFlag(String projectOption, String projectProperty) {
@@ -108,8 +170,10 @@ public abstract class ShaderProgramBuilder extends Builder {
     private boolean getOutputSpirvFlag() { return getOutputShaderFlag("output-spirv", "output_spirv"); }
     private boolean getOutputHlslFlag() { return getOutputShaderFlag("output-hlsl", "output_hlsl"); }
     private boolean getOutputWGSLFlag() { return getOutputShaderFlag("output-wgsl", "output_wgsl"); }
+    private boolean getOutputGLSLESFlag(int version) { return getOutputShaderFlag("output-glsles" + version, "output_glsl_es" + version); }
+    private boolean getOutputGLSLFlag(int version) { return getOutputShaderFlag("output-glsl" + version, "output_glsl" + version); }
 
-    static public ShaderDescBuildResult buildResultsToShaderDescBuildResults(ShaderCompileResult shaderCompileresult, ShaderDesc.ShaderType shaderType) throws CompileExceptionError {
+    static public ShaderDescBuildResult buildResultsToShaderDescBuildResults(ShaderCompileResult shaderCompileresult) throws CompileExceptionError {
         ShaderDescBuildResult shaderDescBuildResult = new ShaderDescBuildResult();
         ShaderDesc.Builder shaderDescBuilder = ShaderDesc.newBuilder();
 
@@ -124,24 +188,11 @@ public abstract class ShaderProgramBuilder extends Builder {
             }
         }
 
-        shaderDescBuilder.setShaderType(shaderType);
-        shaderDescBuilder.setReflection(makeShaderReflectionBuilder(shaderCompileresult.reflector).build());
+        shaderDescBuilder.setReflection(makeShaderReflectionBuilder(shaderCompileresult.reflectors));
 
         shaderDescBuildResult.shaderDesc = shaderDescBuilder.build();
 
         return shaderDescBuildResult;
-    }
-
-    public ShaderDescBuildResult makeShaderDesc(String resourceOutputPath, ShaderPreprocessor shaderPreprocessor, ShaderDesc.ShaderType shaderType, String platform, boolean outputSpirv, boolean outputHlsl, boolean outputWGSL) throws IOException, CompileExceptionError {
-        Platform platformKey = Platform.get(platform);
-        if(platformKey == null) {
-            throw new CompileExceptionError("Unknown platform for shader program '" + resourceOutputPath + "'': " + platform);
-        }
-
-        String finalShaderSource                 = shaderPreprocessor.getCompiledSource();
-        IShaderCompiler shaderCompiler           = project.getShaderCompiler(platformKey);
-        ShaderCompileResult shaderCompilerResult = shaderCompiler.compile(finalShaderSource, shaderType, resourceOutputPath, outputSpirv, outputHlsl, outputWGSL);
-        return buildResultsToShaderDescBuildResults(shaderCompilerResult, shaderType);
     }
 
     static private void handleShaderDescBuildResult(ShaderDescBuildResult result, String resourceOutputPath) throws CompileExceptionError {
@@ -151,39 +202,6 @@ public abstract class ShaderProgramBuilder extends Builder {
             }
             throw new CompileExceptionError("Errors when producing output " + resourceOutputPath);
         }
-    }
-
-    public ShaderDesc getCompiledShaderDesc(Task task, ShaderDesc.ShaderType shaderType) throws IOException, CompileExceptionError {
-        boolean outputSpirv       = getOutputSpirvFlag();
-        boolean outputHlsl        = getOutputHlslFlag();
-        boolean outputWGSL        = getOutputWGSLFlag();
-        String resourceOutputPath = task.getOutputs().get(0).getPath();
-
-        ShaderDescBuildResult shaderDescBuildResult = makeShaderDesc(resourceOutputPath, shaderPreprocessor, shaderType, this.project.getPlatformStrings()[0], outputSpirv, outputHlsl, outputWGSL);
-
-        handleShaderDescBuildResult(shaderDescBuildResult, resourceOutputPath);
-
-        return shaderDescBuildResult.shaderDesc;
-    }
-
-    static public ShaderCompilePipeline newShaderPipelineFromShaderSource(ShaderDesc.ShaderType type, String resourcePath, String shaderSource, ShaderCompilePipeline.Options options) throws IOException, CompileExceptionError {
-        ShaderCompilePipeline pipeline;
-        Common.GLSLShaderInfo shaderInfo = Common.getShaderInfo(shaderSource);
-
-        if (shaderInfo == null) {
-            pipeline = new ShaderCompilePipelineLegacy(resourcePath);
-        } else {
-            pipeline = new ShaderCompilePipeline(resourcePath);
-        }
-
-        return ShaderCompilePipeline.createShaderPipeline(pipeline, shaderSource, type, options);
-    }
-
-    static public ShaderProgramBuilder.ShaderBuildResult makeShaderBuilderFromGLSLSource(String source, ShaderDesc.Language shaderLanguage) throws IOException {
-        ShaderDesc.Shader.Builder builder = ShaderDesc.Shader.newBuilder();
-        builder.setLanguage(shaderLanguage);
-        builder.setSource(ByteString.copyFrom(source, "UTF-8"));
-        return new ShaderProgramBuilder.ShaderBuildResult(builder);
     }
 
     static private ShaderDesc.ShaderDataType TextureToShaderDataType(Shaderc.ResourceType type) throws CompileExceptionError {
@@ -283,12 +301,12 @@ public abstract class ShaderProgramBuilder extends Builder {
         }
     }
 
-    static public ShaderDesc.ResourceType.Builder getResourceTypeBuilder(Shaderc.ResourceType type) throws CompileExceptionError {
+    static public ShaderDesc.ResourceType.Builder getResourceTypeBuilder(Shaderc.ResourceType type, int typeMemberOffset) throws CompileExceptionError {
         ShaderDesc.ResourceType.Builder resourceTypeBuilder = ShaderDesc.ResourceType.newBuilder();
         resourceTypeBuilder.setUseTypeIndex(type.useTypeIndex);
 
         if (type.useTypeIndex) {
-            resourceTypeBuilder.setTypeIndex(type.typeIndex);
+            resourceTypeBuilder.setTypeIndex(type.typeIndex + typeMemberOffset);
         } else {
             ShaderDesc.ShaderDataType shaderType = resourceTypeToShaderDataType(type);
             resourceTypeBuilder.setShaderType(shaderType);
@@ -296,15 +314,16 @@ public abstract class ShaderProgramBuilder extends Builder {
         return resourceTypeBuilder;
     }
 
-    static public ShaderDesc.ResourceBinding.Builder SPIRVResourceToResourceBindingBuilder(Shaderc.ShaderResource res) throws CompileExceptionError {
+    static public ShaderDesc.ResourceBinding.Builder SPIRVResourceToResourceBindingBuilder(Shaderc.ShaderResource res, int stageFlags, int typeMemberOffset) throws CompileExceptionError {
         ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
-        ShaderDesc.ResourceType.Builder typeBuilder = getResourceTypeBuilder(res.type);
+        ShaderDesc.ResourceType.Builder typeBuilder = getResourceTypeBuilder(res.type, typeMemberOffset);
         resourceBindingBuilder.setType(typeBuilder);
         resourceBindingBuilder.setName(res.name);
         resourceBindingBuilder.setNameHash(res.nameHash);
         resourceBindingBuilder.setId(res.id);
         resourceBindingBuilder.setSet(res.set);
         resourceBindingBuilder.setBinding(res.binding);
+        resourceBindingBuilder.setStageFlags(stageFlags);
 
         if (res.blockSize != 0) {
             resourceBindingBuilder.setBlockSize(res.blockSize);
@@ -334,9 +353,22 @@ public abstract class ShaderProgramBuilder extends Builder {
         }
     }
 
-    static private ShaderDesc.ShaderReflection.Builder makeShaderReflectionBuilder(SPIRVReflector reflector) throws CompileExceptionError {
+    static private ShaderDesc.ShaderReflection.Builder makeShaderReflectionBuilder(ArrayList<SPIRVReflector> reflectors) throws CompileExceptionError {
         ShaderDesc.ShaderReflection.Builder builder = ShaderDesc.ShaderReflection.newBuilder();
 
+        for (SPIRVReflector reflector : reflectors) {
+            int stageFlags = 0;
+            switch(reflector.getShaderStage()) {
+                case SHADER_TYPE_VERTEX -> stageFlags = 1;
+                case SHADER_TYPE_FRAGMENT -> stageFlags = 2;
+                case SHADER_TYPE_COMPUTE -> stageFlags = 4;
+            }
+            fillShaderReflectionBuilder(builder, reflector, stageFlags);
+        }
+        return builder;
+    }
+
+    static private void fillShaderReflectionBuilder(ShaderDesc.ShaderReflection.Builder builder, SPIRVReflector reflector, int stageFlags) throws CompileExceptionError {
         ArrayList<Shaderc.ShaderResource> inputs    = reflector.getInputs();
         ArrayList<Shaderc.ShaderResource> outputs   = reflector.getOutputs();
         ArrayList<Shaderc.ShaderResource> ubos      = reflector.getUBOs();
@@ -344,33 +376,35 @@ public abstract class ShaderProgramBuilder extends Builder {
         ArrayList<Shaderc.ShaderResource> textures  = reflector.getTextures();
         ArrayList<Shaderc.ResourceTypeInfo> types   = reflector.getTypes();
 
+        int typeMemberOffset = builder.getTypesCount();
+
         HashMap<Integer, Integer> idToTextureIndex = new HashMap<>();
         ResolveSamplerIndices(textures, idToTextureIndex);
 
         for (Shaderc.ShaderResource input : inputs) {
-            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(input);
+            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(input, stageFlags, typeMemberOffset);
             resourceBindingBuilder.setBinding(input.location);
             builder.addInputs(resourceBindingBuilder);
         }
 
         for (Shaderc.ShaderResource output : outputs) {
-            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(output);
+            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(output, stageFlags, typeMemberOffset);
             resourceBindingBuilder.setBinding(output.location);
             builder.addOutputs(resourceBindingBuilder);
         }
 
         for (Shaderc.ShaderResource ubo : ubos) {
-            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(ubo);
+            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(ubo, stageFlags, typeMemberOffset);
             builder.addUniformBuffers(resourceBindingBuilder);
         }
 
         for (Shaderc.ShaderResource ssbo : ssbos) {
-            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(ssbo);
+            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(ssbo, stageFlags, typeMemberOffset);
             builder.addStorageBuffers(resourceBindingBuilder);
         }
 
         for (Shaderc.ShaderResource texture : textures) {
-            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(texture);
+            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(texture, stageFlags, typeMemberOffset);
 
             Integer textureIndex = idToTextureIndex.get(texture.id);
             if (textureIndex != null) {
@@ -389,7 +423,7 @@ public abstract class ShaderProgramBuilder extends Builder {
             for (Shaderc.ResourceMember member : type.members) {
                 ShaderDesc.ResourceMember.Builder typeMemberBuilder = ShaderDesc.ResourceMember.newBuilder();
 
-                ShaderDesc.ResourceType.Builder typeBuilder = getResourceTypeBuilder(member.type);
+                ShaderDesc.ResourceType.Builder typeBuilder = getResourceTypeBuilder(member.type, typeMemberOffset);
                 typeMemberBuilder.setType(typeBuilder);
                 typeMemberBuilder.setName(member.name);
                 typeMemberBuilder.setNameHash(MurmurHash.hash64(member.name));
@@ -401,48 +435,129 @@ public abstract class ShaderProgramBuilder extends Builder {
 
             builder.addTypes(resourceTypeInfoBuilder);
         }
-        return builder;
     }
 
-    static public ShaderDesc.Shader.Builder makeShaderBuilder(ShaderDesc.Language language, byte[] source) {
+    private static ShaderDesc.ShaderType parseShaderTypeFromPath(String path) throws CompileExceptionError {
+        if (path.endsWith(".fp")) {
+            return ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT;
+        } else if (path.endsWith(".vp")) {
+            return ShaderDesc.ShaderType.SHADER_TYPE_VERTEX;
+        } else if (path.endsWith(".cp")) {
+            return ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE;
+        }
+        throw new CompileExceptionError("Unknown shader type.%n for path" + path);
+    }
+
+    static public ShaderCompilePipeline newShaderPipeline(String resourcePath, ArrayList<ShaderCompilePipeline.ShaderModuleDesc> shaderDescs, ShaderCompilePipeline.Options options) throws IOException, CompileExceptionError {
+        ArrayList<ShaderCompilePipeline.ShaderModuleDesc> oldShaders = new ArrayList<>();
+        ArrayList<ShaderCompilePipeline.ShaderModuleDesc> newShaders = new ArrayList<>();
+
+        for (ShaderCompilePipeline.ShaderModuleDesc shaderDesc : shaderDescs) {
+            Common.GLSLShaderInfo shaderInfo = Common.getShaderInfo(shaderDesc.source);
+            if (shaderInfo == null) {
+                oldShaders.add(shaderDesc);
+            } else {
+                newShaders.add(shaderDesc);
+            }
+        }
+
+        if (newShaders.size() > 0 && oldShaders.size() > 0) {
+            System.out.println("Warning: Mixing old shaders with new shaders is slow. Consider migrating old shaders to using the new shader pipeline.");
+
+            ArrayList<ShaderCompilePipeline.ShaderModuleDesc> newDescs = new ArrayList<>(newShaders);
+            for (ShaderCompilePipeline.ShaderModuleDesc old : oldShaders) {
+                ShaderUtil.ES2ToES3Converter.Result transformResult = ShaderUtil.ES2ToES3Converter.transform(old.source, old.type, "", 140, true, options.splitTextureSamplers);
+                ShaderCompilePipeline.ShaderModuleDesc transformedDesc = new ShaderCompilePipeline.ShaderModuleDesc();
+                transformedDesc.type = old.type;
+                transformedDesc.source = transformResult.output;
+                newDescs.add(transformedDesc);
+            }
+            shaderDescs = newDescs;
+        }
+
+        if (newShaders.size() > 0) {
+            return ShaderCompilePipeline.createShaderPipeline(new ShaderCompilePipeline(resourcePath), shaderDescs, options);
+        } else {
+            return ShaderCompilePipeline.createShaderPipeline(new ShaderCompilePipelineLegacy(resourcePath), shaderDescs, options);
+        }
+    }
+
+    static public ShaderDesc.Shader.Builder makeShaderBuilder(byte[] source, ShaderDesc.Language language, ShaderDesc.ShaderType type) {
         ShaderDesc.Shader.Builder builder = ShaderDesc.Shader.newBuilder();
         builder.setLanguage(language);
+        builder.setShaderType(type);
         builder.setSource(ByteString.copyFrom(source));
         return builder;
     }
 
-    public void BuildShader(String[] args, ShaderDesc.ShaderType shaderType) throws IOException, CompileExceptionError {
+    private static ShaderCompilePipeline.ShaderModuleDesc GetShaderDesc(Project project, String path, String contentRoot) throws IOException, CompileExceptionError {
+        ShaderDesc.ShaderType shaderType = parseShaderTypeFromPath(path);
+        ShaderCompilePipeline.ShaderModuleDesc desc = new ShaderCompilePipeline.ShaderModuleDesc();
+        desc.type = shaderType;
 
-        if (args.length < 3) {
-            System.err.println("Unable to build shader %s - no platform passed in.%n");
-            return;
-        }
-
-        Platform outputPlatform = Platform.get(args[2]);
-        IShaderCompiler shaderCompiler = project.getShaderCompiler(outputPlatform);
-
-        if (shaderCompiler == null) {
-            System.err.printf("Unable to build shader %s - no shader compiler found.%n", args[0]);
-            return;
-        }
-
-        try (BufferedInputStream is = new BufferedInputStream(new FileInputStream(args[0]));
-            BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(args[1]))) {
-
+        try (BufferedInputStream is = new BufferedInputStream(new FileInputStream(path))) {
             byte[] inBytes = new byte[is.available()];
             is.read(inBytes);
 
             String source = new String(inBytes, StandardCharsets.UTF_8);
-
-            // SPIR-v tools cannot handle carriage return
             source = source.replace("\r", "");
 
-            ShaderPreprocessor shaderPreprocessor = new ShaderPreprocessor(this.project, args[0], source);
-            String finalShaderSource              = shaderPreprocessor.getCompiledSource();
+            ShaderPreprocessor shaderPreprocessor = new ShaderPreprocessor(project, path, source, contentRoot);
+            desc.source = shaderPreprocessor.getCompiledSource();
+        }
 
-            ShaderCompileResult shaderCompilerResult = shaderCompiler.compile(finalShaderSource, shaderType, args[1], true, true, true);
-            ShaderDescBuildResult shaderDescResult = buildResultsToShaderDescBuildResults(shaderCompilerResult, shaderType);
+        return desc;
+    }
 
+    // Running standalone:
+    // java -classpath $DYNAMO_HOME/share/java/bob-light.jar com.dynamo.bob.pipeline.ShaderProgramBuilder <path-in.fp|vp|cp> <path-out.fpc|vpc|cpc> <platform> <content-root>
+    public static void main(String[] args) throws IOException, CompileExceptionError {
+        System.setProperty("java.awt.headless", "true");
+        ShaderProgramBuilder builder = new ShaderProgramBuilder();
+
+        Project project = new Project(new DefaultFileSystem());
+        project.scanJavaClasses();
+        builder.setProject(project);
+
+        if (args.length < 3) {
+            System.err.println("Unable to build shader - no platform passed in.%n");
+            return;
+        }
+
+        ArrayList<ShaderCompilePipeline.ShaderModuleDesc> modules = new ArrayList<>();
+
+        String outputPath, platform, contentRoot;
+
+        if (args.length == 4) {
+            outputPath   = args[1];
+            platform     = args[2];
+            contentRoot  = args[3];
+            modules.add(GetShaderDesc(project, args[0], contentRoot));
+        } else {
+            outputPath   = args[2];
+            platform     = args[3];
+            contentRoot  = args[4];
+            modules.add(GetShaderDesc(project, args[0], contentRoot));
+            modules.add(GetShaderDesc(project, args[1], contentRoot));
+        }
+
+        assert platform != null;
+        Platform outputPlatform = Platform.get(platform);
+        IShaderCompiler shaderCompiler = project.getShaderCompiler(outputPlatform);
+        if (shaderCompiler == null) {
+            System.err.printf("Unable to build shader - no shader compiler found.%n");
+            return;
+        }
+
+        try (BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(outputPath))) {
+
+            IShaderCompiler.CompileOptions compileOptions = new IShaderCompiler.CompileOptions();
+            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_HLSL);
+            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_SPIRV);
+            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_WGSL);
+
+            ShaderCompileResult shaderCompilerResult = shaderCompiler.compile(modules, outputPath, compileOptions);
+            ShaderDescBuildResult shaderDescResult = buildResultsToShaderDescBuildResults(shaderCompilerResult);
             shaderDescResult.shaderDesc.writeTo(os);
         }
     }

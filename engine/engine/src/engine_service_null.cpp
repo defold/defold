@@ -45,3 +45,7 @@ dmWebServer::HServer dmEngineService::GetWebServer(dmEngineService::HEngineServi
 void dmEngineService::InitProfiler(HEngineService engine_service, dmResource::HFactory factory, dmGameObject::HRegister regist)
 {
 }
+
+void dmEngineService::InitState(HEngineService engine_service, EngineState* state)
+{	
+}

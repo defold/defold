@@ -113,7 +113,8 @@ struct TestParams
     float       m_Speed;
     uint8_t     m_Loopcount;
 
-    TestParams(const char* device_name, void* sound, uint32_t sound_size, SoundDataType type, uint32_t tone_rate, uint32_t mix_rate, uint32_t frame_count, uint32_t buffer_frame_count)
+    TestParams(const char* device_name, void* sound, uint32_t sound_size, SoundDataType type,
+                uint32_t tone_rate, uint32_t mix_rate, uint32_t frame_count, uint32_t buffer_frame_count)
     : m_Pan(0.0f)
     , m_Speed(1.0f)
     , m_Loopcount(0)
@@ -345,7 +346,7 @@ struct LoopbackDevice
 
 LoopbackDevice *g_LoopbackDevice = 0;
 
-dmSound::Result DeviceLoopbackOpen(const dmSound::OpenDeviceParams* params, dmSound::HDevice* device)
+static dmSound::Result DeviceLoopbackOpen(const dmSound::OpenDeviceParams* params, dmSound::HDevice* device)
 {
     LoopbackDevice* d = new LoopbackDevice;
 
@@ -374,7 +375,7 @@ dmSound::Result DeviceLoopbackOpen(const dmSound::OpenDeviceParams* params, dmSo
     return dmSound::RESULT_OK;
 }
 
-void DeviceLoopbackClose(dmSound::HDevice device)
+static void DeviceLoopbackClose(dmSound::HDevice device)
 {
     LoopbackDevice* d = (LoopbackDevice*) device;
     for (uint32_t i = 0; i < d->m_Buffers.Size(); ++i) {
@@ -385,7 +386,7 @@ void DeviceLoopbackClose(dmSound::HDevice device)
     g_LoopbackDevice = 0;
 }
 
-dmSound::Result DeviceLoopbackQueue(dmSound::HDevice device, const int16_t* samples, uint32_t sample_count)
+static dmSound::Result DeviceLoopbackQueue(dmSound::HDevice device, const int16_t* samples, uint32_t sample_count)
 {
     LoopbackDevice* loopback = (LoopbackDevice*) device;
     loopback->m_NumWrites++;
@@ -415,7 +416,7 @@ dmSound::Result DeviceLoopbackQueue(dmSound::HDevice device, const int16_t* samp
     return dmSound::RESULT_OK;
 }
 
-uint32_t DeviceLoopbackFreeBufferSlots(dmSound::HDevice device)
+static uint32_t DeviceLoopbackFreeBufferSlots(dmSound::HDevice device)
 {
     LoopbackDevice* loopback = (LoopbackDevice*) device;
 
@@ -433,19 +434,19 @@ uint32_t DeviceLoopbackFreeBufferSlots(dmSound::HDevice device)
     return n;
 }
 
-void DeviceLoopbackDeviceInfo(dmSound::HDevice device, dmSound::DeviceInfo* info)
+static void DeviceLoopbackDeviceInfo(dmSound::HDevice device, dmSound::DeviceInfo* info)
 {
     LoopbackDevice* loopback = (LoopbackDevice*) device;
     info->m_MixRate = 44100;
     info->m_FrameCount = loopback->m_DeviceFrameCount;
 }
 
-void DeviceLoopbackRestart(dmSound::HDevice device)
+static void DeviceLoopbackRestart(dmSound::HDevice device)
 {
 
 }
 
-void DeviceLoopbackStop(dmSound::HDevice device)
+static void DeviceLoopbackStop(dmSound::HDevice device)
 {
 
 }
@@ -533,14 +534,15 @@ TEST_P(dmSoundVerifyTest, Mix)
     const float rate = params.m_ToneRate;
     const float mix_rate = params.m_MixRate;
 
-    const int n = (frame_count * 44100) / (int) mix_rate;
+    const uint32_t device_mix_rate = dmSound::GetMixRate();
+    const int n = (frame_count * device_mix_rate) / (int) mix_rate;
     for (int32_t i = 0; i < n - 1; i++) {
-        const double f = 44100.0;
+        const double f = device_mix_rate;
         int index = i * mix_rate / f;
         double level = sin(M_PI_4);
         double a1 = 0.8 * 32768.0 * level * sin((index * 2.0 * M_PI * rate) / mix_rate);
         double a2 = 0.8 * 32768.0 * level * sin(((index + 1) * 2.0 * M_PI * rate) / mix_rate);
-        double frac = fmod(i * mix_rate / 44100.0, 1.0);
+        double frac = fmod(i * mix_rate / double(device_mix_rate), 1.0);
         double a = a1 * (1.0 - frac) + a2 * frac;
         int16_t as = (int16_t) a;
         ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i], as, 27);
@@ -852,6 +854,8 @@ TEST_P(dmSoundTestSpeedTest, Speed)
 
         int64_t pos_1 = dmSound::GetInternalPos(instance);
         int64_t pos_2 = dmSound::GetInternalPos(muted_instance);
+        (void)pos_1;
+        (void)pos_2;
     } while (dmSound::IsPlaying(instance));
 
     // The loop back device will have time to write out another output buffer while the
@@ -1178,7 +1182,7 @@ TEST_P(dmSoundTestPlayTest, Play)
     ASSERT_EQ(dmSound::RESULT_OK, r);
 }
 
-TEST_P(dmSoundTestPlaySpeedTest, Play)
+TEST_P(dmSoundTestPlaySpeedTest, PlaySpeed)
 {
     TestParams params = GetParam();
     dmSound::Result r;
@@ -1223,14 +1227,14 @@ TEST_P(dmSoundTestPlaySpeedTest, Play)
     ASSERT_EQ(dmSound::RESULT_OK, r);
 }
 
-#define SOUND_TEST(DEVICE, CHANNELS, FREQ, FRAMES, BYTES, BUFFERSIZE) \
+#define SOUND_TEST(DEVICE, CHANNELS, TONE, SAMPLE_RATE, NUM_FRAMES, BUFFERSIZE) \
     TestParams(DEVICE, \
-                CHANNELS ## _TONE_ ## FREQ ## _ ## FRAMES ## _ ## BYTES ## _WAV, \
-                CHANNELS ## _TONE_ ## FREQ ## _ ## FRAMES ## _ ## BYTES ## _WAV_SIZE, \
+                CHANNELS ## _TONE_ ## TONE ## _ ## SAMPLE_RATE ## _ ## NUM_FRAMES ## _WAV, \
+                CHANNELS ## _TONE_ ## TONE ## _ ## SAMPLE_RATE ## _ ## NUM_FRAMES ## _WAV_SIZE, \
                 dmSound::SOUND_DATA_TYPE_WAV, \
-                FREQ, \
-                FRAMES, \
-                FRAMES, \
+                TONE, \
+                SAMPLE_RATE, \
+                NUM_FRAMES, \
                 BUFFERSIZE)
 
 const TestParams params_test_play_test[] = {
@@ -1257,7 +1261,7 @@ const TestParams params_test_play_test[] = {
     SOUND_TEST("default", STEREO, 2000, 44100, 11025, 2048),
     SOUND_TEST("default", STEREO, 2000, 48000, 12000, 2048),
 };
-INSTANTIATE_TEST_CASE_P(dmSoundTestPlayTestMono, dmSoundTestPlayTest, jc_test_values_in(params_test_play_test));
+INSTANTIATE_TEST_CASE_P(dmSoundTestPlayTest, dmSoundTestPlayTest, jc_test_values_in(params_test_play_test));
 
 const TestParams params_test_play_speed_test[] = {
     TestParams("default",
@@ -1462,17 +1466,15 @@ TEST_P(dmSoundMixerTest, Mixer)
     const float mix_rate1 = params.m_MixRate1;
     const float mix_rate2 = params.m_MixRate2;
 
-    // TODO: Get this from the device
-    //int mix_rate = 44100;
-    int mix_rate = 48000;
+    uint32_t mix_rate = dmSound::GetMixRate();
 
-    const int n1 = (frame_count1 * 44100) / (int) mix_rate1;
-    const int n2 = (frame_count2 * 44100) / (int) mix_rate2;
+    const int n1 = (frame_count1 * mix_rate) / (int) mix_rate1;
+    const int n2 = (frame_count2 * mix_rate) / (int) mix_rate2;
     const int n = dmMath::Max(n1, n2);
     float sum_square = 0.0f;
     float last_rms = 0.0f;
     for (int32_t i = 0; i < n - 1; i++) {
-        const double f = 44100.0;
+        const double f = mix_rate;
 
         double ax = 0;
         double ay = 0;
@@ -1481,14 +1483,14 @@ TEST_P(dmSoundMixerTest, Mixer)
         float ramp1 = params.m_Ramp1 ? ((n - 1) - i) / (float) n : 1.0f;
         double a1x = ramp1 * params.m_Gain1 * 0.8 * 32768.0 * sin((index1 * 2.0 * 3.14159265 * rate1) / mix_rate1);
         double a2x = ramp1 * params.m_Gain1 * 0.8 * 32768.0 * sin(((index1 + 1) * 2.0 * 3.14159265 * rate1) / mix_rate1);
-        double frac1 = fmod(i * mix_rate1 / 44100.0, 1.0);
+        double frac1 = fmod(i * mix_rate1 / double(mix_rate), 1.0);
         ax = a1x * (1.0 - frac1) + a2x * frac1;
 
         int index2 = i * mix_rate2 / f;
         float ramp2 = params.m_Ramp2 ? ((n - 1) - i) / (float) n : 1.0f;
         double a1y = ramp2 * params.m_Gain2 * 0.8 * 32768.0 * sin((index2 * 2.0 * 3.14159265 * rate2) / mix_rate2);
         double a2y = ramp2 * params.m_Gain2 * 0.8 * 32768.0 * sin(((index2 + 1) * 2.0 * 3.14159265 * rate2) / mix_rate2);
-        double frac2 = fmod(i * mix_rate2 / 44100.0, 1.0);
+        double frac2 = fmod(i * mix_rate2 / double(mix_rate), 1.0);
         ay = a1y * (1.0 - frac2) + a2y * frac2;
 
         double a = ax + ay;
@@ -1512,7 +1514,7 @@ TEST_P(dmSoundMixerTest, Mixer)
     last_rms /= 32767.0f;
 
     float rms_left, rms_right;
-    dmSound::GetGroupRMS(dmHashString64("g1"), params.m_BufferFrameCount / 44100.0f, &rms_left, &rms_right);
+    dmSound::GetGroupRMS(dmHashString64("g1"), params.m_BufferFrameCount / double(mix_rate), &rms_left, &rms_right);
     const float rms_tol = 3.0f;
     ASSERT_NEAR(rms_left, last_rms, rms_tol);
     ASSERT_NEAR(rms_right, last_rms, rms_tol);

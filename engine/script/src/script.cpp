@@ -33,14 +33,13 @@
 #include "script_luasocket.h"
 #include "script_bitop.h"
 #include "script_timer.h"
-#include "script_extensions.h"
 
 extern "C"
 {
 #include <lua/lualib.h>
 }
 
-DM_PROPERTY_GROUP(rmtp_Script, "");
+DM_PROPERTY_GROUP(rmtp_Script, "", 0);
 
 namespace dmScript
 {
@@ -207,7 +206,6 @@ namespace dmScript
         context->m_ContextTableRef = Ref(L, LUA_REGISTRYINDEX);
 
         InitializeTimer(context);
-        InitializeExtensions(context);
 
         for (HScriptExtension* l = context->m_ScriptExtensions.Begin(); l != context->m_ScriptExtensions.End(); ++l)
         {

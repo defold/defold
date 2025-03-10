@@ -271,7 +271,7 @@
   (or (validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
       (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material "Material")))
 
-(g/defnk produce-build-targets [_node-id resource textures texture-binding-infos default-animation material material-attribute-infos material-max-page-count material-samplers material-shader blend-mode size-mode manual-size slice9 dep-build-targets offset playback-rate vertex-attribute-bytes vertex-attribute-overrides]
+(g/defnk produce-build-targets [_node-id resource textures texture-binding-infos default-animation material material-attribute-infos material-max-page-count material-samplers material-shader blend-mode size-mode manual-size slice9 offset playback-rate vertex-attribute-bytes vertex-attribute-overrides]
   (g/precluding-errors
     (let [sampler-name->texture-binding-info (coll/pair-map-by :sampler texture-binding-infos)
           is-paged-material (shader/is-using-array-samplers? material-shader)
@@ -293,7 +293,7 @@
               (if unassigned-texture-error
                 [unassigned-texture-error]
                 [(validation/prop-error :fatal _node-id :textures shader/page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count label)
-                 (when (nil? unassigned-default-animation-error)
+                 (when (and anim-data (nil? unassigned-default-animation-error))
                    (validation/prop-error :fatal _node-id :textures validation/prop-anim-missing-in? default-animation anim-data label))])))
           material-samplers)
 
@@ -314,7 +314,10 @@
         :playback-rate playback-rate
         :attributes (graphics/vertex-attribute-overrides->build-target vertex-attribute-overrides vertex-attribute-bytes material-attribute-infos)
         :textures textures}
-       dep-build-targets)]))
+       nil
+       (into [(resource/proj-path material)]
+             (map (comp resource/proj-path :texture))
+             textures))]))
 
 (def ^:private fake-resource
   (reify resource/Resource
@@ -343,8 +346,7 @@
                                             [:anim-data :anim-data]
                                             [:anim-ids :anim-ids]
                                             [:gpu-texture :gpu-texture]
-                                            [:texture-page-count :texture-page-count]
-                                            [:build-targets :build-targets]))))
+                                            [:texture-page-count :texture-page-count]))))
   (input texture-resource resource/Resource)
   (input anim-data g/Any)
   (input anim-ids g/Any)
@@ -357,16 +359,13 @@
                                          (g/error-value? anim-ids) (dissoc :anim-ids)
                                          (g/error-value? texture-page-count) (dissoc :texture-page-count))))
   (output texture-binding-save-value g/Any (g/fnk [sampler texture :as info] info))
-  (output scene-info g/Any (g/fnk [sampler gpu-texture anim-data :as info] info))
-  (input build-targets g/Any :array)
-  (output build-targets g/Any (gu/passthrough build-targets)))
+  (output scene-info g/Any (g/fnk [sampler gpu-texture anim-data :as info] info)))
 
 (defn- create-texture-binding-tx [sprite sampler texture]
   (g/make-nodes (g/node-id->graph-id sprite) [texture-binding [TextureBinding
                                                                :sampler sampler
                                                                :texture texture]]
     (g/connect texture-binding :_node-id sprite :copied-nodes)
-    (g/connect texture-binding :build-targets sprite :dep-build-targets)
     (g/connect texture-binding :texture-binding-info sprite :texture-binding-infos)
     (g/connect texture-binding :texture-binding-save-value sprite :texture-binding-save-values)
     (g/connect texture-binding :scene-info sprite :scene-infos)))
@@ -512,8 +511,7 @@
                                             [:shader :material-shader]
                                             [:samplers :material-samplers]
                                             [:max-page-count :material-max-page-count]
-                                            [:attribute-infos :material-attribute-infos]
-                                            [:build-targets :dep-build-targets])))
+                                            [:attribute-infos :material-attribute-infos])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext #{"material"}}))
             (dynamic error (g/fnk [_node-id material]
                              (validate-material _node-id material))))
@@ -583,8 +581,6 @@
   (output textures g/Any (g/fnk [texture-binding-save-values]
                            (filterv :texture texture-binding-save-values)))
   (output anim-ids g/Any (g/fnk [primary-texture-binding-info] (:anim-ids primary-texture-binding-info)))
-
-  (input dep-build-targets g/Any :array)
 
   (input material-resource resource/Resource)
   (input material-shader ShaderLifecycle)

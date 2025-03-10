@@ -56,6 +56,7 @@ namespace dmHID
         GAMEPAD_REMAP_STRATEGY_NONE          = 0,
         GAMEPAD_REMAP_STRATEGY_LEGACY_XINPUT = 1,
         GAMEPAD_REMAP_STRATEGY_LEGACY_DINPUT = 2,
+        GAMEPAD_REMAP_STRATEGY_LEGACY_LINUX  = 3,
     };
 
     struct GLFWGamepadDevice
@@ -126,7 +127,7 @@ namespace dmHID
         new_device.m_Gamepad         = gp;
         new_device.m_RemapStrategy   = GAMEPAD_REMAP_STRATEGY_NONE;
 
-    #ifdef _WIN32
+    #if defined(_WIN32)
         // For windows, we need to be able to remap button layouts according to
         // how it was created (xinput or dinput) in order to comply with old button mappings.
         new_device.m_RemapStrategy = GAMEPAD_REMAP_STRATEGY_LEGACY_DINPUT;
@@ -140,6 +141,9 @@ namespace dmHID
         {
             new_device.m_RemapStrategy = GAMEPAD_REMAP_STRATEGY_LEGACY_XINPUT;
         }
+    #elif defined(__linux__)
+        // Same with linux, the order for gamepad buttons have changed since GLFW 2.7, so we need to adhere to that.
+        new_device.m_RemapStrategy = GAMEPAD_REMAP_STRATEGY_LEGACY_LINUX;
     #endif
 
         if (driver->m_Devices.Full())
@@ -182,28 +186,77 @@ namespace dmHID
         }
     }
 
-
-#ifdef _WIN32
-
-    static void RemapGamepadAxisWin32(GLFWGamepadDevice* glfw_gamepad, float* axis)
+    static void RemapGamepadAxis(GLFWGamepadDevice* glfw_gamepad, float* axis, uint8_t* buttons)
     {
-        if (glfw_gamepad->m_RemapStrategy != GAMEPAD_REMAP_STRATEGY_LEGACY_XINPUT)
+        if (glfw_gamepad->m_RemapStrategy != GAMEPAD_REMAP_STRATEGY_LEGACY_XINPUT &&
+            glfw_gamepad->m_RemapStrategy != GAMEPAD_REMAP_STRATEGY_LEGACY_LINUX)
         {
             return;
         }
-        Gamepad* gamepad = glfw_gamepad->m_Gamepad;
 
         // The new XInput mapping has positive Y axis downwards and negative upwards, so we need to reverse those.
         // XInput devices will always have 6 axis values (left X, left Y, right X, right Y, left Trigger, right Trigger),
         // so it's safe to not bounds check here:
         axis[1] *= -1.0f;
         axis[3] *= -1.0f;
+
+        if (glfw_gamepad->m_RemapStrategy == GAMEPAD_REMAP_STRATEGY_LEGACY_LINUX)
+        {
+            // For linux, the old GLFW 2.7.7 version represents hats as axes, but in newer
+            // glfw version they are actually represented as buttons instead.
+
+            Gamepad* gamepad          = glfw_gamepad->m_Gamepad;
+            uint8_t axis_count        = gamepad->m_HatCount * 2;
+            uint8_t axis_start        = 6;
+            int32_t hats_button_count = gamepad->m_HatCount * 4;
+            int32_t hats_start        = gamepad->m_ButtonCount - hats_button_count;
+            gamepad->m_AxisCount      = dmMath::Max(gamepad->m_AxisCount, (uint8_t) (axis_start + axis_count));
+
+            for (int i = 0; i < gamepad->m_HatCount; ++i)
+            {
+                uint32_t hats_offset = i * 4 + hats_start;
+                uint32_t axis_offset = i * 2 + axis_start;
+
+                uint8_t hat_up    = buttons[hats_offset];
+                uint8_t hat_right = buttons[hats_offset+1];
+                uint8_t hat_down  = buttons[hats_offset+2];
+                uint8_t hat_left  = buttons[hats_offset+3];
+
+                if (hat_right)
+                {
+                    axis[axis_offset] = 1.0;
+                }
+                else if (hat_left)
+                {
+                    axis[axis_offset] = -1.0;
+                }
+                else
+                {
+                    axis[axis_offset] = 0.0;
+                }
+
+                axis_offset++;
+
+                if (hat_up)
+                {
+                    axis[axis_offset] = 1.0;
+                }
+                else if (hat_down)
+                {
+                    axis[axis_offset] = -1.0;
+                }
+                else
+                {
+                    axis[axis_offset] = 0.0;
+                }
+            }
+        }
     }
 
-    static uint8_t* RemapGamepadButtonsWin32(GLFWGamepadDevice* glfw_gamepad, uint8_t* buttons, uint8_t* buttons_remapped)
+    static uint8_t* RemapGamepadButtons(GLFWGamepadDevice* glfw_gamepad, uint8_t* buttons, uint8_t* buttons_remapped)
     {
-        if (glfw_gamepad->m_RemapStrategy != GAMEPAD_REMAP_STRATEGY_LEGACY_XINPUT &&
-            glfw_gamepad->m_RemapStrategy != GAMEPAD_REMAP_STRATEGY_LEGACY_DINPUT)
+        if (glfw_gamepad->m_RemapStrategy != GAMEPAD_REMAP_STRATEGY_LEGACY_DINPUT &&
+            glfw_gamepad->m_RemapStrategy != GAMEPAD_REMAP_STRATEGY_LEGACY_XINPUT)
         {
             return buttons;
         }
@@ -298,7 +351,6 @@ namespace dmHID
 
         return buttons_remapped;
     }
-#endif
 
     static void GLFWGamepadDriverUpdate(HContext context, GamepadDriver* driver, Gamepad* gamepad)
     {
@@ -310,17 +362,14 @@ namespace dmHID
         GamepadPacket& packet = gamepad->m_Packet;
 
         uint8_t buttons[MAX_GAMEPAD_BUTTON_COUNT] = {};
-        uint8_t* buttons_ptr = buttons;
+        uint8_t buttons_remapped[MAX_GAMEPAD_BUTTON_COUNT] = {};
 
         gamepad->m_AxisCount   = dmPlatform::GetJoystickAxes(context->m_Window, glfw_joystick, packet.m_Axis, MAX_GAMEPAD_AXIS_COUNT);
         gamepad->m_HatCount    = dmPlatform::GetJoystickHats(context->m_Window, glfw_joystick, packet.m_Hat, MAX_GAMEPAD_HAT_COUNT);
         gamepad->m_ButtonCount = dmPlatform::GetJoystickButtons(context->m_Window, glfw_joystick, buttons, MAX_GAMEPAD_BUTTON_COUNT);
 
-    #ifdef _WIN32
-        uint8_t buttons_remapped[MAX_GAMEPAD_BUTTON_COUNT] = {};
-        buttons_ptr = RemapGamepadButtonsWin32(glfw_device, buttons, buttons_remapped);
-        RemapGamepadAxisWin32(glfw_device, packet.m_Axis);
-    #endif
+        uint8_t* buttons_ptr = RemapGamepadButtons(glfw_device, buttons, buttons_remapped);
+        RemapGamepadAxis(glfw_device, packet.m_Axis, buttons);
 
         for (uint32_t j = 0; j < gamepad->m_ButtonCount; ++j)
         {

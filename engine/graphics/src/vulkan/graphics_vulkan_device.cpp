@@ -1249,7 +1249,7 @@ bail:
 
         vk_input_assembly.sType                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
         vk_input_assembly.topology               = vk_primitive_type;
-        vk_input_assembly.primitiveRestartEnable = VK_FALSE;
+        vk_input_assembly.primitiveRestartEnable = VK_TRUE;
 
         VkViewport vk_viewport;
         memset(&vk_viewport, 0, sizeof(vk_viewport));

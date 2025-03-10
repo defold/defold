@@ -28,7 +28,7 @@
             [support.test-support :as ts])
   (:import [com.dynamo.gamesys.proto Sprite$SpriteDesc]
            [java.io ByteArrayOutputStream]
-           [org.apache.commons.io IOUtils]))
+           [org.apache.commons.io FilenameUtils IOUtils]))
 
 (def project-path "test/resources/custom_resources_project")
 
@@ -201,3 +201,73 @@
                   :default-animation "gurka"
                   :material (-> material-target :resource resource/proj-path)}
                 (select-keys pb-data [:tile-set :default-animation :material]))))))))
+
+(defrecord TestResource [proj-path]
+  resource/Resource
+  (children [_] [])
+  (ext [_] (FilenameUtils/getExtension proj-path))
+  (resource-type [this] {:build-ext (str (resource/ext this) "c")})
+  (source-type [_] :file)
+  (exists? [_] true)
+  (read-only? [_] true)
+  (path [_] (subs proj-path 1))
+  (abs-path [_] proj-path)
+  (proj-path [_] proj-path)
+  (resource-name [_] (FilenameUtils/getName proj-path))
+  (workspace [_])
+  (resource-hash [_] (hash proj-path))
+  (openable? [_] false)
+  (editable? [_] false))
+
+(defn- build-resource [proj-path]
+  (workspace/make-build-resource (->TestResource proj-path)))
+
+(defn- build! [{:keys [build-fn resource user-data]} dep-resources]
+  (build-fn resource dep-resources user-data))
+
+(defn- sprite-build-target [pb-map]
+  (pipeline/make-protobuf-build-target 12345 (->TestResource "/foo/bar.sprite") Sprite$SpriteDesc pb-map))
+
+(deftest make-protobuf-build-target-errors-test
+  (testing "missing required dep"
+    (is (thrown-with-msg?
+          Exception #"missing a referenced source-resource"
+          (build!
+            (sprite-build-target {:default-animation "required"})
+            ;; deps should include "/builtins/materials/sprite.material" for the default material
+            {})))
+    (is (thrown-with-msg?
+          Exception #"missing a referenced source-resource"
+          (build!
+            (sprite-build-target {:default-animation "required"
+                                  :textures [{:sampler "required"
+                                              ;; deps should include "/foo.png"
+                                              :texture "/foo.png"}]})
+            {(build-resource "/builtins/materials/sprite.material") (build-resource "/builtins/materials/sprite.material")}))))
+  (testing "Required resource is absent"
+    (testing "(nil value)"
+      (test-util/check-thrown-with-root-cause-msg!
+        #"missing required fields: texture"
+        (build!
+          (sprite-build-target {:default-animation "required"
+                                :textures [{:sampler "required"
+                                            ;; texture is a required resource
+                                            :texture nil}]})
+          {(build-resource "/builtins/materials/sprite.material") (build-resource "/builtins/materials/sprite.material")})))
+    (testing "(empty string value)"
+      (test-util/check-thrown-with-root-cause-msg!
+        #"missing required fields: texture"
+        (build!
+          (sprite-build-target {:default-animation "required"
+                                :textures [{:sampler "required"
+                                            ;; texture is a required resource
+                                            :texture ""}]})
+          {(build-resource "/builtins/materials/sprite.material") (build-resource "/builtins/materials/sprite.material")})))
+    (testing "(missing key)"
+      (test-util/check-thrown-with-root-cause-msg!
+        #"missing required fields: texture"
+        (build!
+          (sprite-build-target {:default-animation "required"
+                                ;; texture is a required resource
+                                :textures [{:sampler "required"}]})
+          {(build-resource "/builtins/materials/sprite.material") (build-resource "/builtins/materials/sprite.material")})))))

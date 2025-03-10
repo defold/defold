@@ -26,8 +26,6 @@
 
 #include <stdint.h>
 
-#include <dmsdk/external/remotery/Remotery.h> // Private, don't use this api directly!
-
 /*# add profile scope
  *
  * Adds a profiling scope. Excluded by default in release builds.
@@ -110,7 +108,7 @@
  *
  * ```cpp
  * DM_PROPERTY_EXTERN(rmtp_GameObject);
- * DM_PROPERTY_U32(rmtp_ComponentsAnim, 0, FrameReset, "#", &rmtp_GameObject);
+ * DM_PROPERTY_U32(rmtp_ComponentsAnim, 0, PROFILE_PROPERTY_FRAME_RESET, "#", &rmtp_GameObject);
  * ```
  */
 #define DM_PROPERTY_EXTERN(name)
@@ -123,11 +121,12 @@
  * @name DM_PROPERTY_GROUP
  * @param name [type:symbol] The group name
  * @param desc [type:const char*] The description
+ * @param parent [type: dmProfilePropertyIdx*] pointer to parent property
  *
  * @examples
  *
  * ```cpp
- * DM_PROPERTY_GROUP(rmtp_GameObject, "My Group");
+ * DM_PROPERTY_GROUP(rmtp_GameObject, "My Group", 0);
  * ```
  */
 #define DM_PROPERTY_GROUP(name, desc)
@@ -140,17 +139,17 @@
  * @name DM_PROPERTY_BOOL
  * @param name [type:symbol] The property symbol/name
  * @param default [type:bool] The default value
- * @param flags [type:uint32_t] The flags. Either `NoFlags` or `FrameReset`. `FrameReset` makes the value reset each frame.
+ * @param flags [type:uint32_t] The flags. Either `PROFILE_PROPERTY_NONE` or `PROFILE_PROPERTY_FRAME_RESET`. `PROFILE_PROPERTY_FRAME_RESET` makes the value reset each frame.
  * @param desc [type:const char*] The description
- * @param group [type:property*] [optional] The parent group
+ * @param group [type: dmProfilePropertyIdx*] The parent group. May be 0.
  *
  * @examples
  *
  * ```cpp
- * DM_PROPERTY_BOOL(rmtp_MyBool, 0, FrameReset, "true or false", &rmtp_MyGroup);
+ * DM_PROPERTY_BOOL(rmtp_MyBool, 0, PROFILE_PROPERTY_FRAME_RESET, "true or false", &rmtp_MyGroup);
  * ```
  */
-#define DM_PROPERTY_BOOL(name, default_value, flag, desc, ...)
+#define DM_PROPERTY_BOOL(name, default_value, flag, desc, parent)
 #undef DM_PROPERTY_BOOL
 
 /*# int32_t property
@@ -160,17 +159,17 @@
  * @name DM_PROPERTY_S32
  * @param name [type:symbol] The property symbol/name
  * @param default [type:int32_t] The default value
- * @param flags [type:uint32_t] The flags. Either `NoFlags` or `FrameReset`. `FrameReset` makes the value reset each frame.
+ * @param flags [type:uint32_t] The flags. Either `PROFILE_PROPERTY_NONE` or `PROFILE_PROPERTY_FRAME_RESET`. `PROFILE_PROPERTY_FRAME_RESET` makes the value reset each frame.
  * @param desc [type:const char*] The description
- * @param group [type:property*] [optional] The parent group
+ * @param group [type: dmProfilePropertyIdx*] The parent group. May be 0.
  *
  * @examples
  *
  * ```cpp
- * DM_PROPERTY_S32(rmtp_MyValue, 0, FrameReset, "a value", &rmtp_MyGroup);
+ * DM_PROPERTY_S32(rmtp_MyValue, 0, PROFILE_PROPERTY_FRAME_RESET, "a value", &rmtp_MyGroup);
  * ```
  */
-#define DM_PROPERTY_S32(name, default_value, flag, desc, ...)
+#define DM_PROPERTY_S32(name, default_value, flag, desc, parent)
 #undef DM_PROPERTY_S32
 
 /*# uint32_t property
@@ -180,17 +179,17 @@
  * @name DM_PROPERTY_U32
  * @param name [type:symbol] The property symbol/name
  * @param default [type:uint32_t] The default value
- * @param flags [type:uint32_t] The flags. Either `NoFlags` or `FrameReset`. `FrameReset` makes the value reset each frame.
+ * @param flags [type:uint32_t] The flags. Either `PROFILE_PROPERTY_NONE` or `PROFILE_PROPERTY_FRAME_RESET`. `PROFILE_PROPERTY_FRAME_RESET` makes the value reset each frame.
  * @param desc [type:const char*] The description
- * @param group [type:property*] [optional] The parent group
+ * @param group [type: dmProfilePropertyIdx*] The parent group. May be 0.
  *
  * @examples
  *
  * ```cpp
- * DM_PROPERTY_U32(rmtp_MyValue, 0, FrameReset, "a value", &rmtp_MyGroup);
+ * DM_PROPERTY_U32(rmtp_MyValue, 0, PROFILE_PROPERTY_FRAME_RESET, "a value", &rmtp_MyGroup);
  * ```
  */
-#define DM_PROPERTY_U32(name, default_value, flag, desc, ...)
+#define DM_PROPERTY_U32(name, default_value, flag, desc, parent)
 #undef DM_PROPERTY_U32
 
 /*# float property
@@ -200,17 +199,17 @@
  * @name DM_PROPERTY_F32
  * @param name [type:symbol] The property symbol/name
  * @param default [type:float] The default value
- * @param flags [type:uint32_t] The flags. Either `NoFlags` or `FrameReset`. `FrameReset` makes the value reset each frame.
+ * @param flags [type:uint32_t] The flags. Either `PROFILE_PROPERTY_NONE` or `PROFILE_PROPERTY_FRAME_RESET`. `PROFILE_PROPERTY_FRAME_RESET` makes the value reset each frame.
  * @param desc [type:const char*] The description
- * @param group [type:property*] [optional] The parent group
+ * @param group [type: dmProfilePropertyIdx*] The parent group. May be 0.
  *
  * @examples
  *
  * ```cpp
- * DM_PROPERTY_F32(rmtp_MyValue, 0, FrameReset, "a value", &rmtp_MyGroup);
+ * DM_PROPERTY_F32(rmtp_MyValue, 0, PROFILE_PROPERTY_FRAME_RESET, "a value", &rmtp_MyGroup);
  * ```
  */
-#define DM_PROPERTY_F32(name, default_value, flag, desc, ...)
+#define DM_PROPERTY_F32(name, default_value, flag, desc, parent)
 #undef DM_PROPERTY_F32
 
 /*# int64_t property
@@ -220,17 +219,17 @@
  * @name DM_PROPERTY_S64
  * @param name [type:symbol] The property symbol/name
  * @param default [type:int64_t] The default value
- * @param flags [type:uint32_t] The flags. Either `NoFlags` or `FrameReset`. `FrameReset` makes the value reset each frame.
+ * @param flags [type:uint32_t] The flags. Either `PROFILE_PROPERTY_NONE` or `PROFILE_PROPERTY_FRAME_RESET`. `PROFILE_PROPERTY_FRAME_RESET` makes the value reset each frame.
  * @param desc [type:const char*] The description
- * @param group [type:property*] [optional] The parent group
+ * @param group [type: dmProfilePropertyIdx*] The parent group. May be 0.
  *
  * @examples
  *
  * ```cpp
- * DM_PROPERTY_S64(rmtp_MyValue, 0, FrameReset, "a value", &rmtp_MyGroup);
+ * DM_PROPERTY_S64(rmtp_MyValue, 0, PROFILE_PROPERTY_FRAME_RESET, "a value", &rmtp_MyGroup);
  * ```
  */
-#define DM_PROPERTY_S64(name, default_value, flag, desc, ...)
+#define DM_PROPERTY_S64(name, default_value, flag, desc, parent)
 #undef DM_PROPERTY_S64
 
 
@@ -241,17 +240,17 @@
  * @name DM_PROPERTY_U64
  * @param name [type:symbol] The property symbol/name
  * @param default [type:uint64_t] The default value
- * @param flags [type:uint32_t] The flags. Either `NoFlags` or `FrameReset`. `FrameReset` makes the value reset each frame.
+ * @param flags [type:uint32_t] The flags. Either `PROFILE_PROPERTY_NONE` or `PROFILE_PROPERTY_FRAME_RESET`. `PROFILE_PROPERTY_FRAME_RESET` makes the value reset each frame.
  * @param desc [type:const char*] The description
- * @param group [type:property*] [optional] The parent group
+ * @param group [type: dmProfilePropertyIdx*] The parent group. May be 0.
  *
  * @examples
  *
  * ```cpp
- * DM_PROPERTY_U64(rmtp_MyValue, 0, FrameReset, "a value", &rmtp_MyGroup);
+ * DM_PROPERTY_U64(rmtp_MyValue, 0, PROFILE_PROPERTY_FRAME_RESET, "a value", &rmtp_MyGroup);
  * ```
  */
-#define DM_PROPERTY_U64(name, default_value, flag, desc, ...)
+#define DM_PROPERTY_U64(name, default_value, flag, desc, parent)
 #undef DM_PROPERTY_U64
 
 /*# double property
@@ -261,17 +260,17 @@
  * @name DM_PROPERTY_F64
  * @param name [type:symbol] The property symbol/name
  * @param default [type:double] The default value
- * @param flags [type:uint32_t] The flags. Either `NoFlags` or `FrameReset`. `FrameReset` makes the value reset each frame.
+ * @param flags [type:uint32_t] The flags. Either `PROFILE_PROPERTY_NONE` or `PROFILE_PROPERTY_FRAME_RESET`. `PROFILE_PROPERTY_FRAME_RESET` makes the value reset each frame.
  * @param desc [type:const char*] The description
- * @param group [type:property*] [optional] The parent group
+ * @param group [type: dmProfilePropertyIdx*] The parent group. May be 0.
  *
  * @examples
  *
  * ```cpp
- * DM_PROPERTY_F64(rmtp_MyValue, 0, FrameReset, "a value", &rmtp_MyGroup);
+ * DM_PROPERTY_F64(rmtp_MyValue, 0, PROFILE_PROPERTY_FRAME_RESET, "a value", &rmtp_MyGroup);
  * ```
  */
-#define DM_PROPERTY_F64(name, default_value, flag, desc, ...)
+#define DM_PROPERTY_F64(name, default_value, flag, desc, parent)
 #undef DM_PROPERTY_F64
 
 
@@ -498,6 +497,45 @@
 #define DM_PROPERTY_RESET(name)
 #undef DM_PROPERTY_RESET
 
+typedef uint32_t dmProfilePropertyIdx;
+
+// Private
+#define DM_PROFILE_PROPERTY_INVALID_IDX 0xFFFFFFFF
+
+dmProfilePropertyIdx dmProfileCreatePropertyGroup(const char* name, const char* desc, dmProfilePropertyIdx* parent);
+dmProfilePropertyIdx dmProfileCreatePropertyBool(const char* name, const char* desc, int value, uint32_t flags, dmProfilePropertyIdx* parent);
+dmProfilePropertyIdx dmProfileCreatePropertyS32(const char* name, const char* desc, int32_t value, uint32_t flags, dmProfilePropertyIdx* parent);
+dmProfilePropertyIdx dmProfileCreatePropertyU32(const char* name, const char* desc, uint32_t value, uint32_t flags, dmProfilePropertyIdx* parent);
+dmProfilePropertyIdx dmProfileCreatePropertyF32(const char* name, const char* desc, float value, uint32_t flags, dmProfilePropertyIdx* parent);
+dmProfilePropertyIdx dmProfileCreatePropertyS64(const char* name, const char* desc, int64_t value, uint32_t flags, dmProfilePropertyIdx* parent);
+dmProfilePropertyIdx dmProfileCreatePropertyU64(const char* name, const char* desc, uint64_t value, uint32_t flags, dmProfilePropertyIdx* parent);
+dmProfilePropertyIdx dmProfileCreatePropertyF64(const char* name, const char* desc, double value, uint32_t flags, dmProfilePropertyIdx* parent);
+
+void dmProfilePropertySetBool(dmProfilePropertyIdx idx, int v);
+void dmProfilePropertySetS32(dmProfilePropertyIdx idx, int32_t v);
+void dmProfilePropertySetU32(dmProfilePropertyIdx idx, uint32_t v);
+void dmProfilePropertySetF32(dmProfilePropertyIdx idx, float v);
+void dmProfilePropertySetS64(dmProfilePropertyIdx idx, int64_t v);
+void dmProfilePropertySetU64(dmProfilePropertyIdx idx, uint64_t v);
+void dmProfilePropertySetF64(dmProfilePropertyIdx idx, double v);
+
+void dmProfilePropertyAddS32(dmProfilePropertyIdx idx, int32_t v);
+void dmProfilePropertyAddU32(dmProfilePropertyIdx idx, uint32_t v);
+void dmProfilePropertyAddF32(dmProfilePropertyIdx idx, float v);
+void dmProfilePropertyAddS64(dmProfilePropertyIdx idx, int64_t v);
+void dmProfilePropertyAddU64(dmProfilePropertyIdx idx, uint64_t v);
+void dmProfilePropertyAddF64(dmProfilePropertyIdx idx, double v);
+
+void dmProfilePropertyReset(dmProfilePropertyIdx idx);
+
+// Public
+#define DM_PROPERTY_EXTERN(name) extern dmProfilePropertyIdx name;
+
+enum ProfilePropertyFlags
+{
+    PROFILE_PROPERTY_NONE = 0,
+    PROFILE_PROPERTY_FRAME_RESET = 1  // reset the property each frame
+};
 
 #if defined(NDEBUG) || defined(DM_PROFILE_NULL)
     #define DM_PROFILE_TEXT_LENGTH 1024
@@ -505,7 +543,6 @@
     #define DM_PROFILE(name)
     #define DM_PROFILE_DYN(name, name_hash)
 
-    #define DM_PROPERTY_EXTERN(name)                extern rmtProperty name;
     #define DM_PROPERTY_GROUP(name, desc, ...)
     #define DM_PROPERTY_BOOL(name, default_value, flag, desc, ...)
     #define DM_PROPERTY_S32(name, default_value, flag, desc, ...)
@@ -547,36 +584,37 @@
     #define DM_PROFILE_TEXT(format, ...)              dmProfile::LogText(format, __VA_ARGS__)
 
     // The profiler property api
-    #define DM_PROPERTY_EXTERN(name)                                rmt_PropertyExtern(name)
-    #define DM_PROPERTY_GROUP(name, desc, ...)                      rmt_PropertyDefine_Group(name, desc, __VA_ARGS__)
-    #define DM_PROPERTY_BOOL(name, default_value, flag, desc, ...)  rmt_PropertyDefine_Bool(name, default_value, flag, desc, __VA_ARGS__)
-    #define DM_PROPERTY_S32(name, default_value, flag, desc, ...)   rmt_PropertyDefine_S32(name, default_value, flag, desc, __VA_ARGS__)
-    #define DM_PROPERTY_U32(name, default_value, flag, desc, ...)   rmt_PropertyDefine_U32(name, default_value, flag, desc, __VA_ARGS__)
-    #define DM_PROPERTY_F32(name, default_value, flag, desc, ...)   rmt_PropertyDefine_F32(name, default_value, flag, desc, __VA_ARGS__)
-    #define DM_PROPERTY_S64(name, default_value, flag, desc, ...)   rmt_PropertyDefine_S64(name, default_value, flag, desc, __VA_ARGS__)
-    #define DM_PROPERTY_U64(name, default_value, flag, desc, ...)   rmt_PropertyDefine_U64(name, default_value, flag, desc, __VA_ARGS__)
-    #define DM_PROPERTY_F64(name, default_value, flag, desc, ...)   rmt_PropertyDefine_F64(name, default_value, flag, desc, __VA_ARGS__)
+    #define DM_PROPERTY_GROUP(name, desc, parent)                       dmProfilePropertyIdx name = dmProfileCreatePropertyGroup(#name, desc, parent)
+    #define DM_PROPERTY_BOOL(name, default_value, flags, desc, parent)  dmProfilePropertyIdx name = dmProfileCreatePropertyBool(#name, desc, default_value, flags, parent)
+    #define DM_PROPERTY_S32(name, default_value, flags, desc, parent)   dmProfilePropertyIdx name = dmProfileCreatePropertyS32(#name, desc, default_value, flags, parent)
+    #define DM_PROPERTY_U32(name, default_value, flags, desc, parent)   dmProfilePropertyIdx name = dmProfileCreatePropertyU32(#name, desc, default_value, flags, parent)
+    #define DM_PROPERTY_F32(name, default_value, flags, desc, parent)   dmProfilePropertyIdx name = dmProfileCreatePropertyF32(#name, desc, default_value, flags, parent)
+    #define DM_PROPERTY_S64(name, default_value, flags, desc, parent)   dmProfilePropertyIdx name = dmProfileCreatePropertyS64(#name, desc, default_value, flags, parent)
+    #define DM_PROPERTY_U64(name, default_value, flags, desc, parent)   dmProfilePropertyIdx name = dmProfileCreatePropertyU64(#name, desc, default_value, flags, parent)
+    #define DM_PROPERTY_F64(name, default_value, flags, desc, parent)   dmProfilePropertyIdx name = dmProfileCreatePropertyF64(#name, desc, default_value, flags, parent)
 
     // Set properties to the given value
-    #define DM_PROPERTY_SET_BOOL(name, set_value)   rmt_PropertySet_Bool(name, set_value)
-    #define DM_PROPERTY_SET_S32(name, set_value)    rmt_PropertySet_S32(name, set_value)
-    #define DM_PROPERTY_SET_U32(name, set_value)    rmt_PropertySet_U32(name, set_value)
-    #define DM_PROPERTY_SET_F32(name, set_value)    rmt_PropertySet_F32(name, set_value)
-    #define DM_PROPERTY_SET_S64(name, set_value)    rmt_PropertySet_S64(name, set_value)
-    #define DM_PROPERTY_SET_U64(name, set_value)    rmt_PropertySet_U64(name, set_value)
-    #define DM_PROPERTY_SET_F64(name, set_value)    rmt_PropertySet_F64(name, set_value)
+    #define DM_PROPERTY_SET_BOOL(name, set_value)   dmProfilePropertySetBool(name, set_value)
+    #define DM_PROPERTY_SET_S32(name, set_value)    dmProfilePropertySetS32(name, set_value)
+    #define DM_PROPERTY_SET_U32(name, set_value)    dmProfilePropertySetU32(name, set_value)
+    #define DM_PROPERTY_SET_F32(name, set_value)    dmProfilePropertySetF32(name, set_value)
+    #define DM_PROPERTY_SET_S64(name, set_value)    dmProfilePropertySetS64(name, set_value)
+    #define DM_PROPERTY_SET_U64(name, set_value)    dmProfilePropertySetU64(name, set_value)
+    #define DM_PROPERTY_SET_F64(name, set_value)    dmProfilePropertySetF64(name, set_value)
 
     // Add the given value to properties
-    #define DM_PROPERTY_ADD_S32(name, add_value)    rmt_PropertyAdd_S32(name, add_value)
-    #define DM_PROPERTY_ADD_U32(name, add_value)    rmt_PropertyAdd_U32(name, add_value)
-    #define DM_PROPERTY_ADD_F32(name, add_value)    rmt_PropertyAdd_F32(name, add_value)
-    #define DM_PROPERTY_ADD_S64(name, add_value)    rmt_PropertyAdd_S64(name, add_value)
-    #define DM_PROPERTY_ADD_U64(name, add_value)    rmt_PropertyAdd_U64(name, add_value)
-    #define DM_PROPERTY_ADD_F64(name, add_value)    rmt_PropertyAdd_F64(name, add_value)
+    #define DM_PROPERTY_ADD_S32(name, add_value)    dmProfilePropertyAddS32(name, add_value)
+    #define DM_PROPERTY_ADD_U32(name, add_value)    dmProfilePropertyAddU32(name, add_value)
+    #define DM_PROPERTY_ADD_F32(name, add_value)    dmProfilePropertyAddF32(name, add_value)
+    #define DM_PROPERTY_ADD_S64(name, add_value)    dmProfilePropertyAddS64(name, add_value)
+    #define DM_PROPERTY_ADD_U64(name, add_value)    dmProfilePropertyAddU64(name, add_value)
+    #define DM_PROPERTY_ADD_F64(name, add_value)    dmProfilePropertyAddF64(name, add_value)
 
-    #define DM_PROPERTY_RESET(name)                 rmt_PropertyReset(name)
+    #define DM_PROPERTY_RESET(name)                 dmProfilePropertyReset(name)
 
 #endif
+
+
 
 namespace dmProfile
 {

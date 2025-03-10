@@ -20,6 +20,7 @@
             [editor.changes-view :as changes-view]
             [editor.cljfx-form-view :as cljfx-form-view]
             [editor.code.view :as code-view]
+            [editor.color-dropper :as color-dropper]
             [editor.command-requests :as command-requests]
             [editor.console :as console]
             [editor.curve-view :as curve-view]
@@ -59,7 +60,7 @@
            [javafx.scene Node Scene]
            [javafx.scene.control MenuBar SplitPane Tab TabPane TreeView]
            [javafx.scene.input DragEvent InputEvent KeyCombination KeyEvent MouseEvent]
-           [javafx.scene.layout VBox]
+           [javafx.scene.layout StackPane]
            [javafx.stage Stage]))
 
 (set! *warn-on-reflection* true)
@@ -147,9 +148,9 @@
     MouseEvent/MOUSE_RELEASED})
 
 (defn- load-stage! [workspace project prefs updater newly-created?]
-  (let [^VBox root (ui/load-fxml "editor.fxml")
-        stage      (ui/make-stage)
-        scene      (Scene. root)]
+  (let [^StackPane root (ui/load-fxml "editor.fxml")
+        stage (ui/make-stage)
+        scene (Scene. root)]
 
     (ui/set-main-stage stage)
     (.setScene stage scene)
@@ -176,6 +177,7 @@
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets prefs)
           open-resource        (partial #'app-view/open-resource app-view prefs workspace project)
           console-view         (console/make-console! *view-graph* workspace console-tab console-grid-pane open-resource prefs)
+          color-dropper-view   (color-dropper/make-color-dropper! *view-graph*)
           _                    (notifications-view/init! (g/node-value workspace :notifications) notifications)
           build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
                                                                          (fn [resource selected-node-ids opts]
@@ -184,7 +186,7 @@
           search-results-view  (search-results-view/make-search-results-view! *view-graph*
                                                                               (.lookup root "#search-results-container")
                                                                               open-resource)
-          properties-view      (properties-view/make-properties-view workspace project app-view search-results-view *view-graph* (.lookup root "#properties"))
+          properties-view      (properties-view/make-properties-view workspace project app-view search-results-view *view-graph* color-dropper-view (.lookup root "#properties"))
           changes-view         (changes-view/make-changes-view *view-graph* workspace prefs (.lookup root "#changes-container")
                                                                (fn [changes-view moved-files]
                                                                  (app-view/async-reload! app-view changes-view workspace moved-files)))
@@ -304,6 +306,7 @@
           (g/connect app-view :active-scene scene-visibility :active-scene)
           (g/connect outline-view :tree-selection scene-visibility :outline-selection)
           (g/connect scene-visibility :hidden-renderable-tags app-view :hidden-renderable-tags)
+          (g/connect scene-visibility :outline-name-paths outline-view :outline-name-paths)
           (g/connect scene-visibility :hidden-node-outline-key-paths app-view :hidden-node-outline-key-paths)
           (for [label [:active-resource-node :active-outline :open-resource-nodes]]
             (g/connect app-view label outline-view label))

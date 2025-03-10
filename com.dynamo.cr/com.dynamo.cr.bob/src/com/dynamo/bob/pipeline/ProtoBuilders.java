@@ -35,11 +35,7 @@ import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.BobNLS;
 import com.dynamo.bob.util.MathUtil;
-import com.dynamo.bob.util.MurmurHash;
-import com.dynamo.bob.util.StringUtil;
 import com.dynamo.bob.util.TextureUtil;
-import com.dynamo.proto.DdfMath.Point3;
-import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.graphics.proto.Graphics.VertexAttribute;
 import com.dynamo.gamesys.proto.Camera.CameraDesc;
 import com.dynamo.gamesys.proto.GameSystem.CollectionFactoryDesc;
@@ -47,10 +43,6 @@ import com.dynamo.gamesys.proto.GameSystem.CollectionProxyDesc;
 import com.dynamo.gamesys.proto.GameSystem.FactoryDesc;
 import com.dynamo.gamesys.proto.GameSystem.LightDesc;
 import com.dynamo.gamesys.proto.Label.LabelDesc;
-import com.dynamo.gamesys.proto.Physics.CollisionObjectDesc;
-import com.dynamo.gamesys.proto.Physics.CollisionShape.Shape;
-import com.dynamo.gamesys.proto.Physics.CollisionShape.Type;
-import com.dynamo.gamesys.proto.Physics.CollisionShape;
 import com.dynamo.gamesys.proto.Physics.ConvexShape;
 import com.dynamo.gamesys.proto.Sound.SoundDesc;
 import com.dynamo.gamesys.proto.Sprite.SpriteTexture;
@@ -169,63 +161,6 @@ public class ProtoBuilders {
     @ProtoParams(srcClass = ConvexShape.class, messageClass = ConvexShape.class)
     @BuilderParams(name="ConvexShape", inExts=".convexshape", outExt=".convexshapec")
     public static class ConvexShapeBuilder extends ProtoBuilder<ConvexShape.Builder> {}
-
-    @ProtoParams(srcClass = CollisionObjectDesc.class, messageClass = CollisionObjectDesc.class)
-    @BuilderParams(name="CollisionObjectDesc", inExts=".collisionobject", outExt=".collisionobjectc")
-    public static class CollisionObjectBuilder extends ProtoBuilder<CollisionObjectDesc.Builder> {
-
-        private void ValidateShapeTypes(List<Shape> shapeList, IResource resource) throws IOException, CompileExceptionError {
-            String physicsTypeStr = StringUtil.toUpperCase(this.project.getProjectProperties().getStringValue("physics", "type", "2D"));
-            for(Shape shape : shapeList) {
-                if(shape.getShapeType() == Type.TYPE_CAPSULE) {
-                    if(physicsTypeStr.contains("2D")) {
-                        throw new CompileExceptionError(resource, 0, BobNLS.bind(Messages.CollisionObjectBuilder_MISMATCHING_SHAPE_PHYSICS_TYPE, "Capsule", physicsTypeStr ));
-                    }
-                }
-            }
-        }
-
-        @Override
-        protected CollisionObjectDesc.Builder transform(Task task, IResource resource, CollisionObjectDesc.Builder messageBuilder) throws IOException, CompileExceptionError {
-            if (messageBuilder.getEmbeddedCollisionShape().getShapesCount() == 0) {
-                BuilderUtil.checkResource(this.project, resource, "collision shape", messageBuilder.getCollisionShape());
-            }
-            // Merge convex shape resource with collision object
-            // NOTE: Special case for tilegrid resources. They are left as is
-            if(messageBuilder.hasEmbeddedCollisionShape()) {
-                ValidateShapeTypes(messageBuilder.getEmbeddedCollisionShape().getShapesList(), resource);
-            }
-            if (messageBuilder.hasCollisionShape() && !messageBuilder.getCollisionShape().isEmpty() && !(messageBuilder.getCollisionShape().endsWith(".tilegrid") || messageBuilder.getCollisionShape().endsWith(".tilemap"))) {
-                IResource shapeResource = project.getResource(messageBuilder.getCollisionShape().substring(1));
-                ConvexShape.Builder cb = ConvexShape.newBuilder();
-                ProtoUtil.merge(shapeResource, cb);
-                CollisionShape.Builder eb = CollisionShape.newBuilder().mergeFrom(messageBuilder.getEmbeddedCollisionShape());
-                ValidateShapeTypes(eb.getShapesList(), shapeResource);
-                Shape.Builder sb = Shape.newBuilder()
-                        .setShapeType(CollisionShape.Type.valueOf(cb.getShapeType().getNumber()))
-                        .setPosition(Point3.newBuilder())
-                        .setRotation(Quat.newBuilder().setW(1))
-                        .setIndex(eb.getDataCount())
-                        .setCount(cb.getDataCount());
-                eb.addShapes(sb);
-                eb.addAllData(cb.getDataList());
-                messageBuilder.setEmbeddedCollisionShape(eb);
-                messageBuilder.setCollisionShape("");
-            }
-
-            CollisionShape.Builder embeddedShapesBuilder = messageBuilder.getEmbeddedCollisionShapeBuilder();
-
-            for (int i=0; i < embeddedShapesBuilder.getShapesCount(); i++) {
-                CollisionShape.Shape.Builder shapeBuilder = embeddedShapesBuilder.getShapesBuilder(i);
-                shapeBuilder.setIdHash(MurmurHash.hash64(shapeBuilder.getId()));
-            }
-
-            messageBuilder.setCollisionShape(BuilderUtil.replaceExt(messageBuilder.getCollisionShape(), ".convexshape", ".convexshapec"));
-            messageBuilder.setCollisionShape(BuilderUtil.replaceExt(messageBuilder.getCollisionShape(), ".tilegrid", ".tilemapc"));
-            messageBuilder.setCollisionShape(BuilderUtil.replaceExt(messageBuilder.getCollisionShape(), ".tilemap", ".tilemapc"));
-            return messageBuilder;
-        }
-    }
 
     @ProtoParams(srcClass = CameraDesc.class, messageClass = CameraDesc.class)
     @BuilderParams(name="Camera", inExts=".camera", outExt=".camerac")

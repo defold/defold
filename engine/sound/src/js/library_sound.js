@@ -1,10 +1,12 @@
 var LibrarySoundDevice = 
 {
    $DefoldSoundDevice: {
-      TryResumeAudio: function() {
-         var audioCtx = window._dmJSDeviceShared.audioCtx;
-         if (audioCtx !== undefined && audioCtx.state != "running") {
-             audioCtx.resume();
+       TryResumeAudio: function() {
+         if (window && window._dmJSDeviceShared) {
+           var audioCtx = window._dmJSDeviceShared.audioCtx;
+           if (audioCtx !== undefined && audioCtx.state != "running") {
+               audioCtx.resume();
+           }
          }
       }
    },
@@ -26,13 +28,8 @@ var LibrarySoundDevice =
         if (window.AudioContext || window.webkitAudioContext) {
             if (shared.audioCtx === undefined) {
                 var audioCtxCtor = window.AudioContext || window.webkitAudioContext;
-                try {
-                    // The default sampleRate varies depending on the output device and can be less than 44100.
-                    shared.audioCtx = new audioCtxCtor({ sampleRate: 44100 });
-                } catch (e) {
-                    // Fallback if the specified `sampleRate` isn't supported by the browser.
-                    shared.audioCtx = new audioCtxCtor();
-                }
+                // Use the preferred audio of the device
+                shared.audioCtx = new audioCtxCtor();
             }
             // Construct web audio device.
             device = {

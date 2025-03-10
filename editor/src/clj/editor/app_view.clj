@@ -101,7 +101,7 @@
            [javafx.scene.input Clipboard ClipboardContent MouseEvent MouseButton]
            [javafx.scene.layout AnchorPane GridPane HBox Region StackPane]
            [javafx.scene.paint Color]
-           [javafx.scene.shape Ellipse SVGPath]
+           [javafx.scene.shape Ellipse]
            [javafx.scene.text Font]
            [javafx.stage Screen Stage WindowEvent]
            [org.luaj.vm2 LuaError]))
@@ -480,36 +480,45 @@
 (def ^:private perspective-icon-svg-path
   (ui/load-svg-path "scene/images/perspective_icon.svg"))
 
-(defn make-svg-icon-graphic
-  ^SVGPath [^SVGPath icon-template]
-  (doto (SVGPath.)
-    (.setContent (.getContent icon-template))))
+(def ^:private mode-2d-svg-path
+  (ui/load-svg-path "scene/images/2d-mode.svg"))
 
 (defn- make-visibility-settings-graphic []
   (doto (StackPane.)
     (.setId "visibility-settings-graphic")
-    (ui/children! [(doto (make-svg-icon-graphic eye-icon-svg-path)
+    (ui/children! [(doto (icons/make-svg-icon-graphic eye-icon-svg-path)
                      (.setId "eye-icon"))
                    (doto (Ellipse. 3.0 3.0)
                      (.setId "active-indicator"))])))
 
 (handler/register-menu! :toolbar
   [{:id :select
+    :tooltip "Select tool"
     :icon "icons/45/Icons_T_01_Select.png"
     :command :select-tool}
    {:id :move
+    :tooltip "Move tool"
     :icon "icons/45/Icons_T_02_Move.png"
     :command :move-tool}
    {:id :rotate
+    :tooltip "Rotate tool"
     :icon "icons/45/Icons_T_03_Rotate.png"
     :command :rotate-tool}
    {:id :scale
+    :tooltip "Scale tool"
     :icon "icons/45/Icons_T_04_Scale.png"
     :command :scale-tool}
+   {:label :separator}
+   {:id :2d-mode
+    :tooltip "2d mode"
+    :graphic-fn (partial icons/make-svg-icon-graphic mode-2d-svg-path)
+    :command :toggle-2d-mode}
    {:id :perspective-camera
-    :graphic-fn (partial make-svg-icon-graphic perspective-icon-svg-path)
+    :tooltip "Perspective camera"
+    :graphic-fn (partial icons/make-svg-icon-graphic perspective-icon-svg-path)
     :command :toggle-perspective-camera}
    {:id :visibility-settings
+    :tooltip "Visibility settings"
     :graphic-fn make-visibility-settings-graphic
     :command :show-visibility-settings}])
 
@@ -649,42 +658,47 @@
 
 (def ^:private render-task-progress-ui-inflight (ref false))
 
+(def status-bar-controls-delay
+  (delay
+    (ui/collect-controls
+      (.. (ui/main-stage) (getScene) (getRoot) (lookup "#status-bar"))
+      ["progress-bar" "progress-hbox" "progress-percentage-label" "status-label" "progress-cancel-button"])))
+
 (defn- render-task-progress-ui! []
   (let [task-progress-snapshot (ref nil)]
     (dosync
       (ref-set render-task-progress-ui-inflight false)
       (ref-set task-progress-snapshot
                (into {} (map (juxt first (comp deref second))) app-task-progress)))
-    (let [status-bar (.. (ui/main-stage) (getScene) (getRoot) (lookup "#status-bar"))
-          [key progress] (->> app-task-ui-priority
+    (let [[key progress] (->> app-task-ui-priority
                               (map (juxt identity @task-progress-snapshot))
                               (filter (comp (complement progress/done?) second))
                               first)
           show-progress-hbox? (boolean (and (not= key :main)
                                             progress
-                                            (not (progress/done? progress))))]
-      (ui/with-controls status-bar [progress-bar progress-hbox progress-percentage-label status-label progress-cancel-button]
-        (ui/render-progress-message!
-          (if key progress (@task-progress-snapshot :main))
-          status-label)
-        ;; The bottom right of the status bar can show either the progress-hbox
-        ;; or the update-link, or both. The progress-hbox will cover
-        ;; the update-link if both are visible.
-        (if-not show-progress-hbox?
-          (ui/visible! progress-hbox false)
-          (do
-            (ui/visible! progress-hbox true)
-            (ui/render-progress-bar! progress progress-bar)
-            (ui/render-progress-percentage! progress progress-percentage-label)
-            (if (progress/cancellable? progress)
-              (doto progress-cancel-button
-                (ui/visible! true)
-                (ui/managed! true)
-                (ui/on-action! (fn [_] (cancel-task! key))))
-              (doto progress-cancel-button
-                (ui/visible! false)
-                (ui/managed! false)
-                (ui/on-action! identity)))))))))
+                                            (not (progress/done? progress))))
+          {:keys [progress-bar progress-hbox progress-percentage-label status-label progress-cancel-button]} @status-bar-controls-delay]
+      (ui/render-progress-message!
+        (if key progress (@task-progress-snapshot :main))
+        status-label)
+      ;; The bottom right of the status bar can show either the progress-hbox
+      ;; or the update-link, or both. The progress-hbox will cover
+      ;; the update-link if both are visible.
+      (if-not show-progress-hbox?
+        (ui/visible! progress-hbox false)
+        (do
+          (ui/visible! progress-hbox true)
+          (ui/render-progress-bar! progress progress-bar)
+          (ui/render-progress-percentage! progress progress-percentage-label)
+          (if (progress/cancellable? progress)
+            (doto progress-cancel-button
+              (ui/visible! true)
+              (ui/managed! true)
+              (ui/on-action! (fn [_] (cancel-task! key))))
+            (doto progress-cancel-button
+              (ui/visible! false)
+              (ui/managed! false)
+              (ui/on-action! identity))))))))
 
 (defn- render-task-progress! [key progress]
   (let [schedule-render-task-progress-ui (ref false)]
@@ -1212,7 +1226,7 @@
         skip-engine (target-cannot-swap-engine? (targets/selected-target prefs))]
     (build-errors-view/clear-build-errors build-errors-view)
     (async-build! project
-                  :debug false
+                  :debug true
                   :build-engine (not skip-engine)
                   :prefs prefs
                   :render-progress! (make-render-task-progress :build)
@@ -1338,8 +1352,11 @@ If you do not specifically require different script states, consider changing th
                            render-build-error! bob-commands bob-args project changes-view
                            (fn [successful?]
                              (when successful?
-                               (ui/open-url (format "http://localhost:%d%s/index.html" (http-server/port web-server) bob/html5-url-prefix)))
-                             (.close out)))))
+                               (let [url (format "http://localhost:%d%s/index.html" (http-server/port web-server) bob/html5-url-prefix)]
+                                 (if (prefs/get prefs [:build :open-html5-build])
+                                   (ui/open-url url)
+                                   (console/append-console-entry! nil (format "INFO: The game is available at %s" url))))
+                               (.close out))))))
 
 (handler/defhandler :rebuild-html5 :global
   (run [project prefs web-server build-errors-view changes-view main-stage tool-tab-pane]

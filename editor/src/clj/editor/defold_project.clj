@@ -30,7 +30,6 @@
             [editor.handler :as handler]
             [editor.library :as library]
             [editor.lsp :as lsp]
-            [editor.os :as os]
             [editor.placeholder-resource :as placeholder-resource]
             [editor.progress :as progress]
             [editor.resource :as resource]
@@ -194,9 +193,7 @@
             disk-sha256 (assoc :disk-sha256 disk-sha256)
             dependency-proj-paths (assoc :dependency-proj-paths dependency-proj-paths))))
 
-(defn- sort-node-ids-for-loading
-  ([node-ids node-id->dependency-node-ids]
-   (first (sort-node-ids-for-loading node-ids #{} [] #{} (set node-ids) node-id->dependency-node-ids)))
+(defn- sort-node-ids-for-loading-impl
   ([node-ids in-progress queue queued batch node-id->dependency-node-ids]
    (let [node-id (first node-ids)]
      (if (nil? node-id)
@@ -208,13 +205,16 @@
        (if (or (contains? queued node-id) (contains? in-progress node-id))
          (recur (rest node-ids) in-progress queue queued batch node-id->dependency-node-ids)
          (let [deps (node-id->dependency-node-ids node-id)
-               [dep-queue dep-queued] (sort-node-ids-for-loading deps (conj in-progress node-id) queue queued batch node-id->dependency-node-ids)]
+               [dep-queue dep-queued] (sort-node-ids-for-loading-impl deps (conj in-progress node-id) queue queued batch node-id->dependency-node-ids)]
            (recur (rest node-ids)
                   in-progress
                   (if (contains? batch node-id) (conj dep-queue node-id) dep-queue)
                   (conj dep-queued node-id)
                   batch
                   node-id->dependency-node-ids)))))))
+
+(defn- sort-node-ids-for-loading [node-ids node-id->dependency-node-ids]
+  (first (sort-node-ids-for-loading-impl node-ids #{} [] #{} (set node-ids) node-id->dependency-node-ids)))
 
 (defn- node-load-info-tx-data [{:keys [node-id read-error resource] :as node-load-info} project transpiler-tx-data-fn]
   ;; At this point, the node-id refers to a created node in the graph.
@@ -224,7 +224,7 @@
     (let [source-value (:source-value node-load-info)]
       (load-resource-node project node-id resource source-value transpiler-tx-data-fn))))
 
-(defn- sort-node-load-infos-for-loading [node-load-infos old-resource-node-ids-by-proj-path old-resource-node-dependencies]
+(defn sort-node-load-infos-for-loading [node-load-infos old-resource-node-ids-by-proj-path old-resource-node-dependencies]
   {:pre [(map? old-resource-node-ids-by-proj-path)
          (ifn? old-resource-node-dependencies)]}
   (let [[node-id->node-load-info
@@ -248,8 +248,10 @@
         node-id-load-order (sort-node-ids-for-loading (keys node-id->node-load-info) node-id->dependency-node-ids)]
     (mapv node-id->node-load-info node-id-load-order)))
 
-(defn- load-tx-data [node-load-infos project progress-loading! resource-metrics]
-  (let [resource-metrics-load-timer
+(defn- load-nodes-tx-data [node-load-infos project render-progress! resource-metrics]
+  (let [node-count (count node-load-infos)
+
+        resource-metrics-load-timer
         (du/when-metrics
           (volatile! 0))
 
@@ -274,28 +276,32 @@
     (e/concat
       (coll/transfer node-load-infos :eduction
         (coll/mapcat-indexed
-          (fn [node-index node-load-info]
+          (fn [^long node-index node-load-info]
             (let [resource (:resource node-load-info)
-                  proj-path (resource/proj-path resource)]
+                  proj-path (resource/proj-path resource)
+                  progress-message (str "Loading " proj-path)
+                  progress (progress/make progress-message node-count (inc node-index))]
               (e/concat
-                (g/callback progress-loading! node-index proj-path)
+                (g/callback render-progress! progress)
                 (du/when-metrics
                   (g/callback start-resource-metrics-load-timer!))
                 (du/measuring resource-metrics proj-path :generate-load-tx-data
                   (node-load-info-tx-data node-load-info project transpiler-tx-data-fn))
                 (du/when-metrics
                   (g/callback stop-resource-metrics-load-timer! proj-path)))))))
-      (g/callback progress-loading! (progress/make-indeterminate "Finalizing...")))))
+      (g/callback render-progress! (progress/make-indeterminate "Finalizing...")))))
 
-(defn- read-node-load-infos [node-ids progress-reading! resource-metrics]
-  (let [basis (g/now)]
+(defn read-node-load-infos [node-id+resource-pairs render-progress! resource-metrics]
+  (let [node-count (count node-id+resource-pairs)]
     (into []
-          (map-indexed (fn [node-index node-id]
-                         (let [resource (resource-node/resource basis node-id)
-                               proj-path (resource/proj-path resource)]
-                           (progress-reading! (inc node-index) proj-path)
-                           (read-node-load-info node-id resource resource-metrics))))
-          node-ids)))
+          (map-indexed
+            (fn [^long node-index [node-id resource]]
+              (let [proj-path (resource/proj-path resource)
+                    progress-message (str "Reading " proj-path)
+                    progress (progress/make progress-message node-count (inc node-index))]
+                (render-progress! progress)
+                (read-node-load-info node-id resource resource-metrics))))
+          node-id+resource-pairs)))
 
 (defn- disk-sha256s-by-node-id [node-load-infos]
   (into {}
@@ -306,12 +312,12 @@
                     (pair node-id disk-sha256)))))
         node-load-infos))
 
-(defn- store-loaded-disk-sha256-hashes! [node-load-infos workspace]
+(defn store-loaded-disk-sha256-hashes! [node-load-infos workspace]
   (let [disk-sha256s-by-node-id (disk-sha256s-by-node-id node-load-infos)]
     (g/transact
       (workspace/merge-disk-sha256s workspace disk-sha256s-by-node-id))))
 
-(defn- store-loaded-source-values! [node-load-infos]
+(defn store-loaded-source-values! [node-load-infos]
   (let [node-id+source-value-pairs
         (into []
               (keep (fn [{:keys [node-id read-error resource source-value] :as _node-load-info}]
@@ -342,7 +348,7 @@
                 :unretained unretained
                 :limit limit))))
 
-(defn- cache-loaded-save-data! [node-load-infos project excluded-resource-node-id?]
+(defn cache-loaded-save-data! [node-load-infos project excluded-resource-node-id?]
   (let [basis (g/now)
 
         cached-resource-node-id?
@@ -377,59 +383,32 @@
     (g/cache-output-values! endpoint+cached-value-pairs)
     (log-cache-info! (g/cache) "Cached loaded save data in system cache.")))
 
-(defn- load-nodes-into-graph! [node-load-infos project progress-loading! resource-metrics transact-opts]
-  (let [tx-data (load-tx-data node-load-infos project progress-loading! resource-metrics)
-        tx-result (g/transact transact-opts tx-data)
-        basis (:basis tx-result)]
-    ;; Return the set of migrated resource node ids, if any.
-    (into #{}
-          (keep #(resource-node/owner-resource-node-id basis %))
-          (g/migrated-node-ids tx-result))))
-
-(defn- make-progress-fns [task-allocations loaded-node-count render-progress!]
-  (let [total-task-size (transduce (map first) + task-allocations)]
-    (second
-      (reduce (fn [[accumulated-task-size progress-fns] [task-size task-label]]
-                (let [parent-progress (progress/make "" total-task-size accumulated-task-size)
-                      render-nested-progress! (progress/nest-render-progress render-progress! parent-progress task-size)]
-                  (pair (+ accumulated-task-size task-size)
-                        (conj progress-fns
-                              (fn progress-fn
-                                ([progress]
-                                 (render-progress! progress))
-                                ([loaded-node-index proj-path]
-                                 (render-nested-progress!
-                                   (progress/make (str task-label \space proj-path)
-                                                  loaded-node-count
-                                                  loaded-node-index))))))))
-              (pair 0 [])
-              task-allocations))))
+(defn read-nodes [node-id+resource-pairs render-progress! old-resource-node-ids-by-proj-path old-resource-node-dependencies resource-metrics]
+  (-> node-id+resource-pairs
+      (read-node-load-infos render-progress! resource-metrics)
+      (sort-node-load-infos-for-loading old-resource-node-ids-by-proj-path old-resource-node-dependencies)))
 
 (declare workspace)
 
-(defn- load-nodes! [project node-ids render-progress! old-resource-node-dependencies resource-metrics transact-opts]
-  (let [workspace (workspace project)
-        old-resource-node-ids-by-proj-path (g/node-value project :nodes-by-resource-path)
-
-        [progress-reading!
-         progress-loading!]
-        (make-progress-fns [[1 "Reading"]
-                            [3 "Loading"]]
-                           (count node-ids)
-                           render-progress!)
-
-        node-load-infos
-        (-> node-ids
-            (read-node-load-infos progress-reading! resource-metrics)
-            (sort-node-load-infos-for-loading old-resource-node-ids-by-proj-path old-resource-node-dependencies))]
-
+(defn load-nodes! [project prelude-tx-data node-load-infos render-progress! resource-metrics transact-opts]
+  (let [workspace (workspace project)]
     (store-loaded-disk-sha256-hashes! node-load-infos workspace)
     (store-loaded-source-values! node-load-infos)
-    (let [migrated-resource-node-ids (load-nodes-into-graph! node-load-infos project progress-loading! resource-metrics transact-opts)
-          basis (g/now)
-          migrated-proj-paths (into (sorted-set)
-                                    (map #(resource/proj-path (resource-node/resource basis %)))
-                                    migrated-resource-node-ids)]
+    (let [{:keys [basis] :as tx-result}
+          (g/transact transact-opts
+            (e/concat
+              prelude-tx-data
+              (load-nodes-tx-data node-load-infos project render-progress! resource-metrics)))
+
+          migrated-resource-node-ids
+          (into #{}
+                (keep #(resource-node/owner-resource-node-id basis %))
+                (g/migrated-node-ids tx-result))
+
+          migrated-proj-paths
+          (into (sorted-set)
+                (map #(resource/proj-path (resource-node/resource basis %)))
+                migrated-resource-node-ids)]
 
       ;; Log any migrated proj-paths.
       ;; Disabled during tests to minimize log spam.
@@ -437,31 +416,22 @@
                  (not (Boolean/getBoolean "defold.tests")))
         (log/info :message "Some files were migrated and will be saved in an updated format." :migrated-proj-paths migrated-proj-paths))
 
-      {:migrated-resource-node-ids migrated-resource-node-ids
-       :node-load-infos node-load-infos})))
-
-(defn- make-nodes! [project resources transact-opts]
-  (let [project-graph (graph project)
-        file-resources (filter #(= :file (resource/source-type %)) resources)]
-    (g/tx-nodes-added
-      (g/transact transact-opts
-        (for [[resource-type resources] (group-by resource/resource-type file-resources)
-              :let [node-type (resource-type->node-type resource-type)]
-              resource resources]
-          (g/make-nodes project-graph [node [node-type :resource resource]]
-                        (g/connect node :_node-id project :nodes)
-                        (g/connect node :node-id+resource project :node-id+resources)))))))
+      migrated-resource-node-ids)))
 
 (defn get-resource-node
   ([project path-or-resource]
-   (g/with-auto-evaluation-context ec
-     (get-resource-node project path-or-resource ec)))
+   (g/with-auto-evaluation-context evaluation-context
+     (get-resource-node project path-or-resource evaluation-context)))
   ([project path-or-resource evaluation-context]
    (when-let [resource (cond
                          (string? path-or-resource) (workspace/find-resource (g/node-value project :workspace evaluation-context) path-or-resource evaluation-context)
-                         (satisfies? resource/Resource path-or-resource) path-or-resource
+                         (resource/resource? path-or-resource) path-or-resource
                          :else (assert false (str (type path-or-resource) " is neither a path nor a resource: " (pr-str path-or-resource))))]
-     (let [nodes-by-resource-path (g/node-value project :nodes-by-resource-path evaluation-context)]
+     ;; This is frequently called from property setters, where we don't have a
+     ;; cache. In that case, manually cache the evaluated value in the
+     ;; :tx-data-context atom of the evaluation-context, since this persists
+     ;; throughout the transaction.
+     (let [nodes-by-resource-path (g/tx-cached-node-value project :nodes-by-resource-path evaluation-context)]
        (get nodes-by-resource-path (resource/proj-path resource))))))
 
 (defn workspace
@@ -486,17 +456,98 @@
   ([project evaluation-context]
    (g/node-value project :script-intelligence evaluation-context)))
 
-(defn load-project
+(defn node-id+resource-pairs [^long graph-id resources]
+  ;; Note: We sort the resources by extension and proj-path to achieve a
+  ;; deterministic order for the assigned node-ids.
+  (let [resources (->> resources
+                       (remove resource/folder?)
+                       (sort-by (juxt resource/type-ext
+                                      resource/proj-path)))
+        node-ids (g/take-node-ids graph-id (count resources))]
+    (mapv pair
+          node-ids
+          resources)))
+
+(defn make-resource-node-tx-data [project node-type node-id resource]
+  {:pre [(g/node-id? project)
+         (g/node-id? node-id)
+         (resource/resource? resource)
+         (not (resource/folder? resource))]}
+  (e/concat
+    (g/add-node
+      (g/construct node-type
+        :_node-id node-id
+        :resource resource))
+    (g/connect node-id :_node-id project :nodes)
+    (g/connect node-id :node-id+resource project :node-id+resources)))
+
+(defn make-resource-nodes-tx-data [project node-id+resource-pairs]
+  {:pre [(g/node-id? project)]}
+  ;; Note: The node-id+resource-pairs come pre-sorted by extension and proj-path
+  ;; from the node-id+resource-pairs function. We now further sort by node-type
+  ;; since there isn't a one-to-one relationship between the extension and the
+  ;; node-type. The idea is to achieve a deterministic load order for the nodes.
+  (->> node-id+resource-pairs
+       (iutil/group-into
+         (sorted-map-by (comparator :k)) []
+         (fn key-fn [[_node-id resource]]
+           (resource-node-type resource)))
+       (e/mapcat
+         (fn [[node-type node-id+resource-pairs]]
+           (->> node-id+resource-pairs
+                (e/mapcat
+                  (fn [[node-id resource]]
+                    (make-resource-node-tx-data project node-type node-id resource))))))))
+
+(defn setup-game-project-tx-data [project game-project]
+  (when (some? game-project)
+    (assert (g/node-id? game-project))
+    (let [script-intelligence (script-intelligence project)]
+      (e/concat
+        (g/connect script-intelligence :build-errors game-project :build-errors)
+        (g/connect game-project :display-profiles-data project :display-profiles)
+        (g/connect game-project :texture-profiles-data project :texture-profiles)
+        (g/connect game-project :settings-map project :settings)))))
+
+(defn load-project!
   ([project]
-   (load-project project (g/node-value project :resources)))
-  ([project resources]
-   (load-project project resources progress/null-render-progress!))
-  ([project resources render-progress!]
+   (load-project! project progress/null-render-progress!))
+  ([project render-progress!]
+   (load-project! project render-progress! (g/node-value project :resources)))
+  ([project render-progress! resources]
    (assert (empty? (g/node-value project :nodes)) "load-project should only be used when loading an empty project")
    ;; Create nodes for all resources in the workspace.
    (let [process-metrics (du/make-metrics-collector)
          resource-metrics (du/make-metrics-collector)
          transaction-metrics (du/make-metrics-collector)
+         project-graph (g/node-id->graph-id project)
+         node-id+resource-pairs (node-id+resource-pairs project-graph resources)
+
+         game-project-resource
+         (g/with-auto-evaluation-context evaluation-context
+           (-> project
+               (workspace evaluation-context)
+               (workspace/find-resource "/game.project" evaluation-context)))
+
+         game-project-node-id
+         (when game-project-resource
+           (coll/some
+             (fn [[node-id resource]]
+               (when (identical? game-project-resource resource)
+                 node-id))
+             node-id+resource-pairs))
+
+         read-progress-span 1
+         load-progress-span 3
+         total-progress-span (+ read-progress-span load-progress-span)
+         total-progress (progress/make "" total-progress-span 0)
+
+         node-load-infos
+         (let [render-progress! (progress/nest-render-progress render-progress! total-progress read-progress-span)]
+           (du/measuring process-metrics :read-new-nodes
+             (read-nodes node-id+resource-pairs render-progress! {} {} resource-metrics)))
+
+         total-progress (progress/advance total-progress read-progress-span)
 
          ;; We can disable change tracking on the initial load since we have
          ;; nothing in the cache and will reset the undo history afterward.
@@ -505,8 +556,28 @@
          transact-opts {:metrics transaction-metrics
                         :track-changes change-tracked-transact}
 
-         nodes (du/measuring process-metrics :make-new-nodes
-                 (make-nodes! project resources transact-opts))]
+         prelude-tx-data
+         (e/concat
+           (make-resource-nodes-tx-data project node-id+resource-pairs)
+
+           ;; Make sure the game.project node is property connected before
+           ;; loading the resource nodes, since establishing these connections
+           ;; will invalidate any dependent outputs in the cache.
+
+           ;; TODO(save-value-cleanup): There are implicit dependencies between
+           ;; texture profiles and image resources. We probably want to ensure
+           ;; the texture profiles are loaded before anything that makes
+           ;; implicit use of them to avoid potentially costly cache
+           ;; invalidation.
+           (setup-game-project-tx-data project game-project-node-id))
+
+         ;; Load the resource nodes. Referenced nodes will be loaded prior to
+         ;; nodes that refer to them, provided the :dependencies-fn reports the
+         ;; referenced proj-paths correctly.
+         migrated-resource-node-ids
+         (let [render-progress! (progress/nest-render-progress render-progress! total-progress load-progress-span)]
+           (du/measuring process-metrics :load-new-nodes
+             (load-nodes! project prelude-tx-data node-load-infos render-progress! resource-metrics transact-opts)))]
 
      ;; When we're not tracking changes, we will not evict stale values from the
      ;; system cache. This means subsequent graph queries won't see the changes
@@ -516,35 +587,9 @@
      (when-not change-tracked-transact
        (g/clear-system-cache!))
 
-     ;; Make sure the game.project node is property connected before loading
-     ;; the resource nodes, since establishing these connections will
-     ;; invalidate any dependent outputs in the cache.
-     (when-let [game-project (get-resource-node project "/game.project")]
-       (let [script-intel (script-intelligence project)]
-         (g/transact transact-opts
-           (concat
-             (g/connect script-intel :build-errors game-project :build-errors)
-             (g/connect game-project :display-profiles-data project :display-profiles)
-             (g/connect game-project :texture-profiles-data project :texture-profiles)
-             (g/connect game-project :settings-map project :settings)))
-         (when-not change-tracked-transact
-           (g/clear-system-cache!))))
+     (cache-loaded-save-data! node-load-infos project migrated-resource-node-ids)
+     (render-progress! progress/done)
 
-     ;; Load the resource nodes. Referenced nodes will be loaded prior to
-     ;; nodes that refer to them, provided the :dependencies-fn reports the
-     ;; referenced proj-paths correctly.
-     ;;
-     ;; TODO(save-value-cleanup): There are implicit dependencies between
-     ;; texture profiles and image resources. We probably want to ensure the
-     ;; texture profiles are loaded before anything that makes implicit use of
-     ;; them to avoid potentially costly cache invalidation.
-     (let [{:keys [migrated-resource-node-ids node-load-infos]}
-           (du/measuring process-metrics :load-new-nodes
-             (load-nodes! project nodes render-progress! {} resource-metrics transact-opts))]
-       (when-not change-tracked-transact
-         (g/clear-system-cache!))
-       (cache-loaded-save-data! node-load-infos project migrated-resource-node-ids)
-       (render-progress! progress/done))
      (du/when-metrics
        (reset! load-metrics-atom
                {:new-nodes-by-path (g/node-value project :nodes-by-resource-path)
@@ -764,20 +809,25 @@
                                                    (when-not (g/error? save-value)
                                                      (dependencies-fn save-value))))))))
         resource->old-node (comp old-nodes-by-path resource/proj-path)
-        new-nodes (du/measuring process-metrics :make-new-nodes
-                    (make-nodes! project (:new plan) transact-opts))
-        resource-path->new-node (g/with-auto-evaluation-context evaluation-context
-                                  (into {}
-                                        (map (fn [resource-node]
-                                               (let [resource (g/node-value resource-node :resource evaluation-context)]
-                                                 [(resource/proj-path resource) resource-node])))
-                                        new-nodes))
+        project-graph (g/node-id->graph-id project)
+        new-node-id+resource-pairs (node-id+resource-pairs project-graph (:new plan))
+        resource-path->new-node (into {}
+                                      (map (fn [[node-id resource]]
+                                             (let [proj-path (resource/proj-path resource)]
+                                               (pair proj-path node-id))))
+                                      new-node-id+resource-pairs)
         resource->new-node (comp resource-path->new-node resource/proj-path)
         ;; when transferring overrides and arcs, the target is either a newly created or already (still!)
         ;; existing node.
         resource->node (fn [resource]
                          (or (resource->new-node resource)
                              (resource->old-node resource)))]
+
+    ;; Create the new nodes in the graph.
+    (du/measuring process-metrics :make-new-nodes
+      (g/transact transact-opts
+        (make-resource-nodes-tx-data project new-node-id+resource-pairs)))
+
     ;; Transfer of overrides must happen before we delete the original nodes below.
     ;; The new target nodes do not need to be loaded. When loading the new targets,
     ;; corresponding override-nodes for the incoming connections will be created in the
@@ -793,19 +843,47 @@
           (g/transfer-overrides
             (into {}
                   (map (fn [[resource old-node-id]]
-                         [old-node-id (resource->node resource)]))
+                         (pair old-node-id
+                               (resource->node resource))))
                   (:transfer-overrides plan))))))
 
     ;; must delete old versions of resource nodes before loading to avoid
     ;; load functions finding these when doing lookups of dependencies...
     (du/measuring process-metrics :delete-old-nodes
       (g/transact transact-opts
-        (for [node (:delete plan)]
-          (g/delete-node node))))
+        (for [node-id (:delete plan)]
+          (g/delete-node node-id))))
 
-    (let [{:keys [migrated-resource-node-ids node-load-infos]}
-          (du/measuring process-metrics :load-new-nodes
-            (load-nodes! project new-nodes render-progress! old-resource-node-dependencies resource-metrics transact-opts))]
+    (let [read-progress-span 1
+          load-progress-span 3
+          total-progress-span (+ read-progress-span load-progress-span)
+          total-progress (progress/make "" total-progress-span 0)
+          deleted-node-ids (set (:delete plan))
+
+          old-resource-node-ids-by-proj-path
+          (if (coll/empty? deleted-node-ids)
+            old-nodes-by-path
+            (persistent!
+              (reduce
+                (fn [old-resource-node-ids-by-proj-path [proj-path old-node-id]]
+                  (if (contains? deleted-node-ids old-node-id)
+                    (dissoc! old-resource-node-ids-by-proj-path proj-path)
+                    old-resource-node-ids-by-proj-path))
+                (transient old-nodes-by-path)
+                old-nodes-by-path)))
+
+          node-load-infos
+          (let [render-progress! (progress/nest-render-progress render-progress! total-progress read-progress-span)]
+            (du/measuring process-metrics :read-new-nodes
+              (read-nodes new-node-id+resource-pairs render-progress! old-resource-node-ids-by-proj-path old-resource-node-dependencies resource-metrics)))
+
+          total-progress (progress/advance total-progress read-progress-span)
+
+          migrated-resource-node-ids
+          (let [render-progress! (progress/nest-render-progress render-progress! total-progress load-progress-span)]
+            (du/measuring process-metrics :load-new-nodes
+              (load-nodes! project nil node-load-infos render-progress! resource-metrics transact-opts)))]
+
       (du/measuring process-metrics :update-cache-with-dependencies
         ;; TODO: Investigate if we should even be doing this. Evaluates save-value output, but aren't they stale?
         (g/update-cache-from-evaluation-context! rn-dependencies-evaluation-context))
@@ -1066,7 +1144,7 @@
     (disconnect-from-inputs basis node consumer-node connections)))
 
 (defn- ensure-resource-node-created [tx-data-context-map project resource]
-  (assert (satisfies? resource/Resource resource))
+  (assert (resource/resource? resource))
   (if-some [[_ pending-resource-node-id] (find (:created-resource-nodes tx-data-context-map) resource)]
     [tx-data-context-map pending-resource-node-id nil]
     (let [graph-id (g/node-id->graph-id project)
@@ -1090,34 +1168,27 @@
                       applying this transaction and does not exist yet in the
                       system, such nodes can't be used for `g/node-value` calls"
   [evaluation-context project path-or-resource consumer-node connections]
-  ;; TODO: This is typically run from a property setter, where currently the
-  ;; evaluation-context does not contain a cache. This makes resource lookups
-  ;; very costly as they need to produce the lookup maps every time.
-  ;; In large projects, this has a huge impact on load time. To work around
-  ;; this, we use the default, cached evaluation-context to resolve resources.
-  ;; This has been reported as DEFEDIT-1411.
-  (g/with-auto-evaluation-context default-evaluation-context
-    (when-some [resource (resolve-path-or-resource project path-or-resource default-evaluation-context)]
-      (let [existing-resource-node-id (get-resource-node project resource default-evaluation-context)
-            [node-id creation-tx-data] (if existing-resource-node-id
-                                         [existing-resource-node-id nil]
-                                         (thread-util/swap-rest! (:tx-data-context evaluation-context) ensure-resource-node-created project resource))
-            node-type (resource-node-type resource)
+  (when-some [resource (resolve-path-or-resource project path-or-resource evaluation-context)]
+    (let [existing-resource-node-id (get-resource-node project resource evaluation-context)
+          [node-id creation-tx-data] (if existing-resource-node-id
+                                       [existing-resource-node-id nil]
+                                       (thread-util/swap-rest! (:tx-data-context evaluation-context) ensure-resource-node-created project resource))
+          node-type (resource-node-type resource)
 
-            load-tx-data
-            (when (some? creation-tx-data)
-              ;; If we just created the resource node, that means the referenced
-              ;; resource does not exist, or it would have already been created
-              ;; during resource-sync.
-              (mark-node-file-not-found node-id resource))]
-        {:node-id node-id
-         :created-in-tx (nil? existing-resource-node-id)
-         :tx-data (vec
-                    (flatten
-                      (concat
-                        creation-tx-data
-                        load-tx-data
-                        (gu/connect-existing-outputs node-type node-id consumer-node connections))))}))))
+          load-tx-data
+          (when (some? creation-tx-data)
+            ;; If we just created the resource node, that means the referenced
+            ;; resource does not exist, or it would have already been created
+            ;; during resource-sync.
+            (mark-node-file-not-found node-id resource))]
+      {:node-id node-id
+       :created-in-tx (nil? existing-resource-node-id)
+       :tx-data (vec
+                  (flatten
+                    (concat
+                      creation-tx-data
+                      load-tx-data
+                      (gu/connect-existing-outputs node-type node-id consumer-node connections))))})))
 
 (deftype ProjectResourceListener [project-id]
   resource/ResourceListener
@@ -1151,6 +1222,7 @@
                 (g/set-graph-value graph :code-transpilers transpilers-id)))))]
     (reload-plugins! project-id (g/node-value project-id :resources))
     (workspace/add-resource-listener! workspace-id 1 (ProjectResourceListener. project-id))
+    (g/reset-undo! graph)
     project-id))
 
 (defn read-dependencies [game-project-resource]
@@ -1239,7 +1311,7 @@
     (render-progress! (swap! progress progress/advance 1 "Loading project..."))
     (let [project (make-project graph workspace-id extensions)
           populated-project (du/log-time "Project loading"
-                              (load-project project (g/node-value project :resources) (progress/nest-render-progress render-progress! @progress 8)))]
+                              (load-project! project (progress/nest-render-progress render-progress! @progress 8)))]
       ;; Prime the auto completion cache
       (g/node-value (script-intelligence project) :lua-completions)
       (du/log-statistics! "Project loaded")

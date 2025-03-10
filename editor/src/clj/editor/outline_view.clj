@@ -20,14 +20,18 @@
             [editor.icons :as icons]
             [editor.outline :as outline]
             [editor.resource :as resource]
+            [editor.scene-visibility :as scene-visibility]
             [editor.types :as types]
             [editor.ui :as ui])
   (:import [com.defold.control TreeCell]
            [javafx.collections FXCollections ObservableList]
            [javafx.event Event]
+           [javafx.geometry Orientation]
            [javafx.scene Node]
-           [javafx.scene.control SelectionMode TreeItem TreeView]
+           [javafx.scene.control ScrollBar SelectionMode TreeItem TreeView ToggleButton Label]
+           [javafx.scene.image ImageView]
            [javafx.scene.input Clipboard DataFormat DragEvent MouseEvent TransferMode]
+           [javafx.scene.layout AnchorPane HBox]
            [javafx.util Callback]))
 
 (set! *warn-on-reflection* true)
@@ -112,16 +116,16 @@
               (ui/scroll-to-item! tree-view first-item))))))))
 
 (defn- decorate
-  ([hidden-node-outline-key-paths root]
-   (:item (decorate hidden-node-outline-key-paths [] [] root (:outline-reference? root))))
-  ([hidden-node-outline-key-paths node-id-path node-outline-key-path {:keys [node-id] :as item} parent-reference?]
+  ([hidden-node-outline-key-paths root outline-name-paths]
+   (:item (decorate hidden-node-outline-key-paths [] [] root (:outline-reference? root) outline-name-paths)))
+  ([hidden-node-outline-key-paths node-id-path node-outline-key-path {:keys [node-id] :as item} parent-reference? outline-name-paths]
    (let [node-id-path (conj node-id-path node-id)
          node-outline-key-path (if (empty? node-outline-key-path)
                                  [node-id]
                                  (if-some [node-outline-key (:node-outline-key item)]
                                    (conj node-outline-key-path node-outline-key)
                                    node-outline-key-path))
-         data (mapv #(decorate hidden-node-outline-key-paths node-id-path node-outline-key-path % (or parent-reference? (:outline-reference? item))) (:children item))
+         data (mapv #(decorate hidden-node-outline-key-paths node-id-path node-outline-key-path % (or parent-reference? (:outline-reference? item)) outline-name-paths) (:children item))
          item (assoc item
                 :node-id-path node-id-path
                 :node-outline-key-path node-outline-key-path
@@ -129,6 +133,8 @@
                 :children (mapv :item data)
                 :child-error? (boolean (some :child-error? data))
                 :child-overridden? (boolean (some :child-overridden? data))
+                :hideable? (contains? outline-name-paths (rest node-outline-key-path))
+                :hidden-parent? (scene-visibility/hidden-outline-key-path? hidden-node-outline-key-paths node-outline-key-path)
                 :scene-visibility (if (contains? hidden-node-outline-key-paths node-outline-key-path)
                                     :hidden
                                     :visible))]
@@ -137,14 +143,14 @@
       :child-overridden? (or (:child-overridden? item) (:outline-overridden? item))})))
 
 (g/defnk produce-tree-root
-  [active-outline active-resource-node open-resource-nodes raw-tree-view hidden-node-outline-key-paths]
+  [active-outline active-resource-node open-resource-nodes raw-tree-view hidden-node-outline-key-paths outline-name-paths]
   (let [resource-node-set (set open-resource-nodes)
         root-cache (or (ui/user-data raw-tree-view ::root-cache) {})
         [root outline old-hidden-node-outline-key-paths] (get root-cache active-resource-node)
         new-root (if (or (not= outline active-outline)
                          (not= old-hidden-node-outline-key-paths hidden-node-outline-key-paths)
                          (and (nil? root) (nil? outline)))
-                   (sync-tree root (tree-item (decorate hidden-node-outline-key-paths active-outline)))
+                   (sync-tree root (tree-item (decorate hidden-node-outline-key-paths active-outline outline-name-paths)))
                    root)
         new-cache (assoc (map-filter (fn [[resource-node _]]
                                        (contains? resource-node-set resource-node))
@@ -198,6 +204,7 @@
   (input open-resource-nodes g/Any :substitute [])
   (input selection g/Any :substitute [])
   (input hidden-node-outline-key-paths types/NodeOutlineKeyPaths)
+  (input outline-name-paths scene-visibility/OutlineNamePaths)
 
   (output root TreeItem :cached produce-tree-root)
   (output tree-view TreeView :cached update-tree-view)
@@ -458,9 +465,41 @@
       (ui/cancel future)
       (ui/user-data! cell :future-expand nil))))
 
+(defn- toggle-visibility! [node-outline-key-path ^MouseEvent event]
+  (ui/run-command (.getSource event) :hide-toggle {:node-outline-key-path node-outline-key-path}))
+
+(defn add-scroll-listeners!
+  [visibility-button ^TreeView tree-view]
+  (when-let [^ScrollBar scrollbar (->> (.lookupAll tree-view ".scroll-bar")
+                                       (some #(when (= (.getOrientation ^ScrollBar %) Orientation/HORIZONTAL) %)))]
+    (ui/observe (.valueProperty scrollbar) (fn [_ _ new-v] (AnchorPane/setRightAnchor visibility-button (- (.getMax scrollbar) new-v))))
+    (ui/observe (.maxProperty scrollbar) (fn [_ _ new-v] (AnchorPane/setRightAnchor visibility-button (- new-v (.getValue scrollbar)))))
+    (ui/observe (.visibleProperty scrollbar) (fn [_ _ visible?] (if visible?
+                                                                  (AnchorPane/setRightAnchor visibility-button (.getMax scrollbar))
+                                                                  (AnchorPane/setRightAnchor visibility-button 0.0))))))
+
+(def eye-open-path (ui/load-svg-path "scene/images/eye_open.svg"))
+(def eye-closed-path (ui/load-svg-path "scene/images/eye_closed.svg"))
+
 (defn make-tree-cell
   [^TreeView tree-view drag-entered-handler drag-exited-handler]
-  (let [cell (proxy [TreeCell] []
+  (let [eye-icon-open (icons/make-svg-icon-graphic eye-open-path)
+        eye-icon-closed (icons/make-svg-icon-graphic eye-closed-path)
+        image-view-icon (ImageView.)
+        visibility-button (doto (ToggleButton.)
+                            (ui/add-style! "visibility-toggle")
+                            (.addEventFilter MouseEvent/MOUSE_PRESSED ui/ignore-event-filter)
+                            (AnchorPane/setRightAnchor 0.0))
+        text-label (doto (Label.)
+                     (ui/bind-double-click! :open))
+        h-box (doto (HBox. 5 (ui/node-array [image-view-icon text-label]))
+                (ui/add-style! "h-box")
+                (AnchorPane/setRightAnchor 0.0)
+                (AnchorPane/setLeftAnchor 0.0))
+        pane (doto (AnchorPane. (ui/node-array [h-box visibility-button]))
+               (ui/add-style! "anchor-pane"))
+        _ (add-scroll-listeners! visibility-button tree-view)
+        cell (proxy [TreeCell] []
                (updateItem [item empty]
                  (let [this ^TreeCell this]
                    (proxy-super updateItem item empty)
@@ -471,15 +510,21 @@
                        (proxy-super setGraphic nil)
                        (proxy-super setContextMenu nil)
                        (proxy-super setStyle nil))
-                     (let [{:keys [label icon link color outline-error? outline-overridden? outline-reference? outline-show-link? parent-reference? child-error? child-overridden? scene-visibility]} item
+                     (let [{:keys [label icon link color outline-error? outline-overridden? outline-reference? outline-show-link? parent-reference? child-error? child-overridden? scene-visibility hideable? node-outline-key-path hidden-parent?]} item
                            icon (if outline-error? "icons/32/Icons_E_02_error.png" icon)
                            show-link? (and (some? link)
                                            (or outline-reference? outline-show-link?))
-                           label (if show-link? (format "%s - %s" label (resource/resource->proj-path link)) label)]
-                       (proxy-super setText label)
-                       (proxy-super setGraphic (icons/get-image-view icon 16))
+                           text (if show-link? (format "%s - %s" label (resource/resource->proj-path link)) label)
+                           hidden? (= :hidden scene-visibility)
+                           visibility-icon (if hidden? eye-icon-closed eye-icon-open)]
+                       (.setImage image-view-icon (icons/get-image icon))
+                       (.setText text-label text)
+                       (doto visibility-button
+                         (.setGraphic visibility-icon)
+                         (ui/on-click! (partial toggle-visibility! node-outline-key-path)))
+                       (proxy-super setGraphic pane)
                        (when-let [[r g b a] color]
-                         (proxy-super setStyle (format "-fx-text-fill: rgba(%d, %d, %d %d);" (int (* 255 r)) (int (* 255 g)) (int (* 255 b))(int (* 255 a)))))
+                         (proxy-super setStyle (format "-fx-text-fill: rgba(%d, %d, %d %d);" (int (* 255 r)) (int (* 255 g)) (int (* 255 b)) (int (* 255 a)))))
                        (if parent-reference?
                          (ui/add-style! this "parent-reference")
                          (ui/remove-style! this "parent-reference"))
@@ -498,7 +543,13 @@
                        (if child-overridden?
                          (ui/add-style! this "child-overridden")
                          (ui/remove-style! this "child-overridden"))
-                       (if (= :hidden scene-visibility)
+                       (if hideable?
+                         (ui/add-style! this "hideable")
+                         (ui/remove-style! this "hideable"))
+                       (if hidden-parent?
+                         (ui/add-style! this "hidden-parent")
+                         (ui/remove-style! this "hidden-parent"))
+                       (if hidden?
                          (ui/add-style! this "scene-visibility-hidden")
                          (ui/remove-style! this "scene-visibility-hidden")))))))]
     (doto cell
@@ -532,7 +583,6 @@
       (.setOnDragDropped (ui/event-handler e (error-reporting/catch-all! (drag-dropped project app-view outline-view e))))
       (.setCellFactory (reify Callback (call ^TreeCell [this view] (make-tree-cell view drag-entered-handler drag-exited-handler))))
       (ui/observe-selection #(propagate-selection %2 app-view))
-      (ui/bind-double-click! :open)
       (ui/register-context-menu ::outline-menu)
       (ui/context! :outline {} (SelectionProvider. outline-view) {} {java.lang.Long :node-id
                                                                      resource/Resource :link}))))

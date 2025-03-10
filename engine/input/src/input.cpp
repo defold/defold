@@ -587,6 +587,7 @@ namespace dmInput
         float pressed_threshold = update_context->m_Context->m_PressedThreshold;
         action->m_Pressed = (action->m_PrevValue < pressed_threshold && action->m_Value >= pressed_threshold) ? 1 : 0;
         action->m_Released = (action->m_PrevValue >= pressed_threshold && action->m_Value < pressed_threshold) ? 1 : 0;
+
         action->m_Repeated = false;
         if (action->m_Value > 0.0f)
         {
@@ -701,10 +702,6 @@ namespace dmInput
         }
         if (binding->m_MouseBinding != 0x0)
         {
-            bool is_wheel_offsets = false; // glfw 2.x
-            #if defined(DM_INPUT_USE_GLFW3)
-                is_wheel_offsets = true; // glfw 3, the wheel scroll is offsets
-            #endif
             MouseBinding* mouse_binding = binding->m_MouseBinding;
             dmHID::MousePacket* packet = &mouse_binding->m_Packet;
             dmHID::MousePacket* prev_packet = &mouse_binding->m_PreviousPacket;
@@ -723,43 +720,22 @@ namespace dmInput
                     switch (trigger.m_Input)
                     {
                     case dmInputDDF::MOUSE_WHEEL_UP:
-                        if (is_wheel_offsets)
-                        {
-                            if (packet->m_Wheel > 0)
-                            {
-                                v = (float) (packet->m_Wheel - prev_packet->m_Wheel);
-                            }
-                        }
-                        else
-                        {
-                            v = (float) (packet->m_Wheel - prev_packet->m_Wheel);
-                        }
+                        v = (float) (packet->m_Wheel - prev_packet->m_Wheel);
                         break;
                     case dmInputDDF::MOUSE_WHEEL_DOWN:
-                        if (is_wheel_offsets)
-                        {
-                            if (packet->m_Wheel < 0)
-                            {
-                                v = (float) -(packet->m_Wheel - prev_packet->m_Wheel);
-                            }
-                        }
-                        else
-                        {
-                            v = (float) -(packet->m_Wheel - prev_packet->m_Wheel);
-                        }
+                        v = (float) -(packet->m_Wheel - prev_packet->m_Wheel);
                         break;
                     default:
                         v = dmHID::GetMouseButton(packet, MOUSE_BUTTON_MAP[trigger.m_Input]) ? 1.0f : 0.0f;
                         break;
                     }
+
                     v = dmMath::Clamp(v, 0.0f, 1.0f);
                     Action* action = binding->m_Actions.Get(trigger.m_ActionId);
-                    if (action != 0x0)
+
+                    if (action != 0x0 && dmMath::Abs(action->m_Value) < dmMath::Abs(v))
                     {
-                        if (dmMath::Abs(action->m_Value) < dmMath::Abs(v))
-                        {
-                            action->m_Value = v;
-                        }
+                        action->m_Value = (float) dmMath::Abs(v);
                     }
                 }
                 *prev_packet = *packet;

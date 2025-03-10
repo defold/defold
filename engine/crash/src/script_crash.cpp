@@ -13,7 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include <assert.h>
-#include <extension/extension.h>
+#include <extension/extension.hpp>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <script/script.h>

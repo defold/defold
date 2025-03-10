@@ -26,6 +26,7 @@ import s3
 import sdk
 import release_to_github
 import release_to_steam
+import release_to_egs
 import BuildUtility
 import http_cache
 from datetime import datetime
@@ -98,22 +99,153 @@ assert(hasattr(build_private, 'get_tag_suffix'))
 def get_target_platforms():
     return BASE_PLATFORMS + build_private.get_target_platforms()
 
-PACKAGES_ALL="protobuf-3.20.1 waf-2.0.3 junit-4.6 jsign-4.2 protobuf-java-3.20.1 openal-1.1 maven-3.0.1 vecmath vpx-1.7.0 luajit-2.1.0-a4f56a4 tremolo-b0cb4d1 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.10.2 vulkan-v1.3.299".split()
-PACKAGES_HOST="vpx-1.7.0 luajit-2.1.0-a4f56a4 tremolo-b0cb4d1".split()
-PACKAGES_IOS_X86_64="protobuf-3.20.1 luajit-2.1.0-a4f56a4 tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
-PACKAGES_IOS_64="protobuf-3.20.1 luajit-2.1.0-a4f56a4 tremolo-b0cb4d1 bullet-2.77 moltenvk-1.3.261.1 glfw-2.7.1".split()
-PACKAGES_MACOS_X86_64="protobuf-3.20.1 luajit-2.1.0-a4f56a4 vpx-1.7.0 tremolo-b0cb4d1 bullet-2.77 spirv-cross-9040e0d2 spirv-tools-b21dda0e glslang-42d9adf5 moltenvk-1.3.261.1 lipo-9ffdea2 sassc-5472db213ec223a67482df2226622be372921847 glfw-3.4 tint-22b958 astcenc-8b0aa01".split()
-PACKAGES_MACOS_ARM64="protobuf-3.20.1 luajit-2.1.0-a4f56a4 vpx-1.7.0 tremolo-b0cb4d1 bullet-2.77 spirv-cross-9040e0d2 spirv-tools-b21dda0e glslang-42d9adf5 moltenvk-1.3.261.1 lipo-9ffdea2 glfw-3.4 tint-22b958 astcenc-8b0aa01".split()
-PACKAGES_WIN32="protobuf-3.20.1 luajit-2.1.0-a4f56a4 glut-3.7.6 bullet-2.77 vulkan-1.3.261.1 glfw-3.4".split()
-PACKAGES_WIN32_64="protobuf-3.20.1 luajit-2.1.0-a4f56a4 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 glslang-42d9adf5 spirv-cross-9040e0d2 spirv-tools-d24a39a7 vulkan-1.3.261.1 lipo-9ffdea2 glfw-3.4 tint-22b958 astcenc-8b0aa01 directx-headers-1.611.0".split()
-PACKAGES_LINUX_X86_64="protobuf-3.20.1 luajit-2.1.0-a4f56a4 bullet-2.77 glslang-ba5c010c spirv-cross-9040e0d2 spirv-tools-d24a39a7 vulkan-1.1.108  tremolo-b0cb4d1 lipo-9ffdea2 glfw-3.4 tint-22b958 sassc-5472db213ec223a67482df2226622be372921847 astcenc-8b0aa01".split()
-PACKAGES_LINUX_ARM64 ="protobuf-3.20.1 luajit-2.1.0-a4f56a4 bullet-2.77 glslang-2fed4fc0 spirv-cross-9040e0d2 spirv-tools-4fab7435 vulkan-v1.3.299 tremolo-b0cb4d1 lipo-abb8ab1 glfw-3.4 tint-22b958 astcenc-8b0aa01".split() # vulkan-1.1.108".split()
-PACKAGES_ANDROID="protobuf-3.20.1 android-support-multidex androidx-multidex luajit-2.1.0-a4f56a4 tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
+PACKAGES_ALL=[
+    "protobuf-3.20.1",
+    "waf-2.0.3",
+    "junit-4.6",
+    "jsign-4.2",
+    "protobuf-java-3.20.1",
+    "openal-1.1",
+    "maven-3.0.1",
+    "vecmath",
+    "vpx-1.7.0",
+    "luajit-2.1.0-a4f56a4",
+    "tremolo-b0cb4d1",
+    "defold-robot-0.7.0",
+    "bullet-2.77",
+    "libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a",
+    "jctest-0.10.2",
+    "vulkan-v1.4.307"]
+
+PACKAGES_HOST=[
+    "vpx-1.7.0",
+    "luajit-2.1.0-a4f56a4",
+    "tremolo-b0cb4d1"]
+
+PACKAGES_IOS_X86_64=[
+    "protobuf-3.20.1",
+    "luajit-2.1.0-a4f56a4",
+    "tremolo-b0cb4d1",
+    "bullet-2.77",
+    "glfw-2.7.1"]
+
+PACKAGES_IOS_64=[
+    "protobuf-3.20.1",
+    "luajit-2.1.0-a4f56a4",
+    "tremolo-b0cb4d1",
+    "bullet-2.77",
+    "moltenvk-1474891",
+    "glfw-2.7.1"]
+
+PACKAGES_MACOS_X86_64=[
+    "protobuf-3.20.1",
+    "luajit-2.1.0-a4f56a4",
+    "vpx-1.7.0",
+    "tremolo-b0cb4d1",
+    "bullet-2.77",
+    "spirv-cross-9040e0d2",
+    "spirv-tools-b21dda0e",
+    "glslang-42d9adf5",
+    "moltenvk-1474891",
+    "lipo-9ffdea2",
+    "sassc-5472db213ec223a67482df2226622be372921847",
+    "glfw-3.4",
+    "tint-22b958",
+    "astcenc-8b0aa01"]
+
+PACKAGES_MACOS_ARM64=[
+    "protobuf-3.20.1",
+    "luajit-2.1.0-a4f56a4",
+    "vpx-1.7.0",
+    "tremolo-b0cb4d1",
+    "bullet-2.77",
+    "spirv-cross-9040e0d2",
+    "spirv-tools-b21dda0e",
+    "glslang-42d9adf5",
+    "moltenvk-1474891",
+    "lipo-9ffdea2",
+    "glfw-3.4",
+    "tint-22b958",
+    "astcenc-8b0aa01"]
+
+PACKAGES_WIN32=[
+    "protobuf-3.20.1",
+    "luajit-2.1.0-a4f56a4",
+    "glut-3.7.6",
+    "bullet-2.77",
+    "vulkan-v1.4.307",
+    "glfw-3.4"]
+
+PACKAGES_WIN32_64=[
+    "protobuf-3.20.1",
+    "luajit-2.1.0-a4f56a4",
+    "glut-3.7.6",
+    "sassc-5472db213ec223a67482df2226622be372921847",
+    "bullet-2.77",
+    "glslang-42d9adf5",
+    "spirv-cross-9040e0d2",
+    "spirv-tools-d24a39a7",
+    "vulkan-v1.4.307",
+    "lipo-9ffdea2",
+    "glfw-3.4",
+    "tint-22b958",
+    "astcenc-8b0aa01",
+    "directx-headers-1.611.0"]
+
+PACKAGES_LINUX_X86_64=[
+    "protobuf-3.20.1",
+    "luajit-2.1.0-a4f56a4",
+    "bullet-2.77",
+    "glslang-ba5c010c",
+    "spirv-cross-9040e0d2",
+    "spirv-tools-d24a39a7",
+    "vulkan-v1.4.307",
+    "tremolo-b0cb4d1",
+    "lipo-9ffdea2",
+    "glfw-3.4",
+    "tint-22b958",
+    "sassc-5472db213ec223a67482df2226622be372921847",
+    "astcenc-8b0aa01"]
+
+PACKAGES_LINUX_ARM64=[
+    "protobuf-3.20.1",
+    "luajit-2.1.0-a4f56a4",
+    "bullet-2.77",
+    "glslang-2fed4fc0",
+    "spirv-cross-9040e0d2",
+    "spirv-tools-4fab7435",
+    "vulkan-v1.4.307",
+    "tremolo-b0cb4d1",
+    "lipo-abb8ab1",
+    "glfw-3.4",
+    "tint-22b958",
+    "astcenc-8b0aa01"]
+
+PACKAGES_ANDROID=[
+"protobuf-3.20.1",
+    "android-support-multidex",
+    "androidx-multidex",
+    "luajit-2.1.0-a4f56a4",
+    "tremolo-b0cb4d1",
+    "bullet-2.77",
+    "glfw-2.7.1"]
 PACKAGES_ANDROID.append(sdk.ANDROID_PACKAGE)
-PACKAGES_ANDROID_64="protobuf-3.20.1 android-support-multidex androidx-multidex luajit-2.1.0-a4f56a4 tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
+
+PACKAGES_ANDROID_64=[
+"protobuf-3.20.1",
+    "android-support-multidex",
+    "androidx-multidex",
+    "luajit-2.1.0-a4f56a4",
+    "tremolo-b0cb4d1",
+    "bullet-2.77",
+    "glfw-2.7.1"]
 PACKAGES_ANDROID_64.append(sdk.ANDROID_PACKAGE)
-PACKAGES_EMSCRIPTEN="protobuf-3.20.1 bullet-2.77 glfw-2.7.1".split()
-PACKAGES_NODE_MODULES="xhr2-0.1.0".split()
+
+PACKAGES_EMSCRIPTEN=[
+    "protobuf-3.20.1",
+    "bullet-2.77",
+    "glfw-2.7.1"]
+PACKAGES_NODE_MODULES=["xhr2-0.1.0"]
 
 PLATFORM_PACKAGES = {
     'win32':          PACKAGES_WIN32,
@@ -1299,7 +1431,7 @@ class Configuration(object):
                 add_missing(plf[1], "package '%s' could not be found" % (luajit_path))
             else:
                 self._extract(luajit_path, luajit_dir)
-                for name in ('luajit-32', 'luajit-64'):
+                for name in ('luajit-64'):
                     luajit_exe = format_exes(name, plf[0])[0]
                     src = join(luajit_dir, 'bin/%s/%s' % (plf[0], luajit_exe))
                     if not os.path.exists(src):
@@ -1904,6 +2036,24 @@ class Configuration(object):
 
         release_to_github.release(self, tag_name, release_sha1, releases[0], release_name=release_name, body=body, prerelease=prerelease, editor_only=is_editor_branch)
 
+    def get_editor_urls_from_s3(self, archive_path, tag_name):
+        release = s3.get_single_release(archive_path, tag_name)
+        if not release.get("files"):
+            log("No files found on S3")
+            exit(1)
+
+        # get a set of editor files only
+        # for some reasons files are listed more than once in 'release'
+        urls = set()
+        base_url = "https://" + urlparse(archive_path).hostname
+        for file in release.get("files", None):
+            path = file.get("path")
+            if os.path.basename(path) in ('Defold-x86_64-macos.dmg',
+                                          'Defold-x86_64-linux.zip',
+                                          'Defold-x86_64-win32.zip'):
+                urls.add(base_url + path)
+
+        return urls
 
     # Use with ./scripts/build.py release_to_steam --version=1.4.8
     def release_to_steam(self):
@@ -1911,8 +2061,18 @@ class Configuration(object):
         engine_channel = "stable"
         tag_name = self.compose_tag_name(self.version, engine_channel)
         archive_path = self.get_archive_path(editor_channel)
-        release = s3.get_single_release(archive_path, tag_name)
-        release_to_steam.release(self, tag_name, release)
+        urls = self.get_editor_urls_from_s3(archive_path, tag_name)
+        release_to_steam.release(self, urls)
+
+
+    # Use with ./scripts/build.py release_to_egs --version=1.4.8
+    def release_to_egs(self):
+        editor_channel = "editor-alpha"
+        engine_channel = "stable"
+        tag_name = self.compose_tag_name(self.version, engine_channel)
+        archive_path = self.get_archive_path(editor_channel)
+        urls = self.get_editor_urls_from_s3(archive_path, tag_name)
+        release_to_egs.release(self, urls, tag_name)
 
 #
 # END: RELEASE

@@ -84,9 +84,8 @@ namespace dmGraphics
 
     struct DX12ShaderModule
     {
-        ID3DBlob*  m_ShaderBlob;
-        ShaderMeta m_ShaderMeta;
-        uint64_t   m_Hash;
+        ID3DBlob* m_ShaderBlob;
+        uint64_t  m_Hash;
     };
 
     struct DX12Viewport

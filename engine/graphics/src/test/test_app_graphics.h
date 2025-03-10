@@ -120,7 +120,6 @@ static inline void AddShaderTypeMember(dmGraphics::ShaderDesc* desc, dmGraphics:
 static inline void DeleteShaderDesc(dmGraphics::ShaderDesc* desc)
 {
 #define FREE_IF_SIZE_NOT_ZERO(x) if (x.m_Count > 0) free(x.m_Data);
-
     FREE_IF_SIZE_NOT_ZERO(desc->m_Reflection.m_Inputs);
     FREE_IF_SIZE_NOT_ZERO(desc->m_Reflection.m_Textures);
     FREE_IF_SIZE_NOT_ZERO(desc->m_Reflection.m_Outputs);
@@ -128,7 +127,6 @@ static inline void DeleteShaderDesc(dmGraphics::ShaderDesc* desc)
     FREE_IF_SIZE_NOT_ZERO(desc->m_Reflection.m_UniformBuffers);
     FREE_IF_SIZE_NOT_ZERO(desc->m_Reflection.m_StorageBuffers);
     FREE_IF_SIZE_NOT_ZERO(desc->m_Reflection.m_Types);
-
 #undef FREE_IF_SIZE_NOT_ZERO
 
     free(desc);

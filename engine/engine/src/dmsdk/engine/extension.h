@@ -15,13 +15,7 @@
 #ifndef DMSDK_ENGINE_EXTENSION_H
 #define DMSDK_ENGINE_EXTENSION_H
 
-#include <dmsdk/dlib/configfile.h>
-#include <dmsdk/extension/extension.h>
-
-HConfigFile EngineExtensionGetConfigFile(ExtensionAppParams* app_params);
-
-// TODO: Add C api's for the rest of the contexts
-
+// Due to some native extensions already including this file, expecting the C++ api
 #if defined(__cplusplus)
     #include "extension.hpp"
 #endif

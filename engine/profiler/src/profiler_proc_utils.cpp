@@ -184,7 +184,7 @@ uint64_t dmProfilerExt::GetProcMemoryUsage()
     }
     fclose(fp);
 
-    long page_size = sysconf( _SC_PAGESIZE);
+    long page_size = sysconf(_SC_PAGESIZE);
     return rss * page_size;
 }
 

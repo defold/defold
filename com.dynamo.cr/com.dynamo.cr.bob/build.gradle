@@ -167,12 +167,12 @@ task createLuaJitShareZip(type: Zip, dependsOn: [compileSrc, compileGenerated]) 
 task compileBobLight(dependsOn: [getGitRevision, compileSrc, createLuaJitShareZip]) {
     doLast {
         def platformFiles = [
-                'x86_64-macos': ['glslang', 'spirv-opt', 'luajit-32', 'luajit-64', 'lipo', 'tint'],
-                'arm64-macos': ['glslang', 'spirv-opt', 'luac-32', 'luajit-64', 'lipo', 'tint'],
-                'x86_64-linux': ['glslang', 'spirv-opt', 'luajit-32', 'luajit-64', 'lipo', 'tint'],
-                'arm64-linux': ['glslang', 'spirv-opt', 'luajit-32', 'luajit-64', 'lipo', 'tint'],
+                'x86_64-macos': ['glslang', 'spirv-opt', 'luajit-64', 'lipo', 'tint'],
+                'arm64-macos': ['glslang', 'spirv-opt', 'luajit-64', 'lipo', 'tint'],
+                'x86_64-linux': ['glslang', 'spirv-opt', 'luajit-64', 'lipo', 'tint'],
+                'arm64-linux': ['glslang', 'spirv-opt', 'luajit-64', 'lipo', 'tint'],
                 'x86_64-win32': ['glslang.exe', 'spirv-opt.exe', 'luajit-64.exe', 'lipo.exe', 'tint.exe'],
-                'x86-win32': ['glslang.exe', 'spirv-opt.exe', 'luajit-32.exe']
+                'x86-win32': ['glslang.exe', 'spirv-opt.exe']
         ]
 
         platformFiles.forEach { platform, files ->

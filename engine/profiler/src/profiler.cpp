@@ -31,9 +31,9 @@
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/extension/extension.h>
 
-DM_PROPERTY_GROUP(rmtp_Profiler, "Profiler");
-DM_PROPERTY_U32(rmtp_CpuUsage, 0, FrameReset, "%% Cpu Usage", &rmtp_Profiler);
-DM_PROPERTY_U32(rmtp_Memory, 0, FrameReset, "Memory usage in kb", &rmtp_Profiler);
+DM_PROPERTY_GROUP(rmtp_Profiler, "Profiler", 0);
+DM_PROPERTY_U32(rmtp_CpuUsage, 0, PROFILE_PROPERTY_FRAME_RESET, "%% Cpu Usage", &rmtp_Profiler);
+DM_PROPERTY_U32(rmtp_Memory, 0, PROFILE_PROPERTY_FRAME_RESET, "Memory usage in kb", &rmtp_Profiler);
 
 namespace dmProfiler
 {

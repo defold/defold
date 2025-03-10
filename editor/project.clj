@@ -208,8 +208,9 @@
                       :smoke-test {:jvm-opts ["-Ddefold.smoke.log=true"]}
                       :cache-libraries {:jvm-opts ["-Ddefold.cache.libraries=true"]}
                       :reveal {:source-paths ["src/reveal"]
+                               :jvm-opts ["-Djol.magicFieldOffset=true" "-XX:+EnableDynamicAgentLoading"]
                                :injections [(require 'editor.reveal)]
-                               :dependencies [[vlaaad/reveal "1.3.280"]]}
+                               :dependencies [[vlaaad/reveal "1.3.284"]]}
                       :metrics {:jvm-opts ["-Ddefold.metrics=true"]}
                       :jamm {:dependencies [[com.github.jbellis/jamm "0.4.0"]]
                              :jvm-opts [~(str "-javaagent:"
@@ -224,6 +225,7 @@
                       :no-schemas {:jvm-opts ["-Ddefold.schema.check.disable=true"]}
                       :no-spec-asserts {:jvm-opts ["-Dclojure.spec.compile-asserts=false"]}
                       :performance [:no-decorated-exceptions :no-schemas :no-spec-asserts]
+                      :16gb {:jvm-opts ["-Xmx16g"]}
                       :x86_64-linux {:dependencies [[org.openjfx/javafx-base "23.0.1" :classifier "linux" :exclusions [org.openjfx/javafx-base]]
                                                     [org.openjfx/javafx-controls "23.0.1" :classifier "linux" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
                                                     [org.openjfx/javafx-graphics "23.0.1" :classifier "linux" :exclusions [org.openjfx/javafx-graphics org.openjfx/javafx-base]]
@@ -276,12 +278,12 @@
                                 :repl-options      {:init-ns user}
                                 :proto-paths       ["test/proto"]
                                 :resource-paths    ["test/resources"]
-                                :jvm-opts          ["-Ddefold.extension.lua-preprocessor.url=https://github.com/defold/extension-lua-preprocessor/archive/main.zip"
+                                :jvm-opts          ["-Ddefold.extension.lua-preprocessor.url=https://github.com/defold/extension-lua-preprocessor/archive/refs/tags/1.1.3.zip"
                                                     "-Ddefold.extension.rive.url=https://github.com/defold/extension-rive/archive/refs/tags/2.4.0.zip"
                                                     "-Ddefold.extension.simpledata.url=https://github.com/defold/extension-simpledata/archive/refs/tags/v1.1.0.zip"
-                                                    "-Ddefold.extension.spine.url=https://github.com/defold/extension-spine/archive/refs/tags/3.6.4.zip"
-                                                    "-Ddefold.extension.teal.url=https://github.com/defold/extension-teal/archive/main.zip"
-                                                    "-Ddefold.extension.texturepacker.url=https://github.com/defold/extension-texturepacker/archive/refs/tags/2.1.zip"
+                                                    "-Ddefold.extension.spine.url=https://github.com/defold/extension-spine/archive/refs/tags/3.6.5.zip"
+                                                    "-Ddefold.extension.teal.url=https://github.com/defold/extension-teal/archive/refs/tags/v1.2.zip"
+                                                    "-Ddefold.extension.texturepacker.url=https://github.com/defold/extension-texturepacker/archive/refs/tags/2.1.3.zip"
                                                     "-Ddefold.unpack.path=tmp/unpack"
                                                     "-Ddefold.nrepl=true"
                                                     "-Ddefold.log.dir="

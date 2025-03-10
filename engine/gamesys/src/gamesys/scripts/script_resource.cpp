@@ -2743,6 +2743,39 @@ static uint8_t* CheckBufferOrString(lua_State* L, int index, uint32_t* data_size
     return 0;
 }
 
+
+/*#  Creates a sound data resource (.oggc/.wavc)
+ *
+ * Creates a sound data resource
+ * Supported formats are .oggc and .wavc
+ *
+ * @name resource.create_sound_data
+ * @param path [type:string] the path to the resource. Must not already exist.
+ * @param [options] [type:table] A table containing parameters for the text. Supported entries:
+ *
+ * `data`
+ * : [type:string] The raw data of the file. May be partial, but must include the header of the file
+ *
+ * `filesize`
+ * : [type:number] If the file is partial, it must also specify the full size of the complete file.
+ *
+ * `partial`
+ * : [type:boolean] Is the data not representing the full file, but just the initial chunk?
+ *
+ * @return path_hash [type:hash] the resulting path hash to the resource
+ *
+ * @examples
+ *
+ * ```lua
+ * function init(self)
+ *     -- create a new sound resource, given the initial chunk of the file
+ *     local relative_path = "/a/unique/resource/name.oggc"
+ *     local hash = resource.create_sound_data(relative_path, { data = data, filesize = filesize, partial = true })
+ *     go.set("#music", "sound", hash) -- override the previous sound resource
+ *     sound.play("#music") -- start the playing
+ * end
+ * ```
+ */
 static int CreateSoundData(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 1);

@@ -22,9 +22,9 @@ namespace dmGameSystem
 {
     struct ComputeProgramResources
     {
-        dmGraphics::HComputeProgram m_ComputeProgram;
-        TextureResource*            m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-        dmhash_t                    m_SamplerNames[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        dmGraphics::HProgram m_ComputeProgram;
+        TextureResource*     m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        dmhash_t             m_SamplerNames[dmRender::RenderObject::MAX_TEXTURE_COUNT];
     };
 
     static void ReleaseTextures(dmResource::HFactory factory, TextureResource** textures)
@@ -167,21 +167,6 @@ namespace dmGameSystem
         }
     }
 
-    static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams* params)
-    {
-        ComputeResource* resource               = (ComputeResource*) params->m_UserData;
-        dmRender::HComputeProgram program       = resource->m_Program;
-        dmRender::HRenderContext render_context = dmRender::GetProgramRenderContext(program);
-        dmGraphics::HContext graphics_context   = dmRender::GetGraphicsContext(render_context);
-        dmGraphics::HComputeProgram shader      = GetComputeProgramShader(program);
-        dmGraphics::HProgram gfx_program        = GetComputeProgram(program);
-
-        if (!dmGraphics::ReloadProgram(graphics_context, gfx_program, shader))
-        {
-            dmLogWarning("Reloading the compute program failed.");
-        }
-    }
-
     dmResource::Result ResComputeCreate(const dmResource::ResourceCreateParams* params)
     {
         dmRender::HRenderContext render_context = (dmRender::HRenderContext) params->m_Context;
@@ -199,8 +184,6 @@ namespace dmGameSystem
             assert(res == dmResource::RESULT_OK);
             dmRender::SetProgramUserData(compute_program, ResourceDescriptorGetNameHash(desc));
 
-            dmResource::RegisterResourceReloadedCallback(params->m_Factory, ResourceReloadedCallback, compute_program);
-
             ComputeResource* resource = new ComputeResource();
             resource->m_Program       = compute_program;
             SetProgram(params->m_Filename, resource, ddf, &resources);
@@ -216,12 +199,11 @@ namespace dmGameSystem
         ComputeResource* resource               = (ComputeResource*) dmResource::GetResource(params->m_Resource);
         dmRender::HRenderContext render_context = (dmRender::HRenderContext) params->m_Context;
         dmRender::HComputeProgram program       = resource->m_Program;
+        dmGraphics::HProgram gfx_program        = dmRender::GetComputeProgram(program);
 
         ReleaseTextures(params->m_Factory, resource->m_Textures);
 
-        dmResource::UnregisterResourceReloadedCallback(params->m_Factory, ResourceReloadedCallback, program);
-
-        dmResource::Release(params->m_Factory, (void*) dmRender::GetComputeProgramShader(program));
+        dmResource::Release(params->m_Factory, (void*) gfx_program);
         dmRender::DeleteComputeProgram(render_context, program);
 
         delete resource;
@@ -245,8 +227,10 @@ namespace dmGameSystem
             ComputeResource* resource         = (ComputeResource*) dmResource::GetResource(params->m_Resource);
             dmRender::HComputeProgram program = resource->m_Program;
 
+            dmGraphics::HProgram gfx_program = dmRender::GetComputeProgram(program);
+
             // Release old resources
-            dmResource::Release(params->m_Factory, (void*) program);
+            dmResource::Release(params->m_Factory, (void*) gfx_program);
 
             // Set up resources
             SetProgram(params->m_Filename, resource, ddf, &resources);

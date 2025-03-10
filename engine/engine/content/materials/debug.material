@@ -1,0 +1,4 @@
+name: "debug"
+tags: "debug"
+vertex_program: "/materials/debug.vp"
+fragment_program: "/materials/debug.fp"

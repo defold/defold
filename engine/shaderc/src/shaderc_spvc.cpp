@@ -440,6 +440,11 @@ namespace dmShaderc
             spvc_compiler_options_set_uint(spv_options, SPVC_COMPILER_OPTION_GLSL_VERSION,                  options.m_Version);
             spvc_compiler_options_set_bool(spv_options, SPVC_COMPILER_OPTION_GLSL_ES,                       options.m_GlslEs);
             spvc_compiler_options_set_bool(spv_options, SPVC_COMPILER_OPTION_GLSL_ENABLE_420PACK_EXTENSION, !options.m_No420PackExtension);
+
+            // TODO:
+            // SPVC_COMPILER_OPTION_GLSL_ES_DEFAULT_FLOAT_PRECISION_HIGHP
+            // SPVC_COMPILER_OPTION_GLSL_ES_DEFAULT_INT_PRECISION_HIGHP
+
         }
         else if (compiler->m_BaseCompiler.m_Language == SHADER_LANGUAGE_HLSL)
         {
@@ -482,13 +487,28 @@ namespace dmShaderc
 
         const char *compile_result = NULL;
         spvc_compiler_compile(compiler->m_SPVCCompiler, &compile_result);
-        uint32_t result_size = strlen(compile_result);
+
+        uint32_t compile_result_size = 0;
+        if (compile_result)
+        {
+            compile_result_size = strlen(compile_result);
+        }
 
         ShaderCompileResult* result = (ShaderCompileResult*) malloc(sizeof(ShaderCompileResult));
         memset(result, 0, sizeof(ShaderCompileResult));
-        result->m_Data.SetCapacity(strlen(compile_result));
-        result->m_Data.SetSize(strlen(compile_result));
-        memcpy(result->m_Data.Begin(), compile_result, result->m_Data.Size());
+        result->m_Data.SetCapacity(compile_result_size);
+        result->m_Data.SetSize(compile_result_size);
+        result->m_LastError = "";
+
+        if (compile_result)
+        {
+            memcpy(result->m_Data.Begin(), compile_result, result->m_Data.Size());
+        }
+        else
+        {
+            result->m_LastError = spvc_context_get_last_error_string(context->m_SPVCContext);
+        }
+
         return result;
     }
 

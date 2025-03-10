@@ -100,7 +100,7 @@
 
 (defn init-debug
   []
-  (bb/spit-batches "src/clj" "resources/sorted_clojure_ns_list.edn")
+  (bb/spit-batches "resources/sorted_clojure_ns_list.edn")
   (when (= "true" (System/getProperty "defold.nrepl"))
     (start-server nil)))
 

@@ -134,7 +134,7 @@
 
 (def fixed-resource-paths #{"/" "/game.project"})
 
-(defn deletable-resource? [x] (and (satisfies? resource/Resource x)
+(defn deletable-resource? [x] (and (resource/resource? x)
                                    (resource/editable? x)
                                    (not (resource/read-only? x))
                                    (not (fixed-resource-paths (resource/proj-path x)))))

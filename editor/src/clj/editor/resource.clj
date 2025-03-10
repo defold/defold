@@ -52,7 +52,17 @@
   (openable? [this])
   (editable? [this]))
 
-(def resource? (partial satisfies? Resource))
+(def ^{:arglists '([x])} resource?
+  (let [cache (atom {})
+        not-found (Object.)]
+    (fn resource? [x]
+      (let [c (class x)
+            ret (@cache c not-found)]
+        (if (identical? not-found ret)
+          (let [ret (satisfies? Resource x)]
+            (swap! cache assoc c ret)
+            ret)
+          ret)))))
 
 (def placeholder-resource-type-ext "*")
 
@@ -61,10 +71,10 @@
 
 (defn- get-resource-type [workspace resource]
   (let [output-label (if (editable? resource) :resource-types :resource-types-non-editable)
-        resource-types (g/node-value workspace output-label)
+        resource-types (output-label (g/node-by-id workspace))
         ext (type-ext resource)]
-    (or (get resource-types ext)
-        (get resource-types placeholder-resource-type-ext))))
+    (or (resource-types ext)
+        (resource-types placeholder-resource-type-ext))))
 
 (defn openable-resource? [value]
   ;; A resource is considered openable if its kind can be opened. Typically this
@@ -72,7 +82,7 @@
   ;; that the resource does not have to be openable in the Defold Editor - an
   ;; external application could be assigned to handle it. Before opening, you
   ;; must also make sure the resource exists.
-  (and (satisfies? Resource value)
+  (and (resource? value)
        (openable? value)))
 
 (defn editor-openable-resource? [value]
@@ -541,6 +551,13 @@
   they can be edited as plain text using the code editor."
   [resource]
   (stateful-resource-type? (resource-type resource)))
+
+(defn folder?
+  "Returns true if the supplied resource is a folder."
+  [resource]
+  (case (source-type resource)
+    :file false
+    :folder true))
 
 (def ^:private known-ext->language
   ;; See known language identifiers:

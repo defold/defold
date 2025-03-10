@@ -25,7 +25,6 @@ import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.reflect.Array;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -34,7 +33,6 @@ import java.net.HttpURLConnection;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URI;
-import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.FileTime;
 import java.text.ParseException;
 import java.util.*;
@@ -100,7 +98,6 @@ import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 
 import com.dynamo.bob.cache.ResourceCache;
 import org.codehaus.jackson.JsonNode;
-import org.codehaus.jackson.JsonProcessingException;
 import org.codehaus.jackson.map.ObjectMapper;
 
 /**
@@ -358,7 +355,7 @@ public class Project {
                             extToBuilder.put(inExt, (Class<? extends Builder>) klass);
                             inextToOutext.put(inExt, builderParams.outExt());
                         }
-
+                        Builder.addParamsDigest(klass, this.getOptions(), builderParams);
                         ProtoParams protoParams = klass.getAnnotation(ProtoParams.class);
                         if (protoParams != null) {
                             ProtoBuilder.addMessageClass(builderParams.outExt(), protoParams.messageClass());
@@ -847,8 +844,8 @@ public class Project {
                 logWarning("Bundler class '%s' has no BundlerParams", klass.getName());
                 continue;
             }
-            for (Platform supportedPlatform : bundlerParams.platforms()) {
-                if (supportedPlatform == platform)
+            for (String supportedPlatform : bundlerParams.platforms()) {
+                if (platform.matchesPair(supportedPlatform))
                     return klass;
             }
         }
@@ -906,8 +903,8 @@ public class Project {
             if (bundlerParams == null) {
                 continue;
             }
-            for (Platform supportedPlatform : bundlerParams.platforms()) {
-                if (supportedPlatform == platform)
+            for (String supportedPlatform : bundlerParams.platforms()) {
+                if (platform.matchesPair(supportedPlatform))
                     return klass;
             }
         }
@@ -1137,6 +1134,10 @@ public class Project {
 
         // Build all skews of platform
         String outputDir = getBinaryOutputDirectory();
+
+        ExecutorService buildEngineExecutor = Executors.newFixedThreadPool(architectures.length);
+        List<Future<?>> buildEngineFutures = new ArrayList<>();
+
         for (int i = 0; i < architectures.length; ++i) {
             Platform platform = Platform.get(architectures[i]);
 
@@ -1144,18 +1145,36 @@ public class Project {
             File buildDir = new File(FilenameUtils.concat(outputDir, buildPlatform));
             buildDir.mkdirs();
 
-
-            boolean buildLibrary = shouldBuildArtifact("library");
-            if (buildLibrary) {
-                buildLibraryPlatform(monitor, buildDir, cacheDir, appmanifestOptions, platform);
-            }
-            else {
-                buildEnginePlatform(monitor, buildDir, cacheDir, appmanifestOptions, platform);
-            }
-
+            buildEngineFutures.add(buildEngineExecutor.submit(() -> {
+                boolean buildLibrary = shouldBuildArtifact("library");
+                try {
+                    if (buildLibrary) {
+                        buildLibraryPlatform(monitor, buildDir, cacheDir, appmanifestOptions, platform);
+                    } else {
+                        buildEnginePlatform(monitor, buildDir, cacheDir, appmanifestOptions, platform);
+                    }
+                } catch (Throwable e) {
+                    throw new RuntimeException(e);
+                }
+            }));
             m.worked(1);
         }
 
+        for (Future<?> future : buildEngineFutures) {
+            try {
+                future.get();
+            } catch (Exception e) {
+                Throwable cause = e.getCause();
+                if (cause.getCause() instanceof CompileExceptionError) {
+                    throw (CompileExceptionError) cause.getCause();
+                } else if (cause.getCause() instanceof MultipleCompileException) {
+                    throw (MultipleCompileException) cause.getCause();
+                } else {
+                    throw (RuntimeException) e;
+                }
+            }
+        }
+        buildEngineExecutor.shutdown();
         m.done();
     }
 
@@ -1324,7 +1343,6 @@ public class Project {
         createClassLoaderScanner();
         registerPipelinePlugins();
         scan(scanner, "com.dynamo.bob");
-        scan(scanner, "com.dynamo.bob.pipeline");
         scan(scanner, "com.defold.extension.pipeline");
     }
 
@@ -2250,14 +2268,6 @@ public class Project {
 
     public List<Task> getTasks() {
         return Collections.unmodifiableList(new ArrayList(this.tasks.values()));
-    }
-
-    public TextureProfiles getTextureProfiles() {
-        return textureProfiles;
-    }
-
-    public void setTextureProfiles(TextureProfiles textureProfiles) {
-        this.textureProfiles = textureProfiles;
     }
 
 }

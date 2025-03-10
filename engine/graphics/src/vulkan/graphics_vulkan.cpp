@@ -1150,7 +1150,6 @@ bail:
         }
     #endif
 
-
         // GLFW 3.4 doesn't support static linking with vulkan,
         // instead we need to pass in the function that loads symbol for any
         // platform that is using GLFW.
@@ -1870,9 +1869,8 @@ bail:
 
     static void VulkanEnableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration, uint32_t binding_index, uint32_t base_offset, HProgram program)
     {
-        VulkanContext* context      = (VulkanContext*) _context;
-        VulkanProgram* program_ptr        = (VulkanProgram*) program;
-        ShaderModule* vertex_shader = program_ptr->m_VertexModule;
+        VulkanContext* context     = (VulkanContext*) _context;
+        VulkanProgram* program_ptr = (VulkanProgram*) program;
 
         context->m_MainVertexDeclaration[binding_index]                = {};
         context->m_MainVertexDeclaration[binding_index].m_Stride       = vertex_declaration->m_Stride;
@@ -1883,15 +1881,15 @@ bail:
         context->m_CurrentVertexBufferOffset[binding_index]            = base_offset;
 
         uint32_t stream_ix = 0;
-        uint32_t num_inputs = vertex_shader->m_ShaderMeta.m_Inputs.Size();
+        uint32_t num_inputs = program_ptr->m_BaseProgram.m_ShaderMeta.m_Inputs.Size();
 
         for (int i = 0; i < vertex_declaration->m_StreamCount; ++i)
         {
             for (int j = 0; j < num_inputs; ++j)
             {
-                ShaderResourceBinding& input = vertex_shader->m_ShaderMeta.m_Inputs[j];
+                ShaderResourceBinding& input = program_ptr->m_BaseProgram.m_ShaderMeta.m_Inputs[j];
 
-                if (input.m_NameHash == vertex_declaration->m_Streams[i].m_NameHash)
+                if (input.m_StageFlags & SHADER_STAGE_FLAG_VERTEX && input.m_NameHash == vertex_declaration->m_Streams[i].m_NameHash)
                 {
                     VertexDeclaration::Stream& stream = context->m_MainVertexDeclaration[binding_index].m_Streams[stream_ix];
                     stream.m_NameHash  = input.m_NameHash;
@@ -2055,6 +2053,8 @@ bail:
         uint16_t image_to_write_index   = 0;
         uint16_t buffer_to_write_index  = 0;
 
+        uint32_t dynamic_offset_index = 0;
+
         ProgramResourceBindingIterator it(&program->m_BaseProgram);
         const ProgramResourceBinding* next;
         while((next = it.Next()))
@@ -2094,9 +2094,9 @@ bail:
                 } break;
                 case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER:
                 {
-                    dynamic_offsets[next->m_DynamicOffsetIndex] = (uint32_t) scratch_buffer->m_MappedDataCursor;
-                    const uint32_t uniform_size_nonalign          = res->m_BindingInfo.m_BlockSize;
-                    const uint32_t uniform_size_align             = DM_ALIGN(uniform_size_nonalign, dynamic_alignment);
+                    dynamic_offsets[dynamic_offset_index] = (uint32_t) scratch_buffer->m_MappedDataCursor;
+                    const uint32_t uniform_size_nonalign  = res->m_BindingInfo.m_BlockSize;
+                    const uint32_t uniform_size_align     = DM_ALIGN(uniform_size_nonalign, dynamic_alignment);
 
                     assert(uniform_size_nonalign > 0);
 
@@ -2115,6 +2115,7 @@ bail:
                         uniform_size_align);
 
                     scratch_buffer->m_MappedDataCursor += uniform_size_align;
+                    dynamic_offset_index++;
                 } break;
                 case ShaderResourceBinding::BINDING_FAMILY_GENERIC:
                 default: continue;
@@ -2377,79 +2378,49 @@ bail:
         vkCmdDispatch(vk_command_buffer, group_count_x, group_count_y, group_count_z);
     }
 
-    static bool ValidateShaderModule(VulkanContext* context, ShaderModule* shader, char* error_buffer, uint32_t error_buffer_size)
+    static bool ValidateShaderModule(VulkanContext* context, ShaderMeta* meta, ShaderModule* shader, ShaderStageFlag stage_flags, char* error_buffer, uint32_t error_buffer_size)
     {
-        if (shader->m_ShaderMeta.m_UniformBuffers.Size() > context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorUniformBuffers)
+        uint32_t stage_uniform_buffers = 0;
+        uint32_t stage_storage_buffers = 0;
+        uint32_t stage_textures        = 0;
+
+        for (int i = 0; i < meta->m_UniformBuffers.Size(); ++i)
+        {
+            if (meta->m_UniformBuffers[i].m_StageFlags & stage_flags)
+                stage_uniform_buffers++;
+        }
+
+        for (int i = 0; i < meta->m_StorageBuffers.Size(); ++i)
+        {
+            if (meta->m_StorageBuffers[i].m_StageFlags & stage_flags)
+                stage_storage_buffers++;
+        }
+
+        for (int i = 0; i < meta->m_Textures.Size(); ++i)
+        {
+            if (meta->m_Textures[i].m_StageFlags & stage_flags)
+                stage_textures++;
+        }
+
+        if (stage_uniform_buffers > context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorUniformBuffers)
         {
             dmSnPrintf(error_buffer, error_buffer_size, "Maximum number of uniform buffers exceeded: shader has %d buffers, but maximum is %d.",
-                shader->m_ShaderMeta.m_UniformBuffers.Size(), context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorUniformBuffers);
+                stage_uniform_buffers, context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorUniformBuffers);
             return false;
         }
-        else if (shader->m_ShaderMeta.m_StorageBuffers.Size() > context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorStorageBuffers)
+        else if (stage_storage_buffers > context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorStorageBuffers)
         {
             dmSnPrintf(error_buffer, error_buffer_size, "Maximum number of storage exceeded: shader has %d buffer, but maximum is %d.",
-                shader->m_ShaderMeta.m_StorageBuffers.Size(), context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorStorageBuffers);
+                stage_storage_buffers, context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorStorageBuffers);
             return false;
         }
-        else if (shader->m_ShaderMeta.m_Textures.Size() > context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorSamplers)
+        else if (stage_textures > context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorSamplers)
         {
             dmSnPrintf(error_buffer, error_buffer_size, "Maximum number of texture samplers exceeded: shader has %d samplers, but maximum is %d.",
-                shader->m_ShaderMeta.m_Textures.Size(), context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorSamplers);
+                stage_textures, context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorSamplers);
             return false;
         }
         return true;
-    }
-
-    static HVertexProgram VulkanNewVertexProgram(HContext _context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
-    {
-        ShaderDesc::Shader* ddf_shader = GetShaderProgram(_context, ddf);
-        if (ddf_shader == 0x0)
-        {
-            return 0x0;
-        }
-
-        ShaderModule* shader = new ShaderModule;
-        memset(shader, 0, sizeof(*shader));
-        VulkanContext* context = (VulkanContext*) _context;
-
-        VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf_shader->m_Source.m_Data, ddf_shader->m_Source.m_Count, VK_SHADER_STAGE_VERTEX_BIT, shader);
-        CHECK_VK_ERROR(res);
-
-        CreateShaderMeta(&ddf->m_Reflection, &shader->m_ShaderMeta);
-
-        if (!ValidateShaderModule(context, shader, error_buffer, error_buffer_size))
-        {
-            DeleteVertexProgram((HVertexProgram) shader);
-            return 0;
-        }
-
-        return (HVertexProgram) shader;
-    }
-
-    static HFragmentProgram VulkanNewFragmentProgram(HContext _context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
-    {
-        ShaderDesc::Shader* ddf_shader = GetShaderProgram(_context, ddf);
-        if (ddf_shader == 0x0)
-        {
-            return 0x0;
-        }
-
-        ShaderModule* shader = new ShaderModule;
-        memset(shader, 0, sizeof(*shader));
-        VulkanContext* context = (VulkanContext*) _context;
-
-        VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf_shader->m_Source.m_Data, ddf_shader->m_Source.m_Count, VK_SHADER_STAGE_FRAGMENT_BIT, shader);
-        CHECK_VK_ERROR(res);
-
-        CreateShaderMeta(&ddf->m_Reflection, &shader->m_ShaderMeta);
-
-        if (!ValidateShaderModule(context, shader, error_buffer, error_buffer_size))
-        {
-            DeleteFragmentProgram((HFragmentProgram) shader);
-            return 0;
-        }
-
-        return (HFragmentProgram) shader;
     }
 
     static inline VkDescriptorType GetDescriptorType(const ShaderResourceBinding& res)
@@ -2523,6 +2494,24 @@ bail:
         }
     }
 
+    static inline VkFlags GetShaderStageFlags(uint8_t flag_bits)
+    {
+        VkFlags bits = 0;
+        if (flag_bits & SHADER_STAGE_FLAG_VERTEX)
+        {
+            bits |= VK_SHADER_STAGE_VERTEX_BIT;
+        }
+        if (flag_bits & SHADER_STAGE_FLAG_FRAGMENT)
+        {
+            bits |= VK_SHADER_STAGE_FRAGMENT_BIT;
+        }
+        if (flag_bits & SHADER_STAGE_FLAG_COMPUTE)
+        {
+            bits |= VK_SHADER_STAGE_COMPUTE_BIT;
+        }
+        return bits;
+    }
+
     static void FillProgramResourceBindings(
         VulkanProgram*                   program,
         dmArray<ShaderResourceBinding>&  resources,
@@ -2530,7 +2519,6 @@ bail:
         VkDescriptorSetLayoutBinding     bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT],
         uint32_t                         ubo_alignment,
         uint32_t                         ssbo_alignment,
-        VkShaderStageFlagBits            stage_flag,
         ProgramResourceBindingsInfo&     info)
     {
         for (int i = 0; i < resources.Size(); ++i)
@@ -2583,8 +2571,7 @@ bail:
                     case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER:
                     {
                         assert(res.m_Type.m_UseTypeIndex);
-                        program_resource_binding.m_DataOffset         = info.m_UniformDataSize;
-                        program_resource_binding.m_DynamicOffsetIndex = info.m_UniformBufferCount;
+                        program_resource_binding.m_DataOffset = info.m_UniformDataSize;
 
                         info.m_UniformBufferCount++;
                         info.m_UniformDataSize        += res.m_BindingInfo.m_BlockSize;
@@ -2602,25 +2589,23 @@ bail:
             #endif
             }
 
-            binding.stageFlags |= stage_flag;
+            binding.stageFlags |= GetShaderStageFlags(res.m_StageFlags);
         }
     }
 
     static void FillProgramResourceBindings(
         VulkanProgram*               program,
-        ShaderModule*                module,
         VkDescriptorSetLayoutBinding bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT],
         uint32_t                     ubo_alignment,
         uint32_t                     ssbo_alignment,
-        VkShaderStageFlagBits        stage_flag,
         ProgramResourceBindingsInfo& info)
     {
-        FillProgramResourceBindings(program, module->m_ShaderMeta.m_UniformBuffers, module->m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, stage_flag, info);
-        FillProgramResourceBindings(program, module->m_ShaderMeta.m_StorageBuffers, module->m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, stage_flag, info);
-        FillProgramResourceBindings(program, module->m_ShaderMeta.m_Textures, module->m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, stage_flag, info);
+        FillProgramResourceBindings(program, program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers, program->m_BaseProgram.m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, info);
+        FillProgramResourceBindings(program, program->m_BaseProgram.m_ShaderMeta.m_StorageBuffers, program->m_BaseProgram.m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, info);
+        FillProgramResourceBindings(program, program->m_BaseProgram.m_ShaderMeta.m_Textures, program->m_BaseProgram.m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, info);
 
         // Each module must resolve samplers individually since there is no contextual information across modules (currently)
-        ResolveSamplerTextureUnits(program, module->m_ShaderMeta.m_Textures);
+        ResolveSamplerTextureUnits(program, program->m_BaseProgram.m_ShaderMeta.m_Textures);
     }
 
     static void CreateProgramResourceBindings(VulkanContext* context, VulkanProgram* program)
@@ -2631,17 +2616,7 @@ bail:
         uint32_t ssbo_alignment = (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minStorageBufferOffsetAlignment;
 
         ProgramResourceBindingsInfo binding_info = {};
-
-        if (program->m_ComputeModule)
-        {
-            FillProgramResourceBindings(program, program->m_ComputeModule, bindings, ubo_alignment, ssbo_alignment, VK_SHADER_STAGE_COMPUTE_BIT, binding_info);
-        }
-        else
-        {
-            assert(program->m_VertexModule && program->m_FragmentModule);
-            FillProgramResourceBindings(program, program->m_VertexModule, bindings, ubo_alignment, ssbo_alignment, VK_SHADER_STAGE_VERTEX_BIT, binding_info);
-            FillProgramResourceBindings(program, program->m_FragmentModule, bindings, ubo_alignment, ssbo_alignment, VK_SHADER_STAGE_FRAGMENT_BIT, binding_info);
-        }
+        FillProgramResourceBindings(program, bindings, ubo_alignment, ssbo_alignment, binding_info);
 
         program->m_UniformData = new uint8_t[binding_info.m_UniformDataSize];
         memset(program->m_UniformData, 0, binding_info.m_UniformDataSize);
@@ -2676,9 +2651,12 @@ bail:
         HashState64 program_hash;
         dmHashInit64(&program_hash, false);
 
-        for (uint32_t i=0; i < vertex_module->m_ShaderMeta.m_Inputs.Size(); i++)
+        for (uint32_t i=0; i < program->m_BaseProgram.m_ShaderMeta.m_Inputs.Size(); i++)
         {
-            dmHashUpdateBuffer64(&program_hash, &vertex_module->m_ShaderMeta.m_Inputs[i].m_Binding, sizeof(vertex_module->m_ShaderMeta.m_Inputs[i].m_Binding));
+            if (program->m_BaseProgram.m_ShaderMeta.m_Inputs[i].m_StageFlags & SHADER_STAGE_FLAG_VERTEX)
+            {
+                dmHashUpdateBuffer64(&program_hash, &program->m_BaseProgram.m_ShaderMeta.m_Inputs[i].m_Binding, sizeof(program->m_BaseProgram.m_ShaderMeta.m_Inputs[i].m_Binding));
+            }
         }
 
         dmHashUpdateBuffer64(&program_hash, &vertex_module->m_Hash, sizeof(vertex_module->m_Hash));
@@ -2686,13 +2664,6 @@ bail:
         program->m_Hash = dmHashFinal64(&program_hash);
 
         CreateProgramResourceBindings(context, program);
-    }
-
-    static HProgram VulkanNewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
-    {
-        VulkanProgram* program = new VulkanProgram;
-        CreateGraphicsProgram((VulkanContext*) context, program, (ShaderModule*) vertex_program, (ShaderModule*) fragment_program);
-        return (HProgram) program;
     }
 
     static void DestroyProgram(HContext context, VulkanProgram* program)
@@ -2712,64 +2683,131 @@ bail:
         delete program_ptr;
     }
 
-    static void DestroyShader(ShaderModule* shader)
+    static void DestroyShader(VulkanContext* context, ShaderModule* shader)
     {
         if (!shader)
         {
             return;
         }
 
-        DestroyShaderModule(g_VulkanContext->m_LogicalDevice.m_Device, shader);
-        DestroyShaderMeta(shader->m_ShaderMeta);
+        DestroyShaderModule(context->m_LogicalDevice.m_Device, shader);
     }
 
-    static bool ReloadShader(ShaderModule* shader, ShaderDesc* ddf, VkShaderStageFlagBits stage_flag)
+    static bool ReloadShader(VulkanContext* context, ShaderModule* shader, ShaderDesc::Shader* ddf, VkShaderStageFlagBits stage_flag)
     {
-        ShaderDesc::Shader* ddf_shader = GetShaderProgram((HContext) g_VulkanContext, ddf);
-        if (ddf_shader == 0x0)
-        {
-            return false;
-        }
         ShaderModule tmp_shader;
-        VkResult res = CreateShaderModule(g_VulkanContext->m_LogicalDevice.m_Device, ddf_shader->m_Source.m_Data, ddf_shader->m_Source.m_Count, stage_flag, &tmp_shader);
+        VkResult res = CreateShaderModule(g_VulkanContext->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, stage_flag, &tmp_shader);
         if (res == VK_SUCCESS)
         {
-            DestroyShader(shader);
+            DestroyShader(context, shader);
             memset(shader, 0, sizeof(*shader));
 
             // Transfer created module to old pointer and recreate resource bindings
             shader->m_Hash    = tmp_shader.m_Hash;
             shader->m_Module  = tmp_shader.m_Module;
-
-            CreateShaderMeta(&ddf->m_Reflection, &shader->m_ShaderMeta);
             return true;
         }
 
         return false;
     }
 
-    static bool VulkanReloadVertexProgram(HVertexProgram prog, ShaderDesc* ddf)
+    static inline ShaderModule* NewShaderModule(VulkanContext* context, ShaderMeta* meta, ShaderDesc::Shader* ddf, VkShaderStageFlagBits stage, char* error_buffer, uint32_t error_buffer_size)
     {
-        return ReloadShader((ShaderModule*) prog, ddf, VK_SHADER_STAGE_VERTEX_BIT);
+        ShaderModule* module = new ShaderModule;
+        memset(module, 0, sizeof(*module));
+
+        VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, stage, module);
+        CHECK_VK_ERROR(res);
+
+        ShaderStageFlag stage_flag = (ShaderStageFlag) -1;
+        if (stage == VK_SHADER_STAGE_VERTEX_BIT)
+        {
+            stage_flag = SHADER_STAGE_FLAG_VERTEX;
+        }
+        else if (stage == VK_SHADER_STAGE_FRAGMENT_BIT)
+        {
+            stage_flag = SHADER_STAGE_FLAG_FRAGMENT;
+        }
+        else if (stage == VK_SHADER_STAGE_COMPUTE_BIT)
+        {
+            stage_flag = SHADER_STAGE_FLAG_COMPUTE;
+        }
+        if (!ValidateShaderModule(context, meta, module, stage_flag, error_buffer, error_buffer_size))
+        {
+            DestroyShader(context, module);
+            delete module;
+            return 0;
+        }
+        return module;
     }
 
-    static bool VulkanReloadFragmentProgram(HFragmentProgram prog, ShaderDesc* ddf)
+    static HProgram VulkanNewProgram(HContext _context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
-        return ReloadShader((ShaderModule*) prog, ddf, VK_SHADER_STAGE_FRAGMENT_BIT);
+        ShaderDesc::Shader* ddf_vp = 0x0;
+        ShaderDesc::Shader* ddf_fp = 0x0;
+        ShaderDesc::Shader* ddf_cp = 0x0;
+
+        if (!GetShaderProgram(_context, ddf, &ddf_vp, &ddf_fp, &ddf_cp))
+        {
+            return 0;
+        }
+
+        VulkanContext* context = (VulkanContext*) _context;
+        VulkanProgram* program = new VulkanProgram;
+
+        CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram.m_ShaderMeta);
+
+        if (ddf_cp)
+        {
+            ShaderModule* module_cp = NewShaderModule(context, &program->m_BaseProgram.m_ShaderMeta, ddf_cp, VK_SHADER_STAGE_COMPUTE_BIT, error_buffer, error_buffer_size);
+            CreateComputeProgram(context, program, module_cp);
+        }
+        else
+        {
+            ShaderModule* vertex_module = NewShaderModule(context, &program->m_BaseProgram.m_ShaderMeta, ddf_vp, VK_SHADER_STAGE_VERTEX_BIT, error_buffer, error_buffer_size);
+            ShaderModule* fragment_module = NewShaderModule(context, &program->m_BaseProgram.m_ShaderMeta, ddf_fp, VK_SHADER_STAGE_FRAGMENT_BIT, error_buffer, error_buffer_size);
+            CreateGraphicsProgram((VulkanContext*) context, program, vertex_module, fragment_module);
+        }
+
+        return (HProgram) program;
     }
 
-    static void VulkanDeleteVertexProgram(HVertexProgram prog)
+    static bool VulkanReloadProgram(HContext _context, HProgram _program, ShaderDesc* ddf)
     {
-        ShaderModule* shader = (ShaderModule*) prog;
-        DestroyShader(shader);
-        delete shader;
-    }
+        ShaderDesc::Shader* ddf_vp = 0x0;
+        ShaderDesc::Shader* ddf_fp = 0x0;
+        ShaderDesc::Shader* ddf_cp = 0x0;
 
-    static void VulkanDeleteFragmentProgram(HFragmentProgram prog)
-    {
-        ShaderModule* shader = (ShaderModule*) prog;
-        DestroyShader(shader);
-        delete shader;
+        if (!GetShaderProgram(_context, ddf, &ddf_vp, &ddf_fp, &ddf_cp))
+        {
+            return 0;
+        }
+
+        VulkanContext* context = (VulkanContext*) _context;
+        VulkanProgram* program = (VulkanProgram*) _program;
+
+        if (ddf_cp)
+        {
+            if (!ReloadShader(context, program->m_ComputeModule, ddf_cp, VK_SHADER_STAGE_COMPUTE_BIT))
+                return false;
+
+            DestroyProgram(context, program);
+            CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram.m_ShaderMeta);
+            CreateComputeProgram(context, program, program->m_ComputeModule);
+        }
+        else
+        {
+            if (!ReloadShader(context, program->m_VertexModule, ddf_vp, VK_SHADER_STAGE_VERTEX_BIT))
+                return false;
+            if (!ReloadShader(context, program->m_FragmentModule, ddf_fp, VK_SHADER_STAGE_FRAGMENT_BIT))
+                return false;
+
+            DestroyProgram(context, program);
+            CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram.m_ShaderMeta);
+            CreateGraphicsProgram(context, program, program->m_VertexModule, program->m_FragmentModule);
+        }
+
+        return true;
     }
 
     static bool VulkanIsShaderLanguageSupported(HContext context, ShaderDesc::Language language, ShaderDesc::ShaderType shader_type)
@@ -2792,44 +2830,40 @@ bail:
         g_VulkanContext->m_CurrentProgram = 0;
     }
 
-    static bool VulkanReloadProgramGraphics(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
-    {
-        VulkanProgram* program_ptr = (VulkanProgram*) program;
-        DestroyProgram(context, program_ptr);
-        CreateGraphicsProgram((VulkanContext*) context, program_ptr, (ShaderModule*) vert_program, (ShaderModule*) frag_program);
-        return true;
-    }
-
-    static bool VulkanReloadProgramCompute(HContext context, HProgram program, HComputeProgram compute_program)
-    {
-        VulkanProgram* program_ptr = (VulkanProgram*) program;
-        DestroyProgram(context, program_ptr);
-        CreateComputeProgram((VulkanContext*) context, program_ptr, (ShaderModule*) compute_program);
-        return true;
-    }
-
-    static bool VulkanReloadComputeProgram(HComputeProgram prog, ShaderDesc* ddf)
-    {
-        return ReloadShader((ShaderModule*) prog, ddf, VK_SHADER_STAGE_COMPUTE_BIT);
-    }
-
     static uint32_t VulkanGetAttributeCount(HProgram prog)
     {
         VulkanProgram* program_ptr = (VulkanProgram*) prog;
-        return program_ptr->m_VertexModule->m_ShaderMeta.m_Inputs.Size();
+        uint32_t num_vx_inputs = 0;
+        for (int i = 0; i < program_ptr->m_BaseProgram.m_ShaderMeta.m_Inputs.Size(); ++i)
+        {
+            if (program_ptr->m_BaseProgram.m_ShaderMeta.m_Inputs[i].m_StageFlags & SHADER_STAGE_FLAG_VERTEX)
+            {
+                num_vx_inputs++;
+            }
+        }
+        return num_vx_inputs;
     }
 
     static void VulkanGetAttribute(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location)
     {
-        VulkanProgram* program_ptr = (VulkanProgram*) prog;
-        assert(index < program_ptr->m_VertexModule->m_ShaderMeta.m_Inputs.Size());
-        ShaderResourceBinding& attr = program_ptr->m_VertexModule->m_ShaderMeta.m_Inputs[index];
-
-        *name_hash     = attr.m_NameHash;
-        *type          = ShaderDataTypeToGraphicsType(attr.m_Type.m_ShaderType);
-        *num_values    = 1;
-        *location      = attr.m_Binding;
-        *element_count = GetShaderTypeSize(attr.m_Type.m_ShaderType) / sizeof(float);
+        VulkanProgram* program = (VulkanProgram*) prog;
+        uint32_t input_ix = 0;
+        for (int i = 0; i < program->m_BaseProgram.m_ShaderMeta.m_Inputs.Size(); ++i)
+        {
+            if (program->m_BaseProgram.m_ShaderMeta.m_Inputs[i].m_StageFlags & SHADER_STAGE_FLAG_VERTEX)
+            {
+                if (input_ix == index)
+                {
+                    ShaderResourceBinding& attr = program->m_BaseProgram.m_ShaderMeta.m_Inputs[i];
+                    *name_hash                  = attr.m_NameHash;
+                    *type                       = ShaderDataTypeToGraphicsType(attr.m_Type.m_ShaderType);
+                    *num_values                 = 1;
+                    *location                   = attr.m_Binding;
+                    *element_count              = GetShaderTypeSize(attr.m_Type.m_ShaderType) / sizeof(float);
+                }
+                input_ix++;
+            }
+        }
     }
 
     static inline void WriteConstantData(uint32_t offset, uint8_t* uniform_data_ptr, uint8_t* data_ptr, uint32_t data_size)
@@ -4240,45 +4274,6 @@ bail:
             return GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, asset_handle) != 0;
         }
         return false;
-    }
-
-    static HComputeProgram VulkanNewComputeProgram(HContext _context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
-    {
-        ShaderDesc::Shader* ddf_shader = GetShaderProgram(_context, ddf);
-        if (ddf_shader == 0x0)
-        {
-            return 0x0;
-        }
-
-        VulkanContext* context = (VulkanContext*) _context;
-        ShaderModule* shader   = new ShaderModule;
-        memset(shader, 0, sizeof(*shader));
-
-        VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf_shader->m_Source.m_Data, ddf_shader->m_Source.m_Count, VK_SHADER_STAGE_COMPUTE_BIT, shader);
-        CHECK_VK_ERROR(res);
-        CreateShaderMeta(&ddf->m_Reflection, &shader->m_ShaderMeta);
-
-        if (!ValidateShaderModule(context, shader, error_buffer, error_buffer_size))
-        {
-            DeleteComputeProgram((HComputeProgram) shader);
-            return 0;
-        }
-
-        return (HComputeProgram) shader;
-    }
-
-    static HProgram VulkanNewProgramFromCompute(HContext context, HComputeProgram compute_program)
-    {
-        VulkanProgram* program = new VulkanProgram;
-        CreateComputeProgram((VulkanContext*) context, program, (ShaderModule*) compute_program);
-        return (HProgram) program;
-    }
-
-    static void VulkanDeleteComputeProgram(HComputeProgram prog)
-    {
-        ShaderModule* shader = (ShaderModule*) prog;
-        DestroyShader(shader);
-        delete shader;
     }
 
     static void VulkanInvalidateGraphicsHandles(HContext context)

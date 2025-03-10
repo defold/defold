@@ -2,9 +2,12 @@ local M = {}
 
 -- LINUX
 
+local linux_platforms = {"x86_64-linux", "arm64-linux"}
+local linux_platform_to_string = editor.bundle.make_to_string_lookup({["x86_64-linux"] = "X64", ["arm64-linux"] = "Arm64"})
 local linux_bundle_dialog = editor.ui.component(function(props)
     local config, set_config = editor.ui.use_state(props.config)
-    return editor.bundle.dialog("Bundle Linux Application", config, nil, nil, {
+    return editor.bundle.dialog("Bundle linux Application", config, nil, nil, {
+        editor.bundle.grid_row("Platform", editor.bundle.select_box(config, set_config, "platform", linux_platforms, linux_platform_to_string)),
         editor.bundle.desktop_variant_grid_row(config, set_config),
         editor.bundle.texture_compression_grid_row(config, set_config),
         editor.bundle.check_boxes_grid_row(config, set_config)
@@ -13,8 +16,8 @@ end)
 
 local function bundle_linux(show_dialog)
     local config = editor.bundle.config(show_dialog, "bundle.linux", linux_bundle_dialog)
-    local output_directory = editor.bundle.output_directory(show_dialog, "x86_64-linux")
-    editor.bundle.create(config, output_directory, {platform = "x86_64-linux"})
+    local output_directory = editor.bundle.output_directory(show_dialog, config.platform)
+    editor.bundle.create(config, output_directory, {platform = config.platform, architectures = config.platform})
 end
 
 -- MACOS
@@ -119,7 +122,8 @@ local function find_existing_path(paths)
             for j = 1, #path do args[#args+1] = path[j] end
             args[#args+1] = {reload_resources = false, out = "capture"}
             local success, result = pcall(editor.execute, table.unpack(args))
-            resolved_path = success and result
+            -- take the first line in case e.g. `where` returns multiple matches
+            resolved_path = success and result and (result:match("^(.-)\r?\n") or result)
         else -- string
             local success, result = pcall(string.gsub, path, "%$(%w+)", function(var)
                 return assert(os.getenv(var))
@@ -537,7 +541,9 @@ function M.get_prefs_schema()
             contentless = editor.prefs.schema.boolean()
         }}),
         -- new, per-platform bundle settings
-        ["bundle.linux"] = editor.bundle.config_schema(editor.bundle.desktop_variant_schema),
+        ["bundle.linux"] = editor.bundle.config_schema(editor.bundle.desktop_variant_schema, {
+            platform = editor.prefs.schema.enum({values = linux_platforms})
+        }),
         ["bundle.macos"] = editor.bundle.config_schema(editor.bundle.desktop_variant_schema, {
             architectures = editor.prefs.schema.set({
                 item = editor.prefs.schema.enum({values = {"x86_64-macos", "arm64-macos"}}),

@@ -32,6 +32,7 @@
             [editor.handler :as handler]
             [editor.material :as material]
             [editor.math :as math]
+            [editor.outline :as outline]
             [editor.particlefx :as particlefx]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
@@ -61,7 +62,8 @@
             [util.http-server :as http-server]
             [util.text-util :as text-util]
             [util.thread-util :as thread-util])
-  (:import [clojure.core Vec]
+  (:import [ch.qos.logback.classic Level Logger]
+           [clojure.core Vec]
            [com.google.protobuf ByteString]
            [editor.properties Curve CurveSpread]
            [java.awt.image BufferedImage]
@@ -78,9 +80,12 @@
            [javafx.scene.paint Color]
            [javax.imageio ImageIO]
            [javax.vecmath Vector3d]
-           [org.apache.commons.io FilenameUtils IOUtils]))
+           [org.apache.commons.io FilenameUtils IOUtils]
+           [org.slf4j LoggerFactory]))
 
 (set! *warn-on-reflection* true)
+
+(.setLevel ^Logger (LoggerFactory/getLogger "org.eclipse.jetty") Level/ERROR)
 
 (def project-path "test/resources/test_project")
 
@@ -301,21 +306,16 @@
    (let [proj-graph (g/make-graph! :history true :volatility 1)
          extensions (extensions/make proj-graph)
          project (project/make-project proj-graph workspace extensions)
-         project (project/load-project project)]
+         project (project/load-project! project)]
      (g/reset-undo! proj-graph)
      project))
   ([workspace resources]
    (let [proj-graph (g/make-graph! :history true :volatility 1)
          extensions (extensions/make proj-graph)
          project (project/make-project proj-graph workspace extensions)
-         project (project/load-project project resources)]
+         project (project/load-project! project progress/null-render-progress! resources)]
      (g/reset-undo! proj-graph)
      project)))
-
-(defn load-project-nodes! [project resource-node-ids]
-  (let [{:keys [migrated-resource-node-ids node-load-infos]}
-        (#'project/load-nodes! project resource-node-ids (constantly nil) {} nil nil)]
-    (#'project/cache-loaded-save-data! node-load-infos project migrated-resource-node-ids)))
 
 (defn project-node-resources [project]
   (g/with-auto-evaluation-context evaluation-context
@@ -674,6 +674,56 @@
 
 (defn outline [root path]
   (get-in (g/node-value root :node-outline) (interleave (repeat :children) path)))
+
+(defrecord OutlineItemIterator [root path]
+  outline/ItemIterator
+  (value [_this]
+    (outline root path))
+  (parent [_this]
+    (when (not (empty? path))
+      (->OutlineItemIterator root (butlast path)))))
+
+(defn- make-outline-item-iterator [root-node-id outline-path]
+  {:pre [(g/node-id? root-node-id)
+         (vector? outline-path)
+         (every? nat-int? outline-path)]}
+  (->OutlineItemIterator root-node-id outline-path))
+
+(defn outline-copy
+  "Return a serialized a data representation of the specified parts of the
+  edited scene. The returned value could be placed on the clipboard and later
+  pasted into an edited scene."
+  [project root-node-id & outline-paths]
+  (let [item-iterators (mapv #(make-outline-item-iterator root-node-id %) outline-paths)]
+    (outline/copy project item-iterators)))
+
+(defn outline-cut!
+  "Cut the specified parts of the edited scene and return a data representation
+  of the cut nodes that can be placed on the clipboard."
+  [project root-node-id outline-path & mode-outline-paths]
+  (let [item-iterators (into [(make-outline-item-iterator root-node-id outline-path)]
+                             (map #(make-outline-item-iterator root-node-id %))
+                             mode-outline-paths)]
+    (outline/cut! project item-iterators)))
+
+(defn outline-paste!
+  "Paste the copied-data into the edited scene, similar to how the user would
+  perform this operation in the editor."
+  ([project root-node-id outline-path copied-data]
+   (outline-paste! project root-node-id outline-path copied-data nil))
+  ([project root-node-id outline-path copied-data select-fn]
+   (let [item-iterator (make-outline-item-iterator root-node-id outline-path)]
+     (assert (outline/paste? project item-iterator copied-data))
+     (outline/paste! project item-iterator copied-data select-fn))))
+
+(defn outline-duplicate!
+  "Simulate a copy-paste operation of the specified node in-place, typically how
+  a user might duplicate an element in the edited scene."
+  ([project root-node-id outline-path]
+   (outline-duplicate! project root-node-id outline-path nil))
+  ([project root-node-id outline-path select-fn]
+   (let [copied-data (outline-copy project root-node-id outline-path)]
+     (outline-paste! project root-node-id outline-path copied-data select-fn))))
 
 (defn- outline->str
   ([outline]
@@ -1139,6 +1189,21 @@
     (fs/delete-directory! build-directory {:fail :silently})
     (:error build-result)))
 
+(defn resolve-build-dependencies
+  "Returns a flat list of dependent build targets"
+  [node-id project]
+  (let [ret (build/resolve-node-dependencies node-id project)]
+    (when-not (is (not (g/error-value? ret)))
+      (let [path (some-> (g/maybe-node-value node-id :resource) resource/proj-path)
+            cause (->> ret
+                       (tree-seq :causes :causes)
+                       (some :message))]
+        (throw (ex-info (str "Failed to build"
+                             (when path (str " " path))
+                             (when cause (str ": " cause)))
+                        {:error ret}))))
+    ret))
+
 (defn node-build-resource [node-id]
   (:resource (first (g/node-value node-id :build-targets))))
 
@@ -1151,8 +1216,7 @@
     (:resource (nth (:deps (first (g/node-value resource-node :build-targets))) index))))
 
 (def texture-build-resource (partial nth-dep-build-resource 0))
-(def vertex-shader-build-resource (partial nth-dep-build-resource 0))
-(def fragment-shader-build-resource (partial nth-dep-build-resource 1))
+(def shader-program-build-resource (partial nth-dep-build-resource 0))
 
 (defn build-output
   ^bytes [project path]
@@ -1613,3 +1677,21 @@
 
 (defmacro check-thrown-with-data! [expected-data-pred & body]
   `(is (~'thrown-with-data? ~expected-data-pred ~@body)))
+
+(defmethod test/assert-expr 'thrown-with-root-cause-msg? [msg [_ re & body :as form]]
+  `(try
+     (do ~@body)
+     (test/do-report {:type :fail :message ~msg :expected '~form :actual nil})
+     (catch Throwable e#
+       (let [^Throwable root# (loop [e# e#]
+                                (if-let [cause# (ex-cause e#)]
+                                  (recur cause#)
+                                  e#))
+             m# (.getMessage root#)]
+         (if (re-find ~re m#)
+           (test/do-report {:type :pass :message ~msg :expected '~form :actual e#})
+           (test/do-report {:type :fail, :message ~msg, :expected '~form :actual e#})))
+       e#)))
+
+(defmacro check-thrown-with-root-cause-msg! [re & body]
+  `(is (~'thrown-with-root-cause-msg? ~re ~@body)))

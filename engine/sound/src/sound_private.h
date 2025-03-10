@@ -28,6 +28,8 @@ namespace dmSound
 
     bool PlatformIsAudioInterrupted();
 
+    uint32_t GetDefaultFrameCount(uint32_t mix_rate);
+
     // Unit tests
     int64_t GetInternalPos(HSoundInstance);
     int32_t GetRefCount(HSoundData);

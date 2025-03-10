@@ -67,6 +67,8 @@ namespace dmGameSystem
     static const dmhash_t PROP_TEXTURES = dmHashString64("textures");
     static const dmhash_t PROP_TILE_SOURCE = dmHashString64("tile_source");
 
+    static const dmGraphics::TextureFormat BIND_POSE_CACHE_TEXTURE_FORMAT = dmGraphics::TEXTURE_FORMAT_RGBA32F;
+
     struct EmitterStateChangedScriptData
     {
         EmitterStateChangedScriptData()
