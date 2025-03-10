@@ -3,6 +3,7 @@ local M = {}
 
 
 M.BUILD_DIR = "build/default"
+M.GEN_DIR = "build/gen"
 
 
 function M.setup_project(proj_dir, log_domain)

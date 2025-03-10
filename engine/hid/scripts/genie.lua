@@ -70,6 +70,7 @@ project "test_app_hid"
         links { "Cocoa.framework", "QuartzCore.framework", "IOKit.framework", "OpenGL.framework", "CoreVideo.framework" }
 
     files {
+        path.join(proj.GEN_DIR, "exported_symbols.cpp"),
         path.join(PROJ_DIR, "src/test/test_app_hid.cpp"),
         path.join(PROJ_DIR, "src/test/*.h"),
     }
