@@ -54,6 +54,7 @@
                        "m4a" "audio/mp4",
                        "oga" "audio/ogg",
                        "ogg" "audio/ogg",
+                       "opus" "audio/ogg",
                        "wav" "audio/wav",
                        "woff" "font/woff",
                        "woff2" "font/woff2",

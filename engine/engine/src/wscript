@@ -55,7 +55,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/engine', 'engine.h')
     bld.install_files('${PREFIX}/share/proto/engine', '../proto/engine/engine_ddf.proto')
 
-    additional_libs = ['CRASH', 'OPUS']
+    additional_libs = ['CRASH']
 
     resource_type_symbols = ['ResourceTypeGameObject', 'ResourceTypeCollection', 'ResourceTypeScript', 'ResourceTypeLua',
                              'ResourceTypeAnim', 'ResourceTypeAnimationSet', 'ResourceTypeGui', 'ResourceTypeGuiScript',
@@ -74,6 +74,8 @@ def build(bld):
     else:
         exported_symbols.append('AudioDecoderTremolo')
         additional_libs.append('TREMOLO')
+
+    additional_libs.append('OPUS')
 
     graphics_lib = 'GRAPHICS DMGLFW OPENGL'
     graphics_lib_symbols = ['GraphicsAdapterOpenGL']
