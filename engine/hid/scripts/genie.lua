@@ -55,7 +55,7 @@ solution "Defold"
 
         project "test_hid"
             kind "ConsoleApp"
-            wholearchive { "hid_null" } --tests use unstripped libraries
+            --wholearchive { "hid_null" } --tests use unstripped libraries
 
             configuration {}
                 links { "hid_null", "dlib", "profile_null", "platform_null"}
@@ -69,7 +69,7 @@ solution "Defold"
             kind "ConsoleApp"
 
             links { "hid", "dlib", "profile_null", "platform", "glfw3", "graphics"}
-            wholearchive { "hid" } --tests use unstripped libraries
+            --wholearchive { "hid" } --tests use unstripped libraries
 
             configuration {"x86_64-macos or arm64-macos"}
                 links { "Cocoa.framework", "QuartzCore.framework", "IOKit.framework", "OpenGL.framework", "CoreVideo.framework" }
@@ -77,10 +77,6 @@ solution "Defold"
             -- generate the file upfront
             local exported_symbols = {"GraphicsAdapterOpenGL"}
             dm_library.run_command(string.format("python %s %s %s", path.join(DEFOLD_SCRIPT_PATH, "gen_exported_symbols.py"), path.join(proj.GEN_DIR, "exported_symbols.cpp"), table.concat(exported_symbols, " ")))
-
-            -- prebuildcommands {
-            --         string.format("python %s %s %s", path.join(DEFOLD_SCRIPT_PATH, "gen_exported_symbols.py"), path.join(proj.GEN_DIR, "exported_symbols.cpp"), table.concat(exported_symbols, " ")),
-            --     }
 
             files {
                 path.join(proj.GEN_DIR, "exported_symbols.cpp"),
