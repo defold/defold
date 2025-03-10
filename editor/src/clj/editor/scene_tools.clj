@@ -587,7 +587,7 @@
   (input camera g/Any)
   (input viewport g/Any)
   (input selected-renderables g/Any)
-  
+
   (output renderables pass/RenderData :cached produce-renderables)
   (output input-handler Runnable :cached (g/constantly handle-input))
   (output info-text g/Str (g/constantly nil))
