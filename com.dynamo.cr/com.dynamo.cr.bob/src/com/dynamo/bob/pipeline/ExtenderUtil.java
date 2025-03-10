@@ -1227,7 +1227,11 @@ public class ExtenderUtil {
 
     public static Map<String, Object>getPlatformSettings(Project project, String platform) throws CompileExceptionError, IOException {
         Map<String, Object> platformSettingsFromExtensions = getPlatformSettingsFromExtensions(project, platform);
-        Map<String, Object> platformSettings = addManifest(getProjectResource(project, "native_extension", "app_manifest"), platformSettingsFromExtensions, platform);
+        IResource projectAppManifest = getProjectResource(project, "native_extension", "app_manifest");
+        Map<String, Object> platformSettings = platformSettingsFromExtensions;
+        if (projectAppManifest != null) {
+            platformSettings = addManifest(projectAppManifest, platformSettingsFromExtensions, platform);
+        }
         return platformSettings;
     }
 
