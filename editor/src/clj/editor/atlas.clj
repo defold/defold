@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.atlas
-  (:require [dynamo.graph :as g]
+  (:require [clojure.string :as str]
+            [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.camera :as c]
             [editor.colors :as colors]
@@ -51,8 +52,7 @@
             [schema.core :as s]
             [util.digestable :as digestable]
             [util.fn :as fn]
-            [util.murmur :as murmur]
-            [clojure.string :as str])
+            [util.murmur :as murmur])
   (:import [com.dynamo.bob.pipeline AtlasUtil ShaderUtil$Common ShaderUtil$VariantTextureArrayFallback]
            [com.dynamo.bob.textureset TextureSetGenerator$LayoutResult]
            [com.dynamo.gamesys.proto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage TextureSetProto$TextureSet Tile$Playback]
@@ -63,8 +63,8 @@
            [java.io File]
            [java.nio ByteBuffer]
            [java.util List]
-           [javax.vecmath AxisAngle4d Matrix4d Point3d Vector3d]
-           [javafx.scene.input Dragboard DragEvent]))
+           [javafx.scene.input Dragboard DragEvent]
+           [javax.vecmath AxisAngle4d Matrix4d Point3d Vector3d]))
 
 (set! *warn-on-reflection* true)
 

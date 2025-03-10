@@ -51,19 +51,19 @@
       :undefined action
       :scroll (let [scroll-event ^ScrollEvent jfx-event]
                 (assoc action
-                       :x (.getX scroll-event)
-                       :y (.getY scroll-event)
-                       :delta-x (.getDeltaX scroll-event)
-                       :delta-y (.getDeltaY scroll-event)
-                       :alt (.isAltDown scroll-event)
-                       :shift (.isShiftDown scroll-event)
-                       :meta (.isMetaDown scroll-event)
-                       :control (.isControlDown scroll-event)))
+                  :x (.getX scroll-event)
+                  :y (.getY scroll-event)
+                  :delta-x (.getDeltaX scroll-event)
+                  :delta-y (.getDeltaY scroll-event)
+                  :alt (.isAltDown scroll-event)
+                  :shift (.isShiftDown scroll-event)
+                  :meta (.isMetaDown scroll-event)
+                  :control (.isControlDown scroll-event)))
       :drag-over (let [drag-event ^DragEvent jfx-event]
                    (.acceptTransferModes drag-event TransferMode/ANY)
                    (assoc action
-                          :x (.getX drag-event)
-                          :y (.getY drag-event)))
+                     :x (.getX drag-event)
+                     :y (.getY drag-event)))
       :drag-dropped (let [drag-event ^DragEvent jfx-event]
                       (assoc action
                         :x (.getX drag-event)
