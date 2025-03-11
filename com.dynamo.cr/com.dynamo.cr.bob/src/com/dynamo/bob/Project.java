@@ -1433,31 +1433,56 @@ public class Project {
         return false;
     }
 
-    private void configurePreBuildProjectOptions() throws IOException, CompileExceptionError {
-        // Build spir-v or HLSL either if:
-        //   1. If the user has specified explicitly to build or not to build with spir-v or HLSL
-        //   2. The project has an app manifest with vulkan or DX12 enabled
-        if (this.hasOption("debug-output-spirv")) {
-            this.setOption("output-spirv", this.option("debug-output-spirv", "false"));
-        } else {
-            this.setOption("output-spirv", hasSymbol("GraphicsAdapterVulkan") ? "true" : "false");
+    /**
+     *  Options from the `game.project` file that may affect build outputs.
+     */
+    private static class GameProjectBuildOption {
+        public String inputOption, outputOption, propertyCategory, propertyKey, appManifestSymbol;
+        /**
+         * @param inputOption        Option that may be used with Bob.
+         * @param outputOption       How the option will be saved in project options using project.setOption() for future use.
+         * @param propertyCategory   Category in the `game.project` file.
+         * @param propertyKey        Key in the `game.project` file.
+         * @param appManifestSymbol  A symbol from appManifest that makes this option true.
+         */
+        public GameProjectBuildOption(String inputOption, String outputOption, String propertyCategory, String propertyKey, String appManifestSymbol) {
+            this.inputOption = inputOption;
+            this.outputOption = outputOption;
+            this.propertyCategory = propertyCategory;
+            this.propertyKey = propertyKey;
+            this.appManifestSymbol = appManifestSymbol;
+        }
+    }
+
+    public void configurePreBuildProjectOptions() throws IOException, CompileExceptionError {
+        List<GameProjectBuildOption> options = new ArrayList<>();
+        options.add(new GameProjectBuildOption("debug-output-spirv", "output-spirv", "shader","output_spirv","GraphicsAdapterVulkan"));
+        options.add(new GameProjectBuildOption("debug-output-hlsl", "output-hlsl", "shader","output_hlsl","GraphicsAdapterDX12"));
+        options.add(new GameProjectBuildOption("debug-output-wgsl", "output-wgsl", "shader","output_wgsl","GraphicsAdapterWebGPU"));
+        options.add(new GameProjectBuildOption("output-glsles100", "output-glsles100", "shader","output_glsl_es100",null));
+        options.add(new GameProjectBuildOption("output-glsles300", "output-glsles300", "shader","output_glsl_es300",null));
+        options.add(new GameProjectBuildOption("output-glsl120", "output-glsl120", "shader","output_glsl120",null));
+        options.add(new GameProjectBuildOption("output-glsl330", "output-glsl330", "shader","output_glsl330",null));
+        options.add(new GameProjectBuildOption("output-glsl430", "output-glsl430", "shader","output_glsl430",null));
+
+        options.add(new GameProjectBuildOption("sound-stream-enabled", "sound-stream-enabled", "sound","stream_enabled",null));
+        options.add(new GameProjectBuildOption("model-split-large-meshes", "model-split-large-meshes", "model","split_meshes",null));
+        options.add(new GameProjectBuildOption("prometheus-disabled", "prometheus-disabled", "prometheus","disabled",null));
+
+        for(GameProjectBuildOption option:options) {
+            boolean fromProjectProperties = this.getProjectProperties().getBooleanValue(option.propertyCategory, option.propertyKey, false);
+            if (this.hasOption(option.inputOption)) {
+                boolean fromProjectOptions = this.option(option.inputOption, "false").equals("true");
+                this.setOption(option.outputOption, Boolean.toString(fromProjectProperties || fromProjectOptions));
+            } else if (option.appManifestSymbol != null) {
+                this.setOption(option.outputOption, Boolean.toString(hasSymbol(option.appManifestSymbol) || fromProjectProperties));
+            } else {
+                this.setOption(option.outputOption, Boolean.toString(fromProjectProperties));
+            }
         }
 
-        if (this.hasOption("debug-output-hlsl")) {
-            this.setOption("output-hlsl", this.option("debug-output-hlsl", "false"));
-        } else {
-            this.setOption("output-hlsl", hasSymbol("GraphicsAdapterDX12") ? "true" : "false");
-        }
-
-        // Build wgsl either if:
-        //   1. If the user has specified explicitly to build or not to build with wgsl
-        //   2. The project has an app manifest with webgpu enabled
-        String outputWGSL;
-        if (this.hasOption("debug-output-wgsl"))
-            outputWGSL = this.option("debug-output-wgsl", "false");
-        else
-            outputWGSL = hasSymbol("GraphicsAdapterWebGPU") ? "true" : "false";
-        this.setOption("output-wgsl", outputWGSL);
+        boolean isPhysics2D = this.getProjectProperties().getStringValue("physics", "type", "2D").equals("2D");
+        this.setOption("physics-type-2D", Boolean.toString(isPhysics2D));
     }
 
     private ArrayList<TextureCompressorPreset> parseTextureCompressorPresetFromJSON(String fromPath, byte[] data) throws CompileExceptionError {
@@ -1648,7 +1673,6 @@ public class Project {
         mrep.beginTask("Reading tasks...", 1);
         TimeProfiler.start("Create tasks");
         BundleHelper.throwIfCanceled(monitor);
-        configurePreBuildProjectOptions();
         createTasks();
         validateBuildResourceMapping();
         TimeProfiler.addData("TasksCount", tasks.size());
@@ -1733,7 +1757,8 @@ public class Project {
         BundleHelper.throwIfCanceled(monitor);
 
         monitor.beginTask("Working...", 100);
-
+        // it should be done before scanJavaClasses to have updated options
+        configurePreBuildProjectOptions();
         {
             TimeProfiler.start("scanJavaClasses");
             IProgress mrep = monitor.subProgress(1);
