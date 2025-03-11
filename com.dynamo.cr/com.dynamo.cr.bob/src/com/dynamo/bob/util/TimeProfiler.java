@@ -176,7 +176,7 @@ public class TimeProfiler {
     }
 
     public static void createReport() {
-        if (rootScopes.isEmpty()) {
+        if (rootScopes.isEmpty() || reportFiles == null || reportFiles.isEmpty()) {
             return;
         }
         long reportStartTime = time();
