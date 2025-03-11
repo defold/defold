@@ -4096,11 +4096,6 @@ bail:
         return GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture)->m_Depth;
     }
 
-    static uint16_t VulkanGetTextureLayerCount(HTexture texture)
-    {
-        return GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture)->m_LayerCount;
-    }
-
     static uint8_t VulkanGetTextureMipmapCount(HTexture texture)
     {
         return GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture)->m_MipMapCount;

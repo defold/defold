@@ -1507,9 +1507,6 @@ static void PushTextureInfo(lua_State* L, dmGraphics::HTexture texture_handle)
     lua_pushinteger(L, texture_height);
     lua_setfield(L, -2, "height");
 
-    lua_pushinteger(L, texture_depth);
-    lua_setfield(L, -2, "depth");
-
     lua_pushinteger(L, texture_mipmaps);
     lua_setfield(L, -2, "mipmaps");
 
@@ -1518,6 +1515,19 @@ static void PushTextureInfo(lua_State* L, dmGraphics::HTexture texture_handle)
 
     lua_pushinteger(L, texture_flags);
     lua_setfield(L, -2, "flags");
+
+    // JG: We use depth to indicate the sides of a cube map, but the actual texture depth is 1,
+    //     since it's not a 3D texture. This is a technicality that should't matter for now at least.
+    if (texture_type == dmGraphics::TEXTURE_TYPE_CUBE_MAP)
+    {
+        lua_pushinteger(L, 6);
+        lua_setfield(L, -2, "depth");
+    }
+    else
+    {
+        lua_pushinteger(L, texture_depth);
+        lua_setfield(L, -2, "depth");
+    }
 }
 
 static int GetTextureInfo(lua_State* L)
