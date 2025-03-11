@@ -115,7 +115,7 @@ PACKAGES_ALL=[
     "bullet-2.77",
     "libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a",
     "jctest-0.10.2",
-    "vulkan-v1.4.307"
+    "vulkan-v1.4.307",
     "box2d-28adacf82377d4113f2ed00586141463244b9d10"]
 
 PACKAGES_HOST=[
