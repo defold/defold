@@ -281,6 +281,8 @@ class Configuration(object):
                  gcloud_keyname = None,
                  gcloud_certfile = None,
                  gcloud_keyfile = None,
+                 use_genie = None,
+                 genie_build_type = None,
                  verbose = False):
 
         if sys.platform == 'win32':
@@ -329,6 +331,8 @@ class Configuration(object):
         self.gcloud_keyname = gcloud_keyname
         self.gcloud_certfile = gcloud_certfile
         self.gcloud_keyfile = gcloud_keyfile
+        self.use_genie = use_genie,
+        self.genie_build_type = genie_build_type,
         self.verbose = verbose
 
         if self.github_token is None:
@@ -1156,6 +1160,71 @@ class Configuration(object):
 # <- Gen source files
 # ------------------------------------------------------------
 
+    # ------------------------------------------------------------
+    # <- Gen project files
+
+
+    def _lib_supports_genie(self, lib):
+        cwd = join(self.defold_root, 'engine/%s' % lib)
+        genie_lua = join(cwd, 'scripts/genie.lua')
+        return os.path.exists(genie_lua)
+
+    def gen_project_files(self):
+        genie = join(self.dynamo_home, 'ext/bin/%s/genie' % get_host_platform())
+        if not os.path.exists(genie):
+            self.fatal(f"Couldn't find '{genie}'")
+
+        project_type = 'ninja'
+
+        for lib in ENGINE_LIBS:
+            cwd = join(self.defold_root, 'engine/%s' % lib)
+            genie_lua = join(cwd, 'scripts/genie.lua')
+            if os.path.exists(genie_lua):
+                self._log("********************************************")
+                self._log("Generating project files for %s" % lib)
+                args = [genie, '--target=%s' % self.target_platform, project_type]
+                run.env_command(self._form_env(), args, cwd = cwd)
+
+        self._log("Done")
+        self._log("********************************************")
+
+    def _build_engine_lib_with_generator(self, lib):
+        build_type = isinstance(self.genie_build_type, str) and self.genie_build_type or self.genie_build_type[0]
+        cwd = join(self.defold_root, 'engine/%s' % lib)
+        build_folder = join(cwd, 'build/%s' % build_type)
+        if not os.path.exists(build_folder):
+            self.fatal("You must generate project files first! See `gen_project_files´ command")
+
+        if build_type == 'ninja':
+            makefile = join(build_folder, 'Makefile')
+            if not os.path.exists(makefile):
+                self.fatal(f"Missing Makefile ({makefile}), you must generate project files first! See `gen_project_files´ command")
+
+            run.env_command(self._form_env(), ['make', '-j8'], cwd = build_folder)
+
+        else:
+            self.fatal(f"Unsupported build type '%s'" % build_type)
+
+    def _has_test_script(self, lib):
+        cwd = join(self.defold_root, 'engine/%s' % lib)
+        script = join(cwd, 'scripts/test.py')
+        return os.path.exists(script)
+
+    def _run_test_script(self, lib):
+        cwd = join(self.defold_root, 'engine/%s' % lib)
+        script = join(cwd, 'scripts/test.py')
+        args = self.get_python() + [script, self.target_platform]
+        try:
+            output = run.env_command(self._form_env(), args, cwd = cwd)
+            self._log(output)
+        except:
+            self.fatal("%s: Failed to run test: '%s'" % (cwd,' '.join(args)))
+
+
+    # <- Gen project files
+    # ------------------------------------------------------------
+
+
     def _build_engine_cmd(self, skip_tests, skip_codesign, disable_ccache, generate_compile_commands, prefix):
         prefix = prefix and prefix or self.dynamo_home
         commands = "build install"
@@ -1223,7 +1292,15 @@ class Configuration(object):
         host = self.host
         # Make sure we build these for the host platform for the toolchain (bob light)
         for lib in HOST_LIBS:
-            self._build_engine_lib(args, lib, host)
+            if self.use_genie and self._lib_supports_genie(lib):
+                self._build_engine_lib_with_generator(lib)
+            else:
+                self._build_engine_lib(args, lib, host)
+
+            if not self.skip_tests:
+                if self._has_test_script(lib):
+                    self._run_test_script(lib)
+
         if not self.skip_bob_light:
             # We must build bob-light, which builds content during the engine build
             self.build_bob_light()
@@ -1239,7 +1316,19 @@ class Configuration(object):
 
             if not build_private.is_library_supported(target_platform, lib):
                 continue
-            self._build_engine_lib(args, lib, target_platform)
+
+            if self.use_genie and self._lib_supports_genie(lib):
+                self._build_engine_lib_with_generator(lib)
+            else:
+                self._build_engine_lib(args, lib, target_platform)
+
+            if self.use_genie and not self.skip_tests:
+                if self._has_test_script(lib):
+                    self._run_test_script(lib)
+                else:
+                    self._log("%s: No test script found. Skipping." % lib.upper())
+
+        return
 
         self._build_engine_lib(args, 'extender', target_platform, dir = 'share')
         if not self.skip_docs:
@@ -2523,6 +2612,15 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = False,
                       help = 'If used, outputs verbose logging')
 
+    parser.add_option('--use-genie', dest='use_genie',
+                      action = 'store_true',
+                      default = False,
+                      help = 'Generate projects using GENie, and run tests using Ninja')
+
+    parser.add_option('--genie-build-type', dest='genie_build_type',
+                      default = 'ninja',
+                      help = 'Generate projects using GENie, and run tests using Ninja')
+
     options, all_args = parser.parse_args()
 
     args = list(filter(lambda x: x[:2] != '--', all_args))
@@ -2567,6 +2665,8 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       gcloud_keyname = options.gcloud_keyname,
                       gcloud_certfile = options.gcloud_certfile,
                       gcloud_keyfile = options.gcloud_keyfile,
+                      use_genie = options.use_genie,
+                      genie_build_type = options.genie_build_type,
                       verbose = options.verbose)
 
     needs_dynamo_home = True

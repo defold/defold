@@ -22,7 +22,7 @@ dm_solution.setup()
 -- Local project settings
 
 PROJ_DIR = path.getabsolute("..")
-proj = dm_library.setup_project(PROJ_DIR, "HID")
+proj = dm_library.setup_project(PROJ_DIR, "HID", _OPTIONS['target'])
 
 -------------------------------------------------------------------------------------------------------------------
 -- Local projects

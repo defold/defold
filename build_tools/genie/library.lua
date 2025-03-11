@@ -2,12 +2,13 @@
 local M = {}
 
 
-function M.setup_project(proj_dir, log_domain)
-    local BUILD_DIR = path.join(proj_dir, "build/" .. _ACTION)
+function M.setup_project(proj_dir, log_domain, platform)
+    local BUILD_DIR = path.join(proj_dir, "build/bin/" .. platform)
+    local PROJECT_DIR = path.join(proj_dir, "build/" .. _ACTION)
     local GEN_DIR = path.join(proj_dir, "build/gen")
 
     solution "Defold"
-        location( BUILD_DIR ) -- the solution files
+        location( PROJECT_DIR ) -- the solution files
 
         targetdir( BUILD_DIR ) -- the binary output files
 
