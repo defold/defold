@@ -23,10 +23,10 @@ namespace dmGameSystem
 {
     void MakeTextureImage(CreateTextureResourceParams params, dmGraphics::TextureImage* texture_image)
     {
-        uint32_t* mip_map_sizes              = new uint32_t[params.m_MaxMipMaps];
+        uint32_t* mip_map_data_size          = new uint32_t[params.m_MaxMipMaps];
         uint32_t* mip_map_offsets            = new uint32_t[params.m_MaxMipMaps];
         uint32_t* mip_map_offsets_compressed = new uint32_t[1];
-        uint32_t* mip_map_dimensions         = new uint32_t[2];
+        uint32_t* mip_map_dimensions         = new uint32_t[params.m_MaxMipMaps * 2];
         uint8_t layer_count                  = GetLayerCount(params.m_Type);
 
         uint32_t data_size = 0;
@@ -34,11 +34,19 @@ namespace dmGameSystem
         uint16_t mm_height = params.m_Height;
         for (uint32_t i = 0; i < params.m_MaxMipMaps; ++i)
         {
-            mip_map_sizes[i]    = dmMath::Max(mm_width, mm_height);
-            mip_map_offsets[i]  = (data_size / 8);
-            data_size          += mm_width * mm_height * params.m_TextureBpp * layer_count;
-            mm_width           /= 2;
-            mm_height          /= 2;
+            mip_map_offsets[i]            = (data_size / 8);
+            mip_map_dimensions[i * 2 + 0] = mm_width;
+            mip_map_dimensions[i * 2 + 1] = mm_height;
+
+            // Calculate the data size per mipmap in bytes
+            // Graphics APIs require that the data size is _per slice_ and not the whole texture.
+            // This is a quirk from how the OpenGL adapter is implemented, and should probably be fixed.
+            uint32_t data_size_per_slice  = mm_width * mm_height * params.m_TextureBpp;
+            data_size                    += data_size_per_slice * layer_count;
+            mip_map_data_size[i]          = data_size_per_slice / 8;
+
+            mm_width                     /= 2;
+            mm_height                    /= 2;
         }
         assert(data_size > 0);
 
@@ -68,9 +76,6 @@ namespace dmGameSystem
         //       so we only need a pointer here for the data offset.
         mip_map_offsets_compressed[0] = image_data_size;
 
-        mip_map_dimensions[0] = params.m_Width;
-        mip_map_dimensions[1] = params.m_Height;
-
         dmGraphics::TextureImage::Image* image = new dmGraphics::TextureImage::Image();
         texture_image->m_Alternatives.m_Data   = image;
         texture_image->m_Alternatives.m_Count  = 1;
@@ -87,13 +92,13 @@ namespace dmGameSystem
         image->m_CompressionType              = params.m_CompressionType;
         image->m_MipMapOffset.m_Data          = mip_map_offsets;
         image->m_MipMapOffset.m_Count         = params.m_MaxMipMaps;
-        image->m_MipMapSize.m_Data            = mip_map_sizes;
+        image->m_MipMapSize.m_Data            = mip_map_data_size;
         image->m_MipMapSize.m_Count           = params.m_MaxMipMaps;
         image->m_MipMapSizeCompressed.m_Data  = mip_map_offsets_compressed;
         image->m_MipMapSizeCompressed.m_Count = 1;
 
         image->m_MipMapDimensions.m_Data  = mip_map_dimensions;
-        image->m_MipMapDimensions.m_Count = 2;
+        image->m_MipMapDimensions.m_Count = params.m_MaxMipMaps * 2;
     }
 
     void DestroyTextureImage(dmGraphics::TextureImage& texture_image, bool destroy_image_data)
