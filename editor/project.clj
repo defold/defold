@@ -63,6 +63,8 @@
                      [com.defold.lib/bob                          "1.0"]
                      [com.defold.lib/openmali                     "1.0"]
 
+                     [metosin/reitit-core "0.8.0-alpha1"]
+
                      [org.commonmark/commonmark "0.21.0"]
                      [org.commonmark/commonmark-ext-autolink "0.21.0"]
 
@@ -272,8 +274,7 @@
                                                     [io.github.cljfx/dev "1.0.39"]
                                                     [org.clojure/test.check "1.1.1"]
                                                     [org.clojure/tools.trace "0.7.9"]
-                                                    [org.mockito/mockito-core "1.10.19"]
-                                                    [ring "1.9.6"]]
+                                                    [org.mockito/mockito-core "1.10.19"]]
                                 :source-paths      ["src/dev"]
                                 :repl-options      {:init-ns user}
                                 :proto-paths       ["test/proto"]

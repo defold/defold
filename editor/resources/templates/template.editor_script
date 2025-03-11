@@ -21,4 +21,11 @@ function M.get_prefs_schema()
     return {}
 end
 
+function M.get_server_routes()
+    -- Define HTTP server routes for the editor HTTP server
+    -- Learn more: https://defold.com/manuals/editor-scripts/#http-server
+    -- Remove this function if not needed
+    return {}
+end
+
 return M

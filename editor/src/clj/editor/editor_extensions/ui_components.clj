@@ -53,7 +53,7 @@
             [util.coll :as coll :refer [pair]]
             [util.fn :as fn])
   (:import [com.defold.control DefoldStringConverter]
-           [com.defold.editor.luart DefoldVarArgFn]
+           [com.defold.editor.luart DefoldLuaFn]
            [java.nio.file Path]
            [java.util Collection List]
            [javafx.animation SequentialTransition TranslateTransition]
@@ -723,7 +723,7 @@
 ;; regions value_field's friends
 
 (def ^:private lua-to-string-fn
-  (DefoldVarArgFn.
+  (DefoldLuaFn.
     (fn to-lua-string [^LuaValue arg]
       ;; translated from package-private org.luaj.vm2.lib.BaseLib$tostring
       (let [h (.metatag arg LuaValue/TOSTRING)]
@@ -740,7 +740,7 @@
                :to_value lua-to-string-fn))
 
 (def ^:private lua-to-integer-fn
-  (DefoldVarArgFn.
+  (DefoldLuaFn.
     (fn to-lua-integer [^LuaValue arg]
       (rt/->lua (field-expression/to-long (.tojstring arg))))))
 
@@ -750,7 +750,7 @@
                :to_value lua-to-integer-fn))
 
 (def ^:private lua-to-number-fn
-  (DefoldVarArgFn.
+  (DefoldLuaFn.
     (fn to-lua-number [^LuaValue arg]
       (rt/->lua (field-expression/to-double (.tojstring arg))))))
 
@@ -1141,7 +1141,7 @@
 
 (def ^:private function-component-lua-fn
   (rt/lua-fn function-component [{:keys [rt]} lua-fn]
-    (DefoldVarArgFn.
+    (DefoldLuaFn.
       (fn create-function-component [lua-props]
         (let [read-only-props (rt/->clj rt ui-docs/read-only-props-coercer lua-props)]
           (-> {:fx/type lua-component-lifecycle
@@ -1250,7 +1250,7 @@
 ;; endregion
 
 (defn- make-hook-lua-fn [hook]
-  (DefoldVarArgFn.
+  (DefoldLuaFn.
     (fn hook-fn [& lua-args]
       (let [component-atom (or *current-component-atom*
                                (throw (LuaError. (format "Cannot use '%s' hook outside of component functions" (:name hook)))))
