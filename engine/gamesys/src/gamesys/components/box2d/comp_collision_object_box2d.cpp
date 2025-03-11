@@ -157,13 +157,13 @@ namespace dmGameSystem
         CollisionWorldBox2D* world = new CollisionWorldBox2D();
         memset(world, 0, sizeof(CollisionWorldBox2D));
 
+        InstallBox2DPhysicsAdapter();
+
         world->m_BaseWorld.m_AdapterFunctions = g_PhysicsAdapter;
         world->m_World2D                      = physics_world;
         world->m_ComponentTypeIndex           = params.m_ComponentIndex;
         world->m_FirstUpdate                  = 1;
         world->m_Components.SetCapacity(comp_count);
-
-        InstallBox2DPhysicsAdapter();
 
         *params.m_World = world;
         return dmGameObject::CREATE_RESULT_OK;
