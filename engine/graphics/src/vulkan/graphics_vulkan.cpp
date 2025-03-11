@@ -1951,10 +1951,13 @@ bail:
             case ShaderDesc::SHADER_TYPE_SAMPLER3D:
             case ShaderDesc::SHADER_TYPE_SAMPLER_CUBE:
             case ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY:
+            case ShaderDesc::SHADER_TYPE_SAMPLER3D_ARRAY:
                 return VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 
             case ShaderDesc::SHADER_TYPE_IMAGE2D:
             case ShaderDesc::SHADER_TYPE_UIMAGE2D:
+            case ShaderDesc::SHADER_TYPE_IMAGE3D:
+            case ShaderDesc::SHADER_TYPE_UIMAGE3D:
                 return VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
 
             // Render pass inputs
@@ -1962,10 +1965,13 @@ bail:
                 return VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
 
             // Texture objects
+            case ShaderDesc::SHADER_TYPE_TEXTURE_CUBE:
             case ShaderDesc::SHADER_TYPE_TEXTURE2D:
             case ShaderDesc::SHADER_TYPE_TEXTURE2D_ARRAY:
-            case ShaderDesc::SHADER_TYPE_TEXTURE_CUBE:
             case ShaderDesc::SHADER_TYPE_UTEXTURE2D:
+            case ShaderDesc::SHADER_TYPE_TEXTURE3D:
+            case ShaderDesc::SHADER_TYPE_TEXTURE3D_ARRAY:
+            case ShaderDesc::SHADER_TYPE_UTEXTURE3D:
                 return VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
 
             // Storage buffers

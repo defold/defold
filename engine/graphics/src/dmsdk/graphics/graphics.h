@@ -446,6 +446,8 @@ namespace dmGraphics
         TYPE_SAMPLER_3D       = 21,
         TYPE_TEXTURE_3D       = 22,
         TYPE_IMAGE_3D         = 23,
+        TYPE_SAMPLER_3D_ARRAY = 24,
+        TYPE_TEXTURE_3D_ARRAY = 25,
     };
 
     /*#

@@ -357,6 +357,13 @@ message ShaderDesc
         SHADER_TYPE_STORAGE_BUFFER    = 24;
         SHADER_TYPE_TEXTURE2D_ARRAY   = 25;
         SHADER_TYPE_TEXTURE_CUBE      = 26;
+
+        SHADER_TYPE_TEXTURE3D         = 27;
+        SHADER_TYPE_UTEXTURE3D        = 28;
+        SHADER_TYPE_UIMAGE3D          = 29;
+        SHADER_TYPE_IMAGE3D           = 30;
+        SHADER_TYPE_SAMPLER3D_ARRAY   = 31;
+        SHADER_TYPE_TEXTURE3D_ARRAY   = 32;
     }
 
     message ResourceType

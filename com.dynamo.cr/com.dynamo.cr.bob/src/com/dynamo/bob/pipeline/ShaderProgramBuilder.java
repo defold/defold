@@ -215,7 +215,11 @@ public class ShaderProgramBuilder extends Builder {
                     }
                 }
                 case DIMENSION_TYPE_3D -> {
-                    return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D;
+                    if (type.imageIsArrayed) {
+                        return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D_ARRAY;
+                    } else {
+                        return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D;
+                    }
                 }
                 case DIMENSION_TYPE_CUBE -> {
                     return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE;
@@ -237,6 +241,20 @@ public class ShaderProgramBuilder extends Builder {
                     return ShaderDesc.ShaderDataType.SHADER_TYPE_UTEXTURE2D;
                 } else if (type.imageBaseType == Shaderc.BaseType.BASE_TYPE_FP32) {
                     return ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE2D;
+                }
+            } else if (type.dimensionType == Shaderc.DimensionType.DIMENSION_TYPE_3D) {
+                if (type.imageIsStorage) {
+                    if (type.imageStorageType == Shaderc.ImageStorageType.IMAGE_STORAGE_TYPE_RGBA32F) {
+                        return ShaderDesc.ShaderDataType.SHADER_TYPE_IMAGE3D;
+                    } else if (type.imageStorageType == Shaderc.ImageStorageType.IMAGE_STORAGE_TYPE_RGBA8UI) {
+                        return ShaderDesc.ShaderDataType.SHADER_TYPE_UIMAGE3D;
+                    }
+                } else if (type.imageIsArrayed) {
+                    return ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE3D_ARRAY;
+                } else if (type.imageBaseType == Shaderc.BaseType.BASE_TYPE_UINT32) {
+                    return ShaderDesc.ShaderDataType.SHADER_TYPE_UTEXTURE3D;
+                } else if (type.imageBaseType == Shaderc.BaseType.BASE_TYPE_FP32) {
+                    return ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE3D;
                 }
             } else if (type.dimensionType == Shaderc.DimensionType.DIMENSION_TYPE_CUBE) {
                 return ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE_CUBE;
