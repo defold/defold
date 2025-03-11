@@ -608,6 +608,11 @@ static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceP
         return luaL_error(L, "Unable to create texture, width, height and depth must be larger than 0");
     }
 
+    if (dmGraphics::IsTextureType3D(type) && !dmGraphics::IsContextFeatureSupported(g_ResourceModule.m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_3D_TEXTURES))
+    {
+        return luaL_error(L, "Unable to create texture, 3D textures are not supported on this graphics context.");
+    }
+
     if (!IsTextureFormatSupported(type))
     {
         return luaL_error(L, "Unable to create texture, unsupported texture type '%s'.", dmGraphics::GetTextureTypeLiteral(type));

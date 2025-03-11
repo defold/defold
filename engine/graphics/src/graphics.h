@@ -189,6 +189,7 @@ namespace dmGraphics
         CONTEXT_FEATURE_STORAGE_BUFFER         = 3,
         CONTEXT_FEATURE_VSYNC                  = 4,
         CONTEXT_FEATURE_INSTANCING             = 5,
+        CONTEXT_FEATURE_3D_TEXTURES            = 6,
     };
 
     // Translation table to translate RenderTargetAttachment to BufferType
@@ -853,6 +854,11 @@ namespace dmGraphics
 
                type == TYPE_SAMPLER_CUBE ||
                type == TYPE_TEXTURE_CUBE;
+    }
+
+    static inline bool IsTextureType3D(TextureType type)
+    {
+        return type == TEXTURE_TYPE_3D || type == TEXTURE_TYPE_3D || type == TEXTURE_TYPE_IMAGE_3D;
     }
 
     static inline uint32_t GetLayerCount(TextureType type)

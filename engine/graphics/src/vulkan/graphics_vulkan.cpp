@@ -3766,11 +3766,6 @@ bail:
         }
     }
 
-    static inline bool Is3DTexture(TextureType type)
-    {
-        return type == TEXTURE_TYPE_3D || type == TEXTURE_TYPE_3D || type == TEXTURE_TYPE_IMAGE_3D;
-    }
-
     static void VulkanSetTextureInternal(VulkanTexture* texture, const TextureParams& params)
     {
         // Same as graphics_opengl.cpp
@@ -3849,7 +3844,7 @@ bail:
             if (texture->m_Format != vk_format ||
                 texture->m_Width != params.m_Width ||
                 texture->m_Height != params.m_Height ||
-                (Is3DTexture(texture->m_Type) && (texture->m_Depth != params.m_Depth)))
+                (IsTextureType3D(texture->m_Type) && (texture->m_Depth != params.m_Depth)))
             {
                 DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], texture);
                 texture->m_Format = vk_format;

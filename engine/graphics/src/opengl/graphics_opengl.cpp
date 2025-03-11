@@ -658,6 +658,7 @@ static void LogFrameBufferError(GLenum status)
             case TEXTURE_TYPE_2D_ARRAY: return GL_TEXTURE_2D_ARRAY;
             case TEXTURE_TYPE_CUBE_MAP: return GL_TEXTURE_CUBE_MAP;
             case TEXTURE_TYPE_IMAGE_2D: return GL_TEXTURE_2D;
+            case TEXTURE_TYPE_IMAGE_3D: return GL_TEXTURE_3D;
             default:break;
         }
         return GL_FALSE;
@@ -808,6 +809,7 @@ static void LogFrameBufferError(GLenum status)
             case CONTEXT_FEATURE_COMPUTE_SHADER:         return context->m_ComputeSupport;
             case CONTEXT_FEATURE_STORAGE_BUFFER:         return context->m_StorageBufferSupport;
             case CONTEXT_FEATURE_INSTANCING:             return context->m_InstancingSupport;
+            case CONTEXT_FEATURE_3D_TEXTURES:            return context->m_3DTextureSupport;
             case CONTEXT_FEATURE_VSYNC:
                 break;
         }
@@ -1438,12 +1440,16 @@ static void LogFrameBufferError(GLenum status)
         {
             context->m_TextureArraySupport         = 1;
             context->m_MultiTargetRenderingSupport = 1;
+
         #ifdef ANDROID
             context->m_TextureArraySupport &= PFN_glTexSubImage3D           != 0;
             context->m_TextureArraySupport &= PFN_glTexImage3D              != 0;
             context->m_TextureArraySupport &= PFN_glCompressedTexSubImage3D != 0;
             context->m_TextureArraySupport &= PFN_glCompressedTexImage3D    != 0;
         #endif
+
+            // 3D Textures uses the same functions as array textures
+            context->m_3DTextureSupport = context->m_TextureArraySupport;
         }
 
 #if defined(__ANDROID__) || defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__) || defined(DM_GRAPHICS_USE_OPENGLES)
