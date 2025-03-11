@@ -22,10 +22,9 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.io.BufferedWriter;
-
-import java.lang.management.ManagementFactory;
-import java.lang.management.RuntimeMXBean;
 import java.lang.Thread;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
@@ -82,8 +81,8 @@ public class TimeProfiler {
 
     private static final ArrayList<ProfilingMark> marks = new ArrayList<>();
     private static long buildTime;
-
-    private static ProfilingScope rootScope;
+    private static final Map<Long, ProfilingScope> rootScopes = new HashMap<>();
+    private static long mainThreadId;
     private static final Map<Long, ProfilingScope> currentScopes = new HashMap<>();
     private static List<File> reportFiles;
 
@@ -114,8 +113,7 @@ public class TimeProfiler {
         generator.writeEndObject();
     }
 
-    private static void generateJSON(ProfilingScope scope, BufferedWriter writer) throws IOException {
-
+    private static void generateJSON(BufferedWriter writer) throws IOException {
         JsonGenerator generator = null;
         try {
             generator = (new JsonFactory()).createJsonGenerator(writer);
@@ -123,7 +121,19 @@ public class TimeProfiler {
             generator.writeStartObject();
             generator.writeFieldName("data");
             generator.writeStartArray();
-            generateJsonRecursively(generator, scope);
+
+            // Ensure the main thread root comes first
+            if (rootScopes.containsKey(mainThreadId)) {
+                generateJsonRecursively(generator, rootScopes.get(mainThreadId));
+                rootScopes.remove(mainThreadId);
+            }
+
+            List<ProfilingScope> sortedScopes = new ArrayList<>(rootScopes.values());
+            Collections.sort(sortedScopes, Comparator.comparing((ProfilingScope scope) -> (String)scope.data.get("name")));
+            for (ProfilingScope scope : sortedScopes) {
+                generateJsonRecursively(generator, scope);
+            }
+
             generator.writeEndArray();
             generator.writeFieldName("marks");
             generator.writeStartArray();
@@ -142,7 +152,7 @@ public class TimeProfiler {
             generator.writeEndArray();
             generator.writeEndObject();
         } finally {
-            if (null != generator) {
+            if (generator != null) {
                 generator.flush();
             }
         }
@@ -166,24 +176,25 @@ public class TimeProfiler {
     }
 
     public static void createReport() {
-        if (rootScope == null) {
+        if (rootScopes.isEmpty()) {
             return;
         }
-        ProfilingScope _rootScope = rootScope;
-        // Make sure that using of TimeProfiler is impossible from now on
-        rootScope = null;
         long reportStartTime = time();
+
+        for (Map.Entry<Long, ProfilingScope> entry : rootScopes.entrySet()) {
+            ProfilingScope rootScope = entry.getValue();
+            rootScope.endTime = reportStartTime;
+        }
 
         // Close all unclosed scopes
         for (ProfilingScope scope : currentScopes.values()) {
-            while (scope != null) {
+            while (scope != null && scope.endTime == 0) {
                 scope.addData("forceFinishedScope", true);
                 scope.addData("color", "#FF0000");
                 scope.endTime = time();
                 scope = scope.parent;
             }
         }
-        _rootScope.stop();
 
         try {
             // save report files, add '_time' to the given filenames
@@ -202,12 +213,12 @@ public class TimeProfiler {
                 int bufferSize = 8 * 1024 * 1024; // 8 MB in bytes
                 try (BufferedWriter writer = new BufferedWriter(new FileWriter(finalReportFile), bufferSize)) {
                     if (extension.equals(".json")) {
-                        generateJSON(_rootScope, writer);
+                        generateJSON(writer);
                     } else if (extension.equals(".html")) {
                         String[] htmlContent = getHtmlContent();
                         writer.write(htmlContent[0]);
                         writer.flush();
-                        generateJSON(_rootScope, writer);
+                        generateJSON(writer);
                         writer.flush();
                         writer.write(htmlContent[1]);
                     } else {
@@ -222,6 +233,7 @@ public class TimeProfiler {
         } finally {
             marks.clear();
             currentScopes.clear();
+            rootScopes.clear();
         }
 
         long reportEndTime = time();
@@ -237,42 +249,54 @@ public class TimeProfiler {
     }
 
     public static ProfilingScope getCurrentScope() {
-        return currentScopes.get(getCurrentThreadId());
+        long threadId = getCurrentThreadId();
+        ProfilingScope profilingScope = currentScopes.get(getCurrentThreadId());
+        if (profilingScope == null) {
+            ProfilingScope newRoot = new ProfilingScope();
+            newRoot.startTime = time(); // Initialize properly
+            newRoot.addData("name", "Thread " + threadId);
+            newRoot.children = new ArrayList<>();
+            rootScopes.put(threadId, newRoot);
+            setCurrentScope(newRoot);
+            profilingScope = newRoot;
+        }
+        return profilingScope;
     }
 
     public static void init(List<File> reportFiles) throws IOException {
-        if (rootScope != null) {
-            throw new RuntimeException("TimeProfiler.init() called while the profiling was already in progress");
+        if (!rootScopes.isEmpty()) {
+            throw new RuntimeException("TimeProfiler.init() called while profiling was already in progress");
         }
         TimeProfiler.reportFiles = reportFiles;
 
         long startTime = time();
         buildTime = startTime;
-        rootScope = new ProfilingScope();
-        rootScope.startTime = startTime;
-        rootScope.addData("name", "Total time");
-        setCurrentScope(rootScope);
+        mainThreadId = getCurrentThreadId();
+
+        ProfilingScope mainRoot = new ProfilingScope();
+        mainRoot.startTime = startTime;
+        mainRoot.addData("name", "Main thread");
+        rootScopes.put(mainThreadId, mainRoot);
+        setCurrentScope(mainRoot);
 
         ProfilingScope initScope = new ProfilingScope();
         initScope.addData("name", "Time Profiler init");
         initScope.startTime = startTime;
         initScope.endTime = time();
-        rootScope.children = new ArrayList<>();
-        rootScope.children.add(initScope);
-        initScope.parent = rootScope;
+        mainRoot.children = new ArrayList<>();
+        mainRoot.children.add(initScope);
+        initScope.parent = mainRoot;
     }
 
-    public static void addScopeToCurrentThread(ProfilingScope scope) {
+    public static void  addScopeToCurrentThread(ProfilingScope scope) {
         if (scope == null) {
             return;
         }
         ProfilingScope currentScope = getCurrentScope();
-        if (currentScope != null) {
-            if (currentScope.children == null) {
-                currentScope.children = new ArrayList<>();
-            }
-            currentScope.children.add(scope);
+        if (currentScope.children == null) {
+            currentScope.children = new ArrayList<>();
         }
+        currentScope.children.add(scope);
         scope.parent = currentScope;
     }
 

@@ -1146,6 +1146,9 @@ public class Project {
             buildDir.mkdirs();
 
             buildEngineFutures.add(buildEngineExecutor.submit(() -> {
+                TimeProfiler.start("Build Remote Engine %s", platform.toString());
+                TimeProfiler.addData("withSymbols", appmanifestOptions.get("baseVariant"));
+                TimeProfiler.addData("variant", appmanifestOptions.get("withSymbols"));
                 boolean buildLibrary = shouldBuildArtifact("library");
                 try {
                     if (buildLibrary) {
@@ -1155,6 +1158,8 @@ public class Project {
                     }
                 } catch (Throwable e) {
                     throw new RuntimeException(e);
+                } finally {
+                    TimeProfiler.stop();
                 }
             }));
             m.worked(1);
@@ -1350,18 +1355,12 @@ public class Project {
         Callable<Void> callable = new Callable<Void>() {
             public Void call() throws Exception {
                 logInfo("Build Remote Engine...");
-                TimeProfiler.addMark("StartBuildRemoteEngine", "Build Remote Engine");
                 final String variant = option("variant", Bob.VARIANT_RELEASE);
                 final Boolean withSymbols = hasOption("with-symbols");
 
                 Map<String, String> appmanifestOptions = new HashMap<>();
                 appmanifestOptions.put("baseVariant", variant);
                 appmanifestOptions.put("withSymbols", withSymbols.toString());
-
-                // temporary removed because TimeProfiler works only with a single thread
-                // see https://github.com/pyatyispyatil/flame-chart-js
-                // TimeProfiler.addData("withSymbols", withSymbols);
-                // TimeProfiler.addData("variant", variant);
 
                 if (hasOption("build-artifacts")) {
                     String s = option("build-artifacts", "");
@@ -1392,8 +1391,6 @@ public class Project {
 
                 long tend = System.currentTimeMillis();
                 logger.info("Engine build took %f s", (tend-tstart)/1000.0);
-                TimeProfiler.addMark("FinishedBuildRemoteEngine", "Build Remote Engine Finished");
-
                 return (Void)null;
             }
         };
