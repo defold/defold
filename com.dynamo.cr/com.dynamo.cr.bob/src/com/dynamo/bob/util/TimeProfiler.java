@@ -176,7 +176,7 @@ public class TimeProfiler {
     }
 
     public static void createReport() {
-        if (rootScopes.isEmpty() || reportFiles == null || reportFiles.isEmpty()) {
+        if (reportFiles == null) {
             return;
         }
         long reportStartTime = time();
@@ -264,7 +264,7 @@ public class TimeProfiler {
     }
 
     public static void init(List<File> reportFiles) throws IOException {
-        if (!rootScopes.isEmpty()) {
+        if (reportFiles != null) {
             throw new RuntimeException("TimeProfiler.init() called while profiling was already in progress");
         }
         TimeProfiler.reportFiles = reportFiles;
