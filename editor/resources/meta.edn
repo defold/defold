@@ -49,11 +49,6 @@
    "A comma separated list of resources that should not be included in the bundle",
    :default "",
    :path ["project" "bundle_exclude_resources"]}
-  {:type :list,
-   :help "the list of project-wide saved colors",
-   :path ["project" "color-palette"]
-   :element {:type :string
-             :default "#ffffff"}}
   {:type :resource,
    :filter "collection",
    :help

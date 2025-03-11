@@ -106,9 +106,10 @@
                     {:label "Track Active Tab in Asset Browser" :type :boolean :key [:asset-browser :track-active-tab]}
                     {:label "Lint Code on Build" :type :boolean :key [:build :lint-code]}
                     {:label "Path to Custom Keymap" :type :string :key [:input :keymap-path]}
-                    {:label "Engine Arguments" :type :string :key [:run :engine-arguments]  :multi-line true
+                    {:label "Engine Arguments" :type :string :key [:run :engine-arguments] :multi-line true
                      :prompt-value "One argument per line"
-                     :tooltip "Arguments that will be passed to the dmengine executables when the editor builds and runs.\n Use one argument per line. For example:\n--config=bootstrap.main_collection=/my dir/1.collectionc\n--verbose\n--graphics-adapter=vulkan"}]}
+                     :tooltip "Arguments that will be passed to the dmengine executables when the editor builds and runs.\n Use one argument per line. For example:\n--config=bootstrap.main_collection=/my dir/1.collectionc\n--verbose\n--graphics-adapter=vulkan"}
+                    {:label "The list of project-wide saved colors" :type :string :key [:workflow :saved-colors] :multi-line true :prompt-value "One color per line"}]}
            {:name "Code"
             :prefs [{:label "Custom Editor" :type :string :key [:code :custom-editor]}
                     {:label "Open File" :type :string :key [:code :open-file]}
