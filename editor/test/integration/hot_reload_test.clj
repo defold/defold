@@ -43,7 +43,7 @@
 
 (deftest build-endpoint-test
   (test-util/with-loaded-project project-path
-    (test-util/with-server (http-server/router-handler (hot-reload/routes workspace))
+    (with-open [server (http-server/start! (http-server/router-handler (hot-reload/routes workspace)))]
       (let [game-project (test-util/resource-node project "/game.project")]
         (project-build project game-project (g/make-evaluation-context))
         (let [res  @(http/request (str (http-server/url server) (->build-url "/main/main.collectionc")) :as :byte-array)
@@ -55,7 +55,7 @@
 
 (deftest etags-endpoint-test
   (test-util/with-loaded-project project-path
-    (test-util/with-server (http-server/router-handler (hot-reload/routes workspace))
+    (with-open [server (http-server/start! (http-server/router-handler (hot-reload/routes workspace)))]
       (let [game-project (test-util/resource-node project "/game.project")]
         (project-build project game-project (g/make-evaluation-context))
         (let [etags (workspace/etags workspace)

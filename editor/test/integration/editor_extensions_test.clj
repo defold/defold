@@ -32,6 +32,7 @@
             [editor.process :as process]
             [editor.resource :as resource]
             [editor.ui :as ui]
+            [editor.web-server :as web-server]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [support.test-support :as test-support]
@@ -281,16 +282,21 @@
         (when (or (:error ret) (:exception ret))
           (throw (LuaError. "Bob invocation failed")))))))
 
-(defn- reload-editor-scripts! [project & {:keys [display-output! open-resource! prefs]
+(def ^:private stopped-server
+  (http-server/stop! (http-server/start! (web-server/create-dynamic-handler [])) 0))
+
+(defn- reload-editor-scripts! [project & {:keys [display-output! open-resource! prefs web-server]
                                           :or {display-output! println
-                                               open-resource! open-resource-noop!}}]
+                                               open-resource! open-resource-noop!
+                                               web-server stopped-server}}]
   (extensions/reload! project :all
                       :prefs (or prefs (test-util/make-test-prefs))
                       :reload-resources! (make-reload-resources-fn (project/workspace project))
                       :display-output! display-output!
                       :save! (make-save-fn project)
                       :open-resource! open-resource!
-                      :invoke-bob! (make-invoke-bob-fn project)))
+                      :invoke-bob! (make-invoke-bob-fn project)
+                      :web-server web-server))
 
 (deftest editor-scripts-commands-test
   (test-util/with-loaded-project "test/resources/editor_extensions/commands_project"
@@ -447,7 +453,7 @@
 
 (deftest coercer-test
   (let [vm (vm/make)
-        coerce #(coerce/coerce vm %1 (vm/->lua %2))]
+        coerce #(coerce/coerce vm %1 (apply rt/->varargs %&))]
 
     (testing "enum"
       (let [foo-str "foo"
@@ -595,7 +601,39 @@
         (is (thrown? LuaError (coerce by-key {"type" "dot"})))
         (is (thrown? LuaError (coerce by-key {"kind" "rect"})))
         (is (thrown? LuaError (coerce by-key "not a table")))
-        (is (thrown? LuaError (coerce by-key 42)))))))
+        (is (thrown? LuaError (coerce by-key 42)))))
+
+    (testing "regex"
+      (let [empty (coerce/regex)]
+        (is (= {} (coerce empty)))
+        (is (thrown-with-msg? LuaError #"nil is unexpected" (coerce empty nil)))
+        (is (thrown-with-msg? LuaError #"1 is unexpected" (coerce empty 1))))
+      (let [all-required (coerce/regex :first-name coerce/string
+                                       :last-name coerce/string
+                                       :age coerce/integer)]
+        (is (= {:first-name "Foo"
+                :last-name "Bar"
+                :age 18}
+               (coerce all-required "Foo" "Bar" 18)))
+        (is (thrown-with-msg? LuaError #"more arguments expected" (coerce all-required "Foo" "Bar")))
+        (is (thrown-with-msg? LuaError #"0 is unexpected" (coerce all-required "Foo" "Bar" 12 0)))
+        1)
+      (let [some-optional (coerce/regex :path coerce/string
+                                        :method :? (coerce/enum :get :post :put :delete :head :options)
+                                        :as :? (coerce/enum :string :json))]
+        (is (= {:path "/foo" :method :get :as :json}
+               (coerce some-optional "/foo" :get :json)))
+        (is (= {:path "/foo" :as :json} (coerce some-optional "/foo" :json)))
+        (is (= {:path "/foo" :method :options} (coerce some-optional "/foo" :options)))
+        (is (= {:path "/foo"} (coerce some-optional "/foo")))
+        (is (thrown-with-msg? LuaError #"true is not a string" (coerce some-optional true))))
+      (let [required-after-optional (coerce/regex :string coerce/string
+                                                  :boolean :? coerce/boolean
+                                                  :integer coerce/integer)]
+        (is (= {:string "foo" :boolean true :integer 1} (coerce required-after-optional "foo" true 1)))
+        (is (= {:string "foo" :integer 1} (coerce required-after-optional "foo" 1)))
+        (is (thrown-with-msg? LuaError #"more arguments expected" (coerce required-after-optional "foo")))
+        (is (thrown-with-msg? LuaError #"(\"bar\" is not a boolean)\n.+(\"bar\" is not an integer)" (coerce required-after-optional "foo" "bar")))))))
 
 (deftest external-file-attributes-test
   (test-util/with-loaded-project "test/resources/editor_extensions/external_file_attributes_project"
@@ -814,18 +852,21 @@ nesting:
 }
 ")
 
+(defn- normalize-pprint-output [output-string]
+  (let [hash->stable-id (volatile! {})]
+    (string/replace
+      output-string
+      #"0x[0-9a-f]+"
+      (fn [s]
+        (or (@hash->stable-id s)
+            ((vswap! hash->stable-id #(assoc % s (str "0x" (count %)))) s))))))
+
 (deftest pprint-test
   (test-util/with-loaded-project "test/resources/editor_extensions/pprint-test"
     (let [out (StringBuilder.)]
       (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
       (run-edit-menu-test-command!)
-      (let [hash->stable-id (volatile! {})
-            actual (string/replace
-                     (str out)
-                     #"0x[0-9a-f]+"
-                     (fn [s]
-                       (or (@hash->stable-id s)
-                           ((vswap! hash->stable-id #(assoc % s (str "0x" (count %)))) s))))]
+      (let [actual (normalize-pprint-output (str out))]
         (is (= actual expected-pprint-output)
             (string/join "\n" (diff/make-diff-output-lines actual expected-pprint-output 3)))))))
 
@@ -867,13 +908,7 @@ POST http://localhost:23456/echo hello world! as string => 200
         (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
         ;; See test.editor_script: the test invokes http.request with various options and prints results
         (run-edit-menu-test-command!)
-        (let [hash->stable-id (volatile! {})
-              actual (string/replace
-                       (str out)
-                       #"0x[0-9a-f]+"
-                       (fn [s]
-                         (or (@hash->stable-id s)
-                             ((vswap! hash->stable-id #(assoc % s (str "0x" (count %)))) s))))]
+        (let [actual (normalize-pprint-output (str out))]
           (is (= actual expected-http-test-output)
               (string/join "\n" (diff/make-diff-output-lines actual expected-http-test-output 3))))
         (finally
@@ -987,3 +1022,81 @@ POST http://localhost:23456/echo hello world! as string => 200
               "stored/long.txt" :stored
               "stored/subdir/baz.txt" :stored}
              (list-methods "mixed.zip"))))))
+
+(def expected-http-server-test-output
+  "Omitting conflicting routes for 'GET /test/conflict/same-path-and-method' defined in /test.editor_script
+Omitting conflicting routes for '/command/{param}' defined in /test.editor_script (conflict with the editor's built-in routes)
+Omitting conflicting routes for '/test/conflict/{param}' and '/test/conflict/no-param' defined in /test.editor_script
+POST /test/echo/string 'hello' as string => 200
+< content-length: 5
+< content-type: text/plain; charset=utf-8
+\"hello\"
+POST /test/echo/json '{\"a\": 1}' as json => 200
+< content-length: 7
+< content-type: application/json
+{ --[[0x0]]
+  a = 1
+}
+GET /test/route-merging as string => 200
+< content-length: 3
+< content-type: text/plain; charset=utf-8
+\"get\"
+POST /test/route-merging as string => 200
+< content-length: 4
+< content-type: text/plain; charset=utf-8
+\"post\"
+PUT /test/route-merging as string => 200
+< content-length: 3
+< content-type: text/plain; charset=utf-8
+\"put\"
+GET /test/path-pattern/foo/bar as string => 200
+< content-length: 22
+< content-type: text/plain; charset=utf-8
+\"key = foo, value = bar\"
+GET /test/rest-pattern/a/b/c as string => 200
+< content-length: 5
+< content-type: text/plain; charset=utf-8
+\"a/b/c\"
+GET /test/files/not-found.txt as string => 404
+< content-length: 0
+\"\"
+GET /test/files/test.txt as string => 200
+< content-length: 9
+< content-type: text/plain
+\"test file\"
+GET /test/files/test.json as json => 200
+< content-length: 14
+< content-type: application/json
+{ --[[0x1]]
+  test = true
+}
+GET /test/resources/not-found.txt as string => 404
+< content-length: 0
+\"\"
+GET /test/resources/test.txt as string => 200
+< content-length: 9
+< content-type: text/plain
+\"test file\"
+GET /test/resources/test.json as json => 200
+< content-length: 14
+< content-type: application/json
+{ --[[0x2]]
+  test = true
+}
+")
+
+(deftest http-server-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/http_server_project"
+    (with-open [server (http-server/start!
+                         (web-server/create-dynamic-handler
+                           ;; for testing conflicts with the built-in handlers
+                           {"/command" {"GET" (constantly http-server/not-found)}
+                            "/command/{command}" {"POST" (constantly http-server/not-found)}}))]
+      (let [out (StringBuilder.)]
+        (reload-editor-scripts! project
+                                :display-output! #(doto out (.append %2) (.append \newline))
+                                :web-server server)
+        (run-edit-menu-test-command!)
+        (let [actual (normalize-pprint-output (.toString out))]
+          (is (= expected-http-server-test-output actual)
+              (string/join "\n" (diff/make-diff-output-lines actual expected-http-server-test-output 3))))))))
