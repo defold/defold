@@ -234,6 +234,7 @@ public class TimeProfiler {
             marks.clear();
             currentScopes.clear();
             rootScopes.clear();
+            reportFiles = null;
         }
 
         long reportEndTime = time();
