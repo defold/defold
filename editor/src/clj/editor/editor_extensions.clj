@@ -31,7 +31,7 @@
             [editor.editor-extensions.prefs-docs :as prefs-docs]
             [editor.editor-extensions.prefs-functions :as prefs-functions]
             [editor.editor-extensions.runtime :as rt]
-            [editor.editor-extensions.server :as server]
+            [editor.editor-extensions.http-server :as ext.http-server]
             [editor.editor-extensions.ui-components :as ui-components]
             [editor.editor-extensions.zip :as zip]
             [editor.fs :as fs]
@@ -414,7 +414,7 @@
 (def ext-json-encode
   (rt/lua-fn ext-json-decode
     ([{:keys [rt]} lua-value]
-     (json/write-str (rt/->clj rt server/json-value-coercer lua-value)))))
+     (json/write-str (rt/->clj rt ext.http-server/json-value-coercer lua-value)))))
 
 ;; endregion
 
@@ -652,7 +652,7 @@
 (defn- reload-server-routes! [state evaluation-context]
   (let [{:keys [display-output! rt web-server]} state
         dynamic-routes
-        (->> (execute-all-top-level-functions state :get_server_routes nil evaluation-context)
+        (->> (execute-all-top-level-functions state :get_http_server_routes nil evaluation-context)
              (e/mapcat
                (fn [[proj-path lua-ret]]
                  (error-handling/try-with-extension-exceptions
@@ -661,7 +661,7 @@
                    :catch nil
                    (e/map
                      #(assoc % :proj-path proj-path)
-                     (rt/->clj rt server/routes-coercer lua-ret)))))
+                     (rt/->clj rt ext.http-server/routes-coercer lua-ret)))))
              (group-by (juxt :path :method))
              (reduce-kv
                (fn [acc [path method :as path+method] routes]
@@ -732,7 +732,7 @@
   (coerce/hash-map :opt {:get_commands coerce/function
                          :get_language_servers coerce/function
                          :get_prefs_schema coerce/function
-                         :get_server_routes coerce/function
+                         :get_http_server_routes coerce/function
                          :on_build_started coerce/function
                          :on_build_finished coerce/function
                          :on_bundle_started coerce/function
@@ -873,7 +873,7 @@
                                "engine_sha1" (system/defold-engine-sha1)
                                "editor_sha1" (system/defold-editor-sha1)}
                      "http" {"request" ext-http-request
-                             "server" (server/env workspace project-path web-server)}
+                             "server" (ext.http-server/env workspace project-path web-server)}
                      "json" {"decode" ext-json-decode
                              "encode" ext-json-encode}
                      "io" {"tmpfile" nil}

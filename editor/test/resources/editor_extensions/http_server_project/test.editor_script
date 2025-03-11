@@ -1,6 +1,6 @@
 local M = {}
 
-function M.get_server_routes()
+function M.get_http_server_routes()
     local function ok_handler(request) return 200 end
     return {
         http.server.route("/test/echo/string", "POST", "string", function(request)
