@@ -16,7 +16,6 @@
   (:require [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
-            [editor.code.util :as util]
             [editor.color-dropper :as color-dropper]
             [editor.field-expression :as field-expression]
             [editor.handler :as handler]
@@ -34,6 +33,7 @@
             [util.id-vec :as iv]
             [util.profiler :as profiler])
   (:import [editor.properties Curve CurveSpread]
+           [java.util Collection]
            [javafx.geometry Insets Point2D]
            [javafx.scene Node Parent]
            [javafx.scene.control Button CheckBox ColorPicker Control Label Slider TextArea TextField TextInputControl ToggleButton Tooltip]
@@ -558,23 +558,19 @@
 (defn- save-colors!
   [^ColorPicker color-picker prefs]
   (->> (.getCustomColors color-picker)
-       (map #(color->web-string % false))
-       (util/join-lines)
+       (mapv #(color->web-string % false))
        (prefs/set! prefs [:workflow :saved-colors])))
 
 (defn get-saved-colors
   [prefs]
-  (let [saved-colors (prefs/get prefs [:workflow :saved-colors])]
-    (when-not (string/blank? saved-colors)
-      (->> (util/split-lines saved-colors)
-           (mapv #(try (Color/valueOf ^String %)
-                       (catch Exception _e nil)))))))
+  (->> (prefs/get prefs [:workflow :saved-colors])
+       (mapv #(Color/valueOf ^String %))))
 
 (defmethod create-property-control! types/Color [edit-type {:keys [color-dropper-view prefs]} property-fn]
   (let [wrapper (doto (HBox.)
                   (.setPrefWidth Double/MAX_VALUE))
         pick-fn (fn [c] (set-color-value! property-fn (:ignore-alpha? edit-type) c))
-        saved-colors (get-saved-colors prefs)
+        saved-colors ^Collection (get-saved-colors prefs)
         color-dropper (doto (Button. "" (jfx/get-image-view "icons/32/Icons_M_03_colorpicker.png" 16))
                         (ui/add-style! "color-dropper")
                         (AnchorPane/setRightAnchor 0.0)
@@ -613,8 +609,8 @@
     (ui/on-action! color-picker (fn [_]
                                   (let [c (.getValue color-picker)]
                                     (set-color-value! property-fn ignore-alpha c)
-                                    (save-colors! color-picker prefs)
                                     (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true))))
+    (.setOnHidden color-picker (fn [_] (save-colors! color-picker prefs)))
     (ui/children! wrapper [pane color-picker])
     [wrapper update-ui-fn]))
 
@@ -1033,7 +1029,7 @@
         (g/make-nodes view-graph [view [PropertiesView :parent-view parent :prefs prefs]]
           (g/connect workspace :_node-id view :workspace)
           (g/connect project :_node-id view :project)
-          (g/connect app-view :_node-id view :app-view) 
+          (g/connect app-view :_node-id view :app-view)
           (g/connect app-view :selected-node-properties view :selected-node-properties)
           (g/connect search-results-view :_node-id view :search-results-view)
           (g/connect color-dropper-view :_node-id view :color-dropper-view))))))
