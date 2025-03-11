@@ -154,6 +154,8 @@ namespace dmGameSystem
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
 
+        InstallBox2DPhysicsAdapter();
+
         CollisionWorldBox2D* world = new CollisionWorldBox2D();
         memset(world, 0, sizeof(CollisionWorldBox2D));
 
@@ -162,8 +164,6 @@ namespace dmGameSystem
         world->m_ComponentTypeIndex           = params.m_ComponentIndex;
         world->m_FirstUpdate                  = 1;
         world->m_Components.SetCapacity(comp_count);
-
-        InstallBox2DPhysicsAdapter();
 
         *params.m_World = world;
         return dmGameObject::CREATE_RESULT_OK;
