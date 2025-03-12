@@ -1389,6 +1389,8 @@
     (.setOnMouseClicked parent event-handler)
     (.setOnMouseMoved parent event-handler)
     (.setOnMouseDragged parent event-handler)
+    (.setOnDragOver parent event-handler)
+    (.setOnDragDropped parent event-handler)
     (.setOnScroll parent event-handler)
     (.setOnKeyPressed parent (ui/event-handler e
                                (when @process-events?

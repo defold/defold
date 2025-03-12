@@ -99,22 +99,153 @@ assert(hasattr(build_private, 'get_tag_suffix'))
 def get_target_platforms():
     return BASE_PLATFORMS + build_private.get_target_platforms()
 
-PACKAGES_ALL="protobuf-3.20.1 waf-2.0.3 junit-4.6 jsign-4.2 protobuf-java-3.20.1 openal-1.1 maven-3.0.1 vecmath vpx-1.7.0 luajit-2.1.0-a4f56a4 tremolo-b0cb4d1 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.10.2 vulkan-v1.3.299".split()
-PACKAGES_HOST="vpx-1.7.0 luajit-2.1.0-a4f56a4 tremolo-b0cb4d1".split()
-PACKAGES_IOS_X86_64="protobuf-3.20.1 luajit-2.1.0-a4f56a4 tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
-PACKAGES_IOS_64="protobuf-3.20.1 luajit-2.1.0-a4f56a4 tremolo-b0cb4d1 bullet-2.77 moltenvk-1.3.261.1 glfw-2.7.1".split()
-PACKAGES_MACOS_X86_64="protobuf-3.20.1 luajit-2.1.0-a4f56a4 vpx-1.7.0 tremolo-b0cb4d1 bullet-2.77 spirv-cross-9040e0d2 spirv-tools-b21dda0e glslang-42d9adf5 moltenvk-1.3.261.1 lipo-9ffdea2 sassc-5472db213ec223a67482df2226622be372921847 glfw-3.4 tint-22b958 astcenc-8b0aa01".split()
-PACKAGES_MACOS_ARM64="protobuf-3.20.1 luajit-2.1.0-a4f56a4 vpx-1.7.0 tremolo-b0cb4d1 bullet-2.77 spirv-cross-9040e0d2 spirv-tools-b21dda0e glslang-42d9adf5 moltenvk-1.3.261.1 lipo-9ffdea2 glfw-3.4 tint-22b958 astcenc-8b0aa01".split()
-PACKAGES_WIN32="protobuf-3.20.1 luajit-2.1.0-a4f56a4 glut-3.7.6 bullet-2.77 vulkan-1.3.261.1 glfw-3.4".split()
-PACKAGES_WIN32_64="protobuf-3.20.1 luajit-2.1.0-a4f56a4 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 glslang-42d9adf5 spirv-cross-9040e0d2 spirv-tools-d24a39a7 vulkan-1.3.261.1 lipo-9ffdea2 glfw-3.4 tint-22b958 astcenc-8b0aa01 directx-headers-1.611.0".split()
-PACKAGES_LINUX_X86_64="protobuf-3.20.1 luajit-2.1.0-a4f56a4 bullet-2.77 glslang-ba5c010c spirv-cross-9040e0d2 spirv-tools-d24a39a7 vulkan-1.1.108  tremolo-b0cb4d1 lipo-9ffdea2 glfw-3.4 tint-22b958 sassc-5472db213ec223a67482df2226622be372921847 astcenc-8b0aa01".split()
-PACKAGES_LINUX_ARM64 ="protobuf-3.20.1 luajit-2.1.0-a4f56a4 bullet-2.77 glslang-2fed4fc0 spirv-cross-9040e0d2 spirv-tools-4fab7435 vulkan-v1.3.299 tremolo-b0cb4d1 lipo-abb8ab1 glfw-3.4 tint-22b958 astcenc-8b0aa01".split() # vulkan-1.1.108".split()
-PACKAGES_ANDROID="protobuf-3.20.1 android-support-multidex androidx-multidex luajit-2.1.0-a4f56a4 tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
+PACKAGES_ALL=[
+    "protobuf-3.20.1",
+    "waf-2.0.3",
+    "junit-4.6",
+    "jsign-4.2",
+    "protobuf-java-3.20.1",
+    "openal-1.1",
+    "maven-3.0.1",
+    "vecmath",
+    "vpx-1.7.0",
+    "luajit-2.1.0-a4f56a4",
+    "tremolo-b0cb4d1",
+    "defold-robot-0.7.0",
+    "bullet-2.77",
+    "libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a",
+    "jctest-0.10.2",
+    "vulkan-v1.4.307"]
+
+PACKAGES_HOST=[
+    "vpx-1.7.0",
+    "luajit-2.1.0-a4f56a4",
+    "tremolo-b0cb4d1"]
+
+PACKAGES_IOS_X86_64=[
+    "protobuf-3.20.1",
+    "luajit-2.1.0-a4f56a4",
+    "tremolo-b0cb4d1",
+    "bullet-2.77",
+    "glfw-2.7.1"]
+
+PACKAGES_IOS_64=[
+    "protobuf-3.20.1",
+    "luajit-2.1.0-a4f56a4",
+    "tremolo-b0cb4d1",
+    "bullet-2.77",
+    "moltenvk-1474891",
+    "glfw-2.7.1"]
+
+PACKAGES_MACOS_X86_64=[
+    "protobuf-3.20.1",
+    "luajit-2.1.0-a4f56a4",
+    "vpx-1.7.0",
+    "tremolo-b0cb4d1",
+    "bullet-2.77",
+    "spirv-cross-9040e0d2",
+    "spirv-tools-b21dda0e",
+    "glslang-42d9adf5",
+    "moltenvk-1474891",
+    "lipo-9ffdea2",
+    "sassc-5472db213ec223a67482df2226622be372921847",
+    "glfw-3.4",
+    "tint-22b958",
+    "astcenc-8b0aa01"]
+
+PACKAGES_MACOS_ARM64=[
+    "protobuf-3.20.1",
+    "luajit-2.1.0-a4f56a4",
+    "vpx-1.7.0",
+    "tremolo-b0cb4d1",
+    "bullet-2.77",
+    "spirv-cross-9040e0d2",
+    "spirv-tools-b21dda0e",
+    "glslang-42d9adf5",
+    "moltenvk-1474891",
+    "lipo-9ffdea2",
+    "glfw-3.4",
+    "tint-22b958",
+    "astcenc-8b0aa01"]
+
+PACKAGES_WIN32=[
+    "protobuf-3.20.1",
+    "luajit-2.1.0-a4f56a4",
+    "glut-3.7.6",
+    "bullet-2.77",
+    "vulkan-v1.4.307",
+    "glfw-3.4"]
+
+PACKAGES_WIN32_64=[
+    "protobuf-3.20.1",
+    "luajit-2.1.0-a4f56a4",
+    "glut-3.7.6",
+    "sassc-5472db213ec223a67482df2226622be372921847",
+    "bullet-2.77",
+    "glslang-42d9adf5",
+    "spirv-cross-9040e0d2",
+    "spirv-tools-d24a39a7",
+    "vulkan-v1.4.307",
+    "lipo-9ffdea2",
+    "glfw-3.4",
+    "tint-22b958",
+    "astcenc-8b0aa01",
+    "directx-headers-1.611.0"]
+
+PACKAGES_LINUX_X86_64=[
+    "protobuf-3.20.1",
+    "luajit-2.1.0-a4f56a4",
+    "bullet-2.77",
+    "glslang-ba5c010c",
+    "spirv-cross-9040e0d2",
+    "spirv-tools-d24a39a7",
+    "vulkan-v1.4.307",
+    "tremolo-b0cb4d1",
+    "lipo-9ffdea2",
+    "glfw-3.4",
+    "tint-22b958",
+    "sassc-5472db213ec223a67482df2226622be372921847",
+    "astcenc-8b0aa01"]
+
+PACKAGES_LINUX_ARM64=[
+    "protobuf-3.20.1",
+    "luajit-2.1.0-a4f56a4",
+    "bullet-2.77",
+    "glslang-2fed4fc0",
+    "spirv-cross-9040e0d2",
+    "spirv-tools-4fab7435",
+    "vulkan-v1.4.307",
+    "tremolo-b0cb4d1",
+    "lipo-abb8ab1",
+    "glfw-3.4",
+    "tint-22b958",
+    "astcenc-8b0aa01"]
+
+PACKAGES_ANDROID=[
+"protobuf-3.20.1",
+    "android-support-multidex",
+    "androidx-multidex",
+    "luajit-2.1.0-a4f56a4",
+    "tremolo-b0cb4d1",
+    "bullet-2.77",
+    "glfw-2.7.1"]
 PACKAGES_ANDROID.append(sdk.ANDROID_PACKAGE)
-PACKAGES_ANDROID_64="protobuf-3.20.1 android-support-multidex androidx-multidex luajit-2.1.0-a4f56a4 tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
+
+PACKAGES_ANDROID_64=[
+"protobuf-3.20.1",
+    "android-support-multidex",
+    "androidx-multidex",
+    "luajit-2.1.0-a4f56a4",
+    "tremolo-b0cb4d1",
+    "bullet-2.77",
+    "glfw-2.7.1"]
 PACKAGES_ANDROID_64.append(sdk.ANDROID_PACKAGE)
-PACKAGES_EMSCRIPTEN="protobuf-3.20.1 bullet-2.77 glfw-2.7.1".split()
-PACKAGES_NODE_MODULES="xhr2-0.1.0".split()
+
+PACKAGES_EMSCRIPTEN=[
+    "protobuf-3.20.1",
+    "bullet-2.77",
+    "glfw-2.7.1"]
+PACKAGES_NODE_MODULES=["xhr2-0.1.0"]
 
 PLATFORM_PACKAGES = {
     'win32':          PACKAGES_WIN32,
@@ -249,7 +380,9 @@ def download_sdk(conf, url, targetfolder, strip_components=1, force_extract=Fals
         print ("SDK already installed:", targetfolder)
 
 class Configuration(object):
-    def __init__(self, dynamo_home = None,
+    def __init__(self,
+                 defold_home = None,
+                 dynamo_home = None,
                  target_platform = None,
                  skip_tests = False,
                  skip_codesign = False,
@@ -288,7 +421,8 @@ class Configuration(object):
         else:
             home = os.environ['HOME']
 
-        self.dynamo_home = dynamo_home if dynamo_home else join(os.getcwd(), 'tmp', 'dynamo_home')
+        self.defold_home = os.path.normpath(join(os.path.dirname(__file__), '..'))
+        self.dynamo_home = dynamo_home if dynamo_home else join(self.defold_home, 'tmp', 'dynamo_home')
         self.ext = join(self.dynamo_home, 'ext')
         self.dmsdk = join(self.dynamo_home, 'sdk')
         self.defold = normpath(join(dirname(abspath(__file__)), '..'))
@@ -349,7 +483,8 @@ class Configuration(object):
             os._exit(5)
 
     def get_python(self):
-        return ['python']
+        self.check_python()
+        return [sys.executable]
 
     def _create_common_dirs(self):
         for p in ['ext/lib/python', 'share', 'lib/js-web/js', 'lib/wasm-web/js']:
@@ -559,6 +694,13 @@ class Configuration(object):
             sys.exit(1)
         return path
 
+    def check_python(self):
+        if sys.version_info.major != 3:
+            self.fatal("The build scripts requires Python 3!")
+
+    def has_sdk(self, sdkfolder, target_platform):
+        return None != sdk.get_sdk_info(sdkfolder, target_platform, False)
+
     def check_sdk(self):
         sdkfolder = join(self.ext, 'SDKs')
 
@@ -598,8 +740,13 @@ class Configuration(object):
 
     def install_sdk(self):
         sdkfolder = join(self.ext, 'SDKs')
-
         target_platform = self.target_platform
+
+        # check host tools availability
+        has_host_sdk = False
+        if sdk.get_host_platform() != target_platform:
+            has_host_sdk = self.has_sdk(sdkfolder, sdk.get_host_platform())
+
         if target_platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
             # macOS SDK
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_MACOS_SDK), join(sdkfolder, sdk.PACKAGES_MACOS_SDK))
@@ -610,7 +757,7 @@ class Configuration(object):
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_IOS_SDK), join(sdkfolder, sdk.PACKAGES_IOS_SDK))
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_IOS_SIMULATOR_SDK), join(sdkfolder, sdk.PACKAGES_IOS_SIMULATOR_SDK))
 
-        if 'win32' in target_platform or ('win32' in self.host):
+        if 'win32' in target_platform or ('win32' in self.host and not has_host_sdk):
             win32_sdk_folder = join(self.ext, 'SDKs', 'Win32')
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_WIN32_TOOLCHAIN), join(win32_sdk_folder, 'MicrosoftVisualStudio14.0'), strip_components=0 )
@@ -632,7 +779,7 @@ class Configuration(object):
         if target_platform in ('armv7-android', 'arm64-android'):
             host = self.host
             if 'win32' in host:
-                host = 'windows'
+                host = 'win'
             elif 'linux' in host:
                 host = 'linux'
             elif 'macos' in host:
@@ -1652,7 +1799,8 @@ class Configuration(object):
 
 
     def shell(self):
-        print ('Setting up shell with DYNAMO_HOME, PATH, JAVA_HOME, and LD_LIBRARY_PATH/DYLD_LIBRARY_PATH (where applicable) set')
+        self.check_python()
+        print ('Setting up shell with DEFOLD_HOME, DYNAMO_HOME, PATH, JAVA_HOME, and LD_LIBRARY_PATH/DYLD_LIBRARY_PATH (where applicable) set')
 
         args = [SHELL, '-l']
 
@@ -1664,6 +1812,7 @@ class Configuration(object):
             sys.exit(process.returncode)
 
     def fatal(self, msg):
+        self._log("****************************************************")
         self._log(msg)
         sys.exit(1)
 
@@ -2314,6 +2463,7 @@ class Configuration(object):
             self.fatal("Failed to find JAVA_HOME environment variable or valid java executable")
         env['JAVA_HOME'] = os.environ['JAVA_HOME']
 
+        env['DEFOLD_HOME'] = self.defold_home
         env['DYNAMO_HOME'] = self.dynamo_home
 
         android_host = self.host
@@ -2575,7 +2725,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
             needs_dynamo_home = False
             break
     if needs_dynamo_home:
-        for env_var in ['DYNAMO_HOME', 'PYTHONPATH', 'JAVA_HOME']:
+        for env_var in ['DEFOLD_HOME', 'DYNAMO_HOME', 'PYTHONPATH', 'JAVA_HOME']:
             if not env_var in os.environ:
                 c._log("CMD: " + ' '.join(sys.argv))
                 msg = f"{env_var} was not found in environment.\nDid you use './scripts/build.py shell'?"

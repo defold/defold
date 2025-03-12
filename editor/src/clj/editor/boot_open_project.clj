@@ -52,6 +52,7 @@
             [editor.ui :as ui]
             [editor.ui.updater :as ui.updater]
             [editor.web-profiler :as web-profiler]
+            [editor.web-server :as web-server]
             [editor.workspace :as workspace]
             [service.log :as log]
             [service.smoke-log :as slog]
@@ -200,16 +201,18 @@
                                                       root
                                                       open-resource
                                                       (partial app-view/debugger-state-changed! scene tool-tabs))
-          web-server           (-> (http-server/->server 0 {engine-profiler/url-prefix engine-profiler/handler
-                                                            web-profiler/url-prefix web-profiler/handler
-                                                            hot-reload/url-prefix (partial hot-reload/build-handler workspace project)
-                                                            hot-reload/verify-etags-url-prefix (partial hot-reload/verify-etags-handler workspace project)
-                                                            bob/html5-url-prefix (partial bob/html5-handler project)
-                                                            command-requests/url-prefix (command-requests/make-request-handler root (app-view/make-render-task-progress :resource-sync))
-                                                            console/url-prefix (console/make-request-handler console-view)})
-                                   http-server/start!)]
+          web-server (http-server/start!
+                       (web-server/create-dynamic-handler
+                         (into []
+                               cat
+                               [(engine-profiler/routes)
+                                (web-profiler/routes)
+                                (console/routes console-view)
+                                (hot-reload/routes workspace)
+                                (bob/routes project)
+                                (command-requests/router root (app-view/make-render-task-progress :resource-sync))])))]
       (ui/add-application-focused-callback! :main-stage app-view/handle-application-focused! app-view changes-view workspace prefs)
-      (app-view/reload-extensions! app-view project :all workspace changes-view build-errors-view prefs)
+      (app-view/reload-extensions! app-view project :all workspace changes-view build-errors-view prefs web-server)
 
       (when updater
         (let [update-link (.lookup root "#update-link")]

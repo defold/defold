@@ -31,6 +31,7 @@
             [editor.editor-extensions.prefs-docs :as prefs-docs]
             [editor.editor-extensions.prefs-functions :as prefs-functions]
             [editor.editor-extensions.runtime :as rt]
+            [editor.editor-extensions.http-server :as ext.http-server]
             [editor.editor-extensions.ui-components :as ui-components]
             [editor.editor-extensions.zip :as zip]
             [editor.fs :as fs]
@@ -45,9 +46,13 @@
             [editor.resource :as resource]
             [editor.system :as system]
             [editor.ui :as ui]
+            [editor.util :as util]
+            [editor.web-server :as web-server]
             [editor.workspace :as workspace]
+            [util.coll :as coll]
             [util.eduction :as e]
-            [util.http-client :as http])
+            [util.http-client :as http]
+            [util.http-server :as http-server])
   (:import [com.dynamo.bob Platform]
            [com.dynamo.bob.bundle BundleHelper]
            [java.io PrintStream PushbackReader]
@@ -406,20 +411,10 @@
       ([{:keys [rt]} lua-string lua-options]
        (decode lua-string (rt/->clj rt json-decode-options-coercer lua-options))))))
 
-(def json-value-coercer
-  (coerce/recursive
-    #(coerce/one-of
-       coerce/null
-       coerce/boolean
-       coerce/number
-       coerce/string
-       (coerce/vector-of % :min-count 1)
-       (coerce/map-of coerce/string %))))
-
 (def ext-json-encode
   (rt/lua-fn ext-json-decode
     ([{:keys [rt]} lua-value]
-     (json/write-str (rt/->clj rt json-value-coercer lua-value)))))
+     (json/write-str (rt/->clj rt ext.http-server/json-value-coercer lua-value)))))
 
 ;; endregion
 
@@ -654,6 +649,76 @@
     (when schema
       (prefs/register-project-schema! project-path schema))))
 
+(defn- reload-server-routes! [state evaluation-context]
+  (let [{:keys [display-output! rt web-server]} state
+        dynamic-routes
+        (->> (execute-all-top-level-functions state :get_http_server_routes nil evaluation-context)
+             (e/mapcat
+               (fn [[proj-path lua-ret]]
+                 (error-handling/try-with-extension-exceptions
+                   :display-output! display-output!
+                   :label (str "Reloading server routes in " proj-path)
+                   :catch nil
+                   (e/map
+                     #(assoc % :proj-path proj-path)
+                     (rt/->clj rt ext.http-server/routes-coercer lua-ret)))))
+             (group-by (juxt :path :method))
+             (reduce-kv
+               (fn [acc [path method :as path+method] routes]
+                 (if (= 1 (count routes))
+                   (let [{:keys [handler proj-path]} (routes 0)]
+                     (assoc-in acc path+method (with-meta handler {:proj-path proj-path})))
+                   (do
+                     (display-output! :err (str "Omitting conflicting routes for '"
+                                                method " " path "' defined in "
+                                                (->> routes
+                                                     (map :proj-path)
+                                                     (distinct)
+                                                     sort
+                                                     (util/join-words ", " " and "))))
+                     acc)))
+               {}))
+        handler (http-server/handler web-server)]
+    (try
+      (web-server/set-dynamic-routes! handler dynamic-routes)
+      (catch Exception e
+        (let [{:keys [type data]} (ex-data e)]
+          (if (= :path-conflicts type)
+            (web-server/set-dynamic-routes!
+              handler
+              ;; Use the path conflict data to notify the user about the conflict and
+              ;; exclude the conflicting routes from the dynamic routes set
+              (->> data
+                   (e/mapcat
+                     (fn [[[a-path a-method->handler] conflicting-routes]]
+                       (let [a-proj-paths (->> a-method->handler
+                                               (e/keep #(:proj-path (meta (val %))))
+                                               set)
+                             a-is-dynamic (not (coll/empty? a-proj-paths))]
+                         (e/mapcat
+                           (fn [[b-path b-method->handler]]
+                             (let [b-proj-paths (->> b-method->handler
+                                                     (e/keep #(:proj-path (meta (val %))))
+                                                     set)
+                                   b-is-dynamic (not (coll/empty? b-proj-paths))
+                                   excluded-paths (cond
+                                                    (and a-is-dynamic b-is-dynamic) [a-path b-path]
+                                                    a-is-dynamic [a-path]
+                                                    b-is-dynamic [b-path]
+                                                    :else (throw (IllegalStateException. "Didn't expect 2 built-in routes to conflict")))]
+                               (display-output!
+                                 :err
+                                 (str "Omitting conflicting routes for "
+                                      (util/join-words ", " " and " (map #(str "'" % "'") excluded-paths))
+                                      " defined in "
+                                      (util/join-words ", " " and " (sort (into a-proj-paths b-proj-paths)))
+                                      (when-not (= a-is-dynamic b-is-dynamic)
+                                        " (conflict with the editor's built-in routes)")))
+                               excluded-paths))
+                           conflicting-routes))))
+                   (reduce dissoc dynamic-routes)))
+            (throw e)))))))
+
 (defn- add-all-entry [m path module]
   (reduce-kv
     (fn [acc k v]
@@ -667,6 +732,7 @@
   (coerce/hash-map :opt {:get_commands coerce/function
                          :get_language_servers coerce/function
                          :get_prefs_schema coerce/function
+                         :get_http_server_routes coerce/function
                          :on_build_started coerce/function
                          :on_build_finished coerce/function
                          :on_bundle_started coerce/function
@@ -742,6 +808,7 @@
     kind       which scripts to reload, either :all, :library or :project
 
   Required kv-args:
+    :web-server           http server associated with the project
     :prefs                editor prefs
     :reload-resources!    0-arg function that asynchronously reloads the editor
                           resources, returns a CompletableFuture (that might
@@ -768,8 +835,8 @@
                                                   strings
                             evaluation-context    evaluation context of the
                                                   invocation"
-  [project kind & {:keys [prefs reload-resources! display-output! save! open-resource! invoke-bob!] :as opts}]
-  {:pre [prefs reload-resources! display-output! save! open-resource! invoke-bob!]}
+  [project kind & {:keys [web-server prefs reload-resources! display-output! save! open-resource! invoke-bob!] :as opts}]
+  {:pre [web-server prefs reload-resources! display-output! save! open-resource! invoke-bob!]}
   (g/with-auto-evaluation-context evaluation-context
     (let [extensions (g/node-value project :editor-extensions evaluation-context)
           old-state (ext-state project evaluation-context)
@@ -805,7 +872,8 @@
                                "version" (system/defold-version)
                                "engine_sha1" (system/defold-engine-sha1)
                                "editor_sha1" (system/defold-editor-sha1)}
-                     "http" {"request" ext-http-request}
+                     "http" {"request" ext-http-request
+                             "server" (ext.http-server/env workspace project-path web-server)}
                      "json" {"decode" ext-json-decode
                              "encode" ext-json-encode}
                      "io" {"tmpfile" nil}
@@ -832,6 +900,7 @@
       (reload-prefs! project-path new-state evaluation-context)
       (reload-language-servers! project new-state evaluation-context)
       (reload-commands! project new-state evaluation-context)
+      (reload-server-routes! new-state evaluation-context)
       nil)))
 
 (defn- hook-exception->error [^Throwable ex project hook-keyword]

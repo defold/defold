@@ -29,6 +29,12 @@
 *     'resize_window_callback':
 *         Function that is called when resize/orientationchanges/focus events happened
 *
+*     'start_success':
+*         Function that is called just before main is called upon successful load.
+*
+*     'update_progress':
+*         Function that is called as progress is updated. Parameter progress is updated 0-100.
+*
 *     'update_imports':
 *         Function that is called right before wasm instantiation. Imports
 *         are passed into the function and can be modified and will be
@@ -47,6 +53,10 @@ var CUSTOM_PARAMETERS = {
     unsupported_webgl_callback: function() {
         var e = document.getElementById("webgl-not-supported");
         e.style.display = "block";
+    },
+    start_success: function() {
+    },
+    update_progress: function(progress) {
     },
     update_imports: function(imports) {
     },
@@ -376,6 +386,10 @@ var EngineLoader = {
     // start loading archive_files.json
     // after receiving it - start loading engine and data concurrently
     load: function(appCanvasId, exeName) {
+        if (typeof CUSTOM_PARAMETERS["update_progress"] === "function") {
+            ProgressUpdater.addListener(CUSTOM_PARAMETERS["update_progress"]);
+        }
+
         ProgressView.addProgress(Module.setupCanvas(appCanvasId));
         CUSTOM_PARAMETERS['exe_name'] = exeName;
 
@@ -1164,6 +1178,9 @@ var Module = {
         if (!Module._isMainCalled) {
             Module._isMainCalled = true;
             ProgressView.removeProgress();
+            if (typeof CUSTOM_PARAMETERS["start_success"] === "function") {
+                CUSTOM_PARAMETERS["start_success"]();
+            }
             if (Module.callMain === undefined) {
                 Module.noInitialRun = false;
             } else {
