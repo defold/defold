@@ -202,9 +202,9 @@
 (def internal-server-error (make-status-response 500 "Internal Server Error"))
 (defn redirect [location] (response 302 {"location" location} nil))
 
-(deftype ServerWithHandler [server handler]
+(deftype ServerWithHandler [^HttpServer server handler]
   Closeable
-  (close [_] (.stop ^HttpServer server 0)))
+  (close [_] (.stop server 0)))
 
 (defn port [^ServerWithHandler server]
   (.getPort (.getAddress ^HttpServer (.-server server))))
@@ -233,13 +233,16 @@
             (connection-content-length [_]
               (let [len (.getContentLengthLong connection)]
                 (when-not (= -1 len) len)))
+
             ConnectionContentType
             (connection-content-type [_] (.getContentType connection))
+
             io/IOFactory
             (make-input-stream [_ opts] (io/make-input-stream (.getInputStream connection) opts))
             (make-output-stream [_ opts] (io/make-output-stream (.getOutputStream connection) opts))
             (make-reader [_ opts] (io/make-reader (.getInputStream connection) opts))
             (make-writer [_ opts] (io/make-writer (.getOutputStream connection) opts))
+
             Closeable
             (close [_] (.close (.getInputStream connection))))))
   URI (->connection [uri] (->connection (.toURL uri)))

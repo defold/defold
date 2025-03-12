@@ -175,7 +175,7 @@
       (g/connect! console :_node-id console-view :resource-node)
       (binding [ui/*main-stage* (atom @(fx/on-fx-thread (doto (Stage.) (.setScene (Scene. root)))))]
         (with-open [server (http-server/start!
-                             (web-server/create-dynamic-handler
+                             (web-server/make-dynamic-handler
                                (into [] cat [(engine-profiler/routes)
                                              (web-profiler/routes)
                                              (console/routes console-view)

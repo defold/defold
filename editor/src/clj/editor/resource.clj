@@ -162,9 +162,18 @@
 (defn ignored-project-path? [^File root proj-path]
   ((or *defignore-pred* (defignore-pred root)) proj-path))
 
+(defn- textual-resource-type?
+  "Returns whether the resource type is marked as textual. Note that the
+  placeholder resource type reports as textual, but might later call
+  [[util.text-util/binary?]] to estimate if the content is textual or not."
+  [resource-type]
+  {:pre [(some? resource-type)]
+   :post [(boolean? %)]}
+  (:textual? resource-type))
+
 (defn- content-type [resource]
   (or (http-server/ext->content-type (type-ext resource))
-      (if (:textual? (resource-type resource))
+      (if (textual-resource-type? (resource-type resource))
         "text/plain"
         "application/octet-stream")))
 
@@ -219,6 +228,7 @@
 
   http-server/ContentType
   (content-type [resource] (content-type resource))
+
   http-server/->Data
   (->data [_] (fs/path abs-path)))
 
@@ -342,6 +352,7 @@
 
   http-server/ContentType
   (content-type [resource] (content-type resource))
+
   http-server/->Connection
   (->connection [_]
     (let [zip-file (ZipFile. (io/file zip-uri))
@@ -548,15 +559,6 @@
   or false otherwise."
   [resource-type]
   (= placeholder-resource-type-ext (:ext resource-type)))
-
-(defn- textual-resource-type?
-  "Returns whether the resource type is marked as textual. Note that the
-  placeholder resource type reports as textual, but might later call
-  [[util.text-util/binary?]] to estimate if the content is textual or not."
-  [resource-type]
-  {:pre [(some? resource-type)]
-   :post [(boolean? %)]}
-  (:textual? resource-type))
 
 (defn textual? [resource]
   "Returns whether the resource is considered textual based on its type. If

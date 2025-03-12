@@ -202,7 +202,7 @@
                                                       open-resource
                                                       (partial app-view/debugger-state-changed! scene tool-tabs))
           web-server (http-server/start!
-                       (web-server/create-dynamic-handler
+                       (web-server/make-dynamic-handler
                          (into []
                                cat
                                [(engine-profiler/routes)
