@@ -26,6 +26,7 @@ import os
 import sys
 import log
 import run
+import json
 import platform
 from collections import defaultdict
 
@@ -785,3 +786,21 @@ def get_toolchain_root(sdkinfo, platform):
     if platform in ('x86_64-linux','arm64-linux'):
         return sdkinfo[platform]['path']
     return None
+
+
+if __name__ == '__main__':
+    target = None
+    if len(sys.argv) > 1:
+        target = sys.argv[1]
+    if target is None:
+        target = get_host_platform()
+
+    output = 'out.json'
+    if len(sys.argv) > 2:
+        output = sys.argv[2]
+
+    info = get_sdk_info(SDK_ROOT, target)
+    with open(output, 'w') as f:
+        f.write(json.dumps(info, indent=2))
+
+    print("Wrote", output)
