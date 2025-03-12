@@ -265,7 +265,7 @@ public class TimeProfiler {
     }
 
     public static void init(List<File> reportFiles) throws IOException {
-        if (reportFiles != null) {
+        if (TimeProfiler.reportFiles != null) {
             throw new RuntimeException("TimeProfiler.init() called while profiling was already in progress");
         }
         TimeProfiler.reportFiles = reportFiles;
