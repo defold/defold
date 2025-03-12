@@ -116,7 +116,8 @@ PACKAGES_ALL=[
     "libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a",
     "jctest-0.10.2",
     "vulkan-v1.4.307",
-    "box2d-28adacf82377d4113f2ed00586141463244b9d10"]
+    "box2d-28adacf82377d4113f2ed00586141463244b9d10",
+    "box2d_defold-2.2.1"]
 
 PACKAGES_HOST=[
     "vpx-1.7.0",
@@ -129,7 +130,8 @@ PACKAGES_IOS_X86_64=[
     "tremolo-b0cb4d1",
     "bullet-2.77",
     "glfw-2.7.1",
-    "box2d-28adacf82377d4113f2ed00586141463244b9d10"]
+    "box2d-28adacf82377d4113f2ed00586141463244b9d10",
+    "box2d_defold-2.2.1"]
 
 PACKAGES_IOS_64=[
     "protobuf-3.20.1",
@@ -138,7 +140,8 @@ PACKAGES_IOS_64=[
     "bullet-2.77",
     "moltenvk-1474891",
     "glfw-2.7.1",
-    "box2d-28adacf82377d4113f2ed00586141463244b9d10"]
+    "box2d-28adacf82377d4113f2ed00586141463244b9d10",
+    "box2d_defold-2.2.1"]
 
 PACKAGES_MACOS_X86_64=[
     "protobuf-3.20.1",
@@ -155,7 +158,8 @@ PACKAGES_MACOS_X86_64=[
     "glfw-3.4",
     "tint-22b958",
     "astcenc-8b0aa01",
-    "box2d-28adacf82377d4113f2ed00586141463244b9d10"]
+    "box2d-28adacf82377d4113f2ed00586141463244b9d10",
+    "box2d_defold-2.2.1"]
 
 PACKAGES_MACOS_ARM64=[
     "protobuf-3.20.1",
@@ -171,7 +175,8 @@ PACKAGES_MACOS_ARM64=[
     "glfw-3.4",
     "tint-22b958",
     "astcenc-8b0aa01",
-    "box2d-28adacf82377d4113f2ed00586141463244b9d10"]
+    "box2d-28adacf82377d4113f2ed00586141463244b9d10",
+    "box2d_defold-2.2.1"]
 
 PACKAGES_WIN32=[
     "protobuf-3.20.1",
