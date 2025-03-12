@@ -15,7 +15,7 @@
 
 #include <stdlib.h> // qsort
 
-#include "physics.h"
+#include "../physics.h"
 
 #include <dlib/array.h>
 #include <dlib/log.h>
@@ -25,7 +25,7 @@
 #include <box2d/box2d.h>
 #include <box2d/src/world.h>
 
-#include "physics_2d.h"
+#include "box2d_physics.h"
 
 namespace dmPhysics
 {
