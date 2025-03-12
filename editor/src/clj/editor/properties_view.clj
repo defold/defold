@@ -563,7 +563,7 @@
        (mapv #(color->web-string % false))
        (prefs/set! prefs saved-colors-prefs-path)))
 
-(defn get-saved-colors
+(defn- get-saved-colors
   [prefs]
   (->> (prefs/get prefs saved-colors-prefs-path)
        (mapv #(Color/valueOf ^String %))))
