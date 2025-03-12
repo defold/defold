@@ -2519,9 +2519,7 @@ namespace dmGui
         }
         if (n->m_Node.m_Text)
             free((void*)n->m_Node.m_Text);
-        if (n->m_Node.m_HasResetPoint) {
-            free(n->m_Node.m_ResetPointProperties);
-        }
+        free(n->m_Node.m_ResetPointProperties);
         memset(n, 0, sizeof(InternalNode));
         n->m_Index = INVALID_INDEX;
     }
@@ -4233,7 +4231,7 @@ namespace dmGui
 
         InternalNode* n = GetNode(scene, node);
         out_n->m_Node = n->m_Node;
-        out_n->m_Node.m_HasResetPoint = false;
+        out_n->m_Node.m_HasResetPoint = 0;
         out_n->m_Node.m_ResetPointProperties = 0;
         if (n->m_Node.m_Text != 0x0)
             out_n->m_Node.m_Text = strdup(n->m_Node.m_Text);
