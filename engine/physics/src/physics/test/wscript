@@ -1,17 +1,23 @@
 #! /usr/bin/env python
 from waf_dynamo import platform_supports_feature
 
+from BuildUtility import create_build_utility
+
 def build(bld):
+    build_util = create_build_utility(bld.env)
+
+    box2d_defold_includes = [build_util.get_dynamo_ext('include', 'box2d_defold')]
+
     bld.program(features = 'cxx test',
                 source = 'test_physics.cpp',
                 use = 'TESTMAIN DLIB PROFILE_NULL PLATFORM_THREAD SOCKET BULLET BOX2D physics',
-                includes = ['../../../src', '../../../src/box2d'],
+                includes = ['../../../src'] + box2d_defold_includes,
                 target = 'test_physics')
 
     bld.program(features = 'cxx test',
                     source = 'test_physics_2d.cpp',
                     use = 'TESTMAIN DLIB PROFILE_NULL PLATFORM_THREAD SOCKET BULLET BOX2D physics_2d',
-                    includes = ['../../../src', '../../../src/box2d'],
+                    includes = ['../../../src'] + box2d_defold_includes,
                     target = 'test_physics_2d')
 
     # Note that these null tests won't actually work since the tests aren't written that way.
@@ -20,11 +26,11 @@ def build(bld):
     bld.program(features = 'cxx test skip_test',
                     source = 'test_physics.cpp',
                     use = 'TESTMAIN DLIB PROFILE_NULL GTEST PLATFORM_THREAD SOCKET BULLET physics_null',
-                    includes = ['../../../src', '../../../src/box2d'],
+                    includes = ['../../../src'],
                     target = 'test_physics_null')
 
     bld.program(features = 'cxx test skip_test',
                     source = 'test_physics_2d.cpp',
                     use = 'TESTMAIN DLIB PROFILE_NULL GTEST PLATFORM_THREAD SOCKET BULLET physics_null',
-                    includes = ['../../../src', '../../../src/box2d'],
+                    includes = ['../../../src'],
                     target = 'test_physics_2d_null')

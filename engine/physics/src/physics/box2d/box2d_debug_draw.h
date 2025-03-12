@@ -17,7 +17,7 @@
 
 #include "box2d/box2d.h"
 
-#include "physics.h"
+#include "../physics.h"
 
 namespace dmPhysics
 {
