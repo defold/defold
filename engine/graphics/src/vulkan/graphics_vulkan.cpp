@@ -3709,7 +3709,7 @@ bail:
                 vk_copy_region.bufferImageHeight               = 0;
                 vk_copy_region.imageOffset.x                   = params.m_X;
                 vk_copy_region.imageOffset.y                   = params.m_Y;
-                vk_copy_region.imageOffset.z                   = 0; // TODO!
+                vk_copy_region.imageOffset.z                   = params.m_Z;
                 vk_copy_region.imageExtent.width               = params.m_Width;
                 vk_copy_region.imageExtent.height              = params.m_Height;
                 vk_copy_region.imageExtent.depth               = dmMath::Max((uint32_t) 1, (uint32_t) params.m_Depth);

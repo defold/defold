@@ -608,14 +608,14 @@ static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceP
         return luaL_error(L, "Unable to create texture, width, height and depth must be larger than 0");
     }
 
-    if (dmGraphics::IsTextureType3D(type) && !dmGraphics::IsContextFeatureSupported(g_ResourceModule.m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_3D_TEXTURES))
-    {
-        return luaL_error(L, "Unable to create texture, 3D textures are not supported on this graphics context.");
-    }
-
     if (!IsTextureFormatSupported(type))
     {
         return luaL_error(L, "Unable to create texture, unsupported texture type '%s'.", dmGraphics::GetTextureTypeLiteral(type));
+    }
+
+    if (dmGraphics::IsTextureType3D(type) && !dmGraphics::IsContextFeatureSupported(g_ResourceModule.m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_3D_TEXTURES))
+    {
+        return luaL_error(L, "Unable to create texture, 3D textures are not supported on this graphics context.");
     }
 
     dmGraphics::TextureImage::CompressionType compression_type = (dmGraphics::TextureImage::CompressionType) CheckTableInteger(L, 2, "compression_type", (int) dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT);
@@ -747,14 +747,19 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
  * : [type:number] The texture type. Supported values:
  *
  * - `graphics.TEXTURE_TYPE_2D`
- * - `graphics.TEXTURE_TYPE_CUBE_MAP`
  * - `graphics.TEXTURE_TYPE_IMAGE_2D`
+ * - `graphics.TEXTURE_TYPE_3D`
+ * - `graphics.TEXTURE_TYPE_IMAGE_3D`
+ * - `graphics.TEXTURE_TYPE_CUBE_MAP`
  *
  * `width`
  * : [type:number] The width of the texture (in pixels). Must be larger than 0.
  *
  * `height`
  * : [type:number] The width of the texture (in pixels). Must be larger than 0.
+ *
+ * `depth`
+ * : [type:number] The depth of the texture (in pixels). Must be larger than 0. Only used when `type` is `graphics.TEXTURE_TYPE_3D` or `graphics.TEXTURE_TYPE_IMAGE_3D`.
  *
  * `format`
  * : [type:number] The texture format, note that some of these formats might not be supported by the running device. Supported values:
@@ -867,6 +872,25 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
  *    go.set("#model", "texture0", my_texture_id)
  * end
  * ```
+ *
+ * @examples
+ * How to create a 32x32x32 floating point 3D texture that can be used to generate volumetric data in a compute shader
+ *
+ * ```lua
+ * function init(self)
+ *     local t_volume = resource.create_texture("/my_backing_texture.texturec", {
+ *         type   = graphics.TEXTURE_TYPE_IMAGE_3D,
+ *         width  = 32,
+ *         height = 32,
+ *         depth  = 32,
+ *         format = resource.TEXTURE_FORMAT_RGBA32F,
+ *         flags  = resource.TEXTURE_USAGE_FLAG_STORAGE + resource.TEXTURE_USAGE_FLAG_SAMPLE,
+ *     })
+ * 
+ *     -- pass the backing texture to the render script
+ *     msg.post("@render:", "add_textures", { t_volume })
+ * end
+ * ```
  */
 static int CreateTexture(lua_State* L)
 {
@@ -909,6 +933,9 @@ static int CreateTexture(lua_State* L)
  * : [type:number] The texture type. Supported values:
  *
  * - `graphics.TEXTURE_TYPE_2D`
+ * - `graphics.TEXTURE_TYPE_IMAGE_2D`
+ * - `graphics.TEXTURE_TYPE_3D`
+ * - `graphics.TEXTURE_TYPE_IMAGE_3D`
  * - `graphics.TEXTURE_TYPE_CUBE_MAP`
  *
  * `width`
@@ -916,6 +943,9 @@ static int CreateTexture(lua_State* L)
  *
  * `height`
  * : [type:number] The width of the texture (in pixels). Must be larger than 0.
+ *
+ * `depth`
+ * : [type:number] The depth of the texture (in pixels). Must be larger than 0. Only used when `type` is `graphics.TEXTURE_TYPE_3D` or `graphics.TEXTURE_TYPE_IMAGE_3D`.
  *
  * `format`
  * : [type:number] The texture format, note that some of these formats might not be supported by the running device. Supported values:
@@ -1214,6 +1244,9 @@ static int ReleaseResource(lua_State* L)
  * : [type:number] The texture type. Supported values:
  *
  * - `graphics.TEXTURE_TYPE_2D`
+ * - `graphics.TEXTURE_TYPE_IMAGE_2D`
+ * - `graphics.TEXTURE_TYPE_3D`
+ * - `graphics.TEXTURE_TYPE_IMAGE_3D`
  * - `graphics.TEXTURE_TYPE_CUBE_MAP`
  *
  * `width`
@@ -1264,6 +1297,9 @@ static int ReleaseResource(lua_State* L)
  *
  * `y`
  * : [type:number] optional y offset of the texture (in pixels)
+ *
+ * `z`
+ * : [type:number] optional z offset of the texture (in pixels). Only applies to 3D textures
  *
  * `mipmap`
  * : [type:number] optional mipmap to upload the data to
@@ -1350,6 +1386,44 @@ static int ReleaseResource(lua_State* L)
  *     resource.set_texture(resource_path, args, resource.get_buffer(self.my_buffer))
  * end
  * ```
+ *
+ * @examples
+ * Update an existing 3D texture from a lua buffer
+ * 
+ * ```lua
+ *
+ * function init(self)
+ *     -- create a buffer that can hold the data of a 8x8x8 texture
+ *     local tbuffer = buffer.create(8 * 8 * 8, { {name=hash("rgba"), type=buffer.VALUE_TYPE_FLOAT32, count=4} } )
+ *     local tstream = buffer.get_stream(tbuffer, hash("rgba"))
+ *     
+ *     -- populate the buffer with some data
+ *     local index = 1
+ *     for z=1,8 do
+ *         for y=1,8 do
+ *             for x=1,8 do
+ *                 tstream[index + 0] = x
+ *                 tstream[index + 1] = y
+ *                 tstream[index + 2] = z
+ *                 tstream[index + 3] = 1.0
+ *                 index = index + 4
+ *             end
+ *         end
+ *     end
+ *     
+ *     local t_args = {
+ *         type   = graphics.TEXTURE_TYPE_IMAGE_3D,
+ *         width  = 8,
+ *         height = 8,
+ *         depth  = 8,
+ *         format = resource.TEXTURE_FORMAT_RGBA32F
+ *     }
+ *      
+ *     -- This expects that the texture resource "/my_3d_texture.texturec" already exists
+ *     -- and is a 3D texture resource. To create a dynamic 3D texture resource
+ *     -- use the "resource.create_texture" function.
+ *     resource.set_texture("/my_3d_texture.texturec", t_args, tbuffer)
+ * end
  */
 static int SetTexture(lua_State* L)
 {
@@ -1364,9 +1438,11 @@ static int SetTexture(lua_State* L)
     dmGraphics::TextureFormat format = (dmGraphics::TextureFormat) CheckTableInteger(L, 2, "format");
     uint32_t width                   = (uint32_t) CheckTableInteger(L, 2, "width");
     uint32_t height                  = (uint32_t) CheckTableInteger(L, 2, "height");
+    uint32_t depth                   = (uint32_t) CheckTableInteger(L, 2, "depth", 1);
     uint32_t mipmap                  = (uint32_t) CheckTableInteger(L, 2, "mipmap", 0);
     int32_t x                        = (int32_t)  CheckTableInteger(L, 2, "x", DEFAULT_INT_NOT_SET);
     int32_t y                        = (int32_t)  CheckTableInteger(L, 2, "y", DEFAULT_INT_NOT_SET);
+    int32_t z                        = (int32_t)  CheckTableInteger(L, 2, "z", DEFAULT_INT_NOT_SET);
 
     if (!dmGraphics::IsTextureFormatSupported(g_ResourceModule.m_GraphicsContext, format))
     {
@@ -1379,11 +1455,17 @@ static int SetTexture(lua_State* L)
         return luaL_error(L, "Unable to set texture, unsupported texture type '%s'.", dmGraphics::GetTextureTypeLiteral(type));
     }
 
+    if (dmGraphics::IsTextureType3D(type) && !dmGraphics::IsContextFeatureSupported(g_ResourceModule.m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_3D_TEXTURES))
+    {
+        return luaL_error(L, "Unable to create texture, 3D textures are not supported on this graphics context.");
+    }
+
     dmGraphics::TextureImage::CompressionType compression_type = (dmGraphics::TextureImage::CompressionType) CheckTableInteger(L, 2, "compression_type", (int) dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT);
 
-    bool sub_update = x != DEFAULT_INT_NOT_SET || y != DEFAULT_INT_NOT_SET;
+    bool sub_update = x != DEFAULT_INT_NOT_SET || y != DEFAULT_INT_NOT_SET || z != DEFAULT_INT_NOT_SET;
     x               = dmMath::Max(0, x);
     y               = dmMath::Max(0, y);
+    z               = dmMath::Max(0, z);
 
     dmScript::LuaHBuffer* lua_buffer = dmScript::CheckBuffer(L, 3);
     dmBuffer::HBuffer buffer_handle  = dmGameSystem::UnpackLuaBuffer(lua_buffer);
@@ -1401,8 +1483,10 @@ static int SetTexture(lua_State* L)
     params.m_DataSize               = datasize;
     params.m_Width                  = width;
     params.m_Height                 = height;
+    params.m_Depth                  = depth;
     params.m_X                      = x;
     params.m_Y                      = y;
+    params.m_Z                      = z;
     params.m_MipMap                 = mipmap;
     params.m_SubUpdate              = sub_update;
 
@@ -1436,7 +1520,7 @@ static int SetTexture(lua_State* L)
  * : [type:integer] height of the texture
  *
  * `depth`
- * : [type:integer] depth of the texture (i.e 1 for a 2D texture and 6 for a cube map)
+ * : [type:integer] depth of the texture (i.e 1 for a 2D texture, 6 for a cube map, number of slices for an array texture and the actual depth of a 3D texture)
  *
  * `mipmaps`
  * : [type:integer] number of mipmaps of the texture
@@ -1448,9 +1532,11 @@ static int SetTexture(lua_State* L)
  * : [type:number] The texture type. Supported values:
  *
  * - `graphics.TEXTURE_TYPE_2D`
- * - `graphics.TEXTURE_TYPE_IMAGE_2D`
- * - `graphics.TEXTURE_TYPE_CUBE_MAP`
  * - `graphics.TEXTURE_TYPE_2D_ARRAY`
+ * - `graphics.TEXTURE_TYPE_IMAGE_2D`
+ * - `graphics.TEXTURE_TYPE_3D`
+ * - `graphics.TEXTURE_TYPE_IMAGE_3D`
+ * - `graphics.TEXTURE_TYPE_CUBE_MAP`
  *
  * @examples
  * Create a new texture and get the metadata from it

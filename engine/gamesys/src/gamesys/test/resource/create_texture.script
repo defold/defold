@@ -53,6 +53,14 @@ local tparams_compressed = {
     compression_type = graphics.COMPRESSION_TYPE_BASIS_UASTC,
 }
 
+local tparams_3d = {
+    width          = 32,
+    height         = 32,
+    depth          = 32,
+    type           = graphics.TEXTURE_TYPE_3D,
+    format         = graphics.TEXTURE_FORMAT_RGBA,
+}
+
 function test_simple()
     local t_id = resource.create_texture("/test_simple.texturec", tparams)
     go.set("#model", "texture0", t_id)
@@ -263,6 +271,19 @@ function test_get_texture_info()
 
     resource.release(t_id_cube)
 
+    local t_id_3d   = resource.create_texture("/test_get_texture_info_3d.texturec", tparams_3d)
+    local t_info_3d = resource.get_texture_info(t_id_3d)
+
+    pprint(t_info_3d)
+
+    assert(t_info_3d.type    == graphics.TEXTURE_TYPE_3D)
+    assert(t_info_3d.width   == 32)
+    assert(t_info_3d.height  == 32)
+    assert(t_info_3d.depth   == 32)
+    assert(t_info_3d.mipmaps == 1)
+
+    resource.release(t_id_3d)
+
     -- test incorrect handles by basic types
     assert_error(function() resource.get_texture_info(nil) end)
     assert_error(function() resource.get_texture_info(false) end)
@@ -271,6 +292,33 @@ function test_get_texture_info()
 
     -- test incorrect handles by explicitly removed resource id
     assert_error(function() resource.get_texture_info(t_id) end)
+end
+
+function test_3d_textures()
+    local t_id_simple = resource.create_texture("/test_3d_textures.texturec", tparams_3d)
+    local t_info_simple = resource.get_texture_info(t_id_simple)
+
+    assert(t_info_simple.width   == 32)
+    assert(t_info_simple.height  == 32)
+    assert(t_info_simple.depth   == 32)
+    assert(t_info_simple.mipmaps == 1)
+    assert(t_info_simple.type    == graphics.TEXTURE_TYPE_3D)
+
+    local tex_buffer = buffer.create(tparams_3d.width * tparams_3d.height * tparams_3d.depth, {{name = hash("data"), type = buffer.VALUE_TYPE_UINT8, count = 4 }})
+    local t_id_buffer = resource.create_texture("/test_3d_textures_buffer.texturec", tparams_3d, tex_buffer)
+    local t_info_buffer = resource.get_texture_info(t_id_buffer)
+
+    assert(t_info_buffer.width   == 32)
+    assert(t_info_buffer.height  == 32)
+    assert(t_info_buffer.depth   == 32)
+    assert(t_info_buffer.mipmaps == 1)
+    assert(t_info_buffer.type    == graphics.TEXTURE_TYPE_3D)
+
+    -- test with wrong depth
+    t_info_buffer.depth = 0
+    assert_error(function()
+        resource.create_texture("/test_3d_textures_wrong_depth.texturec", t_info_buffer)
+    end)
 end
 
 function update(self)
@@ -288,6 +336,7 @@ function update(self)
         test_invalid,
         test_async_simple,
         test_async_basis,
+        test_3d_textures,
     }
 
     if tests[self.update_counter] ~= nil then

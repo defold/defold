@@ -154,7 +154,8 @@ namespace dmGameSystem
         uint32_t bitspp = dmGraphics::GetTextureFormatBitsPerPixel(params.m_Format);
 
         // NOTE! The params.m_Depth is NOT included here. This is because of how the pipeline (and I think, OpenGL adapter is built),
-        //       the data size is supposed to be per slice and not the full data size.
+        //       the data size is supposed to be per slice and not the full data size. With this in mind, we unfortunately can't
+        //       properly validate 3D textures here. We will have to solve this at some point.
         uint32_t data_size = params.m_Width * params.m_Height * bitspp / 8;
 
         // NOTE! We can't check that the _exact_ size matches here (data_size != params.m_DataSize) because the data may be
@@ -214,6 +215,7 @@ namespace dmGameSystem
             params.m_LayerCount = image_desc->m_DDFImage->m_Count;
             params.m_X          = upload_params.m_X;
             params.m_Y          = upload_params.m_Y;
+            params.m_Z          = upload_params.m_Z;
             params.m_SubUpdate  = upload_params.m_SubUpdate;
             params.m_MipMap     = specific_mip_requested ? upload_params.m_MipMap : 0;
 

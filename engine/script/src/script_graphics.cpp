@@ -303,6 +303,16 @@ namespace dmScript
      */
 
     /*#
+     * @name graphics.TEXTURE_TYPE_3D
+     * @variable
+     */
+
+    /*#
+     * @name graphics.TEXTURE_TYPE_IMAGE_3D
+     * @variable
+     */
+
+    /*#
      * @name graphics.TEXTURE_FILTER_DEFAULT
      * @variable
      */

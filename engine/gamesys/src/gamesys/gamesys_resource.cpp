@@ -258,6 +258,7 @@ namespace dmGameSystem
         ResTextureUploadParams& upload_params = recreate_params.m_UploadParams;
         upload_params.m_X                     = params.m_X;
         upload_params.m_Y                     = params.m_Y;
+        upload_params.m_Z                     = params.m_Z;
         upload_params.m_MipMap                = params.m_MipMap;
         upload_params.m_SubUpdate             = params.m_SubUpdate;
         upload_params.m_UploadSpecificMipmap  = 1;

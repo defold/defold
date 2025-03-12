@@ -4280,6 +4280,19 @@ static void LogFrameBufferError(GLenum status)
                     }
                     CHECK_GL_ERROR;
                 }
+                else if (tex->m_Type == TEXTURE_TYPE_3D || tex->m_Type == TEXTURE_TYPE_IMAGE_3D)
+                {
+                    assert(g_Context->m_3DTextureSupport);
+                    if (params.m_SubUpdate)
+                    {
+                        DMGRAPHICS_TEX_SUB_IMAGE_3D(GL_TEXTURE_3D, params.m_MipMap, params.m_X, params.m_Y, params.m_Z, params.m_Width, params.m_Height, params.m_Depth, gl_format, gl_type, params.m_Data);
+                    }
+                    else
+                    {
+                        DMGRAPHICS_TEX_IMAGE_3D(GL_TEXTURE_3D, params.m_MipMap, gl_internal_format, params.m_Width, params.m_Height, params.m_Depth, 0, gl_format, gl_type, params.m_Data);
+                    }
+                    CHECK_GL_ERROR;
+                }
                 else if (tex->m_Type == TEXTURE_TYPE_CUBE_MAP)
                 {
                     assert(tex->m_NumTextureIds == 1);
@@ -4371,6 +4384,18 @@ static void LogFrameBufferError(GLenum status)
                         else
                         {
                             DMGRAPHICS_COMPRESSED_TEX_IMAGE_3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, gl_format, params.m_Width, params.m_Height, params.m_LayerCount, 0, params.m_DataSize * params.m_Depth, params.m_Data);
+                        }
+                        CHECK_GL_ERROR;
+                    }
+                    else if (tex->m_Type == TEXTURE_TYPE_3D)
+                    {
+                        if (params.m_SubUpdate)
+                        {
+                            DMGRAPHICS_COMPRESSED_TEX_SUB_IMAGE_3D(GL_TEXTURE_3D, params.m_MipMap, params.m_X, params.m_Y, params.m_Z, params.m_Width, params.m_Height, params.m_Depth, gl_format, params.m_DataSize, params.m_Data);
+                        }
+                        else
+                        {
+                            DMGRAPHICS_COMPRESSED_TEX_IMAGE_3D(GL_TEXTURE_3D, params.m_MipMap, gl_format, params.m_Width, params.m_Height, params.m_Depth, 0, params.m_DataSize, params.m_Data);
                         }
                         CHECK_GL_ERROR;
                     }
