@@ -32,7 +32,7 @@ namespace dmGameSystem
         uint32_t data_size = 0;
         uint16_t mm_width  = params.m_Width;
         uint16_t mm_height = params.m_Height;
-        uint16_t mm_depth  = params.m_Depth; // Mipmaps?
+        uint16_t mm_depth  = params.m_Depth;
 
         for (uint32_t i = 0; i < params.m_MaxMipMaps; ++i)
         {

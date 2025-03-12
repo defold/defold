@@ -821,6 +821,13 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
  *
  * @return path [type:hash] The path to the resource.
  *
+ * [icon:attention] 3D Textures are currently only supported on OpenGL and Vulkan adapters. To check if your device supports 3D textures, use:
+ *
+ * ```lua
+ * if graphics.TEXTURE_TYPE_3D ~= nil then
+ *     -- Device and graphics adapter support 3D textures
+ * end
+ *
  * @examples
  * How to create an 128x128 RGBA texture resource and assign it to a model
  *
@@ -977,13 +984,6 @@ static int CreateTexture(lua_State* L)
  * - `graphics.TEXTURE_FORMAT_R32F`
  * - `graphics.TEXTURE_FORMAT_RG32F`
  *
- * `flags`
- * : [type:number] Texture creation flags that can be used to dictate how the texture is created. Supported values:
- *
- * - `graphics.TEXTURE_USAGE_FLAG_SAMPLE` - The texture can be sampled from a shader (default)
- * - `graphics.TEXTURE_USAGE_FLAG_MEMORYLESS` - The texture can be used as a memoryless texture, i.e only transient memory for the texture is used during rendering
- * - `graphics.TEXTURE_USAGE_FLAG_STORAGE` - The texture can be used as a storage texture, which is required for a shader to write to the texture
- *
  * You can test if the device supports these values by checking if a specific enum is nil or not:
  *
  * ```lua
@@ -991,6 +991,13 @@ static int CreateTexture(lua_State* L)
  *     -- it is safe to use this format
  * end
  * ```
+ *
+ * `flags`
+ * : [type:number] Texture creation flags that can be used to dictate how the texture is created. Supported values:
+ *
+ * - `graphics.TEXTURE_USAGE_FLAG_SAMPLE` - The texture can be sampled from a shader (default)
+ * - `graphics.TEXTURE_USAGE_FLAG_MEMORYLESS` - The texture can be used as a memoryless texture, i.e only transient memory for the texture is used during rendering
+ * - `graphics.TEXTURE_USAGE_FLAG_STORAGE` - The texture can be used as a storage texture, which is required for a shader to write to the texture
  *
  * `max_mipmaps`
  * : [type:number] optional max number of mipmaps. Defaults to zero, i.e no mipmap support
@@ -1004,8 +1011,14 @@ static int CreateTexture(lua_State* L)
  *
  * @param buffer [type:buffer] optional buffer of precreated pixel data
  *
- * @return path [type:hash] The path to the resource.
  * @return request_id [type:handle] The request id for the async request.
+ *
+ * [icon:attention] 3D Textures are currently only supported on OpenGL and Vulkan adapters. To check if your device supports 3D textures, use:
+ *
+ * ```lua
+ * if graphics.TEXTURE_TYPE_3D ~= nil then
+ *     -- Device and graphics adapter support 3D textures
+ * end
  *
  * @examples
  * Create a texture resource asyncronously with a buffer and a callback
@@ -1313,6 +1326,13 @@ static int ReleaseResource(lua_State* L)
  * @param buffer [type:buffer] The buffer of precreated pixel data
  *
  * [icon:attention] To update a cube map texture you need to pass in six times the amount of data via the buffer, since a cube map has six sides!
+ * 
+ * [icon:attention] 3D Textures are currently only supported on OpenGL and Vulkan adapters. To check if your device supports 3D textures, use:
+ *
+ * ```lua
+ * if graphics.TEXTURE_TYPE_3D ~= nil then
+ *     -- Device and graphics adapter support 3D textures
+ * end
  *
  * @examples
  * How to set all pixels of an atlas

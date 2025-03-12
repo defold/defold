@@ -419,6 +419,15 @@ namespace dmGraphics
      * @member TYPE_FLOAT_MAT2
      * @member TYPE_FLOAT_MAT3
      * @member TYPE_IMAGE_2D
+     * @member TYPE_TEXTURE_2D
+     * @member TYPE_SAMPLER
+     * @member TYPE_TEXTURE_2D_ARRAY
+     * @member TYPE_TEXTURE_CUBE
+     * @member TYPE_SAMPLER_3D
+     * @member TYPE_TEXTURE_3D
+     * @member TYPE_IMAGE_3D
+     * @member TYPE_SAMPLER_3D_ARRAY
+     * @member TYPE_TEXTURE_3D_ARRAY
      */
     enum Type
     {

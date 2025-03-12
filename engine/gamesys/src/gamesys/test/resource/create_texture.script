@@ -274,8 +274,6 @@ function test_get_texture_info()
     local t_id_3d   = resource.create_texture("/test_get_texture_info_3d.texturec", tparams_3d)
     local t_info_3d = resource.get_texture_info(t_id_3d)
 
-    pprint(t_info_3d)
-
     assert(t_info_3d.type    == graphics.TEXTURE_TYPE_3D)
     assert(t_info_3d.width   == 32)
     assert(t_info_3d.height  == 32)
