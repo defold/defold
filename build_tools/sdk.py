@@ -799,8 +799,19 @@ if __name__ == '__main__':
     if len(sys.argv) > 2:
         output = sys.argv[2]
 
+    versions = {}
+    for k,v in dict(globals()).items():
+        if not isinstance(v, (str, int)):
+            continue
+        if k != k.upper():
+            continue
+
+        versions[k] = v
+
     info = get_sdk_info(SDK_ROOT, target)
+    info['versions'] = versions
     with open(output, 'w') as f:
         f.write(json.dumps(info, indent=2))
+
 
     print("Wrote", output)
