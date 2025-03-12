@@ -558,9 +558,8 @@
     :always (apply str "#")))
 
 (defn- save-colors!
-  [^ColorPicker color-picker prefs]
-  (->> (.getCustomColors color-picker)
-       (mapv #(color->web-string % false))
+  [colors prefs]
+  (->> (mapv #(color->web-string % false) colors)
        (prefs/set! prefs saved-colors-prefs-path)))
 
 (defn- get-saved-colors
@@ -572,7 +571,7 @@
   (let [wrapper (doto (HBox.)
                   (.setPrefWidth Double/MAX_VALUE))
         pick-fn (fn [c] (set-color-value! property-fn (:ignore-alpha? edit-type) c))
-        saved-colors (when prefs ^Collection (get-saved-colors prefs))
+        saved-colors ^Collection (get-saved-colors prefs)
         color-dropper (doto (Button. "" (jfx/get-image-view "icons/32/Icons_M_03_colorpicker.png" 16))
                         (ui/add-style! "color-dropper")
                         (AnchorPane/setRightAnchor 0.0)
@@ -612,7 +611,7 @@
                                   (let [c (.getValue color-picker)]
                                     (set-color-value! property-fn ignore-alpha c)
                                     (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true))))
-    (.setOnHidden color-picker (fn [_] (save-colors! color-picker prefs)))
+    (ui/observe-list (.getCustomColors color-picker) (fn [_ values] (save-colors! values prefs)))
     (ui/children! wrapper [pane color-picker])
     [wrapper update-ui-fn]))
 
