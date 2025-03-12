@@ -283,7 +283,7 @@
           (throw (LuaError. "Bob invocation failed")))))))
 
 (def ^:private stopped-server
-  (http-server/stop! (http-server/start! (web-server/create-dynamic-handler [])) 0))
+  (http-server/stop! (http-server/start! (web-server/make-dynamic-handler [])) 0))
 
 (defn- reload-editor-scripts! [project & {:keys [display-output! open-resource! prefs web-server]
                                           :or {display-output! println
@@ -616,8 +616,8 @@
                 :age 18}
                (coerce all-required "Foo" "Bar" 18)))
         (is (thrown-with-msg? LuaError #"more arguments expected" (coerce all-required "Foo" "Bar")))
-        (is (thrown-with-msg? LuaError #"0 is unexpected" (coerce all-required "Foo" "Bar" 12 0)))
-        1)
+        (is (thrown-with-msg? LuaError #"0 is unexpected" (coerce all-required "Foo" "Bar" 12 0))))
+
       (let [some-optional (coerce/regex :path coerce/string
                                         :method :? (coerce/enum :get :post :put :delete :head :options)
                                         :as :? (coerce/enum :string :json))]
@@ -1088,7 +1088,7 @@ GET /test/resources/test.json as json => 200
 (deftest http-server-test
   (test-util/with-loaded-project "test/resources/editor_extensions/http_server_project"
     (with-open [server (http-server/start!
-                         (web-server/create-dynamic-handler
+                         (web-server/make-dynamic-handler
                            ;; for testing conflicts with the built-in handlers
                            {"/command" {"GET" (constantly http-server/not-found)}
                             "/command/{command}" {"POST" (constantly http-server/not-found)}}))]

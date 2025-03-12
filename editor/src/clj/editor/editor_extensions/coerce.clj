@@ -469,7 +469,7 @@
              coercer       required, subsequence LuaValue coercer
 
   Examples:
-    ;; coerce Varargs with 0-3 LuaValues into an HTTP response map
+    ;; Coerce Varargs with 0-3 LuaValues into an HTTP response map
     (coerce/regex :status :? coerce/integer
                   :headers :? (coerce/map-of coerce/string coerce/string)
                   :body :? coerce/string)
@@ -509,14 +509,14 @@
                op-index 0
                failures []]
           (cond
-            (= input-index inputs-len) ;; finished input
-            (if (= op-index ops-len) ;; also finished ops
+            (= input-index inputs-len) ; finished input
+            (if (= op-index ops-len) ; also finished ops
               acc
-              (case (:quantifier (ops op-index)) ;; check if remaining ops are all optional
+              (case (:quantifier (ops op-index)) ; check if remaining ops are all optional
                 :1 (regex-failure vm failures (failure LuaValue/NONE "more arguments expected"))
                 :? (recur acc input-index (inc op-index) failures)))
 
-            (= op-index ops-len) ;; finished ops, but there is more input
+            (= op-index ops-len) ; finished ops, but there is more input
             (let [extra (.subargs inputs (inc input-index))]
               (regex-failure vm failures (failure extra (if (= 1 (.narg extra)) "is unexpected" "are unexpected"))))
 

@@ -211,7 +211,8 @@
   [& fn-tail]
   `(wrap-immediate-function (fn ~@fn-tail)))
 
-(defn wrap-immediate-varargs-function ^LuaFunction [f]
+(defn wrap-immediate-varargs-function
+  ^LuaFunction [f]
   (DefoldVarargsLuaFn.
     (fn immediate-varargs-function-wrapper [varargs]
       (vm/->varargs (f (current-execution-context) varargs)))))

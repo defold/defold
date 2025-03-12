@@ -705,7 +705,7 @@
                                                     (and a-is-dynamic b-is-dynamic) [a-path b-path]
                                                     a-is-dynamic [a-path]
                                                     b-is-dynamic [b-path]
-                                                    :else (throw (IllegalStateException. "Didn't expect 2 built-in routes to conflict")))]
+                                                    :else (throw (ex-info "Didn't expect 2 built-in routes to conflict" {:a a-path :b b-path})))]
                                (display-output!
                                  :err
                                  (str "Omitting conflicting routes for "

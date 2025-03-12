@@ -17,7 +17,7 @@
 
 (set! *warn-on-reflection* true)
 
-(defn create-dynamic-handler
+(defn make-dynamic-handler
   "Create an HTTP request handler that supports setting dynamic routes
 
   See [[set-dynamic-routes!]]"

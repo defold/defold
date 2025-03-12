@@ -34,7 +34,7 @@
         http-headers-param {:name "[headers]"
                             :types ["table&lt;string,string&gt;"]
                             :doc "HTTP response headers, a table from lower-case header names to header values"}
-        http-response-param {:name "response" :types ["response"] :doc "HTTP response value"}
+        http-response-param {:name "response" :types ["response"] :doc "HTTP response value, userdata"}
         resource-path-param {:name "resource_path"
                              :types ["string"]
                              :doc "Resource path (starting with <code>/</code>)"}]
@@ -307,7 +307,7 @@
           :description "Create HTTP response with a JSON value"
           :parameters [{:name "value"
                         :types ["any"]
-                        :doc "Any lua value that may be represented as JSON"}
+                        :doc "Any Lua value that may be represented as JSON"}
                        http-status-param
                        http-headers-param]
           :returnvalues [http-response-param]}
@@ -365,7 +365,7 @@
 http.server.route(
   \"/json\", \"POST\", \"json\",
   function(request)
-    pprint(request)
+    pprint(request.body)
     return 200
   end
 )
@@ -416,13 +416,13 @@ http.server.route(
           :description "Encode Lua value to JSON string"
           :parameters [{:name "value"
                         :types ["any"]
-                        :doc "any lua value that may be represented as JSON"}]}
+                        :doc "any Lua value that may be represented as JSON"}]}
          {:name "pprint"
           :type :function
           :description "Pretty-print a Lua value"
           :parameters [{:name "value"
                         :types ["any"]
-                        :doc "any lua value to pretty-print"}]}]
+                        :doc "any Lua value to pretty-print"}]}]
         (when-not (System/getProperty "defold.version")
           ;; Dev-only docs
           [{:name "editor.bundle.abort_message"
