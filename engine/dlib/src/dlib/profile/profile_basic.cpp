@@ -406,9 +406,6 @@ namespace dmProfile
         if (!dLib::IsDebugMode())
             return;
 
-        // dmLogInfo("Defold Profiler");
-        // DebugProperties(0, &g_Properties[0]);
-
         assert(!IsInitialized());
         g_ProfileContext = new ProfileContext;
 
@@ -477,6 +474,7 @@ namespace dmProfile
 
     uint64_t GetTicksPerSecond()
     {
+        // Since this profiler uses the dmTime::GetMonotonicTime() which returns microseconds
         return 1000000;
     }
 
@@ -524,7 +522,7 @@ namespace dmProfile
             memset(sample, 0, sizeof(Sample));
 
             sample->m_NameHash = name_hash;
-            //sample->m_Color = MakeColorFromHash(name_hash);
+            sample->m_Color = MakeColorFromHash(name_hash);
 
             // link the sample into the tree
             Sample* parent = td->m_CurrentSample;
