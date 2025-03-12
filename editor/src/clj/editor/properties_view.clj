@@ -48,6 +48,8 @@
 (def ^{:private true :const true} grid-vgap 6)
 (def ^{:private true :const true} all-available 5000)
 
+(defonce ^:private saved-colors-prefs-path [:workflow :saved-colors])
+
 (declare update-field-message)
 
 (defn- update-multi-text-fn [texts format-fn get-fns values message read-only?]
@@ -559,18 +561,18 @@
   [^ColorPicker color-picker prefs]
   (->> (.getCustomColors color-picker)
        (mapv #(color->web-string % false))
-       (prefs/set! prefs [:workflow :saved-colors])))
+       (prefs/set! prefs saved-colors-prefs-path)))
 
 (defn get-saved-colors
   [prefs]
-  (->> (prefs/get prefs [:workflow :saved-colors])
+  (->> (prefs/get prefs saved-colors-prefs-path)
        (mapv #(Color/valueOf ^String %))))
 
 (defmethod create-property-control! types/Color [edit-type {:keys [color-dropper-view prefs]} property-fn]
   (let [wrapper (doto (HBox.)
                   (.setPrefWidth Double/MAX_VALUE))
         pick-fn (fn [c] (set-color-value! property-fn (:ignore-alpha? edit-type) c))
-        saved-colors ^Collection (get-saved-colors prefs)
+        saved-colors (when prefs ^Collection (get-saved-colors prefs))
         color-dropper (doto (Button. "" (jfx/get-image-view "icons/32/Icons_M_03_colorpicker.png" 16))
                         (ui/add-style! "color-dropper")
                         (AnchorPane/setRightAnchor 0.0)
