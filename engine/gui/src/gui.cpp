@@ -2519,6 +2519,7 @@ namespace dmGui
         }
         if (n->m_Node.m_Text)
             free((void*)n->m_Node.m_Text);
+        free(n->m_Node.m_ResetPointProperties);
         memset(n, 0, sizeof(InternalNode));
         n->m_Index = INVALID_INDEX;
     }
@@ -2923,6 +2924,10 @@ namespace dmGui
     void SetNodeResetPoint(HScene scene, HNode node)
     {
         InternalNode* n = GetNode(scene, node);
+        if (!n->m_Node.m_ResetPointProperties)
+        {
+            n->m_Node.m_ResetPointProperties = (dmVMath::Vector4*)malloc(sizeof(dmVMath::Vector4) * PROPERTY_COUNT);
+        }
         memcpy(n->m_Node.m_ResetPointProperties, n->m_Node.m_Properties, sizeof(n->m_Node.m_Properties));
         n->m_Node.m_ResetPointState = n->m_Node.m_State;
         n->m_Node.m_HasResetPoint = 1;
@@ -4226,6 +4231,8 @@ namespace dmGui
 
         InternalNode* n = GetNode(scene, node);
         out_n->m_Node = n->m_Node;
+        out_n->m_Node.m_HasResetPoint = 0;
+        out_n->m_Node.m_ResetPointProperties = 0;
         if (n->m_Node.m_Text != 0x0)
             out_n->m_Node.m_Text = strdup(n->m_Node.m_Text);
         out_n->m_NameHash = dmHashString64(name);

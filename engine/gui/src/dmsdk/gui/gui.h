@@ -117,7 +117,7 @@ namespace dmGui
      * @member NODE_TEXTURE_TYPE_TEXTURE
      * @member NODE_TEXTURE_TYPE_TEXTURE_SET
      */
-    enum NodeTextureType
+    enum NodeTextureType : uint8_t
     {
         NODE_TEXTURE_TYPE_NONE,
         NODE_TEXTURE_TYPE_TEXTURE,
