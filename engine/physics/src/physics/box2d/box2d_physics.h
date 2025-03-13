@@ -12,8 +12,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_PHYSICS_2D_H
-#define DM_PHYSICS_2D_H
+#ifndef DM_BOX2D_PHYSICS_H
+#define DM_BOX2D_PHYSICS_H
 
 #include <box2d/box2d.h>
 
@@ -21,9 +21,9 @@
 #include <dlib/hashtable.h>
 #include <dmsdk/dlib/vmath.h>
 
-#include "physics.h"
-#include "physics_private.h"
-#include "debug_draw_2d.h"
+#include "box2d_debug_draw.h"
+#include "../physics.h"
+#include "../physics_private.h"
 
 // These values are from the original Box2D implementation, I think the newer version has different constants.
 // i.e B2_LINEAR_SLOP

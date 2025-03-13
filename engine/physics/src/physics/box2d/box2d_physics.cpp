@@ -15,7 +15,7 @@
 
 #include <stdlib.h> // qsort
 
-#include "physics.h"
+#include "../physics.h"
 
 #include <dlib/array.h>
 #include <dlib/log.h>
@@ -25,7 +25,7 @@
 #include <box2d/box2d.h>
 #include <box2d/src/world.h>
 
-#include "physics_2d.h"
+#include "box2d_physics.h"
 
 namespace dmPhysics
 {
@@ -2533,7 +2533,7 @@ namespace dmPhysics
     }
 
     // NOTE: inv_dt is not used. It is calculated from the last step + substep time inside box2d
-    bool GetJointReactionForce2D(HWorld2D world, HJoint _joint, Vector3& force)
+    bool GetJointReactionForce2D(HWorld2D world, HJoint _joint, Vector3& force, float _inv_dt /*unused*/)
     {
         float inv_scale = world->m_Context->m_InvScale;
         b2JointId* joint_raw = (b2JointId*)_joint;
@@ -2544,7 +2544,7 @@ namespace dmPhysics
     }
 
     // NOTE: inv_dt is not used. It is calculated from the last step + substep time inside box2d
-    bool GetJointReactionTorque2D(HWorld2D world, HJoint _joint, float& torque)
+    bool GetJointReactionTorque2D(HWorld2D world, HJoint _joint, float& torque, float _inv_dt /*unused*/)
     {
         float inv_scale = world->m_Context->m_InvScale;
         b2JointId* joint_raw = (b2JointId*)_joint;
