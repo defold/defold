@@ -90,6 +90,10 @@ bool ContactPointCallback(const dmPhysics::ContactPoint& contact_point, void* us
     }
 }
 
+#if defined(PHYSICS_TEST_BULLET_3D)
+
+#include "../physics_3d.h"
+
 Test3D::Test3D()
 : m_NewContextFunc(dmPhysics::NewContext3D)
 , m_DeleteContextFunc(dmPhysics::DeleteContext3D)
@@ -148,6 +152,16 @@ Test3D::~Test3D()
     delete [] m_Vertices;
 }
 
+typedef jc_test_type1<Test3D> TestTypes;
+
+#elif defined(PHYSICS_TEST_BOX2D) || defined(PHYSICS_TEST_BOX2D_DEFOLD)
+
+#ifdef PHYSICS_TEST_BOX2D_DEFOLD
+    #include "../box2d_defold/box2d_defold_physics.h"
+#else
+    #include "../box2d/box2d_physics.h"
+#endif
+
 Test2D::Test2D()
 : m_NewContextFunc(dmPhysics::NewContext2D)
 , m_DeleteContextFunc(dmPhysics::DeleteContext2D)
@@ -205,7 +219,12 @@ Test2D::~Test2D()
     delete [] m_Vertices;
 }
 
-typedef jc_test_type2<Test3D, Test2D> TestTypes;
+typedef jc_test_type1<Test2D> TestTypes;
+
+#else
+    #error "No physics test defined"
+#endif
+
 TYPED_TEST_CASE(PhysicsTest, TestTypes);
 
 TYPED_TEST(PhysicsTest, BoxShape)

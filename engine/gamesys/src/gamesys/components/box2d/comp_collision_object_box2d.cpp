@@ -1132,7 +1132,7 @@ namespace dmGameSystem
             return dmPhysics::RESULT_NOT_CONNECTED;
         }
 
-        bool r = GetJointReactionForce2D(world->m_World2D, joint_entry->m_Joint, force);
+        bool r = GetJointReactionForce2D(world->m_World2D, joint_entry->m_Joint, force, 1.0f / world->m_CurrentDT);
         return (r ? dmPhysics::RESULT_OK : dmPhysics::RESULT_UNKNOWN_ERROR);
     }
 
@@ -1150,7 +1150,7 @@ namespace dmGameSystem
             return dmPhysics::RESULT_NOT_CONNECTED;
         }
 
-        bool r = GetJointReactionTorque2D(world->m_World2D, joint_entry->m_Joint, torque);
+        bool r = GetJointReactionTorque2D(world->m_World2D, joint_entry->m_Joint, torque, 1.0f / world->m_CurrentDT);
         return (r ? dmPhysics::RESULT_OK : dmPhysics::RESULT_UNKNOWN_ERROR);
     }
 

@@ -17,8 +17,6 @@
 
 #include <stdint.h>
 #include "../physics.h"
-#include "../physics_2d.h"
-#include "../physics_3d.h"
 #include <jc_test/jc_test.h>
 
 template <typename T> class dmArray;
