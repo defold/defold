@@ -306,12 +306,12 @@ namespace dmPhysics
     {
     }
 
-    bool GetJointReactionForce2D(HWorld2D world, HJoint _joint, dmVMath::Vector3& force)
+    bool GetJointReactionForce2D(HWorld2D world, HJoint _joint, dmVMath::Vector3& force, float inv_dt)
     {
         return true;
     }
 
-    bool GetJointReactionTorque2D(HWorld2D world, HJoint _joint, float& torque)
+    bool GetJointReactionTorque2D(HWorld2D world, HJoint _joint, float& torque, float inv_dt)
     {
         return true;
     }

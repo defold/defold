@@ -21,8 +21,8 @@
 #include <dlib/hashtable.h>
 #include <dmsdk/dlib/vmath.h>
 
-#include "physics.h"
-#include "physics_private.h"
+#include "../physics.h"
+#include "../physics_private.h"
 #include "box2d_defold_debug_draw.h"
 
 namespace dmPhysics
