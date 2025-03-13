@@ -19,6 +19,7 @@
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
+#include <dlib/profile.h>
 #include <gameobject/script.h>
 
 #include "gamesys.h"
@@ -1895,6 +1896,8 @@ namespace dmGameSystem
 
     void RunBatchedEventCallback(dmScript::LuaCallbackInfo* cbk, uint32_t count, PhysicsMessage* infos, const uint8_t* payload)
     {
+        DM_PROFILE("RunBatchedEventCallback");
+
         if (!dmScript::IsCallbackValid(cbk))
         {
             dmLogError("Physics world listener is invalid.");
@@ -1910,8 +1913,6 @@ namespace dmGameSystem
             return;
         }
 
-        printf("BATCHED CALLBACK! %u events\n", count);
-
         lua_createtable(L, count, 0);
         // -1: events table
 
@@ -1920,30 +1921,24 @@ namespace dmGameSystem
             PhysicsMessage& msg = infos[i];
             void* data = (void*)&payload[msg.m_Offset];
 
-            // TODO: Use simple memcpy for these POD types!
-            void* message = 0;
-            uint32_t message_size = 0;
-            dmDDF::Result r = dmDDF::LoadMessage(data, msg.m_Size, msg.m_Descriptor, &message, 0, &message_size);
-            if (dmDDF::RESULT_OK == r)
-            {
-                dmScript::PushDDF(L, msg.m_Descriptor, (const char*)message, false);
-                // -2: events table
-                // -1: event
+            dmScript::PushDDF(L, msg.m_Descriptor, (const char*)data, false);
+            // -2: events table
+            // -1: event
 
-                dmDDF::FreeMessage(message);
+            dmScript::PushHash(L, msg.m_Descriptor->m_NameHash);
+            lua_setfield(L, -2, "type");
+            // -2: events table
+            // -1: event
 
-                dmScript::PushHash(L, msg.m_Descriptor->m_NameHash);
-                lua_setfield(L, -2, "type");
-
-                // add the index+event to the table
-                lua_rawseti(L, -2, i+1);
-                // -1: events table
-            }
+            // add the index+event to the table
+            lua_rawseti(L, -2, i+1);
+            // -1: events table
         }
         // -1: events table
 
         int ret = dmScript::PCall(L, 2, 0); // self + array
         (void)ret;
+
         dmScript::TeardownCallback(cbk);
     }
 

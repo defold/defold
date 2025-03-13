@@ -20,6 +20,7 @@
 
 #include "gamesys.h"
 
+#include <dlib/profile.h>
 #include <gameobject/gameobject_ddf.h>
 #include <dmsdk/gameobject/script.h>
 
@@ -359,26 +360,37 @@ namespace dmGameSystem
 
     static void StoreMessage(CollisionWorld* world, const dmDDF::Descriptor* desc, const char* data)
     {
-        dmArray<uint8_t> buffer;
+        DM_PROFILE("StoreMessage");
 
-        dmDDF::SaveMessageToArray(data, desc, buffer);
+        // We want to avoid serializing the message, for performance
+        uint32_t msg_size = 0;
+        if (desc->m_NameHash == dmPhysicsDDF::CollisionEvent::m_DDFDescriptor->m_NameHash)
+            msg_size = sizeof(dmPhysicsDDF::CollisionEvent);
+        else if (desc->m_NameHash == dmPhysicsDDF::ContactPointEvent::m_DDFDescriptor->m_NameHash)
+            msg_size = sizeof(dmPhysicsDDF::ContactPointEvent);
+        else if (desc->m_NameHash == dmPhysicsDDF::TriggerEvent::m_DDFDescriptor->m_NameHash)
+            msg_size = sizeof(dmPhysicsDDF::TriggerEvent);
+        else if (desc->m_NameHash == dmPhysicsDDF::RayCastResponse::m_DDFDescriptor->m_NameHash)
+            msg_size = sizeof(dmPhysicsDDF::RayCastResponse);
+        else if (desc->m_NameHash == dmPhysicsDDF::RayCastMissed::m_DDFDescriptor->m_NameHash)
+            msg_size = sizeof(dmPhysicsDDF::RayCastMissed);
 
-        PhysicsMessage msg;
-        msg.m_Descriptor = desc;
-        msg.m_Offset     = world->m_MessageData.Size();
-        msg.m_Size       = buffer.Size();
-
-        if (world->m_MessageData.Remaining() < msg.m_Size)
+        if (world->m_MessageData.Remaining() < msg_size)
         {
-            world->m_MessageData.OffsetCapacity( (msg.m_Size - world->m_MessageData.Remaining()) + 2 * 1024 );
+            world->m_MessageData.OffsetCapacity( 2 * 1024 );
         }
 
         if (world->m_MessageInfos.Full())
         {
-            world->m_MessageInfos.OffsetCapacity(32);
+            world->m_MessageInfos.OffsetCapacity(64);
         }
 
-        world->m_MessageData.PushArray(buffer.Begin(), buffer.Size());
+        PhysicsMessage msg;
+        msg.m_Descriptor = desc;
+        msg.m_Offset     = world->m_MessageData.Size();
+        msg.m_Size       = msg_size;
+
+        world->m_MessageData.PushArray((uint8_t*)data, msg_size);
         world->m_MessageInfos.Push(msg);
     }
 
