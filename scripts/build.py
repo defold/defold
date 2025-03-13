@@ -243,7 +243,8 @@ PACKAGES_ANDROID=[
     "tremolo-b0cb4d1",
     "bullet-2.77",
     "glfw-2.7.1",
-    "box2d-28adacf82377d4113f2ed00586141463244b9d10"]
+    "box2d-28adacf82377d4113f2ed00586141463244b9d10"
+    "box2d_defold-2.2.1"]
 PACKAGES_ANDROID.append(sdk.ANDROID_PACKAGE)
 
 PACKAGES_ANDROID_64=[
@@ -254,14 +255,16 @@ PACKAGES_ANDROID_64=[
     "tremolo-b0cb4d1",
     "bullet-2.77",
     "glfw-2.7.1",
-    "box2d-28adacf82377d4113f2ed00586141463244b9d10"]
+    "box2d-28adacf82377d4113f2ed00586141463244b9d10"
+    "box2d_defold-2.2.1"]
 PACKAGES_ANDROID_64.append(sdk.ANDROID_PACKAGE)
 
 PACKAGES_EMSCRIPTEN=[
     "protobuf-3.20.1",
     "bullet-2.77",
     "glfw-2.7.1",
-    "box2d-28adacf82377d4113f2ed00586141463244b9d10"]
+    "box2d-28adacf82377d4113f2ed00586141463244b9d10"
+    "box2d_defold-2.2.1"]
 
 PACKAGES_NODE_MODULES=["xhr2-0.1.0"]
 
@@ -303,7 +306,7 @@ if os.environ.get('TERM','') in ('cygwin',):
 ENGINE_LIBS = "testmain dlib jni texc modelc shaderc ddf platform graphics particle lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record profiler engine sdk".split()
 HOST_LIBS = "testmain dlib jni texc modelc shaderc".split()
 
-EXTERNAL_LIBS = "glfw bullet3d".split()
+EXTERNAL_LIBS = "box2d glfw bullet3d".split()
 
 def get_host_platform():
     return sdk.get_host_platform()

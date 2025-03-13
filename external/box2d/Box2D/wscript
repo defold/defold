@@ -30,8 +30,11 @@ def build(bld):
 
         output_dir = '%s/%s' % (bld.env.PREFIX, name)
 
-        # Delete the old build result first (this is a bit smelly)
-        shutil.rmtree(output_dir)
+        try:
+            # Delete the old build result first (this is a bit smelly)
+            shutil.rmtree(output_dir)
+        except Exception as e:
+            pass
 
         target_tar = '%s-%s.tar.gz' % (name, bld.env.PLATFORM)
 
@@ -50,6 +53,9 @@ def build(bld):
 def create_package(self):
     target = self.outputs[0].abspath()
     name = self.outputs[0].name
+
+    print("TARGET", target)
+    print("NAME", name)
 
     dirs = []
     dirs_search = ['lib', 'sdk', 'share']
