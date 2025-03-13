@@ -120,18 +120,29 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
     }
 
+    static void FlushMessages(CollisionWorld* world);
+
     dmGameObject::UpdateResult CompCollisionObjectUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
         PhysicsContext* physics_context = (PhysicsContext*) params.m_Context;
+        CollisionWorld* world = (CollisionWorld*)params.m_World;
+        dmGameObject::UpdateResult r = dmGameObject::UPDATE_RESULT_OK;
+
         if (physics_context->m_PhysicsType == PHYSICS_ENGINE_BOX2D)
         {
-            return CompCollisionObjectBox2DUpdate(params, update_result);
+            r = CompCollisionObjectBox2DUpdate(params, update_result);
         }
         else if (physics_context->m_PhysicsType == PHYSICS_ENGINE_BULLET3D)
         {
-            return CompCollisionObjectBullet3DUpdate(params, update_result);
+            r = CompCollisionObjectBullet3DUpdate(params, update_result);
         }
-        return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+        else
+        {
+            return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+        }
+
+        FlushMessages(world);
+        return r;
     }
 
     dmGameObject::UpdateResult CompCollisionObjectFixedUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
@@ -314,14 +325,15 @@ namespace dmGameSystem
         return GetGroupBitIndex(world, group_hash, false);
     }
 
-    void* GetCollisionWorldCallback(CollisionWorld* world)
+    dmScript::LuaCallbackInfo* GetCollisionWorldCallback(CollisionWorld* world)
     {
         return world->m_CallbackInfo;
     }
 
-    void SetCollisionWorldCallback(CollisionWorld* world, void* callback_info)
+    void SetCollisionWorldCallback(CollisionWorld* world, dmScript::LuaCallbackInfo* callback_info, bool use_batching)
     {
         world->m_CallbackInfo = callback_info;
+        world->m_CallbackInfoBatched = use_batching;
     }
 
     // Converts a collision mask bitfield to the respective group hash. Takes into account only the least significant bit.
@@ -345,9 +357,48 @@ namespace dmGameSystem
         return dmGameObject::GetIdentifier(component->m_Instance);
     }
 
-    void RunPhysicsCallback(CollisionWorld* world, const dmDDF::Descriptor* desc, const char* data)
+    static void StoreMessage(CollisionWorld* world, const dmDDF::Descriptor* desc, const char* data)
     {
-        RunCollisionWorldCallback(world->m_CallbackInfo, desc, data);
+        dmArray<uint8_t> buffer;
+
+        dmDDF::SaveMessageToArray(data, desc, buffer);
+
+        PhysicsMessage msg;
+        msg.m_Descriptor = desc;
+        msg.m_Offset     = world->m_MessageData.Size();
+        msg.m_Size       = buffer.Size();
+
+        if (world->m_MessageData.Remaining() < msg.m_Size)
+        {
+            world->m_MessageData.OffsetCapacity( (msg.m_Size - world->m_MessageData.Remaining()) + 2 * 1024 );
+        }
+
+        if (world->m_MessageInfos.Full())
+        {
+            world->m_MessageInfos.OffsetCapacity(32);
+        }
+
+        world->m_MessageData.PushArray(buffer.Begin(), buffer.Size());
+        world->m_MessageInfos.Push(msg);
+    }
+
+    static void FlushMessages(CollisionWorld* world)
+    {
+        RunBatchedEventCallback(world->m_CallbackInfo, world->m_MessageInfos.Size(), world->m_MessageInfos.Begin(), world->m_MessageData.Begin());
+        world->m_MessageInfos.SetSize(0);
+        world->m_MessageData.SetSize(0);
+    }
+
+    static void RunPhysicsCallback(CollisionWorld* world, const dmDDF::Descriptor* desc, const char* data)
+    {
+        if (world->m_CallbackInfoBatched)
+        {
+            StoreMessage(world, desc, data);
+        }
+        else
+        {
+            RunCollisionWorldCallback(world->m_CallbackInfo, desc, data); // script_physics.cpp
+        }
     }
 
     // Returns true if either of the components supports the flag(s)

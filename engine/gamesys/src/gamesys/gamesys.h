@@ -141,11 +141,22 @@ namespace dmGameSystem
         GetJointReactionTorqueFn m_GetJointReactionTorque;
     };
 
+    struct PhysicsMessage
+    {
+        const dmDDF::Descriptor* m_Descriptor; // They're static, so we can store the pointer
+        uint32_t m_Offset;  // Offset into payload array
+        uint32_t m_Size;    // Size of the data
+    };
+
     struct CollisionWorld
     {
         PhysicsAdapterFunctionTable* m_AdapterFunctions;
-        void*                        m_CallbackInfo;
+        dmScript::LuaCallbackInfo*   m_CallbackInfo;
         uint64_t                     m_Groups[16];
+        // We use this array to store messages for later dispatch
+        dmArray<uint8_t>             m_MessageData;
+        dmArray<PhysicsMessage>      m_MessageInfos;
+        uint8_t                      m_CallbackInfoBatched:1;
     };
 
     struct CollisionComponent
