@@ -149,6 +149,8 @@
                          (app-manifest/set-setting-value setting :none)
                          (app-manifest/get-setting-value setting))))))))
 
+(def my-atom (atom 0))
+
 (deftest manifestation-compatibility-test
   (test-util/with-loaded-project
     (let [manifest (test-util/resource-node project "/app_manifest/default.appmanifest")]
@@ -186,6 +188,18 @@
       (is (= :web-gl (g/node-value manifest :graphics-web))))
     (let [manifest (test-util/resource-node project "/app_manifest/exclude_physics.appmanifest")]
       (is (= :none (g/node-value manifest :physics)))
+      (is (= false (g/node-value manifest :exclude-record)))
+      (is (= false (g/node-value manifest :exclude-profiler)))
+      (is (= false (g/node-value manifest :exclude-sound)))
+      (is (= false (g/node-value manifest :exclude-input)))
+      (is (= false (g/node-value manifest :exclude-liveupdate)))
+      (is (= false (g/node-value manifest :exclude-basis-transcoder)))
+      (is (= false (g/node-value manifest :use-android-support-lib)))
+      (is (= :open-gl (g/node-value manifest :graphics)))
+      (is (= :web-gl (g/node-value manifest :graphics-web))))
+    (let [manifest (test-util/resource-node project "/app_manifest/physics_2d_legacy.appmanifest")]
+      (is (= nil (g/node-value manifest :physics)))
+      (is (= :box2d-defold (g/node-value manifest :physics-2d)))
       (is (= false (g/node-value manifest :exclude-record)))
       (is (= false (g/node-value manifest :exclude-profiler)))
       (is (= false (g/node-value manifest :exclude-sound)))

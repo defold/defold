@@ -1,0 +1,96 @@
+platforms:
+    armv7-ios:
+        context:
+            excludeLibs: [box2d]
+            excludeSymbols: []
+            symbols: []
+            libs: [box2d_defold]
+            frameworks: []
+            linkFlags: []
+    arm64-ios:
+        context:
+            excludeLibs: [box2d]
+            excludeSymbols: []
+            symbols: []
+            libs: [box2d_defold]
+            frameworks: []
+            linkFlags: []
+    x86_64-ios:
+        context:
+            excludeLibs: [box2d]
+            excludeSymbols: []
+            symbols: []
+            libs: [box2d_defold]
+            frameworks: []
+            linkFlags: []
+    armv7-android:
+        context:
+            excludeLibs: [box2d]
+            excludeJars: []
+            excludeSymbols: []
+            symbols: []
+            libs: [box2d_defold]
+            linkFlags: []
+            jetifier: true
+    arm64-android:
+        context:
+            excludeLibs: [box2d]
+            excludeJars: []
+            excludeSymbols: []
+            symbols: []
+            libs: [box2d_defold]
+            linkFlags: []
+            jetifier: true
+    arm64-osx:
+        context:
+            excludeLibs: [box2d]
+            libs: [box2d_defold]
+    x86_64-osx:
+        context:
+            excludeLibs: [box2d]
+            excludeSymbols: []
+            symbols: []
+            libs: [box2d_defold]
+            frameworks: []
+            linkFlags: []
+    x86_64-linux:
+        context:
+            excludeLibs: [box2d]
+            excludeSymbols: []
+            symbols: []
+            libs: [box2d_defold]
+            linkFlags: []
+    arm64-linux:
+        context:
+            excludeLibs: [box2d]
+            libs: [box2d_defold]
+    x86-win32:
+        context:
+            excludeLibs: [libbox2d]
+            excludeSymbols: []
+            symbols: []
+            libs: [libbox2d_defold.lib]
+            linkFlags: []
+    x86_64-win32:
+        context:
+            excludeLibs: [libbox2d]
+            excludeSymbols: []
+            symbols: []
+            libs: [libbox2d_defold.lib]
+            linkFlags: []
+    js-web:
+        context:
+            excludeLibs: [box2d]
+            excludeSymbols: []
+            symbols: []
+            libs: [box2d_defold]
+            linkFlags: []
+            excludeJslibs: [box2d_defold]
+    wasm-web:
+        context:
+            excludeLibs: [box2d]
+            excludeSymbols: []
+            symbols: []
+            libs: [box2d_defold]
+            linkFlags: []
+            excludeJslibs: [box2d_defold]
