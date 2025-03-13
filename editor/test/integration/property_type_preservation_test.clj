@@ -106,7 +106,7 @@
 
 (defn- make-property-widget
   ^Parent [edit-type node-id prop-kw]
-  (let [context {}
+  (let [context {:prefs (test-util/make-build-stage-test-prefs)}
         coalesced-prop-info-fn (make-coalesced-prop-info-fn node-id prop-kw)
         [widget _update-ui-fn] (properties-view/create-property-control! edit-type context coalesced-prop-info-fn)]
     widget))

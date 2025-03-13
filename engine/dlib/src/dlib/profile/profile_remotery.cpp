@@ -244,26 +244,22 @@ namespace dmProfile
         }
     }
 
-    void ProfileScope::StartScope(const char* name, uint64_t* name_hash)
+    void ProfileScopeHelper::StartScope(const char* name, uint64_t* name_hash)
     {
         if (!IsInitialized()) {
             return;
         }
         if (name != 0)
         {
-            valid = 1;
             if (name[0] == 0)
                 name = "<empty>";
             _rmt_BeginCPUSample(name, RMTSF_Aggregate, (uint32_t*)name_hash);
         }
     }
 
-    void ProfileScope::EndScope()
+    void ProfileScopeHelper::EndScope()
     {
-        if (valid)
-        {
-            rmt_EndCPUSample();
-        }
+        rmt_EndCPUSample();
     }
 
     void ScopeBegin(const char* name, uint64_t* name_hash)
@@ -454,7 +450,7 @@ static const uint32_t g_MaxPropertyCount = 256;
 static uint32_t g_PropertyCount = 0;
 static rmtProperty g_Properties[g_MaxPropertyCount];
 
-static rmtProperty* AllocateProperty(dmProfilePropertyIdx* idx)
+static rmtProperty* AllocateProperty(dmProfileIdx* idx)
 {
     if (g_PropertyCount >= g_MaxPropertyCount)
         return 0;
@@ -463,12 +459,12 @@ static rmtProperty* AllocateProperty(dmProfilePropertyIdx* idx)
 }
 
 #define ALLOC_PROP_AND_CHECK() \
-    dmProfilePropertyIdx idx; \
+    dmProfileIdx idx; \
     rmtProperty* prop = AllocateProperty(&idx); \
     if (!prop) \
         return DM_PROFILE_PROPERTY_INVALID_IDX;
 
-static rmtProperty* GetPropertyFromIdx(dmProfilePropertyIdx idx)
+static rmtProperty* GetPropertyFromIdx(dmProfileIdx idx)
 {
     if (idx < g_PropertyCount || idx == DM_PROFILE_PROPERTY_INVALID_IDX)
         return 0;
@@ -476,11 +472,15 @@ static rmtProperty* GetPropertyFromIdx(dmProfilePropertyIdx idx)
 }
 
 #define GET_PROP_AND_CHECK(IDX) \
+    if (!dmProfile::IsInitialized()) \
+        return; \
+    if (idx == DM_PROFILE_PROPERTY_INVALID_IDX) \
+        return; \
     rmtProperty* prop = &g_Properties[IDX]; \
     if (!prop) \
         return;
 
-static void SetupProperty(rmtProperty* prop, const char* name, const char* desc, uint32_t flags, dmProfilePropertyIdx* parentidx)
+static void SetupProperty(rmtProperty* prop, const char* name, const char* desc, uint32_t flags, dmProfileIdx* parentidx)
 {
     memset(prop, 0, sizeof(rmtProperty));
     prop->initialised    = RMT_FALSE;
@@ -490,7 +490,7 @@ static void SetupProperty(rmtProperty* prop, const char* name, const char* desc,
     prop->parent         = parentidx ? GetPropertyFromIdx(*parentidx) : 0;
 }
 
-dmProfilePropertyIdx dmProfileCreatePropertyGroup(const char* name, const char* desc, dmProfilePropertyIdx* parentidx)
+dmProfileIdx dmProfileCreatePropertyGroup(const char* name, const char* desc, dmProfileIdx* parentidx)
 {
     ALLOC_PROP_AND_CHECK();
     SetupProperty(prop, name, desc, RMT_PropertyFlags_NoFlags, parentidx);
@@ -498,7 +498,7 @@ dmProfilePropertyIdx dmProfileCreatePropertyGroup(const char* name, const char* 
     return idx;
 }
 
-dmProfilePropertyIdx dmProfileCreatePropertyBool(const char* name, const char* desc, int value, uint32_t flags, dmProfilePropertyIdx* parentidx)
+dmProfileIdx dmProfileCreatePropertyBool(const char* name, const char* desc, int value, uint32_t flags, dmProfileIdx* parentidx)
 {
     ALLOC_PROP_AND_CHECK();
     SetupProperty(prop, name, desc, flags, parentidx);
@@ -509,7 +509,7 @@ dmProfilePropertyIdx dmProfileCreatePropertyBool(const char* name, const char* d
     return idx;
 }
 
-dmProfilePropertyIdx dmProfileCreatePropertyS32(const char* name, const char* desc, int32_t value, uint32_t flags, dmProfilePropertyIdx* parentidx)
+dmProfileIdx dmProfileCreatePropertyS32(const char* name, const char* desc, int32_t value, uint32_t flags, dmProfileIdx* parentidx)
 {
     ALLOC_PROP_AND_CHECK();
     SetupProperty(prop, name, desc, flags, parentidx);
@@ -520,7 +520,7 @@ dmProfilePropertyIdx dmProfileCreatePropertyS32(const char* name, const char* de
     return idx;
 }
 
-dmProfilePropertyIdx dmProfileCreatePropertyU32(const char* name, const char* desc, uint32_t value, uint32_t flags, dmProfilePropertyIdx* parentidx)
+dmProfileIdx dmProfileCreatePropertyU32(const char* name, const char* desc, uint32_t value, uint32_t flags, dmProfileIdx* parentidx)
 {
     ALLOC_PROP_AND_CHECK();
     SetupProperty(prop, name, desc, flags, parentidx);
@@ -531,7 +531,7 @@ dmProfilePropertyIdx dmProfileCreatePropertyU32(const char* name, const char* de
     return idx;
 }
 
-dmProfilePropertyIdx dmProfileCreatePropertyF32(const char* name, const char* desc, float value, uint32_t flags, dmProfilePropertyIdx* parentidx)
+dmProfileIdx dmProfileCreatePropertyF32(const char* name, const char* desc, float value, uint32_t flags, dmProfileIdx* parentidx)
 {
     ALLOC_PROP_AND_CHECK();
     SetupProperty(prop, name, desc, flags, parentidx);
@@ -542,7 +542,7 @@ dmProfilePropertyIdx dmProfileCreatePropertyF32(const char* name, const char* de
     return idx;
 }
 
-dmProfilePropertyIdx dmProfileCreatePropertyS64(const char* name, const char* desc, int64_t value, uint32_t flags, dmProfilePropertyIdx* parentidx)
+dmProfileIdx dmProfileCreatePropertyS64(const char* name, const char* desc, int64_t value, uint32_t flags, dmProfileIdx* parentidx)
 {
     ALLOC_PROP_AND_CHECK();
     SetupProperty(prop, name, desc, flags, parentidx);
@@ -553,7 +553,7 @@ dmProfilePropertyIdx dmProfileCreatePropertyS64(const char* name, const char* de
     return idx;
 }
 
-dmProfilePropertyIdx dmProfileCreatePropertyU64(const char* name, const char* desc, uint64_t value, uint32_t flags, dmProfilePropertyIdx* parentidx)
+dmProfileIdx dmProfileCreatePropertyU64(const char* name, const char* desc, uint64_t value, uint32_t flags, dmProfileIdx* parentidx)
 {
     ALLOC_PROP_AND_CHECK();
     SetupProperty(prop, name, desc, flags, parentidx);
@@ -564,7 +564,7 @@ dmProfilePropertyIdx dmProfileCreatePropertyU64(const char* name, const char* de
     return idx;
 }
 
-dmProfilePropertyIdx dmProfileCreatePropertyF64(const char* name, const char* desc, double value, uint32_t flags, dmProfilePropertyIdx* parentidx)
+dmProfileIdx dmProfileCreatePropertyF64(const char* name, const char* desc, double value, uint32_t flags, dmProfileIdx* parentidx)
 {
     ALLOC_PROP_AND_CHECK();
     SetupProperty(prop, name, desc, flags, parentidx);
@@ -576,48 +576,48 @@ dmProfilePropertyIdx dmProfileCreatePropertyF64(const char* name, const char* de
 }
 
 // See _rmt_PropertySet
-void dmProfilePropertySetBool(dmProfilePropertyIdx idx, int v)
+void dmProfilePropertySetBool(dmProfileIdx idx, int v)
 {
     GET_PROP_AND_CHECK(idx);
     prop->value.Bool = (rmtBool)v;
     _rmt_PropertySetValue(prop);
 }
 
-void dmProfilePropertySetS32(dmProfilePropertyIdx idx, int32_t v)
+void dmProfilePropertySetS32(dmProfileIdx idx, int32_t v)
 {
     GET_PROP_AND_CHECK(idx);
     prop->value.S32 = v;
     _rmt_PropertySetValue(prop);
 }
 
-void dmProfilePropertySetU32(dmProfilePropertyIdx idx, uint32_t v)
+void dmProfilePropertySetU32(dmProfileIdx idx, uint32_t v)
 {
     GET_PROP_AND_CHECK(idx);
     prop->value.U32 = v;
     _rmt_PropertySetValue(prop);
 }
 
-void dmProfilePropertySetF32(dmProfilePropertyIdx idx, float v)
+void dmProfilePropertySetF32(dmProfileIdx idx, float v)
 {
     GET_PROP_AND_CHECK(idx);
     prop->value.F32 = v;
     _rmt_PropertySetValue(prop);
 }
 
-void dmProfilePropertySetS64(dmProfilePropertyIdx idx, int64_t v)
+void dmProfilePropertySetS64(dmProfileIdx idx, int64_t v)
 {
     GET_PROP_AND_CHECK(idx);
     prop->value.S64 = v;
     _rmt_PropertySetValue(prop);
 }
 
-void dmProfilePropertySetU64(dmProfilePropertyIdx idx, uint64_t v)
+void dmProfilePropertySetU64(dmProfileIdx idx, uint64_t v)
 {
     GET_PROP_AND_CHECK(idx);
     prop->value.U64 = v;
     _rmt_PropertySetValue(prop);
 }
-void dmProfilePropertySetF64(dmProfilePropertyIdx idx, double v)
+void dmProfilePropertySetF64(dmProfileIdx idx, double v)
 {
     GET_PROP_AND_CHECK(idx);
     prop->value.F64 = v;
@@ -625,7 +625,7 @@ void dmProfilePropertySetF64(dmProfilePropertyIdx idx, double v)
 }
 
 // See _rmt_PropertyAdd
-void dmProfilePropertyAddS32(dmProfilePropertyIdx idx, int32_t v)
+void dmProfilePropertyAddS32(dmProfileIdx idx, int32_t v)
 {
     GET_PROP_AND_CHECK(idx);
     prop->value.S32 += v;
@@ -633,7 +633,7 @@ void dmProfilePropertyAddS32(dmProfilePropertyIdx idx, int32_t v)
     _rmt_PropertyAddValue(prop, delta_value);
 }
 
-void dmProfilePropertyAddU32(dmProfilePropertyIdx idx, uint32_t v)
+void dmProfilePropertyAddU32(dmProfileIdx idx, uint32_t v)
 {
     GET_PROP_AND_CHECK(idx);
     prop->value.U32 += v;
@@ -641,7 +641,7 @@ void dmProfilePropertyAddU32(dmProfilePropertyIdx idx, uint32_t v)
     _rmt_PropertyAddValue(prop, delta_value);
 }
 
-void dmProfilePropertyAddF32(dmProfilePropertyIdx idx, float v)
+void dmProfilePropertyAddF32(dmProfileIdx idx, float v)
 {
     GET_PROP_AND_CHECK(idx);
     prop->value.F32 += v;
@@ -649,7 +649,7 @@ void dmProfilePropertyAddF32(dmProfilePropertyIdx idx, float v)
     _rmt_PropertyAddValue(prop, delta_value);
 }
 
-void dmProfilePropertyAddS64(dmProfilePropertyIdx idx, int64_t v)
+void dmProfilePropertyAddS64(dmProfileIdx idx, int64_t v)
 {
     GET_PROP_AND_CHECK(idx);
     prop->value.S64 += v;
@@ -657,7 +657,7 @@ void dmProfilePropertyAddS64(dmProfilePropertyIdx idx, int64_t v)
     _rmt_PropertyAddValue(prop, delta_value);
 }
 
-void dmProfilePropertyAddU64(dmProfilePropertyIdx idx, uint64_t v)
+void dmProfilePropertyAddU64(dmProfileIdx idx, uint64_t v)
 {
     GET_PROP_AND_CHECK(idx);
     prop->value.U64 += v;
@@ -665,7 +665,7 @@ void dmProfilePropertyAddU64(dmProfilePropertyIdx idx, uint64_t v)
     _rmt_PropertyAddValue(prop, delta_value);
 }
 
-void dmProfilePropertyAddF64(dmProfilePropertyIdx idx, double v)
+void dmProfilePropertyAddF64(dmProfileIdx idx, double v)
 {
     GET_PROP_AND_CHECK(idx);
     prop->value.F64 += v;
@@ -674,7 +674,7 @@ void dmProfilePropertyAddF64(dmProfilePropertyIdx idx, double v)
 }
 
 // See rmt_PropertyReset
-void dmProfilePropertyReset(dmProfilePropertyIdx idx)
+void dmProfilePropertyReset(dmProfileIdx idx)
 {
     GET_PROP_AND_CHECK(idx);
     prop->value = prop->defaultValue;
