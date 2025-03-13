@@ -15,26 +15,21 @@
 #ifndef DM_SOUND_DSP_H
 #define DM_SOUND_DSP_H
 
+
 #include "sound_pfb.h"
+#include "dsimd.h"
 
+#include <dlib/log.h>
 
-#if defined(_M_IX86_FP) && _M_IX86_FP == 2  // MSVC: SSE2 (or better)
-#define SOUND_SSE2
-#elif defined(__SSE2__)                     // GCC / CLang / Emscripten: SSE2
-#define SOUND_SSE2
-#endif
-
-
-#if defined(SOUND_SSE2)
-#include <immintrin.h>
-#endif
-#if defined(__wasm_simd128__)
-#include <wasm_simd128.h>
+#if defined(DM_SIMD_WASM)
+    #define DM_SOUND_DSP_WASM
+#elif defined(DM_SIMD_SSE2)
+    #define DM_SOUND_DSP_SSE2
 #endif
 
 // Make sure we use compile time selected fallback code if nothing is selected at all
-#if !defined(DM_SOUND_EXPECTED_SIMD) && !defined(SOUND_SSE2) && !defined(__wasm_simd128__)
-#define DM_SOUND_EXPECTED_SIMD Fallback
+#if !defined(DM_SOUND_DSP_IMPL) && !defined(DM_SOUND_DSP_SSE2) && !defined(DM_SOUND_DSP_WASM)
+#define DM_SOUND_DSP_IMPL Fallback
 #endif
 
 namespace dmSound
@@ -43,7 +38,7 @@ namespace dmSound
 // ----------------------------------------------------------------------------------------------------------------------------------------------------------------
 // ----------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-#if defined(__wasm_simd128__)
+#if defined(DM_SOUND_DSP_WASM)
 
 namespace WASM {
 //
@@ -512,7 +507,7 @@ static inline void DeinterleaveFromS8(float* out[], const int8_t* in, uint32_t n
 // ----------------------------------------------------------------------------------------------------------------------------------------------------------------
 // ----------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-#if defined(SOUND_SSE2) && !defined(__wasm_simd128__)
+#if defined(DM_SOUND_DSP_SSE2)
 
 //
 // SSE2
@@ -814,20 +809,19 @@ static inline void ApplyGainAndInterleaveToS16(int16_t* out, float* in[], uint32
 
     vec4* vin_l = (vec4*)in[0];
     vec4* vin_r = (vec4*)in[1];
-    __m64* vout = (__m64*)out;
-    for(; num>3; num-=4)
+    __m128i* vout = (__m128i*)out;
+    for(; num>7; num-=8)
     {
-        vec4 l = _mm_mul_ps(*(vin_l++), sc);
-        vec4 r = _mm_mul_ps(*(vin_r++), sc);
-        __m64 li0 = _mm_cvt_ps2pi(l);                       // L0L1 (int32)
-        __m64 li1 = _mm_cvt_ps2pi(_mm_movehl_ps(l, l));     // L2L3 (int32)
-        __m64 ri0 = _mm_cvt_ps2pi(r);                       // R0R1 (int32)
-        __m64 ri1 = _mm_cvt_ps2pi(_mm_movehl_ps(r, r));     // R2R3 (int32)
-        __m64 l16 = _mm_packs_pi32(li0, li1);               // L0L1L2L3 (int16; sat)
-        __m64 r16 = _mm_packs_pi32(ri0, ri1);               // R0R1R2R3 (int16; sat)
-        *(vout++) = _mm_unpacklo_pi16(l16, r16);            // L0R0L1R1
-        *(vout++) = _mm_unpackhi_pi16(l16, r16);            // L2R2L3R3
+        vec4 l0 = _mm_mul_ps(*(vin_l++), sc);                                       // Apply gain
+        vec4 r0 = _mm_mul_ps(*(vin_r++), sc);
         sc = _mm_add_ps(sc, scd);
+        vec4 r1 = _mm_mul_ps(*(vin_r++), sc);
+        vec4 l1 = _mm_mul_ps(*(vin_l++), sc);
+        sc = _mm_add_ps(sc, scd);
+        __m128i li = _mm_packs_epi32(_mm_cvtps_epi32(l0), _mm_cvtps_epi32(l1));     // L0-7 to s16
+        __m128i ri = _mm_packs_epi32(_mm_cvtps_epi32(r0), _mm_cvtps_epi32(r1));     // R0-7 to s16
+        *(vout++) = _mm_unpacklo_epi16(li, ri);                                     // LR0-LR3 interleaved out
+        *(vout++) = _mm_unpackhi_epi16(li, ri);                                     // LR4-LR7 interleaved out
     }
 
     float* in_l = (float*)vin_l;
@@ -903,14 +897,13 @@ static inline void GatherPowerData(float* in[], uint32_t num, float gain, float&
 // note: supports unaligned src & dest
 static inline void ConvertFromS16(float* out, const int16_t* in, uint32_t num)
 {
-    vec4 zero = _mm_set1_ps(0.0);
-
-    const __m64* vin = (const __m64*)in;
+    const __m128i* vin = (const __m128i*)in;
     vec4* vout = (vec4*)out;
-    for(; num>3; num-=4)
+    for(; num>7; num-=8)
     {
-        __m64 iin0 = *(vin++);
-        _mm_storeu_ps((float*)vout++, _mm_cvt_pi2ps(_mm_movelh_ps(zero, _mm_cvt_pi2ps(zero, _mm_srai_pi32(_mm_unpackhi_pi16(iin0, iin0), 16))), _mm_srai_pi32(_mm_unpacklo_pi16(iin0, iin0), 16)));
+        __m128i iin = _mm_loadu_si128(vin++);
+        _mm_storeu_ps((float*)vout++, _mm_cvtepi32_ps(_mm_srai_epi32(_mm_unpacklo_epi16(iin, iin), 16)));
+        _mm_storeu_ps((float*)vout++, _mm_cvtepi32_ps(_mm_srai_epi32(_mm_unpackhi_epi16(iin, iin), 16)));
     }
 
     out = (float*)vout;
@@ -924,17 +917,17 @@ static inline void ConvertFromS16(float* out, const int16_t* in, uint32_t num)
 // note: supports unaligned src & dest
 static inline void ConvertFromS8(float* out, const int8_t* in, uint32_t num)
 {
-    vec4 zero = _mm_set1_ps(0.0);
-
-    const __m64* vin = (const __m64*)in;
+    const __m128i* vin = (const __m128i*)in;
     vec4* vout = (vec4*)out;
-    for(; num>7; num-=8)
+    for(; num>15; num-=16)
     {
-        __m64 iin = *(vin++);
-        __m64 iin0 = _mm_unpacklo_pi8(iin, iin);   // s0-3 as int16 (we duplicate the high bits into the low bits to approximate overall value better)
-        __m64 iin1 = _mm_unpackhi_pi8(iin, iin);   // s4-7 as int16
-        _mm_storeu_ps((float*)vout++, _mm_cvt_pi2ps(_mm_movelh_ps(zero, _mm_cvt_pi2ps(zero, _mm_srai_pi32(_mm_unpackhi_pi16(iin0, iin0), 16))), _mm_srai_pi32(_mm_unpacklo_pi16(iin0, iin0), 16)));
-        _mm_storeu_ps((float*)vout++, _mm_cvt_pi2ps(_mm_movelh_ps(zero, _mm_cvt_pi2ps(zero, _mm_srai_pi32(_mm_unpackhi_pi16(iin1, iin1), 16))), _mm_srai_pi32(_mm_unpacklo_pi16(iin1, iin1), 16)));
+        __m128i iin = _mm_loadu_si128(vin++);
+        __m128i iin16a = _mm_unpacklo_epi8(iin, iin);   // s0-7  as int16 (we duplicate the high bits into the low bits to approximate overall value better)
+        __m128i iin16b = _mm_unpackhi_epi8(iin, iin);   // s8-15 as int16
+        _mm_storeu_ps((float*)vout++, _mm_cvtepi32_ps(_mm_srai_epi32(_mm_unpacklo_epi16(iin16a, iin16a), 16)));
+        _mm_storeu_ps((float*)vout++, _mm_cvtepi32_ps(_mm_srai_epi32(_mm_unpackhi_epi16(iin16a, iin16a), 16)));
+        _mm_storeu_ps((float*)vout++, _mm_cvtepi32_ps(_mm_srai_epi32(_mm_unpacklo_epi16(iin16b, iin16b), 16)));
+        _mm_storeu_ps((float*)vout++, _mm_cvtepi32_ps(_mm_srai_epi32(_mm_unpackhi_epi16(iin16b, iin16b), 16)));
     }
 
     out = (float*)vout;
@@ -974,17 +967,14 @@ static inline void Deinterleave(float* out[], const float* in, uint32_t num)
 // note: supports unaligned src & dest
 static inline void DeinterleaveFromS16(float* out[], const int16_t* in, uint32_t num)
 {
-    vec4 zero = _mm_set1_ps(0.0);
-
-    const __m64* vin = (const __m64*)in;
+    const __m128i* vin = (const __m128i*)in;
     vec4* vout_l = (vec4*)out[0];
     vec4* vout_r = (vec4*)out[1];
     for(; num>3; num-=4)
     {
-        __m64 iin0 = *(vin++);
-        __m64 iin1 = *(vin++);
-        vec4 in0 = _mm_cvt_pi2ps(_mm_movelh_ps(zero, _mm_cvt_pi2ps(zero, _mm_srai_pi32(_mm_unpackhi_pi16(iin0, iin0), 16))), _mm_srai_pi32(_mm_unpacklo_pi16(iin0, iin0), 16));
-        vec4 in1 = _mm_cvt_pi2ps(_mm_movelh_ps(zero, _mm_cvt_pi2ps(zero, _mm_srai_pi32(_mm_unpackhi_pi16(iin1, iin1), 16))), _mm_srai_pi32(_mm_unpacklo_pi16(iin1, iin1), 16));
+        __m128i iin = _mm_loadu_si128(vin++);
+        vec4 in0 = _mm_cvtepi32_ps(_mm_srai_epi32(_mm_unpacklo_epi16(iin, iin), 16));
+        vec4 in1 = _mm_cvtepi32_ps(_mm_srai_epi32(_mm_unpackhi_epi16(iin, iin), 16));
 
         in0 = _mm_shuffle_ps(in0, in0, _MM_SHUFFLE(3,1,2,0));     // L0L1R0R1
         in1 = _mm_shuffle_ps(in1, in1, _MM_SHUFFLE(3,1,2,0));     // L2L3R2R3
@@ -1005,24 +995,18 @@ static inline void DeinterleaveFromS16(float* out[], const int16_t* in, uint32_t
 // note: supports unaligned src & dest
 static inline void DeinterleaveFromS8(float* out[], const int8_t* in, uint32_t num)
 {
-    vec4 zero = _mm_set1_ps(0.0);
-
-    const __m64* vin = (const __m64*)in;
+    const __m128i* vin = (const __m128i*)in;
     vec4* vout_l = (vec4*)out[0];
     vec4* vout_r = (vec4*)out[1];
     for(; num>7; num-=8)
     {
-        __m64 iin = *(vin++);
-        __m64 iin0 = _mm_unpacklo_pi8(iin, iin);
-        __m64 iin1 = _mm_unpackhi_pi8(iin, iin);
-        iin = *(vin++);
-        __m64 iin2 = _mm_unpacklo_pi8(iin, iin);
-        __m64 iin3 = _mm_unpackhi_pi8(iin, iin);
-
-        vec4 in0 = _mm_cvt_pi2ps(_mm_movelh_ps(zero, _mm_cvt_pi2ps(zero, _mm_srai_pi32(_mm_unpackhi_pi16(iin0, iin0), 16))), _mm_srai_pi32(_mm_unpacklo_pi16(iin0, iin0), 16));
-        vec4 in1 = _mm_cvt_pi2ps(_mm_movelh_ps(zero, _mm_cvt_pi2ps(zero, _mm_srai_pi32(_mm_unpackhi_pi16(iin1, iin1), 16))), _mm_srai_pi32(_mm_unpacklo_pi16(iin1, iin1), 16));
-        vec4 in2 = _mm_cvt_pi2ps(_mm_movelh_ps(zero, _mm_cvt_pi2ps(zero, _mm_srai_pi32(_mm_unpackhi_pi16(iin2, iin2), 16))), _mm_srai_pi32(_mm_unpacklo_pi16(iin2, iin2), 16));
-        vec4 in3 = _mm_cvt_pi2ps(_mm_movelh_ps(zero, _mm_cvt_pi2ps(zero, _mm_srai_pi32(_mm_unpackhi_pi16(iin3, iin3), 16))), _mm_srai_pi32(_mm_unpacklo_pi16(iin3, iin3), 16));
+        __m128i iin = _mm_loadu_si128(vin++);
+        __m128i iin16a = _mm_unpacklo_epi8(iin, iin);   // s0-7  as int16 (we duplicate the high bits into the low bits to approximate overall value better)
+        __m128i iin16b = _mm_unpackhi_epi8(iin, iin);   // s8-15 as int16
+        vec4 in0 = _mm_cvtepi32_ps(_mm_srai_epi32(_mm_unpacklo_epi16(iin16a, iin16a), 16));
+        vec4 in1 = _mm_cvtepi32_ps(_mm_srai_epi32(_mm_unpackhi_epi16(iin16a, iin16a), 16));
+        vec4 in2 = _mm_cvtepi32_ps(_mm_srai_epi32(_mm_unpacklo_epi16(iin16b, iin16b), 16));
+        vec4 in3 = _mm_cvtepi32_ps(_mm_srai_epi32(_mm_unpackhi_epi16(iin16b, iin16b), 16));
 
         in0 = _mm_shuffle_ps(in0, in0, _MM_SHUFFLE(3,1,2,0));     // L0L1R0R1
         in1 = _mm_shuffle_ps(in1, in1, _MM_SHUFFLE(3,1,2,0));     // L2L3R2R3
@@ -1251,13 +1235,13 @@ static inline void DeinterleaveFromS8(float* out[], const int8_t* in, uint32_t n
 // ----------------------------------------------------------------------------------------------------------------------------------------------------------------
 // ----------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-#ifdef DM_SOUND_EXPECTED_SIMD
+#ifdef DM_SOUND_DSP_IMPL
 
 //
 // Compiletime selected DSP implementation
 //
 
-#define SoundImpl DM_SOUND_EXPECTED_SIMD
+#define SoundImpl DM_SOUND_DSP_IMPL
 
 static inline void SelectDSPImpl(DSPImplType /*impl_type*/)
 {
@@ -1353,7 +1337,7 @@ struct DSPImpl {
      void (*DeinterleaveFromS8)(float* out[], const int8_t* in, uint32_t num);
 };
 
-#if defined(__wasm_simd128__)
+#if defined(DM_SIMD_WASM)
 static DSPImpl wasm_impl =
 {
     WASM::MixScaledMonoToStereo,
@@ -1371,7 +1355,7 @@ static DSPImpl wasm_impl =
 };
 #endif
 
-#if defined(SOUND_SSE2) && !defined(__wasm_simd128__)
+#if defined(DM_SIMD_SSE2)
 static DSPImpl sse_impl =
 {
     SSE::MixScaledMonoToStereo,
@@ -1411,12 +1395,21 @@ static inline bool SelectDSPImpl(DSPImplType impl_type)
 {
     switch(impl_type)
     {
-        case    DSPIMPL_TYPE_FALLBACK: g_DSPImpl = &fallback_impl; return true;
-#if defined(SOUND_SSE2) && !defined(__wasm_simd128__)
-        case    DSPIMPL_TYPE_SSE2: g_DSPImpl = &sse_impl; return true;
+        case DSPIMPL_TYPE_CPU:
+            dmLogOnceInfo("  DSP backend: CPU");
+            g_DSPImpl = &fallback_impl;
+            return true;
+#if defined(DM_SOUND_DSP_SSE2)
+        case DSPIMPL_TYPE_SSE2:
+            dmLogOnceInfo("  DSP backend: SSE2");
+            g_DSPImpl = &sse_impl;
+            return true;
 #endif
-#if defined(__wasm_simd128__)
-        case    DSPIMPL_TYPE_WASM_SIMD128: g_DSPImpl = &wasm_impl; return true;
+#if defined(DM_SOUND_DSP_WASM)
+        case DSPIMPL_TYPE_WASM_SIMD128:
+            dmLogOnceInfo("  DSP backend: WASM");
+            g_DSPImpl = &wasm_impl;
+            return true;
 #endif
         default: break;
     }
