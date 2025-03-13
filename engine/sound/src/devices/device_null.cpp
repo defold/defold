@@ -38,7 +38,7 @@ namespace dmDeviceNull
 
     void DeviceNullDeviceInfo(dmSound::HDevice device, dmSound::DeviceInfo* info)
     {
-        info->m_DSPImplementation = dmSound::DSPIMPL_TYPE_DEFAULT;
+        info->m_DSPImplementation = dmSound::DSPIMPL_TYPE_CPU;
     }
 
     void DeviceNullRestart(dmSound::HDevice device)
