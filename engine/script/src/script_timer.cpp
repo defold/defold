@@ -24,7 +24,7 @@
 #include "script_private.h"
 
 DM_PROPERTY_EXTERN(rmtp_Script);
-DM_PROPERTY_U32(rmtp_TimerCount, 0, FrameReset, "# timers", &rmtp_Script);
+DM_PROPERTY_U32(rmtp_TimerCount, 0, PROFILE_PROPERTY_FRAME_RESET, "# timers", &rmtp_Script);
 
 namespace dmScript
 {

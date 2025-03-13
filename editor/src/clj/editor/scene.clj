@@ -989,21 +989,28 @@
   (run [app-view] (when-let [view (active-scene-view app-view)]
                     (stop-handler view))))
 
-(defn set-camera! [camera-node start-camera end-camera animate?]
-  (if animate?
-    (let [duration 0.5]
-      (ui/anim! duration
-                (fn [^double t]
-                  (let [t (- (* t t 3) (* t t t 2))
-                        cam (c/interpolate start-camera end-camera t)]
-                    (g/transact
-                      (g/set-property camera-node :local-camera cam))))
-                (fn []
-                  (g/transact
-                    (g/set-property camera-node :local-camera end-camera)))))
-    (g/transact
-      (g/set-property camera-node :local-camera end-camera)))
-  nil)
+(defn set-camera!
+  ([camera-node start-camera end-camera animate?]
+   (set-camera! camera-node start-camera end-camera animate? nil))
+  ([camera-node start-camera end-camera animate? on-animation-end]
+   (if animate?
+     (let [duration 0.5]
+       (g/transact (g/set-property camera-node :animating true))
+       (ui/anim! duration
+                 (fn [^double t]
+                   (let [t (- (* t t 3) (* t t t 2))
+                         cam (c/interpolate start-camera end-camera t)]
+                     (g/transact
+                       (g/set-property camera-node :local-camera cam))))
+                 (fn []
+                   (g/transact
+                     [(g/set-property camera-node :local-camera end-camera)
+                      (g/set-property camera-node :animating false)])
+                   (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
+                   (when on-animation-end (on-animation-end)))))
+     (g/transact
+       (g/set-property camera-node :local-camera end-camera)))
+   nil))
 
 (defn- fudge-empty-aabb
   ^AABB [^AABB aabb]
@@ -1032,15 +1039,6 @@
          end-camera (c/camera-frame-aabb local-cam viewport aabb)]
      (set-camera! camera local-cam end-camera animate?))))
 
-
-(defn realign-camera [view animate?]
-  (let [aabb (fudge-empty-aabb (g/node-value view :selected-aabb))
-        camera (view->camera view)
-        viewport (g/node-value view :viewport)
-        local-cam (g/node-value camera :local-camera)
-        end-camera (c/camera-orthographic-realign (c/camera-ensure-orthographic local-cam) viewport aabb)]
-    (set-camera! camera local-cam end-camera animate?)))
-
 (defn set-camera-type! [view projection-type]
   (let [camera-controller (view->camera view)
         old-camera (g/node-value camera-controller :local-camera)
@@ -1051,6 +1049,60 @@
                          :perspective (c/camera-orthographic->perspective old-camera c/fov-y-35mm-full-frame))]
         (set-camera! camera-controller old-camera new-camera false)))))
 
+(defn- sync-camera-position
+  [^Camera camera-a ^Camera camera-b viewport]
+  (let [focus ^Vector4d (:focus-point camera-b)
+        point (c/camera-project camera-b viewport (Point3d. (.x focus) (.y focus) (.z focus)))
+        world (c/camera-unproject camera-a viewport (.x point) (.y point) (.z point))
+        delta (c/camera-unproject camera-b viewport (.x point) (.y point) (.z point))]
+    (.sub delta world)
+    (cond-> camera-a
+      :always
+      (-> (c/camera-ensure-orthographic)
+          (c/camera-move (.x delta) (.y delta) (.z delta))
+          (assoc :fov-x (:fov-x camera-b)
+                 :fov-y (:fov-y camera-b)))
+
+      (= (:type camera-a) :perspective)
+      (c/camera-orthographic->perspective c/fov-y-35mm-full-frame))))
+
+(defn- get-3d-camera
+  [camera]
+  (or (g/node-value camera :cached-3d-camera)
+      (c/tumble (g/node-value camera :local-camera) 200.0 -100.0)))
+
+(defn- camera-2d?
+  [view]
+  (some-> (view->camera view)
+          (g/node-value :local-camera)
+          (c/mode-2d?)))
+
+(defmulti realign-camera (fn [view _animate?] (if (camera-2d? view) :2d :3d)))
+
+(defmethod realign-camera :2d
+  [view animate?]
+  (let [camera-node (view->camera view)
+        local-cam (g/node-value camera-node :local-camera)
+        viewport (g/node-value view :viewport)
+        camera-3d (-> (get-3d-camera camera-node)
+                      (sync-camera-position local-cam viewport))
+        local-cam (cond-> local-cam
+                    (= (:type camera-3d) :perspective)
+                    (c/camera-orthographic->perspective c/fov-y-35mm-full-frame))]
+    (set-camera! camera-node local-cam camera-3d animate?)))
+
+(defmethod realign-camera :3d
+  [view animate?]
+  (let [camera-node (view->camera view)
+        local-cam (g/node-value camera-node :local-camera)
+        is-perspective (= (:type local-cam) :perspective)]
+    (g/transact (g/set-property camera-node :cached-3d-camera local-cam))
+    (let [end-camera (cond-> local-cam
+                       is-perspective c/camera-perspective->orthographic
+                       :always c/camera-orthographic-realign
+                       is-perspective (c/camera-orthographic->perspective c/fov-y-35mm-full-frame))]
+      (set-camera! camera-node local-cam end-camera animate? #(set-camera-type! view :orthographic)))))
+
 (handler/defhandler :frame-selection :global
   (active? [app-view evaluation-context]
            (active-scene-view app-view evaluation-context))
@@ -1058,14 +1110,21 @@
             (when-let [view (active-scene-view app-view evaluation-context)]
               (let [selected (g/node-value view :selection evaluation-context)]
                 (not (empty? selected)))))
-  (run [app-view] (when-let [view (active-scene-view app-view)]
-                    (frame-selection view true))))
+  (run [app-view] (some-> (active-scene-view app-view)
+                          (frame-selection true))))
+
+(defn- camera-animating?
+  [app-view]
+  (some-> (active-scene-view app-view)
+          (view->camera)
+          (g/node-value :animating)))
 
 (handler/defhandler :realign-camera :global
   (active? [app-view evaluation-context]
            (active-scene-view app-view evaluation-context))
-  (run [app-view] (when-let [view (active-scene-view app-view)]
-                    (realign-camera view true))))
+  (enabled? [app-view] (not (camera-animating? app-view)))
+  (run [app-view] (some-> (active-scene-view app-view) 
+                          (realign-camera true))))
 
 (handler/defhandler :set-camera-type :global
   (active? [app-view evaluation-context]
@@ -1078,10 +1137,20 @@
                  (g/node-value :camera-type)
                  (= (:camera-type user-data)))))
 
+(handler/defhandler :toggle-2d-mode :workbench
+  (active? [app-view evaluation-context]
+           (active-scene-view app-view evaluation-context))
+  (enabled? [app-view] (not (camera-animating? app-view)))
+  (run [app-view] (some-> (active-scene-view app-view) 
+                          (realign-camera true)))
+  (state [app-view] (camera-2d? (active-scene-view app-view))))
+
 ;; Used in the scene view tool bar.
 (handler/defhandler :toggle-perspective-camera :workbench
   (active? [app-view evaluation-context]
            (active-scene-view app-view evaluation-context))
+  (enabled? [app-view] (and (not (camera-2d? (active-scene-view app-view)))
+                            (not (camera-animating? app-view))))
   (run [app-view]
        (when-some [view (active-scene-view app-view)]
          (set-camera-type! view
@@ -1320,6 +1389,8 @@
     (.setOnMouseClicked parent event-handler)
     (.setOnMouseMoved parent event-handler)
     (.setOnMouseDragged parent event-handler)
+    (.setOnDragOver parent event-handler)
+    (.setOnDragDropped parent event-handler)
     (.setOnScroll parent event-handler)
     (.setOnKeyPressed parent (ui/event-handler e
                                (when @process-events?
@@ -1607,6 +1678,7 @@
             (dynamic visible (g/fnk [transform-properties] (contains? transform-properties :rotation)))
             (dynamic edit-type (g/constantly properties/quat-rotation-edit-type)))
   (property scale types/Vec3 (default default-scale)
+            (dynamic edit-type (g/constantly {:type types/Vec3 :precision 0.1}))
             (dynamic visible (g/fnk [transform-properties] (contains? transform-properties :scale)))
             (set (fn [_evaluation-context self _old-value new-value]
                    (when (some? new-value)

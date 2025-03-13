@@ -22,7 +22,7 @@
             [internal.graph.error-values :as ie]
             [plumbing.core :as pc]
             [schema.core :as s]
-            [util.coll :refer [pair]]
+            [util.coll :as coll :refer [pair]]
             [util.fn :as fn])
   (:import [internal.graph.error_values ErrorValue]
            [schema.core Maybe ConditionalSchema]
@@ -348,7 +348,7 @@
 
 (def defaults
   "Return a map of default values for the node type."
-  (comp (memoize defaults-raw) deref))
+  (comp (fn/memoize defaults-raw) deref))
 
 (defn- args-without-properties [node-type-ref args]
   (set/difference
@@ -358,14 +358,16 @@
 (defn construct
   [node-type-ref args]
   (assert (and node-type-ref (deref node-type-ref)))
+  (assert (or (nil? args) (map? args)))
   (assert (empty? (args-without-properties node-type-ref args))
           (str "You have given values for properties "
                (args-without-properties node-type-ref args)
                ", but those don't exist on nodes of type "
                (:k node-type-ref)))
-  (merge (->NodeImpl nil node-type-ref)
-         (defaults node-type-ref)
-         args))
+  (coll/merge
+    (->NodeImpl nil node-type-ref)
+    (defaults node-type-ref)
+    args))
 
 ;;; ----------------------------------------
 ;;; Evaluating outputs

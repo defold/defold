@@ -269,5 +269,5 @@ namespace dmResourceProviderArchive
         loader->m_ReadFilePartial   = ReadFilePartial;
     }
 
-    DM_DECLARE_ARCHIVE_LOADER(ResourceProviderArchive, "archive", SetupArchiveLoader);
+    DM_DECLARE_ARCHIVE_LOADER(ResourceProviderArchive, "archive", SetupArchiveLoader, 0, 0);
 }

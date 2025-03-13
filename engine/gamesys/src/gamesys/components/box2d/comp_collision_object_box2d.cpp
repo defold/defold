@@ -43,7 +43,7 @@
 #include <gamesys/gamesys_ddf.h>
 
 DM_PROPERTY_EXTERN(rmtp_Components);
-DM_PROPERTY_U32(rmtp_CollisionObjectBox2D, 0, FrameReset, "# components", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_CollisionObjectBox2D, 0, PROFILE_PROPERTY_FRAME_RESET, "# components", &rmtp_Components);
 
 namespace dmGameSystem
 {
@@ -154,6 +154,8 @@ namespace dmGameSystem
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
 
+        InstallBox2DPhysicsAdapter();
+
         CollisionWorldBox2D* world = new CollisionWorldBox2D();
         memset(world, 0, sizeof(CollisionWorldBox2D));
 
@@ -162,8 +164,6 @@ namespace dmGameSystem
         world->m_ComponentTypeIndex           = params.m_ComponentIndex;
         world->m_FirstUpdate                  = 1;
         world->m_Components.SetCapacity(comp_count);
-
-        InstallBox2DPhysicsAdapter();
 
         *params.m_World = world;
         return dmGameObject::CREATE_RESULT_OK;

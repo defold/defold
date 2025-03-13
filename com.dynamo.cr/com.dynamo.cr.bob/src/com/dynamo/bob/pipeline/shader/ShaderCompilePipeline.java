@@ -14,7 +14,6 @@
 
 package com.dynamo.bob.pipeline.shader;
 
-import java.lang.reflect.Array;
 import java.nio.charset.StandardCharsets;
 import java.io.File;
 import java.io.IOException;
@@ -37,6 +36,7 @@ import org.apache.commons.io.FileUtils;
 public class ShaderCompilePipeline {
     public static class Options {
         public boolean splitTextureSamplers;
+        public ArrayList<String> defines = new ArrayList<>();
     }
 
     public static class ShaderModuleDesc {
@@ -90,7 +90,6 @@ public class ShaderCompilePipeline {
     private static Integer shaderLanguageToVersion(ShaderDesc.Language shaderLanguage) {
         return switch (shaderLanguage) {
             case LANGUAGE_GLSL_SM120 -> 120;
-            case LANGUAGE_GLSL_SM140 -> 140;
             case LANGUAGE_GLES_SM100 -> 100;
             case LANGUAGE_GLES_SM300 -> 300;
             case LANGUAGE_GLSL_SM330 -> 330;
@@ -102,7 +101,6 @@ public class ShaderCompilePipeline {
 
     protected static boolean shaderLanguageIsGLSL(ShaderDesc.Language shaderLanguage) {
         return shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM120 ||
-               shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM140 ||
                shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100 ||
                shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300 ||
                shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM330 ||
@@ -140,6 +138,9 @@ public class ShaderCompilePipeline {
     protected static String intermediateResourceToProjectPath(String message, String projectPath) {
         String[] knownFileExtensions = new String[] { "glsl", "spv", "wgsl", "hlsl" };
         String replacementRegex = String.format("/[^\\s:]+\\.(%s)(?=:)", String.join("|", knownFileExtensions));
+        if (projectPath == null) {
+            return message;
+        }
         return message.replaceAll(replacementRegex, projectPath);
     }
 
@@ -174,17 +175,28 @@ public class ShaderCompilePipeline {
     }
 
     private void generateSPIRv(String resourcePath, ShaderDesc.ShaderType shaderType, String pathFileInGLSL, String pathFileOutSpv) throws IOException, CompileExceptionError {
-        Result result = Exec.execResult(glslangExe,
-            "-w",
-            "--entry-point", "main",
-            "--auto-map-bindings",
-            "--auto-map-locations",
-            "-Os",
-            "--resource-set-binding", "frag", "1",
-            "-S", shaderTypeToSpirvStage(shaderType),
-            "-o", pathFileOutSpv,
-            "-V",
-            pathFileInGLSL);
+        ArrayList<String> args = new ArrayList<>();
+        args.add(glslangExe);
+        args.add("-w");
+        args.add("--entry-point");
+        args.add("main");
+        args.add("--auto-map-bindings");
+        args.add("--auto-map-locations");
+        args.add("-Os");
+        args.add("--resource-set-binding");
+        args.add("frag");
+        args.add("1");
+        args.add("-S");
+        args.add(shaderTypeToSpirvStage(shaderType));
+        args.add("-o");
+        args.add(pathFileOutSpv);
+        args.add("-V");
+        for (String define : this.options.defines) {
+            args.add("-D" + define);
+        }
+        args.add(pathFileInGLSL);
+
+        Result result = Exec.execResult(args.toArray(new String[0]));
         checkResult(resourcePath, result);
     }
 
@@ -206,7 +218,7 @@ public class ShaderCompilePipeline {
         return null;
     }
 
-    protected byte[] generateCrossCompiledShader(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, int versionOut) {
+    protected Shaderc.ShaderCompileResult generateCrossCompiledShader(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, int versionOut) {
 
         long compiler = 0;
 
@@ -239,7 +251,7 @@ public class ShaderCompilePipeline {
             opts.glslEs = 1;
         }
 
-        byte[] result = ShadercJni.Compile(module.spirvContext, compiler, opts);
+        Shaderc.ShaderCompileResult result = ShadercJni.Compile(module.spirvContext, compiler, opts);
         ShadercJni.DeleteShaderCompiler(compiler);
         return result;
     }
@@ -371,13 +383,7 @@ public class ShaderCompilePipeline {
         ShaderModule module = getShaderModule(shaderType);
         assert module != null;
 
-        boolean isLanguageGLSL = shaderLanguageIsGLSL(shaderLanguage);
-
-        if (isLanguageGLSL && module.shaderInfo != null && module.shaderInfo.version == version) {
-            // The input shader is already valid GLSL code in the output version we are trying to produce,
-            // no need to crosscompile!
-            return module.desc.source.getBytes();
-        } else if (shaderLanguage == ShaderDesc.Language.LANGUAGE_SPIRV) {
+        if (shaderLanguage == ShaderDesc.Language.LANGUAGE_SPIRV) {
             // We have already produced SPIR-v for the input module, no need to crosscompile
             return FileUtils.readFileToByteArray(module.spirvFile);
         } else if (shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL) {
@@ -391,11 +397,17 @@ public class ShaderCompilePipeline {
             generateWGSL(module.desc.resourcePath, module.spirvFile.getAbsolutePath(), fileCrossCompiled.getAbsolutePath());
             return FileUtils.readFileToByteArray(fileCrossCompiled);
         } else if (canBeCrossCompiled(shaderLanguage)) {
-            byte[] bytes = generateCrossCompiledShader(shaderType, shaderLanguage, version);
+            Shaderc.ShaderCompileResult result = generateCrossCompiledShader(shaderType, shaderLanguage, version);
+
+            if (!result.lastError.isEmpty()) {
+                throw new CompileExceptionError("Cross-compilation of shader type: " + shaderType + ", to language: " + shaderLanguage + " failed, reason: " + result.lastError);
+            }
+
+            byte[] bytes = result.data;
 
             // JG: spirv-cross renames samplers for GLSL based shaders, so we have to run a second pass to force renaming them back.
             //     There doesn't seem to be a simpler way to do this in spirv-cross from what I can understand.
-            if (isLanguageGLSL) {
+            if (shaderLanguageIsGLSL(shaderLanguage)) {
                 bytes = remapTextureSamplers(module.spirvReflector.getTextures(), new String(bytes));
             }
 

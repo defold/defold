@@ -16,6 +16,7 @@
           <entry key="clojure.core/vector-of" value="-1" />
           <entry key="clojure.test/are" value="-1" />
           <entry key="dev/run-with-progress" value="-1" />
+          <entry key="dynamo.graph/construct" value="-1" />
           <entry key="dynamo.graph/make-nodes" value="-1" />
           <entry key="dynamo.graph/override" value="-1" />
           <entry key="dynamo.graph/precluding-errors" value="-1" />
@@ -29,6 +30,7 @@
           <entry key="editor.defold-project/with-transpiler-txs-fn" value="-1" />
           <entry key="editor.editor-extensions.runtime/lua-fn" value="-1" />
           <entry key="editor.editor-extensions.runtime/suspendable-lua-fn" value="-1" />
+          <entry key="editor.editor-extensions.runtime/varargs-lua-fn" value="-1" />
           <entry key="editor.editor-extensions.validation/ensure" value="-1" />
           <entry key="editor.editor-extensions.vm/with-lock" value="-1" />
           <entry key="editor.file-test/with-temp-dir" value="-1" />
@@ -72,7 +74,6 @@
           <entry key="editor.ui/with-controls" value="-1" />
           <entry key="editor.ui/with-on-edit-event-suppressed" value="-1" />
           <entry key="editor.ui/with-progress" value="-1" />
-          <entry key="editor.updater-test/with-server" value="2" />
           <entry key="editor.workspace/register-resource-type" value="-1" />
           <entry key="editor.workspace/register-view-type" value="-1" />
           <entry key="editor.yaml/with-error-translation" value="-1" />

@@ -62,7 +62,8 @@
             [util.http-server :as http-server]
             [util.text-util :as text-util]
             [util.thread-util :as thread-util])
-  (:import [clojure.core Vec]
+  (:import [ch.qos.logback.classic Level Logger]
+           [clojure.core Vec]
            [com.google.protobuf ByteString]
            [editor.properties Curve CurveSpread]
            [java.awt.image BufferedImage]
@@ -79,9 +80,12 @@
            [javafx.scene.paint Color]
            [javax.imageio ImageIO]
            [javax.vecmath Vector3d]
-           [org.apache.commons.io FilenameUtils IOUtils]))
+           [org.apache.commons.io FilenameUtils IOUtils]
+           [org.slf4j LoggerFactory]))
 
 (set! *warn-on-reflection* true)
+
+(.setLevel ^Logger (LoggerFactory/getLogger "org.eclipse.jetty") Level/ERROR)
 
 (def project-path "test/resources/test_project")
 
@@ -302,21 +306,16 @@
    (let [proj-graph (g/make-graph! :history true :volatility 1)
          extensions (extensions/make proj-graph)
          project (project/make-project proj-graph workspace extensions)
-         project (project/load-project project)]
+         project (project/load-project! project)]
      (g/reset-undo! proj-graph)
      project))
   ([workspace resources]
    (let [proj-graph (g/make-graph! :history true :volatility 1)
          extensions (extensions/make proj-graph)
          project (project/make-project proj-graph workspace extensions)
-         project (project/load-project project resources)]
+         project (project/load-project! project progress/null-render-progress! resources)]
      (g/reset-undo! proj-graph)
      project)))
-
-(defn load-project-nodes! [project resource-node-ids]
-  (let [{:keys [migrated-resource-node-ids node-load-infos]}
-        (#'project/load-nodes! project resource-node-ids (constantly nil) {} nil nil)]
-    (#'project/cache-loaded-save-data! node-load-infos project migrated-resource-node-ids)))
 
 (defn project-node-resources [project]
   (g/with-auto-evaluation-context evaluation-context
@@ -795,32 +794,29 @@
 
 ;; Extension library server
 
-(defn ->lib-server []
-  (doto (http-server/->server 0 {"/lib" (fn [request]
-                                          (let [lib (subs (:url request) 5)
-                                                path-offset (count (format "test/resources/%s/" lib))
-                                                ignored #{".internal" "build"}
-                                                file-filter (reify FilenameFilter
-                                                              (accept [this file name] (not (contains? ignored name))))
-                                                files (->> (tree-seq (fn [^File f] (.isDirectory f)) (fn [^File f] (.listFiles f file-filter)) (io/file (format "test/resources/%s" lib)))
-                                                        (filter (fn [^File f] (not (.isDirectory f)))))]
-                                            (with-open [byte-stream (ByteArrayOutputStream.)
-                                                        out (ZipOutputStream. byte-stream)]
-                                              (doseq [^File f files]
-                                                (with-open [in (FileInputStream. f)]
-                                                  (let [entry (doto (ZipEntry. (subs (.getPath f) path-offset))
-                                                                (.setSize (.length f)))]
-                                                    (.putNextEntry out entry)
-                                                    (IOUtils/copy in out)
-                                                    (.closeEntry out))))
-                                              (.finish out)
-                                              (let [bytes (.toByteArray byte-stream)]
-                                                {:headers {"ETag" "tag"}
-                                                 :body bytes}))))})
-    (http-server/start!)))
-
-(defn kill-lib-server [server]
-  (http-server/stop! server))
+(def lib-server-handler
+  (http-server/router-handler
+    {"/lib/{*lib}"
+     {"GET" (fn [request]
+              (let [lib (-> request :path-params :lib)
+                    path-offset (count (format "test/resources/%s/" lib))
+                    ignored #{".internal" "build"}
+                    file-filter (reify FilenameFilter
+                                  (accept [this file name] (not (contains? ignored name))))
+                    files (->> (tree-seq (fn [^File f] (.isDirectory f))
+                                         (fn [^File f] (.listFiles f ^FilenameFilter file-filter))
+                                         (io/file (format "test/resources/%s" lib)))
+                               (filter (fn [^File f] (not (.isDirectory f)))))
+                    baos (ByteArrayOutputStream.)]
+                (with-open [out (ZipOutputStream. baos)]
+                  (doseq [^File f files]
+                    (with-open [in (FileInputStream. f)]
+                      (let [entry (doto (ZipEntry. (subs (.getPath f) path-offset))
+                                    (.setSize (.length f)))]
+                        (.putNextEntry out entry)
+                        (IOUtils/copy in out)
+                        (.closeEntry out)))))
+                (http-server/response 200 {"etag" "tag"} (.toByteArray baos))))}}))
 
 (defn lib-server-uri [server lib]
   (format "%s/lib/%s" (http-server/local-url server) lib))

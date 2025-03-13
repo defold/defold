@@ -32,6 +32,7 @@
 #include <input/input.h>
 #include <render/render.h>
 #include <physics/physics.h>
+#include <platform/platform_window.h>
 
 namespace dmMessage { struct URL; }
 
@@ -225,6 +226,8 @@ namespace dmGameSystem
         dmRender::HRenderContext    m_RenderContext;
         dmResource::HFactory        m_Factory;
         uint32_t                    m_MaxModelCount;
+        uint16_t                    m_MaxBoneMatrixTextureWidth;
+        uint16_t                    m_MaxBoneMatrixTextureHeight;
     };
 
     struct ScriptLibContext
@@ -239,6 +242,7 @@ namespace dmGameSystem
         dmJobThread::HContext   m_JobThread;
         dmScript::HContext      m_ScriptContext;
         dmConfigFile::HConfig   m_ConfigFile;
+        dmPlatform::HWindow     m_Window;
     };
 
 

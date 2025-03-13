@@ -23,9 +23,10 @@
             [util.coll :as coll :refer [pair]]
             [util.digest :as digest]
             [util.fn :as fn]
+            [util.http-server :as http-server]
             [util.text-util :as text-util])
   (:import [clojure.lang PersistentHashMap]
-           [java.io File FilterInputStream IOException InputStream]
+           [java.io File Closeable FilterInputStream IOException InputStream]
            [java.net URI]
            [java.nio.file FileSystem FileSystems]
            [java.util.zip ZipEntry ZipFile ZipInputStream]
@@ -161,6 +162,21 @@
 (defn ignored-project-path? [^File root proj-path]
   ((or *defignore-pred* (defignore-pred root)) proj-path))
 
+(defn- textual-resource-type?
+  "Returns whether the resource type is marked as textual. Note that the
+  placeholder resource type reports as textual, but might later call
+  [[util.text-util/binary?]] to estimate if the content is textual or not."
+  [resource-type]
+  {:pre [(some? resource-type)]
+   :post [(boolean? %)]}
+  (:textual? resource-type))
+
+(defn- content-type [resource]
+  (or (http-server/ext->content-type (type-ext resource))
+      (if (textual-resource-type? (resource-type resource))
+        "text/plain"
+        "application/octet-stream")))
+
 ;; Note! Used to keep a file here instead of path parts, but on
 ;; Windows (File. "test") equals (File. "Test") which broke
 ;; FileResource equality tests.
@@ -208,7 +224,13 @@
   (make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts))
 
   io/Coercions
-  (as-file [this] (File. abs-path)))
+  (as-file [this] (File. abs-path))
+
+  http-server/ContentType
+  (content-type [resource] (content-type resource))
+
+  http-server/->Data
+  (->data [_] (fs/path abs-path)))
 
 (defn make-file-resource [workspace ^String root ^File file children editable-proj-path?]
   (let [source-type (if (.isDirectory file) :folder :file)
@@ -326,7 +348,27 @@
   (make-writer        [this opts] (throw (Exception. "Zip resources are read-only")))
 
   io/Coercions
-  (as-file [this] (io/as-file zip-uri)))
+  (as-file [this] (io/as-file zip-uri))
+
+  http-server/ContentType
+  (content-type [resource] (content-type resource))
+
+  http-server/->Connection
+  (->connection [_]
+    (let [zip-file (ZipFile. (io/file zip-uri))
+          entry (.getEntry zip-file zip-entry)]
+      (reify
+        http-server/ConnectionContentLength
+        (connection-content-length [_]
+          (let [size (.getSize entry)]
+            (when-not (= -1 size) size)))
+        io/IOFactory
+        (make-input-stream [_ opts] (io/make-input-stream (.getInputStream zip-file entry) opts))
+        (make-reader [this opts] (io/make-reader (io/make-input-stream this opts) opts))
+        (make-output-stream [_ _] (throw (Exception. "Zip resources are read-only")))
+        (make-writer [_ _] (throw (Exception. "Zip resources are read-only")))
+        Closeable
+        (close [_] (.close zip-file))))))
 
 (core/register-record-type! ZipResource)
 
@@ -518,15 +560,6 @@
   [resource-type]
   (= placeholder-resource-type-ext (:ext resource-type)))
 
-(defn- textual-resource-type?
-  "Returns whether the resource type is marked as textual. Note that the
-  placeholder resource type reports as textual, but might later call
-  [[util.text-util/binary?]] to estimate if the content is textual or not."
-  [resource-type]
-  {:pre [(some? resource-type)]
-   :post [(boolean? %)]}
-  (:textual? resource-type))
-
 (defn textual? [resource]
   "Returns whether the resource is considered textual based on its type. If
   we're unable to determine the type of the resource (i.e. it is a placeholder
@@ -551,6 +584,13 @@
   they can be edited as plain text using the code editor."
   [resource]
   (stateful-resource-type? (resource-type resource)))
+
+(defn folder?
+  "Returns true if the supplied resource is a folder."
+  [resource]
+  (case (source-type resource)
+    :file false
+    :folder true))
 
 (def ^:private known-ext->language
   ;; See known language identifiers:

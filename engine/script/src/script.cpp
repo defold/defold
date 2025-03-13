@@ -39,7 +39,7 @@ extern "C"
 #include <lua/lualib.h>
 }
 
-DM_PROPERTY_GROUP(rmtp_Script, "");
+DM_PROPERTY_GROUP(rmtp_Script, "", 0);
 
 namespace dmScript
 {

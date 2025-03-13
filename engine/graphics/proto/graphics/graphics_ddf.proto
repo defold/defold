@@ -68,6 +68,8 @@ message VertexAttribute
         SEMANTIC_TYPE_TANGENT       = 7;
         SEMANTIC_TYPE_WORLD_MATRIX  = 8;
         SEMANTIC_TYPE_NORMAL_MATRIX = 9;
+        SEMANTIC_TYPE_BONE_WEIGHTS  = 10;
+        SEMANTIC_TYPE_BONE_INDICES  = 11;
     }
 
     message LongValues
@@ -303,15 +305,14 @@ message ShaderDesc
     enum Language
     {
         LANGUAGE_GLSL_SM120 = 1;  // OpenGL 2 compatible
-        LANGUAGE_GLSL_SM140 = 2;  // OpenGL 3 compatible
-        LANGUAGE_GLES_SM100 = 3;  // OpenGLES 2 / WebGL 1
-        LANGUAGE_GLES_SM300 = 4;  // OpenGLES 3 / WebGL 2
-        LANGUAGE_SPIRV      = 5;  // Vulkan / MoltenVK
-        LANGUAGE_PSSL       = 6;  // Playstation
-        LANGUAGE_GLSL_SM430 = 7;  // OpenGL 4.3+ compatible
-        LANGUAGE_GLSL_SM330 = 8;  // OpenGL 3.3 (used for macos)
-        LANGUAGE_WGSL       = 9;  // WebGPU
-        LANGUAGE_HLSL       = 10; // Windows / XBox compatible
+        LANGUAGE_GLES_SM100 = 2;  // OpenGLES 2 / WebGL 1
+        LANGUAGE_GLES_SM300 = 3;  // OpenGLES 3 / WebGL 2
+        LANGUAGE_SPIRV      = 4;  // Vulkan / MoltenVK
+        LANGUAGE_PSSL       = 5;  // Playstation
+        LANGUAGE_GLSL_SM430 = 6;  // OpenGL 4.3+ compatible
+        LANGUAGE_GLSL_SM330 = 7;  // OpenGL 3.3 (used for desktop platforms)
+        LANGUAGE_WGSL       = 8;  // WebGPU
+        LANGUAGE_HLSL       = 9;  // Windows / XBox compatible
     }
 
     enum ShaderType

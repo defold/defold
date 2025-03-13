@@ -398,10 +398,8 @@
            :focus-point (doto focus (.add delta)))))
 
 (defn tumble
-  [^Camera camera last-x last-y evt-x evt-y]
+  [^Camera camera dx dy]
   (let [rate 0.005
-        dx (- last-x evt-x)
-        dy (- last-y evt-y)
         focus ^Vector4d (:focus-point camera)
         delta ^Vector4d (doto (Vector4d. ^Point3d (:position camera))
                           (.sub focus))
@@ -415,7 +413,7 @@
                     (.set r)
                     (.transpose))
         q2 ^Quat4d (doto (Quat4d.)
-                     (.set (AxisAngle4d. 1.0  0.0  0.0 (* dy rate))))
+                     (.set (AxisAngle4d. 1.0 0.0 0.0 (* dy rate))))
         y-axis ^Vector4d (doto (Vector4d.))
         q1 ^Quat4d (doto (Quat4d.))]
     (.mul q-delta inv-r q-delta)
@@ -525,7 +523,7 @@
     :perspective (camera-perspective-frame-aabb camera aabb)))
 
 (defn camera-orthographic-realign ^Camera
-  [^Camera camera ^Region viewport ^AABB aabb]
+  [^Camera camera]
   (assert (= :orthographic (:type camera)))
   (let [focus ^Vector4d (:focus-point camera)
         delta ^Vector4d (doto (Vector4d. ^Point3d (:position camera))
@@ -658,7 +656,7 @@
                    (= :track movement)
                    (track viewport last-x last-y x y)
                    (= :tumble movement)
-                   (tumble last-x last-y x y))
+                   (tumble (- last-x x) (- last-y y)))
 
                  filter-fn
                  filter-fn)]
@@ -681,6 +679,8 @@
 (g/defnode CameraController
   (property name g/Keyword (default :local-camera))
   (property local-camera Camera)
+  (property cached-3d-camera Camera)
+  (property animating g/Bool)
   (property movements-enabled g/Any (default #{:dolly :track :tumble}))
 
   (input scene-aabb AABB)

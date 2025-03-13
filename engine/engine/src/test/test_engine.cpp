@@ -447,6 +447,13 @@ TEST_F(EngineTest, ISSUE_10119)
     ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0));
 }
 
+TEST_F(EngineTest, ISSUE_10323)
+{
+    char project_path[256];
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/issue-10323/issue-10323.collectionc", "--config=script.shared_state=1", MAKE_PATH(project_path, "/game.projectc")};
+    ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0));
+}
+
 TEST_F(EngineTest, ModelComponent)
 {
     char project_path[256];

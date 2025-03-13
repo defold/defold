@@ -23,21 +23,15 @@ def build(bld):
         glfw_lib = ['DMGLFW']
         glfw_js = '%s/ext/lib/%s/js/library_glfw.js' % (bld.env.DYNAMO_HOME, bld.env.PLATFORM)
 
+        if bld.env.PLATFORM in ('arm64-linux'):
+            graphics_libs = ['GRAPHICS_OPENGLES', 'graphics_transcoder_basisu']
+            extra_symbols = ['GraphicsAdapterOpenGLES']
+        elif platform_supports_feature(bld.env.PLATFORM, 'opengl', {}):
+            extra_symbols += ['GraphicsAdapterOpenGL']
+
         if bld.env.PLATFORM in ('armv7-android', 'arm64-android'):
             extra_libs += ['OPENGL', 'graphics']
             extra_symbols += ['GraphicsAdapterOpenGL']
-
-        if platform_supports_feature(bld.env.PLATFORM, 'vulkan', {}) and waflib.Options.options.with_vulkan:
-            extra_libs += ['VULKAN', 'graphics_vulkan_experimental']
-            extra_symbols += ['GraphicsAdapterVulkan']
-
-        if platform_supports_feature(bld.env.PLATFORM, 'dx12', {}) and waflib.Options.options.with_dx12:
-            extra_libs += ['DX12', 'graphics_dx12']
-            extra_symbols += ['GraphicsAdapterDX12']
-
-        if waflib.Options.options.with_webgpu and platform_supports_feature(bld.env.PLATFORM, 'webgpu', {}):
-            graphics_lib += ['GRAPHICS_WEBGPU']
-            extra_symbols += ['GraphicsAdapterWebGPU']
 
         if platform_supports_feature(bld.env.PLATFORM, 'vulkan', {}) and waflib.Options.options.with_vulkan:
             extra_libs += ['VULKAN']
@@ -46,8 +40,13 @@ def build(bld):
             if platform_glfw_version(bld.env.PLATFORM) == 3:
                 platform_lib = ['PLATFORM_VULKAN']
 
-        if platform_supports_feature(bld.env.PLATFORM, 'opengl', {}):
-            extra_symbols += ['GraphicsAdapterOpenGL']
+        if platform_supports_feature(bld.env.PLATFORM, 'dx12', {}) and waflib.Options.options.with_dx12:
+            extra_libs += ['DX12', 'graphics_dx12']
+            extra_symbols += ['GraphicsAdapterDX12']
+
+        if waflib.Options.options.with_webgpu and platform_supports_feature(bld.env.PLATFORM, 'webgpu', {}):
+            graphics_lib += ['GRAPHICS_WEBGPU']
+            extra_symbols += ['GraphicsAdapterWebGPU']
 
         if bld.env.PLATFORM in ('arm64-nx64'):
             glfw_lib = []

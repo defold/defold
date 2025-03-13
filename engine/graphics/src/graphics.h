@@ -78,23 +78,25 @@ namespace dmGraphics
 
     enum AdapterFamily
     {
-        ADAPTER_FAMILY_NONE    = -1,
-        ADAPTER_FAMILY_NULL    = 1,
-        ADAPTER_FAMILY_OPENGL  = 2,
-        ADAPTER_FAMILY_VULKAN  = 3,
-        ADAPTER_FAMILY_VENDOR  = 4,
-        ADAPTER_FAMILY_WEBGPU  = 5,
-        ADAPTER_FAMILY_DIRECTX = 6,
+        ADAPTER_FAMILY_NONE     = -1,
+        ADAPTER_FAMILY_NULL     = 1,
+        ADAPTER_FAMILY_OPENGL   = 2,
+        ADAPTER_FAMILY_OPENGLES = 3,
+        ADAPTER_FAMILY_VULKAN   = 4,
+        ADAPTER_FAMILY_VENDOR   = 5,
+        ADAPTER_FAMILY_WEBGPU   = 6,
+        ADAPTER_FAMILY_DIRECTX  = 7,
     };
 
     enum AdapterFamilyPriority
     {
-        ADAPTER_FAMILY_PRIORITY_NULL    = 32,
-        ADAPTER_FAMILY_PRIORITY_OPENGL  = 2,
-        ADAPTER_FAMILY_PRIORITY_VULKAN  = 1,
-        ADAPTER_FAMILY_PRIORITY_VENDOR  = 0,
-        ADAPTER_FAMILY_PRIORITY_WEBGPU  = 0,
-        ADAPTER_FAMILY_PRIORITY_DIRECTX = 0,
+        ADAPTER_FAMILY_PRIORITY_NULL     = 32,
+        ADAPTER_FAMILY_PRIORITY_OPENGL   = 2,
+        ADAPTER_FAMILY_PRIORITY_OPENGLES = 2,
+        ADAPTER_FAMILY_PRIORITY_VULKAN   = 1,
+        ADAPTER_FAMILY_PRIORITY_VENDOR   = 0,
+        ADAPTER_FAMILY_PRIORITY_WEBGPU   = 0,
+        ADAPTER_FAMILY_PRIORITY_DIRECTX  = 0,
     };
 
     enum AssetType
@@ -721,11 +723,20 @@ namespace dmGraphics
     uint8_t     GetNumTextureHandles(HTexture texture);
     uint32_t    GetTextureUsageHintFlags(HTexture texture);
 
+    /**
+     * Get status of texture.
+     *
+     * @name GetTextureStatusFlags
+     * @param texture HTexture
+     * @return  TextureStatusFlags enumerated status bit flags
+     */
+    uint32_t    GetTextureStatusFlags(HTexture texture);
+    void        EnableTexture(HContext context, uint32_t unit, uint8_t id_index, HTexture texture);
+    void        DisableTexture(HContext context, uint32_t unit, HTexture texture);
+
     const char* GetTextureTypeLiteral(TextureType texture_type);
     const char* GetTextureFormatLiteral(TextureFormat format);
     uint32_t    GetMaxTextureSize(HContext context);
-    void        EnableTexture(HContext context, uint32_t unit, uint8_t id_index, HTexture texture);
-    void        DisableTexture(HContext context, uint32_t unit, HTexture texture);
 
     // Calculating mipmap info helpers
     uint16_t    GetMipmapSize(uint16_t size_0, uint8_t mipmap);
@@ -865,15 +876,6 @@ namespace dmGraphics
     }
 
     void InvalidateGraphicsHandles(HContext context);
-
-    /**
-     * Get status of texture.
-     *
-     * @name GetTextureStatusFlags
-     * @param texture HTexture
-     * @return  TextureStatusFlags enumerated status bit flags
-     */
-    uint32_t GetTextureStatusFlags(HTexture texture);
 
     /** checks if the texture format is compressed
      * @name IsFormatTranscoded
