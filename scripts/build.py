@@ -185,7 +185,8 @@ PACKAGES_WIN32=[
     "bullet-2.77",
     "vulkan-v1.4.307",
     "glfw-3.4",
-    "box2d-28adacf82377d4113f2ed00586141463244b9d10"]
+    "box2d-28adacf82377d4113f2ed00586141463244b9d10",
+    "box2d_defold-2.2.1"]
 
 PACKAGES_WIN32_64=[
     "protobuf-3.20.1",
@@ -202,7 +203,8 @@ PACKAGES_WIN32_64=[
     "tint-22b958",
     "astcenc-8b0aa01",
     "directx-headers-1.611.0",
-    "box2d-28adacf82377d4113f2ed00586141463244b9d10"]
+    "box2d-28adacf82377d4113f2ed00586141463244b9d10",
+    "box2d_defold-2.2.1"]
 
 PACKAGES_LINUX_X86_64=[
     "protobuf-3.20.1",
@@ -218,7 +220,8 @@ PACKAGES_LINUX_X86_64=[
     "tint-22b958",
     "sassc-5472db213ec223a67482df2226622be372921847",
     "astcenc-8b0aa01",
-    "box2d-28adacf82377d4113f2ed00586141463244b9d10"]
+    "box2d-28adacf82377d4113f2ed00586141463244b9d10",
+    "box2d_defold-2.2.1"]
 
 PACKAGES_LINUX_ARM64=[
     "protobuf-3.20.1",
@@ -307,8 +310,7 @@ if os.environ.get('TERM','') in ('cygwin',):
 ENGINE_LIBS = "testmain dlib jni texc modelc shaderc ddf platform graphics particle lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record profiler engine sdk".split()
 HOST_LIBS = "testmain dlib jni texc modelc shaderc".split()
 
-# EXTERNAL_LIBS = "box2d glfw bullet3d".split()
-EXTERNAL_LIBS = "box2d".split()
+EXTERNAL_LIBS = "box2d glfw bullet3d".split()
 
 def get_host_platform():
     return sdk.get_host_platform()
