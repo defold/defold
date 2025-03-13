@@ -522,7 +522,6 @@ namespace dmProfile
             memset(sample, 0, sizeof(Sample));
 
             sample->m_NameHash = name_hash;
-            sample->m_Color = MakeColorFromHash(name_hash);
 
             // link the sample into the tree
             Sample* parent = td->m_CurrentSample;
