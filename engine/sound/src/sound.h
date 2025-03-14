@@ -79,7 +79,7 @@ namespace dmSound
 
     enum DSPImplType
     {
-        DSPIMPL_TYPE_FALLBACK = 0,
+        DSPIMPL_TYPE_CPU = 0,
         DSPIMPL_TYPE_SSE2 = 1,
         DSPIMPL_TYPE_WASM_SIMD128 = 2,
 
