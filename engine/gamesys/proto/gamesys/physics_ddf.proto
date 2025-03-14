@@ -348,6 +348,7 @@ message EnableGridShapeLayer
     required uint32 enable = 2;
 }
 
+// CAUTION: If you change this, you need to change the Push-function in script_physics.cpp!
 message ContactPoint
 {
     required dmMath.Point3  position                 = 1; // World position of contact point
@@ -448,6 +449,7 @@ message ContactPoint
  * end)
  * ```
  */
+// CAUTION: If you change this, you need to change the Push-function in script_physics.cpp!
 message ContactPointEvent
 {   
     required ContactPoint   a                         = 1;
@@ -456,6 +458,7 @@ message ContactPointEvent
     required float          applied_impulse           = 4;
 }
 
+// CAUTION: If you change this, you need to change the Push-function in script_physics.cpp!
 message Collision
 {
     required dmMath.Point3 position                  = 1;
@@ -520,12 +523,14 @@ message Collision
  * end)
  * ```
  */
+// CAUTION: If you change this, you need to change the Push-function in script_physics.cpp!
 message CollisionEvent
 {
     required Collision a                            = 1;
     required Collision b                            = 2;
 }
 
+// CAUTION: If you change this, you need to change the Push-function in script_physics.cpp!
 message Trigger
 {
     required uint64 id                              = 1;
@@ -587,6 +592,7 @@ message Trigger
  * end)
  * ```
  */
+// CAUTION: If you change this, you need to change the Push-function in script_physics.cpp!
 message TriggerEvent
 {
     required bool enter                             = 1;

@@ -1894,6 +1894,129 @@ namespace dmGameSystem
         dmScript::TeardownCallback(cbk);
     }
 
+    static void PushCollision(lua_State* L, dmPhysicsDDF::Collision* collision)
+    {
+        lua_createtable(L, 0, 3);
+
+        dmScript::PushVector3(L, *((dmVMath::Vector3*) &collision->m_Position));
+        lua_setfield(L, -2, "position");
+        dmScript::PushHash(L, collision->m_Id);
+        lua_setfield(L, -2, "id");
+        dmScript::PushHash(L, collision->m_Group);
+        lua_setfield(L, -2, "group");
+    }
+
+    static void PushCollisionEvent(lua_State* L, dmPhysicsDDF::CollisionEvent* event)
+    {
+        DM_PROFILE("PushCollisionEvent");
+
+        lua_createtable(L, 0, 2);
+
+        PushCollision(L, &event->m_A);
+        lua_setfield(L, -2, "a");
+
+        PushCollision(L, &event->m_B);
+        lua_setfield(L, -2, "b");
+    }
+
+    static void PushContactPoint(lua_State* L, dmPhysicsDDF::ContactPoint* point)
+    {
+        lua_createtable(L, 0, 7);
+
+        dmScript::PushVector3(L, *((dmVMath::Vector3*) &point->m_Position));
+        lua_setfield(L, -2, "position");
+
+        dmScript::PushVector3(L, *((dmVMath::Vector3*) &point->m_InstancePosition));
+        lua_setfield(L, -2, "instance_position");
+
+        dmScript::PushVector3(L, point->m_Normal);
+        lua_setfield(L, -2, "normal");
+
+        dmScript::PushVector3(L, point->m_RelativeVelocity);
+        lua_setfield(L, -2, "relative_velocity");
+
+        lua_pushnumber(L, point->m_Mass);
+        lua_setfield(L, -2, "mass");
+
+        dmScript::PushHash(L, point->m_Id);
+        lua_setfield(L, -2, "id");
+        dmScript::PushHash(L, point->m_Group);
+        lua_setfield(L, -2, "group");
+    }
+
+    static void PushContactPointEvent(lua_State* L, dmPhysicsDDF::ContactPointEvent* event)
+    {
+        DM_PROFILE("PushContactPointEvent");
+
+        lua_createtable(L, 0, 4);
+
+        PushContactPoint(L, &event->m_A);
+        lua_setfield(L, -2, "a");
+
+        PushContactPoint(L, &event->m_B);
+        lua_setfield(L, -2, "b");
+
+        lua_pushnumber(L, event->m_Distance);
+        lua_setfield(L, -2, "distance");
+
+        lua_pushnumber(L, event->m_AppliedImpulse);
+        lua_setfield(L, -2, "applied_impulse");
+    }
+
+    static void PushTrigger(lua_State* L, dmPhysicsDDF::Trigger* trigger)
+    {
+        lua_createtable(L, 0, 2);
+
+        dmScript::PushHash(L, trigger->m_Id);
+        lua_setfield(L, -2, "id");
+        dmScript::PushHash(L, trigger->m_Group);
+        lua_setfield(L, -2, "group");
+    }
+
+    static void PushTriggerEvent(lua_State* L, dmPhysicsDDF::TriggerEvent* event)
+    {
+        DM_PROFILE("PushTriggerEvent");
+
+        lua_createtable(L, 0, 3);
+
+        lua_pushboolean(L, event->m_Enter);
+        lua_setfield(L, -2, "enter");
+
+        PushTrigger(L, &event->m_A);
+        lua_setfield(L, -2, "a");
+
+        PushTrigger(L, &event->m_B);
+        lua_setfield(L, -2, "b");
+    }
+
+    static void PushRayCastResponse(lua_State* L, dmPhysicsDDF::RayCastResponse* event)
+    {
+        DM_PROFILE("PushRayCastResponse");
+
+        lua_createtable(L, 0, 6);
+
+        dmScript::PushVector3(L, *((dmVMath::Vector3*) &event->m_Position));
+        lua_setfield(L, -2, "position");
+        dmScript::PushVector3(L, event->m_Normal);
+        lua_setfield(L, -2, "normal");
+        lua_pushnumber(L, event->m_Fraction);
+        lua_setfield(L, -2, "fraction");
+        dmScript::PushHash(L, event->m_Id);
+        lua_setfield(L, -2, "id");
+        dmScript::PushHash(L, event->m_Group);
+        lua_setfield(L, -2, "group");
+        lua_pushinteger(L, event->m_RequestId);
+        lua_setfield(L, -2, "request_id");
+    }
+
+    static void PushRayCastMissed(lua_State* L, dmPhysicsDDF::RayCastMissed* event)
+    {
+        DM_PROFILE("PushRayCastMissed");
+        lua_createtable(L, 0, 1);
+        lua_pushinteger(L, event->m_RequestId);
+        lua_setfield(L, -2, "request_id");
+    }
+
     void RunBatchedEventCallback(dmScript::LuaCallbackInfo* cbk, uint32_t count, PhysicsMessage* infos, const uint8_t* payload)
     {
         DM_PROFILE("RunBatchedEventCallback");
@@ -1921,7 +2044,26 @@ namespace dmGameSystem
             PhysicsMessage& msg = infos[i];
             void* data = (void*)&payload[msg.m_Offset];
 
-            dmScript::PushDDF(L, msg.m_Descriptor, (const char*)data, false);
+            if (msg.m_Descriptor->m_NameHash == dmPhysicsDDF::CollisionEvent::m_DDFDescriptor->m_NameHash)
+            {
+                PushCollisionEvent(L, (dmPhysicsDDF::CollisionEvent*)data);
+            }
+            else if (msg.m_Descriptor->m_NameHash == dmPhysicsDDF::ContactPointEvent::m_DDFDescriptor->m_NameHash)
+            {
+                PushContactPointEvent(L, (dmPhysicsDDF::ContactPointEvent*)data);
+            }
+            else if (msg.m_Descriptor->m_NameHash == dmPhysicsDDF::TriggerEvent::m_DDFDescriptor->m_NameHash)
+            {
+                PushTriggerEvent(L, (dmPhysicsDDF::TriggerEvent*)data);
+            }
+            else if (msg.m_Descriptor->m_NameHash == dmPhysicsDDF::RayCastResponse::m_DDFDescriptor->m_NameHash)
+            {
+                PushRayCastResponse(L, (dmPhysicsDDF::RayCastResponse*)data);
+            }
+            else if (msg.m_Descriptor->m_NameHash == dmPhysicsDDF::RayCastMissed::m_DDFDescriptor->m_NameHash)
+            {
+                PushRayCastMissed(L, (dmPhysicsDDF::RayCastMissed*)data);
+            }
             // -2: events table
             // -1: event
 
@@ -1936,9 +2078,11 @@ namespace dmGameSystem
         }
         // -1: events table
 
-        int ret = dmScript::PCall(L, 2, 0); // self + array
-        (void)ret;
-
+        {
+            DM_PROFILE("PCall");
+            int ret = dmScript::PCall(L, 2, 0); // self + array
+            (void)ret;
+        }
         dmScript::TeardownCallback(cbk);
     }
 
