@@ -284,6 +284,9 @@ namespace dmSound
 
     static float GainToScale(float gain)
     {
+    #ifdef DM_SOUND_USE_LEGACY_GAIN
+        return gain;
+    #else
         gain = dmMath::Clamp(gain, 0.0f, 1.0f);
         // Convert "gain" to scale so progression over the range 'feels' linear
         // (roughly 60dB(A) range assumed; rough approximation would be simply X^4 -- if this ever is too costly)
@@ -294,6 +297,7 @@ namespace dmSound
         if (gain < l)
             scale *= gain * (1.0f / l);
         return dmMath::Min(scale, 1.0f);
+    #endif
     }
 
     static int GetOrCreateGroup(const char* group_name)
@@ -1185,7 +1189,7 @@ namespace dmSound
             else {
                 assert(info->m_Channels == 2);
 
-#if defined(SOUND_USE_LEGACY_STEREO_PAN) && (SOUND_USE_LEGACY_STEREO_PAN != 0)
+#ifdef SOUND_USE_LEGACY_STEREO_PAN
                 float rs, ls;
                 GetPanScale(instance->m_Pan.m_Current, &ls, &rs);
                 instance->m_ScaleL[0].Set(ls * gain, reset);

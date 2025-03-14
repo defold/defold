@@ -15,7 +15,7 @@ def build(bld):
 
     source += decoders
 
-    defines = ''
+    defines = []
     include = ''
 
     if 'android' in bld.env.PLATFORM:
@@ -55,6 +55,9 @@ def build(bld):
             destfile='sound_android.jar')
         bld.install_files('${PREFIX}/share/java', 'sound_android.jar')
 
+    if waflib.Options.options.with_legacypanvol:
+        defines += ['DM_SOUND_USE_LEGACY_GAIN', 'SOUND_USE_LEGACY_STEREO_PAN']
+
     sound = bld.stlib(features = 'c cxx ddf',
                       includes = '. %s' % include,
                       defines  = defines,
@@ -71,8 +74,8 @@ def build(bld):
 
     if sys.platform == 'win32':
         #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
-        sound.defines = '_XBOX'
-        sound_null.defines = '_XBOX'
+        sound.defines.append('_XBOX')
+        sound_null.append('_XBOX')
 
     if not waflib.Options.options.skip_build_tests:
         bld.recurse('test')
