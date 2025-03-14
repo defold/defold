@@ -897,8 +897,6 @@ static inline void GatherPowerData(float* in[], uint32_t num, float gain, float&
 // note: supports unaligned src & dest
 static inline void ConvertFromS16(float* out, const int16_t* in, uint32_t num)
 {
-    vec4 zero = _mm_set1_ps(0.0);
-
     const __m128i* vin = (const __m128i*)in;
     vec4* vout = (vec4*)out;
     for(; num>7; num-=8)
@@ -919,8 +917,6 @@ static inline void ConvertFromS16(float* out, const int16_t* in, uint32_t num)
 // note: supports unaligned src & dest
 static inline void ConvertFromS8(float* out, const int8_t* in, uint32_t num)
 {
-    vec4 zero = _mm_set1_ps(0.0);
-
     const __m128i* vin = (const __m128i*)in;
     vec4* vout = (vec4*)out;
     for(; num>15; num-=16)
@@ -971,8 +967,6 @@ static inline void Deinterleave(float* out[], const float* in, uint32_t num)
 // note: supports unaligned src & dest
 static inline void DeinterleaveFromS16(float* out[], const int16_t* in, uint32_t num)
 {
-    vec4 zero = _mm_set1_ps(0.0);
-
     const __m128i* vin = (const __m128i*)in;
     vec4* vout_l = (vec4*)out[0];
     vec4* vout_r = (vec4*)out[1];
@@ -1001,8 +995,6 @@ static inline void DeinterleaveFromS16(float* out[], const int16_t* in, uint32_t
 // note: supports unaligned src & dest
 static inline void DeinterleaveFromS8(float* out[], const int8_t* in, uint32_t num)
 {
-    vec4 zero = _mm_set1_ps(0.0);
-
     const __m128i* vin = (const __m128i*)in;
     vec4* vout_l = (vec4*)out[0];
     vec4* vout_r = (vec4*)out[1];
