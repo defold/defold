@@ -1309,8 +1309,10 @@ TYPED_TEST(PhysicsTest, JointSpring)
     {
         (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 
-        // This doesn't work.
-        // ASSERT_NEAR(-3.0f, vo_b.m_Position.getY(), FLT_EPSILON);
+        // This doesn't work for Box2D version 3. Needs more investigation, but I'm leaving it for now.
+    #ifdef PHYSICS_TEST_BOX2D_DEFOLD
+        ASSERT_NEAR(-3.0f, vo_b.m_Position.getY(), FLT_EPSILON);
+    #endif
     }
 
     // Delete SPRING joint

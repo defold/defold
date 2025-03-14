@@ -40,8 +40,6 @@ namespace dmPhysics
 {
     static const uint32_t B2GRIDSHAPE_EMPTY_CELL = 0xffffffff;
 
-    void PrintGridShape(HCollisionObject2D collision_object, int shape_index);
-
     enum ShapeType
     {
         SHAPE_TYPE_CIRCLE,
@@ -161,14 +159,12 @@ namespace dmPhysics
 
     inline void ToB2(const dmVMath::Point3& p0, b2Vec2& p1, float scale)
     {
-        // p1.Set(p0.getX() * scale, p0.getY() * scale);
         p1.x = p0.getX() * scale;
         p1.y = p0.getY() * scale;
     }
 
     inline void ToB2(const dmVMath::Vector3& p0, b2Vec2& p1, float scale)
     {
-        // p1.Set(p0.getX() * scale, p0.getY() * scale);
         p1.x = p0.getX() * scale;
         p1.y = p0.getY() * scale;
     }
@@ -191,7 +187,6 @@ namespace dmPhysics
     {
         b2Vec2 pp = p;
         pp *= scale;
-        // return b2Mul(t, pp);
         return b2TransformPoint(t, pp);
     }
 
@@ -199,7 +194,6 @@ namespace dmPhysics
     {
         b2Vec2 pp = p;
         pp *= inv_scale;
-        // return b2MulT(t, pp);
         return b2InvTransformPoint(t, pp);
     }
 }

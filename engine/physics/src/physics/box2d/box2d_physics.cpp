@@ -440,8 +440,14 @@ namespace dmPhysics
         }
     }
 
-    // Currently not used..
-    /*
+    #if 0
+    // Note:
+    // These functions was used to keep track of unique collision pairs between shapes
+    // so that we could reduce the amount of contacts generated. However, some tests
+    // did not like that since the contact data needs to be somehow accumulated,
+    // which the old code path did not do. We could perhaps revive this once we
+    // have a chance to look at this again.
+
     static ContactPair* GetContactPair(HWorld2D world, uint64_t id_a, uint64_t id_b)
     {
         for (int i = 0; i < world->m_ContactBuffer.Size(); ++i)
@@ -470,7 +476,7 @@ namespace dmPhysics
         world->m_ContactBuffer.Push(pair);
         return &world->m_ContactBuffer.Back();
     }
-    */
+    #endif
 
     void StepWorld2D(HWorld2D world, const StepWorldContext& step_context)
     {
@@ -481,6 +487,7 @@ namespace dmPhysics
         // Values are picked by inspection, current rot value is roughly equivalent to 1 degree
         const float POS_EPSILON = 0.00005f * scale;
         const float ROT_EPSILON = 0.00007f;
+
         // Update transforms of kinematic bodies
         if (world->m_GetWorldTransformCallback)
         {
@@ -637,10 +644,6 @@ namespace dmPhysics
                         FromB2(b2Body_GetPosition(body_id), position, inv_scale);
                         b2Rot rot = b2Body_GetRotation(body_id);
                         Quat rotation = Quat::rotationZ(b2Rot_GetAngle(rot));
-
-                        // Vector3 linear_velocity = GetLinearVelocity2D(context, (HCollisionObject2D) body);
-                        // dmLogInfo("Position: %f, %f, Velocity: %f, %f", position.getX(), position.getY(), linear_velocity.getX(), linear_velocity.getY());
-
                         (*world->m_SetWorldTransformCallback)(b2Body_GetUserData(body_id), position, rotation);
                     }
                 }
@@ -753,10 +756,6 @@ namespace dmPhysics
                 add_data.m_GroupB    = b2Shape_GetFilter(shapeIdB).categoryBits;
                 OverlapCacheAdd(&world->m_TriggerOverlaps, add_data);
             }
-
-            OverlapCacheRemoveData remove_data;
-            remove_data.m_TriggerExitedCallback = step_context.m_TriggerExitedCallback;
-            remove_data.m_TriggerExitedUserData = step_context.m_TriggerExitedUserData;
 
             for (int i = 0; i < sensor_events.endCount; ++i)
             {
@@ -958,23 +957,6 @@ namespace dmPhysics
         return shape_data;
     }
 
-    #include <stdio.h>
-
-    void PrintGridShape(HCollisionObject2D collision_object, int shape_index)
-    {
-        Body* body = (Body*) collision_object;
-        GridShapeData* grid_shape = (GridShapeData*) body->m_Shapes[shape_index];
-
-        for (int i = 0; i < grid_shape->m_RowCount; ++i)
-        {
-            for (int j = 0; j < grid_shape->m_ColumnCount; ++j)
-            {
-                printf("%d ", grid_shape->m_Cells[i * grid_shape->m_ColumnCount + j].m_Index);
-            }
-            printf("\n");
-        }
-    }
-
     void ClearGridShapeHulls(HCollisionObject2D collision_object)
     {
         Body* body = (Body*) collision_object;
@@ -1010,6 +992,9 @@ namespace dmPhysics
     static int GetGridCellVertices(GridShapeData* shape_data, int index, b2Vec2* vertices)
     {
         // Original code checked if the shape was enabled, but I'm not sure we can do that now.
+        // The grid has only a single body that holds sub-shapes for all grid polygons,
+        // so we would have to perhaps keep track of this in the grid shape data to avoid
+        // going deeper into this function.
         //
         // if (!b2Body_IsEnabled(shape_data->m_CellBodyId))
         // {
@@ -1083,7 +1068,7 @@ namespace dmPhysics
         Body* body = (Body*) collision_object;
         GridShapeData* shape_data = GetGridShapeData(body, shape_index);
 
-        if (ToOpaqueHandle(shape_data->m_CellPolygonShapes[child]) != 0)
+        if (b2Shape_IsValid(shape_data->m_CellPolygonShapes[child]))
         {
             return;
         }
@@ -1461,10 +1446,6 @@ namespace dmPhysics
 
                 scale = GetUniformScale2D(world_transform);
                 scale = dmMath::Clamp(scale, -1000.0f, 1000.0f);
-
-                // dmLogInfo("Scale: %f", scale);
-                // dmLogInfo("Position: %f, %f", position.getX(), position.getY());
-                // dmLogInfo("Rotation: %f, %f", def.rotation.s, def.rotation.c);
             }
             else
             {
@@ -1586,6 +1567,11 @@ namespace dmPhysics
                 break;
             }
         }
+    }
+
+    void SynchronizeObject2D(HWorld2D world, HCollisionObject2D collision_object)
+    {
+        // Does not apply to Box2D V3
     }
 
     uint32_t GetCollisionShapes2D(HCollisionObject2D collision_object, HCollisionShape2D* out_buffer, uint32_t buffer_size)
@@ -2471,12 +2457,6 @@ namespace dmPhysics
                 break;
             case dmPhysics::JOINT_TYPE_SLIDER:
                 {
-                    // b2Vec2 axis = typed_joint->GetLocalAxisA();
-                    // params.m_SliderJointParams.m_LocalAxisA[0] = axis.x;
-                    // params.m_SliderJointParams.m_LocalAxisA[1] = axis.y;
-                    // params.m_SliderJointParams.m_LocalAxisA[2] = 0.0f;
-
-                    // params.m_SliderJointParams.m_ReferenceAngle =   // typed_joint->GetReferenceAngle();
                     params.m_SliderJointParams.m_EnableLimit = b2PrismaticJoint_IsLimitEnabled(*joint_raw);
                     params.m_SliderJointParams.m_LowerTranslation = b2PrismaticJoint_GetLowerLimit(*joint_raw) * inv_scale;
                     params.m_SliderJointParams.m_UpperTranslation = b2PrismaticJoint_GetUpperLimit(*joint_raw) * inv_scale;
@@ -2501,11 +2481,6 @@ namespace dmPhysics
                 break;
             case dmPhysics::JOINT_TYPE_WHEEL:
                 {
-                    // b2Vec2 axis = typed_joint->GetLocalAxisA();
-                    // params.m_WheelJointParams.m_LocalAxisA[0] = axis.x;
-                    // params.m_WheelJointParams.m_LocalAxisA[1] = axis.y;
-                    // params.m_WheelJointParams.m_LocalAxisA[2] = 0.0f;
-
                     params.m_WheelJointParams.m_MaxMotorTorque = b2WheelJoint_GetMaxMotorTorque(*joint_raw) * inv_scale;
                     params.m_WheelJointParams.m_MotorSpeed = b2WheelJoint_GetMotorSpeed(*joint_raw);
                     params.m_WheelJointParams.m_EnableMotor = b2WheelJoint_IsMotorEnabled(*joint_raw);

@@ -99,22 +99,6 @@ namespace dmPhysics
         uint16_t                m_GroupB;
     };
 
-    struct OverlapCacheRemoveData
-    {
-        /// Trigger exited callback
-        TriggerExitedCallback  m_TriggerExitedCallback;
-        /// Trigger exited callback user data
-        void*                  m_TriggerExitedUserData;
-        /// First object of the pair
-        uint64_t                m_ObjectA;
-        /// First object user data of the pair
-        void*                   m_UserDataA;
-        /// Second object of the pair
-        uint64_t                m_ObjectB;
-        /// Second object user data of the pair
-        void*                   m_UserDataB;
-    };
-
     void OverlapCacheDecreaseCount(OverlapCache* cache, uint64_t object);
 
     /**

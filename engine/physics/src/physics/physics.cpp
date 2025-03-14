@@ -167,20 +167,6 @@ namespace dmPhysics
         }
     }
 
-    static void DecreaseSingle(OverlapCache* cache, OverlapEntry* value, uint64_t object, TriggerExitedCallback callback, void* callback_user_data)
-    {
-        uint32_t i = 0;
-        // Iterate overlaps
-        while (i < value->m_OverlapCount)
-        {
-            Overlap& overlap = value->m_Overlaps[i];
-            OverlapEntry* entry = cache->m_OverlapCache.Get(overlap.m_Object);
-
-            overlap.m_Count--;
-            ++i;
-        }
-    }
-
     void OverlapCacheDecreaseCount(OverlapCache* cache, uint64_t object)
     {
         OverlapEntry* entry = cache->m_OverlapCache.Get(object);
@@ -190,14 +176,7 @@ namespace dmPhysics
             {
                 entry->m_Overlaps[i].m_Count--;
             }
-
-            // PruneSingleOverLap(cache, entry_a, data.m_ObjectB, data.m_TriggerExitedCallback, data.m_TriggerExitedUserData);
         }
-        // OverlapEntry* entry_b = cache->m_OverlapCache.Get(data.m_ObjectB);
-        // if (entry_b != 0x0)
-        // {
-        //     PruneSingleOverLap(cache, entry_b, data.m_ObjectA, data.m_TriggerExitedCallback, data.m_TriggerExitedUserData);
-        // }
     }
 
     void OverlapCacheRemove(OverlapCache* cache, uint64_t object)

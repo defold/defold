@@ -367,7 +367,6 @@ namespace dmGameSystem
         component->m_FlippedY        = 0;
 
         CollisionComponent* component_base = &component->m_BaseComponent;
-        component_base->m_World            = (CollisionWorld*) params.m_World;
         component_base->m_Resource         = (CollisionObjectResource*) params.m_Resource;
         component_base->m_Instance         = params.m_Instance;
         component_base->m_ComponentIndex   = params.m_ComponentIndex;
@@ -1308,6 +1307,7 @@ namespace dmGameSystem
             case dmPhysicsDDF::CollisionShape::TYPE_SPHERE:
             {
                 dmPhysics::SetCollisionShapeRadius2D(world->m_World2D, shape2d, shape_info->m_SphereDiameter * 0.5f);
+                dmPhysics::SynchronizeObject2D(world->m_World2D, component->m_Object2D);
             } break;
             case dmPhysicsDDF::CollisionShape::TYPE_BOX:
             {

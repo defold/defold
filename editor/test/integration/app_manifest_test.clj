@@ -149,8 +149,6 @@
                          (app-manifest/set-setting-value setting :none)
                          (app-manifest/get-setting-value setting))))))))
 
-(def my-atom (atom 0))
-
 (deftest manifestation-compatibility-test
   (test-util/with-loaded-project
     (let [manifest (test-util/resource-node project "/app_manifest/default.appmanifest")]

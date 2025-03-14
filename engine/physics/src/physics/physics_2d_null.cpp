@@ -22,11 +22,6 @@
 
 namespace dmPhysics
 {
-    void PrintGridShape(HCollisionObject2D collision_object, int shape_index)
-    {
-
-    }
-
     HContext2D NewContext2D(const NewContextParams& params)
     {
         return 0;
@@ -347,6 +342,10 @@ namespace dmPhysics
     }
 
     void SetCollisionShapeBoxDimensions2D(HWorld2D world, HCollisionShape2D shape, dmVMath::Quat rotation, float w, float h)
+    {
+    }
+
+    void SynchronizeObject2D(HWorld2D world, HCollisionObject2D collision_object)
     {
     }
 

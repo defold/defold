@@ -548,6 +548,12 @@ namespace dmPhysics
                                   uint32_t shape, uint32_t child,
                                   uint16_t group, uint16_t mask);
 
+    /**
+     * Create a grid shape for a layer and a cell index denoted by shape_index and child
+     * @param collision_object collision object
+     * @param shape_index shape index
+     * @param child sub-shape index
+     */
     void CreateGridCellShape(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t child);
 
     /**
@@ -1429,6 +1435,7 @@ namespace dmPhysics
     HCollisionShape2D GetCollisionShape2D(HWorld2D world, HCollisionObject2D collision_object, uint32_t shape_index);
     void              SetCollisionShapeRadius2D(HWorld2D world, HCollisionShape2D shape, float radius);
     void              SetCollisionShapeBoxDimensions2D(HWorld2D world, HCollisionShape2D shape, dmVMath::Quat rotation, float w, float h);
+    void              SynchronizeObject2D(HWorld2D world, HCollisionObject2D collision_object);
 }
 
 #endif // DM_PHYSICS_H
