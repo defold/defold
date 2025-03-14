@@ -514,7 +514,6 @@ namespace dmScript
 
                 case dmDDF::TYPE_STRING:
                 {
-                    DM_PROFILE("TYPE_STRING");
                     uintptr_t* ptr = (uintptr_t*) where;
                     uintptr_t loc = ptr[i] + pointers_offset;
                     lua_pushstring(L, (const char*) loc);

@@ -127,6 +127,9 @@ namespace dmGameSystem
     {
         PhysicsContext* physics_context = (PhysicsContext*) params.m_Context;
         CollisionWorld* world = (CollisionWorld*)params.m_World;
+        if (!world)
+            return dmGameObject::UPDATE_RESULT_OK;
+
         dmGameObject::UpdateResult r = dmGameObject::UPDATE_RESULT_OK;
 
         if (physics_context->m_PhysicsType == PHYSICS_ENGINE_BOX2D)
@@ -142,7 +145,8 @@ namespace dmGameSystem
             return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
         }
 
-        FlushMessages(world);
+        if (world->m_CallbackInfoBatched)
+            FlushMessages(world);
         return r;
     }
 
@@ -396,6 +400,8 @@ namespace dmGameSystem
 
     static void FlushMessages(CollisionWorld* world)
     {
+        if (world->m_MessageInfos.Empty())
+            return;
         RunBatchedEventCallback(world->m_CallbackInfo, world->m_MessageInfos.Size(), world->m_MessageInfos.Begin(), world->m_MessageData.Begin());
         world->m_MessageInfos.SetSize(0);
         world->m_MessageData.SetSize(0);
