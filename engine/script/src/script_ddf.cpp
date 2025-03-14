@@ -15,6 +15,7 @@
 #include "script.h"
 #include <dlib/hashtable.h>
 #include <dlib/align.h>
+#include <dlib/profile.h>
 #include <script/ddf_script.h>
 
 #include <string.h>
@@ -26,12 +27,12 @@ extern "C"
 
 namespace dmScript
 {
-#define DDF_TYPE_NAME_POINT3    "point3"
-#define DDF_TYPE_NAME_VECTOR3   "vector3"
-#define DDF_TYPE_NAME_VECTOR4   "vector4"
-#define DDF_TYPE_NAME_QUAT      "quat"
-#define DDF_TYPE_NAME_MATRIX4   "matrix4"
-#define DDF_TYPE_NAME_LUAREF    "lua_ref"
+    static const dmhash_t DDF_TYPE_NAME_HASH_POINT3    = dmHashString64("point3");
+    static const dmhash_t DDF_TYPE_NAME_HASH_VECTOR3   = dmHashString64("vector3");
+    static const dmhash_t DDF_TYPE_NAME_HASH_VECTOR4   = dmHashString64("vector4");
+    static const dmhash_t DDF_TYPE_NAME_HASH_QUAT      = dmHashString64("quat");
+    static const dmhash_t DDF_TYPE_NAME_HASH_MATRIX4   = dmHashString64("matrix4");
+    static const dmhash_t DDF_TYPE_NAME_HASH_LUAREF    = dmHashString64("lua_ref");
 
     dmHashTable<uintptr_t, MessageDecoder> g_Decoders;
 
@@ -320,8 +321,10 @@ namespace dmScript
                     if (!nil_val)
                     {
                         const dmDDF::Descriptor* d = f->m_MessageDescriptor;
-                        bool is_vector3 = strncmp(d->m_Name, DDF_TYPE_NAME_VECTOR3, sizeof(DDF_TYPE_NAME_VECTOR3)) == 0;
-                        bool is_point3 = strncmp(d->m_Name, DDF_TYPE_NAME_POINT3, sizeof(DDF_TYPE_NAME_POINT3)) == 0;
+                        const dmhash_t name_hash = d->m_NameHash;
+                        bool is_vector3 = name_hash == DDF_TYPE_NAME_HASH_VECTOR3;
+                        bool is_point3 = name_hash == DDF_TYPE_NAME_HASH_POINT3;
+
                         if (is_vector3 || is_point3)
                         {
                             dmVMath::Vector3* v = dmScript::CheckVector3(L, -1);
@@ -330,17 +333,17 @@ namespace dmScript
                             else
                                 *((dmVMath::Point3 *) where) = dmVMath::Point3(*v);
                         }
-                        else if (strncmp(d->m_Name, DDF_TYPE_NAME_VECTOR4, sizeof(DDF_TYPE_NAME_VECTOR4)) == 0)
+                        else if (name_hash == DDF_TYPE_NAME_HASH_VECTOR4)
                         {
                             dmVMath::Vector4* v = dmScript::CheckVector4(L, -1);
                             *((dmVMath::Vector4 *) where) = *v;
                         }
-                        else if (strncmp(d->m_Name, DDF_TYPE_NAME_QUAT, sizeof(DDF_TYPE_NAME_QUAT)) == 0)
+                        else if (name_hash == DDF_TYPE_NAME_HASH_QUAT)
                         {
                             dmVMath::Quat* q = dmScript::CheckQuat(L, -1);
                             *((dmVMath::Quat *) where) = *q;
                         }
-                        else if (strncmp(d->m_Name, DDF_TYPE_NAME_MATRIX4, sizeof(DDF_TYPE_NAME_MATRIX4)) == 0)
+                        else if (name_hash == DDF_TYPE_NAME_HASH_MATRIX4)
                         {
                             dmVMath::Matrix4* m = dmScript::CheckMatrix4(L, -1);
                             *((dmVMath::Matrix4*) where) = *m;
@@ -445,70 +448,76 @@ namespace dmScript
 
     void DDFToLuaValue(lua_State* L, const dmDDF::FieldDescriptor* f, const char* data, uintptr_t pointers_offset)
     {
-        const char *where = &data[f->m_Offset];
-        uint32_t count = 1;
-        bool array = false;
+        DM_PROFILE("DDFToLuaValue");
 
+        const char* where = &data[f->m_Offset];
+        uint32_t count;
+        bool array;
+
+        uint32_t type = f->m_Type;
         if (f->m_Label == dmDDF::LABEL_REPEATED)
         {
             dmDDF::RepeatedField* repeated = (dmDDF::RepeatedField*) &data[f->m_Offset];
             where = (const char*)(repeated->m_Array + pointers_offset);
             count = repeated->m_ArrayCount;
             array = true;
-            lua_newtable(L);
+
+            lua_createtable(L, count, 0);
         }
+        else
+        {
+            array = false;
+            count = 1;
+            where = &data[f->m_Offset];
+        }
+
+        const int*      iptr = (int32_t*) where;
+        const uint32_t* uptr = (uint32_t*) where;
+        const dmhash_t* hptr = (dmhash_t*) where;
+        const float*    fptr = (float*) where;
+        const bool*     bptr = (bool*) where;
 
         for (uint32_t i=0;i!=count;i++)
         {
-            switch (f->m_Type)
+            switch (type)
             {
+                case dmDDF::TYPE_ENUM:
                 case dmDDF::TYPE_INT32:
                 {
-                    int32_t* ptr = (int32_t*) where;
-                    lua_pushinteger(L, (int) ptr[i]);
+                    lua_pushinteger(L, iptr[i]);
                 }
                 break;
 
                 case dmDDF::TYPE_UINT32:
                 {
-                    uint32_t* ptr = (uint32_t*) where;
-                    lua_pushinteger(L, (int) ptr[i]);
+                    lua_pushinteger(L, (int)uptr[i]);
                 }
                 break;
 
                 case dmDDF::TYPE_UINT64:
                 {
-                    dmhash_t* ptr = (dmhash_t*) where;
-                    dmScript::PushHash(L, ptr[i]);
+                    dmScript::PushHash(L, hptr[i]);
                 }
                 break;
 
                 case dmDDF::TYPE_BOOL:
                 {
-                    bool* ptr = (bool*) where;
-                    lua_pushboolean(L, ptr[i]);
+                    lua_pushboolean(L, bptr[i]);
                 }
                 break;
 
                 case dmDDF::TYPE_FLOAT:
                 {
-                    float* ptr = (float*) where;
-                    lua_pushnumber(L, ptr[i]);
+                    lua_pushnumber(L, fptr[i]);
                 }
                 break;
 
                 case dmDDF::TYPE_STRING:
                 {
+                    DM_PROFILE("TYPE_STRING");
                     uintptr_t* ptr = (uintptr_t*) where;
                     uintptr_t loc = ptr[i] + pointers_offset;
                     lua_pushstring(L, (const char*) loc);
-                }
-                break;
-
-                case dmDDF::TYPE_ENUM:
-                {
-                    int* ptr = (int*) where;
-                    lua_pushinteger(L, ptr[i]);
                 }
                 break;
 
@@ -516,27 +525,27 @@ namespace dmScript
                 {
                     const dmDDF::Descriptor* d = f->m_MessageDescriptor;
                     const char *ptr = where + i * d->m_Size;
-                    if (strncmp(d->m_Name, DDF_TYPE_NAME_VECTOR3, sizeof(DDF_TYPE_NAME_VECTOR3)) == 0)
+                    if (d->m_NameHash == DDF_TYPE_NAME_HASH_VECTOR3)
                     {
                         dmScript::PushVector3(L, *((dmVMath::Vector3*) ptr));
                     }
-                    else if (strncmp(d->m_Name, DDF_TYPE_NAME_POINT3, sizeof(DDF_TYPE_NAME_POINT3)) == 0)
+                    else if (d->m_NameHash == DDF_TYPE_NAME_HASH_POINT3)
                     {
                         dmScript::PushVector3(L, dmVMath::Vector3(*((dmVMath::Vector3*) ptr)));
                     }
-                    else if (strncmp(d->m_Name, DDF_TYPE_NAME_VECTOR4, sizeof(DDF_TYPE_NAME_VECTOR4)) == 0)
+                    else if (d->m_NameHash == DDF_TYPE_NAME_HASH_VECTOR4)
                     {
                         dmScript::PushVector4(L, *((dmVMath::Vector4*) ptr));
                     }
-                    else if (strncmp(d->m_Name, DDF_TYPE_NAME_QUAT, sizeof(DDF_TYPE_NAME_QUAT)) == 0)
+                    else if (d->m_NameHash == DDF_TYPE_NAME_HASH_QUAT)
                     {
                         dmScript::PushQuat(L, *((dmVMath::Quat*) ptr));
                     }
-                    else if (strncmp(d->m_Name, DDF_TYPE_NAME_MATRIX4, sizeof(DDF_TYPE_NAME_MATRIX4)) == 0)
+                    else if (d->m_NameHash == DDF_TYPE_NAME_HASH_MATRIX4)
                     {
                         dmScript::PushMatrix4(L, *((dmVMath::Matrix4*) ptr));
                     }
-                    else if (strncmp(d->m_Name, DDF_TYPE_NAME_LUAREF, sizeof(DDF_TYPE_NAME_LUAREF)) == 0)
+                    else if (d->m_NameHash == DDF_TYPE_NAME_HASH_LUAREF)
                     {
                         dmScriptDDF::LuaRef* lua_ref = (dmScriptDDF::LuaRef*) ptr;
                         if (lua_ref->m_Ref)
@@ -552,13 +561,16 @@ namespace dmScript
                     }
                     else
                     {
-                        lua_newtable(L);
-                        for (uint32_t j = 0; j < d->m_FieldCount; ++j)
+
+                        uint32_t field_count = d->m_FieldCount;
+                        const dmDDF::FieldDescriptor* fields = d->m_Fields;
+
+                        lua_createtable(L, 0, field_count);
+                        for (uint32_t j = 0; j < field_count; ++j)
                         {
-                            const dmDDF::FieldDescriptor* f2 = &d->m_Fields[j];
-                            lua_pushstring(L, f2->m_Name);
-                            DDFToLuaValue(L, &d->m_Fields[j], ptr, pointers_offset);
-                            lua_rawset(L, -3);
+                            const dmDDF::FieldDescriptor* f2 = &fields[j];
+                            DDFToLuaValue(L, &fields[j], ptr, pointers_offset);
+                            lua_setfield(L, -2, f2->m_Name);
                         }
                     }
                 }
@@ -578,20 +590,22 @@ namespace dmScript
 
     void PushDDFNoDecoder(lua_State* L, const dmDDF::Descriptor* d, const char* data, bool pointers_are_offsets)
     {
+        DM_PROFILE("PushDDFNoDecoder");
         uintptr_t pointers_offset = 0;
         if (pointers_are_offsets)
             pointers_offset = (uintptr_t) data;
 
-        lua_newtable(L);
-        for (uint32_t i = 0; i < d->m_FieldCount; ++i)
+        uint32_t field_count = d->m_FieldCount;
+        const dmDDF::FieldDescriptor* fields = d->m_Fields;
+
+        lua_createtable(L, 0, field_count);
+        for (uint32_t i = 0; i < field_count; ++i)
         {
-            const dmDDF::FieldDescriptor* f = &d->m_Fields[i];
+            const dmDDF::FieldDescriptor* f = &fields[i];
 
-            lua_pushstring(L, f->m_Name);
-            DDFToLuaValue(L, &d->m_Fields[i], data, pointers_offset);
-            lua_rawset(L, -3);
+            DDFToLuaValue(L, &fields[i], data, pointers_offset);
+            lua_setfield(L, -2, f->m_Name);
         }
-
     }
 
     void PushDDF(lua_State* L, const dmDDF::Descriptor* d, const char* data)
@@ -602,6 +616,7 @@ namespace dmScript
 
     void PushDDF(lua_State* L, const dmDDF::Descriptor* d, const char* data, bool pointers_are_offsets)
     {
+        DM_PROFILE("PushDDF");
         MessageDecoder* decoder = g_Decoders.Get((uintptr_t) d);
         if (decoder) {
             Result r = (*decoder)(L, d, data); // May call PushDDFNoDecoder with different value on pointers_are_offsets
