@@ -209,6 +209,7 @@ namespace dmGameSystem
         component->m_ShapeBuffer = 0;
 
         CollisionComponent* component_base = &component->m_BaseComponent;
+        component_base->m_World            = (CollisionWorld*) params.m_World;
         component_base->m_Resource         = (CollisionObjectResource*) params.m_Resource;
         component_base->m_Instance         = params.m_Instance;
         component_base->m_ComponentIndex   = params.m_ComponentIndex;

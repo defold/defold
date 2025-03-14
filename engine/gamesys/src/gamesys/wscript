@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 import os, sys, re
 from waf_dynamo import apidoc_extract_task
+from BuildUtility import create_build_utility
 import waflib.Options
 
 sys.path.insert(0, "src")
@@ -20,6 +21,8 @@ def remove_from_node_list(lst, name):
     return [x for x in lst if not has_ext(x, name)]
 
 def build(bld):
+    build_util = create_build_utility(bld.env)
+
     sources = bld.path.ant_glob(['*.cpp', 'resources/**/*.cpp', 'components/**/*.cpp', 'scripts/*.cpp']) + bld.path.parent.parent.ant_glob('proto/gamesys/*')
     sources = remove_from_node_list(sources, 'comp_model.cpp')
     sources = remove_from_node_list(sources, 'comp_model_null.cpp')
@@ -80,6 +83,11 @@ def build(bld):
         includes = '. .. ../../src ../../proto',
         source = 'scripts/box2d/script_box2d.cpp scripts/box2d/script_box2d_body.cpp',
         target = 'script_box2d')
+
+    bld.stlib(features = 'cxx',
+        includes = '. .. ../../src ../../proto ' + build_util.get_dynamo_ext('include', 'box2d_defold'),
+        source = 'scripts/box2d/script_box2d.cpp scripts/box2d/script_box2d_body_defold.cpp',
+        target = 'script_box2d_defold')
 
     bld.add_group()
 

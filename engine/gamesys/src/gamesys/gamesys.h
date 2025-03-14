@@ -151,6 +151,7 @@ namespace dmGameSystem
     struct CollisionComponent
     {
         CollisionObjectResource*      m_Resource;
+        CollisionWorld*               m_World;
         dmGameObject::HInstance       m_Instance;
         uint16_t                      m_Mask;
         uint16_t                      m_ComponentIndex;

@@ -367,6 +367,7 @@ namespace dmGameSystem
         component->m_FlippedY        = 0;
 
         CollisionComponent* component_base = &component->m_BaseComponent;
+        component_base->m_World            = (CollisionWorld*) params.m_World;
         component_base->m_Resource         = (CollisionObjectResource*) params.m_Resource;
         component_base->m_Instance         = params.m_Instance;
         component_base->m_ComponentIndex   = params.m_ComponentIndex;
@@ -888,16 +889,16 @@ namespace dmGameSystem
     }
 
     // Internal script API
-    b2World* CompCollisionObjectGetBox2DWorld(dmGameObject::HComponentWorld _world)
+    void* CompCollisionObjectGetBox2DWorld(dmGameObject::HComponentWorld _world)
     {
         CollisionWorldBox2D* world = (CollisionWorldBox2D*)_world;
-        return (b2World*) dmPhysics::GetWorldContext2D(world->m_World2D);
+        return dmPhysics::GetWorldContext2D(world->m_World2D);
     }
 
-    b2Body* CompCollisionObjectGetBox2DBody(dmGameObject::HComponent _component)
+    void* CompCollisionObjectGetBox2DBody(dmGameObject::HComponent _component)
     {
         CollisionComponentBox2D* component = (CollisionComponentBox2D*)_component;
-        return (b2Body*) dmPhysics::GetCollisionObjectContext2D(component->m_Object2D);
+        return dmPhysics::GetCollisionObjectContext2D(component->m_Object2D);
     }
 
     // Adapter functions
