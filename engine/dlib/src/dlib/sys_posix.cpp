@@ -416,60 +416,61 @@ namespace dmSys
 
     Result GetApplicationSupportPath(const char* application_name, char* path_out, uint32_t path_len)
     {
-	const char* xdg = getenv("XDG_DATA_HOME") ? getenv("XDG_DATA_HOME") : "$HOME/.local/share/";
-	char xdg_buf[path_len];
+    const char* xdg_env = dmSys::GetEnv("XDG_DATA_HOME");
+    const char* xdg = xdg_env ? xdg_env : "$HOME/.local/share";
+    const uint32_t char_len = path_len;
+    char xdg_buf[char_len];
 
-	dmStrlCpy(xdg_buf, xdg, path_len);
-	dmStrlCat(xdg_buf, "/", path_len);
-	if (dmStrlCat(xdg_buf, application_name, path_len) >= path_len)
-		return RESULT_INVAL;
-	const char* xdg_path = xdg_buf;
+    dmStrlCpy(xdg_buf, xdg, path_len);
+    dmStrlCat(xdg_buf, "/", path_len);
+    if (dmStrlCat(xdg_buf, application_name, path_len) >= path_len)
+        return RESULT_INVAL;
+    const char* xdg_path = xdg_buf;
 
-	// No need to continue if {application_name} dir already exists
-	if (realpath(xdg_path, path_out))
-		return RESULT_OK;
+    // No need to continue if {application_name} dir already exists
+    if (realpath(xdg_path, path_out))
+        return RESULT_OK;
 
-	const char* dirs[] = {"HOME", "TMPDIR", "TMP", "TEMP"}; // Added common temp directories since server instances usually don't have a HOME set
-	size_t count = sizeof(dirs)/sizeof(dirs[0]);
-	const char* home = 0;
+    const char* dirs[] = {"HOME", "TMPDIR", "TMP", "TEMP"}; // Added common temp directories since server instances usually don't have a HOME set
+    size_t count = sizeof(dirs)/sizeof(dirs[0]);
+    const char* home = 0;
 
-	for (size_t i = 0; i < count; i++)
-	{
-		home = getenv(dirs[i]);
-		if (home)
-			break;
+    for (size_t i = 0; i < count; i++)
+    {
+        home = dmSys::GetEnv(dirs[i]);
+        if (home)
+            break;
 	}
 
-	if (!home){
+    if (!home){
            home = "."; // fall back to current directory, because the server instance might not have any of those paths set
 	}
-	char home_buf[path_len];
-	if (dmStrlCpy(home_buf, home, path_len) >= path_len)
-		return RESULT_INVAL;
-        if (dmStrlCat(home_buf, "/", path_len) >= path_len)
-            return RESULT_INVAL;
-        if (dmStrlCat(home_buf, ".", path_len) >= path_len)
-            return RESULT_INVAL;
-        if (dmStrlCat(home_buf, application_name, path_len) >= path_len)
-            return RESULT_INVAL;
+    char home_buf[char_len];
+    if (dmStrlCpy(home_buf, home, path_len) >= path_len)
+        return RESULT_INVAL;
+    if (dmStrlCat(home_buf, "/", path_len) >= path_len)
+        return RESULT_INVAL;
+    if (dmStrlCat(home_buf, ".", path_len) >= path_len)
+        return RESULT_INVAL;
+    if (dmStrlCat(home_buf, application_name, path_len) >= path_len)
+        return RESULT_INVAL;
 	
-	// If {home}/.{application_name exists}, return it here
-	const char* home_path = home_buf;
-	if (realpath(home_path, path_out))
-	{
-		if (dmStrlCpy(path_out, home_path, path_len) >= path_len)
-			return RESULT_INVAL;
-		return RESULT_OK;
-	}
-	// Default to $HOME/.local/store or $XDG_DATA_DIR
-	if (dmStrlCpy(path_out, xdg_path, path_len) >= path_len)
-		return RESULT_INVAL;
-	Result r = Mkdir(path_out, 0755);
+    // If {home}/.{application_name exists}, return it here
+    const char* home_path = home_buf;
+    if (realpath(home_path, path_out))
+    {
+        if (dmStrlCpy(path_out, home_path, path_len) >= path_len)
+            return RESULT_INVAL;
+        return RESULT_OK;
+    }
+    // Default to $HOME/.local/store or $XDG_DATA_DIR
+    if (dmStrlCpy(path_out, xdg_path, path_len) >= path_len)
+        return RESULT_INVAL;
+    Result r = Mkdir(path_out, 0755);
         if (r == RESULT_EXIST)
             return RESULT_OK;
         else
             return r;
-
     }
     
     Result OpenURL(const char* url, const char* target)
