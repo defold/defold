@@ -20,12 +20,13 @@
    [editor.geom :as geom]
    [editor.gl :as gl]
    [editor.gl.pass :as pass]
+   [editor.grid :as grid]
    [editor.scene :as scene]
    [editor.types :as types])
   (:import
    (editor.types AABB Camera)
-   (com.jogamp.opengl GL GL2)
-   (javax.vecmath Vector3d Vector4d Matrix3d Matrix4d Point3d)))
+   (com.jogamp.opengl GL2)
+   (javax.vecmath Point3d)))
 
 (set! *warn-on-reflection* true)
 
@@ -45,8 +46,8 @@
 (defn render-xy-grid
   [^GL2 gl aabb [w h]]
   (gl/gl-color gl grid-color)
-  (let [min   (types/min-p aabb)
-        max   (types/max-p aabb)
+  (let [min (types/min-p aabb)
+        max (types/max-p aabb)
         x-min (.x min)
         x-max (.x max)
         y-min (.y min)
@@ -59,10 +60,9 @@
       (gl/gl-vertex-3d gl x-max y 0))))
 
 (defn render-grid
-  [^GL2 gl pass renderables count]
+  [^GL2 gl _pass renderables _count]
   (let [renderable (first renderables)
         user-render-data (:user-render-data renderable)
-        camera (:camera user-render-data)
         grid (:grid user-render-data)]
     (gl/gl-lines gl
                  (render-xy-grid (:aabb grid) (:grid-size grid))
@@ -84,24 +84,6 @@
        :user-render-data {:camera camera
                           :grid grid}}]}))
 
-(defn frustum-plane-projection
-  [^Vector4d plane1 ^Vector4d plane2]
-  (let [m (Matrix3d. 0.0         0.0         1.0
-                     (.x plane1) (.y plane1) (.z plane1)
-                     (.x plane2) (.y plane2) (.z plane2))
-        v (Point3d. 0.0 (- (.w plane1)) (- (.w plane2)))]
-    (.invert m)
-    (.transform m v)
-    v))
-
-(defn frustum-projection-aabb
-  [planes]
-  (-> geom/null-aabb
-      (geom/aabb-incorporate (frustum-plane-projection (nth planes 0) (nth planes 2)))
-      (geom/aabb-incorporate (frustum-plane-projection (nth planes 0) (nth planes 3)))
-      (geom/aabb-incorporate (frustum-plane-projection (nth planes 1) (nth planes 2)))
-      (geom/aabb-incorporate (frustum-plane-projection (nth planes 1) (nth planes 3)))))
-
 (defn grid-snap-down [a sz] (* sz (Math/floor (/ a sz))))
 (defn grid-snap-up   [a sz] (* sz (Math/ceil  (/ a sz))))
 
@@ -110,25 +92,24 @@
   (types/->AABB (Point3d. (grid-snap-down (-> aabb types/min-p .x) w)
                           (grid-snap-down (-> aabb types/min-p .y) h)
                           0.0)
-                (Point3d. (grid-snap-up   (-> aabb types/max-p .x) w)
-                          (grid-snap-up   (-> aabb types/max-p .y) h)
+                (Point3d. (grid-snap-up (-> aabb types/max-p .x) w)
+                          (grid-snap-up (-> aabb types/max-p .y) h)
                           0.0)))
 
 (g/defnk update-grid
   [camera grid-size]
   (when grid-size
     (let [frustum-planes (c/viewproj-frustum-planes camera)
-          far-z-plane    (nth frustum-planes 5)
-          aabb           (-> (frustum-projection-aabb frustum-planes)
-                             (snap-out-to-grid grid-size))]
-      {:aabb      aabb
+          aabb (-> (grid/frustum-projection-aabb frustum-planes)
+                   (snap-out-to-grid grid-size))]
+      {:aabb aabb
        :grid-size grid-size})))
 
 (g/defnode TileMapGrid
   (input camera Camera)
   (input grid-size g/Any :substitute nil)
 
-  (output grid       g/Any :cached update-grid)
+  (output grid g/Any :cached update-grid)
   (output renderable pass/RenderData :cached grid-renderable))
 
 
