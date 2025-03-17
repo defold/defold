@@ -517,6 +517,7 @@ new_copy_task('copy prebuilt rigscenec', '.prebuilt_rigscenec', '.rigscenec')
 new_copy_task('copy prebuilt skeletonc', '.prebuilt_skeletonc', '.skeletonc')
 new_copy_task('copy prebuilt texturec', '.prebuilt_texturec', '.texturec')
 new_copy_task('copy prebuilt texturesetc', '.prebuilt_texturesetc', '.texturesetc')
+new_copy_task('copy prebuilt modelc', '.prebuilt_modelc', '.modelc')
 
 # Copy prebuilt mesh and buffer resources
 new_copy_task('copy prebuilt meshc', '.prebuilt_meshc', '.meshc')
