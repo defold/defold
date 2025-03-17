@@ -39,7 +39,10 @@ import com.dynamo.bob.pipeline.shader.SPIRVReflector;
 
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
-@BuilderParams(name="ShaderProgramBuilder", inExts= {".shbundle", ".shbundlec"}, outExt=".spc")
+@BuilderParams(name="ShaderProgramBuilder", inExts= {".shbundle", ".shbundlec"}, outExt=".spc",
+        // See configurePreBuildProjectOptions in Project.java
+        paramsForSignature = {"platform", "output-spirv", "output-wgsl", "output-hlsl", "output-glsles100",
+        "output-glsles300", "output-glsl120", "output-glsl330", "output-glsl430"})
 public class ShaderProgramBuilder extends Builder {
 
     static public class ShaderBuildResult {
@@ -48,6 +51,10 @@ public class ShaderProgramBuilder extends Builder {
 
         public ShaderBuildResult(ShaderDesc.Shader.Builder fromBuilder) {
             this.shaderBuilder = fromBuilder;
+        }
+
+        public ShaderBuildResult(String[] buildWarnings) {
+            this.buildWarnings = buildWarnings;
         }
     }
 
@@ -82,7 +89,7 @@ public class ShaderProgramBuilder extends Builder {
             // SPIR-v tools cannot handle carriage return
             source = source.replace("\r", "");
 
-            ShaderPreprocessor shaderPreprocessor = new ShaderPreprocessor(this.project, input.getPath(), source);
+            ShaderPreprocessor shaderPreprocessor = new ShaderPreprocessor(this.project, input.getPath(), source, null);
             String[] includes = shaderPreprocessor.getIncludes();
 
             for (String includePath : includes) {
@@ -98,18 +105,7 @@ public class ShaderProgramBuilder extends Builder {
         }
 
         compileOptions = modules.getCompileOptions();
-
-        String platformString = this.project.getPlatformStrings()[0];
-
-        // Include the spir-v flag into the cache key so we can invalidate the output results accordingly
-        // NOTE: We include the platform string as well for the same reason as spirv, but it doesn't seem to work correctly.
-        //       Keeping the build folder and rebuilding for a different platform _should_ invalidate the cache, but it doesn't.
-        //       Needs further investigation!
-        String shaderCacheKey = String.format("output_spirv=%s;output_hlsl=%s;output_wgsl=%s;platform_key=%s",
-                getOutputSpirvFlag(), getOutputHlslFlag(), getOutputWGSLFlag(),  platformString);
-
         taskBuilder.addOutput(input.changeExt(params.outExt()));
-        taskBuilder.addExtraCacheKey(shaderCacheKey);
 
         return taskBuilder.build();
     }
@@ -146,9 +142,6 @@ public class ShaderProgramBuilder extends Builder {
         if (getOutputGLSLFlag(120)) {
             compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM120);
         }
-        if (getOutputGLSLFlag(140)) {
-            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM140);
-        }
         if (getOutputGLSLFlag(330)) {
             compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
         }
@@ -166,9 +159,8 @@ public class ShaderProgramBuilder extends Builder {
     }
 
     private boolean getOutputShaderFlag(String projectOption, String projectProperty) {
-        boolean fromProjectOptions    = this.project.option(projectOption, "false").equals("true");
-        boolean fromProjectProperties = this.project.getProjectProperties().getBooleanValue("shader", projectProperty, false);
-        return fromProjectOptions || fromProjectProperties;
+        // See configurePreBuildProjectOptions in Project.java
+        return this.project.option(projectOption, "false").equals("true");
     }
 
     private boolean getOutputSpirvFlag() { return getOutputShaderFlag("output-spirv", "output_spirv"); }
@@ -219,7 +211,11 @@ public class ShaderProgramBuilder extends Builder {
                     }
                 }
                 case DIMENSION_TYPE_3D -> {
-                    return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D;
+                    if (type.imageIsArrayed) {
+                        return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D_ARRAY;
+                    } else {
+                        return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D;
+                    }
                 }
                 case DIMENSION_TYPE_CUBE -> {
                     return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE;
@@ -241,6 +237,20 @@ public class ShaderProgramBuilder extends Builder {
                     return ShaderDesc.ShaderDataType.SHADER_TYPE_UTEXTURE2D;
                 } else if (type.imageBaseType == Shaderc.BaseType.BASE_TYPE_FP32) {
                     return ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE2D;
+                }
+            } else if (type.dimensionType == Shaderc.DimensionType.DIMENSION_TYPE_3D) {
+                if (type.imageIsStorage) {
+                    if (type.imageStorageType == Shaderc.ImageStorageType.IMAGE_STORAGE_TYPE_RGBA32F) {
+                        return ShaderDesc.ShaderDataType.SHADER_TYPE_IMAGE3D;
+                    } else if (type.imageStorageType == Shaderc.ImageStorageType.IMAGE_STORAGE_TYPE_RGBA8UI) {
+                        return ShaderDesc.ShaderDataType.SHADER_TYPE_UIMAGE3D;
+                    }
+                } else if (type.imageIsArrayed) {
+                    return ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE3D_ARRAY;
+                } else if (type.imageBaseType == Shaderc.BaseType.BASE_TYPE_UINT32) {
+                    return ShaderDesc.ShaderDataType.SHADER_TYPE_UTEXTURE3D;
+                } else if (type.imageBaseType == Shaderc.BaseType.BASE_TYPE_FP32) {
+                    return ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE3D;
                 }
             } else if (type.dimensionType == Shaderc.DimensionType.DIMENSION_TYPE_CUBE) {
                 return ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE_CUBE;
@@ -494,7 +504,11 @@ public class ShaderProgramBuilder extends Builder {
         return builder;
     }
 
-    private static String GetShaderSource(Project project, String path) throws IOException, CompileExceptionError {
+    private static ShaderCompilePipeline.ShaderModuleDesc GetShaderDesc(Project project, String path, String contentRoot) throws IOException, CompileExceptionError {
+        ShaderDesc.ShaderType shaderType = parseShaderTypeFromPath(path);
+        ShaderCompilePipeline.ShaderModuleDesc desc = new ShaderCompilePipeline.ShaderModuleDesc();
+        desc.type = shaderType;
+
         try (BufferedInputStream is = new BufferedInputStream(new FileInputStream(path))) {
             byte[] inBytes = new byte[is.available()];
             is.read(inBytes);
@@ -502,21 +516,15 @@ public class ShaderProgramBuilder extends Builder {
             String source = new String(inBytes, StandardCharsets.UTF_8);
             source = source.replace("\r", "");
 
-            ShaderPreprocessor shaderPreprocessor = new ShaderPreprocessor(project, path, source);
-            return shaderPreprocessor.getCompiledSource();
+            ShaderPreprocessor shaderPreprocessor = new ShaderPreprocessor(project, path, source, contentRoot);
+            desc.source = shaderPreprocessor.getCompiledSource();
         }
-    }
 
-    private static ShaderCompilePipeline.ShaderModuleDesc GetShaderDesc(Project project, String path) throws IOException, CompileExceptionError {
-        ShaderDesc.ShaderType shaderType = parseShaderTypeFromPath(path);
-        ShaderCompilePipeline.ShaderModuleDesc desc = new ShaderCompilePipeline.ShaderModuleDesc();
-        desc.type = shaderType;
-        desc.source = GetShaderSource(project, path);
         return desc;
     }
 
     // Running standalone:
-    // java -classpath $DYNAMO_HOME/share/java/bob-light.jar com.dynamo.bob.pipeline.ShaderProgramBuilder <path-in.fp|vp|cp> <path-out.fpc|vpc|cpc> <platform>
+    // java -classpath $DYNAMO_HOME/share/java/bob-light.jar com.dynamo.bob.pipeline.ShaderProgramBuilder <path-in.fp|vp|cp> <path-out.fpc|vpc|cpc> <platform> <content-root>
     public static void main(String[] args) throws IOException, CompileExceptionError {
         System.setProperty("java.awt.headless", "true");
         ShaderProgramBuilder builder = new ShaderProgramBuilder();
@@ -532,17 +540,19 @@ public class ShaderProgramBuilder extends Builder {
 
         ArrayList<ShaderCompilePipeline.ShaderModuleDesc> modules = new ArrayList<>();
 
-        String outputPath, platform;
+        String outputPath, platform, contentRoot;
 
-        if (args.length == 3) {
-            modules.add(GetShaderDesc(project, args[0]));
+        if (args.length == 4) {
             outputPath   = args[1];
             platform     = args[2];
+            contentRoot  = args[3];
+            modules.add(GetShaderDesc(project, args[0], contentRoot));
         } else {
-            modules.add(GetShaderDesc(project, args[0]));
-            modules.add(GetShaderDesc(project, args[1]));
             outputPath   = args[2];
             platform     = args[3];
+            contentRoot  = args[4];
+            modules.add(GetShaderDesc(project, args[0], contentRoot));
+            modules.add(GetShaderDesc(project, args[1], contentRoot));
         }
 
         assert platform != null;

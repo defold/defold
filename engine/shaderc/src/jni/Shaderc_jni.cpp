@@ -104,6 +104,7 @@ void InitializeJNITypes(JNIEnv* env, TypeInfos* infos) {
     {
         SETUP_CLASS(ShaderCompileResultJNI, "ShaderCompileResult");
         GET_FLD_TYPESTR(data, "[B");
+        GET_FLD_TYPESTR(lastError, "Ljava/lang/String;");
     }
     #undef GET_FLD
     #undef GET_FLD_ARRAY
@@ -206,6 +207,7 @@ jobject C2J_CreateShaderCompileResult(JNIEnv* env, TypeInfos* types, const Shade
     if (src == 0) return 0;
     jobject obj = env->AllocObject(types->m_ShaderCompileResultJNI.cls);
     dmJNI::SetObjectDeref(env, obj, types->m_ShaderCompileResultJNI.data, dmJNI::C2J_CreateUByteArray(env, src->m_Data.Begin(), src->m_Data.Size()));
+    dmJNI::SetString(env, obj, types->m_ShaderCompileResultJNI.lastError, src->m_LastError);
     return obj;
 }
 
@@ -503,6 +505,7 @@ bool J2C_CreateShaderCompileResult(JNIEnv* env, TypeInfos* types, jobject obj, S
             env->DeleteLocalRef(field_object);
         }
     }
+    out->m_LastError = dmJNI::GetString(env, obj, types->m_ShaderCompileResultJNI.lastError);
     return true;
 }
 

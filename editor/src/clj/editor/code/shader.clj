@@ -115,7 +115,6 @@
   ^Graphics$ShaderDesc$Language [language]
   (case language
     :language-glsl-sm120 Graphics$ShaderDesc$Language/LANGUAGE_GLSL_SM120
-    :language-glsl-sm140 Graphics$ShaderDesc$Language/LANGUAGE_GLSL_SM140
     :language-glsl-sm430 Graphics$ShaderDesc$Language/LANGUAGE_GLSL_SM430
     :language-gles-sm100 Graphics$ShaderDesc$Language/LANGUAGE_GLES_SM100
     :language-gles-sm300 Graphics$ShaderDesc$Language/LANGUAGE_GLES_SM300
@@ -129,7 +128,7 @@
   (into-array Graphics$ShaderDesc$Language
               (map shader-language-to-java
                    ;; TODO: WGSL support (:language-wgsl)
-                   [:language-glsl-sm140 :language-glsl-sm330 :language-gles-sm300 :language-gles-sm100 :language-glsl-sm430 :language-spirv])))
+                   [:language-glsl-sm330 :language-gles-sm300 :language-gles-sm100 :language-glsl-sm430 :language-spirv])))
 
 (defn- build-shader [build-resource _dep-resources user-data]
   (let [resource-path (resource/path build-resource)

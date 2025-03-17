@@ -490,7 +490,7 @@ void DebugScene(Scene* scene)
     for (uint32_t i = 0; i < scene->m_Buffers.Size(); ++i)
     {
         OutputIndent(1);
-        printf("Buffer '%.48s' sz: %u  %p\n", scene->m_Buffers[i].m_Uri, scene->m_Buffers[i].m_BufferCount, scene->m_Buffers[i].m_Buffer);
+        printf("Buffer uri: '%.48s' sz: %u  %p\n", scene->m_Buffers[i].m_Uri, scene->m_Buffers[i].m_BufferCount, scene->m_Buffers[i].m_Buffer);
     }
 
     printf("------------------------------\n");

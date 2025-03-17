@@ -19,7 +19,8 @@
             [clojure.set :as set]
             [clojure.tools.namespace.dependency :as ns-deps]
             [clojure.tools.namespace.find :as ns-find]
-            [clojure.tools.namespace.parse :as ns-parse]))
+            [clojure.tools.namespace.parse :as ns-parse])
+  (:import [java.io File]))
 
 (defn- add-deps
   [graph [sym deps]]
@@ -28,8 +29,9 @@
           (for [dep deps] [sym dep])))
 
 (defn- make-namespace-deps-graph
-  [srcdir]
-  (let [namespaces (ns-find/find-ns-decls [(io/file srcdir)])
+  []
+  (let [namespaces (ns-find/find-ns-decls
+                     (mapv io/file (.split (System/getProperty "java.class.path") File/pathSeparator)))
         own-nses (into #{} (map second) namespaces)]
     (reduce add-deps
             (ns-deps/graph)
@@ -56,14 +58,14 @@
                  (conj batches next-batch)))))))
 
 (defn spit-batches
-  "Writes a vector of batches (sets of symbols) in edn format to a file,
-  for later consumption by the bootloader.
+  "Writes a vector of batches (vectors of symbols) of Clojure namespaces of the
+  current classpath in edn format to a file, for later consumption by the
+  bootloader.
   Also verifies that the file was correctly written.
 
-  from - a directory containing the editor clojure source files.
   to - an edn file where the batches will be written."
-  [from to]
-  (let [graph (make-namespace-deps-graph from)
+  [to]
+  (let [graph (make-namespace-deps-graph)
         ;; Make two sets of batches. One to load editor.boot as fast as possible
         ;; so we can show the progress dialog. And another batch to keep loading
         ;; the dependencies for editor.boot-open-project, excluding the
@@ -77,3 +79,4 @@
     (when (not= batches (edn/read-string (slurp to)))
       (throw (Exception. (format "Batch file %s was not correctly generated." to))))))
 
+(def -main spit-batches)

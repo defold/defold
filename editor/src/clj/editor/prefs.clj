@@ -125,7 +125,8 @@
             :scope :project
             :properties
             {:lint-code {:type :boolean :default true :label "Lint Code on Build"}
-             :texture-compression {:type :boolean}}}
+             :texture-compression {:type :boolean}
+             :open-html5-build {:type :boolean :default true :label "Open Browser After `Build HTML5`"}}}
     :bundle {:type :object
              :scope :project
              :properties
@@ -144,6 +145,9 @@
                                                      :label "Load External Changes on App Focus"}
                 :recent-files {:type :array
                                :item {:type :tuple :items [{:type :string} {:type :keyword}]}
+                               :scope :project}
+                :saved-colors {:type :array
+                               :item {:type :string}
                                :scope :project}}}
     :console {:type :object
               :properties

@@ -265,6 +265,14 @@ namespace dmScript
         return 1;
     }
 
+    static int Hash_lt(lua_State* L)
+    {
+        dmhash_t hash_1 = CheckHash(L, 1);
+        dmhash_t hash_2 = CheckHash(L, 2);
+        lua_pushboolean(L, hash_1 < hash_2);
+        return 1;
+    }
+
     static int Hash_tostring(lua_State* L)
     {
         dmhash_t hash = CheckHash(L, 1);
@@ -330,6 +338,10 @@ namespace dmScript
 
         lua_pushliteral(L, "__concat");
         lua_pushcfunction(L, Hash_concat);
+        lua_settable(L, -3);
+
+        lua_pushliteral(L, "__lt");
+        lua_pushcfunction(L, Hash_lt);
         lua_settable(L, -3);
 
         lua_pushcfunction(L, Hash_new);

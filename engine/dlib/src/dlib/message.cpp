@@ -26,8 +26,8 @@
 #include <dlib/spinlock.h>
 #include <dlib/profile/profile.h>
 
-DM_PROPERTY_GROUP(rmtp_Message, "dmMessage");
-DM_PROPERTY_U32(rmtp_Messages, 0, FrameReset, "# messages/frame", &rmtp_Message);
+DM_PROPERTY_GROUP(rmtp_Message, "dmMessage", 0);
+DM_PROPERTY_U32(rmtp_Messages, 0, PROFILE_PROPERTY_FRAME_RESET, "# messages/frame", &rmtp_Message);
 
 namespace dmMessage
 {

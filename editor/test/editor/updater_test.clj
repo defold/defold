@@ -13,18 +13,17 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.updater-test
-  (:require [clojure.data.json :as json]
-            [clojure.java.io :as io]
+  (:require [clojure.java.io :as io]
             [clojure.test :refer :all]
             [editor.fs :as fs]
             [editor.updater :as updater]
-            [ring.adapter.jetty :as jetty]
-            [ring.util.response :as response])
+            [util.http-server :as http-server])
   (:import [ch.qos.logback.classic Level Logger]
            [com.dynamo.bob Platform]
            [java.io File]
            [java.util Timer]
-           [org.slf4j LoggerFactory]))
+           [org.slf4j LoggerFactory]
+           [util.http_server ServerWithHandler]))
 
 (set! *warn-on-reflection* true)
 
@@ -54,15 +53,15 @@
 
 (defn make-handler-resources [channel sha1]
   {(format "/editor2/channels/%s/update-v4.json" channel)
-   (response/response (json/write-str {:sha1 sha1}))
+   (http-server/json-response {:sha1 sha1})
 
    (format "/archive/%s/%s/editor2/Defold-%s.zip" sha1 channel (.getPair (Platform/getHostPlatform)))
-   (response/resource-response "test-update.zip")})
+   (http-server/response 200 (io/resource "test-update.zip"))})
 
 (defn- make-resource-handler [channel sha1]
   (let [resources (make-handler-resources channel sha1)]
     (fn [request]
-      (get resources (:uri request) (response/not-found "404")))))
+      (get resources (:path request) http-server/not-found))))
 
 (defn- list-files [dir]
   (->> (file-seq (io/file dir))
@@ -70,13 +69,9 @@
        (map #(.getName ^File %))
        (apply hash-set)))
 
-(defmacro with-server [channel sha1 & body]
-  `(let [server# (jetty/run-jetty (make-resource-handler ~channel ~sha1)
-                                  {:port ~test-port :join? false})]
-     (try
-       ~@body
-       (finally
-         (.stop server#)))))
+(defn- start-update-server!
+  ^ServerWithHandler [channel sha]
+  (http-server/start! (make-resource-handler channel sha) :port test-port))
 
 (defn make-updater [channel sha1]
   (#'updater/make-updater
@@ -89,7 +84,7 @@
     []))
 
 (deftest no-update-on-client-when-no-update-on-server
-  (with-server "test" "1"
+  (with-open [_ (start-update-server! "test" "1")]
     (let [updater (make-updater "test" "1")]
       (#'updater/check! updater)
       (is (false? (updater/can-download-update? updater)))
@@ -97,19 +92,19 @@
       (is (false? (updater/can-download-update? updater))))))
 
 (deftest has-update-on-client-when-has-update-on-server
-  (with-server "test" "2"
+  (with-open [_ (start-update-server! "test" "2")]
     (let [updater (make-updater "test" "1")]
       (#'updater/check! updater)
       (is (true? (updater/can-download-update? updater))))))
 
 (deftest no-update-on-client-when-server-has-update-on-different-channel
-  (with-server "alpha" "2"
+  (with-open [_ (start-update-server! "alpha" "2")]
     (let [updater (make-updater "beta" "1")]
       (#'updater/check! updater)
       (is (false? (updater/can-download-update? updater))))))
 
 (deftest can-download-and-extract-update
-  (with-server "test" "2"
+  (with-open [_ (start-update-server! "test" "2")]
     (let [updater (make-updater "test" "1")
           ^File update-sha1-file @#'updater/update-sha1-file
           ^File update-dir @#'updater/update-dir]
@@ -124,7 +119,7 @@
       (fs/delete! update-sha1-file))))
 
 (deftest throws-if-zip-is-missing-on-server
-  (with-server "test" "2"
+  (with-open [_ (start-update-server! "test" "2")]
     (let [updater (#'updater/make-updater
                     "test"
                     "1"
@@ -139,16 +134,16 @@
 
 (deftest client-has-update-after-check-when-update-appears-on-server
   (let [updater (make-updater "test" "1")]
-    (with-server "test" "1"
+    (with-open [_ (start-update-server! "test" "1")]
       (#'updater/check! updater)
       (is (false? (updater/can-download-update? updater))))
-    (with-server "test" "2"
+    (with-open [_ (start-update-server! "test" "2")]
       (#'updater/check! updater)
       (is (true? (updater/can-download-update? updater))))))
 
 (deftest no-new-update-is-reported-after-extracting
   (let [updater (make-updater "test" "1")]
-    (with-server "test" "2"
+    (with-open [_ (start-update-server! "test" "2")]
       (#'updater/check! updater)
       (is (true? (updater/can-download-update? updater)))
       @(updater/download-and-extract! updater)
@@ -159,10 +154,10 @@
   (let [updater (make-updater "test" "1")
         timer ^Timer (#'updater/start-timer! updater 10 10)]
     (try
-      (with-server "test" "1"
+      (with-open [_ (start-update-server! "test" "1")]
         (Thread/sleep 1000)
         (is (false? (updater/can-download-update? updater))))
-      (with-server "test" "2"
+      (with-open [_ (start-update-server! "test" "2")]
         (Thread/sleep 1000)
         (is (true? (updater/can-download-update? updater))))
       (finally

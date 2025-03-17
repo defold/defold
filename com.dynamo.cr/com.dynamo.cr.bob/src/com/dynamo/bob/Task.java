@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.HashSet;
 import java.util.Comparator;
 
+import com.dynamo.bob.archive.EngineVersion;
 import com.dynamo.bob.fs.IResource;
 
 /**
@@ -126,6 +127,8 @@ public class Task {
     public IResource firstInput() {
         return inputs.get(0);
     }
+
+    public IResource lastInput() { return inputs.get(inputs.size() - 1); }
 
     public List<IResource> getOutputs() {
         return Collections.unmodifiableList(outputs);
