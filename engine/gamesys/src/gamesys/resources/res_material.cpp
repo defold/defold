@@ -257,6 +257,7 @@ namespace dmGameSystem
             memset(resource, 0, sizeof(MaterialResource));
 
             resource->m_Material = material;
+            resource->m_BlendMode = ddf->m_BlendMode;
             SetMaterial(params->m_Filename, resource, &resources, ddf);
 
             dmResource::SetResource(params->m_Resource, resource);
@@ -318,6 +319,7 @@ namespace dmGameSystem
             }
 
             resource->m_Material = material;
+            resource->m_BlendMode = ddf->m_BlendMode;
             SetMaterial(params->m_Filename, resource, &resources, ddf);
         }
         dmDDF::FreeMessage(ddf);

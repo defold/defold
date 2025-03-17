@@ -476,6 +476,44 @@ namespace dmGameSystem
         return texture_res;
     }
 
+    static void SetBlendMode(dmRender::RenderObject* ro, const ModelComponent* component, uint32_t material_index)
+    {
+        MaterialResource* material = GetMaterialResource(component, component->m_Resource, material_index);
+
+        if (material->m_BlendMode != dmRenderDDF::MaterialDesc::BLEND_MODE_PASS_THROUGH)
+        {
+            ro->m_SetBlendFactors = 1;
+
+            switch (material->m_BlendMode)
+            {
+                case dmRenderDDF::MaterialDesc::BLEND_MODE_ALPHA:
+                    ro->m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
+                    ro->m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+                break;
+
+                case dmRenderDDF::MaterialDesc::BLEND_MODE_ADD:
+                    ro->m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
+                    ro->m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
+                break;
+
+                case dmRenderDDF::MaterialDesc::BLEND_MODE_MULT:
+                    ro->m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_DST_COLOR;
+                    ro->m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+                break;
+
+                case dmRenderDDF::MaterialDesc::BLEND_MODE_SCREEN:
+                    ro->m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_DST_COLOR;
+                    ro->m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
+                break;
+
+                default:
+                    dmLogError("Unknown blend mode: %d\n", material->m_BlendMode);
+                    assert(0);
+                break;
+            }
+        }
+    }
+
     static int32_t FillTextures(dmRender::RenderObject* ro, const ModelComponent* component, uint32_t material_index)
     {
         MaterialResource* material = GetMaterialResource(component, component->m_Resource, material_index);
@@ -505,6 +543,11 @@ namespace dmGameSystem
     {
         dmHashUpdateBuffer32(state, &material->m_Material, sizeof(material->m_Material));
         dmHashUpdateBuffer32(state, material->m_Textures, sizeof(dmGameSystem::TextureResource*)*material->m_NumTextures);
+
+        if (material->m_BlendMode != dmRenderDDF::MaterialDesc::BLEND_MODE_PASS_THROUGH)
+        {
+            dmHashUpdateBuffer32(state, &material->m_BlendMode, sizeof(material->m_BlendMode));
+        }
     }
 
     static void HashRenderItem(HashState32* state, ModelComponent* component, const MeshRenderItem& item)
@@ -1160,6 +1203,8 @@ namespace dmGameSystem
         ro.m_VertexBuffers[VX_DECL_INSTANCE_BUFFER]       = (dmGraphics::HVertexBuffer) dmRender::GetBuffer(render_context, world->m_InstanceBufferLocalSpace);
         ro.m_VertexBufferOffsets[VX_DECL_INSTANCE_BUFFER] = world->m_InstanceBufferDataLocalSpace.Size();
 
+        SetBlendMode(&ro, component, material_index);
+
         dmGraphics::VertexAttributeInfos material_infos;
         dmGraphics::VertexAttributeInfos attribute_infos;
 
@@ -1351,6 +1396,8 @@ namespace dmGameSystem
             ro.m_WorldTransform        = render_item->m_World;
             ro.m_VertexDeclarations[0] = vx_decl_base;
             ro.m_VertexBuffers[0]      = buffers->m_VertexBuffer;
+
+            SetBlendMode(&ro, component, material_index);
 
             if (render_context_material_custom_attributes || render_item->m_AttributeRenderDataIndex != ATTRIBUTE_RENDER_DATA_INDEX_UNUSED)
             {
@@ -1661,6 +1708,8 @@ namespace dmGameSystem
         ro.m_VertexStart           = vx_start;
         ro.m_VertexCount           = vx_count;
         ro.m_WorldTransform        = Matrix4::identity(); // Pass identity world transform if outputing world positions directly.
+
+        SetBlendMode(&ro, component, material_index);
 
         FillTextures(&ro, component, material_index);
 

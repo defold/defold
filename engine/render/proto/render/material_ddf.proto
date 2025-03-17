@@ -10,6 +10,15 @@ option java_outer_classname = "Material";
 
 message MaterialDesc
 {
+    enum BlendMode
+    {
+        BLEND_MODE_PASS_THROUGH = 0 [(displayName) = "Pass-through"];
+        BLEND_MODE_ALPHA        = 1 [(displayName) = "Alpha"];
+        BLEND_MODE_ADD          = 2 [(displayName) = "Add"];
+        BLEND_MODE_MULT         = 3 [(displayName) = "Multiply"];
+        BLEND_MODE_SCREEN       = 4 [(displayName) = "Screen"];
+    }
+
     enum ConstantType
     {
         CONSTANT_TYPE_USER = 0;
@@ -87,4 +96,5 @@ message MaterialDesc
     optional uint32 max_page_count                 = 10 [default = 0];
     repeated dmGraphics.VertexAttribute attributes = 11;
     optional string program                        = 12 [(resource)=true, (runtime_only)=true];
+    optional BlendMode blend_mode                  = 13 [default = BLEND_MODE_PASS_THROUGH];
 }

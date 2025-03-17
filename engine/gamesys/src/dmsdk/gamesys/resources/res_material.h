@@ -23,11 +23,12 @@ namespace dmGameSystem
     struct TextureResource;
     struct MaterialResource
     {
-        dmRender::HMaterial m_Material;
+        dmRender::HMaterial                  m_Material;
         // Sorted on sampler appearance in the material
-        TextureResource*    m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-        dmhash_t            m_SamplerNames[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-        uint32_t            m_NumTextures;
+        TextureResource*                     m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        dmhash_t                             m_SamplerNames[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        dmRenderDDF::MaterialDesc::BlendMode m_BlendMode;
+        uint32_t                             m_NumTextures;
     };
 }
 
