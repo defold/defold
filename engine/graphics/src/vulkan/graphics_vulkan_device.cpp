@@ -453,7 +453,7 @@ namespace dmGraphics
         return vk_count_bits[dmMath::Min<uint8_t>(sample_count_index_requested, sample_count_index_max)];
     }
 
-    void TransitionImageLayout(VkCommandBuffer vk_command_buffer, VulkanTexture* texture,
+    void TransitionImageLayoutWithCmdBuffer(VkCommandBuffer vk_command_buffer, VulkanTexture* texture,
         VkImageAspectFlags vk_image_aspect, VkImageLayout vk_to_layout, uint32_t base_mip_level, uint32_t layer_count)
     {
         VkImageLayout vk_from_layout = texture->m_ImageLayout[base_mip_level];
@@ -571,7 +571,7 @@ namespace dmGraphics
 
         vkBeginCommandBuffer(vk_command_buffer, &vk_command_buffer_begin_info);
 
-        TransitionImageLayout(vk_command_buffer, texture, vk_image_aspect, vk_to_layout, base_mip_level, layer_count);
+        TransitionImageLayoutWithCmdBuffer(vk_command_buffer, texture, vk_image_aspect, vk_to_layout, base_mip_level, layer_count);
 
         vkEndCommandBuffer(vk_command_buffer);
 

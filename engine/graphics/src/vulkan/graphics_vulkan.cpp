@@ -3661,16 +3661,11 @@ bail:
         return offset;
     }
 
-    static void CopyToTextureLayersWithStageBuffer(VulkanContext* context, VkCommandBuffer cmd_buffer, DeviceBuffer* stage_buffer, VulkanTexture* texture, const TextureParams& params)
+    static void CopyToTextureLayerWithtTageBuffer(VkCommandBuffer cmd_buffer, VkBufferImageCopy* copy_regions, DeviceBuffer* stage_buffer, VulkanTexture* texture, const TextureParams& params, uint32_t layer_count, uint32_t slice_size)
     {
-        uint32_t slice_size = stage_buffer->m_MemorySize / texture->m_LayerCount;
-        uint32_t layer_count = texture->m_LayerCount;
-
-        // NOTE: We should check max layer count in the device properties!
-        VkBufferImageCopy* vk_copy_regions = new VkBufferImageCopy[layer_count];
         for (int i = 0; i < layer_count; ++i)
         {
-            VkBufferImageCopy& vk_copy_region = vk_copy_regions[i];
+            VkBufferImageCopy& vk_copy_region = copy_regions[i];
             vk_copy_region.bufferOffset                    = i * slice_size;
             vk_copy_region.bufferRowLength                 = 0;
             vk_copy_region.bufferImageHeight               = 0;
@@ -3688,16 +3683,23 @@ bail:
 
         vkCmdCopyBufferToImage(cmd_buffer, stage_buffer->m_Handle.m_Buffer,
             texture->m_Handle.m_Image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            layer_count, vk_copy_regions);
-
-        delete[] vk_copy_regions;
+            layer_count, copy_regions);
     }
 
     static void CopyToTextureWithStageBuffer(VulkanContext* context, VkCommandBuffer cmd_buffer, DeviceBuffer* stage_buffer, VulkanTexture* texture, const TextureParams& params, uint32_t tex_data_size, const void* tex_data_ptr)
     {
         VkResult res = WriteToDeviceBuffer(context->m_LogicalDevice.m_Device, tex_data_size, 0, tex_data_ptr, stage_buffer);
         CHECK_VK_ERROR(res);
-        CopyToTextureLayersWithStageBuffer(context, cmd_buffer, stage_buffer, texture, params);
+
+        uint32_t slice_size = tex_data_size / texture->m_LayerCount;
+        uint32_t layer_count = texture->m_LayerCount;
+
+        // NOTE: We should check max layer count in the device properties!
+        VkBufferImageCopy* vk_copy_regions = new VkBufferImageCopy[layer_count];
+
+        CopyToTextureLayerWithtTageBuffer(cmd_buffer, vk_copy_regions, stage_buffer, texture, params, layer_count, slice_size);
+
+        delete[] vk_copy_regions;
     }
 
     static void CopyToTexture(VulkanContext* context, const TextureParams& params,
@@ -3765,7 +3767,14 @@ bail:
             res = WriteToDeviceBuffer(vk_device, texDataSize, 0, texDataPtr, &stage_buffer);
             CHECK_VK_ERROR(res);
 
-            CopyToTextureLayersWithStageBuffer(context, vk_command_buffer, &stage_buffer, textureOut, params);
+            // NOTE: We should check max layer count in the device properties!
+            VkBufferImageCopy* vk_copy_regions = new VkBufferImageCopy[layer_count];
+            
+            CopyToTextureLayerWithtTageBuffer(vk_command_buffer, vk_copy_regions, &stage_buffer, textureOut, params, layer_count, slice_size);
+
+            vkCmdCopyBufferToImage(vk_command_buffer, stage_buffer.m_Handle.m_Buffer,
+                textureOut->m_Handle.m_Image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                layer_count, vk_copy_regions);
 
             res = vkEndCommandBuffer(vk_command_buffer);
             CHECK_VK_ERROR(res);
@@ -3788,6 +3797,8 @@ bail:
             DestroyDeviceBuffer(vk_device, &stage_buffer.m_Handle);
 
             vkFreeCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, 1, &vk_command_buffer);
+
+            delete[] vk_copy_regions;
         }
         else
         {
@@ -4101,7 +4112,7 @@ bail:
 
             if (!is_memoryless)
             {
-                TransitionImageLayout(cmd_buffer, tex, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, ap.m_Params.m_MipMap, tex->m_Depth);
+                TransitionImageLayoutWithCmdBuffer(cmd_buffer, tex, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, ap.m_Params.m_MipMap, tex->m_Depth);
 
                 VkResult res = CreateDeviceBuffer(
                     context->m_PhysicalDevice.m_Device,
@@ -4127,7 +4138,7 @@ bail:
                 CopyToTextureWithStageBuffer(context, cmd_buffer, &stage_buffer, tex, ap.m_Params, tex_data_size, tex_data_ptr);
             }
 
-            TransitionImageLayout(cmd_buffer, tex, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, ap.m_Params.m_MipMap, tex->m_LayerCount);
+            TransitionImageLayoutWithCmdBuffer(cmd_buffer, tex, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, ap.m_Params.m_MipMap, tex->m_LayerCount);
 
             vkEndCommandBuffer(cmd_buffer);
 
@@ -4239,6 +4250,7 @@ bail:
             texture->m_MipMapCount    = dmMath::Max(texture->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
             texture->m_LayerCount     = tex_layer_count;
 
+            // Not thread safe, but no-one should be touching the texture right now anyway
             VulkanSetTextureParamsInternal(texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, 1.0f);
         }
     }
