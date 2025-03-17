@@ -56,7 +56,9 @@
             [internal.util :as util]
             [schema.core :as s]
             [service.smoke-log :as slog]
-            [util.coll :as coll :refer [pair]])
+            [util.coll :as coll :refer [pair]]
+            [util.eduction :as e]
+            [util.fn :as fn])
   (:import [com.defold.control ListView]
            [com.sun.javafx.font FontResource FontStrike PGFont]
            [com.sun.javafx.geom.transform BaseTransform]
@@ -1089,6 +1091,42 @@
   (property completions-lsp g/Any)
   (property completions-selected-index g/Any (dynamic visible (g/constantly false)))
   (property completions-previous-combined-ids g/Any (dynamic visible (g/constantly false)))
+
+  ;; the cursor position for which we show the hover.
+  (property hover-showing-cursor g/Any (default false) (dynamic visible (g/constantly false)))
+  ;; instance of `(ui/->future)`, delayed refresh check
+  (property hover-request g/Any (dynamic visible (g/constantly false)))
+  ;; current mouse position as a cursor, nil if not hovering a character
+  (property hover-cursor g/Any (dynamic visible (g/constantly false)))
+  ;; hover regions for the current cursor that we got from LSP, not shown (:hoverable set to false)
+  (property hover-cursor-lsp-regions g/Any (dynamic visible (g/constantly false)))
+  ;; hover regions for the showing cursor, visible
+  (property hover-showing-lsp-regions g/Any (dynamic visible (g/constantly false)))
+  ;; all displayed hovered regions
+  (output hover-showing-regions g/Any :cached (g/fnk [visible-regions hover-showing-cursor]
+                                                (when hover-showing-cursor
+                                                  (->> visible-regions
+                                                       (e/filter :hoverable)
+                                                       (e/filter #(data/cursor-range-contains-exclusive? % hover-showing-cursor))
+                                                       vec
+                                                       coll/not-empty))))
+  ;; when showing a hover, this is a region that is considered a single hovered thing
+  (output hover-showing-region g/Any :cached (g/fnk [hover-showing-regions ^Cursor hover-showing-cursor]
+                                               (when hover-showing-cursor
+                                                 (or (->> hover-showing-regions
+                                                          (reduce
+                                                            (fn [a b]
+                                                              (if (nil? a)
+                                                                b
+                                                                (if-let [ret (data/cursor-range-intersection a b)]
+                                                                  ret
+                                                                  (reduced nil))))
+                                                            nil))
+                                                     (data/->CursorRange
+                                                       hover-showing-cursor
+                                                       (data/->Cursor (.-row hover-showing-cursor)
+                                                                      (inc (.-col hover-showing-cursor))))))))
+
   (output completions-selected-index g/Any :cached produce-completions-selected-index) ;; either in completions index range or nil
   (output completions-selection g/Any produce-completions-selection)
   (output completions-combined g/Any :cached produce-completions-combined)
@@ -1119,8 +1157,8 @@
   ;; We cache the lines in the view instead of the resource node, since the
   ;; resource node will read directly from disk unless edits have been made.
   (output lines types/Lines :cached (gu/passthrough lines))
-  (output regions r/Regions :cached (g/fnk [regions diagnostics]
-                                      (vec (sort (into regions diagnostics)))))
+  (output regions r/Regions :cached (g/fnk [regions diagnostics hover-cursor-lsp-regions hover-showing-lsp-regions]
+                                      (vec (sort (vec (e/concat regions diagnostics hover-cursor-lsp-regions hover-showing-lsp-regions))))))
   (output indent-type r/IndentType produce-indent-type)
   (output indent-string g/Str produce-indent-string)
   (output tab-spaces g/Num produce-tab-spaces)
@@ -1221,8 +1259,17 @@
                             (g/set-property view-node :fallback-cursor-ranges value))
 
                           :regions
-                          (let [{diagnostics true regions false} (group-by #(= :diagnostic (:type %)) value)]
+                          (let [{:keys [diagnostics hover-showing-lsp-regions hover-cursor-lsp-regions regions]}
+                                (group-by #(case (:type %)
+                                             :diagnostic :diagnostics
+                                             :hover (if (:hoverable %)
+                                                      :hover-showing-lsp-regions
+                                                      :hover-cursor-lsp-regions)
+                                             :regions)
+                                          value)]
                             (concat
+                              (g/set-property view-node :hover-showing-lsp-regions hover-showing-lsp-regions)
+                              (g/set-property view-node :hover-cursor-lsp-regions hover-cursor-lsp-regions)
                               (g/set-property view-node :diagnostics (or diagnostics []))
                               (g/set-property resource-node prop-kw (or regions []))))
 
@@ -1458,6 +1505,9 @@
                     :completions-lsp nil
                     :completions-previous-combined-ids nil}))
 
+(defn- hide-hover! [view-node]
+  (set-properties! view-node nil {:hover-showing-cursor nil :hover-showing-lsp-regions nil}))
+
 (defn- suggestions-shown? [view-node]
   (g/with-auto-evaluation-context evaluation-context
     (get-property view-node :completions-showing evaluation-context)))
@@ -1466,6 +1516,10 @@
   (g/with-auto-evaluation-context evaluation-context
     (and (get-property view-node :completions-showing evaluation-context)
          (pos? (count (get-property view-node :completions-combined evaluation-context))))))
+
+(defn- hover-visible? [view-node]
+  (g/with-auto-evaluation-context evaluation-context
+    (some? (get-property view-node :hover-showing-regions evaluation-context))))
 
 (defn- selected-suggestion [view-node]
   (g/with-auto-evaluation-context evaluation-context
@@ -1487,6 +1541,7 @@
     false))
 
 (defn- exit-tab-trigger! [view-node]
+  (hide-hover! view-node)
   (hide-suggestions! view-node)
   (when (in-tab-trigger? view-node)
     (set-properties! view-node :navigation
@@ -1682,6 +1737,7 @@
          props (data/replace-typed-chars indent-level-pattern indent-string grammar lines regions layout all-splices)]
      (when (some? props)
        (hide-suggestions! view-node)
+       (hide-hover! view-node)
        (let [cursor-ranges (:cursor-ranges props)
              regions (:regions props)
              new-cursor-ranges (cond
@@ -2023,6 +2079,7 @@
 
 (defn move! [view-node move-type cursor-type]
   (hide-suggestions! view-node)
+  (hide-hover! view-node)
   (set-properties! view-node move-type
                    (data/move (get-property view-node :lines)
                               (get-property view-node :cursor-ranges)
@@ -2032,6 +2089,7 @@
 
 (defn page-up! [view-node move-type]
   (hide-suggestions! view-node)
+  (hide-hover! view-node)
   (set-properties! view-node move-type
                    (data/page-up (get-property view-node :lines)
                                  (get-property view-node :cursor-ranges)
@@ -2041,6 +2099,7 @@
 
 (defn page-down! [view-node move-type]
   (hide-suggestions! view-node)
+  (hide-hover! view-node)
   (set-properties! view-node move-type
                    (data/page-down (get-property view-node :lines)
                                    (get-property view-node :cursor-ranges)
@@ -2064,6 +2123,7 @@
                                   (get-property view-node :regions)
                                   (get-property view-node :layout)
                                   delete-fn))
+    (hide-hover! view-node)
     (if (and single-character-backspace
              (suggestions-shown? view-node)
              (implies-completions? view-node))
@@ -2071,6 +2131,8 @@
       (hide-suggestions! view-node))))
 
 (defn toggle-comment! [view-node]
+  (hide-suggestions! view-node)
+  (hide-hover! view-node)
   (set-properties! view-node nil
                    (data/toggle-comment (get-property view-node :lines)
                                         (get-property view-node :regions)
@@ -2078,6 +2140,7 @@
                                         (:line-comment (get-property view-node :grammar)))))
 
 (defn select-all! [view-node]
+  (hide-hover! view-node)
   (hide-suggestions! view-node)
   (set-properties! view-node :selection
                    (data/select-all (get-property view-node :lines)
@@ -2085,6 +2148,7 @@
 
 (defn select-next-occurrence! [view-node]
   (hide-suggestions! view-node)
+  (hide-hover! view-node)
   (set-properties! view-node :selection
                    (data/select-next-occurrence (get-property view-node :lines)
                                                 (get-property view-node :cursor-ranges)
@@ -2092,6 +2156,7 @@
 
 (defn- indent! [view-node]
   (hide-suggestions! view-node)
+  (hide-hover! view-node)
   (set-properties! view-node nil
                    (data/indent (get-property view-node :indent-level-pattern)
                                 (get-property view-node :indent-string)
@@ -2103,6 +2168,7 @@
 
 (defn- deindent! [view-node]
   (hide-suggestions! view-node)
+  (hide-hover! view-node)
   (set-properties! view-node nil
                    (data/deindent (get-property view-node :lines)
                                   (get-property view-node :cursor-ranges)
@@ -2197,6 +2263,7 @@
                                              (get-property view-node :regions)
                                              (get-property view-node :layout)
                                              typed))
+        (hide-hover! view-node)
         (if (and show-suggestions (implies-completions? view-node))
           (show-suggestions! view-node :typed typed)
           (hide-suggestions! view-node))))))
@@ -2274,6 +2341,7 @@
   (.requestFocus ^Node (.getTarget event))
   (refresh-mouse-cursor! view-node event)
   (hide-suggestions! view-node)
+  (hide-hover! view-node)
   (set-properties! view-node (if (< 1 (.getClickCount event)) :selection :navigation)
                    (data/mouse-pressed (get-property view-node :lines)
                                        (get-property view-node :cursor-ranges)
@@ -2288,18 +2356,82 @@
                                        (.isShiftDown event)
                                        (.isShortcutDown event))))
 
+(defn- on-hover-response [view-node request-cursor hover-lsp-regions]
+  (ui/run-later
+    (when (g/node-exists? view-node)
+      (let [current-cursor (get-property view-node :hover-cursor)
+            showing-hover-cursor (get-property view-node :hover-showing-cursor)]
+        (when-let [properties (coll/merge
+                                (when (= current-cursor request-cursor)
+                                  {:hover-cursor-lsp-regions (mapv #(assoc % :hoverable false) hover-lsp-regions)})
+                                (when (= showing-hover-cursor request-cursor)
+                                  {:hover-showing-lsp-regions hover-lsp-regions}))]
+          (set-properties! view-node nil properties))))))
+
+(defn- refresh-hover-state! [view-node]
+  (when (g/node-exists? view-node)
+    (set-properties! view-node nil
+      (if-let [hover-cursor (get-property view-node :hover-cursor)]
+        {:hover-showing-cursor hover-cursor
+         :hover-showing-lsp-regions (mapv #(assoc % :hoverable true) (get-property view-node :hover-cursor-lsp-regions))}
+        {:hover-showing-cursor nil
+         :hover-showing-lsp-regions nil}))))
+
+(defn- schedule-hover-refresh!
+  "Returns properties to set"
+  ([view-node]
+   (g/with-auto-evaluation-context evaluation-context
+     (schedule-hover-refresh! view-node evaluation-context)))
+  ([view-node evaluation-context]
+   (some-> (g/node-value view-node :hover-request evaluation-context) ui/cancel)
+   {:hover-request (ui/->future 0.25 #(refresh-hover-state! view-node))}))
+
+(defn- request-lsp-hover! [view-node lsp resource-node new-hover-cursor evaluation-context]
+  (let [old-hover-cursor (get-property view-node :hover-cursor evaluation-context)
+        _ (when (and new-hover-cursor (not= old-hover-cursor new-hover-cursor))
+            (let [resource (g/node-value resource-node :resource evaluation-context)]
+              (lsp/hover! lsp resource new-hover-cursor #(on-hover-response view-node new-hover-cursor %))))
+        ret (if (g/node-value view-node :hover-showing-cursor evaluation-context)
+              ;; we are showing a hover
+              (when (not= old-hover-cursor new-hover-cursor)
+                (let [hover-showing-region (g/node-value view-node :hover-showing-region evaluation-context)
+                      was-in (and (some? old-hover-cursor)
+                                  (data/cursor-range-contains-exclusive? hover-showing-region old-hover-cursor))
+                      is-in (and (some? new-hover-cursor)
+                                 (data/cursor-range-contains-exclusive? hover-showing-region new-hover-cursor))]
+                  ;; when moving inside (is-in), re-request a refresh on every mouse move
+                  ;; when just moved outside (was-in), request a refresh once
+                  (when (or is-in was-in)
+                    (schedule-hover-refresh! view-node evaluation-context))))
+              ;; we are not showing a hover: schedule a refresh request
+              (schedule-hover-refresh! view-node evaluation-context))]
+    ;; save the new hover cursor in the graph if it changed
+    (cond-> ret (not= old-hover-cursor new-hover-cursor) (assoc :hover-cursor new-hover-cursor))))
+
 (defn handle-mouse-moved! [view-node ^MouseDragEvent event]
   (.consume event)
-  (set-properties! view-node :selection
-                   (data/mouse-moved (get-property view-node :lines)
-                                     (get-property view-node :cursor-ranges)
-                                     (get-property view-node :visible-regions)
-                                     (get-property view-node :layout)
-                                     (get-property view-node :minimap-layout)
-                                     (get-property view-node :gesture-start)
-                                     (get-property view-node :hovered-element)
-                                     (.getX event)
-                                     (.getY event)))
+  (set-properties!
+    view-node :selection
+    (g/with-auto-evaluation-context evaluation-context
+      (let [layout (get-property view-node :layout evaluation-context)
+            lines (get-property view-node :lines evaluation-context)
+            x (.getX event)
+            y (.getY event)
+            resource-node (get-property view-node :resource-node evaluation-context)
+            lsp (lsp/get-node-lsp (:basis evaluation-context) resource-node)]
+        (cond-> (data/mouse-moved (get-property view-node :lines evaluation-context)
+                                  (get-property view-node :cursor-ranges evaluation-context)
+                                  (get-property view-node :visible-regions evaluation-context)
+                                  layout
+                                  (get-property view-node :minimap-layout evaluation-context)
+                                  (get-property view-node :gesture-start evaluation-context)
+                                  (get-property view-node :hovered-element evaluation-context)
+                                  x
+                                  y)
+                lsp
+                (merge
+                  (let [hover-character-cursor (data/canvas->character-cursor layout lines x y)]
+                    (request-lsp-hover! view-node lsp resource-node hover-character-cursor evaluation-context)))))))
   (refresh-mouse-cursor! view-node event))
 
 (defn handle-mouse-released! [view-node ^MouseEvent event]
@@ -2340,6 +2472,7 @@
                                         (get-property view-node :gesture-start)
                                         (.getDeltaX event)
                                         (.getDeltaY event))))
+    (hide-hover! view-node)
     (hide-suggestions! view-node)))
 
 ;; -----------------------------------------------------------------------------
@@ -2352,6 +2485,7 @@
   (data/can-paste? (get-property view-node :cursor-ranges evaluation-context) clipboard))
 
 (defn cut! [view-node clipboard]
+  (hide-hover! view-node)
   (hide-suggestions! view-node)
   (set-properties! view-node nil
                    (data/cut! (get-property view-node :lines)
@@ -2362,6 +2496,7 @@
 
 (defn copy! [view-node clipboard]
   (hide-suggestions! view-node)
+  (hide-hover! view-node)
   (set-properties! view-node nil
                    (data/copy! (get-property view-node :lines)
                                (get-property view-node :cursor-ranges)
@@ -2369,6 +2504,7 @@
 
 (defn paste! [view-node clipboard]
   (hide-suggestions! view-node)
+  (hide-hover! view-node)
   (set-properties! view-node nil
                    (data/paste (get-property view-node :indent-level-pattern)
                                (get-property view-node :indent-string)
@@ -2381,6 +2517,7 @@
 
 (defn split-selection-into-lines! [view-node]
   (hide-suggestions! view-node)
+  (hide-hover! view-node)
   (set-properties! view-node :selection
                    (data/split-selection-into-lines (get-property view-node :lines)
                                                     (get-property view-node :cursor-ranges))))
@@ -2491,6 +2628,7 @@
                     (.hide popup)
                     (open-resource-fn resource {:cursor-range cursor-range}))]
       (hide-suggestions! view-node)
+      (hide-hover! view-node)
       (doto list-view
         ui/apply-css!
         (.setOnMouseClicked
@@ -2821,6 +2959,7 @@
 
 (defn- find-next! [view-node]
   (hide-suggestions! view-node)
+  (hide-hover! view-node)
   (set-properties! view-node :selection
                    (data/find-next (get-property view-node :lines)
                                    (get-property view-node :cursor-ranges)
@@ -2832,6 +2971,7 @@
 
 (defn- find-prev! [view-node]
   (hide-suggestions! view-node)
+  (hide-hover! view-node)
   (set-properties! view-node :selection
                    (data/find-prev (get-property view-node :lines)
                                    (get-property view-node :cursor-ranges)
@@ -2843,6 +2983,7 @@
 
 (defn- replace-next! [view-node]
   (hide-suggestions! view-node)
+  (hide-hover! view-node)
   (set-properties! view-node nil
                    (data/replace-next (get-property view-node :lines)
                                       (get-property view-node :cursor-ranges)
@@ -2856,6 +2997,7 @@
 
 (defn- replace-all! [view-node]
   (hide-suggestions! view-node)
+  (hide-hover! view-node)
   (let [^String find-term (.getValue find-term-property)]
     (when (pos? (.length find-term))
       (set-properties! view-node nil
@@ -2898,6 +3040,9 @@
        (cond
          (in-tab-trigger? view-node)
          (exit-tab-trigger! view-node)
+
+         (hover-visible? view-node)
+         (hide-hover! view-node)
 
          (suggestions-visible? view-node)
          (hide-suggestions! view-node)
@@ -3045,6 +3190,72 @@
     (.setFill gc Color/WHITE)
     (.fillText gc (format "%.3f fps" fps) (- right 5.0) (+ top 16.0))))
 
+(defn- plaintext->markdown [s]
+  (str "<p>"
+       (string/replace s #"[<>]" {"<" "&lt;" ">" "&gt;"})
+       "</p>"))
+
+(defn- handle-hover-popup-mouse-entered! [view-node _]
+  (some-> (get-property view-node :hover-request) ui/cancel))
+
+(defn- handle-hover-popup-mouse-exited! [view-node _]
+  (set-properties! view-node nil (schedule-hover-refresh! view-node)))
+
+(defn handle-hover-popup-auto-hide! [view-node _]
+  (hide-hover! view-node))
+
+(defn- hover-popup-view [props]
+  (let [{:keys [canvas-repaint-info project screen-bounds
+                hover-showing-regions hover-showing-region view-node]} props
+        {:keys [^Canvas canvas layout lines]} canvas-repaint-info
+        ^Rect r (->> hover-showing-region
+                     (data/adjust-cursor-range lines)
+                     (data/cursor-range-rects layout lines)
+                     first)
+        anchor (.localToScreen canvas
+                               (min (max 0.0 (.-x r)) (.getWidth canvas))
+                               (min (max 0.0 (.-y r)) (.getHeight canvas)))
+        ^Rectangle2D screen-rect (coll/some #(when (.contains ^Rectangle2D % anchor) %)
+                                            screen-bounds)
+        max-popup-height (- (.getY anchor) (.getMinY screen-rect))]
+    {:fx/type fxui/with-popup
+     :desc {:fx/type fxui/ext-value :value canvas}
+     :showing true
+     :anchor-x (- (.getX anchor) 4)
+     :anchor-y (+ (.getY anchor) 6)
+     :anchor-location :window-bottom-left
+     :auto-hide true
+     :on-auto-hide (fn/partial handle-hover-popup-auto-hide! view-node)
+     :auto-fix true
+     :hide-on-escape true
+     :consume-auto-hiding-events true
+     :content
+     [{:fx/type fx.stack-pane/lifecycle
+       :stylesheets [(str (io/resource "editor.css"))]
+       :on-mouse-entered (fn/partial handle-hover-popup-mouse-entered! view-node)
+       :on-mouse-exited (fn/partial handle-hover-popup-mouse-exited! view-node)
+       :children
+       [{:fx/type fx.region/lifecycle
+         :min-width 10
+         :min-height 10
+         :style-class "hover-background"}
+        {:fx/type markdown/view
+         :content (->> hover-showing-regions
+                       (mapcat
+                         (fn [region]
+                           (when (:hoverable region)
+                             (case (:type region)
+                               :diagnostic (map plaintext->markdown (:messages region))
+                               :hover [(let [{:keys [content]} region
+                                             {:keys [type value]} content]
+                                         (case type
+                                           :plaintext (plaintext->markdown value)
+                                           :markdown value))]))))
+                       (string/join "\n\n<hr>\n\n"))
+         :project project
+         :max-width 350.0
+         :max-height max-popup-height}]}]}))
+
 (defn repaint-view! [view-node elapsed-time {:keys [cursor-visible editable] :as _opts}]
   (assert (boolean? cursor-visible))
 
@@ -3069,7 +3280,6 @@
   ;; Repaint the view.
   (let [prev-canvas-repaint-info (g/user-data view-node :canvas-repaint-info)
         prev-cursor-repaint-info (g/user-data view-node :cursor-repaint-info)
-        existing-completion-popup-renderer (g/user-data view-node :completion-popup-renderer)
 
         [resource-node
          canvas-repaint-info
@@ -3087,7 +3297,7 @@
 
     ;; Show completion suggestions if appropriate.
     (when editable
-      (let [renderer (or existing-completion-popup-renderer
+      (let [renderer (or (g/user-data view-node :completion-popup-renderer)
                          (g/user-data!
                            view-node
                            :completion-popup-renderer
@@ -3114,6 +3324,29 @@
                      :window-x (some-> (.getScene canvas) .getWindow .getX)
                      :window-y (some-> (.getScene canvas) .getWindow .getY)
                      :screen-bounds (mapv #(.getVisualBounds ^Screen %) (Screen/getScreens))}))))
+
+    ;; Repaint hovered regions
+    (g/with-auto-evaluation-context evaluation-context
+      (let [hover-renderer (or (g/user-data view-node :hover-popup-renderer)
+                               (g/user-data!
+                                 view-node
+                                 :hover-popup-renderer
+                                 (fx/create-renderer
+                                   :error-handler error-reporting/report-exception!
+                                   :middleware (comp fxui/wrap-dedupe-desc
+                                                     (fx/wrap-map-desc #'hover-popup-view)))))
+            hover-showing-regions (g/node-value view-node :hover-showing-regions evaluation-context)]
+        (hover-renderer
+          (when hover-showing-regions
+            (let [^Canvas canvas (:canvas canvas-repaint-info)]
+              {:hover-showing-regions hover-showing-regions
+               :hover-showing-region (g/node-value view-node :hover-showing-region evaluation-context)
+               :canvas-repaint-info canvas-repaint-info
+               :project (g/node-value view-node :project evaluation-context)
+               :view-node view-node
+               :screen-bounds (mapv #(.getVisualBounds ^Screen %) (Screen/getScreens))
+               :window-x (some-> (.getScene canvas) .getWindow .getX)
+               :window-y (some-> (.getScene canvas) .getWindow .getY)})))))
 
     ;; Repaint cursors if needed.
     (when-not (identical? prev-cursor-repaint-info cursor-repaint-info)
@@ -3327,70 +3560,6 @@
         (ui/event-handler e
           (handle-input-method-changed! view-node e))))))
 
-(defmulti hoverable-region-view :type)
-
-(defmethod hoverable-region-view :diagnostic [{:keys [messages]}]
-  {:fx/type fx.v-box/lifecycle
-   :children (into []
-                   (comp
-                     (map (fn [message]
-                            {:fx/type fx.label/lifecycle
-                             :padding 5
-                             :wrap-text true
-                             :text message}))
-                     (interpose {:fx/type fx.region/lifecycle
-                                 :style-class "hover-separator"}))
-                   messages)})
-
-(defn- hover-view [^Canvas canvas {:keys [hovered-element layout lines]}]
-  (let [^Rect r (->> hovered-element
-                     :region
-                     (data/adjust-cursor-range lines)
-                     (data/cursor-range-rects layout lines)
-                     first)
-        anchor (.localToScreen canvas (.-x r) (.-y r))]
-    {:fx/type fxui/with-popup
-     :desc {:fx/type fxui/ext-value :value canvas}
-     :showing true
-     :anchor-x (.getX anchor)
-     :anchor-y (.getY anchor)
-     :anchor-location :window-bottom-left
-     :auto-hide true
-     :auto-fix true
-     :hide-on-escape true
-     :consume-auto-hiding-events true
-     :content [{:fx/type fx.v-box/lifecycle
-                :stylesheets [(str (io/resource "dialogs.css"))]
-                :style-class "hover-popup"
-                :max-width 300
-                :children [(assoc (:region hovered-element)
-                             :fx/type hoverable-region-view
-                             :v-box/vgrow :always)]}]}))
-
-(defn- create-hover! [view-node canvas ^Tab tab]
-  (let [state (atom nil)
-        refresh (fn refresh []
-                  (g/with-auto-evaluation-context evaluation-context
-                    (let [hovered-element (g/node-value view-node :hovered-element evaluation-context)]
-                      (if (and (= :region (:type hovered-element))
-                               (:hoverable (:region hovered-element)))
-                        (reset! state {:hovered-element hovered-element
-                                       :layout (g/node-value view-node :layout evaluation-context)
-                                       :lines (g/node-value view-node :lines evaluation-context)})
-                        (reset! state nil)))))
-        timer (ui/->timer 10 "hover-code-editor-timer" (fn [_ _ _]
-                                                         (when (and (.isSelected tab) (not (ui/ui-disabled?)))
-                                                           (refresh))))]
-    (fx/mount-renderer state (fx/create-renderer
-                               :error-handler error-reporting/report-exception!
-                               :middleware (comp
-                                             fxui/wrap-dedupe-desc
-                                             (fx/wrap-map-desc #(hover-view canvas %)))))
-    (ui/timer-start! timer)
-    (fn dispose []
-      (ui/timer-stop! timer)
-      (reset! state nil))))
-
 (defn- consume-breakpoint-popup-events [^Event e]
   (when-not (and (instance? KeyEvent e)
                  (= KeyEvent/KEY_PRESSED (.getEventType e))
@@ -3560,7 +3729,6 @@
                               (fn [_ elapsed-time _]
                                 (when (and (.isSelected tab) (not (ui/ui-disabled?)))
                                   (repaint-view! view-node elapsed-time {:cursor-visible true :editable editable}))))
-        dispose-hover! (create-hover! view-node canvas tab)
         dispose-breakpoint-editor! (create-breakpoint-editor! view-node canvas tab)
         context-env {:clipboard (Clipboard/getSystemClipboard)
                      :editable editable
@@ -3647,7 +3815,6 @@
                              (lsp/close-view! lsp view-node)
                              (ui/kill-event-dispatch! canvas)
                              (ui/timer-stop! repainter)
-                             (dispose-hover!)
                              (dispose-breakpoint-editor!)
                              (dispose-goto-line-bar! goto-line-bar)
                              (dispose-find-bar! find-bar)

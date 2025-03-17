@@ -210,8 +210,7 @@
       (let [remaining-responses (dec (requests responses-ch))]
         (cond
           (:error response) (log/warn :message "Language server responded with error" :server server :error (:error response))
-          (nil? (:result response)) (log/info :message "Language server returned no response" :server server)
-          :else (a/put! responses-ch (server-response-value (:result response))))
+          (some? (:result response)) (a/put! responses-ch (server-response-value (:result response))))
         (let [state (if (zero? remaining-responses)
                       (do (a/close! responses-ch)
                           (-> state
@@ -868,21 +867,37 @@
     ;; Don't ask the servers about dependency (zip) resources
     (do (result-callback {:complete true :items []}) nil)))
 
+(defn capability-resolve-completions? [capability]
+  (-> capability :completion :resolve boolean))
+
 (defn resolve-completion! [lsp completion result-callback & {:keys [timeout-ms]
                                                              :or {timeout-ms 5000}}]
   (if-let [completion-out (:editor.lsp.server-state/out (meta completion))]
     (lsp (bound-fn [state]
            (let [ch (a/chan 1)]
              (a/go (result-callback (or (<! ch) completion)))
-             (send-requests! state
-                             ch
-                             :requests-fn (fn [_ {:keys [out]}]
-                                            (when (= out completion-out)
-                                              [(lsp.server/resolve-completion
-                                                 completion
-                                                 #(vary-meta % dissoc :editor.lsp.server-state/out))]))
-                             :timeout-ms timeout-ms))))
+             (send-requests!
+               state ch
+               :capabilities-pred capability-resolve-completions?
+               :requests-fn (fn [_ {:keys [out]}]
+                              (when (= out completion-out)
+                                [(lsp.server/resolve-completion
+                                   completion
+                                   #(vary-meta % dissoc :editor.lsp.server-state/out))]))
+               :timeout-ms timeout-ms))))
     (result-callback completion)))
+
+(defn hover! [lsp resource cursor result-callback & {:keys [timeout-ms]
+                                                     :or {timeout-ms 1000}}]
+  (lsp (bound-fn [state]
+         (let [ch (a/chan 1 cat)]
+           (a/go (result-callback (<! (a/into [] ch))))
+           (send-requests!
+             state ch
+             :capabilities-pred :hover
+             :language (resource/language resource)
+             :timeout-ms timeout-ms
+             :requests [(lsp.server/hover resource cursor)])))))
 
 (comment
   (val (first @running-lsps))

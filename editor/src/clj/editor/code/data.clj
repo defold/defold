@@ -214,8 +214,10 @@
 (defn cursor-range-starts-before-row? [^long row ^CursorRange cursor-range]
   (> row (.row (cursor-range-start cursor-range))))
 
-(defn cursor-range-contains? [^CursorRange cursor-range ^Cursor cursor]
-  ;; NOTE: Returns true when the cursor is on either edge of the cursor range.
+(defn cursor-range-contains?
+  "Note: Returns true when the cursor is on either edge of the cursor range.
+  See also: [[cursor-range-contains-exclusive?]]"
+  [^CursorRange cursor-range ^Cursor cursor]
   (let [start (cursor-range-start cursor-range)
         end (cursor-range-end cursor-range)]
     (cond (= (.row start) (.row end) (.row cursor))
@@ -227,6 +229,25 @@
 
           (= (.row end) (.row cursor))
           (>= (.col end) (.col cursor))
+
+          :else
+          (and (<= (.row start) (.row cursor))
+               (>= (.row end) (.row cursor))))))
+
+(defn cursor-range-contains-exclusive?
+  "See also: [[cursor-range-contains?]]"
+  [^CursorRange cursor-range ^Cursor cursor]
+  (let [start (cursor-range-start cursor-range)
+        end (cursor-range-end cursor-range)]
+    (cond (= (.row start) (.row end) (.row cursor))
+          (and (<= (.col start) (.col cursor))
+               (> (.col end) (.col cursor)))
+
+          (= (.row start) (.row cursor))
+          (<= (.col start) (.col cursor))
+
+          (= (.row end) (.row cursor))
+          (> (.col end) (.col cursor))
 
           :else
           (and (<= (.row start) (.row cursor))
@@ -278,6 +299,38 @@
       ;; intersection, A before B
       :else
       [(->CursorRange a-start b-start)])))
+
+(defn cursor-range-intersection
+  "Returns either nil if no intersection or an intersection cursor range
+  Note: returned range is never empty; the result is nil if 2 ranges only touch"
+  [^CursorRange a ^CursorRange b]
+  (let [a-start (cursor-range-start a)
+        a-end (cursor-range-end a)
+        b-start (cursor-range-start b)
+        b-end (cursor-range-end b)]
+    (cond
+      ;; no intersection
+      (or (cursor-before-or-same? b-end a-start)
+          (cursor-before-or-same? a-end b-start))
+      nil
+
+      ;; A within B
+      (and (cursor-before-or-same? b-start a-start)
+           (cursor-before-or-same? a-end b-end))
+      (when-not (cursor-range-empty? a) a)
+
+      ;; B within A
+      (and (cursor-before? a-start b-start)
+           (cursor-before? b-end a-end))
+      (when-not (cursor-range-empty? b) b)
+
+      ;; intersection, B before A
+      (cursor-before? b-end a-end)
+      (->CursorRange a-start b-end)
+
+      ;; intersection, A before B
+      :else
+      (->CursorRange b-start a-end))))
 
 (defn- cursor-range-midpoint-follows? [^CursorRange cursor-range ^Cursor cursor]
   (let [start (cursor-range-start cursor-range)
@@ -695,6 +748,19 @@
             (recur next-col end-x)
             (max 0 (+ col (long (+ 0.5 (/ (- line-x start-x) (- end-x start-x))))))))))))
 
+(defn x->character-col [^LayoutInfo layout ^double x ^String line]
+  (let [line-x (x->doc-x layout x)
+        line-length (count line)]
+    (loop [col 0
+           start-x 0.0]
+      (if (<= line-length col)
+        nil
+        (let [next-col (inc col)
+              end-x (double (advance-text layout line col next-col start-x))]
+          (if (<= end-x line-x)
+            (recur next-col end-x)
+            (max 0 (+ col (long (/ (- line-x start-x) (- end-x start-x)))))))))))
+
 (defn adjust-row
   ^long [lines ^long row]
   (max 0 (min row (dec (count lines)))))
@@ -747,11 +813,25 @@
   (into [] (cursor-ranges->row-runs-xform lines) cursor-ranges))
 
 (defn canvas->cursor
+  "Returns cursor closest to the mouse position
+
+  See also: [[canvas->character-cursor]]"
   ^Cursor [^LayoutInfo layout lines x y]
   (let [row (y->row layout y)
         line (get lines (adjust-row lines row))
         col (x->col layout x line)]
     (->Cursor row col)))
+
+(defn canvas->character-cursor
+  "Returns cursor situated before the character that is hovered by the mouse
+
+  See also: [[canvas->cursor]]"
+  ^Cursor [^LayoutInfo layout lines x y]
+  (let [row (y->row layout y)
+        adjusted-row (adjust-row lines row)]
+    (when (= adjusted-row row)
+      (when-let [col (x->character-col layout x (get lines adjusted-row))]
+        (->Cursor row col)))))
 
 (defn- peek!
   "Like peek, but works for transient vectors."
@@ -2653,8 +2733,7 @@
 
     :else
     (when-some [clickable-region (some (fn [region]
-                                         (when (and (or (some? (:on-click! region))
-                                                        (:hoverable region))
+                                         (when (and (some? (:on-click! region))
                                                     (some #(rect-contains? % x y)
                                                           (cursor-range-rects layout lines region)))
                                            region))
