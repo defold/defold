@@ -4109,38 +4109,43 @@ bail:
             VkFence fence;
             VkCommandBuffer cmd_buffer = BeginSingleTimeCommands(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPoolWorker);
 
-            TransitionImageLayout(cmd_buffer, tex, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, ap.m_Params.m_MipMap, tex->m_Depth);
-
             uint16_t tex_layer_count  = dmMath::Max(tex->m_LayerCount, ap.m_Params.m_LayerCount);
             uint16_t tex_depth        = dmMath::Max(tex->m_Depth, ap.m_Params.m_Depth);
             uint8_t tex_bpp           = GetTextureFormatBitsPerPixel(ap.m_Params.m_Format);
             uint32_t tex_data_size    = tex_bpp * ap.m_Params.m_Width * ap.m_Params.m_Height * tex_depth * tex_layer_count;
             TextureFormat format_orig = ap.m_Params.m_Format;
             void*  tex_data_ptr       = (void*) ap.m_Params.m_Data;
+            bool is_memoryless        = IsTextureMemoryless(tex);
 
             DeviceBuffer stage_buffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
-            VkResult res = CreateDeviceBuffer(
-                context->m_PhysicalDevice.m_Device,
-                context->m_LogicalDevice.m_Device, tex_data_size,
-                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stage_buffer);
-            CHECK_VK_ERROR(res);
 
-            // Note: There's no RGB support in Vulkan. We have to expand this to four channels
-            // TODO: Can we use R11G11B10 somehow?
-            if (format_orig == TEXTURE_FORMAT_RGB)
+            if (!is_memoryless)
             {
-                uint32_t data_pixel_count = ap.m_Params.m_Width * ap.m_Params.m_Height * tex_layer_count;
-                uint8_t* data_new         = new uint8_t[data_pixel_count * 4]; // RGBA => 4 bytes per pixel
+                TransitionImageLayout(cmd_buffer, tex, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, ap.m_Params.m_MipMap, tex->m_Depth);
 
-                RepackRGBToRGBA(data_pixel_count, (uint8_t*) tex_data_ptr, data_new);
-                tex_data_ptr  = data_new;
-                tex_bpp       = 32;
-                tex_data_size = tex_bpp * ap.m_Params.m_Width * ap.m_Params.m_Height * tex_depth * tex_layer_count;
+                VkResult res = CreateDeviceBuffer(
+                    context->m_PhysicalDevice.m_Device,
+                    context->m_LogicalDevice.m_Device, tex_data_size,
+                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stage_buffer);
+                CHECK_VK_ERROR(res);
+
+                // Note: There's no RGB support in Vulkan. We have to expand this to four channels
+                // TODO: Can we use R11G11B10 somehow?
+                if (format_orig == TEXTURE_FORMAT_RGB)
+                {
+                    uint32_t data_pixel_count = ap.m_Params.m_Width * ap.m_Params.m_Height * tex_layer_count;
+                    uint8_t* data_new         = new uint8_t[data_pixel_count * 4]; // RGBA => 4 bytes per pixel
+
+                    RepackRGBToRGBA(data_pixel_count, (uint8_t*) tex_data_ptr, data_new);
+                    tex_data_ptr  = data_new;
+                    tex_bpp       = 32;
+                    tex_data_size = tex_bpp * ap.m_Params.m_Width * ap.m_Params.m_Height * tex_depth * tex_layer_count;
+                }
+
+                tex_data_size = (uint32_t) ceil((float) tex_data_size / 8.0f);
+
+                CopyToTextureWithStageBuffer(context, cmd_buffer, &stage_buffer, tex, ap.m_Params, tex_data_size, tex_data_ptr);
             }
-
-            tex_data_size = (uint32_t) ceil((float) tex_data_size / 8.0f);
-
-            CopyToTextureWithStageBuffer(context, cmd_buffer, &stage_buffer, tex, ap.m_Params, tex_data_size, tex_data_ptr);
 
             TransitionImageLayout(cmd_buffer, tex, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, ap.m_Params.m_MipMap, tex->m_LayerCount);
 
@@ -4165,11 +4170,14 @@ bail:
             vkWaitForFences(context->m_LogicalDevice.m_Device, 1, &fence, VK_TRUE, UINT64_MAX);
             vkFreeCommandBuffers(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPoolWorker, 1, &cmd_buffer);
 
-            DestroyDeviceBuffer(context->m_LogicalDevice.m_Device, &stage_buffer.m_Handle);
-
-            if (format_orig == TEXTURE_FORMAT_RGB)
+            if (!is_memoryless)
             {
-                delete[] (uint8_t*)tex_data_ptr;
+                DestroyDeviceBuffer(context->m_LogicalDevice.m_Device, &stage_buffer.m_Handle);
+
+                if (format_orig == TEXTURE_FORMAT_RGB)
+                {
+                    delete[] (uint8_t*)tex_data_ptr;
+                }
             }
         }
 
@@ -4251,7 +4259,6 @@ bail:
             texture->m_MipMapCount    = dmMath::Max(texture->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
             texture->m_LayerCount     = tex_layer_count;
 
-            // Not thread safe, but no-one should be touching the texture right now anyway
             VulkanSetTextureParamsInternal(texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, 1.0f);
         }
     }
