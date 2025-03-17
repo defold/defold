@@ -3661,12 +3661,9 @@ bail:
         return offset;
     }
 
-    static void CopyToTextureWithStageBuffer(VulkanContext* context, VkCommandBuffer cmd_buffer, DeviceBuffer* stage_buffer, VulkanTexture* texture, const TextureParams& params, uint32_t tex_data_size, const void* tex_data_ptr)
+    static void CopyToTextureLayersWithStageBuffer(VulkanContext* context, VkCommandBuffer cmd_buffer, DeviceBuffer* stage_buffer, VulkanTexture* texture, const TextureParams& params)
     {
-        VkResult res = WriteToDeviceBuffer(context->m_LogicalDevice.m_Device, tex_data_size, 0, tex_data_ptr, stage_buffer);
-        CHECK_VK_ERROR(res);
-
-        uint32_t slice_size = tex_data_size / texture->m_LayerCount;
+        uint32_t slice_size = stage_buffer->m_MemorySize / texture->m_LayerCount;
         uint32_t layer_count = texture->m_LayerCount;
 
         // NOTE: We should check max layer count in the device properties!
@@ -3694,6 +3691,13 @@ bail:
             layer_count, vk_copy_regions);
 
         delete[] vk_copy_regions;
+    }
+
+    static void CopyToTextureWithStageBuffer(VulkanContext* context, VkCommandBuffer cmd_buffer, DeviceBuffer* stage_buffer, VulkanTexture* texture, const TextureParams& params, uint32_t tex_data_size, const void* tex_data_ptr)
+    {
+        VkResult res = WriteToDeviceBuffer(context->m_LogicalDevice.m_Device, tex_data_size, 0, tex_data_ptr, stage_buffer);
+        CHECK_VK_ERROR(res);
+        CopyToTextureLayersWithStageBuffer(context, cmd_buffer, stage_buffer, texture, params);
     }
 
     static void CopyToTexture(VulkanContext* context, const TextureParams& params,
@@ -3761,29 +3765,7 @@ bail:
             res = WriteToDeviceBuffer(vk_device, texDataSize, 0, texDataPtr, &stage_buffer);
             CHECK_VK_ERROR(res);
 
-            // NOTE: We should check max layer count in the device properties!
-            VkBufferImageCopy* vk_copy_regions = new VkBufferImageCopy[layer_count];
-            for (int i = 0; i < layer_count; ++i)
-            {
-                VkBufferImageCopy& vk_copy_region = vk_copy_regions[i];
-                vk_copy_region.bufferOffset                    = i * slice_size;
-                vk_copy_region.bufferRowLength                 = 0;
-                vk_copy_region.bufferImageHeight               = 0;
-                vk_copy_region.imageOffset.x                   = params.m_X;
-                vk_copy_region.imageOffset.y                   = params.m_Y;
-                vk_copy_region.imageOffset.z                   = params.m_Z;
-                vk_copy_region.imageExtent.width               = params.m_Width;
-                vk_copy_region.imageExtent.height              = params.m_Height;
-                vk_copy_region.imageExtent.depth               = dmMath::Max((uint32_t) 1, (uint32_t) params.m_Depth);
-                vk_copy_region.imageSubresource.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
-                vk_copy_region.imageSubresource.mipLevel       = params.m_MipMap;
-                vk_copy_region.imageSubresource.baseArrayLayer = i;
-                vk_copy_region.imageSubresource.layerCount     = 1;
-            }
-
-            vkCmdCopyBufferToImage(vk_command_buffer, stage_buffer.m_Handle.m_Buffer,
-                textureOut->m_Handle.m_Image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                layer_count, vk_copy_regions);
+            CopyToTextureLayersWithStageBuffer(context, vk_command_buffer, &stage_buffer, textureOut, params);
 
             res = vkEndCommandBuffer(vk_command_buffer);
             CHECK_VK_ERROR(res);
@@ -3806,8 +3788,6 @@ bail:
             DestroyDeviceBuffer(vk_device, &stage_buffer.m_Handle);
 
             vkFreeCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, 1, &vk_command_buffer);
-
-            delete[] vk_copy_regions;
         }
         else
         {
