@@ -382,11 +382,10 @@ namespace dmGraphics
 
         VkPhysicalDeviceFragmentShaderInterlockFeaturesEXT m_FragmentShaderInterlockFeatures;
 
-        // Async texture upload constructs
+        // Async process resources
         dmJobThread::HContext              m_JobThread;
         SetTextureAsyncState               m_SetTextureAsyncState;
-        VkSemaphore                        m_SetTextureAsyncSemaphore;
-        VkFence                            m_SetTextureAsyncFence;
+        dmMutex::HMutex                    m_AssetHandleContainerMutex;
 
         // Main device rendering constructs
         dmArray<VkFramebuffer>          m_MainFrameBuffers;
