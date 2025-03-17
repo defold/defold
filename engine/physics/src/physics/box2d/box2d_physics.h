@@ -47,8 +47,10 @@ namespace dmPhysics
         SHAPE_TYPE_GRID,
     };
 
+    struct ShapeData;
     struct ShapeData
     {
+        ShapeData*  m_Resource;
         b2ShapeId   m_ShapeId;
         b2Vec2      m_CreationPosition;
         ShapeType   m_Type;

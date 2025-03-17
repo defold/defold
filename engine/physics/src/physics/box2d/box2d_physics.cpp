@@ -356,7 +356,7 @@ namespace dmPhysics
         return dmMath::Min(v[0], v[1]);
     }
 
-    static void UpdateScale(HWorld2D world, Body* body)
+    static void UpdateScale(HWorld2D world, Body* body, bool force_update)
     {
         dmTransform::Transform world_transform;
         (*world->m_GetWorldTransformCallback)(b2Body_GetUserData(body->m_BodyId), world_transform);
@@ -369,9 +369,9 @@ namespace dmPhysics
             ShapeData* shape_data = body->m_Shapes[i];
             b2ShapeId shape_id = shape_data->m_ShapeId;
 
-            if (shape_data->m_LastScale == object_scale)
+            if (shape_data->m_LastScale == object_scale && !force_update)
             {
-                break;
+                continue;
             }
 
             shape_data->m_LastScale = object_scale;
@@ -538,7 +538,7 @@ namespace dmPhysics
                 // Scaling
                 if(retrieve_gameworld_transform)
                 {
-                    UpdateScale(world, body);
+                    UpdateScale(world, body, false);
                 }
             }
         }
@@ -931,6 +931,14 @@ namespace dmPhysics
         memset(shape_data->m_CellFilters, 0x0, size);
     }
 
+    static inline void FreeGridShapeData(GridShapeData* shape_data)
+    {
+        free(shape_data->m_Cells);
+        free(shape_data->m_CellFlags);
+        free(shape_data->m_CellPolygonShapes);
+        free(shape_data->m_CellFilters);
+    }
+
     HCollisionShape2D NewGridShape2D(HContext2D context, HHullSet2D hull_set,
                                      const Point3& position,
                                      uint32_t cell_width, uint32_t cell_height,
@@ -1300,9 +1308,10 @@ namespace dmPhysics
                 CircleShapeData* circle_shape      = (CircleShapeData*) shape;
                 CircleShapeData* circle_shape_prim = new CircleShapeData;
 
-                circle_shape_prim->m_ShapeDataBase.m_Type = shape->m_Type;
-                circle_shape_prim->m_Circle.center        = TransformScaleB2(transform, scale, circle_shape->m_Circle.center);
-                circle_shape_prim->m_Circle.radius        = circle_shape->m_Circle.radius;
+                circle_shape_prim->m_ShapeDataBase.m_Type     = shape->m_Type;
+                circle_shape_prim->m_ShapeDataBase.m_Resource = (ShapeData*) shape;
+                circle_shape_prim->m_Circle.center            = TransformScaleB2(transform, scale, circle_shape->m_Circle.center);
+                circle_shape_prim->m_Circle.radius            = circle_shape->m_Circle.radius;
 
                 if (context->m_AllowDynamicTransforms)
                 {
@@ -1383,6 +1392,8 @@ namespace dmPhysics
                             b2DestroyShape(grid_shape->m_CellPolygonShapes[i], false);
                     }
                 }
+
+                FreeGridShapeData(grid_shape);
                 delete grid_shape;
             } break;
             default: break;
@@ -2139,10 +2150,8 @@ namespace dmPhysics
 
     void ReplaceShape2D(HContext2D context, HCollisionShape2D old_shape, HCollisionShape2D new_shape)
     {
-        ShapeData* old_shape_data = (ShapeData*) old_shape;
+        // ShapeData* old_shape_data = (ShapeData*) old_shape;
         ShapeData* new_shape_data = (ShapeData*) new_shape;
-
-        uint64_t old_shape_h = ToOpaqueHandle(old_shape_data->m_ShapeId);
 
         for (uint32_t i = 0; i < context->m_Worlds.Size(); ++i)
         {
@@ -2152,72 +2161,53 @@ namespace dmPhysics
             {
                 Body* body = world->m_Bodies[j];
 
+                bool shape_found = false;
+
                 for (int s = 0; s < body->m_ShapeCount; ++s)
                 {
-                    uint64_t shape_h = ToOpaqueHandle(body->m_Shapes[s]->m_ShapeId);
-
-                    if (shape_h == old_shape_h)
+                    if (body->m_Shapes[s]->m_Resource == new_shape_data)
                     {
-                        // Err not sure what to do here
-                        assert(0);
-                    }
-                }
-            }
+                        shape_found = true;
 
-            /*
-            for (b2Body* body = context->m_Worlds[i]->m_World.GetBodyList(); body; body = body->GetNext())
-            {
-                b2Fixture* fixture = body->GetFixtureList();
-                float mass = body->GetMass();
-                while (fixture)
-                {
-                    b2Fixture* next_fixture = fixture->GetNext();
-                    if (fixture->GetShape() == old_shape)
-                    {
-                        b2FixtureDef def;
-                        def.density = 1.0f;
-                        def.filter = fixture->GetFilterData(0);
-                        def.friction = fixture->GetFriction();
-                        def.isSensor = fixture->IsSensor();
-                        def.restitution = fixture->GetRestitution();
-                        def.shape = (b2Shape*)new_shape;
-                        def.userData = fixture->GetUserData();
-                        b2Fixture* new_fixture = body->CreateFixture(&def);
-
-                        // Copy filter data per child
-                        b2Shape* new_b2_shape = (b2Shape*) new_shape;
-                        b2Shape* old_b2_shape = fixture->GetShape();
-                        if (new_b2_shape->m_filterPerChild)
+                        if (b2Shape_IsValid(body->m_Shapes[s]->m_ShapeId))
                         {
-                            uint32_t new_child_count = new_b2_shape->GetChildCount();
-                            uint32_t old_child_count = old_b2_shape->GetChildCount();
-                            for (uint32_t c = 0; c < new_child_count; ++c)
+                            switch(body->m_Shapes[s]->m_Type)
                             {
-                                b2Filter filter;
-
-                                if (c < old_child_count)
+                            case SHAPE_TYPE_CIRCLE:
                                 {
-                                    filter = fixture->GetFilterData(c);
-                                }
-                                else
+                                    CircleShapeData* new_circle_shape = (CircleShapeData*) new_shape_data;
+                                    CircleShapeData* circle_shape     = (CircleShapeData*) body->m_Shapes[s];
+                                    circle_shape->m_ShapeDataBase.m_Resource      = new_shape_data;
+                                    circle_shape->m_ShapeDataBase.m_CreationScale = new_circle_shape->m_Circle.radius;
+                                } break;
+                            case SHAPE_TYPE_POLYGON:
                                 {
-                                    // The new shape has more children than the old
-                                    // Use filter data from the first child
-                                    filter = fixture->GetFilterData(0);
-                                }
+                                    PolygonShapeData* new_polygon_shape = (PolygonShapeData*) new_shape_data;
+                                    PolygonShapeData* polygon_shape     = (PolygonShapeData*) body->m_Shapes[s];
+                                    memcpy(polygon_shape, new_polygon_shape, sizeof(PolygonShapeData));
+                                } break;
+                            case SHAPE_TYPE_GRID:
+                                {
+                                    GridShapeData* new_grid_shape = (GridShapeData*) new_shape_data;
+                                    GridShapeData* grid_shape     = (GridShapeData*) body->m_Shapes[s];
 
-                                new_fixture->SetFilterData(filter, c);
+                                    // Free and replace grid so we can recreate cells correctly
+                                    FreeGridShapeData(grid_shape);
+                                    memcpy(grid_shape, new_grid_shape, sizeof(GridShapeData));
+                                    InitializeGridSHapeData(grid_shape);
+                                } break;
                             }
                         }
-
-                        body->DestroyFixture(fixture);
-                        body->SetActive(true);
                     }
-                    fixture = next_fixture;
                 }
-                UpdateMass2D(body, mass);
+
+                if (shape_found)
+                {
+                    b2Body_Enable(body->m_BodyId);
+                    UpdateMass2D(world, body, b2Body_GetMass(body->m_BodyId));
+                    UpdateScale(world, body, true); // Force update to set the new shape parameters
+                }
             }
-            */
         }
     }
 
