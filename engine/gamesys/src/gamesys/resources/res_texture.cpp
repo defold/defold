@@ -47,8 +47,10 @@ namespace dmGameSystem
         {
             CASE_TT(TYPE_2D,       TYPE_2D);
             CASE_TT(TYPE_2D_ARRAY, TYPE_2D_ARRAY);
+            CASE_TT(TYPE_3D,       TYPE_3D);
             CASE_TT(TYPE_CUBEMAP,  TYPE_CUBE_MAP);
             CASE_TT(TYPE_2D_IMAGE, TYPE_IMAGE_2D);
+            CASE_TT(TYPE_3D_IMAGE, TYPE_IMAGE_3D);
             default: assert(0);
         }
         return (dmGraphics::TextureType) -1;
@@ -152,7 +154,8 @@ namespace dmGameSystem
         uint32_t bitspp = dmGraphics::GetTextureFormatBitsPerPixel(params.m_Format);
 
         // NOTE! The params.m_Depth is NOT included here. This is because of how the pipeline (and I think, OpenGL adapter is built),
-        //       the data size is supposed to be per slice and not the full data size.
+        //       the data size is supposed to be per slice and not the full data size. With this in mind, we unfortunately can't
+        //       properly validate 3D textures here. We will have to solve this at some point.
         uint32_t data_size = params.m_Width * params.m_Height * bitspp / 8;
 
         // NOTE! We can't check that the _exact_ size matches here (data_size != params.m_DataSize) because the data may be
@@ -205,14 +208,16 @@ namespace dmGameSystem
             dmGraphics::TextureParams params;
             dmGraphics::GetDefaultTextureFilters(context, params.m_MinFilter, params.m_MagFilter);
 
-            params.m_Format    = output_format;
-            params.m_Width     = image->m_Width;
-            params.m_Height    = image->m_Height;
-            params.m_Depth     = image_desc->m_DDFImage->m_Count;
-            params.m_X         = upload_params.m_X;
-            params.m_Y         = upload_params.m_Y;
-            params.m_SubUpdate = upload_params.m_SubUpdate;
-            params.m_MipMap    = specific_mip_requested ? upload_params.m_MipMap : 0;
+            params.m_Format     = output_format;
+            params.m_Width      = image->m_Width;
+            params.m_Height     = image->m_Height;
+            params.m_Depth      = image->m_Depth;
+            params.m_LayerCount = image_desc->m_DDFImage->m_Count;
+            params.m_X          = upload_params.m_X;
+            params.m_Y          = upload_params.m_Y;
+            params.m_Z          = upload_params.m_Z;
+            params.m_SubUpdate  = upload_params.m_SubUpdate;
+            params.m_MipMap     = specific_mip_requested ? upload_params.m_MipMap : 0;
 
             if (!texture)
             {
@@ -221,7 +226,8 @@ namespace dmGameSystem
                 creation_params.m_Type           = TextureImageToTextureType(image_desc->m_DDFImage->m_Type);
                 creation_params.m_Width          = image->m_Width;
                 creation_params.m_Height         = image->m_Height;
-                creation_params.m_Depth          = image_desc->m_DDFImage->m_Count;
+                creation_params.m_Depth          = image->m_Depth;
+                creation_params.m_LayerCount     = image_desc->m_DDFImage->m_Count;
                 creation_params.m_OriginalWidth  = image->m_OriginalWidth;
                 creation_params.m_OriginalHeight = image->m_OriginalHeight;
                 creation_params.m_MipMapCount    = num_mips;

@@ -700,6 +700,12 @@ namespace dmScript
      */
     const char* GetProfilerString(lua_State* L, int optional_callback_index, const char* source_file_name, const char* function_name, const char* optional_message_name, char* buffer, uint32_t buffer_size);
 
+    /**
+     * Prints the current stack (uses dmLogInfo)
+     * @param L lua state
+     */
+    void PrintStack(lua_State* L);
+
 } // dmScript
 
 #endif // DM_SCRIPT_H
