@@ -405,7 +405,9 @@ def download_sdk(conf, url, targetfolder, strip_components=1, force_extract=Fals
         print ("SDK already installed:", targetfolder)
 
 class Configuration(object):
-    def __init__(self, dynamo_home = None,
+    def __init__(self,
+                 defold_home = None,
+                 dynamo_home = None,
                  target_platform = None,
                  skip_tests = False,
                  skip_codesign = False,
@@ -444,7 +446,8 @@ class Configuration(object):
         else:
             home = os.environ['HOME']
 
-        self.dynamo_home = dynamo_home if dynamo_home else join(os.getcwd(), 'tmp', 'dynamo_home')
+        self.defold_home = os.path.normpath(join(os.path.dirname(__file__), '..'))
+        self.dynamo_home = dynamo_home if dynamo_home else join(self.defold_home, 'tmp', 'dynamo_home')
         self.ext = join(self.dynamo_home, 'ext')
         self.dmsdk = join(self.dynamo_home, 'sdk')
         self.defold = normpath(join(dirname(abspath(__file__)), '..'))
@@ -505,7 +508,8 @@ class Configuration(object):
             os._exit(5)
 
     def get_python(self):
-        return ['python']
+        self.check_python()
+        return [sys.executable]
 
     def _create_common_dirs(self):
         for p in ['ext/lib/python', 'share', 'lib/js-web/js', 'lib/wasm-web/js']:
@@ -715,6 +719,13 @@ class Configuration(object):
             sys.exit(1)
         return path
 
+    def check_python(self):
+        if sys.version_info.major != 3:
+            self.fatal("The build scripts requires Python 3!")
+
+    def has_sdk(self, sdkfolder, target_platform):
+        return None != sdk.get_sdk_info(sdkfolder, target_platform, False)
+
     def check_sdk(self):
         sdkfolder = join(self.ext, 'SDKs')
 
@@ -754,8 +765,13 @@ class Configuration(object):
 
     def install_sdk(self):
         sdkfolder = join(self.ext, 'SDKs')
-
         target_platform = self.target_platform
+
+        # check host tools availability
+        has_host_sdk = False
+        if sdk.get_host_platform() != target_platform:
+            has_host_sdk = self.has_sdk(sdkfolder, sdk.get_host_platform())
+
         if target_platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
             # macOS SDK
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_MACOS_SDK), join(sdkfolder, sdk.PACKAGES_MACOS_SDK))
@@ -766,7 +782,7 @@ class Configuration(object):
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_IOS_SDK), join(sdkfolder, sdk.PACKAGES_IOS_SDK))
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_IOS_SIMULATOR_SDK), join(sdkfolder, sdk.PACKAGES_IOS_SIMULATOR_SDK))
 
-        if 'win32' in target_platform or ('win32' in self.host):
+        if 'win32' in target_platform or ('win32' in self.host and not has_host_sdk):
             win32_sdk_folder = join(self.ext, 'SDKs', 'Win32')
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_WIN32_TOOLCHAIN), join(win32_sdk_folder, 'MicrosoftVisualStudio14.0'), strip_components=0 )
@@ -788,7 +804,7 @@ class Configuration(object):
         if target_platform in ('armv7-android', 'arm64-android'):
             host = self.host
             if 'win32' in host:
-                host = 'windows'
+                host = 'win'
             elif 'linux' in host:
                 host = 'linux'
             elif 'macos' in host:
@@ -1808,7 +1824,8 @@ class Configuration(object):
 
 
     def shell(self):
-        print ('Setting up shell with DYNAMO_HOME, PATH, JAVA_HOME, and LD_LIBRARY_PATH/DYLD_LIBRARY_PATH (where applicable) set')
+        self.check_python()
+        print ('Setting up shell with DEFOLD_HOME, DYNAMO_HOME, PATH, JAVA_HOME, and LD_LIBRARY_PATH/DYLD_LIBRARY_PATH (where applicable) set')
 
         args = [SHELL, '-l']
 
@@ -1820,6 +1837,7 @@ class Configuration(object):
             sys.exit(process.returncode)
 
     def fatal(self, msg):
+        self._log("****************************************************")
         self._log(msg)
         sys.exit(1)
 
@@ -2470,6 +2488,7 @@ class Configuration(object):
             self.fatal("Failed to find JAVA_HOME environment variable or valid java executable")
         env['JAVA_HOME'] = os.environ['JAVA_HOME']
 
+        env['DEFOLD_HOME'] = self.defold_home
         env['DYNAMO_HOME'] = self.dynamo_home
 
         android_host = self.host
@@ -2731,7 +2750,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
             needs_dynamo_home = False
             break
     if needs_dynamo_home:
-        for env_var in ['DYNAMO_HOME', 'PYTHONPATH', 'JAVA_HOME']:
+        for env_var in ['DEFOLD_HOME', 'DYNAMO_HOME', 'PYTHONPATH', 'JAVA_HOME']:
             if not env_var in os.environ:
                 c._log("CMD: " + ' '.join(sys.argv))
                 msg = f"{env_var} was not found in environment.\nDid you use './scripts/build.py shell'?"

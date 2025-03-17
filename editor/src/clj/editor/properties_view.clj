@@ -21,6 +21,7 @@
             [editor.handler :as handler]
             [editor.jfx :as jfx]
             [editor.math :as math]
+            [editor.prefs :as prefs]
             [editor.properties :as properties]
             [editor.resource :as resource]
             [editor.resource-dialog :as resource-dialog]
@@ -32,6 +33,7 @@
             [util.id-vec :as iv]
             [util.profiler :as profiler])
   (:import [editor.properties Curve CurveSpread]
+           [java.util Collection]
            [javafx.geometry Insets Point2D]
            [javafx.scene Node Parent]
            [javafx.scene.control Button CheckBox ColorPicker Control Label Slider TextArea TextField TextInputControl ToggleButton Tooltip]
@@ -45,6 +47,8 @@
 (def ^{:private true :const true} grid-hgap 4)
 (def ^{:private true :const true} grid-vgap 6)
 (def ^{:private true :const true} all-available 5000)
+
+(defonce ^:private saved-colors-prefs-path [:workflow :saved-colors])
 
 (declare update-field-message)
 
@@ -553,10 +557,21 @@
     ignore-alpha (drop-last 2)
     :always (apply str "#")))
 
-(defmethod create-property-control! types/Color [edit-type {:keys [color-dropper-view]} property-fn]
+(defn- save-colors!
+  [colors prefs]
+  (->> (mapv #(color->web-string % false) colors)
+       (prefs/set! prefs saved-colors-prefs-path)))
+
+(defn- get-saved-colors
+  [prefs]
+  (->> (prefs/get prefs saved-colors-prefs-path)
+       (mapv #(Color/valueOf ^String %))))
+
+(defmethod create-property-control! types/Color [edit-type {:keys [color-dropper-view prefs]} property-fn]
   (let [wrapper (doto (HBox.)
                   (.setPrefWidth Double/MAX_VALUE))
         pick-fn (fn [c] (set-color-value! property-fn (:ignore-alpha? edit-type) c))
+        saved-colors ^Collection (get-saved-colors prefs)
         color-dropper (doto (Button. "" (jfx/get-image-view "icons/32/Icons_M_03_colorpicker.png" 16))
                         (ui/add-style! "color-dropper")
                         (AnchorPane/setRightAnchor 0.0)
@@ -583,6 +598,8 @@
                     (when-let [c (try (Color/valueOf (ui/text text))
                                       (catch Exception _e (cancel-fn nil)))]
                       (set-color-value! property-fn ignore-alpha c)))]
+    (when (seq saved-colors)
+      (.setAll (.getCustomColors color-picker) saved-colors))
     (doto text
       (AnchorPane/setTopAnchor 0.0)
       (AnchorPane/setBottomAnchor 0.0)
@@ -594,6 +611,7 @@
                                   (let [c (.getValue color-picker)]
                                     (set-color-value! property-fn ignore-alpha c)
                                     (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true))))
+    (ui/observe-list (.getCustomColors color-picker) (fn [_ values] (save-colors! values prefs)))
     (ui/children! wrapper [pane color-picker])
     [wrapper update-ui-fn]))
 
@@ -984,6 +1002,7 @@
 
 (g/defnode PropertiesView
   (property parent-view Parent)
+  (property prefs g/Any)
 
   (input workspace g/Any)
   (input project g/Any)
@@ -992,10 +1011,11 @@
   (input color-dropper-view g/NodeID)
   (input selected-node-properties g/Any)
 
-  (output pane Pane :cached (g/fnk [parent-view workspace project app-view search-results-view selected-node-properties color-dropper-view]
+  (output pane Pane :cached (g/fnk [parent-view workspace project app-view search-results-view selected-node-properties color-dropper-view prefs]
                                    (let [context {:workspace workspace
                                                   :project project
                                                   :app-view app-view
+                                                  :prefs prefs
                                                   :search-results-view search-results-view
                                                   :color-dropper-view color-dropper-view}]
                                      ;; Collecting the properties and then updating the view takes some time, but has no immediacy
@@ -1003,11 +1023,11 @@
                                      (ui/run-later
                                        (update-pane! parent-view context selected-node-properties))))))
 
-(defn make-properties-view [workspace project app-view search-results-view view-graph color-dropper-view ^Node parent]
+(defn make-properties-view [workspace project app-view search-results-view view-graph color-dropper-view prefs ^Node parent]
   (first
     (g/tx-nodes-added
       (g/transact
-        (g/make-nodes view-graph [view [PropertiesView :parent-view parent]]
+        (g/make-nodes view-graph [view [PropertiesView :parent-view parent :prefs prefs]]
           (g/connect workspace :_node-id view :workspace)
           (g/connect project :_node-id view :project)
           (g/connect app-view :_node-id view :app-view)

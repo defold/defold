@@ -318,7 +318,20 @@ namespace dmGraphics
         return GetRenderTargetTexture(render_target, GetAttachmentBufferType(attachment));
     }
 
-    static inline ShaderDesc::Shader* GetShader(HContext context, ShaderDesc* shader_desc, ShaderDesc::ShaderType shader_type)
+    static ShaderDesc::Shader* HasShader(ShaderDesc* shader_desc, ShaderDesc::ShaderType shader_type)
+    {
+        for(uint32_t i = 0; i < shader_desc->m_Shaders.m_Count; ++i)
+        {
+            ShaderDesc::Shader* shader = &shader_desc->m_Shaders.m_Data[i];
+            if (shader->m_ShaderType == shader_type)
+            {
+                return shader;
+            }
+        }
+        return 0;
+    }
+
+    static ShaderDesc::Shader* GetShader(HContext context, ShaderDesc* shader_desc, ShaderDesc::ShaderType shader_type)
     {
         ShaderDesc::Shader* selected_shader = 0x0;
 
@@ -366,7 +379,13 @@ namespace dmGraphics
             return true;
         }
 
-        dmLogError("Unable to get a valid shader from a ShaderDesc for this context.");
+        const char* extra_msg = "";
+        if (HasShader(shader_desc, ShaderDesc::SHADER_TYPE_COMPUTE) != 0x0 && !IsContextFeatureSupported(context, CONTEXT_FEATURE_COMPUTE_SHADER))
+        {
+            extra_msg = "Reason: Compute shaders are not supported.";
+        }
+
+        dmLogError("Unable to get a valid shader from a ShaderDesc for this context. %s", extra_msg);
         return 0;
     }
 
@@ -492,13 +511,20 @@ namespace dmGraphics
             case ShaderDesc::SHADER_TYPE_MAT3:            return TYPE_FLOAT_MAT3;
             case ShaderDesc::SHADER_TYPE_MAT4:            return TYPE_FLOAT_MAT4;
             case ShaderDesc::SHADER_TYPE_SAMPLER:         return TYPE_SAMPLER;
-            case ShaderDesc::SHADER_TYPE_SAMPLER2D:       return TYPE_SAMPLER_2D;
             case ShaderDesc::SHADER_TYPE_SAMPLER_CUBE:    return TYPE_SAMPLER_CUBE;
+            case ShaderDesc::SHADER_TYPE_TEXTURE_CUBE:    return TYPE_TEXTURE_CUBE;
+            // 2D
+            case ShaderDesc::SHADER_TYPE_SAMPLER2D:       return TYPE_SAMPLER_2D;
             case ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY: return TYPE_SAMPLER_2D_ARRAY;
             case ShaderDesc::SHADER_TYPE_IMAGE2D:         return TYPE_IMAGE_2D;
             case ShaderDesc::SHADER_TYPE_TEXTURE2D:       return TYPE_TEXTURE_2D;
             case ShaderDesc::SHADER_TYPE_TEXTURE2D_ARRAY: return TYPE_TEXTURE_2D_ARRAY;
-            case ShaderDesc::SHADER_TYPE_TEXTURE_CUBE:    return TYPE_TEXTURE_CUBE;
+            // 3D
+            case ShaderDesc::SHADER_TYPE_SAMPLER3D:       return TYPE_SAMPLER_3D;
+            case ShaderDesc::SHADER_TYPE_SAMPLER3D_ARRAY: return TYPE_SAMPLER_3D_ARRAY;
+            case ShaderDesc::SHADER_TYPE_IMAGE3D:         return TYPE_IMAGE_3D;
+            case ShaderDesc::SHADER_TYPE_TEXTURE3D:       return TYPE_TEXTURE_3D;
+            case ShaderDesc::SHADER_TYPE_TEXTURE3D_ARRAY: return TYPE_TEXTURE_3D_ARRAY;
             default: break;
         }
 

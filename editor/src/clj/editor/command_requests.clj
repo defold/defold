@@ -13,13 +13,15 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.command-requests
-  (:require [clojure.data.json :as json]
+  (:require [cljfx.api :as fx]
+            [clojure.data.json :as json]
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.disk :as disk]
+            [editor.future :as future]
             [editor.ui :as ui]
             [service.log :as log]
-            [util.http-util :as http-util]))
+            [util.http-server :as http-server]))
 
 (set! *warn-on-reflection* true)
 
@@ -184,90 +186,52 @@
                                  (json/write-str help))))
                   (string/join ",\n"))
              "\n}\n")]
-    (http-util/make-json-response help-json-string)))
-
-(def ^:private command-accepted-response http-util/accepted-response)
-(def ^:private command-not-allowed-response http-util/forbidden-response)
-(def ^:private command-not-supported-response http-util/not-found-response)
-
-(defn- parse-command [request]
-  (let [url-string (:url request)
-        method-string (:method request)]
-    (case url-string
-      ("/command" "/command/") (if (= "GET" method-string)
-                                 ::api
-                                 ::only-get-allowed)
-      (try
-        (let [command (keyword (subs url-string 9))]
-          (if (= "POST" method-string)
-            command
-            ::only-post-allowed))
-        (catch Exception error
-          (log/error :msg "Failed to parse command request"
-                     :request request
-                     :exception error)
-          ::bad-request)))))
+    (http-server/response 200 {"content-type" (http-server/ext->content-type "json")} help-json-string)))
 
 (defn- resolve-ui-handler-ctx [ui-node ui-handler user-data]
   {:pre [(ui/node? ui-node)
          (keyword? ui-handler)
          (map? user-data)]}
-  (ui/run-now
-    (let [command-contexts (ui/node-contexts ui-node true)]
-      (ui/resolve-handler-ctx command-contexts ui-handler user-data))))
+  @(fx/on-fx-thread
+     (let [command-contexts (ui/node-contexts ui-node true)]
+       (ui/resolve-handler-ctx command-contexts ui-handler user-data))))
 
-(defn- handle-request! [request ui-node render-reload-progress!]
-  (let [command (parse-command request)]
-    (case command
-      ::api api-response
-      ::bad-request http-util/bad-request-response
-      ::only-get-allowed http-util/only-get-allowed-response
-      ::only-post-allowed http-util/only-post-allowed-response
-      (let [command-info (some-> command supported-commands)]
-        (if (nil? command-info)
-          command-not-supported-response
-          (let [ui-handler (:ui-handler command-info)
-                ui-handler-ctx (resolve-ui-handler-ctx ui-node ui-handler {})]
-            (case ui-handler-ctx
-              (::ui/not-active ::ui/not-enabled) command-not-allowed-response
-              (let [{:keys [changes-view workspace]} (:env (second ui-handler-ctx))
-                    log-failure! (fn log-failure! [error]
-                                   (log/error :msg "Failed to handle command request"
-                                              :request request
-                                              :exception error))]
-                (assert (g/node-id? changes-view))
-                (assert (g/node-id? workspace))
-                (log/info :msg "Processing request"
-                          :command command)
-                (if-not (:resource-sync command-info)
-                  (try
-                    (ui/run-now
-                      (ui/execute-handler-ctx ui-handler-ctx)
-                      command-accepted-response)
-                    (catch Exception error
-                      (log-failure! error)
-                      http-util/internal-server-error-response))
-                  (fn request-handler-continuation [post-response!]
-                    {:pre [(fn? post-response!)]}
-                    (disk/async-reload!
-                      render-reload-progress! workspace [] changes-view
-                      (fn async-reload-continuation [success]
-                        ;; This callback is executed on the ui thread.
-                        (if success
-                          (try
-                            (ui/execute-handler-ctx ui-handler-ctx)
-                            (post-response! command-accepted-response)
-                            (catch Exception error
-                              (log-failure! error)
-                              (post-response! http-util/internal-server-error-response)))
-                          (do
-                            ;; Explicitly refresh the UI after the reload, since
-                            ;; the ui-handler will not have done so on failure.
-                            (ui/user-data! (ui/scene ui-node) ::ui/refresh-requested? true)
-                            (post-response! http-util/internal-server-error-response)))))))))))))))
-
-(defn make-request-handler [ui-node render-reload-progress!]
-  {:pre [(ui/node? ui-node)
-         (fn? render-reload-progress!)]}
-  (fn request-handler [request]
-    (handle-request! request ui-node render-reload-progress!)))
+(defn router [ui-node render-reload-progress!]
+  {"/command" {"GET" (constantly api-response)}
+   "/command/{command}"
+   {"POST" (bound-fn [request]
+             (let [command (-> request :path-params :command keyword)]
+               (if-let [{:keys [ui-handler resource-sync]} (supported-commands command)]
+                 (let [ui-handler-ctx (resolve-ui-handler-ctx ui-node ui-handler {})]
+                   (case ui-handler-ctx
+                     (::ui/not-active ::ui/not-enabled) http-server/forbidden
+                     (let [{:keys [changes-view workspace]} (:env (second ui-handler-ctx))
+                           result-future (future/make)
+                           execute-command!
+                           (bound-fn execute-command! []
+                             (try
+                               (ui/execute-handler-ctx ui-handler-ctx)
+                               (future/complete! result-future http-server/accepted)
+                               (catch Exception error
+                                 (log/error :msg "Failed to handle command request"
+                                            :request request
+                                            :exception error)
+                                 (future/complete! result-future http-server/internal-server-error))))]
+                       (assert (g/node-id? changes-view))
+                       (assert (g/node-id? workspace))
+                       (log/info :msg "Processing request" :command command)
+                       (if-not resource-sync
+                         (ui/run-later (execute-command!))
+                         (disk/async-reload!
+                           render-reload-progress! workspace [] changes-view
+                           (fn async-reload-continuation [success]
+                             ;; This callback is executed on the ui thread.
+                             (if success
+                               (execute-command!)
+                               (do
+                                 ;; Explicitly refresh the UI after the reload, since
+                                 ;; the ui-handler will not have done so on failure.
+                                 (ui/user-data! (ui/scene ui-node) ::ui/refresh-requested? true)
+                                 (future/complete! result-future http-server/internal-server-error))))))
+                       result-future)))
+                 http-server/not-found)))}})

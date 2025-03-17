@@ -27,7 +27,17 @@
                     :doc "Either resource path (e.g. <code>\"/main/game.script\"</code>), or internal node id passed to the script by the editor"}
         property-param {:name "property"
                         :types ["string"]
-                        :doc "Either <code>\"path\"</code>, <code>\"text\"</code>, or a property from the Outline view (hover the label to see its editor script name)"}]
+                        :doc "Either <code>\"path\"</code>, <code>\"text\"</code>, or a property from the Outline view (hover the label to see its editor script name)"}
+        http-status-param {:name "[status]"
+                           :types ["integer"]
+                           :doc "HTTP status code, an integer, default 200"}
+        http-headers-param {:name "[headers]"
+                            :types ["table&lt;string,string&gt;"]
+                            :doc "HTTP response headers, a table from lower-case header names to header values"}
+        http-response-param {:name "response" :types ["response"] :doc "HTTP response value, userdata"}
+        resource-path-param {:name "resource_path"
+                             :types ["string"]
+                             :doc "Resource path (starting with <code>/</code>)"}]
     (vec
       (e/concat
         [{:name "editor"
@@ -57,9 +67,7 @@
          {:name "editor.resource_attributes"
           :type :function
           :description "Query information about a project resource"
-          :parameters [{:name "resource_path"
-                        :types ["string"]
-                        :doc "Resource path (starting with <code>/</code>) of a resource to look up"}]
+          :parameters [resource-path-param]
           :returnvalues [{:name "value"
                           :types ["table"]
                           :doc (str "A table with the following keys:"
@@ -75,16 +83,12 @@
                                         :doc "whether the resource represents a directory"}]))}]}
          {:name "editor.create_directory"
           :type :function
-          :parameters [{:name "resource_path"
-                        :types ["string"]
-                        :doc "Resource path (starting with <code>/</code>) of a directory to create"}]
+          :parameters [resource-path-param]
           :description "Create a directory if it does not exist, and all non-existent parent directories.\n\nThrows an error if the directory can't be created."
           :examples "```\neditor.create_directory(\"/assets/gen\")\n```"}
          {:name "editor.delete_directory"
           :type :function
-          :parameters [{:name "resource_path"
-                        :types ["string"]
-                        :doc "Resource path (starting with <code>/</code>) of a directory to delete"}]
+          :parameters [resource-path-param]
           :description "Delete a directory if it exists, and all existent child directories and files.\n\nThrows an error if the directory can't be deleted."
           :examples "```\neditor.delete_directory(\"/assets/gen\")\n```"}
          {:name "editor.external_file_attributes"
@@ -219,9 +223,7 @@
          {:name "editor.ui.open_resource"
           :type :function
           :description "Open a resource, either in the editor or in a third-party app"
-          :parameters [{:name "resource_path"
-                        :types ["string"]
-                        :doc "Resource path (starting with <code>/</code>) of a resource to open"}]}]
+          :parameters [resource-path-param]}]
         (e/mapcat
           (fn [[enum-id enum-values]]
             (let [id (ui-docs/->screaming-snake-case enum-id)]
@@ -243,7 +245,7 @@
         (prefs-docs/script-docs)
         [{:name "http"
           :type :module
-          :description "Functions for performing HTTP requests"}
+          :description "HTTP client and editor's HTTP server-related functionality"}
          {:name "http.request"
           :type :function
           :description "Perform an HTTP request"
@@ -265,7 +267,7 @@
                                       :doc "request body"}
                                      {:name "as"
                                       :types ["string"]
-                                      :doc "Response body converter, either <code>\"string\"</code> or <code>\"json\"</code>"}]))}]
+                                      :doc "response body converter, either <code>\"string\"</code> or <code>\"json\"</code>"}]))}]
           :returnvalues [{:name "response"
                           :types ["table"]
                           :doc (str "HTTP response, a table with the following keys:"
@@ -279,6 +281,120 @@
                                        {:name "body"
                                         :types ["string" "any" "nil"]
                                         :doc "response body, present only when <code>as</code> option was provided, either a string or a parsed json value"}]))}]}
+         {:name "http.server"
+          :type :module
+          :description "Editor's HTTP server-related functionality"}
+         {:name "http.server.local_url"
+          :type :constant
+          :description "Editor's HTTP server local url"}
+         {:name "http.server.port"
+          :type :constant
+          :description "Editor's HTTP server port"}
+         {:name "http.server.url"
+          :type :constant
+          :description "Editor's HTTP server url"}
+         {:name "http.server.external_file_response"
+          :type :function
+          :description "Create HTTP response that will stream the content of a file defined by the path"
+          :parameters [{:name "path"
+                        :types ["string"]
+                        :doc "External file path, resolved against project root if relative"}
+                       http-status-param
+                       http-headers-param]
+          :returnvalues [http-response-param]}
+         {:name "http.server.json_response"
+          :type :function
+          :description "Create HTTP response with a JSON value"
+          :parameters [{:name "value"
+                        :types ["any"]
+                        :doc "Any Lua value that may be represented as JSON"}
+                       http-status-param
+                       http-headers-param]
+          :returnvalues [http-response-param]}
+         {:name "http.server.resource_response"
+          :type :function
+          :description "Create HTTP response that will stream the content of a resource defined by the resource path"
+          :parameters [resource-path-param
+                       http-status-param
+                       http-headers-param]
+          :returnvalues [http-response-param]}
+         {:name "http.server.response"
+          :type :function
+          :description "Create HTTP response"
+          :parameters [http-status-param
+                       http-headers-param
+                       {:name "[body]"
+                        :types ["string"]
+                        :doc "HTTP response body"}]
+          :returnvalues [http-response-param]}
+         {:name "http.server.route"
+          :type :function
+          :description "Create route definition for the editor's HTTP server"
+          :parameters [{:name "path"
+                        :types ["string"]
+                        :doc "HTTP URI path, starts with <code>/</code>; may include path patterns (<code>{name}</code> for a single segment and <code>{*name}</code> for the rest of the request path) that will be extracted from the path and provided to the handler as a part of the request"}
+                       {:name "[method]"
+                        :types ["string"]
+                        :doc "HTTP request method, default <code>\"GET\"</code>"}
+                       {:name "[as]"
+                        :types ["string"]
+                        :doc "Request body converter, either <code>\"string\"</code> or <code>\"json\"</code>; the body will be discarded if not specified"}
+                       {:name "handler"
+                        :types ["function"]
+                        :doc (str "Request handler function, will receive request argument, a table with the following keys:"
+                                  (lua-completion/args-doc-html
+                                    [{:name "path"
+                                      :types ["string"]
+                                      :doc "full matched path, a string starting with <code>/</code>"}
+                                     {:name "method"
+                                      :types ["string"]
+                                      :doc "HTTP request method, e.g. <code>\"POST\"</code>"}
+                                     {:name "headers"
+                                      :types ["table&lt;string,(string|string[])&gt;"]
+                                      :doc "HTTP request headers, a table from lower-case header names to header values"}
+                                     {:name "query"
+                                      :types ["string"]
+                                      :doc "optional query string"}
+                                     {:name "body"
+                                      :types ["string" "any"]
+                                      :doc "optional request body, depends on the <code>as</code> argument"}])
+                                  "\nHandler function should return either a single response value, or 0 or more arguments to the <code>http.server.response()</code> function")}]
+          :returnvalues [{:name "route" :types ["route"] :doc "HTTP server route"}]
+          :examples "Receive JSON and respond with JSON:
+```
+http.server.route(
+  \"/json\", \"POST\", \"json\",
+  function(request)
+    pprint(request.body)
+    return 200
+  end
+)
+```
+Extract parts of the path:
+```
+http.server.route(
+  \"/users/{user}/orders\",
+  function(request)
+    print(request.user)
+  end
+)
+```
+Simple file server:
+```
+http.server.route(
+  \"/files/{*file}\",
+  function(request)
+    local attrs = editor.external_file_attributes(request.file)
+    if attrs.is_file then
+      return http.server.external_file_response(request.file)
+    elseif attrs.is_directory then
+      return 400
+    else
+      return 404
+    end
+  end
+)
+```"}
          {:name "json"
           :type :module
           :description "Module for encoding or decoding values in JSON format"}
@@ -300,13 +416,13 @@
           :description "Encode Lua value to JSON string"
           :parameters [{:name "value"
                         :types ["any"]
-                        :doc "any lua value that may be represented as JSON"}]}
+                        :doc "any Lua value that may be represented as JSON"}]}
          {:name "pprint"
           :type :function
           :description "Pretty-print a Lua value"
           :parameters [{:name "value"
                         :types ["any"]
-                        :doc "any lua value to pretty-print"}]}]
+                        :doc "any Lua value to pretty-print"}]}]
         (when-not (System/getProperty "defold.version")
           ;; Dev-only docs
           [{:name "editor.bundle.abort_message"

@@ -1520,26 +1520,26 @@ namespace dmScript
         int        m_Self;
     };
 
-    // static void printStack(lua_State* L)
-    // {
-    //     int top = lua_gettop(L);
-    //     int bottom = 1;
-    //     lua_getglobal(L, "tostring");
-    //     for(int i = top; i >= bottom; i--)
-    //     {
-    //         lua_pushvalue(L, -1);
-    //         lua_pushvalue(L, i);
-    //         lua_pcall(L, 1, 1, 0);
-    //         const char *str = lua_tostring(L, -1);
-    //         if (str) {
-    //             printf("%2d: %s\n", i, str);
-    //         }else{
-    //             printf("%2d: %s\n", i, luaL_typename(L, i));
-    //         }
-    //         lua_pop(L, 1);
-    //     }
-    //     lua_pop(L, 1);
-    // }
+    void PrintStack(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        int bottom = 1;
+        lua_getglobal(L, "tostring");
+        for(int i = top; i >= bottom; i--)
+        {
+            lua_pushvalue(L, -1);
+            lua_pushvalue(L, i);
+            lua_pcall(L, 1, 1, 0);
+            const char *str = lua_tostring(L, -1);
+            if (str) {
+                dmLogInfo("%2d: %s\n", i, str);
+            }else{
+                dmLogInfo("%2d: %s\n", i, luaL_typename(L, i));
+            }
+            lua_pop(L, 1);
+        }
+        lua_pop(L, 1);
+    }
 
     LuaCallbackInfo* CreateCallback(lua_State* L, int callback_stack_index)
     {

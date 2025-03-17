@@ -39,6 +39,9 @@ namespace dmProfiler
     void ToggleProfiler();
     void RenderProfiler(dmProfile::HProfile profile, dmGraphics::HContext graphics_context, dmRender::HRenderContext render_context, dmRender::HFontMap system_font_map);
 
+    // Tag the currently recorded frame for output to console
+    void SetDumpFrame();
+
 } // dmProfiler
 
 #endif // DM_PROFILER_H
