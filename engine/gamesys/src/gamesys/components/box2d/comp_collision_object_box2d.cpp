@@ -285,6 +285,12 @@ namespace dmGameSystem
                         dmPhysics::SetGridShapeHull(component->m_Object2D, i, cell_y, cell_x, tile, flags);
                         uint32_t child = cell_x + tile_grid_resource->m_ColumnCount * cell_y;
                         uint16_t group = GetGroupBitIndex(&world->m_BaseWorld, texture_set_resource->m_HullCollisionGroups[tile], false);
+
+                        if (group != 0)
+                        {
+                            dmPhysics::CreateGridCellShape(component->m_Object2D, i, child);
+                        }
+
                         dmPhysics::SetCollisionObjectFilter(component->m_Object2D, i, child, group, component->m_BaseComponent.m_Mask);
                     }
                 }
@@ -678,6 +684,7 @@ namespace dmGameSystem
         PhysicsContextBox2D* physics_context = (PhysicsContextBox2D*)params.m_Context;
         CollisionComponentBox2D* component = (CollisionComponentBox2D*) *params.m_UserData;
         CollisionComponent* component_base = (CollisionComponent*) *params.m_UserData;
+        CollisionWorldBox2D* world = (CollisionWorldBox2D*)params.m_World;
 
         if (params.m_Message->m_Id == dmGameObjectDDF::Enable::m_DDFDescriptor->m_NameHash ||
             params.m_Message->m_Id == dmGameObjectDDF::Disable::m_DDFDescriptor->m_NameHash)
@@ -687,7 +694,6 @@ namespace dmGameSystem
             {
                 enable = true;
             }
-            CollisionWorldBox2D* world = (CollisionWorldBox2D*)params.m_World;
 
             if (component_base->m_AddedToUpdate)
             {
@@ -882,16 +888,16 @@ namespace dmGameSystem
     }
 
     // Internal script API
-    b2World* CompCollisionObjectGetBox2DWorld(dmGameObject::HComponentWorld _world)
+    void* CompCollisionObjectGetBox2DWorld(dmGameObject::HComponentWorld _world)
     {
         CollisionWorldBox2D* world = (CollisionWorldBox2D*)_world;
-        return (b2World*) dmPhysics::GetWorldContext2D(world->m_World2D);
+        return dmPhysics::GetWorldContext2D(world->m_World2D);
     }
 
-    b2Body* CompCollisionObjectGetBox2DBody(dmGameObject::HComponent _component)
+    void* CompCollisionObjectGetBox2DBody(dmGameObject::HComponent _component)
     {
         CollisionComponentBox2D* component = (CollisionComponentBox2D*)_component;
-        return (b2Body*) dmPhysics::GetCollisionObjectContext2D(component->m_Object2D);
+        return dmPhysics::GetCollisionObjectContext2D(component->m_Object2D);
     }
 
     // Adapter functions
@@ -1165,7 +1171,8 @@ namespace dmGameSystem
         CollisionComponentBox2D* component = (CollisionComponentBox2D*)_component;
         if (component->m_FlippedX != flip)
         {
-            dmPhysics::FlipH2D(component->m_Object2D);
+            CollisionWorldBox2D* world = (CollisionWorldBox2D*)_world;
+            dmPhysics::FlipH2D(world->m_World2D, component->m_Object2D);
         }
         component->m_FlippedX = flip;
     }
@@ -1175,7 +1182,8 @@ namespace dmGameSystem
         CollisionComponentBox2D* component = (CollisionComponentBox2D*)_component;
         if (component->m_FlippedY != flip)
         {
-            dmPhysics::FlipV2D(component->m_Object2D);
+            CollisionWorldBox2D* world = (CollisionWorldBox2D*)_world;
+            dmPhysics::FlipV2D(world->m_World2D, component->m_Object2D);
         }
         component->m_FlippedY = flip;
     }
@@ -1183,7 +1191,8 @@ namespace dmGameSystem
     static dmhash_t GetCollisionGroupBox2D(CollisionWorld* _world, CollisionComponent* _component)
     {
         CollisionComponentBox2D* component = (CollisionComponentBox2D*)_component;
-        uint16_t groupbit = dmPhysics::GetGroup2D(component->m_Object2D);
+        CollisionWorldBox2D* world = (CollisionWorldBox2D*)_world;
+        uint16_t groupbit = dmPhysics::GetGroup2D(world->m_World2D, component->m_Object2D);
         return GetLSBGroupHash(_world, groupbit);
     }
 
@@ -1199,7 +1208,7 @@ namespace dmGameSystem
             return false; // error. No such group.
         }
 
-        dmPhysics::SetGroup2D(component->m_Object2D, groupbit);
+        dmPhysics::SetGroup2D(world->m_World2D, component->m_Object2D, groupbit);
         return true; // all good
     }
 
@@ -1214,7 +1223,7 @@ namespace dmGameSystem
             return false;
         }
 
-        *maskbit = dmPhysics::GetMaskBit2D(component->m_Object2D, groupbit);
+        *maskbit = dmPhysics::GetMaskBit2D(world->m_World2D, component->m_Object2D, groupbit);
         return true;
     }
 
@@ -1230,15 +1239,16 @@ namespace dmGameSystem
             return false;
         }
 
-        dmPhysics::SetMaskBit2D(component->m_Object2D, groupbit, boolvalue);
+        dmPhysics::SetMaskBit2D(world->m_World2D, component->m_Object2D, groupbit, boolvalue);
         return true;
     }
 
     static void UpdateMassBox2D(CollisionWorld* _world, CollisionComponent* _component, float mass)
     {
+        CollisionWorldBox2D* world = (CollisionWorldBox2D*)_world;
         CollisionComponentBox2D* component = (CollisionComponentBox2D*)_component;
 
-        if(!dmPhysics::UpdateMass2D(component->m_Object2D, mass))
+        if(!dmPhysics::UpdateMass2D(world->m_World2D, component->m_Object2D, mass))
         {
             dmLogError("The Update Mass function can be used only for Dynamic objects with shape area > 0");
         }

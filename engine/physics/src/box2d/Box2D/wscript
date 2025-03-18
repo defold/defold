@@ -1,9 +1,0 @@
-
-def configure(conf):
-    pass
-
-def build(bld):
-    box2d = bld.stlib(features = 'cxx',
-                      includes = '..',
-                      source = bld.path.ant_glob('**/*.cpp'),
-                      target = 'Box2D')

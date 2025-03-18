@@ -97,7 +97,7 @@ assert(hasattr(build_private, 'is_repo_private'))
 assert(hasattr(build_private, 'get_tag_suffix'))
 
 def get_target_platforms():
-    return BASE_PLATFORMS + build_private.get_target_platforms()
+    return BASE_PLATFORMS + build_private.get_target_platforms() 
 
 PACKAGES_ALL=[
     "protobuf-3.20.1",
@@ -115,7 +115,9 @@ PACKAGES_ALL=[
     "bullet-2.77",
     "libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a",
     "jctest-0.10.2",
-    "vulkan-v1.4.307"]
+    "vulkan-v1.4.307",
+    "box2d-28adacf82377d4113f2ed00586141463244b9d10",
+    "box2d_defold-2.2.1"]
 
 PACKAGES_HOST=[
     "vpx-1.7.0",
@@ -127,7 +129,9 @@ PACKAGES_IOS_X86_64=[
     "luajit-2.1.0-a4f56a4",
     "tremolo-b0cb4d1",
     "bullet-2.77",
-    "glfw-2.7.1"]
+    "glfw-2.7.1",
+    "box2d-28adacf82377d4113f2ed00586141463244b9d10",
+    "box2d_defold-2.2.1"]
 
 PACKAGES_IOS_64=[
     "protobuf-3.20.1",
@@ -135,7 +139,9 @@ PACKAGES_IOS_64=[
     "tremolo-b0cb4d1",
     "bullet-2.77",
     "moltenvk-1474891",
-    "glfw-2.7.1"]
+    "glfw-2.7.1",
+    "box2d-28adacf82377d4113f2ed00586141463244b9d10",
+    "box2d_defold-2.2.1"]
 
 PACKAGES_MACOS_X86_64=[
     "protobuf-3.20.1",
@@ -151,7 +157,9 @@ PACKAGES_MACOS_X86_64=[
     "sassc-5472db213ec223a67482df2226622be372921847",
     "glfw-3.4",
     "tint-22b958",
-    "astcenc-8b0aa01"]
+    "astcenc-8b0aa01",
+    "box2d-28adacf82377d4113f2ed00586141463244b9d10",
+    "box2d_defold-2.2.1"]
 
 PACKAGES_MACOS_ARM64=[
     "protobuf-3.20.1",
@@ -166,7 +174,9 @@ PACKAGES_MACOS_ARM64=[
     "lipo-9ffdea2",
     "glfw-3.4",
     "tint-22b958",
-    "astcenc-8b0aa01"]
+    "astcenc-8b0aa01",
+    "box2d-28adacf82377d4113f2ed00586141463244b9d10",
+    "box2d_defold-2.2.1"]
 
 PACKAGES_WIN32=[
     "protobuf-3.20.1",
@@ -174,7 +184,9 @@ PACKAGES_WIN32=[
     "glut-3.7.6",
     "bullet-2.77",
     "vulkan-v1.4.307",
-    "glfw-3.4"]
+    "glfw-3.4",
+    "box2d-28adacf82377d4113f2ed00586141463244b9d10",
+    "box2d_defold-2.2.1"]
 
 PACKAGES_WIN32_64=[
     "protobuf-3.20.1",
@@ -190,7 +202,9 @@ PACKAGES_WIN32_64=[
     "glfw-3.4",
     "tint-22b958",
     "astcenc-8b0aa01",
-    "directx-headers-1.611.0"]
+    "directx-headers-1.611.0",
+    "box2d-28adacf82377d4113f2ed00586141463244b9d10",
+    "box2d_defold-2.2.1"]
 
 PACKAGES_LINUX_X86_64=[
     "protobuf-3.20.1",
@@ -205,7 +219,9 @@ PACKAGES_LINUX_X86_64=[
     "glfw-3.4",
     "tint-22b958",
     "sassc-5472db213ec223a67482df2226622be372921847",
-    "astcenc-8b0aa01"]
+    "astcenc-8b0aa01",
+    "box2d-28adacf82377d4113f2ed00586141463244b9d10",
+    "box2d_defold-2.2.1"]
 
 PACKAGES_LINUX_ARM64=[
     "protobuf-3.20.1",
@@ -219,7 +235,9 @@ PACKAGES_LINUX_ARM64=[
     "lipo-abb8ab1",
     "glfw-3.4",
     "tint-22b958",
-    "astcenc-8b0aa01"]
+    "astcenc-8b0aa01",
+    "box2d-28adacf82377d4113f2ed00586141463244b9d10",
+    "box2d_defold-2.2.1"]
 
 PACKAGES_ANDROID=[
 "protobuf-3.20.1",
@@ -228,7 +246,9 @@ PACKAGES_ANDROID=[
     "luajit-2.1.0-a4f56a4",
     "tremolo-b0cb4d1",
     "bullet-2.77",
-    "glfw-2.7.1"]
+    "glfw-2.7.1",
+    "box2d-28adacf82377d4113f2ed00586141463244b9d10",
+    "box2d_defold-2.2.1"]
 PACKAGES_ANDROID.append(sdk.ANDROID_PACKAGE)
 
 PACKAGES_ANDROID_64=[
@@ -238,13 +258,18 @@ PACKAGES_ANDROID_64=[
     "luajit-2.1.0-a4f56a4",
     "tremolo-b0cb4d1",
     "bullet-2.77",
-    "glfw-2.7.1"]
+    "glfw-2.7.1",
+    "box2d-28adacf82377d4113f2ed00586141463244b9d10",
+    "box2d_defold-2.2.1"]
 PACKAGES_ANDROID_64.append(sdk.ANDROID_PACKAGE)
 
 PACKAGES_EMSCRIPTEN=[
     "protobuf-3.20.1",
     "bullet-2.77",
-    "glfw-2.7.1"]
+    "glfw-2.7.1",
+    "box2d-28adacf82377d4113f2ed00586141463244b9d10",
+    "box2d_defold-2.2.1"]
+
 PACKAGES_NODE_MODULES=["xhr2-0.1.0"]
 
 PLATFORM_PACKAGES = {
@@ -285,7 +310,7 @@ if os.environ.get('TERM','') in ('cygwin',):
 ENGINE_LIBS = "testmain dlib jni texc modelc shaderc ddf platform graphics particle lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record profiler engine sdk".split()
 HOST_LIBS = "testmain dlib jni texc modelc shaderc".split()
 
-EXTERNAL_LIBS = "glfw bullet3d".split()
+EXTERNAL_LIBS = "box2d glfw bullet3d".split()
 
 def get_host_platform():
     return sdk.get_host_platform()

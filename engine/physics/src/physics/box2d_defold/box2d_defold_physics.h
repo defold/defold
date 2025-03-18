@@ -12,8 +12,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_PHYSICS_2D_H
-#define DM_PHYSICS_2D_H
+#ifndef DM_BOX2D_DEFOLD_PHYSICS_H
+#define DM_BOX2D_DEFOLD_PHYSICS_H
 
 #include <Box2D/Dynamics/b2World.h>
 
@@ -21,9 +21,9 @@
 #include <dlib/hashtable.h>
 #include <dmsdk/dlib/vmath.h>
 
-#include "physics.h"
-#include "physics_private.h"
-#include "debug_draw_2d.h"
+#include "../physics.h"
+#include "../physics_private.h"
+#include "box2d_defold_debug_draw.h"
 
 namespace dmPhysics
 {
@@ -116,4 +116,4 @@ namespace dmPhysics
     }
 }
 
-#endif // DM_PHYSICS_2D_H
+#endif // DM_BOX2D_DEFOLD_PHYSICS_H

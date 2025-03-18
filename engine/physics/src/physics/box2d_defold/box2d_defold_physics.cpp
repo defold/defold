@@ -15,7 +15,7 @@
 
 #include <stdlib.h> // qsort
 
-#include "physics.h"
+#include "../physics.h"
 
 #include <dlib/array.h>
 #include <dlib/log.h>
@@ -25,7 +25,7 @@
 #include <Box2D/Box2D.h>
 #include <Box2D/Dynamics/Contacts/b2ContactSolver.h>
 
-#include "physics_2d.h"
+#include "box2d_defold_physics.h"
 
 namespace dmPhysics
 {
@@ -559,9 +559,9 @@ namespace dmPhysics
                 {
                     b2Body* body_a = fixture_a->GetBody();
                     b2Body* body_b = fixture_b->GetBody();
-                    add_data.m_ObjectA = body_a;
+                    add_data.m_ObjectA = (uint64_t) body_a;
                     add_data.m_UserDataA = body_a->GetUserData();
-                    add_data.m_ObjectB = body_b;
+                    add_data.m_ObjectB = (uint64_t) body_b;
                     add_data.m_UserDataB = body_b->GetUserData();
                     int32_t index_a = contact->GetChildIndexA();
                     int32_t index_b = contact->GetChildIndexB();
@@ -991,7 +991,7 @@ namespace dmPhysics
             b2Fixture* fixture = body->CreateFixture(&f_def);
             (void)fixture;
         }
-        UpdateMass2D(body, data.m_Mass);
+        UpdateMass2D(world, body, data.m_Mass);
         return body;
     }
 
@@ -1002,7 +1002,7 @@ namespace dmPhysics
         // DestroyBody() should be enough in general but we have to run over all fixtures in order to free allocated shapes
         // See comment above about shapes and transforms
 
-        OverlapCacheRemove(&world->m_TriggerOverlaps, collision_object);
+        OverlapCacheRemove(&world->m_TriggerOverlaps, (uint64_t) collision_object);
         b2Body* body = (b2Body*)collision_object;
         b2Fixture* fixture = body->GetFixtureList();
         while (fixture)
@@ -1309,7 +1309,7 @@ namespace dmPhysics
         }
     }
 
-    bool UpdateMass2D(HCollisionObject2D collision_object, float mass) {
+    bool UpdateMass2D(HWorld2D world, HCollisionObject2D collision_object, float mass) {
         b2Body* body = (b2Body*)collision_object;
         if (body->GetType() != b2_dynamicBody) {
             return false;
@@ -1494,7 +1494,7 @@ namespace dmPhysics
                     }
                     fixture = next_fixture;
                 }
-                UpdateMass2D(body, mass);
+                UpdateMass2D(context->m_Worlds[i], body, mass);
             }
         }
     }
