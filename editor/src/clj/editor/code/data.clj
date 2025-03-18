@@ -301,8 +301,8 @@
       [(->CursorRange a-start b-start)])))
 
 (defn cursor-range-intersection
-  "Returns either nil if no intersection or an intersection cursor range
-  Note: returned range is never empty; the result is nil if 2 ranges only touch"
+  "Returns either nil if no intersection or an intersection cursor range.
+  Note: returned range is never empty; the result is nil if 2 ranges only touch."
   [^CursorRange a ^CursorRange b]
   (let [a-start (cursor-range-start a)
         a-end (cursor-range-end a)

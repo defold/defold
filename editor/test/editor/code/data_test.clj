@@ -1521,4 +1521,11 @@
                                            (cr [0 1] [0 3]))))
     (is (= (cr [0 1] [0 2])
            (data/cursor-range-intersection (cr [0 1] [0 3])
-                                           (cr [0 0] [0 2]))))))
+                                           (cr [0 0] [0 2])))))
+  (testing "full overlap"
+    (is (= (cr [0 0] [0 1])
+           (data/cursor-range-intersection (cr [0 0] [0 1])
+                                           (cr [0 0] [0 1]))))
+    (testing "empty is still nil"
+      (is (nil? (data/cursor-range-intersection (cr [0 0] [0 0])
+                                                (cr [0 0] [0 0])))))))

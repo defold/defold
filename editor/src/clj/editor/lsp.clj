@@ -889,15 +889,17 @@
 
 (defn hover! [lsp resource cursor result-callback & {:keys [timeout-ms]
                                                      :or {timeout-ms 1000}}]
-  (lsp (bound-fn [state]
-         (let [ch (a/chan 1 cat)]
-           (a/go (result-callback (<! (a/into [] ch))))
-           (send-requests!
-             state ch
-             :capabilities-pred :hover
-             :language (resource/language resource)
-             :timeout-ms timeout-ms
-             :requests [(lsp.server/hover resource cursor)])))))
+  (if (resource/file-resource? resource)
+    (lsp (bound-fn [state]
+           (let [ch (a/chan 1 cat)]
+             (a/go (result-callback (<! (a/into [] ch))))
+             (send-requests!
+               state ch
+               :capabilities-pred :hover
+               :language (resource/language resource)
+               :timeout-ms timeout-ms
+               :requests [(lsp.server/hover resource cursor)]))))
+    (do (result-callback []) nil)))
 
 (comment
   (val (first @running-lsps))

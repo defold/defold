@@ -1093,7 +1093,7 @@
   (property completions-previous-combined-ids g/Any (dynamic visible (g/constantly false)))
 
   ;; the cursor position for which we show the hover.
-  (property hover-showing-cursor g/Any (default false) (dynamic visible (g/constantly false)))
+  (property hover-showing-cursor g/Any (dynamic visible (g/constantly false)))
   ;; instance of `(ui/->future)`, delayed refresh check
   (property hover-request g/Any (dynamic visible (g/constantly false)))
   ;; current mouse position as a cursor, nil if not hovering a character
@@ -1158,7 +1158,7 @@
   ;; resource node will read directly from disk unless edits have been made.
   (output lines types/Lines :cached (gu/passthrough lines))
   (output regions r/Regions :cached (g/fnk [regions diagnostics hover-cursor-lsp-regions hover-showing-lsp-regions]
-                                      (vec (sort (vec (e/concat regions diagnostics hover-cursor-lsp-regions hover-showing-lsp-regions))))))
+                                      (vec (sort (into regions cat [diagnostics hover-cursor-lsp-regions hover-showing-lsp-regions])))))
   (output indent-type r/IndentType produce-indent-type)
   (output indent-string g/Str produce-indent-string)
   (output tab-spaces g/Num produce-tab-spaces)
@@ -1241,6 +1241,14 @@
 
      (g/node-value view-node prop-kw evaluation-context))))
 
+(defn- region->prop-kw [region]
+  (case (:type region)
+    :diagnostic :diagnostics
+    :hover (if (:hoverable region)
+             :hover-showing-lsp-regions
+             :hover-cursor-lsp-regions)
+    :regions))
+
 (defn set-properties!
   "Sets values of properties that are managed by the functions in the code.data module.
   Returns true if any property changed, false otherwise."
@@ -1260,13 +1268,7 @@
 
                           :regions
                           (let [{:keys [diagnostics hover-showing-lsp-regions hover-cursor-lsp-regions regions]}
-                                (group-by #(case (:type %)
-                                             :diagnostic :diagnostics
-                                             :hover (if (:hoverable %)
-                                                      :hover-showing-lsp-regions
-                                                      :hover-cursor-lsp-regions)
-                                             :regions)
-                                          value)]
+                                (group-by region->prop-kw value)]
                             (concat
                               (g/set-property view-node :hover-showing-lsp-regions hover-showing-lsp-regions)
                               (g/set-property view-node :hover-cursor-lsp-regions hover-cursor-lsp-regions)
@@ -1736,8 +1738,8 @@
                        splices)
          props (data/replace-typed-chars indent-level-pattern indent-string grammar lines regions layout all-splices)]
      (when (some? props)
-       (hide-suggestions! view-node)
        (hide-hover! view-node)
+       (hide-suggestions! view-node)
        (let [cursor-ranges (:cursor-ranges props)
              regions (:regions props)
              new-cursor-ranges (cond
@@ -2078,8 +2080,8 @@
 ;; -----------------------------------------------------------------------------
 
 (defn move! [view-node move-type cursor-type]
-  (hide-suggestions! view-node)
   (hide-hover! view-node)
+  (hide-suggestions! view-node)
   (set-properties! view-node move-type
                    (data/move (get-property view-node :lines)
                               (get-property view-node :cursor-ranges)
@@ -2088,8 +2090,8 @@
                               cursor-type)))
 
 (defn page-up! [view-node move-type]
-  (hide-suggestions! view-node)
   (hide-hover! view-node)
+  (hide-suggestions! view-node)
   (set-properties! view-node move-type
                    (data/page-up (get-property view-node :lines)
                                  (get-property view-node :cursor-ranges)
@@ -2098,8 +2100,8 @@
                                  move-type)))
 
 (defn page-down! [view-node move-type]
-  (hide-suggestions! view-node)
   (hide-hover! view-node)
+  (hide-suggestions! view-node)
   (set-properties! view-node move-type
                    (data/page-down (get-property view-node :lines)
                                    (get-property view-node :cursor-ranges)
@@ -2131,8 +2133,8 @@
       (hide-suggestions! view-node))))
 
 (defn toggle-comment! [view-node]
-  (hide-suggestions! view-node)
   (hide-hover! view-node)
+  (hide-suggestions! view-node)
   (set-properties! view-node nil
                    (data/toggle-comment (get-property view-node :lines)
                                         (get-property view-node :regions)
@@ -2147,16 +2149,16 @@
                                     (get-property view-node :cursor-ranges))))
 
 (defn select-next-occurrence! [view-node]
-  (hide-suggestions! view-node)
   (hide-hover! view-node)
+  (hide-suggestions! view-node)
   (set-properties! view-node :selection
                    (data/select-next-occurrence (get-property view-node :lines)
                                                 (get-property view-node :cursor-ranges)
                                                 (get-property view-node :layout))))
 
 (defn- indent! [view-node]
-  (hide-suggestions! view-node)
   (hide-hover! view-node)
+  (hide-suggestions! view-node)
   (set-properties! view-node nil
                    (data/indent (get-property view-node :indent-level-pattern)
                                 (get-property view-node :indent-string)
@@ -2167,8 +2169,8 @@
                                 (get-property view-node :layout))))
 
 (defn- deindent! [view-node]
-  (hide-suggestions! view-node)
   (hide-hover! view-node)
+  (hide-suggestions! view-node)
   (set-properties! view-node nil
                    (data/deindent (get-property view-node :lines)
                                   (get-property view-node :cursor-ranges)
@@ -2340,8 +2342,8 @@
   (.consume event)
   (.requestFocus ^Node (.getTarget event))
   (refresh-mouse-cursor! view-node event)
-  (hide-suggestions! view-node)
   (hide-hover! view-node)
+  (hide-suggestions! view-node)
   (set-properties! view-node (if (< 1 (.getClickCount event)) :selection :navigation)
                    (data/mouse-pressed (get-property view-node :lines)
                                        (get-property view-node :cursor-ranges)
@@ -2370,12 +2372,15 @@
 
 (defn- refresh-hover-state! [view-node]
   (when (g/node-exists? view-node)
-    (set-properties! view-node nil
-      (if-let [hover-cursor (get-property view-node :hover-cursor)]
-        {:hover-showing-cursor hover-cursor
-         :hover-showing-lsp-regions (mapv #(assoc % :hoverable true) (get-property view-node :hover-cursor-lsp-regions))}
-        {:hover-showing-cursor nil
-         :hover-showing-lsp-regions nil}))))
+    (set-properties!
+      view-node nil
+      (g/with-auto-evaluation-context evaluation-context
+        (if-let [hover-cursor (when (some-> ^Canvas (get-property view-node :canvas evaluation-context) .getScene .getWindow .isFocused)
+                                (get-property view-node :hover-cursor evaluation-context))]
+          {:hover-showing-cursor hover-cursor
+           :hover-showing-lsp-regions (mapv #(assoc % :hoverable true) (get-property view-node :hover-cursor-lsp-regions evaluation-context))}
+          {:hover-showing-cursor nil
+           :hover-showing-lsp-regions nil})))))
 
 (defn- schedule-hover-refresh!
   "Returns properties to set"
@@ -2453,9 +2458,13 @@
 
 (defn handle-mouse-exited! [view-node ^MouseEvent event]
   (.consume event)
-  (set-properties! view-node :selection
-                   (data/mouse-exited (get-property view-node :gesture-start)
-                                      (get-property view-node :hovered-element))))
+  (set-properties!
+    view-node :selection
+    (coll/merge
+      (data/mouse-exited (get-property view-node :gesture-start)
+                         (get-property view-node :hovered-element))
+      {:hover-cursor nil}
+      (schedule-hover-refresh! view-node))))
 
 (defn handle-scroll! [view-node ^ScrollEvent event]
   (.consume event)
@@ -2495,16 +2504,16 @@
                               clipboard)))
 
 (defn copy! [view-node clipboard]
-  (hide-suggestions! view-node)
   (hide-hover! view-node)
+  (hide-suggestions! view-node)
   (set-properties! view-node nil
                    (data/copy! (get-property view-node :lines)
                                (get-property view-node :cursor-ranges)
                                clipboard)))
 
 (defn paste! [view-node clipboard]
-  (hide-suggestions! view-node)
   (hide-hover! view-node)
+  (hide-suggestions! view-node)
   (set-properties! view-node nil
                    (data/paste (get-property view-node :indent-level-pattern)
                                (get-property view-node :indent-string)
@@ -2516,8 +2525,8 @@
                                clipboard)))
 
 (defn split-selection-into-lines! [view-node]
-  (hide-suggestions! view-node)
   (hide-hover! view-node)
+  (hide-suggestions! view-node)
   (set-properties! view-node :selection
                    (data/split-selection-into-lines (get-property view-node :lines)
                                                     (get-property view-node :cursor-ranges))))
@@ -2627,8 +2636,8 @@
           accept! (fn [{:keys [resource cursor-range]}]
                     (.hide popup)
                     (open-resource-fn resource {:cursor-range cursor-range}))]
-      (hide-suggestions! view-node)
       (hide-hover! view-node)
+      (hide-suggestions! view-node)
       (doto list-view
         ui/apply-css!
         (.setOnMouseClicked
@@ -2958,8 +2967,8 @@
       (data/cursor-range-text (get-property view-node :lines) single-cursor-range))))
 
 (defn- find-next! [view-node]
-  (hide-suggestions! view-node)
   (hide-hover! view-node)
+  (hide-suggestions! view-node)
   (set-properties! view-node :selection
                    (data/find-next (get-property view-node :lines)
                                    (get-property view-node :cursor-ranges)
@@ -2970,8 +2979,8 @@
                                    (.getValue find-wrap-property))))
 
 (defn- find-prev! [view-node]
-  (hide-suggestions! view-node)
   (hide-hover! view-node)
+  (hide-suggestions! view-node)
   (set-properties! view-node :selection
                    (data/find-prev (get-property view-node :lines)
                                    (get-property view-node :cursor-ranges)
@@ -2982,8 +2991,8 @@
                                    (.getValue find-wrap-property))))
 
 (defn- replace-next! [view-node]
-  (hide-suggestions! view-node)
   (hide-hover! view-node)
+  (hide-suggestions! view-node)
   (set-properties! view-node nil
                    (data/replace-next (get-property view-node :lines)
                                       (get-property view-node :cursor-ranges)
@@ -2996,8 +3005,8 @@
                                       (.getValue find-wrap-property))))
 
 (defn- replace-all! [view-node]
-  (hide-suggestions! view-node)
   (hide-hover! view-node)
+  (hide-suggestions! view-node)
   (let [^String find-term (.getValue find-term-property)]
     (when (pos? (.length find-term))
       (set-properties! view-node nil
@@ -3196,7 +3205,7 @@
        "</p>"))
 
 (defn- handle-hover-popup-mouse-entered! [view-node _]
-  (some-> (get-property view-node :hover-request) ui/cancel))
+  (ui/->future 0.05 #(some-> (get-property view-node :hover-request) ui/cancel)))
 
 (defn- handle-hover-popup-mouse-exited! [view-node _]
   (set-properties! view-node nil (schedule-hover-refresh! view-node)))
@@ -3241,7 +3250,7 @@
          :style-class "hover-background"}
         {:fx/type markdown/view
          :content (->> hover-showing-regions
-                       (mapcat
+                       (e/mapcat
                          (fn [region]
                            (when (:hoverable region)
                              (case (:type region)
@@ -3251,7 +3260,7 @@
                                          (case type
                                            :plaintext (plaintext->markdown value)
                                            :markdown value))]))))
-                       (string/join "\n\n<hr>\n\n"))
+                       (coll/join-to-string "\n\n<hr>\n\n"))
          :project project
          :max-width 350.0
          :max-height max-popup-height}]}]}))
@@ -3338,15 +3347,15 @@
             hover-showing-regions (g/node-value view-node :hover-showing-regions evaluation-context)]
         (hover-renderer
           (when hover-showing-regions
-            (let [^Canvas canvas (:canvas canvas-repaint-info)]
+            (let [scene (.getScene ^Canvas (:canvas canvas-repaint-info))]
               {:hover-showing-regions hover-showing-regions
                :hover-showing-region (g/node-value view-node :hover-showing-region evaluation-context)
                :canvas-repaint-info canvas-repaint-info
                :project (g/node-value view-node :project evaluation-context)
                :view-node view-node
                :screen-bounds (mapv #(.getVisualBounds ^Screen %) (Screen/getScreens))
-               :window-x (some-> (.getScene canvas) .getWindow .getX)
-               :window-y (some-> (.getScene canvas) .getWindow .getY)})))))
+               :window-x (some-> scene .getWindow .getX)
+               :window-y (some-> scene .getWindow .getY)})))))
 
     ;; Repaint cursors if needed.
     (when-not (identical? prev-cursor-repaint-info cursor-repaint-info)

@@ -27,7 +27,8 @@
             [editor.os :as os]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
-            [service.log :as log])
+            [service.log :as log]
+            [util.eduction :as e])
   (:import [editor.code.data Cursor CursorRange]
            [java.io File InputStream]
            [java.lang ProcessBuilder$Redirect ProcessHandle]
@@ -227,18 +228,15 @@
                                (nil? diagnosticProvider) :none
                                (:workspaceDiagnostics diagnosticProvider) :workspace
                                :else :text-document)
-           :goto-definition (cond
-                              (boolean? definitionProvider) definitionProvider
-                              (map? definitionProvider) true
-                              :else false)
-           :find-references (cond
-                              (boolean? referencesProvider) referencesProvider
-                              (map? referencesProvider) true
-                              :else false)
-           :hover (cond
-                    (boolean? hoverProvider) hoverProvider
-                    (map? hoverProvider) true
-                    :else false)}
+           :goto-definition (if (boolean? definitionProvider)
+                              definitionProvider
+                              (map? definitionProvider))
+           :find-references (if (boolean? referencesProvider)
+                              referencesProvider
+                              (map? referencesProvider))
+           :hover (if (boolean? hoverProvider)
+                    hoverProvider
+                    (map? hoverProvider))}
           completionProvider
           (assoc :completion {:resolve (boolean (:resolveProvider completionProvider))
                               :trigger-characters (set (:triggerCharacters completionProvider))})))
@@ -701,7 +699,12 @@
       (when result
         (let [{:keys [contents range]} result
               range (or (some-> range lsp-range->editor-cursor-range)
-                        (data/->CursorRange cursor (data/->Cursor (.-row cursor) (inc (.-col cursor)))))]
-          (if (vector? contents)
-            (mapv #(hover-response->region range %) contents)
-            [(hover-response->region range contents)]))))))
+                        (data/->CursorRange cursor (data/->Cursor (.-row cursor) (inc (.-col cursor)))))
+              contents (if (vector? contents) contents [contents])]
+          (->> contents
+               (e/keep
+                 (fn [content]
+                   (let [region (hover-response->region range content)]
+                     (when-not (-> region :content :value string/blank?)
+                       region))))
+               vec))))))
