@@ -454,8 +454,9 @@ namespace dmGraphics
             vk_memory_type |= VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT;
         }
 
-        VkResult res = CreateTexture2D(
-            vk_physical_device, vk_device, width, height, 1, 1,
+        VkResult res = CreateTexture(
+            vk_physical_device, vk_device,
+            width, height, 1, 1, 1,
             vk_sample_count, vk_depth_format, vk_depth_tiling,
             vk_usage_flags,
             vk_memory_type,
@@ -673,18 +674,18 @@ namespace dmGraphics
         TextureCreationParams default_texture_creation_params;
         default_texture_creation_params.m_Width          = 1;
         default_texture_creation_params.m_Height         = 1;
-        default_texture_creation_params.m_Depth          = 1;
+        default_texture_creation_params.m_LayerCount     = 1;
         default_texture_creation_params.m_OriginalWidth  = default_texture_creation_params.m_Width;
         default_texture_creation_params.m_OriginalHeight = default_texture_creation_params.m_Height;
 
         const uint8_t default_texture_data[4 * 6] = {}; // RGBA * 6 (for cubemap)
 
         TextureParams default_texture_params;
-        default_texture_params.m_Width  = 1;
-        default_texture_params.m_Height = 1;
-        default_texture_params.m_Depth  = 1;
-        default_texture_params.m_Data   = default_texture_data;
-        default_texture_params.m_Format = TEXTURE_FORMAT_RGBA;
+        default_texture_params.m_Width      = 1;
+        default_texture_params.m_Height     = 1;
+        default_texture_params.m_LayerCount = 1;
+        default_texture_params.m_Data       = default_texture_data;
+        default_texture_params.m_Format     = TEXTURE_FORMAT_RGBA;
 
         context->m_DefaultTexture2D = VulkanNewTextureInternal(default_texture_creation_params);
         VulkanSetTextureInternal(context->m_DefaultTexture2D, default_texture_params);
@@ -694,7 +695,7 @@ namespace dmGraphics
         VulkanSetTextureInternal(context->m_DefaultTexture2D32UI, default_texture_params);
 
         default_texture_params.m_Format                 = TEXTURE_FORMAT_RGBA;
-        default_texture_creation_params.m_Depth         = 1;
+        default_texture_creation_params.m_LayerCount    = 1;
         default_texture_creation_params.m_Type          = TEXTURE_TYPE_IMAGE_2D;
         default_texture_creation_params.m_UsageHintBits = TEXTURE_USAGE_FLAG_STORAGE | TEXTURE_USAGE_FLAG_SAMPLE;
         context->m_DefaultStorageImage2D                = VulkanNewTextureInternal(default_texture_creation_params);
@@ -702,11 +703,12 @@ namespace dmGraphics
 
         default_texture_creation_params.m_UsageHintBits = TEXTURE_USAGE_FLAG_SAMPLE;
         default_texture_creation_params.m_Type          = TEXTURE_TYPE_2D_ARRAY;
-        default_texture_creation_params.m_Depth         = 1;
+        default_texture_creation_params.m_LayerCount    = 1;
         context->m_DefaultTexture2DArray                = VulkanNewTextureInternal(default_texture_creation_params);
 
-        default_texture_creation_params.m_Type  = TEXTURE_TYPE_CUBE_MAP;
-        default_texture_creation_params.m_Depth = 6;
+        default_texture_creation_params.m_Type       = TEXTURE_TYPE_CUBE_MAP;
+        default_texture_creation_params.m_Depth      = 6;
+        default_texture_creation_params.m_LayerCount = 1;
         context->m_DefaultTextureCubeMap = VulkanNewTextureInternal(default_texture_creation_params);
 
         memset(context->m_TextureUnits, 0x0, sizeof(context->m_TextureUnits));
@@ -1949,10 +1951,13 @@ bail:
             case ShaderDesc::SHADER_TYPE_SAMPLER3D:
             case ShaderDesc::SHADER_TYPE_SAMPLER_CUBE:
             case ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY:
+            case ShaderDesc::SHADER_TYPE_SAMPLER3D_ARRAY:
                 return VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 
             case ShaderDesc::SHADER_TYPE_IMAGE2D:
             case ShaderDesc::SHADER_TYPE_UIMAGE2D:
+            case ShaderDesc::SHADER_TYPE_IMAGE3D:
+            case ShaderDesc::SHADER_TYPE_UIMAGE3D:
                 return VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
 
             // Render pass inputs
@@ -1960,10 +1965,13 @@ bail:
                 return VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
 
             // Texture objects
+            case ShaderDesc::SHADER_TYPE_TEXTURE_CUBE:
             case ShaderDesc::SHADER_TYPE_TEXTURE2D:
             case ShaderDesc::SHADER_TYPE_TEXTURE2D_ARRAY:
-            case ShaderDesc::SHADER_TYPE_TEXTURE_CUBE:
             case ShaderDesc::SHADER_TYPE_UTEXTURE2D:
+            case ShaderDesc::SHADER_TYPE_TEXTURE3D:
+            case ShaderDesc::SHADER_TYPE_TEXTURE3D_ARRAY:
+            case ShaderDesc::SHADER_TYPE_UTEXTURE3D:
                 return VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
 
             // Storage buffers
@@ -3315,10 +3323,10 @@ bail:
                     vk_memory_type |= VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT;
                 }
 
-                VkResult res = CreateTexture2D(
+                VkResult res = CreateTexture(
                     g_VulkanContext->m_PhysicalDevice.m_Device,
                     g_VulkanContext->m_LogicalDevice.m_Device,
-                    new_texture_color->m_Width, new_texture_color->m_Height, 1, new_texture_color->m_MipMapCount,
+                    new_texture_color->m_Width, new_texture_color->m_Height, 1, 1, new_texture_color->m_MipMapCount,
                     VK_SAMPLE_COUNT_1_BIT,
                     vk_color_format,
                     VK_IMAGE_TILING_OPTIMAL,
@@ -3484,10 +3492,11 @@ bail:
                 texture_color->m_ImageLayout[0] = VK_IMAGE_LAYOUT_PREINITIALIZED;
 
                 DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], texture_color);
-                VkResult res = CreateTexture2D(
+                VkResult res = CreateTexture(
                     g_VulkanContext->m_PhysicalDevice.m_Device,
                     g_VulkanContext->m_LogicalDevice.m_Device,
-                    width, height, texture_color->m_MipMapCount, 1, VK_SAMPLE_COUNT_1_BIT,
+                    width, height, 1,
+                    texture_color->m_MipMapCount, 1, VK_SAMPLE_COUNT_1_BIT,
                     texture_color->m_Format,
                     VK_IMAGE_TILING_OPTIMAL,
                     vk_usage_flags,
@@ -3564,7 +3573,8 @@ bail:
         tex->m_Type           = params.m_Type;
         tex->m_Width          = params.m_Width;
         tex->m_Height         = params.m_Height;
-        tex->m_Depth          = params.m_Depth;
+        tex->m_Depth          = dmMath::Max((uint16_t)1, params.m_Depth);
+        tex->m_LayerCount     = dmMath::Max((uint16_t)1, params.m_LayerCount);
         tex->m_MipMapCount    = params.m_MipMapCount;
         tex->m_UsageFlags     = GetVulkanUsageFromHints(params.m_UsageHintBits);
         tex->m_UsageHintFlags = params.m_UsageHintBits;
@@ -3578,11 +3588,13 @@ bail:
         {
             tex->m_OriginalWidth  = params.m_Width;
             tex->m_OriginalHeight = params.m_Height;
+            tex->m_OriginalDepth  = params.m_Depth;
         }
         else
         {
             tex->m_OriginalWidth  = params.m_OriginalWidth;
             tex->m_OriginalHeight = params.m_OriginalHeight;
+            tex->m_OriginalDepth  = params.m_OriginalDepth;
         }
         return tex;
     }
@@ -3626,7 +3638,7 @@ bail:
         bool useStageBuffer, uint32_t texDataSize, void* texDataPtr, VulkanTexture* textureOut)
     {
         VkDevice vk_device = context->m_LogicalDevice.m_Device;
-        uint8_t layer_count = textureOut->m_Depth;
+        uint8_t layer_count = textureOut->m_LayerCount;
         assert(layer_count > 0);
 
         // TODO There is potentially a bunch of redundancy here.
@@ -3697,10 +3709,10 @@ bail:
                 vk_copy_region.bufferImageHeight               = 0;
                 vk_copy_region.imageOffset.x                   = params.m_X;
                 vk_copy_region.imageOffset.y                   = params.m_Y;
-                vk_copy_region.imageOffset.z                   = 0;
+                vk_copy_region.imageOffset.z                   = params.m_Z;
                 vk_copy_region.imageExtent.width               = params.m_Width;
                 vk_copy_region.imageExtent.height              = params.m_Height;
-                vk_copy_region.imageExtent.depth               = 1;
+                vk_copy_region.imageExtent.depth               = dmMath::Max((uint32_t) 1, (uint32_t) params.m_Depth);
                 vk_copy_region.imageSubresource.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
                 vk_copy_region.imageSubresource.mipLevel       = params.m_MipMap;
                 vk_copy_region.imageSubresource.baseArrayLayer = i;
@@ -3775,7 +3787,8 @@ bail:
         }
 
         TextureFormat format_orig   = params.m_Format;
-        uint16_t tex_layer_count    = dmMath::Max(texture->m_Depth, params.m_Depth);
+        uint16_t tex_layer_count    = dmMath::Max(texture->m_LayerCount, params.m_LayerCount);
+        uint16_t tex_depth          = dmMath::Max(texture->m_Depth, params.m_Depth);
         uint8_t tex_bpp             = GetTextureFormatBitsPerPixel(params.m_Format);
         size_t tex_data_size        = params.m_DataSize * tex_layer_count * 8; // Convert into bits
         void*  tex_data_ptr         = (void*)params.m_Data;
@@ -3811,12 +3824,12 @@ bail:
             vk_format     = VK_FORMAT_R8G8B8A8_UNORM;
             tex_data_ptr  = data_new;
             tex_bpp       = 32;
-            tex_data_size = tex_bpp * params.m_Width * params.m_Height * tex_layer_count;
         }
 
+        tex_data_size             = tex_bpp * params.m_Width * params.m_Height * tex_depth * tex_layer_count;
         texture->m_GraphicsFormat = params.m_Format;
         texture->m_MipMapCount    = dmMath::Max(texture->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
-        texture->m_Depth          = tex_layer_count;
+        texture->m_LayerCount     = tex_layer_count;
 
         VulkanSetTextureParamsInternal(texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, 1.0f);
 
@@ -3828,12 +3841,16 @@ bail:
         }
         else if (params.m_MipMap == 0)
         {
-            if (texture->m_Format != vk_format || texture->m_Width != params.m_Width || texture->m_Height != params.m_Height)
+            if (texture->m_Format != vk_format ||
+                texture->m_Width != params.m_Width ||
+                texture->m_Height != params.m_Height ||
+                (IsTextureType3D(texture->m_Type) && (texture->m_Depth != params.m_Depth)))
             {
                 DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], texture);
-                texture->m_Format      = vk_format;
-                texture->m_Width       = params.m_Width;
-                texture->m_Height      = params.m_Height;
+                texture->m_Format = vk_format;
+                texture->m_Width  = params.m_Width;
+                texture->m_Height = params.m_Height;
+                texture->m_Depth  = params.m_Depth;
 
                 // Note:
                 // If the texture has requested mipmaps and we need to recreate the texture, make sure to allocate enough mipmaps.
@@ -3892,10 +3909,12 @@ bail:
                 texture->m_MipMapCount = 1;
             }
 
-            VkResult res = CreateTexture2D(vk_physical_device,
+            VkResult res = CreateTexture(
+                vk_physical_device,
                 logical_device.m_Device,
                 texture->m_Width,
                 texture->m_Height,
+                tex_depth,
                 tex_layer_count,
                 texture->m_MipMapCount,
                 VK_SAMPLE_COUNT_1_BIT,

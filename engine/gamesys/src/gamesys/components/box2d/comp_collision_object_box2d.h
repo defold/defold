@@ -44,8 +44,8 @@ namespace dmGameSystem
     dmGameObject::PropertyResult CompCollisionObjectBox2DSetProperty(const dmGameObject::ComponentSetPropertyParams& params);
 
     // For script_box2d.cpp
-    b2World* CompCollisionObjectGetBox2DWorld(dmGameObject::HComponentWorld _world);
-    b2Body*  CompCollisionObjectGetBox2DBody(dmGameObject::HComponent _component);
+    void* CompCollisionObjectGetBox2DWorld(dmGameObject::HComponentWorld _world);
+    void* CompCollisionObjectGetBox2DBody(dmGameObject::HComponent _component);
 }
 
 #endif // DM_GAMESYS_COMP_COLLISION_OBJECT_BOX2D_H

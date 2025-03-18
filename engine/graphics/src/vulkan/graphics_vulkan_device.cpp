@@ -808,11 +808,12 @@ bail:
         return VK_SUCCESS;
     }
 
-    VkResult CreateTexture2D(
+    VkResult CreateTexture(
         VkPhysicalDevice      vk_physical_device,
         VkDevice              vk_device,
         uint32_t              imageWidth,
         uint32_t              imageHeight,
+        uint32_t              imageDepth,
         uint32_t              imageLayers,
         uint16_t              imageMips,
         VkSampleCountFlagBits vk_sample_count,
@@ -826,14 +827,14 @@ bail:
         DeviceBuffer& device_buffer = textureOut->m_DeviceBuffer;
         TextureType tex_type = textureOut->m_Type;
 
-        VkImageCreateInfo vk_image_create_info = {};
         VkImageViewType vk_view_type = VK_IMAGE_VIEW_TYPE_2D;
 
+        VkImageCreateInfo vk_image_create_info = {};
         vk_image_create_info.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
         vk_image_create_info.imageType     = VK_IMAGE_TYPE_2D;
         vk_image_create_info.extent.width  = imageWidth;
         vk_image_create_info.extent.height = imageHeight;
-        vk_image_create_info.extent.depth  = 1;
+        vk_image_create_info.extent.depth  = imageDepth;
         vk_image_create_info.mipLevels     = imageMips;
         vk_image_create_info.arrayLayers   = imageLayers;
         vk_image_create_info.format        = vk_format;
@@ -855,6 +856,11 @@ bail:
             assert(imageLayers > 0);
             vk_image_create_info.flags |= VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT;
             vk_view_type = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+        }
+        else if (tex_type == TEXTURE_TYPE_3D || tex_type == TEXTURE_TYPE_IMAGE_3D || tex_type == TEXTURE_TYPE_TEXTURE_3D)
+        {
+            vk_image_create_info.imageType = VK_IMAGE_TYPE_3D;
+            vk_view_type = VK_IMAGE_VIEW_TYPE_3D;
         }
 
         VkResult res = vkCreateImage(vk_device, &vk_image_create_info, 0, &textureOut->m_Handle.m_Image);
@@ -925,6 +931,7 @@ bail:
         {
             textureOut->m_Width  = imageWidth;
             textureOut->m_Height = imageHeight;
+            textureOut->m_Depth  = imageDepth;
         }
 
         return vkCreateImageView(vk_device, &vk_view_create_info, 0, &textureOut->m_Handle.m_ImageView);

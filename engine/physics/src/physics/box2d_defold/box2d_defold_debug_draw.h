@@ -12,12 +12,12 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef PHYSICS_DEBUG_DRAW_2D_H
-#define PHYSICS_DEBUG_DRAW_2D_H
+#ifndef DM_BOX2d_DEFOLD_DEBUG_DRAW_H
+#define DM_BOX2d_DEFOLD_DEBUG_DRAW_H
 
 #include "Box2D/Box2D.h"
 
-#include "physics.h"
+#include "../physics.h"
 
 namespace dmPhysics
 {
@@ -55,4 +55,4 @@ namespace dmPhysics
     };
 }
 
-#endif // PHYSICS_DEBUG_DRAW_2D_H
+#endif // DM_BOX2d_DEFOLD_DEBUG_DRAW_H

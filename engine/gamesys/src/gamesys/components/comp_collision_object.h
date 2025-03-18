@@ -44,9 +44,12 @@ namespace dmGameSystem
     void                         CompCollisionIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node);
     dmGameObject::HInstance      CompCollisionObjectGetInstance(void* user_data);
 
-    void* GetCollisionWorldCallback(CollisionWorld* world);
-    void SetCollisionWorldCallback(CollisionWorld* world, void* callback_info);
-    void RunCollisionWorldCallback(void* callback_data, const dmDDF::Descriptor* desc, const char* data);
+    dmScript::LuaCallbackInfo* GetCollisionWorldCallback(CollisionWorld* world);
+    void SetCollisionWorldCallback(CollisionWorld* world, dmScript::LuaCallbackInfo* callback_info, bool use_batching);
+
+    // script_physics.cpp
+    void RunCollisionWorldCallback(dmScript::LuaCallbackInfo* callback, const dmDDF::Descriptor* desc, const char* data);
+    void RunBatchedEventCallback(dmScript::LuaCallbackInfo* callback, uint32_t count, PhysicsMessage* infos, const uint8_t* data);
 
     // For script_physics.cpp
     uint64_t GetLSBGroupHash(CollisionWorld* world, uint16_t mask);

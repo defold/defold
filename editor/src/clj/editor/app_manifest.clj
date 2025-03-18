@@ -345,10 +345,15 @@
 
 (def physics-setting
   (make-choice-setting
-    :none (concat (libs-toggles all-platforms ["physics_null"]) (exclude-libs-toggles all-platforms ["physics" "LinearMath" "BulletDynamics" "BulletCollision" "Box2D" "script_box2d"]) (generic-contains-toggles all-platforms :excludeSymbols ["ScriptBox2DExt"]))
+    :none (concat (libs-toggles all-platforms ["physics_null"]) (exclude-libs-toggles all-platforms ["physics" "LinearMath" "BulletDynamics" "BulletCollision" "box2d" "box2d_defold" "script_box2d" "script_box2d_defold"]) (generic-contains-toggles all-platforms :excludeSymbols ["ScriptBox2DExt"]))
     :2d   (concat (libs-toggles all-platforms ["physics_2d"])   (exclude-libs-toggles all-platforms ["physics" "LinearMath" "BulletDynamics" "BulletCollision"]))
-    :3d   (concat (libs-toggles all-platforms ["physics_3d"])   (exclude-libs-toggles all-platforms ["physics" "Box2D" "script_box2d"]) (generic-contains-toggles all-platforms :excludeSymbols ["ScriptBox2DExt"]))
+    :3d   (concat (libs-toggles all-platforms ["physics_3d"])   (exclude-libs-toggles all-platforms ["physics" "box2d" "box2d_defold" "script_box2d" "script_box2d_defold"]) (generic-contains-toggles all-platforms :excludeSymbols ["ScriptBox2DExt"]))
     :both))
+
+(def physics-2d-setting
+  (make-choice-setting
+    :box2d-defold (concat (libs-toggles all-platforms ["box2d_defold" "script_box2d_defold"]) (exclude-libs-toggles all-platforms ["box2d" "script_box2d"]))
+    :box2d))
 
 (def image-setting
   (make-check-box-setting
@@ -472,6 +477,13 @@
                                                         [:none "None"]]}))
             (value (setting-property-getter physics-setting))
             (set (setting-property-setter physics-setting)))
+  (property physics-2d g/Any
+            (dynamic tooltip (g/constantly "Box2D version 3 or legacy Defold version"))
+            (dynamic edit-type (g/constantly {:type :choicebox
+                                              :options [[:box2d "Box2D Version 3"]
+                                                        [:box2d-defold "Box2D (Legacy Defold version)"]]}))
+            (value (setting-property-getter physics-2d-setting))
+            (set (setting-property-setter physics-2d-setting)))
   (property Rig+Model g/Any
             (dynamic tooltip (g/constantly "Rig, Model or none"))
             (dynamic edit-type (g/constantly {:type :choicebox
