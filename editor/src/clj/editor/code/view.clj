@@ -1509,7 +1509,7 @@
                     :completions-previous-combined-ids nil}))
 
 (defn- hide-hover! [view-node]
-  (set-properties! view-node nil {:hover-showing-cursor nil :hover-showing-lsp-regions nil}))
+  (set-properties! view-node nil {:hover-showing-cursor nil :hover-showing-lsp-regions nil :hover-mouse-over-popup false}))
 
 (defn- suggestions-shown? [view-node]
   (g/with-auto-evaluation-context evaluation-context
@@ -2381,7 +2381,8 @@
           {:hover-showing-cursor hover-cursor
            :hover-showing-lsp-regions (mapv #(assoc % :hoverable true) (get-property view-node :hover-cursor-lsp-regions evaluation-context))}
           {:hover-showing-cursor nil
-           :hover-showing-lsp-regions nil})))))
+           :hover-showing-lsp-regions nil
+           :hover-mouse-over-popup false})))))
 
 (defn- schedule-hover-refresh!
   "Returns properties to set"
