@@ -1102,6 +1102,7 @@
   (property hover-cursor-lsp-regions g/Any (dynamic visible (g/constantly false)))
   ;; hover regions for the showing cursor, visible
   (property hover-showing-lsp-regions g/Any (dynamic visible (g/constantly false)))
+  (property hover-mouse-over-popup g/Bool (default false) (dynamic visible (g/constantly false)))
   ;; all displayed hovered regions
   (output hover-showing-regions g/Any :cached (g/fnk [visible-regions hover-showing-cursor]
                                                 (when hover-showing-cursor
@@ -2433,7 +2434,7 @@
                                   (get-property view-node :hovered-element evaluation-context)
                                   x
                                   y)
-                lsp
+                (and lsp (not (get-property view-node :hover-mouse-over-popup evaluation-context)))
                 (merge
                   (let [hover-character-cursor (data/canvas->character-cursor layout lines x y)]
                     (request-lsp-hover! view-node lsp resource-node hover-character-cursor evaluation-context)))))))
@@ -2460,11 +2461,12 @@
   (.consume event)
   (set-properties!
     view-node :selection
-    (coll/merge
-      (data/mouse-exited (get-property view-node :gesture-start)
-                         (get-property view-node :hovered-element))
-      {:hover-cursor nil}
-      (schedule-hover-refresh! view-node))))
+    (g/with-auto-evaluation-context evaluation-context
+      (coll/merge
+        (data/mouse-exited (get-property view-node :gesture-start evaluation-context)
+                           (get-property view-node :hovered-element evaluation-context))
+        (when-not (get-property view-node :hover-mouse-over-popup evaluation-context)
+          (assoc (schedule-hover-refresh! view-node) :hover-cursor nil))))))
 
 (defn handle-scroll! [view-node ^ScrollEvent event]
   (.consume event)
@@ -3205,10 +3207,14 @@
        "</p>"))
 
 (defn- handle-hover-popup-mouse-entered! [view-node _]
-  (ui/->future 0.05 #(some-> (get-property view-node :hover-request) ui/cancel)))
+  (some-> (get-property view-node :hover-request) ui/cancel)
+  (set-properties! view-node nil {:hover-cursor nil :hover-mouse-over-popup true}))
 
 (defn- handle-hover-popup-mouse-exited! [view-node _]
-  (set-properties! view-node nil (schedule-hover-refresh! view-node)))
+  (set-properties! view-node nil (assoc (schedule-hover-refresh! view-node) :hover-mouse-over-popup false)))
+
+(defn- handle-hover-popup-on-hidden! [view-node _]
+  (set-properties! view-node nil {:hover-mouse-over-popup false}))
 
 (defn handle-hover-popup-auto-hide! [view-node _]
   (hide-hover! view-node))
@@ -3233,6 +3239,7 @@
      :anchor-x (- (.getX anchor) 4)
      :anchor-y (+ (.getY anchor) 6)
      :anchor-location :window-bottom-left
+     :on-hidden (fn/partial handle-hover-popup-on-hidden! view-node)
      :auto-hide true
      :on-auto-hide (fn/partial handle-hover-popup-auto-hide! view-node)
      :auto-fix true
