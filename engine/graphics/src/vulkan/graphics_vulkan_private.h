@@ -21,6 +21,7 @@
 
 #include "../graphics_private.h"
 
+#include <dmsdk/dlib/atomic.h>
 #include <dmsdk/graphics/graphics_vulkan.h>
 
 namespace dmGraphics
@@ -96,6 +97,7 @@ namespace dmGraphics
         VkImageLayout     m_ImageLayout[16];
         VkImageUsageFlags m_UsageFlags;
         DeviceBuffer      m_DeviceBuffer;
+        int32_atomic_t    m_DataState; // data state per mip-map (mipX = bitX). 0=ok, 1=pending
         uint16_t          m_Width;
         uint16_t          m_Height;
         uint16_t          m_Depth;
@@ -258,6 +260,7 @@ namespace dmGraphics
         VkQueue       m_GraphicsQueue;
         VkQueue       m_PresentQueue;
         VkCommandPool m_CommandPool;
+        VkCommandPool m_CommandPoolWorker;
     };
 
     struct ShaderModule
@@ -379,6 +382,10 @@ namespace dmGraphics
 
         VkPhysicalDeviceFragmentShaderInterlockFeaturesEXT m_FragmentShaderInterlockFeatures;
 
+        // Async process resources
+        dmJobThread::HContext              m_JobThread;
+        SetTextureAsyncState               m_SetTextureAsyncState;
+        dmMutex::HMutex                    m_AssetHandleContainerMutex;
 
         // Main device rendering constructs
         dmArray<VkFramebuffer>          m_MainFrameBuffers;
@@ -413,6 +420,7 @@ namespace dmGraphics
         VulkanTexture*                  m_DefaultStorageImage2D;
         VulkanTexture                   m_ResolveTexture;
         uint64_t                        m_TextureFormatSupport;
+        int32_atomic_t                  m_DeleteContextRequested;
 
         uint32_t                        m_Width;
         uint32_t                        m_Height;
@@ -428,6 +436,7 @@ namespace dmGraphics
         uint32_t                        m_UseValidationLayers  : 1;
         uint32_t                        m_RenderDocSupport     : 1;
         uint32_t                        m_ASTCSupport          : 1;
+        uint32_t                        m_AsyncProcessingSupport : 1;
     };
 
     // Implemented in graphics_vulkan_context.cpp
@@ -486,6 +495,7 @@ namespace dmGraphics
     VkSampleCountFlagBits GetClosestSampleCountFlag(PhysicalDevice* physicalDevice, uint32_t bufferFlagBits, uint8_t sampleCount);
 
     // Misc functions
+    void     TransitionImageLayoutWithCmdBuffer(VkCommandBuffer vk_command_buffer, VulkanTexture* texture, VkImageAspectFlags vk_image_aspect, VkImageLayout vk_to_layout, uint32_t base_mip_level, uint32_t layer_count);
     VkResult TransitionImageLayout(VkDevice vk_device, VkCommandPool vk_command_pool, VkQueue vk_graphics_queue, VulkanTexture* texture, VkImageAspectFlags vk_image_aspect, VkImageLayout vk_to_layout, uint32_t baseMipLevel = 0, uint32_t layer_count = 1);
     VkResult WriteToDeviceBuffer(VkDevice vk_device, VkDeviceSize size, VkDeviceSize offset, const void* data, DeviceBuffer* buffer);
     void     DestroyPipelineCacheCb(VulkanContext* context, const uint64_t* key, Pipeline* value);

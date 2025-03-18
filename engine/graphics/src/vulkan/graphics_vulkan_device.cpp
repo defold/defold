@@ -453,15 +453,14 @@ namespace dmGraphics
         return vk_count_bits[dmMath::Min<uint8_t>(sample_count_index_requested, sample_count_index_max)];
     }
 
-    VkResult TransitionImageLayout(VkDevice vk_device, VkCommandPool vk_command_pool, VkQueue vk_graphics_queue, VulkanTexture* texture,
-        VkImageAspectFlags vk_image_aspect, VkImageLayout vk_to_layout,
-        uint32_t baseMipLevel, uint32_t layer_count)
+    void TransitionImageLayoutWithCmdBuffer(VkCommandBuffer vk_command_buffer, VulkanTexture* texture,
+        VkImageAspectFlags vk_image_aspect, VkImageLayout vk_to_layout, uint32_t base_mip_level, uint32_t layer_count)
     {
-        VkImageLayout vk_from_layout = texture->m_ImageLayout[baseMipLevel];
+        VkImageLayout vk_from_layout = texture->m_ImageLayout[base_mip_level];
 
         if (vk_from_layout == vk_to_layout)
         {
-            return VK_SUCCESS;
+            return;
         }
 
         VkImageMemoryBarrier vk_memory_barrier            = {};
@@ -472,7 +471,7 @@ namespace dmGraphics
         vk_memory_barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
         vk_memory_barrier.image                           = texture->m_Handle.m_Image;
         vk_memory_barrier.subresourceRange.aspectMask     = vk_image_aspect;
-        vk_memory_barrier.subresourceRange.baseMipLevel   = baseMipLevel;
+        vk_memory_barrier.subresourceRange.baseMipLevel   = base_mip_level;
         vk_memory_barrier.subresourceRange.levelCount     = 1;
         vk_memory_barrier.subresourceRange.baseArrayLayer = 0;
         vk_memory_barrier.subresourceRange.layerCount     = layer_count;
@@ -544,10 +543,24 @@ namespace dmGraphics
         }
         else
         {
-            // Transition not supported, so we early out.
-            return VK_SUCCESS;
+            // Transition not supported, so we early out
+            return;
         }
 
+        vkCmdPipelineBarrier(
+            vk_command_buffer,
+            vk_source_stage,
+            vk_destination_stage,
+            0, 0, 0, 0, 0, 1,
+            &vk_memory_barrier);
+
+        texture->m_ImageLayout[base_mip_level] = vk_to_layout;
+    }
+
+    VkResult TransitionImageLayout(VkDevice vk_device, VkCommandPool vk_command_pool, VkQueue vk_graphics_queue, VulkanTexture* texture,
+        VkImageAspectFlags vk_image_aspect, VkImageLayout vk_to_layout,
+        uint32_t base_mip_level, uint32_t layer_count)
+    {
         // Create a one-time-execute command buffer that will only be used for the transition
         VkCommandBuffer vk_command_buffer;
         CreateCommandBuffers(vk_device, vk_command_pool, 1, &vk_command_buffer);
@@ -558,12 +571,7 @@ namespace dmGraphics
 
         vkBeginCommandBuffer(vk_command_buffer, &vk_command_buffer_begin_info);
 
-        vkCmdPipelineBarrier(
-            vk_command_buffer,
-            vk_source_stage,
-            vk_destination_stage,
-            0, 0, 0, 0, 0, 1,
-            &vk_memory_barrier);
+        TransitionImageLayoutWithCmdBuffer(vk_command_buffer, texture, vk_image_aspect, vk_to_layout, base_mip_level, layer_count);
 
         vkEndCommandBuffer(vk_command_buffer);
 
@@ -577,8 +585,6 @@ namespace dmGraphics
         vkQueueSubmit(vk_graphics_queue, 1, &vk_submit_info, VK_NULL_HANDLE);
         vkQueueWaitIdle(vk_graphics_queue);
         vkFreeCommandBuffers(vk_device, vk_command_pool, 1, &vk_command_buffer);
-
-        texture->m_ImageLayout[baseMipLevel] = vk_to_layout;
 
         return VK_SUCCESS;
     }
@@ -1674,6 +1680,16 @@ bail:
             vk_create_pool_info.queueFamilyIndex = (uint32_t) queueFamily.m_GraphicsQueueIx;
             vk_create_pool_info.flags            = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
             res = vkCreateCommandPool(logicalDeviceOut->m_Device, &vk_create_pool_info, 0, &logicalDeviceOut->m_CommandPool);
+
+            if (res == VK_SUCCESS)
+            {
+                memset(&vk_create_pool_info, 0, sizeof(vk_create_pool_info));
+                vk_create_pool_info.sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+                vk_create_pool_info.queueFamilyIndex = (uint32_t) queueFamily.m_GraphicsQueueIx; // Use the same queue for now (use a transfer queue at some point)
+                vk_create_pool_info.flags            = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+
+                res = vkCreateCommandPool(logicalDeviceOut->m_Device, &vk_create_pool_info, 0, &logicalDeviceOut->m_CommandPoolWorker);
+            }
         }
 
         return res;
