@@ -23,16 +23,15 @@ namespace dmShaderc
 {
     struct ShaderContext
     {
-        uint8_t*       m_ShaderCode;
-        uint32_t       m_ShaderCodeSize;
-
-        spvc_context   m_SPVCContext;
-        spvc_parsed_ir m_ParsedIR;
-
-        spvc_compiler  m_CompilerNone;
-        spvc_resources m_Resources;
-
-        ShaderReflection m_Reflection;
+        uint8_t*          m_ShaderCode;
+        uint32_t          m_ShaderCodeSize;
+        spvc_context      m_SPVCContext;
+        spvc_parsed_ir    m_ParsedIR;
+        spvc_compiler     m_CompilerNone;
+        spvc_resources    m_Resources;
+        SpvExecutionModel m_ExecutionModel;
+        ShaderReflection  m_Reflection;
+        ShaderStage       m_Stage;
     };
 
     struct ShaderCompiler

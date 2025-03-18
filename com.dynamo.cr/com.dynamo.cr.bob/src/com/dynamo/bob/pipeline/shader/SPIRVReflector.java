@@ -22,6 +22,7 @@ import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.map.ObjectMapper;
 
 import java.io.IOException;
+import java.lang.reflect.Array;
 import java.util.*;
 
 public class SPIRVReflector {
@@ -51,23 +52,21 @@ public class SPIRVReflector {
         }
     }
 
-    public Graphics.ShaderDesc.ShaderType getShaderStage() {
-        return this.shaderStage;
-    }
-
     private static Shaderc.ResourceTypeInfo getResourceTypeInfo(ArrayList<Shaderc.ResourceTypeInfo> types, String typeName) throws CompileExceptionError {
         for (Shaderc.ResourceTypeInfo type : types) {
             if (type.name.equals(typeName)) {
                 return type;
             }
         }
-        throw new CompileExceptionError("Type " + typeName + " not found");
+        return null;
     }
     
     public static boolean AreResourceTypesEqual(SPIRVReflector reflectionA, SPIRVReflector reflectionB, String typeName) throws CompileExceptionError {
         Shaderc.ResourceTypeInfo typeA = getResourceTypeInfo(reflectionA.getTypes(), typeName);
         Shaderc.ResourceTypeInfo typeB = getResourceTypeInfo(reflectionB.getTypes(), typeName);
 
+        if (typeA == null || typeB == null)
+            return false;
         if (!typeA.name.equals(typeB.name))
             return false;
         if (typeA.members.length != typeB.members.length)
@@ -87,6 +86,32 @@ public class SPIRVReflector {
                 return false;
         }
         return true;
+    }
+
+    public static boolean CanMergeResources(SPIRVReflector A, SPIRVReflector B, Shaderc.ShaderResource resA, Shaderc.ShaderResource resB) throws CompileExceptionError {
+        boolean bindingsMismatch = resA.binding != resB.binding;
+        boolean setMisMatch = resA.set != resB.set;
+        boolean typesMatch = SPIRVReflector.AreResourceTypesEqual(A, B, resA.name);
+        return resA.name.equals(resB.name) && (bindingsMismatch || setMisMatch) && typesMatch;
+    }
+
+    private static Shaderc.ShaderResource[] RemoveResourceByNameHashInternal(Shaderc.ShaderResource[] resourcesIn, long nameHash) {
+        if (resourcesIn == null) {
+            return null;
+        }
+        ArrayList<Shaderc.ShaderResource> resourcesOut = new ArrayList<>();
+        for (Shaderc.ShaderResource shaderResource : resourcesIn) {
+            if (shaderResource.nameHash != nameHash) {
+                resourcesOut.add(shaderResource);
+            }
+        }
+        return resourcesOut.toArray(new Shaderc.ShaderResource[0]);
+    }
+
+    public void removeResourceByNameHash(long nameHash) {
+        this.reflection.uniformBuffers = RemoveResourceByNameHashInternal(this.reflection.uniformBuffers, nameHash);
+        this.reflection.textures = RemoveResourceByNameHashInternal(this.reflection.textures, nameHash);
+        this.reflection.storageBuffers = RemoveResourceByNameHashInternal(this.reflection.storageBuffers, nameHash);
     }
 
     public ArrayList<Shaderc.ResourceTypeInfo> getTypes() {
@@ -112,7 +137,6 @@ public class SPIRVReflector {
     }
 
     public ArrayList<Shaderc.ShaderResource> getTextures() {
-
         if (reflection.textures == null)
             return new ArrayList<>();
 

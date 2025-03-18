@@ -190,10 +190,10 @@ public class ShaderCompilePipelineTest {
         Shaderc.ShaderResource sharedUBOvs = getShaderResource(reflectorVs, "shared_uniforms");
         assertNotNull(sharedUBOvs);
         Shaderc.ShaderResource sharedUBOfs = getShaderResource(reflectorFs, "shared_uniforms");
-        assertNotNull(sharedUBOfs);
+        assertNull(sharedUBOfs);
 
-        assertEquals(sharedUBOvs.binding, sharedUBOfs.binding);
-        assertEquals(sharedUBOvs.set, sharedUBOfs.set);
+        int combinedShaderStages = Shaderc.ShaderStage.SHADER_STAGE_VERTEX.getValue() + Shaderc.ShaderStage.SHADER_STAGE_FRAGMENT.getValue();
+        assertEquals(combinedShaderStages,sharedUBOvs.stageFlags);
 
         ShaderCompilePipeline.destroyShaderPipeline(pipeline);
     }
@@ -278,13 +278,14 @@ public class ShaderCompilePipelineTest {
         assertFalse(SPIRVReflector.AreResourceTypesEqual(reflectorVs, reflectorFs, "not_equal"));
         assertFalse(SPIRVReflector.AreResourceTypesEqual(reflectorVs, reflectorFs, "not_equal_two"));
 
-        // The "equal" ubos should be merged, i.e they should have the same binding + set
+        // The "equal" ubos should be merged, which means that it will only be part of the VS reflection and not the FS
         Shaderc.ShaderResource equalUboA = getShaderResource(reflectorVs, "equal");
         Shaderc.ShaderResource equalUboB = getShaderResource(reflectorFs, "equal");
         assert equalUboA != null;
-        assert equalUboB != null;
-        assertEquals(equalUboA.binding, equalUboB.binding);
-        assertEquals(equalUboA.set, equalUboB.set);
+        assert equalUboB == null;
+
+        int combinedShaderStages = Shaderc.ShaderStage.SHADER_STAGE_VERTEX.getValue() + Shaderc.ShaderStage.SHADER_STAGE_FRAGMENT.getValue();
+        assertEquals(combinedShaderStages, equalUboA.stageFlags);
     }
 
     private Shaderc.ShaderResource getShaderResource(SPIRVReflector reflector, String name) {

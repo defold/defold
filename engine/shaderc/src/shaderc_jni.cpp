@@ -38,12 +38,12 @@ static jobject GetReflection(JNIEnv* env, jclass cls, jlong context)
     return C2J_CreateShaderReflection(env, types, reflection);
 }
 
-static jlong NewShaderContext(JNIEnv* env, jclass cls, jbyteArray array)
+static jlong NewShaderContext(JNIEnv* env, jclass cls, jint stage, jbyteArray array)
 {
     jsize file_size = env->GetArrayLength(array);
     jbyte* file_data = env->GetByteArrayElements(array, 0);
 
-    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext((const void*) file_data, (uint32_t) file_size);
+    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext((dmShaderc::ShaderStage) stage, (const void*) file_data, (uint32_t) file_size);
 
     env->ReleaseByteArrayElements(array, file_data, JNI_ABORT);
 
@@ -113,13 +113,13 @@ JNIEXPORT void JNICALL Java_ShadercJni_DeleteShaderContext(JNIEnv* env, jclass c
     DM_JNI_GUARD_SCOPE_END();
 }
 
-// public static native Shaderc.ShaderContext NewShaderContext(byte[] buffer);
-JNIEXPORT jlong JNICALL Java_ShadercJni_NewShaderContext(JNIEnv* env, jclass cls, jbyteArray array)
+// public static native Shaderc.ShaderContext NewShaderContext(int stage, byte[] buffer);
+JNIEXPORT jlong JNICALL Java_ShadercJni_NewShaderContext(JNIEnv* env, jclass cls, jint stage, jbyteArray array)
 {
     jlong context;
     DM_JNI_GUARD_SCOPE_BEGIN();
     {
-        context = NewShaderContext(env, cls, array);
+        context = NewShaderContext(env, cls, stage, array);
     }
     DM_JNI_GUARD_SCOPE_END(return 0;);
     return context;
@@ -189,6 +189,16 @@ JNIEXPORT void JNICALL Java_ShadercJni_SetResourceSet(JNIEnv* env, jclass cls, j
     DM_JNI_GUARD_SCOPE_END();
 }
 
+// void SetResourceStageFlags(HShaderContext context, uint64_t name_hash, uint8_t stage_flags);
+JNIEXPORT void JNICALL Java_ShadercJni_SetResourceStageFlags(JNIEnv* env, jclass cls, jlong context, jlong name_hash, jint stage_flags)
+{
+    DM_JNI_GUARD_SCOPE_BEGIN();
+    {
+        dmShaderc::SetResourceStageFlags((dmShaderc::HShaderContext) context, (uint64_t) name_hash, (uint8_t) stage_flags);
+    }
+    DM_JNI_GUARD_SCOPE_END();
+}
+
 JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
 {
     dmLogDebug("JNI_OnLoad ->");
@@ -212,12 +222,13 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
     // Register your class' native methods.
     // Don't forget to add them to the corresponding java file (e.g. Shaderc.java)
     static const JNINativeMethod methods[] = {
-        { (char*) "NewShaderContext", (char*) "([B)J", reinterpret_cast<void*>(Java_ShadercJni_NewShaderContext)},
+        { (char*) "NewShaderContext", (char*) "(I[B)J", reinterpret_cast<void*>(Java_ShadercJni_NewShaderContext)},
         { (char*) "DeleteShaderContext", (char*) "(J)V", reinterpret_cast<void*>(Java_ShadercJni_DeleteShaderContext)},
         { (char*) "NewShaderCompiler", (char*) "(JI)J", reinterpret_cast<void*>(Java_ShadercJni_NewShaderCompiler)},
         { (char*) "DeleteShaderCompiler", (char*) "(J)V", reinterpret_cast<void*>(Java_ShadercJni_DeleteShaderCompiler)},
         { (char*) "Compile", (char*) "(JJL" CLASS_NAME "$ShaderCompilerOptions;)L" CLASS_NAME "$ShaderCompileResult;", reinterpret_cast<void*>(Java_ShadercJni_Compile)},
         { (char*) "GetReflection", (char*) "(J)L" CLASS_NAME "$ShaderReflection;", reinterpret_cast<void*>(Java_ShadercJni_GetReflection)},
+        { (char*) "SetResourceStageFlags", (char*) "(JJI)V", reinterpret_cast<void*>(Java_ShadercJni_SetResourceStageFlags)},
         { (char*) "SetResourceLocation", (char*) "(JJJI)V", reinterpret_cast<void*>(Java_ShadercJni_SetResourceLocation)},
         { (char*) "SetResourceBinding", (char*) "(JJJI)V", reinterpret_cast<void*>(Java_ShadercJni_SetResourceBinding)},
         { (char*) "SetResourceSet", (char*) "(JJJI)V", reinterpret_cast<void*>(Java_ShadercJni_SetResourceSet)},

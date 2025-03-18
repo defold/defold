@@ -328,7 +328,7 @@ public class ShaderProgramBuilder extends Builder {
         return resourceTypeBuilder;
     }
 
-    static public ShaderDesc.ResourceBinding.Builder SPIRVResourceToResourceBindingBuilder(Shaderc.ShaderResource res, int stageFlags, int typeMemberOffset) throws CompileExceptionError {
+    static public ShaderDesc.ResourceBinding.Builder SPIRVResourceToResourceBindingBuilder(Shaderc.ShaderResource res, int typeMemberOffset) throws CompileExceptionError {
         ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
         ShaderDesc.ResourceType.Builder typeBuilder = getResourceTypeBuilder(res.type, typeMemberOffset);
         resourceBindingBuilder.setType(typeBuilder);
@@ -337,7 +337,7 @@ public class ShaderProgramBuilder extends Builder {
         resourceBindingBuilder.setId(res.id);
         resourceBindingBuilder.setSet(res.set);
         resourceBindingBuilder.setBinding(res.binding);
-        resourceBindingBuilder.setStageFlags(stageFlags);
+        resourceBindingBuilder.setStageFlags(res.stageFlags);
 
         if (res.blockSize != 0) {
             resourceBindingBuilder.setBlockSize(res.blockSize);
@@ -371,18 +371,12 @@ public class ShaderProgramBuilder extends Builder {
         ShaderDesc.ShaderReflection.Builder builder = ShaderDesc.ShaderReflection.newBuilder();
 
         for (SPIRVReflector reflector : reflectors) {
-            int stageFlags = 0;
-            switch(reflector.getShaderStage()) {
-                case SHADER_TYPE_VERTEX -> stageFlags = 1;
-                case SHADER_TYPE_FRAGMENT -> stageFlags = 2;
-                case SHADER_TYPE_COMPUTE -> stageFlags = 4;
-            }
-            fillShaderReflectionBuilder(builder, reflector, stageFlags);
+            fillShaderReflectionBuilder(builder, reflector);
         }
         return builder;
     }
 
-    static private void fillShaderReflectionBuilder(ShaderDesc.ShaderReflection.Builder builder, SPIRVReflector reflector, int stageFlags) throws CompileExceptionError {
+    static private void fillShaderReflectionBuilder(ShaderDesc.ShaderReflection.Builder builder, SPIRVReflector reflector) throws CompileExceptionError {
         ArrayList<Shaderc.ShaderResource> inputs    = reflector.getInputs();
         ArrayList<Shaderc.ShaderResource> outputs   = reflector.getOutputs();
         ArrayList<Shaderc.ShaderResource> ubos      = reflector.getUBOs();
@@ -396,29 +390,29 @@ public class ShaderProgramBuilder extends Builder {
         ResolveSamplerIndices(textures, idToTextureIndex);
 
         for (Shaderc.ShaderResource input : inputs) {
-            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(input, stageFlags, typeMemberOffset);
+            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(input, typeMemberOffset);
             resourceBindingBuilder.setBinding(input.location);
             builder.addInputs(resourceBindingBuilder);
         }
 
         for (Shaderc.ShaderResource output : outputs) {
-            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(output, stageFlags, typeMemberOffset);
+            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(output, typeMemberOffset);
             resourceBindingBuilder.setBinding(output.location);
             builder.addOutputs(resourceBindingBuilder);
         }
 
         for (Shaderc.ShaderResource ubo : ubos) {
-            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(ubo, stageFlags, typeMemberOffset);
+            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(ubo, typeMemberOffset);
             builder.addUniformBuffers(resourceBindingBuilder);
         }
 
         for (Shaderc.ShaderResource ssbo : ssbos) {
-            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(ssbo, stageFlags, typeMemberOffset);
+            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(ssbo, typeMemberOffset);
             builder.addStorageBuffers(resourceBindingBuilder);
         }
 
         for (Shaderc.ShaderResource texture : textures) {
-            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(texture, stageFlags, typeMemberOffset);
+            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(texture, typeMemberOffset);
 
             Integer textureIndex = idToTextureIndex.get(texture.id);
             if (textureIndex != null) {

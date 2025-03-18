@@ -214,7 +214,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
             checkResult(moduleLegacy.desc.resourcePath, resultString);
         }
 
-        moduleLegacy.spirvContext = ShadercJni.NewShaderContext(FileUtils.readFileToByteArray(file_out_spv));
+        moduleLegacy.spirvContext = ShadercJni.NewShaderContext(ToShadercShaderStageValue(moduleLegacy.desc.type), FileUtils.readFileToByteArray(file_out_spv));
 
         res.reflector = new SPIRVReflector(moduleLegacy.spirvContext, shaderType);
         res.source = FileUtils.readFileToByteArray(file_out_spv);
@@ -265,7 +265,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
                 throw new CompileExceptionError("Cannot cross-compile shader of type: " + shaderType + ", to language: " + shaderLanguage + ", reason: " + result.lastError);
             }
             return result.data;
-        } else if (canBeCrossCompiled(shaderLanguage)) {
+        } else if (CanBeCrossCompiled(shaderLanguage)) {
             String result = ShaderUtil.Common.compileGLSL(module.desc.source, shaderType, shaderLanguage, false, false, this.options.splitTextureSamplers);
             return result.getBytes();
         }
