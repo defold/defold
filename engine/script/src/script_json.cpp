@@ -20,6 +20,7 @@
 #include <dlib/dstrings.h>
 
 #include "script.h"
+#include <setjmp.h>
 
 extern "C"
 {
@@ -34,6 +35,34 @@ extern "C"
 #include "script_json.h"
 #include "script_private.h"
 
+////////////////////////////////////////////////////////////////
+// Once we know this works on all platforms, we may move this to a more public header
+static jmp_buf* g_CurrentJmpBuf = 0;
+
+struct LuaPanicScope
+{
+    lua_State*          m_L;
+    lua_CFunction       m_OldFn;
+    jmp_buf             m_JmpBuf;
+    LuaPanicScope(lua_State* L, lua_CFunction fn);
+    ~LuaPanicScope();
+};
+
+LuaPanicScope::LuaPanicScope(lua_State* L, lua_CFunction fn)
+: m_L(L)
+{
+    m_OldFn = lua_atpanic(m_L, fn);
+    g_CurrentJmpBuf = &m_JmpBuf;
+}
+
+LuaPanicScope::~LuaPanicScope()
+{
+    lua_atpanic(m_L, m_OldFn);
+    g_CurrentJmpBuf = 0;
+}
+
+////////////////////////////////////////////////////////////////
+
 namespace dmScript
 {
     /*# JSON API documentation
@@ -45,7 +74,7 @@ namespace dmScript
      * @namespace json
      */
 
-    int JsonToLua(lua_State* L, const char* json, size_t json_len)
+    static int JsonToLuaInternal(lua_State* L, const char* json, size_t json_len)
     {
         int top = lua_gettop(L);
         int ret = lua_cjson_decode(L, json, json_len);
@@ -55,6 +84,33 @@ namespace dmScript
         }
         assert(top + 1 == lua_gettop(L));
         return ret;
+    }
+
+    static int FallbackLuaPanic(lua_State* L)
+    {
+        if (g_CurrentJmpBuf != 0)
+        {
+            longjmp(*g_CurrentJmpBuf, 1); // Note that longjmp will automatically convert any 0 to a 1 (see documentation for longjmp)
+        }
+        return 0;
+    }
+
+    // Called from C (i.e. unprotected)
+    int JsonToLua(lua_State* L, const char* json, size_t json_len)
+    {
+        LuaPanicScope scope(L, FallbackLuaPanic);
+        int top = lua_gettop(L);
+        int jmpval = setjmp(*g_CurrentJmpBuf);
+        if (jmpval == 0)
+        {
+            return JsonToLuaInternal(L, json, json_len);
+        }
+
+        // If the error value is !=0, it means we got here from the panic function
+        // pop any old items from the stack
+        int num_to_pop = lua_gettop(L) - top;
+        lua_pop(L, num_to_pop);
+        return 0;
     }
 
     int LuaToJson(lua_State* L, char** json, size_t* json_len)
@@ -111,7 +167,7 @@ namespace dmScript
 
         size_t json_len;
         const char* json = luaL_checklstring(L, 1, &json_len);
-        return JsonToLua(L, json, json_len);
+        return JsonToLuaInternal(L, json, json_len);
     }
 
     /*# encode a lua table to a JSON string
