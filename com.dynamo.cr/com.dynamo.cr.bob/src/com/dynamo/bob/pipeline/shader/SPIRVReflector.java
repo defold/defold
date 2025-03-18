@@ -88,10 +88,28 @@ public class SPIRVReflector {
         return true;
     }
 
+    public static boolean AreResourceTypesEqual(SPIRVReflector reflectionA, SPIRVReflector reflectionB, Shaderc.ShaderResource resourceA, Shaderc.ShaderResource resourceB) throws CompileExceptionError {
+        if (resourceA.type.useTypeIndex && resourceB.type.useTypeIndex) {
+            return AreResourceTypesEqual(reflectionA, reflectionB, resourceA.name);
+        }
+        return resourceA.type.baseType == resourceB.type.baseType &&
+                resourceA.type.dimensionType == resourceB.type.dimensionType &&
+                resourceA.type.imageStorageType == resourceB.type.imageStorageType &&
+                resourceA.type.imageAccessQualifier == resourceB.type.imageAccessQualifier &&
+                resourceA.type.imageBaseType == resourceB.type.imageBaseType &&
+                resourceA.type.typeIndex == resourceB.type.typeIndex &&
+                resourceA.type.vectorSize == resourceB.type.vectorSize &&
+                resourceA.type.columnCount == resourceB.type.columnCount &&
+                resourceA.type.arraySize == resourceB.type.arraySize &&
+                resourceA.type.useTypeIndex == resourceB.type.useTypeIndex &&
+                resourceA.type.imageIsArrayed == resourceB.type.imageIsArrayed &&
+                resourceA.type.imageIsStorage == resourceB.type.imageIsStorage;
+    }
+
     public static boolean CanMergeResources(SPIRVReflector A, SPIRVReflector B, Shaderc.ShaderResource resA, Shaderc.ShaderResource resB) throws CompileExceptionError {
         boolean bindingsMismatch = resA.binding != resB.binding;
         boolean setMisMatch = resA.set != resB.set;
-        boolean typesMatch = SPIRVReflector.AreResourceTypesEqual(A, B, resA.name);
+        boolean typesMatch = AreResourceTypesEqual(A, B, resA, resB);
         return resA.name.equals(resB.name) && (bindingsMismatch || setMisMatch) && typesMatch;
     }
 

@@ -160,9 +160,11 @@ public class ShaderCompilePipelineTest {
                 out mediump vec2 var_texcoord0;
                 uniform vs_uniforms { highp mat4 view_proj; };
                 uniform shared_uniforms { vec4 tint; };  
+                uniform sampler2D shared_texture;
                 void main()
                 {
-                    gl_Position = view_proj * vec4(position.xyz + tint.x, 1.0);
+                    vec4 shared_color = texture(shared_texture, vec2(0.0));
+                    gl_Position = view_proj * vec4(position.xyz + tint.x + shared_color.x, 1.0);
                     var_texcoord0 = texcoord0;
                 }
                 """;
@@ -173,9 +175,10 @@ public class ShaderCompilePipelineTest {
                 in mediump vec2 var_texcoord0;
                 out vec4 out_fragColor;
                 uniform shared_uniforms { vec4 tint; };
+                uniform sampler2D shared_texture;
                 void main()
                 {
-                    out_fragColor = tint;
+                    out_fragColor = tint + texture(shared_texture, var_texcoord0.st);
                 }
                 """;
 
@@ -187,13 +190,24 @@ public class ShaderCompilePipelineTest {
         SPIRVReflector reflectorVs = pipeline.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX);
         SPIRVReflector reflectorFs = pipeline.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT);
 
+        // "shared_uniforms" have the same name and type, and can thus be merged. This means that
+        // the resource will NOT be available from the reflection data in the fragment shader.
         Shaderc.ShaderResource sharedUBOvs = getShaderResource(reflectorVs, "shared_uniforms");
         assertNotNull(sharedUBOvs);
         Shaderc.ShaderResource sharedUBOfs = getShaderResource(reflectorFs, "shared_uniforms");
         assertNull(sharedUBOfs);
 
+        // Shared resources have "visibility" in both modules, meaning that the shader stage flags
+        // have both fragment and vertex stage flags.
         int combinedShaderStages = Shaderc.ShaderStage.SHADER_STAGE_VERTEX.getValue() + Shaderc.ShaderStage.SHADER_STAGE_FRAGMENT.getValue();
         assertEquals(combinedShaderStages,sharedUBOvs.stageFlags);
+
+        Shaderc.ShaderResource sharedTextureVs = getShaderResource(reflectorVs, "shared_texture");
+        assertNotNull(sharedTextureVs);
+        Shaderc.ShaderResource sharedTextureFs = getShaderResource(reflectorFs, "shared_texture");
+        assertNull(sharedTextureFs);
+
+        assertEquals(combinedShaderStages, sharedTextureVs.stageFlags);
 
         ShaderCompilePipeline.destroyShaderPipeline(pipeline);
     }
