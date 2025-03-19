@@ -1931,6 +1931,67 @@ TYPED_TEST(PhysicsTest, SetGridShapeEnable)
     dmPhysics::DeleteHullSet2D(hull_set);
 }
 
+TYPED_TEST(PhysicsTest, GetSetGroup2D)
+{
+    int32_t rows = 4;
+    int32_t columns = 10;
+    int32_t cell_width = 16;
+    int32_t cell_height = 16;
+    dmPhysics::CollisionObjectData data;
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
+    data.m_Mass = 0.0f;
+    data.m_UserData = 0;
+    data.m_Group = 0xffff;
+    data.m_Mask = 0xffff;
+    data.m_Restitution = 0.0f;
+
+    dmPhysics::HCollisionShape2D shape = dmPhysics::NewBoxShape2D(TestFixture::m_Context, dmVMath::Vector3(0.5f, 0.5f, 0.0f));
+    typename TypeParam::CollisionObjectType co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
+
+    uint16_t group = dmPhysics::GetGroup2D(TestFixture::m_World, co);
+    ASSERT_EQ((uint16_t)0xffff, group);
+
+    dmPhysics::SetGroup2D(TestFixture::m_World, co, (uint16_t)0xabcd);
+    group = dmPhysics::GetGroup2D(TestFixture::m_World, co);
+
+    ASSERT_EQ((uint16_t)0xabcd, group);
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, co);
+    dmPhysics::DeleteCollisionShape2D(shape);
+}
+
+TYPED_TEST(PhysicsTest, GetSetMaskD)
+{
+    int32_t rows = 4;
+    int32_t columns = 10;
+    int32_t cell_width = 16;
+    int32_t cell_height = 16;
+    dmPhysics::CollisionObjectData data;
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
+    data.m_Mass = 0.0f;
+    data.m_UserData = 0;
+    data.m_Group = 0xffff;
+    data.m_Mask = 0xffff;
+    data.m_Restitution = 0.0f;
+
+    dmPhysics::HCollisionShape2D shape = dmPhysics::NewBoxShape2D(TestFixture::m_Context, dmVMath::Vector3(0.5f, 0.5f, 0.0f));
+    typename TypeParam::CollisionObjectType co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
+
+    bool is_set = dmPhysics::GetMaskBit2D(TestFixture::m_World, co, 1);
+    ASSERT_TRUE(is_set);
+
+    dmPhysics::SetMaskBit2D(TestFixture::m_World, co, (uint16_t)0x00FF, true);
+    dmPhysics::SetMaskBit2D(TestFixture::m_World, co, (uint16_t)0xFF00, false);
+
+    is_set = dmPhysics::GetMaskBit2D(TestFixture::m_World, co, (uint16_t)0xFF00);
+    ASSERT_FALSE(is_set);
+    is_set = dmPhysics::GetMaskBit2D(TestFixture::m_World, co, (uint16_t)0x00F0);
+    ASSERT_TRUE(is_set);
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, co);
+    dmPhysics::DeleteCollisionShape2D(shape);
+}
+
 TYPED_TEST(PhysicsTest, ScriptApiBox2D)
 {
     ASSERT_NE((void*)0, (*TestFixture::m_Test.m_GetWorldContextFunc)(TestFixture::m_World));
