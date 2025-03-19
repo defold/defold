@@ -97,6 +97,58 @@ def platform_glfw_version(platform):
         return 3
     return 2
 
+def platform_graphics_libs_and_symbols(platform):
+    graphics_libs = []
+    graphics_lib_symbols = []
+
+    use_opengl = False
+    use_opengles = False
+    use_vulkan = False
+
+    if platform in ('arm64-macos', 'x86_64-macos', 'arm64-nx64'):
+        use_opengl = Options.options.with_opengl
+        use_vulkan = True
+    elif platform in ('arm64-linux'):
+        use_opengles = True
+        use_vulkan = Options.options.with_vulkan
+    else:
+        use_opengl = True
+        use_vulkan = Options.options.with_vulkan
+
+    # We can only use one of these variants
+    if use_opengles:
+        graphics_libs += ['GRAPHICS_OPENGLES', 'DMGLFW', 'OPENGLES']
+        graphics_lib_symbols += ['GraphicsAdapterOpenGLES']
+    elif use_opengl:
+        graphics_libs += ['GRAPHICS', 'DMGLFW', 'OPENGL']
+        graphics_lib_symbols += ['GraphicsAdapterOpenGL']
+
+    if use_vulkan:
+        graphics_libs += ['GRAPHICS_VULKAN', 'DMGLFW', 'VULKAN']
+        graphics_lib_symbols.append('GraphicsAdapterVulkan')
+
+    if Options.options.with_dx12 and platform_supports_feature(platform, 'dx12', {}):
+        graphics_libs += ['GRAPHICS_DX12']
+        graphics_lib_symbols.append('GraphicsAdapterDX12')
+
+    if Options.options.with_webgpu and platform_supports_feature(platform, 'webgpu', {}):
+        graphics_libs += ['GRAPHICS_WEBGPU']
+        graphics_lib_symbols.append('GraphicsAdapterWebGPU')
+
+    if platform in ('arm64-nx64',):
+        graphics_libs = ['GRAPHICS_VULKAN', 'DMGLFW', 'VULKAN']
+        graphics_lib_symbols = ['GraphicsAdapterVulkan']
+
+    if platform in ('x86_64-ps4',):
+        graphics_libs = ['GRAPHICS']
+        graphics_lib_symbols = ['GraphicsAdapterPS4']
+
+    if platform in ('x86_64-ps5'):
+        graphics_libs = ['GRAPHICS']
+        graphics_lib_symbols = ['GraphicsAdapterPS5']
+
+    return graphics_libs, graphics_lib_symbols
+
 # Note that some of these version numbers are also present in build.py (TODO: put in a waf_versions.py or similar)
 # The goal is to put the sdk versions in sdk.py
 SDK_ROOT=sdk.SDK_ROOT
@@ -2045,6 +2097,7 @@ def options(opt):
     opt.add_option('--show-includes', action='store_true', default=False, dest='show_includes', help='Outputs the tree of includes')
     opt.add_option('--static-analyze', action='store_true', default=False, dest='static_analyze', help='Enables static code analyzer')
     opt.add_option('--with-valgrind', action='store_true', default=False, dest='with_valgrind', help='Enables usage of valgrind')
+    opt.add_option('--with-opengl', action='store_true', default=False, dest='with_opengl', help='Enables OpenGL as the graphics backend')
     opt.add_option('--with-vulkan', action='store_true', default=False, dest='with_vulkan', help='Enables Vulkan as graphics backend')
     opt.add_option('--with-vulkan-validation', action='store_true', default=False, dest='with_vulkan_validation', help='Enables Vulkan validation layers (on osx and ios)')
     opt.add_option('--with-dx12', action='store_true', default=False, dest='with_dx12', help='Enables DX12 as a graphics backend')
