@@ -97,6 +97,17 @@ def platform_glfw_version(platform):
         return 3
     return 2
 
+def platform_get_glfw_lib(platform):
+    if platform_glfw_version(platform) == 3:
+        return 'glfw3'
+    return 'dmglfw'
+
+def platform_get_platform_lib(platform):
+    if platform_glfw_version(platform) == 3:
+        if Options.options.with_vulkan or platform in ('arm64-macos', 'x86_64-macos', 'arm64-nx64'):
+            return 'platform_vulkan'
+    return 'platform'
+
 def platform_graphics_libs_and_symbols(platform):
     graphics_libs = []
     graphics_lib_symbols = []

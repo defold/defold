@@ -923,7 +923,7 @@ public class Project {
         }
 
         // If not found, try to get a built-in shader compiler for this platform
-        IShaderCompiler commonShaderCompiler = ShaderCompilers.getCommonShaderCompiler(platform);
+        IShaderCompiler commonShaderCompiler = ShaderCompilers.GetCommonShaderCompiler(platform);
         if (commonShaderCompiler != null) {
             return commonShaderCompiler;
         }
@@ -1424,6 +1424,7 @@ public class Project {
         options.add(new GameProjectBuildOption("debug-output-spirv", "output-spirv", "shader","output_spirv","GraphicsAdapterVulkan"));
         options.add(new GameProjectBuildOption("debug-output-hlsl", "output-hlsl", "shader","output_hlsl","GraphicsAdapterDX12"));
         options.add(new GameProjectBuildOption("debug-output-wgsl", "output-wgsl", "shader","output_wgsl","GraphicsAdapterWebGPU"));
+        options.add(new GameProjectBuildOption("debug-output-glsl", "output-glsl", "shader","output_glsl","GraphicsAdapterOpenGL"));
         options.add(new GameProjectBuildOption("output-glsles100", "output-glsles100", "shader","output_glsl_es100",null));
         options.add(new GameProjectBuildOption("output-glsles300", "output-glsles300", "shader","output_glsl_es300",null));
         options.add(new GameProjectBuildOption("output-glsl120", "output-glsl120", "shader","output_glsl120",null));

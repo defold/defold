@@ -110,6 +110,12 @@ public class ShaderProgramBuilder extends Builder {
         return taskBuilder.build();
     }
 
+    private void addUniqueShaderLanguage(ShaderDesc.Language language) {
+        if (!compileOptions.forceIncludeShaderLanguages.contains(language)) {
+            compileOptions.forceIncludeShaderLanguages.add(language);
+        }
+    }
+
     @Override
     public void build(Task task) throws IOException, CompileExceptionError {
         String resourceOutputPath = task.getOutputs().get(0).getPath();
@@ -125,28 +131,34 @@ public class ShaderProgramBuilder extends Builder {
         }
 
         if (getOutputHlslFlag()) {
-            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_HLSL);
+            addUniqueShaderLanguage(ShaderDesc.Language.LANGUAGE_HLSL);
         }
         if (getOutputSpirvFlag()) {
-            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_SPIRV);
+            addUniqueShaderLanguage(ShaderDesc.Language.LANGUAGE_SPIRV);
         }
         if (getOutputWGSLFlag()) {
-            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_WGSL);
+            addUniqueShaderLanguage(ShaderDesc.Language.LANGUAGE_WGSL);
+        }
+        if (getOutputGLSLFlag()) {
+            ArrayList<ShaderDesc.Language> glslLanguages = ShaderCompilers.GetSupportedOpenGLVersionsForPlatform(this.project.getPlatform());
+            for (ShaderDesc.Language glslLanguage : glslLanguages) {
+                addUniqueShaderLanguage(glslLanguage);
+            }
         }
         if (getOutputGLSLESFlag(100)) {
-            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
+            addUniqueShaderLanguage(ShaderDesc.Language.LANGUAGE_GLES_SM100);
         }
         if (getOutputGLSLESFlag(300)) {
-            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
+            addUniqueShaderLanguage(ShaderDesc.Language.LANGUAGE_GLES_SM300);
         }
         if (getOutputGLSLFlag(120)) {
-            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM120);
+            addUniqueShaderLanguage(ShaderDesc.Language.LANGUAGE_GLSL_SM120);
         }
         if (getOutputGLSLFlag(330)) {
-            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
+            addUniqueShaderLanguage(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
         }
         if (getOutputGLSLFlag(430)) {
-            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM430);
+            addUniqueShaderLanguage(ShaderDesc.Language.LANGUAGE_GLSL_SM430);
         }
 
         IShaderCompiler shaderCompiler              = project.getShaderCompiler(platformKey);
@@ -166,6 +178,7 @@ public class ShaderProgramBuilder extends Builder {
     private boolean getOutputSpirvFlag() { return getOutputShaderFlag("output-spirv", "output_spirv"); }
     private boolean getOutputHlslFlag() { return getOutputShaderFlag("output-hlsl", "output_hlsl"); }
     private boolean getOutputWGSLFlag() { return getOutputShaderFlag("output-wgsl", "output_wgsl"); }
+    private boolean getOutputGLSLFlag() { return getOutputShaderFlag("output-glsl", "output_glsl"); }
     private boolean getOutputGLSLESFlag(int version) { return getOutputShaderFlag("output-glsles" + version, "output_glsl_es" + version); }
     private boolean getOutputGLSLFlag(int version) { return getOutputShaderFlag("output-glsl" + version, "output_glsl" + version); }
 
