@@ -252,7 +252,7 @@ namespace dmPhysics
     {
     }
 
-    bool UpdateMass2D(HCollisionObject2D collision_object, float mass)
+    bool UpdateMass2D(HWorld2D world, HCollisionObject2D collision_object, float mass)
     {
         return false;
     }
