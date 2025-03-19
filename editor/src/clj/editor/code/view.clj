@@ -56,7 +56,8 @@
             [internal.util :as util]
             [schema.core :as s]
             [service.smoke-log :as slog]
-            [util.coll :as coll :refer [pair]])
+            [util.coll :as coll :refer [pair]]
+            [util.time :as time])
   (:import [com.defold.control ListView]
            [com.sun.javafx.font FontResource FontStrike PGFont]
            [com.sun.javafx.geom.transform BaseTransform]
@@ -2328,10 +2329,16 @@
 (defn handle-scroll! [view-node ^ScrollEvent event]
   (.consume event)
   (when (if (.isShortcutDown event)
-          (do (-> (g/node-value view-node :canvas)
+          (let [now (time/now)
+                target (.getTarget event)
+                last-scroll (ui/user-data target ::scroll-timestamp)]
+            (when (or (nil? last-scroll)
+                      (> (.toNanos (time/between last-scroll now)) 500000))
+              (ui/user-data! target ::scroll-timestamp now)
+              (-> (g/node-value view-node :canvas)
                   (ui/run-command (cond (pos? (.getDeltaY event)) :zoom-in
-                                        (neg? (.getDeltaY event)) :zoom-out)))
-              true)
+                                        (neg? (.getDeltaY event)) :zoom-out))))
+            true)
           (set-properties! view-node :navigation
                            (data/scroll (get-property view-node :lines)
                                         (get-property view-node :scroll-x)
