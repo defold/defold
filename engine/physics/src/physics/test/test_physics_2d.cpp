@@ -239,6 +239,8 @@ TYPED_TEST(PhysicsTest, SetGridShapeHull)
     ASSERT_TRUE(dmPhysics::SetGridShapeHull(grid_co, 0, 0, 0, 0, EMPTY_FLAGS));
     ASSERT_FALSE(dmPhysics::SetGridShapeHull(grid_co, 1, 0, 0, 0, EMPTY_FLAGS));
 
+    dmPhysics::CreateGridCellShape(grid_co, 0, 0);
+
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, grid_co);
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(grid_shape);
     dmPhysics::DeleteHullSet2D(hull_set);

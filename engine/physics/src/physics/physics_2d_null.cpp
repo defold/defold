@@ -91,6 +91,10 @@ namespace dmPhysics
     {
     }
 
+    void CreateGridCellShape(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t child)
+    {
+    }
+
     bool SetGridShapeHull(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t row, uint32_t column, uint32_t hull, HullFlags flags)
     {
         return false;

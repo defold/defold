@@ -682,6 +682,10 @@ namespace dmPhysics
         return (b2GridShape*) fixture->GetShape();
     }
 
+    void CreateGridCellShape(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t child)
+    {
+    }
+
     bool SetGridShapeHull(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t row, uint32_t column, uint32_t hull, HullFlags flags)
     {
         b2Body* body = (b2Body*) collision_object;
