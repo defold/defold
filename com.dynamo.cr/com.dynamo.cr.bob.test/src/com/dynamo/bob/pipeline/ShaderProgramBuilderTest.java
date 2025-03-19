@@ -783,7 +783,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         byte[] spvSimple = getFile("simple.spv");
         assertNotNull(spvSimple);
 
-        long ctx = ShadercJni.NewShaderContext(spvSimple);
+        long ctx = ShadercJni.NewShaderContext(Shaderc.ShaderStage.SHADER_STAGE_FRAGMENT.getValue(), spvSimple);
         Shaderc.ShaderReflection reflection = ShadercJni.GetReflection(ctx);
 
         assertEquals("FragColor", reflection.outputs[0].name);
@@ -805,7 +805,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         byte[] spvBindings = getFile("bindings.spv");
         assertNotNull(spvBindings);
 
-        long ctx = ShadercJni.NewShaderContext(spvBindings);
+        long ctx = ShadercJni.NewShaderContext(Shaderc.ShaderStage.SHADER_STAGE_VERTEX.getValue(), spvBindings);
         Shaderc.ShaderReflection reflection = ShadercJni.GetReflection(ctx);
 
         Shaderc.ShaderResource res_position = getShaderResourceByName(reflection.inputs, "position");
@@ -828,7 +828,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         opts.entryPoint = "no-entry-point"; // JNI will crash if this is null!
 
         Shaderc.ShaderCompileResult spvCompiledResult = ShadercJni.Compile(ctx, spvCompiler, opts);
-        long spvCompiledCtx = ShadercJni.NewShaderContext(spvCompiledResult.data);
+        long spvCompiledCtx = ShadercJni.NewShaderContext(Shaderc.ShaderStage.SHADER_STAGE_VERTEX.getValue(), spvCompiledResult.data);
         Shaderc.ShaderReflection spvCompiledReflection = ShadercJni.GetReflection(spvCompiledCtx);
 
         res_position = getShaderResourceByName(spvCompiledReflection.inputs, "position");
