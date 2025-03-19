@@ -66,7 +66,10 @@ public:
         for (unsigned int i=0;i<sizeof(m_UnCache);i++)
             m_UnCache[i] += junk;
 
-        char tmp[4096];
+        // Setup two output buffers (dummy) so we can support interleaved and non-interleaved data output
+        char tmp_l[4096*2];
+        char tmp_r[4096*2];
+        char* tmp_ptr[] = {tmp_l, tmp_r};
         dmSoundCodec::HDecodeStream stream;
 
         dmSound::HSoundData sd = 0;
@@ -75,6 +78,20 @@ public:
         const uint64_t time_beg = dmTime::GetMonotonicTime();
         ASSERT_EQ(decoder->m_OpenStream(sd, &stream), dmSoundCodec::RESULT_OK);
         const uint64_t time_open = dmTime::GetMonotonicTime();
+
+        // select output buffer size depending if we have int16_t or float data being produced (we are not interested in PCM8 here) to make sure we 'chunk' the decode the same for both
+
+        dmSoundCodec::Info info;
+        decoder->m_GetStreamInfo(stream, &info);
+
+        // Make sure we get half the buffers only if we decode to int16 not float (to keep chunking the same)
+        uint32_t out_size = sizeof(tmp_l) / (32 / info.m_BitsPerSample);
+        if (!info.m_IsInterleaved)
+        {
+            // Half the buffer size if we have non-interleaved data (as we use per channel buffers)
+            out_size /= info.m_Channels;
+            assert(info.m_Channels <= 2);
+        }
 
         uint64_t max_chunk_time = 0;
         uint64_t iterations = 0;
@@ -89,13 +106,13 @@ public:
             const uint64_t chunk_begin = dmTime::GetMonotonicTime();
 
             if (skip)
-                decoder->m_SkipInStream(stream, sizeof(tmp), &decoded);
+                decoder->m_SkipInStream(stream, out_size, &decoded);
             else
-                decoder->m_DecodeStream(stream, tmp, sizeof(tmp), &decoded);
+                decoder->m_DecodeStream(stream, tmp_ptr, out_size, &decoded);
 
-            total_decoded += decoded;
+            total_decoded += decoded * (info.m_IsInterleaved ? 1 : info.m_Channels);
 
-            if (decoded != sizeof(tmp))
+            if (decoded != out_size)
                 break;
 
             const uint64_t chunk_time = dmTime::GetMonotonicTime() - chunk_begin;
@@ -116,7 +133,7 @@ public:
         printf("[%s - %s (%s)] Total: %.3f s", decoder_name, test_name, (skip ? "SKIPPING" : "DECODING"), t2s * (time_done - time_beg));
         printf(" | Chunks: %u, max: %.3f ms, avg: %.3f ms", (int)iterations, t2ms * max_chunk_time, (time_done - time_open) * t2ms / float(iterations));
         printf(" | Output: %d Kb, %.1f s\n", (int)(total_decoded / 1024), audio_length);
-        printf("  * Per out second: %.3f ms", t2ms * (time_done - time_beg) / audio_length);
+        printf("  * Per out second: %.3f ms", t2ms * (time_done - time_open) / audio_length);
         printf(" | In %.1f kbps | Out: %.1f Kb/s\n", (float)size / (128.0f * audio_length), (float)bytes_per_second / 1024.0f);
 
         decoder->m_CloseStream(stream);
@@ -124,7 +141,7 @@ public:
         dmSound::DeleteSoundData(sd);
     }
 
-    void RunSuite(const char *decoder_name, bool skip)
+    void RunSuite(const char *decoder_name, dmSound::SoundDataType sound_datatype, bool skip)
     {
         dmSound::InitializeParams params;
         params.m_MaxBuffers = MAX_BUFFERS;
@@ -137,15 +154,17 @@ public:
         assert(r == dmSound::RESULT_OK);
 
         const dmSoundCodec::DecoderInfo *info = dmSoundCodec::FindDecoderByName(decoder_name);
-        const dmSound::SoundDataType sound_datatype = dmSound::SOUND_DATA_TYPE_OGG_VORBIS;
         ASSERT_NE((void*) 0, info);
-        DecodeAndTime(info, AMBIENCE_OGG,     AMBIENCE_OGG_SIZE, decoder_name, sound_datatype, skip, "Ambience");
-        DecodeAndTime(info, GLOCKENSPIEL_OGG, GLOCKENSPIEL_OGG_SIZE, decoder_name, sound_datatype, skip, "Glockenspiel");
-        DecodeAndTime(info, EXPLOSION_OGG,    EXPLOSION_OGG_SIZE, decoder_name, sound_datatype, skip, "Explosion");
-        DecodeAndTime(info, EXPLOSION_LOW_MONO_OGG,EXPLOSION_LOW_MONO_OGG_SIZE, decoder_name, sound_datatype, skip, "Explosion Low Mono");
-        DecodeAndTime(info, MUSIC_OGG,        MUSIC_OGG_SIZE, decoder_name, sound_datatype, skip, "Music");
-        DecodeAndTime(info, MUSIC_LOW_OGG,    MUSIC_LOW_OGG_SIZE, decoder_name, sound_datatype, skip, "Music Low");
-        DecodeAndTime(info, CYMBAL_OGG,       CYMBAL_OGG_SIZE, decoder_name, sound_datatype, skip, "Cymbal");
+
+        if (sound_datatype == dmSound::SOUND_DATA_TYPE_OGG_VORBIS) {
+            DecodeAndTime(info, AMBIENCE_OGG,     AMBIENCE_OGG_SIZE, decoder_name, sound_datatype, skip, "Ambience");
+            DecodeAndTime(info, GLOCKENSPIEL_OGG, GLOCKENSPIEL_OGG_SIZE, decoder_name, sound_datatype, skip, "Glockenspiel");
+            DecodeAndTime(info, EXPLOSION_OGG,    EXPLOSION_OGG_SIZE, decoder_name, sound_datatype, skip, "Explosion");
+            DecodeAndTime(info, EXPLOSION_LOW_MONO_OGG,EXPLOSION_LOW_MONO_OGG_SIZE, decoder_name, sound_datatype, skip, "Explosion Low Mono");
+            DecodeAndTime(info, MUSIC_OGG,        MUSIC_OGG_SIZE, decoder_name, sound_datatype, skip, "Music");
+            DecodeAndTime(info, MUSIC_LOW_OGG,    MUSIC_LOW_OGG_SIZE, decoder_name, sound_datatype, skip, "Music Low");
+            DecodeAndTime(info, CYMBAL_OGG,       CYMBAL_OGG_SIZE, decoder_name, sound_datatype, skip, "Cymbal");
+        }
 
         if (dmSoundCodec::FindBestDecoder(dmSoundCodec::FORMAT_VORBIS) == info)
             printf("%s is used by default with current build settings on this platform\n", decoder_name);
@@ -160,23 +179,24 @@ public:
 #if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(__MACH__))
 TEST_F(dmSoundTest, MeasureStdb)
 {
-    RunSuite("VorbisDecoderStb", false);
+    RunSuite("VorbisDecoderStb", dmSound::SOUND_DATA_TYPE_OGG_VORBIS, false);
 }
 
 TEST_F(dmSoundTest, MeasureStdbSkip)
 {
-    RunSuite("VorbisDecoderStb", true);
+    RunSuite("VorbisDecoderStb", dmSound::SOUND_DATA_TYPE_OGG_VORBIS, true);
 }
 
 TEST_F(dmSoundTest, MeasureTremolo)
 {
-    RunSuite("VorbisDecoderTremolo", false);
+    RunSuite("VorbisDecoderTremolo", dmSound::SOUND_DATA_TYPE_OGG_VORBIS, false);
 }
 
 TEST_F(dmSoundTest, MeasureTremoloSkip)
 {
-    RunSuite("VorbisDecoderTremolo", true);
+    RunSuite("VorbisDecoderTremolo", dmSound::SOUND_DATA_TYPE_OGG_VORBIS, true);
 }
+
 #endif
 
 extern "C" void dmExportedSymbols();
