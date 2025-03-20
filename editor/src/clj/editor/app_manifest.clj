@@ -394,7 +394,7 @@
 
 (def open-gl-osx-toggles
   (concat
-    (libs-toggles vulkan-osx ["graphics"])
+    (libs-toggles vulkan-osx ["graphics" "platform"])
     (generic-contains-toggles vulkan-osx :symbols ["GraphicsAdapterOpenGL"])
     (generic-contains-toggles vulkan-osx :frameworks ["OpenGL"])))
 

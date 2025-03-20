@@ -46,7 +46,7 @@ platforms:
       excludeLibs: []
       excludeSymbols: []
       symbols: [GraphicsAdapterOpenGL]
-      libs: [graphics]
+      libs: [graphics, platform]
       frameworks: [OpenGL]
       linkFlags: []
   x86_64-osx:
@@ -54,7 +54,7 @@ platforms:
       excludeLibs: []
       excludeSymbols: []
       symbols: [GraphicsAdapterOpenGL]
-      libs: [graphics]
+      libs: [graphics, platform]
       frameworks: [OpenGL]
       linkFlags: []
   x86_64-linux:
