@@ -288,7 +288,7 @@ public class ResourceCacheKeyTest {
                 "certificate",
                 "debug",
                 "debug-ne-upload",
-				"debug-output-glsl",
+                "debug-output-glsl",
                 "debug-output-hlsl",
                 "debug-output-spirv",
                 "debug-output-wgsl",

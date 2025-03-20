@@ -146,11 +146,11 @@ def platform_graphics_libs_and_symbols(platform):
         graphics_libs += ['GRAPHICS_WEBGPU']
         graphics_lib_symbols.append('GraphicsAdapterWebGPU')
 
-    if platform in ('arm64-nx64',):
+    if platform in ('arm64-nx64'):
         graphics_libs = ['GRAPHICS_VULKAN', 'DMGLFW', 'VULKAN']
         graphics_lib_symbols = ['GraphicsAdapterVulkan']
 
-    if platform in ('x86_64-ps4',):
+    if platform in ('x86_64-ps4'):
         graphics_libs = ['GRAPHICS']
         graphics_lib_symbols = ['GraphicsAdapterPS4']
 

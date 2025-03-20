@@ -78,15 +78,13 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         return 330;
     }
 
-    private void doTest(ShaderDesc.Language[] expectedLanguages, String output_resource) throws Exception {
-        // Test GL vp
-        ShaderDesc shader = addAndBuildShaderDesc("/test_shader.vp", vp, output_resource);
-
-        assertNotNull(shader.getShaders(0).getSource());
+    private void checkExpectedLanguages(ShaderDesc shader, ShaderDesc.Language[] expectedLanguages) {
         assertEquals(expectedLanguages.length, shader.getShadersCount());
 
         boolean found = false;
-        for (ShaderDesc.Shader shaderDesc : shader.getShadersList()) {
+        for (int i = 0; i < shader.getShadersList().size(); i++) {
+            ShaderDesc.Shader shaderDesc = shader.getShaders(i);
+            assertNotNull(shaderDesc.getSource());
             for (ShaderDesc.Language expectedLanguage : expectedLanguages) {
                 if (shaderDesc.getLanguage() == expectedLanguage) {
                     found = true;
@@ -95,48 +93,24 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             }
         }
         assertTrue(found);
+    }
+
+    private void doTest(ShaderDesc.Language[] expectedLanguages, String outputResource) throws Exception {
+        // Test GL vp
+        ShaderDesc shader = addAndBuildShaderDesc("/test_shader.vp", vp, outputResource);
+        checkExpectedLanguages(shader, expectedLanguages);
 
         // Test GL fp
-        shader = addAndBuildShaderDesc("/test_shader.fp", fp, output_resource);
-        assertNotNull(shader.getShaders(0).getSource());
-        assertEquals(expectedLanguages.length, shader.getShadersCount());
+        shader = addAndBuildShaderDesc("/test_shader.fp", fp, outputResource);
+        checkExpectedLanguages(shader, expectedLanguages);
+    }
 
-        found = false;
-        for (ShaderDesc.Shader shaderDesc : shader.getShadersList()) {
-            for (ShaderDesc.Language expectedLanguage : expectedLanguages) {
-                if (shaderDesc.getLanguage() == expectedLanguage) {
-                    found = true;
-                    break;
-                }
-            }
-        }
-        assertTrue(found);
+    private void doTestEs3(ShaderDesc.Language[] expectedLanguagesES3, String outputResource) throws Exception {
+        ShaderDesc shader = addAndBuildShaderDesc("/test_shader.vp", vpEs3, outputResource);
+        checkExpectedLanguages(shader, expectedLanguagesES3);
 
-        shader = addAndBuildShaderDesc("/test_shader.vp", vpEs3, output_resource);
-
-        /*
-        // Test GLES vp
-        if (expectSpirv) {
-            // If we have requested Spir-V, we have to test a ready-made ES3 version
-            // Since we will not process the input shader if the #version preprocessor exists
-            assertEquals(2, shader.getShadersCount());
-            assertNotNull(shader.getShaders(1).getSource());
-            assertEquals(ShaderDesc.Language.LANGUAGE_SPIRV, shader.getShaders(1).getLanguage());
-        } else {
-            assertEquals(1, shader.getShadersCount());
-        }
-
-        shader = addAndBuildShaderDesc("/test_shader.fp", fpEs3, "/test_shader.shbundle");
-
-        // Test GLES fp
-        if (expectSpirv) {
-            assertEquals(2, shader.getShadersCount());
-            assertNotNull(shader.getShaders(1).getSource());
-            assertEquals(ShaderDesc.Language.LANGUAGE_SPIRV, shader.getShaders(1).getLanguage());
-        } else {
-            assertEquals(1, shader.getShadersCount());
-        }
-         */
+        shader = addAndBuildShaderDesc("/test_shader.fp", fpEs3, outputResource);
+        checkExpectedLanguages(shader, expectedLanguagesES3);
     }
 
     private static void debugPrintResourceList(String label, List<ShaderDesc.ResourceBinding> lst) {
@@ -396,6 +370,8 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         ShaderDesc.Language[] expectedLanguages = new ShaderDesc.Language[] { firstLanguage };
 
         doTest(expectedLanguages, "/test_shader.shbundle");
+        doTestEs3(expectedLanguages, "/test_shader_es3.shbundle");
+
         expectedLanguages = new ShaderDesc.Language[] { firstLanguage, secondLanguage };
 
         if (spirvIsDefault) {
@@ -404,6 +380,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             getProject().getProjectProperties().putBooleanValue("shader", "output_spirv", true);
         }
         doTest(expectedLanguages, "/test_shader_secondary.shbundle");
+        doTestEs3(expectedLanguages, "/test_shader_secondary_es3.shbundle");
     }
 
     private boolean IsSpirvDefault(Platform platform) {
