@@ -61,7 +61,7 @@ namespace dmGraphics
     {
         if (!IsSupported(supported_extensions, extension))
         {
-            dmLogWarning("%s was not supported", extension);
+            dmLogDebug("%s was not supported", extension);
             return false;
         }
 
