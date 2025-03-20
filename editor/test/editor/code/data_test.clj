@@ -116,6 +116,26 @@
     [[0 1] [2 1]] [2 1] true
     [[0 1] [2 1]] [2 2] false))
 
+(deftest cursor-range-contains-exclusive-test
+  (are [range cursor contains?]
+    (= contains? (data/cursor-range-contains-exclusive? (cr (range 0) (range 1))
+                                                        (->Cursor (cursor 0) (cursor 1))))
+    [[0 0] [0 0]] [0 0] false
+    [[0 0] [0 1]] [0 0] true
+    [[0 0] [0 1]] [0 1] false
+    [[0 1] [0 2]] [0 1] true
+    [[0 1] [0 2]] [0 0] false
+    [[0 1] [0 1]] [0 0] false
+    [[0 1] [1 1]] [1 0] true
+    [[0 1] [1 1]] [1 1] false
+    [[0 1] [1 1]] [1 2] false
+    [[0 1] [2 1]] [1 0] true
+    [[0 1] [2 1]] [1 1] true
+    [[0 1] [2 1]] [1 2] true
+    [[0 1] [2 1]] [2 0] true
+    [[0 1] [2 1]] [2 1] false
+    [[0 1] [2 1]] [2 2] false))
+
 (deftest cursor-range-midpoint-follows-test
   (let [cursor-range-midpoint-follows? #'data/cursor-range-midpoint-follows?]
     (are [range cursor follows?]
@@ -1463,3 +1483,49 @@
     (is (= [#code/range [[0 7] [0 10]]]
            (data/cursor-range-differences #code/range [[0 5] [0 10]]
                                           #code/range [[0 5] [0 7]])))))
+
+(deftest intersection-test
+  (testing "no intersection => nil"
+    (testing "not touching"
+      (is (nil? (data/cursor-range-intersection (cr [0 0] [0 1])
+                                                (cr [0 2] [0 3]))))
+      (is (nil? (data/cursor-range-intersection (cr [0 2] [0 3])
+                                                (cr [0 0] [0 1])))))
+    (testing "touching"
+      (is (nil? (data/cursor-range-intersection (cr [0 0] [0 1])
+                                                (cr [0 1] [0 2]))))
+      (is (nil? (data/cursor-range-intersection (cr [0 1] [0 2])
+                                                (cr [0 0] [0 1]))))
+      (testing "one is empty"
+       (is (nil? (data/cursor-range-intersection (cr [0 0] [0 1])
+                                                 (cr [0 1] [0 1]))))
+       (is (nil? (data/cursor-range-intersection (cr [0 1] [0 1])
+                                                 (cr [0 0] [0 1]))))
+       (is (nil? (data/cursor-range-intersection (cr [0 0] [0 0])
+                                                 (cr [0 0] [0 1]))))
+       (is (nil? (data/cursor-range-intersection (cr [0 0] [0 1])
+                                                 (cr [0 0] [0 0])))))))
+  (testing "one within another"
+    (is (= (cr [0 1] [0 2])
+           (data/cursor-range-intersection (cr [0 0] [0 3])
+                                           (cr [0 1] [0 2]))))
+    (is (= (cr [0 1] [0 2])
+           (data/cursor-range-intersection (cr [0 1] [0 2])
+                                           (cr [0 0] [0 3]))))
+    (testing "empty is still nil"
+      (is (nil? (data/cursor-range-intersection (cr [0 0] [0 2])
+                                                (cr [0 1] [0 1]))))))
+  (testing "partial intersection"
+    (is (= (cr [0 1] [0 2])
+           (data/cursor-range-intersection (cr [0 0] [0 2])
+                                           (cr [0 1] [0 3]))))
+    (is (= (cr [0 1] [0 2])
+           (data/cursor-range-intersection (cr [0 1] [0 3])
+                                           (cr [0 0] [0 2])))))
+  (testing "full overlap"
+    (is (= (cr [0 0] [0 1])
+           (data/cursor-range-intersection (cr [0 0] [0 1])
+                                           (cr [0 0] [0 1]))))
+    (testing "empty is still nil"
+      (is (nil? (data/cursor-range-intersection (cr [0 0] [0 0])
+                                                (cr [0 0] [0 0])))))))
