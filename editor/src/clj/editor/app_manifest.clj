@@ -30,11 +30,12 @@
 (def linux #{:x86_64-linux :arm64-linux})
 
 (def vulkan
-  #{:x86_64-osx :arm64-osx
-    :x86_64-linux :arm64-linux
+  #{:x86_64-linux :arm64-linux
     :x86-win32 :x86_64-win32
     :armv7-android :arm64-android
     :arm64-ios})
+
+(def vulkan-osx #{:x86_64-osx :arm64-osx})
 
 (def all-platforms
   #{;; ios
@@ -371,14 +372,13 @@
 
 (def vulkan-toggles
   (concat
-    (exclude-libs-toggles [:x86_64-osx :arm64-osx :x86-win32 :x86_64-win32] ["platform"])
-    (libs-toggles [:x86_64-osx :arm64-osx :x86-win32 :x86_64-win32] ["platform_vulkan"])
-    (libs-toggles [:x86_64-osx :arm64-osx :arm64-ios] ["graphics_vulkan" "MoltenVK"])
+    (exclude-libs-toggles [:x86-win32 :x86_64-win32] ["platform"])
+    (libs-toggles [:x86-win32 :x86_64-win32] ["platform_vulkan"])
+    (libs-toggles [:arm64-ios] ["graphics_vulkan" "MoltenVK"])
     (libs-toggles android ["graphics_vulkan"])
     (libs-toggles windows ["graphics_vulkan" "vulkan"])
     (libs-toggles linux ["graphics_vulkan" "X11-xcb"])
     (generic-contains-toggles linux :dynamicLibs ["vulkan"])
-    (generic-contains-toggles [:x86_64-osx :arm64-osx] :frameworks ["Metal" "IOSurface" "QuartzCore"])
     (generic-contains-toggles [:arm64-ios] :frameworks ["Metal" "IOSurface" "QuartzCore"])
     (generic-contains-toggles vulkan :symbols ["GraphicsAdapterVulkan"])))
 
@@ -391,6 +391,21 @@
               [(contains-toggle :arm64-linux :excludeSymbols "GraphicsAdapterOpenGLES")])
     :both vulkan-toggles
     :open-gl))
+
+(def open-gl-osx-toggles
+  (concat
+    (libs-toggles vulkan-osx ["graphics" "platform"])
+    (generic-contains-toggles vulkan-osx :symbols ["GraphicsAdapterOpenGL"])
+    (generic-contains-toggles vulkan-osx :frameworks ["OpenGL"])))
+
+(def graphics-setting-osx
+  (make-choice-setting
+    :open-gl (concat
+               open-gl-osx-toggles
+               (exclude-libs-toggles vulkan-osx ["graphics_vulkan" "platform_vulkan" "MoltenVK"])
+               (generic-contains-toggles vulkan-osx :excludeSymbols ["GraphicsAdapterVulkan"]))
+    :both open-gl-osx-toggles
+    :vulkan))
 
 (def webgpu-toggles
   (concat
@@ -532,13 +547,21 @@
             (value (setting-property-getter use-android-support-lib-setting))
             (set (setting-property-setter use-android-support-lib-setting)))
   (property graphics g/Any
-            (dynamic tooltip (g/constantly "Vulkan support is in BETA (desktop and mobile platforms)"))
+            (dynamic tooltip (g/constantly "Vulkan supports desktop and mobile platforms only"))
             (dynamic edit-type (g/constantly {:type :choicebox
                                               :options [[:open-gl "OpenGL"]
                                                         [:vulkan "Vulkan"]
                                                         [:both "OpenGL & Vulkan"]]}))
             (value (setting-property-getter graphics-setting))
             (set (setting-property-setter graphics-setting)))
+  (property graphics-osx g/Any
+            (dynamic tooltip (g/constantly "Vulkan is the default renderer for OSX"))
+            (dynamic edit-type (g/constantly {:type :choicebox
+                                              :options [[:vulkan "Vulkan"]
+                                                        [:open-gl "OpenGL"]
+                                                        [:both "OpenGL & Vulkan"]]}))
+            (value (setting-property-getter graphics-setting-osx))
+            (set (setting-property-setter graphics-setting-osx)))
   (property graphics-web g/Any
             (dynamic tooltip (g/constantly "WebGPU support is in BETA (web platforms)"))
             (dynamic edit-type (g/constantly {:type :choicebox
