@@ -165,18 +165,16 @@
     :scene {:type :object
             :properties
             {:move-whole-pixels {:type :boolean :default true}
-             :scene-grid {:type :object
-                          :scope :project
-                          :properties {:visible {:type :boolean}
-                                       :color {:type :string}
-                                       :x-axis-color {:type :string}
-                                       :y-axis-color {:type :string}
-                                       :z-axis-color {:type :string}
-                                       :x-size {:type :number}
-                                       :y-size {:type :number}
-                                       :z-size {:type :number}
-                                       :active-plane {:type :keyword}
-                                       :opacity {:type :number}}}
+             :grid {:type :object
+                    :scope :project
+                    :properties {:size {:type :object
+                                        :scope :project
+                                        :properties
+                                        {:x {:type :integer :default 10}
+                                         :y {:type :integer :default 10}
+                                         :z {:type :integer :default 10}}}
+                                 :active-plane {:type :keyword :default :z}
+                                 :opacity {:type :number :default 1.0}}}
              :snap {:type :object
                     :scope :project
                     :properties {:enabled {:type :boolean}

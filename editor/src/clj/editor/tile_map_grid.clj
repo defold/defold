@@ -106,6 +106,9 @@
        :grid-size grid-size})))
 
 (g/defnode TileMapGrid
+  (property size g/Any)
+  (property alpha g/Num)
+
   (input camera Camera)
   (input grid-size g/Any :substitute nil)
 

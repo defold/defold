@@ -177,9 +177,11 @@
              (snap-out-to-grid aabb grid-size-large)]}))
 
 (g/defnode Grid
+  (property size g/Any)
+  (property alpha g/Num)
+  (property active-plane g/Keyword)
+
   (input camera Camera)
-  (property grid-color types/Color)
-  (property auto-grid  g/Bool)
-  (property grid-size g/Int)
+
   (output grids g/Any :cached update-grids)
   (output renderable pass/RenderData :cached grid-renderable))

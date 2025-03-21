@@ -119,6 +119,10 @@
              (grid/snap-out-to-grid aabb grid-size-large)]}))
 
 (g/defnode Grid
+  (property size g/Any)
+  (property alpha g/Num)
+
   (input camera Camera)
+
   (output grids g/Any :cached update-grids)
   (output renderable pass/RenderData :cached grid-renderable))
