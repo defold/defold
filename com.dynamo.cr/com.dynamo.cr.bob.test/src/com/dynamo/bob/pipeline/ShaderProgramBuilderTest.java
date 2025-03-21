@@ -19,6 +19,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
 import java.util.List;
+import java.util.Objects;
 
 import com.dynamo.bob.util.MurmurHash;
 import org.junit.Before;
@@ -77,57 +78,39 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         return 330;
     }
 
-    private void doTest(boolean expectSpirv) throws Exception {
-        // Test GL vp
-        ShaderDesc shader = addAndBuildShaderDesc("/test_shader.vp", vp, "/test_shader.shbundle");
+    private void checkExpectedLanguages(ShaderDesc shader, ShaderDesc.Language[] expectedLanguages) {
+        assertEquals(expectedLanguages.length, shader.getShadersCount());
 
-        assertNotNull(shader.getShaders(0).getSource());
-        assertEquals(getPlatformGLSLLanguage(), shader.getShaders(0).getLanguage());
-
-        if (expectSpirv) {
-            assertEquals(2, shader.getShadersCount());
-            assertNotNull(shader.getShaders(1).getSource());
-            assertEquals(ShaderDesc.Language.LANGUAGE_SPIRV, shader.getShaders(1).getLanguage());
-        } else {
-            assertEquals(1, shader.getShadersCount());
+        boolean found = false;
+        for (int i = 0; i < shader.getShadersList().size(); i++) {
+            ShaderDesc.Shader shaderDesc = shader.getShaders(i);
+            assertNotNull(shaderDesc.getSource());
+            for (ShaderDesc.Language expectedLanguage : expectedLanguages) {
+                if (shaderDesc.getLanguage() == expectedLanguage) {
+                    found = true;
+                    break;
+                }
+            }
         }
+        assertTrue(found);
+    }
+
+    private void doTest(ShaderDesc.Language[] expectedLanguages, String outputResource) throws Exception {
+        // Test GL vp
+        ShaderDesc shader = addAndBuildShaderDesc("/test_shader.vp", vp, outputResource);
+        checkExpectedLanguages(shader, expectedLanguages);
 
         // Test GL fp
-        shader = addAndBuildShaderDesc("/test_shader.fp", fp, "/test_shader.shbundle");
-        assertNotNull(shader.getShaders(0).getSource());
-        assertEquals(getPlatformGLSLLanguage(), shader.getShaders(0).getLanguage());
+        shader = addAndBuildShaderDesc("/test_shader.fp", fp, outputResource);
+        checkExpectedLanguages(shader, expectedLanguages);
+    }
 
-        if (expectSpirv) {
-            assertEquals(2, shader.getShadersCount());
-            assertNotNull(shader.getShaders(1).getSource());
-            assertEquals(ShaderDesc.Language.LANGUAGE_SPIRV, shader.getShaders(1).getLanguage());
-        } else {
-            assertEquals(1, shader.getShadersCount());
-        }
+    private void doTestEs3(ShaderDesc.Language[] expectedLanguagesES3, String outputResource) throws Exception {
+        ShaderDesc shader = addAndBuildShaderDesc("/test_shader.vp", vpEs3, outputResource);
+        checkExpectedLanguages(shader, expectedLanguagesES3);
 
-        shader = addAndBuildShaderDesc("/test_shader.vp", vpEs3, "/test_shader.shbundle");
-
-        // Test GLES vp
-        if (expectSpirv) {
-            // If we have requested Spir-V, we have to test a ready-made ES3 version
-            // Since we will not process the input shader if the #version preprocessor exists
-            assertEquals(2, shader.getShadersCount());
-            assertNotNull(shader.getShaders(1).getSource());
-            assertEquals(ShaderDesc.Language.LANGUAGE_SPIRV, shader.getShaders(1).getLanguage());
-        } else {
-            assertEquals(1, shader.getShadersCount());
-        }
-
-        shader = addAndBuildShaderDesc("/test_shader.fp", fpEs3, "/test_shader.shbundle");
-
-        // Test GLES fp
-        if (expectSpirv) {
-            assertEquals(2, shader.getShadersCount());
-            assertNotNull(shader.getShaders(1).getSource());
-            assertEquals(ShaderDesc.Language.LANGUAGE_SPIRV, shader.getShaders(1).getLanguage());
-        } else {
-            assertEquals(1, shader.getShadersCount());
-        }
+        shader = addAndBuildShaderDesc("/test_shader.fp", fpEs3, outputResource);
+        checkExpectedLanguages(shader, expectedLanguagesES3);
     }
 
     private static void debugPrintResourceList(String label, List<ShaderDesc.ResourceBinding> lst) {
@@ -380,9 +363,28 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testShaderPrograms() throws Exception {
-        doTest(false);
-        getProject().getProjectProperties().putBooleanValue("shader", "output_spirv", true);
-        doTest(true);
+        boolean spirvIsDefault = IsSpirvDefault(getProject().getPlatform());
+
+        ShaderDesc.Language firstLanguage = spirvIsDefault ? ShaderDesc.Language.LANGUAGE_SPIRV : getPlatformGLSLLanguage();
+        ShaderDesc.Language secondLanguage = spirvIsDefault ? getPlatformGLSLLanguage() : ShaderDesc.Language.LANGUAGE_SPIRV;
+        ShaderDesc.Language[] expectedLanguages = new ShaderDesc.Language[] { firstLanguage };
+
+        doTest(expectedLanguages, "/test_shader.shbundle");
+        doTestEs3(expectedLanguages, "/test_shader_es3.shbundle");
+
+        expectedLanguages = new ShaderDesc.Language[] { firstLanguage, secondLanguage };
+
+        if (spirvIsDefault) {
+            getProject().getProjectProperties().putBooleanValue("shader", "output_glsl", true);
+        } else {
+            getProject().getProjectProperties().putBooleanValue("shader", "output_spirv", true);
+        }
+        doTest(expectedLanguages, "/test_shader_secondary.shbundle");
+        doTestEs3(expectedLanguages, "/test_shader_secondary_es3.shbundle");
+    }
+
+    private boolean IsSpirvDefault(Platform platform) {
+        return platform == Platform.Arm64MacOS || platform == Platform.X86_64MacOS;
     }
 
     private void testOutput(String expected, String source) {
@@ -418,12 +420,17 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
                                "   _DMENGINE_GENERATED_gl_FragColor_0 = vec4(1.0);\n" +
                                "}\n";
 
+        boolean spirvIsDefault = IsSpirvDefault(getProject().getPlatform());
+        if (spirvIsDefault) {
+            getProject().getProjectProperties().putBooleanValue("shader", "output_glsl", true);
+        }
+
         // Test include a valid shader from the same folder
         {
             ShaderDesc shader = addAndBuildShaderDesc("/test_glsl_same_folder.fp", String.format(shader_base, "glsl_same_folder.glsl"), "/test_glsl_same_folder.shbundle");
             testOutput(String.format(expected_base,
                 "const float same_folder = 0.0;\n"),
-                shader.getShaders(0).getSource().toStringUtf8());
+                    Objects.requireNonNull(getShaderByLanguage(shader, getPlatformGLSLLanguage())).getSource().toStringUtf8());
         }
 
         // Test include a valid shader from a subfolder
@@ -431,7 +438,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             ShaderDesc shader = addAndBuildShaderDesc("/test_glsl_sub_folder_includes.fp", String.format(shader_base, "shader_includes/glsl_sub_include.glsl"), "/test_glsl_sub_folder_includes.shbundle");
             testOutput(String.format(expected_base,
                 "const float sub_include = 0.0;\n"),
-                shader.getShaders(0).getSource().toStringUtf8());
+                Objects.requireNonNull(getShaderByLanguage(shader, getPlatformGLSLLanguage())).getSource().toStringUtf8());
         }
 
         // Test include a valid shader from a subfolder that includes other files
@@ -441,7 +448,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
                 "const float sub_include = 0.0;\n" +
                 "\n" +
                 "const float sub_include_from_multi = 0.0;\n"),
-                shader.getShaders(0).getSource().toStringUtf8());
+                Objects.requireNonNull(getShaderByLanguage(shader, getPlatformGLSLLanguage())).getSource().toStringUtf8());
         }
 
         // Test wrong path
@@ -487,6 +494,10 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
                 didFail = true;
             }
             assertTrue(didFail);
+        }
+
+        if (spirvIsDefault) {
+            getProject().getProjectProperties().putBooleanValue("shader", "output_glsl", false);
         }
     }
 
@@ -589,7 +600,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         testOutput(expected, res.output);
     }
 
-    static ShaderDesc.Shader getShaderByLanguage(ShaderDesc shaderDesc, ShaderDesc.Language language) {
+    private static ShaderDesc.Shader getShaderByLanguage(ShaderDesc shaderDesc, ShaderDesc.Language language) {
         for (ShaderDesc.Shader shader : shaderDesc.getShadersList()) {
             if (shader.getLanguage() == language) {
                 return shader;
@@ -783,7 +794,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         byte[] spvSimple = getFile("simple.spv");
         assertNotNull(spvSimple);
 
-        long ctx = ShadercJni.NewShaderContext(spvSimple);
+        long ctx = ShadercJni.NewShaderContext(Shaderc.ShaderStage.SHADER_STAGE_FRAGMENT.getValue(), spvSimple);
         Shaderc.ShaderReflection reflection = ShadercJni.GetReflection(ctx);
 
         assertEquals("FragColor", reflection.outputs[0].name);
@@ -805,7 +816,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         byte[] spvBindings = getFile("bindings.spv");
         assertNotNull(spvBindings);
 
-        long ctx = ShadercJni.NewShaderContext(spvBindings);
+        long ctx = ShadercJni.NewShaderContext(Shaderc.ShaderStage.SHADER_STAGE_VERTEX.getValue(), spvBindings);
         Shaderc.ShaderReflection reflection = ShadercJni.GetReflection(ctx);
 
         Shaderc.ShaderResource res_position = getShaderResourceByName(reflection.inputs, "position");
@@ -828,7 +839,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         opts.entryPoint = "no-entry-point"; // JNI will crash if this is null!
 
         Shaderc.ShaderCompileResult spvCompiledResult = ShadercJni.Compile(ctx, spvCompiler, opts);
-        long spvCompiledCtx = ShadercJni.NewShaderContext(spvCompiledResult.data);
+        long spvCompiledCtx = ShadercJni.NewShaderContext(Shaderc.ShaderStage.SHADER_STAGE_VERTEX.getValue(), spvCompiledResult.data);
         Shaderc.ShaderReflection spvCompiledReflection = ShadercJni.GetReflection(spvCompiledCtx);
 
         res_position = getShaderResourceByName(spvCompiledReflection.inputs, "position");

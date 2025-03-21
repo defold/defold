@@ -80,6 +80,12 @@
       (apply lsp/pull-workspace-diagnostics! lsp ret args)
       @ret)))
 
+(defn- hover! [lsp resource cursor]
+  (await-lsp
+    (let [ret (promise)]
+      (lsp/hover! lsp resource cursor ret)
+      @ret)))
+
 (defn- make-test-server-launcher [request-handlers]
   (reify lsp.server/Launcher
     (launch [_ _]
@@ -141,7 +147,8 @@
                                        :change :incremental}
                   :pull-diagnostics :none
                   :goto-definition false
-                  :find-references false}]
+                  :find-references false
+                  :hover false}]
                 [:on-publish-diagnostics
                  (tu/resource workspace "/foo.json")
                  {:items [(assoc (data/->CursorRange (data/->Cursor 0 0) (data/->Cursor 0 1))
@@ -545,3 +552,37 @@
         (await-lsp
           (set-servers! lsp #{})
           (is (true? (deref exit-promise 1100 false))))))))
+
+(deftest hover-test
+  (tu/with-scratch-project "test/resources/lsp_project"
+    (let [unmatched-promise (promise)
+          matched-promise (promise)
+          lsp (lsp/get-node-lsp project)
+          _ (set-servers! lsp #{;; this server should NOT be asked for hovers
+                                {:languages #{"json"}
+                                 :launcher (make-test-server-launcher
+                                             {"initialize" (constantly {:capabilities {:hoverProvider false}})
+                                              "initialized" (constantly nil)
+                                              "shutdown" (constantly nil)
+                                              "textDocument/hover" (fn [request _]
+                                                                     (deliver unmatched-promise request))
+                                              "exit" (constantly nil)})}
+                                ;; this server SHOULD be asked for hovers
+                                {:languages #{"json"}
+                                 :launcher (make-test-server-launcher
+                                             {"initialize" (constantly {:capabilities {:hoverProvider true}})
+                                              "initialized" (constantly nil)
+                                              "shutdown" (constantly nil)
+                                              "textDocument/hover" (fn [request _]
+                                                                     (deliver matched-promise request)
+                                                                     {:contents {:kind :markdown :value "hover"}})
+                                              "exit" (constantly nil)})}})]
+      (is (= [(data/map->CursorRange {:from (data/->Cursor 0 1)
+                                      :to (data/->Cursor 0 2)
+                                      :type :hover
+                                      :hoverable true
+                                      :content (lsp.server/->MarkupContent :markdown "hover")})]
+             (hover! lsp (tu/resource workspace "/foo.json") (data/->Cursor 0 1))))
+      (is (realized? matched-promise))
+      (is (not (realized? unmatched-promise)))
+      (await-lsp (set-servers! lsp #{})))))

@@ -611,3 +611,16 @@
               (reduced ret)))
           nil
           coll))
+
+(defn str-rf
+  "Reducing function for string concatenation, useful for transduce context"
+  ([] (StringBuilder.))
+  ([^StringBuilder result] (.toString result))
+  ([^StringBuilder acc input] (.append acc (str input))))
+
+(defn join-to-string
+  "Like clojure.string/join, but uses reduce instead of lazy sequences"
+  ([coll]
+   (transduce identity str-rf coll))
+  ([sep coll]
+   (transduce (interpose (str sep)) str-rf coll)))

@@ -61,7 +61,7 @@ namespace dmGraphics
     {
         if (!IsSupported(supported_extensions, extension))
         {
-            dmLogWarning("%s was not supported", extension);
+            dmLogDebug("%s was not supported", extension);
             return false;
         }
 
@@ -209,9 +209,15 @@ namespace dmGraphics
         dmArray<VkExtensionProperties> extensions;
         GetExtensions(extensions);
 
+        AddIfSupported(extensions, VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME, vk_required_extensions);
+        AddIfSupported(extensions, VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME, vk_required_extensions); // VK_EXT_fragment_shader_interlock
+
     #ifdef __MACH__
         static const char* VK_EXT_metal_objects_str = "VK_EXT_metal_objects";
         AddIfSupported(extensions, VK_EXT_metal_objects_str, vk_required_extensions);
+    #else
+        static const char* VK_KHR_portability_enumeration_str = "VK_KHR_portability_enumeration";
+        AddIfSupported(extensions, VK_KHR_portability_enumeration_str, vk_required_extensions);
     #endif
 
         if (validationLayerCount > 0)
@@ -219,16 +225,6 @@ namespace dmGraphics
             if (GetValidationSupport(validationLayers, validationLayerCount))
             {
                 enabled_layer_count = validationLayerCount;
-
-                AddIfSupported(extensions, VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME, vk_required_extensions);
-
-            #ifdef __MACH__
-                static const char* VK_KHR_get_physical_device_properties2_str = "VK_KHR_get_physical_device_properties2";
-                AddIfSupported(extensions, VK_KHR_get_physical_device_properties2_str, vk_required_extensions);
-            #else
-                static const char* VK_KHR_portability_enumeration_str = "VK_KHR_portability_enumeration";
-                AddIfSupported(extensions, VK_KHR_portability_enumeration_str, vk_required_extensions);
-            #endif
 
                 for (uint16_t i=0; i < validationLayerExtensionCount; ++i)
                 {

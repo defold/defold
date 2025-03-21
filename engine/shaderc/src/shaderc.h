@@ -39,7 +39,7 @@ namespace dmShaderc
     {
         SHADER_STAGE_VERTEX   = 1,
         SHADER_STAGE_FRAGMENT = 2,
-        SHADER_STAGE_COMPUTE  = 3,
+        SHADER_STAGE_COMPUTE  = 4,
     };
 
     enum BaseType
@@ -135,7 +135,6 @@ namespace dmShaderc
         ShaderCompilerOptions()
         : m_Version(330)
         , m_EntryPoint("main")
-        , m_Stage(SHADER_STAGE_VERTEX)
         , m_RemoveUnusedVariables(true)
         , m_No420PackExtension(true)
         , m_GlslEmitUboAsPlainUniforms(true)
@@ -144,7 +143,6 @@ namespace dmShaderc
 
         uint32_t    m_Version;
         const char* m_EntryPoint;
-        ShaderStage m_Stage;
 
         uint8_t     m_RemoveUnusedVariables      : 1;
         uint8_t     m_No420PackExtension         : 1;
@@ -195,6 +193,7 @@ namespace dmShaderc
         uint8_t      m_Location;
         uint8_t      m_Binding;
         uint8_t      m_Set;
+        uint8_t      m_StageFlags;
     };
 
     struct ShaderReflection
@@ -214,9 +213,12 @@ namespace dmShaderc
     };
 
     // Shader context
-    extern "C" DM_DLLEXPORT HShaderContext          NewShaderContext(const void* source, uint32_t source_size);
+    extern "C" DM_DLLEXPORT HShaderContext          NewShaderContext(ShaderStage stage, const void* source, uint32_t source_size);
     extern "C" DM_DLLEXPORT void                    DeleteShaderContext(HShaderContext context);
+
+    // Reflection
     extern "C" DM_DLLEXPORT const ShaderReflection* GetReflection(HShaderContext context);
+    extern "C" DM_DLLEXPORT void                    SetResourceStageFlags(HShaderContext context, uint64_t name_hash, uint8_t stage_flags);
 
     // Compilers
     extern "C" DM_DLLEXPORT HShaderCompiler         NewShaderCompiler(HShaderContext context, ShaderLanguage language);
