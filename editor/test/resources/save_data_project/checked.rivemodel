@@ -1,7 +1,10 @@
 scene: "/checked.rivescene"
 default_animation: "idle"
-material: "/defold-rive/assets/rivemodel.material"
+material: "/checked.material"
 blend_mode: BLEND_MODE_ADD
 default_state_machine: "Button"
 create_go_bones: true
 artboard: "New Artboard"
+coordinate_system: COORDINATE_SYSTEM_RIVE
+artboard_fit: FIT_FILL
+artboard_alignment: ALIGNMENT_TOP_LEFT
