@@ -682,6 +682,10 @@ namespace dmPhysics
         return (b2GridShape*) fixture->GetShape();
     }
 
+    void CreateGridCellShape(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t child)
+    {
+    }
+
     bool SetGridShapeHull(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t row, uint32_t column, uint32_t hull, HullFlags flags)
     {
         b2Body* body = (b2Body*) collision_object;
@@ -1268,7 +1272,7 @@ namespace dmPhysics
         body->SetBullet(value);
     }
 
-    void SetGroup2D(HCollisionObject2D collision_object, uint16_t groupbit) {
+    void SetGroup2D(HWorld2D world, HCollisionObject2D collision_object, uint16_t groupbit) {
         b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
         while (fixture) {
             // do sth with the fixture
@@ -1281,7 +1285,7 @@ namespace dmPhysics
         }
     }
 
-    uint16_t GetGroup2D(HCollisionObject2D collision_object) {
+    uint16_t GetGroup2D(HWorld2D world, HCollisionObject2D collision_object) {
         b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
         if (fixture) {
             if (fixture->GetType() != b2Shape::e_grid) {
@@ -1293,7 +1297,7 @@ namespace dmPhysics
     }
 
     // updates a specific group bit of a collision object's current mask
-    void SetMaskBit2D(HCollisionObject2D collision_object, uint16_t groupbit, bool boolvalue) {
+    void SetMaskBit2D(HWorld2D world, HCollisionObject2D collision_object, uint16_t groupbit, bool boolvalue) {
         b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
         while (fixture) {
             // do sth with the fixture
@@ -1337,7 +1341,7 @@ namespace dmPhysics
         return true;
     }
 
-    bool GetMaskBit2D(HCollisionObject2D collision_object, uint16_t groupbit) {
+    bool GetMaskBit2D(HWorld2D world, HCollisionObject2D collision_object, uint16_t groupbit) {
         b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
         if (fixture) {
             if (fixture->GetType() != b2Shape::e_grid) {

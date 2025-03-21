@@ -91,6 +91,10 @@ namespace dmPhysics
     {
     }
 
+    void CreateGridCellShape(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t child)
+    {
+    }
+
     bool SetGridShapeHull(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t row, uint32_t column, uint32_t hull, HullFlags flags)
     {
         return false;
@@ -234,25 +238,25 @@ namespace dmPhysics
     {
     }
 
-    uint16_t GetGroup2D(HCollisionObject2D collision_object)
+    uint16_t GetGroup2D(HWorld2D world, HCollisionObject2D collision_object)
     {
         return 0;
     }
 
-    void SetGroup2D(HCollisionObject2D collision_object, uint16_t groupbit)
+    void SetGroup2D(HWorld2D world, HCollisionObject2D collision_object, uint16_t groupbit)
     {
     }
 
-    bool GetMaskBit2D(HCollisionObject2D collision_object, uint16_t groupbit)
+    bool GetMaskBit2D(HWorld2D world, HCollisionObject2D collision_object, uint16_t groupbit)
     {
         return false;
     }
 
-    void SetMaskBit2D(HCollisionObject2D collision_object, uint16_t groupbit, bool boolvalue)
+    void SetMaskBit2D(HWorld2D world, HCollisionObject2D collision_object, uint16_t groupbit, bool boolvalue)
     {
     }
 
-    bool UpdateMass2D(HCollisionObject2D collision_object, float mass)
+    bool UpdateMass2D(HWorld2D world, HCollisionObject2D collision_object, float mass)
     {
         return false;
     }
