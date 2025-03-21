@@ -46,6 +46,9 @@ def configure(conf):
 
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="SHADERC"')
 
+    conf.env.append_value('CFLAGS', ["-fdebug-compilation-dir=engine/shaderc", "-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"])
+    conf.env.append_value('CXXFLAGS', ["-fdebug-compilation-dir=engine/shaderc", "-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"])
+
 def build(bld):
     global test_context
     bld.recurse('src')
