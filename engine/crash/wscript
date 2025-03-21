@@ -53,6 +53,9 @@ def configure(conf):
     if operating_sys == "win":
         conf.env.append_value('LINKFLAGS', ['dbghelp.lib'])
 
+    conf.env.append_value('CFLAGS', ["-fdebug-compilation-dir=engine/crash", "-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"])
+    conf.env.append_value('CXXFLAGS', ["-fdebug-compilation-dir=engine/crash", "-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"])
+
 def build(bld):
     global test_context
     bld.recurse('src')

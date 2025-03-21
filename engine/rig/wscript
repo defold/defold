@@ -39,6 +39,9 @@ def configure(conf):
     platform = conf.env['PLATFORM']
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="RIG"')
 
+    conf.env.append_value('CFLAGS', ["-fdebug-compilation-dir=engine/rig", "-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"])
+    conf.env.append_value('CXXFLAGS', ["-fdebug-compilation-dir=engine/rig", "-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"])
+
 def build(bld):
     global test_context
     bld.recurse('src')

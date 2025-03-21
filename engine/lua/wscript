@@ -24,6 +24,8 @@ def options(opt):
 def configure(conf):
     conf.load('waf_dynamo')
     conf.recurse('src')
+    conf.env.append_value('CFLAGS', ["-fdebug-compilation-dir=engine/lua", "-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"])
+    conf.env.append_value('CXXFLAGS', ["-fdebug-compilation-dir=engine/lua", "-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"])
 
 def build(bld):
     global test_context

@@ -24,6 +24,9 @@ def configure(conf):
     conf.recurse('src')
     conf.env.append_unique('DEFINES', f'DLIB_LOG_DOMAIN="{APPNAME.upper()}"')
 
+    conf.env.append_value('CFLAGS', ["-fdebug-compilation-dir=engine/jni", "-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"])
+    conf.env.append_value('CXXFLAGS', ["-fdebug-compilation-dir=engine/jni", "-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"])
+
 def build(bld):
     if not bld.env.IS_TARGET_DESKTOP:
         return

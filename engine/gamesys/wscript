@@ -43,6 +43,9 @@ def configure(conf):
     elif "win32" in platform:
         conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'dinput8.lib', 'dxguid.lib'])
 
+    conf.env.append_value('CFLAGS', ["-fdebug-compilation-dir=engine/gamesys", "-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"])
+    conf.env.append_value('CXXFLAGS', ["-fdebug-compilation-dir=engine/gamesys", "-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"])
+
     conf.env.append_value('INCLUDES', "default/src")
     conf.env['STLIB_DLIB'] = ['dlib', 'mbedtls', 'zip']
     conf.env['STLIB_DDF'] = 'ddf'
