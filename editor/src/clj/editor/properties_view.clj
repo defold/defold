@@ -625,7 +625,7 @@
         listen-fn (fn [_old-val new-val]
                     (when-not *programmatic-setting*
                       (properties/set-values! (property-fn) (repeat new-val))
-                      (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)))]
+                      (ui/refresh (ui/main-scene))))]
     (fuzzy-combo-box/observe! combo-box listen-fn)
     [combo-box update-ui-fn]))
 
