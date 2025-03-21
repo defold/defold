@@ -48,7 +48,8 @@
             [editor.workspace :as workspace]
             [service.log :as log]
             [util.coll :as coll]
-            [util.profiler :as profiler])
+            [util.profiler :as profiler]
+            [editor.prefs :as prefs])
   (:import [com.jogamp.opengl GL GL2 GLAutoDrawable GLContext GLOffscreenAutoDrawable]
            [com.jogamp.opengl.glu GLU]
            [com.jogamp.opengl.util GLPixelStorageModes]
@@ -1548,7 +1549,7 @@
                                                                                    (g/operation-label "Select")
                                                                                    (select-fn selection))))]
                    camera          [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic identity {:fov-x 1000 :fov-y 1000}))]
-                   grid            grid-type
+                   grid            (grid-type :size (prefs/get prefs [:scene :grid :size]))
                    tool-controller [tool-controller-type :prefs prefs]
                    rulers          [rulers/Rulers]]
 

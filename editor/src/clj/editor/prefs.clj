@@ -164,7 +164,22 @@
            :engine-arguments {:type :string :scope :project}}}
     :scene {:type :object
             :properties
-            {:move-whole-pixels {:type :boolean :default true}}}
+            {:move-whole-pixels {:type :boolean :default true}
+             :grid {:type :object
+                    :scope :project
+                    :properties {:size {:type :object
+                                        :scope :project
+                                        :properties
+                                        {:x {:type :integer :default 10}
+                                         :y {:type :integer :default 10}
+                                         :z {:type :integer :default 10}}}
+                                 :active-plane {:type :keyword :default :z}
+                                 :opacity {:type :number :default 1.0}}}
+             :snap {:type :object
+                    :scope :project
+                    :properties {:enabled {:type :boolean}
+                                 :threshold {:type :number}
+                                 :active-groups {:type :set :item {:type :keyword}}}}}}
     :dev {:type :object
           :properties
           {:custom-engine {:type :any}}}

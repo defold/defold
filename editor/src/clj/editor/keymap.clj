@@ -52,6 +52,7 @@
            ["Ctrl+I" :reindent]
            ["Ctrl+K" :delete-to-end-of-line]
            ["Ctrl+Meta+H" :toggle-component-guides]
+           ["Ctrl+Meta+G" :toggle-grid]
            ["Ctrl+R" :open-recent-file]
            ["Ctrl+Space" :proposals]
            ["Delete" :delete]
@@ -191,6 +192,7 @@
            ["Ctrl+G" :find-next]
            ["Ctrl+H" :replace-text]
            ["Ctrl+H" :toggle-component-guides]
+           ["Ctrl+H" :toggle-grid]
            ["Ctrl+Home" :beginning-of-file]
            ["Ctrl+I" :reindent]
            ["Ctrl+K" :delete-to-end-of-line]
@@ -308,6 +310,7 @@
            ["Ctrl+G" :find-next]
            ["Ctrl+H" :replace-text]
            ["Ctrl+H" :toggle-component-guides]
+           ["Ctrl+G" :toggle-grid]
            ["Ctrl+Home" :beginning-of-file]
            ["Ctrl+I" :reindent]
            ["Ctrl+K" :delete-to-end-of-line]
@@ -408,6 +411,7 @@
     "Alt+Up"
     "Ctrl+F"
     "Ctrl+H"
+    "Ctrl+G"
     "F5"
     "Meta+F"
     "Shift+Down"
