@@ -483,6 +483,12 @@
 (def ^:private mode-2d-svg-path
   (ui/load-svg-path "scene/images/2d-mode.svg"))
 
+(def ^:private grid-svg-path
+  (ui/load-svg-path "scene/images/grid.svg"))
+
+(def ^:private magnet-svg-path
+  (ui/load-svg-path "scene/images/magnet.svg"))
+
 (defn- make-visibility-settings-graphic []
   (doto (StackPane.)
     (.setId "visibility-settings-graphic")
@@ -508,6 +514,15 @@
     :tooltip "Scale tool"
     :icon "icons/45/Icons_T_04_Scale.png"
     :command :scale-tool}
+   {:label :separator}
+   {:id :grid
+    :tooltip "Grid"
+    :graphic-fn (partial icons/make-svg-icon-graphic grid-svg-path)
+    :command :toggle-grid}
+   {:id :snap
+    :tooltip "Snap"
+    :graphic-fn (partial icons/make-svg-icon-graphic magnet-svg-path)
+    :command :toggle-snap}
    {:label :separator}
    {:id :2d-mode
     :tooltip "2d mode"
