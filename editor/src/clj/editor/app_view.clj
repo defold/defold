@@ -523,7 +523,6 @@
     :tooltip "Snap"
     :graphic-fn (partial icons/make-svg-icon-graphic magnet-svg-path)
     :command :toggle-snap}
-   {:label :separator}
    {:id :2d-mode
     :tooltip "2d mode"
     :graphic-fn (partial icons/make-svg-icon-graphic mode-2d-svg-path)
