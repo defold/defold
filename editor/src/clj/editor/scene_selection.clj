@@ -16,7 +16,6 @@
   (:require [dynamo.graph :as g]
             [editor.system :as system]
             [editor.geom :as geom]
-            [editor.handler :as handler]
             [editor.types :as types]
             [editor.ui :as ui]
             [editor.gl.pass :as pass]
@@ -28,26 +27,6 @@
            [javax.vecmath Point2i Point3d Matrix4d]))
 
 (set! *warn-on-reflection* true)
-
-(handler/register-menu! ::scene-selection-menu
-                        [{:label "Cut"
-                          :command :cut}
-                         {:label "Copy"
-                          :command :copy}
-                         {:label "Paste"
-                          :command :paste}
-                         {:label "Delete"
-                          :icon "icons/32/Icons_M_06_trash.png"
-                          :command :delete}
-                         {:label :separator}
-                         {:label "Show/Hide Objects"
-                          :command :hide-toggle-selected}
-                         {:label "Hide Unselected Objects"
-                          :command :hide-unselected}
-                         {:label "Show All Hidden Objects"
-                          :command :show-all-hidden}
-                         {:label :separator
-                          :id ::context-menu-end}])
 
 (defn render-selection-box [^GL2 gl _render-args renderables _count]
   (let [user-data (:user-data (first renderables))
@@ -143,7 +122,7 @@
                        (when contextual?
                          (let [node ^Node (:target action)
                                scene ^Scene (.getScene node)
-                               context-menu (ui/init-context-menu! ::scene-selection-menu scene)]
+                               context-menu (ui/init-context-menu! :editor.outline-view/outline-menu scene)]
                            (.show context-menu node ^double (:screen-x action) ^double (:screen-y action))))
                        nil)
       :mouse-released (do
