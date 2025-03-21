@@ -132,6 +132,9 @@
   (inherits outline/OutlineNode)
   (inherits resource/ResourceNode)
 
+  (property loaded g/Bool :unjammable (default false)
+            (dynamic visible (g/constantly false)))
+
   (output save-data g/Any :cached produce-save-data)
   (output save-value g/Any (g/constantly nil))
   (output source-value g/Any :unjammable produce-source-value)
@@ -165,11 +168,24 @@
   (output save-data g/Any (g/constantly nil))
   (output save-value g/Any (g/constantly nil)))
 
-(definline ^:private resource-node-resource [basis resource-node]
-  ;; This is faster than g/node-value, and doesn't require creating an
-  ;; evaluation-context. The resource property is unjammable and properties
-  ;; aren't cached, so there is no need to do a full g/node-value.
-  `(gt/get-property ~resource-node ~basis :resource))
+(definline node-loaded? [basis resource-node]
+  ;; Accessing the property directly is faster than g/node-value, and doesn't
+  ;; require creating an evaluation-context. The property is unjammable and
+  ;; properties aren't cached, so there is no need to do a full g/node-value.
+  `(gt/get-property ~resource-node ~basis :loaded))
+
+(defn loaded?
+  "Returns true if the specified node-id corresponds to a resource that has been
+  loaded. The node-id must refer to an existing resource node. A resource node
+  can exist in the project graph in an unloaded state, for example if its
+  proj-path matches a pattern listed in the .defunload file."
+  ([resource-node-id]
+   (loaded? (g/now) resource-node-id))
+  ([basis resource-node-id]
+   (let [resource-node (g/node-by-id basis resource-node-id)]
+     (assert (some? resource-node) (str "Node not found: " resource-node-id))
+     (assert (g/node-instance*? ResourceNode resource-node))
+     (node-loaded? basis resource-node))))
 
 (defn resource
   ([resource-node-id]
@@ -177,7 +193,7 @@
   ([basis resource-node-id]
    (let [resource-node (g/node-by-id basis resource-node-id)]
      (assert (g/node-instance*? resource/ResourceNode resource-node))
-     (resource-node-resource basis resource-node))))
+     (resource/node-resource basis resource-node))))
 
 (defn as-resource
   ([node-id]
@@ -185,7 +201,7 @@
   ([basis node-id]
    (when-some [node (g/node-by-id basis node-id)]
      (when (g/node-instance*? resource/ResourceNode node)
-       (resource-node-resource basis node)))))
+       (resource/node-resource basis node)))))
 
 (defn as-resource-original
   ([node-id]
@@ -194,7 +210,7 @@
    (when-some [node (g/node-by-id basis node-id)]
      (when (and (nil? (gt/original node))
                 (g/node-instance*? resource/ResourceNode node))
-       (resource-node-resource basis node)))))
+       (resource/node-resource basis node)))))
 
 (defn dirty?
   ([resource-node-id]
@@ -228,7 +244,7 @@
      ;; have a valid proj-path.
      (if (and (nil? (gt/original node))
               (g/node-instance*? ResourceNode node)
-              (some? (resource/proj-path (resource-node-resource basis node))))
+              (some? (resource/proj-path (resource/node-resource basis node))))
 
        ;; We found our owner ResourceNode. Return its node-id.
        node-id

@@ -62,8 +62,6 @@
    :list-resources
    :make-project
    :read-resources
-   :sort-source-values
-   :store-source-values
    :load-nodes
    :cache-save-data])
 
@@ -140,7 +138,7 @@
 (defonce node-id+resource-pairs
   (run-and-measure-task!
     :list-resources
-    (project/node-id+resource-pairs
+    (project/make-node-id+resource-pairs
       project-graph-id
       (g/node-value workspace :resource-list))))
 
@@ -157,25 +155,14 @@
       (project/make-project project-graph-id workspace extensions))))
 
 (defonce node-load-infos
-  (let [node-load-infos
-        (when (run-task? :read-resources)
-          (dev/run-with-progress "Reading Files..."
-            (fn read-resources-with-progress [render-progress!]
-              (measure-task!
-                :read-resources
-                (project/read-node-load-infos node-id+resource-pairs render-progress! resource-metrics)))))
-
-        node-load-infos
-        (run-and-measure-task!
-          :sort-source-values
-          (project/sort-node-load-infos-for-loading node-load-infos {} {}))]
-
-    (run-and-measure-task!
-      :store-source-values
-      (project/store-loaded-disk-sha256-hashes! node-load-infos workspace)
-      (project/store-loaded-source-values! node-load-infos))
-
-    node-load-infos))
+  (when (run-task? :read-resources)
+    (dev/run-with-progress "Reading Files..."
+      (fn read-resources-with-progress [render-progress!]
+        (measure-task!
+          :read-resources
+          (project/read-nodes node-id+resource-pairs
+            :render-progress! render-progress!
+            :resource-metrics resource-metrics))))))
 
 (defonce migrated-resource-node-ids
   (let [prelude-tx-data

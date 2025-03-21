@@ -37,7 +37,7 @@ ordinary paths."
             [internal.util :as iutil]
             [schema.core :as s]
             [service.log :as log]
-            [util.coll :refer [pair]]
+            [util.coll :as coll :refer [pair]]
             [util.digest :as digest]
             [util.fn :as fn])
   (:import [clojure.lang DynamicClassLoader]
@@ -128,6 +128,7 @@ ordinary paths."
   (resource-hash [this] (resource/resource-hash resource))
   (openable? [this] false)
   (editable? [this] false)
+  (loaded? [this] false)
 
   io/IOFactory
   (make-input-stream [this opts] (io/make-input-stream (File. (resource/abs-path this)) opts))
@@ -315,10 +316,16 @@ ordinary paths."
                         it is opened in the editor. Currently only supported by
                         code editor resource nodes, and only for file types that
                         do not interact with any other nodes in the graph.
+    :allow-unloaded-use Allow references to .defunload:ed resources of this type
+                        from loaded resources. Basically, this is a declaration
+                        that the associated :node-type is well-behaved when
+                        referenced despite its :load-fn never have been invoked.
+                        This involves producing valid build-targets, scene data,
+                        or whatever might be required by the referencing nodes.
     :auto-connect-save-data?    whether changes to the resource are saved
                                 to disc (this can also be enabled in load-fn)
                                 when there is a :write-fn, default true"
-  [workspace & {:keys [textual? language editable ext build-ext node-type load-fn dependencies-fn search-fn search-value-fn source-value-fn read-fn write-fn icon icon-class view-types view-opts tags tag-opts template test-info label stateless? lazy-loaded auto-connect-save-data?]}]
+  [workspace & {:keys [textual? language editable ext build-ext node-type load-fn dependencies-fn search-fn search-value-fn source-value-fn read-fn write-fn icon icon-class view-types view-opts tags tag-opts template test-info label stateless? lazy-loaded allow-unloaded-use auto-connect-save-data?]}]
   {:pre [(or (nil? icon-class) (resource/icon-class->style-class icon-class))]}
   (let [editable (if (nil? editable) true (boolean editable))
         textual (true? textual?)
@@ -346,6 +353,7 @@ ordinary paths."
                        :label label
                        :stateless? (if (nil? stateless?) (nil? load-fn) stateless?)
                        :lazy-loaded (boolean lazy-loaded)
+                       :allow-unloaded-use (boolean allow-unloaded-use)
                        :auto-connect-save-data? (and editable
                                                      (some? write-fn)
                                                      (not (false? auto-connect-save-data?)))}
@@ -361,16 +369,11 @@ ordinary paths."
       (g/update-property workspace :resource-types editable-resource-type-map-update-fn resource-types-by-ext)
       (g/update-property workspace :resource-types-non-editable non-editable-resource-type-map-update-fn resource-types-by-ext))))
 
-(defn- editability->output-label [editability]
-  (case editability
-    :editable :resource-types
-    :non-editable :resource-types-non-editable))
-
 (defn get-resource-type-map
   ([workspace]
-   (g/node-value workspace :resource-types))
+   (resource/resource-types-by-type-ext (g/now) workspace :editable))
   ([workspace editability]
-   (g/node-value workspace (editability->output-label editability))))
+   (resource/resource-types-by-type-ext (g/now) workspace editability)))
 
 (defn get-resource-type
   ([workspace ext]
@@ -448,6 +451,25 @@ ordinary paths."
      (or
        (find-resource workspace path evaluation-context)
        (file-resource workspace path evaluation-context)))))
+
+(defn make-proj-path->resource-fn [workspace evaluation-context]
+  ;; Both :root and :editable-proj-path? are properties.
+  (let [project-directory-path (g/valid-node-value workspace :root evaluation-context)
+        editable-proj-path? (g/valid-node-value workspace :editable-proj-path? evaluation-context)
+        resources-by-proj-path (g/tx-cached-node-value workspace :resource-map evaluation-context)
+
+        make-missing-file-resource
+        (fn/memoize
+          (fn make-missing-file-resource [proj-path]
+            (let [file (io/file (str project-directory-path proj-path))]
+              (resource/make-file-resource workspace project-directory-path file [] editable-proj-path?))))]
+
+    (assert (not (g/error? resources-by-proj-path)))
+    (assert (map? resources-by-proj-path))
+    (fn proj-path->resource [proj-path]
+      (when-not (coll/empty? proj-path)
+        (or (resources-by-proj-path proj-path)
+            (make-missing-file-resource proj-path))))))
 
 (defn- absolute-path [^String path]
   (.startsWith path "/"))
@@ -563,15 +585,15 @@ ordinary paths."
   (= "clj" (resource/ext resource)))
 
 (defn- load-clojure-plugin! [workspace resource]
-  (log/info :msg (str "Loading plugin " (resource/path resource)))
+  (log/info :message (str "Loading plugin " (resource/path resource)))
   (try
     (if-let [plugin-fn (load-string (slurp resource))]
       (do
         (plugin-fn workspace)
-        (log/info :msg (str "Loaded plugin " (resource/path resource))))
-      (log/error :msg (str "Unable to load plugin " (resource/path resource))))
+        (log/info :message (str "Loaded plugin " (resource/path resource))))
+      (log/error :message (str "Unable to load plugin " (resource/path resource))))
     (catch Exception e
-      (log/error :msg (str "Exception while loading plugin: " (.getMessage e))
+      (log/error :message (str "Exception while loading plugin: " (.getMessage e))
                  :exception e)
       (ui/run-later
         (dialogs/make-info-dialog

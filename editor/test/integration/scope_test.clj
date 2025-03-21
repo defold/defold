@@ -47,8 +47,8 @@
           old-node-ids (set (ig/node-ids (g/graph graph-id)))
           old-basis (g/now)
           mem-resource (project/make-embedded-resource project :editable resource-type-name inline-resource)
-          node-id+resource-pairs (project/node-id+resource-pairs graph-id [mem-resource])
-          node-load-infos (project/read-nodes node-id+resource-pairs progress/null-render-progress! {} {} nil)
+          node-id+resource-pairs (project/make-node-id+resource-pairs graph-id [mem-resource])
+          node-load-infos (project/read-nodes node-id+resource-pairs)
           prelude-tx-data (project/make-resource-nodes-tx-data project node-id+resource-pairs)
           migrated-resource-node-ids (project/load-nodes! project prelude-tx-data node-load-infos progress/null-render-progress! nil nil)]
       (project/cache-loaded-save-data! node-load-infos project migrated-resource-node-ids)

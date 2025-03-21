@@ -19,6 +19,7 @@
             [dynamo.graph :as g]
             [editor.core :as core]
             [editor.fs :as fs]
+            [internal.graph.types :as gt]
             [schema.core :as s]
             [util.coll :as coll :refer [pair]]
             [util.digest :as digest]
@@ -26,6 +27,7 @@
             [util.http-server :as http-server]
             [util.text-util :as text-util])
   (:import [clojure.lang PersistentHashMap]
+           [com.defold.editor Editor]
            [java.io File Closeable FilterInputStream IOException InputStream]
            [java.net URI]
            [java.nio.file FileSystem FileSystems]
@@ -51,7 +53,8 @@
   (workspace [this])
   (resource-hash [this])
   (openable? [this])
-  (editable? [this]))
+  (editable? [this])
+  (loaded? [this]))
 
 (def ^{:arglists '([x])} resource?
   (let [cache (atom {})
@@ -67,12 +70,29 @@
 
 (def placeholder-resource-type-ext "*")
 
+(defn filename->type-ext
+  "Given a filename or path string, returns the lower-case file extension
+  (without the leading dot character), or nil if the supplied filename is nil.
+  Returns an empty string if the supplied string has no file extension."
+  ^String [^String filename]
+  (string/lower-case (FilenameUtils/getExtension filename)))
+
 (defn type-ext [resource]
   (string/lower-case (ext resource)))
 
-(defn- get-resource-type [workspace resource]
-  (let [output-label (if (editable? resource) :resource-types :resource-types-non-editable)
-        resource-types (output-label (g/node-by-id workspace))
+(defn resource-types-by-type-ext [basis workspace editability]
+  ;; Bypass evaluation-context creation since these are properties and
+  ;; evaluation won't touch the system cache. We can also access the node
+  ;; property map directly since we know the workspace node will not be
+  ;; overridden or marked defective.
+  (let [node (g/node-by-id basis workspace)
+        property-label (case editability
+                         (true :editable) :resource-types
+                         (false :non-editable) :resource-types-non-editable)]
+    (get node property-label)))
+
+(defn lookup-resource-type [basis workspace resource]
+  (let [resource-types (resource-types-by-type-ext basis workspace (editable? resource))
         ext (type-ext resource)]
     (or (resource-types ext)
         (resource-types placeholder-resource-type-ext))))
@@ -133,7 +153,26 @@
 ;; The same logic implemented in Project.java.
 ;; If you change something here, please change it there as well
 ;; Search for excluedFilesAndFoldersEntries.
-;; root -> pred if project path (string starting with /) is ignored
+(defn lines->proj-path-patterns-pred
+  "Returns a predicate that takes a proj-path and returns true if it starts with
+  or matches one of the proj-paths listed among the lines, typically the
+  contents of something like a .defignore file."
+  [lines]
+  (let [prefixes (when lines
+                   (coll/transfer lines []
+                     (filter #(string/starts-with? % "/"))
+                     (distinct)))]
+    (if (zero? (count prefixes))
+      fn/constantly-false
+      (fn matched-proj-path? [proj-path]
+        (boolean (coll/some #(string/starts-with? proj-path %)
+                            prefixes))))))
+
+(defn- read-proj-path-patterns-pred [^File proj-path-patterns-file]
+  (lines->proj-path-patterns-pred
+    (when (.isFile proj-path-patterns-file)
+      (string/split-lines (slurp proj-path-patterns-file)))))
+
 (defn defignore-pred [^File root]
   (let [defignore-file (io/file root ".defignore")
         defignore-path (.getCanonicalPath defignore-file)
@@ -141,17 +180,34 @@
         {:keys [mtime pred]} (get @defignore-cache defignore-path)]
     (if (= mtime latest-mtime)
       pred
-      (let [pred (if (.isFile defignore-file)
-                   (let [prefixes (into []
-                                        (comp
-                                          (filter #(string/starts-with? % "/"))
-                                          (distinct))
-                                        (string/split-lines (slurp defignore-file)))]
-                     (fn ignored-path? [path]
-                       (boolean (some #(string/starts-with? path %) prefixes))))
-                   fn/constantly-false)]
+      (let [pred (read-proj-path-patterns-pred defignore-file)]
         (swap! defignore-cache assoc defignore-path {:mtime latest-mtime :pred pred})
         pred))))
+
+(defn- defunload-pred-raw [^File root]
+  ;; Contrary to .defignore, we only read the .defunload file once and cache it
+  ;; for the entire lifetime of the application. You'll have to restart the
+  ;; editor for any changes to take effect.
+  (let [defunload-file (io/file root ".defunload")]
+    (read-proj-path-patterns-pred defunload-file)))
+
+(def defunload-pred (fn/memoize defunload-pred-raw))
+
+(defonce ^File defunload-issues-file
+  (let [report-file-atom (atom nil)]
+    (fn defunload-issues-file
+      ^File []
+      (if-some [existing-report-file @report-file-atom]
+        (pair existing-report-file false)
+        (let [log-directory (.getAbsoluteFile (.toFile (Editor/getLogDirectory)))
+              report-file (io/file log-directory "defunload-issues.txt")
+              we-assigned-atom (compare-and-set! report-file-atom nil report-file)]
+          (when we-assigned-atom
+            ;; We will append any issues encountered when resources are loaded
+            ;; to this report file. Make sure it is initially empty for this
+            ;; session.
+            (fs/create-file! report-file ""))
+          (pair report-file we-assigned-atom))))))
 
 (def ^:dynamic *defignore-pred* nil)
 
@@ -184,7 +240,7 @@
   Resource
   (children [this] children)
   (ext [this] ext)
-  (resource-type [this] (get-resource-type workspace this))
+  (resource-type [this] (lookup-resource-type (g/now) workspace this))
   (source-type [this] source-type)
   (exists? [this]
     (try
@@ -214,8 +270,16 @@
   (resource-name [this] name)
   (workspace [this] workspace)
   (resource-hash [this] (hash (proj-path this)))
-  (openable? [this] (= :file source-type))
-  (editable? [this] editable)
+  (openable? [this]
+    (and (= :file source-type)
+         (if (:editor-openable (resource-type this))
+           (loaded? this)
+           true)))
+  (editable? [_this] editable)
+  (loaded? [_this]
+    (let [project-directory (io/file root)
+          unloaded-proj-path? (defunload-pred project-directory)]
+      (not (unloaded-proj-path? project-path))))
 
   io/IOFactory
   (make-input-stream  [this opts] (io/make-input-stream (io/file this) opts))
@@ -275,7 +339,7 @@
   Resource
   (children [this] nil)
   (ext [this] ext)
-  (resource-type [this] (get-resource-type workspace this))
+  (resource-type [this] (lookup-resource-type (g/now) workspace this))
   (source-type [this] :file)
   (exists? [this] true)
   (read-only? [this] false)
@@ -287,6 +351,7 @@
   (resource-hash [this] (hash data))
   (openable? [this] false)
   (editable? [this] editable)
+  (loaded? [_this] true)
 
   io/IOFactory
   (make-input-stream  [this opts] (io/make-input-stream (IOUtils/toInputStream ^String (:data this)) opts))
@@ -328,7 +393,7 @@
   Resource
   (children [this] children)
   (ext [this] (FilenameUtils/getExtension name))
-  (resource-type [this] (get-resource-type workspace this))
+  (resource-type [this] (lookup-resource-type (g/now) workspace this))
   (source-type [this] (if (zero? (count children)) :file :folder))
   (exists? [this] (not (nil? zip-entry)))
   (read-only? [this] true)
@@ -338,8 +403,17 @@
   (resource-name [this] name)
   (workspace [this] workspace)
   (resource-hash [this] (hash (proj-path this)))
-  (openable? [this] (= :file (source-type this)))
+  (openable? [this]
+    (and (= :file (source-type this))
+         (if (:editor-openable (resource-type this))
+           (loaded? this)
+           true)))
   (editable? [this] true)
+  (loaded? [this]
+    (let [project-directory (io/file (g/node-value workspace :root))
+          unloaded-proj-path? (defunload-pred project-directory)
+          proj-path (proj-path this)]
+      (not (unloaded-proj-path? proj-path))))
 
   io/IOFactory
   (make-input-stream  [this opts] (make-zip-resource-input-stream this))
@@ -441,9 +515,22 @@
                  (map (juxt #(str "/" (:path %)) :crc))
                  entries)})))
 
+(defn save-tracked?
+  "Checks if the specified Resource should be connected to the save system."
+  [resource]
+  (and (file-resource? resource)
+       (editable? resource)
+       (loaded? resource)))
+
 (g/defnode ResourceNode
   (property resource Resource :unjammable
             (dynamic visible (g/constantly false))))
+
+(definline node-resource [basis resource-node]
+  ;; This is faster than g/node-value, and doesn't require creating an
+  ;; evaluation-context. The resource property is unjammable and properties
+  ;; aren't cached, so there is no need to do a full g/node-value.
+  `(gt/get-property ~resource-node ~basis :resource))
 
 (defn base-name ^String [resource]
   (FilenameUtils/getBaseName (resource-name resource)))

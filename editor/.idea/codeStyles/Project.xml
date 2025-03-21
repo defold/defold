@@ -27,6 +27,7 @@
           <entry key="dynamo.graph/with-system" value="-1" />
           <entry key="editor.analytics-test/with-config!" value="-1" />
           <entry key="editor.code.resource/register-code-resource-type" value="-1" />
+          <entry key="editor.defold-project/read-nodes" value="-1" />
           <entry key="editor.defold-project/with-transpiler-txs-fn" value="-1" />
           <entry key="editor.editor-extensions.runtime/lua-fn" value="-1" />
           <entry key="editor.editor-extensions.runtime/suspendable-lua-fn" value="-1" />
@@ -86,6 +87,7 @@
           <entry key="integration.test-util/with-prop" value="-1" />
           <entry key="integration.test-util/with-scratch-project" value="-1" />
           <entry key="integration.test-util/with-temp-dir!" value="-1" />
+          <entry key="integration.test-util/write-file-resource!" value="-1" />
           <entry key="org.httpkit.server/with-channel" value="-1" />
           <entry key="support.test-support/with-clean-system" value="-1" />
           <entry key="util.coll/assoc-in-ex" value="-1" />

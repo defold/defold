@@ -26,6 +26,22 @@
 (defonce constantly-true (constantly true))
 (defonce constantly-nil (constantly nil))
 
+(defmacro constantly-fail
+  ([message-expr]
+   `(fn ~'fail ~'[& args]
+      (throw (ex-info ~message-expr
+                      {:args ~'args}))))
+  ([message-expr context-map-expr]
+   `(fn ~'fail ~'[& args]
+      (throw (ex-info ~message-expr
+                      (merge {:args ~'args}
+                             ~context-map-expr))))))
+
+(defmacro unprovided [sym-or-kw]
+  {:pre [(or (symbol? sym-or-kw) (keyword? sym-or-kw))]}
+  (let [message (str "Required " sym-or-kw " function was not provided.")]
+    `(constantly-fail ~message)))
+
 (definline ^:private with-memoize-info [memoized-fn cache arity]
   `(with-meta ~memoized-fn
               {::memoize-original ~memoized-fn

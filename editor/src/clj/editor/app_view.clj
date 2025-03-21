@@ -297,12 +297,12 @@
             (let [label-ui (Label. label)]
               (.setFont label-ui label-font)
               (.setTextFill label-ui color)
-              (GridPane/setHalignment label-ui (HPos/RIGHT))
+              (GridPane/setHalignment label-ui HPos/RIGHT)
               (-> box-items (.add label-ui 0 row-index)))
 
             ;; Add keys (in the hbox) in the second column
             (let [hbox (HBox.)]
-              (.setAlignment hbox (Pos/CENTER_LEFT))
+              (.setAlignment hbox Pos/CENTER_LEFT)
 
               (let [spacer (Region.)]
                 (.setPrefWidth spacer 10)
@@ -312,12 +312,12 @@
                 (when (pos? index)
                   (let [plus-ui (Label. space-character)]
                     (.setPrefWidth plus-ui space)
-                    (.setAlignment plus-ui (Pos/CENTER))
+                    (.setAlignment plus-ui Pos/CENTER)
                     (-> hbox .getChildren (.add plus-ui))))
 
                 (let [key-ui (Label. key)]
                   (.setFont key-ui key-font)
-                  (.setAlignment key-ui (Pos/CENTER))
+                  (.setAlignment key-ui Pos/CENTER)
                   (.setTextFill key-ui color)
                   (-> key-ui .getStyleClass (.add "key-button"))
                   (-> hbox .getChildren (.add key-ui))))
@@ -2397,7 +2397,8 @@ If you do not specifically require different script states, consider changing th
   (enabled? [app-view selection evaluation-context]
             (when-let [r (context-resource-file app-view selection evaluation-context)]
               (and (resource/abs-path r)
-                   (resource/exists? r))))
+                   (resource/exists? r)
+                   (resource/loaded? r))))
   (run [selection app-view prefs workspace project] (when-let [r (context-resource-file app-view selection)]
                                                       (doseq [resource (resource-dialog/make workspace project {:title "Dependencies" :selection :multiple :ok-label "Open" :filter (format "deps:%s" (resource/proj-path r))})]
                                                         (open-resource app-view prefs workspace project resource)))))
@@ -2505,29 +2506,31 @@ If you do not specifically require different script states, consider changing th
 
 
 (defn- gen-tooltip [workspace project app-view resource]
-  (let [resource-type (resource/resource-type resource)
-        view-type (or (first (:view-types resource-type)) (workspace/get-view-type workspace :text))]
-    (when-let [make-preview-fn (:make-preview-fn view-type)]
-      {:fx/type fx.tooltip/lifecycle
-       :graphic {:fx/type fx.image-view/lifecycle
-                 :scale-y -1}
-       :on-showing (fn [^Event e]
-                     (let [^Tooltip tooltip (.getSource e)
-                           image-view ^ImageView (.getGraphic tooltip)]
-                       (when-not (.getImage image-view)
-                         (let [resource-node (project/get-resource-node project resource)
-                               view-graph (g/make-graph! :history false :volatility 2)
-                               select-fn (partial select app-view)
-                               opts (assoc ((:id view-type) (:view-opts resource-type))
-                                      :app-view app-view
-                                      :select-fn select-fn
-                                      :project project
-                                      :workspace workspace)
-                               preview (make-preview-fn view-graph resource-node opts 256 256)]
-                           (.setImage image-view ^Image (g/node-value preview :image))
-                           (when-some [dispose-preview-fn (:dispose-preview-fn view-type)]
-                             (dispose-preview-fn preview))
-                           (g/delete-graph! view-graph)))))})))
+  (when (resource/loaded? resource)
+    (let [resource-type (resource/resource-type resource)
+          view-type (or (first (:view-types resource-type))
+                        (workspace/get-view-type workspace :text))]
+      (when-let [make-preview-fn (:make-preview-fn view-type)]
+        {:fx/type fx.tooltip/lifecycle
+         :graphic {:fx/type fx.image-view/lifecycle
+                   :scale-y -1}
+         :on-showing (fn [^Event e]
+                       (let [^Tooltip tooltip (.getSource e)
+                             image-view ^ImageView (.getGraphic tooltip)]
+                         (when-not (.getImage image-view)
+                           (let [resource-node (project/get-resource-node project resource)
+                                 view-graph (g/make-graph! :history false :volatility 2)
+                                 select-fn (partial select app-view)
+                                 opts (assoc ((:id view-type) (:view-opts resource-type))
+                                        :app-view app-view
+                                        :select-fn select-fn
+                                        :project project
+                                        :workspace workspace)
+                                 preview (make-preview-fn view-graph resource-node opts 256 256)]
+                             (.setImage image-view ^Image (g/node-value preview :image))
+                             (when-some [dispose-preview-fn (:dispose-preview-fn view-type)]
+                               (dispose-preview-fn preview))
+                             (g/delete-graph! view-graph)))))}))))
 
 (def ^:private open-assets-term-prefs-key [:open-assets :term])
 

@@ -81,7 +81,8 @@
            ~'project (test-util/setup-project! ~'workspace)]
        ~@forms)))
 
-(defn- content-bytes [artifact]
+(defn- content-bytes
+  ^bytes [artifact]
   (with-open [in (io/input-stream (:resource artifact))
               out (ByteArrayOutputStream.)]
     (IOUtils/copy in out)
@@ -153,7 +154,7 @@
             (is (= "{:new-value 42}" (content (first (:artifacts build-results))))))))
       (testing "fs is pruned"
         (let [files-before (doall (file-seq (workspace/build-path workspace)))
-              build-results (pipeline-build! project [])
+              _build-results (pipeline-build! project [])
               files-after (doall (file-seq (workspace/build-path workspace)))]
           (is (> (count files-before) (count files-after))))))))
 
@@ -217,7 +218,8 @@
   (workspace [_])
   (resource-hash [_] (hash proj-path))
   (openable? [_] false)
-  (editable? [_] false))
+  (editable? [_] false)
+  (loaded? [_] false))
 
 (defn- build-resource [proj-path]
   (workspace/make-build-resource (->TestResource proj-path)))

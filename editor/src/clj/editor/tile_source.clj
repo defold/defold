@@ -577,10 +577,10 @@
                      [(:width image-size 0) (:height image-size 0)]))
             (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["W" "H"]}))
             (dynamic read-only? (g/constantly true)))
-  (property tile-width g/Int ; Required protobuf field.
+  (property tile-width g/Int (default (protobuf/required-default Tile$TileSet :tile-width))
             (dynamic error (g/fnk [_node-id tile-width tile-width-error]
                              (validation/prop-error :fatal _node-id :tile-width validation/prop-negative? tile-width "Tile Width"))))
-  (property tile-height g/Int ; Required protobuf field.
+  (property tile-height g/Int (default (protobuf/required-default Tile$TileSet :tile-height))
             (dynamic error (g/fnk [_node-id tile-height tile-height-error]
                              (validation/prop-error :fatal _node-id :tile-height validation/prop-negative? tile-height "Tile Height"))))
   (property tile-margin g/Int (default (protobuf/default Tile$TileSet :tile-margin))

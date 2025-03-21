@@ -35,8 +35,7 @@
             [util.coll :refer [pair pair-map-by]])
   (:import [com.defold.extension.pipeline ILuaTranspiler ILuaTranspiler$Issue ILuaTranspiler$Severity]
            [com.dynamo.bob ClassLoaderScanner]
-           [java.io File]
-           [org.apache.commons.io FilenameUtils]))
+           [java.io File]))
 
 (defn- transpiler-issue->error-value [proj-path->node-id ^ILuaTranspiler$Issue issue]
   (let [node-id (proj-path->node-id (.-resourcePath issue))]
@@ -99,7 +98,7 @@
                 (into {}
                       (keep
                         (fn [^File file]
-                          (when (= "lua" (string/lower-case (FilenameUtils/getExtension (.getName file))))
+                          (when (= "lua" (resource/filename->type-ext (.getName file)))
                             ;; If transpiler emits invalid lua file, the build process will return
                             ;; a build error that points to a lua file that does not exist in the
                             ;; resource tree

@@ -623,6 +623,11 @@ Macros currently mean no foreseeable performance gain, however."
 
 (def default-value (fn/memoize default-value-raw))
 
+(defn- required-default-value-raw [^Class cls]
+  (default-message cls #{:required}))
+
+(def required-default-value (fn/memoize required-default-value-raw))
+
 (defn default
   ([^Class cls field]
    (let [field-default (get (default-value cls) field ::not-found)]
@@ -635,6 +640,16 @@ Macros currently mean no foreseeable performance gain, however."
                         :field field})))))
   ([^Class cls field not-found]
    (get (default-value cls) field not-found)))
+
+(defn required-default [^Class cls field]
+  (let [field-default (get (required-default-value cls) field ::not-found)]
+    (if (not= ::not-found field-default)
+      field-default
+      (throw (ex-info (format "Field '%s' is not required in protobuf class '%s'."
+                              field
+                              (.getName cls))
+                      {:pb-class cls
+                       :field field})))))
 
 (defn- desc->proto-cls ^Class [desc]
   (let [cls-name (if-let [containing (containing-type desc)]

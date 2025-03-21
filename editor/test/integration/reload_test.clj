@@ -170,7 +170,7 @@
 
 (defn- add-img [workspace ^String name width height]
   (let [img (BufferedImage. width height BufferedImage/TYPE_INT_ARGB)
-        type (FilenameUtils/getExtension name)
+        type (resource/filename->type-ext name)
         f (File. (workspace/project-path workspace) name)]
     (do-until-new-mtime (fn [^File f] (ImageIO/write img type f)) f)
     (sync! workspace)))
