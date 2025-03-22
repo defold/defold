@@ -856,7 +856,7 @@
         update current-layout
         assoc prop-kw new-value))))
 
-(defn layout-property-edit-type-set-impl [evaluation-context node-id prop-kw old-value new-value changes-fn]
+(defn layout-property-edit-type-set-impl [changes-fn prop-kw evaluation-context node-id old-value new-value]
   (let [trivial-gui-scene-info (g/valid-node-value node-id :trivial-gui-scene-info evaluation-context)
         current-layout (:current-layout trivial-gui-scene-info)
         changes (if (nil? changes-fn)
@@ -887,7 +887,7 @@
       (g/clear-property node-id prop-kw)
       (g/update-property node-id :layout->prop->override eutil/dissoc-in [current-layout prop-kw]))))
 
-(defn layout-property-edit-type-clear-impl [node-id prop-kw changes-fn]
+(defn layout-property-edit-type-clear-impl [changes-fn node-id prop-kw]
   (let [[current-layout cleared-prop-kws]
         (g/with-auto-evaluation-context evaluation-context
           (let [trivial-gui-scene-info (g/valid-node-value node-id :trivial-gui-scene-info evaluation-context)
@@ -910,26 +910,14 @@
 (defmacro wrap-layout-property-edit-type
   ([prop-sym edit-type-form]
    {:pre [(symbol? prop-sym)]}
-   (let [edit-type-set-fn-form
-         (let [prop-kw (keyword prop-sym)
-               edit-type-set-fn-sym (symbol (str (name prop-sym) "-edit-type-set-fn"))]
-           `(fn ~edit-type-set-fn-sym [~'evaluation-context ~'node-id ~'old-value ~'new-value]
-              (layout-property-edit-type-set-impl ~'evaluation-context ~'node-id ~prop-kw ~'old-value ~'new-value nil)))]
+   (let [edit-type-set-fn-form `(fn/partial layout-property-edit-type-set-impl nil ~(keyword prop-sym))]
      `(assoc ~edit-type-form
         :set-fn ~edit-type-set-fn-form
         :clear-fn basic-layout-property-edit-type-clear-fn)))
   ([prop-sym edit-type-form changes-fn-form]
    {:pre [(symbol? prop-sym)]}
-   (let [edit-type-set-fn-form
-         (let [prop-kw (keyword prop-sym)
-               edit-type-set-fn-sym (symbol (str (name prop-sym) "-edit-type-set-fn"))]
-           `(fn ~edit-type-set-fn-sym [~'evaluation-context ~'node-id ~'old-value ~'new-value]
-              (layout-property-edit-type-set-impl ~'evaluation-context ~'node-id ~prop-kw ~'old-value ~'new-value ~changes-fn-form)))
-
-         edit-type-clear-fn-form
-         (let [edit-type-clear-fn-sym (symbol (str (name prop-sym) "-edit-type-clear-fn"))]
-           `(fn ~edit-type-clear-fn-sym [~'node-id ~'prop-kw]
-              (layout-property-edit-type-clear-impl ~'node-id ~'prop-kw ~changes-fn-form)))]
+   (let [edit-type-set-fn-form `(fn/partial layout-property-edit-type-set-impl ~changes-fn-form ~(keyword prop-sym))
+         edit-type-clear-fn-form `(fn/partial layout-property-edit-type-clear-impl ~changes-fn-form)]
      `(assoc ~edit-type-form
         :set-fn ~edit-type-set-fn-form
         :clear-fn ~edit-type-clear-fn-form))))
@@ -942,6 +930,9 @@
   ([prop-sym edit-type-form changes-fn-form]
    `(g/constantly
       (wrap-layout-property-edit-type ~prop-sym ~edit-type-form ~changes-fn-form))))
+
+(defn- scale-property-changes-fn [_evaluation-context _self _prop-kw _old-value new-value]
+  {:scale (some-> new-value scene/non-zeroify-scale)})
 
 (g/defnode GuiNode
   (inherits core/Scope)
@@ -962,9 +953,7 @@
             (value (layout-property-getter rotation))
             (set (layout-property-setter rotation)))
   (property scale types/Vec3 (default scene/default-scale)
-            (dynamic edit-type (layout-property-edit-type scale {:type types/Vec3 :precision 0.1}
-                                 (fn [evaluation-context self prop-kw old-value new-value]
-                                   {:scale (some-> new-value scene/non-zeroify-scale)})))
+            (dynamic edit-type (layout-property-edit-type scale {:type types/Vec3 :precision 0.1} scale-property-changes-fn))
             (value (layout-property-getter scale))
             (set (layout-property-setter scale)))
 
@@ -1472,6 +1461,50 @@
     :texture-size
     :manual-size))
 
+(defn- size-mode-property-changes-fn [{:keys [basis] :as evaluation-context} self _prop-kw old-value new-value]
+  (coll/merge
+    {:size-mode new-value}
+    (when-some [texture (coll/not-empty (g/node-value self :texture evaluation-context))]
+      (cond
+        ;; Clear existing :manual-size override when switching
+        ;; from :size-mode-manual to :size-mode-auto with a
+        ;; texture assigned.
+        (and (= :manual-size (visible-size-property-label old-value texture))
+             (g/property-overridden? basis self :manual-size)
+             (let [effective-new-value
+                   (or new-value
+                       (let [original-node-id (g/override-original basis self)]
+                         (g/node-value original-node-id :size-mode evaluation-context)))]
+               (= :texture-size (visible-size-property-label effective-new-value texture))))
+        {:manual-size nil}
+
+        ;; Use the size of the assigned texture as :manual-size
+        ;; when the user switches from :size-mode-auto to
+        ;; :size-mode-manual.
+        (and (= :size-mode-auto old-value)
+             (= :size-mode-manual new-value))
+        (let [costly-gui-scene-info (g/node-value self :costly-gui-scene-info evaluation-context)
+              texture-infos (:texture-infos costly-gui-scene-info)
+              texture-info (get texture-infos texture)]
+          (when-some [anim-data (:anim-data texture-info)]
+            (let [texture-size [(float (:width anim-data)) (float (:height anim-data)) protobuf/float-zero]]
+              {:manual-size texture-size})))))))
+
+(defn- texture-property-changes-fn [{:keys [basis] :as evaluation-context} self _prop-kw old-value new-value]
+  ;; Clear any existing :manual-size override when
+  ;; assigning a texture will hide the :manual-size
+  ;; property.
+  (let [size-mode (g/node-value self :size-mode evaluation-context)]
+    (cond-> {:texture new-value}
+            (and (= :manual-size (visible-size-property-label size-mode old-value))
+                 (g/property-overridden? basis self :manual-size)
+                 (let [effective-new-value
+                       (or new-value
+                           (let [original-node-id (g/override-original basis self)]
+                             (g/node-value original-node-id :texture evaluation-context)))]
+                   (= :texture-size (visible-size-property-label size-mode effective-new-value))))
+            (assoc :manual-size nil))))
+
 (g/defnode ShapeNode
   (inherits VisualNode)
 
@@ -1492,35 +1525,7 @@
             (dynamic visible (g/fnk [size-mode texture]
                                (= :texture-size (visible-size-property-label size-mode texture)))))
   (property size-mode g/Keyword (default (protobuf/default Gui$NodeDesc :size-mode))
-            (dynamic edit-type (layout-property-edit-type size-mode (properties/->pb-choicebox Gui$NodeDesc$SizeMode)
-                                 (fn [{:keys [basis] :as evaluation-context} self prop-kw old-value new-value]
-                                   (merge
-                                     {:size-mode new-value}
-                                     (when-some [texture (coll/not-empty (g/node-value self :texture evaluation-context))]
-                                       (cond
-                                         ;; Clear existing :manual-size override when switching
-                                         ;; from :size-mode-manual to :size-mode-auto with a
-                                         ;; texture assigned.
-                                         (and (= :manual-size (visible-size-property-label old-value texture))
-                                              (g/property-overridden? basis self :manual-size)
-                                              (let [effective-new-value
-                                                    (or new-value
-                                                        (let [original-node-id (g/override-original basis self)]
-                                                          (g/node-value original-node-id :size-mode evaluation-context)))]
-                                                (= :texture-size (visible-size-property-label effective-new-value texture))))
-                                         {:manual-size nil}
-
-                                         ;; Use the size of the assigned texture as :manual-size
-                                         ;; when the user switches from :size-mode-auto to
-                                         ;; :size-mode-manual.
-                                         (and (= :size-mode-auto old-value)
-                                              (= :size-mode-manual new-value))
-                                         (let [costly-gui-scene-info (g/node-value self :costly-gui-scene-info evaluation-context)
-                                               texture-infos (:texture-infos costly-gui-scene-info)
-                                               texture-info (get texture-infos texture)]
-                                           (when-some [anim-data (:anim-data texture-info)]
-                                             (let [texture-size [(float (:width anim-data)) (float (:height anim-data)) protobuf/float-zero]]
-                                               {:manual-size texture-size})))))))))
+            (dynamic edit-type (layout-property-edit-type size-mode (properties/->pb-choicebox Gui$NodeDesc$SizeMode) size-mode-property-changes-fn))
             (value (layout-property-getter size-mode))
             (set (layout-property-setter size-mode)))
   (property material g/Str (default (protobuf/default Gui$NodeDesc :material))
@@ -1541,21 +1546,7 @@
             (dynamic edit-type (g/fnk [basic-gui-scene-info]
                                  (let [texture-page-counts (:texture-page-counts basic-gui-scene-info)
                                        texture-names (some-> texture-page-counts keys)]
-                                   (wrap-layout-property-edit-type texture (optional-gui-resource-choicebox texture-names)
-                                     (fn [{:keys [basis] :as evaluation-context} self prop-kw old-value new-value]
-                                       ;; Clear any existing :manual-size override when
-                                       ;; assigning a texture will hide the :manual-size
-                                       ;; property.
-                                       (let [size-mode (g/node-value self :size-mode evaluation-context)]
-                                         (cond-> {:texture new-value}
-                                                 (and (= :manual-size (visible-size-property-label size-mode old-value))
-                                                      (g/property-overridden? basis self :manual-size)
-                                                      (let [effective-new-value
-                                                            (or new-value
-                                                                (let [original-node-id (g/override-original basis self)]
-                                                                  (g/node-value original-node-id :texture evaluation-context)))]
-                                                        (= :texture-size (visible-size-property-label size-mode effective-new-value))))
-                                                 (assoc :manual-size nil))))))))
+                                   (wrap-layout-property-edit-type texture (optional-gui-resource-choicebox texture-names) texture-property-changes-fn))))
             (dynamic error (g/fnk [_node-id basic-gui-scene-info texture]
                              (let [texture-page-counts (:texture-page-counts basic-gui-scene-info)]
                                (validate-texture-resource _node-id texture-page-counts texture)))))
