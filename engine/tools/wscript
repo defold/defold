@@ -68,6 +68,9 @@ def configure(conf):
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="TOOLS"')
     conf.env.append_unique('DEFINES', 'DEFOLD_SHA1="%s"' % build_util.git_sha1())
 
+    conf.env.append_value('CFLAGS', ["-fdebug-compilation-dir=engine/tools", "-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"])
+    conf.env.append_value('CXXFLAGS', ["-fdebug-compilation-dir=engine/tools", "-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"])
+
 def build(bld):
     global test_context
     bld.recurse('scripts')

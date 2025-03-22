@@ -68,6 +68,9 @@ def configure(conf):
     conf.env.append_value('DEFINES', 'SDL_JOYSTICK_IOKIT')
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="GRAPHICS"')
 
+    conf.env.append_value('CFLAGS', ["-fdebug-compilation-dir=engine/graphics", "-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"])
+    conf.env.append_value('CXXFLAGS', ["-fdebug-compilation-dir=engine/graphics", "-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"])
+
 def build(bld):
     global test_context
     bld.recurse('src')
