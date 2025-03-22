@@ -19,7 +19,6 @@
             [dynamo.graph :as g]
             [editor.core :as core]
             [editor.fs :as fs]
-            [internal.graph.types :as gt]
             [schema.core :as s]
             [util.coll :as coll :refer [pair]]
             [util.digest :as digest]
@@ -35,6 +34,7 @@
            [org.apache.commons.io FilenameUtils IOUtils]))
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (defprotocol ResourceListener
   (handle-changes [this changes render-progress!]))
@@ -80,16 +80,16 @@
 (defn type-ext [resource]
   (string/lower-case (ext resource)))
 
+(definline project-directory
+  "Returns a File representing the canonical path of the project directory."
+  ^File [basis workspace]
+  `(io/as-file (g/raw-property-value ~basis ~workspace :root)))
+
 (defn resource-types-by-type-ext [basis workspace editability]
-  ;; Bypass evaluation-context creation since these are properties and
-  ;; evaluation won't touch the system cache. We can also access the node
-  ;; property map directly since we know the workspace node will not be
-  ;; overridden or marked defective.
-  (let [node (g/node-by-id basis workspace)
-        property-label (case editability
+  (let [property-label (case editability
                          (true :editable) :resource-types
                          (false :non-editable) :resource-types-non-editable)]
-    (get node property-label)))
+    (g/raw-property-value basis workspace property-label)))
 
 (defn lookup-resource-type [basis workspace resource]
   (let [resource-types (resource-types-by-type-ext basis workspace (editable? resource))
@@ -136,10 +136,10 @@
       (subs path 1)
       path)))
 
-(defn file->proj-path [^File project-path ^File f]
+(defn file->proj-path [^File project-directory ^File file]
   (try
-    (str "/" (relative-path project-path f))
-    (catch IllegalArgumentException e
+    (str "/" (relative-path project-directory file))
+    (catch IllegalArgumentException _
       nil)))
 
 (defn parent-proj-path [^String proj-path]
@@ -150,23 +150,30 @@
   ;; path->{:mtime ... :pred ...}
   (atom {}))
 
-;; The same logic implemented in Project.java.
-;; If you change something here, please change it there as well
-;; Search for excluedFilesAndFoldersEntries.
 (defn lines->proj-path-patterns-pred
   "Returns a predicate that takes a proj-path and returns true if it starts with
   or matches one of the proj-paths listed among the lines, typically the
-  contents of something like a .defignore file."
+  contents of something like a `.defignore` file."
   [lines]
-  (let [prefixes (when lines
+  (let [patterns (when lines
                    (coll/transfer lines []
                      (filter #(string/starts-with? % "/"))
+                     (map #(string/replace % #"/*$" ""))
                      (distinct)))]
-    (if (zero? (count prefixes))
+    (if (zero? (count patterns))
       fn/constantly-false
-      (fn matched-proj-path? [proj-path]
-        (boolean (coll/some #(string/starts-with? proj-path %)
-                            prefixes))))))
+      (fn matched-proj-path? [^String proj-path]
+        (let [proj-path-length (.length proj-path)]
+          (boolean
+            (coll/some
+              (fn [^String pattern]
+                ;; Make sure a "/dir" pattern matches "/dir" and "/dir/entry",
+                ;; but not "/dire".
+                (and (string/starts-with? proj-path pattern)
+                     (let [pattern-length (.length pattern)]
+                       (or (= pattern-length proj-path-length)
+                           (= \/ (.charAt proj-path pattern-length))))))
+              patterns)))))))
 
 (defn- read-proj-path-patterns-pred [^File proj-path-patterns-file]
   (lines->proj-path-patterns-pred
@@ -188,6 +195,7 @@
   ;; Contrary to .defignore, we only read the .defunload file once and cache it
   ;; for the entire lifetime of the application. You'll have to restart the
   ;; editor for any changes to take effect.
+  {:pre [(instance? File root)]} ; Guard against duplicate memoization since io/file accepts multiple types.
   (let [defunload-file (io/file root ".defunload")]
     (read-proj-path-patterns-pred defunload-file)))
 
@@ -236,7 +244,7 @@
 ;; Note! Used to keep a file here instead of path parts, but on
 ;; Windows (File. "test") equals (File. "Test") which broke
 ;; FileResource equality tests.
-(defrecord FileResource [workspace ^String root ^String abs-path ^String project-path ^String name ^String ext source-type editable children]
+(defrecord FileResource [workspace ^String root ^String abs-path ^String project-path ^String name ^String ext source-type editable loaded children]
   Resource
   (children [this] children)
   (ext [this] ext)
@@ -276,10 +284,7 @@
            (loaded? this)
            true)))
   (editable? [_this] editable)
-  (loaded? [_this]
-    (let [project-directory (io/file root)
-          unloaded-proj-path? (defunload-pred project-directory)]
-      (not (unloaded-proj-path? project-path))))
+  (loaded? [_this] loaded)
 
   io/IOFactory
   (make-input-stream  [this opts] (io/make-input-stream (io/file this) opts))
@@ -296,15 +301,18 @@
   http-server/->Data
   (->data [_] (fs/path abs-path)))
 
-(defn make-file-resource [workspace ^String root ^File file children editable-proj-path?]
+(defn make-file-resource [workspace ^String root-path ^File file children editable-proj-path? unloaded-proj-path?]
+  {:pre [(g/node-id? workspace)
+         (string? root-path)]}
   (let [source-type (if (.isDirectory file) :folder :file)
         abs-path (.getAbsolutePath file)
         path (.getPath file)
         name (.getName file)
-        project-path (if (= "" name) "" (str "/" (relative-path (File. root) (io/file path))))
+        project-path (if (= "" name) "" (str "/" (relative-path (File. root-path) (io/file path))))
         ext (FilenameUtils/getExtension path)
-        editable (editable-proj-path? project-path)]
-    (FileResource. workspace root abs-path project-path name ext source-type editable children)))
+        editable (editable-proj-path? project-path)
+        loaded (not (unloaded-proj-path? project-path))]
+    (FileResource. workspace root-path abs-path project-path name ext source-type editable loaded children)))
 
 (defn file-resource? [resource]
   (instance? FileResource resource))
@@ -312,8 +320,8 @@
 (core/register-read-handler!
   "file-resource"
   (transit/read-handler
-    (fn [{:keys [workspace ^String root ^String abs-path ^String project-path ^String name ^String ext source-type editable children]}]
-      (FileResource. workspace root abs-path project-path name ext source-type editable children))))
+    (fn [{:keys [workspace ^String root ^String abs-path ^String project-path ^String name ^String ext source-type editable loaded children]}]
+      (FileResource. workspace root abs-path project-path name ext source-type editable loaded children))))
 
 (core/register-write-handler!
  FileResource
@@ -408,12 +416,8 @@
          (if (:editor-openable (resource-type this))
            (loaded? this)
            true)))
-  (editable? [this] true)
-  (loaded? [this]
-    (let [project-directory (io/file (g/node-value workspace :root))
-          unloaded-proj-path? (defunload-pred project-directory)
-          proj-path (proj-path this)]
-      (not (unloaded-proj-path? proj-path))))
+  (editable? [_this] true)
+  (loaded? [_this] true)
 
   io/IOFactory
   (make-input-stream  [this opts] (make-zip-resource-input-stream this))
@@ -472,9 +476,9 @@
 
 (defn- path-relative-base [base-path zip-entry-name]
   (let [clean-zip-entry-name (->unix-seps zip-entry-name)]
-    (if (seq base-path)
-      (.replaceFirst clean-zip-entry-name (str base-path "/") "")
-      clean-zip-entry-name)))
+    (if (coll/empty? base-path)
+      clean-zip-entry-name
+      (.replaceFirst clean-zip-entry-name (str base-path "/") ""))))
 
 (defn- load-zip [^File zip-file ^String base-path]
   ;; NOTE: Even though it may not look like it here, we can only load
@@ -527,10 +531,7 @@
             (dynamic visible (g/constantly false))))
 
 (definline node-resource [basis resource-node]
-  ;; This is faster than g/node-value, and doesn't require creating an
-  ;; evaluation-context. The resource property is unjammable and properties
-  ;; aren't cached, so there is no need to do a full g/node-value.
-  `(gt/get-property ~resource-node ~basis :resource))
+  `(g/raw-property-value* ~basis ~resource-node :resource))
 
 (defn base-name ^String [resource]
   (FilenameUtils/getBaseName (resource-name resource)))

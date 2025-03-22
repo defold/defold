@@ -102,18 +102,19 @@
   (g/invalidate-outputs! [(g/endpoint node-id :source-value)]))
 
 (defn merge-source-values! [node-id+source-value-pairs]
-  (let [[invalidated-endpoints
-         user-data-values-by-key-by-node-id]
-        (util/into-multiple
-          (pair []
-                {})
-          (pair (map (fn [[node-id]]
-                       (g/endpoint node-id :source-value)))
-                (map (fn [[node-id source-value]]
-                       (pair node-id {:source-value source-value}))))
-          node-id+source-value-pairs)]
-    (g/user-data-merge! user-data-values-by-key-by-node-id)
-    (g/invalidate-outputs! invalidated-endpoints)))
+  (when-not (coll/empty? node-id+source-value-pairs)
+    (let [[invalidated-endpoints
+           user-data-values-by-key-by-node-id]
+          (util/into-multiple
+            (pair []
+                  {})
+            (pair (map (fn [[node-id]]
+                         (g/endpoint node-id :source-value)))
+                  (map (fn [[node-id source-value]]
+                         (pair node-id {:source-value source-value}))))
+            node-id+source-value-pairs)]
+      (g/user-data-merge! user-data-values-by-key-by-node-id)
+      (g/invalidate-outputs! invalidated-endpoints))))
 
 (g/defnk produce-lines [_node-id resource save-value]
   (if (nil? save-value)
@@ -169,10 +170,7 @@
   (output save-value g/Any (g/constantly nil)))
 
 (definline node-loaded? [basis resource-node]
-  ;; Accessing the property directly is faster than g/node-value, and doesn't
-  ;; require creating an evaluation-context. The property is unjammable and
-  ;; properties aren't cached, so there is no need to do a full g/node-value.
-  `(gt/get-property ~resource-node ~basis :loaded))
+  `(g/raw-property-value* ~basis ~resource-node :loaded))
 
 (defn loaded?
   "Returns true if the specified node-id corresponds to a resource that has been

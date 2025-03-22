@@ -79,6 +79,7 @@
             [internal.util :refer [first-where]]
             [service.log :as log]
             [service.smoke-log :as slog]
+            [util.eduction :as e]
             [util.http-server :as http-server]
             [util.profiler :as profiler]
             [util.thread-util :as thread-util])
@@ -403,18 +404,18 @@
 (defn- selection->single-resource [selection]
   (handler/adapt-single selection resource/Resource))
 
-(defn- context-resource-file
+(defn- context-openable-resource
   ([app-view selection]
-   (g/with-auto-evaluation-context evaluation-context
-     (context-resource-file app-view selection evaluation-context)))
+   (or (selection->single-openable-resource selection)
+       (g/node-value app-view :active-resource)))
   ([app-view selection evaluation-context]
    (or (selection->single-openable-resource selection)
        (g/node-value app-view :active-resource evaluation-context))))
 
 (defn- context-resource
   ([app-view selection]
-   (g/with-auto-evaluation-context evaluation-context
-     (context-resource app-view selection evaluation-context)))
+   (or (selection->single-resource selection)
+       (g/node-value app-view :active-resource)))
   ([app-view selection evaluation-context]
    (or (selection->single-resource selection)
        (g/node-value app-view :active-resource evaluation-context))))
@@ -2077,12 +2078,22 @@ If you do not specifically require different script states, consider changing th
                             text-view-type)
          view-type-id (:id view-type)
          specific-view-type-selected (some? (:selected-view-type opts))]
-     (if (g/defective? resource-node)
+     (cond
+       (not (resource/loaded? resource))
+       (do (dialogs/make-info-dialog
+             {:title "Resource Excluded from Loading"
+              :icon :icon/triangle-error
+              :header (format "Unable to open '%s', since it was excluded from loading by the '.defunload' file." (resource/proj-path resource))})
+           false)
+
+       (g/defective? resource-node)
        (do (dialogs/make-info-dialog
              {:title "Unable to Open Resource"
               :icon :icon/triangle-error
               :header (format "Unable to open '%s', since it contains unrecognizable data. Could the project be missing a required extension?" (resource/proj-path resource))})
            false)
+
+       :else
        (if-let [custom-editor
                 (when (:use-custom-editor opts true)
                   (let [is-code-editor-view-type (contains? #{:code :text} view-type-id)
@@ -2382,26 +2393,30 @@ If you do not specifically require different script states, consider changing th
 
 (handler/defhandler :referencing-files :global
   (active? [app-view selection evaluation-context]
-           (context-resource-file app-view selection evaluation-context))
+           (context-openable-resource app-view selection evaluation-context))
   (enabled? [app-view selection evaluation-context]
-            (when-let [r (context-resource-file app-view selection evaluation-context)]
+            (when-let [r (context-openable-resource app-view selection evaluation-context)]
               (and (resource/abs-path r)
                    (resource/exists? r))))
-  (run [selection app-view prefs workspace project] (when-let [r (context-resource-file app-view selection)]
-                                                      (doseq [resource (resource-dialog/make workspace project {:title "Referencing Files" :selection :multiple :ok-label "Open" :filter (format "refs:%s" (resource/proj-path r))})]
-                                                        (open-resource app-view prefs workspace project resource)))))
+  (run [selection app-view prefs workspace project]
+       (when-let [r (context-openable-resource app-view selection)]
+         (let [selected-resources (resource-dialog/make workspace project {:title "Referencing Files" :selection :multiple :ok-label "Open" :filter (format "refs:%s" (resource/proj-path r))})]
+           (run! #(open-resource app-view prefs workspace project %)
+                 (e/filter resource/openable-resource? selected-resources))))))
 
 (handler/defhandler :dependencies :global
   (active? [app-view selection evaluation-context]
-           (context-resource-file app-view selection evaluation-context))
+           (context-openable-resource app-view selection evaluation-context))
   (enabled? [app-view selection evaluation-context]
-            (when-let [r (context-resource-file app-view selection evaluation-context)]
+            (when-let [r (context-openable-resource app-view selection evaluation-context)]
               (and (resource/abs-path r)
                    (resource/exists? r)
                    (resource/loaded? r))))
-  (run [selection app-view prefs workspace project] (when-let [r (context-resource-file app-view selection)]
-                                                      (doseq [resource (resource-dialog/make workspace project {:title "Dependencies" :selection :multiple :ok-label "Open" :filter (format "deps:%s" (resource/proj-path r))})]
-                                                        (open-resource app-view prefs workspace project resource)))))
+  (run [selection app-view prefs workspace project]
+       (when-let [r (context-openable-resource app-view selection)]
+         (let [selected-resources (resource-dialog/make workspace project {:title "Dependencies" :selection :multiple :ok-label "Open" :filter (format "deps:%s" (resource/proj-path r))})]
+           (run! #(open-resource app-view prefs workspace project %)
+                 (e/filter resource/openable-resource? selected-resources))))))
 
 (defn show-override-inspector!
   "Show override inspector view and focus on its tab
@@ -2494,16 +2509,15 @@ If you do not specifically require different script states, consider changing th
 
 (handler/defhandler :copy-require-path :global
   (active? [app-view selection evaluation-context]
-           (when-let [r (context-resource-file app-view selection evaluation-context)]
+           (when-let [r (context-resource app-view selection evaluation-context)]
              (= "lua" (resource/type-ext r))))
   (enabled? [app-view selection evaluation-context]
-            (when-let [r (context-resource-file app-view selection evaluation-context)]
+            (when-let [r (context-resource app-view selection evaluation-context)]
               (and (resource/proj-path r)
                    (resource/exists? r))))
   (run [selection app-view]
-     (when-let [r (context-resource-file app-view selection)]
-       (put-on-clipboard! (lua/path->lua-module (resource/proj-path r))))))
-
+       (when-let [r (context-resource app-view selection)]
+         (put-on-clipboard! (lua/path->lua-module (resource/proj-path r))))))
 
 (defn- gen-tooltip [workspace project app-view resource]
   (when (resource/loaded? resource)

@@ -1057,7 +1057,7 @@
                        :outline-overridden? (if (str/blank? current-layout)
                                               (< 1 (count _overridden-properties)) ; :layout->prop->override will always be present, and we shouldn't count it.
                                               (pos? (count (layout->prop->override current-layout))))}
-                      (resource/openable-resource? node-outline-link) (assoc :link node-outline-link :outline-reference? true)))))
+                      (resource/resource? node-outline-link) (assoc :link node-outline-link :outline-reference? true)))))
 
   (output transform-properties g/Any scene/produce-scalable-transform-properties)
   (output gui-base-node-msg g/Any produce-gui-base-node-msg)
@@ -2259,7 +2259,7 @@
                                                               :label name
                                                               :icon texture-icon
                                                               :outline-error? (g/error-fatal? build-errors)}
-                                                             (resource/openable-resource? texture-resource) (assoc :link texture-resource :outline-show-link? true))))
+                                                             (resource/resource? texture-resource) (assoc :link texture-resource :outline-show-link? true))))
   (output pb-msg g/Any (g/fnk [name texture-resource]
                          (protobuf/make-map-without-defaults Gui$SceneDesc$TextureDesc
                            :name name
@@ -2307,7 +2307,7 @@
                                                               :label name
                                                               :icon font-icon
                                                               :outline-error? (g/error-fatal? build-errors)}
-                                                             (resource/openable-resource? font-resource) (assoc :link font-resource :outline-show-link? true))))
+                                                             (resource/resource? font-resource) (assoc :link font-resource :outline-show-link? true))))
   (output pb-msg g/Any (g/fnk [name font-resource]
                          (protobuf/make-map-without-defaults Gui$SceneDesc$FontDesc
                            :name name
@@ -2442,7 +2442,7 @@
                                                               :label name
                                                               :icon particlefx/particle-fx-icon
                                                               :outline-error? (g/error-fatal? build-errors)}
-                                                             (resource/openable-resource? particlefx-resource) (assoc :link particlefx-resource :outline-show-link? true))))
+                                                             (resource/resource? particlefx-resource) (assoc :link particlefx-resource :outline-show-link? true))))
   (output pb-msg g/Any (g/fnk [name particlefx]
                          (protobuf/make-map-without-defaults Gui$SceneDesc$ParticleFXDesc
                            :name name

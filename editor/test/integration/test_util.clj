@@ -268,8 +268,8 @@
     (string/join (System/getProperty "line.separator")
                  patterns)))
 
-(defn proj-path-resource-type [workspace proj-path]
-  (let [editable-proj-path? (g/node-value workspace :editable-proj-path?)
+(defn- proj-path-resource-type [basis workspace proj-path]
+  (let [editable-proj-path? (g/raw-property-value basis workspace :editable-proj-path?)
         editability (editable-proj-path? proj-path)
         type-ext (resource/filename->type-ext proj-path)]
     (workspace/get-resource-type workspace editability type-ext)))
@@ -277,8 +277,9 @@
 (defn write-file-resource!
   ^File [workspace proj-path save-value]
   {:pre [(string/starts-with? proj-path "/")]}
-  (let [resource-type (proj-path-resource-type workspace proj-path)
-        project-directory (workspace/project-path workspace)
+  (let [basis (g/now)
+        resource-type (proj-path-resource-type basis workspace proj-path)
+        project-directory (workspace/project-directory basis workspace)
         file (io/file project-directory (subs proj-path 1))
         write-fn (:write-fn resource-type)
         contents (write-fn save-value)]
@@ -841,8 +842,9 @@
 (defn resource [workspace path]
   (workspace/file-resource workspace path))
 
-(defn file ^File [workspace ^String path]
-  (File. (workspace/project-path workspace) path))
+(defn file
+  ^File [workspace ^String path]
+  (File. (workspace/project-directory workspace) path))
 
 (defn selection [app-view]
   (-> app-view

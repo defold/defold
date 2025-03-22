@@ -40,10 +40,10 @@
             [editor.resource-node :as resource-node]
             [editor.resource-update :as resource-update]
             [editor.settings-core :as settings-core]
+            [editor.system :as system]
             [editor.texture.engine :as texture.engine]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
-            [internal.cache :as c]
             [internal.java :as java]
             [internal.util :as util]
             [internal.util :as iutil]
@@ -84,16 +84,6 @@
 
 (def resource-node-type (comp resource-type->node-type resource/resource-type))
 
-(defn- mark-node-file-not-found [node-id resource]
-  (let [node-type (resource-node-type resource)
-        error-value (resource-io/file-not-found-error node-id nil :fatal resource)]
-    (g/mark-defective node-id node-type error-value)))
-
-(defn- mark-node-invalid-content [node-id resource exception]
-  (let [node-type (resource-node-type resource)
-        error-value (resource-io/invalid-content-error node-id nil :fatal resource exception)]
-    (g/mark-defective node-id node-type error-value)))
-
 (defn- load-resource-node [project resource-node-id resource source-value transpiler-tx-data-fn]
   (try
     ;; TODO(save-value-cleanup): This shouldn't be able to happen anymore. Remove this check after some time in the wild.
@@ -120,11 +110,14 @@
               not-empty))
     (catch Exception exception
       (log/warn :msg (format "Unable to load resource '%s'" (resource/proj-path resource)) :exception exception)
-      (mark-node-invalid-content resource-node-id resource exception))
+      (let [node-type (resource-node-type resource)
+            invalid-content-error (resource-io/invalid-content-error resource-node-id nil :fatal resource exception)]
+        (g/mark-defective resource-node-id node-type invalid-content-error)))
     (catch Throwable throwable
-      (let [proj-path (resource/proj-path resource)]
+      (let [node-type (resource-node-type resource)
+            proj-path (resource/proj-path resource)]
         (throw (ex-info (format "Error when loading resource '%s'" proj-path)
-                        {:node-type (resource-node-type resource)
+                        {:node-type node-type
                          :proj-path proj-path}
                         throwable))))))
 
@@ -133,7 +126,13 @@
         load-fn (:load-fn embedded-resource-type)]
     (load-fn project embedded-resource-node-id embedded-resource source-value)))
 
+(defn- make-file-not-found-node-load-info [node-id resource]
+  {:node-id node-id
+   :resource resource
+   :read-error (resource-io/file-not-found-error node-id nil :fatal resource)})
+
 (defn read-node-load-info [node-id resource resource-metrics]
+  {:pre [(g/node-id? node-id)]}
   (let [{:keys [lazy-loaded read-fn] :as resource-type} (resource/resource-type resource)
 
         read-result
@@ -202,7 +201,7 @@
 (defn- sort-node-ids-for-loading [node-ids node-id->dependency-node-ids]
   (first (sort-node-ids-for-loading-impl node-ids #{} [] #{} (set node-ids) node-id->dependency-node-ids)))
 
-(defn- node-load-info-tx-data [{:keys [node-id read-error resource] :as node-load-info} project transpiler-tx-data-fn]
+(defn ^{:dynamic (system/defold-dev?)} node-load-info-tx-data [{:keys [node-id read-error resource] :as node-load-info} project transpiler-tx-data-fn]
   ;; At this point, the node-id refers to a created node in the graph.
   (e/cons
     (g/set-property node-id :loaded true)
@@ -272,6 +271,12 @@
           (keep node-load-infos-by-node-id)
           node-id-load-order)))
 
+(defn- get-transpiler-tx-data-fn! [project evaluation-context]
+  (g/tx-cached-value! evaluation-context [:transpiler-tx-data-fn]
+    (let [basis (:basis evaluation-context)
+          code-transpilers (code-transpilers basis project)]
+      (code.transpilers/make-resource-load-tx-data-fn code-transpilers evaluation-context))))
+
 (defn- load-nodes-tx-data [node-load-infos project render-progress! resource-metrics]
   (let [node-count (count node-load-infos)
 
@@ -293,9 +298,7 @@
 
         transpiler-tx-data-fn
         (g/with-auto-evaluation-context evaluation-context
-          (let [basis (:basis evaluation-context)
-                code-transpilers (code-transpilers basis project)]
-            (code.transpilers/make-resource-load-tx-data-fn code-transpilers evaluation-context)))]
+          (get-transpiler-tx-data-fn! project evaluation-context))]
 
     (e/concat
       (coll/transfer node-load-infos :eduction
@@ -333,7 +336,7 @@
                 (read-node-load-info node-id resource resource-metrics))))
           node-id+resource-pairs)))
 
-(defn- store-loaded-node-info! [node-load-infos workspace]
+(defn node-load-infos->stored-disk-state [node-load-infos]
   (let [[disk-sha256s-by-node-id
          node-id+source-value-pairs]
         (util/into-multiple
@@ -358,11 +361,8 @@
                                  ;; a save-value.
                                  (resource-node/save-value->source-value source-value resource-type)))))))]
           node-load-infos)]
-
-    (g/transact
-      (workspace/merge-disk-sha256s workspace disk-sha256s-by-node-id))
-
-    (resource-node/merge-source-values! node-id+source-value-pairs)))
+    {:disk-sha256s-by-node-id disk-sha256s-by-node-id
+     :node-id+source-value-pairs node-id+source-value-pairs}))
 
 (defn log-cache-info! [cache message]
   ;; Disabled during tests to minimize log spam.
@@ -486,7 +486,8 @@
 
             (notifications/show!
               (workspace/notifications workspace)
-              {:type :warning
+              {:id ::defunload-issues
+               :type :warning
                :text short-message
                :actions [{:text "Show Details..."
                           :on-action show-details-dialog!}]})))))))
@@ -514,49 +515,49 @@
       The node-ids do not need to exist in the graph, but they must be unique
       and not already taken by an existing node.
 
-    Kv-args:
-      :render-progress!
-        Optional. A function that will be called to report progress as resources
-        are read from disk.
+  Kv-args:
+    :render-progress!
+      Optional. A function that will be called to report progress as resources
+      are read from disk.
 
-      :resource-metrics
-        Optional. A metrics-collector (see debug-util/make-metrics-collector)
-        that will be updated with timings as resources are read from disk.
+    :resource-metrics
+      Optional. A metrics-collector (see debug-util/make-metrics-collector) that
+      will be updated with timings as resources are read from disk.
 
-      :old-node-ids-by-proj-path
-        Required for subsequent calls after the project has been loaded already.
-        A map of proj-paths to the resource node-id that corresponded to that
-        proj-path before the resource-sync. Used to look up information about
-        the previous state of nodes that we may be about to replace with new
-        nodes as part of the resource-sync. Should also contain entries for
-        nodes that have been deleted earlier in the resource-sync.
+    :old-node-ids-by-proj-path
+      Required for subsequent calls after the project has been loaded already.
+      A map of proj-paths to the resource node-id that corresponded to that
+      proj-path before the resource-sync. Used to look up information about the
+      previous state of nodes that we may be about to replace with new nodes as
+      part of the resource-sync. Should also contain entries for nodes that have
+      been deleted earlier in the resource-sync.
 
-      :old-node-id->old-node-state
-        Required for subsequent calls after the project has been loaded already.
-        A function from an old resource node-id in the old-node-ids-by-proj-path
-        map to a keyword reflecting its state prior to the resource-sync. Will
-        be used in the event that a .defunload file exists in the project and
-        one of the patterns therein matches the proj-path of the read resource.
+    :old-node-id->old-node-state
+      Required for subsequent calls after the project has been loaded already.
+      A function from an old resource node-id in the old-node-ids-by-proj-path
+      map to a keyword reflecting its state prior to the resource-sync. Will be
+      used in the event that a .defunload file exists in the project and one of
+      the patterns therein matches the proj-path of the read resource.
 
-        Acceptable return values:
-          :loaded
-            The old node for the defunloaded resource was loaded before the
-            resource-sync was triggered. We may have been forced to load it if a
-            loaded resource references the defunloaded resource and its
-            resource-type does not :allow-unloaded-use. If this ever happens, we
-            will keep the node loaded in the graph, and must respond to external
-            changes to it, and so on.
+      Acceptable return values:
+        :loaded
+          The old node for the defunloaded resource was loaded before the
+          resource-sync was triggered. We may have been forced to load it if a
+          loaded resource references the defunloaded resource and its
+          resource-type does not :allow-unloaded-use. If this ever happens, we
+          will keep the node loaded in the graph, and must respond to external
+          changes to it, and so on.
 
-          :not-loaded
-            The old node for the defunloaded resource had not ever been loaded
-            before the resource-sync was triggered.
+        :not-loaded
+          The old node for the defunloaded resource had not ever been loaded
+          before the resource-sync was triggered.
 
-      :old-node-id->dependency-proj-paths
-        Required for subsequent calls after the project has been loaded already.
-        A function from an old resource node-id in the old-node-ids-by-proj-path
-        map to any proj-paths it remains dependent on after the resource-sync.
-        If the node-id provided to it is unknown, or was deleted at earlier
-        stage of the resource-sync, it should return an empty sequence."
+    :old-node-id->dependency-proj-paths
+      Required for subsequent calls after the project has been loaded already.
+      A function from an old resource node-id in the old-node-ids-by-proj-path
+      map to any proj-paths it remains dependent on after the resource-sync. If
+      the node-id provided to it is unknown, or was deleted at earlier stage of
+      the resource-sync, it should return an empty sequence."
   [new-node-id+resource-pairs
    & {:keys [old-node-id->dependency-proj-paths
              old-node-id->old-node-state
@@ -564,10 +565,8 @@
              render-progress!
              resource-metrics]
       :or {old-node-id->dependency-proj-paths fn/constantly-nil
-           old-node-id->old-node-state (fn/unprovided old-node-id->old-node-state)
            old-node-ids-by-proj-path {}
-           render-progress! progress/null-render-progress!
-           resource-metrics nil}
+           render-progress! progress/null-render-progress!}
       :as read-nodes-opts}]
   {:pre [(every? #{:old-node-id->dependency-proj-paths
                    :old-node-id->old-node-state
@@ -575,21 +574,21 @@
                    :render-progress!
                    :resource-metrics}
                  (keys read-nodes-opts))]}
-  (let [workspace
+  (let [basis (g/now)
+
+        workspace
         (some-> new-node-id+resource-pairs
                 first
                 second
                 resource/workspace)
 
-        defunloaded-proj-path?
-        (if-not workspace
-          fn/constantly-false
-          (-> workspace
-              workspace/project-path
-              resource/defunload-pred)) ; Returns fn/constantly-false if there is no .defunload file in the project.
+        unloaded-proj-path?
+        (if workspace
+          (g/raw-property-value basis workspace :unloaded-proj-path?) ; Returns fn/constantly-false if there is no .defunload file in the project.
+          fn/constantly-false)
 
         node-load-infos
-        (if (identical? fn/constantly-false defunloaded-proj-path?)
+        (if (identical? fn/constantly-false unloaded-proj-path?)
           ;; Resources cannot be flagged as unloaded. We can safely proceed to
           ;; load all the new resources without considering what has been loaded
           ;; before.
@@ -631,14 +630,9 @@
           ;;
           ;; "undesired" means any resource that was loaded as either
           ;; principal or supplemental that was not in the desired set.
-          (let [basis (g/now)
-
-                property-evaluation-context
-                (g/make-evaluation-context {:basis basis :cache c/null-cache})
-
-                proj-path->resource-type
+          (let [proj-path->resource-type
                 (let [editable-proj-path?
-                      (g/node-value workspace :editable-proj-path? property-evaluation-context)
+                      (g/raw-property-value basis workspace :editable-proj-path?)
 
                       editable->type-ext->resource-type
                       (into {}
@@ -660,7 +654,7 @@
                   ;; is always safe to reference as a dependency. If it does
                   ;; match a defunload pattern, it might still be safe to
                   ;; reference if its resource type allows unloaded use.
-                  (if (defunloaded-proj-path? proj-path)
+                  (if (unloaded-proj-path? proj-path)
                     (let [resource-type (proj-path->resource-type proj-path)]
                       (:allow-unloaded-use resource-type false))
                     true))
@@ -675,18 +669,24 @@
                        [{} []]
                        [identity
                         (keep (fn [[proj-path new-node-id+resource-pair]]
-                                (if-not (defunloaded-proj-path? proj-path)
+                                (if-not (unloaded-proj-path? proj-path)
                                   ;; The path is not flagged as unloaded.
                                   ;; We should load it.
                                   new-node-id+resource-pair
 
                                   ;; The path is flagged as unloaded.
-                                  ;; However, we may still want to load it
-                                  ;; if we're replacing an old node that
-                                  ;; was previously loaded for some reason.
+                                  ;; However, we may still want to load it if
+                                  ;; we're replacing an old node that was
+                                  ;; previously loaded for some reason.
                                   (let [old-node-id (old-node-ids-by-proj-path proj-path)]
-                                    (if (nil? old-node-id)
+                                    (cond
+                                      (nil? old-node-id)
                                       nil ; The path is flagged as unloaded, and we're not replacing an old node. We should not load it.
+
+                                      (nil? old-node-id->old-node-state)
+                                      (throw (IllegalArgumentException. "Required old-node-id->old-node-state function was not provided."))
+
+                                      :else
                                       (case (old-node-id->old-node-state old-node-id)
                                         :loaded ; The path is flagged as unloaded, but we're replacing an old node which was loaded before. We should also load its replacement.
                                         new-node-id+resource-pair
@@ -721,8 +721,14 @@
                                     ;; loaded.
                                     (or (new-node-id+resource-pairs-by-proj-path required-dependency-proj-path) ; If it was defunloaded, it might not have made it into the principal set, but now that it is unsafely referenced we do need it.
                                         (let [old-node-id (old-node-ids-by-proj-path required-dependency-proj-path)]
-                                          (if (nil? old-node-id)
+                                          (cond
+                                            (nil? old-node-id)
                                             nil ; The proj-path refers to a resource that does not exist. We should exclude it here, and it will eventually become a defective node in the graph as we process the :load-fn of the referencing resource.
+
+                                            (nil? old-node-id->old-node-state)
+                                            (throw (IllegalArgumentException. "Required old-node-id->old-node-state function was not provided."))
+
+                                            :else
                                             (case (old-node-id->old-node-state old-node-id)
                                               :loaded ; The referenced node was loaded before the call to read-nodes, and we're not replacing it with a new node. No need to do anything.
                                               nil
@@ -756,7 +762,7 @@
             (let [desired-proj-paths
                   (coll/transfer new-node-id+resource-pairs-by-proj-path #{}
                     (map key)
-                    (remove defunloaded-proj-path?))
+                    (remove unloaded-proj-path?))
 
                   loaded-undesired-proj-paths
                   (set/difference loaded-proj-paths desired-proj-paths)
@@ -792,13 +798,15 @@
 
 (declare workspace)
 
-(defn ^:dynamic load-nodes! [project prelude-tx-data node-load-infos render-progress! resource-metrics transact-opts]
-  (let [workspace (workspace project)]
-    (store-loaded-node-info! node-load-infos workspace)
+(defn load-nodes! [project prelude-tx-data node-load-infos render-progress! resource-metrics transact-opts]
+  (let [{:keys [disk-sha256s-by-node-id node-id+source-value-pairs]} (node-load-infos->stored-disk-state node-load-infos)
+        workspace (workspace project)]
+    (resource-node/merge-source-values! node-id+source-value-pairs)
     (let [{:keys [basis] :as tx-result}
           (g/transact transact-opts
             (e/concat
               prelude-tx-data
+              (workspace/merge-disk-sha256s workspace disk-sha256s-by-node-id)
               (load-nodes-tx-data node-load-infos project render-progress! resource-metrics)))
 
           migrated-resource-node-ids
@@ -832,7 +840,7 @@
      ;; cache. In that case, manually cache the evaluated value in the
      ;; :tx-data-context atom of the evaluation-context, since this persists
      ;; throughout the transaction.
-     (let [nodes-by-resource-path (g/tx-cached-node-value project :nodes-by-resource-path evaluation-context)]
+     (let [nodes-by-resource-path (g/tx-cached-node-value! project :nodes-by-resource-path evaluation-context)]
        (get nodes-by-resource-path (resource/proj-path resource))))))
 
 (defn workspace
@@ -1560,17 +1568,35 @@
     (disconnect-from-inputs basis node consumer-node connections)))
 
 (defn- ensure-resource-node-created [tx-data-context-map project resource]
-  (assert (resource/resource? resource))
-  (if-some [[_ pending-resource-node-id] (find (:created-resource-nodes tx-data-context-map) resource)]
-    [tx-data-context-map pending-resource-node-id nil]
-    (let [graph-id (g/node-id->graph-id project)
-          node-type (resource-node-type resource)
-          creation-tx-data (g/make-nodes graph-id [resource-node-id [node-type :resource resource]]
-                                         (g/connect resource-node-id :_node-id project :nodes)
-                                         (g/connect resource-node-id :node-id+resource project :node-id+resources))
-          created-resource-node-id (first (g/tx-data-nodes-added creation-tx-data))
-          tx-data-context' (assoc-in tx-data-context-map [:created-resource-nodes resource] created-resource-node-id)]
-      [tx-data-context' created-resource-node-id creation-tx-data])))
+  {:pre [(resource/resource? resource)]}
+  (let [created-resource-nodes (:created-resource-nodes tx-data-context-map)
+        pending-resource-node-id (get created-resource-nodes resource ::not-found)]
+    (if (not= ::not-found pending-resource-node-id)
+      [tx-data-context-map pending-resource-node-id nil]
+      (let [graph-id (g/node-id->graph-id project)
+            node-type (resource-node-type resource)
+            creation-tx-data (g/make-nodes graph-id [resource-node-id [node-type :resource resource]]
+                               (g/connect resource-node-id :_node-id project :nodes)
+                               (g/connect resource-node-id :node-id+resource project :node-id+resources))
+            created-resource-node-id (first (g/tx-data-nodes-added creation-tx-data))
+            created-resource-nodes' (assoc (or created-resource-nodes {}) resource created-resource-node-id)
+            tx-data-context-map' (assoc tx-data-context-map :created-resource-nodes created-resource-nodes')]
+        [tx-data-context-map' created-resource-node-id creation-tx-data]))))
+
+(defn- ensure-resource-node-loaded [tx-data-context-map project node-id resource transpiler-tx-data-fn]
+  {:pre [(resource/resource? resource)]}
+  (let [loaded-resources (:loaded-resources tx-data-context-map)]
+    (if (contains? loaded-resources resource)
+      [tx-data-context-map nil nil]
+      (let [workspace (resource/workspace resource)
+            node-load-info (read-node-load-info node-id resource nil)
+            {:keys [disk-sha256s-by-node-id node-id+source-value-pairs]} (node-load-infos->stored-disk-state [node-load-info])
+            load-tx-data (e/concat
+                           (workspace/merge-disk-sha256s workspace disk-sha256s-by-node-id)
+                           (node-load-info-tx-data node-load-info project transpiler-tx-data-fn))
+            loaded-resources' (conj (or loaded-resources #{}) resource)
+            tx-data-context-map' (assoc tx-data-context-map :loaded-resources loaded-resources')]
+        [tx-data-context-map' node-id+source-value-pairs load-tx-data]))))
 
 (defn connect-resource-node
   "Creates transaction steps for creating `connections` between the
@@ -1585,18 +1611,36 @@
                       system, such nodes can't be used for `g/node-value` calls"
   [evaluation-context project path-or-resource consumer-node connections]
   (when-some [resource (resolve-path-or-resource project path-or-resource evaluation-context)]
-    (let [existing-resource-node-id (get-resource-node project resource evaluation-context)
+    (let [basis (:basis evaluation-context)
+          tx-data-context-atom (:tx-data-context evaluation-context)
+          existing-resource-node-id (get-resource-node project resource evaluation-context)
           [node-id creation-tx-data] (if existing-resource-node-id
                                        [existing-resource-node-id nil]
-                                       (thread-util/swap-rest! (:tx-data-context evaluation-context) ensure-resource-node-created project resource))
-          node-type (resource-node-type resource)
+                                       (thread-util/swap-rest! tx-data-context-atom ensure-resource-node-created project resource))
+          resource-type (resource/resource-type resource)
+          node-type (resource-type->node-type resource-type)
 
           load-tx-data
-          (when (some? creation-tx-data)
+          (cond
             ;; If we just created the resource node, that means the referenced
             ;; resource does not exist, or it would have already been created
-            ;; during resource-sync.
-            (mark-node-file-not-found node-id resource))]
+            ;; during resource-sync. Mark it as loaded and defective.
+            creation-tx-data
+            (let [node-load-info (make-file-not-found-node-load-info node-id resource)]
+              (node-load-info-tx-data node-load-info project nil))
+
+            ;; If we're about to connect a defunloaded resource that does not
+            ;; :allow-unloaded-use, ensure it is loaded as part of this
+            ;; transaction before connecting it.
+            (and existing-resource-node-id
+                 (not (resource/loaded? resource))
+                 (not (:allow-unloaded-use resource-type))
+                 (not (resource-node/loaded? basis existing-resource-node-id)))
+            (let [transpiler-tx-data-fn (get-transpiler-tx-data-fn! project evaluation-context)
+                  [node-id+source-value-pairs load-tx-data] (thread-util/swap-rest! tx-data-context-atom ensure-resource-node-loaded project node-id resource transpiler-tx-data-fn)]
+              (resource-node/merge-source-values! node-id+source-value-pairs)
+              load-tx-data))]
+
       {:node-id node-id
        :created-in-tx (nil? existing-resource-node-id)
        :tx-data (vec
@@ -1719,7 +1763,7 @@
     (if (workspace/dependencies-reachable? dependencies)
       (->> (workspace/fetch-and-validate-libraries workspace-id dependencies (progress/nest-render-progress render-progress! @progress 4))
            (workspace/install-validated-libraries! workspace-id))
-      (workspace/set-project-dependencies! workspace-id (library/current-library-state (workspace/project-path workspace-id) dependencies)))
+      (workspace/set-project-dependencies! workspace-id (library/current-library-state (workspace/project-directory workspace-id) dependencies)))
 
     (render-progress! (swap! progress progress/advance 4 "Syncing resources..."))
     (du/log-time "Initial resource sync"

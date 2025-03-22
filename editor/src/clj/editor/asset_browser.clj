@@ -30,7 +30,7 @@
             [editor.resource-watch :as resource-watch]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
-            [util.coll :refer [pair]])
+            [util.coll :as coll :refer [pair]])
   (:import [com.defold.control TreeCell]
            [editor.resource FileResource]
            [java.io File]
@@ -54,24 +54,28 @@
   (Paths/get s empty-string-array))
 
 ; TreeItem creator
-(defn-  ^ObservableList list-children [parent]
-  (let [children (:children parent)
-        items (->> (:children parent)
-                   (remove resource/internal?)
-                   (map tree-item)
-                   (into-array TreeItem))]
-    (if (empty? children)
+(defn- list-children
+  ^ObservableList [parent]
+  (let [tree-items
+        (->> (:children parent)
+             (keep (fn [resource]
+                     (when (and (resource/loaded? resource)
+                                (not (resource/internal? resource)))
+                       (tree-item resource))))
+             (into-array TreeItem))]
+    (if (coll/empty? tree-items)
       (FXCollections/emptyObservableList)
       (doto (FXCollections/observableArrayList)
-        (.addAll ^"[Ljavafx.scene.control.TreeItem;" items)))))
+        (.addAll ^"[Ljavafx.scene.control.TreeItem;" tree-items)))))
 
 ; NOTE: Without caching stack-overflow... WHY?
-(defn tree-item ^TreeItem [parent]
+(defn tree-item
+  ^TreeItem [parent]
   (let [cached (atom false)]
     (proxy [TreeItem] [parent]
       (isLeaf []
         (or (not= :folder (resource/source-type (.getValue ^TreeItem this)))
-            (empty? (:children (.getValue ^TreeItem this)))))
+            (coll/empty? (:children (.getValue ^TreeItem this)))))
       (getChildren []
         (let [this ^TreeItem this
               ^ObservableList children (proxy-super getChildren)]
@@ -534,7 +538,8 @@
           (let [resource-map (g/node-value workspace :resource-map)
                 new-resource-path (resource/file->proj-path project-path new-file)
                 resource (resource-map new-resource-path)]
-            (app-view/open-resource app-view prefs workspace project resource)
+            (when (resource/loaded? resource)
+              (app-view/open-resource app-view prefs workspace project resource))
             (select-resource! asset-browser resource))))))
   (options [workspace selection user-data]
     (when (not user-data)

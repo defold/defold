@@ -38,9 +38,9 @@
               (->> (g/node-value project :node-id+resources evaluation-context)
                    (into []
                          (keep (fn [[node-id resource]]
-                                 (when (and (not (resource/internal? resource))
-                                            (= :file (resource/source-type resource))
-                                            (resource/loaded? resource))
+                                 (when (and (resource/loaded? resource)
+                                            (not (resource/internal? resource))
+                                            (= :file (resource/source-type resource)))
                                    (let [resource-type (resource/resource-type resource)
                                          search-value-fn (when (:search-fn resource-type)
                                                            (:search-value-fn resource-type))]

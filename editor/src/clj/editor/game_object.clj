@@ -212,7 +212,7 @@
              :outline-overridden? overridden?
              :children (:children source-outline)}
           (cond->
-            (resource/openable-resource? source-resource) (assoc :link source-resource :outline-reference? true)
+            (resource/resource? source-resource) (assoc :link source-resource :outline-reference? true)
             source-id (assoc :alt-outline source-outline))))))
   (output ddf-message g/Any :abstract)
   (output scene g/Any :cached (g/fnk [_node-id id transform scene]

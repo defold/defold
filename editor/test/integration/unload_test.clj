@@ -14,7 +14,6 @@
 
 (ns integration.unload-test
   (:require [clojure.java.io :as io]
-            [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.defold-project :as project]
@@ -44,14 +43,20 @@
 
         resource-type->proj-path
         (fn resource-type->proj-path [resource-type]
-          (format "%s/unloaded.%s"
+          (format "%s/unloaded/unloaded.%s"
                   (if (:editable resource-type)
                     editable-directory-proj-path
                     non-editable-directory-proj-path)
-                  (:ext resource-type)))]
+                  (:ext resource-type)))
+
+        defunload-patterns
+        (mapv #(str % "/unloaded")
+              [editable-directory-proj-path
+               non-editable-directory-proj-path])]
 
     (with-open [_ (test-util/make-directory-deleter project-path)]
       (test-util/set-non-editable-directories! project-path [non-editable-directory-proj-path])
+      (test-util/write-defunload-patterns! project-path defunload-patterns)
 
       (test-support/with-clean-system
         (let [workspace (test-util/setup-workspace! world project-path)]
@@ -83,11 +88,6 @@
                     contents (workspace/template workspace resource-type)]
                 (fs/create-file! file contents)))
 
-            ;; Add a .defunload file to exclude these files from loading.
-            (let [defunload-file (io/file (str project-path "/.defunload"))
-                  defunload-contents (string/join "\n" loadable-resource-proj-paths)]
-              (fs/create-file! defunload-file defunload-contents))
-
             ;; With the workspace populated, we can load the project.
             (workspace/resource-sync! workspace)
 
@@ -114,52 +114,51 @@
                             (is (not (g/error? (g/node-value resource-node :scene evaluation-context))))))))))))))))))
 
 (defn- loaded-proj-path? [project proj-path]
-  (let [node-id (project/get-resource-node project proj-path)]
-    (resource-node/loaded? node-id)))
+  (let [resource-node-id (project/get-resource-node project proj-path)]
+    (assert (some? resource-node-id) (str "Resource not found: " proj-path))
+    (resource-node/loaded? resource-node-id)))
 
-(deftest defunload-test
+(deftest defunload-load-test
   (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")]
     (with-open [_ (test-util/make-directory-deleter project-path)]
-      (test-util/set-non-editable-directories! project-path ["/non-editable"])
-      (test-util/write-defunload-patterns! project-path ["/editable/unloaded"
-                                                         "/non-editable/unloaded"])
+      (test-util/write-defunload-patterns! project-path ["/unloaded"])
 
       (test-support/with-clean-system
         (let [workspace (test-util/setup-workspace! world project-path)]
 
           (fs/copy! (io/file "test/resources/images/small.png")
-                    (io/file project-path "editable/unloaded.png"))
+                    (io/file project-path "unloaded/unloaded.png"))
 
           (test-util/write-file-resource! workspace
-            "/editable/unloaded.tilesource"
-            {:image "/editable/unloaded.png"
+            "/unloaded/unloaded.tilesource"
+            {:image "/unloaded/unloaded.png"
              :tile-width 8
              :tile-height 8})
 
           (test-util/write-file-resource! workspace
-            "/editable/unloaded.tilemap"
-            {:tile-set "/editable/unloaded.tilesource"
+            "/unloaded/unloaded.tilemap"
+            {:tile-set "/unloaded/unloaded.tilesource"
              :blend-mode :blend-mode-add})
 
           (test-util/write-file-resource! workspace
-            "/editable/unloaded.go"
+            "/unloaded/unloaded.go"
             {:components
-             [{:id "unloaded-tilemap"
-               :component "/editable/unloaded.tilemap"}]})
+             [{:id "unloaded_tilemap"
+               :component "/unloaded/unloaded.tilemap"}]})
 
           (test-util/write-file-resource! workspace
-            "/editable/unloaded.collection"
-            {:name "unloaded-collection"
+            "/unloaded/unloaded.collection"
+            {:name "unloaded_collection"
              :instances
-             [{:id "unloaded-game-object-instance"
-               :prototype "/editable/unloaded.go"}]})
+             [{:id "unloaded_game_object_instance"
+               :prototype "/unloaded/unloaded.go"}]})
 
           (test-util/write-file-resource! workspace
-            "/editable/loaded-referencing-unloaded-collection.collection"
-            {:name "loaded-referencing-unloaded-collection"
+            "/loaded_referencing_unloaded_collection.collection"
+            {:name "loaded_referencing_unloaded_collection"
              :collection-instances
-             [{:id "unloaded-collection-instance"
-               :collection "/editable/unloaded.collection"}]})
+             [{:id "unloaded_collection_instance"
+               :collection "/unloaded/unloaded.collection"}]})
 
           (workspace/resource-sync! workspace)
 
@@ -169,193 +168,445 @@
                 call-logged-resource-sync!
                 (fn call-logged-resource-sync! []
                   (binding [project/report-defunload-issues! (fn/make-call-logger)
-                            project/load-nodes! (fn/make-call-logger project/load-nodes!)]
+                            project/node-load-info-tx-data (fn/make-call-logger project/node-load-info-tx-data)]
                     (workspace/resource-sync! workspace)
                     [(fn/call-logger-calls project/report-defunload-issues!)
-                     (fn/call-logger-calls project/load-nodes!)]))]
+                     (fn/call-logger-calls project/node-load-info-tx-data)]))]
 
             (testing "Matching proj-paths are excluded from loading."
-              (is (not (loaded-proj-path? "/editable/unloaded.png")))
-              (is (not (loaded-proj-path? "/editable/unloaded.tilesource")))
-              (is (not (loaded-proj-path? "/editable/unloaded.tilemap")))
-              (is (not (loaded-proj-path? "/editable/unloaded.go")))
-              (is (not (loaded-proj-path? "/editable/unloaded.collection")))
-              (is (loaded-proj-path? "/editable/loaded-referencing-unloaded-collection.collection")))
+              (is (not (loaded-proj-path? "/unloaded/unloaded.png")))
+              (is (not (loaded-proj-path? "/unloaded/unloaded.tilesource")))
+              (is (not (loaded-proj-path? "/unloaded/unloaded.tilemap")))
+              (is (not (loaded-proj-path? "/unloaded/unloaded.go")))
+              (is (not (loaded-proj-path? "/unloaded/unloaded.collection")))
+              (is (loaded-proj-path? "/loaded_referencing_unloaded_collection.collection")))
 
             ;; Add a loaded file resource that unsafely depends on an unloaded
             ;; resource. The unloaded resource does not :allow-unloaded-use, so
             ;; we must load it and all its dependencies that also do not
             ;; :allow-unloaded-use.
             (test-util/write-file-resource! workspace
-              "/editable/loaded-referencing-unloaded-tilesource.tilemap"
-              {:tile-set "/editable/unloaded.tilesource"})
+              "/loaded_referencing_unloaded_tilesource.tilemap"
+              {:tile-set "/unloaded/unloaded.tilesource"})
 
             (testing "Added file resource referencing unloaded unsafe proj-path loads transitive dependencies."
-              (let [[report-defunload-issues!-calls load-nodes!-calls] (call-logged-resource-sync!)]
+              (let [[report-defunload-issues!-calls node-load-info-tx-data-calls] (call-logged-resource-sync!)]
 
                 (testing "Unsafe dependencies on unloaded files are reported."
                   (is (= 1 (count report-defunload-issues!-calls)))
                   (let [[_ unsafe-dependency-proj-paths-by-referencing-proj-path loaded-undesired-proj-paths] (first report-defunload-issues!-calls)]
-                    (is (= {"/editable/loaded-referencing-unloaded-tilesource.tilemap"
-                            #{"/editable/unloaded.tilesource"}}
+                    (is (= {"/loaded_referencing_unloaded_tilesource.tilemap"
+                            #{"/unloaded/unloaded.tilesource"}}
                            unsafe-dependency-proj-paths-by-referencing-proj-path))
-                    (is (= #{"/editable/unloaded.png"
-                             "/editable/unloaded.tilesource"}
+                    (is (= #{"/unloaded/unloaded.png"
+                             "/unloaded/unloaded.tilesource"}
                            loaded-undesired-proj-paths))))
 
                 (testing "The added file and its transitive dependencies were loaded."
-                  (is (= 1 (count load-nodes!-calls)))
-                  (let [[_ _ loaded-node-load-infos] (first load-nodes!-calls)]
-                    (is (= #{"/editable/unloaded.png"
-                             "/editable/unloaded.tilesource"
-                             "/editable/loaded-referencing-unloaded-tilesource.tilemap"}
-                           (coll/transfer loaded-node-load-infos (sorted-set)
-                             (map (fn [{:keys [resource] :as _node-load-info}]
-                                    (resource/proj-path resource)))))))))
+                  (is (= ["/unloaded/unloaded.png"
+                          "/unloaded/unloaded.tilesource"
+                          "/loaded_referencing_unloaded_tilesource.tilemap"]
+                         (mapv (comp resource/proj-path :resource first)
+                               node-load-info-tx-data-calls)))))
 
-              (is (loaded-proj-path? "/editable/unloaded.png"))
-              (is (loaded-proj-path? "/editable/unloaded.tilesource"))
-              (is (loaded-proj-path? "/editable/loaded-referencing-unloaded-tilesource.tilemap"))
-              (is (not (loaded-proj-path? "/editable/unloaded.tilemap")))
-              (is (not (loaded-proj-path? "/editable/unloaded.go")))
-              (is (not (loaded-proj-path? "/editable/unloaded.collection")))
-              (is (loaded-proj-path? "/editable/loaded-referencing-unloaded-collection.collection")))
+              (is (loaded-proj-path? "/unloaded/unloaded.png"))
+              (is (loaded-proj-path? "/unloaded/unloaded.tilesource"))
+              (is (loaded-proj-path? "/loaded_referencing_unloaded_tilesource.tilemap"))
+              (is (not (loaded-proj-path? "/unloaded/unloaded.tilemap")))
+              (is (not (loaded-proj-path? "/unloaded/unloaded.go")))
+              (is (not (loaded-proj-path? "/unloaded/unloaded.collection")))
+              (is (loaded-proj-path? "/loaded_referencing_unloaded_collection.collection")))
 
             ;; Add a loaded file resource that safely depends on an unloaded
             ;; resource. The unloaded resource does :allow-unloaded-use, so we
             ;; should not load it as a result.
             (test-util/write-file-resource! workspace
-              "/editable/loaded-referencing-unloaded-go.collection"
-              {:name "loaded-referencing-unloaded-go"
+              "/loaded_referencing_unloaded_go.collection"
+              {:name "loaded_referencing_unloaded_go"
                :instances
-               [{:id "unloaded-game-object-instance"
-                 :prototype "/editable/unloaded.go"}]})
+               [{:id "unloaded_game_object_instance"
+                 :prototype "/unloaded/unloaded.go"}]})
 
             (testing "Added file resource referencing unloaded safe proj-path does not load transitive dependencies."
-              (let [[report-defunload-issues!-calls load-nodes!-calls] (call-logged-resource-sync!)]
+              (let [[report-defunload-issues!-calls node-load-info-tx-data-calls] (call-logged-resource-sync!)]
 
                 (testing "Safe dependencies on unloaded files are not reported."
                   (is (= 0 (count report-defunload-issues!-calls))))
 
                 (testing "Only the added file was loaded."
-                  (is (= 1 (count load-nodes!-calls)))
-                  (let [[_ _ loaded-node-load-infos] (first load-nodes!-calls)]
-                    (is (= #{"/editable/loaded-referencing-unloaded-go.collection"}
-                           (coll/transfer loaded-node-load-infos (sorted-set)
-                             (map (fn [{:keys [resource] :as _node-load-info}]
-                                    (resource/proj-path resource)))))))))
+                  (is (= ["/loaded_referencing_unloaded_go.collection"]
+                         (mapv (comp resource/proj-path :resource first)
+                               node-load-info-tx-data-calls)))))
 
-              (is (loaded-proj-path? "/editable/unloaded.png"))
-              (is (loaded-proj-path? "/editable/unloaded.tilesource"))
-              (is (loaded-proj-path? "/editable/loaded-referencing-unloaded-tilesource.tilemap"))
-              (is (not (loaded-proj-path? "/editable/unloaded.tilemap")))
-              (is (not (loaded-proj-path? "/editable/unloaded.go")))
-              (is (loaded-proj-path? "/editable/loaded-referencing-unloaded-go.collection"))
-              (is (not (loaded-proj-path? "/editable/unloaded.collection")))
-              (is (loaded-proj-path? "/editable/loaded-referencing-unloaded-collection.collection")))
+              (is (loaded-proj-path? "/unloaded/unloaded.png"))
+              (is (loaded-proj-path? "/unloaded/unloaded.tilesource"))
+              (is (loaded-proj-path? "/loaded_referencing_unloaded_tilesource.tilemap"))
+              (is (not (loaded-proj-path? "/unloaded/unloaded.tilemap")))
+              (is (not (loaded-proj-path? "/unloaded/unloaded.go")))
+              (is (loaded-proj-path? "/loaded_referencing_unloaded_go.collection"))
+              (is (not (loaded-proj-path? "/unloaded/unloaded.collection")))
+              (is (loaded-proj-path? "/loaded_referencing_unloaded_collection.collection")))
 
             ;; Add another loaded file resource that unsafely depends on an
             ;; unloaded resource that itself unsafely depends on a defunloaded
             ;; resource that has already been loaded. Check that the already
             ;; loaded resources are not loaded twice as a result.
             (test-util/write-file-resource! workspace
-              "/editable/loaded-referencing-unloaded-tilemap.go"
+              "/loaded_referencing_unloaded_tilemap.go"
               {:components
-               [{:id "unloaded-tilemap"
-                 :component "/editable/unloaded.tilemap"}]})
+               [{:id "unloaded_tilemap"
+                 :component "/unloaded/unloaded.tilemap"}]})
 
             (testing "Added file resource referencing unloaded unsafe proj-path loads the single still-unloaded transitive dependency."
-              (let [[report-defunload-issues!-calls load-nodes!-calls] (call-logged-resource-sync!)]
+              (let [[report-defunload-issues!-calls node-load-info-tx-data-calls] (call-logged-resource-sync!)]
 
                 (testing "Unsafe dependencies on still-unloaded files are reported."
                   (is (= 1 (count report-defunload-issues!-calls)))
                   (let [[_ unsafe-dependency-proj-paths-by-referencing-proj-path loaded-undesired-proj-paths] (first report-defunload-issues!-calls)]
-                    (is (= {"/editable/loaded-referencing-unloaded-tilemap.go"
-                            #{"/editable/unloaded.tilemap"}}
+                    (is (= {"/loaded_referencing_unloaded_tilemap.go"
+                            #{"/unloaded/unloaded.tilemap"}}
                            unsafe-dependency-proj-paths-by-referencing-proj-path))
-                    (is (= #{"/editable/unloaded.tilemap"}
+                    (is (= #{"/unloaded/unloaded.tilemap"}
                            loaded-undesired-proj-paths))))
 
                 (testing "Only the still-unloaded files were loaded."
-                  (is (= 1 (count load-nodes!-calls)))
-                  (let [[_ _ loaded-node-load-infos] (first load-nodes!-calls)]
-                    (is (= #{"/editable/loaded-referencing-unloaded-tilemap.go"
-                             "/editable/unloaded.tilemap"}
-                           (coll/transfer loaded-node-load-infos (sorted-set)
-                             (map (fn [{:keys [resource] :as _node-load-info}]
-                                    (resource/proj-path resource)))))))))
+                  (is (= ["/unloaded/unloaded.tilemap"
+                          "/loaded_referencing_unloaded_tilemap.go"]
+                         (mapv (comp resource/proj-path :resource first)
+                               node-load-info-tx-data-calls)))))
 
-              (is (loaded-proj-path? "/editable/unloaded.png"))
-              (is (loaded-proj-path? "/editable/unloaded.tilesource"))
-              (is (loaded-proj-path? "/editable/loaded-referencing-unloaded-tilesource.tilemap"))
-              (is (loaded-proj-path? "/editable/unloaded.tilemap"))
-              (is (loaded-proj-path? "/editable/loaded-referencing-unloaded-tilemap.go"))
-              (is (not (loaded-proj-path? "/editable/unloaded.go")))
-              (is (loaded-proj-path? "/editable/loaded-referencing-unloaded-go.collection"))
-              (is (not (loaded-proj-path? "/editable/unloaded.collection")))
-              (is (loaded-proj-path? "/editable/loaded-referencing-unloaded-collection.collection")))
+              (is (loaded-proj-path? "/unloaded/unloaded.png"))
+              (is (loaded-proj-path? "/unloaded/unloaded.tilesource"))
+              (is (loaded-proj-path? "/loaded_referencing_unloaded_tilesource.tilemap"))
+              (is (loaded-proj-path? "/unloaded/unloaded.tilemap"))
+              (is (loaded-proj-path? "/loaded_referencing_unloaded_tilemap.go"))
+              (is (not (loaded-proj-path? "/unloaded/unloaded.go")))
+              (is (loaded-proj-path? "/loaded_referencing_unloaded_go.collection"))
+              (is (not (loaded-proj-path? "/unloaded/unloaded.collection")))
+              (is (loaded-proj-path? "/loaded_referencing_unloaded_collection.collection")))
 
             ;; Simulate external changes to defunloaded file resources that are
             ;; unsafely referenced by loaded file resources.
             (test-util/write-file-resource! workspace
-              "/editable/unloaded.tilesource"
-              {:image "/editable/unloaded.png"
+              "/unloaded/unloaded.tilesource"
+              {:image "/unloaded/unloaded.png"
                :tile-width 16
                :tile-height 16})
 
             (test-util/write-file-resource! workspace
-              "/editable/unloaded.tilemap"
-              {:tile-set "/editable/unloaded.tilesource"
+              "/unloaded/unloaded.tilemap"
+              {:tile-set "/unloaded/unloaded.tilesource"
                :blend-mode :blend-mode-mult})
 
             (testing "Unsafely referenced unloaded files are reloaded after external changes."
-              (let [[report-defunload-issues!-calls load-nodes!-calls] (call-logged-resource-sync!)]
+              (let [[report-defunload-issues!-calls node-load-info-tx-data-calls] (call-logged-resource-sync!)]
 
                 (testing "Reloads of unsafe dependencies are reported."
                   (is (= 1 (count report-defunload-issues!-calls)))
                   (let [[_ unsafe-dependency-proj-paths-by-referencing-proj-path loaded-undesired-proj-paths] (first report-defunload-issues!-calls)]
                     (is (= {} ; None of the reloaded resources were referenced from a loaded resource.
                            unsafe-dependency-proj-paths-by-referencing-proj-path))
-                    (is (= #{"/editable/unloaded.tilemap"
-                             "/editable/unloaded.tilesource"}
+                    (is (= #{"/unloaded/unloaded.tilemap"
+                             "/unloaded/unloaded.tilesource"}
                            loaded-undesired-proj-paths))))
 
                 (testing "Only the externally modified files were reloaded."
-                  (is (= 1 (count load-nodes!-calls)))
-                  (let [[_ _ loaded-node-load-infos] (first load-nodes!-calls)]
-                    (is (= #{"/editable/unloaded.tilesource"
-                             "/editable/unloaded.tilemap"}
-                           (coll/transfer loaded-node-load-infos (sorted-set)
-                             (map (fn [{:keys [resource] :as _node-load-info}]
-                                    (resource/proj-path resource))))))))))
+                  (is (= ["/unloaded/unloaded.tilesource"
+                          "/unloaded/unloaded.tilemap"]
+                         (mapv (comp resource/proj-path :resource first)
+                               node-load-info-tx-data-calls))))))
 
             ;; Simulate an external change to an existing resource and introduce
             ;; an unsafe reference to an existing defunloaded resource.
             (test-util/write-file-resource! workspace
-              "/editable/loaded-referencing-unloaded-go.collection"
-              {:name "loaded-referencing-unloaded-go"
+              "/loaded_referencing_unloaded_go.collection"
+              {:name "loaded_referencing_unloaded_go"
                :embedded-instances
-               [{:id "embedded-game-object-instance"
+               [{:id "embedded_game_object_instance"
                  :data {:components
-                        [{:id "unloaded-tilemap"
-                          :component "/editable/unloaded.tilemap"}]}}]})
+                        [{:id "unloaded_tilemap"
+                          :component "/unloaded/unloaded.tilemap"}]}}]})
 
             (testing "Loaded files are reloaded with unsafe dependencies after external changes."
-              (let [[report-defunload-issues!-calls load-nodes!-calls] (call-logged-resource-sync!)]
+              (let [[report-defunload-issues!-calls node-load-info-tx-data-calls] (call-logged-resource-sync!)]
 
                 (testing "Unsafe dependencies introduced by external changes are reported."
                   (is (= 1 (count report-defunload-issues!-calls)))
                   (let [[_ unsafe-dependency-proj-paths-by-referencing-proj-path loaded-undesired-proj-paths] (first report-defunload-issues!-calls)]
-                    (is (= {"/editable/loaded-referencing-unloaded-go.collection"
-                            #{"/editable/unloaded.tilemap"}}
+                    (is (= {"/loaded_referencing_unloaded_go.collection"
+                            #{"/unloaded/unloaded.tilemap"}}
                            unsafe-dependency-proj-paths-by-referencing-proj-path))
                     (is (= #{}
                            loaded-undesired-proj-paths))))
 
                 (testing "Only the externally modified files were reloaded."
-                  (is (= 1 (count load-nodes!-calls)))
-                  (let [[_ _ loaded-node-load-infos] (first load-nodes!-calls)]
-                    (is (= #{"/editable/loaded-referencing-unloaded-go.collection"}
-                           (coll/transfer loaded-node-load-infos (sorted-set)
-                             (map (fn [{:keys [resource] :as _node-load-info}]
-                                    (resource/proj-path resource))))))))))))))))
+                  (is (= ["/loaded_referencing_unloaded_go.collection"]
+                         (mapv (comp resource/proj-path :resource first)
+                               node-load-info-tx-data-calls))))))))))))
+
+(deftest defunload-scene-edit-test
+  (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")]
+    (with-open [_ (test-util/make-directory-deleter project-path)]
+      (test-util/write-defunload-patterns! project-path ["/unloaded"])
+
+      (test-support/with-clean-system
+        (let [workspace (test-util/setup-workspace! world project-path)]
+
+          (fs/copy! (io/file "test/resources/images/small.png")
+                    (io/file project-path "unloaded/unloaded.png"))
+
+          (test-util/write-file-resource! workspace
+            "/unloaded/unloaded.tilesource"
+            {:image "/unloaded/unloaded.png"
+             :tile-width 8
+             :tile-height 8})
+
+          (test-util/write-file-resource! workspace
+            "/unloaded/unloaded.tilemap"
+            {:tile-set "/unloaded/unloaded.tilesource"
+             :blend-mode :blend-mode-add})
+
+          (test-util/write-file-resource! workspace
+            "/first_loaded_referencing_unloaded_tilemap.go"
+            {:components
+             [{:id "first_reference"
+               :component ""}
+              {:id "second_reference"
+               :component ""}]})
+
+          (test-util/write-file-resource! workspace
+            "/second_loaded_referencing_unloaded_tilemap.go"
+            {:components
+             [{:id "first_reference"
+               :component ""}
+              {:id "second_reference"
+               :component ""}]})
+
+          (test-util/write-file-resource! workspace
+            "/unloaded/unloaded.go"
+            {})
+
+          (test-util/write-file-resource! workspace
+            "/loaded_referencing_unloaded_go.collection"
+            {:name "loaded_referencing_unloaded_go"
+             :instances
+             [{:id "first_reference"
+               :prototype ""}
+              {:id "second_reference"
+               :prototype ""}]})
+
+          (workspace/resource-sync! workspace)
+
+          (let [project (test-util/setup-project! workspace)
+                loaded-proj-path? #(loaded-proj-path? project %)
+
+                call-logged-transact!
+                (fn call-logged-transact! [tx-data]
+                  (binding [project/node-load-info-tx-data (fn/make-call-logger project/node-load-info-tx-data)]
+                    (g/transact tx-data)
+                    (fn/call-logger-calls project/node-load-info-tx-data)))]
+
+            (testing "Matching proj-paths are excluded from loading."
+              (is (not (loaded-proj-path? "/unloaded/unloaded.png")))
+              (is (not (loaded-proj-path? "/unloaded/unloaded.tilesource")))
+              (is (not (loaded-proj-path? "/unloaded/unloaded.tilemap")))
+              (is (loaded-proj-path? "/first_loaded_referencing_unloaded_tilemap.go"))
+              (is (loaded-proj-path? "/second_loaded_referencing_unloaded_tilemap.go"))
+              (is (not (loaded-proj-path? "/unloaded/unloaded.go")))
+              (is (loaded-proj-path? "/loaded_referencing_unloaded_go.collection")))
+
+            (testing "Editing a loaded resource to safely reference unloaded resources will not load the referenced resources."
+              (let [node-load-info-tx-data-calls
+                    (call-logged-transact!
+                      (-> (project/get-resource-node project "/loaded_referencing_unloaded_go.collection")
+                          (test-util/referenced-game-objects)
+                          (coll/transfer []
+                            (map #(g/set-property % :path {:resource (workspace/find-resource workspace "/unloaded/unloaded.go")})))))]
+
+                (is (= []
+                       (mapv (comp resource/proj-path :resource first)
+                             node-load-info-tx-data-calls))))
+
+              (is (not (loaded-proj-path? "/unloaded/unloaded.png")))
+              (is (not (loaded-proj-path? "/unloaded/unloaded.tilesource")))
+              (is (not (loaded-proj-path? "/unloaded/unloaded.tilemap")))
+              (is (loaded-proj-path? "/first_loaded_referencing_unloaded_tilemap.go"))
+              (is (loaded-proj-path? "/second_loaded_referencing_unloaded_tilemap.go"))
+              (is (not (loaded-proj-path? "/unloaded/unloaded.go")))
+              (is (loaded-proj-path? "/loaded_referencing_unloaded_go.collection")))
+
+            (testing "Editing a loaded resource to unsafely reference unloaded resources will load transitive dependencies."
+              (let [node-load-info-tx-data-calls
+                    (call-logged-transact!
+                      (-> (project/get-resource-node project "/first_loaded_referencing_unloaded_tilemap.go")
+                          (test-util/referenced-components)
+                          (coll/transfer []
+                            (map #(g/set-property % :path {:resource (workspace/find-resource workspace "/unloaded/unloaded.tilemap")})))))]
+
+                (is (= ["/unloaded/unloaded.tilemap"
+                        "/unloaded/unloaded.tilesource"
+                        "/unloaded/unloaded.png"]
+                       (mapv (comp resource/proj-path :resource first)
+                             node-load-info-tx-data-calls))))
+
+              (is (loaded-proj-path? "/unloaded/unloaded.png"))
+              (is (loaded-proj-path? "/unloaded/unloaded.tilesource"))
+              (is (loaded-proj-path? "/unloaded/unloaded.tilemap"))
+              (is (loaded-proj-path? "/first_loaded_referencing_unloaded_tilemap.go"))
+              (is (loaded-proj-path? "/second_loaded_referencing_unloaded_tilemap.go"))
+              (is (not (loaded-proj-path? "/unloaded/unloaded.go")))
+              (is (loaded-proj-path? "/loaded_referencing_unloaded_go.collection"))
+
+              (testing "Editing a loaded resource to unsafely reference already loaded resources does not reload the referenced resources."
+                (let [node-load-info-tx-data-calls
+                      (call-logged-transact!
+                        (-> (project/get-resource-node project "/second_loaded_referencing_unloaded_tilemap.go")
+                            (test-util/referenced-components)
+                            (coll/transfer []
+                              (map #(g/set-property % :path {:resource (workspace/find-resource workspace "/unloaded/unloaded.tilemap")})))))]
+
+                  (is (= []
+                         (mapv (comp resource/proj-path :resource first)
+                               node-load-info-tx-data-calls))))))))))))
+
+(deftest defunload-script-edit-test
+  (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")]
+    (with-open [_ (test-util/make-directory-deleter project-path)]
+      (test-util/write-defunload-patterns! project-path ["/unloaded"])
+
+      (test-support/with-clean-system
+        (let [workspace (test-util/setup-workspace! world project-path)]
+
+          (fs/copy! (io/file "test/resources/images/small.png")
+                    (io/file project-path "unloaded/unloaded.png"))
+
+          (test-util/write-file-resource! workspace
+            "/loaded_math.lua"
+            ["local m = {}"
+             "function m.add(a, b)"
+             "  return a + b"
+             "end"
+             "return m"])
+
+          (test-util/write-file-resource! workspace
+            "/unloaded/unloaded_math.lua"
+            ["local loaded_math = require 'loaded_math'"
+             "local m = {}"
+             "function m.multiply(a, b)"
+             "  local result = 0"
+             "  for i = 1, a do"
+             "    result = loaded_math.add(result, b)"
+             "  end"
+             "  return result"
+             "end"
+             "return m"])
+
+          (test-util/write-file-resource! workspace
+            "/unloaded/unloaded.lua"
+            ["local unloaded_math = require 'unloaded.unloaded_math'"
+             "local m = {}"
+             "function m.square(a)"
+             "  return unloaded_math.multiply(a, a)"
+             "end"
+             "return m"])
+
+          (test-util/write-file-resource! workspace
+            "/loaded_referencing_unloaded_lua.script"
+            [])
+
+          (test-util/write-file-resource! workspace
+            "/unloaded/unloaded.tilesource"
+            {:image "/unloaded/unloaded.png"
+             :tile-width 8
+             :tile-height 8})
+
+          (test-util/write-file-resource! workspace
+            "/loaded_referencing_unloaded_tilesource.script"
+            [])
+
+          (workspace/resource-sync! workspace)
+
+          (let [project (test-util/setup-project! workspace)
+                loaded-proj-path? #(loaded-proj-path? project %)
+
+                call-logged-transact!
+                (fn call-logged-transact! [tx-data]
+                  (binding [project/node-load-info-tx-data (fn/make-call-logger project/node-load-info-tx-data)]
+                    (g/transact tx-data)
+                    (fn/call-logger-calls project/node-load-info-tx-data)))]
+
+            (testing "Matching proj-paths are excluded from loading."
+              (is (loaded-proj-path? "/loaded_math.lua"))
+              (is (not (loaded-proj-path? "/unloaded/unloaded_math.lua")))
+              (is (not (loaded-proj-path? "/unloaded/unloaded.lua")))
+              (is (loaded-proj-path? "/loaded_referencing_unloaded_lua.script"))
+              (is (not (loaded-proj-path? "/unloaded/unloaded.png")))
+              (is (not (loaded-proj-path? "/unloaded/unloaded.tilesource")))
+              (is (loaded-proj-path? "/loaded_referencing_unloaded_tilesource.script")))
+
+            (testing "Editing a script to reference unloaded Lua modules will load transitive dependencies."
+              (let [node-load-info-tx-data-calls
+                    (call-logged-transact!
+                      (test-util/set-code-editor-lines
+                        (project/get-resource-node project "/loaded_referencing_unloaded_lua.script")
+                        ["local first_alias = require 'unloaded.unloaded'"
+                         "local second_alias = require 'unloaded.unloaded'"]))]
+
+                (is (= ["/unloaded/unloaded.lua"
+                        "/unloaded/unloaded_math.lua"]
+                       (mapv (comp resource/proj-path :resource first)
+                             node-load-info-tx-data-calls))))
+
+              (is (loaded-proj-path? "/loaded_math.lua"))
+              (is (loaded-proj-path? "/unloaded/unloaded_math.lua"))
+              (is (loaded-proj-path? "/unloaded/unloaded.lua"))
+              (is (loaded-proj-path? "/loaded_referencing_unloaded_lua.script"))
+              (is (not (loaded-proj-path? "/unloaded/unloaded.png")))
+              (is (not (loaded-proj-path? "/unloaded/unloaded.tilesource")))
+              (is (loaded-proj-path? "/loaded_referencing_unloaded_tilesource.script"))
+
+              (testing "Editing a script to reference already loaded Lua modules does not reload the referenced Lua modules."
+                (let [node-load-info-tx-data-calls
+                      (call-logged-transact!
+                        (test-util/set-code-editor-lines
+                          (project/get-resource-node project "/loaded_referencing_unloaded_lua.script")
+                          ["local first_alias = require 'unloaded.unloaded_math'"
+                           "local second_alias = require 'unloaded.unloaded_math'"]))]
+
+                  (is (= []
+                         (mapv (comp resource/proj-path :resource first)
+                               node-load-info-tx-data-calls))))))
+
+            (testing "Editing a script to reference unloaded resources will load transitive dependencies."
+              (let [node-load-info-tx-data-calls
+                    (call-logged-transact!
+                      (test-util/set-code-editor-lines
+                        (project/get-resource-node project "/loaded_referencing_unloaded_tilesource.script")
+                        ["go.property('first_alias', resource.tile_source('/unloaded/unloaded.tilesource'))"
+                         "go.property('second_alias', resource.tile_source('/unloaded/unloaded.tilesource'))"]))]
+
+                (is (= ["/unloaded/unloaded.tilesource"
+                        "/unloaded/unloaded.png"]
+                       (mapv (comp resource/proj-path :resource first)
+                             node-load-info-tx-data-calls))))
+
+              (is (loaded-proj-path? "/loaded_math.lua"))
+              (is (loaded-proj-path? "/unloaded/unloaded_math.lua"))
+              (is (loaded-proj-path? "/unloaded/unloaded.lua"))
+              (is (loaded-proj-path? "/loaded_referencing_unloaded_lua.script"))
+              (is (loaded-proj-path? "/unloaded/unloaded.png"))
+              (is (loaded-proj-path? "/unloaded/unloaded.tilesource"))
+              (is (loaded-proj-path? "/loaded_referencing_unloaded_tilesource.script"))
+
+              (testing "Editing a script to reference already loaded resources does not reload the referenced resources."
+                (let [node-load-info-tx-data-calls
+                      (call-logged-transact!
+                        (test-util/set-code-editor-lines
+                          (project/get-resource-node project "/loaded_referencing_unloaded_tilesource.script")
+                          ["go.property('first_alias', resource.tile_source('/unloaded/unloaded.tilesource'))"
+                           "go.property('second_alias', resource.tile_source('/unloaded/unloaded.tilesource'))"
+                           "go.property('third_alias', resource.tile_source('/unloaded/unloaded.tilesource'))"]))]
+
+                  (is (= []
+                         (mapv (comp resource/proj-path :resource first)
+                               node-load-info-tx-data-calls))))))))))))

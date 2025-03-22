@@ -32,7 +32,8 @@
             [internal.java :as java]
             [internal.util :as util]
             [service.log :as log]
-            [util.coll :refer [pair pair-map-by]])
+            [util.coll :refer [pair pair-map-by]]
+            [util.fn :as fn])
   (:import [com.defold.extension.pipeline ILuaTranspiler ILuaTranspiler$Issue ILuaTranspiler$Severity]
            [com.dynamo.bob ClassLoaderScanner]
            [java.io File]))
@@ -102,7 +103,7 @@
                             ;; If transpiler emits invalid lua file, the build process will return
                             ;; a build error that points to a lua file that does not exist in the
                             ;; resource tree
-                            (let [resource (resource/make-file-resource workspace (str output-dir) file [] (constantly false))
+                            (let [resource (resource/make-file-resource workspace (str output-dir) file [] fn/constantly-false fn/constantly-false)
                                   build-targets (script-compilation/build-targets build-file-node-id resource (code.util/split-lines (slurp resource)) lua-preprocessors [] [] proj-path->node-id)]
                               (pair (resource/proj-path resource) build-targets)))))
                       (fs/file-walker output-dir false))))
@@ -249,12 +250,12 @@
       (report-error! (ex-message e) (:faulty-class-names (ex-data e))))))
 
 (defn make-resource-load-tx-data-fn [code-transpilers evaluation-context]
-  (if-let [build-file-proj-path->transpiler-node-id (g/node-value code-transpilers :build-file-proj-path->transpiler-node-id evaluation-context)]
-    (fn [resource-node-id resource]
+  (if-let [build-file-proj-path->transpiler-node-id (g/tx-cached-node-value! code-transpilers :build-file-proj-path->transpiler-node-id evaluation-context)]
+    (fn resource-load-tx-data-fn [resource-node-id resource]
       (when-let [proj-path (resource/proj-path resource)]
         (when-let [transpiler-node-id (build-file-proj-path->transpiler-node-id proj-path)]
           (g/connect resource-node-id :save-data transpiler-node-id :build-file-save-data))))
-    (fn [_ _])))
+    fn/constantly-nil))
 
 (defn build-output [code-transpilers evaluation-context]
   (g/node-value code-transpilers :build-output evaluation-context))
