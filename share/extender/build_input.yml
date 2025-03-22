@@ -158,7 +158,7 @@ platforms:
     writeShLibPattern: 'lib%s.dylib'
     writeExePattern: 'dmengine'
     symbolsPattern: '.*dSYM'
-    zipContentPattern: 'dmengine'
+    zipContentPattern: 'dmengine|main.cpp'
     allowedLibs:    ["(\\w[\\w\\.+-]+)"]
     allowedFlags: ["-ObjC","-ObjC\\+\\+","-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17|c\\+\\+20)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-f(no-)?objc-arc(-exceptions)?","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-Wl,[-_a-zA-Z0-9,/@]+","-fno-rtti","-f\\w[\\w-=]+","-x","c"]
     compileCmd: 'clang++ -c {{#systemIncludes}}-isystem {{{.}}} {{/systemIncludes}} {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -o{{tgt}}'
@@ -222,7 +222,7 @@ platforms:
     sourceRe: '(?i).*(\.cpp|\.c|\.cc|\.cxx|\.c\+\+|\.mm|\.m)'
     writeLibPattern: 'lib%s.a'
     writeExePattern: 'dmengine'
-    zipContentPattern: 'dmengine'
+    zipContentPattern: 'dmengine|main.cpp'
     allowedLibs:    ["(\\w[\\w\\.+-]+)"]
     symbolCmd: 'dsymutil -o {{src}}.dSYM {{src}}'
     symbolsPattern: '.*dSYM'
@@ -296,7 +296,7 @@ platforms:
     javaSourceRe: '(?i).+(\.java)$'
     writeLibPattern: 'lib%s.a'
     writeExePattern: 'libdmengine.so'
-    zipContentPattern: 'libdmengine.so'
+    zipContentPattern: 'libdmengine.so|main.cpp'
     allowedLibs:    ["(\\w[\\w\\.+-]+)"]
     allowedFlags: ["-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17|c\\+\\+20)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-rdynamic","-Wl,[-_a-zA-Z0-9,/@]+","-fno-rtti","-fpermissive","-f\\w[\\w-=]+","-x","c"]
     libCmd: '{{env.NDK_AR}} rcs {{tgt}} {{#objs}}{{.}} {{/objs}}'
@@ -381,7 +381,7 @@ platforms:
         emscriptenLinkFlags: ["WASM=0", "LEGACY_VM_SUPPORT=1"]
 
     symbolsPattern:  'dmengine.js.symbols'
-    zipContentPattern: 'dmengine.js'
+    zipContentPattern: 'dmengine.js|main.cpp'
     linkCmd:        '{{env.EMSCRIPTEN_BIN}}/em++ {{#src}}{{{.}}} {{/src}} -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#emscriptenLinkFlags}}-s {{{.}}} {{/emscriptenLinkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} -Wl,--start-group {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} -Wl,--end-group {{#ext.jsLibs}}--js-library {{{.}}} {{/ext.jsLibs}} {{#engineJsLibs}}--js-library {{dynamo_home}}/lib/js-web/js/library_{{{.}}}.js {{/engineJsLibs}} {{#externalJsLibs}}--js-library {{dynamo_home}}/ext/lib/js-web/js/library_{{{.}}}.js {{/externalJsLibs}}'
 
   wasm-web:
@@ -390,7 +390,7 @@ platforms:
         emscriptenLinkFlags: ["ALLOW_MEMORY_GROWTH=1", "WASM=1"]
 
     symbolsPattern:  'dmengine.(js.symbols|wasm.debug.wasm)'
-    zipContentPattern: 'dmengine.(wasm|js)'
+    zipContentPattern: 'dmengine.(wasm|js)|main.cpp'
     allowedFlags:   ["--profiling", "-msimd128"]
     linkCmd:        '{{env.EMSCRIPTEN_BIN}}/em++ {{#src}}{{{.}}} {{/src}} -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#emscriptenLinkFlags}}-s {{{.}}} {{/emscriptenLinkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} -Wl,--start-group {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} -Wl,--end-group {{#ext.jsLibs}}--js-library {{{.}}} {{/ext.jsLibs}} {{#engineJsLibs}}--js-library {{dynamo_home}}/lib/wasm-web/js/library_{{{.}}}.js {{/engineJsLibs}} {{#externalJsLibs}}--js-library {{dynamo_home}}/ext/lib/js-web/js/library_{{{.}}}.js {{/externalJsLibs}}'
 
@@ -418,7 +418,7 @@ platforms:
     writeLibPattern: '%s.lib'
     writeShLibPattern: 'lib%s.dll'
     writeExePattern: 'dmengine.exe'
-    zipContentPattern: 'dmengine.exe'
+    zipContentPattern: 'dmengine.exe|main.cpp'
     symbolsPattern:  '.*pdb'
     allowedLibs:    ["(\\w[\\w\\.+-]+)"]
     allowedFlags:   ["-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17|c\\+\\+20)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-rdynamic","-Wl,[-_a-zA-Z0-9,/@]+","-fno-rtti","-fpermissive","-Wl,/subsystem:(console|windows)","-Wl,/entry:\\w+","-f\\w[\\w-=]+","-x","c"]
@@ -466,7 +466,7 @@ platforms:
     writeLibPattern: 'lib%s.a'
     writeShLibPattern: 'lib%s.so'
     writeExePattern: 'dmengine'
-    zipContentPattern: 'dmengine|dmengine_unstripped'
+    zipContentPattern: 'dmengine|dmengine_unstripped|main.cpp'
     allowedLibs:    ["(\\w[\\w\\.+-]+)"]
     allowedFlags:   ["-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17|c\\+\\+20)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-rdynamic","-Wl,[-_a-zA-Z0-9,/@]+","-fno-rtti","-fpermissive","-f\\w[\\w-=]+","-x","c"]
     compileCmd:     'clang++ {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -c -o {{tgt}}'
