@@ -2471,10 +2471,10 @@
         (when-not (get-property view-node :hover-mouse-over-popup evaluation-context)
           (assoc (schedule-hover-refresh! view-node) :hover-cursor nil))))))
 
-(defn handle-scroll! [view-node zoom-on-mouse-wheel ^ScrollEvent event]
+(defn handle-scroll! [view-node zoom-on-scroll ^ScrollEvent event]
   (.consume event)
   (when (if (.isShortcutDown event)
-          (do (when zoom-on-mouse-wheel
+          (do (when zoom-on-scroll
                 (-> (g/node-value view-node :canvas)
                     (ui/run-command (cond (pos? (.getDeltaY event)) :zoom-in
                                           (neg? (.getDeltaY event)) :zoom-out))))
@@ -3774,7 +3774,7 @@
       (.addEventHandler MouseEvent/MOUSE_DRAGGED (ui/event-handler event (handle-mouse-moved! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_RELEASED (ui/event-handler event (handle-mouse-released! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_EXITED (ui/event-handler event (handle-mouse-exited! view-node event)))
-      (.addEventHandler ScrollEvent/SCROLL (ui/event-handler event (handle-scroll! view-node (prefs/get prefs [:code :zoom-on-mouse-wheel]) event))))
+      (.addEventHandler ScrollEvent/SCROLL (ui/event-handler event (handle-scroll! view-node (prefs/get prefs [:code :zoom-on-scroll]) event))))
 
     (when editable
       (doto canvas
@@ -3811,7 +3811,6 @@
     (let [find-case-sensitive-setter (make-property-change-setter view-node :find-case-sensitive?)
           find-whole-word-setter (make-property-change-setter view-node :find-whole-word?)
           font-size-setter (make-property-change-setter view-node :font-size)
-          zoom-on-mouse-wheel-setter (make-property-change-setter view-node :zoom-on-mouse-wheel?)
           highlighted-find-term-setter (make-property-change-setter view-node :highlighted-find-term)
           visible-indentation-guides-setter (make-property-change-setter view-node :visible-indentation-guides?)
           visible-minimap-setter (make-property-change-setter view-node :visible-minimap?)

@@ -82,7 +82,7 @@
            {:custom-editor {:type :string}
             :open-file {:type :string :default "{file}"}
             :open-file-at-line {:type :string :default "{file}:{line}" :label "Open File at Line"}
-            :zoom-on-mouse-wheel {:type :boolean :default true}
+            :zoom-on-scroll {:type :boolean :default true}
             :font {:type :object
                    :properties
                    {:name {:type :string :default "Dejavu Sans Mono"}
