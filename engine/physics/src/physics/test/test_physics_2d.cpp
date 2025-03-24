@@ -239,6 +239,8 @@ TYPED_TEST(PhysicsTest, SetGridShapeHull)
     ASSERT_TRUE(dmPhysics::SetGridShapeHull(grid_co, 0, 0, 0, 0, EMPTY_FLAGS));
     ASSERT_FALSE(dmPhysics::SetGridShapeHull(grid_co, 1, 0, 0, 0, EMPTY_FLAGS));
 
+    dmPhysics::CreateGridCellShape(grid_co, 0, 0);
+
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, grid_co);
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(grid_shape);
     dmPhysics::DeleteHullSet2D(hull_set);
@@ -1929,6 +1931,96 @@ TYPED_TEST(PhysicsTest, SetGridShapeEnable)
 
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, grid_co);
     dmPhysics::DeleteHullSet2D(hull_set);
+}
+
+TYPED_TEST(PhysicsTest, GetSetGroup2D)
+{
+    int32_t rows = 4;
+    int32_t columns = 10;
+    int32_t cell_width = 16;
+    int32_t cell_height = 16;
+    dmPhysics::CollisionObjectData data;
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
+    data.m_Mass = 0.0f;
+    data.m_UserData = 0;
+    data.m_Group = 0xffff;
+    data.m_Mask = 0xffff;
+    data.m_Restitution = 0.0f;
+
+    dmPhysics::HCollisionShape2D shape = dmPhysics::NewBoxShape2D(TestFixture::m_Context, dmVMath::Vector3(0.5f, 0.5f, 0.0f));
+    typename TypeParam::CollisionObjectType co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
+
+    uint16_t group = dmPhysics::GetGroup2D(TestFixture::m_World, co);
+    ASSERT_EQ((uint16_t)0xffff, group);
+
+    dmPhysics::SetGroup2D(TestFixture::m_World, co, (uint16_t)0xabcd);
+    group = dmPhysics::GetGroup2D(TestFixture::m_World, co);
+
+    ASSERT_EQ((uint16_t)0xabcd, group);
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, co);
+    dmPhysics::DeleteCollisionShape2D(shape);
+}
+
+TYPED_TEST(PhysicsTest, GetSetMaskBit2D)
+{
+    int32_t rows = 4;
+    int32_t columns = 10;
+    int32_t cell_width = 16;
+    int32_t cell_height = 16;
+    dmPhysics::CollisionObjectData data;
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
+    data.m_Mass = 0.0f;
+    data.m_UserData = 0;
+    data.m_Group = 0xffff;
+    data.m_Mask = 0xffff;
+    data.m_Restitution = 0.0f;
+
+    dmPhysics::HCollisionShape2D shape = dmPhysics::NewBoxShape2D(TestFixture::m_Context, dmVMath::Vector3(0.5f, 0.5f, 0.0f));
+    typename TypeParam::CollisionObjectType co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
+
+    bool is_set = dmPhysics::GetMaskBit2D(TestFixture::m_World, co, 1);
+    ASSERT_TRUE(is_set);
+
+    dmPhysics::SetMaskBit2D(TestFixture::m_World, co, (uint16_t)0x00FF, true);
+    dmPhysics::SetMaskBit2D(TestFixture::m_World, co, (uint16_t)0xFF00, false);
+
+    is_set = dmPhysics::GetMaskBit2D(TestFixture::m_World, co, (uint16_t)0xFF00);
+    ASSERT_FALSE(is_set);
+    is_set = dmPhysics::GetMaskBit2D(TestFixture::m_World, co, (uint16_t)0x00F0);
+    ASSERT_TRUE(is_set);
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, co);
+    dmPhysics::DeleteCollisionShape2D(shape);
+}
+
+TYPED_TEST(PhysicsTest, UpdateMass2D)
+{
+    int32_t rows = 4;
+    int32_t columns = 10;
+    int32_t cell_width = 16;
+    int32_t cell_height = 16;
+    dmPhysics::CollisionObjectData data;
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC;
+    data.m_Mass = 1.0f;
+    data.m_UserData = 0;
+    data.m_Group = 0xffff;
+    data.m_Mask = 0xffff;
+    data.m_Restitution = 0.0f;
+
+    dmPhysics::HCollisionShape2D shape = dmPhysics::NewBoxShape2D(TestFixture::m_Context, dmVMath::Vector3(0.5f, 0.5f, 0.0f));
+    typename TypeParam::CollisionObjectType co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
+
+    float mass = dmPhysics::GetMass2D(co);
+    ASSERT_EQ(1.0f, mass);
+
+    dmPhysics::UpdateMass2D(TestFixture::m_World, co, 2.0f);
+
+    mass = dmPhysics::GetMass2D(co);
+    ASSERT_EQ(2.0f, mass);
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, co);
+    dmPhysics::DeleteCollisionShape2D(shape);
 }
 
 TYPED_TEST(PhysicsTest, ScriptApiBox2D)
