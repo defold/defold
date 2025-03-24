@@ -2471,12 +2471,13 @@
         (when-not (get-property view-node :hover-mouse-over-popup evaluation-context)
           (assoc (schedule-hover-refresh! view-node) :hover-cursor nil))))))
 
-(defn handle-scroll! [view-node ^ScrollEvent event]
+(defn handle-scroll! [view-node zoom-on-scroll ^ScrollEvent event]
   (.consume event)
   (when (if (.isShortcutDown event)
-          (do (-> (g/node-value view-node :canvas)
-                  (ui/run-command (cond (pos? (.getDeltaY event)) :zoom-in
-                                        (neg? (.getDeltaY event)) :zoom-out)))
+          (do (when zoom-on-scroll
+                (-> (g/node-value view-node :canvas)
+                    (ui/run-command (cond (pos? (.getDeltaY event)) :zoom-in
+                                          (neg? (.getDeltaY event)) :zoom-out))))
               true)
           (set-properties! view-node :navigation
                            (data/scroll (get-property view-node :lines)
@@ -3701,7 +3702,7 @@
       (reset! state nil))))
 
 (defn- make-view! [graph parent resource-node opts]
-  (let [{:keys [^Tab tab app-view grammar open-resource-fn project]} opts
+  (let [{:keys [^Tab tab app-view grammar open-resource-fn project prefs]} opts
         basis (g/now)
         resource-node-type (g/node-type* basis resource-node)
         editable (g/has-property? resource-node-type :modified-lines)
@@ -3773,7 +3774,7 @@
       (.addEventHandler MouseEvent/MOUSE_DRAGGED (ui/event-handler event (handle-mouse-moved! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_RELEASED (ui/event-handler event (handle-mouse-released! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_EXITED (ui/event-handler event (handle-mouse-exited! view-node event)))
-      (.addEventHandler ScrollEvent/SCROLL (ui/event-handler event (handle-scroll! view-node event))))
+      (.addEventHandler ScrollEvent/SCROLL (ui/event-handler event (handle-scroll! view-node (prefs/get prefs [:code :zoom-on-scroll]) event))))
 
     (when editable
       (doto canvas

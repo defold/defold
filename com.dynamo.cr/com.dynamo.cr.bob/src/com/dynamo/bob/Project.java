@@ -1455,9 +1455,9 @@ public class Project {
                 boolean fromProjectOptions = this.option(option.inputOption, "false").equals("true");
                 this.setOption(option.outputOption, Boolean.toString(fromProjectProperties || fromProjectOptions));
             } else if (option.appManifestSymbol != null) {
-                boolean hasSymbol = true;
+                boolean hasSymbol = false;
                 for(Map<String, Object>platfromSetting : platformsSettings) {
-                    hasSymbol &= ExtenderUtil.hasSymbol(option.appManifestSymbol, platfromSetting);
+                    hasSymbol = hasSymbol || ExtenderUtil.hasSymbol(option.appManifestSymbol, platfromSetting);
                 }
                 this.setOption(option.outputOption, Boolean.toString(hasSymbol || fromProjectProperties));
             } else {

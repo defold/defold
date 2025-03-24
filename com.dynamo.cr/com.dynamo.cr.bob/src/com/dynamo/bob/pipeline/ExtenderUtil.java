@@ -1236,8 +1236,6 @@ public class ExtenderUtil {
     }
 
     public static boolean hasSymbol(String symbolName, Map<String, Object> platformSettings) throws IOException, CompileExceptionError {
-        Map<String, Object> yamlPlatforms = (Map<String, Object>) platformSettings.getOrDefault("platforms", null);
-
         Map<String, Object> yamlPlatformContext = (Map<String, Object>) platformSettings.getOrDefault("context", null);
         if (yamlPlatformContext != null) {
             boolean symbolFound = false;
