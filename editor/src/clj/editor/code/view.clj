@@ -3774,7 +3774,6 @@
       (.addEventHandler MouseEvent/MOUSE_DRAGGED (ui/event-handler event (handle-mouse-moved! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_RELEASED (ui/event-handler event (handle-mouse-released! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_EXITED (ui/event-handler event (handle-mouse-exited! view-node event)))
-
       (.addEventHandler ScrollEvent/SCROLL (ui/event-handler event (handle-scroll! view-node (prefs/get prefs [:code :zoom-on-mouse-wheel]) event))))
 
     (when editable
