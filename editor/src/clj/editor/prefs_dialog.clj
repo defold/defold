@@ -113,7 +113,8 @@
             :prefs [{:label "Custom Editor" :type :string :key [:code :custom-editor]}
                     {:label "Open File" :type :string :key [:code :open-file]}
                     {:label "Open File at Line" :type :string :key [:code :open-file-at-line]}
-                    {:label "Code Editor Font (Requires Restart)" :type :string :key [:code :font :name]}]}
+                    {:label "Code Editor Font (Requires Restart)" :type :string :key [:code :font :name]}
+                    {:label "Zoom on mouse wheel" :type :boolean :key [:code :zoom-on-mouse-wheel]}]}
            {:name  "Extensions"
             :prefs [{:label "Build Server" :type :string :key [:extensions :build-server] :prompt-value native-extensions/defold-build-server-url}
                     {:label "Build Server Headers" :type :string :key [:extensions :build-server-headers] :multi-line true}]}
