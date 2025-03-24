@@ -1265,6 +1265,17 @@
                    contexts))
           (persistent! syntax-info'))))))
 
+(defn syntax-scope-before-cursor [syntax-info grammar ^Cursor cursor]
+  {:pre [(< (.-row cursor) (count syntax-info))]}
+  (or
+    (let [row (.-row cursor)
+          col-before-cursor (dec (.-col cursor))
+          runs (second (get syntax-info row))]
+      (let [result-index (dec ^long (util/find-insert-index runs [col-before-cursor] #(compare (%1 0) (%2 0))))]
+        (when-let [run (get runs result-index)]
+          (second run))))
+    (:scope-name grammar "source")))
+
 (defn last-visible-row
   "Returns 1-indexed row number of the last visible row"
   [^LayoutInfo layout]
@@ -2271,22 +2282,48 @@
             (empty? clean-lines)
             (assoc :invalidated-row 0))))
 
-(defn delete-character-before-cursor [lines cursor-range]
-  (let [from (CursorRange->Cursor cursor-range)
-        to (cursor-left lines from)]
-    [(->CursorRange from to) [""]]))
+(defn delete-character-before-cursor [lines grammar syntax-info cursor-range]
+  (let [cursor (adjust-cursor lines (CursorRange->Cursor cursor-range))]
+    (or
+      (when-let [{:keys [characters exclude-scopes open-scopes]} (:auto-insert grammar)]
+        ;; auto-remove closing parens only across a single line
+        (let [row (.-row cursor)
+              ^String line (lines row)
+              next-character-index (.-col cursor)
+              deleted-character-index (dec next-character-index)]
+          ;; check if there exist both at least 1 char to the left and 1 char to
+          ;; the right
+          (when (and (not (neg? deleted-character-index))
+                     (< next-character-index (.length line)))
+            (let [deleted-character (.charAt line deleted-character-index)]
+              (when-let [closing-counterpart (characters deleted-character)]
+                (when (and (= (.charAt line next-character-index)
+                              (char closing-counterpart))
+                           ;; exclusion: we don't open auto-inserts in certain
+                           ;; regions (e.g. inside strings). for these regions, we
+                           ;; also don't remove such a matching closing chars...
+                           ;; UNLESS the deleted char is white-listed for open
+                           (or (nil? exclude-scopes)
+                               (not (contains? exclude-scopes (syntax-scope-before-cursor syntax-info grammar (update cursor :col dec))))
+                               ;; the "unless" part
+                               (when-let [deleted-char-open-scope (get open-scopes deleted-character)]
+                                 (= deleted-char-open-scope (syntax-scope-before-cursor syntax-info grammar cursor)))))
+                  [(->CursorRange (->Cursor row deleted-character-index)
+                                  (->Cursor row (inc next-character-index)))
+                   [""]]))))))
+      [(->CursorRange cursor (cursor-left lines cursor)) [""]])))
 
-(defn delete-word-before-cursor [lines cursor-range]
+(defn delete-word-before-cursor [lines _grammar _syntax-info cursor-range]
   (let [from (CursorRange->Cursor cursor-range)
         to (cursor-prev-word lines from)]
     [(->CursorRange from to) [""]]))
 
-(defn delete-character-after-cursor [lines cursor-range]
+(defn delete-character-after-cursor [lines _grammar _syntax-info cursor-range]
   (let [from (CursorRange->Cursor cursor-range)
         to (cursor-right lines from)]
     [(->CursorRange from to) [""]]))
 
-(defn delete-word-after-cursor [lines cursor-range]
+(defn delete-word-after-cursor [lines _grammar _syntax-info cursor-range]
   (let [from (CursorRange->Cursor cursor-range)
         to (cursor-next-word lines from)]
     [(->CursorRange from to) [""]]))
@@ -2369,13 +2406,104 @@
               (not= scroll-x new-scroll-x) (assoc :scroll-x new-scroll-x)
               (not= scroll-y new-scroll-y) (assoc :scroll-y new-scroll-y)))))
 
-(defn key-typed [indent-level-pattern indent-string grammar lines cursor-ranges regions layout typed]
+(defn- key-type-with-auto-insert [indent-level-pattern indent-string grammar lines cursor-ranges regions layout syntax-info ^String typed]
+  {:pre [(= 1 (.length typed))
+         (contains? grammar :auto-insert)]}
+  (let [ch (.charAt typed 0)
+        {:keys [close-characters characters exclude-scopes close-scopes open-scopes]} (:auto-insert grammar)
+        cursor-ranges (mapv (partial adjust-cursor-range lines) cursor-ranges)
+        max-range-row (long (transduce (map #(.-row (cursor-range-end %))) max 0 cursor-ranges))
+        syntax-info (ensure-syntax-info syntax-info (inc max-range-row) lines grammar)
+        changes (-> (splice
+                      lines
+                      regions
+                      (mapv
+                        (fn [^CursorRange cursor-range]
+                          (cond
+                            ;; if no selection and we typed a closing char, e.g. "]"
+                            ;; after "[", we only move the cursor to the right
+                            (and (cursor-range-empty? cursor-range)
+                                 (contains? close-characters ch)
+                                 (let [cursor (cursor-range-end cursor-range)
+                                       ^String line (lines (.-row cursor))
+                                       next-char-index (.-col cursor)]
+                                   (and (< next-char-index (.length line))
+                                        (let [next-char (.charAt line next-char-index)]
+                                          (and (= ch next-char)
+                                               ;; Corner case: if the next character is a
+                                               ;; closing one, but it resides in an open scope,
+                                               ;; skip it here. An example is typing a single
+                                               ;; quote (') in this scenario:
+                                               ;; 'asd'|'asd'
+                                               ;;      ^-- this is a cursor, not a pipe
+                                               ;; Without handling the corner case, the cursor
+                                               ;; would move right instead of inserting a new
+                                               ;; string
+                                               (if-let [next-char-open-scope (get open-scopes next-char)]
+                                                 (not= next-char-open-scope (syntax-scope-before-cursor syntax-info grammar (update cursor :col inc)))
+                                                 true)
+
+                                               ;; exclusion: when we don't open an auto-insert
+                                               ;; in certain regions (e.g. inside strings), we
+                                               ;; also don't close the regions... UNLESS the
+                                               ;; next-char is white-listed for close!
+                                               (or (nil? exclude-scopes)
+                                                   (not (contains? exclude-scopes (syntax-scope-before-cursor syntax-info grammar cursor)))
+                                                   ;; the "unless" part
+                                                   (when-let [next-char-close-scope (get close-scopes next-char)]
+                                                     (= next-char-close-scope (syntax-scope-before-cursor syntax-info grammar (update cursor :col inc))))))))))
+                            (pair (assoc cursor-range :pair ::close) [""])
+
+                            ;; if we insert an open character, also add a closing
+                            ;; character after the selection
+                            (and (contains? characters ch)
+                                 ;; exclusion: we don't open an auto-insert
+                                 ;; in certain regions (e.g. inside strings)
+                                 (or (nil? exclude-scopes)
+                                     (not (contains? exclude-scopes (syntax-scope-before-cursor syntax-info grammar (.-to cursor-range))))))
+                            (pair (assoc cursor-range :pair ::open)
+                                  (util/split-lines (str ch
+                                                         (cursor-range-text lines cursor-range)
+                                                         (characters ch))))
+
+                            :else
+                            (pair cursor-range (util/split-lines typed))))
+                        cursor-ranges))
+                    (fix-indentation-after-splice indent-level-pattern indent-string grammar)
+                    (update-document-width-after-splice layout))
+        {:keys [lines]} changes]
+    (-> changes
+        (update
+          :cursor-ranges
+          (fn [cursor-ranges]
+            (mapv
+              (fn [^CursorRange cursor-range]
+                (case (:pair cursor-range)
+                  ::close (Cursor->CursorRange (cursor-right lines (cursor-range-end cursor-range)))
+                  ::open (let [from (.-from cursor-range)
+                               to (.-to cursor-range)
+                               range-inverted (pos? (compare-cursor-position from to))
+                               start (if range-inverted to from)
+                               end (if range-inverted from to)
+                               new-start (cursor-right lines start)
+                               new-end (cursor-left lines end)]
+                           (if range-inverted
+                             (->CursorRange new-end new-start)
+                             (->CursorRange new-start new-end)))
+                  (cursor-range-end-range cursor-range)))
+              cursor-ranges)))
+        (frame-cursor layout))))
+
+(defn key-typed [indent-level-pattern indent-string grammar lines cursor-ranges regions layout syntax-info ^String typed]
   (case typed
     "\r" ; Enter or Return.
     (insert-text indent-level-pattern indent-string grammar lines cursor-ranges regions layout "\n")
 
     (when (not-any? #(Character/isISOControl ^char %) typed)
-      (insert-text indent-level-pattern indent-string grammar lines cursor-ranges regions layout typed))))
+      (if (and (= 1 (.length typed))
+               (contains? grammar :auto-insert))
+        (key-type-with-auto-insert indent-level-pattern indent-string grammar lines cursor-ranges regions layout syntax-info typed)
+        (insert-text indent-level-pattern indent-string grammar lines cursor-ranges regions layout typed)))))
 
 (defn execution-marker? [region]
   (= :execution-marker (:type region)))
@@ -2781,9 +2909,13 @@
   (or (can-paste-plain-text? clipboard)
       (can-paste-multi-selection? clipboard cursor-ranges)))
 
-(defn delete [lines cursor-ranges regions ^LayoutInfo layout delete-fn]
+(defn delete [lines grammar syntax-info cursor-ranges regions ^LayoutInfo layout delete-fn]
   (-> (if (every? cursor-range-empty? cursor-ranges)
-        (splice lines regions (map (partial delete-fn lines) cursor-ranges))
+        (let [syntax-info (if (:auto-insert grammar)
+                            (let [max-row (long (transduce (map #(-> % cursor-range-end .-row)) max 0 cursor-ranges))]
+                              (ensure-syntax-info syntax-info (inc max-row) lines grammar))
+                            syntax-info)]
+          (splice lines regions (map (partial delete-fn lines grammar syntax-info) cursor-ranges)))
         (splice lines regions (map (partial delete-range lines) cursor-ranges)))
       (frame-cursor layout)))
 
