@@ -1823,6 +1823,12 @@ namespace dmGraphics
 
     static void NullInvalidateGraphicsHandles(HContext context) { }
 
+    static void NullGetViewport(HContext context, int32_t& x, int32_t& y, uint32_t& width, uint32_t& height)
+    {
+        assert(context);
+        x = 0, y = 0, width = 1000, height = 1000;
+    }
+
     bool UnmapIndexBuffer(HContext context, HIndexBuffer buffer)
     {
         IndexBuffer* ib = (IndexBuffer*)buffer;

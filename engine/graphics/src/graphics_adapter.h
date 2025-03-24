@@ -149,6 +149,7 @@ namespace dmGraphics
     typedef bool (*IsContextFeatureSupportedFn)(HContext context, ContextFeature feature);
     typedef bool (*IsAssetHandleValidFn)(HContext context, HAssetHandle asset_handle);
     typedef void (*InvalidateGraphicsHandlesFn)(HContext context);
+    typedef void (*GetViewportFn)(HContext context, int32_t& x, int32_t& y, uint32_t& width, uint32_t& height);
 
     struct GraphicsAdapterFunctionTable
     {
@@ -252,6 +253,7 @@ namespace dmGraphics
         IsContextFeatureSupportedFn m_IsContextFeatureSupported;
         IsAssetHandleValidFn m_IsAssetHandleValid;
         InvalidateGraphicsHandlesFn m_InvalidateGraphicsHandles;
+        GetViewportFn m_GetViewport;
     };
 
     #define DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, fn_name) \
@@ -356,7 +358,8 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetPipelineState); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsContextFeatureSupported); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsAssetHandleValid); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, InvalidateGraphicsHandles);
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, InvalidateGraphicsHandles); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetViewport);
 }
 
 #endif

@@ -2671,6 +2671,14 @@ namespace dmGraphics
         context->m_ViewportChanged = 1;
     }
 
+    static void DX12GetViewport(HContext context, int32_t& x, int32_t& y, uint32_t& width, uint32_t& height)
+    {
+        DX12Context* context = (DX12Context*) _context;
+
+        const DX12Viewport& viewport = context->m_CurrentViewport;
+        x = viewport.m_X, y = viewport.m_Y, widhth = viewport.m_W, height = viewport.m_H;
+    }
+
     static void DX12EnableState(HContext context, State state)
     {
         SetPipelineStateValue(g_DX12Context->m_PipelineState, state, 1);

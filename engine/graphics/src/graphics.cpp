@@ -1897,6 +1897,10 @@ namespace dmGraphics
     {
         g_functions.m_InvalidateGraphicsHandles(context);
     }
+    void GetViewport(HContext context, int32_t& x, int32_t& y, uint32_t& width, uint32_t& height)
+    {
+        g_functions.m_GetViewport(context, x, y, width, height);
+    }
 
 #if defined(DM_PLATFORM_IOS)
     void AppBootstrap(int argc, char** argv, void* init_ctx, EngineInit init_fn, EngineExit exit_fn, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
