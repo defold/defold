@@ -1712,7 +1712,10 @@ namespace dmSound
             // DEF-2540: Make sure to keep feeding the sound device if audio is being generated,
             // if you don't you'll get more slots free, thus updating sound (redundantly) every call,
             // resulting in a huge performance hit. Also, you'll fast forward the sounds.
-            sound->m_DeviceType->m_Queue(sound->m_Device, (const int16_t*) sound->m_OutBuffers[sound->m_NextOutBuffer], frame_count);
+            {
+                DM_PROFILE("QueueBuffer");
+                sound->m_DeviceType->m_Queue(sound->m_Device, (const int16_t*) sound->m_OutBuffers[sound->m_NextOutBuffer], frame_count);
+            }
 
             sound->m_NextOutBuffer = (sound->m_NextOutBuffer + 1) % SOUND_OUTBUFFER_COUNT;
             current_buffer++;
