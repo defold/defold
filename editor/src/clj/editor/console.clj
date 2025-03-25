@@ -746,7 +746,7 @@
       (.addEventHandler MouseEvent/MOUSE_DRAGGED (ui/event-handler event (view/handle-mouse-moved! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_RELEASED (ui/event-handler event (view/handle-mouse-released! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_EXITED (ui/event-handler event (view/handle-mouse-exited! view-node event)))
-      (.addEventHandler ScrollEvent/SCROLL (ui/event-handler event (view/handle-scroll! view-node event))))
+      (.addEventHandler ScrollEvent/SCROLL (ui/event-handler event (view/handle-scroll! view-node false event))))
 
     ;; Configure contexts.
     (ui/context! console-grid-pane :console-grid-pane context-env nil)
@@ -778,4 +778,3 @@
     (assert (g/node-instance? ConsoleNode console-node))
     {"/console" {"GET" (bound-fn [_]
                          (g/node-value console-node :request-response))}}))
-
