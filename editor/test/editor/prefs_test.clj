@@ -65,7 +65,7 @@
 
 (defspec password-schema-valid-spec 100
   (prop/for-all [x gen/string]
-    (prefs/valid? {:type :password} (#'prefs/value->storage {:type :password} x))))
+    (prefs/valid? {:type :password} x)))
 
 (defspec password-schema-invalid-spec 10
   (prop/for-all [x (gen/such-that (complement string?) gen/any)]
@@ -567,14 +567,22 @@
   (is (= {:a {:other true} :x "val"} (prefs/safe-assoc-in {:a {:other true}} [:x] "val"))))
 
 (deftest secure-password-storage-test
-  (with-schemas {::test {:type :password}}
-    (let [global-file (fs/create-temp-file! "global" "test.editor_settings")
-          p (prefs/make :scopes {:global global-file}
-                        :schemas [::test])]
-      (is (= "" (prefs/get p [])))
-      (prefs/set! p [] "secret")
-      (is (= "secret" (prefs/get p [])))
-      (prefs/sync!)
-      (let [stored-value (edn/read-string (slurp global-file))]
-        (is (string? stored-value))
-        (is (not= "secret" stored-value))))))
+  (with-schemas {::test {:type :password :default "pass"}}
+    (testing "storage"
+      (let [global-file (fs/create-temp-file! "global" "test.editor_settings")
+            p (prefs/make :scopes {:global global-file}
+                          :schemas [::test])]
+        (is (= "pass" (prefs/get p [])))
+        (prefs/set! p [] "secret")
+        (is (= "secret" (prefs/get p [])))
+        (prefs/sync!)
+        (let [stored-value (edn/read-string (slurp global-file))]
+          (is (string? stored-value))
+          (is (not= "secret" stored-value)))))
+    (testing "loading invalid human-edited password strings"
+      (let [global-file (doto (fs/create-temp-file! "global" "test.editor_settings")
+                          (spit "\"invalid base64 string\""))
+            p (prefs/make :scopes {:global global-file}
+                          :schemas [::test])]
+        (is (not (prefs/set? p [])))
+        (is (= "pass" (prefs/get p [])))))))

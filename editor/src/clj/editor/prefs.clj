@@ -237,6 +237,11 @@
         :tuple (mapv default-value (:items schema)))
       explicit-default)))
 
+
+;; endregion
+
+;; region storage values
+
 (def ^:private secret-delay
   (delay (crypto/secret-bytes (.getBytes (System/getProperty "user.name") StandardCharsets/UTF_8)
                               (byte-array [0x9F 0x4B 0x7E 0x22 0xED 0xC1 0xA5 0x71
@@ -244,15 +249,25 @@
                                            0x41 0xD0 0xE8 0x2D 0x25 0xAB 0x7F 0xBA
                                            0x69 0x33 0xBB 0x47 0xBF 0xC2 0x4D 0x39]))))
 
-(defn- storage->value [schema x]
+(defn- storage-value->value [schema storage-value]
   (case (:type schema)
-    :password (crypto/decrypt-string-base64 x @secret-delay)
-    x))
+    :password (crypto/decrypt-string-base64 storage-value @secret-delay)
+    storage-value))
 
-(defn- value->storage [schema x]
+(defn- value->storage-value [schema value]
   (case (:type schema)
-    :password (crypto/encrypt-string-base64 x @secret-delay)
-    x))
+    :password (crypto/encrypt-string-base64 value @secret-delay)
+    value))
+
+(defn- storage-value-valid? [schema value]
+  (case (:type schema)
+    :password (and (string? value)
+                   (try
+                     (crypto/base64->bytes value)
+                     true
+                     (catch IllegalArgumentException _
+                       false)))
+    (valid? schema value)))
 
 ;; endregion
 
@@ -444,11 +459,11 @@
       key
       #(lookup-valid-value-at-path scopes storage (val %) (conj path (key %)))
       (:properties schema))
-    (let [value (-> schema :scope scopes storage (get-in path ::not-found))]
-      (if (or (identical? value ::not-found)
-              (not (valid? schema value)))
+    (let [storage-value (-> schema :scope scopes storage (get-in path ::not-found))]
+      (if (or (identical? storage-value ::not-found)
+              (not (storage-value-valid? schema storage-value)))
         (default-value schema)
-        (storage->value schema value)))))
+        (storage-value->value schema storage-value)))))
 
 (defn- value-at-path-set? [scopes storage schema path]
   (if (= :object (:type schema))
@@ -456,9 +471,9 @@
       (coll/some
         #(value-at-path-set? scopes storage (val %) (conj path (key %)))
         (:properties schema)))
-    (let [value (-> schema :scope scopes storage (get-in path ::not-found))]
-      (and (not (identical? value ::not-found))
-           (valid? schema value)))))
+    (let [storage-value (-> schema :scope scopes storage (get-in path ::not-found))]
+      (and (not (identical? storage-value ::not-found))
+           (storage-value-valid? schema storage-value)))))
 
 (defn merge-schemas
   "Similar to clojure.core/merge-with, but for schemas
@@ -573,7 +588,7 @@
           value))
       (throw (value-error path value schema)))
     (if (valid? schema value)
-      [[(-> schema :scope scopes) path (value->storage schema value)]]
+      [[(-> schema :scope scopes) path (value->storage-value schema value)]]
       (throw (value-error path value schema)))))
 
 ;; endregion
@@ -634,10 +649,10 @@
                             (->> value
                                  (set-value-events scopes schema path)
                                  (reduce
-                                   (fn [acc [file-path config-path value]]
+                                   (fn [acc [file-path config-path storage-value]]
                                      (-> acc
-                                         (update-in [:storage file-path] safe-assoc-in config-path value)
-                                         (assoc-in [:events file-path config-path] value)))
+                                         (update-in [:storage file-path] safe-assoc-in config-path storage-value)
+                                         (assoc-in [:events file-path config-path] storage-value)))
                                    m)))))
     nil))
 
