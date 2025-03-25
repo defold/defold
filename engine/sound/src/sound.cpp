@@ -1091,6 +1091,7 @@ namespace dmSound
 
     static inline void MixResampleIdentity(const MixContext* mix_context, SoundInstance* instance, uint32_t channels, uint64_t delta, float* mix_buffer[], uint32_t mix_buffer_count, uint32_t avail_framecount)
     {
+        DM_PROFILE(__FUNCTION__);
         (void)delta;
 
         PrepTempBufferState(instance, channels);
@@ -1115,7 +1116,8 @@ namespace dmSound
     }
 
     static inline void MixResamplePolyphase(const MixContext* mix_context, SoundInstance* instance, uint32_t channels, uint64_t delta, float* mix_buffer[], uint32_t mix_buffer_count, uint32_t avail_framecount)
-    { 
+    {
+        DM_PROFILE(__FUNCTION__);
         static_assert(SOUND_MAX_MIX_CHANNELS == 2, "this code assumes 2 mix channels");
 
         PrepTempBufferState(instance, channels);
@@ -1146,6 +1148,7 @@ namespace dmSound
 
     static inline void MixResample(const MixContext* mix_context, SoundInstance* instance, const dmSoundCodec::Info* info, uint64_t delta, float* mix_buffer[], uint32_t mix_buffer_count, uint32_t avail_framecount)
     {
+        DM_PROFILE(__FUNCTION__);
         // Make sure to update the mixing scale values...
         if (instance->m_ScaleDirty != 0) {
             instance->m_ScaleDirty = 0;
@@ -1276,6 +1279,7 @@ namespace dmSound
 
     static inline void MixInstance(const MixContext* mix_context, SoundInstance* instance)
     {
+        DM_PROFILE(__FUNCTION__);
         SoundSystem* sound = g_SoundSystem;
 
         dmSoundCodec::Info info;
