@@ -27,7 +27,7 @@ readonly PACKAGE_NAME=${PRODUCT}-${VERSION}-${PLATFORM}.tar.gz
 readonly HEADERS_PACKAGE_NAME=${PRODUCT}-${VERSION}-common.tar.gz
 
 readonly BOX2D_URL=https://github.com/erincatto/box2d/archive/${VERSION}.zip
-readonly BOX2D_DIR=$(realpath ./box2d)
+readonly BOX2D_DIR="$(realpath ./)/box2d"
 
 . ../common.sh
 
@@ -54,6 +54,7 @@ CMAKE_CONFIGURE_FLAGS=
 LIB_SUFFIX=a
 LIB_OUTPUT_PATH=
 
+# some of the variable defined in common.sh (especially minimum supported os versions)
 case $PLATFORM in
     js-web)
         CMAKE_FLAGS="-DBOX2D_ENABLE_SIMD=OFF ${CMAKE_FLAGS}"
@@ -84,10 +85,10 @@ case $PLATFORM in
         CFLAGS="-DDEFOLD_USE_POSIX_MEMALIGN ${CFLAGS}"
         ;;
     arm64-macos)
-        CMAKE_FLAGS="-DCMAKE_OSX_ARCHITECTURES=arm64 ${CMAKE_FLAGS}"
+        CMAKE_FLAGS="-DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=${OSX_MIN_SDK_VERSION} ${CMAKE_FLAGS}"
         ;;
     x86_64-macos)
-        CMAKE_FLAGS="-DCMAKE_OSX_ARCHITECTURES=x86_64 ${CMAKE_FLAGS}"
+        CMAKE_FLAGS="-DCMAKE_OSX_ARCHITECTURES=x86_64 -DCMAKE_OSX_DEPLOYMENT_TARGET=${OSX_MIN_SDK_VERSION} ${CMAKE_FLAGS}"
 
         CXXFLAGS="-DDEFOLD_USE_POSIX_MEMALIGN ${CXXFLAGS}"
         CFLAGS="-DDEFOLD_USE_POSIX_MEMALIGN ${CFLAGS}"
@@ -170,11 +171,13 @@ mkdir -p ./include/box2d/src
 
 cp -v ./src/${LIB_OUTPUT_PATH}*.${LIB_SUFFIX} ./lib/$PLATFORM/libbox2d.${LIB_SUFFIX}
 
+echo "tar cfvz ${PACKAGE_NAME} lib"
 tar cfvz ${PACKAGE_NAME} lib
 
 cp -v -r ${BOX2D_DIR}/include/box2d ./include
 cp -v -r ${BOX2D_DIR}/src/*.h ./include/box2d/src
 
+echo "tar cfvz ${HEADERS_PACKAGE_NAME} include"
 tar cfvz ${HEADERS_PACKAGE_NAME} include
 
 popd
