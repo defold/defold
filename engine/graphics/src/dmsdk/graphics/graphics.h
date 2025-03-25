@@ -726,8 +726,8 @@ namespace dmGraphics
     /*# Get viewport's parameters
      * @name GetViewport
      * @param context [type:dmGraphics::HContext] the context
-     * @param x [type:int32_t] 
-     * @param y [type:int32_t] 
+     * @param x [type:int32_t] coordinate of left edge of viewport
+     * @param y [type:int32_t] coordinate of bottom edge of viewport
      * @param width [type:uint32_t] viewport width
      * @param height [type:uint32_t] viewport height
      */
