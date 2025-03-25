@@ -53,13 +53,13 @@
             [editor.future :as future]
             [editor.resource :as resource]
             editor.workspace)
-  (:import [com.defold.editor.luart DefoldBaseLib DefoldCoroutine$Create DefoldCoroutine$Yield DefoldIoLib DefoldUserdata DefoldVarArgFn SearchPath]
+  (:import [com.defold.editor.luart DefoldBaseLib DefoldCoroutine$Create DefoldCoroutine$Yield DefoldIoLib DefoldUserdata DefoldLuaFn DefoldVarargsLuaFn SearchPath]
            [editor.resource FileResource ZipResource MemoryResource]
            [editor.workspace BuildResource]
            [java.io File PrintStream Writer]
            [java.nio.charset StandardCharsets]
            [org.apache.commons.io.output WriterOutputStream]
-           [org.luaj.vm2 LoadState LuaError LuaFunction LuaString LuaTable LuaValue OrphanedThread]
+           [org.luaj.vm2 LoadState LuaError LuaFunction LuaString LuaTable LuaValue OrphanedThread Varargs]
            [org.luaj.vm2.compiler LuaC]
            [org.luaj.vm2.lib Bit32Lib CoroutineLib PackageLib PackageLib$lua_searcher PackageLib$preload_searcher StringLib TableLib]
            [org.luaj.vm2.lib.jse JseMathLib JseOsLib]))
@@ -76,10 +76,10 @@
 
 (extend-protocol SuspensionResult
   nil
-  (deliver-result [x] (vm/->lua x))
+  (deliver-result [x] (vm/->varargs x))
   (refresh-context? [_] false)
   Object
-  (deliver-result [x] (vm/->lua x))
+  (deliver-result [x] (vm/->varargs x))
   (refresh-context? [_] false)
   Exception
   (deliver-result [ex] (throw ex))
@@ -108,7 +108,7 @@
 (defn ->varargs
   "Convert 0 or more Clojure data structures into Lua varargs"
   ;; all lua values are singleton varargs
-  ([] LuaValue/NIL)
+  ([] LuaValue/NONE)
   ([x] (->lua x))
   ([x y]
    (LuaValue/varargsOf (->lua x) (->lua y)))
@@ -162,7 +162,7 @@
 
 (defn wrap-suspendable-function
   ^LuaFunction [f]
-  (DefoldVarArgFn.
+  (DefoldLuaFn.
     (fn suspendable-function-wrapper [& args]
       (let [ctx (current-execution-context)]
         (if (= :immediate (:mode ctx))
@@ -194,7 +194,7 @@
   `(wrap-suspendable-function (fn ~@fn-tail)))
 
 (defn wrap-immediate-function ^LuaFunction [f]
-  (DefoldVarArgFn.
+  (DefoldLuaFn.
     (fn immediate-function-wrapper [& args]
       (vm/->varargs (apply f (current-execution-context) args)))))
 
@@ -210,6 +210,29 @@
     :mode                  :suspendable or :immediate"
   [& fn-tail]
   `(wrap-immediate-function (fn ~@fn-tail)))
+
+(defn wrap-immediate-varargs-function
+  ^LuaFunction [f]
+  (DefoldVarargsLuaFn.
+    (fn immediate-varargs-function-wrapper [varargs]
+      (vm/->varargs (f (current-execution-context) varargs)))))
+
+(defmacro varargs-lua-fn
+  "Defines a regular Lua function
+
+  The function will receive 2 arguments:
+    - an execution context
+    - varargs arguments that were passed by the editor script.
+
+  Returned value will be coerced to Varargs. If the returned value is already a
+  LuaValue or Varargs, it will be left as is.
+
+  Execution context is a map with the following keys:
+    :evaluation-context    the evaluation context for the current execution
+    :rt                    the runtime used for execution
+    :mode                  :suspendable or :immediate"
+  [& fn-tail]
+  `(wrap-immediate-varargs-function (fn ~@fn-tail)))
 
 (defn read
   "Read a chunk of lua code and return a Prototype for bind
@@ -355,11 +378,11 @@
 (defn- invoke-suspending-impl [execution-context ^EditorExtensionsRuntime runtime co & lua-args]
   (binding [*execution-context* execution-context]
     (let [vm (.-lua-vm runtime)
-          [lua-success lua-ret] (apply vm/invoke-all vm (.-resume runtime) co lua-args)]
-      (if (->clj runtime coerce/boolean lua-success)
+          ^Varargs lua-success+rest-varargs (apply vm/invoke vm (.-resume runtime) co lua-args)]
+      (if (->clj runtime coerce/boolean (.arg1 lua-success+rest-varargs))
         (if (= lua-str-dead (vm/invoke-1 vm (.-status runtime) co))
-          (future/completed (or lua-ret LuaValue/NIL))
-          (let [^Suspend suspend (->clj runtime coerce/userdata lua-ret)]
+          (future/completed (.subargs lua-success+rest-varargs 2))
+          (let [^Suspend suspend (->clj runtime coerce/userdata (.arg lua-success+rest-varargs 2))]
             (-> (try
                   (future/wrap (apply (.-f suspend) execution-context (.-args suspend)))
                   (catch Throwable e (future/failed e)))
@@ -378,7 +401,7 @@
                         (fx/on-fx-thread (update-cache! (:evaluation-context execution-context)))
                         (invoke-suspending-impl new-context runtime co (vm/wrap-userdata result)))
                       (invoke-suspending-impl execution-context runtime co (vm/wrap-userdata result))))))))
-        (future/failed (LuaError. ^String (->clj runtime coerce/string lua-ret)))))))
+        (future/failed (LuaError. ^String (->clj runtime coerce/to-string (.arg lua-success+rest-varargs 2))))))))
 
 (defn stdout
   "Get runtime output stream"
@@ -390,11 +413,11 @@
   ^PrintStream [^EditorExtensionsRuntime rt]
   (.-STDERR (vm/env (.-lua-vm rt))))
 
-(defn invoke-suspending-1
+(defn invoke-suspending
   "Invoke a potentially long-running LuaFunction
 
   Returns a CompletableFuture that will be either completed normally with
-  the first returned LuaValue or exceptionally.
+  the returned LuaValues as a Varargs object or exceptionally.
 
   Runtime will start invoking the LuaFunction on the calling thread, then will
   move the execution to background threads if necessary. This means that
@@ -405,6 +428,20 @@
                            :rt runtime
                            :mode :suspendable}]
     (apply invoke-suspending-impl execution-context runtime co lua-args)))
+
+(defn invoke-suspending-1
+  "Invoke a potentially long-running LuaFunction
+
+  Returns a CompletableFuture that will be either completed normally with
+  the first returned LuaValue or exceptionally.
+
+  Runtime will start invoking the LuaFunction on the calling thread, then will
+  move the execution to background threads if necessary. This means that
+  invoke-suspending might return a completed CompletableFuture"
+  [^EditorExtensionsRuntime runtime lua-fn & lua-args]
+  (future/then
+    (apply invoke-suspending runtime lua-fn lua-args)
+    #(.arg1 ^Varargs %)))
 
 (defn- invoke-immediate-impl [^EditorExtensionsRuntime runtime vm-invoke-fn lua-fn lua-args evaluation-context]
   (let [context-provided (some? evaluation-context)

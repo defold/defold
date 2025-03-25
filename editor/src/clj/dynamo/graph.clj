@@ -83,6 +83,12 @@
   ([basis node-id]
    (gt/node-by-id-at basis node-id)))
 
+(defn node-exists?
+  ([node-id]
+   (node-exists? (now) node-id))
+  ([basis node-id]
+   (some? (gt/node-by-id-at basis node-id))))
+
 (defn node-type*
   "Return the node-type given a node-id.  Uses the current basis if not provided."
   ([node-id]

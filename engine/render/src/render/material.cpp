@@ -93,6 +93,15 @@ namespace dmRender
             attribute->m_SemanticType    = dmGraphics::VertexAttribute::SEMANTIC_TYPE_TANGENT;
             attribute->m_CoordinateSpace = dmGraphics::COORDINATE_SPACE_DEFAULT;
         }
+        else if (name_hash == VERTEX_STREAM_BONE_WEIGHTS)
+        {
+            attribute->m_SemanticType = dmGraphics::VertexAttribute::SEMANTIC_TYPE_BONE_WEIGHTS;
+        }
+        else if (name_hash == VERTEX_STREAM_BONE_INDICES)
+        {
+            attribute->m_SemanticType = dmGraphics::VertexAttribute::SEMANTIC_TYPE_BONE_INDICES;
+        }
+        // Instancing attributes
         else if (name_hash == VERTEX_STREAM_WORLD_MATRIX)
         {
             attribute->m_SemanticType = dmGraphics::VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX;
@@ -104,6 +113,14 @@ namespace dmRender
         else if (name_hash == VERTEX_STREAM_NORMAL_MATRIX)
         {
             attribute->m_SemanticType = dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX;
+            if (instancing_supported)
+            {
+                attribute->m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
+            }
+        }
+        else if (name_hash == VERTEX_STREAM_ANIMATION_DATA)
+        {
+            // Internal attribute used for instancing, does not have a semantic type.
             if (instancing_supported)
             {
                 attribute->m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
@@ -131,16 +148,14 @@ namespace dmRender
 
         uint32_t num_material_attributes = m->m_MaterialAttributes.Size();
         bool use_secondary_vertex_declarations = false;
+        bool has_skin_attributes = false;
 
         // 1. Find out if we need to use secondary vertex and instance declarations
         for (int i = 0; i < num_material_attributes; ++i)
         {
             const dmGraphics::VertexAttribute& graphics_attribute = m->m_VertexAttributes[i];
-            if (graphics_attribute.m_StepFunction == dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE)
-            {
-                use_secondary_vertex_declarations = true;
-                break;
-            }
+            use_secondary_vertex_declarations |= graphics_attribute.m_StepFunction == dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
+            has_skin_attributes               |= graphics_attribute.m_NameHash == VERTEX_STREAM_BONE_WEIGHTS || graphics_attribute.m_NameHash == VERTEX_STREAM_BONE_INDICES;
         }
 
         dmGraphics::HVertexStreamDeclaration sd_shared   = dmGraphics::NewVertexStreamDeclaration(graphics_context);
@@ -180,6 +195,7 @@ namespace dmRender
         }
 
         m->m_VertexDeclarationShared = dmGraphics::NewVertexDeclaration(graphics_context, sd_shared);
+        m->m_HasSkinnedAttributes    = has_skin_attributes;
         dmGraphics::DeleteVertexStreamDeclaration(sd_shared);
 
         if (use_secondary_vertex_declarations)
@@ -550,6 +566,11 @@ namespace dmRender
     void SetMaterialProgramConstant(HMaterial material, dmhash_t name_hash, Vector4* values, uint32_t count)
     {
         SetProgramRenderConstant(material->m_Constants, name_hash, values, count);
+    }
+
+    bool GetMaterialHasSkinnedAttributes(HMaterial material)
+    {
+        return material->m_HasSkinnedAttributes;
     }
 
     dmGraphics::HUniformLocation GetMaterialConstantLocation(HMaterial material, dmhash_t name_hash)

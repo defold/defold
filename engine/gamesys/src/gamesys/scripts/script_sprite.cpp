@@ -69,7 +69,7 @@ namespace dmGameSystem
      * ```
      */
 
-    /*# [type:vector3] sprite slice
+    /*# [type:vector4] sprite slice
      *
      * The slice values of the sprite. The type of the property is a vector4 that corresponds to
      * the left, top, right, bottom values of the sprite in the editor.

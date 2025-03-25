@@ -1,17 +1,22 @@
 import waflib.Options
 
+from BuildUtility import create_build_utility
+
 def configure(conf):
     pass
 
 def build(bld):
+    build_util = create_build_utility(bld.env)
+
     physics = bld.stlib(features = 'cxx',
-                        use = 'DLIB  BULLET',
-                        includes = '. .. ../box2d',
-                        source = bld.path.ant_glob('*.cpp'),
+                        use = 'DLIB BULLET BOX2D',
+                        includes = '. ..',
+                        source = bld.path.ant_glob('*.cpp') + bld.path.ant_glob('box2d/*.cpp'),
                         proto_gen_py = True,
                         target = 'physics')
 
     physics.source = [x for x in physics.source if not x.name.endswith('null.cpp')]
+
 
     bld.stlib(features = 'cxx',
               use = 'DLIB',
@@ -22,10 +27,19 @@ def build(bld):
 
     bld.stlib(features = 'cxx',
               use = 'DLIB',
-              includes = '. .. ../box2d',
+              includes = '. ..',
               proto_gen_py = True,
-              source = ['physics.cpp', 'physics_common.cpp', 'physics_2d.cpp', 'physics_3d_null.cpp', 'debug_draw_2d.cpp'],
+              source = ['physics.cpp', 'physics_common.cpp', 'box2d/box2d_physics.cpp', 'box2d/box2d_debug_draw.cpp', 'physics_3d_null.cpp'],
               target = 'physics_2d')
+
+    # This is the old customized Box2D implementation. It's deprecated in favor of the new Box2D V3 implementation, but
+    # we need to keep it around for a bit to support projects that might not want to migrate yet.
+    bld.stlib(features = 'cxx',
+              use = 'DLIB',
+              includes = ['.', '..'] + [build_util.get_dynamo_ext('include', 'box2d_defold')],
+              proto_gen_py = True,
+              source = ['physics.cpp', 'physics_common.cpp', 'box2d_defold/box2d_defold_physics.cpp', 'box2d_defold/box2d_defold_debug_draw.cpp', 'physics_3d_null.cpp'],
+              target = 'physics_2d_defold')
 
     bld.stlib(features = 'cxx',
               use = 'DLIB',

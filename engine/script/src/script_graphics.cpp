@@ -303,6 +303,18 @@ namespace dmScript
      */
 
     /*#
+     * May be nil if the graphics driver doesn't support it
+     * @name graphics.TEXTURE_TYPE_3D
+     * @variable
+     */
+
+    /*#
+     * May be nil if the graphics driver doesn't support it
+     * @name graphics.TEXTURE_TYPE_IMAGE_3D
+     * @variable
+     */
+
+    /*#
      * @name graphics.TEXTURE_FILTER_DEFAULT
      * @variable
      */
@@ -696,8 +708,14 @@ namespace dmScript
         // TextureType
         SET_GRAPHICS_ENUM(TEXTURE_TYPE_2D);
         SET_GRAPHICS_ENUM(TEXTURE_TYPE_2D_ARRAY);
-        SET_GRAPHICS_ENUM(TEXTURE_TYPE_CUBE_MAP);
         SET_GRAPHICS_ENUM(TEXTURE_TYPE_IMAGE_2D);
+        SET_GRAPHICS_ENUM(TEXTURE_TYPE_CUBE_MAP);
+
+        if (graphics_context && dmGraphics::IsContextFeatureSupported(graphics_context, dmGraphics::CONTEXT_FEATURE_3D_TEXTURES))
+        {
+            SET_GRAPHICS_ENUM(TEXTURE_TYPE_3D);
+            SET_GRAPHICS_ENUM(TEXTURE_TYPE_IMAGE_3D);
+        }
 
         // TextureFilter
         SET_GRAPHICS_ENUM(TEXTURE_FILTER_DEFAULT);

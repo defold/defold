@@ -19,7 +19,7 @@
 #include "profiler_proc_utils.h"
 
 DM_PROPERTY_EXTERN(rmtp_Profiler);
-DM_PROPERTY_BOOL(rmtp_AttachedToJVM, false, FrameReset, "Thread attached to JVM", &rmtp_Profiler);
+DM_PROPERTY_BOOL(rmtp_AttachedToJVM, false, PROFILE_PROPERTY_FRAME_RESET, "Thread attached to JVM", &rmtp_Profiler);
 
 extern struct android_app* __attribute__((weak)) g_AndroidApp;
 

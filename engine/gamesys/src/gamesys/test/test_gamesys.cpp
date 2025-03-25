@@ -3746,7 +3746,6 @@ INSTANTIATE_TEST_CASE_P(Label, ComponentFailTest, jc_test_values_in(invalid_labe
 const char* invalid_vertexspace_resources[] =
 {
     "/sprite/invalid_vertexspace.spritec",
-    "/model/invalid_vertexspace.modelc",
     "/tile/invalid_vertexspace.tilegridc",
     "/particlefx/invalid_vertexspace.particlefxc",
     "/gui/invalid_vertexspace.guic",

@@ -61,26 +61,6 @@ namespace dmGraphics
 
     DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterNull, &g_null_adapter, NullIsSupported, NullRegisterFunctionTable, NullGetContext, ADAPTER_FAMILY_PRIORITY_NULL);
 
-    struct AssetContainerLock
-    {
-        AssetContainerLock(dmMutex::HMutex mutex)
-        : m_Mutex(mutex)
-        {
-            if (m_Mutex)
-            {
-                dmMutex::Lock(m_Mutex);
-            }
-        }
-        ~AssetContainerLock()
-        {
-            if (m_Mutex)
-            {
-                dmMutex::Unlock(m_Mutex);
-            }
-        }
-        dmMutex::HMutex m_Mutex;
-    };
-
     static bool NullInitialize(HContext context, const ContextParams& params);
     static void PostDeleteTextures(NullContext* context, bool force_delete);
 
@@ -189,6 +169,7 @@ namespace dmGraphics
         context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_TEXTURE_ARRAY;
         context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_COMPUTE_SHADER;
         context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_INSTANCING;
+        context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_3D_TEXTURES;
 
         if (context->m_AsyncProcessingSupport)
         {
@@ -870,9 +851,13 @@ namespace dmGraphics
         switch(shader_type)
         {
             case ShaderDesc::SHADER_TYPE_VERTEX:
-                return language == ShaderDesc::LANGUAGE_GLSL_SM330;
+                return language == ShaderDesc::LANGUAGE_GLSL_SM330 ||
+                       language == ShaderDesc::LANGUAGE_GLES_SM300 ||
+                       language == ShaderDesc::LANGUAGE_SPIRV;
             case ShaderDesc::SHADER_TYPE_FRAGMENT:
-                return language == ShaderDesc::LANGUAGE_GLSL_SM330;
+                return language == ShaderDesc::LANGUAGE_GLSL_SM330 ||
+                       language == ShaderDesc::LANGUAGE_GLES_SM300 ||
+                       language == ShaderDesc::LANGUAGE_SPIRV;
             case ShaderDesc::SHADER_TYPE_COMPUTE:
                 return language == ShaderDesc::LANGUAGE_GLSL_SM430 ||
                        language == ShaderDesc::LANGUAGE_SPIRV;
@@ -1291,7 +1276,6 @@ namespace dmGraphics
     static HTexture NullNewTexture(HContext _context, const TextureCreationParams& params)
     {
         NullContext* context  = (NullContext*) _context;
-        Texture* tex          = new Texture();
 
         uint16_t num_texture_ids = 1;
         TextureType texture_type = params.m_Type;
@@ -1301,7 +1285,12 @@ namespace dmGraphics
             num_texture_ids = params.m_Depth;
             texture_type    = TEXTURE_TYPE_2D;
         }
+        else if (IsTextureType3D(params.m_Type) && !IsContextFeatureSupported(_context, CONTEXT_FEATURE_3D_TEXTURES))
+        {
+            return 0;
+        }
 
+        Texture* tex          = new Texture();
         tex->m_Type           = texture_type;
         tex->m_Width          = params.m_Width;
         tex->m_Height         = params.m_Height;
@@ -1329,7 +1318,7 @@ namespace dmGraphics
             tex->m_OriginalHeight = params.m_OriginalHeight;
         }
 
-        AssetContainerLock lock(context->m_AssetContainerMutex);
+        ScopedLock lock(context->m_AssetContainerMutex);
 
         return StoreAssetInContainer(context->m_AssetHandleContainer, tex, ASSET_TYPE_TEXTURE);
     }
@@ -1337,7 +1326,7 @@ namespace dmGraphics
     static int DoDeleteTexture(void* _context, void* _h_texture)
     {
         NullContext* context = (NullContext*) _context;
-        AssetContainerLock lock(context->m_AssetContainerMutex);
+        ScopedLock lock(context->m_AssetContainerMutex);
         HTexture texture = (HTexture) _h_texture;
 
         Texture* tex = GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, texture);
@@ -1357,14 +1346,14 @@ namespace dmGraphics
     static void DoDeleteTextureComplete(void* _context, void* _h_texture, int result)
     {
         NullContext* context = (NullContext*) _context;
-        AssetContainerLock lock(context->m_AssetContainerMutex);
+        ScopedLock lock(context->m_AssetContainerMutex);
         HTexture texture = (HTexture) _h_texture;
         context->m_AssetHandleContainer.Release(texture);
     }
 
     static void NullDeleteTextureAsync(NullContext* context, HTexture texture)
     {
-        AssetContainerLock lock(context->m_AssetContainerMutex);
+        ScopedLock lock(context->m_AssetContainerMutex);
         dmJobThread::PushJob(context->m_JobThread, DoDeleteTexture, DoDeleteTextureComplete, context, (void*) texture);
     }
 
@@ -1445,7 +1434,7 @@ namespace dmGraphics
 
     static void NullSetTexture(HTexture texture, const TextureParams& params)
     {
-        AssetContainerLock lock(g_NullContext->m_AssetContainerMutex);
+        ScopedLock lock(g_NullContext->m_AssetContainerMutex);
         Texture* tex = GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture);
         assert(tex);
         assert(!params.m_SubUpdate || (params.m_X + params.m_Width <= tex->m_Width));
@@ -1693,7 +1682,7 @@ namespace dmGraphics
         uint16_t param_array_index = (uint16_t) (size_t) data;
         SetTextureAsyncParams ap   = GetSetTextureAsyncParams(context->m_SetTextureAsyncState, param_array_index);
 
-        AssetContainerLock lock(context->m_AssetContainerMutex);
+        ScopedLock lock(context->m_AssetContainerMutex);
         Texture* tex = GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, ap.m_Texture);
         if (tex)
         {
@@ -1723,7 +1712,7 @@ namespace dmGraphics
     {
         if (g_NullContext->m_AsyncProcessingSupport && g_NullContext->m_UseAsyncTextureLoad)
         {
-            AssetContainerLock lock(g_NullContext->m_AssetContainerMutex);
+            ScopedLock lock(g_NullContext->m_AssetContainerMutex);
 
             Texture* tex               = GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture);
             tex->m_DataState          |= 1 << params.m_MipMap;
@@ -1744,7 +1733,7 @@ namespace dmGraphics
 
     static uint32_t NullGetTextureStatusFlags(HTexture texture)
     {
-        AssetContainerLock lock(g_NullContext->m_AssetContainerMutex);
+        ScopedLock lock(g_NullContext->m_AssetContainerMutex);
         Texture* tex   = GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture);
         uint32_t flags = TEXTURE_STATUS_OK;
         if(tex && tex->m_DataState)
