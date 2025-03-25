@@ -188,6 +188,7 @@ namespace dmSoundCodec
                     streamTemp.m_Info.m_Rate = fmt.m_SampleRate;
                     streamTemp.m_Info.m_Channels = fmt.m_NumChannels;
                     streamTemp.m_Info.m_BitsPerSample = fmt.m_BitsPerSample;
+                    streamTemp.m_Info.m_IsInterleaved = true;
 
                 } else if (header.m_ChunkID == FOUR_CC('d', 'a', 't', 'a')) {
                     data_found = true;
@@ -236,7 +237,7 @@ namespace dmSoundCodec
         return RESULT_OK;
     }
 
-    static Result WavDecodeStream(HDecodeStream stream, char* buffer, uint32_t buffer_size, uint32_t* decoded)
+    static Result WavDecodeStream(HDecodeStream stream, char* buffer[], uint32_t buffer_size, uint32_t* decoded)
     {
         DecodeStreamInfo *streamInfo = (DecodeStreamInfo *) stream;
         DM_PROFILE(__FUNCTION__);
@@ -251,7 +252,7 @@ namespace dmSoundCodec
         }
 
         uint32_t read_size;
-        dmSound::Result res = dmSound::SoundDataRead(streamInfo->m_SoundData, streamInfo->m_BufferOffset + streamInfo->m_Cursor, n, buffer, &read_size);
+        dmSound::Result res = dmSound::SoundDataRead(streamInfo->m_SoundData, streamInfo->m_BufferOffset + streamInfo->m_Cursor, n, buffer[0], &read_size);
         if (res == dmSound::RESULT_OK || res == dmSound::RESULT_PARTIAL_DATA)
         {
             *decoded = read_size;

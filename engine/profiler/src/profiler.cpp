@@ -615,8 +615,11 @@ static void SampleTreeCallback(void* _ctx, const char* thread_name, dmProfile::H
         return;
 
     // TODO: Make a better selection scheme, letting the user step through the threads one by one
-    if (strcmp(thread_name, "Main") != 0)
+    bool valid = strcmp(thread_name, "Main") == 0 || strcmp(thread_name, "sound") == 0;
+    if (!valid)
+    {
         return;
+    }
 
     DM_MUTEX_SCOPED_LOCK(g_ProfilerMutex);
 
