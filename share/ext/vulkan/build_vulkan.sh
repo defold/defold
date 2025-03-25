@@ -30,7 +30,7 @@ readonly VALIDATION_URL=https://github.com/KhronosGroup/Vulkan-ValidationLayers/
 . ../common.sh
 
 readonly SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-readonly BUILDDIR="$(realpath ./build/)${PLATFORM}"
+readonly BUILDDIR="$(realpath ./)/build/${PLATFORM}"
 readonly INSTALLDIR=${BUILDDIR}/install
 
 readonly LOADERDIR="$(realpath ./)/loader"
@@ -203,7 +203,7 @@ echo "Wrote ./package/${HEADERS_PACKAGE_NAME}"
 echo "**************************************************"
 echo "Cleanup"
 echo "**************************************************"
-
-rm -rf ${BUILDDIR}/loader
-rm -rf ${BUILDDIR}/validation
-rm -rf ${BUILDDIR}/headers
+rm -rf ${BUILDDIR}
+rm -rf ${LOADERDIR}
+rm -rf ${HEADERSDIR}
+rm -rf ${VALIDATIONDIR}
