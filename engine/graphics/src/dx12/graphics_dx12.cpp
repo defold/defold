@@ -2655,7 +2655,7 @@ namespace dmGraphics
         g_DX12Context->m_CurrentTextures[unit] = 0x0;
     }
 
-    static void DX12ReadPixels(HContext context, void* buffer, uint32_t buffer_size)
+    static void DX12ReadPixels(HContext context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size)
     {
     }
 

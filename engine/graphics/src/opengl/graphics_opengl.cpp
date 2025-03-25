@@ -4658,24 +4658,22 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
-    static void OpenGLReadPixels(HContext context, void* buffer, uint32_t buffer_size)
+    static void OpenGLReadPixels(HContext context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size)
     {
-        uint32_t w = dmGraphics::GetWidth(context);
-        uint32_t h = dmGraphics::GetHeight(context);
-        assert (buffer_size >= w * h * 4);
-        glReadPixels(0, 0, w, h,
-                     GL_BGRA,
+        assert(buffer_size >= (width - x) * (height - y) * 4);
+        glReadPixels(x, y, width, height,
+                     GL_RGBA,
                      GL_UNSIGNED_BYTE,
                      buffer);
         CHECK_GL_ERROR;
         unsigned int *pixels = (unsigned int*)buffer;
         // flip vertically
-        for (uint32_t yi = 0; yi < (h / 2); ++yi)
+        for (uint32_t yi = 0; yi < (height / 2); ++yi)
         {
-            for (uint32_t xi = 0; xi < w; ++xi)
+            for (uint32_t xi = 0; xi < width; ++xi)
             {
-                unsigned int offset1 = xi + (yi * w);
-                unsigned int offset2 = xi + ((h - 1 - yi) * w);
+                unsigned int offset1 = xi + (yi * width);
+                unsigned int offset2 = xi + ((height - 1 - yi) * width);
                 unsigned int pixel1 = pixels[offset1];
                 unsigned int pixel2 = pixels[offset2];
                 pixels[offset1] = pixel2;

@@ -2006,7 +2006,7 @@ bail:
                         uint32_t height = dmGraphics::GetHeight(engine->m_GraphicsContext);
                         uint32_t buffer_size = width * height * 4;
 
-                        dmGraphics::ReadPixels(engine->m_GraphicsContext, record_data->m_Buffer, buffer_size);
+                        dmGraphics::ReadPixels(engine->m_GraphicsContext, 0, 0, width, height, record_data->m_Buffer, buffer_size);
 
                         dmRecord::Result r = dmRecord::RecordFrame(record_data->m_Recorder, record_data->m_Buffer, buffer_size, dmRecord::BUFFER_FORMAT_BGRA);
                         if (r != dmRecord::RESULT_OK)

@@ -2720,7 +2720,7 @@ static void WebGPUDisableTexture(HContext context, uint32_t unit, HTexture textu
     ((WebGPUContext*)context)->m_CurrentTextureUnits[unit] = NULL;
 }
 
-static void WebGPUReadPixels(HContext context, void* buffer, uint32_t buffer_size)
+static void WebGPUReadPixels(HContext context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size)
 {
     TRACE_CALL;
     assert(false);

@@ -4443,13 +4443,11 @@ bail:
         return flags;
     }
 
-    static void VulkanReadPixels(HContext _context, void* buffer, uint32_t buffer_size)
+    static void VulkanReadPixels(HContext context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size)
     {
         VulkanContext* context = (VulkanContext*) _context;
 
-        uint32_t w = context->m_WindowWidth;
-        uint32_t h = context->m_WindowHeight;
-        assert (buffer_size >= w * h * 4);
+        assert (buffer_size >= (width - x) * (height - y) * 4);
 
         HRenderTarget currentt_rt_h = context->m_CurrentRenderTarget;
         bool in_render_pass = IsRenderTargetbound(context, currentt_rt_h);
@@ -4487,8 +4485,10 @@ bail:
         CHECK_VK_ERROR(res);
 
         VkBufferImageCopy vk_copy_region = {};
-        vk_copy_region.imageExtent.width           = w;
-        vk_copy_region.imageExtent.height          = h;
+        vk_copy_region.imageOffset.x               = x;
+        vk_copy_region.imageOffset.y               = y;
+        vk_copy_region.imageExtent.width           = width;
+        vk_copy_region.imageExtent.height          = height;
         vk_copy_region.imageExtent.depth           = 1;
         vk_copy_region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         vk_copy_region.imageSubresource.layerCount = 1;
