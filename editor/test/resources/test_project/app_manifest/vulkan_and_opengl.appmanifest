@@ -24,7 +24,7 @@ platforms:
             excludeLibs: []
             excludeSymbols: []
             symbols: ["GraphicsAdapterVulkan"]
-            libs: ["graphics_vulkan","X11-xcb"]
+            libs: ["platform_vulkan", "graphics_vulkan", "X11-xcb"]
             dynamicLibs: ["vulkan"]
             linkFlags: []
 
@@ -33,7 +33,7 @@ platforms:
             excludeLibs: []
             excludeSymbols: []
             symbols: ["GraphicsAdapterVulkan"]
-            libs: ["graphics_vulkan","X11-xcb"]
+            libs: ["platform_vulkan", "graphics_vulkan", "X11-xcb"]
             dynamicLibs: ["vulkan"]
             linkFlags: []
 
