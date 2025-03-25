@@ -1384,3 +1384,10 @@
       #(= % 100) (range 1000) true
       #(= % 100) (range 50) nil
       #(= % 100) [] nil)))
+
+(deftest join-to-string-test
+  (is (= "" (coll/join-to-string ", " [])))
+  (is (= "" (coll/join-to-string [])))
+  (is (= "12" (coll/join-to-string [1 nil 2])))
+  (is (= "1,,2" (coll/join-to-string "," [1 nil 2])))
+  (is (= "0, 1, 2, 3, 4" (coll/join-to-string ", " (range 5)))))

@@ -31,9 +31,9 @@
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/extension/extension.h>
 
-DM_PROPERTY_GROUP(rmtp_Profiler, "Profiler");
-DM_PROPERTY_U32(rmtp_CpuUsage, 0, FrameReset, "%% Cpu Usage", &rmtp_Profiler);
-DM_PROPERTY_U32(rmtp_Memory, 0, FrameReset, "Memory usage in kb", &rmtp_Profiler);
+DM_PROPERTY_GROUP(rmtp_Profiler, "Profiler", 0);
+DM_PROPERTY_U32(rmtp_CpuUsage, 0, PROFILE_PROPERTY_FRAME_RESET, "%% Cpu Usage", &rmtp_Profiler);
+DM_PROPERTY_U32(rmtp_Memory, 0, PROFILE_PROPERTY_FRAME_RESET, "Memory usage in kb", &rmtp_Profiler);
 
 namespace dmProfiler
 {
@@ -56,6 +56,7 @@ static uint32_t gUpdateFrequency = 60;
 static dmProfileRender::ProfilerFrame*  g_ProfilerCurrentFrame = 0;
 static dmMutex::HMutex                  g_ProfilerMutex = 0;
 static dmHashTable64<int>               g_ProfilerThreadSortOrder;
+static bool                             g_ProfilerDumpNextFrame = false;
 
 
 void SetUpdateFrequency(uint32_t update_frequency)
@@ -128,6 +129,12 @@ void RenderProfiler(dmProfile::HProfile profile, dmGraphics::HContext graphics_c
 
     if (g_ProfilerCurrentFrame)
     {
+        DM_MUTEX_SCOPED_LOCK(g_ProfilerMutex);
+        
+        if (g_ProfilerDumpNextFrame)
+            dmProfileRender::DumpFrame(g_ProfilerCurrentFrame);
+        g_ProfilerDumpNextFrame = false;
+
         g_ProfilerCurrentFrame->m_Properties.SetSize(0);
     }
 }
@@ -444,11 +451,11 @@ static int ProfilerUIViewRecordedFrame(lua_State* L)
     return 0;
 }
 
-/*# send a text to the profiler
- * Send a text to the profiler
+/*# send a text to the connected profiler
+ * Send a text to the connected profiler
  *
  * @name profiler.log_text
- * @param text [type:string] the string to send to the profiler
+ * @param text [type:string] the string to send to the connected profiler
  *
  * @examples
  * ```lua
@@ -467,6 +474,24 @@ static int ProfilerLogText(lua_State* L)
 
     dmProfile::LogText(text);
 
+    return 0;
+}
+
+/*# logs the current frame to the console
+ * logs the current frame to the console
+ *
+ * @name profiler.dump_frame
+ *
+ * @examples
+ * ```lua
+ * profiler.dump_frame()
+ * ```
+ */
+static int ProfilerDumpFrame(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 0);
+    // Schedule the next frame for output to console log
+    g_ProfilerDumpNextFrame = true;
     return 0;
 }
 
@@ -590,8 +615,11 @@ static void SampleTreeCallback(void* _ctx, const char* thread_name, dmProfile::H
         return;
 
     // TODO: Make a better selection scheme, letting the user step through the threads one by one
-    if (strcmp(thread_name, "Main") != 0)
+    bool valid = strcmp(thread_name, "Main") == 0 || strcmp(thread_name, "sound") == 0;
+    if (!valid)
+    {
         return;
+    }
 
     DM_MUTEX_SCOPED_LOCK(g_ProfilerMutex);
 
@@ -678,6 +706,7 @@ static dmExtension::Result InitializeProfiler(dmExtension::Params* params)
         {"recorded_frame_count",        ProfilerUIRecordedFrameCount},
         {"view_recorded_frame",         ProfilerUIViewRecordedFrame},
         {"log_text",                    ProfilerLogText},
+        {"dump_frame",                  ProfilerDumpFrame},
 
         {"scope_begin",                 ProfilerScopeBegin},
         {"scope_end",                   ProfilerScopeEnd},

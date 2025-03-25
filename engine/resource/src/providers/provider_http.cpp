@@ -229,13 +229,16 @@ static dmResourceProvider::Result GetRequestFromUri(HttpProviderContext* archive
     dmHttpClient::GetURI(archive->m_HttpClient, path, cache_key, sizeof(cache_key));
 
     // Make the cache key the same (see http_service.cpp)
-    if (!get_file_size && INVALID_CHUNK_VALUE != offset && INVALID_CHUNK_VALUE != size)
+    if (!get_file_size)
     {
-        char range[256];
-        dmSnPrintf(range, sizeof(range), "=bytes=%u-%u", offset, offset+size-1);
-        dmStrlCat(cache_key, range, sizeof(cache_key));// "=bytes=%d-%d"
+        if(INVALID_CHUNK_VALUE != offset && INVALID_CHUNK_VALUE != size)
+        {
+            char range[256];
+            dmSnPrintf(range, sizeof(range), "=bytes=%u-%u", offset, offset+size-1);
+            dmStrlCat(cache_key, range, sizeof(cache_key));// "=bytes=%d-%d"
+        }
+        dmHttpClient::SetCacheKey(archive->m_HttpClient, cache_key);
     }
-    dmHttpClient::SetCacheKey(archive->m_HttpClient, cache_key);
 
     dmHttpClient::Result http_result = dmHttpClient::Request(archive->m_HttpClient, method, encoded_uri);
 

@@ -33,8 +33,8 @@
 #include "font_renderer_api.h"   // for the font renderer backend api
 
 DM_PROPERTY_EXTERN(rmtp_Render);
-DM_PROPERTY_U32(rmtp_FontCharacterCount, 0, FrameReset, "# glyphs", &rmtp_Render);
-DM_PROPERTY_U32(rmtp_FontVertexSize, 0, FrameReset, "size of vertices in bytes", &rmtp_Render);
+DM_PROPERTY_U32(rmtp_FontCharacterCount, 0, PROFILE_PROPERTY_FRAME_RESET, "# glyphs", &rmtp_Render);
+DM_PROPERTY_U32(rmtp_FontVertexSize, 0, PROFILE_PROPERTY_FRAME_RESET, "size of vertices in bytes", &rmtp_Render);
 
 namespace dmRender
 {

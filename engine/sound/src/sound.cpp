@@ -386,7 +386,6 @@ namespace dmSound
         }
         SelectDSPImpl(dsp_impl);
 
-
         sound->m_FrameCount = sound->m_DeviceFrameCount;
         sound->m_MixRate = device_info.m_MixRate;
         sound->m_Instances.SetCapacity(max_instances);
@@ -1092,6 +1091,7 @@ namespace dmSound
 
     static inline void MixResampleIdentity(const MixContext* mix_context, SoundInstance* instance, uint32_t channels, uint64_t delta, float* mix_buffer[], uint32_t mix_buffer_count, uint32_t avail_framecount)
     {
+        DM_PROFILE(__FUNCTION__);
         (void)delta;
 
         PrepTempBufferState(instance, channels);
@@ -1116,7 +1116,8 @@ namespace dmSound
     }
 
     static inline void MixResamplePolyphase(const MixContext* mix_context, SoundInstance* instance, uint32_t channels, uint64_t delta, float* mix_buffer[], uint32_t mix_buffer_count, uint32_t avail_framecount)
-    { 
+    {
+        DM_PROFILE(__FUNCTION__);
         static_assert(SOUND_MAX_MIX_CHANNELS == 2, "this code assumes 2 mix channels");
 
         PrepTempBufferState(instance, channels);
@@ -1147,6 +1148,7 @@ namespace dmSound
 
     static inline void MixResample(const MixContext* mix_context, SoundInstance* instance, const dmSoundCodec::Info* info, uint64_t delta, float* mix_buffer[], uint32_t mix_buffer_count, uint32_t avail_framecount)
     {
+        DM_PROFILE(__FUNCTION__);
         // Make sure to update the mixing scale values...
         if (instance->m_ScaleDirty != 0) {
             instance->m_ScaleDirty = 0;
@@ -1277,6 +1279,7 @@ namespace dmSound
 
     static inline void MixInstance(const MixContext* mix_context, SoundInstance* instance)
     {
+        DM_PROFILE(__FUNCTION__);
         SoundSystem* sound = g_SoundSystem;
 
         dmSoundCodec::Info info;
@@ -1709,7 +1712,10 @@ namespace dmSound
             // DEF-2540: Make sure to keep feeding the sound device if audio is being generated,
             // if you don't you'll get more slots free, thus updating sound (redundantly) every call,
             // resulting in a huge performance hit. Also, you'll fast forward the sounds.
-            sound->m_DeviceType->m_Queue(sound->m_Device, (const int16_t*) sound->m_OutBuffers[sound->m_NextOutBuffer], frame_count);
+            {
+                DM_PROFILE("QueueBuffer");
+                sound->m_DeviceType->m_Queue(sound->m_Device, (const int16_t*) sound->m_OutBuffers[sound->m_NextOutBuffer], frame_count);
+            }
 
             sound->m_NextOutBuffer = (sound->m_NextOutBuffer + 1) % SOUND_OUTBUFFER_COUNT;
             current_buffer++;

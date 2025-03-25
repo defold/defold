@@ -237,10 +237,12 @@ function editor.bundle.dialog(heading, config, hint, error, content)
                 color = error and editor.ui.COLOR.ERROR or editor.ui.COLOR.HINT
             })
         }}),
-        content = editor.ui.grid({
-            padding = editor.ui.PADDING.LARGE,
-            columns = {{}, {grow = true}},
-            children = content
+        content = editor.ui.scroll({
+            content = editor.ui.grid({
+                padding = editor.ui.PADDING.LARGE,
+                columns = {{}, {grow = true}},
+                children = content
+            })
         }),
         buttons = {
             editor.ui.dialog_button({
@@ -356,7 +358,7 @@ function editor.bundle.create(config, output_directory, extra_bob_opts)
         end
     end
 
-    editor.bob(bob_opts, "distclean", "resolve", "build", "bundle")
+    editor.bob(bob_opts, "resolve", "build", "bundle")
 
     if editor.prefs.get("bundle.open-output-directory") then
         editor.open_external_file(output_directory)

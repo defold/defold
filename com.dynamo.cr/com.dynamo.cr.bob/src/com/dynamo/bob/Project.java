@@ -25,7 +25,6 @@ import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.reflect.Array;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -34,7 +33,6 @@ import java.net.HttpURLConnection;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URI;
-import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.FileTime;
 import java.text.ParseException;
 import java.util.*;
@@ -100,7 +98,6 @@ import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 
 import com.dynamo.bob.cache.ResourceCache;
 import org.codehaus.jackson.JsonNode;
-import org.codehaus.jackson.JsonProcessingException;
 import org.codehaus.jackson.map.ObjectMapper;
 
 /**
@@ -358,7 +355,7 @@ public class Project {
                             extToBuilder.put(inExt, (Class<? extends Builder>) klass);
                             inextToOutext.put(inExt, builderParams.outExt());
                         }
-
+                        Builder.addParamsDigest(klass, this.getOptions(), builderParams);
                         ProtoParams protoParams = klass.getAnnotation(ProtoParams.class);
                         if (protoParams != null) {
                             ProtoBuilder.addMessageClass(builderParams.outExt(), protoParams.messageClass());
@@ -926,7 +923,7 @@ public class Project {
         }
 
         // If not found, try to get a built-in shader compiler for this platform
-        IShaderCompiler commonShaderCompiler = ShaderCompilers.getCommonShaderCompiler(platform);
+        IShaderCompiler commonShaderCompiler = ShaderCompilers.GetCommonShaderCompiler(platform);
         if (commonShaderCompiler != null) {
             return commonShaderCompiler;
         }
@@ -1137,6 +1134,10 @@ public class Project {
 
         // Build all skews of platform
         String outputDir = getBinaryOutputDirectory();
+
+        ExecutorService buildEngineExecutor = Executors.newFixedThreadPool(architectures.length);
+        List<Future<?>> buildEngineFutures = new ArrayList<>();
+
         for (int i = 0; i < architectures.length; ++i) {
             Platform platform = Platform.get(architectures[i]);
 
@@ -1144,18 +1145,41 @@ public class Project {
             File buildDir = new File(FilenameUtils.concat(outputDir, buildPlatform));
             buildDir.mkdirs();
 
-
-            boolean buildLibrary = shouldBuildArtifact("library");
-            if (buildLibrary) {
-                buildLibraryPlatform(monitor, buildDir, cacheDir, appmanifestOptions, platform);
-            }
-            else {
-                buildEnginePlatform(monitor, buildDir, cacheDir, appmanifestOptions, platform);
-            }
-
+            buildEngineFutures.add(buildEngineExecutor.submit(() -> {
+                TimeProfiler.start("Build Remote Engine %s", platform.toString());
+                TimeProfiler.addData("withSymbols", appmanifestOptions.get("baseVariant"));
+                TimeProfiler.addData("variant", appmanifestOptions.get("withSymbols"));
+                boolean buildLibrary = shouldBuildArtifact("library");
+                try {
+                    if (buildLibrary) {
+                        buildLibraryPlatform(monitor, buildDir, cacheDir, appmanifestOptions, platform);
+                    } else {
+                        buildEnginePlatform(monitor, buildDir, cacheDir, appmanifestOptions, platform);
+                    }
+                } catch (Throwable e) {
+                    throw new RuntimeException(e);
+                } finally {
+                    TimeProfiler.stop();
+                }
+            }));
             m.worked(1);
         }
 
+        for (Future<?> future : buildEngineFutures) {
+            try {
+                future.get();
+            } catch (Exception e) {
+                Throwable cause = e.getCause();
+                if (cause.getCause() instanceof CompileExceptionError) {
+                    throw (CompileExceptionError) cause.getCause();
+                } else if (cause.getCause() instanceof MultipleCompileException) {
+                    throw (MultipleCompileException) cause.getCause();
+                } else {
+                    throw (RuntimeException) e;
+                }
+            }
+        }
+        buildEngineExecutor.shutdown();
         m.done();
     }
 
@@ -1324,7 +1348,6 @@ public class Project {
         createClassLoaderScanner();
         registerPipelinePlugins();
         scan(scanner, "com.dynamo.bob");
-        scan(scanner, "com.dynamo.bob.pipeline");
         scan(scanner, "com.defold.extension.pipeline");
     }
 
@@ -1332,18 +1355,12 @@ public class Project {
         Callable<Void> callable = new Callable<Void>() {
             public Void call() throws Exception {
                 logInfo("Build Remote Engine...");
-                TimeProfiler.addMark("StartBuildRemoteEngine", "Build Remote Engine");
                 final String variant = option("variant", Bob.VARIANT_RELEASE);
                 final Boolean withSymbols = hasOption("with-symbols");
 
                 Map<String, String> appmanifestOptions = new HashMap<>();
                 appmanifestOptions.put("baseVariant", variant);
                 appmanifestOptions.put("withSymbols", withSymbols.toString());
-
-                // temporary removed because TimeProfiler works only with a single thread
-                // see https://github.com/pyatyispyatil/flame-chart-js
-                // TimeProfiler.addData("withSymbols", withSymbols);
-                // TimeProfiler.addData("variant", variant);
 
                 if (hasOption("build-artifacts")) {
                     String s = option("build-artifacts", "");
@@ -1374,72 +1391,82 @@ public class Project {
 
                 long tend = System.currentTimeMillis();
                 logger.info("Engine build took %f s", (tend-tstart)/1000.0);
-                TimeProfiler.addMark("FinishedBuildRemoteEngine", "Build Remote Engine Finished");
-
                 return (Void)null;
             }
         };
         return executor.submit(callable);
     }
 
-    private boolean hasSymbol(String symbolName) throws IOException, CompileExceptionError {
-        IResource appManifestResource = this.getResource("native_extension", "app_manifest", false);
-        if (appManifestResource != null && appManifestResource.exists()) {
-            Map<String, Object> yamlAppManifest = ExtenderUtil.readYaml(appManifestResource);
-            Map<String, Object> yamlPlatforms = (Map<String, Object>) yamlAppManifest.getOrDefault("platforms", null);
 
-            if (yamlPlatforms != null) {
-                String targetPlatform = this.getPlatform().toString();
-                Map<String, Object> yamlPlatform = (Map<String, Object>) yamlPlatforms.getOrDefault(targetPlatform, null);
+    /**
+     *  Options from the `game.project` file that may affect build outputs.
+     */
+    private static class GameProjectBuildOption {
+        public String inputOption, outputOption, propertyCategory, propertyKey, appManifestSymbol;
+        /**
+         * @param inputOption        Option that may be used with Bob.
+         * @param outputOption       How the option will be saved in project options using project.setOption() for future use.
+         * @param propertyCategory   Category in the `game.project` file.
+         * @param propertyKey        Key in the `game.project` file.
+         * @param appManifestSymbol  A symbol from appManifest that makes this option true.
+         */
+        public GameProjectBuildOption(String inputOption, String outputOption, String propertyCategory, String propertyKey, String appManifestSymbol) {
+            this.inputOption = inputOption;
+            this.outputOption = outputOption;
+            this.propertyCategory = propertyCategory;
+            this.propertyKey = propertyKey;
+            this.appManifestSymbol = appManifestSymbol;
+        }
+    }
 
-                if (yamlPlatform != null) {
-                    Map<String, Object> yamlPlatformContext = (Map<String, Object>) yamlPlatform.getOrDefault("context", null);
+    public void configurePreBuildProjectOptions() throws IOException, CompileExceptionError {
+        List<GameProjectBuildOption> options = new ArrayList<>();
+        options.add(new GameProjectBuildOption("debug-output-spirv", "output-spirv", "shader","output_spirv","GraphicsAdapterVulkan"));
+        options.add(new GameProjectBuildOption("debug-output-hlsl", "output-hlsl", "shader","output_hlsl","GraphicsAdapterDX12"));
+        options.add(new GameProjectBuildOption("debug-output-wgsl", "output-wgsl", "shader","output_wgsl","GraphicsAdapterWebGPU"));
+        options.add(new GameProjectBuildOption("debug-output-glsl", "output-glsl", "shader","output_glsl","GraphicsAdapterOpenGL"));
+        options.add(new GameProjectBuildOption("output-glsles100", "output-glsles100", "shader","output_glsl_es100",null));
+        options.add(new GameProjectBuildOption("output-glsles300", "output-glsles300", "shader","output_glsl_es300",null));
+        options.add(new GameProjectBuildOption("output-glsl120", "output-glsl120", "shader","output_glsl120",null));
+        options.add(new GameProjectBuildOption("output-glsl330", "output-glsl330", "shader","output_glsl330",null));
+        options.add(new GameProjectBuildOption("output-glsl430", "output-glsl430", "shader","output_glsl430",null));
 
-                    if (yamlPlatformContext != null) {
-                        boolean symbolFound = false;
+        options.add(new GameProjectBuildOption("sound-stream-enabled", "sound-stream-enabled", "sound","stream_enabled",null));
+        options.add(new GameProjectBuildOption("model-split-large-meshes", "model-split-large-meshes", "model","split_meshes",null));
+        options.add(new GameProjectBuildOption("prometheus-disabled", "prometheus-disabled", "prometheus","disabled",null));
 
-                        List<String> symbols = (List<String>) yamlPlatformContext.getOrDefault("symbols", new ArrayList<String>());
+        Platform currentPlatform = getPlatform();
+        final List<Platform> architectures = Platform.getArchitecturesFromString(this.option("architectures", ""), currentPlatform);
+        Set<String> architectureSet = new HashSet<>();
+        for (Platform platform : architectures) {
+            architectureSet.add(platform.toString());
+        }
+        for (String path : currentPlatform.getExtenderPaths()) {
+            architectureSet.add(path);
+        }
+        List<Map<String, Object>> platformsSettings = new ArrayList<>();
+        for(String arch : architectureSet) {
+            platformsSettings.add(ExtenderUtil.getPlatformSettings(this, arch));
+        }
 
-                        for (String symbol : symbols) {
-                            if (symbol.equals(symbolName)) {
-                                symbolFound = true;
-                                break;
-                            }
-                        }
-                        return symbolFound;
-                    }
+        for(GameProjectBuildOption option:options) {
+            boolean fromProjectProperties = this.getProjectProperties().getBooleanValue(option.propertyCategory, option.propertyKey, false);
+            if (this.hasOption(option.inputOption)) {
+                boolean fromProjectOptions = this.option(option.inputOption, "false").equals("true");
+                this.setOption(option.outputOption, Boolean.toString(fromProjectProperties || fromProjectOptions));
+            } else if (option.appManifestSymbol != null) {
+                boolean hasSymbol = false;
+                for(Map<String, Object>platfromSetting : platformsSettings) {
+                    hasSymbol = hasSymbol || ExtenderUtil.hasSymbol(option.appManifestSymbol, platfromSetting);
                 }
+                this.setOption(option.outputOption, Boolean.toString(hasSymbol || fromProjectProperties));
+            } else {
+                this.setOption(option.outputOption, Boolean.toString(fromProjectProperties));
             }
         }
 
-        return false;
-    }
-
-    private void configurePreBuildProjectOptions() throws IOException, CompileExceptionError {
-        // Build spir-v or HLSL either if:
-        //   1. If the user has specified explicitly to build or not to build with spir-v or HLSL
-        //   2. The project has an app manifest with vulkan or DX12 enabled
-        if (this.hasOption("debug-output-spirv")) {
-            this.setOption("output-spirv", this.option("debug-output-spirv", "false"));
-        } else {
-            this.setOption("output-spirv", hasSymbol("GraphicsAdapterVulkan") ? "true" : "false");
-        }
-
-        if (this.hasOption("debug-output-hlsl")) {
-            this.setOption("output-hlsl", this.option("debug-output-hlsl", "false"));
-        } else {
-            this.setOption("output-hlsl", hasSymbol("GraphicsAdapterDX12") ? "true" : "false");
-        }
-
-        // Build wgsl either if:
-        //   1. If the user has specified explicitly to build or not to build with wgsl
-        //   2. The project has an app manifest with webgpu enabled
-        String outputWGSL;
-        if (this.hasOption("debug-output-wgsl"))
-            outputWGSL = this.option("debug-output-wgsl", "false");
-        else
-            outputWGSL = hasSymbol("GraphicsAdapterWebGPU") ? "true" : "false";
-        this.setOption("output-wgsl", outputWGSL);
+        boolean isPhysics2D = this.getProjectProperties().getStringValue("physics", "type", "2D").equals("2D");
+        this.setOption("physics-type-2D", Boolean.toString(isPhysics2D));
     }
 
     private ArrayList<TextureCompressorPreset> parseTextureCompressorPresetFromJSON(String fromPath, byte[] data) throws CompileExceptionError {
@@ -1630,7 +1657,6 @@ public class Project {
         mrep.beginTask("Reading tasks...", 1);
         TimeProfiler.start("Create tasks");
         BundleHelper.throwIfCanceled(monitor);
-        configurePreBuildProjectOptions();
         createTasks();
         validateBuildResourceMapping();
         TimeProfiler.addData("TasksCount", tasks.size());
@@ -1715,7 +1741,8 @@ public class Project {
         BundleHelper.throwIfCanceled(monitor);
 
         monitor.beginTask("Working...", 100);
-
+        // it should be done before scanJavaClasses to have updated options
+        configurePreBuildProjectOptions();
         {
             TimeProfiler.start("scanJavaClasses");
             IProgress mrep = monitor.subProgress(1);

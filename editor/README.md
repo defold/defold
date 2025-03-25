@@ -15,7 +15,6 @@ If you want to use the Cursive plugin with IntelliJ IDEA (recommended), read the
 
 If you want to use the Calva plugin with Visual Studio Code, read the [VSCode setup guide](README_VSCODE.md).
 
-
 ## Build and debug/REPL
 Build and debug/REPL instructions [here](README_BUILD.md).
 

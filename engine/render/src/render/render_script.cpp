@@ -206,24 +206,32 @@ namespace dmRender
 
         if (lua_istable(L, 3))
         {
-            ConstantBufferTableEntry* p_table_entry = (ConstantBufferTableEntry*) lua_newuserdata(L, sizeof(ConstantBufferTableEntry));
+            ConstantBufferTableEntry* table_entry = cb_table->m_ConstantArrayEntries.Get(name_hash);
+            // If we are re-assigning an existing entry that was previously ref'd by this function
+            // we have to unref the old value, otherwise we will leak memory
+            if (table_entry)
+            {
+                dmScript::Unref(L, LUA_REGISTRYINDEX, table_entry->m_LuaRef);
+            }
+
+            table_entry = (ConstantBufferTableEntry*) lua_newuserdata(L, sizeof(ConstantBufferTableEntry));
             luaL_getmetatable(L, RENDER_SCRIPT_CONSTANTBUFFER_ARRAY);
             lua_setmetatable(L, -2);
 
             lua_pushvalue(L, -1);
-            int p_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+            int p_ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
             lua_pop(L, 1);
 
-            p_table_entry->m_ConstantBuffer = cb;
-            p_table_entry->m_ConstantName   = name_hash;
-            p_table_entry->m_LuaRef         = p_ref;
+            table_entry->m_ConstantBuffer = cb;
+            table_entry->m_ConstantName   = name_hash;
+            table_entry->m_LuaRef         = p_ref;
 
             if (cb_table->m_ConstantArrayEntries.Full())
             {
                 cb_table->m_ConstantArrayEntries.SetCapacity(4, cb_table->m_ConstantArrayEntries.Size() + 1);
             }
 
-            cb_table->m_ConstantArrayEntries.Put(name_hash, *p_table_entry);
+            cb_table->m_ConstantArrayEntries.Put(name_hash, *table_entry);
 
             // If the table contains elements, we add them directly
             lua_pushvalue(L, 3);
@@ -250,6 +258,9 @@ namespace dmRender
             }
             lua_pop(L, 1);
         }
+        // TODO: If you set an entry to nil from a render script, we never clear up any memory or un-set the constant in the constant buffer.
+        //       The memory will be cleared later when a CB is GC'd and setting something to nil will currently cause an exception.
+        //       I (JG) think we should fix it and remove everything the constant values and table entries when this happens.
         else
         {
             RenderScriptSetNamedValueFromLua(L, 3, cb, name_hash, 0);
