@@ -507,6 +507,8 @@ def default_flags(self):
             if f == 'CXXFLAGS':
                 self.env.append_value(f, ['-fno-exceptions', '-fno-rtti', '-stdlib=libc++', '-nostdinc++'])
                 self.env.append_value(f, ['-isystem', '%s/usr/include/c++/v1' % sys_root])
+                # While we have no Neon implementation, we may as well, use the fallback for the x86_64 target too
+                self.env.append_value(f, ['-DDM_SOUND_DSP_IMPL=Fallback'])
 
             self.env.append_value(f, ['-DDM_PLATFORM_IOS'])
             if 'x86_64' == build_util.get_target_architecture():
