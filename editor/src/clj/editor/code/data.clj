@@ -1267,14 +1267,13 @@
 
 (defn syntax-scope-before-cursor [syntax-info grammar ^Cursor cursor]
   {:pre [(< (.-row cursor) (count syntax-info))]}
-  (or
-    (let [row (.-row cursor)
-          col-before-cursor (dec (.-col cursor))
-          runs (second (get syntax-info row))]
-      (let [result-index (dec ^long (util/find-insert-index runs [col-before-cursor] #(compare (%1 0) (%2 0))))]
-        (when-let [run (get runs result-index)]
-          (second run))))
-    (:scope-name grammar "source")))
+  (let [row (.-row cursor)
+        col-before-cursor (dec (.-col cursor))
+        runs (second (get syntax-info row))
+        result-index (dec ^long (util/find-insert-index runs [col-before-cursor] #(compare (%1 0) (%2 0))))]
+    (if-let [run (get runs result-index)]
+      (second run)
+      (:scope-name grammar "source"))))
 
 (defn last-visible-row
   "Returns 1-indexed row number of the last visible row"
