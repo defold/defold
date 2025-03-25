@@ -82,6 +82,7 @@
            {:custom-editor {:type :string}
             :open-file {:type :string :default "{file}"}
             :open-file-at-line {:type :string :default "{file}:{line}" :label "Open File at Line"}
+            :zoom-on-scroll {:type :boolean :default true}
             :font {:type :object
                    :properties
                    {:name {:type :string :default "Dejavu Sans Mono"}
@@ -145,6 +146,9 @@
                                                      :label "Load External Changes on App Focus"}
                 :recent-files {:type :array
                                :item {:type :tuple :items [{:type :string} {:type :keyword}]}
+                               :scope :project}
+                :saved-colors {:type :array
+                               :item {:type :string}
                                :scope :project}}}
     :console {:type :object
               :properties

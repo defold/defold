@@ -161,6 +161,7 @@ public class Exec {
     /**
      * Exec command
      * @param env environment variables to use
+     * @param args arguments
      * @return Result instance with return code and stdout/stderr combined
      * @throws IOException
      */

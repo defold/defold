@@ -30,11 +30,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.bridge.SLF4JBridgeHandler;
 
-import java.io.IOException;
-import java.lang.SecurityException;
 import java.awt.Desktop;
 import java.io.File;
-import java.lang.UnsupportedOperationException;
+import java.io.IOException;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.util.Collection;
@@ -118,6 +116,67 @@ public class Start extends Application {
         }
     }
 
+    /**
+     * The editor loads its namespaces in parallel. Since these namespaces import classes,
+     * we also load some classes in parallel. Unfortunately, loading any JavaFX class that
+     * invokes `new EventType()` in its static initializer is not thread-safe because it
+     * uses non-thread-safe WeakHashMap to register it during instantiation (see
+     * <a href="https://github.com/openjdk/jfx/blob/163bf6d42fde7de0454695311746964ff6bc1f49/modules/javafx.base/src/main/java/javafx/event/EventType.java#L182">register()</a>)
+     * Sequentially preloading these classes fixes a ConcurrentModificationException
+     * originally reported in <a href="https://github.com/defold/defold/issues/10245">#10245</a>
+     */
+    private void sequentiallyPreloadNonThreadSafeJavafxClasses() throws ClassNotFoundException {
+        // The list was compiled using this GitHub search:
+        // https://github.com/search?q=repo%3Aopenjdk%2Fjfx+%22new+EventType%22&type=code&p=3
+
+        // The issue is reported to JavaFX with an internal ID 9078156
+        // (should be publicly visible as https://bugs.openjdk.org/browse/JDK-9078156
+        // once screened)
+        String[] nonThreadSafeJavaFXClasses = {
+                "com.sun.javafx.event.RedirectedEvent",
+                "javafx.concurrent.WorkerStateEvent",
+                "javafx.css.TransitionEvent",
+                "javafx.event.ActionEvent",
+                "javafx.event.EventType",
+                "javafx.scene.control.CheckBoxTreeItem",
+                "javafx.scene.control.ChoiceBox",
+                "javafx.scene.control.ComboBoxBase",
+                "javafx.scene.control.DialogEvent",
+                "javafx.scene.control.ListView",
+                "javafx.scene.control.Menu",
+                "javafx.scene.control.MenuButton",
+                "javafx.scene.control.MenuItem",
+                "javafx.scene.control.ScrollToEvent",
+                "javafx.scene.control.SortEvent",
+                "javafx.scene.control.Tab",
+                "javafx.scene.control.TableColumn",
+                "javafx.scene.control.TreeItem",
+                "javafx.scene.control.TreeTableColumn",
+                "javafx.scene.control.TreeTableView",
+                "javafx.scene.control.TreeView",
+                "javafx.scene.input.ContextMenuEvent",
+                "javafx.scene.input.DragEvent",
+                "javafx.scene.input.GestureEvent",
+                "javafx.scene.input.InputMethodEvent",
+                "javafx.scene.input.KeyEvent",
+                "javafx.scene.input.MouseDragEvent",
+                "javafx.scene.input.MouseEvent",
+                "javafx.scene.input.RotateEvent",
+                "javafx.scene.input.ScrollEvent",
+                "javafx.scene.input.SwipeEvent",
+                "javafx.scene.input.TouchEvent",
+                "javafx.scene.input.ZoomEvent",
+                "javafx.scene.media.MediaErrorEvent",
+                "javafx.scene.transform.TransformChangedEvent",
+                "javafx.scene.web.WebErrorEvent",
+                "javafx.scene.web.WebEvent",
+                "javafx.stage.WindowEvent",
+        };
+        for (var className : nonThreadSafeJavaFXClasses) {
+            Class.forName(className);
+        }
+    }
+
     @Override
     public void start(Stage primaryStage) throws Exception {
         try {
@@ -140,6 +199,7 @@ public class Start extends Application {
             splash.shownProperty().addListener((observable, oldValue, newValue) -> {
                 if (newValue) {
                     try {
+                        sequentiallyPreloadNonThreadSafeJavafxClasses();
                         kickLoading(splash);
                     } catch (Throwable t) {
                         t.printStackTrace();

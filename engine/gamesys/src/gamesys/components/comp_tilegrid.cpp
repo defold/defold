@@ -41,10 +41,10 @@
 #include <dmsdk/gamesys/render_constants.h>
 
 DM_PROPERTY_EXTERN(rmtp_Components);
-DM_PROPERTY_U32(rmtp_Tilemap, 0, FrameReset, "# components", &rmtp_Components);
-DM_PROPERTY_U32(rmtp_TilemapTileCount, 0, FrameReset, "# vertices", &rmtp_Tilemap);
-DM_PROPERTY_U32(rmtp_TilemapVertexCount, 0, FrameReset, "# vertices", &rmtp_Tilemap);
-DM_PROPERTY_U32(rmtp_TilemapVertexSize, 0, FrameReset, "size of vertices in bytes", &rmtp_Tilemap);
+DM_PROPERTY_U32(rmtp_Tilemap, 0, PROFILE_PROPERTY_FRAME_RESET, "# components", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_TilemapTileCount, 0, PROFILE_PROPERTY_FRAME_RESET, "# vertices", &rmtp_Tilemap);
+DM_PROPERTY_U32(rmtp_TilemapVertexCount, 0, PROFILE_PROPERTY_FRAME_RESET, "# vertices", &rmtp_Tilemap);
+DM_PROPERTY_U32(rmtp_TilemapVertexSize, 0, PROFILE_PROPERTY_FRAME_RESET, "size of vertices in bytes", &rmtp_Tilemap);
 
 namespace dmGameSystem
 {

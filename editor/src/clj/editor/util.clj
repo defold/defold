@@ -29,12 +29,12 @@
 
 (defn lower-case*
   "Like clojure.string/lower-case but using root locale."
-  [^CharSequence s]
+  ^String [^CharSequence s]
   (.. s toString (toLowerCase Locale/ROOT)))
 
 (defn upper-case*
   "Like clojure.string/upper-case but using root locale."
-  [^CharSequence s]
+  ^String [^CharSequence s]
   (.. s toString (toUpperCase Locale/ROOT)))
 
 (defn capitalize*

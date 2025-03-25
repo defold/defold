@@ -23,7 +23,6 @@
             [cljfx.fx.stack-pane :as fx.stack-pane]
             [cljfx.fx.text-field :as fx.text-field]
             [cljfx.fx.v-box :as fx.v-box]
-            [clojure.data.json :as json]
             [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
@@ -41,7 +40,7 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [util.coll :as coll]
-            [util.http-util :as http-util])
+            [util.http-server :as http-server])
   (:import [editor.code.data Cursor CursorRange LayoutInfo Rect]
            [java.io BufferedReader IOException]
            [java.util.regex MatchResult]
@@ -401,11 +400,7 @@
 (defmethod json-compatible-region :default [region] (dissoc region :on-click!))
 
 (g/defnk produce-request-response [lines regions]
-  (let [json-regions (keep json-compatible-region regions)
-        body-data {:lines lines
-                   :regions json-regions}
-        body-string (json/write-str body-data)]
-    (http-util/make-json-response body-string)))
+  (http-server/json-response {:lines lines :regions (into [] (keep json-compatible-region) regions)}))
 
 (g/defnode ConsoleNode
   (property indent-type r/IndentType (default :two-spaces))
@@ -751,7 +746,7 @@
       (.addEventHandler MouseEvent/MOUSE_DRAGGED (ui/event-handler event (view/handle-mouse-moved! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_RELEASED (ui/event-handler event (view/handle-mouse-released! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_EXITED (ui/event-handler event (view/handle-mouse-exited! view-node event)))
-      (.addEventHandler ScrollEvent/SCROLL (ui/event-handler event (view/handle-scroll! view-node event))))
+      (.addEventHandler ScrollEvent/SCROLL (ui/event-handler event (view/handle-scroll! view-node false event))))
 
     ;; Configure contexts.
     (ui/context! console-grid-pane :console-grid-pane context-env nil)
@@ -778,20 +773,8 @@
     (ui/timer-start! repainter)
     view-node))
 
-(defn- handle-request! [{:keys [url method] :as _request} console-node]
-  (cond
-    (and (not= "/console" url)
-         (not= "/console/" url))
-    http-util/not-found-response
-
-    (not= "GET" method)
-    http-util/only-get-allowed-response
-
-    :else
-    (g/node-value console-node :request-response)))
-
-(defn make-request-handler [console-view]
+(defn routes [console-view]
   (let [console-node (g/node-value console-view :resource-node)]
     (assert (g/node-instance? ConsoleNode console-node))
-    (fn request-handler [request]
-      (handle-request! request console-node))))
+    {"/console" {"GET" (bound-fn [_]
+                         (g/node-value console-node :request-response))}}))
