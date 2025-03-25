@@ -22,6 +22,7 @@
     :any           anything goes, no validation is performed
     :boolean       a boolean value
     :string        a string
+    :password      a string, stored securely
     :keyword       a keyword
     :integer       an integer
     :number        floating point number
@@ -54,6 +55,7 @@
             [editor.fs :as fs]
             [editor.os :as os]
             [util.coll :as coll]
+            [util.crypto :as crypto]
             [util.eduction :as e]
             [util.fn :as fn])
   (:import [java.io ByteArrayInputStream PushbackReader]
@@ -66,7 +68,7 @@
 
 ;; All types, for reference:
 
-#_[:any :boolean :string :keyword :integer :number :array :set :object :object-of :enum :tuple]
+#_[:any :boolean :string :password :keyword :integer :number :array :set :object :object-of :enum :tuple]
 
 (def default-schema
   {:type :object
@@ -111,6 +113,8 @@
     :extensions {:type :object
                  :properties
                  {:build-server {:type :string}
+                  :build-server-username {:type :string}
+                  :build-server-password {:type :password}
                   :build-server-headers {:type :string}}}
     :search-in-files {:type :object
                       :scope :project
@@ -186,6 +190,7 @@
     :any true
     :boolean (boolean? value)
     :string (string? value)
+    :password (string? value)
     :keyword (keyword? value)
     :integer (int? value)
     :number (number? value)
@@ -220,6 +225,7 @@
         :any nil
         :boolean false
         :string ""
+        :password ""
         :keyword nil
         :integer 0
         :number 0.0
@@ -230,6 +236,23 @@
         :enum ((:values schema) 0)
         :tuple (mapv default-value (:items schema)))
       explicit-default)))
+
+(def ^:private secret-delay
+  (delay (crypto/secret-bytes (.getBytes (System/getProperty "user.name") StandardCharsets/UTF_8)
+                              (byte-array [0x9F 0x4B 0x7E 0x22 0xED 0xC1 0xA5 0x71
+                                           0x4E 0x96 0xC0 0xA7 0xD4 0xFD 0xBF 0x11
+                                           0x41 0xD0 0xE8 0x2D 0x25 0xAB 0x7F 0xBA
+                                           0x69 0x33 0xBB 0x47 0xBF 0xC2 0x4D 0x39]))))
+
+(defn- storage->value [schema x]
+  (case (:type schema)
+    :password (crypto/decrypt-string-base64 x @secret-delay)
+    x))
+
+(defn- value->storage [schema x]
+  (case (:type schema)
+    :password (crypto/encrypt-string-base64 x @secret-delay)
+    x))
 
 ;; endregion
 
@@ -243,7 +266,7 @@
 (s/def ::description string?)
 (s/def ::default any?)
 (s/def ::scope #{:global :project})
-(s/def ::type #{:any :boolean :string :keyword :integer :number :array :set :object :object-of :enum :tuple})
+(s/def ::type #{:any :boolean :string :password :keyword :integer :number :array :set :object :object-of :enum :tuple})
 (s/def ::schema
   (s/and
     (s/multi-spec type-spec :type)
@@ -425,7 +448,7 @@
       (if (or (identical? value ::not-found)
               (not (valid? schema value)))
         (default-value schema)
-        value))))
+        (storage->value schema value)))))
 
 (defn- value-at-path-set? [scopes storage schema path]
   (if (= :object (:type schema))
@@ -550,7 +573,7 @@
           value))
       (throw (value-error path value schema)))
     (if (valid? schema value)
-      [[(-> schema :scope scopes) path value]]
+      [[(-> schema :scope scopes) path (value->storage schema value)]]
       (throw (value-error path value schema)))))
 
 ;; endregion
