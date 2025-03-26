@@ -70,7 +70,7 @@ def configure(conf):
     target_os = build_util.get_target_os()
     architecture = build_util.get_target_architecture()
 
-    sound_lib = 'sound'
+    sound_lib = 'sound decoder_wav decoder_ogg'.split()
     glfw_lib = waf_dynamo.platform_get_glfw_lib(conf.env.PLATFORM)
     platform_lib =  waf_dynamo.platform_get_platform_lib(conf.env.PLATFORM)
 
