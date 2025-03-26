@@ -21,7 +21,7 @@
             [editor.types :as types]
             [editor.camera :as c]
             [editor.gl.pass :as pass])
-  (:import [editor.types AABB Camera]
+  (:import [editor.types AABB]
            [com.jogamp.opengl GL2]
            [javax.vecmath Point3d]))
 
@@ -119,10 +119,7 @@
              (grid/snap-out-to-grid aabb grid-size-large)]}))
 
 (g/defnode Grid
-  (property size g/Any)
-  (property alpha g/Num)
-
-  (input camera Camera)
-
+  (inherits grid/Grid)
+  
   (output grids g/Any :cached update-grids)
   (output renderable pass/RenderData :cached grid-renderable))

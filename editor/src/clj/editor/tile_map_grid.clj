@@ -24,7 +24,7 @@
    [editor.scene :as scene]
    [editor.types :as types])
   (:import
-   (editor.types AABB Camera)
+   (editor.types AABB)
    (com.jogamp.opengl GL2)
    (javax.vecmath Point3d)))
 
@@ -106,10 +106,8 @@
        :grid-size grid-size})))
 
 (g/defnode TileMapGrid
-  (property size g/Any)
-  (property alpha g/Num)
+  (inherits grid/Grid)
 
-  (input camera Camera)
   (input grid-size g/Any :substitute nil)
 
   (output grid g/Any :cached update-grid)
