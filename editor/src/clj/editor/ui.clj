@@ -59,6 +59,8 @@
 
 (set! *warn-on-reflection* true)
 
+(def ^:private ^:dynamic *programmatic-selection* nil)
+
 ;; Next line of code makes sure JavaFX is initialized, which is required during
 ;; compilation even when we are not actually running the editor. To properly
 ;; generate reflection-less code, clojure compiler loads classes and searches
@@ -1804,7 +1806,7 @@
                                                             (.setConverter (DefoldStringConverter. :label #(some #{%} (map :label opts)))))]
                                                    (.setAll (.getItems cb) ^Collection opts)
                                                    (observe (.valueProperty cb) (fn [this old new]
-                                                                                  (when new
+                                                                                  (when (and new (not *programmatic-selection*))
                                                                                     (let [command-contexts (contexts scene)]
                                                                                       (execute-command command-contexts (:command new) (:user-data new))))))
                                                    (.add (.getChildren hbox) (icons/get-image-view (:icon menu-item) 16))
@@ -1862,7 +1864,8 @@
             (let [selection-model (.getSelectionModel cb)
                   item (.getSelectedItem selection-model)]
               (when (not= item state)
-                (.select selection-model state)))))))))
+                (binding [*programmatic-selection* true]
+                  (.select selection-model state))))))))))
 
 (defn- window-parents [^Window window]
   (when-let [parent (condp instance? window
