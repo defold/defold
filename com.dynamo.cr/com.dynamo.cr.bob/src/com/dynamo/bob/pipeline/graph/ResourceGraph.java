@@ -65,6 +65,7 @@ public class ResourceGraph implements IResourceVisitor {
 
     public ResourceGraph(Project project) {
         this.project = project;
+        root.flagAsUsedInMainBundle();
     }
 
     @Override
@@ -248,8 +249,13 @@ public class ResourceGraph implements IResourceVisitor {
         }
 
         if (shouldPublishLU) {
+            boolean isInMainBundle = node.isInMainBundle();
             generator.writeFieldName("isInMainBundle");
-            generator.writeBoolean(node.isInMainBundle());
+            generator.writeBoolean(isInMainBundle);
+
+            if (!isInMainBundle && node.getHexDigest() == null) {
+                throw new RuntimeException("Resource '" + node.getPath() + "' has no hex digest");
+            }
         }
 
         generator.writeFieldName("children");

@@ -30,7 +30,7 @@ import java.util.List;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.Map;
-import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.Executors;
@@ -62,14 +62,13 @@ public class ArchiveBuilder {
 
     public static final int VERSION = 5;
     public static final int HASH_MAX_LENGTH = 64; // 512 bits
-    public static final int HASH_LENGTH = 20;
     public static final int MD5_HASH_DIGEST_BYTE_LENGTH = 16; // 128 bits
 
     private List<ArchiveEntry> entries = new ArrayList<ArchiveEntry>();
     private List<ArchiveEntry> excludedEntries;
     private List<ArchiveEntry> includedEntries;
     private Set<String> lookup = new HashSet<String>(); // To see if a resource has already been added
-    private Map<String, String> hexDigestCache = new HashMap<>();
+    private Map<String, String> hexDigestCache = new ConcurrentHashMap<>();
     private String root;
     private ManifestBuilder manifestBuilder = null;
     private LZ4Compressor lz4Compressor;
