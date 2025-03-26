@@ -42,6 +42,7 @@
     :any coerce/any
     :boolean coerce/boolean
     :string coerce/string
+    :password coerce/string
     :keyword prefs-docs/serializable-keyword-coercer
     :integer coerce/integer
     :number number->double-coercer

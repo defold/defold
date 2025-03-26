@@ -313,6 +313,46 @@ TEST(ModelSkinnedTopNodes, MultipleModels)
 
     ASSERT_EQ(9, num_non_skinned_models);
 
+    ASSERT_EQ(1u, scene->m_Materials.Size());
+    ASSERT_EQ(1u, scene->m_DynamicMaterials.Size());
+
+    dmModelImporter::Material* material = &scene->m_Materials[0];
+    ASSERT_STREQ("knight_texture", material->m_Name);
+    ASSERT_TRUE(material->m_IsSkinned);
+
+    dmModelImporter::Material* dynmaterial = scene->m_DynamicMaterials[0];
+    ASSERT_STREQ("knight_texture_no_skin", dynmaterial->m_Name);
+    ASSERT_FALSE(dynmaterial->m_IsSkinned);
+
+#define CHECKPROP(DNAME) \
+    if ((material->m_ ## DNAME && !dynmaterial->m_ ## DNAME) || (!material->m_ ## DNAME && dynmaterial->m_ ## DNAME)) { \
+        ASSERT_FALSE(true); \
+    } \
+    if (material->m_ ## DNAME && dynmaterial->m_ ## DNAME) { \
+        printf("Testing m_" # DNAME "\n"); \
+        ASSERT_ARRAY_EQ_LEN((uint8_t*)material->m_ ## DNAME, (uint8_t*)dynmaterial->m_ ## DNAME, sizeof(dmModelImporter:: DNAME)); \
+    }
+
+    CHECKPROP(PbrMetallicRoughness);
+    CHECKPROP(PbrSpecularGlossiness);
+    CHECKPROP(Clearcoat);
+    CHECKPROP(Ior);
+    CHECKPROP(Specular);
+    CHECKPROP(Sheen);
+    CHECKPROP(Transmission);
+    CHECKPROP(Volume);
+    CHECKPROP(EmissiveStrength);
+    CHECKPROP(Iridescence);
+
+#undef CHECKPROP
+
+    ASSERT_ARRAY_EQ(material->m_EmissiveFactor, dynmaterial->m_EmissiveFactor);
+
+    ASSERT_EQ(material->m_AlphaCutoff, dynmaterial->m_AlphaCutoff);
+    ASSERT_EQ(material->m_AlphaMode, dynmaterial->m_AlphaMode);
+    ASSERT_EQ(material->m_DoubleSided, dynmaterial->m_DoubleSided);
+    ASSERT_EQ(material->m_Unlit, dynmaterial->m_Unlit);
+
     dmModelImporter::DestroyScene(scene);
 }
 

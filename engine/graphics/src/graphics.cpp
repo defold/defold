@@ -75,12 +75,12 @@ namespace dmGraphics
     static bool SelectAdapterByPriority()
     {
         GraphicsAdapter* next     = g_adapter_list;
-        GraphicsAdapter* selected = next;
+        GraphicsAdapter* selected = 0x0;
 
         while(next)
         {
             bool is_supported = next->m_IsSupportedCb();
-            if (next->m_Priority < selected->m_Priority && is_supported)
+            if (is_supported && ((selected != 0x0 && next->m_Priority < selected->m_Priority) || selected == 0x0))
             {
                 selected = next;
             }

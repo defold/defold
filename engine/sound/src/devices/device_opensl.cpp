@@ -426,6 +426,7 @@ cleanup_sl:
         assert(info);
         OpenSLDevice* opensl = (OpenSLDevice*) device;
         info->m_MixRate = opensl->m_MixRate;
+        info->m_DSPImplementation = dmSound::DSPIMPL_TYPE_CPU;
     }
 
     void DeviceOpenSLStart(dmSound::HDevice device)

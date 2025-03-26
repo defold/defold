@@ -135,7 +135,7 @@ var LibrarySoundDevice =
 
     dmGetDeviceSampleRate: function(id) {
         return window._dmJSDeviceShared.devices[id].sampleRate;
-    }
+    },
 }
 
 autoAddDeps(LibrarySoundDevice, '$DefoldSoundDevice');
