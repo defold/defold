@@ -976,6 +976,34 @@ static void FixupNonSkinnedModels(Scene* scene, Bone* parent, Node* node)
                 non_skinned = new Material;
                 memset(non_skinned, 0, sizeof(*non_skinned));
 
+                dmModelImporter::Material* source = mesh->m_Material;
+
+        // a helper to avoid typos
+#define COPYPROP(DNAME) \
+                if (source->m_ ## DNAME) \
+                { \
+                    memcpy(AllocStruct(&non_skinned->m_ ## DNAME), source->m_ ## DNAME, sizeof(*source->m_ ## DNAME)); \
+                }
+
+                COPYPROP(PbrMetallicRoughness);
+                COPYPROP(PbrSpecularGlossiness);
+                COPYPROP(Clearcoat);
+                COPYPROP(Transmission);
+                COPYPROP(Ior);
+                COPYPROP(Specular);
+                COPYPROP(Volume);
+                COPYPROP(Sheen);
+                COPYPROP(EmissiveStrength);
+                COPYPROP(Iridescence);
+
+#undef COPYPROP
+
+                memcpy(non_skinned->m_EmissiveFactor, source->m_EmissiveFactor, sizeof(non_skinned->m_EmissiveFactor));
+                non_skinned->m_AlphaCutoff = source->m_AlphaCutoff;
+                non_skinned->m_AlphaMode = source->m_AlphaMode;
+                non_skinned->m_DoubleSided = source->m_DoubleSided;
+                non_skinned->m_Unlit = source->m_Unlit;
+
                 non_skinned->m_IsSkinned = 0;
                 non_skinned->m_Index = scene->m_Materials.Size() + scene->m_DynamicMaterials.Size();
                 non_skinned->m_Name = strdup(name);
