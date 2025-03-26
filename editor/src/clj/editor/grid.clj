@@ -176,6 +176,10 @@
      :aabbs [(snap-out-to-grid aabb grid-size-small)
              (snap-out-to-grid aabb grid-size-large)]}))
 
+(g/defnk produce-snapping-points
+  [grids]
+  {})
+
 (g/defnode Grid
   (property size g/Any)
   (property alpha g/Num)
@@ -184,4 +188,5 @@
   (input camera Camera)
 
   (output grids g/Any :cached update-grids)
+  (output snapping-points g/Any :cached produce-snapping-points)
   (output renderable pass/RenderData :cached grid-renderable))

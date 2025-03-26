@@ -41,6 +41,7 @@
             [editor.scene-text :as scene-text]
             [editor.scene-tools :as scene-tools]
             [editor.scene-visibility :as scene-visibility]
+            [editor.snap :as snap]
             [editor.system :as system]
             [editor.types :as types]
             [editor.ui :as ui]
@@ -1514,14 +1515,15 @@
                 :picking-drawable (gl/offscreen-drawable picking-drawable-size picking-drawable-size)))
 
 (defmulti attach-grid
-  (fn [grid-node-type grid-node-id view-id resource-node camera]
+  (fn [grid-node-type grid-node-id snap-node-id view-id resource-node camera]
     (:key @grid-node-type)))
 
 (defmethod attach-grid :editor.grid/Grid
-  [_ grid-node-id view-id resource-node camera]
+  [_ grid-node-id snap-node-id view-id resource-node camera]
   (concat
-    (g/connect grid-node-id :renderable view-id      :aux-renderables)
-    (g/connect camera       :camera     grid-node-id :camera)))
+    (g/connect grid-node-id :renderable      view-id      :aux-renderables)
+    (g/connect grid-node-id :snapping-points snap-node-id :grid-points)
+    (g/connect camera       :camera          grid-node-id :camera)))
 
 (defmulti attach-tool-controller
   (fn [tool-node-type tool-node-id view-id resource-node]
@@ -1550,6 +1552,7 @@
                                                                                    (select-fn selection))))]
                    camera          [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic identity {:fov-x 1000 :fov-y 1000}))]
                    grid            (grid-type :size (prefs/get prefs [:scene :grid :size]))
+                   snap            (snap/SnapNode)
                    tool-controller [tool-controller-type :prefs prefs]
                    rulers          [rulers/Rulers]]
 
@@ -1581,7 +1584,7 @@
                   (attach-tool-controller tool-controller-type tool-controller view-id resource-node)
 
                   (if (:grid opts)
-                    (attach-grid grid-type grid view-id resource-node camera)
+                    (attach-grid grid-type grid snap view-id resource-node camera)
                     (g/delete-node grid))
 
                   (g/connect resource-node   :_node-id                      selection       :root-id)

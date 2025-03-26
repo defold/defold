@@ -115,7 +115,7 @@
 
 
 (defmethod scene/attach-grid ::TileMapGrid
-  [_ grid-node-id view-id resource-node camera]
+  [_ grid-node-id _snap-node-id view-id resource-node camera]
   (concat
    (g/connect grid-node-id  :renderable       view-id      :aux-renderables)
    (g/connect camera        :camera           grid-node-id :camera)
