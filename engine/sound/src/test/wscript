@@ -130,11 +130,11 @@ def build(bld):
                                      source = 'dummy.cpp',  # Make waf happy
                                      embed_source = [x.name for x in bld.path.ant_glob('**/*.opus')])
 
-    soundlibs = ['SOUND', 'OPUS']
-    if bld.env.PLATFORM in ['js-web', 'wasm-web', 'win32', 'x86_64-win32', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5']:
-        exported_symbols = ["DefaultSoundDevice", "AudioDecoderWav", "AudioDecoderStbVorbis", "AudioDecoderOpus"]
-    else:
-        exported_symbols = ["DefaultSoundDevice", "AudioDecoderWav", "AudioDecoderStbVorbis", "AudioDecoderOpus", "AudioDecoderTremolo"]
+    soundlibs = ['SOUND', 'OPUS', 'decoder_wav', 'decoder_ogg', 'decoder_opus']
+    exported_symbols = ["DefaultSoundDevice", "AudioDecoderWav", "AudioDecoderStbVorbis", "AudioDecoderOpus"]
+
+    if bld.env.PLATFORM not in ['js-web', 'wasm-web', 'win32', 'x86_64-win32', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5']:
+        exported_symbols.append("AudioDecoderTremolo")
         soundlibs.append('TREMOLO')
 
     if bld.env.PLATFORM in ['arm64-nx64', 'x86_64-ps4']:

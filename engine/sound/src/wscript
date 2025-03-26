@@ -8,15 +8,13 @@ def configure(conf):
 def build(bld):
     source      = 'sound_codec.cpp sound_decoder.cpp sound.cpp'.split()
     source_null = 'devices/device_null.cpp sound_null.cpp'.split()
-    decoders    = 'decoders/decoder_wav.cpp decoders/decoder_stb_vorbis.cpp stb_vorbis/stb_vorbis.c'.split()
+
+    decoder_wav     = ['decoders/decoder_wav.cpp']
+    decoder_opus    = ['decoders/decoder_opus.cpp']
+    decoder_ogg     = 'decoders/decoder_stb_vorbis.cpp stb_vorbis/stb_vorbis.c'.split()
 
     if bld.env['PLATFORM'] not in ['arm64-nx64', 'x86_64-ps4', 'x86_64-ps5']:
-        decoders += 'decoders/decoder_tremolo.cpp'.split()
-
-    if waflib.Options.options.with_opus:
-        decoders += 'decoders/decoder_opus.cpp'.split()
-
-    source += decoders
+        decoder_ogg.append("decoders/decoder_tremolo.cpp")
 
     defines = ''
     include = ''
@@ -57,6 +55,24 @@ def build(bld):
             basedir='java',
             destfile='sound_android.jar')
         bld.install_files('${PREFIX}/share/java', 'sound_android.jar')
+
+    bld.stlib(features = 'c cxx',
+                      includes = '. %s' % include,
+                      defines  = defines,
+                      target   = 'decoder_wav',
+                      source   = decoder_wav)
+
+    bld.stlib(features = 'c cxx',
+                      includes = '. %s' % include,
+                      defines  = defines,
+                      target   = 'decoder_ogg',
+                      source   = decoder_ogg)
+
+    bld.stlib(features = 'c cxx',
+                      includes = '. %s' % include,
+                      defines  = defines,
+                      target   = 'decoder_opus',
+                      source   = decoder_opus)
 
     sound = bld.stlib(features = 'c cxx ddf',
                       includes = '. %s' % include,
