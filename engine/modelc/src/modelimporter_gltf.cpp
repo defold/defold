@@ -974,6 +974,8 @@ static void FixupNonSkinnedModels(Scene* scene, Bone* parent, Node* node)
             if (!non_skinned)
             {
                 non_skinned = new Material;
+                memset(non_skinned, 0, sizeof(*non_skinned));
+
                 non_skinned->m_IsSkinned = 0;
                 non_skinned->m_Index = scene->m_Materials.Size() + scene->m_DynamicMaterials.Size();
                 non_skinned->m_Name = strdup(name);
