@@ -19,6 +19,7 @@ from waflib.TaskGen import extension, feature, after, before, task_gen
 from waflib.Logs import error
 from waflib.Task import RUN_ME
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
+from build_contants import TargetOS
 import sdk
 
 if not 'DYNAMO_HOME' in os.environ:
@@ -1665,6 +1666,9 @@ def detect(conf):
     except BuildUtilityException as ex:
         conf.fatal(ex.msg)
 
+    target_os = build_util.get_target_os()
+    conf.env['TARGET_OS'] = target_os
+
     dynamo_home = build_util.get_dynamo_home()
     conf.env['DYNAMO_HOME'] = dynamo_home
 
@@ -1672,7 +1676,7 @@ def detect(conf):
     sdkinfo = sdk.get_sdk_info(SDK_ROOT, build_util.get_target_platform())
     sdkinfo_host = sdk.get_sdk_info(SDK_ROOT, host_platform)
 
-    if 'linux' in host_platform and build_util.get_target_platform() in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
+    if 'linux' in host_platform and target_os in (TargetOS.MACOS, TargetOS.IOS):
         conf.env['TESTS_UNSUPPORTED'] = True
         print ("Tests disabled (%s cannot run on %s)" % (build_util.get_target_platform(), host_platform))
 
@@ -1683,7 +1687,7 @@ def detect(conf):
     if Options.options.with_vulkan and build_util.get_target_platform() in ('arm64-linux', 'x86_64-ios', 'js-web', 'wasm-web'):
         conf.fatal('Vulkan is unsupported on %s' % build_util.get_target_platform())
 
-    if 'win32' in platform:
+    if target_os == TargetOS.WINDOWS:
         includes = sdkinfo['includes']['path']
         libdirs = sdkinfo['lib_paths']['path']
         bindirs = sdkinfo['bin_paths']['path']
@@ -1696,7 +1700,7 @@ def detect(conf):
         if not Options.options.skip_codesign:
             conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = bindirs)
 
-    if build_util.get_target_os() in ('macos', 'ios'):
+    if target_os in (TargetOS.MACOS, TargetOS.IOS):
         path_list = None
         if 'linux' in host_platform:
             path_list=[os.path.join(sdk.get_toolchain_root(sdkinfo_host, host_platform),'bin')]
@@ -1705,7 +1709,7 @@ def detect(conf):
         conf.find_program('dsymutil', var='DSYMUTIL', mandatory = True, path_list=path_list) # or possibly llvm-dsymutil
         conf.find_program('zip', var='ZIP', mandatory = True)
 
-    if 'macos' == build_util.get_target_os():
+    if TargetOS.MACOS == target_os:
         # Force gcc without llvm on darwin.
         # We got strange bugs with http cache with gcc-llvm...
         os.environ['CC'] = 'clang'
@@ -1725,7 +1729,7 @@ def detect(conf):
         conf.env['AR']      = '%s/%sar' % (bin_dir, llvm_prefix)
         conf.env['RANLIB']  = '%s/%sranlib' % (bin_dir, llvm_prefix)
 
-    elif 'ios' == build_util.get_target_os() and build_util.get_target_architecture() in ('armv7','arm64','x86_64'):
+    elif TargetOS.IOS == target_os and build_util.get_target_architecture() in ('armv7','arm64','x86_64'):
 
         # NOTE: If we are to use clang for OSX-builds the wrapper script must be qualifed, e.g. clang-ios.sh or similar
         if 'linux' in host_platform:
@@ -1755,7 +1759,7 @@ def detect(conf):
         conf.env['GCC-OBJCLINK'] = '-lobjc'
 
 
-    elif 'android' == build_util.get_target_os() and build_util.get_target_architecture() in ('armv7', 'arm64'):
+    elif TargetOS.ANDROID == target_os and build_util.get_target_architecture() in ('armv7', 'arm64'):
         # TODO: No windows support yet (unknown path to compiler when wrote this)
         bp_arch, bp_os = host_platform.split('-')
         exe_suffix = ''
@@ -1795,7 +1799,7 @@ def detect(conf):
 
         conf.find_program('d8', var='D8', mandatory = True, path_list=[sdkinfo['build_tools']])
 
-    elif 'linux' == build_util.get_target_os():
+    elif TargetOS.LINUX == target_os:
         bin_dir=os.path.join(sdk.get_toolchain_root(sdkinfo, build_util.get_target_platform()),'bin')
 
         conf.find_program('clang', var='CLANG', mandatory = False, path_list=[bin_dir])
@@ -1819,7 +1823,7 @@ def detect(conf):
     platform_setup_tools(conf, build_util)
 
     # jg: this whole thing is a 'dirty hack' to be able to pick up our own SDKs
-    if 'win32' in platform:
+    if TargetOS.WINDOWS == target_os:
         includes = sdkinfo['includes']['path']
         libdirs = sdkinfo['lib_paths']['path']
         bindirs = sdkinfo['bin_paths']['path']
@@ -1863,7 +1867,7 @@ def detect(conf):
             os.environ['CLANGPP'] = conf.env.CLANGPP[0]
 
     # NOTE: We override after check_tool. Otherwise waf gets confused and CXX_NAME etc are missing..
-    if platform in ('js-web', 'wasm-web'):
+    if target_os == TargetOS.WEB:
         emsdk = sdkinfo['emsdk']['path']
 
         if emsdk is None:
@@ -1912,7 +1916,7 @@ def detect(conf):
             else:
                 conf.env[t] = [conf.env.SCANBUILD, '-k','-o',output_dir, c]
 
-    if conf.env['CCACHE'] and not 'win' == build_util.get_target_os():
+    if conf.env['CCACHE'] and TargetOS.WINDOWS != target_os:
         if not Options.options.disable_ccache:
             # Prepend gcc/g++ with CCACHE
             for t in ['CC', 'CXX']:
@@ -1927,20 +1931,21 @@ def detect(conf):
     conf.env.BINDIR = Utils.subst_vars('${PREFIX}/bin/%s' % build_util.get_target_platform(), conf.env)
     conf.env.LIBDIR = Utils.subst_vars('${PREFIX}/lib/%s' % build_util.get_target_platform(), conf.env)
 
-    if platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
+    if target_os in (TargetOS.MACOS, TargetOS.IOS):
         conf.load('waf_objectivec')
 
         # Unknown argument: -Bstatic, -Bdynamic
         conf.env['STLIB_MARKER']=''
         conf.env['SHLIB_MARKER']=''
 
-    if re.match('.*?linux', platform):
+    if TargetOS.LINUX == target_os:
         conf.env['LIB_PLATFORM_SOCKET'] = ''
         conf.env['LIB_DL'] = 'dl'
-    elif platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
+    elif target_os in (TargetOS.MACOS, TargetOS.IOS):
         conf.env['LIB_PLATFORM_SOCKET'] = ''
-    elif 'android' in platform:
+    elif TargetOS.ANDROID == target_os:
         conf.env['LIB_PLATFORM_SOCKET'] = ''
+    # TODO: only 32bit windows or 64 also?????
     elif platform == 'win32':
         conf.env['LIB_PLATFORM_SOCKET'] = 'WS2_32 Iphlpapi AdvAPI32'.split()
     else:
@@ -1957,33 +1962,33 @@ def detect(conf):
 
     conf.env['STLIB_TESTMAIN'] = ['testmain'] # we'll use this for all internal tests/tools
 
-    if platform not in ('x86_64-macos','arm64-macos',):
+    if target_os != TargetOS.MACOS:
         conf.env['STLIB_UNWIND'] = 'unwind'
 
-    if platform in ('x86_64-macos','arm64-macos'):
+    if TargetOS.MACOS == target_os:
         conf.env['FRAMEWORK_OPENGL'] = ['OpenGL', 'AGL']
-    elif platform in ('armv7-android', 'arm64-android'):
+    elif TargetOS.ANDROID == target_os:
         conf.env['LIB_OPENGL'] = ['EGL', 'GLESv1_CM', 'GLESv2']
-    elif platform in ('win32', 'x86_64-win32'):
+    elif TargetOS.WINDOWS == target_os:
         conf.env['LINKFLAGS_OPENGL'] = ['opengl32.lib', 'glu32.lib']
-    elif platform in ('x86_64-linux', 'arm64-linux'):
+    elif 'linux' == target_os:
         conf.env['LIB_OPENGL'] = ['GL', 'GLU']
         conf.env['LIB_OPENGLES'] = ['EGL', 'GLESv1_CM', 'GLESv2']
 
-    if platform in ('x86_64-macos','arm64-macos'):
+    if TargetOS.MACOS == target_arch:
         conf.env['FRAMEWORK_OPENAL'] = ['OpenAL']
-    elif platform in ('arm64-ios', 'x86_64-ios'):
+    elif TargetOS.IOS == target_os:
         conf.env['FRAMEWORK_OPENAL'] = ['OpenAL', 'AudioToolbox']
-    elif platform in ('armv7-android', 'arm64-android'):
+    elif TargetOS.ANDROID == target_os:
         conf.env['LIB_OPENAL'] = ['OpenSLES']
-    elif platform in ('x86_64-linux','arm64-linux'):
+    elif TargetOS.LINUX == target_os:
         conf.env['LIB_OPENAL'] = ['openal']
 
     conf.env['STLIB_DLIB'] = ['dlib', 'image', 'mbedtls', 'zip']
     conf.env['STLIB_DDF'] = 'ddf'
     conf.env['STLIB_CRASH'] = 'crashext'
     conf.env['STLIB_CRASH_NULL'] = 'crashext_null'
-    if platform in ['wasm-web', 'js-web']:
+    if TargetOS.WEB == target_os:
         conf.env['STLIB_PROFILE'] = ['profile_basic']
     else:
         conf.env['STLIB_PROFILE'] = ['profile', 'remotery']
@@ -2023,39 +2028,38 @@ def detect(conf):
 
     # ***********************************************************
     # Vulkan
-    if platform in ('x86_64-macos','arm64-macos'):
+    if TargetOS.MACOS == target_os:
         conf.env['STLIB_VULKAN'] = Options.options.with_vulkan_validation and 'vulkan' or 'MoltenVK'
         conf.env['FRAMEWORK_VULKAN'] = ['Metal', 'IOSurface', 'QuartzCore']
         conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore']
-
-    elif platform in ('arm64-ios','x86_64-ios'):
+    elif TargetOS.IOS == target_os:
         conf.env['STLIB_VULKAN'] = 'MoltenVK'
         conf.env['FRAMEWORK_VULKAN'] = ['Metal', 'IOSurface']
         conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore', 'OpenGLES', 'CoreVideo', 'CoreGraphics']
-    elif platform in ('x86_64-linux','arm64-linux'):
+    elif TargetOS.LINUX == target_os:
         conf.env['LIB_VULKAN'] = ['vulkan', 'X11-xcb']
         # currently we only have the validation
         if Options.options.with_vulkan_validation and platform == 'arm64-linux':
             conf.env.append_value('LIB_VULKAN', ['VkLayer_khronos_validation'])
 
-    elif platform in ('armv7-android','arm64-android'):
+    elif TargetOS.ANDROID == target_os:
         conf.env['SHLIB_VULKAN'] = ['vulkan']
-    elif platform in ('x86_64-win32','win32'):
+    elif TargetOS.WINDOWS == target_os:
         conf.env['LINKFLAGS_VULKAN'] = 'vulkan-1.lib' # because it doesn't have the "lib" prefix
 
-    if platform in ('x86_64-macos','arm64-macos',):
+    if TargetOS.MACOS == target_os:
         conf.env['FRAMEWORK_TESTAPP'] = ['AppKit', 'Cocoa', 'IOKit', 'Carbon', 'CoreVideo']
         conf.env['FRAMEWORK_APP'] = ['AppKit', 'Cocoa', 'IOKit', 'Carbon', 'CoreVideo']
-    elif platform in ('armv7-android', 'arm64-android'):
+    elif TargetOS.ANDROID == target_os:
         pass
         #conf.env['STLIB_TESTAPP'] += ['android']
-    elif platform in ('x86_64-linux','arm64-linux'):
+    elif TargetOS.LINUX == target_os:
         conf.env['LIB_TESTAPP'] += ['Xext', 'X11', 'Xi', 'pthread']
         conf.env['LIB_APP'] += ['Xext', 'X11', 'Xi', 'pthread']
-    elif platform in ('win32', 'x86_64-win32'):
+    elif TargetOS.WINDOWS == target_os:
         conf.env['LINKFLAGS_TESTAPP'] = ['user32.lib', 'shell32.lib']
 
-    if platform in ('x86_64-win32','win32'):
+    if TargetOS.WINDOWS == target_os:
         conf.env['LINKFLAGS_SOUND']     = ['ole32.lib'] # cocreateinstance in device_wasapi.cpp
         conf.env['LINKFLAGS_DINPUT']    = ['dinput8.lib', 'dxguid.lib', 'xinput9_1_0.lib']
         conf.env['LINKFLAGS_APP']       = ['user32.lib', 'shell32.lib', 'dbghelp.lib'] + conf.env['LINKFLAGS_DINPUT']

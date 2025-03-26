@@ -13,7 +13,8 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
-import os, subprocess, builtins;
+import os, subprocess
+from build_contants import TargetOS
 
 class BuildUtilityException(Exception):
     def __init__(self, msg):
@@ -28,21 +29,21 @@ class BuildUtility:
     _binary_path = None
 
     _supported_platforms = [
-                            {'platform': 'x86_64-linux', 'os': 'linux', 'arch': 'x86_64'},
-                            {'platform': 'arm64-linux', 'os': 'linux', 'arch': 'arm64'},
-                            {'platform': 'x86_64-macos', 'os': 'macos', 'arch': 'x86_64'},
-                            {'platform': 'arm64-macos', 'os': 'macos', 'arch': 'arm64'},
-                            {'platform': 'win32', 'os': 'win', 'arch': 'x86'},
-                            {'platform': 'x86_64-win32', 'os': 'win', 'arch': 'x86_64'},
-                            {'platform': 'x86_64-ios', 'os': 'ios', 'arch': 'x86_64'},
-                            {'platform': 'arm64-ios', 'os': 'ios', 'arch': 'arm64'},
-                            {'platform': 'armv7-android', 'os': 'android', 'arch': 'armv7'},
-                            {'platform': 'arm64-android', 'os': 'android', 'arch': 'arm64'},
-                            {'platform': 'js-web', 'os': 'web', 'arch': 'js'},
-                            {'platform': 'wasm-web', 'os': 'web', 'arch': 'wasm'},
-                            {'platform': 'arm64-nx64', 'os': 'nx64', 'arch': 'arm64'},
-                            {'platform': 'x86_64-ps4', 'os': 'ps4', 'arch': 'x86_64'},
-                            {'platform': 'x86_64-ps5', 'os': 'ps5', 'arch': 'x86_64'},
+                            {'platform': 'x86_64-linux', 'os': TargetOS.LINUX, 'arch': 'x86_64'},
+                            {'platform': 'arm64-linux', 'os': TargetOS.LINUX, 'arch': 'arm64'},
+                            {'platform': 'x86_64-macos', 'os': TargetOS.MACOS, 'arch': 'x86_64'},
+                            {'platform': 'arm64-macos', 'os': TargetOS.MACOS, 'arch': 'arm64'},
+                            {'platform': 'win32', 'os': TargetOS.WINDOWS, 'arch': 'x86'},
+                            {'platform': 'x86_64-win32', 'os': TargetOS.WINDOWS, 'arch': 'x86_64'},
+                            {'platform': 'x86_64-ios', 'os': TargetOS.IOS, 'arch': 'x86_64'},
+                            {'platform': 'arm64-ios', 'os': TargetOS.IOS, 'arch': 'arm64'},
+                            {'platform': 'armv7-android', 'os': TargetOS.ANDROID, 'arch': 'armv7'},
+                            {'platform': 'arm64-android', 'os': TargetOS.ANDROID, 'arch': 'arm64'},
+                            {'platform': 'js-web', 'os': TargetOS.WEB, 'arch': 'js'},
+                            {'platform': 'wasm-web', 'os': TargetOS.WEB, 'arch': 'wasm'},
+                            {'platform': 'arm64-nx64', 'os': TargetOS.NX64, 'arch': 'arm64'},
+                            {'platform': 'x86_64-ps4', 'os': TargetOS.PS4, 'arch': 'x86_64'},
+                            {'platform': 'x86_64-ps5', 'os': TargetOS.PS5, 'arch': 'x86_64'},
                             ]
 
     def __init__(self, platform_id, build_platform_id, dynamo_home = None):
