@@ -25,7 +25,8 @@
             [editor.resource-node :as resource-node]
             [editor.shared-editor-settings :as shared-editor-settings]
             [editor.system :as system]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [util.coll :as coll])
   (:import [com.defold.extender.client ExtenderClient ExtenderClientCache ExtenderResource]
            [com.dynamo.bob Platform]
            [java.io File]
@@ -252,7 +253,7 @@
            (extension-resource-nodes-by-upload-path project evaluation-context platform)
            (get-main-manifest-file-upload-resource project evaluation-context platform))))
 
-(defn get-engine-archive [project evaluation-context platform build-server-url build-server-headers]
+(defn get-engine-archive [project platform prefs evaluation-context]
   (if-not (supported-platform? platform)
     (throw (engine-build-errors/unsupported-platform-error platform))
     (let [extender-platform (get-in extender-platforms [platform :platform])
@@ -261,22 +262,29 @@
           sdk-version (system/defold-engine-sha1)
           cache (ExtenderClientCache. cache-directory)
           extender-resources (make-extender-resources project platform evaluation-context)
-          cache-key (.calcKey cache extender-platform sdk-version extender-resources)]
+          cache-key (.calcKey cache extender-platform sdk-version extender-resources)
+          url (get-build-server-url prefs project evaluation-context)
+          headers (get-build-server-headers prefs)
+          username (string/trim (prefs/get prefs [:extensions :build-server-username]))
+          password (prefs/get prefs [:extensions :build-server-password])]
       (if (.isCached cache extender-platform cache-key)
         {:id {:type :custom :version cache-key}
          :cached true
          :engine-archive (.getCachedBuildFile cache extender-platform)
          :extender-platform extender-platform}
-        (let [extender-client (ExtenderClient. build-server-url cache-directory)
-              user-info (.getUserInfo (URI. build-server-url))
+        (let [extender-client (ExtenderClient. url cache-directory)
               destination-file (fs/create-temp-file! (str "build_" sdk-version) ".zip")
               log-file (fs/create-temp-file! (str "build_" sdk-version) ".txt")
               async true]
           (try
-            (when (pos? (count user-info))
-              (.setHeader extender-client "Authorization" (str "Basic " (.encodeToString (Base64/getEncoder) (.getBytes user-info StandardCharsets/UTF_8)))))
-            (when (pos? (count build-server-headers))
-              (.setHeaders extender-client build-server-headers))
+            (when-let [^String auth (or
+                                      (and (not (string/blank? username))
+                                           (not (coll/empty? password))
+                                           (str username ":" password))
+                                      (.getUserInfo (URI. url)))]
+              (.setHeader extender-client "Authorization" (str "Basic " (.encodeToString (Base64/getEncoder) (.getBytes auth StandardCharsets/UTF_8)))))
+            (when (pos? (count headers))
+              (.setHeaders extender-client headers))
             (.build extender-client extender-platform sdk-version extender-resources destination-file log-file async)
             {:id {:type :custom :version cache-key}
              :engine-archive destination-file

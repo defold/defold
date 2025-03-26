@@ -714,6 +714,8 @@
               [:out "set: table foo = true, bar = nil"]
               [:out "string: a string"]
               [:out "string: another_string"]
+              [:out "password: password"]
+              [:out "password: another_password"]
               [:out "tuple: a string 12"]
               [:out "tuple: another string 42"]]
              @output)))))
