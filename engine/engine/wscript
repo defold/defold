@@ -139,7 +139,7 @@ def configure(conf):
 
     conf.env['STLIB_TREMOLO'] = 'tremolo'
 
-    conf.env['STLIB_OPUS'] = 'opus'
+    conf.env['STLIB_OPUS'] = 'opus decoder_opus'.split()
 
     if target_os == "linux":
         conf.env['LIB_OPENAL'] = 'openal'
