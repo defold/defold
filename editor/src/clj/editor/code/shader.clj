@@ -24,7 +24,7 @@
             [editor.types :as types]
             [editor.workspace :as workspace]
             [schema.core :as s])
-  (:import [com.dynamo.bob.pipeline ShaderProgramBuilderEditor ]
+  (:import [com.dynamo.bob.pipeline ShaderProgramBuilderEditor]
            [com.dynamo.graphics.proto Graphics$ShaderDesc Graphics$ShaderDesc$Language Graphics$ShaderDesc$ShaderType]
            [com.dynamo.bob.pipeline.shader ShaderCompilePipeline$ShaderModuleDesc]))
 
@@ -37,6 +37,10 @@
    :indent {:begin #"^.*\{[^}\"\']*$|^.*\([^\)\"\']*$|^\s*\{\}$"
             :end #"^\s*(\s*/[*].*[*]/\s*)*\}|^\s*(\s*/[*].*[*]/\s*)*\)"}
    :line-comment "//"
+   :auto-insert {:characters {\{ \}
+                              \( \)
+                              \[ \]}
+                 :close-characters #{\} \) \]}}
    :patterns [{:captures {1 {:name "storage.type.glsl"}
                           2 {:name "entity.name.function.glsl"}}
                :match #"^([a-zA-Z_][\w\s]*)\s+([a-zA-Z_]\w*)(?=\s*\()"
@@ -227,7 +231,7 @@
   (input included-proj-paths+full-lines ProjPath+Lines :array)
 
   (output proj-path->full-lines g/Any (g/fnk [included-proj-paths+full-lines]
-                                                (into {} included-proj-paths+full-lines)))
+                                        (into {} included-proj-paths+full-lines)))
   (output proj-path+full-lines ProjPath+Lines :cached produce-proj-path+full-lines)
   (output shader-source-info g/Any :cached produce-shader-source-info))
 

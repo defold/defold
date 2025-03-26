@@ -1475,17 +1475,16 @@
     (g/user-data! resource-node :syntax-info syntax-info)
     syntax-info))
 
+(defn- get-current-syntax-info [resource-node]
+  (or (g/user-data resource-node :syntax-info) []))
+
 (defn- syntax-scope-before-cursor [view-node ^Cursor cursor evaluation-context]
-  (let [row (.-row cursor)
-        syntax-info (get-valid-syntax-info (get-property view-node :resource-node evaluation-context)
-                                           (get-property view-node :canvas-repaint-info evaluation-context)
-                                           (inc row))
-        col-before-cursor (dec (.-col cursor))
-        fallback (:scope-name (get-property view-node :grammar evaluation-context) "source")]
-    (if-let [runs (second (get syntax-info row))]
-      (let [result-index (dec ^long (find-insert-index runs [col-before-cursor] #(compare (%1 0) (%2 0))))]
-        (or (second (get runs result-index)) fallback))
-      fallback)))
+  (data/syntax-scope-before-cursor
+    (get-valid-syntax-info (get-property view-node :resource-node evaluation-context)
+                           (get-property view-node :canvas-repaint-info evaluation-context)
+                           (inc (.-row cursor)))
+    (get-property view-node :grammar evaluation-context)
+    cursor))
 
 (defn- implies-completions?
   ([view-node]
@@ -2122,12 +2121,16 @@
                     :delete-word-before data/delete-word-before-cursor
                     :delete-after data/delete-character-after-cursor
                     :delete-word-after data/delete-word-after-cursor)]
-    (set-properties! view-node undo-grouping
-                     (data/delete (get-property view-node :lines)
-                                  cursor-ranges
-                                  (get-property view-node :regions)
-                                  (get-property view-node :layout)
-                                  delete-fn))
+    (set-properties!
+      view-node undo-grouping
+      (g/with-auto-evaluation-context evaluation-context
+        (data/delete (get-property view-node :lines evaluation-context)
+                     (get-property view-node :grammar evaluation-context)
+                     (get-current-syntax-info (get-property view-node :resource-node evaluation-context))
+                     cursor-ranges
+                     (get-property view-node :regions evaluation-context)
+                     (get-property view-node :layout evaluation-context)
+                     delete-fn)))
     (hide-hover! view-node)
     (if (and single-character-backspace
              (suggestions-shown? view-node)
@@ -2255,19 +2258,22 @@
           :else
           [true true])]
     (when insert-typed
-      (when (set-properties! view-node undo-grouping
-                             (data/key-typed (get-property view-node :indent-level-pattern)
-                                             (get-property view-node :indent-string)
-                                             grammar
-                                             ;; NOTE: don't move :lines and :cursor-ranges
-                                             ;; to the let above the
-                                             ;; [insert-typed show-suggestion] binding:
-                                             ;; accepting suggestions might change them!
-                                             (get-property view-node :lines)
-                                             (get-property view-node :cursor-ranges)
-                                             (get-property view-node :regions)
-                                             (get-property view-node :layout)
-                                             typed))
+      (when (set-properties!
+              view-node undo-grouping
+              (g/with-auto-evaluation-context evaluation-context
+                (data/key-typed (get-property view-node :indent-level-pattern evaluation-context)
+                                (get-property view-node :indent-string evaluation-context)
+                                grammar
+                                ;; NOTE: don't move :lines and :cursor-ranges
+                                ;; to the let above the
+                                ;; [insert-typed show-suggestion] binding:
+                                ;; accepting suggestions might change them!
+                                (get-property view-node :lines evaluation-context)
+                                (get-property view-node :cursor-ranges evaluation-context)
+                                (get-property view-node :regions evaluation-context)
+                                (get-property view-node :layout evaluation-context)
+                                (get-current-syntax-info (get-property view-node :resource-node evaluation-context))
+                                typed)))
         (hide-hover! view-node)
         (if (and show-suggestions (implies-completions? view-node))
           (show-suggestions! view-node :typed typed)
