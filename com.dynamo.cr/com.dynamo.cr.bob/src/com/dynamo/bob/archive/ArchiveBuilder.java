@@ -156,6 +156,9 @@ public class ArchiveBuilder {
     public List<ArchiveEntry> getExcludedEntries() {
         return excludedEntries;
     }
+    public List<ArchiveEntry> getIncludedEntries() {
+        return includedEntries;
+    }
 
     private void writeArchiveEntry(RandomAccessFile archiveData, ArchiveEntry entry, List<String> excludedResources) throws IOException, CompileExceptionError {
         byte[] buffer = this.loadResourceData(entry.getFilename());
