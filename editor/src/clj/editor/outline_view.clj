@@ -488,7 +488,6 @@
         image-view-icon (ImageView.)
         visibility-button (doto (ToggleButton.)
                             (ui/add-style! "visibility-toggle")
-                            (.addEventFilter MouseEvent/MOUSE_PRESSED ui/ignore-event-filter)
                             (AnchorPane/setRightAnchor 0.0))
         text-label (doto (Label.)
                      (ui/bind-double-click! :open))

@@ -77,7 +77,7 @@ public class ShadercJni {
         }
     }
 
-    public static native long NewShaderContext(byte[] buffer);
+    public static native long NewShaderContext(int stage, byte[] buffer);
     public static native void DeleteShaderContext(long context);
 
     public static native long NewShaderCompiler(long context, int version);
@@ -88,8 +88,9 @@ public class ShadercJni {
     public static native void SetResourceLocation(long context, long compiler, long nameHash, int location);
     public static native void SetResourceBinding(long context, long compiler, long nameHash, int binding);
     public static native void SetResourceSet(long context, long compiler, long nameHash, int set);
+    public static native void SetResourceStageFlags(long context, long nameHash, int stageFlags);
 
-    public static native byte[] Compile(long context, long compiler, Shaderc.ShaderCompilerOptions options);
+    public static native Shaderc.ShaderCompileResult Compile(long context, long compiler, Shaderc.ShaderCompilerOptions options);
 
     public static byte[] ReadFile(File file) throws IOException
     {
@@ -152,18 +153,17 @@ public class ShadercJni {
         printResourceTypes(reflection.types, "resourceTypes");
     }
 
-    private static void crossCompile(long context, int version, Shaderc.ShaderStage stage) {
+    private static void crossCompile(long context, int version) {
         long compiler = NewShaderCompiler(context, Shaderc.ShaderLanguage.SHADER_LANGUAGE_GLSL.getValue());
 
         Shaderc.ShaderCompilerOptions options = new Shaderc.ShaderCompilerOptions();
         options.version    = version;
-        options.stage      = stage;
         options.entryPoint = "main";
 
-        byte[] res = Compile(context, compiler, options);
+        Shaderc.ShaderCompileResult res = Compile(context, compiler, options);
 
         System.out.println("Result:");
-        System.out.println(new String(res));
+        System.out.println(new String(res.data));
 
         DeleteShaderCompiler(compiler);
     }
@@ -192,13 +192,13 @@ public class ShadercJni {
         }
 
         byte[] spvBytes = ReadFile(pathSpv);
-        long context = NewShaderContext(spvBytes);
+        long context = NewShaderContext(stage.getValue(), spvBytes);
 
         if (version < 0) {
             System.out.println("Printing reflection for: " + pathSpv);
             printReflection(context);
         } else {
-            crossCompile(context, version, stage);
+            crossCompile(context, version);
         }
 
         DeleteShaderContext(context);

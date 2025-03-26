@@ -30,8 +30,10 @@ def configure(conf):
     conf.recurse('src')
 
     conf.env.append_value('INCLUDES', "default/src")
-    conf.env['STLIB_DLIB']   = 'dlib'
-    conf.env['STLIB_BULLET'] = ['BulletDynamics', 'BulletCollision', 'LinearMath']
+    conf.env['STLIB_DLIB']         = 'dlib'
+    conf.env['STLIB_BULLET']       = ['BulletDynamics', 'BulletCollision', 'LinearMath']
+    conf.env['STLIB_BOX2D']        = 'box2d'
+    conf.env['STLIB_BOX2D_DEFOLD'] = 'box2d_defold'
 
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="PHYSICS"')
 

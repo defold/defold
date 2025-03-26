@@ -111,19 +111,6 @@
   ^LuaValue [vm lua-fn & lua-args]
   (.arg1 ^Varargs (apply invoke vm lua-fn lua-args)))
 
-(defn invoke-all
-  "Call a lua function while holding a lock on the VM
-  Return a vector of all returned LuaValues"
-  [vm ^LuaFunction lua-fn & lua-args]
-  (let [^Varargs varargs (apply invoke vm lua-fn lua-args)
-        n (.narg varargs)]
-    (loop [acc (transient [])
-           i 0]
-      (if (= n i)
-        (persistent! acc)
-        (let [next-i (inc i)]
-          (recur (conj! acc (.arg varargs next-i)) next-i))))))
-
 (defn wrap-userdata
   "Wraps the value into a LuaUserdata"
   [x]

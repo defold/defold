@@ -105,7 +105,6 @@ extern uint32_t MUSIC_OPUS_SIZE;
 extern unsigned char AMBIENCE_OPUS[];
 extern uint32_t AMBIENCE_OPUS_SIZE;
 
-
 struct TestParams
 {
     typedef dmSound::SoundDataType SoundDataType;

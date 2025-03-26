@@ -21,7 +21,7 @@
   (:import [com.defold.control DefoldStringConverter LongField]
            [javafx.geometry VPos]
            [javafx.scene Parent Scene]
-           [javafx.scene.control CheckBox ChoiceBox ColorPicker Label Tab TabPane TextArea TextField TextInputControl]
+           [javafx.scene.control CheckBox ChoiceBox ColorPicker Label PasswordField Tab TabPane TextArea TextField TextInputControl]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.layout ColumnConstraints GridPane Priority]))
 
@@ -48,6 +48,11 @@
   (let [control (if (:multi-line desc)
                   (create-generic TextArea prefs grid desc)
                   (create-generic TextField prefs grid desc))]
+    (when (:prompt-value desc) (.setPromptText ^TextInputControl control (:prompt-value desc)))
+    control))
+
+(defmethod create-control! :password [prefs grid desc]
+  (let [control (create-generic PasswordField prefs grid desc)]
     (when (:prompt-value desc) (.setPromptText ^TextInputControl control (:prompt-value desc)))
     control))
 
@@ -113,9 +118,12 @@
             :prefs [{:label "Custom Editor" :type :string :key [:code :custom-editor]}
                     {:label "Open File" :type :string :key [:code :open-file]}
                     {:label "Open File at Line" :type :string :key [:code :open-file-at-line]}
-                    {:label "Code Editor Font (Requires Restart)" :type :string :key [:code :font :name]}]}
+                    {:label "Code Editor Font (Requires Restart)" :type :string :key [:code :font :name]}
+                    {:label "Zoom on Scroll" :type :boolean :key [:code :zoom-on-scroll]}]}
            {:name  "Extensions"
             :prefs [{:label "Build Server" :type :string :key [:extensions :build-server] :prompt-value native-extensions/defold-build-server-url}
+                    {:label "Build Server Username" :type :string :key [:extensions :build-server-username]}
+                    {:label "Build Server Password" :type :password :key [:extensions :build-server-password]}
                     {:label "Build Server Headers" :type :string :key [:extensions :build-server-headers] :multi-line true}]}
            {:name "Tools"
             :prefs [{:label "ADB path" :type :string :key [:tools :adb-path] :tooltip "Path to ADB command that might be used to install and launch the Android app when it's bundled"}

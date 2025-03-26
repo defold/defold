@@ -41,12 +41,13 @@ namespace dmPlatform
 
     enum PlatformGraphicsApi
     {
-        PLATFORM_GRAPHICS_API_NULL    = 0,
-        PLATFORM_GRAPHICS_API_OPENGL  = 1,
-        PLATFORM_GRAPHICS_API_VULKAN  = 2,
-        PLATFORM_GRAPHICS_API_VENDOR  = 3,
-        PLATFORM_GRAPHICS_API_WEBGPU  = 4,
-        PLATFORM_GRAPHICS_API_DIRECTX = 5,
+        PLATFORM_GRAPHICS_API_NULL     = 0,
+        PLATFORM_GRAPHICS_API_OPENGL   = 1,
+        PLATFORM_GRAPHICS_API_OPENGLES = 2,
+        PLATFORM_GRAPHICS_API_VULKAN   = 3,
+        PLATFORM_GRAPHICS_API_VENDOR   = 4,
+        PLATFORM_GRAPHICS_API_WEBGPU   = 5,
+        PLATFORM_GRAPHICS_API_DIRECTX  = 6,
     };
 
     enum DeviceState
@@ -189,7 +190,9 @@ namespace dmPlatform
     bool           GetDeviceState(HWindow window, DeviceState state);
     bool           GetDeviceState(HWindow window, DeviceState state, int32_t op1);
 
+    void           SetWindowTitle(HWindow window, const char* title);
     void           SetWindowSize(HWindow window, uint32_t width, uint32_t height);
+    void           SetWindowPosition(HWindow window, int32_t x, int32_t y);
     void           SetSwapInterval(HWindow window, uint32_t swap_interval);
     void           SetKeyboardCharCallback(HWindow window, WindowAddKeyboardCharCallback cb, void* user_data);
     void           SetKeyboardMarkedTextCallback(HWindow window, WindowSetMarkedTextCallback cb, void* user_data);

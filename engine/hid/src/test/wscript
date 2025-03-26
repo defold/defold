@@ -25,7 +25,12 @@ def build(bld):
     graphics_lib = []
     graphics_lib_symbols = []
 
-    if platform_supports_feature(bld.env.PLATFORM, 'opengl', {}):
+    if platform_supports_feature(bld.env.PLATFORM, 'opengles', {}):
+        platform_lib = ['PLATFORM']
+        graphics_lib = ['GRAPHICS_OPENGLES', 'DMGLFW']
+        graphics_lib += ['OPENGLES']
+        graphics_lib_symbols += ['GraphicsAdapterOpenGLES']
+    elif platform_supports_feature(bld.env.PLATFORM, 'opengl', {}):
         platform_lib = ['PLATFORM']
         graphics_lib = ['GRAPHICS', 'DMGLFW']
         graphics_lib += ['OPENGL']

@@ -42,10 +42,10 @@
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/resource/resource.hpp>
 
-DM_PROPERTY_GROUP(rmtp_GameObject, "Gameobjects");
+DM_PROPERTY_GROUP(rmtp_GameObject, "Gameobjects", 0);
 
-DM_PROPERTY_U32(rmtp_GOInstances, 0, FrameReset, "# alive go instances / frame", &rmtp_GameObject);
-DM_PROPERTY_U32(rmtp_GODeleted, 0, FrameReset, "# deleted instances / frame", &rmtp_GameObject);
+DM_PROPERTY_U32(rmtp_GOInstances, 0, PROFILE_PROPERTY_FRAME_RESET, "# alive go instances / frame", &rmtp_GameObject);
+DM_PROPERTY_U32(rmtp_GODeleted, 0, PROFILE_PROPERTY_FRAME_RESET, "# deleted instances / frame", &rmtp_GameObject);
 
 namespace dmGameObject
 {

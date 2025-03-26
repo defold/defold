@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.editor-extensions-test
-  (:require [clojure.string :as string]
+  (:require [clojure.java.io :as io]
+            [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.defold-project :as project]
@@ -22,6 +23,7 @@
             [editor.editor-extensions.prefs-functions :as prefs-functions]
             [editor.editor-extensions.runtime :as rt]
             [editor.editor-extensions.vm :as vm]
+            [editor.fs :as fs]
             [editor.future :as future]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
@@ -30,13 +32,15 @@
             [editor.process :as process]
             [editor.resource :as resource]
             [editor.ui :as ui]
+            [editor.web-server :as web-server]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
-            [ring.adapter.jetty :as jetty]
-            [ring.util.response :as response]
             [support.test-support :as test-support]
-            [util.diff :as diff])
-  (:import [org.luaj.vm2 LuaError]))
+            [util.diff :as diff]
+            [util.http-server :as http-server])
+  (:import [java.util.zip ZipEntry]
+           [org.apache.commons.compress.archivers.zip ZipArchiveInputStream]
+           [org.luaj.vm2 LuaError]))
 
 (set! *warn-on-reflection* true)
 
@@ -278,16 +282,21 @@
         (when (or (:error ret) (:exception ret))
           (throw (LuaError. "Bob invocation failed")))))))
 
-(defn- reload-editor-scripts! [project & {:keys [display-output! open-resource! prefs]
+(def ^:private stopped-server
+  (http-server/stop! (http-server/start! (web-server/make-dynamic-handler [])) 0))
+
+(defn- reload-editor-scripts! [project & {:keys [display-output! open-resource! prefs web-server]
                                           :or {display-output! println
-                                               open-resource! open-resource-noop!}}]
+                                               open-resource! open-resource-noop!
+                                               web-server stopped-server}}]
   (extensions/reload! project :all
                       :prefs (or prefs (test-util/make-test-prefs))
                       :reload-resources! (make-reload-resources-fn (project/workspace project))
                       :display-output! display-output!
                       :save! (make-save-fn project)
                       :open-resource! open-resource!
-                      :invoke-bob! (make-invoke-bob-fn project)))
+                      :invoke-bob! (make-invoke-bob-fn project)
+                      :web-server web-server))
 
 (deftest editor-scripts-commands-test
   (test-util/with-loaded-project "test/resources/editor_extensions/commands_project"
@@ -444,7 +453,7 @@
 
 (deftest coercer-test
   (let [vm (vm/make)
-        coerce #(coerce/coerce vm %1 (vm/->lua %2))]
+        coerce #(coerce/coerce vm %1 (apply rt/->varargs %&))]
 
     (testing "enum"
       (let [foo-str "foo"
@@ -592,7 +601,39 @@
         (is (thrown? LuaError (coerce by-key {"type" "dot"})))
         (is (thrown? LuaError (coerce by-key {"kind" "rect"})))
         (is (thrown? LuaError (coerce by-key "not a table")))
-        (is (thrown? LuaError (coerce by-key 42)))))))
+        (is (thrown? LuaError (coerce by-key 42)))))
+
+    (testing "regex"
+      (let [empty (coerce/regex)]
+        (is (= {} (coerce empty)))
+        (is (thrown-with-msg? LuaError #"nil is unexpected" (coerce empty nil)))
+        (is (thrown-with-msg? LuaError #"1 is unexpected" (coerce empty 1))))
+      (let [all-required (coerce/regex :first-name coerce/string
+                                       :last-name coerce/string
+                                       :age coerce/integer)]
+        (is (= {:first-name "Foo"
+                :last-name "Bar"
+                :age 18}
+               (coerce all-required "Foo" "Bar" 18)))
+        (is (thrown-with-msg? LuaError #"more arguments expected" (coerce all-required "Foo" "Bar")))
+        (is (thrown-with-msg? LuaError #"0 is unexpected" (coerce all-required "Foo" "Bar" 12 0))))
+
+      (let [some-optional (coerce/regex :path coerce/string
+                                        :method :? (coerce/enum :get :post :put :delete :head :options)
+                                        :as :? (coerce/enum :string :json))]
+        (is (= {:path "/foo" :method :get :as :json}
+               (coerce some-optional "/foo" :get :json)))
+        (is (= {:path "/foo" :as :json} (coerce some-optional "/foo" :json)))
+        (is (= {:path "/foo" :method :options} (coerce some-optional "/foo" :options)))
+        (is (= {:path "/foo"} (coerce some-optional "/foo")))
+        (is (thrown-with-msg? LuaError #"true is not a string" (coerce some-optional true))))
+      (let [required-after-optional (coerce/regex :string coerce/string
+                                                  :boolean :? coerce/boolean
+                                                  :integer coerce/integer)]
+        (is (= {:string "foo" :boolean true :integer 1} (coerce required-after-optional "foo" true 1)))
+        (is (= {:string "foo" :integer 1} (coerce required-after-optional "foo" 1)))
+        (is (thrown-with-msg? LuaError #"more arguments expected" (coerce required-after-optional "foo")))
+        (is (thrown-with-msg? LuaError #"(\"bar\" is not a boolean)\n.+(\"bar\" is not an integer)" (coerce required-after-optional "foo" "bar")))))))
 
 (deftest external-file-attributes-test
   (test-util/with-loaded-project "test/resources/editor_extensions/external_file_attributes_project"
@@ -673,6 +714,8 @@
               [:out "set: table foo = true, bar = nil"]
               [:out "string: a string"]
               [:out "string: another_string"]
+              [:out "password: password"]
+              [:out "password: another_password"]
               [:out "tuple: a string 12"]
               [:out "tuple: another string 42"]]
              @output)))))
@@ -811,18 +854,21 @@ nesting:
 }
 ")
 
+(defn- normalize-pprint-output [output-string]
+  (let [hash->stable-id (volatile! {})]
+    (string/replace
+      output-string
+      #"0x[0-9a-f]+"
+      (fn [s]
+        (or (@hash->stable-id s)
+            ((vswap! hash->stable-id #(assoc % s (str "0x" (count %)))) s))))))
+
 (deftest pprint-test
   (test-util/with-loaded-project "test/resources/editor_extensions/pprint-test"
     (let [out (StringBuilder.)]
       (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
       (run-edit-menu-test-command!)
-      (let [hash->stable-id (volatile! {})
-            actual (string/replace
-                     (str out)
-                     #"0x[0-9a-f]+"
-                     (fn [s]
-                       (or (@hash->stable-id s)
-                           ((vswap! hash->stable-id #(assoc % s (str "0x" (count %)))) s))))]
+      (let [actual (normalize-pprint-output (str out))]
         (is (= actual expected-pprint-output)
             (string/join "\n" (diff/make-diff-output-lines actual expected-pprint-output 3)))))))
 
@@ -851,29 +897,208 @@ POST http://localhost:23456/echo hello world! as string => 200
 
 (deftest http-test
   (test-util/with-loaded-project "test/resources/editor_extensions/http_project"
-    (let [server (jetty/run-jetty
-                   (fn [request]
-                     (case (:uri request)
-                       "/redirect/foo" (response/redirect "/foo")
-                       "/foo" (response/response "successfully redirected")
-                       "/" (response/response "")
-                       "/json" (response/response "{\"a\": 1, \"b\": [true]}")
-                       "/echo" (response/response (slurp (:body request)))
-                       (response/not-found "404")))
-                   {:port 23456 :join? false})
+    (let [server (http-server/start!
+                   (http-server/router-handler
+                     {"/redirect/foo" {"GET" (constantly (http-server/redirect "/foo"))}
+                      "/foo" {"GET" (constantly (http-server/response 200 "successfully redirected"))}
+                      "/" {"GET" (constantly (http-server/response 200 ""))}
+                      "/json" {"GET" (constantly (http-server/json-response {:a 1 :b [true]}))}
+                      "/echo" {"POST" (fn [request] (http-server/response 200 (:body request)))}})
+                   :port 23456)
           out (StringBuilder.)]
       (try
         (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
         ;; See test.editor_script: the test invokes http.request with various options and prints results
         (run-edit-menu-test-command!)
-        (let [hash->stable-id (volatile! {})
-              actual (string/replace
-                       (str out)
-                       #"0x[0-9a-f]+"
-                       (fn [s]
-                         (or (@hash->stable-id s)
-                             ((vswap! hash->stable-id #(assoc % s (str "0x" (count %)))) s))))]
+        (let [actual (normalize-pprint-output (str out))]
           (is (= actual expected-http-test-output)
               (string/join "\n" (diff/make-diff-output-lines actual expected-http-test-output 3))))
         (finally
-          (.stop server))))))
+          (http-server/stop! server 0))))))
+
+(deftest zip-test
+  (test-util/with-scratch-project "test/resources/editor_extensions/zip_project"
+    (let [output (atom [])
+          root (g/node-value workspace :root)
+          list-entries (fn list-entries [path-str]
+                         (with-open [zis (ZipArchiveInputStream. (io/input-stream (fs/path root path-str)))]
+                           (loop [acc (transient #{})]
+                             (if-let [e (.getNextZipEntry zis)]
+                               (recur (conj! acc (.getName e)))
+                               (persistent! acc)))))
+          size (fn size [path-str]
+                 (fs/path-size (fs/path root path-str)))
+          list-methods (fn list-methods [path-str]
+                         (with-open [zis (ZipArchiveInputStream. (io/input-stream (fs/path root path-str)))]
+                           (loop [acc (transient {})]
+                             (if-let [e (.getNextZipEntry zis)]
+                               (recur (assoc! acc (.getName e) (condp = (.getMethod e)
+                                                                 ZipEntry/STORED :stored
+                                                                 ZipEntry/DEFLATED :deflated)))
+                               (persistent! acc)))))]
+      (reload-editor-scripts! project :display-output! #(swap! output conj [%1 %2]))
+      (run-edit-menu-test-command!)
+      ;; See test.editor_script: the script creates a bunch of archives and logs pack
+      ;; arguments with the result of execution
+      (is (= [;; Pack a single file
+              [:out "A file:"]
+              [:out "zip.pack(\"gitignore.zip\", {\".gitignore\"}) => ok"]
+              ;; Pack a directory
+              [:out "A directory:"]
+              [:out "zip.pack(\"foo.zip\", {\"foo\"}) => ok"]
+              ;; Pack multiple files
+              [:out "Multiple:"]
+              [:out "zip.pack(\"multiple.zip\", {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", {\"game.project\", \"settings.ini\"}}) => ok"]
+              ;; Pack a file from outside the project
+              [:out "Outside:"]
+              [:out (str "zip.pack(\"outside.zip\", {{\"" (System/getenv "PWD") "/project.clj\", \"project.clj\"}}) => ok")]
+              ;; Pack using stored compression method
+              [:out "Stored method:"]
+              [:out "zip.pack(\"stored.zip\", {method = \"stored\"}, {\"foo\"}) => ok"]
+              ;; Pack using different compression levels
+              [:out "Compression level 0:"]
+              [:out "zip.pack(\"level_0.zip\", {level = 0}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
+              [:out "Compression level 1:"]
+              [:out "zip.pack(\"level_1.zip\", {level = 1}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
+              [:out "Compression level 2:"]
+              [:out "zip.pack(\"level_2.zip\", {level = 2}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
+              [:out "Compression level 3:"]
+              [:out "zip.pack(\"level_3.zip\", {level = 3}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
+              [:out "Compression level 4:"]
+              [:out "zip.pack(\"level_4.zip\", {level = 4}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
+              [:out "Compression level 5:"]
+              [:out "zip.pack(\"level_5.zip\", {level = 5}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
+              [:out "Compression level 6:"]
+              [:out "zip.pack(\"level_6.zip\", {level = 6}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
+              [:out "Compression level 7:"]
+              [:out "zip.pack(\"level_7.zip\", {level = 7}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
+              [:out "Compression level 8:"]
+              [:out "zip.pack(\"level_8.zip\", {level = 8}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
+              [:out "Compression level 9:"]
+              [:out "zip.pack(\"level_9.zip\", {level = 9}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
+              ;; Different compression settings for different entries
+              [:out "Mixed compression settings:"]
+              [:out "zip.pack(\"mixed.zip\", {{\"foo\", \"9\", level = 9}, {\"foo\", \"1\", level = 1}, {\"foo\", \"0\", level = 0}, {\"foo\", \"stored\", method = \"stored\"}}) => ok"]
+              ;; Expected errors
+              [:out "Archive path is a directory:"]
+              [:out "zip.pack(\"foo\", {\"game.project\"}) => error: Output path is a directory: foo"]
+              [:out "Source path does not exist:"]
+              [:out (str "zip.pack(\"error.zip\", {\"does-not-exist.txt\"}) => error: Source path does not exist: " root "/does-not-exist.txt")]
+              [:out "Target path is absolute:"]
+              [:out (str "zip.pack(\"error.zip\", {\"" (System/getenv "HOME") "\"}) => error: Target path must be relative: " (System/getenv "HOME"))]
+              [:out "Target path is a relative path above root:"]
+              [:out "zip.pack(\"error.zip\", {{\"game.project\", \"../../game.project\"}}) => error: Target path is above archive root: ../../game.project"]
+              [:out "zip.pack(\"error.zip\", {{\"game.project\", \"foo/bar/../../../../game.project\"}}) => error: Target path is above archive root: ../../game.project"]]
+             @output))
+      (is (= #{".gitignore"} (list-entries "gitignore.zip")))
+      (is (= #{"foo/bar.txt" "foo/long.txt" "foo/subdir/baz.txt"} (list-entries "foo.zip")))
+      (is (= #{"foo/bar.txt" "foo/long.txt" "foo/subdir/baz.txt"
+               "bar/bar.txt" "bar/long.txt" "bar/subdir/baz.txt"
+               "settings.ini"
+               ".gitignore"}
+             (list-entries "multiple.zip")))
+      (is (= #{"project.clj"} (list-entries "outside.zip")))
+      ;; foo.zip and stored.zip are same archives with different compression methods
+      (is (and (= (list-entries "foo.zip") (list-entries "stored.zip"))
+               (< (size "foo.zip") (size "stored.zip"))))
+      (is (<= (size "level_9.zip")
+              (size "level_8.zip")
+              (size "level_7.zip")
+              (size "level_6.zip")
+              (size "level_5.zip")
+              (size "level_4.zip")
+              (size "level_3.zip")
+              (size "level_2.zip")
+              (size "level_1.zip")
+              (size "level_0.zip")))
+      (is (= {"0/bar.txt" :deflated
+              "0/long.txt" :deflated
+              "0/subdir/baz.txt" :deflated
+              "1/bar.txt" :deflated
+              "1/long.txt" :deflated
+              "1/subdir/baz.txt" :deflated
+              "9/bar.txt" :deflated
+              "9/long.txt" :deflated
+              "9/subdir/baz.txt" :deflated
+              "stored/bar.txt" :stored
+              "stored/long.txt" :stored
+              "stored/subdir/baz.txt" :stored}
+             (list-methods "mixed.zip"))))))
+
+(def expected-http-server-test-output
+  "Omitting conflicting routes for 'GET /test/conflict/same-path-and-method' defined in /test.editor_script
+Omitting conflicting routes for '/command/{param}' defined in /test.editor_script (conflict with the editor's built-in routes)
+Omitting conflicting routes for '/test/conflict/{param}' and '/test/conflict/no-param' defined in /test.editor_script
+POST /test/echo/string 'hello' as string => 200
+< content-length: 5
+< content-type: text/plain; charset=utf-8
+\"hello\"
+POST /test/echo/json '{\"a\": 1}' as json => 200
+< content-length: 7
+< content-type: application/json
+{ --[[0x0]]
+  a = 1
+}
+GET /test/route-merging as string => 200
+< content-length: 3
+< content-type: text/plain; charset=utf-8
+\"get\"
+POST /test/route-merging as string => 200
+< content-length: 4
+< content-type: text/plain; charset=utf-8
+\"post\"
+PUT /test/route-merging as string => 200
+< content-length: 3
+< content-type: text/plain; charset=utf-8
+\"put\"
+GET /test/path-pattern/foo/bar as string => 200
+< content-length: 22
+< content-type: text/plain; charset=utf-8
+\"key = foo, value = bar\"
+GET /test/rest-pattern/a/b/c as string => 200
+< content-length: 5
+< content-type: text/plain; charset=utf-8
+\"a/b/c\"
+GET /test/files/not-found.txt as string => 404
+< content-length: 0
+\"\"
+GET /test/files/test.txt as string => 200
+< content-length: 9
+< content-type: text/plain
+\"test file\"
+GET /test/files/test.json as json => 200
+< content-length: 14
+< content-type: application/json
+{ --[[0x1]]
+  test = true
+}
+GET /test/resources/not-found.txt as string => 404
+< content-length: 0
+\"\"
+GET /test/resources/test.txt as string => 200
+< content-length: 9
+< content-type: text/plain
+\"test file\"
+GET /test/resources/test.json as json => 200
+< content-length: 14
+< content-type: application/json
+{ --[[0x2]]
+  test = true
+}
+")
+
+(deftest http-server-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/http_server_project"
+    (with-open [server (http-server/start!
+                         (web-server/make-dynamic-handler
+                           ;; for testing conflicts with the built-in handlers
+                           {"/command" {"GET" (constantly http-server/not-found)}
+                            "/command/{command}" {"POST" (constantly http-server/not-found)}}))]
+      (let [out (StringBuilder.)]
+        (reload-editor-scripts! project
+                                :display-output! #(doto out (.append %2) (.append \newline))
+                                :web-server server)
+        (run-edit-menu-test-command!)
+        (let [actual (normalize-pprint-output (.toString out))]
+          (is (= expected-http-server-test-output actual)
+              (string/join "\n" (diff/make-diff-output-lines actual expected-http-server-test-output 3))))))))
