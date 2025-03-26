@@ -126,7 +126,6 @@ namespace dmGameSystem
 
     struct ModelSkinnedAnimationData
     {
-        HComponentRenderConstants        m_AnimationRenderConstants;
         dmGraphics::HTexture             m_BindPoseCacheTexture;
         // We use an intermediate buffer here to copy the bind poses to before uploading to texture.
         // This means that we have both a buffer for the matrices in dmRig as well as here.
@@ -250,7 +249,6 @@ namespace dmGameSystem
         world->m_VertexBuffers              = new dmRender::HBufferedRenderBuffer[VERTEX_BUFFER_MAX_BATCHES];
         world->m_VertexBufferData           = new dmArray<uint8_t>[VERTEX_BUFFER_MAX_BATCHES];
         world->m_VertexBufferDispatchCounts = new uint32_t[VERTEX_BUFFER_MAX_BATCHES];
-        world->m_SkinnedAnimationData.m_AnimationRenderConstants = dmGameSystem::CreateRenderConstants();
 
         for(uint32_t i = 0; i < VERTEX_BUFFER_MAX_BATCHES; ++i)
         {
@@ -288,8 +286,6 @@ namespace dmGameSystem
             free(world->m_SkinnedAnimationData.m_BindPoseCacheBuffer);
         if (world->m_SkinnedAnimationData.m_BindPoseCacheTexture)
             dmGraphics::DeleteTexture(world->m_SkinnedAnimationData.m_BindPoseCacheTexture);
-        if (world->m_SkinnedAnimationData.m_AnimationRenderConstants)
-            dmGameSystem::DestroyRenderConstants(world->m_SkinnedAnimationData.m_AnimationRenderConstants);
 
         delete [] world->m_VertexBufferData;
         delete [] world->m_VertexBufferDispatchCounts;
@@ -522,14 +518,6 @@ namespace dmGameSystem
         // Include material textures in the hash
         MaterialInfo* material_info = &component->m_Resource->m_Materials[item.m_MaterialIndex];
         dmHashUpdateBuffer32(state, material_info->m_Textures, sizeof(dmGameSystem::MaterialTextureInfo) * material_info->m_TexturesCount);
-
-        // Skinning
-        if (IsRenderItemSkinned(component, &item))
-        {
-            dmhash_t animation_hash = dmRig::GetAnimation(component->m_RigInstance);
-            dmHashUpdateBuffer32(state, component->m_RigInstance, sizeof(component->m_RigInstance));
-            dmHashUpdateBuffer32(state, &animation_hash, sizeof(animation_hash));
-        }
 
         // Local space + instancing
         if (vertex_space == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL && instance_vx_decl)
@@ -1268,13 +1256,19 @@ namespace dmGameSystem
                 instance_data->m_InstanceData.m_WorldTransform  = instance_render_item->m_World;
                 instance_data->m_InstanceData.m_NormalTransform = dmRender::GetNormalMatrix(render_context, instance_data->m_InstanceData.m_WorldTransform);
 
-                // *4 = 4 vectors per matrix (RGBA)
-                uint32_t cache_offset = 4 * dmRig::GetPoseMatrixCacheDataOffset(world->m_RigContext, instance_component->m_RigInstance);
-
-                instance_data->m_AnimationData.setX((float) cache_offset);
-                instance_data->m_AnimationData.setY((float) GetBoneCount(instance_component->m_RigInstance));
-                instance_data->m_AnimationData.setZ((float) dmGraphics::GetTextureWidth(world->m_SkinnedAnimationData.m_BindPoseCacheTexture));
-                instance_data->m_AnimationData.setW((float) dmGraphics::GetTextureHeight(world->m_SkinnedAnimationData.m_BindPoseCacheTexture));
+                if (dmRig::IsAnimating(instance_component->m_RigInstance))
+                {
+                    // *4 = 4 vectors per matrix (RGBA)
+                    uint32_t cache_offset = 4 * dmRig::GetPoseMatrixCacheDataOffset(world->m_RigContext, instance_component->m_RigInstance);
+                    instance_data->m_AnimationData.setX((float) cache_offset);
+                    instance_data->m_AnimationData.setY((float) GetBoneCount(instance_component->m_RigInstance));
+                    instance_data->m_AnimationData.setZ((float) dmGraphics::GetTextureWidth(world->m_SkinnedAnimationData.m_BindPoseCacheTexture));
+                    instance_data->m_AnimationData.setW((float) dmGraphics::GetTextureHeight(world->m_SkinnedAnimationData.m_BindPoseCacheTexture));
+                }
+                else
+                {
+                    instance_data->m_AnimationData = dmVMath::Vector4(0.0f, 0.0f, 0.0f, 0.0f);
+                }
 
                 if (first_free_index >= 0)
                 {
@@ -1400,8 +1394,6 @@ namespace dmGameSystem
                 }
             }
 
-            HComponentRenderConstants constants = component->m_RenderConstants;
-
             if (IsRenderItemSkinned(component, render_item))
             {
                 int32_t first_free_index = FillTextures(&ro, component, material_index);
@@ -1418,7 +1410,11 @@ namespace dmGameSystem
                         dmHashReverseSafe64(dmGameObject::GetIdentifier(component->m_Instance)));
                 }
 
-                constants = constants ? constants : world->m_SkinnedAnimationData.m_AnimationRenderConstants;
+                // We need individual constants here, otherwise we will overwrite the values in the buffer.
+                if (!component->m_RenderConstants)
+                {
+                    component->m_RenderConstants = dmGameSystem::CreateRenderConstants();
+                }
 
                 // Initialize to no animation
                 dmVMath::Vector4 animation_data(0.0f, 0.0f, 0.0f, 0.0f);
@@ -1433,12 +1429,12 @@ namespace dmGameSystem
                     animation_data.setW((float) dmGraphics::GetTextureHeight(world->m_SkinnedAnimationData.m_BindPoseCacheTexture));
                 }
 
-                SetRenderConstant(constants, dmRender::VERTEX_STREAM_ANIMATION_DATA, &animation_data, 1);
+                SetRenderConstant(component->m_RenderConstants, dmRender::VERTEX_STREAM_ANIMATION_DATA, &animation_data, 1);
             }
 
-            if (constants)
+            if (component->m_RenderConstants)
             {
-                dmGameSystem::EnableRenderObjectConstants(&ro, constants);
+                dmGameSystem::EnableRenderObjectConstants(&ro, component->m_RenderConstants);
             }
 
             dmRender::AddToRender(render_context, &ro);
