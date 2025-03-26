@@ -105,6 +105,19 @@
     #define DMGRAPHICS_IMAGE_2D                         (0x904D)
 #endif
 
+// 3D Texturing
+#ifdef GL_SAMPLER_3D
+    #define DMGRAPHICS_SAMPLER_3D (GL_SAMPLER_3D)
+#else
+    #define DMGRAPHICS_SAMPLER_3D (0x8B5F)
+#endif
+
+#ifdef GL_IMAGE_3D
+    #define DMGRAPHICS_IMAGE_3D (GL_IMAGE_3D)
+#else
+    #define DMGRAPHICS_IMAGE_3D (0x904E)
+#endif
+
 // Barrier bits
 #ifdef GL_SHADER_IMAGE_ACCESS_BARRIER_BIT
     #define DMGRAPHICS_BARRIER_BIT_SHADER_IMAGE_ACCESS       (GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
