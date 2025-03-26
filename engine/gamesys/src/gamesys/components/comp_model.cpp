@@ -378,6 +378,11 @@ namespace dmGameSystem
         }
     }
 
+    static inline bool IsRenderItemSkinned(ModelComponent* component, const MeshRenderItem* render_item)
+    {
+        return component->m_RigInstance && render_item->m_Buffers->m_RigModelVertexFormat == RIG_MODEL_VERTEX_FORMAT_SKINNED;
+    }
+
     static inline dmGraphics::CoordinateSpace GetRenderMaterialCoordinateSpace(dmRender::HMaterial material)
     {
         return dmRender::GetMaterialVertexSpace(material) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL ? dmGraphics::COORDINATE_SPACE_LOCAL : dmGraphics::COORDINATE_SPACE_WORLD;
@@ -512,13 +517,22 @@ namespace dmGameSystem
         MaterialResource* material_res =  GetMaterialResource(component, component->m_Resource, item.m_MaterialIndex);
         dmRender::HMaterial material = material_res->m_Material;
         dmGraphics::HVertexDeclaration instance_vx_decl = dmRender::GetVertexDeclaration(material, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE);
+        dmRenderDDF::MaterialDesc::VertexSpace vertex_space = dmRender::GetMaterialVertexSpace(material);
 
         // Include material textures in the hash
         MaterialInfo* material_info = &component->m_Resource->m_Materials[item.m_MaterialIndex];
         dmHashUpdateBuffer32(state, material_info->m_Textures, sizeof(dmGameSystem::MaterialTextureInfo) * material_info->m_TexturesCount);
 
+        // Skinning
+        if (IsRenderItemSkinned(component, &item))
+        {
+            dmhash_t animation_hash = dmRig::GetAnimation(component->m_RigInstance);
+            dmHashUpdateBuffer32(state, component->m_RigInstance, sizeof(component->m_RigInstance));
+            dmHashUpdateBuffer32(state, &animation_hash, sizeof(animation_hash));
+        }
+
         // Local space + instancing
-        if (dmRender::GetMaterialVertexSpace(material) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL && instance_vx_decl)
+        if (vertex_space == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL && instance_vx_decl)
         {
             // We need to hash the mesh pointer for instance grouping
             dmHashUpdateBuffer32(state, item.m_Mesh, sizeof(*item.m_Mesh));
@@ -1120,7 +1134,7 @@ namespace dmGameSystem
 
         if (!render_context_material_custom_attributes)
         {
-            if (component->m_RigInstance && render_item->m_Buffers->m_RigModelVertexFormat == RIG_MODEL_VERTEX_FORMAT_SKINNED)
+            if (IsRenderItemSkinned(component, render_item))
             {
                 required_instance_buffer_memory = instance_count * sizeof(ModelSkinnedInstanceData);
             }
@@ -1247,7 +1261,7 @@ namespace dmGameSystem
 
                 instance_write_ptr = dmGraphics::WriteAttributes(instance_write_ptr, 0, params);
             }
-            else if (instance_component->m_RigInstance && render_item->m_Buffers->m_RigModelVertexFormat == RIG_MODEL_VERTEX_FORMAT_SKINNED)
+            else if (IsRenderItemSkinned(instance_component, render_item))
             {
                 assert(dmGraphics::GetVertexDeclarationStride(world->m_InstanceVertexDeclarationSkinned) == sizeof(ModelSkinnedInstanceData));
                 ModelSkinnedInstanceData* instance_data         = (ModelSkinnedInstanceData*) instance_write_ptr;
@@ -1386,12 +1400,11 @@ namespace dmGameSystem
                 }
             }
 
-            int32_t first_free_index = FillTextures(&ro, component, material_index);
-
             HComponentRenderConstants constants = component->m_RenderConstants;
 
-            if (component->m_RigInstance && render_item->m_Buffers->m_RigModelVertexFormat == RIG_MODEL_VERTEX_FORMAT_SKINNED)
+            if (IsRenderItemSkinned(component, render_item))
             {
+                int32_t first_free_index = FillTextures(&ro, component, material_index);
                 if (first_free_index >= 0)
                 {
                     dmRender::SetMaterialSampler(ro.m_Material, NAME_POSE_MATRIX_CACHE, first_free_index,
@@ -1407,14 +1420,18 @@ namespace dmGameSystem
 
                 constants = constants ? constants : world->m_SkinnedAnimationData.m_AnimationRenderConstants;
 
-                // *4 = 4 vectors per matrix (RGBA)
-                uint32_t cache_offset = 4 * dmRig::GetPoseMatrixCacheDataOffset(world->m_RigContext, component->m_RigInstance);
+                // Initialize to no animation
+                dmVMath::Vector4 animation_data(0.0f, 0.0f, 0.0f, 0.0f);
 
-                dmVMath::Vector4 animation_data;
-                animation_data.setX((float) cache_offset);
-                animation_data.setY((float) GetBoneCount(component->m_RigInstance));
-                animation_data.setZ((float) dmGraphics::GetTextureWidth(world->m_SkinnedAnimationData.m_BindPoseCacheTexture));
-                animation_data.setW((float) dmGraphics::GetTextureHeight(world->m_SkinnedAnimationData.m_BindPoseCacheTexture));
+                if (dmRig::IsAnimating(component->m_RigInstance))
+                {
+                    // *4 = 4 vectors per matrix (RGBA)
+                    uint32_t cache_offset = 4 * dmRig::GetPoseMatrixCacheDataOffset(world->m_RigContext, component->m_RigInstance);
+                    animation_data.setX((float) cache_offset);
+                    animation_data.setY((float) GetBoneCount(component->m_RigInstance));
+                    animation_data.setZ((float) dmGraphics::GetTextureWidth(world->m_SkinnedAnimationData.m_BindPoseCacheTexture));
+                    animation_data.setW((float) dmGraphics::GetTextureHeight(world->m_SkinnedAnimationData.m_BindPoseCacheTexture));
+                }
 
                 SetRenderConstant(constants, dmRender::VERTEX_STREAM_ANIMATION_DATA, &animation_data, 1);
             }
@@ -1992,6 +2009,9 @@ namespace dmGameSystem
         const uint32_t max_elements_vertices = world->m_MaxElementsVertices;
         uint32_t minor_order = 0; // Will translate to vb index. (When we're generating vertex buffers on the fly, if material vertex space == world space)
         uint32_t vertex_count_total = 0;
+
+        // dmLogInfo("CompModelRender %d", num_components);
+
         for (uint32_t i = 0; i < num_components; ++i)
         {
             ModelComponent& component = *components[i];
@@ -1999,6 +2019,9 @@ namespace dmGameSystem
                 continue;
 
             uint32_t item_count = component.m_RenderItems.Size();
+
+            // dmLogInfo("  Item %d", i);
+
             for (uint32_t j = 0; j < item_count; ++j)
             {
                 MeshRenderItem& render_item = component.m_RenderItems[j];
@@ -2023,6 +2046,8 @@ namespace dmGameSystem
                 write_ptr->m_TagListKey = dmRender::GetMaterialTagListKey(mesh_material);
                 write_ptr->m_Dispatch   = dispatch;
                 write_ptr->m_MinorOrder = minor_order;
+
+                // dmLogInfo("    Render-Item %d: %u", j, render_item.m_InstanceRenderHash);
 
                 // For instancing we need to group instanced without looking at the Z value.
                 if (dmRender::GetVertexDeclaration(mesh_material, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE))
