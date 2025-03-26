@@ -22,7 +22,7 @@
     :any           anything goes, no validation is performed
     :boolean       a boolean value
     :string        a string
-    :password      a string, stored securely
+    :password      a string, stored encrypted
     :keyword       a keyword
     :integer       an integer
     :number        floating point number
