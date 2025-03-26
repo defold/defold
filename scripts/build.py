@@ -242,7 +242,8 @@ PACKAGES_LINUX_ARM64=[
     "tint-22b958",
     "astcenc-8b0aa01",
     "box2d-28adacf82377d4113f2ed00586141463244b9d10",
-    "box2d_defold-2.2.1"]
+    "box2d_defold-2.2.1",
+    "opus-1.5.2"]
 
 PACKAGES_ANDROID=[
 "protobuf-3.20.1",
