@@ -573,6 +573,8 @@ public class ShaderProgramBuilder extends Builder {
         try (BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(outputPath))) {
 
             IShaderCompiler.CompileOptions compileOptions = new IShaderCompiler.CompileOptions();
+            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM120);
+            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
             compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_HLSL);
             compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_SPIRV);
             compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_WGSL);
