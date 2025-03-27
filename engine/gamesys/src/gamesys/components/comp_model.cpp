@@ -278,6 +278,14 @@ namespace dmGameSystem
             dmRender::DeleteBufferedRenderBuffer(context->m_RenderContext, world->m_VertexBuffers[i]);
         }
 
+        for (int i = 0; i < world->m_ScratchConstantBuffers.Size(); ++i)
+        {
+            if (world->m_ScratchConstantBuffers[i])
+            {
+                DestroyRenderConstants(world->m_ScratchConstantBuffers[i]);
+            }
+        }
+
         dmResource::UnregisterResourceReloadedCallback(((ModelContext*)params.m_Context)->m_Factory, ResourceReloadedCallback, world);
 
         dmRig::DeleteContext(world->m_RigContext);
