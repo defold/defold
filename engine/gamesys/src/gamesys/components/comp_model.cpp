@@ -1344,7 +1344,9 @@ namespace dmGameSystem
         if (world->m_ScratchConstantBuffers.Full())
         {
             world->m_ScratchConstantBuffers.OffsetCapacity(8);
+            uint32_t size_now = world->m_ScratchConstantBuffers.Size();
             world->m_ScratchConstantBuffers.SetSize(world->m_ScratchConstantBuffers.Capacity());
+            memset(&world->m_ScratchConstantBuffers[size_now], 0, sizeof(HComponentRenderConstants) * 8);
         }
 
         HComponentRenderConstants constants = world->m_ScratchConstantBuffers[world->m_ScratchConstantBuffersCount];
