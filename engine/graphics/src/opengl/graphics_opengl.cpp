@@ -644,6 +644,8 @@ static void LogFrameBufferError(GLenum status)
             case DMGRAPHICS_SAMPLER_2D_ARRAY: return TYPE_SAMPLER_2D_ARRAY;
             case GL_SAMPLER_CUBE:             return TYPE_SAMPLER_CUBE;
             case DMGRAPHICS_IMAGE_2D:         return TYPE_IMAGE_2D;
+            case DMGRAPHICS_SAMPLER_3D:       return TYPE_SAMPLER_3D;
+            case DMGRAPHICS_IMAGE_3D:         return TYPE_IMAGE_3D;
             default:break;
         }
 
@@ -654,11 +656,13 @@ static void LogFrameBufferError(GLenum status)
     {
         switch(type)
         {
-            case TEXTURE_TYPE_2D:       return GL_TEXTURE_2D;
-            case TEXTURE_TYPE_2D_ARRAY: return GL_TEXTURE_2D_ARRAY;
-            case TEXTURE_TYPE_CUBE_MAP: return GL_TEXTURE_CUBE_MAP;
-            case TEXTURE_TYPE_IMAGE_2D: return GL_TEXTURE_2D;
-            case TEXTURE_TYPE_IMAGE_3D: return GL_TEXTURE_3D;
+            case TEXTURE_TYPE_2D:         return GL_TEXTURE_2D;
+            case TEXTURE_TYPE_2D_ARRAY:   return GL_TEXTURE_2D_ARRAY;
+            case TEXTURE_TYPE_CUBE_MAP:   return GL_TEXTURE_CUBE_MAP;
+            case TEXTURE_TYPE_IMAGE_2D:   return GL_TEXTURE_2D;
+            case TEXTURE_TYPE_IMAGE_3D:   return GL_TEXTURE_3D;
+            case TEXTURE_TYPE_3D:         return GL_TEXTURE_3D;
+            case TEXTURE_TYPE_TEXTURE_3D: return GL_TEXTURE_3D;
             default:break;
         }
         return GL_FALSE;
@@ -4538,7 +4542,7 @@ static void LogFrameBufferError(GLenum status)
                 if (texture_unit == unit)
                 {
                     *index = i;
-                    *type = GetGraphicsType(context->m_CurrentProgram->m_BaseProgram.m_Uniforms[i].m_Type);
+                    *type = context->m_CurrentProgram->m_BaseProgram.m_Uniforms[i].m_Type;
                     return true;
                 }
                 texture_unit++;
@@ -4548,7 +4552,7 @@ static void LogFrameBufferError(GLenum status)
     }
 #endif
 
-    static bool BindImage2D(OpenGLContext* context, OpenGLTexture* tex, uint32_t unit, uint32_t id_index, bool do_unbind = false)
+    static bool BindComputeImage(OpenGLContext* context, OpenGLTexture* tex, uint32_t unit, uint32_t id_index, bool do_unbind = false)
     {
     #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
         if (!context->m_ComputeSupport)
@@ -4559,8 +4563,8 @@ static void LogFrameBufferError(GLenum status)
 
         if (GetTextureUniform(context, unit, &uniform_index, &type))
         {
-            // Binding a image texture to a image2d slot, otherwise we'll bind it as a combined sampler
-            if (type == TYPE_IMAGE_2D)
+            // Binding a image texture to a imagexd slot, otherwise we'll bind it as a combined sampler
+            if (type == TYPE_IMAGE_2D || type == TYPE_IMAGE_3D)
             {
                 GLenum access            = DMGRAPHICS_READ_ONLY;
                 GLenum gl_format         = 0;
@@ -4608,9 +4612,9 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR;
 
         bool bind_as_texture = true;
-        if (tex->m_Type == TEXTURE_TYPE_IMAGE_2D)
+        if (tex->m_Type == TEXTURE_TYPE_IMAGE_2D || tex->m_Type == TEXTURE_TYPE_IMAGE_3D)
         {
-            bind_as_texture = !BindImage2D(context, tex, unit, id_index);
+            bind_as_texture = !BindComputeImage(context, tex, unit, id_index);
         }
 
         if (bind_as_texture)
@@ -4642,9 +4646,9 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR;
 
         bool unbind_as_texture = true;
-        if (tex->m_Type == TEXTURE_TYPE_IMAGE_2D)
+        if (tex->m_Type == TEXTURE_TYPE_IMAGE_2D || tex->m_Type == TEXTURE_TYPE_IMAGE_3D)
         {
-            unbind_as_texture = !BindImage2D(context, tex, unit, 0, true);
+            unbind_as_texture = !BindComputeImage(context, tex, unit, 0, true);
         }
 
         if (unbind_as_texture)

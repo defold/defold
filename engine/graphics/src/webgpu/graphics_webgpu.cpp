@@ -1176,7 +1176,13 @@ static HContext WebGPUNewContext(const ContextParams& params)
 static bool WebGPUIsSupported()
 {
     TRACE_CALL;
-    return true;
+    return MAIN_THREAD_EM_ASM_INT({
+        if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+            return Module.hasWebGPUSupport() ? 1 : 0;
+        }
+        // if running outside of the browser - return true by default
+        return 1;
+    }) == 1;
 }
 
 static HContext WebGPUGetContext()

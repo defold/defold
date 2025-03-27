@@ -64,11 +64,12 @@
                    (assoc action
                      :x (.getX drag-event)
                      :y (.getY drag-event)))
-      :drag-dropped (let [drag-event ^DragEvent jfx-event]
+      :drag-dropped (let [drag-event ^DragEvent jfx-event
+                          dragboard (.getDragboard drag-event)]
                       (assoc action
                         :x (.getX drag-event)
                         :y (.getY drag-event)
-                        :dragboard (.getDragboard drag-event)
+                        :files (.getFiles dragboard)
                         :transfer-mode (.getTransferMode drag-event)
                         :gesture-target (.getGestureTarget drag-event)
                         :gesture-source (.getGestureSource drag-event)))

@@ -63,7 +63,7 @@
            [java.io File]
            [java.nio ByteBuffer]
            [java.util List]
-           [javafx.scene.input Dragboard DragEvent]
+           [javafx.scene.input DragEvent]
            [javax.vecmath AxisAngle4d Matrix4d Point3d Vector3d]))
 
 (set! *warn-on-reflection* true)
@@ -1201,9 +1201,9 @@
     (when (image-path? path)
       (workspace/resolve-workspace-resource workspace path))))
 
-(defn- get-image-resources-from-dragboard
-  [^Dragboard dragboard workspace]
-  (->> (.getFiles dragboard)
+(defn- get-image-resources-from-files
+  [files workspace]
+  (->> files
        (keep (partial get-image-resource-from-file workspace))
        (sort-by resource/path)))
 
@@ -1236,23 +1236,22 @@
 
 (defn handle-input [self action selection-data]
   (case (:type action)
-    :drag-dropped (let [dragboard ^Dragboard (:dragboard action)]
-                    (when (.hasFiles dragboard)
-                      (let [image-view (:gesture-target action)
-                            _ (ui/request-focus! image-view)
-                            ui-context (first (ui/node-contexts image-view false))
-                            {:keys [app-view selection workspace]} (:env ui-context)]
-                        (when-let [parent (parent-animation-or-atlas selection)]
-                          (let [image-resources (get-image-resources-from-dragboard dragboard workspace)
-                                op-seq (gensym)
-                                image-nodes (create-dropped-images! parent image-resources op-seq)
-                                drag-event ^DragEvent (:event action)]
-                            (when (seq image-nodes)
-                              (.consume drag-event)
-                              (select! app-view image-nodes op-seq)
-                              (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
-                              (.setDropCompleted drag-event true))))
-                        nil)))
+    :drag-dropped (when-let [files (:files action)]
+                    (let [image-view (:gesture-target action)
+                          _ (ui/request-focus! image-view)
+                          ui-context (first (ui/node-contexts image-view false))
+                          {:keys [app-view selection workspace]} (:env ui-context)]
+                      (when-let [parent (parent-animation-or-atlas selection)]
+                        (let [image-resources (get-image-resources-from-files files workspace)
+                              op-seq (gensym)
+                              image-nodes (create-dropped-images! parent image-resources op-seq)
+                              drag-event ^DragEvent (:event action)]
+                          (when (seq image-nodes)
+                            (.consume drag-event)
+                            (select! app-view image-nodes op-seq)
+                            (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
+                            (.setDropCompleted drag-event true))))
+                      nil))
     :mouse-pressed (if (first (get selection-data self))
                      (do
                        (g/transact

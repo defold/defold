@@ -1,6 +1,6 @@
 context:
     includes: ['{{dynamo_home}}/include', '{{dynamo_home}}/sdk/include', '{{dynamo_home}}/ext/include']
-    symbols: ["DefaultSoundDevice", "AudioDecoderWav", "CrashExt", "AudioDecoderStbVorbis", "ProfilerExt", "GraphicsAdapterOpenGL","LiveUpdateExt",
+    symbols: ["DefaultSoundDevice", "AudioDecoderWav", "CrashExt", "AudioDecoderStbVorbis", "ProfilerExt", "LiveUpdateExt",
                 "ResourceTypeGameObject", "ResourceTypeCollection", "ResourceTypeScript", "ResourceTypeLua", "ResourceTypeAnim", "ResourceTypeAnimationSet", "ResourceTypeGui", "ResourceTypeGuiScript",
                 "ResourceTypeOgg","ResourceTypeWav",
                 "ResourceProviderFile", "ResourceProviderArchive", "ResourceProviderArchiveMutable", "ResourceProviderZip", "ResourceProviderHttp",
@@ -143,7 +143,6 @@ platforms:
         libs:           ['clang_rt.osx']
         dynamicLibs:    []
         symbols:        ["AudioDecoderTremolo", "GraphicsAdapterVulkan"]
-        excludeSymbols: ["GraphicsAdapterOpenGL"]
         libStartGroup_replace:  []
         libEndGroup_replace:    []
         osMinVersion:   "{{env.MACOS_VERSION_MIN}}"
@@ -211,7 +210,7 @@ platforms:
         engineLibs: ["engine", "engine_service", "mbedtls", "zip", "profile", "remotery", "profilerext", "record_null", "gameobject", "ddf", "resource", "gamesys", "gamesys_model", "gamesys_rig", "script_box2d", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "box2d", "render", "render_font_default", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "image", "dmglfw", "gui", "crashext", "sound", "tremolo", "liveupdate", "resolv"]
         systemIncludes:    ["{{env.SYSROOT}}/usr/include/c++/v1"]
         dynamicLibs: []
-        symbols:    ["AudioDecoderTremolo"]
+        symbols:    ["AudioDecoderTremolo", "GraphicsAdapterOpenGL"]
         osMinVersion:   "{{env.IOS_VERSION_MIN}}"
         swiftFlags:     ["-swift-version", "{{swiftVersion}}", "-sdk", "{{env.SYSROOT}}"]
         swiftVersion:   "5"
@@ -287,7 +286,7 @@ platforms:
         linkFlags:  ["-Wl,--build-id=uuid"]
         libs:       []
         dynamicLibs: ["EGL","GLESv1_CM","GLESv2","OpenSLES","m","log","c"]
-        symbols:    ["AudioDecoderTremolo"]
+        symbols:    ["AudioDecoderTremolo", "GraphicsAdapterOpenGL"]
 
     exePrefix: 'lib'
     exeExt: '.so'
@@ -361,6 +360,7 @@ platforms:
         emscriptenFlags: ["DISABLE_EXCEPTION_CATCHING=1"]
         emscriptenLinkFlags: ["INITIAL_MEMORY={{initialMemory}}", "DISABLE_EXCEPTION_CATCHING=1", "ALLOW_UNIMPLEMENTED_SYSCALLS=0", "IMPORTED_MEMORY=1", "EXPORTED_FUNCTIONS=_JSWriteDump,_main,_dmExportedSymbols,_malloc,_free", "EXPORTED_RUNTIME_METHODS=[\"ccall\",\"callMain\",\"UTF8ToString\",\"HEAPU8\",\"stringToNewUTF8\"]", "ERROR_ON_UNDEFINED_SYMBOLS=1", "MAX_WEBGL_VERSION=2", "STACK_SIZE={{stackSize}}", "MIN_FIREFOX_VERSION={{minFirefoxVersion}}", "MIN_SAFARI_VERSION={{minSafariVersion}}", "MIN_CHROME_VERSION={{minChromeVersion}}"]
         libs:       ["idbfs.js"]
+        symbols:    ["GraphicsAdapterOpenGL"]
     exePrefix:      ''
     exeExt:         '.js'
     shlibRe:        'lib(.+)\.so'
@@ -408,7 +408,7 @@ platforms:
         systemIncludes: ["{{env.CLANG_HOME}}/include", "{{env.MSVC_DIR}}/include", "{{env.MSVC_DIR}}/atlmfc/include", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/ucrt", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/winrt", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/um", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/shared"]
         engineLibs:     ["libengine","libengine_service","libmbedtls","libzip","libprofile","libremotery","libprofilerext","librecord","libgameobject","libddf","libresource","libgamesys","libgamesys_model","libgamesys_rig","libscript_box2d","libgraphics","libgraphics_transcoder_basisu","libbasis_transcoder","libphysics","libBulletDynamics","libBulletCollision","libplatform","libLinearMath","libbox2d","librender","librender_font_default","libscript","libluajit-5.1","libextension","libhid","libinput","libparticle","librig","libdlib", "libimage", "libglfw3","libgui","libcrashext","libliveupdate","libsound","vpx"]
         libs:           ["OpenGL32", "delayimp", "User32", "shell32", "Xinput9_1_0", "dinput8", "dxguid", "WS2_32", "iphlpapi", "DbgHelp", "AdvAPI32", "Psapi", "Gdi32", "ole32"]
-        symbols:        []
+        symbols:        ["GraphicsAdapterOpenGL"]
 
     exePrefix:      ''
     exeExt:         '.exe'
@@ -480,6 +480,7 @@ platforms:
       LD_LIBRARY_PATH:  '{{dynamo_home}}/lib/x86_64-linux:{{env.LD_LIBRARY_PATH}}'
 
     context:
+        symbols:     ["GraphicsAdapterOpenGL"]
         engineLibs:  ["graphics"]
         libPaths:    ["{{dynamo_home}}/lib/x86_64-linux","{{dynamo_home}}/ext/lib/x86_64-linux"]
         dynamicLibs: ["GL","GLU"]
@@ -490,7 +491,6 @@ platforms:
 
     context:
         symbols:        ["GraphicsAdapterOpenGLES"]
-        excludeSymbols: ["GraphicsAdapterOpenGL"]
         engineLibs:     ["graphics_opengles"]
         libPaths:       ["{{dynamo_home}}/lib/arm64-linux","{{dynamo_home}}/ext/lib/arm64-linux"]
         dynamicLibs:    ["EGL", "GLESv1_CM", "GLESv2"]
