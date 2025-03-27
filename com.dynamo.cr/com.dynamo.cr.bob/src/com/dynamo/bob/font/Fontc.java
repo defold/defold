@@ -158,6 +158,7 @@ public class Fontc {
     private InputFontFormat inputFormat = InputFontFormat.FORMAT_TRUETYPE;
     private Stroke outlineStroke        = null;
     private int channelCount            = 3;
+    private boolean monospace           = false;
     private FontDesc fontDesc;
     private GlyphBank.Builder glyphBankBuilder;
 
@@ -240,6 +241,29 @@ public class Fontc {
         return StringUtil.toLowerCase(fd.getFont()).endsWith("fnt");
     }
 
+    static public boolean isMonospaced(FontRenderContext fontRendererContext, Font font) {
+        int loopEnd = 0x10FFFF;
+        int prevSize = -1;
+        for (int i = 0; i < loopEnd; ++i) {
+            if (font.canDisplay(i)) {
+                String s = new String(Character.toChars(i));
+
+                GlyphVector glyphVector = font.createGlyphVector(fontRendererContext, s);
+                GlyphMetrics metrics = glyphVector.getGlyphMetrics(0);
+
+                int size = Math.round(metrics.getAdvance());
+                if (prevSize == -1)
+                    prevSize = size;
+
+                if (prevSize != size)
+                {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
     public void TTFBuilder(InputStream fontStream) throws FontFormatException, IOException {
 
         ArrayList<Integer> characters = new ArrayList<Integer>();
@@ -276,6 +300,8 @@ public class Fontc {
 
 
         FontRenderContext fontRendererContext = new FontRenderContext(new AffineTransform(), fontDesc.getAntialias() != 0, fontDesc.getAntialias() != 0);
+
+        monospace = isMonospaced(fontRendererContext, font);
 
         int loopEnd = characters.size();
         if (fontDesc.getAllChars()) {
@@ -739,8 +765,6 @@ public class Fontc {
                 throw new FontFormatException("Could not generate font preview: " + e.getMessage());
             }
         }
-        boolean is_monospaced = true;
-        float base_advance = include_glyph_count > 0 ? glyphs.get(0).advance : 0;
         for (int i = 0; i < include_glyph_count; i++) {
             Glyph glyph = glyphs.get(i);
             GlyphBank.Glyph.Builder glyphBuilder = GlyphBank.Glyph.newBuilder()
@@ -760,12 +784,8 @@ public class Fontc {
             }
 
             glyphBankBuilder.addGlyphs(glyphBuilder);
-            if (base_advance != glyph.advance)
-            {
-                is_monospaced = false;
-            }
         }
-        glyphBankBuilder.setIsMonospaced(is_monospaced);
+        glyphBankBuilder.setIsMonospaced(monospace);
         glyphBankBuilder.setPadding(padding);
         return previewImage;
 

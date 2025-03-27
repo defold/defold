@@ -180,6 +180,9 @@
                        0)]
     (every? #(= base-advance (:advance %)) semi-glyphs)))
 
+(defn font-is-monospaced [^FontRenderContext font-render-context ^Font font]
+  (Fontc/isMonospaced font-render-context font))
+
 (def ^:private positive-glyph-extent-pairs-xf (comp (map pair) (filter (comp positive-wh? :glyph-wh second))))
 
 (def ^:private ^Canvas metrics-canvas (Canvas.))
@@ -520,7 +523,7 @@
         cache-wh (cache-wh font-desc cache-cell-wh (count semi-glyphs))
         glyph-data-bank (make-glyph-data-bank glyph-extents)
         layer-mask (font-desc->layer-mask font-desc)
-        is-monospaced (check-monospaced semi-glyphs)]
+        is-monospaced (font-is-monospaced (font-render-context antialias) font)]
     (doall
       (pmap (fn [[semi-glyph glyph-extents]]
               (let [^BufferedImage glyph-image (let [face-color (Color. ^double (:alpha font-desc) 0.0 0.0)
@@ -720,7 +723,7 @@
         cache-wh (cache-wh font-desc cache-cell-wh (count semi-glyphs))
         glyph-data-bank (make-glyph-data-bank glyph-extents)
         layer-mask (font-desc->layer-mask font-desc)
-        is-monospaced (check-monospaced semi-glyphs)]
+        is-monospaced (font-is-monospaced (font-render-context antialias) font)]
     (dorun
       (pmap
         (fn [batch]
