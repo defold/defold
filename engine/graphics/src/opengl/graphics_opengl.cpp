@@ -4662,7 +4662,7 @@ static void LogFrameBufferError(GLenum status)
     {
         assert(buffer_size >= (width - x) * (height - y) * 4);
         glReadPixels(x, y, width, height,
-                     GL_RGBA,
+                     GL_BGRA,
                      GL_UNSIGNED_BYTE,
                      buffer);
         CHECK_GL_ERROR;

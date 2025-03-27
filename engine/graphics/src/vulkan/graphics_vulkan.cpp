@@ -4443,7 +4443,7 @@ bail:
         return flags;
     }
 
-    static void VulkanReadPixels(HContext context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size)
+    static void VulkanReadPixels(HContext _context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size)
     {
         VulkanContext* context = (VulkanContext*) _context;
 
