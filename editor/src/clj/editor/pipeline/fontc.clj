@@ -175,13 +175,13 @@
   (byte-array (transduce (map :glyph-data-size) + 0 glyph-extents)))
 
 (defn check-monospaced [semi-glyphs]
-  (let [base-advance (if-let [first-glyph (first semi-glyphs)]
+  ; We can't know if it's only one glyph. And chances are it's a dynamic font
+  (if (<= (count semi-glyphs) 1)
+    false
+    (let [base-advance (if-let [first-glyph (first semi-glyphs)]
                        (:advance first-glyph)
                        0)]
-    (every? #(= base-advance (:advance %)) semi-glyphs)))
-
-(defn font-is-monospaced [^FontRenderContext font-render-context ^Font font]
-  (Fontc/isMonospaced font-render-context font))
+      (every? #(= base-advance (:advance %)) semi-glyphs))))
 
 (def ^:private positive-glyph-extent-pairs-xf (comp (map pair) (filter (comp positive-wh? :glyph-wh second))))
 
@@ -523,7 +523,7 @@
         cache-wh (cache-wh font-desc cache-cell-wh (count semi-glyphs))
         glyph-data-bank (make-glyph-data-bank glyph-extents)
         layer-mask (font-desc->layer-mask font-desc)
-        is-monospaced (font-is-monospaced (font-render-context antialias) font)]
+        is-monospaced (check-monospaced semi-glyphs)]
     (doall
       (pmap (fn [[semi-glyph glyph-extents]]
               (let [^BufferedImage glyph-image (let [face-color (Color. ^double (:alpha font-desc) 0.0 0.0)
@@ -723,7 +723,7 @@
         cache-wh (cache-wh font-desc cache-cell-wh (count semi-glyphs))
         glyph-data-bank (make-glyph-data-bank glyph-extents)
         layer-mask (font-desc->layer-mask font-desc)
-        is-monospaced (font-is-monospaced (font-render-context antialias) font)]
+        is-monospaced (check-monospaced semi-glyphs)]
     (dorun
       (pmap
         (fn [batch]
