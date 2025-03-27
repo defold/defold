@@ -274,6 +274,7 @@ namespace dmRender
                 Sampler& s         = samplers[sampler_index];
                 s.m_UnitValueCount = num_values;
                 s.m_Type           = TypeToTextureType(uniform_desc.m_Type);
+                s.m_NameHash       = uniform_desc.m_NameHash;
                 sampler_index++;
             }
         }

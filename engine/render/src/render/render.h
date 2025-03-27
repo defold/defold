@@ -45,6 +45,8 @@ namespace dmRender
     static const dmhash_t VERTEX_STREAM_BONE_INDICES    = dmHashString64("bone_indices");
     static const dmhash_t VERTEX_STREAM_ANIMATION_DATA  = dmHashString64("animation_data");
 
+    static const dmhash_t SAMPLER_POSE_MATRIX_CACHE = dmHashString64("pose_matrix_cache");
+
     typedef struct RenderTargetSetup*       HRenderTargetSetup;
     typedef uint64_t                        HRenderType;
     typedef struct Sampler*                 HSampler;
@@ -286,6 +288,7 @@ namespace dmRender
     void                            GetMaterialProgramAttributeMetadata(HMaterial material, dmGraphics::VertexAttributeInfoMetadata* metadata);
     uint8_t                         GetMaterialAttributeIndex(HMaterial material, dmhash_t name_hash);
     bool                            GetMaterialHasSkinnedAttributes(HMaterial material);
+    bool                            GetMaterialHasSkinnedMatrixCache(HMaterial material);
 
     // Compute
     HComputeProgram                 NewComputeProgram(HRenderContext render_context, dmGraphics::HProgram program);

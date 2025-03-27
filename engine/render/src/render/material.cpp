@@ -277,6 +277,17 @@ namespace dmRender
         }
 
         SetProgramConstantValues(graphics_context, material->m_Program, total_constants_count, material->m_NameHashToLocation, material->m_Constants, material->m_Samplers);
+
+        // Set any specific meta data based on material properties (only skinning currently)
+        // This could potentially be expanded to compute later.
+        for (int i = 0; i < material->m_Samplers.Size(); ++i)
+        {
+            if (material->m_Samplers[i].m_NameHash == SAMPLER_POSE_MATRIX_CACHE)
+            {
+                material->m_HasSkinnedMatrixCache = 1;
+                break;
+            }
+        }
     }
 
     HMaterial NewMaterial(dmRender::HRenderContext render_context, dmGraphics::HProgram program)
@@ -571,6 +582,11 @@ namespace dmRender
     bool GetMaterialHasSkinnedAttributes(HMaterial material)
     {
         return material->m_HasSkinnedAttributes;
+    }
+
+    bool GetMaterialHasSkinnedMatrixCache(HMaterial material)
+    {
+        return material->m_HasSkinnedMatrixCache;
     }
 
     dmGraphics::HUniformLocation GetMaterialConstantLocation(HMaterial material, dmhash_t name_hash)
