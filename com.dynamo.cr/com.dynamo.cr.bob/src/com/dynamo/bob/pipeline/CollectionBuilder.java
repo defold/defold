@@ -41,6 +41,7 @@ import com.dynamo.gameobject.proto.GameObject.InstanceDesc;
 import com.dynamo.gameobject.proto.GameObject.InstancePropertyDesc;
 import com.dynamo.gameobject.proto.GameObject.PropertyDesc;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
+import com.dynamo.proto.DdfMath;
 
 @ProtoParams(srcClass = CollectionDesc.class, messageClass = CollectionDesc.class)
 @BuilderParams(name="Collection", inExts=".collection", outExt=".collectionc")
@@ -257,7 +258,11 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
                     instBuilder.setPosition(MathUtil.vecmathToDDF(instP));
                     Quat4d instR = MathUtil.ddfToVecmath(inst.getRotation());
                     instR.mul(r, instR);
-                    instBuilder.setRotation(MathUtil.vecmathToDDF(instR));
+                    DdfMath.Quat resultQuat = MathUtil.vecmathToDDF(instR);
+                    if (!MathUtil.isValid(resultQuat)) {
+                        throw new CompileExceptionError(String.format("Invalid result quaternion for %s. Check quaternion values for '%s' and '%s'", instBuilder.getId(), collInst.getId(), inst.getId()));
+                    }
+                    instBuilder.setRotation(resultQuat);
                     instBuilder.setScale3(MathUtil.vecmathToDDFOne(instS));
                 }
                 // adjust child ids
@@ -301,7 +306,11 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
                     instBuilder.setPosition(MathUtil.vecmathToDDF(instP));
                     Quat4d instR = MathUtil.ddfToVecmath(inst.getRotation());
                     instR.mul(r, instR);
-                    instBuilder.setRotation(MathUtil.vecmathToDDF(instR));
+                    DdfMath.Quat resultQuat = MathUtil.vecmathToDDF(instR);
+                    if (!MathUtil.isValid(resultQuat)) {
+                        throw new CompileExceptionError(String.format("Invalid result quaternion for '%s'. Check quaternion values for '%s' and '%s'", instBuilder.getId(), collInst.getId(), inst.getId()));
+                    }
+                    instBuilder.setRotation(resultQuat);
                     instBuilder.setScale3(MathUtil.vecmathToDDFOne(instS));
                 }
                 // adjust child ids
