@@ -107,6 +107,31 @@ local function test_success_compressed(self)
     resource.set_texture(go.get("#sprite", "texture0"), args, tex_buffer)
 end
 
+function test_success_mipmap()
+    local tparams_mipmaps = {
+        width          = 32,
+        height         = 32,
+        depth          = 1,
+        mipmap         = 0,
+        type           = graphics.TEXTURE_TYPE_2D,
+        format         = graphics.TEXTURE_FORMAT_RGBA,
+        max_mipmaps    = 6,
+    }
+
+    local t_id = resource.create_texture("/test_mipmap_textures.texturec", tparams_mipmaps)
+    local num_mipmaps = 6 -- 32,16,8,4,2,1
+
+    -- num mipmaps
+    for i=0,num_mipmaps-1 do
+        local mm_buffer = buffer.create(tparams_mipmaps.width * tparams_mipmaps.height, {{name = hash("data"), type = buffer.VALUE_TYPE_UINT8, count = 4 }})
+
+        tparams_mipmaps.mipmap = i
+        resource.set_texture(t_id, tparams_mipmaps, mm_buffer)
+        tparams_mipmaps.width = tparams_mipmaps.width / 2
+        tparams_mipmaps.height = tparams_mipmaps.height / 2
+    end
+end
+
 function update(self, dt)
     self.update_counter = self.update_counter + 1
 
@@ -116,6 +141,7 @@ function update(self, dt)
         test_fail_out_of_bounds,
         test_fail_wrong_mipmap,
         test_success_compressed,
+        test_success_mipmap
     }
 
     tests[self.update_counter](self)
