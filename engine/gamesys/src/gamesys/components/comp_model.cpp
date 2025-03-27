@@ -521,14 +521,13 @@ namespace dmGameSystem
         MaterialResource* material_res =  GetMaterialResource(component, component->m_Resource, item.m_MaterialIndex);
         dmRender::HMaterial material = material_res->m_Material;
         dmGraphics::HVertexDeclaration instance_vx_decl = dmRender::GetVertexDeclaration(material, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE);
-        dmRenderDDF::MaterialDesc::VertexSpace vertex_space = dmRender::GetMaterialVertexSpace(material);
 
         // Include material textures in the hash
         MaterialInfo* material_info = &component->m_Resource->m_Materials[item.m_MaterialIndex];
         dmHashUpdateBuffer32(state, material_info->m_Textures, sizeof(dmGameSystem::MaterialTextureInfo) * material_info->m_TexturesCount);
 
         // Local space + instancing
-        if (vertex_space == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL && instance_vx_decl)
+        if (dmRender::GetMaterialVertexSpace(material) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL && instance_vx_decl)
         {
             // We need to hash the mesh pointer for instance grouping
             dmHashUpdateBuffer32(state, item.m_Mesh, sizeof(*item.m_Mesh));
@@ -1100,7 +1099,7 @@ namespace dmGameSystem
                     dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE,
                     dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 0.0f))
                 {
-                    ro.m_Textures[first_free_index] = cache_texture; // world->m_SkinnedAnimationData.m_BindPoseCacheTexture;
+                    ro.m_Textures[first_free_index] = cache_texture;
                 }
                 else
                 {
@@ -1438,6 +1437,10 @@ namespace dmGameSystem
                 SetupSkinnedMatrixCache(ro, world->m_SkinnedAnimationData.m_BindPoseCacheTexture, first_free_index, component->m_Instance);
 
                 // We need individual constants here, otherwise we will overwrite the values in the buffer.
+                // If the component doesn't have their own constant buffer, we need to retrieve a temporary constant buffer from the world.
+                // Otherwise, we might end up in situations where instanced components can't be batched.
+                // For example, if a component has multiple meshes (render items) that uses a mix of instanced and non-instanced materials.
+                // If we use the constant buffer from the component, it will be part of the component hash, which will break the batching.
                 if (!constants)
                 {
                     constants = GetScratchConstantBuffer(world);
