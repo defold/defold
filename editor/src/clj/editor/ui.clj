@@ -49,7 +49,7 @@
            [javafx.fxml FXMLLoader]
            [javafx.geometry Orientation Point2D]
            [javafx.scene Group Node Parent Scene]
-           [javafx.scene.control ButtonBase Cell CheckBox CheckMenuItem ChoiceBox ColorPicker ComboBox ComboBoxBase ContextMenu Control Label Labeled ListView Menu MenuBar MenuItem MultipleSelectionModel ProgressBar SelectionMode SelectionModel Separator SeparatorMenuItem Tab TabPane TableView TextArea TextField TextInputControl Toggle ToggleButton Tooltip TreeItem TreeTableView TreeView]
+           [javafx.scene.control ButtonBase Cell CheckBox CheckMenuItem ChoiceBox ColorPicker ComboBox ComboBoxBase ContextMenu Control Label Labeled ListView Menu MenuBar MenuButton MenuItem MultipleSelectionModel ProgressBar SelectionMode SelectionModel Separator SeparatorMenuItem Tab TabPane TableView TextArea TextField TextInputControl Toggle ToggleButton Tooltip TreeItem TreeTableView TreeView]
            [javafx.scene.image Image ImageView]
            [javafx.scene.input Clipboard ContextMenuEvent DragEvent KeyCode KeyCombination KeyEvent MouseButton MouseEvent]
            [javafx.scene.layout AnchorPane HBox Pane]
@@ -1779,6 +1779,62 @@
 
 (declare refresh)
 
+(defn- toolbar-control
+  [scene menu-item handler-ctx]
+  (let [separator? (= :separator (:label menu-item))
+        opts (handler/options handler-ctx)]
+    (cond
+      separator?
+      (doto (Separator. Orientation/VERTICAL)
+        (add-style! "separator"))
+
+      opts
+      (let [hbox (doto (HBox.)
+                   (add-style! "cell"))
+            cb (doto (ChoiceBox.)
+                 (.setConverter (DefoldStringConverter. :label #(some #{%} (map :label opts)))))]
+        (.setAll (.getItems cb) ^Collection opts)
+        (observe (.valueProperty cb) (fn [_this _old new]
+                                       (when (and new (not *programmatic-selection*))
+                                         (let [command-contexts (contexts scene)]
+                                           (execute-command command-contexts (:command new) (:user-data new))))))
+        (.add (.getChildren hbox) (icons/get-image-view (:icon menu-item) 16))
+        (.add (.getChildren hbox) cb)
+        hbox)
+
+      :else
+      (let [{:keys [graphic-fn label icon tooltip more]} menu-item
+            button (doto (ToggleButton. (or (handler/label handler-ctx) label))
+                     (tooltip! tooltip))]
+        (cond
+          graphic-fn
+          ;; TODO: Ideally, we'd create the graphic once and simply assign it here.
+          ;; Trouble is, the toolbar takes ownership of the Node tree, so the graphic
+          ;; disappears from the toolbars of subsequent tabs. For now, we generate
+          ;; instances for each tab.
+          (.setGraphic button (graphic-fn))
+
+          icon
+          (.setGraphic button (icons/get-image-view icon 16)))
+
+        (when-let [command (:command menu-item)]
+          (on-action! button (fn [_event]
+                               (execute-command (contexts scene) command (:user-data menu-item)))))
+
+        (if more
+          (let [group (doto (HBox.)
+                        (add-style! "button-group"))
+                more-button (MenuButton.)]
+            (.add (.getChildren group) button)
+            (.add (.getChildren group) more-button)
+            (observe (.selectedProperty button)
+                     (fn [_observable _old-val new-val]
+                       (if new-val
+                         (add-style! group "active")
+                         (remove-style! group "active"))))
+            group)
+          button)))))
+
 (defn- refresh-toolbar [td command-contexts evaluation-context]
  (let [menu (handler/realize-menu (:menu-id td))
        ^Pane control (:control td)
@@ -1796,40 +1852,7 @@
                                   separator? (= :separator (:label menu-item))
                                   handler-ctx (handler/active command command-contexts user-data evaluation-context)]
                             :when (or separator? handler-ctx)]
-                        (let [^Control child (if separator?
-                                               (doto (Separator. Orientation/VERTICAL)
-                                                 (add-style! "separator"))
-                                               (if-let [opts (handler/options handler-ctx)]
-                                                 (let [hbox (doto (HBox.)
-                                                              (add-style! "cell"))
-                                                       cb (doto (ChoiceBox.)
-                                                            (.setConverter (DefoldStringConverter. :label #(some #{%} (map :label opts)))))]
-                                                   (.setAll (.getItems cb) ^Collection opts)
-                                                   (observe (.valueProperty cb) (fn [this old new]
-                                                                                  (when (and new (not *programmatic-selection*))
-                                                                                    (let [command-contexts (contexts scene)]
-                                                                                      (execute-command command-contexts (:command new) (:user-data new))))))
-                                                   (.add (.getChildren hbox) (icons/get-image-view (:icon menu-item) 16))
-                                                   (.add (.getChildren hbox) cb)
-                                                   hbox)
-                                                 (let [button (doto (ToggleButton. (or (handler/label handler-ctx) (:label menu-item)))
-                                                                (tooltip! (:tooltip menu-item)))
-                                                       graphic-fn (:graphic-fn menu-item)
-                                                       icon (:icon menu-item)]
-                                                   (cond
-                                                     graphic-fn
-                                                     ;; TODO: Ideally, we'd create the graphic once and simply assign it here.
-                                                     ;; Trouble is, the toolbar takes ownership of the Node tree, so the graphic
-                                                     ;; disappears from the toolbars of subsequent tabs. For now, we generate
-                                                     ;; instances for each tab.
-                                                     (.setGraphic button (graphic-fn))
-
-                                                     icon
-                                                     (.setGraphic button (icons/get-image-view icon 16)))
-                                                   (when command
-                                                     (on-action! button (fn [event]
-                                                                          (execute-command (contexts scene) command user-data))))
-                                                   button)))]
+                        (let [^Control child (toolbar-control scene menu-item handler-ctx)]
                           (when command
                             (user-data! child ::command command))
                           (user-data! child ::menu-user-data user-data)
@@ -1854,18 +1877,27 @@
       (when (instance? HBox n)
         (let [^HBox box n
               state (handler/state handler-ctx)
-              ^ChoiceBox cb (.get (.getChildren box) 1)]
-          (when (not (.isShowing cb))
-            (let [items (.getItems cb)
-                  opts (vec items)
-                  new-opts (vec (handler/options handler-ctx))]
-              (when (not= opts new-opts)
-                (.setAll items ^Collection new-opts)))
-            (let [selection-model (.getSelectionModel cb)
-                  item (.getSelectedItem selection-model)]
-              (when (not= item state)
-                (binding [*programmatic-selection* true]
-                  (.select selection-model state))))))))))
+              second-child (.get (.getChildren box) 1)]
+          (cond
+            (instance? ChoiceBox second-child)
+            (let [^ChoiceBox cb second-child]
+              (when (not (.isShowing cb))
+                (let [items (.getItems cb)
+                      opts (vec items)
+                      new-opts (vec (handler/options handler-ctx))]
+                  (when (not= opts new-opts)
+                    (.setAll items ^Collection new-opts)))
+                (let [selection-model (.getSelectionModel cb)
+                      item (.getSelectedItem selection-model)]
+                  (when (not= item state)
+                    (binding [*programmatic-selection* true]
+                      (.select selection-model state))))))
+
+            :else
+            (let [toggle-button (.get (.getChildren box) 0)]
+              (if (handler/state handler-ctx)
+                (.setSelected ^Toggle toggle-button true)
+                (.setSelected ^Toggle toggle-button false)))))))))
 
 (defn- window-parents [^Window window]
   (when-let [parent (condp instance? window

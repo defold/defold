@@ -518,11 +518,13 @@
    {:id :grid
     :tooltip "Grid"
     :graphic-fn (partial icons/make-svg-icon-graphic grid-svg-path)
-    :command :toggle-grid}
+    :command :toggle-grid
+    :more #()}
    {:id :snap
     :tooltip "Snap"
     :graphic-fn (partial icons/make-svg-icon-graphic magnet-svg-path)
-    :command :toggle-snap}
+    :command :toggle-snap
+    :more #()}
    {:id :2d-mode
     :tooltip "2d mode"
     :graphic-fn (partial icons/make-svg-icon-graphic mode-2d-svg-path)

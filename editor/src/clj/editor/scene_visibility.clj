@@ -416,7 +416,7 @@
   (active? [scene-visibility evaluation-context]
            (g/node-value scene-visibility :active-scene-resource-node evaluation-context))
   (run [scene-visibility] #())
-  (state [scene-visibility] true))
+  (state [scene-visibility] false))
 
 (defn hidden-outline-key-path?
   [hidden-node-outline-key-paths node-outline-key-path]

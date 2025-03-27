@@ -15,7 +15,7 @@
     -fx-spacing: 10px;
     -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.2), 16, 0, 0, 0);
 
-    >.toggle-button {
+    .toggle-button {
         -fx-background-color: transparent;
         -fx-background-insets: 0;
         -fx-background-radius: 15px;
@@ -46,6 +46,26 @@
             SVGPath {
                 -fx-fill: -df-text-selected;
             }
+        }
+    }
+
+    .button-group {
+        .toggle-button {
+            -fx-background-radius: 15px 0 0 15px;
+            -fx-border-radius: 15px 0 0 15px;
+        }
+
+        .menu-button {
+            -fx-max-width: 24px;
+            -fx-min-width: 24px;
+            -fx-pref-height: 30px;
+            -fx-background-radius: 0 15px 15px 0;
+            -fx-border-radius: 0 15px 15px 0;
+            -fx-background-color: transparent;
+        }
+
+        &.active .menu-button {
+            -fx-background-color: -df-background-light;
         }
     }
 
