@@ -167,7 +167,7 @@
                                          (child-go-go self-id child-id))))}]}
       (merge node-outline-extras)
       (cond->
-        (resource/resource? source-resource) (assoc :link source-resource :outline-reference? true))))
+        (some-> source-resource resource/proj-path) (assoc :link source-resource :outline-reference? true))))
 
 (defn- source-outline-subst [err]
   ;; TODO: embed error so can warn in outline
