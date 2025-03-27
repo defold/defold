@@ -10,6 +10,7 @@ import sys
 import waf_dynamo
 import waflib.Options
 import TestContext
+from build_constants import TargetOS
 
 test_context = None
 
@@ -27,6 +28,7 @@ def configure(conf):
 
     conf.recurse('src')
 
+    target_os = conf.env['TARGET_OS']
     conf.env.append_value('INCLUDES', "default/src")
     conf.env['STLIB_DLIB'] = 'dlib'
     conf.env['STLIB_DLIB_NOASAN'] = ['dlib_noasan']
@@ -37,8 +39,9 @@ def configure(conf):
 
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="TEXC"')
 
-    conf.env.append_value('CFLAGS', ["-fdebug-compilation-dir=engine/texc", "-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"])
-    conf.env.append_value('CXXFLAGS', ["-fdebug-compilation-dir=engine/texc", "-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"])
+    if target_os != TargetOS.WINDOWS:
+        conf.env.append_value('CFLAGS', ["-fdebug-compilation-dir=engine/texc"])
+        conf.env.append_value('CXXFLAGS', ["-fdebug-compilation-dir=engine/texc"])
 
 def build(bld):
     global test_context

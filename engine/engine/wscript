@@ -11,6 +11,7 @@ import waf_ddf, waf_graphics, waf_dynamo, waf_gamesys, waf_physics, waf_render, 
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
 import waflib.Options
 import TestContext
+from build_constants import TargetOS
 
 test_context = None
 
@@ -52,6 +53,8 @@ def configure(conf):
     conf.load('waf_dynamo')
     conf.load('java')
     conf.load('waf_resource')
+    target_os = conf.env['TARGET_OS']
+
 
     build_util = None
     try:
@@ -67,14 +70,19 @@ def configure(conf):
 
     conf.recurse('src')
 
-    target_os = build_util.get_target_os()
     architecture = build_util.get_target_architecture()
 
     sound_lib = 'sound'
     glfw_lib = waf_dynamo.platform_get_glfw_lib(conf.env.PLATFORM)
     platform_lib =  waf_dynamo.platform_get_platform_lib(conf.env.PLATFORM)
 
-    if target_os == 'macos':
+    print("-=-=-=-=-=-=-=")
+    print(conf.env)
+    print(target_os)
+    print(TargetOS.MACOS)
+    print("-=-=-=-=-=-=-=")
+    assert(target_os == TargetOS.MACOS)
+    if target_os == TargetOS.MACOS:
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo', '-framework', 'QuartzCore'])
 
         # For Vulkan/MoltenVK
@@ -89,17 +97,17 @@ def configure(conf):
                 # Metal deps requires libc++ stdlib. Remove once we've updated to use libc++ std
                 conf.env.append_value('LINKFLAGS', ['-l', 'c++'])
 
-    elif target_os == 'ios':
+    elif target_os == TargetOS.IOS:
         conf.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'OpenGLES', '-framework', 'QuartzCore', '-framework', 'CoreGraphics', '-framework', 'OpenAL', '-framework', 'AudioToolbox'])
 
         # For Vulkan/MoltenVK
         if waflib.Options.options.with_vulkan and architecture == 'arm64':
             conf.env.append_value('LINKFLAGS', ['-l', 'MoltenVK', '-framework', 'Metal', '-framework', 'IOSurface'])
-    elif target_os == 'android':
+    elif target_os == TargetOS.ANDROID:
         conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2', '-landroid', '-Wl,-soname=libdmengine.so'])
         conf.env['STLIB_CPP_RUNTIME'] = 'c++_static'
 
-    elif target_os == "win":
+    elif target_os == TargetOS.WINDOWS:
         conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'dbghelp.lib', 'dinput8.lib', 'dxguid.lib'])
 
         if waflib.Options.options.with_vulkan:
@@ -108,7 +116,7 @@ def configure(conf):
         if waflib.Options.options.with_dx12:
             conf.env.append_value('LINKFLAGS', ['D3D12.lib', 'DXGI.lib', 'D3DCompiler.lib'])
 
-    elif 'web' in target_os:
+    elif target_os == TargetOS.WEB:
         pass
 
     conf.env['STLIB_EXTENSION'] = 'extension'
@@ -131,7 +139,7 @@ def configure(conf):
     conf.env['STLIB_INPUT'] = 'input'
     conf.env['STLIB_LIVEUPDATE'] = 'liveupdate'
 
-    if target_os != "macos":
+    if target_os != TargetOS.MACOS:
         conf.env['STLIB_UNWIND'] = 'unwind'
 
     conf.env['STLIB_PROFILEREXT'] = 'profilerext'
@@ -139,18 +147,19 @@ def configure(conf):
 
     conf.env['STLIB_TREMOLO'] = 'tremolo'
 
-    if target_os == "linux":
+    if target_os == TargetOS.LINUX:
         conf.env['LIB_OPENAL'] = 'openal'
-    elif target_os == "macos":
+    elif target_os == TargetOS.MACOS:
         pass
-    elif target_os == "win" and architecture == "x86":
+    elif target_os == TargetOS.WINDOWS and architecture == "x86":
         conf.env['LIB_OPENAL'] = 'OpenAL32'
         conf.env.append_value('INCLUDES', build_util.get_dynamo_ext("include", "AL"))
 
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="ENGINE"')
 
-    conf.env.append_value('CFLAGS', ["-fdebug-compilation-dir=engine/engine", "-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"])
-    conf.env.append_value('CXXFLAGS', ["-fdebug-compilation-dir=engine/engine", "-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"])
+    if target_os != TargetOS.WINDOWS:
+        conf.env.append_value('CFLAGS', ["-fdebug-compilation-dir=engine/engine"])
+        conf.env.append_value('CXXFLAGS', ["-fdebug-compilation-dir=engine/engine"])
 
 def build(bld):
     global test_context
@@ -186,7 +195,7 @@ def build(bld):
 
     bld.install_files('${PREFIX}/bin', 'scripts/dmengine_memprofile.sh', chmod=0O755)
 
-    if build_util.get_target_os() in ['web', 'macos', 'ios']:
+    if build_util.get_target_os() in [TargetOS.WEB, TargetOS.MACOS, TargetOS.IOS]:
         srcPath = os.path.join('build', 'src')
         builds = ['','_release', '_headless']
         for build in builds:

@@ -7,6 +7,7 @@ import os
 import waf_dynamo
 import waflib
 import TestContext
+from build_constants import TargetOS
 
 test_context = None
 
@@ -22,10 +23,13 @@ def configure(conf):
     conf.load('waf_dynamo')
     conf.load('java')
     conf.recurse('src')
+
+    target_os = conf.env['TARGET_OS']
     conf.env.append_unique('DEFINES', f'DLIB_LOG_DOMAIN="{APPNAME.upper()}"')
 
-    conf.env.append_value('CFLAGS', ["-fdebug-compilation-dir=engine/jni", "-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"])
-    conf.env.append_value('CXXFLAGS', ["-fdebug-compilation-dir=engine/jni", "-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"])
+    if target_os != TargetOS.WINDOWS:
+        conf.env.append_value('CFLAGS', ["-fdebug-compilation-dir=engine/jni"])
+        conf.env.append_value('CXXFLAGS', ["-fdebug-compilation-dir=engine/jni"])
 
 def build(bld):
     if not bld.env.IS_TARGET_DESKTOP:

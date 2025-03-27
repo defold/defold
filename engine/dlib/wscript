@@ -12,6 +12,7 @@ import waf_dynamo
 import run
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
 import TestContext
+from build_constants import TargetOS
 
 test_context = None
 
@@ -30,6 +31,7 @@ def configure(conf):
 
     conf.load('java')
 
+    target_os = conf.env['TARGET_OS']
     build_util = None
     try:
         build_util = create_build_utility(conf.env)
@@ -40,8 +42,9 @@ def configure(conf):
     conf.env.append_value('LIBPATH', build_util.get_dynamo_ext('lib', build_util.get_target_platform()))
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="DLIB"')
 
-    conf.env.append_value('CFLAGS', ["-fdebug-compilation-dir=engine/resource", "-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"])
-    conf.env.append_value('CXXFLAGS', ["-fdebug-compilation-dir=engine/resource", "-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"])
+    if target_os != TargetOS.WINDOWS:
+        conf.env.append_value('CFLAGS', ["-fdebug-compilation-dir=engine/resource"])
+        conf.env.append_value('CXXFLAGS', ["-fdebug-compilation-dir=engine/resource"])
 
 def build(bld):
     global test_context

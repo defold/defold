@@ -14,7 +14,7 @@
 # specific language governing permissions and limitations under the License.
 
 import os, subprocess
-from build_contants import TargetOS
+from build_constants import TargetOS
 
 class BuildUtilityException(Exception):
     def __init__(self, msg):

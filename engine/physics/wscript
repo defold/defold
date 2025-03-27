@@ -10,6 +10,7 @@ import sys
 import waf_dynamo, waf_ddf
 import waflib.Options
 import TestContext
+from build_constants import TargetOS
 
 test_context = None
 
@@ -23,6 +24,7 @@ def options(opt):
     opt.load('waf_dynamo')
 
 def configure(conf):
+    target_os = conf.env['TARGER_OS']
     conf.load('waf_dynamo')
 
     waf_ddf.configure(conf)
@@ -37,8 +39,9 @@ def configure(conf):
 
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="PHYSICS"')
 
-    conf.env.append_value('CFLAGS', ["-fdebug-compilation-dir=engine/physics", "-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"])
-    conf.env.append_value('CXXFLAGS', ["-fdebug-compilation-dir=engine/physics", "-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"])
+    if target_os != TargetOS.WINDOWS:
+        conf.env.append_value('CFLAGS', ["-fdebug-compilation-dir=engine/physics"])
+        conf.env.append_value('CXXFLAGS', ["-fdebug-compilation-dir=engine/physics"])
 
 def build(bld):
     global test_context

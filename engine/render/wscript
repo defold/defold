@@ -11,6 +11,7 @@ import waflib.Options
 
 import waf_ddf, waf_dynamo
 import TestContext
+from build_constants import TargetOS
 
 test_context = None
 
@@ -30,14 +31,15 @@ def configure(conf):
 
     conf.recurse('src')
 
+    target_os = conf.env['TARGET_OS']
     platform = conf.env['PLATFORM']
 
-    if platform in "linux":
+    # TODO: check if here was mistake - if platform in "linux":
+    if target_os == TargetOS.LINUX:
         conf.env.append_value('CXXFLAGS', '-DGL_GLEXT_PROTOTYPES')
 
-    if "win32" in platform:
+    if target_os == TargetOS.WINDOWS:
         conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib'])
-
 
     dynamo_home = os.getenv('DYNAMO_HOME')
     if not dynamo_home:
@@ -61,8 +63,9 @@ def configure(conf):
 
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="RENDER"')
 
-    conf.env.append_value('CFLAGS', ["-fdebug-compilation-dir=engine/render", "-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"])
-    conf.env.append_value('CXXFLAGS', ["-fdebug-compilation-dir=engine/render", "-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"])
+    if target_os != TargetOS.WINDOWS:
+        conf.env.append_value('CFLAGS', ["-fdebug-compilation-dir=engine/render"])
+        conf.env.append_value('CXXFLAGS', ["-fdebug-compilation-dir=engine/render"])
 
 def build(bld):
     global test_context

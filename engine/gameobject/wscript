@@ -10,6 +10,7 @@ import sys, os
 import waf_dynamo, waf_ddf
 import waflib.Options
 import TestContext
+from build_constants import TargetOS
 
 test_context = None
 
@@ -29,6 +30,7 @@ def configure(conf):
 
     conf.recurse('src')
 
+    target_os = conf.env['TARGET_OS']
     conf.env.append_value('INCLUDES', 'src')
     conf.env.append_value('INCLUDES', 'src/proto')
     conf.env['STLIB_DLIB']      = ['dlib', 'mbedtls', 'zip']
@@ -41,8 +43,9 @@ def configure(conf):
 
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="GAMEOBJECT"')
 
-    conf.env.append_value('CFLAGS', ["-fdebug-compilation-dir=engine/gameobject", "-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"])
-    conf.env.append_value('CXXFLAGS', ["-fdebug-compilation-dir=engine/gameobject", "-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"])
+    if target_os != TargetOS.WINDOWS:
+        conf.env.append_value('CFLAGS', ["-fdebug-compilation-dir=engine/gameobject"])
+        conf.env.append_value('CXXFLAGS', ["-fdebug-compilation-dir=engine/gameobject"])
 
 
 def build(bld):

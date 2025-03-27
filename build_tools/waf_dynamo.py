@@ -19,7 +19,7 @@ from waflib.TaskGen import extension, feature, after, before, task_gen
 from waflib.Logs import error
 from waflib.Task import RUN_ME
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
-from build_contants import TargetOS
+from build_constants import TargetOS
 import sdk
 
 if not 'DYNAMO_HOME' in os.environ:
@@ -383,6 +383,9 @@ def default_flags(self):
 
     # Common for all platforms
     flags = []
+    if build_util.get_target_os() != 'win':
+        flags += ["-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"]
+
     if Options.options.ndebug:
         flags += [self.env.DEFINES_ST % 'NDEBUG']
 
@@ -1975,7 +1978,7 @@ def detect(conf):
         conf.env['LIB_OPENGL'] = ['GL', 'GLU']
         conf.env['LIB_OPENGLES'] = ['EGL', 'GLESv1_CM', 'GLESv2']
 
-    if TargetOS.MACOS == target_arch:
+    if TargetOS.MACOS == target_os:
         conf.env['FRAMEWORK_OPENAL'] = ['OpenAL']
     elif TargetOS.IOS == target_os:
         conf.env['FRAMEWORK_OPENAL'] = ['OpenAL', 'AudioToolbox']

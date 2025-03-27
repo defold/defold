@@ -10,8 +10,7 @@ import sys, re, os
 import waf_dynamo, waf_ddf
 import waflib.Options
 import TestContext
-from build_contants import TargetOS
-
+from build_constants import TargetOS
 
 test_context = None
 
@@ -29,9 +28,8 @@ def configure(conf):
     conf.load('waf_ddf')
     waf_ddf.configure(conf)
 
-    target_os = conf.env['TARGET_OS']
-
     conf.recurse('src')
+    target_os = conf.env['TARGET_OS']
 
     conf.env.append_value('CPPPATH', "default/src")
 
@@ -48,9 +46,9 @@ def configure(conf):
 
     if target_os == TargetOS.WINDOWS:
         conf.env.append_value('LINKFLAGS', ['dbghelp.lib'])
-
-    conf.env.append_value('CFLAGS', ["-fdebug-compilation-dir=engine/crash", "-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"])
-    conf.env.append_value('CXXFLAGS', ["-fdebug-compilation-dir=engine/crash", "-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"])
+    else:
+        conf.env.append_value('CFLAGS', ["-fdebug-compilation-dir=engine/crash"])
+        conf.env.append_value('CXXFLAGS', ["-fdebug-compilation-dir=engine/crash"])
 
 def build(bld):
     global test_context

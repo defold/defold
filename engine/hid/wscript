@@ -10,6 +10,7 @@ import sys
 import waf_dynamo, waf_ddf
 import waflib.Options
 import TestContext
+from build_constants import TargetOS
 
 test_context = None
 
@@ -26,11 +27,13 @@ def configure(conf):
 
     waf_ddf.configure(conf)
     conf.recurse('src')
+    target_os = conf.env['TARGET_OS']
     conf.env.append_value('INCLUDES', "default/src")
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="HID"')
 
-    conf.env.append_value('CFLAGS', ["-fdebug-compilation-dir=engine/hid", "-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"])
-    conf.env.append_value('CXXFLAGS', ["-fdebug-compilation-dir=engine/hid", "-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"])
+    if target_os != TargetOS.WINDOWS:
+        conf.env.append_value('CFLAGS', ["-fdebug-compilation-dir=engine/hid"])
+        conf.env.append_value('CXXFLAGS', ["-fdebug-compilation-dir=engine/hid"])
 
 def build(bld):
     global test_context
