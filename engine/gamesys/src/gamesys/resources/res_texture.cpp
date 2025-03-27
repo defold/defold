@@ -282,8 +282,15 @@ namespace dmGameSystem
             // This should not be happening if the max width/height check goes through
             assert(image->m_MipMapOffset.m_Count <= MAX_MIPMAP_COUNT);
 
-            uint16_t tex_width_full  = dmGraphics::GetTextureWidth(texture);
-            uint16_t tex_height_full = dmGraphics::GetTextureHeight(texture);
+            uint16_t tex_width_full  = image->m_Width;
+            uint16_t tex_height_full = image->m_Height;
+
+            // If we are uploading data for a mipmap, we need to pass the actual texture size for the validation
+            if (params.m_MipMap > 0)
+            {
+                tex_width_full  = dmGraphics::GetTextureWidth(texture);
+                tex_height_full = dmGraphics::GetTextureHeight(texture);
+            }
 
             // If we requested to upload a specific mipmap, upload only that level
             // It is expected that we only have offsets for that level in the image desc as well
