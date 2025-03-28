@@ -350,12 +350,12 @@ namespace dmPhysics
         body->SetAwake(true);
     }
 
-    void FlipH2D(HCollisionObject2D collision_object)
+    void FlipH2D(HWorld2D world, HCollisionObject2D collision_object)
     {
         FlipBody(collision_object, -1, 1);
     }
 
-    void FlipV2D(HCollisionObject2D collision_object)
+    void FlipV2D(HWorld2D world, HCollisionObject2D collision_object)
     {
         FlipBody(collision_object, 1, -1);
     }
