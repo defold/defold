@@ -15,7 +15,8 @@
 (ns util.debug-util
   (:require [clojure.repl :as repl]
             [service.log :as log])
-  (:import [java.util Locale]
+  (:import [java.io File]
+           [java.util Locale]
            [org.apache.commons.lang3.time DurationFormatUtils]))
 
 (set! *warn-on-reflection* true)
@@ -114,6 +115,15 @@
                          (print line-prefix)
                          (println line)))]
      (run! print-line! stack-trace))))
+
+(defn classpath
+  "Returns a sorted vector of absolute path strings that constitute the current
+  classpath."
+  []
+  (-> (System/getProperty "java.class.path")
+      (.split File/pathSeparator)
+      (sort)
+      (vec)))
 
 (defn release-build?
   "Returns true if we're running a release build of the editor."

@@ -201,6 +201,8 @@ namespace dmPhysics
     DebugDraw2D::DebugDraw2D(DebugCallbacks* callbacks)
     : m_Callbacks(callbacks)
     {
+        memset(&m_DebugDraw, 0, sizeof(m_DebugDraw));
+
         m_DebugDraw.DrawPolygon          = DrawPolygon;
         m_DebugDraw.DrawSolidPolygon     = DrawSolidPolygon;
         m_DebugDraw.DrawCircle           = DrawCircle;

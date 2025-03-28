@@ -1453,6 +1453,8 @@
 (defn get-valid-syntax-info
   "Get syntax info valid up till target row (1-indexed)
 
+  Returns empty vector if there is no grammar
+
   Args:
     resource-node          resource node
     canvas-repaint-info    canvas repaint info
@@ -1479,12 +1481,13 @@
   (or (g/user-data resource-node :syntax-info) []))
 
 (defn- syntax-scope-before-cursor [view-node ^Cursor cursor evaluation-context]
-  (data/syntax-scope-before-cursor
-    (get-valid-syntax-info (get-property view-node :resource-node evaluation-context)
+  (if-let [syntax-info (coll/not-empty
+                         (get-valid-syntax-info
+                           (get-property view-node :resource-node evaluation-context)
                            (get-property view-node :canvas-repaint-info evaluation-context)
-                           (inc (.-row cursor)))
-    (get-property view-node :grammar evaluation-context)
-    cursor))
+                           (inc (.-row cursor))))]
+    (data/syntax-scope-before-cursor syntax-info (get-property view-node :grammar evaluation-context) cursor)
+    "source"))
 
 (defn- implies-completions?
   ([view-node]
