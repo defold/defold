@@ -814,9 +814,9 @@
 (def ^:private node-type-deref->stripped-prop-kws (fn/memoize node-type-deref->stripped-prop-kws-raw))
 
 (defn- make-prop->value-for-default-layout [node]
-  (let [node-properties (gt/own-properties node)]
+  (let [node-properties (g/own-property-values node)]
     (if (coll/empty? node-properties)
-      {}
+      node-properties
       (let [node-type (g/node-type node)
             stripped-prop-kws (node-type-deref->stripped-prop-kws @node-type)]
         (persistent!
@@ -834,7 +834,7 @@
                   (if-let [override-node (g/node-by-id basis override-node-id)]
                     (reduce conj! node-properties (gt/overridden-properties override-node))
                     node-properties))
-                (transient (or (gt/own-properties root-node) {}))
+                (transient (g/own-property-values root-node))
                 override-node-ids)]
 
     (if (coll/empty? node-properties)
