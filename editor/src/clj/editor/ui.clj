@@ -49,7 +49,7 @@
            [javafx.fxml FXMLLoader]
            [javafx.geometry Orientation Point2D]
            [javafx.scene Group Node Parent Scene]
-           [javafx.scene.control ButtonBase Cell CheckBox CheckMenuItem ChoiceBox ColorPicker ComboBox ComboBoxBase ContextMenu Control Label Labeled ListView Menu MenuBar MenuButton MenuItem MultipleSelectionModel ProgressBar SelectionMode SelectionModel Separator SeparatorMenuItem Tab TabPane TableView TextArea TextField TextInputControl Toggle ToggleButton Tooltip TreeItem TreeTableView TreeView]
+           [javafx.scene.control Button ButtonBase Cell CheckBox CheckMenuItem ChoiceBox ColorPicker ComboBox ComboBoxBase ContextMenu Control Label Labeled ListView Menu MenuBar MenuButton MenuItem MultipleSelectionModel ProgressBar SelectionMode SelectionModel Separator SeparatorMenuItem Tab TabPane TableView TextArea TextField TextInputControl Toggle ToggleButton Tooltip TreeItem TreeTableView TreeView]
            [javafx.scene.image Image ImageView]
            [javafx.scene.input Clipboard ContextMenuEvent DragEvent KeyCode KeyCombination KeyEvent MouseButton MouseEvent]
            [javafx.scene.layout AnchorPane HBox Pane]
@@ -1824,7 +1824,13 @@
         (if more
           (let [group (doto (HBox.)
                         (add-style! "button-group"))
-                more-button (MenuButton.)]
+                icon (icons/get-image-view "icons/32/Icons_S_05_arrowdown.png" 18)
+                more-button (doto (Button.)
+                              (.setGraphic icon)
+                              (.setId (name more))
+                              (add-style! "more-button")
+                              (on-action! (fn [_event]
+                                            (execute-command (contexts scene) more (:user-data menu-item)))))]
             (.add (.getChildren group) button)
             (.add (.getChildren group) more-button)
             (observe (.selectedProperty button)

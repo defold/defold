@@ -45,6 +45,7 @@
             [editor.git :as git]
             [editor.github :as github]
             [editor.graph-util :as gu]
+            [editor.grid :as grid]
             [editor.handler :as handler]
             [editor.hot-reload :as hot-reload]
             [editor.icons :as icons]
@@ -474,6 +475,21 @@
         (ui/remove-style! btn "filters-active"))
       (scene-visibility/settings-visible? btn))))
 
+(defn get-grid-settings-button
+  [app-view]
+  (some-> ^TabPane (g/node-value app-view :active-tab-pane)
+          ui/selected-tab
+          .getContent
+          (.lookup "#show-grid-settings")))
+
+(handler/defhandler :show-grid-settings :workbench
+  (run [app-view scene-visibility]
+       (when-let [btn (get-grid-settings-button app-view)]
+         (grid/show-settings! app-view btn scene-visibility)))
+  (state [app-view scene-visibility]
+         (when-let [btn (get-grid-settings-button app-view)]
+           (scene-visibility/settings-visible? btn))))
+
 (def ^:private eye-icon-svg-path
   (ui/load-svg-path "scene/images/eye_icon_eye_arrow.svg"))
 
@@ -519,12 +535,12 @@
     :tooltip "Grid"
     :graphic-fn (partial icons/make-svg-icon-graphic grid-svg-path)
     :command :toggle-grid
-    :more #()}
+    :more :show-grid-settings}
    {:id :snap
     :tooltip "Snap"
     :graphic-fn (partial icons/make-svg-icon-graphic magnet-svg-path)
     :command :toggle-snap
-    :more #()}
+    :more :show-snap-settings}
    {:id :2d-mode
     :tooltip "2d mode"
     :graphic-fn (partial icons/make-svg-icon-graphic mode-2d-svg-path)

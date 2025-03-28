@@ -354,11 +354,9 @@
         container (doto (StackPane.)
                     (.setMinWidth 230)
                     (ui/children! [(doto (Region.)
-                                     ;; Move drop shadow down a bit so it does not interfere with toolbar clicks.
-                                     (StackPane/setMargin (Insets. 16.0 0.0 0.0 0.0))
-                                     (ui/add-style! "visibility-toggles-shadow"))
+                                     (ui/add-style! "popup-shadow"))
                                    (doto (VBox.)
-                                     (ui/add-style! "visibility-toggles-list")
+                                     (ui/add-style! "popup-list")
                                      (ui/children! (into [filters-enabled-control]
                                                          (map first)
                                                          tag-toggles)))]))
@@ -374,7 +372,7 @@
 (defn- pref-popup-position
   ^Point2D [^Parent container width y-gap]
   (let [container-screen-bounds (.localToScreen container (.getBoundsInLocal container))]
-    (Point2D. (- (.getMaxX container-screen-bounds) width 10)
+    (Point2D. (- (.getMaxX container-screen-bounds) width)
               (+ (.getMaxY container-screen-bounds) y-gap))))
 
 (defn show-visibility-settings! [app-view ^Parent owner scene-visibility]
@@ -382,7 +380,7 @@
     (.hide popup)
     (let [[^Region toggles update-fn] (make-visibility-toggles-list app-view scene-visibility)
           popup (popup/make-popup owner toggles)
-          anchor (pref-popup-position owner (.getMinWidth toggles) -5)
+          anchor (pref-popup-position owner (.getMinWidth toggles) 10)
           refresh-timer (ui/->timer 13 "refresh-tag-filters" (fn [_ _ _] (update-fn)))]
       (update-fn)
       (ui/user-data! owner ::popup popup)

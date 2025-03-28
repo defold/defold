@@ -20,9 +20,16 @@
             [editor.gl :as gl]
             [editor.gl.pass :as pass]
             [editor.scene-cache :as scene-cache]
-            [editor.types :as types])
+            [editor.types :as types]
+            [editor.ui :as ui]
+            [editor.ui.popup :as popup])
   (:import com.jogamp.opengl.GL2
+           [com.sun.javafx.util Utils]
            [editor.types AABB Camera]
+           [javafx.geometry HPos Insets Point2D VPos]
+           [javafx.scene Parent]
+           [javafx.scene.control ToggleButton PopupControl]
+           [javafx.scene.layout HBox Region StackPane VBox]
            [java.nio ByteBuffer ByteOrder DoubleBuffer]
            [javax.vecmath Matrix3d Point3d Vector4d]))
 
@@ -190,3 +197,27 @@
   (output grids g/Any :cached update-grids)
   (output snapping-points g/Any :cached produce-snapping-points)
   (output renderable pass/RenderData :cached grid-renderable))
+
+(defn- pref-popup-position
+  ^Point2D [^Parent container width]
+  (Utils/pointRelativeTo container width 0 HPos/CENTER VPos/BOTTOM 0.0 10.0 true))
+
+(defn show-settings! [app-view ^Parent owner scene-visibility]
+  (if-let [popup ^PopupControl (ui/user-data owner ::popup)]
+    (.hide popup)
+    (let [region (StackPane.) 
+          hbox (HBox.)
+          popup (popup/make-popup owner region)
+          anchor ^Point2D (pref-popup-position (.getParent owner) (.getMinWidth region))]
+      (ui/children! hbox [(ToggleButton.) (ToggleButton.) (ToggleButton.)])
+      (doto region
+        (.setMinWidth 230)
+        (ui/children! [(doto (Region.)
+                         (ui/add-style! "popup-shadow"))
+                       (doto (VBox.)
+                         (ui/add-style! "popup-list")
+                         (ui/add-child! hbox))]))
+      (ui/add-child! region hbox)
+      (ui/user-data! owner ::popup popup)
+      (ui/on-closed! popup (fn [_] (ui/user-data! owner ::popup nil)))
+      (.show popup owner (.getX anchor) (.getY anchor)))))
