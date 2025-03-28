@@ -52,6 +52,7 @@ import java.util.zip.ZipOutputStream;
 
 import com.defold.extension.pipeline.ILuaTranspiler;
 import com.defold.extension.pipeline.texture.TextureCompressorPreset;
+import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.fs.ClassLoaderMountPoint;
 import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.fs.DefaultResource;
@@ -150,6 +151,16 @@ public class Project {
 
     private List<Class<? extends IShaderCompiler>> shaderCompilerClasses = new ArrayList();
     private List<Class<? extends ITextureCompressor>> textureCompressorClasses = new ArrayList();
+
+    private ArchiveBuilder archiveBuilder;
+
+    public void setArchiveBuilder(ArchiveBuilder archiveBuilder) {
+        this.archiveBuilder = archiveBuilder;
+    }
+
+    public ArchiveBuilder getArchiveBuilder() {
+        return this.archiveBuilder;
+    }
 
     public Project(IFileSystem fileSystem) {
         this.fileSystem = fileSystem;

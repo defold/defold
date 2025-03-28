@@ -25,6 +25,7 @@ import java.io.StringWriter;
 import java.io.BufferedWriter;
 
 import com.dynamo.bob.Bob;
+import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.archive.ArchiveReader;
@@ -50,8 +51,6 @@ public class ReportGenerator {
 
     /**
      * Helper class to keep track resources sizes/flags used by a project.
-     * We need our own structure here since they can be filled by either parsing from
-     * DARC or disk.
      */
     private class ResourceEntry {
         String path;
@@ -92,7 +91,7 @@ public class ReportGenerator {
         this.excludedResources = new HashMap<String, ResourceEntry>();
 
         if (project.option("archive", "false").equals("true")) {
-            parseFromDarc();
+            parseArchiveBuilder(project.getArchiveBuilder());
         } else {
             parseFromDisk();
         }
@@ -126,47 +125,6 @@ public class ReportGenerator {
         }
     }
 
-    /**
-     * Gathers file sizes (both compressed and uncompressed) and encryption flags
-     * from file entries stored in a game.darc file.
-     */
-    private void parseFromDarc() throws IOException {
-
-        String rootDir = FilenameUtils.concat(project.getRootDirectory(), project.getBuildDirectory());
-        String archiveIndex = FilenameUtils.concat(rootDir, "game.arci");
-        String archiveData = FilenameUtils.concat(rootDir, "game.arcd");
-        String manifest = FilenameUtils.concat(rootDir, "game.dmanifest");
-
-        ArchiveReader ar = new ArchiveReader(archiveIndex, archiveData, manifest);
-
-        ar.read();
-
-        List<ArchiveEntry> archiveEntries = ar.getEntries();
-        for (int i = 0; i < archiveEntries.size(); i++) {
-            ArchiveEntry archiveEntry = archiveEntries.get(i);
-            long compressedSize = archiveEntry.getCompressedSize() != -1 ? archiveEntry.getCompressedSize() : archiveEntry.getSize();
-            boolean encrypted = archiveEntry.isEncrypted();
-
-            if (this.resources.containsKey(archiveEntry.getFilename())) {
-                ResourceEntry resEntry = this.resources.get(archiveEntry.getFilename());
-                resEntry.compressedSize = compressedSize;
-                resEntry.size = archiveEntry.getSize();
-                resEntry.encrypted = encrypted;
-            } else {
-                ResourceEntry resEntry = new ResourceEntry(archiveEntry.getFilename(),
-                        archiveEntry.getSize(),
-                        compressedSize,
-                        encrypted);
-
-                this.resources.put(archiveEntry.getFilename(), resEntry);
-            }
-
-        }
-
-        ar.close();
-    }
-
-
     private void parseFromPublisher(Publisher p) {
         Map<String, ArchiveEntry> entries = p.getEntries();
         for (String fileName : entries.keySet()) {
@@ -180,6 +138,39 @@ public class ReportGenerator {
                         compressedSize,
                         encrypted,
                         excluded);
+
+            this.excludedResources.put(archiveEntry.getRelativeFilename(), resEntry);
+        }
+    }
+
+    private void parseArchiveBuilder(ArchiveBuilder archiveBuilder) {
+        List<ArchiveEntry> includedEntries = archiveBuilder.getIncludedEntries();
+        List<ArchiveEntry> excludedEntries = archiveBuilder.getExcludedEntries();
+
+        for (ArchiveEntry archiveEntry : includedEntries) {
+            long compressedSize = archiveEntry.isCompressed() ? archiveEntry.getCompressedSize() : archiveEntry.getSize();
+            boolean encrypted = archiveEntry.isEncrypted();
+            boolean excluded = false;
+
+            ResourceEntry resEntry = new ResourceEntry(archiveEntry.getRelativeFilename(),
+                    archiveEntry.getSize(),
+                    compressedSize,
+                    encrypted,
+                    excluded);
+
+            this.resources.put(archiveEntry.getRelativeFilename(), resEntry);
+        }
+
+        for (ArchiveEntry archiveEntry : excludedEntries) {
+            long compressedSize = archiveEntry.isCompressed() ? archiveEntry.getCompressedSize() : archiveEntry.getSize();
+            boolean encrypted = archiveEntry.isEncrypted();
+            boolean excluded = true;
+
+            ResourceEntry resEntry = new ResourceEntry(archiveEntry.getRelativeFilename(),
+                    archiveEntry.getSize(),
+                    compressedSize,
+                    encrypted,
+                    excluded);
 
             this.excludedResources.put(archiveEntry.getRelativeFilename(), resEntry);
         }
