@@ -76,12 +76,6 @@ def configure(conf):
     glfw_lib = waf_dynamo.platform_get_glfw_lib(conf.env.PLATFORM)
     platform_lib =  waf_dynamo.platform_get_platform_lib(conf.env.PLATFORM)
 
-    print("-=-=-=-=-=-=-=")
-    print(conf.env)
-    print(target_os)
-    print(TargetOS.MACOS)
-    print("-=-=-=-=-=-=-=")
-    assert(target_os == TargetOS.MACOS)
     if target_os == TargetOS.MACOS:
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo', '-framework', 'QuartzCore'])
 

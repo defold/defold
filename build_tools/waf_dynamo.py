@@ -383,7 +383,7 @@ def default_flags(self):
 
     # Common for all platforms
     flags = []
-    if build_util.get_target_os() != 'win':
+    if build_util.get_target_os() != TargetOS.WINDOWS:
         flags += ["-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"]
 
     if Options.options.ndebug:
@@ -438,12 +438,12 @@ def default_flags(self):
 
     if build_util.get_target_os() in ('macos', 'ios'):
         self.env.append_value('LINKFLAGS', ['-weak_framework', 'Foundation'])
-        if 'ios' == build_util.get_target_os():
+        if TargetOS.IOS == build_util.get_target_os():
             self.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'SystemConfiguration', '-framework', 'AVFoundation'])
         else:
             self.env.append_value('LINKFLAGS', ['-framework', 'AppKit'])
 
-    if "linux" == build_util.get_target_os():
+    if TargetOS.LINUX == build_util.get_target_os():
 
         clang_arch = 'x86_64-unknown-linux-gnu'
         if build_util.get_target_platform() == 'arm64-linux':
@@ -459,7 +459,7 @@ def default_flags(self):
 
         self.env.append_value('LINKFLAGS', [f'--target={clang_arch}'])
 
-    elif "macos" == build_util.get_target_os():
+    elif TargetOS.MACOS == build_util.get_target_os():
 
         sys_root = self.sdkinfo[build_util.get_target_platform()]['path']
         swift_dir = "%s/usr/lib/swift-%s/macosx" % (sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), sdk.SWIFT_VERSION)
@@ -490,7 +490,7 @@ def default_flags(self):
         if 'linux' in self.env['BUILD_PLATFORM']:
             self.env.append_value('LINKFLAGS', ['-target', '%s-apple-darwin19' % build_util.get_target_architecture()])
 
-    elif 'ios' == build_util.get_target_os() and build_util.get_target_architecture() in ('armv7', 'arm64', 'x86_64'):
+    elif TargetOS.IOS == build_util.get_target_os() and build_util.get_target_architecture() in ('armv7', 'arm64', 'x86_64'):
 
         extra_ccflags = []
         extra_linkflags = []
@@ -526,7 +526,7 @@ def default_flags(self):
         self.env.append_value('LINKFLAGS', ['-arch', build_util.get_target_architecture(), '-stdlib=libc++', '-isysroot', sys_root, '-dead_strip', '-miphoneos-version-min=%s' % sdk.VERSION_IPHONEOS_MIN] + extra_linkflags)
         self.env.append_value('LIBPATH', ['%s/usr/lib' % sys_root, '%s/usr/lib' % sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), '%s' % swift_dir])
 
-    elif 'android' == build_util.get_target_os():
+    elif TargetOS.ANDROID == build_util.get_target_os():
         target_arch = build_util.get_target_architecture()
 
         bp_arch, bp_os = self.env['BUILD_PLATFORM'].split('-')
@@ -554,7 +554,7 @@ def default_flags(self):
         self.env.append_value('LINKFLAGS', [
                 '-isysroot=%s' % sysroot,
                 '-static-libstdc++'] + getAndroidLinkFlags(target_arch))
-    elif 'web' == build_util.get_target_os():
+    elif TargetOS.WEB == build_util.get_target_os():
 
         emflags_compile = ['DISABLE_EXCEPTION_CATCHING=1']
 
