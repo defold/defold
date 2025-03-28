@@ -718,10 +718,10 @@ namespace dmGraphics
     /*# Read frame buffer pixels in BGRA format
      * @name ReadPixels
      * @param context [type:dmGraphics::HContext] the context
-     * @param x [type:int32_t]
-     * @param y [type:int32_t]
-     * @param width [type:uint32_t]
-     * @param height [type:uin32_t]
+     * @param x [type:int32_t] x coordinate of left bottom area's corener
+     * @param y [type:int32_t] y coordinate of left bottom area's corener
+     * @param width [type:uint32_t] area width
+     * @param height [type:uin32_t] area height
      * @param buffer [type:void*] buffer to read to
      * @param buffer_size [type:uint32_t] buffer size
      */
