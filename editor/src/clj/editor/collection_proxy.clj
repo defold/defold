@@ -106,7 +106,7 @@
                                                               :label "Collection Proxy"
                                                               :icon collection-proxy-icon}
 
-                                                             (resource/openable-resource? collection)
+                                                             (resource/resource? collection)
                                                              (assoc :link collection :outline-reference? false))))
 
   (output save-value g/Any :cached produce-save-value)

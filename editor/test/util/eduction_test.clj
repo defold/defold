@@ -22,119 +22,194 @@
 (defn- eduction? [value]
   (instance? Eduction value))
 
+;; Note: Equality checks are performed twice to root out issues from repeat
+;; evaluation of the eduction.
+
 (deftest cat-test
-  (is (= (sequence cat [(range 0 3) (range 3 5)])
-         (e/cat [(range 0 3) (range 3 5)])))
-  (is (eduction? (e/cat [(range 0 3) (range 3 5)]))))
+  (let [expected (sequence cat [(range 0 3) (range 3 5)])
+        actual (e/cat [(range 0 3) (range 3 5)])]
+    (is (eduction? actual))
+    (is (= expected actual))
+    (is (= expected actual))))
 
 (deftest concat-test
-  (is (= (concat)
-         (e/concat)))
-  (is (eduction? (e/concat)))
-  (let [single-arg (range 0 3)]
-    (is (identical? single-arg
-                    (e/concat single-arg))))
+  (let [expected (concat)
+        actual (e/concat)]
+    (is (eduction? actual))
+    (is (= expected actual))
+    (is (= expected actual)))
+  (let [single-arg (range 0 3)
+        expected single-arg
+        actual (e/concat single-arg)]
+    (is (identical? expected actual)))
   (let [ranges (partition-all 4 (range))]
     (doseq [arg-count (range 2 20)]
       (let [args (take arg-count ranges)
             expected (apply concat args)
             actual (apply e/concat args)]
+        (is (eduction? actual))
         (is (= expected actual))
-        (is (eduction? actual))))))
+        (is (= expected actual))))))
+
+(deftest conj-test
+  (let [expected (conj)
+        actual (e/conj)]
+    (is (eduction? actual))
+    (is (= expected actual))
+    (is (= expected actual)))
+  (let [single-arg (range 0 3)
+        expected single-arg
+        actual (e/conj single-arg)]
+    (is (identical? expected actual)))
+  (doseq [arg-count (range 2 20)]
+    (let [args (range arg-count)
+          expected (apply conj [:first] args)
+          actual (apply e/conj [:first] args)]
+      (is (eduction? actual))
+      (is (= expected actual))
+      (is (= expected actual)))))
+
+(deftest cons-test
+  (let [expected (cons :first (range 0 3))
+        actual (e/cons :first (range 0 3))]
+    (is (eduction? actual))
+    (is (= expected actual))
+    (is (= expected actual))))
 
 (deftest dedupe-test
-  (is (= (dedupe [1 2 1 1 2])
-         (e/dedupe [1 2 1 1 2])))
-  (is (eduction? (e/dedupe [1 2 1 1 2]))))
+  (let [expected (dedupe [1 2 1 1 2])
+        actual (e/dedupe [1 2 1 1 2])]
+    (is (eduction? actual))
+    (is (= expected actual))
+    (is (= expected actual))))
 
 (deftest distinct-test
-  (is (= (distinct [1 2 1 1 2])
-         (e/distinct [1 2 1 1 2])))
-  (is (eduction? (e/distinct [1 2 1 1 2]))))
+  (let [expected (distinct [1 2 1 1 2])
+        actual (e/distinct [1 2 1 1 2])]
+    (is (eduction? actual))
+    (is (= expected actual))
+    (is (= expected actual))))
 
 (deftest drop-test
-  (is (= (drop 2 [0 1 2 3 4])
-         (e/drop 2 [0 1 2 3 4])))
-  (is (eduction? (e/drop 2 [0 1 2 3 4]))))
+  (let [expected (drop 2 [0 1 2 3 4])
+        actual (e/drop 2 [0 1 2 3 4])]
+    (is (eduction? actual))
+    (is (= expected actual))
+    (is (= expected actual))))
 
 (deftest drop-while-test
-  (is (= (drop-while zero? [0 0 0 1 2 3 4])
-         (e/drop-while zero? [0 0 0 1 2 3 4])))
-  (is (eduction? (e/drop-while zero? [0 0 0 1 2 3 4]))))
+  (let [expected (drop-while zero? [0 0 0 1 2 3 4])
+        actual (e/drop-while zero? [0 0 0 1 2 3 4])]
+    (is (eduction? actual))
+    (is (= expected actual))
+    (is (= expected actual))))
 
 (deftest filter-test
-  (is (= (filter even? [0 1 2 3 4])
-         (e/filter even? [0 1 2 3 4])))
-  (is (eduction? (e/filter even? [0 1 2 3 4]))))
+  (let [expected (filter even? [0 1 2 3 4])
+        actual (e/filter even? [0 1 2 3 4])]
+    (is (eduction? actual))
+    (is (= expected actual))
+    (is (= expected actual))))
 
 (deftest interpose-test
-  (is (= (interpose :and [0 1 2 3 4])
-         (e/interpose :and [0 1 2 3 4])))
-  (is (eduction? (e/interpose :and [0 1 2 3 4]))))
+  (let [expected (interpose :and [0 1 2 3 4])
+        actual (e/interpose :and [0 1 2 3 4])]
+    (is (eduction? actual))
+    (is (= expected actual))
+    (is (= expected actual))))
 
 (deftest keep-test
-  (is (= (keep #(when (odd? %) (* % %)) [0 1 2 3 4])
-         (e/keep #(when (odd? %) (* % %)) [0 1 2 3 4])))
-  (is (eduction? (e/keep #(when (odd? %) (* % %)) [0 1 2 3 4]))))
+  (let [expected (keep #(when (odd? %) (* % %)) [0 1 2 3 4])
+        actual (e/keep #(when (odd? %) (* % %)) [0 1 2 3 4])]
+    (is (eduction? actual))
+    (is (= expected actual))
+    (is (= expected actual))))
 
 (deftest keep-indexed-test
-  (is (= (keep-indexed #(when (even? %2) (vector %1 %2)) [0 1 2 3 4])
-         (e/keep-indexed #(when (even? %2) (vector %1 %2)) [0 1 2 3 4])))
-  (is (eduction? (e/keep-indexed #(when (even? %2) (vector %1 %2)) [0 1 2 3 4]))))
+  (let [expected (keep-indexed #(when (even? %2) (vector %1 %2)) [0 1 2 3 4])
+        actual (e/keep-indexed #(when (even? %2) (vector %1 %2)) [0 1 2 3 4])]
+    (is (eduction? actual))
+    (is (= expected actual))
+    (is (= expected actual))))
 
 (deftest map-test
-  (is (= (map #(* % %) [0 1 2 3 4])
-         (e/map #(* % %) [0 1 2 3 4])))
-  (is (eduction? (e/map #(* % %) [0 1 2 3 4]))))
+  (let [expected (map #(* % %) [0 1 2 3 4])
+        actual (e/map #(* % %) [0 1 2 3 4])]
+    (is (eduction? actual))
+    (is (= expected actual))
+    (is (= expected actual))))
 
 (deftest map-indexed-test
-  (is (= (map-indexed vector [0 1 2 3 4])
-         (e/map-indexed vector [0 1 2 3 4])))
-  (is (eduction? (e/map-indexed vector [0 1 2 3 4]))))
+  (let [expected (map-indexed vector [0 1 2 3 4])
+        actual (e/map-indexed vector [0 1 2 3 4])]
+    (is (eduction? actual))
+    (is (= expected actual))
+    (is (= expected actual))))
 
 (deftest mapcat-test
-  (is (= (mapcat range [0 1 2 3 4])
-         (e/mapcat range [0 1 2 3 4])))
-  (is (eduction? (e/mapcat range [0 1 2 3 4]))))
+  (let [expected (mapcat range [0 1 2 3 4])
+        actual (e/mapcat range [0 1 2 3 4])]
+    (is (eduction? actual))
+    (is (= expected actual))
+    (is (= expected actual))))
 
 (deftest partition-all-test
-  (is (= (partition-all 2 [0 1 2 3 4])
-         (e/partition-all 2 [0 1 2 3 4])))
-  (is (eduction? (e/partition-all 2 [0 1 2 3 4]))))
+  (let [expected (partition-all 2 [0 1 2 3 4])
+        actual (e/partition-all 2 [0 1 2 3 4])]
+    (is (eduction? actual))
+    (is (= expected actual))
+    (is (= expected actual))))
 
 (deftest partition-by-test
-  (is (= (partition-by even? [0 1 2 3 4])
-         (e/partition-by even? [0 1 2 3 4])))
-  (is (eduction? (e/partition-by even? [0 1 2 3 4]))))
+  (let [expected (partition-by even? [0 1 2 3 4])
+        actual (e/partition-by even? [0 1 2 3 4])]
+    (is (eduction? actual))
+    (is (= expected actual))
+    (is (= expected actual))))
 
 (deftest random-sample-test
-  (is (= (random-sample 0.0 [0 1 2 3 4])
-         (e/random-sample 0.0 [0 1 2 3 4])))
-  (is (= (random-sample 1.0 [0 1 2 3 4])
-         (e/random-sample 1.0 [0 1 2 3 4])))
-  (is (eduction? (e/random-sample 1.0 [0 1 2 3 4]))))
+  (let [expected (random-sample 0.0 [0 1 2 3 4])
+        actual (e/random-sample 0.0 [0 1 2 3 4])]
+    (is (eduction? actual))
+    (is (= expected actual))
+    (is (= expected actual)))
+  (let [expected (random-sample 1.0 [0 1 2 3 4])
+        actual (e/random-sample 1.0 [0 1 2 3 4])]
+    (is (eduction? actual))
+    (is (= expected actual))
+    (is (= expected actual))))
 
 (deftest remove-test
-  (is (= (remove even? [0 1 2 3 4])
-         (e/remove even? [0 1 2 3 4])))
-  (is (eduction? (e/remove even? [0 1 2 3 4]))))
+  (let [expected (remove even? [0 1 2 3 4])
+        actual (e/remove even? [0 1 2 3 4])]
+    (is (eduction? actual))
+    (is (= expected actual))
+    (is (= expected actual))))
 
 (deftest replace-test
-  (is (= (replace {1 :one 3 :three} [0 1 2 3 4])
-         (e/replace {1 :one 3 :three} [0 1 2 3 4])))
-  (is (eduction? (e/replace {1 :one 3 :three} [0 1 2 3 4]))))
+  (let [expected (replace {1 :one 3 :three} [0 1 2 3 4])
+        actual (e/replace {1 :one 3 :three} [0 1 2 3 4])]
+    (is (eduction? actual))
+    (is (= expected actual))
+    (is (= expected actual))))
 
 (deftest take-test
-  (is (= (take 2 [0 1 2 3 4])
-         (e/take 2 [0 1 2 3 4])))
-  (is (eduction? (e/take 2 [0 1 2 3 4]))))
+  (let [expected (take 2 [0 1 2 3 4])
+        actual (e/take 2 [0 1 2 3 4])]
+    (is (eduction? actual))
+    (is (= expected actual))
+    (is (= expected actual))))
 
 (deftest take-nth-test
-  (is (= (take-nth 2 [0 1 2 3 4])
-         (e/take-nth 2 [0 1 2 3 4])))
-  (is (eduction? (e/take-nth 2 [0 1 2 3 4]))))
+  (let [expected (take-nth 2 [0 1 2 3 4])
+        actual (e/take-nth 2 [0 1 2 3 4])]
+    (is (eduction? actual))
+    (is (= expected actual))
+    (is (= expected actual))))
 
 (deftest take-while-test
-  (is (= (take-while zero? [0 0 0 1 2 3 4])
-         (e/take-while zero? [0 0 0 1 2 3 4])))
-  (is (eduction? (e/take-while zero? [0 0 0 1 2 3 4]))))
+  (let [expected (take-while zero? [0 0 0 1 2 3 4])
+        actual (e/take-while zero? [0 0 0 1 2 3 4])]
+    (is (eduction? actual))
+    (is (= expected actual))
+    (is (= expected actual))))

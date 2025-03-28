@@ -419,7 +419,7 @@
     :user-data (reduce (fn [user-data [graph-id values-by-key-by-node-id]]
                          (assoc user-data
                            graph-id (reduce (fn [graph-user-data [node-id values-by-key]]
-                                              (update graph-user-data node-id merge values-by-key))
+                                              (update graph-user-data node-id coll/merge values-by-key))
                                             (get user-data graph-id)
                                             values-by-key-by-node-id)))
                        (:user-data system)

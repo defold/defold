@@ -348,7 +348,7 @@
                                                                 :icon image-icon
                                                                 :outline-error? (g/error-fatal? build-errors)}
 
-                                                               (resource/openable-resource? maybe-image-resource)
+                                                               (resource/resource? maybe-image-resource)
                                                                (assoc :link maybe-image-resource :outline-show-link? true)))))
   (output ddf-message g/Any (g/fnk [maybe-image-resource order sprite-trim-mode pivot-x pivot-y]
                               (-> (protobuf/make-map-without-defaults AtlasProto$AtlasImage

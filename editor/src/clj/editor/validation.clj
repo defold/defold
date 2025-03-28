@@ -17,7 +17,8 @@
             [dynamo.graph :as g]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
-            [editor.util :as util]))
+            [editor.util :as util]
+            [util.coll :as coll]))
 
 (set! *warn-on-reflection* true)
 
@@ -48,6 +49,9 @@
 
 (defn prop-contains-prohibited-characters? [id name]
   (cond
+    (coll/empty? id)
+    nil
+
     (re-find #"[#:]" id)
     (format "%s should not contain special URL symbols such as '#' or ':'" name)
 

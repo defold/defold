@@ -36,8 +36,7 @@
             [editor.workspace :as workspace]
             [internal.util :as util]
             [schema.core :as s]
-            [util.coll :as coll]
-            [util.digest :as digest])
+            [util.coll :as coll])
   (:import [com.dynamo.gamesys.proto ModelProto$Material ModelProto$Model ModelProto$ModelDesc ModelProto$Texture]
            [editor.gl.shader ShaderLifecycle]))
 
@@ -309,7 +308,8 @@
     (workspace [_])
     (resource-hash [_])
     (openable? [_] false)
-    (editable? [_] false)))
+    (editable? [_] false)
+    (loaded? [_] false)))
 
 (g/defnk produce-model-properties [_node-id _declared-properties material-binding-infos mesh-material-ids]
   (let [model-node-id _node-id

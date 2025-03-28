@@ -61,11 +61,14 @@
       (some (partial match-reqs root-nodes)))
     nil))
 
+(defn- valid-link? [value]
+  (resource/resource? value))
+
 (g/deftype OutlineData {:node-id                              s/Int
                         :node-outline-key                     (s/maybe s/Str)
                         :label                                s/Str
                         :icon                                 s/Str
-                        (s/optional-key :link)                (s/maybe (s/pred resource/openable-resource?))
+                        (s/optional-key :link)                (s/maybe (s/pred valid-link?))
                         (s/optional-key :children)            [s/Any]
                         (s/optional-key :child-reqs)          [s/Any]
                         (s/optional-key :outline-error?)      s/Bool
