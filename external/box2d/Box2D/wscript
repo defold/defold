@@ -27,7 +27,11 @@ def build(bld):
 
     bld.install_files('${PREFIX}/%s/lib/%s/' % (name, bld.env.PLATFORM), bld.env.cxxstlib_PATTERN % 'box2d')
     bld.install_files('${PREFIX}/%s' % (name),
-                        bld.path.ant_glob('**/*.h'),
+                        bld.path.ant_glob('include/**/*.h'),
+                        relative_base=bld.path.find_dir('.'),
+                        relative_trick=True)
+    bld.install_files('${PREFIX}/%s/include/box2d' % (name),
+                        bld.path.ant_glob('src/**/*.h'),
                         relative_base=bld.path.find_dir('.'),
                         relative_trick=True)
 
