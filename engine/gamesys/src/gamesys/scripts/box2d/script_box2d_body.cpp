@@ -211,14 +211,6 @@ namespace dmGameSystem
         return 1;
     }
 
-    static int Body_GetForce(lua_State* L)
-    {
-        DM_LUA_STACK_CHECK(L, 1);
-        b2BodyId* body = CheckBody(L, 1);
-        dmScript::PushVector3(L, FromB2(b2Body_GetTotalForce(*body), GetInvPhysicsScale()));
-        return 1;
-    }
-
     static int Body_GetLinearVelocity(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
@@ -517,8 +509,6 @@ namespace dmGameSystem
         // {"reset_mass_data", Body_ResetMassData},
         // {"synchronize_fixtures", SynchronizeFixtures},
         // SynchronizeSingle(b2Shape* shape, int32 index)
-
-        {"get_force", Body_GetForce},
 
         {"get_linear_velocity", Body_GetLinearVelocity},
         {"set_linear_velocity", Body_SetLinearVelocity},

@@ -3,17 +3,17 @@
 import os, sys, re, run, shutil
 from waflib import Build
 
-VERSION = '3.0.0'
-APPNAME = 'box2d'
+VERSION = '2.2.1'
+APPNAME = 'box2d_defold'
 
 def configure(conf):
     pass
 
 def build(bld):
-    box2d = bld.stlib(features = 'c',
-                      includes = '.. include',
-                      source = bld.path.ant_glob('**/*.c'),
-                      target = 'box2d')
+    box2d = bld.stlib(features = 'cxx',
+                      includes = '..',
+                      source = bld.path.ant_glob('**/*.cpp'),
+                      target = 'box2d_defold')
 
     name = "%s-%s" % (APPNAME, VERSION)
     packagedir = '.'
@@ -23,15 +23,9 @@ def build(bld):
         bld.env.cstlib_PATTERN   = 'lib%s.lib'
         bld.env.cxxstlib_PATTERN = 'lib%s.lib'
 
-        box2d.env.append_unique('CFLAGS', '/std:c11') # for _Static_assert
-
-    bld.install_files('${PREFIX}/%s/lib/%s/' % (name, bld.env.PLATFORM), bld.env.cxxstlib_PATTERN % 'box2d')
-    bld.install_files('${PREFIX}/%s' % (name),
-                        bld.path.ant_glob('include/**/*.h'),
-                        relative_base=bld.path.find_dir('.'),
-                        relative_trick=True)
-    bld.install_files('${PREFIX}/%s/include/box2d' % (name),
-                        bld.path.ant_glob('src/**/*.h'),
+    bld.install_files('${PREFIX}/%s/lib/%s/' % (name, bld.env.PLATFORM), bld.env.cxxstlib_PATTERN % 'box2d_defold')
+    bld.install_files('${PREFIX}/%s/include/box2d_defold/Box2D' % (name),
+                        bld.path.ant_glob('**/*.h'),
                         relative_base=bld.path.find_dir('.'),
                         relative_trick=True)
 
