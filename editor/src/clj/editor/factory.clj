@@ -128,7 +128,7 @@
                                                                 :label label
                                                                 :icon icon}
 
-                                                               (resource/openable-resource? prototype)
+                                                               (resource/resource? prototype)
                                                                (assoc :link prototype :outline-reference? false)))))
 
   (output save-value g/Any :cached produce-save-value)

@@ -20,7 +20,6 @@
             [editor.resource :as resource]
             [editor.settings-core :as settings-core]
             [editor.system :as system]
-            [internal.cache :as c]
             [util.coll :as coll :refer [pair]]
             [util.fn :as fn])
   (:import [java.io File]
@@ -124,16 +123,17 @@
 
 (defn- make-file-tree
   ([workspace ^File file]
-   (let [evaluation-context (g/make-evaluation-context {:basis (g/now) :cache c/null-cache})
-         root (io/file (g/node-value workspace :root evaluation-context))
-         editable-proj-path? (g/node-value workspace :editable-proj-path? evaluation-context)]
-     (make-file-tree workspace root file editable-proj-path?)))
-  ([workspace ^File root ^File file editable-proj-path?]
+   (let [basis (g/now)
+         project-directory (resource/project-directory basis workspace)
+         editable-proj-path? (g/raw-property-value basis workspace :editable-proj-path?)
+         unloaded-proj-path? (g/raw-property-value basis workspace :unloaded-proj-path?)]
+     (make-file-tree workspace project-directory file editable-proj-path? unloaded-proj-path?)))
+  ([workspace ^File root ^File file editable-proj-path? unloaded-proj-path?]
    (let [children (into []
                         (comp (filter (partial file-resource-filter root))
-                              (map #(make-file-tree workspace root % editable-proj-path?)))
+                              (map #(make-file-tree workspace root % editable-proj-path? unloaded-proj-path?)))
                         (.listFiles file))]
-     (resource/make-file-resource workspace (.getPath root) file children editable-proj-path?))))
+     (resource/make-file-resource workspace (.getPath root) file children editable-proj-path? unloaded-proj-path?))))
 
 (defn- file-resource-status [resource]
   (assert (resource/file-resource? resource))
@@ -200,7 +200,7 @@
                     (system/defold-unpack-path))
         root (io/file base-path "_defold/debugger")
         mount-root (io/file base-path)
-        resources (resource/children (make-file-tree workspace mount-root root fn/constantly-false))]
+        resources (resource/children (make-file-tree workspace mount-root root fn/constantly-false fn/constantly-false))]
     {:resources resources
      :status-map (into {}
                        (comp resource/xform-recursive-resources

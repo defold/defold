@@ -323,7 +323,7 @@
 (defn collection-build-target [build-resource node-id name scale-along-z game-object-instance-build-targets collection-instance-build-targets]
   {:pre [(workspace/build-resource? build-resource)
          (g/node-id? node-id)
-         (string? name)
+         (or (nil? name) (string? name))
          (boolean? scale-along-z)
          (seqable? game-object-instance-build-targets)
          (seqable? collection-instance-build-targets)]}
@@ -344,7 +344,7 @@
       {:node-id node-id
        :resource build-resource
        :build-fn build-collection
-       :user-data {:name name
+       :user-data {:name (or name "")
                    :scale-along-z scale-along-z
                    :game-object-instance-datas (mapv #(dissoc % :property-deps)
                                                      game-object-instance-datas)}
