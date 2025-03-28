@@ -2005,7 +2005,7 @@ bail:
                         int32_t x = 0, y = 0;
                         uint32_t w = 0, h = 0;
                         dmGraphics::GetViewport(engine->m_GraphicsContext, x, y, w, h);
-                        uint32_t buffer_size = (w - x) * (h - y) * 4;
+                        uint32_t buffer_size = w * h * 4;
 
                         dmGraphics::ReadPixels(engine->m_GraphicsContext, x, y, w, h, record_data->m_Buffer, buffer_size);
 
@@ -2182,15 +2182,15 @@ bail:
                 uint32_t width = 0, height = 0;
                 dmGraphics::GetViewport(self->m_GraphicsContext, x, y, width, height);
                 dmRecord::NewParams params;
-                params.m_Width = width - x;
-                params.m_Height = height - y;
+                params.m_Width = width;
+                params.m_Height = height;
                 params.m_Filename = start_record->m_FileName;
                 params.m_Fps = start_record->m_Fps;
 
                 dmRecord::Result r = dmRecord::New(&params, &record_data->m_Recorder);
                 if (r == dmRecord::RESULT_OK)
                 {
-                    record_data->m_Buffer = new char[(width - x) * (height - y) * 4];
+                    record_data->m_Buffer = new char[width * height * 4];
                     record_data->m_FrameCount = 0;
                 }
                 else

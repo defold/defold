@@ -4447,7 +4447,7 @@ bail:
     {
         VulkanContext* context = (VulkanContext*) _context;
 
-        assert (buffer_size >= (width - x) * (height - y) * 4);
+        assert (buffer_size >= width * height * 4);
 
         HRenderTarget currentt_rt_h = context->m_CurrentRenderTarget;
         bool in_render_pass = IsRenderTargetbound(context, currentt_rt_h);

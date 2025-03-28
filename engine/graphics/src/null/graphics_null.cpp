@@ -1535,8 +1535,8 @@ namespace dmGraphics
 
     static void NullReadPixels(HContext context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size)
     {
-        assert (buffer_size >= (width - x) * (height - y) * 4);
-        memset(buffer, 0, (width - x) * (height - y) * 4);
+        assert (buffer_size >= width * height * 4);
+        memset(buffer, 0, width * height * 4);
     }
 
     static void NullEnableState(HContext context, State state)
