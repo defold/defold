@@ -11,7 +11,7 @@ def configure(conf):
 
 def build(bld):
     box2d = bld.stlib(features = 'c',
-                      includes = '..',
+                      includes = '.. include',
                       source = bld.path.ant_glob('**/*.c'),
                       target = 'box2d')
 
@@ -26,7 +26,7 @@ def build(bld):
         box2d.env.append_unique('CFLAGS', '/std:c11') # for _Static_assert
 
     bld.install_files('${PREFIX}/%s/lib/%s/' % (name, bld.env.PLATFORM), bld.env.cxxstlib_PATTERN % 'box2d')
-    bld.install_files('${PREFIX}/%s/include/box2d/Box2D' % (name),
+    bld.install_files('${PREFIX}/%s' % (name),
                         bld.path.ant_glob('**/*.h'),
                         relative_base=bld.path.find_dir('.'),
                         relative_trick=True)
