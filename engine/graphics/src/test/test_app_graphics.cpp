@@ -220,7 +220,7 @@ struct ReadPixelsTest : ITest
 
         int32_t x = 0, y = 0;
         uint32_t w = 0, h = 0;
-        dmGraphics::GetViewport(engine->m_GraphicsContext, x, y, w, h);
+        dmGraphics::GetViewport(engine->m_GraphicsContext, &x, &y, &w, &h);
         dmGraphics::ReadPixels(engine->m_GraphicsContext, x, y, w, h, m_Buffer, 512 * 512 * 4);
         dmLogInfo("%d, %d, %d, %d", m_Buffer[0], m_Buffer[1], m_Buffer[2], m_Buffer[3]);
     }

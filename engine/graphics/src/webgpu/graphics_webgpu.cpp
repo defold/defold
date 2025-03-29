@@ -2923,14 +2923,14 @@ static void WebGPUSetViewport(HContext _context, int32_t x, int32_t y, int32_t w
     context->m_ViewportRect[3] = height;
 }
 
-static void WebGPUGetViewport(HContext _context, int32_t& x, int32_t& y, uint32_t& width, uint32_t& height)
+static void WebGPUGetViewport(HContext _context, int32_t* x, int32_t* y, uint32_t* width, uint32_t* height)
 {
     TRACE_CALL;
     WebGPUContext* context     = (WebGPUContext*)_context;
-    x = context->m_ViewportRect[0];
-    y = context->m_ViewportRect[1];
-    width = context->m_ViewportRect[2];
-    height = context->m_ViewportRect[3];
+    *x = context->m_ViewportRect[0];
+    *y = context->m_ViewportRect[1];
+    *width = context->m_ViewportRect[2];
+    *height = context->m_ViewportRect[3];
 }
 
 static void WebGPUSetScissor(HContext _context, int32_t x, int32_t y, int32_t width, int32_t height)

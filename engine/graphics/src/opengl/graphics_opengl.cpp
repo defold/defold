@@ -4983,11 +4983,11 @@ static void LogFrameBufferError(GLenum status)
         memset(context->m_GLHandlesData.m_AllGLHandles.Begin(), 0, (context->m_GLHandlesData.m_AllGLHandles.End() - context->m_GLHandlesData.m_AllGLHandles.Begin()) * sizeof(uint32_t));
     }
 
-    static void OpenGLGetViewport(HContext context, int32_t& x, int32_t& y, uint32_t& width, uint32_t& height)
+    static void OpenGLGetViewport(HContext context, int32_t* x, int32_t* y, uint32_t* width, uint32_t* height)
     {
         GLint vp[4];
         glGetIntegerv(GL_VIEWPORT, vp);
-        x = vp[0], y = vp[1], width = vp[2], height = vp[3];
+        *x = vp[0], *y = vp[1], *width = vp[2], *height = vp[3];
     }
 
     GLenum TEXTURE_UNIT_NAMES[32] =

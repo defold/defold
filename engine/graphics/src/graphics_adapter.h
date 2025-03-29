@@ -149,7 +149,7 @@ namespace dmGraphics
     typedef bool (*IsContextFeatureSupportedFn)(HContext context, ContextFeature feature);
     typedef bool (*IsAssetHandleValidFn)(HContext context, HAssetHandle asset_handle);
     typedef void (*InvalidateGraphicsHandlesFn)(HContext context);
-    typedef void (*GetViewportFn)(HContext context, int32_t& x, int32_t& y, uint32_t& width, uint32_t& height);
+    typedef void (*GetViewportFn)(HContext context, int32_t* x, int32_t* y, uint32_t* width, uint32_t* height);
 
     struct GraphicsAdapterFunctionTable
     {
