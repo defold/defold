@@ -368,22 +368,24 @@ after('process_source')(apply_framework)
 @before('process_source')
 def default_flags(self):
     build_util = create_build_utility(self.env)
+    target_os = build_util.get_target_os()
+    target_arch = build_util.get_target_architecture()
 
     opt_level = Options.options.opt_level
-    if opt_level == "2" and 'web' == build_util.get_target_os():
+    if opt_level == "2" and TargetOS.WEB == target_os:
         opt_level = "3" # emscripten highest opt level
-    elif opt_level == "0" and 'win' in build_util.get_target_os():
+    elif opt_level == "0" and TargetOS.WINDOWS in target_os:
         opt_level = "d" # how to disable optimizations in windows
 
     # For nicer output (i.e. in CI logs), and still get some performance, let's default to -O1
     if (Options.options.with_asan or Options.options.with_ubsan or Options.options.with_tsan) and opt_level != '0':
         opt_level = 1
 
-    FLAG_ST = '/%s' if 'win' == build_util.get_target_os() else '-%s'
+    FLAG_ST = '/%s' if TargetOS.WINDOWS == target_os else '-%s'
 
     # Common for all platforms
     flags = []
-    if build_util.get_target_os() != TargetOS.WINDOWS:
+    if target_os != TargetOS.WINDOWS:
         flags += ["-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"]
 
     if Options.options.ndebug:
@@ -393,7 +395,7 @@ def default_flags(self):
         self.env.append_value(f, [FLAG_ST % ('O%s' % opt_level)])
 
     if Options.options.show_includes:
-        if 'win' == build_util.get_target_os():
+        if TargetOS.WINDOWS == target_os:
             flags += ['/showIncludes']
         else:
             flags += ['-H']
@@ -412,7 +414,7 @@ def default_flags(self):
            self.env.append_value(f, self.env.DEFINES_ST % "JC_TEST_USE_COLORS=1")
 
     for f in ['CFLAGS', 'CXXFLAGS']:
-        if '64' in build_util.get_target_architecture():
+        if '64' in target_arch:
             self.env.append_value(f, self.env.DEFINES_ST % 'DM_PLATFORM_64BIT')
         else:
             self.env.append_value(f, self.env.DEFINES_ST % 'DM_PLATFORM_32BIT')
@@ -436,15 +438,14 @@ def default_flags(self):
 
     # Platform specific paths etc comes after the project specific stuff
 
-    if build_util.get_target_os() in ('macos', 'ios'):
+    if target_os in (TargetOS.MACOS, TargetOS.IOS):
         self.env.append_value('LINKFLAGS', ['-weak_framework', 'Foundation'])
-        if TargetOS.IOS == build_util.get_target_os():
+        if TargetOS.IOS == target_os:
             self.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'SystemConfiguration', '-framework', 'AVFoundation'])
         else:
             self.env.append_value('LINKFLAGS', ['-framework', 'AppKit'])
 
-    if TargetOS.LINUX == build_util.get_target_os():
-
+    if TargetOS.LINUX == target_os:
         clang_arch = 'x86_64-unknown-linux-gnu'
         if build_util.get_target_platform() == 'arm64-linux':
             clang_arch = 'aarch64-unknown-linux-gnu'
@@ -459,8 +460,7 @@ def default_flags(self):
 
         self.env.append_value('LINKFLAGS', [f'--target={clang_arch}'])
 
-    elif TargetOS.MACOS == build_util.get_target_os():
-
+    elif TargetOS.MACOS == target_os:
         sys_root = self.sdkinfo[build_util.get_target_platform()]['path']
         swift_dir = "%s/usr/lib/swift-%s/macosx" % (sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), sdk.SWIFT_VERSION)
 
@@ -472,26 +472,25 @@ def default_flags(self):
             self.env.append_value(f, '-mmacosx-version-min=%s' % sdk.VERSION_MACOSX_MIN)
 
             self.env.append_value(f, ['-isysroot', sys_root])
-            self.env.append_value(f, ['-target', '%s-apple-darwin19' % build_util.get_target_architecture()])
+            self.env.append_value(f, ['-target', '%s-apple-darwin19' % target_arch])
 
             if f == 'CXXFLAGS':
                 self.env.append_value(f, ['-fno-rtti', '-stdlib=libc++', '-fno-exceptions', '-nostdinc++'])
                 self.env.append_value(f, ['-isystem', '%s/usr/include/c++/v1' % sys_root])
 
-                if build_util.get_target_architecture() == 'x86_64':
+                if target_arch == 'x86_64':
                     self.env.append_value(f, ['-DDM_SOUND_DSP_IMPL=SSE'])
                 else:
                     self.env.append_value(f, ['-DDM_SOUND_DSP_IMPL=Fallback'])
 
         self.env.append_value('LINKFLAGS', ['-stdlib=libc++', '-isysroot', sys_root, '-mmacosx-version-min=%s' % sdk.VERSION_MACOSX_MIN, '-framework', 'Carbon','-flto'])
-        self.env.append_value('LINKFLAGS', ['-target', '%s-apple-darwin19' % build_util.get_target_architecture()])
+        self.env.append_value('LINKFLAGS', ['-target', '%s-apple-darwin19' % target_arch])
         self.env.append_value('LIBPATH', ['%s/usr/lib' % sys_root, '%s/usr/lib' % sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), '%s' % swift_dir])
 
         if 'linux' in self.env['BUILD_PLATFORM']:
-            self.env.append_value('LINKFLAGS', ['-target', '%s-apple-darwin19' % build_util.get_target_architecture()])
+            self.env.append_value('LINKFLAGS', ['-target', '%s-apple-darwin19' % target_arch])
 
-    elif TargetOS.IOS == build_util.get_target_os() and build_util.get_target_architecture() in ('armv7', 'arm64', 'x86_64'):
-
+    elif TargetOS.IOS == target_os and target_arch in ('armv7', 'arm64', 'x86_64'):
         extra_ccflags = []
         extra_linkflags = []
         if 'linux' in self.env['BUILD_PLATFORM']:
@@ -505,12 +504,12 @@ def default_flags(self):
 
         sys_root = self.sdkinfo[build_util.get_target_platform()]['path']
         swift_dir = "%s/usr/lib/swift-%s/iphoneos" % (sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), sdk.SWIFT_VERSION)
-        if 'x86_64' == build_util.get_target_architecture():
+        if 'x86_64' == target_arch:
             swift_dir = "%s/usr/lib/swift-%s/iphonesimulator" % (sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), sdk.SWIFT_VERSION)
 
         for f in ['CFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, extra_ccflags + ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-fvisibility=hidden',
-                                            '-arch', build_util.get_target_architecture(), '-miphoneos-version-min=%s' % sdk.VERSION_IPHONEOS_MIN])
+                                            '-arch', target_arch, '-miphoneos-version-min=%s' % sdk.VERSION_IPHONEOS_MIN])
             self.env.append_value(f, ['-isysroot', sys_root])
 
             if f == 'CXXFLAGS':
@@ -520,15 +519,13 @@ def default_flags(self):
                 self.env.append_value(f, ['-DDM_SOUND_DSP_IMPL=Fallback'])
 
             self.env.append_value(f, ['-DDM_PLATFORM_IOS'])
-            if 'x86_64' == build_util.get_target_architecture():
+            if 'x86_64' == target_arch:
                 self.env.append_value(f, ['-DIOS_SIMULATOR'])
 
-        self.env.append_value('LINKFLAGS', ['-arch', build_util.get_target_architecture(), '-stdlib=libc++', '-isysroot', sys_root, '-dead_strip', '-miphoneos-version-min=%s' % sdk.VERSION_IPHONEOS_MIN] + extra_linkflags)
+        self.env.append_value('LINKFLAGS', ['-arch', target_arch, '-stdlib=libc++', '-isysroot', sys_root, '-dead_strip', '-miphoneos-version-min=%s' % sdk.VERSION_IPHONEOS_MIN] + extra_linkflags)
         self.env.append_value('LIBPATH', ['%s/usr/lib' % sys_root, '%s/usr/lib' % sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), '%s' % swift_dir])
 
-    elif TargetOS.ANDROID == build_util.get_target_os():
-        target_arch = build_util.get_target_architecture()
-
+    elif TargetOS.ANDROID == target_os:
         bp_arch, bp_os = self.env['BUILD_PLATFORM'].split('-')
         # NDK doesn't support arm64 yet
         if bp_arch == 'arm64':
@@ -554,7 +551,7 @@ def default_flags(self):
         self.env.append_value('LINKFLAGS', [
                 '-isysroot=%s' % sysroot,
                 '-static-libstdc++'] + getAndroidLinkFlags(target_arch))
-    elif TargetOS.WEB == build_util.get_target_os():
+    elif TargetOS.WEB == target_os:
 
         emflags_compile = ['DISABLE_EXCEPTION_CATCHING=1']
 
@@ -583,7 +580,7 @@ def default_flags(self):
             if int(opt_level) >= 3:
                 emflags_link += ['ASYNCIFY_ADVISE', 'ASYNCIFY_IGNORE_INDIRECT', 'ASYNCIFY_ADD=["main", "dmEngineCreate(int, char**)"]' ]
 
-        if 'wasm' == build_util.get_target_architecture():
+        if 'wasm' == target_arch:
             emflags_link += ['WASM=1', 'ALLOW_MEMORY_GROWTH=1']
         else:
             emflags_link += ['WASM=0', 'LEGACY_VM_SUPPORT=1']
@@ -604,7 +601,7 @@ def default_flags(self):
         flags += ['-O%s' % opt_level]
         linkflags += ['-O%s' % opt_level]
 
-        if 'wasm' == build_util.get_target_architecture():
+        if 'wasm' == target_arch:
             flags += ['-msimd128', '-msse4.2']
 
         self.env['DM_HOSTFS']           = '/node_vfs/'
@@ -1955,7 +1952,7 @@ def detect(conf):
         conf.env['LIB_PLATFORM_SOCKET'] = ''
 
     use_vanilla = getattr(Options.options, 'use_vanilla_lua', False)
-    if build_util.get_target_os() == 'web' or not platform_supports_feature(build_util.get_target_platform(), 'luajit', {}):
+    if target_os == TargetOS.WEB or not platform_supports_feature(build_util.get_target_platform(), 'luajit', {}):
         use_vanilla = True
 
     if use_vanilla:

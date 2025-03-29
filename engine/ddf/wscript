@@ -29,7 +29,6 @@ def options(opt):
 
 def configure(conf):
     # Replace version number in python file.
-    target_os = conf.env['TARGET_OS']
     ddfc_py_str = ddfc_py_str_orig = open('src/ddfc.py', 'r').read()
     ddfc_py_str = re.sub('DDF_MAJOR_VERSION=(\d*)', 'DDF_MAJOR_VERSION=%d' % DDF_MAJOR_VERSION, str(ddfc_py_str))
     ddfc_py_str = re.sub('DDF_MINOR_VERSION=(\d*)', 'DDF_MINOR_VERSION=%d' % DDF_MINOR_VERSION, str(ddfc_py_str))
