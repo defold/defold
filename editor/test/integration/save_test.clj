@@ -133,7 +133,7 @@
 (defn- workspace-file
   ^File [workspace proj-path]
   (assert (= \/ (first proj-path)))
-  (File. (workspace/project-path workspace) (subs proj-path 1)))
+  (File. (workspace/project-directory workspace) (subs proj-path 1)))
 
 (defn- slurp-file
   ^String [workspace proj-path]

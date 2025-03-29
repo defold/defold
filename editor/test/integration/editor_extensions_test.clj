@@ -919,7 +919,7 @@ POST http://localhost:23456/echo hello world! as string => 200
 (deftest zip-test
   (test-util/with-scratch-project "test/resources/editor_extensions/zip_project"
     (let [output (atom [])
-          root (g/node-value workspace :root)
+          root (workspace/project-directory workspace)
           list-entries (fn list-entries [path-str]
                          (with-open [zis (ZipArchiveInputStream. (io/input-stream (fs/path root path-str)))]
                            (loop [acc (transient #{})]

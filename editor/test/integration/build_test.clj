@@ -471,7 +471,7 @@
   (io/file (workspace/build-path workspace) proj-path))
 
 (defn- abs-project-path [workspace proj-path]
-  (io/file (workspace/project-path workspace) proj-path))
+  (io/file (workspace/project-directory workspace) proj-path))
 
 (defn mtime [^File f]
   (.lastModified f))
@@ -845,7 +845,7 @@
       (let [br (project-build project game-project (g/make-evaluation-context))]
         (is (not (contains? br :error))))
       (testing "Removing an unreferenced collisionobject should not break the build"
-        (let [f (File. (workspace/project-path workspace) "knight.collisionobject")]
+        (let [f (File. (workspace/project-directory workspace) "knight.collisionobject")]
           (fs/delete-file! f)
           (workspace/resource-sync! workspace))
         (let [br (project-build project game-project (g/make-evaluation-context))]

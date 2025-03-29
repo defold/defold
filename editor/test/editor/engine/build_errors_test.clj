@@ -18,7 +18,6 @@
             [editor.engine.build-errors :as build-errors]
             [editor.workspace :as workspace]
             [integration.test-util :as tu]
-            [support.test-support :as ts]
             [dynamo.graph :as g]))
 
 (defn- slurp-test-file
@@ -26,7 +25,7 @@
   (slurp (str "test/resources/native_extension_error_parsing/" name)))
 
 (defn- make-fake-file-resource [workspace proj-path text opts]
-  (let [root-dir (workspace/project-path workspace)]
+  (let [root-dir (workspace/project-directory workspace)]
     (tu/make-fake-file-resource workspace (.getPath root-dir) (io/file root-dir proj-path) (.getBytes text "UTF-8") opts)))
 
 (defn- make-fake-empty-files

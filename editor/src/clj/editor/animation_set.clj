@@ -75,8 +75,8 @@
         animation-set-builder (Rig$AnimationSet/newBuilder)
         animation-ids (ArrayList.)
         workspace (resource/workspace resource)
-        project-path (workspace/project-path workspace)
-        data-resolver (ModelUtil/createFileDataResolver project-path)]
+        project-directory (workspace/project-directory workspace)
+        data-resolver (ModelUtil/createFileDataResolver project-directory)]
 
     (AnimationSetBuilder/buildAnimations is-animation-set paths streams data-resolver parent-ids animation-set-builder animation-ids)
     (let [animation-set (protobuf/pb->map-with-defaults (.build animation-set-builder))]
