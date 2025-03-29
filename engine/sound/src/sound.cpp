@@ -1499,8 +1499,9 @@ namespace dmSound
             //
             // Mix the data
             //
-            assert(frame_count > SOUND_MAX_FUTURE);
-            Mix(mix_context, instance, delta, frame_count - SOUND_MAX_FUTURE, &info, group);
+            if (frame_count > SOUND_MAX_FUTURE) {
+                Mix(mix_context, instance, delta, frame_count - SOUND_MAX_FUTURE, &info, group);
+            }
         }
 
         if (instance->m_EndOfStream) {
