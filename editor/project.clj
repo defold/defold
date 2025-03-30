@@ -288,7 +288,9 @@
                                                     "-Ddefold.unpack.path=tmp/unpack"
                                                     "-Ddefold.nrepl=true"
                                                     "-Ddefold.log.dir="
-                                                    "-Djogl.debug.DebugGL" ; TraceGL is also useful
+                                                    ;"-Djogl.verbose=true"
+                                                    ;"-Djogl.debug=true"
+                                                    "-Djogl.debug.TraceGL" ; TraceGL is also useful
                                                     "-Djogl.texture.notexrect=true"
                                                     "-XX:MaxRAMPercentage=75"
                                                     ;"-XX:+UnlockCommercialFeatures"
