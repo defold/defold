@@ -24,6 +24,14 @@
                              :zip-url "https://github.com/defold/template-desktop/archive/master.zip"
                              :skip-root? true}
 
+                            {:name "Poki HTML5 game"
+                             :description "This template is configured specifically for HTML5 games released on Poki."
+                             :image "poki.svg"
+                             :duration "Medium"
+                             :user-level "Advanced"
+                             :zip-url "https://github.com/defold/template-html5-poki/archive/master.zip"
+                             :skip-root? true}
+
                             {:name "Native Extension"
                              :description "This template contains the basic setup if you want to start creating a native extension."
                              :image "extension.svg"
