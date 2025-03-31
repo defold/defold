@@ -36,7 +36,6 @@ var LibrarySoundDevice =
                 sampleRate: shared.audioCtx.sampleRate,
                 bufferedTo: 0,
                 bufferDuration: 0,
-                bufferCache: {},
                 creatingTime: Date.now() / 1000,
                 lastTimeInSuspendedState: Date.now() / 1000,
                 suspendedBufferedTo: 0,
@@ -63,10 +62,7 @@ var LibrarySoundDevice =
                         this.suspendedBufferedTo += len;
                         return;
                     }
-                    var buf = this.bufferCache[sample_count];
-                    if (!buf) {
-                        buf = this.bufferCache[sample_count] = shared.audioCtx.createBuffer(2, sample_count, this.sampleRate);
-                    }
+                    var buf = shared.audioCtx.createBuffer(2, sample_count, this.sampleRate);
                     var c0 = buf.getChannelData(0);
                     var c1 = buf.getChannelData(1);
                     for (var i=0;i<sample_count;i++) {
