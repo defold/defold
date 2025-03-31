@@ -63,7 +63,7 @@
             -fx-background-radius: 0 15px 15px 0;
             -fx-border-radius: 0 15px 15px 0;
             -fx-background-color: transparent;
-            -fx-border-color: transparent;
+            -fx-border-width: 0;
 
             &:hover {
                 & > .image-view {
@@ -73,7 +73,7 @@
         }
 
         &.active .more-button {
-            -fx-border-color: -df-background-light;
+            -fx-background-color: -df-background-light;
         }
     }
 
