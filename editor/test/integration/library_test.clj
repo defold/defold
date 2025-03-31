@@ -65,11 +65,11 @@
   (with-clean-system
     (let [[workspace project] (log/without-logging (setup-scratch world))]
       (testing "initially no library files"
-        (let [files (library/library-files (workspace/project-path workspace))]
+        (let [files (library/library-files (workspace/project-directory workspace))]
           (is (= 0 (count files)))))
       (testing "initially unknown library state"
         (let [states (library/current-library-state
-                      (workspace/project-path workspace)
+                      (workspace/project-directory workspace)
                       uris)]
           (is (every? (fn [state] (= (:status state) :unknown)) states))
           (is (not (seq (filter :file states)))))))))
@@ -77,7 +77,7 @@
 (deftest libraries-present
   (with-clean-system
     (let [[workspace project] (log/without-logging (setup-scratch world))]
-      (let [project-directory (workspace/project-path workspace)]
+      (let [project-directory (workspace/project-directory workspace)]
         ;; copy to proper place
         (FileUtils/copyDirectory
          (io/file "test/resources/lib_resource_project/.internal/lib")
@@ -104,7 +104,7 @@
 (deftest library-update
   (with-clean-system
     (let [[workspace project] (log/without-logging (setup-scratch world))]
-      (let [project-directory (workspace/project-path workspace)]
+      (let [project-directory (workspace/project-directory workspace)]
         (let [update-states   (->> (library/current-library-state project-directory uris)
                                    (library/fetch-library-updates dummy-lib-resolver progress/null-render-progress!)
                                    (library/validate-updated-libraries)

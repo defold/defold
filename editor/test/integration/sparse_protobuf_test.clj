@@ -359,11 +359,11 @@
                     resource-types)))
         (test-util/distinct-resource-types-by-editability workspace relevant-protobuf-resource-type?)))
 
-(defn- with-absolute-file-keys [^File project-root-directory values-by-proj-path]
+(defn- with-absolute-file-keys [^File project-directory values-by-proj-path]
   (into (sorted-map)
         (map (fn [[proj-path content]]
                (let [relative-path (subs proj-path 1) ; Strip leading slash.
-                     absolute-file (io/file project-root-directory relative-path)]
+                     absolute-file (io/file project-directory relative-path)]
                  (pair absolute-file content))))
         values-by-proj-path))
 
@@ -529,10 +529,10 @@
           (test-util/set-libraries! workspace test-util/sanctioned-extension-urls)
 
           ;; With the extensions added, we can populate the workspace.
-          (let [project-root-directory (workspace/project-path workspace)
+          (let [project-directory (workspace/project-directory workspace)
                 sparse-protobuf-content-by-proj-path (sparse-protobuf-content-by-proj-path workspace)
-                sparse-protobuf-content-by-absolute-file (with-absolute-file-keys project-root-directory sparse-protobuf-content-by-proj-path)
-                supplemental-save-values-by-absolute-file (with-absolute-file-keys project-root-directory supplemental-save-values-by-proj-path)]
+                sparse-protobuf-content-by-absolute-file (with-absolute-file-keys project-directory sparse-protobuf-content-by-proj-path)
+                supplemental-save-values-by-absolute-file (with-absolute-file-keys project-directory supplemental-save-values-by-proj-path)]
 
             ;; Ensure we have the parent directories in place for our content.
             (create-parent-directories! sparse-protobuf-content-by-absolute-file)

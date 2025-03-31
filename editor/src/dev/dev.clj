@@ -248,7 +248,7 @@
                       :node-type (g/node-type* basis node-id)})))))
 
 (defn prefs []
-  (prefs/project (g/node-value (workspace) :root)))
+  (prefs/project (workspace/project-directory (workspace))))
 
 (declare ^:private exclude-keys-deep-helper)
 
@@ -1519,44 +1519,45 @@
   ([node-load-infos-by-proj-path recursive include-dependency-resource?]
    {:pre [(map? node-load-infos-by-proj-path)
           (ifn? include-dependency-resource?)]}
-   (g/with-auto-evaluation-context evaluation-context
-     (let [workspace
-           (some (fn [[_proj-path node-load-info]]
-                   (some-> (:resource node-load-info)
-                           (resource/workspace)))
-                 node-load-infos-by-proj-path)
+   (let [basis (g/now)
 
-           include-dependency-proj-path?
-           (fn include-dependency-proj-path? [dependency-proj-path]
-             (include-dependency-resource?
-               (if-some [dependency-node-info (node-load-infos-by-proj-path dependency-proj-path)]
-                 (:resource dependency-node-info)
-                 (workspace/file-resource workspace dependency-proj-path evaluation-context))))] ; Referencing a missing resource.
+         workspace
+         (some (fn [[_proj-path node-load-info]]
+                 (some-> (:resource node-load-info)
+                         (resource/workspace)))
+               node-load-infos-by-proj-path)
 
-       (if recursive
-         (let [referencing-proj-path-sets-by-proj-path (referencing-proj-path-sets-by-proj-path node-load-infos-by-proj-path)]
-           (letfn [(recursive-referencing-entries [dependency-proj-path]
-                     (e/mapcat
-                       (fn [referencing-proj-path]
-                         (cons (pair referencing-proj-path dependency-proj-path)
-                               (recursive-referencing-entries referencing-proj-path)))
-                       (referencing-proj-path-sets-by-proj-path dependency-proj-path)))]
-             (util/group-into
-               (sorted-map) (sorted-set) key val
-               (e/mapcat
-                 (fn [[dependency-proj-path]]
-                   (when (include-dependency-proj-path? dependency-proj-path)
-                     (recursive-referencing-entries dependency-proj-path)))
-                 referencing-proj-path-sets-by-proj-path))))
-         (into (sorted-map)
-               (keep
-                 (fn [[proj-path node-load-info]]
-                   (some->> (:dependency-proj-paths node-load-info)
-                            (into (sorted-set)
-                                  (filter include-dependency-proj-path?))
-                            (coll/not-empty)
-                            (pair proj-path))))
-               node-load-infos-by-proj-path))))))
+         include-dependency-proj-path?
+         (fn include-dependency-proj-path? [dependency-proj-path]
+           (include-dependency-resource?
+             (if-some [dependency-node-info (node-load-infos-by-proj-path dependency-proj-path)]
+               (:resource dependency-node-info)
+               (workspace/file-resource basis workspace dependency-proj-path))))] ; Referencing a missing resource.
+
+     (if recursive
+       (let [referencing-proj-path-sets-by-proj-path (referencing-proj-path-sets-by-proj-path node-load-infos-by-proj-path)]
+         (letfn [(recursive-referencing-entries [dependency-proj-path]
+                   (e/mapcat
+                     (fn [referencing-proj-path]
+                       (cons (pair referencing-proj-path dependency-proj-path)
+                             (recursive-referencing-entries referencing-proj-path)))
+                     (referencing-proj-path-sets-by-proj-path dependency-proj-path)))]
+           (util/group-into
+             (sorted-map) (sorted-set) key val
+             (e/mapcat
+               (fn [[dependency-proj-path]]
+                 (when (include-dependency-proj-path? dependency-proj-path)
+                   (recursive-referencing-entries dependency-proj-path)))
+               referencing-proj-path-sets-by-proj-path))))
+       (into (sorted-map)
+             (keep
+               (fn [[proj-path node-load-info]]
+                 (some->> (:dependency-proj-paths node-load-info)
+                          (into (sorted-set)
+                                (filter include-dependency-proj-path?))
+                          (coll/not-empty)
+                          (pair proj-path))))
+             node-load-infos-by-proj-path)))))
 
 (defn dependency-proj-path-tree
   ([dependency-proj-path-sets-by-proj-path]

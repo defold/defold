@@ -281,7 +281,7 @@
       non-conflicts)))
 
 (defn- select-files! [workspace tree-view files]
-  (let [selected-paths (mapv (partial resource/file->proj-path (workspace/project-path workspace)) files)]
+  (let [selected-paths (mapv (partial resource/file->proj-path (workspace/project-directory workspace)) files)]
     (ui/user-data! tree-view ::pending-selection selected-paths)))
 
 (defn- reserved-project-file [^File project-path ^File f]
@@ -310,9 +310,9 @@
              ;; is the project root.
              possibly-reserved-tgt-files (when (= (resource/proj-path tgt-resource) "/")
                                            (map #(.toFile (.resolve tgt-path (.getName ^File %))) src-files))
-             project-path (workspace/project-path (resource/workspace tgt-resource))]
+             project-directory (workspace/project-directory (resource/workspace tgt-resource))]
          (and (nil? descendant)
-              (nil? (some (partial reserved-project-file project-path) possibly-reserved-tgt-files))))))
+              (nil? (some (partial reserved-project-file project-directory) possibly-reserved-tgt-files))))))
 
 (defn paste? [files-on-clipboard? target-resources]
   (and files-on-clipboard?
@@ -329,14 +329,14 @@
                                   tgt))
                               (fs/to-folder (File. (resource/abs-path target-resource))) src-files)
         prospect-pairs (map (fn [^File f] [f (File. tgt-dir (FilenameUtils/getName (.toString f)))]) src-files)
-        project-path (workspace/project-path workspace)]
-    (if-let [illegal (illegal-copy-move-pairs project-path prospect-pairs)]
+        project-directory (workspace/project-directory workspace)]
+    (if-let [illegal (illegal-copy-move-pairs project-directory prospect-pairs)]
       (dialogs/make-info-dialog
         {:title "Cannot Paste"
          :icon :icon/triangle-error
          :header "There are reserved target directories"
          :content (str "Following target directories are reserved:\n"
-                       (string/join "\n" (map (comp (partial resource/file->proj-path project-path) second) illegal)))})
+                       (string/join "\n" (map (comp (partial resource/file->proj-path project-directory) second) illegal)))})
       (let [pairs (ensure-unique-dest-files (fn [_ basename] (str basename "_copy")) prospect-pairs)]
         (doseq [[^File src-file ^File tgt-file] pairs]
           (fs/copy! src-file tgt-file {:target :merge}))
@@ -356,7 +356,7 @@
                                               %))
                                          src-files)]
            (let [res-proj-path (resource/proj-path resource)
-                 dest-proj-path (resource/file->proj-path (workspace/project-path workspace) conflicting-file)]
+                 dest-proj-path (resource/file->proj-path (workspace/project-directory workspace) conflicting-file)]
              (notifications/show!
                (workspace/notifications workspace)
                {:type :error
@@ -394,7 +394,7 @@
 (defn rename [resources new-base-name]
   {:pre [(string? new-base-name) (rename? resources)]}
   (let [workspace (resource/workspace (first resources))
-        project-directory-file (workspace/project-path workspace)
+        project-directory (workspace/project-directory workspace)
         dir (= :folder (resource/source-type (first resources)))
         rename-pairs (mapv
                        (fn [resource]
@@ -407,8 +407,8 @@
                                                          (str "." ext))))))
                        resources)]
     (when-not (some #(resource-watch/reserved-proj-path?
-                       project-directory-file
-                       (resource/file->proj-path project-directory-file (val %)))
+                       project-directory
+                       (resource/file->proj-path project-directory (val %)))
                     rename-pairs)
       ;; plain case change causes irrelevant conflict on case-insensitive file systems
       ;; fs/move! handles this, no need to resolve
@@ -441,7 +441,7 @@
                  (resource/base-name first-resource))
           extensions (if dir [""] (mapv resource/ext selection))
           parent-paths (mapv (comp resource/parent-proj-path resource/proj-path) selection)
-          project-directory-file (workspace/project-path workspace)]
+          project-directory (workspace/project-directory workspace)]
       (when-let [new-name (dialogs/make-rename-dialog
                             name
                             :title (cond
@@ -451,7 +451,7 @@
                             :label (if dir "New Folder Name" "New File Name")
                             :extensions extensions
                             :validate (fn [file-name]
-                                        (some #(validate-new-resource-name project-directory-file % file-name) parent-paths)))]
+                                        (some #(validate-new-resource-name project-directory % file-name) parent-paths)))]
         (rename selection new-name)))))
 
 (handler/defhandler :delete :asset-browser
@@ -512,17 +512,17 @@
                                                                                             resource/abs-path)))))
   (enabled? [] (disk-availability/available?))
   (run [selection user-data asset-browser app-view prefs workspace project]
-    (let [project-path (workspace/project-path workspace)
+    (let [project-directory (workspace/project-directory workspace)
           base-folder (-> (or (some-> (handler/adapt-every selection resource/Resource)
                                 first
                                 resource/abs-path
                                 (File.))
-                              project-path)
+                              project-directory)
                           fs/to-folder)
           rt (:resource-type user-data)
           any-file (:any-file user-data false)]
       (when-let [desired-file (dialogs/make-new-file-dialog
-                                project-path
+                                project-directory
                                 base-folder
                                 (when-not any-file
                                   (or (:label rt) (:ext rt)))
@@ -536,7 +536,7 @@
             (create-template-file! template new-file))
           (workspace/resource-sync! workspace)
           (let [resource-map (g/node-value workspace :resource-map)
-                new-resource-path (resource/file->proj-path project-path new-file)
+                new-resource-path (resource/file->proj-path project-directory new-file)
                 resource (resource-map new-resource-path)]
             (when (resource/loaded? resource)
               (app-view/open-resource app-view prefs workspace project resource))
@@ -580,8 +580,8 @@
           parent-path (resource/proj-path parent-resource)
           parent-path (if (= parent-path "/") "" parent-path) ; special case because the project root dir ends in /
           base-folder (fs/to-folder (File. (resource/abs-path parent-resource)))
-          project-directory-file (workspace/project-path workspace)
-          options {:validate (partial validate-new-folder-name project-directory-file parent-path)}]
+          project-directory (workspace/project-directory workspace)
+          options {:validate (partial validate-new-folder-name project-directory parent-path)}]
       (when-let [new-folder-name (dialogs/make-new-folder-dialog base-folder options)]
         (let [^File folder (resolve-sub-folder base-folder new-folder-name)]
           (do (fs/create-directories! folder)
@@ -766,10 +766,10 @@
   (contains? fixed-resource-paths (resource/file->proj-path project-path src)))
 
 (defn drop-files! [workspace dragged-pairs move?]
-  (let [project-path (workspace/project-path workspace)]
+  (let [project-directory (workspace/project-directory workspace)]
     (when (seq dragged-pairs)
       (let [moved (if move?
-                    (let [{move-pairs false copy-pairs true} (group-by (partial fixed-move-source project-path) dragged-pairs)]
+                    (let [{move-pairs false copy-pairs true} (group-by (partial fixed-move-source project-directory) dragged-pairs)]
                       (drag-copy-files copy-pairs)
                       (drag-move-files move-pairs))
                     (drag-copy-files dragged-pairs))]
@@ -788,8 +788,7 @@
                        (mapv (fn [^File f] [f (.toFile (.resolve tgt-dir-path (.getName f)))]))
                        (resolve-any-conflicts)
                        (vec))
-            workspace (resource/workspace resource)
-            project-path (workspace/project-path workspace)]
+            workspace (resource/workspace resource)]
         (when (seq pairs)
           (let [moved (drop-files! workspace pairs move?)]
             (select-files! workspace tree-view (mapv second pairs))
