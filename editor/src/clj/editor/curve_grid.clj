@@ -28,10 +28,6 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(def grid-color colors/mid-grey)
-(def x-axis-color colors/defold-white)
-(def y-axis-color colors/defold-white)
-
 (defn render-grid-axis
   [^GL2 gl ^doubles vx uidx start stop size vidx min max]
   (doseq [u (range start stop size)]
@@ -57,15 +53,15 @@
 
 (defn render-primary-axes
   [^GL2 gl ^AABB aabb]
-  (gl/gl-color gl x-axis-color)
+  (gl/gl-color gl colors/defold-white)
   (gl/gl-vertex-3d gl (-> aabb types/min-p .x) 0.0 0.0)
   (gl/gl-vertex-3d gl (-> aabb types/max-p .x) 0.0 0.0)
-  (gl/gl-color gl y-axis-color)
+  (gl/gl-color gl colors/defold-white)
   (gl/gl-vertex-3d gl 0.0 (-> aabb types/min-p .y) 0.0)
   (gl/gl-vertex-3d gl 0.0 (-> aabb types/max-p .y) 0.0)
   (gl/gl-vertex-3d gl 1.0 (-> aabb types/min-p .y) 0.0)
   (gl/gl-vertex-3d gl 1.0 (-> aabb types/max-p .y) 0.0)
-  (gl/gl-color gl grid-color)
+  (gl/gl-color gl colors/defold-white)
   (doseq [i (range 4)]
     (let [x (/ (inc ^int i) 5.0)]
       (gl/gl-vertex-3d gl x (-> aabb types/min-p .y) 0.0)
@@ -77,9 +73,9 @@
    (for [grid-index (range 2)
          axis [2]
          :let [ratio ^double (nth (:ratios grids) grid-index)
-               alpha (Math/abs (* ^double (aget dir axis) ratio))]]
+               alpha (Math/abs (* ^double (aget dir axis) ratio 0.1))]]
      (do
-       (gl/gl-color gl (colors/alpha grid-color alpha))
+       (gl/gl-color gl (colors/alpha colors/defold-white alpha))
        (render-grid gl axis
                     (nth (:sizes grids) grid-index)
                     (nth (:aabbs grids) grid-index))))))

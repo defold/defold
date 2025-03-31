@@ -38,9 +38,8 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(defonce ^:private opacity-prefs-path [:scene :grid :opacity])
+(defonce opacity-prefs-path [:scene :grid :opacity])
 
-(def grid-color colors/scene-grid)
 (def x-axis-color colors/scene-grid-x-axis)
 (def y-axis-color colors/scene-grid-y-axis)
 (def z-axis-color colors/scene-grid-z-axis)
@@ -101,7 +100,7 @@
           :let [ratio ^double (nth (:ratios grids) grid-index)
                 alpha (Math/abs (* ^double (aget dir axis) ratio opacity))]]
      (do
-       (gl/gl-color gl (colors/alpha grid-color alpha))
+       (gl/gl-color gl (colors/alpha colors/scene-grid alpha))
        (render-grid gl axis
                     (nth (:sizes grids) grid-index)
                     (nth (:aabbs grids) grid-index))))))
@@ -210,11 +209,11 @@
 
 (defn- opacity-slider [app-view prefs]
   (let [value (prefs/get prefs opacity-prefs-path)
-        slider (Slider. 0.0 1.0 value)]
+        slider (Slider. 0.0 0.5 value)]
     (ui/observe
      (.valueProperty slider)
      (fn [_observable _old-val new-val]
-       (let [val (math/round-with-precision new-val 0.1)]
+       (let [val (math/round-with-precision new-val 0.05)]
          (prefs/set! prefs opacity-prefs-path val))))
     (VBox. 5 (ui/node-array [(Label. "Opacity") slider]))))
 
@@ -226,14 +225,12 @@
           popup (popup/make-popup owner region)
           anchor ^Point2D (pref-popup-position (.getParent owner) (.getMinWidth region))]
       (ui/children! size-row [(TextField.) (TextField.) (TextField.)])
-      (doto region
-        (.setMinWidth 230)
-        (ui/children! [(doto (Region.)
-                         (ui/add-style! "popup-shadow"))
-                       (doto (VBox.)
-                         (ui/add-style! "grid-settings")
-                         (ui/add-child! size-row)
-                         (ui/add-child! (opacity-slider app-view prefs)))]))
+      (ui/children! region [(doto (Region.)
+                              (ui/add-style! "popup-shadow"))
+                            (doto (VBox.)
+                              (ui/add-style! "grid-settings")
+                              (ui/add-child! size-row)
+                              (ui/add-child! (opacity-slider app-view prefs)))])
       (ui/user-data! owner ::popup popup)
       (ui/on-closed! popup (fn [_] (ui/user-data! owner ::popup nil)))
       (.show popup owner (.getX anchor) (.getY anchor)))))

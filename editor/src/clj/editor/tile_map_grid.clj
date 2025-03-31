@@ -20,6 +20,7 @@
    [editor.geom :as geom]
    [editor.gl :as gl]
    [editor.gl.pass :as pass]
+   [editor.prefs :as prefs]
    [editor.grid :as grid]
    [editor.scene :as scene]
    [editor.types :as types])
@@ -44,8 +45,8 @@
   (gl/gl-vertex-3d gl 0.0 (-> aabb types/max-p .y) 0.0))
 
 (defn render-xy-grid
-  [^GL2 gl aabb [w h]]
-  (gl/gl-color gl grid-color)
+  [^GL2 gl aabb [w h] opacity]
+  (gl/gl-color gl (colors/alpha grid-color opacity))
   (let [min (types/min-p aabb)
         max (types/max-p aabb)
         x-min (.x min)
@@ -63,26 +64,29 @@
   [^GL2 gl _pass renderables _count]
   (let [renderable (first renderables)
         user-render-data (:user-render-data renderable)
-        grid (:grid user-render-data)]
+        {:keys [grid opacity]} user-render-data]
     (gl/gl-lines gl
-                 (render-xy-grid (:aabb grid) (:grid-size grid))
+                 (render-xy-grid (:aabb grid) (:grid-size grid) opacity)
                  (render-xy-axes (:aabb grid)))))
 
 (g/defnk grid-renderable
-  [camera grid]
+  [camera grid prefs]
   (when grid
-    {pass/infinity-grid ; Grid lines stretching to infinity. Not depth-clipped to frustum.
-     [{:world-transform geom/Identity4d
-       :tags #{:grid}
-       :render-fn render-grid
-       :user-render-data {:camera camera
-                          :grid grid}}]
-     pass/transparent ; Grid lines potentially intersecting scene geometry.
-     [{:world-transform geom/Identity4d
-       :tags #{:grid}
-       :render-fn render-grid
-       :user-render-data {:camera camera
-                          :grid grid}}]}))
+    (let [opacity (prefs/get prefs grid/opacity-prefs-path)]
+      {pass/infinity-grid ; Grid lines stretching to infinity. Not depth-clipped to frustum.
+       [{:world-transform geom/Identity4d
+         :tags #{:grid}
+         :render-fn render-grid
+         :user-render-data {:camera camera
+                            :grid grid
+                            :opacity opacity}}]
+       pass/transparent ; Grid lines potentially intersecting scene geometry.
+       [{:world-transform geom/Identity4d
+         :tags #{:grid}
+         :render-fn render-grid
+         :user-render-data {:camera camera
+                            :grid grid
+                            :opacity opacity}}]})))
 
 (defn grid-snap-down [a sz] (* sz (Math/floor (/ a sz))))
 (defn grid-snap-up   [a sz] (* sz (Math/ceil  (/ a sz))))

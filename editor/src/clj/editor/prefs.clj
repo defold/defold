@@ -179,7 +179,7 @@
                                          :y {:type :integer :default 10}
                                          :z {:type :integer :default 10}}}
                                  :active-plane {:type :keyword :default :z}
-                                 :opacity {:type :number :default 1.0}}}
+                                 :opacity {:type :number :default 0.1}}}
              :snap {:type :object
                     :scope :project
                     :properties {:enabled {:type :boolean}
