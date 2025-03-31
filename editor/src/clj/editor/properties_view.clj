@@ -25,6 +25,7 @@
             [editor.properties :as properties]
             [editor.resource :as resource]
             [editor.resource-dialog :as resource-dialog]
+            [editor.code.script :as script]
             [editor.types :as types]
             [editor.ui :as ui]
             [editor.ui.fuzzy-combo-box :as fuzzy-combo-box]
@@ -223,12 +224,15 @@
   (.consume event)
   (let [target (.getTarget event)
         property (property-fn)
-        {:keys [key node-ids edit-type]} (property-fn)
+        {:keys [key node-ids edit-type]} property
         {:keys [precision from-type to-type]} edit-type
-        [x y] [(.getX event) (.getY event)]
+        x (.getX event)
+        y (.getY event)
         [prev-x prev-y] (ui/user-data target ::position)
         delta-x (- x prev-x)
         delta-y (- prev-y y)
+        script-property? (partial g/node-instance? script/ScriptPropertyNode)
+        key-fn (fn [node-id] (if (script-property? node-id) :value key))
         max-delta (if (> (abs delta-x) (abs delta-y)) delta-x delta-y)
         update-val (cond-> (or precision 1.0)
                      (.isShiftDown event) (* 10.0)
@@ -237,8 +241,9 @@
     (when (> (abs max-delta) 1)
       (g/transact
         (for [node-id node-ids]
-          (let [current-value (cond-> (g/node-value node-id key) to-type to-type)
-                new-value (cond-> (drag-update-fn current-value update-val) 
+          (let [key (key-fn node-id)
+                current-value (cond-> (g/node-value node-id key) to-type to-type)
+                new-value (cond-> (drag-update-fn current-value update-val)
                             from-type from-type
                             (:min edit-type) (max (:min edit-type))
                             (:max edit-type) (min (:max edit-type)))]
@@ -246,10 +251,11 @@
                     (g/set-property node-id key new-value)))))
       (ui/user-data! target ::position [x y])
       (when (apply = (properties/values property))
-        (update-ui-fn [(cond-> (g/node-value (first node-ids) key)
-                         to-type to-type)]
-                      (properties/validation-message property)
-                      (properties/read-only? property))))))
+        (let [node-id (first node-ids)]
+          (update-ui-fn [(cond-> (g/node-value node-id (key-fn node-id))
+                           to-type to-type)]
+                        (properties/validation-message property)
+                        (properties/read-only? property)))))))
 
 (defn handle-label-press-event!
   [^MouseEvent event]
