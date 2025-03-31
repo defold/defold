@@ -19,6 +19,8 @@
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.pass :as pass]
+            [editor.math :as math]
+            [editor.prefs :as prefs]
             [editor.scene-cache :as scene-cache]
             [editor.types :as types]
             [editor.ui :as ui]
@@ -26,15 +28,17 @@
   (:import com.jogamp.opengl.GL2
            [com.sun.javafx.util Utils]
            [editor.types AABB Camera]
-           [javafx.geometry HPos Insets Point2D VPos]
+           [javafx.geometry HPos Point2D VPos]
            [javafx.scene Parent]
-           [javafx.scene.control ToggleButton PopupControl]
+           [javafx.scene.control Label Slider TextField PopupControl]
            [javafx.scene.layout HBox Region StackPane VBox]
            [java.nio ByteBuffer ByteOrder DoubleBuffer]
            [javax.vecmath Matrix3d Point3d Vector4d]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
+
+(defonce ^:private opacity-prefs-path [:scene :grid :opacity])
 
 (def grid-color colors/scene-grid)
 (def x-axis-color colors/scene-grid-x-axis)
@@ -90,12 +94,12 @@
   (gl/gl-vertex-3d gl 0.0 0.0 (-> aabb types/max-p .z)))
 
 (defn render-grid-sizes
-  [^GL2 gl ^doubles dir grids]
+  [^GL2 gl ^doubles dir grids opacity]
   (doall
     (for [grid-index (range 2)
           axis (range 3)
           :let [ratio ^double (nth (:ratios grids) grid-index)
-                alpha (Math/abs (* ^double (aget dir axis) ratio))]]
+                alpha (Math/abs (* ^double (aget dir axis) ratio opacity))]]
      (do
        (gl/gl-color gl (colors/alpha grid-color alpha))
        (render-grid gl axis
@@ -112,23 +116,26 @@
         dir (double-array 4)
         _ (.getRow view-matrix 2 dir)]
     (gl/gl-lines gl
-      (render-grid-sizes dir grids)
+      (render-grid-sizes dir grids (-> renderable :user-render-data :opacity))
       (render-primary-axes (apply geom/aabb-union (:aabbs grids))))))
 
 (g/defnk grid-renderable
-  [camera grids]
-  {pass/infinity-grid ; Grid lines stretching to infinity. Not depth-clipped to frustum.
-   [{:world-transform geom/Identity4d
-     :tags #{:grid}
-     :render-fn render-scaled-grids
-     :user-render-data {:camera camera
-                        :grids grids}}]
-   pass/transparent ; Grid lines potentially intersecting scene geometry.
-   [{:world-transform geom/Identity4d
-     :tags #{:grid}
-     :render-fn render-scaled-grids
-     :user-render-data {:camera camera
-                        :grids grids}}]})
+  [camera grids prefs]
+  (let [opacity (prefs/get prefs opacity-prefs-path)]
+    {pass/infinity-grid ; Grid lines stretching to infinity. Not depth-clipped to frustum.
+     [{:world-transform geom/Identity4d
+       :tags #{:grid}
+       :render-fn render-scaled-grids
+       :user-render-data {:camera camera
+                          :grids grids
+                          :opacity opacity}}]
+     pass/transparent ; Grid lines potentially intersecting scene geometry.
+     [{:world-transform geom/Identity4d
+       :tags #{:grid}
+       :render-fn render-scaled-grids
+       :user-render-data {:camera camera
+                          :grids grids
+                          :opacity opacity}}]}))
 
 (defn frustum-plane-projection
   [^Vector4d plane1 ^Vector4d plane2]
@@ -188,9 +195,8 @@
   {})
 
 (g/defnode Grid
-  (property size g/Any)
-  (property alpha g/Num)
   (property active-plane g/Keyword)
+  (property prefs g/Any)
 
   (input camera Camera)
 
@@ -202,22 +208,32 @@
   ^Point2D [^Parent container width]
   (Utils/pointRelativeTo container width 0 HPos/CENTER VPos/BOTTOM 0.0 10.0 true))
 
-(defn show-settings! [app-view ^Parent owner scene-visibility]
+(defn- opacity-slider [app-view prefs]
+  (let [value (prefs/get prefs opacity-prefs-path)
+        slider (Slider. 0.0 1.0 value)]
+    (ui/observe
+     (.valueProperty slider)
+     (fn [_observable _old-val new-val]
+       (let [val (math/round-with-precision new-val 0.1)]
+         (prefs/set! prefs opacity-prefs-path val))))
+    (VBox. 5 (ui/node-array [(Label. "Opacity") slider]))))
+
+(defn show-settings! [app-view ^Parent owner prefs]
   (if-let [popup ^PopupControl (ui/user-data owner ::popup)]
     (.hide popup)
-    (let [region (StackPane.) 
-          hbox (HBox.)
+    (let [region (StackPane.)
+          size-row (HBox.)
           popup (popup/make-popup owner region)
           anchor ^Point2D (pref-popup-position (.getParent owner) (.getMinWidth region))]
-      (ui/children! hbox [(ToggleButton.) (ToggleButton.) (ToggleButton.)])
+      (ui/children! size-row [(TextField.) (TextField.) (TextField.)])
       (doto region
         (.setMinWidth 230)
         (ui/children! [(doto (Region.)
                          (ui/add-style! "popup-shadow"))
                        (doto (VBox.)
-                         (ui/add-style! "popup-list")
-                         (ui/add-child! hbox))]))
-      (ui/add-child! region hbox)
+                         (ui/add-style! "grid-settings")
+                         (ui/add-child! size-row)
+                         (ui/add-child! (opacity-slider app-view prefs)))]))
       (ui/user-data! owner ::popup popup)
       (ui/on-closed! popup (fn [_] (ui/user-data! owner ::popup nil)))
       (.show popup owner (.getX anchor) (.getY anchor)))))

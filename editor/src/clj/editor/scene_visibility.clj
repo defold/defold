@@ -355,7 +355,7 @@
                     (ui/children! [(doto (Region.)
                                      (ui/add-style! "popup-shadow"))
                                    (doto (VBox.)
-                                     (ui/add-style! "popup-list")
+                                     (ui/add-style! "visibility-toggles-list")
                                      (ui/children! (into [filters-enabled-control]
                                                          (map first)
                                                          tag-toggles)))]))

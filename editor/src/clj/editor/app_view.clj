@@ -484,9 +484,9 @@
           (.lookup "#show-grid-settings")))
 
 (handler/defhandler :show-grid-settings :workbench
-  (run [app-view scene-visibility]
+  (run [app-view scene-visibility prefs]
        (when-let [btn (get-grid-settings-button app-view)]
-         (grid/show-settings! app-view btn scene-visibility)))
+         (grid/show-settings! app-view btn prefs)))
   (state [app-view scene-visibility]
          (when-let [btn (get-grid-settings-button app-view)]
            (scene-visibility/settings-visible? btn))))

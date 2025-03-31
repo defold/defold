@@ -101,7 +101,7 @@
         }
     }
 
-    .popup-list {
+    .visibility-toggles-list {
         -fx-background-color: -df-component-dark;
         -fx-background-radius: 4px;
         -fx-padding: 0px 0px 7px 0px;
@@ -120,6 +120,13 @@
             -fx-padding: 7px 0px;
             -fx-background-color: -df-component-dark;
         }
+    }
+
+    .grid-settings {
+        -fx-pref-width: 200px;
+        -fx-background-color: -df-component-dark;
+        -fx-background-radius: 4px;
+        -fx-padding: 7px;
     }
 
     .popup-shadow {

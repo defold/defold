@@ -1551,7 +1551,7 @@
                                                                                    (g/operation-label "Select")
                                                                                    (select-fn selection))))]
                    camera          [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic identity {:fov-x 1000 :fov-y 1000}))]
-                   grid            (grid-type :size (prefs/get prefs [:scene :grid :size]))
+                   grid            (grid-type :prefs prefs)
                    snap            (snap/SnapNode)
                    tool-controller [tool-controller-type :prefs prefs]
                    rulers          [rulers/Rulers]]
