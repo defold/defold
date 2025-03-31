@@ -48,8 +48,7 @@
            {:label "Text" :tag :text}
            {:label "Tile Maps" :tag :tilemap}
            {:label :separator}
-           {:label "Component Guides" :tag :outline :command :toggle-component-guides :always-enabled true}
-           {:label "Grid" :tag :grid :always-enabled true}]
+           {:label "Component Guides" :tag :outline :command :toggle-component-guides :always-enabled true}]
 
           (system/defold-dev?)
           (into [{:label :separator}
