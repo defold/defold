@@ -540,7 +540,7 @@
         new-value (from-fn new-value)]
     (set-value-txs evaluation-context node-id prop-kw key set-fn value new-value)))
 
-(defn- resolve-set-operations
+(defn resolve-set-operations
   "Resolves the supplied property and sequence of new values to a vector of
   individual [node-id prop-kw old-value new-value] vectors detailing the
   low-level property set operations that will be performed as a result."
