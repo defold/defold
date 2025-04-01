@@ -224,14 +224,14 @@
   (let [target (.getTarget event)
         property (property-fn)
         edit-type (:edit-type property)
-        {:keys [precision from-type to-type]} edit-type
+        to-fn (:to-type edit-type identity)
         x (.getX event)
         y (.getY event)
         [prev-x prev-y] (ui/user-data target ::position)
         delta-x (- x prev-x)
         delta-y (- prev-y y)
         max-delta (if (> (abs delta-x) (abs delta-y)) delta-x delta-y)
-        update-val (cond-> (or precision 1.0)
+        update-val (cond-> (or (:precision edit-type) 1.0)
                      (.isShiftDown event) (* 10.0)
                      (.isControlDown event) (* 0.1)
                      (neg? max-delta) -)]
@@ -239,20 +239,21 @@
       (let [op-seq (ui/user-data target ::op-seq)
             values (properties/values property)
             set-operations (properties/resolve-set-operations property values)]
-        (g/transact
-          (for [[node-id prop-kw] set-operations
-                :let [current-value (cond-> (g/node-value node-id prop-kw) to-type to-type)
-                      new-value (cond-> (drag-update-fn current-value update-val)
-                                  from-type from-type
-                                  (:min edit-type) (max (:min edit-type))
-                                  (:max edit-type) (min (:max edit-type)))]]
-            (concat (g/operation-sequence op-seq)
-                    (g/set-property node-id prop-kw new-value))))
+        (properties/set-values!
+         property
+         (mapv (fn [[node-id prop-kw]]
+                 (let [current-value (to-fn (g/node-value node-id (or prop-kw :value)))
+                       new-value (drag-update-fn current-value update-val)
+                       min-val (:min edit-type)
+                       max-val (:max edit-type)]
+                   (cond-> new-value
+                     min-val (max min-val)
+                     max-val (min max-val)))) set-operations)
+         op-seq)
         (ui/user-data! target ::position [x y])
         (when (apply = values)
           (let [[node-id prop-kw] (first set-operations)]
-            (update-ui-fn [(cond-> (g/node-value node-id prop-kw)
-                             to-type to-type)]
+            (update-ui-fn [(to-fn (g/node-value node-id (or prop-kw :value)))]
                           (properties/validation-message property)
                           (properties/read-only? property))))))))
 
