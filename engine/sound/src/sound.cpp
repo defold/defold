@@ -1082,7 +1082,7 @@ namespace dmSound
         instance->m_FrameCount = SOUND_MAX_HISTORY + (avail_framecount - used_framecount) + SOUND_MAX_FUTURE;
         assert(instance->m_FrameCount <= SOUND_INSTANCE_STATEFRAMECOUNT);
         uint32_t state_bytes = instance->m_FrameCount * sizeof(float);
-        int32_t state_offset = (int32_t)used_framecount - SOUND_MAX_HISTORY;
+        uint32_t state_offset = used_framecount - SOUND_MAX_HISTORY;
 
         for(uint32_t c=0; c<channels; ++c)
         {
@@ -1703,9 +1703,15 @@ namespace dmSound
             // Get the number of frames available
             uint32_t frame_count = sound->m_DeviceFrameCount;
             if (sound->m_DeviceType->m_GetAvailableFrames)
+            {
                 frame_count = sound->m_DeviceType->m_GetAvailableFrames(sound->m_Device);
+            }
 
             sound->m_FrameCount = frame_count;
+
+            if (frame_count == 0)
+                continue;
+
             MixContext mix_context(current_buffer, total_buffers, frame_count);
             MixInstances(&mix_context);
 

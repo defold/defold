@@ -130,7 +130,7 @@
         (is (empty? (:changed remove-il1-diff))))
       (workspace/set-project-dependencies! workspace [{:uri imagelib1-uri}])
       (workspace/resource-sync! workspace)
-      (let [project-directory (workspace/project-path workspace)]
+      (let [project-directory (workspace/project-directory workspace)]
         ;; this fakes having downloaded a different version of the library
         (fs/move-file! (library/library-file project-directory imagelib1-uri "")
                        (library/library-file project-directory imagelib1-uri "updated")))

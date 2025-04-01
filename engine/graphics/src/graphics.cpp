@@ -1843,9 +1843,9 @@ namespace dmGraphics
     {
         return g_functions.m_GetTextureStatusFlags(texture);
     }
-    void ReadPixels(HContext context, void* buffer, uint32_t buffer_size)
+    void ReadPixels(HContext context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size)
     {
-        g_functions.m_ReadPixels(context, buffer, buffer_size);
+        g_functions.m_ReadPixels(context, x, y, width, height, buffer, buffer_size);
     }
     void RunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)
     {
@@ -1896,6 +1896,10 @@ namespace dmGraphics
     void InvalidateGraphicsHandles(HContext context)
     {
         g_functions.m_InvalidateGraphicsHandles(context);
+    }
+    void GetViewport(HContext context, int32_t* x, int32_t* y, uint32_t* width, uint32_t* height)
+    {
+        g_functions.m_GetViewport(context, x, y, width, height);
     }
 
 #if defined(DM_PLATFORM_IOS)

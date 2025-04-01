@@ -256,8 +256,9 @@
 (defn get-engine-archive [project platform prefs evaluation-context]
   (if-not (supported-platform? platform)
     (throw (engine-build-errors/unsupported-platform-error platform))
-    (let [extender-platform (get-in extender-platforms [platform :platform])
-          project-directory (workspace/project-path (project/workspace project evaluation-context) evaluation-context)
+    (let [basis (:basis evaluation-context)
+          extender-platform (get-in extender-platforms [platform :platform])
+          project-directory (workspace/project-directory basis (project/workspace project evaluation-context))
           cache-directory (cache-dir project-directory)
           sdk-version (system/defold-engine-sha1)
           cache (ExtenderClientCache. cache-directory)

@@ -880,6 +880,7 @@ namespace dmPhysics
         float scale = context->m_Scale;
 
         PolygonShapeData* shape_data = new PolygonShapeData();
+        shape_data->m_ShapeDataBase.m_Type = SHAPE_TYPE_POLYGON;
 
         b2Vec2* v = new b2Vec2[vertex_count];
         for (uint32_t i = 0; i < vertex_count; ++i)

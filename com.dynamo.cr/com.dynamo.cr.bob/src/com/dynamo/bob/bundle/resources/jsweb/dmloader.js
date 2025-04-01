@@ -881,6 +881,8 @@ var Progress = {
 /* ********************************************************************* */
 
 var Module = {
+    engineVersion: "{{DEFOLD_ENGINE_VERSION}}",
+    engineSdkSha1: "{{DEFOLD_SDK_SHA1}}",
     noInitialRun: true,
 
     _filesToPreload: [],

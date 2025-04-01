@@ -4658,16 +4658,28 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
-    static void OpenGLReadPixels(HContext context, void* buffer, uint32_t buffer_size)
+    static void OpenGLReadPixels(HContext context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size)
     {
-        uint32_t w = dmGraphics::GetWidth(context);
-        uint32_t h = dmGraphics::GetHeight(context);
-        assert (buffer_size >= w * h * 4);
-        glReadPixels(0, 0, w, h,
+        assert(buffer_size >= width * height * 4);
+        glReadPixels(x, y, width, height,
                      GL_BGRA,
                      GL_UNSIGNED_BYTE,
                      buffer);
         CHECK_GL_ERROR;
+        unsigned int *pixels = (unsigned int*)buffer;
+        // flip vertically
+        for (uint32_t yi = 0; yi < (height / 2); ++yi)
+        {
+            for (uint32_t xi = 0; xi < width; ++xi)
+            {
+                unsigned int offset1 = xi + (yi * width);
+                unsigned int offset2 = xi + ((height - 1 - yi) * width);
+                unsigned int pixel1 = pixels[offset1];
+                unsigned int pixel2 = pixels[offset2];
+                pixels[offset1] = pixel2;
+                pixels[offset2] = pixel1;
+            }
+        }
     }
 
     static void OpenGLEnableState(HContext context, State state)
@@ -4969,6 +4981,13 @@ static void LogFrameBufferError(GLenum status)
         ScopedLock lock(context->m_GLHandlesData.m_Mutex);
         // Set all handles to 0. It indicates that handles not valid.
         memset(context->m_GLHandlesData.m_AllGLHandles.Begin(), 0, (context->m_GLHandlesData.m_AllGLHandles.End() - context->m_GLHandlesData.m_AllGLHandles.Begin()) * sizeof(uint32_t));
+    }
+
+    static void OpenGLGetViewport(HContext context, int32_t* x, int32_t* y, uint32_t* width, uint32_t* height)
+    {
+        GLint vp[4];
+        glGetIntegerv(GL_VIEWPORT, vp);
+        *x = vp[0], *y = vp[1], *width = vp[2], *height = vp[3];
     }
 
     GLenum TEXTURE_UNIT_NAMES[32] =

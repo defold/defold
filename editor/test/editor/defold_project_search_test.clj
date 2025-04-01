@@ -154,6 +154,7 @@
                        (comp (keep (fn [[node-id]]
                                      (when-some [save-data (g/node-value node-id :save-data)]
                                        (:resource save-data))))
+                             (filter resource/loaded?)
                              (remove resource/internal?)
                              (filter resource/textual?)
                              (map resource/proj-path))

@@ -28,7 +28,7 @@
             [potemkin.namespaces :as namespaces]
             [schema.core :as s]
             [service.log :as log]
-            [util.coll :as coll]
+            [util.coll :as coll :refer [pair]]
             [util.fn :as fn])
   (:import [internal.graph.error_values ErrorValue]
            [internal.graph.types Arc]
@@ -978,7 +978,25 @@
            (when-not (error? value)
              value)))))))
 
-(defn tx-cached-node-value
+(defmacro tx-cached-value!
+  "Finds and returns a cached value at the specified key path of the
+  :tx-data-context in the supplied evaluation-context. If no existing value was
+  found in the :tx-data-context, evaluate the value-expr and store the value at
+  the specified key path in the :tx-data-context, then return the value."
+  [evaluation-context-expr tx-data-context-key-path-expr value-expr]
+  `(let [tx-data-context-atom# (:tx-data-context ~evaluation-context-expr)
+         tx-data-context-key-path# ~tx-data-context-key-path-expr
+         cached-value# (-> tx-data-context-atom#
+                           (deref)
+                           (get-in tx-data-context-key-path# :dynamo.graph/not-found))]
+     (case cached-value#
+       :dynamo.graph/not-found
+       (let [evaluated-value# ~value-expr]
+         (swap! tx-data-context-atom# assoc-in tx-data-context-key-path# evaluated-value#)
+         evaluated-value#)
+       cached-value#)))
+
+(defn tx-cached-node-value!
   "Like the node-value function, but caches the result in the :tx-data-context
   of the supplied evaluation-context if it doesn't have a cache. This is mostly
   a workaround for the fact that the evaluation-context supplied to property
@@ -997,18 +1015,33 @@
     (node-value node-id label evaluation-context)
 
     :else
-    (let [tx-data-context-atom (:tx-data-context evaluation-context)
-          cache-key (gt/endpoint node-id label)
-          cached-value (-> tx-data-context-atom
-                           (deref)
-                           (:tx-cache)
-                           (get cache-key ::not-found))]
-      (case cached-value
-        ::not-found
-        (let [evaluated-value (node-value node-id label evaluation-context)]
-          (swap! tx-data-context-atom assoc-in [:tx-cache cache-key] evaluated-value)
-          evaluated-value)
-        cached-value))))
+    (let [tx-data-context-key-path (pair :tx-node-value-cache (gt/endpoint node-id label))]
+      (tx-cached-value! evaluation-context tx-data-context-key-path
+        (node-value node-id label evaluation-context)))))
+
+(definline raw-property-value*
+  "Fast raw property access to the given node. Will bypass the property value
+  fnk if present, but does traverse the override hierarchy. This can be more
+  efficient than the node-value function, as it doesn't need to create an
+  evaluation-context, check output jammers, and so on. It will simply return the
+  value in the property map for the first node in the override chain that
+  provides it. You should only really use this with properties that don't have a
+  value fnk on nodes that you're sure haven't been marked defective."
+  [basis node property-label]
+  `(gt/get-property ~node ~basis ~property-label))
+
+(definline raw-property-value
+  "Fast raw property access to the given node-id. Will bypass the property value
+  fnk if present, but does traverse the override hierarchy. This can be more
+  efficient than the node-value function, as it doesn't need to create an
+  evaluation-context, check output jammers, and so on. It will simply return the
+  value in the property map for the first node in the override chain that
+  provides it. You should only really use this with properties that don't have a
+  value fnk on nodes that you're sure haven't been marked defective."
+  [basis node-id property-label]
+  `(let [basis# ~basis
+         node# (gt/node-by-id-at basis# ~node-id)]
+     (raw-property-value* basis# node# ~property-label)))
 
 (defn graph-value
   "Returns the graph from the system given a graph-id and key.  It returns the graph at the point in time of the bais, if provided.
