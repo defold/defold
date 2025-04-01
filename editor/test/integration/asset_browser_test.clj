@@ -58,7 +58,7 @@
 
 (deftest allow-resource-move
   (test-util/with-loaded-project
-    (let [root-dir (workspace/project-path workspace)
+    (let [root-dir (workspace/project-directory workspace)
           make-file (fn [proj-path]
                       (io/file root-dir proj-path))
           make-dir-resource (fn [proj-path opts]
@@ -104,7 +104,7 @@
 (deftest paste
   (with-clean-system
     (let [workspace (test-util/setup-scratch-workspace! world)
-          root-dir (workspace/project-path workspace)
+          root-dir (workspace/project-directory workspace)
           make-file (partial io/file root-dir)
           make-dir-resource (fn [path opts] (test-util/make-fake-file-resource workspace (.getPath root-dir) (make-file path) nil (merge opts {:source-type :folder})))
           root-resource (make-dir-resource "" {})
@@ -147,7 +147,7 @@
 
 (deftest rename
   (test-util/with-loaded-project
-    (let [root-dir (workspace/project-path workspace)
+    (let [root-dir (workspace/project-directory workspace)
           make-file (partial io/file root-dir)
           make-dir-resource (fn [path opts] (test-util/make-fake-file-resource workspace (.getPath root-dir) (make-file path) nil (merge opts {:source-type :folder})))
           make-file-resource (fn [path opts] (test-util/make-fake-file-resource workspace (.getPath root-dir) (make-file path) nil (merge opts {:source-type :file})))
@@ -179,7 +179,7 @@
 
 (deftest delete
   (test-util/with-loaded-project
-    (let [root-dir (workspace/project-path workspace)
+    (let [root-dir (workspace/project-directory workspace)
           make-file (partial io/file root-dir)
           make-dir-resource (fn [path opts] (test-util/make-fake-file-resource workspace (.getPath root-dir) (make-file path) nil (merge opts {:source-type :folder})))
           make-file-resource (fn [path opts] (test-util/make-fake-file-resource workspace (.getPath root-dir) (make-file path) nil (merge opts {:source-type :file})))
@@ -205,7 +205,7 @@
 
 (deftest new-folder
   (test-util/with-loaded-project
-    (let [root-dir (workspace/project-path workspace)
+    (let [root-dir (workspace/project-directory workspace)
           make-file (partial io/file root-dir)
           make-dir-resource (fn [path opts] (test-util/make-fake-file-resource workspace (.getPath root-dir) (make-file path) nil (merge opts {:source-type :folder})))
           make-file-resource (fn [path opts] (test-util/make-fake-file-resource workspace (.getPath root-dir) (make-file path) nil (merge opts {:source-type :file})))
@@ -239,7 +239,7 @@
 (deftest drop-move
   (with-clean-system
     (let [workspace (test-util/setup-scratch-workspace! world)
-          root-dir (workspace/project-path workspace)
+          root-dir (workspace/project-directory workspace)
           make-file (partial io/file root-dir)
           resource-map (g/node-value workspace :resource-map)]
       (testing "drag-moving game.project becomes copy"

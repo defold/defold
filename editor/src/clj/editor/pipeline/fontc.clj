@@ -175,10 +175,11 @@
   (byte-array (transduce (map :glyph-data-size) + 0 glyph-extents)))
 
 (defn check-monospaced [semi-glyphs]
-  (let [base-advance (if-let [first-glyph (first semi-glyphs)]
-                       (:advance first-glyph)
-                       0)]
-    (every? #(= base-advance (:advance %)) semi-glyphs)))
+  ; We can't know if it's only one glyph. And chances are it's a dynamic font
+  (if (<= (count semi-glyphs) 1)
+    false
+    (let [base-advance (:advance (first semi-glyphs))]
+      (every? #(= base-advance (:advance %)) semi-glyphs))))
 
 (def ^:private positive-glyph-extent-pairs-xf (comp (map pair) (filter (comp positive-wh? :glyph-wh second))))
 

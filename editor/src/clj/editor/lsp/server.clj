@@ -119,12 +119,13 @@
 (defn resource-uri [resource]
   (make-uri-string (resource/abs-path resource)))
 
-(defn- root-uri [workspace evaluation-context]
-  (make-uri-string (g/node-value workspace :root evaluation-context)))
+(defn- root-uri [basis workspace]
+  (make-uri-string (g/raw-property-value basis workspace :root)))
 
 (defn- maybe-resource [project uri evaluation-context]
-  (let [workspace (g/node-value project :workspace evaluation-context)]
-    (when-let [proj-path (workspace/as-proj-path workspace (.getPath (URI. uri)) evaluation-context)]
+  (let [basis (:basis evaluation-context)
+        workspace (g/node-value project :workspace evaluation-context)]
+    (when-let [proj-path (workspace/as-proj-path basis workspace (.getPath (URI. uri)))]
       (workspace/find-resource workspace proj-path evaluation-context))))
 
 ;; diagnostics
@@ -315,7 +316,8 @@
     jsonrpc
     "initialize"
     (lsp.async/with-auto-evaluation-context evaluation-context
-      (let [uri (root-uri (g/node-value project :workspace evaluation-context) evaluation-context)
+      (let [basis (:basis evaluation-context)
+            uri (root-uri basis (g/node-value project :workspace evaluation-context))
             title ((g/node-value project :settings evaluation-context) ["project" "title"])]
         {:processId (.pid (ProcessHandle/current))
          :rootUri uri
@@ -385,8 +387,9 @@
   (a/go
     (try
       (let [directory (lsp.async/with-auto-evaluation-context evaluation-context
-                        (let [workspace (g/node-value project :workspace evaluation-context)]
-                          (workspace/project-path workspace evaluation-context)))
+                        (let [basis (:basis evaluation-context)
+                              workspace (g/node-value project :workspace evaluation-context)]
+                          (workspace/project-directory basis workspace)))
             connection (<! (a/thread (try (launch launcher directory) (catch Throwable e e))))]
         (if (instance? Throwable connection)
           (log/error :message "Language server process failed to start"

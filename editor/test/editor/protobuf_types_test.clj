@@ -160,10 +160,10 @@
           extensions (extensions/make proj-graph)
           project (project/make-project proj-graph workspace extensions)]
       (let [node-id+resource-pairs
-            (project/node-id+resource-pairs proj-graph (g/node-value project :resources))
+            (project/make-node-id+resource-pairs proj-graph (g/node-value project :resources))
 
             node-load-infos
-            (project/read-nodes node-id+resource-pairs progress/null-render-progress! {} {} nil)
+            (project/read-nodes node-id+resource-pairs)
 
             load-order
             (into {}

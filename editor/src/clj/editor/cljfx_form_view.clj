@@ -527,7 +527,7 @@
     :directory
     (when-some [selected-directory (dialogs/make-directory-dialog
                                      (or (:title element) "Select Directory")
-                                     (workspace/project-path workspace)
+                                     (workspace/project-directory workspace)
                                      (fxui/event->window event))]
       (if-some [valid-directory-path (absolute-or-maybe-proj-path selected-directory workspace (:in-project element))]
         (add-list-elements [valid-directory-path] map-event)

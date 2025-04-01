@@ -814,9 +814,9 @@
 (def ^:private node-type-deref->stripped-prop-kws (fn/memoize node-type-deref->stripped-prop-kws-raw))
 
 (defn- make-prop->value-for-default-layout [node]
-  (let [node-properties (gt/own-properties node)]
+  (let [node-properties (g/own-property-values node)]
     (if (coll/empty? node-properties)
-      {}
+      node-properties
       (let [node-type (g/node-type node)
             stripped-prop-kws (node-type-deref->stripped-prop-kws @node-type)]
         (persistent!
@@ -834,7 +834,7 @@
                   (if-let [override-node (g/node-by-id basis override-node-id)]
                     (reduce conj! node-properties (gt/overridden-properties override-node))
                     node-properties))
-                (transient (or (gt/own-properties root-node) {}))
+                (transient (g/own-property-values root-node))
                 override-node-ids)]
 
     (if (coll/empty? node-properties)
@@ -1046,7 +1046,7 @@
                        :outline-overridden? (if (str/blank? current-layout)
                                               (< 1 (count _overridden-properties)) ; :layout->prop->override will always be present, and we shouldn't count it.
                                               (pos? (count (layout->prop->override current-layout))))}
-                      (resource/openable-resource? node-outline-link) (assoc :link node-outline-link :outline-reference? true)))))
+                      (resource/resource? node-outline-link) (assoc :link node-outline-link :outline-reference? true)))))
 
   (output transform-properties g/Any scene/produce-scalable-transform-properties)
   (output gui-base-node-msg g/Any produce-gui-base-node-msg)
@@ -2250,7 +2250,7 @@
                                                               :label name
                                                               :icon texture-icon
                                                               :outline-error? (g/error-fatal? build-errors)}
-                                                             (resource/openable-resource? texture-resource) (assoc :link texture-resource :outline-show-link? true))))
+                                                             (resource/resource? texture-resource) (assoc :link texture-resource :outline-show-link? true))))
   (output pb-msg g/Any (g/fnk [name texture-resource]
                          (protobuf/make-map-without-defaults Gui$SceneDesc$TextureDesc
                            :name name
@@ -2298,7 +2298,7 @@
                                                               :label name
                                                               :icon font-icon
                                                               :outline-error? (g/error-fatal? build-errors)}
-                                                             (resource/openable-resource? font-resource) (assoc :link font-resource :outline-show-link? true))))
+                                                             (resource/resource? font-resource) (assoc :link font-resource :outline-show-link? true))))
   (output pb-msg g/Any (g/fnk [name font-resource]
                          (protobuf/make-map-without-defaults Gui$SceneDesc$FontDesc
                            :name name
@@ -2433,7 +2433,7 @@
                                                               :label name
                                                               :icon particlefx/particle-fx-icon
                                                               :outline-error? (g/error-fatal? build-errors)}
-                                                             (resource/openable-resource? particlefx-resource) (assoc :link particlefx-resource :outline-show-link? true))))
+                                                             (resource/resource? particlefx-resource) (assoc :link particlefx-resource :outline-show-link? true))))
   (output pb-msg g/Any (g/fnk [name particlefx]
                          (protobuf/make-map-without-defaults Gui$SceneDesc$ParticleFXDesc
                            :name name
@@ -2934,16 +2934,19 @@
       :nodes node-descs)))
 
 (defn- build-pb [resource dep-resources user-data]
-  (let [def (:def user-data)
-        pb  (:pb user-data)
-        pb  (if (:transform-fn def) ((:transform-fn def) pb) pb)
-        pb  (reduce (fn [pb [label resource]]
-                      (if (vector? label)
-                        (assoc-in pb label resource)
-                        (assoc pb label resource)))
-                    pb (map (fn [[label res]]
-                              [label (resource/resource->proj-path (get dep-resources res))])
-                            (:dep-resources user-data)))]
+  (let [pb (transduce
+             (map (fn [[label build-resource]]
+                    {:pre [(or (nil? build-resource) (workspace/build-resource? build-resource))]}
+                    (let [fused-build-resource (get dep-resources build-resource)
+                          fused-build-resource-path (resource/resource->proj-path fused-build-resource)]
+                      (pair label fused-build-resource-path))))
+             (completing
+               (fn [pb [label fused-build-resource-path]]
+                     (if (vector? label)
+                       (assoc-in pb label fused-build-resource-path)
+                       (assoc pb label fused-build-resource-path))))
+             (:pb user-data)
+             (:dep-resources user-data))]
     {:resource resource :content (protobuf/map->bytes (:pb-class user-data) pb)}))
 
 (defn- merge-rt-pb-msg [rt-pb-msg template-build-targets]
@@ -3062,7 +3065,14 @@
   ;; in a LayoutDesc will fully replace its original NodeDesc, if present in the
   ;; LayoutDesc. However, NodeDescs that are equivalent to their originals may
   ;; be omitted from the LayoutDesc to save space.
-  (g/precluding-errors build-errors
+  (if-not (resource/loaded? resource)
+    [(bt/with-content-hash
+       {:node-id _node-id
+        :resource (workspace/make-build-resource resource)
+        :build-fn build-pb
+        :user-data {:pb {}
+                    :pb-class (:pb-class pb-def)}})]
+    (g/precluding-errors build-errors
     (let [template-build-targets (flatten template-build-targets)
           rt-layout-descs (mapv #(make-rt-layout-desc % node-msgs)
                                 layout-names)
@@ -3086,9 +3096,8 @@
           :build-fn build-pb
           :user-data {:pb rt-pb-msg
                       :pb-class (:pb-class pb-def)
-                      :def pb-def
                       :dep-resources dep-resources}
-          :deps dep-build-targets})])))
+          :deps dep-build-targets})]))))
 
 (defn- validate-template-build-targets [template-build-targets]
   (let [gui-resource-type+name->value->resource-proj-paths
@@ -3333,12 +3342,20 @@
                                (let [node-tree-scene default-scene]
                                  (:children node-tree-scene))))
   (output scene g/Any :cached produce-scene)
-  (output scene-dims g/Any :cached (g/fnk [display-profiles project-settings trivial-gui-scene-info]
-                                     (let [current-layout (:current-layout trivial-gui-scene-info)]
-                                       (or (some #(and (= current-layout (:name %)) (first (:qualifiers %))) display-profiles)
-                                           (let [w (get project-settings ["display" "width"] 0)
-                                                 h (get project-settings ["display" "height"] 0)]
-                                             {:width w :height h})))))
+  (output scene-dims g/Any :cached
+          (g/fnk [display-profiles project-settings trivial-gui-scene-info]
+            (let [current-layout (:current-layout trivial-gui-scene-info)]
+              (or (some #(and (= current-layout (:name %))
+                              (first (:qualifiers %)))
+                        display-profiles)
+
+                  ;; If the layout doesn't override our dimensions, use project
+                  ;; settings. Note that project-settings might not have been
+                  ;; connected in case our .gui scene hasn't been loaded, so we
+                  ;; ultimately fall back on zero width and height.
+                  (let [w (get project-settings ["display" "width"] 0)
+                        h (get project-settings ["display" "height"] 0)]
+                    {:width w :height h})))))
   (output unused-display-profiles g/Any (g/fnk [layout-names display-profiles]
                                           (coll/transfer display-profiles []
                                             (map :name)
@@ -3888,6 +3905,7 @@
         :node-type GuiSceneNode
         :ddf-type (:pb-class def)
         :load-fn load-gui-scene
+        :allow-unloaded-use false ; Sort of works, but disabled until we can fix the file formats to not include all nodes imported from templates.
         :sanitize-fn sanitize-scene
         :icon (:icon def)
         :icon-class (:icon-class def)
