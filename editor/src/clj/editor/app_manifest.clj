@@ -316,6 +316,24 @@
       (generic-contains-toggles all-platforms :excludeSymbols ["DefaultSoundDevice" "AudioDecoderWav" "AudioDecoderStbVorbis" "AudioDecoderTremolo" "AudioDecoderOpus"])
       (libs-toggles all-platforms ["sound_null"]))))
 
+(def sound-decoder-wav-setting
+  (make-check-box-setting
+    (concat
+      (exclude-libs-toggles all-platforms ["decoder_wav"])
+      (generic-contains-toggles all-platforms :excludeSymbols ["AudioDecoderWav"]))))
+
+(def sound-decoder-ogg-setting
+  (make-check-box-setting
+    (concat
+      (exclude-libs-toggles all-platforms ["decoder_ogg"])
+      (generic-contains-toggles all-platforms :excludeSymbols ["AudioDecoderStbVorbis", "AudioDecoderTremolo"]))))
+
+(def sound-decoder-opus-setting
+  (make-check-box-setting
+    (concat
+      (libs-toggles all-platforms ["decoder_opus"])
+      (generic-contains-toggles all-platforms :symbols ["AudioDecoderOpus"]))))
+
 (def input-setting
   (make-check-box-setting
     (concat
@@ -521,6 +539,18 @@
             (dynamic edit-type (g/constantly {:type g/Bool}))
             (value (setting-property-getter sound-setting))
             (set (setting-property-setter sound-setting)))
+  (property exclude-sound-decoder-wav g/Any
+            (dynamic edit-type (g/constantly {:type g/Bool}))
+            (value (setting-property-getter sound-decoder-wav-setting))
+            (set (setting-property-setter sound-decoder-wav-setting)))
+  (property exclude-sound-decoder-ogg g/Any
+            (dynamic edit-type (g/constantly {:type g/Bool}))
+            (value (setting-property-getter sound-decoder-ogg-setting))
+            (set (setting-property-setter sound-decoder-ogg-setting)))
+  (property include-sound-decoder-opus g/Any
+            (dynamic edit-type (g/constantly {:type g/Bool}))
+            (value (setting-property-getter sound-decoder-opus-setting))
+            (set (setting-property-setter sound-decoder-opus-setting)))
   (property exclude-input g/Any
             (dynamic edit-type (g/constantly {:type g/Bool}))
             (value (setting-property-getter input-setting))
