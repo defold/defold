@@ -293,7 +293,7 @@
                                                     "-Ddefold.log.dir="
                                                     ;"-Djogl.verbose=true"
                                                     ;"-Djogl.debug=true"
-                                                    "-Djogl.debug.TraceGL" ; TraceGL is also useful
+                                                    "-Djogl.debug.DebugGL" ; TraceGL is also useful
                                                     "-Djogl.texture.notexrect=true"
                                                     "-XX:MaxRAMPercentage=75"
                                                     ;"-XX:+UnlockCommercialFeatures"
