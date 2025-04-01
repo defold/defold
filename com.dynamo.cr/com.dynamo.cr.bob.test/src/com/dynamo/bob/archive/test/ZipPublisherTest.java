@@ -1,5 +1,6 @@
 package com.dynamo.bob.archive.test;
 
+import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.archive.ArchiveEntry;
 import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.archive.publisher.ZipPublisher;
@@ -57,9 +58,9 @@ public class ZipPublisherTest {
             // Step 2: Publish all ArchiveEntry objects
             long startPublishTime = System.currentTimeMillis();
             for (Map.Entry<String, AbstractMap.SimpleEntry<ArchiveEntry, byte[]>> entry : archiveMap.entrySet()) {
-                try (ByteArrayInputStream bais = new ByteArrayInputStream(entry.getValue().getValue())) {
-                    zipPublisher.publish(entry.getValue().getKey(), bais);
-                } catch (IOException e) {
+                try {
+                    zipPublisher.publish(entry.getValue().getKey(), entry.getValue().getValue());
+                } catch (CompileExceptionError e) {
                     fail("Error publishing entry: " + entry.getKey());
                 }
             }
