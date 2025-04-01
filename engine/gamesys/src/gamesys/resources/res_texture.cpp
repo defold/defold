@@ -282,6 +282,16 @@ namespace dmGameSystem
             // This should not be happening if the max width/height check goes through
             assert(image->m_MipMapOffset.m_Count <= MAX_MIPMAP_COUNT);
 
+            uint16_t tex_width_full  = image->m_Width;
+            uint16_t tex_height_full = image->m_Height;
+
+            // If we are uploading data for a mipmap, we need to pass the actual texture size for the validation
+            if (params.m_MipMap > 0)
+            {
+                tex_width_full  = dmGraphics::GetTextureWidth(texture);
+                tex_height_full = dmGraphics::GetTextureHeight(texture);
+            }
+
             // If we requested to upload a specific mipmap, upload only that level
             // It is expected that we only have offsets for that level in the image desc as well
             // -> See script_resource.cpp::SetTexture
@@ -298,7 +308,7 @@ namespace dmGameSystem
                     params.m_DataSize = image_desc->m_DecompressedDataSize[0];
                 }
 
-                if (!ValidateTextureParams(image->m_Width, image->m_Height, params))
+                if (!ValidateTextureParams(tex_width_full, tex_height_full, params))
                 {
                     dmLogError("Unable to create mipmap %d, texture parameters are invalid.", params.m_MipMap);
                     return dmResource::RESULT_FORMAT_ERROR;
@@ -324,7 +334,7 @@ namespace dmGameSystem
                     params.m_Width  = dmMath::Max((uint32_t) 1, image->m_MipMapDimensions[i * 2]);
                     params.m_Height = dmMath::Max((uint32_t) 1, image->m_MipMapDimensions[i * 2 + 1]);
 
-                    if (!ValidateTextureParams(image->m_Width, image->m_Height, params))
+                    if (!ValidateTextureParams(tex_width_full, tex_height_full, params))
                     {
                         dmLogError("Unable to create mipmap %d, texture parameters are invalid.", params.m_MipMap);
                         return dmResource::RESULT_FORMAT_ERROR;

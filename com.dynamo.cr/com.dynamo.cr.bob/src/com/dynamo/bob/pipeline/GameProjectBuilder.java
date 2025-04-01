@@ -416,6 +416,7 @@ public class GameProjectBuilder extends Builder {
                 ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder, getResourcePadding(), project);
                 createArchive(archiveBuilder, resources, archiveIndex, archiveData, excludedResources);
                 byte[] manifestFile = manifestBuilder.buildManifest();
+                this.project.setArchiveBuilder(archiveBuilder);
 
                 // Write outputs to the build system
                 // game.arci

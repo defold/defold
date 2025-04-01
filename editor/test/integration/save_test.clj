@@ -133,7 +133,7 @@
 (defn- workspace-file
   ^File [workspace proj-path]
   (assert (= \/ (first proj-path)))
-  (File. (workspace/project-path workspace) (subs proj-path 1)))
+  (File. (workspace/project-directory workspace) (subs proj-path 1)))
 
 (defn- slurp-file
   ^String [workspace proj-path]
@@ -172,6 +172,8 @@
                 (is (= resource (:resource save-data)))
                 (is (= expected-save-value (:save-value save-data)))
                 (is (= expected-save-text (resource-node/save-data-content save-data)))))
+         (is (resource-node/loaded? node-id)
+             "Node has been registered as loaded.")
          (is (= (resource-node/save-value->source-value expected-save-value (resource/resource-type resource))
                 (g/node-value node-id :source-value))
              "Source value reflects expected state.")
@@ -197,6 +199,8 @@
                 (is (= resource (:resource save-data)))
                 (is (nil? (:save-value save-data)))
                 (is (nil? (resource-node/save-data-content save-data)))))
+         (is (resource-node/loaded? node-id)
+             "Node has been registered as loaded (i.e. it is functional, even if lazy-loading happens later).")
          (is (nil? (g/node-value node-id :source-value))
              "Source value has not been loaded yet.")
          (is (nil? (get (g/node-value workspace :disk-sha256s-by-node-id) node-id))

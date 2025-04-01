@@ -47,12 +47,12 @@
 
 (defn- load-model-scene [resource ^InputStream stream]
   (let [workspace (resource/workspace resource)
-        project-path (workspace/project-path workspace)
+        project-directory (workspace/project-directory workspace)
         mesh-set-builder (Rig$MeshSet/newBuilder)
         skeleton-builder (Rig$Skeleton/newBuilder)
         path (resource/path resource)
         options nil
-        data-resolver (ModelUtil/createFileDataResolver project-path)
+        data-resolver (ModelUtil/createFileDataResolver project-directory)
         scene (ModelUtil/loadScene stream ^String path options data-resolver)
         bones (ModelUtil/loadSkeleton scene)
         material-ids (ModelUtil/loadMaterialNames scene)

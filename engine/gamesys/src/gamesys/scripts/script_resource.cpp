@@ -3129,6 +3129,9 @@ static int CreateBuffer(lua_State* L)
         buffer = dst_buffer;
     }
 
+    // before overwriting the resource buffer we just created, we need to garbage collect it
+    dmBuffer::Destroy(resource->m_Buffer);
+
     resource->m_BufferDDF = 0;
     resource->m_Buffer    = buffer;
     resource->m_Stride    = dmBuffer::GetStructSize(buffer);

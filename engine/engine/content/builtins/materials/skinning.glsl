@@ -7,8 +7,9 @@ vec2 get_bone_uv(vec2 cache_size, int index)
 {
     int x = int(mod(index, int(cache_size.x)));
     int y = int(float(index) / cache_size.x);
-    float u = float(x) / cache_size.x;
-    float v = float(y) / cache_size.y;
+    // Make sure we sample from the center of the pixel
+    float u = (float(x) + 0.5) / cache_size.x;
+    float v = (float(y) + 0.5) / cache_size.y;
     return vec2(u, v);
 }
 

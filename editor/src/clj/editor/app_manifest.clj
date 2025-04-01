@@ -353,7 +353,7 @@
 
 (def physics-2d-setting
   (make-choice-setting
-    :box2d-defold (concat (libs-toggles all-platforms ["box2d_defold" "script_box2d_defold"]) (exclude-libs-toggles all-platforms ["box2d" "script_box2d"]))
+    :box2d-defold (concat (libs-toggles all-platforms ["physics_2d_defold", "box2d_defold" "script_box2d_defold"]) (exclude-libs-toggles all-platforms ["physics", "box2d" "script_box2d"]))
     :box2d))
 
 (def image-setting
