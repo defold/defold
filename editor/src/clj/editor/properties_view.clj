@@ -236,18 +236,18 @@
                      (.isControlDown event) (* 0.1)
                      (neg? max-delta) -)]
     (when (> (abs max-delta) 1)
-      (let [values (properties/values property)
+      (let [op-seq (ui/user-data target ::op-seq)
+            values (properties/values property)
             set-operations (properties/resolve-set-operations property values)]
         (g/transact
-          (for [[node-id prop-kw] set-operations]
-            (let [current-value (cond-> (g/node-value node-id prop-kw) to-type to-type)
-                  op-seq (ui/user-data target ::op-seq)
-                  new-value (cond-> (drag-update-fn current-value update-val)
-                              from-type from-type
-                              (:min edit-type) (max (:min edit-type))
-                              (:max edit-type) (min (:max edit-type)))]
-              (concat (g/operation-sequence op-seq)
-                      (g/set-property node-id prop-kw new-value)))))
+          (for [[node-id prop-kw] set-operations
+                :let [current-value (cond-> (g/node-value node-id prop-kw) to-type to-type)
+                      new-value (cond-> (drag-update-fn current-value update-val)
+                                  from-type from-type
+                                  (:min edit-type) (max (:min edit-type))
+                                  (:max edit-type) (min (:max edit-type)))]]
+            (concat (g/operation-sequence op-seq)
+                    (g/set-property node-id prop-kw new-value))))
         (ui/user-data! target ::position [x y])
         (when (apply = values)
           (let [[node-id prop-kw] (first set-operations)]
