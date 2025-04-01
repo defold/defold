@@ -154,10 +154,10 @@
 (defn- make-ext-create-directory-fn [project reload-resources!]
   (rt/suspendable-lua-fn ext-create-directory [{:keys [rt evaluation-context]} lua-proj-path]
     (let [^String proj-path (rt/->clj rt graph/resource-path-coercer lua-proj-path)]
-      (let [root-path (-> project
-                          (project/workspace evaluation-context)
-                          (workspace/project-path evaluation-context)
-                          fs/real-path)
+      (let [basis (:basis evaluation-context)
+            workspace (project/workspace project evaluation-context)
+            root-path (-> (workspace/project-directory basis workspace)
+                          (fs/real-path))
             dir-path (-> (str root-path proj-path)
                          (fs/as-path)
                          (.normalize))]
@@ -173,11 +173,11 @@
 
 (defn- make-ext-delete-directory-fn [project reload-resources!]
   (rt/suspendable-lua-fn ext-delete-directory [{:keys [rt evaluation-context]} lua-proj-path]
-    (let [proj-path (rt/->clj rt graph/resource-path-coercer lua-proj-path)
-          root-path (-> project
-                        (project/workspace evaluation-context)
-                        (workspace/project-path evaluation-context)
-                        fs/real-path)
+    (let [basis (:basis evaluation-context)
+          proj-path (rt/->clj rt graph/resource-path-coercer lua-proj-path)
+          workspace (project/workspace project evaluation-context)
+          root-path (-> (workspace/project-directory basis workspace)
+                        (fs/real-path))
           dir-path (-> (str root-path proj-path)
                        (fs/as-path)
                        (.normalize))
@@ -838,10 +838,11 @@
   [project kind & {:keys [web-server prefs reload-resources! display-output! save! open-resource! invoke-bob!] :as opts}]
   {:pre [web-server prefs reload-resources! display-output! save! open-resource! invoke-bob!]}
   (g/with-auto-evaluation-context evaluation-context
-    (let [extensions (g/node-value project :editor-extensions evaluation-context)
+    (let [basis (:basis evaluation-context)
+          extensions (g/node-value project :editor-extensions evaluation-context)
           old-state (ext-state project evaluation-context)
           workspace (project/workspace project evaluation-context)
-          project-path (.toPath (workspace/project-path workspace evaluation-context))
+          project-path (.toPath (workspace/project-directory basis workspace))
           rt (rt/make
                :find-resource (partial find-resource project)
                :resolve-file (partial resolve-file project-path)

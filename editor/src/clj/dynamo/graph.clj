@@ -114,6 +114,18 @@
 (defn node-override? [node]
   (some? (gt/original node)))
 
+(defn own-property-values
+  "Returns a map of property-label property-value for the specified node. If the
+  queried node is an override node, the map will contain overridden properties
+  only. Otherwise, the map will include assigned properties and defaults."
+  [node]
+  (or (if (node-override? node)
+        (gt/overridden-properties node)
+        (coll/merge
+          (in/defaults (gt/node-type node))
+          (gt/assigned-properties node)))
+      {}))
+
 (defn invalidate-counters
   "The current state of the invalidate counters in the system."
   []

@@ -65,13 +65,6 @@ ordinary paths."
   (^File [basis workspace]
    (resource/project-directory basis workspace)))
 
-(defn project-path
-  "Deprecated. Use project-directory instead."
-  (^File [workspace]
-   (resource/project-directory (g/now) workspace))
-  (^File [workspace evaluation-context]
-   (resource/project-directory (:basis evaluation-context) workspace)))
-
 (defn code-preprocessors
   ([workspace]
    (g/with-auto-evaluation-context evaluation-context
@@ -107,11 +100,10 @@ ordinary paths."
 
 (defn as-proj-path
   (^String [workspace file-or-path]
-   (g/with-auto-evaluation-context evaluation-context
-     (as-proj-path workspace file-or-path evaluation-context)))
-  (^String [workspace file-or-path evaluation-context]
+   (as-proj-path (g/now) workspace file-or-path))
+  (^String [basis workspace file-or-path]
    (let [file (io/as-file file-or-path)
-         project-directory (project-path workspace evaluation-context)]
+         project-directory (project-directory basis workspace)]
      (when (fs/below-directory? file project-directory)
        (resource/file->proj-path project-directory file)))))
 
@@ -423,11 +415,9 @@ ordinary paths."
 
 (defn file-resource
   ([workspace path-or-file]
-   (let [evaluation-context (g/make-evaluation-context {:basis (g/now) :cache c/null-cache})]
-     (file-resource workspace path-or-file evaluation-context)))
-  ([workspace path-or-file evaluation-context]
-   (let [basis (:basis evaluation-context)
-         workspace-node (g/node-by-id basis workspace)
+   (file-resource (g/now) workspace path-or-file))
+  ([basis workspace path-or-file]
+   (let [workspace-node (g/node-by-id basis workspace)
          project-path (g/raw-property-value* basis workspace-node :root)
          editable-proj-path? (g/raw-property-value* basis workspace-node :editable-proj-path?)
          unloaded-proj-path? (g/raw-property-value* basis workspace-node :unloaded-proj-path?)
@@ -454,12 +444,12 @@ ordinary paths."
      (g/with-auto-evaluation-context evaluation-context
        (or
          (find-resource workspace path evaluation-context)
-         (file-resource workspace path evaluation-context)))))
+         (file-resource (:basis evaluation-context) workspace path)))))
   ([workspace path evaluation-context]
    (when (not-empty path)
      (or
        (find-resource workspace path evaluation-context)
-       (file-resource workspace path evaluation-context)))))
+       (file-resource (:basis evaluation-context) workspace path)))))
 
 (defn make-proj-path->resource-fn [workspace evaluation-context]
   (let [basis (:basis evaluation-context)

@@ -509,10 +509,6 @@
    :default 64,
    :path ["particle_fx" "max_emitter_count"]}
   {:type :integer,
-   :help "max total number of living particles, 1024 by default",
-   :default 1024,
-   :path ["particle_fx" "max_particle_count"]}
-  {:type :integer,
    :help "max number of collection proxies, 8 by default",
    :default 8,
    :path ["collection_proxy" "max_count"]}

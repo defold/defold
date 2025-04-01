@@ -219,9 +219,12 @@
                                            (.replace (System/getProperty "user.home") \\ \/)
                                            "/.m2/repository/com/github/jbellis/jamm/0.4.0/jamm-0.4.0.jar")
                                         "-Ddefold.jamm=true"
+                                        "--add-opens=java.base/java.util=ALL-UNNAMED"
                                         "--add-opens=java.base/java.util.function=ALL-UNNAMED"
                                         "--add-opens=java.base/java.util.regex=ALL-UNNAMED"
-                                        "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED"]}
+                                        "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED"
+                                        "--add-opens=java.net.http/jdk.internal.net.http=ALL-UNNAMED"
+                                        "--add-opens=java.net.http/jdk.internal.net.http.common=ALL-UNNAMED"]}
                       :no-asserts {:global-vars {*assert* false}}
                       :no-decorated-exceptions {:jvm-opts ["-Ddefold.exception.decorate.disable=true"]}
                       :no-schemas {:jvm-opts ["-Ddefold.schema.check.disable=true"]}
@@ -288,6 +291,8 @@
                                                     "-Ddefold.unpack.path=tmp/unpack"
                                                     "-Ddefold.nrepl=true"
                                                     "-Ddefold.log.dir="
+                                                    ;"-Djogl.verbose=true"
+                                                    ;"-Djogl.debug=true"
                                                     "-Djogl.debug.DebugGL" ; TraceGL is also useful
                                                     "-Djogl.texture.notexrect=true"
                                                     "-XX:MaxRAMPercentage=75"

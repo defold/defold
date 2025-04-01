@@ -26,7 +26,7 @@
 
 (defn make-script-resource
   [world workspace path code]
-  (let [root-dir (workspace/project-path workspace)]
+  (let [root-dir (workspace/project-directory workspace)]
     (test-util/make-fake-file-resource workspace (.getPath root-dir) (io/file root-dir path) (.getBytes code "UTF-8"))))
 
 (deftest script-node-dependencies

@@ -1252,7 +1252,7 @@
     (nil? error)))
 
 (defn- build-handler [project workspace prefs web-server build-errors-view main-stage tool-tab-pane]
-  (let [project-directory (io/file (workspace/project-path workspace))
+  (let [project-directory (workspace/project-directory workspace)
         main-scene (.getScene ^Stage main-stage)
         render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
         skip-engine (target-cannot-swap-engine? (targets/selected-target prefs))]
@@ -1299,7 +1299,7 @@ If you do not specifically require different script states, consider changing th
         false)))
 
 (defn- run-with-debugger! [workspace project prefs debug-view render-build-error! web-server]
-  (let [project-directory (io/file (workspace/project-path workspace))
+  (let [project-directory (workspace/project-directory workspace)
         skip-engine (target-cannot-swap-engine? (targets/selected-target prefs))]
     (async-build! project
                   :debug true
@@ -2143,7 +2143,7 @@ If you do not specifically require different script states, consider changing th
                args (->> (string/split arg-tmpl #" ")
                          (map #(substitute-args % arg-sub)))]
            (doto (ProcessBuilder. ^List (cons custom-editor args))
-             (.directory (workspace/project-path workspace))
+             (.directory (workspace/project-directory workspace))
              (.start))
            false)
          (if (contains? view-type :make-view-fn)

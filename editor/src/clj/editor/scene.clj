@@ -32,6 +32,7 @@
             [editor.protobuf :as protobuf]
             [editor.render :as render]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.rulers :as rulers]
             [editor.scene-async :as scene-async]
             [editor.scene-cache :as scene-cache]
@@ -101,8 +102,8 @@
   (scene-text/overlay gl text x y))
 
 (defn- get-resource-name [node-id]
-  (let [{:keys [resource] :as resource-node} (and node-id (g/node-by-id node-id))]
-    (and resource (resource/resource-name resource))))
+  (when-let [resource (resource-node/as-resource node-id)]
+    (resource/resource-name resource)))
 
 (defn- render-error
   [gl render-args renderables nrenderables]
