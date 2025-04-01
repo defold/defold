@@ -28,7 +28,7 @@
 #endif
 
 // Make sure we use compile time selected fallback code if nothing is selected at all
-#if !defined(DM_SOUND_DSP_IMPL) && !defined(DM_SOUND_DSP_SSE2) && !defined(DM_SOUND_DSP_WASM)
+#if !defined(DM_SOUND_DSP_IMPL)
 #define DM_SOUND_DSP_IMPL Fallback
 #endif
 
