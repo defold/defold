@@ -116,7 +116,7 @@ struct TestParams
     uint32_t    m_FrameCount;
     uint32_t    m_ToneRate;
     uint32_t    m_MixRate;
-    uint32_t    m_BufferFrameCount;
+    uint32_t    m_BufferFrameCount; // For the sound device
     float       m_Pan;
     float       m_Speed;
     uint8_t     m_Loopcount;
@@ -168,6 +168,13 @@ struct TestParams
         m_BufferFrameCount = buffer_frame_count;
     }
 
+    float LengthInSeconds()
+    {
+        if (!m_MixRate)
+            return 0.0f;
+
+        return (m_FrameCount / (float)m_MixRate) * m_Speed;
+    }
 };
 
 struct TestParams2
@@ -194,7 +201,7 @@ struct TestParams2
     float       m_Gain2;
     bool        m_Ramp2;
 
-    uint32_t    m_BufferFrameCount;
+    uint32_t    m_BufferFrameCount; // For the sound device
     bool        m_UseThread;
 
     TestParams2(const char* device_name,
@@ -1421,6 +1428,9 @@ TEST_P(dmSoundTestPlayTest, Play)
     r = dmSound::Play(instance);
     ASSERT_EQ(dmSound::RESULT_OK, r);
 
+    bool playing = false;
+    float length = params.LengthInSeconds();
+    uint64_t tstart = dmTime::GetMonotonicTime();
     do {
         r = dmSound::Update();
         ASSERT_EQ(dmSound::RESULT_OK, r);
@@ -1431,7 +1441,15 @@ TEST_P(dmSoundTestPlayTest, Play)
         r = dmSound::SetParameter(instance, dmSound::PARAMETER_PAN, dmVMath::Vector4(cosf(a),0,0,0));
         ASSERT_EQ(dmSound::RESULT_OK, r);
 
-    } while (dmSound::IsPlaying(instance));
+        uint64_t tend = dmTime::GetMonotonicTime();
+        float elapsed = (tend - tstart) / 1000000.0f;
+
+        if (length > 0.0f)
+            playing = elapsed <= length;
+        else
+            playing = dmSound::IsPlaying(instance);
+
+    } while (playing);
 
     r = dmSound::DeleteSoundInstance(instance);
     ASSERT_EQ(dmSound::RESULT_OK, r);

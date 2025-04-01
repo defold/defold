@@ -1703,9 +1703,15 @@ namespace dmSound
             // Get the number of frames available
             uint32_t frame_count = sound->m_DeviceFrameCount;
             if (sound->m_DeviceType->m_GetAvailableFrames)
+            {
                 frame_count = sound->m_DeviceType->m_GetAvailableFrames(sound->m_Device);
+            }
 
             sound->m_FrameCount = frame_count;
+
+            if (frame_count == 0)
+                continue;
+
             MixContext mix_context(current_buffer, total_buffers, frame_count);
             MixInstances(&mix_context);
 
