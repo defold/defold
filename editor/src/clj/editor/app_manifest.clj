@@ -320,19 +320,19 @@
   (make-check-box-setting
     (concat
       (exclude-libs-toggles all-platforms ["decoder_wav"])
-      (generic-contains-toggles all-platforms :excludeSymbols ["AudioDecoderWav"]))))
+      (generic-contains-toggles all-platforms :excludeSymbols ["AudioDecoderWav", "ResourceTypeWav"]))))
 
 (def sound-decoder-ogg-setting
   (make-check-box-setting
     (concat
       (exclude-libs-toggles all-platforms ["decoder_ogg"])
-      (generic-contains-toggles all-platforms :excludeSymbols ["AudioDecoderStbVorbis", "AudioDecoderTremolo"]))))
+      (generic-contains-toggles all-platforms :excludeSymbols ["AudioDecoderStbVorbis", "AudioDecoderTremolo", "ResourceTypeOgg"]))))
 
 (def sound-decoder-opus-setting
   (make-check-box-setting
     (concat
-      (libs-toggles all-platforms ["decoder_opus"])
-      (generic-contains-toggles all-platforms :symbols ["AudioDecoderOpus"]))))
+      (libs-toggles all-platforms ["decoder_opus", "opus"])
+      (generic-contains-toggles all-platforms :symbols ["AudioDecoderOpus", "ResourceTypeOpus"]))))
 
 (def input-setting
   (make-check-box-setting
