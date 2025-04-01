@@ -17,10 +17,13 @@
             [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [internal.graph.types :as gt]
             [internal.node :as in]
             [schema.core :as s]
             [support.test-support :refer [tx-nodes with-clean-system]])
   (:import [clojure.lang Compiler$CompilerException]))
+
+(set! *warn-on-reflection* true)
 
 (g/deftype Int s/Int)
 
@@ -305,7 +308,7 @@
 
 (deftest nodes-can-include-properties
   (testing "a single property"
-    (let [node (g/construct SinglePropertyNode)]
+    (let [node (g/construct SinglePropertyNode :a-property nil)]
       (is (:a-property (g/declared-property-labels SinglePropertyNode)))
       (is (:a-property (-> node g/node-type g/declared-property-labels)))
       (is (some #{:a-property} (keys node)))))
@@ -315,7 +318,7 @@
     (is (= #{:a-property} (g/declared-property-labels SinglePropertyNode))))
 
   (testing "two properties"
-    (let [node (g/construct TwoPropertyNode)]
+    (let [node (g/construct TwoPropertyNode :a-property nil :another-property nil)]
       (is (contains? (g/declared-property-labels TwoPropertyNode) :a-property))
       (is (contains? (g/declared-property-labels TwoPropertyNode) :another-property))
       (is (some #{:a-property}       (keys node)))
@@ -323,10 +326,10 @@
 
   (testing "properties can have defaults"
     (let [node (g/construct TwoPropertyNode)]
-      (is (= "default value" (:a-property node)))))
+      (is (= "default value" (gt/get-property node (g/now) :a-property)))))
 
   (testing "properties are inherited"
-    (let [node (g/construct InheritedPropertyNode)]
+    (let [node (g/construct InheritedPropertyNode :a-property nil :another-property nil)]
       (is (contains? (g/declared-property-labels InheritedPropertyNode) :a-property))
       (is (contains? (g/declared-property-labels InheritedPropertyNode) :another-property))
       (is (some #{:a-property}       (keys node)))
@@ -342,8 +345,8 @@
 
   (testing "property defaults can be inherited or overridden"
     (let [node (g/construct InheritedPropertyNode)]
-      (is (= "default value" (:a-property node)))
-      (is (= -1              (:another-property node)))))
+      (is (= "default value" (gt/get-property node (g/now) :a-property)))
+      (is (= -1              (gt/get-property node (g/now) :another-property)))))
 
   (testing "output dependencies include properties"
     (let [deps (g/input-dependencies InheritedPropertyNode)]
