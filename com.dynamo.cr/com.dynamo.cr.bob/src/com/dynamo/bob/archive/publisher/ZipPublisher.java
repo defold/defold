@@ -119,10 +119,9 @@ public class ZipPublisher extends Publisher {
         final String archiveEntryName = entry.getName();
         final String zipEntryName = (archiveEntryHexdigest != null) ? archiveEntryHexdigest : archiveEntryName;
         synchronized (zipEntries) {
-            if (zipEntries.contains(zipEntryName)) {
+            if (!zipEntries.add(zipEntryName)) {
                 return;
             }
-            zipEntries.add(zipEntryName);
         }
         try {
             ZipEntry currentEntry = new ZipEntry(zipEntryName);
@@ -130,7 +129,6 @@ public class ZipPublisher extends Publisher {
                 zipOutputStream.putNextEntry(currentEntry);
                 zipOutputStream.write(entry.getHeader());
                 data.transferTo(zipOutputStream);
-                zipOutputStream.flush();
                 zipOutputStream.closeEntry();
             }
         } catch (FileNotFoundException exception) {
@@ -147,10 +145,9 @@ public class ZipPublisher extends Publisher {
         final String zipEntryName = (archiveEntryHexdigest != null) ? archiveEntryHexdigest : archiveEntryName;
         entries.put(archiveEntryName, entry);
         synchronized (zipEntries) {
-            if (zipEntries.contains(zipEntryName)) {
+            if (!zipEntries.add(zipEntryName)) {
                 return;
             }
-            zipEntries.add(zipEntryName);
         }
         try {
             ZipEntry currentEntry = new ZipEntry(zipEntryName);
@@ -158,7 +155,6 @@ public class ZipPublisher extends Publisher {
                 zipOutputStream.putNextEntry(currentEntry);
                 zipOutputStream.write(entry.getHeader());
                 zipOutputStream.write(data);
-                zipOutputStream.flush();
                 zipOutputStream.closeEntry();
             }
         } catch (FileNotFoundException exception) {
