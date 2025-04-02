@@ -39,6 +39,7 @@
 (set! *unchecked-math* :warn-on-boxed)
 
 (defonce opacity-prefs-path [:scene :grid :opacity])
+(defonce size-prefs-path [:scene :grid :size])
 
 (def x-axis-color colors/scene-grid-x-axis)
 (def y-axis-color colors/scene-grid-y-axis)
@@ -204,8 +205,8 @@
   (output renderable pass/RenderData :cached grid-renderable))
 
 (defn- pref-popup-position
-  ^Point2D [^Parent container width]
-  (Utils/pointRelativeTo container width 0 HPos/CENTER VPos/BOTTOM 0.0 10.0 true))
+  ^Point2D [^Parent container]
+  (Utils/pointRelativeTo container 0 0 HPos/CENTER VPos/BOTTOM 0.0 10.0 true))
 
 (defn- opacity-slider [app-view prefs]
   (let [value (prefs/get prefs opacity-prefs-path)
@@ -223,7 +224,7 @@
     (let [region (StackPane.)
           size-row (HBox.)
           popup (popup/make-popup owner region)
-          anchor ^Point2D (pref-popup-position (.getParent owner) (.getMinWidth region))]
+          anchor ^Point2D (pref-popup-position (.getParent owner))]
       (ui/children! size-row [(TextField.) (TextField.) (TextField.)])
       (ui/children! region [(doto (Region.)
                               (ui/add-style! "popup-shadow"))
