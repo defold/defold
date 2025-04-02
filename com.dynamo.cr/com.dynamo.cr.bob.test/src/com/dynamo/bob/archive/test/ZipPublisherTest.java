@@ -1,18 +1,20 @@
 package com.dynamo.bob.archive.test;
 
-import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.archive.ArchiveEntry;
 import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.archive.publisher.ZipPublisher;
+import com.dynamo.liveupdate.proto.Manifest;
 import org.junit.Test;
 
+import javax.xml.bind.DatatypeConverter;
 import java.io.BufferedInputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -24,7 +26,7 @@ import static org.junit.Assert.fail;
 public class ZipPublisherTest {
 
     @Test
-    public void testCreateArchiveFromFolder() {
+    public void testCreateArchiveFromFolder() throws IOException {
         String projectRoot = "test_resources"; // Folder to read files from
         String outputFilename = "test_archive.zip";
         File inputFolder = new File(projectRoot);
@@ -33,6 +35,15 @@ public class ZipPublisherTest {
         PublisherSettings settings = new PublisherSettings();
         settings.setZipFilepath(inputFolder.getAbsoluteFile().getParent()); // Output folder for the zip archive
         settings.setZipFilename(outputFilename);
+
+        FileInputStream fins = new FileInputStream(inputFolder.getAbsolutePath() + "/liveupdate.game.dmanifest");
+        Manifest.ManifestFile manifestFile2 = Manifest.ManifestFile.parseFrom(fins);
+        fins.close();
+        Manifest.ManifestData data = Manifest.ManifestData.parseFrom(manifestFile2.getData());
+        HashMap<String, Manifest.ResourceEntry> resources = new HashMap<String, Manifest.ResourceEntry>();
+        for (Manifest.ResourceEntry entry : data.getResourcesList()) {
+            resources.put(DatatypeConverter.printHexBinary(entry.getHash().getData().toByteArray()).toLowerCase(), entry);
+        }
 
         ZipPublisher zipPublisher = new ZipPublisher(projectRoot, settings);
         zipPublisher.setFilename(outputFilename);
@@ -55,8 +66,14 @@ public class ZipPublisherTest {
                                     File file = new File(String.valueOf(path));
                                     try {
                                         fileStream = new BufferedInputStream(Files.newInputStream(path));
-                                        ArchiveEntry entry = null;
-                                        entry = new ArchiveEntry(file.getParentFile().getAbsolutePath(), file.getAbsolutePath());
+                                        ArchiveEntry entry = new ArchiveEntry(file.getParentFile().getAbsolutePath(), file.getAbsolutePath());
+                                        Manifest.ResourceEntry _re = resources.get(path.getFileName().toString());
+                                        if (_re != null)
+                                        {
+                                            entry.setCompressedSize(_re.getCompressedSize());
+                                            entry.setSize(_re.getSize());
+                                            entry.setFlag(_re.getFlags());
+                                        }
                                         archiveMap.put(entry, fileStream.readAllBytes());
                                     } catch (IOException e) {
                                         throw new RuntimeException(e);
@@ -79,12 +96,9 @@ public class ZipPublisherTest {
             // Step 2: Publish all ArchiveEntry objects
             long startPublishTime = System.currentTimeMillis();
             for (Map.Entry<ArchiveEntry, byte[]> entry : archiveMap.entrySet()) {
-                try {
-                    zipPublisher.publish(entry.getKey(), entry.getValue());
-                } catch (CompileExceptionError e) {
-                    fail("Error publishing entry: " + entry.getKey());
-                }
+                zipPublisher.publish(entry.getKey(), entry.getValue());
             }
+            System.out.println("Write time: " + (System.currentTimeMillis() - startPublishTime));
             zipPublisher.stop();
 
             File outputZip = zipPublisher.getZipFile();

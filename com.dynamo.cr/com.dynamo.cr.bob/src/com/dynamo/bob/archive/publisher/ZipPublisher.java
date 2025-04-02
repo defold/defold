@@ -14,15 +14,16 @@
 
 package com.dynamo.bob.archive.publisher;
 
+import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.Set;
 import java.util.HashSet;
+import java.util.zip.Deflater;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -84,7 +85,7 @@ public class ZipPublisher extends Publisher {
 
             zipEntries.clear();
 
-            FileOutputStream resourcePackOutputStream = new FileOutputStream(this.tempZipFile);
+            BufferedOutputStream resourcePackOutputStream = new BufferedOutputStream(Files.newOutputStream(this.tempZipFile.toPath()));
             zipOutputStream = new ZipOutputStream(resourcePackOutputStream);
         } catch (IOException exception) {
             throw new CompileExceptionError("Unable to create zip archive for liveupdate resources: " + exception.getMessage(), exception);
