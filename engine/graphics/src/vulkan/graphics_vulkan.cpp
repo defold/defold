@@ -4204,6 +4204,33 @@ bail:
 
     static void PrepareTextureForUploading(VulkanContext* context, VulkanTexture* texture, const TextureParams& params)
     {
+        VkFormat vk_format = GetVulkanFormatFromTextureFormat(params.m_Format);
+        if (!params.m_SubUpdate && params.m_MipMap == 0)
+        {
+            if (texture->m_Format != vk_format ||
+                texture->m_Width != params.m_Width ||
+                texture->m_Height != params.m_Height ||
+                (IsTextureType3D(texture->m_Type) && (texture->m_Depth != params.m_Depth)))
+            {
+                DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], texture);
+                texture->m_Format = vk_format;
+                texture->m_Width  = params.m_Width;
+                texture->m_Height = params.m_Height;
+                texture->m_Depth  = params.m_Depth;
+
+                // Note:
+                // If the texture has requested mipmaps and we need to recreate the texture, make sure to allocate enough mipmaps.
+                // For vulkan this means that we can't cap a texture to a specific mipmap count since the engine expects
+                // that setting texture data works like the OpenGL backend where we set the mipmap count to zero and then
+                // update the mipmap count based on the params. If we recreate the texture when that is detected (i.e we have too few mipmaps in the texture)
+                // we will lose all the data that was previously uploaded. We could copy that data, but for now this is the easiest way of dealing with this..
+
+                if (texture->m_MipMapCount > 1)
+                {
+                    texture->m_MipMapCount = (uint16_t) GetMipmapCount(dmMath::Max(texture->m_Width, texture->m_Height));
+                }
+            }
+        }
         // If texture hasn't been used yet or if it has been changed
         if (texture->m_Destroyed || texture->m_Handle.m_Image == VK_NULL_HANDLE)
         {
@@ -4211,7 +4238,6 @@ bail:
             VkImageUsageFlags vk_usage_flags        = VK_IMAGE_USAGE_TRANSFER_DST_BIT;
             VkFormatFeatureFlags vk_format_features = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
             VkMemoryPropertyFlags vk_memory_type    = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-            VkFormat vk_format                      = GetVulkanFormatFromTextureFormat(params.m_Format);
             uint16_t tex_depth                      = dmMath::Max(texture->m_Depth, params.m_Depth);
             uint16_t tex_layer_count                = dmMath::Max(texture->m_LayerCount, params.m_LayerCount);
             TextureFormat format_orig               = params.m_Format;
