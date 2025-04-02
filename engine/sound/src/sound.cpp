@@ -1709,7 +1709,7 @@ namespace dmSound
 
             sound->m_FrameCount = frame_count;
 
-            if (frame_count == 0)
+            if (frame_count < SOUND_MAX_HISTORY)
                 continue;
 
             MixContext mix_context(current_buffer, total_buffers, frame_count);
