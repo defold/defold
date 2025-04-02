@@ -7,7 +7,6 @@ import os
 import waf_dynamo, waf_ddf
 import waflib.Options
 import TestContext
-from build_constants import TargetOS
 
 test_context = None
 
@@ -22,7 +21,6 @@ def options(opt):
 def configure(conf):
     conf.load('waf_dynamo')
     conf.load('java')
-    target_os = conf.env['TARGET_OS']
 
     waf_ddf.configure(conf)
     conf.recurse('src')
@@ -32,10 +30,6 @@ def configure(conf):
     conf.env['STLIB_DLIB']     = ['dlib', 'mbedtls', 'zip']
 
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="LIVEUPDATE"')
-
-    if target_os != TargetOS.WINDOWS:
-        conf.env.append_value('CFLAGS', ["-fdebug-compilation-dir=engine/liveupdate"])
-        conf.env.append_value('CXXFLAGS', ["-fdebug-compilation-dir=engine/liveupdate"])
 
 def build(bld):
     global test_context

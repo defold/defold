@@ -10,7 +10,6 @@ import sys, os
 import waf_dynamo
 import waflib.Options
 import TestContext
-from build_constants import TargetOS
 
 test_context = None
 
@@ -27,8 +26,6 @@ def configure(conf):
     conf.load('java')
 
     conf.recurse('src')
-
-    target_os = conf.env['TARGET_OS']
 
     conf.env.append_value('CPPPATH', "default/src")
     conf.env['STLIB_DLIB'] = 'dlib'
@@ -49,10 +46,6 @@ def configure(conf):
         conf.env['DEFINES_JDK'] = ['DM_HAS_JDK']
 
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="MODELC"')
-
-    if target_os != TargetOS.WINDOWS:
-        conf.env.append_value('CFLAGS', ["-fdebug-compilation-dir=engine/modelc"])
-        conf.env.append_value('CXXFLAGS', ["-fdebug-compilation-dir=engine/modelc"])
 
 def build(bld):
     global test_context

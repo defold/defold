@@ -385,7 +385,12 @@ def default_flags(self):
 
     # Common for all platforms
     flags = []
-    if target_os != TargetOS.WINDOWS:
+    if target_os not in (TargetOS.WINDOWS, TargetOS.XBONE):
+        build_script_path = self.path.abspath()
+        parts = build_script_path.split(os.sep)
+        index = next((i for i, part in enumerate(parts) if part == "engine"), -1)
+        if index != -1 and (index + 1) < len(parts):
+            flags += ["-fdebug-compilation-dir=engine/{}".format(parts[index + 1])]
         flags += ["-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"]
 
     if Options.options.ndebug:

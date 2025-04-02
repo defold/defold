@@ -17,7 +17,6 @@ import waflib.Options
 sys.path = ["src"] + sys.path # in order to import waf_resource
 import waf_dynamo, waf_ddf, waf_resource
 import TestContext
-from build_constants import TargetOS
 
 test_context = None
 
@@ -44,8 +43,6 @@ def configure(conf):
 
     waf_ddf.configure(conf)
 
-    target_os = conf.env['TARGET_OS']
-
     # For some reason, the ranged server doesn't work on Win32
     if 'win32' == sys.platform:
         conf.env.append_value('DEFINES', 'DM_TEST_NO_SUPPORT_RANGE_REQUEST')
@@ -57,11 +54,6 @@ def configure(conf):
     conf.env['STLIB_DDF'] = 'ddf'
 
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="RESOURCE"')
-
-    if target_os != TargetOS.WINDOWS:
-        conf.env.append_value('CFLAGS', ["-fdebug-compilation-dir=engine/resource"])
-        conf.env.append_value('CXXFLAGS', ["-fdebug-compilation-dir=engine/resource"])
-
 
 def build(bld):
     global test_context

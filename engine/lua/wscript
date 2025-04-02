@@ -9,7 +9,6 @@ blddir = 'build'
 import sys
 import waf_dynamo, waf_ddf, waflib
 import TestContext
-from build_constants import TargetOS
 
 test_context = None
 
@@ -25,11 +24,6 @@ def options(opt):
 def configure(conf):
     conf.load('waf_dynamo')
     conf.recurse('src')
-
-    target_os = conf.env['TARGET_OS']
-    if target_os != TargetOS.WINDOWS:
-        conf.env.append_value('CFLAGS', ["-fdebug-compilation-dir=engine/lua"])
-        conf.env.append_value('CXXFLAGS', ["-fdebug-compilation-dir=engine/lua"])
 
 def build(bld):
     global test_context

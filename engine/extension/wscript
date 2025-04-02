@@ -10,7 +10,6 @@ import sys
 import waf_dynamo, waf_ddf
 import waflib.Options
 import TestContext
-from build_constants import TargetOS
 
 test_context = None
 
@@ -25,17 +24,12 @@ def options(opt):
 def configure(conf):
     conf.load('waf_dynamo')
     conf.recurse('src')
-    target_os = conf.env['TARGET_OS']
 
     conf.env.append_value('INCLUDES', "src")
     conf.env.append_value('INCLUDES', "../src")
     conf.env['STLIB_DLIB'] = ['dlib', 'mbedtls']
 
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="EXTENSION"')
-
-    if target_os != TargetOS.WINDOWS:
-        conf.env.append_value('CFLAGS', ["-fdebug-compilation-dir=engine/extension"])
-        conf.env.append_value('CXXFLAGS', ["-fdebug-compilation-dir=engine/extension"])
 
 def build(bld):
     global test_context

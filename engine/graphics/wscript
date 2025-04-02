@@ -70,10 +70,6 @@ def configure(conf):
     conf.env.append_value('DEFINES', 'SDL_JOYSTICK_IOKIT')
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="GRAPHICS"')
 
-    if target_os != TargetOS.WINDOWS:
-        conf.env.append_value('CFLAGS', ["-fdebug-compilation-dir=engine/graphics"])
-        conf.env.append_value('CXXFLAGS', ["-fdebug-compilation-dir=engine/graphics"])
-
 def build(bld):
     global test_context
     bld.recurse('src')

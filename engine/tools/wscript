@@ -70,10 +70,6 @@ def configure(conf):
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="TOOLS"')
     conf.env.append_unique('DEFINES', 'DEFOLD_SHA1="%s"' % build_util.git_sha1())
 
-    if target_os != TargetOS.WINDOWS:
-        conf.env.append_value('CFLAGS', ["-fdebug-compilation-dir=engine/tools"])
-        conf.env.append_value('CXXFLAGS', ["-fdebug-compilation-dir=engine/tools"])
-
 def build(bld):
     global test_context
     bld.recurse('scripts')

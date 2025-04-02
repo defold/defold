@@ -43,10 +43,6 @@ def configure(conf):
     elif target_os == TargetOS.WINDOWS:
         conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'dinput8.lib', 'dxguid.lib'])
 
-    if target_os != TargetOS.WINDOWS:
-        conf.env.append_value('CFLAGS', ["-fdebug-compilation-dir=engine/gamesys"])
-        conf.env.append_value('CXXFLAGS', ["-fdebug-compilation-dir=engine/gamesys"])
-
     conf.env.append_value('INCLUDES', "default/src")
     conf.env['STLIB_DLIB'] = ['dlib', 'mbedtls', 'zip']
     conf.env['STLIB_DDF'] = 'ddf'

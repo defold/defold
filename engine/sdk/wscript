@@ -11,7 +11,6 @@ blddir = 'build'
 import waf_dynamo
 import waflib.Options
 import TestContext
-from build_constants import TargetOS
 
 test_context = None
 
@@ -23,14 +22,9 @@ def options(opt):
 
 def configure(conf):
     conf.load('waf_dynamo')
-    target_os = conf.env['TARGET_OS']
     conf.env['STLIB_DLIB'] = 'dlib'
     conf.env['STLIB_EXTENSION'] = 'extension'
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="SDK"')
-
-    if target_os != TargetOS.WINDOWS:
-        conf.env.append_value('CFLAGS', ["-fdebug-compilation-dir=engine/sdk"])
-        conf.env.append_value('CXXFLAGS', ["-fdebug-compilation-dir=engine/sdk"])
 
 def build(bld):
     global test_context

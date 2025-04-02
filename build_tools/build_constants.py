@@ -1,6 +1,6 @@
 from typing import NamedTuple
 
-class TargetOSConts(NamedTuple):
+class TargetOSContants(NamedTuple):
     WINDOWS: str = 'win'
     LINUX: str = 'linux'
     ANDROID: str = 'android'
@@ -10,5 +10,6 @@ class TargetOSConts(NamedTuple):
     NX64: str = 'nx64'
     PS4: str = 'ps4'
     PS5: str = 'ps5'
+    XBONE: str = 'xbone'
 
-TargetOS = TargetOSConts()
+TargetOS = TargetOSContants()

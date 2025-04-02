@@ -46,9 +46,6 @@ def configure(conf):
 
     if target_os == TargetOS.WINDOWS:
         conf.env.append_value('LINKFLAGS', ['dbghelp.lib'])
-    else:
-        conf.env.append_value('CFLAGS', ["-fdebug-compilation-dir=engine/crash"])
-        conf.env.append_value('CXXFLAGS', ["-fdebug-compilation-dir=engine/crash"])
 
 def build(bld):
     global test_context

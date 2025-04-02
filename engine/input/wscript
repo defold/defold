@@ -24,7 +24,6 @@ def options(opt):
 
 def configure(conf):
     conf.load('waf_dynamo')
-    target_os = conf.env['TARGET_OS']
 
     waf_ddf.configure(conf)
 
@@ -36,10 +35,6 @@ def configure(conf):
     conf.env['STLIB_HID_NULL'] = 'hid_null'
 
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="INPUT"')
-
-    if target_os != TargetOS.WINDOWS:
-        conf.env.append_value('CFLAGS', ["-fdebug-compilation-dir=engine/input"])
-        conf.env.append_value('CXXFLAGS', ["-fdebug-compilation-dir=engine/input"])
 
 def build(bld):
     global test_context

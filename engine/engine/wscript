@@ -151,10 +151,6 @@ def configure(conf):
 
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="ENGINE"')
 
-    if target_os != TargetOS.WINDOWS:
-        conf.env.append_value('CFLAGS', ["-fdebug-compilation-dir=engine/engine"])
-        conf.env.append_value('CXXFLAGS', ["-fdebug-compilation-dir=engine/engine"])
-
 def build(bld):
     global test_context
 

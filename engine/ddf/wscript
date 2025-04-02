@@ -14,7 +14,6 @@ sys.path = ["src"] + sys.path
 import waf_ddf, waf_dynamo
 import waflib.Options
 import TestContext
-from build_constants import TargetOS
 
 test_context = None
 
@@ -41,7 +40,6 @@ def configure(conf):
     conf.write_config_header('config.h')
 
     conf.load('waf_dynamo')
-    target_os = conf.env['TARGET_OS']
 
     conf.recurse('src')
 
@@ -54,10 +52,6 @@ def configure(conf):
         conf.env['LIB_PTHREAD'] = ['pthread']
 
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="DDF"')
-
-    if target_os != TargetOS.WINDOWS:
-        conf.env.append_value('CFLAGS', ["-fdebug-compilation-dir=engine/dlib"])
-        conf.env.append_value('CXXFLAGS', ["-fdebug-compilation-dir=engine/dlib"])
 
 def build(bld):
     global test_context

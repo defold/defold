@@ -53,10 +53,6 @@ def configure(conf):
 
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="GUI"')
 
-    if target_os != TargetOS.WINDOWS:
-        conf.env.append_value('CFLAGS', ["-fdebug-compilation-dir=engine/gui"])
-        conf.env.append_value('CXXFLAGS', ["-fdebug-compilation-dir=engine/gui"])
-
 def build(bld):
     global test_context
     bld.recurse('src')
