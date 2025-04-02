@@ -14,12 +14,16 @@
 
 (ns util.eduction
   (:refer-clojure :exclude [cat concat conj cons dedupe distinct drop drop-while filter interpose keep keep-indexed map map-indexed mapcat partition-all partition-by random-sample remove replace take take-nth take-while])
-  (:require [util.array :as array]))
+  (:require [util.array :as array])
+  (:import [clojure.core Eduction]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
 (defonce empty-eduction (eduction))
+
+(defn eduction? [value]
+  (instance? Eduction value))
 
 (definline cat [coll]
   `(->Eduction
@@ -122,6 +126,11 @@
 (definline mapcat [f coll]
   `(->Eduction
      (clojure.core/mapcat ~f)
+     ~coll))
+
+(definline mapcat-indexed [f coll]
+  `(->Eduction
+     (comp (clojure.core/map-indexed ~f) clojure.core/cat)
      ~coll))
 
 (definline partition-all [n coll]

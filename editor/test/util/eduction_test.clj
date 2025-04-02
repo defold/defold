@@ -14,6 +14,7 @@
 
 (ns util.eduction-test
   (:require [clojure.test :refer :all]
+            [util.coll :as coll]
             [util.eduction :as e])
   (:import [clojure.core Eduction]))
 
@@ -24,6 +25,21 @@
 
 ;; Note: Equality checks are performed twice to root out issues from repeat
 ;; evaluation of the eduction.
+
+(deftest eduction?-test
+  (is (true? (e/eduction? (eduction identity nil))))
+  (is (false? (e/eduction? nil)))
+  (is (false? (e/eduction? "a")))
+  (is (false? (e/eduction? [1])))
+  (is (false? (e/eduction? (vector-of :long 1))))
+  (is (false? (e/eduction? '(1))))
+  (is (false? (e/eduction? #{1})))
+  (is (false? (e/eduction? (sorted-set 1))))
+  (is (false? (e/eduction? (double-array 1))))
+  (is (false? (e/eduction? (object-array 1))))
+  (is (false? (e/eduction? (range 1))))
+  (is (false? (e/eduction? (repeatedly 1 rand))))
+  (is (false? (e/eduction? (sequence (map identity) (range 1))))))
 
 (deftest cat-test
   (let [expected (sequence cat [(range 0 3) (range 3 5)])
@@ -149,6 +165,13 @@
 (deftest mapcat-test
   (let [expected (mapcat range [0 1 2 3 4])
         actual (e/mapcat range [0 1 2 3 4])]
+    (is (eduction? actual))
+    (is (= expected actual))
+    (is (= expected actual))))
+
+(deftest mapcat-indexed-test
+  (let [expected (coll/mapcat-indexed repeat [0 1 2 3 4])
+        actual (e/mapcat-indexed repeat [0 1 2 3 4])]
     (is (eduction? actual))
     (is (= expected actual))
     (is (= expected actual))))
