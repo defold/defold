@@ -225,6 +225,9 @@
         property (property-fn)
         edit-type (:edit-type property)
         to-fn (:to-type edit-type identity)
+        from-fn (:from-type edit-type identity)
+        min-val (:min edit-type)
+        max-val (:max edit-type)
         x (.getX event)
         y (.getY event)
         [prev-x prev-y] (ui/user-data target ::position)
@@ -237,25 +240,18 @@
                      (neg? max-delta) -)]
     (when (> (abs max-delta) 1)
       (let [op-seq (ui/user-data target ::op-seq)
-            values (properties/values property)
-            set-operations (properties/resolve-set-operations property values)]
-        (properties/set-values!
-         property
-         (mapv (fn [[node-id prop-kw]]
-                 (let [current-value (to-fn (g/node-value node-id (or prop-kw :value)))
-                       new-value (drag-update-fn current-value update-val)
-                       min-val (:min edit-type)
-                       max-val (:max edit-type)]
-                   (cond-> new-value
-                     min-val (max min-val)
-                     max-val (min max-val)))) set-operations)
-         op-seq)
+            values (or (ui/user-data target ::values)
+                       (properties/values property))
+            new-values (mapv (fn [value]
+                               (cond-> (drag-update-fn value update-val)
+                                 min-val (max min-val)
+                                 max-val (min max-val))) values)]
+        (properties/set-values! property values op-seq)
         (ui/user-data! target ::position [x y])
-        (when (apply = values)
-          (let [[node-id prop-kw] (first set-operations)]
-            (update-ui-fn [(to-fn (g/node-value node-id (or prop-kw :value)))]
-                          (properties/validation-message property)
-                          (properties/read-only? property))))))))
+        (ui/user-data! target ::values new-values)
+        (update-ui-fn (mapv (comp to-fn from-fn) new-values)
+                      (properties/validation-message property)
+                      (properties/read-only? property))))))
 
 (defn handle-label-press-event!
   [^MouseEvent event]
