@@ -190,8 +190,9 @@
                               :index 0))))))
 
 (defn- save-filters! [prefs filters]
-  (prefs/set! prefs console-filters-prefs-key filters)
-  (set-filters! filters))
+  (let [filtering (prefs/get prefs console-filtering-key)]
+    (prefs/set! prefs console-filters-prefs-key filters)
+    (set-filters! (if filtering filters []))))
 
 ;; -----------------------------------------------------------------------------
 ;; Tool Bar
@@ -300,8 +301,9 @@
 
 (defn- init-console-filter! [filter-console-button prefs]
   (let [filters (prefs/get prefs console-filters-prefs-key)
+        filtering (prefs/get prefs console-filtering-key)
         state (atom {:open false :text "" :filters filters})]
-    (set-filters! filters)
+    (set-filters! (if filtering filters []))
     (fx/mount-renderer
       state
       (fx/create-renderer
@@ -314,7 +316,13 @@
 (defonce ^SimpleStringProperty find-term-property (doto (SimpleStringProperty.) (.setValue "")))
 
 (def ^:private filter-svg-path
-  (ui/load-svg-path "scene/images/filter_icon.svg"))
+  (ui/load-svg-path "scene/images/filter.svg"))
+
+(defn- toggle-filtering
+  [^ToggleButton toggle-button prefs]
+  (let [is-selected (.isSelected toggle-button)]
+    (prefs/set! prefs console-filtering-key is-selected)
+    (set-filters! (if is-selected (prefs/get prefs console-filters-prefs-key) []))))
 
 (defn- setup-tool-bar!
   ^Parent [^Parent tool-bar view-node prefs]
@@ -329,11 +337,14 @@
     (.bindBidirectional (.textProperty search-console) find-term-property)
     (ui/bind-key-commands! search-console {"Enter" :find-next
                                            "Shift+Enter" :find-prev})
-    (.setGraphic toggle-console-filtering (icons/make-svg-icon-graphic filter-svg-path))
+    (doto toggle-console-filtering
+      (.setGraphic (icons/make-svg-icon-graphic filter-svg-path))
+      (.setSelected (prefs/get prefs console-filtering-key))
+      (ui/tooltip! "Toggle filtering")
+      (ui/on-action! (toggle-filtering toggle-console-filtering prefs)))
     (ui/bind-action! prev-console :find-prev)
     (ui/bind-action! next-console :find-next)
-    (ui/bind-action! clear-console :clear-console)
-    (ui/bind-action! toggle-console-filtering :toggle-console-filtering))
+    (ui/bind-action! clear-console :clear-console))
   tool-bar)
 
 (defn- dispose-tool-bar! [^Parent tool-bar]
@@ -398,10 +409,6 @@
 
 (handler/defhandler :clear-console :console-tool-bar
   (run [view-node] (clear-console!)))
-
-(handler/defhandler :toggle-console-filtering :console-tool-bar
-  (run [view-node prefs] (let [filtering (prefs/get prefs console-filtering-key)]
-                           (prefs/set! prefs console-filtering-key (not filtering)))))
 
 ;; -----------------------------------------------------------------------------
 ;; Setup

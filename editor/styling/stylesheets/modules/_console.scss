@@ -162,6 +162,26 @@
 
 #toggle-console-filtering {
   @extend .console-image-button-base;
+
+  SVGPath {
+    -fx-fill: -df-text-dark;
+  }
+
+  &:hover {
+    -fx-background-color: -df-component-dark;
+    
+    SVGPath {
+      -fx-fill: -df-text-selected;
+    }
+  }
+
+  &:selected {
+    -fx-background-color: -df-component-light;
+
+    SVGPath {
+      -fx-fill: -df-text-selected;
+    }
+  }
 }
 
 #prev-console {
