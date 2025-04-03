@@ -32,7 +32,8 @@ namespace dmSoundCodec
 {
     namespace
     {
-        struct Decodestream_info {
+        struct DecodestreamInfo
+        {
             Info m_Info;
             uint32_t m_stream_serial;
             uint32_t m_SamplePos;
@@ -45,9 +46,9 @@ namespace dmSoundCodec
             dmArray<uint8_t> m_DataBuffer;
             uint32_t m_LastOutputOffset;
             dmArray<uint8_t> m_LastOutput;
-            uint8_t m_lacing_table[255];
-            uint8_t m_lacing_tableSize;
-            uint32_t m_lacing_tableIndex;
+            uint8_t m_LacingTable[255];
+            uint8_t m_LacingTableSize;
+            uint32_t m_LacingTableIndex;
             uint32_t m_SkipBytes;
             uint8_t m_PacketBuffer[2048];
             uint32_t m_PacketOffset;
@@ -88,7 +89,7 @@ namespace dmSoundCodec
     }
 */
 
-    static void EnsureDataRead(Decodestream_info *stream_info, dmSound::HSoundData sound_data, uint32_t min_bytes_needed)
+    static void EnsureDataRead(DecodestreamInfo *stream_info, dmSound::HSoundData sound_data, uint32_t min_bytes_needed)
     {
         if (stream_info->m_DataBuffer.Size() < min_bytes_needed) {
             uint32_t read_size;
@@ -103,7 +104,7 @@ namespace dmSoundCodec
         }
     }
 
-    static bool ReadPageHeader(Decodestream_info *stream_info, dmSound::HSoundData sound_data, uint8_t& flags, uint32_t& stream_serial, uint32_t& page_size, uint8_t& num_page_segments, uint8_t lacing_table[255])
+    static bool ReadPageHeader(DecodestreamInfo *stream_info, dmSound::HSoundData sound_data, uint8_t& flags, uint32_t& stream_serial, uint32_t& page_size, uint8_t& num_page_segments, uint8_t lacing_table[255])
     {
         EnsureDataRead(stream_info, sound_data, 27 + 255);  // 27 bytes page header and max. 255 lacing table
 
@@ -156,7 +157,7 @@ namespace dmSoundCodec
 //OPT: to simplify the usage we do copy data for the next packet as needed, BUT: we could also only return a pointer to it if...
 // a) it does not cross a page boundary
 // b) the read buffer does not get reconfigured before the data is used in the decoder
-    static bool ReadNextPacket(Decodestream_info *stream_info, dmSound::HSoundData sound_data, uint8_t* out_buffer, uint32_t& out_bytes)
+    static bool ReadNextPacket(DecodestreamInfo *stream_info, dmSound::HSoundData sound_data, uint8_t* out_buffer, uint32_t& out_bytes)
     {
         uint32_t max_out_bytes = out_bytes;
         out_bytes = 0;
@@ -166,8 +167,8 @@ namespace dmSoundCodec
             uint32_t page_size;
             uint32_t stream_serial;
 
-            if (stream_info->m_lacing_tableIndex >= 256 && stream_info->m_SkipBytes == 0) {
-                if (!ReadPageHeader(stream_info, sound_data, flags, stream_serial, page_size, stream_info->m_lacing_tableSize, stream_info->m_lacing_table)) {
+            if (stream_info->m_LacingTableIndex >= 256 && stream_info->m_SkipBytes == 0) {
+                if (!ReadPageHeader(stream_info, sound_data, flags, stream_serial, page_size, stream_info->m_LacingTableSize, stream_info->m_LacingTable)) {
                     break;
                 }
 
@@ -181,7 +182,7 @@ namespace dmSoundCodec
                 }
                 if (is_data) {
                     // Yes. Reset the lacing index...
-                    stream_info->m_lacing_tableIndex = 0;
+                    stream_info->m_LacingTableIndex = 0;
                 }
                 else {
                     stream_info->m_SkipBytes = page_size;
@@ -189,9 +190,9 @@ namespace dmSoundCodec
             }
 
             // Valid data accessible?
-            if (stream_info->m_lacing_tableIndex < 256) {
+            if (stream_info->m_LacingTableIndex < 256) {
 
-                uint8_t segment_size = stream_info->m_lacing_table[stream_info->m_lacing_tableIndex];
+                uint8_t segment_size = stream_info->m_LacingTable[stream_info->m_LacingTableIndex];
 
                 if (segment_size > 0) {
                     EnsureDataRead(stream_info, sound_data, STREAM_BLOCK_SIZE);
@@ -212,8 +213,8 @@ namespace dmSoundCodec
                     stream_info->m_PacketOffset += segment_size;
                 }
 
-                if (++stream_info->m_lacing_tableIndex == stream_info->m_lacing_tableSize) {
-                    stream_info->m_lacing_tableIndex = 256;
+                if (++stream_info->m_LacingTableIndex == stream_info->m_LacingTableSize) {
+                    stream_info->m_LacingTableIndex = 256;
                 }
 
                 if (segment_size < 255) {
@@ -254,11 +255,11 @@ namespace dmSoundCodec
         // Note: the code below assumes all data needed for intialization of the stream is
         //       already available and does NOT need to be stalled for!
         //
-        Decodestream_info *stream_info = new Decodestream_info;
+        DecodestreamInfo* stream_info = new DecodestreamInfo;
         stream_info->m_DataBuffer.SetCapacity(STREAM_BLOCK_SIZE);
         stream_info->m_StreamOffset = 0;
         stream_info->m_SoundData = sound_data;
-        stream_info->m_lacing_tableIndex = 256;
+        stream_info->m_LacingTableIndex = 256;
         stream_info->m_PacketOffset = 0;
         stream_info->m_Decoder = NULL;
         stream_info->m_SkipBytes = 0;
@@ -374,7 +375,7 @@ namespace dmSoundCodec
 
     static Result OpusDecode(HDecodeStream stream, char* buffer[], uint32_t buffer_size, uint32_t* decoded)
     {
-        Decodestream_info *stream_info = (Decodestream_info *) stream;
+        DecodestreamInfo *stream_info = (DecodestreamInfo *) stream;
 
         DM_PROFILE(__FUNCTION__);
 
@@ -452,9 +453,9 @@ namespace dmSoundCodec
     static Result OpusResetStream(HDecodeStream stream)
     {
         // Reset all to re-stream the data (the decoder will not be reiinitialized & header pages are not re-analyzed)
-        Decodestream_info *stream_info = (Decodestream_info *) stream;
+        DecodestreamInfo *stream_info = (DecodestreamInfo *) stream;
         stream_info->m_StreamOffset = 0;
-        stream_info->m_lacing_tableIndex = 256;
+        stream_info->m_LacingTableIndex = 256;
         stream_info->m_PacketOffset = 0;
         stream_info->m_SkipBytes = 0;
         stream_info->m_PacketOffset = 0;
@@ -478,19 +479,19 @@ namespace dmSoundCodec
 
     static void OpusCloseStream(HDecodeStream stream)
     {
-        Decodestream_info *stream_info = (Decodestream_info*) stream;
+        DecodestreamInfo *stream_info = (DecodestreamInfo*) stream;
         opus_decoder_destroy(stream_info->m_Decoder);
         delete stream_info;
     }
 
     static void OpusGetInfo(HDecodeStream stream, struct Info* out)
     {
-        *out = ((Decodestream_info *)stream)->m_Info;
+        *out = ((DecodestreamInfo *)stream)->m_Info;
     }
 
     static int64_t OpusGetInternalPos(HDecodeStream stream)
     {
-        Decodestream_info *stream_info = (Decodestream_info *) stream;
+        DecodestreamInfo *stream_info = (DecodestreamInfo *) stream;
         return stream_info->m_SamplePos;
     }
 

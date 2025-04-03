@@ -623,7 +623,7 @@ def default_flags(self):
             self.env.append_value(f, ['/Oy-', '/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DDDF_EXPOSE_DESCRIPTORS',
                                         '/DWINVER=0x0600', '/D_WIN32_WINNT=0x0600', '/DNOMINMAX',
                                         '/D_CRT_SECURE_NO_WARNINGS', '/wd4996', '/wd4200', '/DUNICODE', '/D_UNICODE',
-                                        '-msse4.2', '/DDM_SOUND_DSP_IMPL=SSE'])
+                                        '/arch:SSE4.2', '/DDM_SOUND_DSP_IMPL=SSE'])
 
         self.env.append_value('LINKFLAGS', '/DEBUG')
         self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB', 'Iphlpapi.LIB', 'AdvAPI32.Lib', 'Gdi32.lib'])
