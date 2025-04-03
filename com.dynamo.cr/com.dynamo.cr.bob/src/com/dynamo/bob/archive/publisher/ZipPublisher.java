@@ -42,7 +42,6 @@ public class ZipPublisher extends Publisher {
     private String projectRoot = null;
     private String filename = null;
     private ZipOutputStream zipOutputStream;
-    private Set<String> zipEntries =  new HashSet<>();
 
     public ZipPublisher(String projectRoot, PublisherSettings settings) {
         super(settings);
@@ -83,7 +82,7 @@ public class ZipPublisher extends Publisher {
                 this.destZipFile = new File(cwd, this.destZipFile.getPath());
             }
 
-            zipEntries.clear();
+            entries.clear();
 
             BufferedOutputStream resourcePackOutputStream = new BufferedOutputStream(Files.newOutputStream(this.tempZipFile.toPath()));
             zipOutputStream = new ZipOutputStream(resourcePackOutputStream);
@@ -119,10 +118,8 @@ public class ZipPublisher extends Publisher {
         final String archiveEntryHexdigest = entry.getHexDigest();
         final String archiveEntryName = entry.getName();
         final String zipEntryName = (archiveEntryHexdigest != null) ? archiveEntryHexdigest : archiveEntryName;
-        synchronized (zipEntries) {
-            if (!zipEntries.add(zipEntryName)) {
-                return;
-            }
+        if (entries.put(archiveEntryName, entry) != null) {
+            return;
         }
         try {
             ZipEntry currentEntry = new ZipEntry(zipEntryName);
@@ -144,11 +141,8 @@ public class ZipPublisher extends Publisher {
         final String archiveEntryHexdigest = entry.getHexDigest();
         final String archiveEntryName = entry.getName();
         final String zipEntryName = (archiveEntryHexdigest != null) ? archiveEntryHexdigest : archiveEntryName;
-        entries.put(archiveEntryName, entry);
-        synchronized (zipEntries) {
-            if (!zipEntries.add(zipEntryName)) {
-                return;
-            }
+        if (entries.put(archiveEntryName, entry) != null) {
+            return;
         }
         try {
             ZipEntry currentEntry = new ZipEntry(zipEntryName);
