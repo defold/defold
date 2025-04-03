@@ -26,6 +26,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -38,6 +40,7 @@ public class ZipPublisher extends Publisher {
     private String projectRoot = null;
     private String filename = null;
     private ZipOutputStream zipOutputStream;
+    private Set<String> zipEntries =  new HashSet<>();
 
     public ZipPublisher(String projectRoot, PublisherSettings settings) {
         super(settings);
@@ -78,6 +81,7 @@ public class ZipPublisher extends Publisher {
                 this.destZipFile = new File(cwd, this.destZipFile.getPath());
             }
 
+            zipEntries.clear();
             entries.clear();
 
             BufferedOutputStream resourcePackOutputStream = new BufferedOutputStream(Files.newOutputStream(this.tempZipFile.toPath()));
@@ -115,8 +119,11 @@ public class ZipPublisher extends Publisher {
         final String archiveEntryHexdigest = entry.getHexDigest();
         final String archiveEntryName = entry.getName();
         final String zipEntryName = (archiveEntryHexdigest != null) ? archiveEntryHexdigest : archiveEntryName;
-        if (entries.put(archiveEntryName, entry) != null) {
-            return;
+        entries.put(archiveEntryName, entry);
+        synchronized (zipEntries) {
+            if (!zipEntries.add(zipEntryName)) {
+                return;
+            }
         }
         try {
             ZipEntry currentEntry = new ZipEntry(zipEntryName);
@@ -138,8 +145,11 @@ public class ZipPublisher extends Publisher {
         final String archiveEntryHexdigest = entry.getHexDigest();
         final String archiveEntryName = entry.getName();
         final String zipEntryName = (archiveEntryHexdigest != null) ? archiveEntryHexdigest : archiveEntryName;
-        if (entries.put(archiveEntryName, entry) != null) {
-            return;
+        entries.put(archiveEntryName, entry);
+        synchronized (zipEntries) {
+            if (!zipEntries.add(zipEntryName)) {
+                return;
+            }
         }
         try {
             ZipEntry currentEntry = new ZipEntry(zipEntryName);
