@@ -2969,24 +2969,6 @@
             [(persistent! textures) (persistent! materials) (persistent! fonts) (persistent! particlefx-resources) (persistent! resources)]))]
     (assoc rt-pb-msg :textures (mapv second textures) :materials (mapv second materials) :fonts (mapv second fonts) :particlefxs (mapv second particlefx-resources) :resources (mapv second resources))))
 
-(defn- transform-properties->pose
-  ^Pose [transform-properties]
-  {:pre [(map? transform-properties)]} ; Gui$NodeDesc in map format.
-  (pose/make (some-> (:position transform-properties) pose/seq-translation)
-             (some-> (:rotation transform-properties) pose/seq-euler-rotation)
-             (some-> (:scale transform-properties) pose/seq-scale)))
-
-(defn- pre-multiply-pb-pose [child-node-desc parent-transform-properties]
-  (let [pose (pose/pre-multiply (transform-properties->pose child-node-desc)
-                                (transform-properties->pose parent-transform-properties))]
-    (protobuf/assign child-node-desc
-      :position (when (pose/translated? pose)
-                  (pose/translation-v4 pose 1.0))
-      :rotation (when (pose/rotated? pose)
-                  (pose/euler-rotation-v4 pose))
-      :scale (when (pose/scaled? pose)
-               (pose/scale-v4 pose)))))
-
 (defn- node-desc->rt-node-desc [node-desc layout-name]
   {:pre [(map? node-desc) ; Gui$NodeDesc in map format.
          (string? layout-name)]}
@@ -3004,7 +2986,12 @@
         ;; :parent are used directly from the decorated-template-node-msg.
         (let [layout->prop->value-for-template-node (:layout->prop->value decorated-template-node-msg)
               prop->value-for-template-node (layout->prop->value-for-template-node layout-name)]
-          ;; Note: Protobuf defaults are included in the prop->value map.
+          ;; Beware:
+          ;; The prop->value map contains [prop-kw, prop-value] entries and
+          ;; includes defaults. The node-desc is a map of [pb-field, pb-value]
+          ;; with defaults stripped out. Refer to the property-conversions map
+          ;; earlier in this file to determine if conversions must be performed
+          ;; before combining values.
           (assert (map? layout->prop->value-for-template-node))
           (assert (map? prop->value-for-template-node))
           (cond-> imported-node-desc
@@ -3025,15 +3012,34 @@
 
                   (or (= (:id decorated-template-node-msg) (:parent imported-node-desc))
                       (coll/empty? (:parent imported-node-desc)))
-                  (->
-                    (protobuf/assign
-                      :parent (:parent decorated-template-node-msg)
-                      :enabled (when-not (and (:enabled imported-node-desc true)
-                                              (prop->value-for-template-node :enabled))
-                                 false)) ; Protobuf default is true, and we want to exclude defaults.
+                  (as-> imported-node-desc
+                        ;; In fact incorrect, but only possibility to retain rotation/scale separation.
+                        (let [template-node-pose
+                              (pose/make
+                                (pose/seq-translation (prop->value-for-template-node :position))
+                                (pose/seq-rotation (prop->value-for-template-node :rotation)) ; Property value is a clj-quat.
+                                (pose/seq-scale (prop->value-for-template-node :scale)))
 
-                    ;; In fact incorrect, but only possibility to retain rotation/scale separation.
-                    (pre-multiply-pb-pose prop->value-for-template-node)))))
+                              imported-node-pose
+                              (pose/make
+                                (some-> (:position imported-node-desc) pose/seq-translation)
+                                (some-> (:rotation imported-node-desc) pose/seq-euler-rotation) ; Protobuf value is a euler-v4.
+                                (some-> (:scale imported-node-desc) pose/seq-scale))
+
+                              baked-pose
+                              (pose/pre-multiply imported-node-pose template-node-pose)]
+
+                          (protobuf/assign imported-node-desc
+                            :parent (:parent decorated-template-node-msg)
+                            :enabled (when-not (and (:enabled imported-node-desc true)
+                                                    (prop->value-for-template-node :enabled))
+                                       false) ; Protobuf default is true, and we want to exclude defaults.
+                            :position (when (pose/translated? baked-pose)
+                                        (pose/translation-v4 baked-pose 1.0))
+                            :rotation (when (pose/rotated? baked-pose)
+                                        (pose/euler-rotation-v4 baked-pose))
+                            :scale (when (pose/scaled? baked-pose)
+                                     (pose/scale-v4 baked-pose))))))))
       (dissoc node-desc :overridden-fields :template-node-child)
       (:templates (meta node-desc)))
 
