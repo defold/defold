@@ -341,7 +341,7 @@
       (.setGraphic (icons/make-svg-icon-graphic filter-svg-path))
       (.setSelected (prefs/get prefs console-filtering-key))
       (ui/tooltip! "Toggle filtering")
-      (ui/on-action! (toggle-filtering toggle-console-filtering prefs)))
+      (ui/on-action! (fn [_] (toggle-filtering toggle-console-filtering prefs))))
     (ui/bind-action! prev-console :find-prev)
     (ui/bind-action! next-console :find-next)
     (ui/bind-action! clear-console :clear-console))
