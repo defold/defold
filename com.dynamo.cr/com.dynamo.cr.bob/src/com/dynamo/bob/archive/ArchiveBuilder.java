@@ -58,7 +58,7 @@ import net.jpountz.lz4.LZ4Factory;
 
 public class ArchiveBuilder {
 
-    private static final Logger logger = Logger.getLogger(ArchiveBuilder.class.getName());
+    private static Logger logger = Logger.getLogger(ArchiveBuilder.class.getName());
 
     public static final int VERSION = 5;
     public static final int HASH_MAX_LENGTH = 64; // 512 bits
@@ -147,6 +147,10 @@ public class ArchiveBuilder {
         return ResourceEncryption.encrypt(buffer);
     }
 
+    public void writeResourcePack(ArchiveEntry entry, byte[] buffer) throws IOException, CompileExceptionError {
+        publisher.publish(entry, buffer);
+    }
+
 
     public List<ArchiveEntry> getExcludedEntries() {
         return excludedEntries;
@@ -206,7 +210,7 @@ public class ArchiveBuilder {
                     .put(archiveEntryPadding) // 11 bytes
                     .array();
                 entry.setHeader(header);
-                this.publisher.publish(entry, buffer);
+                this.writeResourcePack(entry, buffer);
             }
             resourceEntryFlags |= ResourceEntryFlag.EXCLUDED.getNumber();
         } else {
