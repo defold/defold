@@ -216,8 +216,12 @@ namespace dmSound
         void*                   m_DecoderTempOutput;
         float*                  m_DecoderOutput[SOUND_MAX_DECODE_CHANNELS];
 
-        int16_t*                m_OutBuffers[SOUND_OUTBUFFER_COUNT];
+        void*                   m_OutBuffers[SOUND_OUTBUFFER_COUNT];
         uint16_t                m_NextOutBuffer;
+        uint8_t                 m_UseFloatOutput : 1;
+        uint8_t                 m_NormalizeFloatOutput : 1;
+        uint8_t                 m_NonInterleavedOutput : 1;
+        uint8_t                 : 5;
 
         bool                    m_IsDeviceStarted;
         bool                    m_IsAudioInterrupted;
@@ -420,8 +424,11 @@ namespace dmSound
         }
         sound->m_DecoderTempOutput = malloc((sound->m_DeviceFrameCount * SOUND_MAX_SPEED + SOUND_MAX_HISTORY + SOUND_MAX_FUTURE) * sizeof(int16_t) * SOUND_MAX_DECODE_CHANNELS);
 
+        sound->m_UseFloatOutput = device_info.m_UseFloats;
+        sound->m_NormalizeFloatOutput = device_info.m_UseNormalized;
+        sound->m_NonInterleavedOutput = device_info.m_UseNonInterleaved;
         for (int i = 0; i < SOUND_OUTBUFFER_COUNT; ++i) {
-            sound->m_OutBuffers[i] = (int16_t*) malloc(sound->m_DeviceFrameCount * sizeof(int16_t) * SOUND_MAX_MIX_CHANNELS);
+            sound->m_OutBuffers[i] = malloc(sound->m_DeviceFrameCount * (sound->m_UseFloatOutput ? sizeof(float) : sizeof(int16_t)) * SOUND_MAX_MIX_CHANNELS);
         }
         sound->m_NextOutBuffer = 0;
 
@@ -492,7 +499,7 @@ namespace dmSound
             }
 
             for (int i = 0; i < SOUND_OUTBUFFER_COUNT; ++i) {
-                free((void*) sound->m_OutBuffers[i]);
+                free(sound->m_OutBuffers[i]);
             }
 
             for (uint32_t i = 0; i < MAX_GROUPS; i++) {
@@ -1549,15 +1556,18 @@ namespace dmSound
         DM_PROFILE(__FUNCTION__);
 
         SoundSystem* sound = g_SoundSystem;
+
+        uint32_t frame_size = 2 * (sound->m_UseFloatOutput ? sizeof(float) : sizeof(int16_t));
+
         uint32_t n = mix_context->m_FrameCount;
-        int16_t* out = sound->m_OutBuffers[sound->m_NextOutBuffer];
+        void* out = sound->m_OutBuffers[sound->m_NextOutBuffer];
         int* master_index = sound->m_GroupMap.Get(MASTER_GROUP_HASH);
         SoundGroup* master = &sound->m_Groups[*master_index];
         float* mix_buffer[2] = {master->m_MixBuffer[0], master->m_MixBuffer[1]};
 
         if (master->m_Gain.IsZero())
         {
-            memset(out, 0, n * sizeof(uint16_t) * 2);
+            memset(out, 0, n * frame_size);
             return;
         }
 
@@ -1582,7 +1592,18 @@ namespace dmSound
 
         float gain;
         float gaind = GetRampDelta(mix_context, &master->m_Gain, n, gain);
-        ApplyGainAndInterleaveToS16(out, mix_buffer, n, gain, gaind);
+        if (sound->m_UseFloatOutput == 0 && sound->m_NonInterleavedOutput == 0) {
+            ApplyGainAndInterleaveToS16((int16_t*)out, mix_buffer, n, gain, gaind);
+        }
+        else {
+            assert(sound->m_UseFloatOutput == 1 && sound->m_NonInterleavedOutput == 1);
+            if (sound->m_NormalizeFloatOutput) {
+                gain *= 1.0f / 32768.0f;
+                gaind *= 1.0f / 32768.0f;
+            }
+            float* ob[] = {(float*)out, (float*)out + n};
+            ApplyGain(ob, mix_buffer, n, gain, gaind);
+        }
     }
 
     static void StepGroupValues()
@@ -1714,7 +1735,7 @@ namespace dmSound
             // resulting in a huge performance hit. Also, you'll fast forward the sounds.
             {
                 DM_PROFILE("QueueBuffer");
-                sound->m_DeviceType->m_Queue(sound->m_Device, (const int16_t*) sound->m_OutBuffers[sound->m_NextOutBuffer], frame_count);
+                sound->m_DeviceType->m_Queue(sound->m_Device, sound->m_OutBuffers[sound->m_NextOutBuffer], frame_count);
             }
 
             sound->m_NextOutBuffer = (sound->m_NextOutBuffer + 1) % SOUND_OUTBUFFER_COUNT;

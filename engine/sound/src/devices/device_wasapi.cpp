@@ -299,7 +299,7 @@ namespace dmDeviceWasapi
     }
 
     // We get this call after we've returned a non zero value from the DeviceWasapiGetAvailableFrames()
-    static dmSound::Result DeviceWasapiQueue(dmSound::HDevice _device, const int16_t* samples, uint32_t sample_count)
+    static dmSound::Result DeviceWasapiQueue(dmSound::HDevice _device, const void* samples, uint32_t sample_count)
     {
         assert(_device);
         SoundDevice* device = (SoundDevice*) _device;
@@ -337,13 +337,14 @@ namespace dmDeviceWasapi
         if (device->m_Format == WAVE_FORMAT_IEEE_FLOAT)
         {
             float* fout = (float*)out;
+            const int16_t* smp = (const int16_t*)samples;
 
             if (channels_out >= 2)
             {
                 for (int i = 0; i < frames_available; ++i)
                 {
-                    float left = samples[i*channels_in+0]/32768.0f;
-                    float right = samples[i*channels_in+1]/32768.0f;
+                    float left = smp[i*channels_in+0]/32768.0f;
+                    float right = smp[i*channels_in+1]/32768.0f;
 
                     fout[i*channels_out+0] = left;
                     fout[i*channels_out+1] = right;
@@ -358,8 +359,8 @@ namespace dmDeviceWasapi
             {
                 for (int i = 0; i < frames_available; ++i)
                 {
-                    float left = samples[i*channels_in+0]/32768.0f;
-                    float right = samples[i*channels_in+1]/32768.0f;
+                    float left = smp[i*channels_in+0]/32768.0f;
+                    float right = smp[i*channels_in+1]/32768.0f;
 
                     float mix = (left + right) * 0.5f;
                     if (mix < -1.0f) mix = -1.0f;
