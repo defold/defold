@@ -223,31 +223,33 @@
   (.consume event)
   (let [target (.getTarget event)
         property (property-fn)
-        {:keys [key node-ids edit-type]} (property-fn)
-        {:keys [precision from-type to-type]} edit-type
-        [x y] [(.getX event) (.getY event)]
+        edit-type (:edit-type property)
+        to-fn (:to-type edit-type identity)
+        from-fn (:from-type edit-type identity)
+        min-val (:min edit-type)
+        max-val (:max edit-type)
+        x (.getX event)
+        y (.getY event)
         [prev-x prev-y] (ui/user-data target ::position)
         delta-x (- x prev-x)
         delta-y (- prev-y y)
         max-delta (if (> (abs delta-x) (abs delta-y)) delta-x delta-y)
-        update-val (cond-> (or precision 1.0)
+        update-val (cond-> (or (:precision edit-type) 1.0)
                      (.isShiftDown event) (* 10.0)
                      (.isControlDown event) (* 0.1)
                      (neg? max-delta) -)]
     (when (> (abs max-delta) 1)
-      (g/transact
-        (for [node-id node-ids]
-          (let [current-value (cond-> (g/node-value node-id key) to-type to-type)
-                new-value (cond-> (drag-update-fn current-value update-val) 
-                            from-type from-type
-                            (:min edit-type) (max (:min edit-type))
-                            (:max edit-type) (min (:max edit-type)))]
-            (concat (g/operation-sequence (ui/user-data target ::op-seq))
-                    (g/set-property node-id key new-value)))))
-      (ui/user-data! target ::position [x y])
-      (when (apply = (properties/values property))
-        (update-ui-fn [(cond-> (g/node-value (first node-ids) key)
-                         to-type to-type)]
+      (let [op-seq (ui/user-data target ::op-seq)
+            values (or (ui/user-data target ::values)
+                       (properties/values property))
+            new-values (mapv (fn [value]
+                               (cond-> (drag-update-fn value update-val)
+                                 min-val (max min-val)
+                                 max-val (min max-val))) values)]
+        (properties/set-values! property values op-seq)
+        (ui/user-data! target ::position [x y])
+        (ui/user-data! target ::values new-values)
+        (update-ui-fn (mapv (comp to-fn from-fn) new-values)
                       (properties/validation-message property)
                       (properties/read-only? property))))))
 
