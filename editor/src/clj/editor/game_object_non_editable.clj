@@ -107,13 +107,16 @@
                     (add-resource-node-fn self data project)))
           (sort-by val new-value))))
 
-(defn referenced-resources-setter [evaluation-context self new-value old-sources-input-label resource-connections]
+(defn connect-referenced-resources-tx-data [evaluation-context self new-value old-sources-input-label resource-connections]
   (let [basis (:basis evaluation-context)
         project (project/get-project basis self)]
     (into (disconnect-connected-nodes-tx-data basis self old-sources-input-label resource-connections)
           (mapcat (fn [resource]
                     (:tx-data (project/connect-resource-node evaluation-context project resource self resource-connections))))
           new-value)))
+
+(defn connect-referenced-components-tx-data [evaluation-context self referenced-component-resources]
+  (connect-referenced-resources-tx-data evaluation-context self referenced-component-resources :referenced-component-resources referenced-component-connections))
 
 (g/defnode ComponentHostResourceNode
   (inherits resource-node/NonEditableResourceNode)
@@ -122,12 +125,6 @@
             (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value new-value]
                    (data->index-setter evaluation-context self new-value :embedded-component-build-targets add-embedded-component-resource-node))))
-
-  (property referenced-components resource/ResourceVec ; No protobuf counterpart.
-            (dynamic visible (g/constantly false))
-            (value (gu/passthrough referenced-component-resources))
-            (set (fn [evaluation-context self _old-value new-value]
-                   (referenced-resources-setter evaluation-context self new-value :referenced-component-resources referenced-component-connections))))
 
   (input embedded-component-build-targets g/Any :array :cascade-delete)
   (input embedded-component-scenes g/Any :array)
@@ -344,8 +341,7 @@
                                (:tx-data (project/connect-resource-node evaluation-context project proj-path-or-resource self connections)))]
                        (-> (g/set-property self :embedded-component-resource-data->index
                              (prototype-desc->embedded-component-resource-data->index new-value))
-                           (into (g/set-property self :referenced-components
-                                   (prototype-desc->referenced-component-resources new-value proj-path->resource)))
+                           (into (connect-referenced-components-tx-data evaluation-context self (prototype-desc->referenced-component-resources new-value proj-path->resource)))
                            (into (disconnect-connected-nodes-tx-data basis self :own-resource-property-build-targets resource-property-connections))
                            (into (mapcat #(connect-resource % resource-property-connections))
                                  (prototype-desc->referenced-property-resources new-value proj-path->resource))))))))
