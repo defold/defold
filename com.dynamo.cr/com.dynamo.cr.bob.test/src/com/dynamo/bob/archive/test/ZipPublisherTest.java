@@ -24,8 +24,9 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class ZipPublisherTest {
-
-    @Test
+// This isn't a test really, this is setup for development to be able to iterate faster on the archiving
+// see https://github.com/defold/defold/issues/10012
+//    @Test
     public void testCreateArchiveFromFolder() throws IOException {
         String projectRoot = "test_resources"; // Folder to read files from
         String outputFilename = "test_archive.zip";
