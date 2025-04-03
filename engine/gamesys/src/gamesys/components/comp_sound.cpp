@@ -275,7 +275,6 @@ namespace dmGameSystem
                 update_result = HandleEntryFinishedPlaying(world, entry, i);
             }
         }
-        dmSound::Update();
         return update_result;
     }
 
