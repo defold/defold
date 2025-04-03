@@ -14,6 +14,8 @@
   </rowConstraints>
   <HBox id="console-tool-bar" GridPane.rowIndex="0">
     <Button id="filter-console" text="Filter" />
+    <Separator id="toggle-console-filtering-separator" />
+    <ToggleButton id="toggle-console-filtering" />
     <Separator id="search-console-separator" />
     <TextField id="search-console" promptText="Search" HBox.hgrow="ALWAYS" />
     <Separator id="prev-console-separator" />

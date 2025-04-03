@@ -34,6 +34,7 @@
             [editor.fxui :as fxui]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
+            [editor.icons :as icons]
             [editor.prefs :as prefs]
             [editor.resource :as resource]
             [editor.types :as types]
@@ -47,7 +48,7 @@
            [javafx.beans.property SimpleStringProperty]
            [javafx.scene Node Parent Scene]
            [javafx.scene.canvas Canvas GraphicsContext]
-           [javafx.scene.control Button Tab TextField]
+           [javafx.scene.control Button Tab TextField ToggleButton]
            [javafx.scene.input Clipboard KeyEvent MouseEvent ScrollEvent]
            [javafx.scene.layout GridPane Pane]
            [javafx.scene.paint Color]
@@ -59,6 +60,7 @@
 (defonce ^:const url-prefix "/console")
 
 (def ^:const console-filters-prefs-key [:console :filters])
+(def ^:const console-filtering-key [:console :filtering])
 
 (def ^:private pending-atom
   ;; Implementation notes:
@@ -311,21 +313,27 @@
 
 (defonce ^SimpleStringProperty find-term-property (doto (SimpleStringProperty.) (.setValue "")))
 
+(def ^:private filter-svg-path
+  (ui/load-svg-path "scene/images/filter_icon.svg"))
+
 (defn- setup-tool-bar!
   ^Parent [^Parent tool-bar view-node prefs]
   (ui/with-controls tool-bar [^TextField search-console
                               ^Button prev-console
                               ^Button next-console
                               ^Button clear-console
-                              filter-console]
+                              filter-console
+                              ^ToggleButton toggle-console-filtering]
     (init-console-filter! filter-console prefs)
-    (ui/context! tool-bar :console-tool-bar {:term-field search-console :view-node view-node} nil)
+    (ui/context! tool-bar :console-tool-bar {:term-field search-console :view-node view-node :prefs prefs} nil)
     (.bindBidirectional (.textProperty search-console) find-term-property)
     (ui/bind-key-commands! search-console {"Enter" :find-next
                                            "Shift+Enter" :find-prev})
+    (.setGraphic toggle-console-filtering (icons/make-svg-icon-graphic filter-svg-path))
     (ui/bind-action! prev-console :find-prev)
     (ui/bind-action! next-console :find-next)
-    (ui/bind-action! clear-console :clear-console))
+    (ui/bind-action! clear-console :clear-console)
+    (ui/bind-action! toggle-console-filtering :toggle-console-filtering))
   tool-bar)
 
 (defn- dispose-tool-bar! [^Parent tool-bar]
@@ -390,6 +398,10 @@
 
 (handler/defhandler :clear-console :console-tool-bar
   (run [view-node] (clear-console!)))
+
+(handler/defhandler :toggle-console-filtering :console-tool-bar
+  (run [view-node prefs] (let [filtering (prefs/get prefs console-filtering-key)]
+                           (prefs/set! prefs console-filtering-key (not filtering)))))
 
 ;; -----------------------------------------------------------------------------
 ;; Setup

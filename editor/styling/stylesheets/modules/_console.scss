@@ -125,17 +125,14 @@
   -fx-border-radius: 2px;
 }
 
+#prev-console-separator,
 #search-console-separator {
   @extend .console-space-separator;
   -fx-min-width: 16px;
 }
 
-#prev-console-separator {
-  @extend .console-space-separator;
-  -fx-min-width: 16px;
-}
-
-#next-console-separator {
+#next-console-separator,
+#toggle-console-filtering-separator {
   @extend .console-space-separator;
   -fx-min-width: 4px;
 }
@@ -161,6 +158,10 @@
 #step-over-separator {
   @extend .console-space-separator;
   -fx-min-width: 8px;
+}
+
+#toggle-console-filtering {
+  @extend .console-image-button-base;
 }
 
 #prev-console {
