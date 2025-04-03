@@ -16,10 +16,8 @@
   (:require [cljfx.api :as fx]
             [cljfx.component :as fx.component]
             [cljfx.fx.button :as fx.button]
-            [cljfx.fx.check-box :as fx.check-box]
             [cljfx.fx.column-constraints :as fx.column-constraints]
             [cljfx.fx.combo-box :as fx.combo-box]
-            [cljfx.fx.grid-pane :as fx.grid-pane]
             [cljfx.fx.h-box :as fx.h-box]
             [cljfx.fx.image-view :as fx.image-view]
             [cljfx.fx.label :as fx.label]
@@ -27,7 +25,6 @@
             [cljfx.fx.row-constraints :as fx.row-constraints]
             [cljfx.fx.scroll-pane :as fx.scroll-pane]
             [cljfx.fx.stage :as fx.stage]
-            [cljfx.fx.text-field :as fx.text-field]
             [cljfx.fx.tooltip :as fx.tooltip]
             [cljfx.fx.v-box :as fx.v-box]
             [cljfx.lifecycle :as fx.lifecycle]
@@ -218,50 +215,40 @@
 
 
 
-(defn- apply-constraints [props lifecycle grow-key constraints]
-  (assoc props :column-constraints (mapv (fn [maybe-column]
-                                           (let [ret {:fx/type lifecycle}]
-                                             (if maybe-column
-                                               (let [{:keys [grow]} maybe-column]
-                                                 (cond-> ret grow (assoc grow-key :always)))
-                                               ret)))
-                                         constraints)))
-
-(def ^:private ^{:arglists '([props padding])} apply-grid-spacing
-  (let [spacing->style-class (coll/pair-map-by identity #(str "ext-grid-spacing-" (name %)) (:spacing ui-docs/enums))]
-    (fn apply-grid-spacing [props spacing]
-      {:pre [(some? spacing)]}
-      (if-let [style-class (spacing->style-class spacing)]
-        (fxui/add-style-classes props style-class)
-        (if (number? spacing)
-          (assoc props :hgap spacing :vgap spacing)
-          (throw (AssertionError. (str "Invalid spacing: " spacing))))))))
+(defn- apply-constraints [props props-key lifecycle grow-key constraints]
+  (assoc props props-key (mapv (fn [maybe-column]
+                                 (let [ret {:fx/type lifecycle}]
+                                   (if maybe-column
+                                     (let [{:keys [grow]} maybe-column]
+                                       (cond-> ret grow (assoc grow-key :always)))
+                                     ret)))
+                               constraints)))
 
 (defn- grid-view [{:keys [children rows columns alignment padding spacing]
                    :or {spacing :medium}}]
-  (-> {:fx/type fx.grid-pane/lifecycle}
-      (apply-grid-spacing spacing)
-      (cond->
-        children (assoc :children
-                        (into []
-                              (coll/mapcat-indexed
-                                (fn [row row-children]
-                                  (eduction
-                                    (keep-indexed
-                                      (fn [column child]
-                                        (when child
-                                          (let [{:keys [row_span column_span]
-                                                 :or {row_span 1 column_span 1}} (:props (meta child))]
-                                            (assoc child :grid-pane/row row
-                                                         :grid-pane/column column
-                                                         :grid-pane/row-span row_span
-                                                         :grid-pane/column-span column_span)))))
-                                    row-children)))
-                              children))
-        rows (apply-constraints fx.row-constraints/lifecycle :vgrow rows)
-        columns (apply-constraints fx.column-constraints/lifecycle :hgrow columns)
-        padding (apply-padding padding)
-        alignment (apply-alignment alignment))))
+  (cond->
+    {:fx/type fxui/grid
+     :spacing spacing}
+    children (assoc :children
+                    (into []
+                          (coll/mapcat-indexed
+                            (fn [row row-children]
+                              (eduction
+                                (keep-indexed
+                                  (fn [column child]
+                                    (when child
+                                      (let [{:keys [row_span column_span]
+                                             :or {row_span 1 column_span 1}} (:props (meta child))]
+                                        (assoc child :grid-pane/row row
+                                                     :grid-pane/column column
+                                                     :grid-pane/row-span row_span
+                                                     :grid-pane/column-span column_span)))))
+                                row-children)))
+                          children))
+    rows (apply-constraints :row-constraints fx.row-constraints/lifecycle :vgrow rows)
+    columns (apply-constraints :column-constraints fx.column-constraints/lifecycle :hgrow columns)
+    padding (assoc :padding padding)
+    alignment (assoc :alignment alignment)))
 
 (defn- separator-view [{:keys [alignment orientation]
                         :or {alignment :center
@@ -315,17 +302,11 @@
 (defn- label-view [{:keys [alignment text text_alignment color tooltip]
                     :or {alignment :top-left
                          color :text}}]
-  (-> {:fx/type fx.label/lifecycle
-       :style-class ["label" "ext-label"]
-       :min-width :use-pref-size
-       :min-height :use-pref-size
-       :max-width Double/MAX_VALUE
-       :max-height Double/MAX_VALUE}
-      (apply-alignment alignment)
-      (apply-label-color color)
-      (cond-> text (assoc :text text)
-              tooltip (apply-tooltip tooltip)
-              text_alignment (assoc :text-alignment text_alignment))))
+  (cond-> {:fx/type fxui/label :alignment alignment}
+          text (assoc :text text)
+          color (assoc :color color)
+          text_alignment (assoc :text-alignment text_alignment)
+          tooltip (assoc :tooltip tooltip)))
 
 (defn- paragraph-view [{:keys [alignment text text_alignment color word_wrap]
                         :or {alignment :top-left
@@ -487,24 +468,23 @@
                                                         (str message "\n\n" tooltip)
                                                         (or message tooltip))))))
 
+(defn- set-tooltip-and-issue [props tooltip issue]
+  (let [message (:message issue)]
+    (cond-> props (or message tooltip) (assoc :tooltip (if (and message tooltip)
+                                                         (str message "\n\n" tooltip)
+                                                         (or message tooltip))))))
+
 (defn- check-box-view [{:keys [rt text text_alignment alignment issue tooltip enabled value on_value_changed]
                         :or {enabled true
                              value false}}]
   (wrap-in-alignment-container
     {:fx/type ext-with-extra-check-box-props
-     :desc (-> {:fx/type fx.check-box/lifecycle
-                :style-class ["check-box" "ext-check-box"]
-                :mnemonic-parsing false
-                :alignment :center-left
-                :min-width :use-pref-size
-                :min-height :use-pref-size
-                :max-width Double/MAX_VALUE
-                :max-height Double/MAX_VALUE
-                :pseudo-classes (or (some-> issue :severity hash-set) #{})
+     :desc (-> {:fx/type fxui/check-box
                 :disable (not enabled)
                 :selected value}
-               (apply-tooltip-and-issue tooltip issue)
+               (set-tooltip-and-issue tooltip issue)
                (cond->
+                 issue (assoc :color (:severity issue))
                  text (assoc :text text)
                  text_alignment (assoc :text-alignment text_alignment)))
      :props (cond-> {} on_value_changed (assoc :on-selected-changed (make-event-handler-1 :window :value rt "on_value_changed" on_value_changed)))}
@@ -577,13 +557,11 @@
                          :or {text "" enabled true}}]
   (wrap-in-alignment-container
     {:fx/type ext-with-extra-text-field-props
-     :desc (apply-tooltip-and-issue
-             {:fx/type fx.text-field/lifecycle
-              :style-class ["text-field" "ext-text-field"]
-              :pseudo-classes (or (some-> issue :severity hash-set) #{})
-              :disable (not enabled)
-              :text text}
-             tooltip issue)
+     :desc (-> {:fx/type fxui/text-field
+                :disable (not enabled)
+                :text text}
+               (set-tooltip-and-issue tooltip issue)
+               (cond-> issue (assoc :color (:severity issue))))
      :props (cond-> {} on_text_changed (assoc :on-text-changed (make-event-handler-1 :window :value rt "on_text_changed" on_text_changed)))}
     alignment true))
 
@@ -684,15 +662,12 @@
       {:fx/type ext-with-extra-value-field-props
        :props {:text (or edit text)
                :on-focused-changed #(on-value-field-focus-changed rt value text on_value_changed to_value edit swap-state %)}
-       :desc (apply-tooltip-and-issue
-               {:fx/type fx.text-field/lifecycle
-                :style-class ["text-field" "ext-text-field"]
-                :disable (not enabled)
-                :pseudo-classes (or (some-> issue :severity hash-set) #{})
-                :on-text-changed #(swap-state assoc :edit %)
-                :on-key-pressed #(on-value-field-key-pressed rt value text on_value_changed to_value edit swap-state %)}
-               tooltip
-               issue)}
+       :desc (-> {:fx/type fxui/text-field
+                  :disable (not enabled)
+                  :on-text-changed #(swap-state assoc :edit %)
+                  :on-key-pressed #(on-value-field-key-pressed rt value text on_value_changed to_value edit swap-state %)}
+                 (set-tooltip-and-issue tooltip issue)
+                 (cond-> issue (assoc :color (:severity issue))))}
       alignment
       true)))
 
@@ -779,7 +754,7 @@
       button)))
 
 (defn- dialog-view [{:keys [title header content buttons]}]
-  (let [header (or header {:fx/type fxui/label :text title :variant :header})
+  (let [header (or header {:fx/type fxui/legacy-label :text title :variant :header})
         buttons (into []
                       (keep-indexed
                         (fn [i desc]

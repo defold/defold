@@ -15,18 +15,15 @@
 (ns editor.analytics
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
-            [clojure.string :as string]
-            [editor.connection-properties :refer [connection-properties]]
             [editor.system :as sys]
-            [editor.url :as url]
             [service.log :as log])
-  (:import (clojure.lang PersistentQueue)
-           (com.defold.editor Editor)
-           (java.io File)
-           (java.net HttpURLConnection MalformedURLException URL)
-           (java.nio.charset StandardCharsets)
-           (java.util UUID)
-           (java.util.concurrent CancellationException)))
+  (:import [clojure.lang PersistentQueue]
+           [com.defold.editor Editor]
+           [java.io File]
+           [java.net HttpURLConnection MalformedURLException URL]
+           [java.nio.charset StandardCharsets]
+           [java.util UUID]
+           [java.util.concurrent CancellationException]))
 
 (set! *warn-on-reflection* true)
 
@@ -123,7 +120,7 @@
   ^bytes [batch]
   (let [config @config-atom
         cid (get config :cid)
-        payload { :client_id cid :events batch }
+        payload { :client_id cid :events batch}
         ^String payload-json (json/write-str payload)]
     (.getBytes payload-json StandardCharsets/UTF_8)))
 

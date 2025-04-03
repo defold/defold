@@ -47,9 +47,10 @@
 
 (def ^:private case-conversion-rules
   "The formatting rules for each case."
-  {"CamelCase"        [capitalize capitalize "" ]
+  {"CamelCase"        [capitalize capitalize ""]
    "Camel_Snake_Case" [capitalize capitalize "_"]
-   "camelCase"        [lower-case capitalize "" ]
+   "TitleCase"        [capitalize capitalize " "]
+   "camelCase"        [lower-case capitalize ""]
    "Snake_case"       [capitalize lower-case "_"]
    "SNAKE_CASE"       [upper-case upper-case "_"]
    "snake_case"       [lower-case lower-case "_"]

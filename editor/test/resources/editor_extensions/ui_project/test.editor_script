@@ -18,6 +18,7 @@ function M.get_commands()
                         content = editor.ui.grid({
                             padding = editor.ui.PADDING.LARGE,
                             columns = {{}, {grow = true}},
+                            rows = {{}},
                             children = {
                                 {
                                     editor.ui.label({

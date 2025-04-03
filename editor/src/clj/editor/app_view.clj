@@ -617,7 +617,7 @@
 
 (handler/defhandler :preferences :global
   (run [workspace prefs app-view]
-    (prefs-dialog/open-prefs prefs)
+    (prefs-dialog/open! prefs)
     (workspace/update-build-settings! workspace prefs)
     (ui/invalidate-menubar-item! ::file)))
 
@@ -869,13 +869,13 @@
           {:title "Launch Failed"
            :icon :icon/triangle-error
            :header {:fx/type fx.v-box/lifecycle
-                    :children [{:fx/type fxui/label
+                    :children [{:fx/type fxui/legacy-label
                                 :variant :header
                                 :text (format "Launching %s failed"
                                               (if (some? selected-target)
                                                 (targets/target-message-label selected-target)
                                                 "New Local Engine"))}
-                               {:fx/type fxui/label
+                               {:fx/type fxui/legacy-label
                                 :text "If the engine is already running, shut down the process manually and retry"}]}
            :content (.getMessage e)})))))
 
@@ -919,7 +919,7 @@
                 {:title "Build Error"
                  :icon :icon/triangle-error
                  :header "Cyclic resource dependency detected"
-                 :content {:fx/type fxui/label
+                 :content {:fx/type fxui/legacy-label
                            :style-class "dialog-content-padding"
                            :text (get-cycle-detected-help-message (-> cause-ex-data :endpoint gt/endpoint-node-id))}}))
             (error-reporting/report-exception! error))
@@ -1259,7 +1259,7 @@
           {:title "Debugging Not Supported"
            :icon :icon/triangle-error
            :header "This project cannot be used with the debugger"
-           :content {:fx/type fxui/label
+           :content {:fx/type fxui/legacy-label
                      :style-class "dialog-content-padding"
                      :text "It is configured to disable shared script state.
 
@@ -1945,7 +1945,7 @@ If you do not specifically require different script states, consider changing th
           {:title "Couldn't load custom keymap config"
            :icon :icon/triangle-error
            :header {:fx/type fx.v-box/lifecycle
-                    :children [{:fx/type fxui/label
+                    :children [{:fx/type fxui/legacy-label
                                 :text (str "The keymap from " path " couldn't be opened.")}]}
            :content (.getMessage e)})
          (log/error :exception e)
@@ -2326,7 +2326,7 @@ If you do not specifically require different script states, consider changing th
                         :size :default
                         :icon :icon/triangle-error
                         :header "Uncommitted changes detected"
-                        :content {:fx/type fxui/label
+                        :content {:fx/type fxui/legacy-label
                                   :style-class "dialog-content-padding"
                                   :text "Due to potential data-loss concerns, file format upgrades should start from a clean working directory.\n\nWe recommend you commit your local changes before retrying the operation."}
                         :buttons [{:text "Abort"
@@ -2360,7 +2360,7 @@ If you do not specifically require different script states, consider changing th
                            :size :large
                            :icon :icon/circle-question
                            :header "Re-save all files in the latest file format?"
-                           :content {:fx/type fxui/label
+                           :content {:fx/type fxui/legacy-label
                                      :style-class "dialog-content-padding"
                                      :text "Files in the project will be re-saved in the latest file format. This operation cannot be undone.\n\nDue to the potentially large number of affected files, you should coordinate with your project lead before doing this."}
                            :buttons buttons})
@@ -2796,7 +2796,7 @@ If you do not specifically require different script states, consider changing th
              {:title "Desktop Entry Created"
               :header "Desktop Entry Has Been Created!"
               :icon :icon/circle-happy
-              :content {:fx/type fxui/label
+              :content {:fx/type fxui/legacy-label
                         :style-class "dialog-content-padding"
                         :text "You may now launch the Defold editor from the system menu."}
               :buttons [{:text "Close"
