@@ -95,6 +95,7 @@ public class ZipPublisher extends Publisher {
     @Override
     public void stop() throws CompileExceptionError {
         try {
+            zipOutputStream.flush();
             IOUtils.closeQuietly(zipOutputStream);
 
             // make sure parent directories exist
