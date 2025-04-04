@@ -1800,7 +1800,7 @@ bail:
                 dmJobThread::Update(engine->m_JobThreadContext);
 
                 {
-                    DM_PROFILE("Script");
+                    DM_PROFILE("Extension");
 
                     // Script context updates
                     dmGameSystem::ScriptLibContext script_lib_context;

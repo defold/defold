@@ -328,6 +328,7 @@ namespace dmExtension
         while (ed) {
             if (ed->m_Update && ed->m_Initialized)
             {
+                DM_PROFILE_DYN(ed->m_Name, 0);
                 ExtensionResult r = ed->m_Update(params);
                 if (r != EXTENSION_RESULT_OK) {
                     dmLogError("Failed to update extension: %s", ed->m_Name);
