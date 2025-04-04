@@ -1776,7 +1776,6 @@ namespace dmGameSystem
         uint32_t pose_matrix_count;
 
         dmRig::GetPoseMatrixCacheData(world->m_RigContext, &pose_matrix_read_ptr, &pose_matrix_count);
-        dmLogError("pose_matrix_read_ptr %p", pose_matrix_read_ptr);
         if (pose_matrix_count == 0)
             return;
 
