@@ -13,7 +13,7 @@
     <RowConstraints vgrow="NEVER" />
   </rowConstraints>
   <HBox id="console-tool-bar" GridPane.rowIndex="0">
-    <Button id="filter-console" text="Filters" />
+    <Button id="filter-console" text="Filter" />
     <Separator id="search-console-separator" />
     <TextField id="search-console" promptText="Search" HBox.hgrow="ALWAYS" />
     <Separator id="prev-console-separator" />
