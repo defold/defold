@@ -2,7 +2,7 @@
   &:hover {
     -fx-text-fill: -df-text-selected;
     & > .box {
-      -fx-background-color: -df-background-light;
+      -fx-background-color: -df-background-input;
       -fx-border-color: -df-component-light;
     }
   }
@@ -31,7 +31,7 @@
   }
 
   & > .box {
-    -fx-background-color: -df-background-light;
+    -fx-background-color: -df-background-input;
     -fx-background-insets: 0;
     -fx-background-radius: 0;
     -fx-border-width: 1px;

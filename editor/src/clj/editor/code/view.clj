@@ -3649,7 +3649,7 @@
                [{:fx/type fx.label/lifecycle
                  :style-class ["label" "breakpoint-editor-label"]
                  :text "Condition"}
-                {:fx/type fxui/text-field
+                {:fx/type fxui/legacy-text-field
                  :h-box/hgrow :always
                  :style-class ["text-field" "breakpoint-editor-label"]
                  :prompt-text "e.g. i == 1"
@@ -3674,10 +3674,10 @@
                   (when (and (.isSelected tab) (not (ui/ui-disabled?)))
                     (g/with-auto-evaluation-context evaluation-context
                       (reset! state
-                        (when-let [edited-breakpoint (g/node-value view-node :edited-breakpoint evaluation-context)]
-                          {:edited-breakpoint edited-breakpoint
-                           :gutter-metrics (g/node-value view-node :gutter-metrics evaluation-context)
-                           :layout (g/node-value view-node :layout evaluation-context)}))))))]
+                              (when-let [edited-breakpoint (g/node-value view-node :edited-breakpoint evaluation-context)]
+                                {:edited-breakpoint edited-breakpoint
+                                 :gutter-metrics (g/node-value view-node :gutter-metrics evaluation-context)
+                                 :layout (g/node-value view-node :layout evaluation-context)}))))))]
     (fx/mount-renderer
       state
       (fx/create-renderer

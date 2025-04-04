@@ -343,7 +343,7 @@
                     {:title "Updated .gitignore File"
                      :icon :icon/circle-info
                      :header "Updated .gitignore file"
-                     :content {:fx/type fxui/label
+                     :content {:fx/type fxui/legacy-label
                                :style-class "dialog-content-padding"
                                :text (str "The .gitignore file was automatically updated to ignore build output and metadata files.\n"
                                           "You should include it along with your changes the next time you synchronize.")}})
