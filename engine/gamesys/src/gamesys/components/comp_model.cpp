@@ -1776,7 +1776,6 @@ namespace dmGameSystem
         uint32_t pose_matrix_count;
 
         dmRig::GetPoseMatrixCacheData(world->m_RigContext, &pose_matrix_read_ptr, &pose_matrix_count);
-
         if (pose_matrix_count == 0)
             return;
 
@@ -1800,8 +1799,6 @@ namespace dmGameSystem
         tp.m_MinFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
         tp.m_MagFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
         dmGraphics::SetTexture(world->m_SkinnedAnimationData.m_BindPoseCacheTexture, tp);
-
-        dmRig::ResetPoseMatrixCache(world->m_RigContext);
     }
 
     static void UpdateMeshTransforms(ModelComponent* component)
@@ -1879,6 +1876,7 @@ namespace dmGameSystem
     {
         ModelWorld* world = (ModelWorld*)params.m_World;
         ModelContext* context = (ModelContext*)params.m_Context;
+        dmRig::ResetPoseMatrixCache(world->m_RigContext);
 
         const dmArray<ModelComponent*>& components = world->m_Components.GetRawObjects();
         const uint32_t count = components.Size();
