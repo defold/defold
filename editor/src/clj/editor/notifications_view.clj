@@ -74,7 +74,7 @@
                                          :right (- horizontal-padding close-button-margin)}
                                :spacing spacing
                                :fill-height false
-                               :children [{:fx/type fxui/label
+                               :children [{:fx/type fxui/legacy-label
                                            :h-box/hgrow :always
                                            :max-width Double/MAX_VALUE
                                            :text text}
