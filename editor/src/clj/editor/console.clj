@@ -20,6 +20,7 @@
             [cljfx.fx.label :as fx.label]
             [cljfx.fx.list-view :as fx.list-view]
             [cljfx.fx.region :as fx.region]
+            [cljfx.fx.separator :as fx.separator]
             [cljfx.fx.stack-pane :as fx.stack-pane]
             [cljfx.fx.text-field :as fx.text-field]
             [cljfx.fx.v-box :as fx.v-box]
@@ -34,7 +35,6 @@
             [editor.fxui :as fxui]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
-            [editor.icons :as icons]
             [editor.prefs :as prefs]
             [editor.resource :as resource]
             [editor.types :as types]
@@ -48,7 +48,7 @@
            [javafx.beans.property SimpleStringProperty]
            [javafx.scene Node Parent Scene]
            [javafx.scene.canvas Canvas GraphicsContext]
-           [javafx.scene.control Button Tab TextField ToggleButton]
+           [javafx.scene.control Button Tab TextField]
            [javafx.scene.input Clipboard KeyEvent MouseEvent ScrollEvent]
            [javafx.scene.layout GridPane Pane]
            [javafx.scene.paint Color]
@@ -227,9 +227,14 @@
                                      :style-class "cross"}
                            :on-action {:event-type :delete :index i}}]}}))
 
-(defn- filter-console-view [^Node filter-console-button {:keys [open filters text]}]
+(defn- set-global-filtering
+  [prefs enabled]
+  (prefs/set! prefs console-filtering-key enabled)
+  (set-filters! (if enabled (prefs/get prefs console-filters-prefs-key) [])))
+
+(defn- filter-console-view [^Node filter-console-button prefs {:keys [open enabled filters text]}]
   (let [active-filters-count (count (filterv second filters))
-        show-counter (pos? active-filters-count)
+        show-counter (and enabled (pos? active-filters-count))
         anchor (.localToScreen filter-console-button
                                -12.0 ;; shadow offset
                                (- (.getMaxY (.getBoundsInLocal filter-console-button))
@@ -268,7 +273,18 @@
                             :style-class "console-filter-popup-background"}
                            {:fx/type fx.v-box/lifecycle
                             :children
-                            [{:fx/type fx.list-view/lifecycle
+                            [{:fx/type fx.check-box/lifecycle
+                              :focus-traversable false
+                              :max-width ##Inf
+                              :v-box/margin 4
+                              :id "global-console-filtering"
+                              :selected (prefs/get prefs console-filtering-key)
+                              :on-action {:event-type :toggle-global-filtering}
+                              :on-selected-changed (partial set-global-filtering prefs)
+                              :text "Enable filtering"}
+                             {:fx/type fx.separator/lifecycle
+                              :style-class "console-filter-popup-separator"}
+                             {:fx/type fx.list-view/lifecycle
                               :focus-traversable false
                               :style-class "console-filter-popup-list-view"
                               :items (into [] (map-indexed vector) filters)
@@ -288,6 +304,7 @@
   (case (:event-type e)
     :hide (swap! state assoc :open false)
     :show-or-hide (swap! state update :open not)
+    :toggle-global-filtering (swap! state update :enabled not)
     :type (swap! state assoc :text (:fx/event e))
     :delete (let [new-state (swap! state update :filters util/remove-index (:index e))]
               (save-filters! prefs (:filters new-state)))
@@ -302,7 +319,7 @@
 (defn- init-console-filter! [filter-console-button prefs]
   (let [filters (prefs/get prefs console-filters-prefs-key)
         filtering (prefs/get prefs console-filtering-key)
-        state (atom {:open false :text "" :filters filters})]
+        state (atom {:open false :enabled filtering :text "" :filters filters})]
     (set-filters! (if filtering filters []))
     (fx/mount-renderer
       state
@@ -311,18 +328,9 @@
         :opts {:fx.opt/map-event-handler #(handle-filter-event! state prefs %)}
         :middleware (comp
                       fxui/wrap-dedupe-desc
-                      (fx/wrap-map-desc #(filter-console-view filter-console-button %)))))))
+                      (fx/wrap-map-desc #(filter-console-view filter-console-button prefs %)))))))
 
 (defonce ^SimpleStringProperty find-term-property (doto (SimpleStringProperty.) (.setValue "")))
-
-(def ^:private filter-svg-path
-  (ui/load-svg-path "scene/images/filter.svg"))
-
-(defn- toggle-filtering
-  [^ToggleButton toggle-button prefs]
-  (let [is-selected (.isSelected toggle-button)]
-    (prefs/set! prefs console-filtering-key is-selected)
-    (set-filters! (if is-selected (prefs/get prefs console-filters-prefs-key) []))))
 
 (defn- setup-tool-bar!
   ^Parent [^Parent tool-bar view-node prefs]
@@ -330,18 +338,12 @@
                               ^Button prev-console
                               ^Button next-console
                               ^Button clear-console
-                              filter-console
-                              ^ToggleButton toggle-console-filtering]
+                              filter-console]
     (init-console-filter! filter-console prefs)
     (ui/context! tool-bar :console-tool-bar {:term-field search-console :view-node view-node :prefs prefs} nil)
     (.bindBidirectional (.textProperty search-console) find-term-property)
     (ui/bind-key-commands! search-console {"Enter" :find-next
                                            "Shift+Enter" :find-prev})
-    (doto toggle-console-filtering
-      (.setGraphic (icons/make-svg-icon-graphic filter-svg-path))
-      (.setSelected (prefs/get prefs console-filtering-key))
-      (ui/tooltip! "Toggle filtering")
-      (ui/on-action! (fn [_] (toggle-filtering toggle-console-filtering prefs))))
     (ui/bind-action! prev-console :find-prev)
     (ui/bind-action! next-console :find-next)
     (ui/bind-action! clear-console :clear-console))
