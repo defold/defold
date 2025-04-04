@@ -123,8 +123,7 @@ public class GameProjectBuilder extends Builder {
         ProtoBuilder.addMessageClass(".skeletonc", Skeleton.class);
         ProtoBuilder.addMessageClass(".texturesetc", TextureSet.class);
 
-        boolean shouldPublish = project.option("liveupdate", "false").equals("true");
-        project.createPublisher(shouldPublish);
+        project.createPublisher();
         TaskBuilder builder = Task.newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
@@ -162,7 +161,12 @@ public class GameProjectBuilder extends Builder {
         }
 
         String textureProfilesPath = project.getProjectProperties().getStringValue("graphics", "texture_profiles", "/builtins/graphics/default.texture_profiles");
-        createSubTask(textureProfilesPath, "", builder);
+        createSubTask(textureProfilesPath, "graphics.texture_profiles", builder);
+
+        IResource publisherSettingsResorce = project.getPublisher().getPublisherSettingsResorce();
+        if (publisherSettingsResorce != null) {
+            builder.addInput(publisherSettingsResorce);
+        }
 
         return builder.build();
     }

@@ -15,6 +15,7 @@
 package com.dynamo.bob.archive.publisher;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -24,9 +25,12 @@ import java.text.ParseException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import com.dynamo.bob.fs.IResource;
 import org.apache.commons.io.IOUtils;
 
 public class PublisherSettings {
+
+    private IResource resource;
 
     public enum PublishMode {
         Amazon, Zip
@@ -198,12 +202,23 @@ public class PublisherSettings {
         return settings;
     }
 
-    public static PublisherSettings load(InputStream in) throws IOException, ParseException {
+    public static PublisherSettings load(IResource publisherSettingsResorce) throws IOException, ParseException {
+        ByteArrayInputStream in = new ByteArrayInputStream(publisherSettingsResorce.getContent());
         try {
-            return PublisherSettings.doLoad(in);
+            PublisherSettings publisherSettings = PublisherSettings.doLoad(in);
+            publisherSettings.setResource(publisherSettingsResorce);
+            return publisherSettings;
         } finally {
             IOUtils.closeQuietly(in);
         }
+    }
+
+    private void setResource(IResource publisherSettingsResorce) {
+        this.resource = publisherSettingsResorce;
+    }
+
+    public IResource getResource() {
+        return resource;
     }
 
     public static void save(PublisherSettings settings, File fhandle) {
