@@ -1080,7 +1080,8 @@ namespace dmSound
         instance->m_FrameCount = SOUND_MAX_HISTORY + (avail_framecount - used_framecount) + SOUND_MAX_FUTURE;
         assert(instance->m_FrameCount <= SOUND_INSTANCE_STATEFRAMECOUNT);
         uint32_t state_bytes = instance->m_FrameCount * sizeof(float);
-        uint32_t state_offset = used_framecount - SOUND_MAX_HISTORY;
+        // note: offset can be negative without exceeding allocate memory - we hence need to ensure proper, signed extension to 64-bit on system using 64-bit pointers
+        int32_t state_offset = (int32_t)(used_framecount - SOUND_MAX_HISTORY);
 
         for(uint32_t c=0; c<channels; ++c)
         {
