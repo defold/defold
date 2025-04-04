@@ -38,7 +38,7 @@
            [javafx.scene Node Parent]
            [javafx.scene.control Button CheckBox ColorPicker Control Label Slider TextArea TextField TextInputControl ToggleButton Tooltip]
            [javafx.scene.input MouseEvent MouseDragEvent]
-           [javafx.scene.layout AnchorPane ColumnConstraints GridPane HBox Pane Priority Region VBox]
+           [javafx.scene.layout AnchorPane ColumnConstraints GridPane HBox Pane Priority Region StackPane VBox]
            [javafx.scene.paint Color]
            [javafx.util Duration]))
 
@@ -582,6 +582,7 @@
         color-picker (ColorPicker.)
         ignore-alpha (:ignore-alpha? edit-type)
         value->display-color #(some-> % value->color (color->web-string ignore-alpha))
+        get-overlay #(.lookup (ui/main-root) "#overlay")
         pane (doto (AnchorPane. (ui/node-array [text color-dropper]))
                (HBox/setHgrow Priority/ALWAYS)
                (ui/add-style! "color-pane"))
@@ -609,10 +610,13 @@
       (AnchorPane/setLeftAnchor 0.0)
       (ui/add-style! "color-input")
       (customize! commit-fn cancel-fn))
-    (ui/on-action! color-picker (fn [_]
-                                  (let [c (.getValue color-picker)]
-                                    (set-color-value! property-fn ignore-alpha c)
-                                    (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true))))
+    (doto color-picker
+      (ui/on-action! (fn [_]
+                       (let [c (.getValue color-picker)]
+                         (set-color-value! property-fn ignore-alpha c)
+                         (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true))))
+      (.setOnShown (ui/event-handler event (.setVisible ^StackPane (get-overlay) true)))
+      (.setOnHidden (ui/event-handler event (.setVisible ^StackPane (get-overlay) false))))
     (ui/observe-list (.getCustomColors color-picker) (fn [_ values] (save-colors! values prefs)))
     (ui/children! wrapper [pane color-picker])
     [wrapper update-ui-fn]))

@@ -196,22 +196,22 @@
         capsule-cap-longs 32
         sphere-faces (geom/unit-sphere-pos-nrm capsule-cap-lats capsule-cap-longs)
         hemisphere-face-count (/ (* capsule-cap-lats capsule-cap-longs) 2)]
-    (concat
-      ;; Top cap
-      (sequence (comp (take hemisphere-face-count)
-                      (map #(pos-nrm-face->quad % 1.0)))
-                sphere-faces)
+    (vec (concat
+           ;; Top cap
+           (sequence (comp (take hemisphere-face-count)
+                           (map #(pos-nrm-face->quad % 1.0)))
+                     sphere-faces)
 
-      ;; Waist
-      (sequence (comp (drop hemisphere-face-count)
-                      (take capsule-cap-longs)
-                      (map pos-nrm-face->waist-quad))
-                sphere-faces)
+           ;; Waist
+           (sequence (comp (drop hemisphere-face-count)
+                           (take capsule-cap-longs)
+                           (map pos-nrm-face->waist-quad))
+                     sphere-faces)
 
-      ;; Bottom cap
-      (sequence (comp (drop hemisphere-face-count)
-                      (map #(pos-nrm-face->quad % -1.0)))
-                sphere-faces))))
+           ;; Bottom cap
+           (sequence (comp (drop hemisphere-face-count)
+                           (map #(pos-nrm-face->quad % -1.0)))
+                     sphere-faces)))))
 
 (defn- pos-vtx-put-point! [vbuf ^Point4d point]
   (pos-vtx-put! vbuf (.x point) (.y point) (.z point) (.w point)))

@@ -429,6 +429,7 @@ public class Project {
         {".sound", ".soundc"},
         {".wav", ".soundc"},
         {".ogg", ".soundc"},
+        {".opus", ".soundc"},
         {".collectionfactory", ".collectionfactoryc"},
         {".factory", ".factoryc"},
         {".light", ".lightc"},

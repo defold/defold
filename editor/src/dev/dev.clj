@@ -1442,12 +1442,12 @@
    :header {:fx/type fx.h-box/lifecycle
             :style-class "spacing-default"
             :alignment :center-left
-            :children [{:fx/type fxui/label
+            :children [{:fx/type fxui/legacy-label
                         :variant :header
                         :text header-text}]}
    :content {:fx/type fx.v-box/lifecycle
              :style-class ["dialog-content-padding" "spacing-smaller"]
-             :children [{:fx/type fxui/label
+             :children [{:fx/type fxui/legacy-label
                          :wrap-text false
                          :text (:message progress)}
                         {:fx/type fx.progress-bar/lifecycle

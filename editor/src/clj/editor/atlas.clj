@@ -50,7 +50,9 @@
             [editor.workspace :as workspace]
             [internal.util :as util]
             [schema.core :as s]
+            [util.coll :as coll :refer [pair]]
             [util.digestable :as digestable]
+            [util.eduction :as e]
             [util.fn :as fn]
             [util.murmur :as murmur])
   (:import [com.dynamo.bob.pipeline AtlasUtil ShaderUtil$Common ShaderUtil$VariantTextureArrayFallback]
@@ -137,8 +139,8 @@
         augmented-fragment-source (.source transformed-shader-result)
         array-sampler-names (vec (.arraySamplers transformed-shader-result))
         array-sampler-uniform-names (into {}
-                                          (map (fn [item] [item (array-sampler-name->uniform-names item ShaderUtil$Common/MAX_ARRAY_SAMPLERS)])
-                                               array-sampler-names))]
+                                          (map #(pair % (array-sampler-name->uniform-names % ShaderUtil$Common/MAX_ARRAY_SAMPLERS)))
+                                          array-sampler-names)]
     (shader/make-shader ::atlas-shader pos-uv-vert augmented-fragment-source {} array-sampler-uniform-names)))
 
 (defn- render-rect
@@ -684,9 +686,9 @@
   ;; to the TextureSetGenerator.calculateLayout() method that only includes data
   ;; that can affect the layout.
   (or (validate-layout-properties _node-id margin inner-padding extrude-borders)
-      (let [fake-animations (map make-animation
-                                 (repeat "")
-                                 animation-images)
+      (let [fake-animations (mapv make-animation
+                                  (repeat "")
+                                  animation-images)
             augmented-args (-> args
                                (dissoc :_node-id :animation-images)
                                (assoc :animations fake-animations
@@ -737,12 +739,12 @@
   [animations layout-data all-atlas-images rename-patterns]
   (let [incomplete-ddf-texture-set (:texture-set layout-data)
         incomplete-ddf-animations (:animations incomplete-ddf-texture-set)
-        animation-present-in-ddf? (comp not-empty :images)
+        animation-present-in-ddf? (comp coll/not-empty :images)
         animations-in-ddf (filter animation-present-in-ddf?
                                   animations)
-        complete-ddf-animations (map complete-ddf-animation
-                                     incomplete-ddf-animations
-                                     animations-in-ddf)
+        complete-ddf-animations (mapv complete-ddf-animation
+                                      incomplete-ddf-animations
+                                      animations-in-ddf)
         ;; Texture set must contain hashed references to images:
         ;; - for stand-alone images: as simple `base-name`
         ;; - for images in animations: as `animation/base-name`
@@ -759,9 +761,8 @@
                                     (into
                                       (mapcat
                                         (fn [{:keys [id images]}]
-                                          (eduction
-                                            (map #(-> % :path (texture-set-gen/resource-id id rename-patterns) murmur/hash64))
-                                            images)))
+                                          (e/map #(-> % :path (texture-set-gen/resource-id id rename-patterns) murmur/hash64)
+                                                 images)))
                                       animations))
         complete-ddf-texture-set (assoc incomplete-ddf-texture-set
                                    :animations complete-ddf-animations

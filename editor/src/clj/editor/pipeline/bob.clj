@@ -41,6 +41,7 @@
 
 (set! *warn-on-reflection* true)
 
+
 (defn ->progress
   ([render-progress!]
    (->progress render-progress! fn/constantly-false))

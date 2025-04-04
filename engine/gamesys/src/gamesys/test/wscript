@@ -73,6 +73,7 @@ def build(bld):
                         'ResourceTypeGui',
                         'ResourceTypeGuiScript',
                         'ResourceTypeOgg',
+                        'ResourceTypeOpus',
                         'ResourceTypeWav',
                         'GraphicsAdapterNull',
                         'ScriptImageExt',

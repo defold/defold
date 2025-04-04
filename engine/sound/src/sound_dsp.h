@@ -28,7 +28,7 @@
 #endif
 
 // Make sure we use compile time selected fallback code if nothing is selected at all
-#if !defined(DM_SOUND_DSP_IMPL) && !defined(DM_SOUND_DSP_SSE2) && !defined(DM_SOUND_DSP_WASM)
+#if !defined(DM_SOUND_DSP_IMPL)
 #define DM_SOUND_DSP_IMPL Fallback
 #endif
 
@@ -644,6 +644,7 @@ static inline void MixScaledStereoToStereo(float* out[], const float* in_l, cons
 static inline uint64_t MixAndResampleMonoToStereo_Polyphase(float* out[], const float* in, uint32_t num, uint64_t frac, uint64_t delta, float scale_l, float scale_r, float scale_delta_l, float scale_delta_r)
 {
     DM_PROFILE("MixAndResampleMonoToStereo_Polyphase_SSE2");
+
     // setup ramps
     vec4 scld = _mm_set1_ps(scale_delta_l);
     vec4 scrd = _mm_set1_ps(scale_delta_r);
@@ -1365,7 +1366,7 @@ static DSPImpl wasm_impl =
 };
 #endif
 
-#if defined(DM_SOUND_SSE2)
+#if defined(DM_SIMD_SSE2)
 static DSPImpl sse_impl =
 {
     SSE::MixScaledMonoToStereo,
