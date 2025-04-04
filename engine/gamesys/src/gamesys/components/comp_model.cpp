@@ -1776,7 +1776,7 @@ namespace dmGameSystem
         uint32_t pose_matrix_count;
 
         dmRig::GetPoseMatrixCacheData(world->m_RigContext, &pose_matrix_read_ptr, &pose_matrix_count);
-
+        dmLogError("pose_matrix_read_ptr %p", pose_matrix_read_ptr);
         if (pose_matrix_count == 0)
             return;
 
@@ -1800,8 +1800,6 @@ namespace dmGameSystem
         tp.m_MinFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
         tp.m_MagFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
         dmGraphics::SetTexture(world->m_SkinnedAnimationData.m_BindPoseCacheTexture, tp);
-
-        dmRig::ResetPoseMatrixCache(world->m_RigContext);
     }
 
     static void UpdateMeshTransforms(ModelComponent* component)
@@ -1898,6 +1896,7 @@ namespace dmGameSystem
 
             if (component.m_RequiresBindPoseCaching)
             {
+                dmRig::ResetPoseMatrixCache(world->m_RigContext);
                 if (dmRig::AcquirePoseMatrixCacheEntry(world->m_RigContext, component.m_RigInstance) == dmRig::INVALID_POSE_MATRIX_CACHE_ENTRY)
                 {
                     dmLogWarning("Model requires bind pose cache, but was not able to acquire a cache index. Consider increasing the cache size (model.max_bone_matrix_texture_width and model.max_bone_matrix_texture_height).");
