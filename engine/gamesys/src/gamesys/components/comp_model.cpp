@@ -1876,6 +1876,7 @@ namespace dmGameSystem
     {
         ModelWorld* world = (ModelWorld*)params.m_World;
         ModelContext* context = (ModelContext*)params.m_Context;
+        dmRig::ResetPoseMatrixCache(world->m_RigContext);
 
         const dmArray<ModelComponent*>& components = world->m_Components.GetRawObjects();
         const uint32_t count = components.Size();
@@ -1895,7 +1896,6 @@ namespace dmGameSystem
 
             if (component.m_RequiresBindPoseCaching)
             {
-                dmRig::ResetPoseMatrixCache(world->m_RigContext);
                 if (dmRig::AcquirePoseMatrixCacheEntry(world->m_RigContext, component.m_RigInstance) == dmRig::INVALID_POSE_MATRIX_CACHE_ENTRY)
                 {
                     dmLogWarning("Model requires bind pose cache, but was not able to acquire a cache index. Consider increasing the cache size (model.max_bone_matrix_texture_width and model.max_bone_matrix_texture_height).");
