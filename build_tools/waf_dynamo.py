@@ -476,8 +476,6 @@ def default_flags(self):
 
                 if build_util.get_target_architecture() == 'x86_64':
                     self.env.append_value(f, ['-DDM_SOUND_DSP_IMPL=SSE'])
-                else:
-                    self.env.append_value(f, ['-DDM_SOUND_DSP_IMPL=Fallback'])
 
         self.env.append_value('LINKFLAGS', ['-stdlib=libc++', '-isysroot', sys_root, '-mmacosx-version-min=%s' % sdk.VERSION_MACOSX_MIN, '-framework', 'Carbon','-flto'])
         self.env.append_value('LINKFLAGS', ['-target', '%s-apple-darwin19' % build_util.get_target_architecture()])
@@ -601,7 +599,7 @@ def default_flags(self):
         linkflags += ['-O%s' % opt_level]
 
         if 'wasm' == build_util.get_target_architecture():
-            flags += ['-msimd128', '-msse4.2']
+            flags += ['-msimd128', '-msse4.2', '-DDM_SOUND_DSP_IMPL=WASM']
 
         self.env['DM_HOSTFS']           = '/node_vfs/'
         self.env.append_value('DEFINES', ['DM_NO_THREAD_SUPPORT', 'JC_TEST_NO_DEATH_TEST'])
@@ -625,7 +623,7 @@ def default_flags(self):
             self.env.append_value(f, ['/Oy-', '/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DDDF_EXPOSE_DESCRIPTORS',
                                         '/DWINVER=0x0600', '/D_WIN32_WINNT=0x0600', '/DNOMINMAX',
                                         '/D_CRT_SECURE_NO_WARNINGS', '/wd4996', '/wd4200', '/DUNICODE', '/D_UNICODE',
-                                        '/DDM_SOUND_DSP_IMPL=SSE'])
+                                        '/arch:SSE4.2', '/DDM_SOUND_DSP_IMPL=SSE'])
 
         self.env.append_value('LINKFLAGS', '/DEBUG')
         self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB', 'Iphlpapi.LIB', 'AdvAPI32.Lib', 'Gdi32.lib'])
@@ -2128,4 +2126,5 @@ def options(opt):
     opt.add_option('--with-vulkan', action='store_true', default=False, dest='with_vulkan', help='Enables Vulkan as graphics backend')
     opt.add_option('--with-vulkan-validation', action='store_true', default=False, dest='with_vulkan_validation', help='Enables Vulkan validation layers (on osx and ios)')
     opt.add_option('--with-dx12', action='store_true', default=False, dest='with_dx12', help='Enables DX12 as a graphics backend')
+    opt.add_option('--with-opus', action='store_true', default=False, dest='with_opus', help='Enable Opus audio codec support in runtime')
     opt.add_option('--with-webgpu', action='store_true', default=False, dest='with_webgpu', help='Enables WebGPU as graphics backend')

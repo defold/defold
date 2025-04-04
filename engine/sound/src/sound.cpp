@@ -700,6 +700,8 @@ namespace dmSound
             codec_format = dmSoundCodec::FORMAT_WAV;
         } else if (sound_data->m_Type == SOUND_DATA_TYPE_OGG_VORBIS) {
             codec_format = dmSoundCodec::FORMAT_VORBIS;
+        } else if (sound_data->m_Type == SOUND_DATA_TYPE_OPUS) {
+            codec_format = dmSoundCodec::FORMAT_OPUS;
         } else {
             assert(0);
         }
@@ -1522,7 +1524,7 @@ namespace dmSound
                 float max_sq_left;
                 float max_sq_right;
                 GatherPowerData(g->m_MixBuffer, frame_count, g->m_Gain.m_Current, sum_sq_left, sum_sq_right, max_sq_left, max_sq_right);
-                int memory_slot = g->m_NextMemorySlot; 
+                int memory_slot = g->m_NextMemorySlot;
                 g->m_FrameCounts[memory_slot] = frame_count;
                 g->m_SumSquaredMemory[2 * memory_slot + 0] = sum_sq_left;
                 g->m_SumSquaredMemory[2 * memory_slot + 1] = sum_sq_right;
@@ -1702,9 +1704,15 @@ namespace dmSound
             // Get the number of frames available
             uint32_t frame_count = sound->m_DeviceFrameCount;
             if (sound->m_DeviceType->m_GetAvailableFrames)
+            {
                 frame_count = sound->m_DeviceType->m_GetAvailableFrames(sound->m_Device);
+            }
 
             sound->m_FrameCount = frame_count;
+
+            if (frame_count < SOUND_MAX_HISTORY)
+                continue;
+
             MixContext mix_context(current_buffer, total_buffers, frame_count);
             MixInstances(&mix_context);
 
