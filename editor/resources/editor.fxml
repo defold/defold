@@ -253,4 +253,5 @@
       </HBox>
     </children>
   </VBox>
+  <StackPane id="overlay" visible="false" /> 
 </StackPane>

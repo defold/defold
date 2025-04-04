@@ -219,9 +219,12 @@
                                            (.replace (System/getProperty "user.home") \\ \/)
                                            "/.m2/repository/com/github/jbellis/jamm/0.4.0/jamm-0.4.0.jar")
                                         "-Ddefold.jamm=true"
+                                        "--add-opens=java.base/java.util=ALL-UNNAMED"
                                         "--add-opens=java.base/java.util.function=ALL-UNNAMED"
                                         "--add-opens=java.base/java.util.regex=ALL-UNNAMED"
-                                        "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED"]}
+                                        "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED"
+                                        "--add-opens=java.net.http/jdk.internal.net.http=ALL-UNNAMED"
+                                        "--add-opens=java.net.http/jdk.internal.net.http.common=ALL-UNNAMED"]}
                       :no-asserts {:global-vars {*assert* false}}
                       :no-decorated-exceptions {:jvm-opts ["-Ddefold.exception.decorate.disable=true"]}
                       :no-schemas {:jvm-opts ["-Ddefold.schema.check.disable=true"]}
@@ -282,12 +285,14 @@
                                 :jvm-opts          ["-Ddefold.extension.lua-preprocessor.url=https://github.com/defold/extension-lua-preprocessor/archive/refs/tags/1.1.3.zip"
                                                     "-Ddefold.extension.rive.url=https://github.com/defold/extension-rive/archive/refs/tags/3.9.0.zip"
                                                     "-Ddefold.extension.simpledata.url=https://github.com/defold/extension-simpledata/archive/refs/tags/v1.1.0.zip"
-                                                    "-Ddefold.extension.spine.url=https://github.com/defold/extension-spine/archive/refs/tags/3.6.5.zip"
+                                                    "-Ddefold.extension.spine.url=https://github.com/defold/extension-spine/archive/refs/tags/3.7.0.zip"
                                                     "-Ddefold.extension.teal.url=https://github.com/defold/extension-teal/archive/refs/tags/v1.2.zip"
-                                                    "-Ddefold.extension.texturepacker.url=https://github.com/defold/extension-texturepacker/archive/refs/tags/2.1.3.zip"
+                                                    "-Ddefold.extension.texturepacker.url=https://github.com/defold/extension-texturepacker/archive/refs/tags/2.2.0.zip"
                                                     "-Ddefold.unpack.path=tmp/unpack"
                                                     "-Ddefold.nrepl=true"
                                                     "-Ddefold.log.dir="
+                                                    ;"-Djogl.verbose=true"
+                                                    ;"-Djogl.debug=true"
                                                     "-Djogl.debug.DebugGL" ; TraceGL is also useful
                                                     "-Djogl.texture.notexrect=true"
                                                     "-XX:MaxRAMPercentage=75"

@@ -103,6 +103,7 @@ namespace dmRender
         dmRenderDDF::MaterialDesc::VertexSpace  m_VertexSpace;
         uint8_t                                 m_InstancingSupported : 1;
         uint8_t                                 m_HasSkinnedAttributes : 1;
+        uint8_t                                 m_HasSkinnedMatrixCache : 1;
     };
 
     struct ComputeProgram

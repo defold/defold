@@ -13,8 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.changes-view
-  (:require [clojure.java.io :as io]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
             [editor.core :as core]
             [editor.dialogs :as dialogs]
             [editor.diff-view :as diff-view]
@@ -100,8 +99,9 @@
     :icon "icons/32/Icons_S_02_Reset.png"
     :command :revert}])
 
-(defn- path->file [workspace ^String path]
-  (File. ^File (workspace/project-path workspace) path))
+(defn- path->file
+  ^File [workspace ^String path]
+  (File. (workspace/project-directory workspace) path))
 
 (handler/defhandler :revert :changes-view
   (enabled? [selection]
@@ -143,8 +143,8 @@
 
 (defn- try-open-git
   ^Git [workspace]
-  (let [repo-path (io/as-file (g/node-value workspace :root))
-        git (git/try-open repo-path)
+  (let [repo-directory (workspace/project-directory workspace)
+        git (git/try-open repo-directory)
         head-commit (some-> git .getRepository (git/get-commit "HEAD"))]
     (if (some? head-commit)
       git

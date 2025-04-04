@@ -2816,7 +2816,7 @@ static int GetAtlas(lua_State* L)
 }
 
 /*# Update internal sound resource
- * Update internal sound resource (wavc/oggc) with new data
+ * Update internal sound resource (wavc/oggc/opusc) with new data
  *
  * @name resource.set_sound
  *
@@ -2865,10 +2865,10 @@ static uint8_t* CheckBufferOrString(lua_State* L, int index, uint32_t* data_size
 }
 
 
-/*#  Creates a sound data resource (.oggc/.wavc)
+/*#  Creates a sound data resource (.oggc/.opusc/.wavc)
  *
  * Creates a sound data resource
- * Supported formats are .oggc and .wavc
+ * Supported formats are .oggc, .opusc and .wavc
  *
  * @name resource.create_sound_data
  * @param path [type:string] the path to the resource. Must not already exist.
@@ -2904,12 +2904,12 @@ static int CreateSoundData(lua_State* L)
     const char* path = luaL_checkstring(L, 1);
     const char* path_ext = dmResource::GetExtFromPath(path);
 
-    const char* exts[]  = {".wav", ".ogg", ".wavc", ".oggc"};
+    const char* exts[]  = {".wav", ".ogg", ".opus", ".wavc", ".oggc", ".opusc"};
 
     dmhash_t canonical_path_hash = 0;
     PreCreateResources(L, path, exts, DM_ARRAY_SIZE(exts), &canonical_path_hash);
 
-    // Find the correct type, as the resource types are registered as .wavc / .oggc
+    // Find the correct type, as the resource types are registered as .wavc / .oggc / .opusc
     char type_suffix[32];
     {
         // Skip the '.'
@@ -3128,6 +3128,9 @@ static int CreateBuffer(lua_State* L)
 
         buffer = dst_buffer;
     }
+
+    // before overwriting the resource buffer we just created, we need to garbage collect it
+    dmBuffer::Destroy(resource->m_Buffer);
 
     resource->m_BufferDDF = 0;
     resource->m_Buffer    = buffer;

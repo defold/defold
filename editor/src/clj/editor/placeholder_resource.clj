@@ -26,8 +26,7 @@
   (output build-targets g/Any produce-build-targets))
 
 (defn- additional-load-fn [project node-id resource]
-  (when (and (resource/file-resource? resource)
-             (resource/editable? resource)
+  (when (and (resource/save-tracked? resource)
              (not (text-util/binary? resource)))
     (g/connect node-id :save-data project :save-data)))
 

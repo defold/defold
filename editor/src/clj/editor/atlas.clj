@@ -50,7 +50,9 @@
             [editor.workspace :as workspace]
             [internal.util :as util]
             [schema.core :as s]
+            [util.coll :as coll :refer [pair]]
             [util.digestable :as digestable]
+            [util.eduction :as e]
             [util.fn :as fn]
             [util.murmur :as murmur])
   (:import [com.dynamo.bob.pipeline AtlasUtil ShaderUtil$Common ShaderUtil$VariantTextureArrayFallback]
@@ -63,7 +65,7 @@
            [java.io File]
            [java.nio ByteBuffer]
            [java.util List]
-           [javafx.scene.input Dragboard DragEvent]
+           [javafx.scene.input DragEvent]
            [javax.vecmath AxisAngle4d Matrix4d Point3d Vector3d]))
 
 (set! *warn-on-reflection* true)
@@ -137,8 +139,8 @@
         augmented-fragment-source (.source transformed-shader-result)
         array-sampler-names (vec (.arraySamplers transformed-shader-result))
         array-sampler-uniform-names (into {}
-                                          (map (fn [item] [item (array-sampler-name->uniform-names item ShaderUtil$Common/MAX_ARRAY_SAMPLERS)])
-                                               array-sampler-names))]
+                                          (map #(pair % (array-sampler-name->uniform-names % ShaderUtil$Common/MAX_ARRAY_SAMPLERS)))
+                                          array-sampler-names)]
     (shader/make-shader ::atlas-shader pos-uv-vert augmented-fragment-source {} array-sampler-uniform-names)))
 
 (defn- render-rect
@@ -348,7 +350,7 @@
                                                                 :icon image-icon
                                                                 :outline-error? (g/error-fatal? build-errors)}
 
-                                                               (resource/openable-resource? maybe-image-resource)
+                                                               (resource/resource? maybe-image-resource)
                                                                (assoc :link maybe-image-resource :outline-show-link? true)))))
   (output ddf-message g/Any (g/fnk [maybe-image-resource order sprite-trim-mode pivot-x pivot-y]
                               (-> (protobuf/make-map-without-defaults AtlasProto$AtlasImage
@@ -684,9 +686,9 @@
   ;; to the TextureSetGenerator.calculateLayout() method that only includes data
   ;; that can affect the layout.
   (or (validate-layout-properties _node-id margin inner-padding extrude-borders)
-      (let [fake-animations (map make-animation
-                                 (repeat "")
-                                 animation-images)
+      (let [fake-animations (mapv make-animation
+                                  (repeat "")
+                                  animation-images)
             augmented-args (-> args
                                (dissoc :_node-id :animation-images)
                                (assoc :animations fake-animations
@@ -737,12 +739,12 @@
   [animations layout-data all-atlas-images rename-patterns]
   (let [incomplete-ddf-texture-set (:texture-set layout-data)
         incomplete-ddf-animations (:animations incomplete-ddf-texture-set)
-        animation-present-in-ddf? (comp not-empty :images)
+        animation-present-in-ddf? (comp coll/not-empty :images)
         animations-in-ddf (filter animation-present-in-ddf?
                                   animations)
-        complete-ddf-animations (map complete-ddf-animation
-                                     incomplete-ddf-animations
-                                     animations-in-ddf)
+        complete-ddf-animations (mapv complete-ddf-animation
+                                      incomplete-ddf-animations
+                                      animations-in-ddf)
         ;; Texture set must contain hashed references to images:
         ;; - for stand-alone images: as simple `base-name`
         ;; - for images in animations: as `animation/base-name`
@@ -759,9 +761,8 @@
                                     (into
                                       (mapcat
                                         (fn [{:keys [id images]}]
-                                          (eduction
-                                            (map #(-> % :path (texture-set-gen/resource-id id rename-patterns) murmur/hash64))
-                                            images)))
+                                          (e/map #(-> % :path (texture-set-gen/resource-id id rename-patterns) murmur/hash64)
+                                                 images)))
                                       animations))
         complete-ddf-texture-set (assoc incomplete-ddf-texture-set
                                    :animations complete-ddf-animations
@@ -1201,9 +1202,9 @@
     (when (image-path? path)
       (workspace/resolve-workspace-resource workspace path))))
 
-(defn- get-image-resources-from-dragboard
-  [^Dragboard dragboard workspace]
-  (->> (.getFiles dragboard)
+(defn- get-image-resources-from-files
+  [files workspace]
+  (->> files
        (keep (partial get-image-resource-from-file workspace))
        (sort-by resource/path)))
 
@@ -1236,23 +1237,22 @@
 
 (defn handle-input [self action selection-data]
   (case (:type action)
-    :drag-dropped (let [dragboard ^Dragboard (:dragboard action)]
-                    (when (.hasFiles dragboard)
-                      (let [image-view (:gesture-target action)
-                            _ (ui/request-focus! image-view)
-                            ui-context (first (ui/node-contexts image-view false))
-                            {:keys [app-view selection workspace]} (:env ui-context)]
-                        (when-let [parent (parent-animation-or-atlas selection)]
-                          (let [image-resources (get-image-resources-from-dragboard dragboard workspace)
-                                op-seq (gensym)
-                                image-nodes (create-dropped-images! parent image-resources op-seq)
-                                drag-event ^DragEvent (:event action)]
-                            (when (seq image-nodes)
-                              (.consume drag-event)
-                              (select! app-view image-nodes op-seq)
-                              (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
-                              (.setDropCompleted drag-event true))))
-                        nil)))
+    :drag-dropped (when-let [files (:files action)]
+                    (let [image-view (:gesture-target action)
+                          _ (ui/request-focus! image-view)
+                          ui-context (first (ui/node-contexts image-view false))
+                          {:keys [app-view selection workspace]} (:env ui-context)]
+                      (when-let [parent (parent-animation-or-atlas selection)]
+                        (let [image-resources (get-image-resources-from-files files workspace)
+                              op-seq (gensym)
+                              image-nodes (create-dropped-images! parent image-resources op-seq)
+                              drag-event ^DragEvent (:event action)]
+                          (when (seq image-nodes)
+                            (.consume drag-event)
+                            (select! app-view image-nodes op-seq)
+                            (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
+                            (.setDropCompleted drag-event true))))
+                      nil))
     :mouse-pressed (if (first (get selection-data self))
                      (do
                        (g/transact

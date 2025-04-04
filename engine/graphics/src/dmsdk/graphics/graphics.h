@@ -714,6 +714,28 @@ namespace dmGraphics
      * @return extension [type:const char*] the extension. 0 if index was out of bounds
      */
     const char* GetSupportedExtension(HContext context, uint32_t index);
+
+    /*# Read frame buffer pixels in BGRA format
+     * @name ReadPixels
+     * @param context [type:dmGraphics::HContext] the context
+     * @param x [type:int32_t] x-coordinate of the starting position
+     * @param y [type:int32_t] y-coordinate of the starting position
+     * @param width [type:uint32_t] width of the region
+     * @param height [type:uin32_t] height of the region
+     * @param buffer [type:void*] buffer to read to
+     * @param buffer_size [type:uint32_t] buffer size
+     */
+    void ReadPixels(HContext context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size);
+
+    /*# Get viewport's parameters
+     * @name GetViewport
+     * @param context [type:dmGraphics::HContext] the context
+     * @param x [type:int32_t] x-coordinate of the viewport's origin
+     * @param y [type:int32_t] y-coordinate of the viewport's origin
+     * @param width [type:uint32_t] viewport's width
+     * @param height [type:uint32_t] viewport's height
+     */
+    void GetViewport(HContext context, int32_t* x, int32_t* y, uint32_t* width, uint32_t* height);
 }
 
 #endif // DMSDK_GRAPHICS_H

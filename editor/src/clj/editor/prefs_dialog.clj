@@ -13,135 +13,139 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.prefs-dialog
-  (:require [editor.engine :as engine]
-            [editor.engine.native-extensions :as native-extensions]
+  (:require [cljfx.api :as fx]
+            [cljfx.fx.column-constraints :as fx.column-constraints]
+            [cljfx.fx.h-box :as fx.h-box]
+            [cljfx.fx.scene :as fx.scene]
+            [cljfx.fx.tab :as fx.tab]
+            [cljfx.fx.tab-pane :as fx.tab-pane]
+            [clojure.java.io :as io]
+            [editor.fxui :as fxui]
             [editor.prefs :as prefs]
             [editor.system :as system]
-            [editor.ui :as ui])
-  (:import [com.defold.control DefoldStringConverter LongField]
-           [javafx.geometry VPos]
-           [javafx.scene Parent Scene]
-           [javafx.scene.control CheckBox ChoiceBox ColorPicker Label Tab TabPane TextArea TextField TextInputControl]
-           [javafx.scene.input KeyCode KeyEvent]
-           [javafx.scene.layout ColumnConstraints GridPane Priority]))
+            [util.coll :as coll]
+            [util.fn :as fn])
+  (:import [javafx.scene Scene]
+           [javafx.scene.input KeyCode KeyEvent]))
 
-(set! *warn-on-reflection* true)
+(def pages
+  (delay
+    (cond->
+      [{:name "General"
+        :paths [[:workflow :load-external-changes-on-app-focus]
+                [:bundle :open-output-directory]
+                [:build :open-html5-build]
+                [:build :texture-compression]
+                [:run :quit-on-escape]
+                [:asset-browser :track-active-tab]
+                [:build :lint-code]
+                [:input :keymap-path]
+                [:run :engine-arguments]]}
+       {:name "Code"
+        :paths [[:code :custom-editor]
+                [:code :open-file]
+                [:code :open-file-at-line]
+                [:code :font :name]
+                [:code :zoom-on-scroll]]}
+       {:name "Extensions"
+        :paths [[:extensions :build-server]
+                [:extensions :build-server-username]
+                [:extensions :build-server-password]
+                [:extensions :build-server-headers]]}
+       {:name "Tools"
+        :paths [[:tools :adb-path]
+                [:tools :ios-deploy-path]]}]
 
-(defmulti create-control! (fn [prefs grid desc] (:type desc)))
+      (system/defold-dev?)
+      (conj {:name "Dev"
+             :paths [[:dev :custom-engine]]}))))
 
-(defn- create-generic [^Class class prefs grid desc]
-  (let [control (.newInstance class)
-        commit (fn [] (prefs/set! prefs (:key desc) (ui/value control)))]
-    (ui/value! control (prefs/get prefs (:key desc)))
-    (ui/on-focus! control (fn [focus] (when-not focus (commit))))
-    (when-not (:multi-line desc)
-      (ui/on-action! control (fn [e] (commit))))
-    control))
+(defmulti form-input (fn [schema _value _on-value-changed]
+                       (or (:type (:ui schema))
+                           (:type schema))))
 
-(defmethod create-control! :boolean [prefs grid desc]
-  (create-generic CheckBox prefs grid desc))
+(defmethod form-input :default [_ value _]
+  {:fx/type fxui/label
+   :text (str value)})
 
-(defmethod create-control! :color [prefs grid desc]
-  (create-generic ColorPicker prefs grid desc))
+(defmethod form-input :boolean [_ value on-value-changed]
+  {:fx/type fx.h-box/lifecycle
+   :children [{:fx/type fxui/check-box
+               :selected value
+               :on-selected-changed on-value-changed}]})
 
-(defmethod create-control! :string [prefs grid desc]
-  (let [control (if (:multi-line desc)
-                  (create-generic TextArea prefs grid desc)
-                  (create-generic TextField prefs grid desc))]
-    (when (:prompt-value desc) (.setPromptText ^TextInputControl control (:prompt-value desc)))
-    control))
+(defmethod form-input :string [schema value on-value-changed]
+  (let [{:keys [prompt multiline]} (:ui schema)]
+    (cond-> {:fx/type (if multiline fxui/value-area fxui/value-field)
+             :value value
+             :on-value-changed on-value-changed}
+            prompt (assoc :prompt-text prompt))))
 
-(defmethod create-control! :long [prefs grid desc]
-  (create-generic LongField prefs grid desc))
+(defmethod form-input :password [schema value on-value-changed]
+  (let [prompt (-> schema :ui :prompt)]
+    (cond-> {:fx/type fxui/password-value-field
+             :value value
+             :on-value-changed on-value-changed}
+            prompt (assoc :prompt-text prompt))))
 
-(defmethod create-control! :choicebox [prefs grid desc]
-  (let [control (ChoiceBox.)
-        options (:options desc)
-        options-map (apply hash-map (flatten options))
-        inv-options-map (clojure.set/map-invert options-map)]
-    (.setConverter control (DefoldStringConverter. options-map inv-options-map))
-    (.addAll (.getItems control) ^java.util.Collection (map first options))
-    (.select (.getSelectionModel control) (prefs/get prefs (:key desc)))
+(defn- prefs-tab-pane [{:keys [prefs] prefs-state :value}]
+  {:fx/type fx.tab-pane/lifecycle
+   :tab-closing-policy :unavailable
+   :tabs (mapv
+           (fn [{:keys [name paths]}]
+             {:fx/type fx.tab/lifecycle
+              :text name
+              :content {:fx/type fxui/grid
+                        :padding :medium
+                        :spacing :medium
+                        :column-constraints [{:fx/type fx.column-constraints/lifecycle}
+                                             {:fx/type fx.column-constraints/lifecycle
+                                              :hgrow :always}]
+                        :children (->> paths
+                                       (coll/mapcat-indexed
+                                         (fn [row path]
+                                           (let [schema (prefs/schema prefs-state prefs path)
+                                                 tooltip (:description (:ui schema))]
+                                             [(cond-> {:fx/type fxui/label
+                                                       :grid-pane/row row
+                                                       :grid-pane/column 0
+                                                       :grid-pane/fill-width false
+                                                       :grid-pane/fill-height false
+                                                       :grid-pane/valignment :top
+                                                       :text (prefs/label prefs-state prefs path)}
+                                                      tooltip
+                                                      (assoc :tooltip tooltip))
+                                              (assoc
+                                                (form-input schema
+                                                            (prefs/get prefs-state prefs path)
+                                                            (fn/partial prefs/set! prefs path))
+                                                :grid-pane/row row
+                                                :grid-pane/column 1)])))
+                                       vec)}})
+           @pages)})
 
-    (ui/observe (.valueProperty control) (fn [observable old-val new-val]
-                                           (prefs/set! prefs (:key desc) new-val)))
-    control))
+(defn handle-scene-key-pressed [^KeyEvent e]
+  (when (= KeyCode/ESCAPE (.getCode e))
+    (.consume e)
+    (.hide (.getWindow ^Scene (.getSource e)))))
 
-(defn- create-prefs-row! [prefs ^GridPane grid row desc]
-  (let [label (Label. (:label desc))
-        ^Parent control (create-control! prefs grid desc)]
-    (GridPane/setConstraints label 0 row)
-    (GridPane/setConstraints control 1 row)
-    (ui/tooltip! label (:tooltip desc))
-    (when (:multi-line desc)
-      (GridPane/setValignment label VPos/TOP))
-    (.add (.getChildren grid) label)
-    (.add (.getChildren grid) control)))
-
-(defn- add-page! [prefs ^TabPane pane page-desc]
-  (let [tab (Tab. (:name page-desc))
-        grid (GridPane.)]
-    (doto (.getColumnConstraints grid)
-      (.add (doto (ColumnConstraints.)
-              (.setMinWidth ColumnConstraints/CONSTRAIN_TO_PREF)
-              (.setHgrow Priority/NEVER)))
-      (.add (doto (ColumnConstraints.)
-              (.setHgrow Priority/ALWAYS))))
-    (.setHgap grid 4)
-    (.setVgap grid 6)
-    (.setContent tab grid)
-    (doall (map-indexed (fn [i desc] (create-prefs-row! prefs grid i desc))
-                        (:prefs page-desc)))
-    (ui/add-style! grid "prefs")
-    (.add (.getTabs pane) tab)))
-
-(defn- pref-pages
-  []
-  (cond-> [{:name  "General"
-            :prefs [{:label "Load External Changes on App Focus" :type :boolean :key [:workflow :load-external-changes-on-app-focus]}
-                    {:label "Open Bundle Target Folder" :type :boolean :key [:bundle :open-output-directory]}
-                    {:label "Open Browser After `Build HTML5`" :type :boolean :key [:build :open-html5-build]}
-                    {:label "Enable Texture Compression" :type :boolean :key [:build :texture-compression]}
-                    {:label "Escape Quits Game" :type :boolean :key [:run :quit-on-escape]}
-                    {:label "Track Active Tab in Asset Browser" :type :boolean :key [:asset-browser :track-active-tab]}
-                    {:label "Lint Code on Build" :type :boolean :key [:build :lint-code]}
-                    {:label "Path to Custom Keymap" :type :string :key [:input :keymap-path]}
-                    {:label "Engine Arguments" :type :string :key [:run :engine-arguments]  :multi-line true
-                     :prompt-value "One argument per line"
-                     :tooltip "Arguments that will be passed to the dmengine executables when the editor builds and runs.\n Use one argument per line. For example:\n--config=bootstrap.main_collection=/my dir/1.collectionc\n--verbose\n--graphics-adapter=vulkan"}]}
-           {:name "Code"
-            :prefs [{:label "Custom Editor" :type :string :key [:code :custom-editor]}
-                    {:label "Open File" :type :string :key [:code :open-file]}
-                    {:label "Open File at Line" :type :string :key [:code :open-file-at-line]}
-                    {:label "Code Editor Font (Requires Restart)" :type :string :key [:code :font :name]}
-                    {:label "Zoom on Scroll" :type :boolean :key [:code :zoom-on-scroll]}]}
-           {:name  "Extensions"
-            :prefs [{:label "Build Server" :type :string :key [:extensions :build-server] :prompt-value native-extensions/defold-build-server-url}
-                    {:label "Build Server Headers" :type :string :key [:extensions :build-server-headers] :multi-line true}]}
-           {:name "Tools"
-            :prefs [{:label "ADB path" :type :string :key [:tools :adb-path] :tooltip "Path to ADB command that might be used to install and launch the Android app when it's bundled"}
-                    {:label "ios-deploy path" :type :string :key [:tools :ios-deploy-path] :tooltip "Path to ios-deploy command that might be used to install and launch iOS app when it's bundled"}]}]
-
-    (system/defold-dev?)
-    (conj {:name "Dev"
-           :prefs [{:label "Custom Engine" :type :string :key engine/custom-engine-pref-key}]})))
-
-(defn open-prefs [preferences]
-  (let [root ^Parent (ui/load-fxml "prefs.fxml")
-        stage (ui/make-dialog-stage (ui/main-stage))
-        scene (Scene. root)]
-
-    (ui/with-controls root [^TabPane prefs]
-      (doseq [p (pref-pages)]
-        (add-page! preferences prefs p)))
-
-    (ui/title! stage "Preferences")
-    (.setScene stage scene)
-
-    (.addEventFilter scene KeyEvent/KEY_PRESSED
-                     (ui/event-handler event
-                                       (let [code (.getCode ^KeyEvent event)]
-                                         (when (= code KeyCode/ESCAPE)
-                                           (.close stage)))))
-
-    (ui/show-and-wait! stage)))
+(defn open!
+  "Show the prefs dialog and block the thread until the dialog is closed"
+  [prefs]
+  (fxui/show-stateless-dialog-and-await-result!
+    (fn [result-fn]
+      {:fx/type fxui/dialog-stage
+       :showing true
+       :on-hidden result-fn
+       :title "Preferences"
+       :resizable true
+       :min-width 650
+       :min-height 500
+       :scene {:fx/type fx.scene/lifecycle
+               :stylesheets [(str (io/resource "dialogs.css"))]
+               :on-key-pressed handle-scene-key-pressed
+               :root {:fx/type fx/ext-watcher
+                      :ref prefs/global-state
+                      :desc {:fx/type prefs-tab-pane
+                             :prefs prefs}}}}))
+  nil)

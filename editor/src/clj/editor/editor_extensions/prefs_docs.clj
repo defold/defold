@@ -70,6 +70,11 @@
        :props [(make-default-prop "string")
                scope-prop])
      (ui-docs/component
+       "password"
+       :description "password schema\n\nA password is a string that is encrypted when stored in a preference file"
+       :props [(make-default-prop "string")
+               scope-prop])
+     (ui-docs/component
        "keyword"
        :description "keyword schema\n\nA keyword is a short string that is interned within the editor runtime, useful e.g. for identifiers"
        :props [(make-default-prop "string")

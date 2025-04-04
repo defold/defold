@@ -52,6 +52,7 @@ import java.util.zip.ZipOutputStream;
 
 import com.defold.extension.pipeline.ILuaTranspiler;
 import com.defold.extension.pipeline.texture.TextureCompressorPreset;
+import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.fs.ClassLoaderMountPoint;
 import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.fs.DefaultResource;
@@ -150,6 +151,16 @@ public class Project {
 
     private List<Class<? extends IShaderCompiler>> shaderCompilerClasses = new ArrayList();
     private List<Class<? extends ITextureCompressor>> textureCompressorClasses = new ArrayList();
+
+    private ArchiveBuilder archiveBuilder;
+
+    public void setArchiveBuilder(ArchiveBuilder archiveBuilder) {
+        this.archiveBuilder = archiveBuilder;
+    }
+
+    public ArchiveBuilder getArchiveBuilder() {
+        return this.archiveBuilder;
+    }
 
     public Project(IFileSystem fileSystem) {
         this.fileSystem = fileSystem;
@@ -418,6 +429,7 @@ public class Project {
         {".sound", ".soundc"},
         {".wav", ".soundc"},
         {".ogg", ".soundc"},
+        {".opus", ".soundc"},
         {".collectionfactory", ".collectionfactoryc"},
         {".factory", ".factoryc"},
         {".light", ".lightc"},
@@ -1402,29 +1414,30 @@ public class Project {
      *  Options from the `game.project` file that may affect build outputs.
      */
     private static class GameProjectBuildOption {
-        public String inputOption, outputOption, propertyCategory, propertyKey, appManifestSymbol;
+        public String inputOption, outputOption, propertyCategory, propertyKey;
+        public List<String> appManifestSymbols;
         /**
          * @param inputOption        Option that may be used with Bob.
          * @param outputOption       How the option will be saved in project options using project.setOption() for future use.
          * @param propertyCategory   Category in the `game.project` file.
          * @param propertyKey        Key in the `game.project` file.
-         * @param appManifestSymbol  A symbol from appManifest that makes this option true.
+         * @param appManifestSymbols Symbols from appManifest that makes this option true.
          */
-        public GameProjectBuildOption(String inputOption, String outputOption, String propertyCategory, String propertyKey, String appManifestSymbol) {
+        public GameProjectBuildOption(String inputOption, String outputOption, String propertyCategory, String propertyKey, List<String> appManifestSymbols) {
             this.inputOption = inputOption;
             this.outputOption = outputOption;
             this.propertyCategory = propertyCategory;
             this.propertyKey = propertyKey;
-            this.appManifestSymbol = appManifestSymbol;
+            this.appManifestSymbols = appManifestSymbols;
         }
     }
 
     public void configurePreBuildProjectOptions() throws IOException, CompileExceptionError {
         List<GameProjectBuildOption> options = new ArrayList<>();
-        options.add(new GameProjectBuildOption("debug-output-spirv", "output-spirv", "shader","output_spirv","GraphicsAdapterVulkan"));
-        options.add(new GameProjectBuildOption("debug-output-hlsl", "output-hlsl", "shader","output_hlsl","GraphicsAdapterDX12"));
-        options.add(new GameProjectBuildOption("debug-output-wgsl", "output-wgsl", "shader","output_wgsl","GraphicsAdapterWebGPU"));
-        options.add(new GameProjectBuildOption("debug-output-glsl", "output-glsl", "shader","output_glsl","GraphicsAdapterOpenGL"));
+        options.add(new GameProjectBuildOption("debug-output-spirv", "output-spirv", "shader","output_spirv",List.of("GraphicsAdapterVulkan")));
+        options.add(new GameProjectBuildOption("debug-output-hlsl", "output-hlsl", "shader","output_hlsl",List.of("GraphicsAdapterDX12")));
+        options.add(new GameProjectBuildOption("debug-output-wgsl", "output-wgsl", "shader","output_wgsl",List.of("GraphicsAdapterWebGPU")));
+        options.add(new GameProjectBuildOption("debug-output-glsl", "output-glsl", "shader","output_glsl",List.of("GraphicsAdapterOpenGL", "GraphicsAdapterOpenGLES")));
         options.add(new GameProjectBuildOption("output-glsles100", "output-glsles100", "shader","output_glsl_es100",null));
         options.add(new GameProjectBuildOption("output-glsles300", "output-glsles300", "shader","output_glsl_es300",null));
         options.add(new GameProjectBuildOption("output-glsl120", "output-glsl120", "shader","output_glsl120",null));
@@ -1441,9 +1454,7 @@ public class Project {
         for (Platform platform : architectures) {
             architectureSet.add(platform.toString());
         }
-        for (String path : currentPlatform.getExtenderPaths()) {
-            architectureSet.add(path);
-        }
+        architectureSet.addAll(Arrays.asList(currentPlatform.getExtenderPaths()));
         List<Map<String, Object>> platformsSettings = new ArrayList<>();
         for(String arch : architectureSet) {
             platformsSettings.add(ExtenderUtil.getPlatformSettings(this, arch));
@@ -1454,10 +1465,12 @@ public class Project {
             if (this.hasOption(option.inputOption)) {
                 boolean fromProjectOptions = this.option(option.inputOption, "false").equals("true");
                 this.setOption(option.outputOption, Boolean.toString(fromProjectProperties || fromProjectOptions));
-            } else if (option.appManifestSymbol != null) {
+            } else if (option.appManifestSymbols != null) {
                 boolean hasSymbol = false;
                 for(Map<String, Object>platfromSetting : platformsSettings) {
-                    hasSymbol = hasSymbol || ExtenderUtil.hasSymbol(option.appManifestSymbol, platfromSetting);
+                    for (String optionSymbol : option.appManifestSymbols) {
+                        hasSymbol = hasSymbol || ExtenderUtil.hasSymbol(optionSymbol, platfromSetting);
+                    }
                 }
                 this.setOption(option.outputOption, Boolean.toString(hasSymbol || fromProjectProperties));
             } else {

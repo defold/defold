@@ -33,7 +33,7 @@
   ^String [^bytes bytes]
   (.encodeToString (Base64/getUrlEncoder) bytes))
 
-(defn- base64->bytes
+(defn base64->bytes
   ^bytes [^String base64-string]
   (.decode (Base64/getUrlDecoder) base64-string))
 

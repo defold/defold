@@ -41,6 +41,24 @@
    :indent {:begin #"^([^-]|-(?!-))*((\b(else|function|then|do|repeat)\b((?!\b(end|until)\b)[^\"'])*)|(\{\s*))$"
             :end #"^\s*((\b(elseif|else|end|until)\b)|(\})|(\)))"}
    :line-comment "--"
+   :auto-insert {:characters {\" \"
+                              \' \'
+                              \[ \]
+                              \( \)
+                              \{ \}}
+                 :close-characters #{\" \' \] \) \}}
+                 :exclude-scopes #{"punctuation.definition.string.quoted.begin.lua"
+                                   "punctuation.definition.string.begin.lua"
+                                   "string.quoted.other.multiline.lua"
+                                   "string.quoted.double.lua"
+                                   "string.quoted.single.lua"
+                                   "constant.character.escape.lua"}
+                 :open-scopes {\' "punctuation.definition.string.quoted.begin.lua"
+                               \" "punctuation.definition.string.quoted.begin.lua"
+                               \[ "punctuation.definition.string.begin.lua"}
+                 :close-scopes {\' "punctuation.definition.string.quoted.end.lua"
+                                \" "punctuation.definition.string.quoted.end.lua"
+                                \] "punctuation.definition.string.end.lua"}}
    :commit-characters {:method #{"("}
                        :function #{"("}
                        :field #{"."}
@@ -58,16 +76,16 @@
               {:match #"(?<![\d.])\s0x[a-fA-F\d]+|\b\d+(\.\d+)?([eE]-?\d+)?|\.\d+([eE]-?\d+)?"
                :name "constant.numeric.lua"}
               {:begin #"'"
-               :begin-captures {0 {:name "punctuation.definition.string.begin.lua"}}
+               :begin-captures {0 {:name "punctuation.definition.string.quoted.begin.lua"}}
                :end #"'"
-               :end-captures {0 {:name "punctuation.definition.string.end.lua"}}
+               :end-captures {0 {:name "punctuation.definition.string.quoted.end.lua"}}
                :name "string.quoted.single.lua"
                :patterns [{:match #"\\."
                            :name "constant.character.escape.lua"}]}
               {:begin #"\""
-               :begin-captures {0 {:name "punctuation.definition.string.begin.lua"}}
+               :begin-captures {0 {:name "punctuation.definition.string.quoted.begin.lua"}}
                :end #"\""
-               :end-captures {0 {:name "punctuation.definition.string.end.lua"}}
+               :end-captures {0 {:name "punctuation.definition.string.quoted.end.lua"}}
                :name "string.quoted.double.lua"
                :patterns [{:match #"\\."
                            :name "constant.character.escape.lua"}]}

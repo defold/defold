@@ -940,13 +940,6 @@ namespace dmGraphics
      */
     bool Transcode(const char* path, TextureImage::Image* image, uint8_t image_count, uint8_t* image_bytes, TextureFormat format, uint8_t** images, uint32_t* sizes, uint32_t* num_transcoded_mips);
 
-    /**
-     * Read frame buffer pixels in BGRA format
-     * @param buffer buffer to read to
-     * @param buffer_size buffer size
-     */
-    void ReadPixels(HContext context, void* buffer, uint32_t buffer_size);
-
     uint32_t    GetTypeSize(Type type);
     const char* GetGraphicsTypeLiteral(Type type);
 

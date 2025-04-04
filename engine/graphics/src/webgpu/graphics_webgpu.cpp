@@ -1176,7 +1176,13 @@ static HContext WebGPUNewContext(const ContextParams& params)
 static bool WebGPUIsSupported()
 {
     TRACE_CALL;
-    return true;
+    return MAIN_THREAD_EM_ASM_INT({
+        if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+            return Module.hasWebGPUSupport() ? 1 : 0;
+        }
+        // if running outside of the browser - return true by default
+        return 1;
+    }) == 1;
 }
 
 static HContext WebGPUGetContext()
@@ -2714,7 +2720,7 @@ static void WebGPUDisableTexture(HContext context, uint32_t unit, HTexture textu
     ((WebGPUContext*)context)->m_CurrentTextureUnits[unit] = NULL;
 }
 
-static void WebGPUReadPixels(HContext context, void* buffer, uint32_t buffer_size)
+static void WebGPUReadPixels(HContext context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size)
 {
     TRACE_CALL;
     assert(false);
@@ -2915,6 +2921,16 @@ static void WebGPUSetViewport(HContext _context, int32_t x, int32_t y, int32_t w
     context->m_ViewportRect[1] = y;
     context->m_ViewportRect[2] = width;
     context->m_ViewportRect[3] = height;
+}
+
+static void WebGPUGetViewport(HContext _context, int32_t* x, int32_t* y, uint32_t* width, uint32_t* height)
+{
+    TRACE_CALL;
+    WebGPUContext* context     = (WebGPUContext*)_context;
+    *x = context->m_ViewportRect[0];
+    *y = context->m_ViewportRect[1];
+    *width = context->m_ViewportRect[2];
+    *height = context->m_ViewportRect[3];
 }
 
 static void WebGPUSetScissor(HContext _context, int32_t x, int32_t y, int32_t width, int32_t height)

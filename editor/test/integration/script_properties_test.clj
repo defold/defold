@@ -74,11 +74,11 @@
     (tu/prop-clear! node-id key)))
 
 (defn- make-fake-file-resource [workspace proj-path text]
-  (let [root-dir (workspace/project-path workspace)]
+  (let [root-dir (workspace/project-directory workspace)]
     (tu/make-fake-file-resource workspace (.getPath root-dir) (io/file root-dir proj-path) (.getBytes text "UTF-8"))))
 
 (defn- write-file! [workspace name content]
-  (let [root-dir (workspace/project-path workspace)
+  (let [root-dir (workspace/project-directory workspace)
         file (io/file root-dir name)]
     (fs/create-parent-directories! file)
     (spit-until-new-mtime file content))
@@ -330,7 +330,7 @@
           make-atlas! (partial tu/make-atlas-resource-node! project)
           make-material! (partial make-material! project)
           make-resource-node! (partial tu/make-resource-node! project)]
-      (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
+      (with-open [_ (tu/make-directory-deleter (workspace/project-directory workspace))]
         (make-atlas!    "/from-props-script.atlas")
         (make-material! "/from-props-script.material")
         (let [props-script (doto (make-resource-node! "/props.script")
@@ -434,7 +434,7 @@
           make-atlas! (partial tu/make-atlas-resource-node! project)
           make-material! (partial make-material! project)
           make-resource-node! (partial tu/make-resource-node! project)]
-      (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
+      (with-open [_ (tu/make-directory-deleter (workspace/project-directory workspace))]
         (make-atlas!    "/from-props-script.atlas")
         (make-material! "/from-props-script.material")
         (make-atlas!    "/from-props-game-object.atlas")
@@ -634,7 +634,7 @@
           build-output (partial tu/build-output project)
           make-atlas! (partial tu/make-atlas-resource-node! project)
           make-resource-node! (partial tu/make-resource-node! project)]
-      (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
+      (with-open [_ (tu/make-directory-deleter (workspace/project-directory workspace))]
         (make-atlas! "/from-props-script.atlas")
         (make-atlas! "/from-props-game-object.atlas")
         (let [props-script (doto (make-resource-node! "/props.script")
@@ -680,7 +680,7 @@
           make-atlas! (partial tu/make-atlas-resource-node! project)
           make-material! (partial make-material! project)
           make-resource-node! (partial tu/make-resource-node! project)]
-      (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
+      (with-open [_ (tu/make-directory-deleter (workspace/project-directory workspace))]
         (make-atlas!    "/from-props-script.atlas")
         (make-material! "/from-props-script.material")
         (make-atlas!    "/from-props-game-object.atlas")
@@ -899,7 +899,7 @@
           build-output (partial tu/build-output project)
           make-atlas! (partial tu/make-atlas-resource-node! project)
           make-resource-node! (partial tu/make-resource-node! project)]
-      (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
+      (with-open [_ (tu/make-directory-deleter (workspace/project-directory workspace))]
         (make-atlas! "/from-props-script.atlas")
         (make-atlas! "/from-props-collection.atlas")
         (let [props-script (doto (make-resource-node! "/props.script")
@@ -951,7 +951,7 @@
           make-atlas! (partial tu/make-atlas-resource-node! project)
           make-material! (partial make-material! project)
           make-resource-node! (partial tu/make-resource-node! project)]
-      (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
+      (with-open [_ (tu/make-directory-deleter (workspace/project-directory workspace))]
         (make-atlas!    "/from-props-script.atlas")
         (make-material! "/from-props-script.material")
         (make-atlas!    "/from-props-game-object.atlas")
@@ -1194,7 +1194,7 @@
           make-atlas! (partial tu/make-atlas-resource-node! project)
           make-material! (partial make-material! project)
           make-resource-node! (partial tu/make-resource-node! project)]
-      (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
+      (with-open [_ (tu/make-directory-deleter (workspace/project-directory workspace))]
         (make-atlas!    "/from-props-script.atlas")
         (make-material! "/from-props-script.material")
         (make-atlas!    "/from-embedded-game-object.atlas")
@@ -1432,7 +1432,7 @@
           build-output (partial tu/build-output project)
           make-atlas! (partial tu/make-atlas-resource-node! project)
           make-resource-node! (partial tu/make-resource-node! project)]
-      (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
+      (with-open [_ (tu/make-directory-deleter (workspace/project-directory workspace))]
         (make-atlas! "/from-props-script.atlas")
         (make-atlas! "/from-sub-props-collection.atlas")
         (let [props-script (doto (make-resource-node! "/props.script")
@@ -1484,7 +1484,7 @@
           edit-property! (fn [node-id proj-path] (edit-property! node-id :__atlas (tu/resource workspace proj-path)))
           assigned-property? (fn [node-id proj-path] (atlas-resource-property? (get (properties node-id) :__atlas) (tu/resource workspace proj-path)))
           overridden-property? (fn [node-id] (overridden? node-id "atlas"))]
-      (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
+      (with-open [_ (tu/make-directory-deleter (workspace/project-directory workspace))]
         (make-atlas! "/from-props-script.atlas")
         (make-atlas! "/from-props-game-object.atlas")
         (make-atlas! "/from-props-collection.atlas")
@@ -1633,7 +1633,7 @@
           resource (partial tu/resource workspace)
           make-atlas! (partial tu/make-atlas-resource-node! project)
           make-resource-node! (partial tu/make-resource-node! project)]
-      (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
+      (with-open [_ (tu/make-directory-deleter (workspace/project-directory workspace))]
         (make-atlas! "/from-props-script.atlas")
         (make-atlas! "/from-props-game-object.atlas")
         (let [props-script (doto (make-resource-node! "/props.script")
@@ -1685,7 +1685,7 @@
           edit-property! (fn [node-id proj-path] (edit-property! node-id :__atlas (tu/resource workspace proj-path)))
           assigned-property? (fn [node-id proj-path] (atlas-resource-property? (get (properties node-id) :__atlas) (tu/resource workspace proj-path)))
           overridden-property? (fn [node-id] (overridden? node-id "atlas"))]
-      (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
+      (with-open [_ (tu/make-directory-deleter (workspace/project-directory workspace))]
         (make-atlas! "/from-props-script.atlas")
         (make-atlas! "/from-props-game-object.atlas")
         (make-atlas! "/from-props-collection.atlas")
@@ -1750,7 +1750,7 @@
   (with-clean-system
     (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
           project (tu/setup-project! workspace)]
-      (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
+      (with-open [_ (tu/make-directory-deleter (workspace/project-directory workspace))]
         (doto (tu/make-resource-node! project "/props.script")
           (edit-script! ["go.property('image', resource.atlas('/builtins/graphics/particle_blob.tilesource'))"]))
 

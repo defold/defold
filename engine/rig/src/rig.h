@@ -60,6 +60,13 @@ namespace dmRig
      * @return The pose matrix cache entry or INVALID_POSE_MATRIX_CACHE_ENTRY if the cache is full
      */
     HCachePoseMatrixEntry AcquirePoseMatrixCacheEntry(HRigContext context, HRigInstance instance);
+
+    /**
+     * Checks if an instance is currently animating
+     * @param instance The rig instance
+     * @return True if the instance is currently animating
+     */
+    bool IsAnimating(HRigInstance instance);
 }
 
 #endif // DM_RIG_H

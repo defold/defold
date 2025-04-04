@@ -880,6 +880,7 @@ namespace dmPhysics
         float scale = context->m_Scale;
 
         PolygonShapeData* shape_data = new PolygonShapeData();
+        shape_data->m_ShapeDataBase.m_Type = SHAPE_TYPE_POLYGON;
 
         b2Vec2* v = new b2Vec2[vertex_count];
         for (uint32_t i = 0; i < vertex_count; ++i)
@@ -1081,7 +1082,11 @@ namespace dmPhysics
             return;
         }
 
-        HullSet::Hull& hull = shape_data->m_HullSet->m_Hulls[shape_data->m_Cells[child].m_Index];
+        const GridShapeData::Cell& cell = shape_data->m_Cells[child];
+        if (cell.m_Index == B2GRIDSHAPE_EMPTY_CELL)
+            return;
+
+        HullSet::Hull& hull = shape_data->m_HullSet->m_Hulls[cell.m_Index];
         assert(hull.m_Count <= B2_MAX_POLYGON_VERTICES);
 
         b2Vec2 vertices[B2_MAX_POLYGON_VERTICES];
@@ -1203,6 +1208,10 @@ namespace dmPhysics
         if (shape_data->m_Type == SHAPE_TYPE_GRID)
         {
             GridShapeData* grid_shape = (GridShapeData*) shape_data;
+
+            GridShapeData::Cell* cell = &grid_shape->m_Cells[child];
+            if (cell->m_Index == B2GRIDSHAPE_EMPTY_CELL)
+                return;
 
             grid_shape->m_CellFilters[child].m_Group = group;
             grid_shape->m_CellFilters[child].m_Mask = mask;
