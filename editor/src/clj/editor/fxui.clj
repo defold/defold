@@ -43,7 +43,7 @@
   (:import [clojure.lang MultiFn]
            [com.defold.control ListCell]
            [java.util Collection]
-           [javafx.animation SequentialTransition TranslateTransition]
+           [javafx.animation Animation SequentialTransition TranslateTransition]
            [javafx.application Platform]
            [javafx.beans.property ReadOnlyProperty]
            [javafx.beans.value ChangeListener]
@@ -829,16 +829,14 @@
       (if-some [value (to-value edit)]
         (do (swap-state #(-> % (assoc :value value) (dissoc :edit)))
             (when on-value-changed (on-value-changed value)))
-        (let [^TextField text-field (.getSource e)
-              anim (SequentialTransition. text-field)]
-          (doto (.getChildren anim)
-            (.add (doto (TranslateTransition. (Duration. 30.0)) (.setByX 4.0)))
-            (.add (doto (TranslateTransition. (Duration. 30.0)) (.setByX -8.0)))
-            (.add (doto (TranslateTransition. (Duration. 30.0)) (.setByX 7.0)))
-            (.add (doto (TranslateTransition. (Duration. 30.0)) (.setByX -4.0)))
-            (.add (doto (TranslateTransition. (Duration. 30.0)) (.setByX 1.0))))
-          (.play anim)
-          (.consume e))))
+        (.play
+          (SequentialTransition.
+            (.getSource e)
+            (into-array Animation [(doto (TranslateTransition. (Duration. 30.0)) (.setByX 4.0))
+                                   (doto (TranslateTransition. (Duration. 30.0)) (.setByX -8.0))
+                                   (doto (TranslateTransition. (Duration. 30.0)) (.setByX 7.0))
+                                   (doto (TranslateTransition. (Duration. 30.0)) (.setByX -4.0))
+                                   (doto (TranslateTransition. (Duration. 30.0)) (.setByX 1.0))])))))
 
     KeyCode/ESCAPE
     (when-not (= edit text)

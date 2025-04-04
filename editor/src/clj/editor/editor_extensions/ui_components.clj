@@ -216,10 +216,10 @@
 
 
 (defn- apply-constraints [props props-key lifecycle grow-key constraints]
-  (assoc props props-key (mapv (fn [maybe-column]
+  (assoc props props-key (mapv (fn [maybe-constraint]
                                  (let [ret {:fx/type lifecycle}]
-                                   (if maybe-column
-                                     (let [{:keys [grow]} maybe-column]
+                                   (if maybe-constraint
+                                     (let [{:keys [grow]} maybe-constraint]
                                        (cond-> ret grow (assoc grow-key :always)))
                                      ret)))
                                constraints)))

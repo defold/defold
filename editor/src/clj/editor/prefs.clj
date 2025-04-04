@@ -38,10 +38,16 @@
                    positional schemas
 
   Additionally, each schema map supports these optional keys:
-    :default        explicit default value to use instead of a type default
-    :scope          either :global or :project
-    :label          short description of the schema, a string
-    :description    longer description of the schema, a string
+    :default    explicit default value to use instead of a type default
+    :scope      either :global or :project
+    :ui         the ui configuration, a map with the following keys:
+                  :label          short description of the schema, a string
+                  :description    longer description of the schema, a string
+                  :multiline      for string inputs: whether to show a multiline
+                                  text-area, a boolean
+                  :prompt         for string inputs: prompt text
+                  :type           different schema type, the input should
+                                  support the value
 
   See also:
     https://code.visualstudio.com/api/references/contribution-points#contributes.configuration
@@ -82,16 +88,21 @@
                                         :ui {:label "Track Active Tab in Asset Browser"}}}}
     :input {:type :object
             :properties
-            {:keymap-path {:type :string :ui {:label "Path to Custom Keymap"}}}}
+            {:keymap-path {:type :string
+                           :ui {:label "Path to Custom Keymap"}}}}
     :code {:type :object
            :properties
            {:custom-editor {:type :string}
             :open-file {:type :string :default "{file}"}
-            :open-file-at-line {:type :string :default "{file}:{line}" :ui {:label "Open File at Line"}}
+            :open-file-at-line {:type :string
+                                :default "{file}:{line}"
+                                :ui {:label "Open File at Line"}}
             :zoom-on-scroll {:type :boolean :ui {:label "Zoom on Scroll"}}
             :font {:type :object
                    :properties
-                   {:name {:type :string :default "Dejavu Sans Mono" :ui {:label "Code Editor Font (Requires Restart)"}}
+                   {:name {:type :string
+                           :default "Dejavu Sans Mono"
+                           :ui {:label "Code Editor Font (Requires Restart)"}}
                     :size {:type :number :default 12.0}}}
             :find {:type :object
                    :scope :project
@@ -116,10 +127,12 @@
                                     :description "Path to ios-deploy command that might be used to install and launch iOS app when it's bundled"}}}}
     :extensions {:type :object
                  :properties
-                 {:build-server {:type :string :ui {:prompt connection-properties/defold-build-server-url}}
+                 {:build-server {:type :string
+                                 :ui {:prompt connection-properties/defold-build-server-url}}
                   :build-server-username {:type :string}
                   :build-server-password {:type :password}
-                  :build-server-headers {:type :string :ui {:multiline true}}}}
+                  :build-server-headers {:type :string
+                                         :ui {:multiline true}}}}
     :search-in-files {:type :object
                       :scope :project
                       :properties
@@ -133,15 +146,22 @@
     :build {:type :object
             :scope :project
             :properties
-            {:lint-code {:type :boolean :default true :ui {:label "Lint Code on Build"}}
-             :texture-compression {:type :boolean :ui {:label "Enable Texture Compression"}}
-             :open-html5-build {:type :boolean :default true :ui {:label "Open Browser After `Build HTML5`"}}}}
+            {:lint-code {:type :boolean
+                         :default true
+                         :ui {:label "Lint Code on Build"}}
+             :texture-compression {:type :boolean
+                                   :ui {:label "Enable Texture Compression"}}
+             :open-html5-build {:type :boolean
+                                :default true
+                                :ui {:label "Open Browser After `Build HTML5`"}}}}
     :bundle {:type :object
              :scope :project
              :properties
              {:last-bundle-command {:type :any}
               :output-directory {:type :string}
-              :open-output-directory {:type :boolean :default true :ui {:label "Open Bundle Target Folder"}}}}
+              :open-output-directory {:type :boolean
+                                      :default true
+                                      :ui {:label "Open Bundle Target Folder"}}}}
     :window {:type :object
              :properties
              {:dimensions {:type :any}
@@ -167,18 +187,22 @@
           {:instance-count {:type :integer :default 1 :scope :project}
            :selected-target-id {:type :any}
            :manual-target-ip+port {:type :string}
-           :quit-on-escape {:type :boolean :ui {:label "Escape Quits Game"}}
+           :quit-on-escape {:type :boolean
+                            :ui {:label "Escape Quits Game"}}
            :simulate-rotated-device {:type :boolean :scope :project}
            :simulated-resolution {:type :any :scope :project}
-           :engine-arguments {:type :string :scope :project :ui {:multiline true
-                                                                 :prompt "One argument per line"
-                                                                 :description "Arguments that will be passed to the dmengine executables when the editor builds and runs.\n Use one argument per line. For example:\n--config=bootstrap.main_collection=/my dir/1.collectionc\n--verbose\n--graphics-adapter=vulkan"}}}}
+           :engine-arguments {:type :string
+                              :scope :project
+                              :ui {:multiline true
+                                   :prompt "One argument per line"
+                                   :description "Arguments that will be passed to the dmengine executables when the editor builds and runs.\n Use one argument per line. For example:\n--config=bootstrap.main_collection=/my dir/1.collectionc\n--verbose\n--graphics-adapter=vulkan"}}}}
     :scene {:type :object
             :properties
             {:move-whole-pixels {:type :boolean :default true}}}
     :dev {:type :object
           :properties
-          {:custom-engine {:type :any :ui {:type :string}}}}
+          {:custom-engine {:type :any
+                           :ui {:type :string}}}}
     :git {:type :object
           :properties
           {:credentials {:type :any :scope :project}}}

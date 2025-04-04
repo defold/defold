@@ -120,7 +120,7 @@
   ^bytes [batch]
   (let [config @config-atom
         cid (get config :cid)
-        payload { :client_id cid :events batch}
+        payload {:client_id cid :events batch}
         ^String payload-json (json/write-str payload)]
     (.getBytes payload-json StandardCharsets/UTF_8)))
 
