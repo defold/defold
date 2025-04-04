@@ -16,8 +16,8 @@
 #include <dlib/log.h>
 #include <dlib/hashtable.h>
 #include <dlib/static_assert.h>
-#include <dlib/profile/profile.h>
 
+#include <dmsdk/dlib/profile.h>
 #include <dmsdk/extension/extension.h>
 #include "extension.hpp"
 
