@@ -112,7 +112,7 @@ namespace dmSoundCodec
 
         if (stream_info->m_DataBuffer.Size() >= 4)
         {
-            auto sync_mark = (const char*)stream_info->m_DataBuffer.Begin();
+            const char* sync_mark = (const char*)stream_info->m_DataBuffer.Begin();
 
             // [0] == 'OggS'
             // [4] == 0x00
@@ -136,7 +136,7 @@ namespace dmSoundCodec
                     if (stream_info->m_DataBuffer.Size() >= (27 + num_page_segments))
                     {
                         page_size = 0;
-                        auto lt = (const uint8_t*)&stream_info->m_DataBuffer[27];
+                        const uint8_t* lt = (const uint8_t*)&stream_info->m_DataBuffer[27];
                         for (uint32_t i = 0; i < num_page_segments; ++i)
                         {
                             page_size += (lacing_table[i] = lt[i]);
@@ -185,7 +185,7 @@ namespace dmSoundCodec
                 if (stream_serial == stream_info->m_stream_serial)
                 {
                     EnsureDataRead(stream_info, sound_data, 4);
-                    auto magic = (const char*)stream_info->m_DataBuffer.Begin();
+                    const char* magic = (const char*)stream_info->m_DataBuffer.Begin();
                     // we need to avoid the Opushead and Opustags packets (the first one if we should restart the stream, the second one all the time as we do not explicitly parse it)
                     is_data = (magic[0] != 'O' || magic[1] != 'p' || magic[2] != 'u' || magic[3] != 's');
                 }
@@ -321,7 +321,7 @@ namespace dmSoundCodec
                 // Long enough for a OpusHeader & start of a new logical stream?
                 if (page_size <= stream_info->m_DataBuffer.Size() && page_size >= 19 && flags == 0x02)
                 {
-                    auto opusHead = (const uint8_t*)stream_info->m_DataBuffer.Begin();
+                    const uint8_t* opusHead = (const uint8_t*)stream_info->m_DataBuffer.Begin();
 
                     // Magic ok?
                     if (opusHead[0] == 'O' && opusHead[1] == 'p' && opusHead[2] == 'u' && opusHead[3] == 's' && opusHead[4] == 'H' && opusHead[5] == 'e' && opusHead[6] == 'a' && opusHead[7] == 'd')
