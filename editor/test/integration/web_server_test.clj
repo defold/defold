@@ -90,7 +90,7 @@
     ;; editor resources: file->path
     (is (= {:status 200
             :headers {"content-type" "text/plain"}
-            :body (fs/path (g/valid-node-value workspace :root) "game.project")}
+            :body (fs/path (workspace/project-directory workspace) "game.project")}
            (http-server/response 200 (workspace/find-resource workspace "/game.project"))))
     ;; editor resources: zip as is
     (is (= {:status 200

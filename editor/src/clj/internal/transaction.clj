@@ -640,20 +640,25 @@
   ;; activated, as we're doing this on a newly constructed node and ctx-add-node
   ;; will mark all our outputs activated regardless.
   (let [node-id (gt/node-id node)
-        node-type (gt/node-type node)
-        property-entries (gt/own-properties node)]
-    (reduce (fn [ctx property-entry]
-              (let [property-value (val property-entry)]
-                (if (nil? property-value)
-                  ctx
-                  (let [property-label (key property-entry)
-                        setter-fn (in/property-setter node-type property-label)]
-                    (validate-property-value node-type node-id property-label property-value)
-                    (if (nil? setter-fn)
-                      ctx
-                      (apply-tx ctx (call-setter-fn ctx property-label setter-fn (:basis ctx) node-id nil property-value)))))))
-            ctx
-            property-entries)))
+        node-type (gt/node-type node)]
+    (reduce
+      (fn [ctx [property-label property-value]]
+        (if (nil? property-value)
+          ctx
+          (let [setter-fn (in/property-setter node-type property-label)]
+            (validate-property-value node-type node-id property-label property-value)
+            (if (nil? setter-fn)
+              ctx
+              (apply-tx ctx (call-setter-fn ctx property-label setter-fn (:basis ctx) node-id nil property-value))))))
+      ctx
+      (if (some? (gt/original node))
+        (gt/overridden-properties node)
+        (let [default-property-values (in/defaults node-type)
+              assigned-property-values (gt/assigned-properties node)]
+          (e/map (fn [[property-label default-property-value]]
+                   (pair property-label
+                         (get assigned-property-values property-label default-property-value)))
+                 default-property-values))))))
 
 (defn- ctx-add-node [ctx node]
   (let [basis-after (gt/add-node (:basis ctx) node)

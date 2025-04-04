@@ -156,6 +156,13 @@ public class PublisherSettings {
         return value != null && value.equals("1");
     }
 
+    public int getCompressionLevel() {
+        if (this.getValue("liveupdate", "zip-compression-level") != null) {
+            return Integer.parseInt(this.getValue("liveupdate", "zip-compression-level"));
+        }
+        return 1;
+    }
+
     private static PublisherSettings doLoad(InputStream in) throws IOException, ParseException {
         PublisherSettings settings = new PublisherSettings();
         BufferedReader reader = new BufferedReader(new InputStreamReader(in));

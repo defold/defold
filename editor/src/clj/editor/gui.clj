@@ -814,9 +814,9 @@
 (def ^:private node-type-deref->stripped-prop-kws (fn/memoize node-type-deref->stripped-prop-kws-raw))
 
 (defn- make-prop->value-for-default-layout [node]
-  (let [node-properties (gt/own-properties node)]
+  (let [node-properties (g/own-property-values node)]
     (if (coll/empty? node-properties)
-      {}
+      node-properties
       (let [node-type (g/node-type node)
             stripped-prop-kws (node-type-deref->stripped-prop-kws @node-type)]
         (persistent!
@@ -834,7 +834,7 @@
                   (if-let [override-node (g/node-by-id basis override-node-id)]
                     (reduce conj! node-properties (gt/overridden-properties override-node))
                     node-properties))
-                (transient (or (gt/own-properties root-node) {}))
+                (transient (g/own-property-values root-node))
                 override-node-ids)]
 
     (if (coll/empty? node-properties)
@@ -2942,15 +2942,15 @@
                       (pair label fused-build-resource-path))))
              (completing
                (fn [pb [label fused-build-resource-path]]
-                     (if (vector? label)
-                       (assoc-in pb label fused-build-resource-path)
-                       (assoc pb label fused-build-resource-path))))
+                 (if (vector? label)
+                   (assoc-in pb label fused-build-resource-path)
+                   (assoc pb label fused-build-resource-path))))
              (:pb user-data)
              (:dep-resources user-data))]
     {:resource resource :content (protobuf/map->bytes (:pb-class user-data) pb)}))
 
 (defn- merge-rt-pb-msg [rt-pb-msg template-build-targets]
-  (let [merge-fn! (fn [coll msg kw] (reduce conj! coll (map #(do [(:name %) %]) (get msg kw))))
+  (let [merge-fn! (fn [coll msg kw] (reduce conj! coll (e/map (coll/pair-fn :name) (get msg kw))))
         [textures materials fonts particlefx-resources resources]
         (loop [textures (transient {})
                materials (transient {})
@@ -2969,24 +2969,6 @@
             [(persistent! textures) (persistent! materials) (persistent! fonts) (persistent! particlefx-resources) (persistent! resources)]))]
     (assoc rt-pb-msg :textures (mapv second textures) :materials (mapv second materials) :fonts (mapv second fonts) :particlefxs (mapv second particlefx-resources) :resources (mapv second resources))))
 
-(defn- transform-properties->pose
-  ^Pose [transform-properties]
-  {:pre [(map? transform-properties)]} ; Gui$NodeDesc in map format.
-  (pose/make (some-> (:position transform-properties) pose/seq-translation)
-             (some-> (:rotation transform-properties) pose/seq-euler-rotation)
-             (some-> (:scale transform-properties) pose/seq-scale)))
-
-(defn- pre-multiply-pb-pose [child-node-desc parent-transform-properties]
-  (let [pose (pose/pre-multiply (transform-properties->pose child-node-desc)
-                                (transform-properties->pose parent-transform-properties))]
-    (protobuf/assign child-node-desc
-      :position (when (pose/translated? pose)
-                  (pose/translation-v4 pose 1.0))
-      :rotation (when (pose/rotated? pose)
-                  (pose/euler-rotation-v4 pose))
-      :scale (when (pose/scaled? pose)
-               (pose/scale-v4 pose)))))
-
 (defn- node-desc->rt-node-desc [node-desc layout-name]
   {:pre [(map? node-desc) ; Gui$NodeDesc in map format.
          (string? layout-name)]}
@@ -3004,7 +2986,12 @@
         ;; :parent are used directly from the decorated-template-node-msg.
         (let [layout->prop->value-for-template-node (:layout->prop->value decorated-template-node-msg)
               prop->value-for-template-node (layout->prop->value-for-template-node layout-name)]
-          ;; Note: Protobuf defaults are included in the prop->value map.
+          ;; Beware:
+          ;; The prop->value map contains [prop-kw, prop-value] entries and
+          ;; includes defaults. The node-desc is a map of [pb-field, pb-value]
+          ;; with defaults stripped out. Refer to the property-conversions map
+          ;; earlier in this file to determine if conversions must be performed
+          ;; before combining values.
           (assert (map? layout->prop->value-for-template-node))
           (assert (map? prop->value-for-template-node))
           (cond-> imported-node-desc
@@ -3025,15 +3012,34 @@
 
                   (or (= (:id decorated-template-node-msg) (:parent imported-node-desc))
                       (coll/empty? (:parent imported-node-desc)))
-                  (->
-                    (protobuf/assign
-                      :parent (:parent decorated-template-node-msg)
-                      :enabled (when-not (and (:enabled imported-node-desc true)
-                                              (prop->value-for-template-node :enabled))
-                                 false)) ; Protobuf default is true, and we want to exclude defaults.
+                  (as-> imported-node-desc
+                        ;; In fact incorrect, but only possibility to retain rotation/scale separation.
+                        (let [template-node-pose
+                              (pose/make
+                                (pose/seq-translation (prop->value-for-template-node :position))
+                                (pose/seq-rotation (prop->value-for-template-node :rotation)) ; Property value is a clj-quat.
+                                (pose/seq-scale (prop->value-for-template-node :scale)))
 
-                    ;; In fact incorrect, but only possibility to retain rotation/scale separation.
-                    (pre-multiply-pb-pose prop->value-for-template-node)))))
+                              imported-node-pose
+                              (pose/make
+                                (some-> (:position imported-node-desc) pose/seq-translation)
+                                (some-> (:rotation imported-node-desc) pose/seq-euler-rotation) ; Protobuf value is a euler-v4.
+                                (some-> (:scale imported-node-desc) pose/seq-scale))
+
+                              baked-pose
+                              (pose/pre-multiply imported-node-pose template-node-pose)]
+
+                          (protobuf/assign imported-node-desc
+                            :parent (:parent decorated-template-node-msg)
+                            :enabled (when-not (and (:enabled imported-node-desc true)
+                                                    (prop->value-for-template-node :enabled))
+                                       false) ; Protobuf default is true, and we want to exclude defaults.
+                            :position (when (pose/translated? baked-pose)
+                                        (pose/translation-v4 baked-pose 1.0))
+                            :rotation (when (pose/rotated? baked-pose)
+                                        (pose/euler-rotation-v4 baked-pose))
+                            :scale (when (pose/scaled? baked-pose)
+                                     (pose/scale-v4 baked-pose))))))))
       (dissoc node-desc :overridden-fields :template-node-child)
       (:templates (meta node-desc)))
 
@@ -3073,31 +3079,65 @@
         :user-data {:pb {}
                     :pb-class (:pb-class pb-def)}})]
     (g/precluding-errors build-errors
-    (let [template-build-targets (flatten template-build-targets)
-          rt-layout-descs (mapv #(make-rt-layout-desc % node-msgs)
-                                layout-names)
-          rt-node-descs (coll/transfer node-msgs []
-                          (keep
-                            (fn [decorated-node-msg]
-                              (-> decorated-node-msg
-                                  (dissoc :layout->prop->override :layout->prop->value)
-                                  (node-desc->rt-node-desc "")))))
-          rt-pb-msg (protobuf/assign-repeated pb-msg
-                      :layouts rt-layout-descs
-                      :nodes rt-node-descs)
-          rt-pb-msg (merge-rt-pb-msg rt-pb-msg template-build-targets)
-          dep-build-targets (concat (flatten dep-build-targets) (mapcat :deps (flatten template-build-targets)))
-          deps-by-source (into {} (map #(let [res (:resource %)] [(resource/resource->proj-path (:resource res)) res]) dep-build-targets))
-          resource-fields (mapcat (fn [field] (if (vector? field) (mapv (fn [i] (into [(first field) i] (rest field))) (range (count (get rt-pb-msg (first field))))) [field])) (:resource-fields pb-def))
-          dep-resources (mapv (fn [label] [label (get deps-by-source (if (vector? label) (get-in rt-pb-msg label) (get rt-pb-msg label)))]) resource-fields)]
-      [(bt/with-content-hash
-         {:node-id _node-id
-          :resource (workspace/make-build-resource resource)
-          :build-fn build-pb
-          :user-data {:pb rt-pb-msg
-                      :pb-class (:pb-class pb-def)
-                      :dep-resources dep-resources}
-          :deps dep-build-targets})]))))
+      (let [template-build-targets (flatten template-build-targets)
+
+            rt-layout-descs
+            (mapv #(make-rt-layout-desc % node-msgs)
+                  layout-names)
+
+            rt-node-descs
+            (coll/transfer node-msgs []
+              (keep
+                (fn [decorated-node-msg]
+                  (-> decorated-node-msg
+                      (dissoc :layout->prop->override :layout->prop->value)
+                      (node-desc->rt-node-desc "")))))
+
+            rt-pb-msg
+            (protobuf/assign-repeated pb-msg
+              :layouts rt-layout-descs
+              :nodes rt-node-descs)
+
+            rt-pb-msg (merge-rt-pb-msg rt-pb-msg template-build-targets)
+
+            dep-build-targets
+            (into (vec (flatten dep-build-targets))
+                  (mapcat :deps)
+                  template-build-targets)
+
+            ;; TODO: Can we replace all this with pipeline/make-protobuf-build-target?
+            deps-by-source
+            (coll/transfer dep-build-targets {}
+              (map (fn [dep-build-target]
+                     (let [build-resource (:resource dep-build-target)
+                           source-resource (:resource build-resource)
+                           source-proj-path (resource/resource->proj-path source-resource)]
+                       (pair source-proj-path build-resource)))))
+
+            dep-resources
+            (coll/transfer (:resource-fields pb-def) []
+              (mapcat (fn [field]
+                        (if (vector? field)
+                          (e/map (fn [index]
+                                   (into [(first field) index]
+                                         (rest field)))
+                                 (range (count (get rt-pb-msg (first field)))))
+                          [field])))
+              (map (fn [label]
+                     (pair label
+                           (get deps-by-source
+                                (if (vector? label)
+                                  (get-in rt-pb-msg label)
+                                  (get rt-pb-msg label)))))))]
+
+        [(bt/with-content-hash
+           {:node-id _node-id
+            :resource (workspace/make-build-resource resource)
+            :build-fn build-pb
+            :user-data {:pb rt-pb-msg
+                        :pb-class (:pb-class pb-def)
+                        :dep-resources dep-resources}
+            :deps dep-build-targets})]))))
 
 (defn- validate-template-build-targets [template-build-targets]
   (let [gui-resource-type+name->value->resource-proj-paths
