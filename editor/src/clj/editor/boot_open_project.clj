@@ -211,6 +211,7 @@
                                 (hot-reload/routes workspace)
                                 (bob/routes project)
                                 (command-requests/router root (app-view/make-render-task-progress :resource-sync))])))]
+      (.addEventFilter ^StackPane (.lookup root "#overlay") MouseEvent/ANY ui/ignore-event-filter)
       (ui/add-application-focused-callback! :main-stage app-view/handle-application-focused! app-view changes-view workspace prefs)
       (app-view/reload-extensions! app-view project :all workspace changes-view build-errors-view prefs web-server)
 
