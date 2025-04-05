@@ -23,6 +23,7 @@ import java.util.Map;
 
 import com.dynamo.bob.archive.ArchiveEntry;
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.fs.IResource;
 
 public abstract class Publisher {
 
@@ -41,6 +42,8 @@ public abstract class Publisher {
     public String getManifestPrivateKey() {
         return this.settings.getManifestPrivateKey();
     }
+
+    public IResource getPublisherSettingsResorce() { return this.settings.getResource(); }
 
     public String getSupportedVersions() {
         return this.settings.getSupportedVersions();
