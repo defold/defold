@@ -562,7 +562,8 @@ public class Project {
         System.out.println(String.format(fmt, args));
     }
 
-    public void createPublisher(boolean shouldPublish) throws CompileExceptionError {
+    public void createPublisher() throws CompileExceptionError {
+        boolean shouldPublish = this.option("liveupdate", "false").equals("true");
         try {
             String settingsPath = this.getProjectProperties().getStringValue("liveupdate", "settings", "/liveupdate.settings"); // if no value set use old hardcoded path (backward compatability)
             IResource publisherSettings = this.fileSystem.get(settingsPath);
@@ -574,8 +575,7 @@ public class Project {
                     this.publisher = new NullPublisher(new PublisherSettings());
                 }
             } else {
-                ByteArrayInputStream is = new ByteArrayInputStream(publisherSettings.getContent());
-                PublisherSettings settings = PublisherSettings.load(is);
+                PublisherSettings settings = PublisherSettings.load(publisherSettings);
                 if (shouldPublish) {
                     if (PublisherSettings.PublishMode.Amazon.equals(settings.getMode())) {
                         this.publisher = new AWSPublisher(settings);

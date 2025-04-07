@@ -1645,6 +1645,7 @@ namespace dmPhysics
 
             polygon->m_Polygon = b2MakeOffsetBox(w * scale, h * scale, centroid, b2MakeRot(angle));
             memcpy(polygon->m_VerticesOriginal, polygon->m_Polygon.vertices, sizeof(b2Vec2) * polygon->m_Polygon.count);
+            b2Shape_SetPolygon(shape->m_ShapeId, &polygon->m_Polygon);
         }
     }
 
