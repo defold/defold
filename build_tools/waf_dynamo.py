@@ -2171,6 +2171,7 @@ def options(opt):
     opt.add_option('--show-includes', action='store_true', default=False, dest='show_includes', help='Outputs the tree of includes')
     opt.add_option('--static-analyze', action='store_true', default=False, dest='static_analyze', help='Enables static code analyzer')
     opt.add_option('--with-valgrind', action='store_true', default=False, dest='with_valgrind', help='Enables usage of valgrind')
+    opt.add_option('--with-openal', action='store_true', default=False, dest='with_openal', help='Enables OpenAL as the sound backend')
     opt.add_option('--with-opengl', action='store_true', default=False, dest='with_opengl', help='Enables OpenGL as the graphics backend')
     opt.add_option('--with-vulkan', action='store_true', default=False, dest='with_vulkan', help='Enables Vulkan as graphics backend')
     opt.add_option('--with-vulkan-validation', action='store_true', default=False, dest='with_vulkan_validation', help='Enables Vulkan validation layers (on osx and ios)')
