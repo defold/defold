@@ -424,7 +424,9 @@ TEST_P(DrawCountTest, DrawCount)
 
 DrawCountParams draw_count_params[] =
 {
-    {"/game.projectc", 3, 2},    // 1 draw call for sprite, 1 for debug physics
+    // Box2d v2:
+    {"/game.projectc", 3, 3},    // 1 draw call for sprite, 2 for debug physics
+    // Box2d v3: {"/game.projectc", 3, 2},    // 1 draw call for sprite, 1 for debug physics
 };
 INSTANTIATE_TEST_CASE_P(DrawCount, DrawCountTest, jc_test_values_in(draw_count_params));
 
