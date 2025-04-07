@@ -122,6 +122,10 @@ namespace dmSoundCodec
                 uint16_t m_OutFramesOffset;
                 dmArray<int16_t> m_OutBuffer;
                 dmArray<int8_t> m_InBuffer;
+                uint32_t m_InBufferOffset;
+                int32_t m_Pred[2];
+                int32_t m_StepIndex[2];
+                int32_t m_Step[2];
             } m_ADPCM;
             dmSound::HSoundData m_SoundData;
         };
@@ -194,7 +198,7 @@ namespace dmSoundCodec
                     if( (fmt.m_AudioFormat != 0x01 && fmt.m_AudioFormat != 0x11) || (fmt.m_AudioFormat == 0x11 && fmt.m_BitsPerSample != 4) )
                     {
                         delete streamOut;
-                        dmLogError("Only wav-files with 8 or 16 bit PCM or IMA ADPCM format (format=0x01 or 0x11) supported, got format=%d and bitdepth=%d", fmt.m_AudioFormat, fmt.m_BitsPerSample);
+                        dmLogError("Only wav-files with 8 or 16 bit PCM or IMA ADPCM format (format=0x01 or 0x11) supported, got format=%02x and bitdepth=%d", fmt.m_AudioFormat, fmt.m_BitsPerSample);
                         return RESULT_INVALID_FORMAT;
                     }
 
@@ -205,9 +209,10 @@ namespace dmSoundCodec
                         streamOut->m_ADPCM.m_BlockAlign = fmt.m_BlockAlign;
                         streamOut->m_ADPCM.m_BlockFrames = (fmt.m_NumChannels == 1) ? ((fmt.m_BlockAlign - 4) * 2) : (fmt.m_BlockAlign - 8);
                         streamOut->m_ADPCM.m_OutFramesOffset = streamOut->m_ADPCM.m_BlockFrames;
-                        streamOut->m_ADPCM.m_OutBuffer.SetCapacity(streamOut->m_ADPCM.m_BlockFrames * fmt.m_NumChannels);
-                        streamOut->m_ADPCM.m_OutBuffer.SetSize(streamOut->m_ADPCM.m_BlockFrames * fmt.m_NumChannels);
+                        streamOut->m_ADPCM.m_OutBuffer.SetCapacity(fmt.m_NumChannels * 8);
+                        streamOut->m_ADPCM.m_OutBuffer.SetSize(0);
                         streamOut->m_ADPCM.m_InBuffer.SetCapacity(streamOut->m_ADPCM.m_BlockAlign);
+                        streamOut->m_ADPCM.m_InBufferOffset = 0;
                     }
 
                     streamOut->m_Info.m_Rate = fmt.m_SampleRate;
@@ -258,6 +263,8 @@ namespace dmSoundCodec
         if (streamInfo->m_IsADPCM) {
             streamInfo->m_ADPCM.m_OutFramesOffset = 0;
             streamInfo->m_ADPCM.m_InBuffer.SetSize(0);
+            streamInfo->m_ADPCM.m_InBufferOffset = 0;
+            streamInfo->m_ADPCM.m_OutBuffer.SetSize(0);
         }
         return RESULT_OK;
     }
@@ -326,115 +333,201 @@ namespace dmSoundCodec
             return (res == dmSound::RESULT_END_OF_STREAM) ? RESULT_END_OF_STREAM : RESULT_OK;
         }
 
-    //
-    // ADPCM read / decode
-    //
-    dmSound::Result res = dmSound::RESULT_OK;
-    char *outbuf = buffer[0];
-    uint32_t stride = sizeof(int16_t) * streamInfo->m_Info.m_Channels;
-    uint32_t needed_frames = buffer_size / stride;
-    do
-    {
-        if (streamInfo->m_ADPCM.m_OutFramesOffset >= streamInfo->m_ADPCM.m_BlockFrames)
-        {
-            // Check if we are at the end of the chunk in the WAV file (this does not need to be the end of the file)
-            if (streamInfo->m_Cursor >= streamInfo->m_Info.m_Size) {
-                // EOS. We have no new data...
-                res = dmSound::RESULT_END_OF_STREAM;
-                break;
-            }
+        //
+        // ADPCM read / decode
+        //
+        dmSound::Result res = dmSound::RESULT_OK;
+        char *outbuf = buffer[0];
+        uint32_t stride = sizeof(int16_t) * streamInfo->m_Info.m_Channels;
+        int32_t needed_frames = buffer_size / stride;
+        uint32_t num_channels = streamInfo->m_Info.m_Channels;
+        uint32_t min_frames = (num_channels == 1) ? 2 : 8;
 
-            uint32_t read_size;
-            res = dmSound::SoundDataRead(streamInfo->m_SoundData, streamInfo->m_BufferOffset + streamInfo->m_Cursor, streamInfo->m_ADPCM.m_BlockAlign - streamInfo->m_ADPCM.m_InBuffer.Size(), streamInfo->m_ADPCM.m_InBuffer.End(), &read_size);
-            if (res == dmSound::RESULT_OK || res == dmSound::RESULT_PARTIAL_DATA)
-            {
-                streamInfo->m_Cursor += read_size;
-                streamInfo->m_ADPCM.m_InBuffer.SetSize(streamInfo->m_ADPCM.m_InBuffer.Size() + read_size);
+        // Do we have some decoded data left over from last time?
+        if (streamInfo->m_ADPCM.m_OutBuffer.Size() != 0) {
+            // Yes. See what we can use...
+            uint32_t frames_in_buffer = streamInfo->m_ADPCM.m_OutBuffer.Size() / num_channels;
+            uint32_t num = dmMath::Min(frames_in_buffer - streamInfo->m_ADPCM.m_OutFramesOffset, (uint32_t)needed_frames);
 
-                // Did we get a block's worth of data?
-                if (streamInfo->m_ADPCM.m_InBuffer.Size() < streamInfo->m_ADPCM.m_BlockAlign) {
-                    // No. Stop sample output, we are out of data for now...
-                    break;
-                }
+            memcpy(outbuf, streamInfo->m_ADPCM.m_OutBuffer.Begin() + streamInfo->m_ADPCM.m_OutFramesOffset * num_channels, num * stride);
 
-                // Yes, decode block...
-
-                int8_t* in = streamInfo->m_ADPCM.m_InBuffer.Begin();
-                int16_t* out = streamInfo->m_ADPCM.m_OutBuffer.Begin();
-
-                if (streamInfo->m_Info.m_Channels == 1) {
-                    int32_t pred = *(int16_t*)in;
-                    int32_t step_index = in[2];
-                    int32_t step = ima_step_table[step_index];
-                    in += 4;
-
-                    uint32_t bytes = streamInfo->m_ADPCM.m_BlockAlign - 4;
-                    for(uint32_t i=0; i<bytes; ++i) {
-                        uint32_t b = *(in++);
-                        DecodeNibble(b, pred, step_index, step);
-                        *(out++) = (int16_t)pred;
-                        DecodeNibble(b >> 4, pred, step_index, step);
-                        *(out++) = (int16_t)pred;
-                    }
-                }
-                else {
-                    assert(streamInfo->m_Info.m_Channels == 2);
-
-                    int32_t pred0 = *(int16_t*)in;
-                    int32_t step_index0 = in[2];
-                    assert(step_index0 < 89);
-                    int32_t step0 = ima_step_table[step_index0];
-                    in += 4;
-
-                    int32_t pred1 = *(int16_t*)in;
-                    int32_t step_index1 = in[2];
-                    assert(step_index1 < 89);
-                    int32_t step1 = ima_step_table[step_index1];
-                    in += 4;
-
-                    int32_t bytes = streamInfo->m_ADPCM.m_BlockAlign - 8;
-                    for(int32_t i=bytes; i>7; i-=8) {
-
-                        uint32_t blk0 = *(uint32_t*)&in[0];
-                        uint32_t blk1 = *(uint32_t*)&in[4];
-                        in += 8;
-
-                        for(uint32_t b=0; b<8; ++b) {
-                            DecodeNibble(blk0, pred0, step_index0, step0);
-                            *(out++) = (int16_t)pred0;
-                            DecodeNibble(blk1, pred1, step_index1, step1);
-                            *(out++) = (int16_t)pred1;
-                            blk0 >>= 4;
-                            blk1 >>= 4;
-                        }
-                    }
-                }
-
-                streamInfo->m_ADPCM.m_OutFramesOffset = 0;
-                streamInfo->m_ADPCM.m_InBuffer.SetSize(0);
-            }
-            else
-            {
-                // EOS or some error (no data delivered in any case) -> exit as we don't have any sample data to deliver anymore...
-                break;
+            needed_frames -= num;
+            outbuf += stride * num;
+            streamInfo->m_ADPCM.m_OutFramesOffset += num;
+            if (streamInfo->m_ADPCM.m_OutFramesOffset >= frames_in_buffer) {
+                streamInfo->m_ADPCM.m_OutBuffer.SetSize(0);
             }
         }
 
-        uint32_t n = dmMath::Min((uint32_t)(streamInfo->m_ADPCM.m_BlockFrames - streamInfo->m_ADPCM.m_OutFramesOffset), needed_frames);
-        memcpy(outbuf, streamInfo->m_ADPCM.m_OutBuffer.Begin() + streamInfo->m_ADPCM.m_OutFramesOffset * streamInfo->m_Info.m_Channels, stride * n);
-        outbuf += stride * n;
-        needed_frames -= n;
-        streamInfo->m_ADPCM.m_OutFramesOffset += n;
-    }
-    while(needed_frames > 0);
+        // Decode from scratch...
+        while(needed_frames > 0) {
 
-    *decoded = (uint32_t)((uintptr_t)outbuf - (uintptr_t)buffer[0]);
+            // Try to get a full block into the input buffer... (this may only fill it partly)
+            if (streamInfo->m_ADPCM.m_InBuffer.Size() < streamInfo->m_ADPCM.m_BlockAlign) {
 
-    if (res == dmSound::RESULT_END_OF_STREAM) {
-        return (*decoded == 0) ? RESULT_END_OF_STREAM : RESULT_OK;
-    }
+                // Check if we are at the end of the chunk in the WAV file (this does not need to be the end of the file)
+                if (streamInfo->m_Cursor >= streamInfo->m_Info.m_Size) {
+                    // EOS. We have no new data...
+                    res = dmSound::RESULT_END_OF_STREAM;
+                    break;
+                }
 
-    return (res == dmSound::RESULT_OK || res == dmSound::RESULT_PARTIAL_DATA) ? RESULT_OK : RESULT_DECODE_ERROR;
+                uint32_t read_size;
+                res = dmSound::SoundDataRead(streamInfo->m_SoundData, streamInfo->m_BufferOffset + streamInfo->m_Cursor, streamInfo->m_ADPCM.m_BlockAlign - streamInfo->m_ADPCM.m_InBuffer.Size(), streamInfo->m_ADPCM.m_InBuffer.End(), &read_size);
+                if (res != dmSound::RESULT_OK && res != dmSound::RESULT_PARTIAL_DATA)
+                {  
+                    // Error case / EOS
+                    break;
+                }
+
+                streamInfo->m_Cursor += read_size;
+                streamInfo->m_ADPCM.m_InBuffer.SetSize(streamInfo->m_ADPCM.m_InBuffer.Size() + read_size);
+            }
+
+            // Do we need to decode a block header?
+            if (streamInfo->m_ADPCM.m_InBufferOffset == 0) {
+                // Yes...
+
+                // Enough data read?
+                if (streamInfo->m_ADPCM.m_InBuffer.Size() < num_channels * 4) {
+                    break;  // No...
+                }
+
+                int8_t* in = streamInfo->m_ADPCM.m_InBuffer.Begin();
+                for(uint32_t c=0; c<num_channels; ++c) {
+                    streamInfo->m_ADPCM.m_Pred[c] = *(int16_t*)in;
+                    streamInfo->m_ADPCM.m_StepIndex[c] = in[2];
+                    streamInfo->m_ADPCM.m_Step[c] = ima_step_table[streamInfo->m_ADPCM.m_StepIndex[c]];
+                    in += 4;
+                }
+                streamInfo->m_ADPCM.m_InBufferOffset += num_channels * 4;
+            }
+
+            // Given the blocking in the format, how many do we need to decode to actually get the number we need?
+            uint32_t needed_frames_aligned;
+            if (needed_frames < min_frames) {
+                needed_frames_aligned = min_frames;
+            } else {
+                needed_frames_aligned = needed_frames & ~(min_frames - 1);
+            }
+
+            // Limit decoding further with the number of input bytes we have
+            uint32_t num;
+            if (num_channels == 1) {
+                // note: we decode only on byte mulotiples (2 frames)
+                num = dmMath::Min(needed_frames_aligned, (streamInfo->m_ADPCM.m_InBuffer.Size() - streamInfo->m_ADPCM.m_InBufferOffset) * 2);
+            }
+            else {
+                assert(num_channels == 2);
+                // note: 8 byte sub-blocks are needed so we can decode 8 frames (data is interleaved in 4-byte per channel chunks)
+                num = dmMath::Min(needed_frames_aligned, (streamInfo->m_ADPCM.m_InBuffer.Size() & ~7) - streamInfo->m_ADPCM.m_InBufferOffset);
+            }
+            if (num == 0) {
+                break;
+            }
+
+            // Do we produce more samples than we have been asked for?
+            int16_t* out;
+            bool uses_buffer;
+            if (needed_frames < needed_frames_aligned) {
+                // Yes, decode into temp buffer first, so we can save some frames to be delivered later...
+                streamInfo->m_ADPCM.m_OutBuffer.SetSize(needed_frames_aligned * num_channels);
+                streamInfo->m_ADPCM.m_OutFramesOffset = 0;
+                out = streamInfo->m_ADPCM.m_OutBuffer.Begin();
+                uses_buffer = true;
+            }
+            else {
+                // No, direct decode to output buffer is best choice...
+                out = (int16_t*)outbuf;
+                uses_buffer = false;
+            }         
+
+            // Decode data as needed / possible with data available...
+            int8_t* in = streamInfo->m_ADPCM.m_InBuffer.Begin() + streamInfo->m_ADPCM.m_InBufferOffset;
+            if (num_channels == 1) {
+                int32_t pred = streamInfo->m_ADPCM.m_Pred[0];
+                int32_t step_index = streamInfo->m_ADPCM.m_StepIndex[0];
+                int32_t step = streamInfo->m_ADPCM.m_Step[0];
+
+                uint32_t bytes = num >> 1;
+                for(uint32_t i=0; i<bytes; ++i) {
+                    uint32_t b = *(in++);
+                    DecodeNibble(b, pred, step_index, step);
+                    *(out++) = (int16_t)pred;
+                    DecodeNibble(b >> 4, pred, step_index, step);
+                    *(out++) = (int16_t)pred;
+                    }
+
+                streamInfo->m_ADPCM.m_Pred[0] = pred;
+                streamInfo->m_ADPCM.m_StepIndex[0] = step_index;
+                streamInfo->m_ADPCM.m_Step[0] = step;
+            }
+            else {
+                int32_t pred0 = streamInfo->m_ADPCM.m_Pred[0];
+                int32_t pred1 = streamInfo->m_ADPCM.m_Pred[1];
+                int32_t step_index0 = streamInfo->m_ADPCM.m_StepIndex[0];
+                int32_t step_index1 = streamInfo->m_ADPCM.m_StepIndex[1];
+                int32_t step0 = streamInfo->m_ADPCM.m_Step[0];
+                int32_t step1 = streamInfo->m_ADPCM.m_Step[1];
+
+                int32_t bytes = num;
+                for(int32_t i=bytes; i>7; i-=8) {
+
+                    uint32_t blk0 = *(uint32_t*)&in[0];
+                    uint32_t blk1 = *(uint32_t*)&in[4];
+                    in += 8;
+
+                    for(uint32_t b=0; b<8; ++b) {
+                        DecodeNibble(blk0, pred0, step_index0, step0);
+                        *(out++) = (int16_t)pred0;
+                        DecodeNibble(blk1, pred1, step_index1, step1);
+                        *(out++) = (int16_t)pred1;
+                        blk0 >>= 4;
+                        blk1 >>= 4;
+                    }
+                }
+
+                streamInfo->m_ADPCM.m_Pred[0] = pred0;
+                streamInfo->m_ADPCM.m_Pred[1] = pred1;
+                streamInfo->m_ADPCM.m_StepIndex[0] = step_index0;
+                streamInfo->m_ADPCM.m_StepIndex[1] = step_index1;
+                streamInfo->m_ADPCM.m_Step[0] = step0;
+                streamInfo->m_ADPCM.m_Step[1] = step1;
+
+            }
+
+            // Update input buffer offset & needed frames
+            streamInfo->m_ADPCM.m_InBufferOffset = (uint32_t)(in - streamInfo->m_ADPCM.m_InBuffer.Begin());
+            needed_frames -= num;
+
+            // Input buffer exhausted?
+            if (streamInfo->m_ADPCM.m_InBufferOffset >= streamInfo->m_ADPCM.m_BlockAlign) {
+                // Mark as empty...
+                streamInfo->m_ADPCM.m_InBufferOffset = 0;
+                streamInfo->m_ADPCM.m_InBuffer.SetSize(0);
+            }
+
+            // Update output buffer pointer if we did not use a temp buffer (we will do more updates)
+            if (!uses_buffer) {
+                outbuf = (char*)out;
+            }
+        }
+
+        // If we overshot the need, we know we need to still copy some data into the output buffer...
+        if (needed_frames < 0) {
+            needed_frames += min_frames;
+            memcpy(outbuf, streamInfo->m_ADPCM.m_OutBuffer.Begin(), needed_frames * stride);
+            streamInfo->m_ADPCM.m_OutFramesOffset = needed_frames;
+            outbuf += needed_frames * stride;
+        }
+
+        *decoded = (uint32_t)((uintptr_t)outbuf - (uintptr_t)buffer[0]);
+
+        if (res == dmSound::RESULT_END_OF_STREAM) {
+            return (*decoded == 0) ? RESULT_END_OF_STREAM : RESULT_OK;
+        }
+
+        return (res == dmSound::RESULT_OK || res == dmSound::RESULT_PARTIAL_DATA) ? RESULT_OK : RESULT_DECODE_ERROR;
     }
 
     static Result WavSkipInStream(HDecodeStream stream, uint32_t bytes, uint32_t* skipped)
