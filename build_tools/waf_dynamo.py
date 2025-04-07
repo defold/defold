@@ -568,9 +568,13 @@ def default_flags(self):
             'GL_SUPPORT_AUTOMATIC_ENABLE_EXTENSIONS=0',
             'IMPORTED_MEMORY=1',
             'STACK_SIZE=5MB',
-            'MIN_FIREFOX_VERSION=34',
-            'MIN_SAFARI_VERSION=90000',
-            'MIN_CHROME_VERSION=32']
+            'MIN_FIREFOX_VERSION=79',
+            'MIN_SAFARI_VERSION=140100',
+            'MIN_CHROME_VERSION=74']
+
+        if Options.options.with_pthread:
+            emflags_link += [#'PTHREAD_POOL_SIZE_STRICT=2',
+                             'PTHREAD_POOL_SIZE=%d' % int(Options.options.pthread_pool_size)]
 
         if Options.options.with_webgpu and platform_supports_feature(build_util.get_target_platform(), 'webgpu', {}):
             emflags_link += ['USE_WEBGPU', 'GL_WORKAROUND_SAFARI_GETCONTEXT_BUG=0']
@@ -597,14 +601,21 @@ def default_flags(self):
         if int(opt_level) < 2:
             flags = ['-gseparate-dwarf', '-gsource-map']
             linkflags = ['-gseparate-dwarf', '-gsource-map']
-        flags += ['-O%s' % opt_level]
-        linkflags += ['-O%s' % opt_level]
+
+        flags += ['-O%s' % opt_level, '-pthread']
+        linkflags += ['-O%s' % opt_level, '-pthread']
+
+        if Options.options.with_pthread:
+            flags += ['-pthread']
+            linkflags += ['-pthread']
+        else:
+            self.env.append_value('DEFINES', ['DM_NO_THREAD_SUPPORT'])
 
         if 'wasm' == build_util.get_target_architecture():
             flags += ['-msimd128', '-msse4.2']
 
         self.env['DM_HOSTFS']           = '/node_vfs/'
-        self.env.append_value('DEFINES', ['DM_NO_THREAD_SUPPORT', 'JC_TEST_NO_DEATH_TEST'])
+        self.env.append_value('DEFINES', ['JC_TEST_NO_DEATH_TEST'])
         # This disables a few tests in test_httpclient (no real investigation done)
         self.env.append_value('DEFINES', ['DM_TEST_DLIB_HTTPCLIENT_NO_HOST_SERVER'])
 
@@ -2129,3 +2140,5 @@ def options(opt):
     opt.add_option('--with-vulkan-validation', action='store_true', default=False, dest='with_vulkan_validation', help='Enables Vulkan validation layers (on osx and ios)')
     opt.add_option('--with-dx12', action='store_true', default=False, dest='with_dx12', help='Enables DX12 as a graphics backend')
     opt.add_option('--with-webgpu', action='store_true', default=False, dest='with_webgpu', help='Enables WebGPU as graphics backend')
+    opt.add_option('--with-pthread', action='store_true', default=False, dest='with_pthread', help='Enables pthread support for html5 targets')
+    opt.add_option('--pthread-pool-size', default="4", dest='pthread_pool_size', help='The number of (html5) threads available')

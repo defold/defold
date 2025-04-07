@@ -440,9 +440,13 @@ namespace dmSound
 
         sound->m_Thread = 0;
         sound->m_Mutex = 0;
+
+        dmLogInfo("Sound Initialize");
         if (params->m_UseThread)
         {
             sound->m_Mutex = dmMutex::New();
+
+            dmLogInfo("Sound Thread Create");
             sound->m_Thread = dmThread::New((dmThread::ThreadStart)SoundThread, 0x80000, sound, "sound");
         }
 
@@ -1727,6 +1731,8 @@ namespace dmSound
 
     static void SoundThread(void* ctx)
     {
+        dmLogWarning("MAWE SoundThread start!");
+
         SoundSystem* sound = (SoundSystem*)ctx;
         while (dmAtomicGet32(&sound->m_IsRunning))
         {
