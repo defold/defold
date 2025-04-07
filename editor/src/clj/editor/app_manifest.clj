@@ -365,13 +365,13 @@
 (def physics-setting
   (make-choice-setting
     :none (concat (libs-toggles all-platforms ["physics_null"]) (exclude-libs-toggles all-platforms ["physics" "LinearMath" "BulletDynamics" "BulletCollision" "box2d" "box2d_defold" "script_box2d" "script_box2d_defold"]) (generic-contains-toggles all-platforms :excludeSymbols ["ScriptBox2DExt"]))
-    :2d   (concat (libs-toggles all-platforms ["physics_2d"])   (exclude-libs-toggles all-platforms ["physics" "LinearMath" "BulletDynamics" "BulletCollision"]))
+    :2d   (concat (libs-toggles all-platforms ["physics_2d_defold"])   (exclude-libs-toggles all-platforms ["physics" "LinearMath" "BulletDynamics" "BulletCollision"]))
     :3d   (concat (libs-toggles all-platforms ["physics_3d"])   (exclude-libs-toggles all-platforms ["physics" "box2d" "box2d_defold" "script_box2d" "script_box2d_defold"]) (generic-contains-toggles all-platforms :excludeSymbols ["ScriptBox2DExt"]))
     :both))
 
 (def physics-2d-setting
   (make-choice-setting
-    :box2d (concat (libs-toggles all-platforms ["physics_2d", "box2d" "script_box2d"]) (exclude-libs-toggles all-platforms ["physics", "box2d_defold" "script_box2d_defold"]))
+    :box2d (concat (libs-toggles all-platforms ["physics_2d" "box2d" "script_box2d"]) (exclude-libs-toggles all-platforms ["physics" "box2d_defold" "script_box2d_defold"]))
     :box2d-defold))
 
 (def image-setting
