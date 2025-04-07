@@ -91,7 +91,10 @@ public class ReportGenerator {
         this.excludedResources = new HashMap<String, ResourceEntry>();
 
         if (project.option("archive", "false").equals("true")) {
-            parseArchiveBuilder(project.getArchiveBuilder());
+            ArchiveBuilder archiveBuilder = project.getArchiveBuilder();
+            if (archiveBuilder != null) {
+                parseArchiveBuilder(archiveBuilder);
+            }
         } else {
             parseFromDisk();
         }

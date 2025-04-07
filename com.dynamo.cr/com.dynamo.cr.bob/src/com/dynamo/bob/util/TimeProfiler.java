@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.codehaus.jackson.JsonFactory;
 import org.codehaus.jackson.JsonGenerator;
@@ -81,9 +82,9 @@ public class TimeProfiler {
 
     private static final ArrayList<ProfilingMark> marks = new ArrayList<>();
     private static long buildTime;
-    private static final Map<Long, ProfilingScope> rootScopes = new HashMap<>();
+    private static final Map<Long, ProfilingScope> rootScopes = new ConcurrentHashMap<>();
     private static long mainThreadId;
-    private static final Map<Long, ProfilingScope> currentScopes = new HashMap<>();
+    private static final Map<Long, ProfilingScope> currentScopes = new ConcurrentHashMap<>();
     private static List<File> reportFiles;
 
     private static long time() {
