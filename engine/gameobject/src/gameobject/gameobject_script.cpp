@@ -1935,7 +1935,7 @@ namespace dmGameObject
             }
             else if(lua_isnil(L, 1))
             {
-                dmLogWarning("go.delete() invoked with nil and self will be deleted");
+                return luaL_error(L, "The url shouldn't be `nil`");
             }
         }
 
