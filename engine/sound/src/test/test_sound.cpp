@@ -73,6 +73,7 @@
 
 #include "test/mono_resample_framecount_16000.ogg.embed.h"
 #include "test/mono_resample_framecount_16000.opus.embed.h"
+#include "test/mono_resample_framecount_16000_adpcm.wav.embed.h"
 
 #include "test/mono_dc_44100_88200.wav.embed.h"
 
@@ -104,6 +105,12 @@ extern unsigned char MUSIC_OPUS[];
 extern uint32_t MUSIC_OPUS_SIZE;
 extern unsigned char AMBIENCE_OPUS[];
 extern uint32_t AMBIENCE_OPUS_SIZE;
+extern unsigned char MONO_RESAMPLE_FRAMECOUNT_16000_ADPCM_WAV[];
+extern uint32_t MONO_RESAMPLE_FRAMECOUNT_16000_ADPCM_WAV_SIZE;
+extern unsigned char MUSIC_ADPCM_WAV[];
+extern uint32_t MUSIC_ADPCM_WAV_SIZE;
+extern unsigned char AMBIENCE_ADPCM_WAV[];
+extern uint32_t AMBIENCE_ADPCM_WAV_SIZE;
 
 struct TestParams
 {
@@ -310,6 +317,10 @@ class dmSoundVerifyOggTest : public dmSoundTest
 };
 
 class dmSoundVerifyOpusTest : public dmSoundTest
+{
+};
+
+class dmSoundVerifyAdpcmTest : public dmSoundTest
 {
 };
 
@@ -1402,6 +1413,205 @@ INSTANTIATE_TEST_CASE_P(dmSoundVerifyOpusTest, dmSoundVerifyOpusTest, jc_test_va
 #endif
 
 #if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !(defined(WIN32) || defined(__MACH__)))
+TEST_P(dmSoundVerifyAdpcmTest, Mix)
+{
+    TestParams params = GetParam();
+    dmSound::Result r;
+    dmSound::HSoundData sd = 0;
+    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
+
+    printf("verifying adpcm mix: frames: %d\n", params.m_FrameCount);
+
+    dmSound::HSoundInstance instance = 0;
+    r = dmSound::NewSoundInstance(sd, &instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    ASSERT_NE((dmSound::HSoundInstance) 0, instance);
+
+    r = dmSound::Play(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    do {
+        r = dmSound::Update();
+        ASSERT_EQ(dmSound::RESULT_OK, r);
+    } while (dmSound::IsPlaying(instance));
+
+    r = dmSound::DeleteSoundInstance(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::DeleteSoundData(sd);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+}
+
+TEST_P(dmSoundVerifyAdpcmTest, Kill)
+{
+    TestParams params = GetParam();
+    dmSound::Result r;
+    dmSound::HSoundData sd = 0;
+    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
+
+    int tick = 0;
+    int killTick = 16;
+    int killed = 0;
+    printf("verifying adpcm kill: frames: %d killing on: %d\n", params.m_FrameCount, killTick);
+
+    dmSound::HSoundInstance instanceA = 0;
+    dmSound::HSoundInstance instanceB = 0;
+    r = dmSound::NewSoundInstance(sd, &instanceA);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    ASSERT_NE((dmSound::HSoundInstance) 0, instanceA);
+
+    r = dmSound::NewSoundInstance(sd, &instanceB);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    ASSERT_NE((dmSound::HSoundInstance) 0, instanceB);
+
+    r = dmSound::Play(instanceA);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    r = dmSound::Play(instanceB);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+
+    do {
+        r = dmSound::Update();
+        ASSERT_EQ(dmSound::RESULT_OK, r);
+        if (0 == killed && ++tick == killTick) {
+            r =  dmSound::Stop(instanceB);
+            ASSERT_EQ(dmSound::RESULT_OK, r);
+            r = dmSound::Update();
+            ASSERT_EQ(dmSound::RESULT_OK, r);
+            r = dmSound::DeleteSoundInstance(instanceB);
+            killed = 1;
+            ASSERT_EQ(dmSound::RESULT_OK, r);
+            r = dmSound::Update();
+            ASSERT_EQ(dmSound::RESULT_OK, r);
+        }
+    } while (dmSound::IsPlaying(instanceA));
+
+    if (0 == killed) {
+        r = dmSound::DeleteSoundInstance(instanceB);
+    }
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::DeleteSoundInstance(instanceA);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::DeleteSoundData(sd);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+}
+
+// Verifies that the Skip function skips the correct number of samples
+TEST_P(dmSoundVerifyAdpcmTest, SkipSync)
+{
+    TestParams params = GetParam();
+    dmSound::Result r;
+    dmSound::HSoundData sd = 0;
+    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
+
+    dmSound::HSoundInstance instance = 0;
+    r = dmSound::NewSoundInstance(sd, &instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    ASSERT_NE((dmSound::HSoundInstance) 0, instance);
+
+    r = dmSound::SetParameter(instance, dmSound::PARAMETER_GAIN, dmVMath::Vector4(0.5f,0,0,0));
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    r = dmSound::SetParameter(instance, dmSound::PARAMETER_SPEED, dmVMath::Vector4(params.m_Speed,0,0,0));
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::Play(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    // We create a muted instance, to make sure that they end at the same time
+    dmSound::HSoundInstance muted_instance = 0;
+    r = dmSound::NewSoundInstance(sd, &muted_instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    ASSERT_NE((dmSound::HSoundInstance) 0, muted_instance);
+
+    r = dmSound::SetParameter(muted_instance, dmSound::PARAMETER_GAIN, dmVMath::Vector4(0,0,0,0)); // gain 0
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    r = dmSound::SetParameter(muted_instance, dmSound::PARAMETER_SPEED, dmVMath::Vector4(params.m_Speed,0,0,0));
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::Play(muted_instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    do {
+        r = dmSound::Update();
+        ASSERT_EQ(dmSound::RESULT_OK, r);
+
+        int64_t pos_1 = dmSound::GetInternalPos(instance);
+        int64_t pos_2 = dmSound::GetInternalPos(muted_instance);
+        ASSERT_EQ(pos_1, pos_2); // If these numbers differ, then the Skip function isn't working correctly
+    } while (dmSound::IsPlaying(instance));
+
+    r = dmSound::DeleteSoundInstance(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    r = dmSound::DeleteSoundInstance(muted_instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::DeleteSoundData(sd);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+}
+
+// Verifies that the ref counted for HSoundData works correct
+TEST_P(dmSoundVerifyAdpcmTest, SoundDataRefCount)
+{
+    TestParams params = GetParam();
+    dmSound::Result r;
+    dmSound::HSoundData sd = 0;
+    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
+
+    dmSound::HSoundInstance instance = 0;
+    r = dmSound::NewSoundInstance(sd, &instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    ASSERT_NE((dmSound::HSoundInstance) 0, instance);
+
+    r = dmSound::SetParameter(instance, dmSound::PARAMETER_GAIN, dmVMath::Vector4(0.5f,0,0,0));
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    r = dmSound::SetParameter(instance, dmSound::PARAMETER_SPEED, dmVMath::Vector4(params.m_Speed,0,0,0));
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::Play(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    // We create a muted instance, to make sure that they end at the same time
+    dmSound::HSoundInstance muted_instance = 0;
+    r = dmSound::NewSoundInstance(sd, &muted_instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    ASSERT_NE((dmSound::HSoundInstance) 0, muted_instance);
+
+    r = dmSound::SetParameter(muted_instance, dmSound::PARAMETER_GAIN, dmVMath::Vector4(0,0,0,0)); // gain 0
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    r = dmSound::SetParameter(muted_instance, dmSound::PARAMETER_SPEED, dmVMath::Vector4(params.m_Speed,0,0,0));
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::Play(muted_instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    ASSERT_EQ(dmSound::GetRefCount(sd), 3);
+    dmSound::DeleteSoundData(sd);
+    ASSERT_EQ(dmSound::GetRefCount(sd), 2);
+
+    r = dmSound::DeleteSoundInstance(instance);
+    ASSERT_EQ(dmSound::GetRefCount(sd), 1);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    r = dmSound::DeleteSoundInstance(muted_instance);
+    ASSERT_EQ(dmSound::GetRefCount(sd), 0);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::DeleteSoundData(sd);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+}
+
+const TestParams params_verify_adpcm_test[] = {TestParams("loopback",
+                                            MONO_RESAMPLE_FRAMECOUNT_16000_ADPCM_WAV,
+                                            MONO_RESAMPLE_FRAMECOUNT_16000_ADPCM_WAV_SIZE,
+                                            dmSound::SOUND_DATA_TYPE_WAV,
+                                            2000,
+                                            44100,
+                                            35200,
+                                            2048)};
+INSTANTIATE_TEST_CASE_P(dmSoundVerifyAdpcmTest, dmSoundVerifyAdpcmTest, jc_test_values_in(params_verify_adpcm_test));
+#endif
+
+#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !(defined(WIN32) || defined(__MACH__)))
 TEST_P(dmSoundTestPlayTest, Play)
 {
 
@@ -1540,6 +1750,10 @@ const TestParams params_test_play_test[] = {
     TestParams("default", AMBIENCE_OPUS, AMBIENCE_OPUS_SIZE, dmSound::SOUND_DATA_TYPE_OPUS, 0, 0, 0, 2048),
 //  TestParams("default", MUSIC_OPUS, MUSIC_OPUS_SIZE, dmSound::SOUND_DATA_TYPE_OPUS, 0, 0, 0, 2048),
     TestParams("default", MONO_RESAMPLE_FRAMECOUNT_16000_OPUS, MONO_RESAMPLE_FRAMECOUNT_16000_OPUS_SIZE, dmSound::SOUND_DATA_TYPE_OPUS, 0, 0, 0, 2048),
+
+    TestParams("default", AMBIENCE_ADPCM_WAV, AMBIENCE_ADPCM_WAV_SIZE, dmSound::SOUND_DATA_TYPE_WAV, 0, 0, 0, 2048),
+//  TestParams("default", MUSIC_ADPCM_WAV, MUSIC_ADPCM_WAV_SIZE, dmSound::SOUND_DATA_TYPE_WAV, 0, 0, 0, 2048),
+    TestParams("default", MONO_RESAMPLE_FRAMECOUNT_16000_ADPCM_WAV, MONO_RESAMPLE_FRAMECOUNT_16000_ADPCM_WAV_SIZE, dmSound::SOUND_DATA_TYPE_WAV, 0, 0, 0, 2048),
 };
 INSTANTIATE_TEST_CASE_P(dmSoundTestPlayTest, dmSoundTestPlayTest, jc_test_values_in(params_test_play_test));
 
