@@ -1935,7 +1935,7 @@ namespace dmGameObject
             }
             else if(lua_isnil(L, 1))
             {
-                return luaL_error(L, "The url shouldn't be `nil`");
+                return luaL_error(L, "go.delete() invoked with first argument 'id' set to 'nil'");
             }
         }
 
