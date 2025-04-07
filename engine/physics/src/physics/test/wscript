@@ -18,7 +18,7 @@ def build(bld):
     bld.program(features = 'cxx test',
                 defines = 'PHYSICS_TEST_BOX2D',
                 source = 'test_physics.cpp',
-                use = 'TESTMAIN DLIB PROFILE_NULL PLATFORM_THREAD SOCKET BOX2D physics',
+                use = 'TESTMAIN DLIB PROFILE_NULL PLATFORM_THREAD SOCKET BOX2D physics_2d',
                 includes = ['../../../src'],
                 target = 'test_physics_box2d')
 
