@@ -616,14 +616,11 @@ namespace dmGameSystem
      *
      * @name model.get_aabb
      * @param url [type:string|hash|url] the model
-     * @param mesh_id [type:string|hash|url|nil] the id of the mesh (optional)
-     * @return aabb [type:table] A table containing info about all AABB or only one AABB if `mesh_id` was passed
+     * @return aabb [type:table] A table containing info about all AABB in the format <hash(mesh_id), aabb_info>
      * @examples
      *
      * ```lua
      * model.get_aabb("#model") -> { hash("Sword") = { min = vmath.vector3(-0.5, -0.5, 0), max = vmath.vector3(0.5, 0.5, 0) }, hash("Shield") = { min = vmath.vector3(-0.5, -0.5, -0.5), max = vmath.vector3(0.5, 0.5, 0.5) } }
-     * model.get_aabb("#model", "Sword") -> { min = vmath.vector3(-0.5, -0.5, 0), max = vmath.vector3(0.5, 0.5, 0) }
-     * model.get_aabb("#model", hash("Shield")) -> { min = vmath.vector3(-0.5, -0.5, -0.5), max = vmath.vector3(0.5, 0.5, 0.5) }
      * ```
      */
     static int LuaModelComp_GetAabb(lua_State* L)
@@ -637,40 +634,23 @@ namespace dmGameSystem
         {
             return luaL_error(L, "the component '%s' could not be found", lua_tostring(L, 1));
         }
-        // if no mesh_id was passed - return AABB of all 
-        if (lua_gettop(L) > 1)
+        lua_newtable(L);
+
+        uint32_t mesh_count = CompModelGetMeshCount(component);
+        for (uint32_t idx = 0; idx < mesh_count; ++idx)
         {
-            lua_newtable(L);
-            dmhash_t mesh_id = dmScript::CheckHashOrString(L, 2);
             dmVMath::Vector3 min, max;
-            if (CompModelGetMeshAABB(component, mesh_id, min, max))
-            {
-                dmScript::PushVector3(L, min);
-                lua_setfield(L, -2, "min");
-                dmScript::PushVector3(L, max);
-                lua_setfield(L, -2, "max");
-            }
-        }
-        else
-        {
+            dmhash_t mesh_id;
+            CompModelGetMeshAABB(component, idx, &mesh_id, &min, &max);
+            dmScript::PushHash(L, mesh_id);
+
             lua_newtable(L);
+            dmScript::PushVector3(L, min);
+            lua_setfield(L, -2, "min");
+            dmScript::PushVector3(L, max);
+            lua_setfield(L, -2, "max");
 
-            uint32_t mesh_count = CompModelGetMeshCount(component);
-            for (uint32_t idx = 0; idx < mesh_count; ++idx)
-            {
-                dmVMath::Vector3 min, max;
-                dmhash_t mesh_id;
-                CompModelGetMeshAABB(component, idx, mesh_id, min, max);
-                dmScript::PushHash(L, mesh_id);
-
-                lua_newtable(L);
-                dmScript::PushVector3(L, min);
-                lua_setfield(L, -2, "min");
-                dmScript::PushVector3(L, max);
-                lua_setfield(L, -2, "max");
-
-                lua_settable(L, -3);
-            }
+            lua_settable(L, -3);
         }
         return 1;
     }
