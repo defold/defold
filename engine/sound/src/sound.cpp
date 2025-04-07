@@ -216,7 +216,8 @@ namespace dmSound
         void*                   m_DecoderTempOutput;
         float*                  m_DecoderOutput[SOUND_MAX_DECODE_CHANNELS];
 
-        void*                   m_OutBuffers[SOUND_OUTBUFFER_COUNT];
+        void*                   m_OutBuffers[SOUND_OUTBUFFER_MAX_COUNT];
+        uint16_t                m_OutBufferCount;
         uint16_t                m_NextOutBuffer;
         uint8_t                 m_UseFloatOutput : 1;
         uint8_t                 m_NormalizeFloatOutput : 1;
@@ -339,7 +340,11 @@ namespace dmSound
         OpenDeviceParams device_params;
 
         // TODO: m_BufferCount configurable?
-        device_params.m_BufferCount = SOUND_OUTBUFFER_COUNT;
+//Q: A BIT OF A CATCH 22: we could compute an appropriate number of buffers knowing threaded vs. not-threaded AND the buffer size -- but we only know that once we have told the device already how many buffers we want!
+        const uint16_t num_outbuffers = params->m_UseThread ? 2 : 3; //SOUND_OUTBUFFER_COUNT;
+        assert(num_outbuffers <= SOUND_OUTBUFFER_MAX_COUNT);
+
+        device_params.m_BufferCount = num_outbuffers;
         device_params.m_FrameCount = sample_frame_count; // May be 0
         DeviceType* device_type;
         DeviceInfo device_info = {0};
@@ -427,7 +432,8 @@ namespace dmSound
         sound->m_UseFloatOutput = device_info.m_UseFloats;
         sound->m_NormalizeFloatOutput = device_info.m_UseNormalized;
         sound->m_NonInterleavedOutput = device_info.m_UseNonInterleaved;
-        for (int i = 0; i < SOUND_OUTBUFFER_COUNT; ++i) {
+        sound->m_OutBufferCount = num_outbuffers;
+        for (int i = 0; i < num_outbuffers; ++i) {
             sound->m_OutBuffers[i] = malloc(sound->m_DeviceFrameCount * (sound->m_UseFloatOutput ? sizeof(float) : sizeof(int16_t)) * SOUND_MAX_MIX_CHANNELS);
         }
         sound->m_NextOutBuffer = 0;
@@ -498,7 +504,7 @@ namespace dmSound
                 free(sound->m_DecoderOutput[i]);
             }
 
-            for (int i = 0; i < SOUND_OUTBUFFER_COUNT; ++i) {
+            for (int i = 0; i < sound->m_OutBufferCount; ++i) {
                 free(sound->m_OutBuffers[i]);
             }
 
@@ -1692,7 +1698,7 @@ namespace dmSound
                 // still playing we will get the wrong result in isMusicPlaying on android if we release audio focus to soon
                 // since it detects our buffered sounds as "other application".
                 uint32_t free_slots = sound->m_DeviceType->m_FreeBufferSlots(sound->m_Device);
-                if (free_slots == SOUND_OUTBUFFER_COUNT)
+                if (free_slots == sound->m_OutBufferCount)
                 {
                     sound->m_DeviceType->m_DeviceStop(sound->m_Device);
                     sound->m_IsDeviceStarted = false;
@@ -1747,7 +1753,7 @@ namespace dmSound
                 sound->m_DeviceType->m_Queue(sound->m_Device, sound->m_OutBuffers[sound->m_NextOutBuffer], frame_count);
             }
 
-            sound->m_NextOutBuffer = (sound->m_NextOutBuffer + 1) % SOUND_OUTBUFFER_COUNT;
+            sound->m_NextOutBuffer = (sound->m_NextOutBuffer + 1) % sound->m_OutBufferCount;
             current_buffer++;
             free_slots--;
         }

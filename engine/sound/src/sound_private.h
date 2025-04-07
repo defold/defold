@@ -39,6 +39,7 @@ namespace dmSound
     #define SOUND_MAX_DECODE_CHANNELS (2)
     #define SOUND_MAX_MIX_CHANNELS (2)
     #define SOUND_OUTBUFFER_COUNT (6)
+    #define SOUND_OUTBUFFER_MAX_COUNT (6)
     #define SOUND_MAX_SPEED (5)
     #define SOUND_MAX_HISTORY (4)
     #define SOUND_MAX_FUTURE (4)

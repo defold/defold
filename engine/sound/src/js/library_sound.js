@@ -75,7 +75,7 @@ var LibrarySoundDevice =
 
                     // Setup buffer for data delivery...
 
-//Optimize buffer allocation (assumes immediate copy-out - does this work on all platforms? Defold team saw some issues...)
+//Optimize buffer allocation (assumes immediate copy-out - does not work on all platforms (although per spec))
 //                    var buf = this.bufferCache[frame_count];
 //                    if (!buf) {
 //                        buf = this.bufferCache[frame_count] = shared.audioCtx.createBuffer(2, frame_count, this.sampleRate);
