@@ -1141,6 +1141,7 @@ namespace dmGameSystem
         dmRender::HMaterial render_context_material, uint32_t material_index,
         ModelComponent* component, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end, dmGraphics::HVertexDeclaration inst_decl)
     {
+        DM_PROFILE("VSInstanced");
         MeshRenderItem* render_item           = (MeshRenderItem*) buf[*begin].m_UserData;
         uint32_t instance_count               = end - begin;
         uint32_t instance_stride              = dmGraphics::GetVertexDeclarationStride(inst_decl);
@@ -1341,7 +1342,7 @@ namespace dmGameSystem
 
     static inline HComponentRenderConstants GetScratchConstantBuffer(ModelWorld* world)
     {
-        if (world->m_ScratchConstantBuffers.Full())
+        if (world->m_ScratchConstantBuffers.Size() == world->m_ScratchConstantBuffersCount)
         {
             world->m_ScratchConstantBuffers.OffsetCapacity(8);
             uint32_t size_now = world->m_ScratchConstantBuffers.Size();
@@ -1364,6 +1365,7 @@ namespace dmGameSystem
         dmRender::HMaterial render_context_material, uint32_t material_index,
         ModelComponent* component, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
+        DM_PROFILE("VSUninstanced");
         bool render_context_material_custom_attributes = false;
         if (render_context_material)
         {
