@@ -227,12 +227,7 @@
                                      :style-class "cross"}
                            :on-action {:event-type :delete :index i}}]}}))
 
-(defn- set-global-filtering
-  [prefs enabled]
-  (prefs/set! prefs console-filtering-key enabled)
-  (set-filters! (if enabled (prefs/get prefs console-filters-prefs-key) [])))
-
-(defn- filter-console-view [^Node filter-console-button prefs {:keys [open enabled filters text]}]
+(defn- filter-console-view [^Node filter-console-button {:keys [open enabled filters text]}]
   (let [active-filters-count (count (filterv second filters))
         show-counter (and enabled (pos? active-filters-count))
         anchor (.localToScreen filter-console-button
@@ -278,9 +273,8 @@
                               :max-width ##Inf
                               :v-box/margin 4
                               :id "global-console-filtering"
-                              :selected (prefs/get prefs console-filtering-key)
-                              :on-action {:event-type :toggle-global-filtering}
-                              :on-selected-changed (partial set-global-filtering prefs)
+                              :selected enabled
+                              :on-selected-changed {:event-type :toggle-global-filtering}
                               :text "Enable filtering"}
                              {:fx/type fx.separator/lifecycle
                               :style-class "console-filter-popup-separator"}
@@ -304,7 +298,10 @@
   (case (:event-type e)
     :hide (swap! state assoc :open false)
     :show-or-hide (swap! state update :open not)
-    :toggle-global-filtering (swap! state update :enabled not)
+    :toggle-global-filtering (let [enabled (not (:enabled @state))]
+                               (prefs/set! prefs console-filtering-key enabled)
+                               (set-filters! (if enabled (:filters @state) []))
+                               (swap! state assoc :enabled enabled))
     :type (swap! state assoc :text (:fx/event e))
     :delete (let [new-state (swap! state update :filters util/remove-index (:index e))]
               (save-filters! prefs (:filters new-state)))
@@ -328,7 +325,7 @@
         :opts {:fx.opt/map-event-handler #(handle-filter-event! state prefs %)}
         :middleware (comp
                       fxui/wrap-dedupe-desc
-                      (fx/wrap-map-desc #(filter-console-view filter-console-button prefs %)))))))
+                      (fx/wrap-map-desc #(filter-console-view filter-console-button %)))))))
 
 (defonce ^SimpleStringProperty find-term-property (doto (SimpleStringProperty.) (.setValue "")))
 
@@ -340,7 +337,7 @@
                               ^Button clear-console
                               filter-console]
     (init-console-filter! filter-console prefs)
-    (ui/context! tool-bar :console-tool-bar {:term-field search-console :view-node view-node :prefs prefs} nil)
+    (ui/context! tool-bar :console-tool-bar {:term-field search-console :view-node view-node} nil)
     (.bindBidirectional (.textProperty search-console) find-term-property)
     (ui/bind-key-commands! search-console {"Enter" :find-next
                                            "Shift+Enter" :find-prev})
