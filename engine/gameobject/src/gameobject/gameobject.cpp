@@ -1035,15 +1035,15 @@ namespace dmGameObject
         return RESULT_OK;
     }
 
-    Result SetIdentifier(HCollection collection, HInstance instance, dmhash_t id)
+    Result SetIdentifier(HCollection hcollection, HInstance instance, dmhash_t id)
     {
-        return SetIdentifier(collection->m_Collection, instance, id);
+        return SetIdentifier(hcollection->m_Collection, instance, id);
     }
 
-    Result SetConstructedIdentifier(HCollection collection, HInstance instance)
+    Result SetConstructedIdentifier(HCollection hcollection, HInstance instance)
     {
-        instance->m_Generated = true;
-        return SetIdentifier(collection->m_Collection, instance, ConstructInstanceId());
+        instance->m_Generated = 1;
+        return SetIdentifier(hcollection->m_Collection, instance, ConstructInstanceId());
     }
 
     void ReleaseIdentifier(Collection* collection, HInstance instance)
@@ -1210,6 +1210,7 @@ namespace dmGameObject
 
         bool success = CreateComponents(collection, instance);
         if (!success) {
+            dmLogError("Could not create components.");
             ReleaseIdentifier(collection, instance);
             UndoNewInstance(collection, instance);
             return 0;
