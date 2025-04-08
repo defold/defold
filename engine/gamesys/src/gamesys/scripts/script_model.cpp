@@ -610,17 +610,18 @@ namespace dmGameSystem
         return 1;
     }
 
-    /*# get the AABB of the model in local coordinate space
-     * Get AABB of the model in local coordinate space.
+    /*# get the AABB of the whole model in local coordinate space
+     * Get AABB of the whole model in local coordinate space.
      * AABB information return as a table with `min` and `max` fields, where `min` and `max` has type `vmath.vector4`.
      *
      * @name model.get_aabb
      * @param url [type:string|hash|url] the model
-     * @return aabb [type:table] A table containing AABB of the model
+     * @return aabb [type:table] A table containing AABB of the model. If model has no meshes - return vmath.vector3(0,0,0) for min and max fields.
      * @examples
      *
      * ```lua
      * model.get_aabb("#model") -> { min = vmath.vector3(-2.5, -3.0, 0), max = vmath.vector3(1.5, 5.5, 0) }
+     * model.get_aabb("#empty") -> { min = vmath.vector3(0, 0, 0), max = vmath.vector3(0, 0, 0) }
      * ```
      */
     static int LuaModelComp_GetAabb(lua_State* L)
