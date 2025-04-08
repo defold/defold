@@ -25,7 +25,7 @@
                              :skip-root? true}
 
                             {:name "Poki HTML5 game"
-                             :description "This template is configured specifically for HTML5 games released on Poki."
+                             :description "This template includes the Poki SDK, designed for both desktop and mobile web games. It also provides a quick export option to the Poki for Developers platform."
                              :image "poki.svg"
                              :duration "Medium"
                              :user-level "Advanced"
