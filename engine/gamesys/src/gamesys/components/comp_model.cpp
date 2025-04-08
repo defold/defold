@@ -1088,13 +1088,13 @@ namespace dmGameSystem
     }
     #endif
 
-    static void SetupSkinnedMatrixCache(dmRender::RenderObject& ro, dmGraphics::HTexture cache_texture, int32_t first_free_index, dmGameObject::HInstance instance)
+    static void SetupSkinnedMatrixCache(dmRender::RenderObject& ro, dmRender::HMaterial material, dmGraphics::HTexture cache_texture, int32_t first_free_index, dmGameObject::HInstance instance)
     {
-        if (dmRender::GetMaterialHasSkinnedMatrixCache(ro.m_Material))
+        if (dmRender::GetMaterialHasSkinnedMatrixCache(material))
         {
             if (first_free_index >= 0)
             {
-                if (dmRender::SetMaterialSampler(ro.m_Material,
+                if (dmRender::SetMaterialSampler(material,
                     dmRender::SAMPLER_POSE_MATRIX_CACHE, first_free_index,
                     dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE,
                     dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 0.0f))
@@ -1306,7 +1306,7 @@ namespace dmGameSystem
                     instance_data->m_AnimationData = dmVMath::Vector4(0.0f, 0.0f, 0.0f, 0.0f);
                 }
 
-                SetupSkinnedMatrixCache(ro, world->m_SkinnedAnimationData.m_BindPoseCacheTexture, first_free_index, instance_component->m_Instance);
+                SetupSkinnedMatrixCache(ro, render_material, world->m_SkinnedAnimationData.m_BindPoseCacheTexture, first_free_index, instance_component->m_Instance);
                 instance_write_ptr += sizeof(ModelSkinnedInstanceData);
             }
             else
@@ -1438,7 +1438,7 @@ namespace dmGameSystem
 
             if (IsRenderItemSkinned(component, render_item))
             {
-                SetupSkinnedMatrixCache(ro, world->m_SkinnedAnimationData.m_BindPoseCacheTexture, first_free_index, component->m_Instance);
+                SetupSkinnedMatrixCache(ro, render_material, world->m_SkinnedAnimationData.m_BindPoseCacheTexture, first_free_index, component->m_Instance);
 
                 // We need individual constants here, otherwise we will overwrite the values in the buffer.
                 // If the component doesn't have their own constant buffer, we need to retrieve a temporary constant buffer from the world.
