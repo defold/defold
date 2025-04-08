@@ -3943,7 +3943,7 @@
       "font" (add-font scene (g/node-value scene :fonts-node) resource resource-name)
       nil)))
 
-(defn handle-drop
+(defn- handle-drop
   [action op-seq]
   (let [{:keys [files gesture-target]} action
         ui-context (first (ui/node-contexts gesture-target false))

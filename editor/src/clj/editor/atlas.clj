@@ -1224,25 +1224,18 @@
       (first (map #(core/scope-of-type % AtlasNode) selection))
       (first (handler/adapt-every selection AtlasNode))))
 
+(defn- handle-drop
+  [action op-seq]
+  (let [{:keys [files gesture-target]} action
+        ui-context (first (ui/node-contexts gesture-target false))
+        {:keys [selection workspace]} (:env ui-context)]
+    (when-let [parent (parent-animation-or-atlas selection)]
+      (let [image-resources (->> (filter-image-files workspace files)
+                                 (workspace/get-resources-from-files workspace))]
+        (create-dropped-images! parent image-resources op-seq)))))
+
 (defn handle-input [self action selection-data]
   (case (:type action)
-    :drag-dropped (when-let [files (:files action)]
-                    (let [image-view (:gesture-target action)
-                          _ (ui/request-focus! image-view)
-                          ui-context (first (ui/node-contexts image-view false))
-                          {:keys [app-view selection workspace]} (:env ui-context)]
-                      (when-let [parent (parent-animation-or-atlas selection)]
-                        (let [image-resources (->> (filter-image-files workspace files)
-                                                   (workspace/get-resources-from-files workspace))
-                              op-seq (gensym)
-                              image-nodes (create-dropped-images! parent image-resources op-seq)
-                              drag-event ^DragEvent (:event action)]
-                          (when (seq image-nodes)
-                            (.consume drag-event)
-                            (select! app-view image-nodes op-seq)
-                            (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
-                            (.setDropCompleted drag-event true))))
-                      nil))
     :mouse-pressed (if (first (get selection-data self))
                      (do
                        (g/transact
@@ -1309,4 +1302,5 @@
     :icon atlas-icon
     :icon-class :design
     :view-types [:scene :text]
-    :view-opts {:scene {:tool-controller AtlasToolController}}))
+    :view-opts {:scene {:drop-fn handle-drop
+                        :tool-controller AtlasToolController}}))
