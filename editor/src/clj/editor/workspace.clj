@@ -1109,7 +1109,7 @@ ordinary paths."
     (resolve-workspace-resource workspace path)))
 
 (defn get-resources-from-files
-  [files workspace filter-fn]
-  (->> (filter-fn files)
+  [workspace files]
+  (->> files
        (keep (partial get-resource-from-file workspace))
        (sort-by resource/path)))

@@ -1232,7 +1232,8 @@
                           ui-context (first (ui/node-contexts image-view false))
                           {:keys [app-view selection workspace]} (:env ui-context)]
                       (when-let [parent (parent-animation-or-atlas selection)]
-                        (let [image-resources (workspace/get-resources-from-files files workspace (partial filter-image-files workspace))
+                        (let [image-resources (->> (filter-image-files workspace files)
+                                                   (workspace/get-resources-from-files workspace))
                               op-seq (gensym)
                               image-nodes (create-dropped-images! parent image-resources op-seq)
                               drag-event ^DragEvent (:event action)]

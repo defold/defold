@@ -3935,15 +3935,26 @@
         (update :material #(or % default-material-proj-path)))))
 
 (defn- add-dropped-resource
-  [scene selection op-seq resource]
-  (let [ext (resource/ext resource)]
-    ))
+  [scene _selection resource]
+  (let [ext (str/lower-case (resource/ext resource))
+        resource-name (resource/resource-name resource)]
+    (case ext
+      "particlefx" (add-particlefx-resource scene (g/node-value scene :particlefx-resources-node) resource resource-name)
+      "font" (add-font scene (g/node-value scene :fonts-node) resource resource-name)
+      nil)))
 
 (defn handle-drop
-  [files selection workspace op-seq]
-  (let [scene (ui/main-scene)
-        resources (workspace/get-resources-from-files files workspace identity)]
-    (mapv (partial add-dropped-resource scene selection op-seq) resources)))
+  [action op-seq]
+  (let [{:keys [files gesture-target]} action
+        ui-context (first (ui/node-contexts gesture-target false))
+        {:keys [selection workspace]} (:env ui-context)
+        resources (workspace/get-resources-from-files workspace files)
+        gui-scene (node->gui-scene (first selection))]
+    (g/tx-nodes-added
+      (g/transact
+        (concat
+          (keep (partial add-dropped-resource gui-scene selection) resources)
+          (g/operation-sequence op-seq))))))
 
 (defn- register [workspace def]
   (let [ext (:ext def)

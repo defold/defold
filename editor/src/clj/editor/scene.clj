@@ -929,7 +929,6 @@
   (let [x          (:x action)
         y          (:y action)
         screen-pos (Vector3d. x y 0)
-        view-graph (g/node-id->graph-id view)
         camera     (g/node-value (view->camera view) :camera)
         viewport   (g/node-value view :viewport)
         world-pos  (Point3d. (screen->world camera viewport screen-pos))

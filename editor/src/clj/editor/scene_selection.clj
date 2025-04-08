@@ -129,18 +129,16 @@
         contextual? (= (:button action) :secondary)]
     (case (:type action)
       :drag-dropped (when-let [drop-fn (g/node-value self :drop-fn)]
-                      (let [select-fn (g/node-value self :select-fn)
+                      (let [op-seq (gensym)
+                            select-fn (g/node-value self :select-fn)
                             drag-event ^DragEvent (:event action)
-                            files (:files action)
-                            image-view (:gesture-target action)
-                            _ (ui/request-focus! image-view)
-                            ui-context (first (ui/node-contexts image-view false))
-                            {:keys [selection workspace]} (:env ui-context)
-                            added-nodes (drop-fn files selection workspace op-seq)]
-                        (select-fn added-nodes op-seq)
+                            _ (ui/request-focus! (:gesture-target action))
+                            added-nodes (drop-fn action op-seq)]
                         (.consume drag-event)
-                        (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
-                        (.setDropCompleted drag-event true))
+                        (when (seq added-nodes)
+                          (select-fn added-nodes op-seq)
+                          (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
+                          (.setDropCompleted drag-event true)))
                       nil)
       :mouse-pressed (let [op-seq (gensym)
                            toggle? (true? (some true? (map #(% action) toggle-modifiers)))
