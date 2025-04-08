@@ -111,6 +111,9 @@ namespace dmGameSystem
         return 0;
     }
 
+    void CompModelGetAABB(ModelComponent* component, dmVMath::Vector3* out_min, dmVMath::Vector3* out_max)
+    { }
+
     void CompModelGetMeshAABB(ModelComponent* component, uint32_t mesh_idx, dmhash_t* out_mesh_id, dmVMath::Vector3* out_min, dmVMath::Vector3* out_max)
     { }
 

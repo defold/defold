@@ -34,3 +34,13 @@ cp build/default/model/aabb_model.rigscenec ../model/aabb_model.prebuilt_rigscen
 cp build/default/model/aabb_model_generated_0.animationsetc ../model/aabb_model_generated_0.prebuilt_animationsetc
 cp build/default/model/aabb_model.meshsetc ../model/aabb_model.prebuilt_meshsetc
 cp build/default/model/aabb_model.skeletonc ../model/aabb_model.prebuilt_skeletonc
+cp build/default/model/several_meshes.modelc ../model/several_meshes.prebuilt_modelc
+cp build/default/model/several_meshes.rigscenec ../model/several_meshes.prebuilt_rigscenec
+cp build/default/model/several_meshes_generated_0.animationsetc ../model/several_meshes_generated_0.prebuilt_animationsetc
+cp build/default/model/several_meshes.meshsetc ../model/several_meshes.prebuilt_meshsetc
+cp build/default/model/several_meshes.skeletonc ../model/several_meshes.prebuilt_skeletonc
+cp build/default/model/empty.modelc ../model/empty.prebuilt_modelc
+cp build/default/model/empty.rigscenec ../model/empty.prebuilt_rigscenec
+cp build/default/model/empty_generated_0.animationsetc ../model/empty_generated_0.prebuilt_animationsetc
+cp build/default/model/empty.meshsetc ../model/empty.prebuilt_meshsetc
+cp build/default/model/empty.skeletonc ../model/empty.prebuilt_skeletonc
