@@ -1950,8 +1950,7 @@ def detect(conf):
         conf.env['LIB_PLATFORM_SOCKET'] = ''
     elif TargetOS.ANDROID == target_os:
         conf.env['LIB_PLATFORM_SOCKET'] = ''
-    # TODO: only 32bit windows or 64 also?????
-    elif platform == 'win32':
+    elif TargetOS.WINDOWS == target_os:
         conf.env['LIB_PLATFORM_SOCKET'] = 'WS2_32 Iphlpapi AdvAPI32'.split()
     else:
         conf.env['LIB_PLATFORM_SOCKET'] = ''

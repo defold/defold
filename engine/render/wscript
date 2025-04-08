@@ -11,7 +11,6 @@ import waflib.Options
 
 import waf_ddf, waf_dynamo
 import TestContext
-from build_constants import TargetOS
 
 test_context = None
 
@@ -31,15 +30,7 @@ def configure(conf):
 
     conf.recurse('src')
 
-    target_os = conf.env['TARGET_OS']
     platform = conf.env['PLATFORM']
-
-    # TODO: check if here was mistake - if platform in "linux":
-    if target_os == TargetOS.LINUX:
-        conf.env.append_value('CXXFLAGS', '-DGL_GLEXT_PROTOTYPES')
-
-    if target_os == TargetOS.WINDOWS:
-        conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib'])
 
     dynamo_home = os.getenv('DYNAMO_HOME')
     if not dynamo_home:
