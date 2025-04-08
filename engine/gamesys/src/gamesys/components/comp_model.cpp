@@ -646,7 +646,7 @@ namespace dmGameSystem
                 dmhash_t id = dmGameObject::ConstructInstanceId();
                 dmGameObject::AssignInstanceIndex(index, bone_inst);
 
-                dmGameObject::Result result = dmGameObject::SetIdentifier(collection, bone_inst, id);
+                dmGameObject::Result result = dmGameObject::SetConstructedIdentifier(collection, bone_inst);
                 if (dmGameObject::RESULT_OK != result)
                 {
                     dmGameObject::Delete(collection, bone_inst, false);

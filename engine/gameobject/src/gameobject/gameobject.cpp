@@ -970,7 +970,7 @@ namespace dmGameObject
     {
         static uint32_t index = 0;
         index += 1;
-        char buffer[16] = { 0 };
+        char buffer[32] = { 0 };
         int length = dmSnPrintf(buffer, sizeof(buffer), "%sinstance%d", ID_SEPARATOR, index);
         return dmHashBuffer64(buffer, (uint32_t)length);
     }
@@ -1035,9 +1035,15 @@ namespace dmGameObject
         return RESULT_OK;
     }
 
-    Result SetIdentifier(HCollection hcollection, HInstance instance, dmhash_t id)
+    Result SetIdentifier(HCollection collection, HInstance instance, dmhash_t id)
     {
-        return SetIdentifier(hcollection->m_Collection, instance, id);
+        return SetIdentifier(collection->m_Collection, instance, id);
+    }
+
+    Result SetConstructedIdentifier(HCollection collection, HInstance instance)
+    {
+        instance->m_Generated = true;
+        return SetIdentifier(collection->m_Collection, instance, ConstructInstanceId());
     }
 
     void ReleaseIdentifier(Collection* collection, HInstance instance)
@@ -1657,6 +1663,7 @@ namespace dmGameObject
         }
 
         HInstance instance = SpawnInternal(hcollection->m_Collection, proto, prototype_name, id, property_container, position, rotation, scale);
+        instance->m_Generated = 1;
 
         if (instance == 0) {
             dmLogError("Could not spawn an instance of prototype %s.", prototype_name);

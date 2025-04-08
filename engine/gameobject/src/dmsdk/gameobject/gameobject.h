@@ -547,7 +547,7 @@ namespace dmGameObject
     void Delete(HCollection collection, HInstance instance, bool recursive);
 
     /*#
-     * Construct a hash of an instance id based on the index provided.
+     * Construct a hash of an instance id.
      * @name ConstructInstanceId
      * @return id [type: dmhash_t] hash of the instance id constructed.
      */
@@ -594,6 +594,15 @@ namespace dmGameObject
      * @return instance [type: dmGameObject::HInstance] Instance. NULL if instance isn't found.
      */
     HInstance GetInstanceFromIdentifier(HCollection collection, dmhash_t identifier);
+
+    /*#
+     * Construct and set instance identifier.
+     * @name SetConstructedIdentifier
+     * @param collection [type: dmGameObject::HCollection] Collection
+     * @param instance [type: dmGameObject::HInstance] Instance
+     * @return result [type: dmGameObject::Result]  RESULT_OK on success
+     */
+    Result SetConstructedIdentifier(HCollection collection, HInstance instance);
 
     /*#
      * Get component id from component index.
