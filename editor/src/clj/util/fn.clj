@@ -26,6 +26,17 @@
 (defonce constantly-true (constantly true))
 (defonce constantly-nil (constantly nil))
 
+(defmacro constantly-fail
+  ([message-expr]
+   `(fn ~'fail ~'[& args]
+      (throw (ex-info ~message-expr
+                      {:args ~'args}))))
+  ([message-expr context-map-expr]
+   `(fn ~'fail ~'[& args]
+      (throw (ex-info ~message-expr
+                      (merge {:args ~'args}
+                             ~context-map-expr))))))
+
 (definline ^:private with-memoize-info [memoized-fn cache arity]
   `(with-meta ~memoized-fn
               {::memoize-original ~memoized-fn

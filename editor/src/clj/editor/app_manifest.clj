@@ -316,6 +316,24 @@
       (generic-contains-toggles all-platforms :excludeSymbols ["DefaultSoundDevice" "AudioDecoderWav" "AudioDecoderStbVorbis" "AudioDecoderTremolo"])
       (libs-toggles all-platforms ["sound_null"]))))
 
+(def sound-decoder-wav-setting
+  (make-check-box-setting
+    (concat
+      (exclude-libs-toggles all-platforms ["decoder_wav"])
+      (generic-contains-toggles all-platforms :excludeSymbols ["AudioDecoderWav" "ResourceTypeWav"]))))
+
+(def sound-decoder-ogg-setting
+  (make-check-box-setting
+    (concat
+      (exclude-libs-toggles all-platforms ["decoder_ogg"])
+      (generic-contains-toggles all-platforms :excludeSymbols ["AudioDecoderStbVorbis" "AudioDecoderTremolo" "ResourceTypeOgg"]))))
+
+(def sound-decoder-opus-setting
+  (make-check-box-setting
+    (concat
+      (libs-toggles all-platforms ["decoder_opus" "opus"])
+      (generic-contains-toggles all-platforms :symbols ["AudioDecoderOpus" "ResourceTypeOpus"]))))
+
 (def input-setting
   (make-check-box-setting
     (concat
@@ -347,14 +365,14 @@
 (def physics-setting
   (make-choice-setting
     :none (concat (libs-toggles all-platforms ["physics_null"]) (exclude-libs-toggles all-platforms ["physics" "LinearMath" "BulletDynamics" "BulletCollision" "box2d" "box2d_defold" "script_box2d" "script_box2d_defold"]) (generic-contains-toggles all-platforms :excludeSymbols ["ScriptBox2DExt"]))
-    :2d   (concat (libs-toggles all-platforms ["physics_2d"])   (exclude-libs-toggles all-platforms ["physics" "LinearMath" "BulletDynamics" "BulletCollision"]))
+    :2d   (concat (libs-toggles all-platforms ["physics_2d_defold"])   (exclude-libs-toggles all-platforms ["physics" "LinearMath" "BulletDynamics" "BulletCollision"]))
     :3d   (concat (libs-toggles all-platforms ["physics_3d"])   (exclude-libs-toggles all-platforms ["physics" "box2d" "box2d_defold" "script_box2d" "script_box2d_defold"]) (generic-contains-toggles all-platforms :excludeSymbols ["ScriptBox2DExt"]))
     :both))
 
 (def physics-2d-setting
   (make-choice-setting
-    :box2d-defold (concat (libs-toggles all-platforms ["box2d_defold" "script_box2d_defold"]) (exclude-libs-toggles all-platforms ["box2d" "script_box2d"]))
-    :box2d))
+    :box2d (concat (libs-toggles all-platforms ["physics_2d" "box2d" "script_box2d"]) (exclude-libs-toggles all-platforms ["physics" "box2d_defold" "script_box2d_defold"]))
+    :box2d-defold))
 
 (def image-setting
   (make-check-box-setting
@@ -521,6 +539,18 @@
             (dynamic edit-type (g/constantly {:type g/Bool}))
             (value (setting-property-getter sound-setting))
             (set (setting-property-setter sound-setting)))
+  (property exclude-sound-decoder-wav g/Any
+            (dynamic edit-type (g/constantly {:type g/Bool}))
+            (value (setting-property-getter sound-decoder-wav-setting))
+            (set (setting-property-setter sound-decoder-wav-setting)))
+  (property exclude-sound-decoder-ogg g/Any
+            (dynamic edit-type (g/constantly {:type g/Bool}))
+            (value (setting-property-getter sound-decoder-ogg-setting))
+            (set (setting-property-setter sound-decoder-ogg-setting)))
+  (property include-sound-decoder-opus g/Any
+            (dynamic edit-type (g/constantly {:type g/Bool}))
+            (value (setting-property-getter sound-decoder-opus-setting))
+            (set (setting-property-setter sound-decoder-opus-setting)))
   (property exclude-input g/Any
             (dynamic edit-type (g/constantly {:type g/Bool}))
             (value (setting-property-getter input-setting))

@@ -167,7 +167,7 @@
                                          (child-go-go self-id child-id))))}]}
       (merge node-outline-extras)
       (cond->
-        (resource/openable-resource? source-resource) (assoc :link source-resource :outline-reference? true))))
+        (some-> source-resource resource/proj-path) (assoc :link source-resource :outline-reference? true))))
 
 (defn- source-outline-subst [err]
   ;; TODO: embed error so can warn in outline
@@ -514,7 +514,7 @@
        :icon (or (not-empty (:icon source-outline)) collection-common/collection-icon)
        :children (:children source-outline)}
     (cond->
-      (resource/openable-resource? source-resource)
+      (resource/resource? source-resource)
       (assoc :link source-resource
              :outline-reference? true
              :alt-outline source-outline))))
@@ -824,6 +824,7 @@
     :node-type CollectionNode
     :ddf-type GameObject$CollectionDesc
     :load-fn load-collection
+    :allow-unloaded-use true
     :dependencies-fn (collection-common/make-collection-dependencies-fn #(workspace/get-resource-type workspace :editable "go"))
     :sanitize-fn (partial sanitize-collection workspace)
     :string-encode-fn (partial string-encode-collection workspace)

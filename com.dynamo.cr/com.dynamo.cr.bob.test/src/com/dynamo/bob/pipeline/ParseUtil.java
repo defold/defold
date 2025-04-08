@@ -97,6 +97,12 @@ public class ParseUtil {
                 return null;
             }
         });
+        parseMap.put("opusc", new IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                return null;
+            }
+        });
         parseMap.put("texturec", new IParser() {
             @Override
             public Message parse(byte[] content) throws InvalidProtocolBufferException {

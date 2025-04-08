@@ -48,10 +48,15 @@ function update(self, dt)
     go.set("/body2-go#body-co", "linear_velocity", vmath.vector3(-19, 0, 0) )
   end
 
-  -- at frame 39-41 both object should move with the same velocity
-  if counter == 39 then
+  -- Box2d v2
+  if counter == 50 then
     assert(velocity1 == velocity2)
   end
+  -- Box2d v3
+  -- -- at frame 39-41 both object should move with the same velocity
+  -- if counter == 39 then
+  --   assert(velocity1 == velocity2)
+  -- end
 
   if counter >= 120 then -- make sure that body1 has smaller velocity, and body2 is moving
     tests_done = true

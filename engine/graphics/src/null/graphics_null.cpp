@@ -1533,12 +1533,10 @@ namespace dmGraphics
         ((NullContext*) context)->m_Textures[unit] = 0;
     }
 
-    static void NullReadPixels(HContext context, void* buffer, uint32_t buffer_size)
+    static void NullReadPixels(HContext context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size)
     {
-        uint32_t w = dmGraphics::GetWidth(context);
-        uint32_t h = dmGraphics::GetHeight(context);
-        assert (buffer_size >= w * h * 4);
-        memset(buffer, 0, w * h * 4);
+        assert (buffer_size >= width * height * 4);
+        memset(buffer, 0, width * height * 4);
     }
 
     static void NullEnableState(HContext context, State state)
@@ -1822,6 +1820,12 @@ namespace dmGraphics
     }
 
     static void NullInvalidateGraphicsHandles(HContext context) { }
+
+    static void NullGetViewport(HContext context, int32_t* x, int32_t* y, uint32_t* width, uint32_t* height)
+    {
+        assert(context);
+        *x = 0, *y = 0, *width = 1000, *height = 1000;
+    }
 
     bool UnmapIndexBuffer(HContext context, HIndexBuffer buffer)
     {

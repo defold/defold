@@ -83,9 +83,9 @@
 (defn- shell! [commands project state]
   (let [{:keys [reload-resources! display-output!]} state
         root (lsp.async/with-auto-evaluation-context evaluation-context
-               (-> project
-                   (project/workspace evaluation-context)
-                   (workspace/project-path evaluation-context)))]
+               (let [basis (:basis evaluation-context)
+                     workspace (project/workspace project evaluation-context)]
+                 (workspace/project-directory basis workspace)))]
     (-> (await-all-sequentially
           (eduction
             (map

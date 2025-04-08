@@ -95,6 +95,7 @@
   (resource-hash [this] (resource/resource-hash resource))
   (openable? [this] (resource/openable? resource))
   (editable? [this] (resource/editable? resource))
+  (loaded? [this] (resource/loaded? resource))
 
   io/IOFactory
   (make-input-stream  [this opts] (io/input-stream resource))

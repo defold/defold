@@ -965,7 +965,9 @@ public class BundleHelper {
         if (publisher != null && publisher.shouldBeMovedIntoBundleFolder() && publisher instanceof ZipPublisher) {
             ZipPublisher zipPublisher = (ZipPublisher) publisher;
             File zipFile = zipPublisher.getZipFile();
-            Files.move(zipFile.toPath(), (new File(bundleDir, zipFile.getName())).toPath(), StandardCopyOption.REPLACE_EXISTING);
+            if (zipFile != null && zipFile.exists()) {
+                Files.move(zipFile.toPath(), (new File(bundleDir, zipFile.getName())).toPath(), StandardCopyOption.REPLACE_EXISTING);
+            }
         }
     }
 

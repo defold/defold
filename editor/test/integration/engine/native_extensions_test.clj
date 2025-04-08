@@ -22,6 +22,7 @@
             [editor.engine.native-extensions :as native-extensions]
             [editor.fs :as fs]
             [editor.resource :as resource]
+            [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [support.test-support :refer [with-clean-system]]
             [util.repo :as repo])
@@ -48,7 +49,7 @@
    (with-clean-system
      (let [workspace (test-util/setup-scratch-workspace! world "test/resources/extension_project")
            _ (test-util/setup-project! workspace)
-           root (g/node-value workspace :root)]
+           root (workspace/project-directory workspace)]
        ;; The plugins/${platform}.zip archive has a following structure:
        ;; /bin
        ;;   /${platform}

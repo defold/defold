@@ -1453,6 +1453,8 @@
 (defn get-valid-syntax-info
   "Get syntax info valid up till target row (1-indexed)
 
+  Returns empty vector if there is no grammar
+
   Args:
     resource-node          resource node
     canvas-repaint-info    canvas repaint info
@@ -1479,12 +1481,13 @@
   (or (g/user-data resource-node :syntax-info) []))
 
 (defn- syntax-scope-before-cursor [view-node ^Cursor cursor evaluation-context]
-  (data/syntax-scope-before-cursor
-    (get-valid-syntax-info (get-property view-node :resource-node evaluation-context)
+  (if-let [syntax-info (coll/not-empty
+                         (get-valid-syntax-info
+                           (get-property view-node :resource-node evaluation-context)
                            (get-property view-node :canvas-repaint-info evaluation-context)
-                           (inc (.-row cursor)))
-    (get-property view-node :grammar evaluation-context)
-    cursor))
+                           (inc (.-row cursor))))]
+    (data/syntax-scope-before-cursor syntax-info (get-property view-node :grammar evaluation-context) cursor)
+    "source"))
 
 (defn- implies-completions?
   ([view-node]
@@ -3646,7 +3649,7 @@
                [{:fx/type fx.label/lifecycle
                  :style-class ["label" "breakpoint-editor-label"]
                  :text "Condition"}
-                {:fx/type fxui/text-field
+                {:fx/type fxui/legacy-text-field
                  :h-box/hgrow :always
                  :style-class ["text-field" "breakpoint-editor-label"]
                  :prompt-text "e.g. i == 1"
@@ -3671,10 +3674,10 @@
                   (when (and (.isSelected tab) (not (ui/ui-disabled?)))
                     (g/with-auto-evaluation-context evaluation-context
                       (reset! state
-                        (when-let [edited-breakpoint (g/node-value view-node :edited-breakpoint evaluation-context)]
-                          {:edited-breakpoint edited-breakpoint
-                           :gutter-metrics (g/node-value view-node :gutter-metrics evaluation-context)
-                           :layout (g/node-value view-node :layout evaluation-context)}))))))]
+                              (when-let [edited-breakpoint (g/node-value view-node :edited-breakpoint evaluation-context)]
+                                {:edited-breakpoint edited-breakpoint
+                                 :gutter-metrics (g/node-value view-node :gutter-metrics evaluation-context)
+                                 :layout (g/node-value view-node :layout evaluation-context)}))))))]
     (fx/mount-renderer
       state
       (fx/create-renderer

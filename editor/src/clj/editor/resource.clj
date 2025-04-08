@@ -26,6 +26,7 @@
             [util.http-server :as http-server]
             [util.text-util :as text-util])
   (:import [clojure.lang PersistentHashMap]
+           [com.defold.editor Editor]
            [java.io File Closeable FilterInputStream IOException InputStream]
            [java.net URI]
            [java.nio.file FileSystem FileSystems]
@@ -33,6 +34,7 @@
            [org.apache.commons.io FilenameUtils IOUtils]))
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (defprotocol ResourceListener
   (handle-changes [this changes render-progress!]))
@@ -51,7 +53,8 @@
   (workspace [this])
   (resource-hash [this])
   (openable? [this])
-  (editable? [this]))
+  (editable? [this])
+  (loaded? [this]))
 
 (def ^{:arglists '([x])} resource?
   (let [cache (atom {})
@@ -67,12 +70,29 @@
 
 (def placeholder-resource-type-ext "*")
 
+(defn filename->type-ext
+  "Given a filename or path string, returns the lower-case file extension
+  (without the leading dot character), or nil if the supplied filename is nil.
+  Returns an empty string if the supplied string has no file extension."
+  ^String [^String filename]
+  (string/lower-case (FilenameUtils/getExtension filename)))
+
 (defn type-ext [resource]
   (string/lower-case (ext resource)))
 
-(defn- get-resource-type [workspace resource]
-  (let [output-label (if (editable? resource) :resource-types :resource-types-non-editable)
-        resource-types (output-label (g/node-by-id workspace))
+(definline project-directory
+  "Returns a File representing the canonical path of the project directory."
+  ^File [basis workspace]
+  `(io/as-file (g/raw-property-value ~basis ~workspace :root)))
+
+(defn resource-types-by-type-ext [basis workspace editability]
+  (let [property-label (case editability
+                         (true :editable) :resource-types
+                         (false :non-editable) :resource-types-non-editable)]
+    (g/raw-property-value basis workspace property-label)))
+
+(defn lookup-resource-type [basis workspace resource]
+  (let [resource-types (resource-types-by-type-ext basis workspace (editable? resource))
         ext (type-ext resource)]
     (or (resource-types ext)
         (resource-types placeholder-resource-type-ext))))
@@ -116,10 +136,10 @@
       (subs path 1)
       path)))
 
-(defn file->proj-path [^File project-path ^File f]
+(defn file->proj-path [^File project-directory ^File file]
   (try
-    (str "/" (relative-path project-path f))
-    (catch IllegalArgumentException e
+    (str "/" (relative-path project-directory file))
+    (catch IllegalArgumentException _
       nil)))
 
 (defn parent-proj-path [^String proj-path]
@@ -130,10 +150,36 @@
   ;; path->{:mtime ... :pred ...}
   (atom {}))
 
-;; The same logic implemented in Project.java.
-;; If you change something here, please change it there as well
-;; Search for excluedFilesAndFoldersEntries.
-;; root -> pred if project path (string starting with /) is ignored
+(defn lines->proj-path-patterns-pred
+  "Returns a predicate that takes a proj-path and returns true if it starts with
+  or matches one of the proj-paths listed among the lines, typically the
+  contents of something like a `.defignore` file."
+  [lines]
+  (let [patterns (when lines
+                   (coll/transfer lines []
+                     (filter #(string/starts-with? % "/"))
+                     (map #(string/replace % #"/*$" ""))
+                     (distinct)))]
+    (if (zero? (count patterns))
+      fn/constantly-false
+      (fn matched-proj-path? [^String proj-path]
+        (let [proj-path-length (.length proj-path)]
+          (boolean
+            (coll/some
+              (fn [^String pattern]
+                ;; Make sure a "/dir" pattern matches "/dir" and "/dir/entry",
+                ;; but not "/dire".
+                (and (string/starts-with? proj-path pattern)
+                     (let [pattern-length (.length pattern)]
+                       (or (= pattern-length proj-path-length)
+                           (= \/ (.charAt proj-path pattern-length))))))
+              patterns)))))))
+
+(defn- read-proj-path-patterns-pred [^File proj-path-patterns-file]
+  (lines->proj-path-patterns-pred
+    (when (.isFile proj-path-patterns-file)
+      (string/split-lines (slurp proj-path-patterns-file)))))
+
 (defn defignore-pred [^File root]
   (let [defignore-file (io/file root ".defignore")
         defignore-path (.getCanonicalPath defignore-file)
@@ -141,17 +187,35 @@
         {:keys [mtime pred]} (get @defignore-cache defignore-path)]
     (if (= mtime latest-mtime)
       pred
-      (let [pred (if (.isFile defignore-file)
-                   (let [prefixes (into []
-                                        (comp
-                                          (filter #(string/starts-with? % "/"))
-                                          (distinct))
-                                        (string/split-lines (slurp defignore-file)))]
-                     (fn ignored-path? [path]
-                       (boolean (some #(string/starts-with? path %) prefixes))))
-                   fn/constantly-false)]
+      (let [pred (read-proj-path-patterns-pred defignore-file)]
         (swap! defignore-cache assoc defignore-path {:mtime latest-mtime :pred pred})
         pred))))
+
+(defn- defunload-pred-raw [^File root]
+  ;; Contrary to .defignore, we only read the .defunload file once and cache it
+  ;; for the entire lifetime of the application. You'll have to restart the
+  ;; editor for any changes to take effect.
+  {:pre [(instance? File root)]} ; Guard against duplicate memoization since io/file accepts multiple types.
+  (let [defunload-file (io/file root ".defunload")]
+    (read-proj-path-patterns-pred defunload-file)))
+
+(def defunload-pred (fn/memoize defunload-pred-raw))
+
+(defonce ^File defunload-issues-file
+  (let [report-file-atom (atom nil)]
+    (fn defunload-issues-file
+      ^File []
+      (if-some [existing-report-file @report-file-atom]
+        (pair existing-report-file false)
+        (let [log-directory (.getAbsoluteFile (.toFile (Editor/getLogDirectory)))
+              report-file (io/file log-directory "defunload-issues.txt")
+              we-assigned-atom (compare-and-set! report-file-atom nil report-file)]
+          (when we-assigned-atom
+            ;; We will append any issues encountered when resources are loaded
+            ;; to this report file. Make sure it is initially empty for this
+            ;; session.
+            (fs/create-file! report-file ""))
+          (pair report-file we-assigned-atom))))))
 
 (def ^:dynamic *defignore-pred* nil)
 
@@ -180,11 +244,11 @@
 ;; Note! Used to keep a file here instead of path parts, but on
 ;; Windows (File. "test") equals (File. "Test") which broke
 ;; FileResource equality tests.
-(defrecord FileResource [workspace ^String root ^String abs-path ^String project-path ^String name ^String ext source-type editable children]
+(defrecord FileResource [workspace ^String root ^String abs-path ^String project-path ^String name ^String ext source-type editable loaded children]
   Resource
   (children [this] children)
   (ext [this] ext)
-  (resource-type [this] (get-resource-type workspace this))
+  (resource-type [this] (lookup-resource-type (g/now) workspace this))
   (source-type [this] source-type)
   (exists? [this]
     (try
@@ -214,8 +278,13 @@
   (resource-name [this] name)
   (workspace [this] workspace)
   (resource-hash [this] (hash (proj-path this)))
-  (openable? [this] (= :file source-type))
-  (editable? [this] editable)
+  (openable? [this]
+    (and (= :file source-type)
+         (if (:editor-openable (resource-type this))
+           (loaded? this)
+           true)))
+  (editable? [_this] editable)
+  (loaded? [_this] loaded)
 
   io/IOFactory
   (make-input-stream  [this opts] (io/make-input-stream (io/file this) opts))
@@ -232,15 +301,18 @@
   http-server/->Data
   (->data [_] (fs/path abs-path)))
 
-(defn make-file-resource [workspace ^String root ^File file children editable-proj-path?]
+(defn make-file-resource [workspace ^String root-path ^File file children editable-proj-path? unloaded-proj-path?]
+  {:pre [(g/node-id? workspace)
+         (string? root-path)]}
   (let [source-type (if (.isDirectory file) :folder :file)
         abs-path (.getAbsolutePath file)
         path (.getPath file)
         name (.getName file)
-        project-path (if (= "" name) "" (str "/" (relative-path (File. root) (io/file path))))
+        project-path (if (= "" name) "" (str "/" (relative-path (File. root-path) (io/file path))))
         ext (FilenameUtils/getExtension path)
-        editable (editable-proj-path? project-path)]
-    (FileResource. workspace root abs-path project-path name ext source-type editable children)))
+        editable (editable-proj-path? project-path)
+        loaded (not (unloaded-proj-path? project-path))]
+    (FileResource. workspace root-path abs-path project-path name ext source-type editable loaded children)))
 
 (defn file-resource? [resource]
   (instance? FileResource resource))
@@ -248,8 +320,8 @@
 (core/register-read-handler!
   "file-resource"
   (transit/read-handler
-    (fn [{:keys [workspace ^String root ^String abs-path ^String project-path ^String name ^String ext source-type editable children]}]
-      (FileResource. workspace root abs-path project-path name ext source-type editable children))))
+    (fn [{:keys [workspace ^String root ^String abs-path ^String project-path ^String name ^String ext source-type editable loaded children]}]
+      (FileResource. workspace root abs-path project-path name ext source-type editable loaded children))))
 
 (core/register-write-handler!
  FileResource
@@ -275,7 +347,7 @@
   Resource
   (children [this] nil)
   (ext [this] ext)
-  (resource-type [this] (get-resource-type workspace this))
+  (resource-type [this] (lookup-resource-type (g/now) workspace this))
   (source-type [this] :file)
   (exists? [this] true)
   (read-only? [this] false)
@@ -287,6 +359,7 @@
   (resource-hash [this] (hash data))
   (openable? [this] false)
   (editable? [this] editable)
+  (loaded? [_this] true)
 
   io/IOFactory
   (make-input-stream  [this opts] (io/make-input-stream (IOUtils/toInputStream ^String (:data this)) opts))
@@ -328,7 +401,7 @@
   Resource
   (children [this] children)
   (ext [this] (FilenameUtils/getExtension name))
-  (resource-type [this] (get-resource-type workspace this))
+  (resource-type [this] (lookup-resource-type (g/now) workspace this))
   (source-type [this] (if (zero? (count children)) :file :folder))
   (exists? [this] (not (nil? zip-entry)))
   (read-only? [this] true)
@@ -338,8 +411,13 @@
   (resource-name [this] name)
   (workspace [this] workspace)
   (resource-hash [this] (hash (proj-path this)))
-  (openable? [this] (= :file (source-type this)))
-  (editable? [this] true)
+  (openable? [this]
+    (and (= :file (source-type this))
+         (if (:editor-openable (resource-type this))
+           (loaded? this)
+           true)))
+  (editable? [_this] true)
+  (loaded? [_this] true)
 
   io/IOFactory
   (make-input-stream  [this opts] (make-zip-resource-input-stream this))
@@ -398,9 +476,9 @@
 
 (defn- path-relative-base [base-path zip-entry-name]
   (let [clean-zip-entry-name (->unix-seps zip-entry-name)]
-    (if (seq base-path)
-      (.replaceFirst clean-zip-entry-name (str base-path "/") "")
-      clean-zip-entry-name)))
+    (if (coll/empty? base-path)
+      clean-zip-entry-name
+      (.replaceFirst clean-zip-entry-name (str base-path "/") ""))))
 
 (defn- load-zip [^File zip-file ^String base-path]
   ;; NOTE: Even though it may not look like it here, we can only load
@@ -441,9 +519,19 @@
                  (map (juxt #(str "/" (:path %)) :crc))
                  entries)})))
 
+(defn save-tracked?
+  "Checks if the specified Resource should be connected to the save system."
+  [resource]
+  (and (file-resource? resource)
+       (editable? resource)
+       (loaded? resource)))
+
 (g/defnode ResourceNode
   (property resource Resource :unjammable
             (dynamic visible (g/constantly false))))
+
+(definline node-resource [basis resource-node]
+  `(g/raw-property-value* ~basis ~resource-node :resource))
 
 (defn base-name ^String [resource]
   (FilenameUtils/getBaseName (resource-name resource)))

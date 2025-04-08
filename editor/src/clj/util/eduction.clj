@@ -13,13 +13,17 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns util.eduction
-  (:refer-clojure :exclude [cat concat dedupe distinct drop drop-while filter interpose keep keep-indexed map map-indexed mapcat partition-all partition-by random-sample remove replace take take-nth take-while])
-  (:require [util.array :as array]))
+  (:refer-clojure :exclude [cat concat conj cons dedupe distinct drop drop-while filter interpose keep keep-indexed map map-indexed mapcat partition-all partition-by random-sample remove replace take take-nth take-while])
+  (:require [util.array :as array])
+  (:import [clojure.core Eduction]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
 (defonce empty-eduction (eduction))
+
+(defn eduction? [value]
+  (instance? Eduction value))
 
 (definline cat [coll]
   `(->Eduction
@@ -45,6 +49,29 @@
    (->Eduction
      clojure.core/cat
      (apply array/of a b c d more))))
+
+(defn conj
+  ([] empty-eduction)
+  ([coll] coll)
+  ([coll item]
+   (->Eduction
+     clojure.core/cat
+     (array/of
+       coll
+       (array/of item))))
+  ([coll item & more]
+   (->Eduction
+     clojure.core/cat
+     (array/of
+       coll
+       (array/of item)
+       (object-array more)))))
+
+(defn cons [item coll]
+  (->Eduction
+    clojure.core/cat
+    (array/of (array/of item)
+              coll)))
 
 (definline dedupe [coll]
   `(->Eduction
@@ -99,6 +126,11 @@
 (definline mapcat [f coll]
   `(->Eduction
      (clojure.core/mapcat ~f)
+     ~coll))
+
+(definline mapcat-indexed [f coll]
+  `(->Eduction
+     (comp (clojure.core/map-indexed ~f) clojure.core/cat)
      ~coll))
 
 (definline partition-all [n coll]

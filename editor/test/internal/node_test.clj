@@ -34,7 +34,7 @@
   (property overridden-indirect           g/Str (default string-value)))
 
 (deftest node-property-defaults
-  (are [expected property] (= expected (get (g/construct WithDefaults) property))
+  (are [expected property] (= expected (gt/get-property (g/construct WithDefaults) (g/now) property))
        "o rly?"      :default-value
        "uff-da"      :overridden-indirect))
 
@@ -363,9 +363,9 @@
       (is (:string-property      (-> (g/construct BasicNode)         g/node-type g/declared-properties)))
       (is (:string-property      (-> (g/construct InheritsBasicNode) g/node-type g/declared-properties)))
       (is (:property-to-override (-> (g/construct InheritsBasicNode) g/node-type g/declared-properties)))
-      (is (= nil                 (-> (g/construct BasicNode)         :property-to-override)))
-      (is (= "override"          (-> (g/construct InheritsBasicNode) :property-to-override)))
-      (is (= "multiple"          (-> (g/construct InheritsBasicNode) :property-from-multiple)))))
+      (is (= nil                 (-> (g/construct BasicNode)         (gt/get-property (g/now) :property-to-override))))
+      (is (= "override"          (-> (g/construct InheritsBasicNode) (gt/get-property (g/now) :property-to-override))))
+      (is (= "multiple"          (-> (g/construct InheritsBasicNode) (gt/get-property (g/now) :property-from-multiple))))))
 
   (testing "transforms"
     (is (every? (-> (g/construct BasicNode) g/node-type g/output-labels)

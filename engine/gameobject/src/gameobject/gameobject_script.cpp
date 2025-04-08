@@ -1677,7 +1677,7 @@ namespace dmGameObject
                 lua_concat(L, 2);
                 const char* name = lua_tostring(L, -1);
                 lua_pop(L, 1);
-                return luaL_error(L, "The property '%s' of '%s' has incorrect type", dmHashReverseSafe64Alloc(&hash_ctx, property_id), name);
+                return luaL_error(L, "The property '%s' of '%s' has incorrect type %d (errcode: %d)", dmHashReverseSafe64Alloc(&hash_ctx, property_id), name, property_var.m_Type, result);
             }
         case dmGameObject::PROPERTY_RESULT_COMP_NOT_FOUND:
             return luaL_error(L, "could not find component '%s' when resolving '%s'", dmHashReverseSafe64Alloc(&hash_ctx, target.m_Fragment), lua_tostring(L, 1));
@@ -1935,7 +1935,7 @@ namespace dmGameObject
             }
             else if(lua_isnil(L, 1))
             {
-                dmLogWarning("go.delete() invoked with nil and self will be deleted");
+                return luaL_error(L, "go.delete() invoked with first argument 'id' set to 'nil'");
             }
         }
 

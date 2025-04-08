@@ -541,14 +541,21 @@ namespace dmRig
         context->m_PoseMatrixCache.m_MaxBoneCount = dmMath::Max(context->m_PoseMatrixCache.m_MaxBoneCount, (uint32_t) instance->m_MaxBoneCount);
     }
 
+    bool IsAnimating(HRigInstance instance)
+    {
+        RigPlayer* player = GetPlayer(instance);
+        return player->m_Playing && player->m_Animation && instance->m_Enabled;
+    }
+
     static void DoAnimate(HRigContext context, RigInstance* instance, float dt)
     {
         // NOTE we previously checked for (!instance->m_Enabled || !instance->m_AddedToUpdate) here also
-        RigPlayer* player = GetPlayer(instance);
-
-        if (!player->m_Playing || !instance->m_Enabled || !player->m_Animation)
+        if (!IsAnimating(instance))
+        {
             return;
+        }
 
+        RigPlayer* player = GetPlayer(instance);
         const dmRigDDF::Skeleton* skeleton = instance->m_Skeleton;
 
         dmArray<BonePose>& pose = instance->m_Pose;

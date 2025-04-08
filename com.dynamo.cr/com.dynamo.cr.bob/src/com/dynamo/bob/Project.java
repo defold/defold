@@ -52,6 +52,7 @@ import java.util.zip.ZipOutputStream;
 
 import com.defold.extension.pipeline.ILuaTranspiler;
 import com.defold.extension.pipeline.texture.TextureCompressorPreset;
+import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.fs.ClassLoaderMountPoint;
 import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.fs.DefaultResource;
@@ -150,6 +151,16 @@ public class Project {
 
     private List<Class<? extends IShaderCompiler>> shaderCompilerClasses = new ArrayList();
     private List<Class<? extends ITextureCompressor>> textureCompressorClasses = new ArrayList();
+
+    private ArchiveBuilder archiveBuilder;
+
+    public void setArchiveBuilder(ArchiveBuilder archiveBuilder) {
+        this.archiveBuilder = archiveBuilder;
+    }
+
+    public ArchiveBuilder getArchiveBuilder() {
+        return this.archiveBuilder;
+    }
 
     public Project(IFileSystem fileSystem) {
         this.fileSystem = fileSystem;
@@ -418,6 +429,7 @@ public class Project {
         {".sound", ".soundc"},
         {".wav", ".soundc"},
         {".ogg", ".soundc"},
+        {".opus", ".soundc"},
         {".collectionfactory", ".collectionfactoryc"},
         {".factory", ".factoryc"},
         {".light", ".lightc"},
@@ -550,7 +562,8 @@ public class Project {
         System.out.println(String.format(fmt, args));
     }
 
-    public void createPublisher(boolean shouldPublish) throws CompileExceptionError {
+    public void createPublisher() throws CompileExceptionError {
+        boolean shouldPublish = this.option("liveupdate", "false").equals("true");
         try {
             String settingsPath = this.getProjectProperties().getStringValue("liveupdate", "settings", "/liveupdate.settings"); // if no value set use old hardcoded path (backward compatability)
             IResource publisherSettings = this.fileSystem.get(settingsPath);
@@ -562,8 +575,7 @@ public class Project {
                     this.publisher = new NullPublisher(new PublisherSettings());
                 }
             } else {
-                ByteArrayInputStream is = new ByteArrayInputStream(publisherSettings.getContent());
-                PublisherSettings settings = PublisherSettings.load(is);
+                PublisherSettings settings = PublisherSettings.load(publisherSettings);
                 if (shouldPublish) {
                     if (PublisherSettings.PublishMode.Amazon.equals(settings.getMode())) {
                         this.publisher = new AWSPublisher(settings);
