@@ -46,7 +46,8 @@ static int Lua_Spawn(lua_State* L) {
     const char* prototype = luaL_checkstring(L, 1);
     dmGameObject::HInstance instance = dmGameObject::GetInstanceFromLua(L);
     dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
-    dmhash_t id = dmGameObject::ConstructInstanceId();
+    uint32_t index = dmGameObject::AcquireInstanceIndex(collection);
+    dmhash_t id = dmGameObject::ConstructInstanceId(index);
     dmResource::HFactory factory = dmGameObject::GetFactory(collection);
     dmGameObject::HInstance spawned = Spawn(factory, collection, prototype, id, 0, dmVMath::Point3(0.0f, 0.0f, 0.0f), dmVMath::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
     if (spawned == 0x0) {
