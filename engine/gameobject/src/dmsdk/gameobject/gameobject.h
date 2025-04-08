@@ -549,10 +549,9 @@ namespace dmGameObject
     /*#
      * Construct a hash of an instance id based on the index provided.
      * @name ConstructInstanceId
-     * @param index [type: uint32_t] The index to base the id off of.
      * @return id [type: dmhash_t] hash of the instance id constructed.
      */
-    dmhash_t ConstructInstanceId(uint32_t index);
+    dmhash_t ConstructInstanceId();
 
     /*#
      * Retrieve an instance index from the index pool for the collection.

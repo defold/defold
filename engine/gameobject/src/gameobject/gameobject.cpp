@@ -966,8 +966,10 @@ namespace dmGameObject
         return instance;
     }
 
-    dmhash_t ConstructInstanceId(uint32_t index)
+    dmhash_t ConstructInstanceId()
     {
+        static uint32_t index = 0;
+        index += 1;
         char buffer[16] = { 0 };
         int length = dmSnPrintf(buffer, sizeof(buffer), "%sinstance%d", ID_SEPARATOR, index);
         return dmHashBuffer64(buffer, (uint32_t)length);
