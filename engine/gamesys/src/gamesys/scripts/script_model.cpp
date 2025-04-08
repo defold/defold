@@ -611,7 +611,7 @@ namespace dmGameSystem
     }
 
     /*# get the AABB of the meshes
-     * Get AABB of the meshes. If `mesh_id` would be passed as a second argument - return AABB only for that mesh.
+     * Get AABB of the meshes.
      * AABB information return as a table with `min` and `max` fields, where `min` and `max` has type `vmath.vector4`.
      *
      * @name model.get_aabb
