@@ -1225,6 +1225,7 @@ namespace dmGameObject
 
         if (success) {
             AddToUpdate(collection, instance);
+            instance->m_Generated = 1;
         } else {
             Delete(collection, instance, false);
             return 0;
@@ -1663,7 +1664,6 @@ namespace dmGameObject
         }
 
         HInstance instance = SpawnInternal(hcollection->m_Collection, proto, prototype_name, id, property_container, position, rotation, scale);
-        instance->m_Generated = 1;
 
         if (instance == 0) {
             dmLogError("Could not spawn an instance of prototype %s.", prototype_name);
