@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.image
-  (:require [dynamo.graph :as g]
+  (:require [clojure.string :as str]
+            [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.gl :as gl]
             [editor.gl.texture :as texture]
@@ -25,12 +26,15 @@
             [editor.workspace :as workspace])
   (:import [com.dynamo.bob.pipeline TextureGenerator$GenerateResult]
            [com.dynamo.bob.textureset TextureSetGenerator$UVTransform]
-           [com.dynamo.bob.util TextureUtil]
            [java.awt.image BufferedImage]))
 
 (set! *warn-on-reflection* true)
 
 (def exts ["jpg" "png"])
+
+(defn image-path?
+  [path]
+  (boolean (some (partial str/ends-with? path) exts)))
 
 (defn- build-texture [resource _dep-resources user-data]
   (let [{:keys [content-generator texture-profile compress?]} user-data

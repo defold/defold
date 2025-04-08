@@ -32,7 +32,6 @@ ordinary paths."
             [editor.ui :as ui]
             [editor.url :as url]
             [editor.util :as util]
-            [internal.cache :as c]
             [internal.java :as java]
             [internal.util :as iutil]
             [schema.core :as s]
@@ -1103,3 +1102,14 @@ ordinary paths."
                          (when text-selection-fn
                            {:text-selection-fn text-selection-fn}))]
      (g/update-property workspace :view-types assoc (:id view-type) view-type)))
+
+(defn- get-resource-from-file
+  [workspace ^File file]
+  (when-let [path (as-proj-path workspace (.getAbsolutePath file))]
+    (resolve-workspace-resource workspace path)))
+
+(defn get-resources-from-files
+  [files workspace filter-fn]
+  (->> (filter-fn files)
+       (keep (partial get-resource-from-file workspace))
+       (sort-by resource/path)))

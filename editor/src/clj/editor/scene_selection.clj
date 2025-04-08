@@ -24,6 +24,7 @@
   (:import [editor.types Rect]
            [java.lang Runnable Math]
            [com.jogamp.opengl GL2]
+           [javafx.scene.input DragEvent]
            [javafx.scene Node Scene]
            [javax.vecmath Point2i Point3d Matrix4d]))
 
@@ -127,6 +128,20 @@
         cursor-pos [(:x action) (:y action) 0]
         contextual? (= (:button action) :secondary)]
     (case (:type action)
+      :drag-dropped (when-let [drop-fn (g/node-value self :drop-fn)]
+                      (let [select-fn (g/node-value self :select-fn)
+                            drag-event ^DragEvent (:event action)
+                            files (:files action)
+                            image-view (:gesture-target action)
+                            _ (ui/request-focus! image-view)
+                            ui-context (first (ui/node-contexts image-view false))
+                            {:keys [selection workspace]} (:env ui-context)
+                            added-nodes (drop-fn files selection workspace op-seq)]
+                        (select-fn added-nodes op-seq)
+                        (.consume drag-event)
+                        (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
+                        (.setDropCompleted drag-event true))
+                      nil)
       :mouse-pressed (let [op-seq (gensym)
                            toggle? (true? (some true? (map #(% action) toggle-modifiers)))
                            mode :single]
@@ -189,6 +204,7 @@
 
 (g/defnode SelectionController
   (property select-fn Runnable)
+  (property drop-fn Runnable)
   (property start types/Vec3)
   (property current types/Vec3)
   (property op-seq g/Any)

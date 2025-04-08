@@ -1542,7 +1542,8 @@
         tool-controller-type (get opts :tool-controller scene-tools/ToolController)]
     (g/make-nodes view-graph
                   [background      background/Background
-                   selection       [selection/SelectionController :select-fn (fn [selection op-seq]
+                   selection       [selection/SelectionController :drop-fn (:drop-fn opts)
+                                                                  :select-fn (fn [selection op-seq]
                                                                                (g/transact
                                                                                  (concat
                                                                                    (g/operation-sequence op-seq)

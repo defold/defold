@@ -13,8 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.atlas
-  (:require [clojure.string :as str]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.camera :as c]
             [editor.colors :as colors]
@@ -1192,21 +1191,11 @@
     (let [pivot-pos (rect->absolute-pivot-pos (-> selected-renderables util/only :user-data :rect))]
       (scene-tools/scale-factor camera viewport (Vector3d. (first pivot-pos) (second pivot-pos) 0.0)))))
 
-(defn- image-path?
-  [path]
-  (boolean (some (partial str/ends-with? path) image/exts)))
-
-(defn- get-image-resource-from-file
-  [workspace ^File file]
-  (when-let [path (workspace/as-proj-path workspace (.getAbsolutePath file))]
-    (when (image-path? path)
-      (workspace/resolve-workspace-resource workspace path))))
-
-(defn- get-image-resources-from-files
-  [files workspace]
-  (->> files
-       (keep (partial get-image-resource-from-file workspace))
-       (sort-by resource/path)))
+(defn- filter-image-files
+  [workspace files]
+  (filter (fn [^File file]
+            (when-let [path (workspace/as-proj-path workspace (.getAbsolutePath file))]
+              (image/image-path? path))) files))
 
 (defn- image-resources->image-msgs
   [image-resources]
@@ -1243,7 +1232,7 @@
                           ui-context (first (ui/node-contexts image-view false))
                           {:keys [app-view selection workspace]} (:env ui-context)]
                       (when-let [parent (parent-animation-or-atlas selection)]
-                        (let [image-resources (get-image-resources-from-files files workspace)
+                        (let [image-resources (workspace/get-resources-from-files files workspace (partial filter-image-files workspace))
                               op-seq (gensym)
                               image-nodes (create-dropped-images! parent image-resources op-seq)
                               drag-event ^DragEvent (:event action)]

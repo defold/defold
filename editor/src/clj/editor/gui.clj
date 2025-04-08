@@ -47,6 +47,7 @@
             [editor.scene-tools :as scene-tools]
             [editor.texture-set :as texture-set]
             [editor.types :as types]
+            [editor.ui :as ui]
             [editor.util :as eutil]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
@@ -61,7 +62,6 @@
            [com.jogamp.opengl GL GL2]
            [editor.gl.shader ShaderLifecycle]
            [editor.gl.texture TextureLifecycle]
-           [editor.pose Pose]
            [internal.graph.types Arc]
            [java.awt.image BufferedImage]
            [javax.vecmath Quat4d]))
@@ -3934,6 +3934,17 @@
         (protobuf/assign-repeated :resources merged-resource-descs)
         (update :material #(or % default-material-proj-path)))))
 
+(defn- add-dropped-resource
+  [scene selection op-seq resource]
+  (let [ext (resource/ext resource)]
+    ))
+
+(defn handle-drop
+  [files selection workspace op-seq]
+  (let [scene (ui/main-scene)
+        resources (workspace/get-resources-from-files files workspace identity)]
+    (mapv (partial add-dropped-resource scene selection op-seq) resources)))
+
 (defn- register [workspace def]
   (let [ext (:ext def)
         exts (if (vector? ext) ext [ext])]
@@ -3953,7 +3964,8 @@
         :tag-opts (:tag-opts def)
         :template (:template def)
         :view-types [:scene :text]
-        :view-opts {:scene {:grid true}}))))
+        :view-opts {:scene {:grid true
+                            :drop-fn handle-drop}}))))
 
 (defn register-resource-types [workspace]
   (register workspace pb-def))
