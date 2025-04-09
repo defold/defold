@@ -53,7 +53,8 @@ namespace dmGameObject
     const char* COLLECTION_MAX_INPUT_STACK_ENTRIES_KEY = "collection.max_input_stack_entries";
     const dmhash_t UNNAMED_IDENTIFIER = dmHashBuffer64("__unnamed__", strlen("__unnamed__"));
     const dmhash_t GAME_OBJECT_EXT = dmHashString64("goc");
-    const char* ID_SEPARATOR = "/";
+#define ID_SEPARATOR_CHAR "/"
+    const char* ID_SEPARATOR = ID_SEPARATOR_CHAR;
     const uint32_t MAX_DISPATCH_ITERATION_COUNT = 10;
 
     static Prototype EMPTY_PROTOTYPE;
@@ -90,8 +91,6 @@ namespace dmGameObject
     static void DeallocCollection(Collection* collection);
     static bool InitCollection(Collection* collection);
     static bool FinalCollection(Collection* collection);
-
-    static uint32_t g_InstanceIndex = 0;
 
     Prototype::~Prototype()
     {
@@ -968,17 +967,13 @@ namespace dmGameObject
         return instance;
     }
 
-    void ResetInstanceIndex()
-    {
-        g_InstanceIndex = 0;
-    }
-
     dmhash_t CreateInstanceId()
     {
+        static uint32_t index = 0;
         //20 bytes: '/'' + 'instance' + uint32 + null terminator = 1 + 8 + 10 + 1
         char buffer[32] = { 0 };
-        int length = dmSnPrintf(buffer, sizeof(buffer), "%sinstance%d", ID_SEPARATOR, g_InstanceIndex);
-        g_InstanceIndex += 1;
+        int length = dmSnPrintf(buffer, sizeof(buffer), ID_SEPARATOR_CHAR "instance%d", index);
+        index += 1;
         return dmHashBuffer64(buffer, (uint32_t)length);
     }
 

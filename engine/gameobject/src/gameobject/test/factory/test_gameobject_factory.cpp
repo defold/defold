@@ -124,9 +124,6 @@ static dmGameObject::CreateResult TestComponentCreate(const dmGameObject::Compon
 {
     // Hard coded for the specific case "CreateCallback" below
     dmGameObject::HInstance instance = params.m_Instance;
-    if (dmGameObject::GetIdentifier(instance) != dmHashString64("/instance0")) {
-        return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
-    }
     if (dmGameObject::GetWorldPosition(instance).getX() != 2.0f) {
         return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
     }
@@ -280,7 +277,6 @@ TEST_F(FactoryTest, FactoryPropertiesFailTypeMismatch)
 
 TEST_F(FactoryTest, FactoryCreateCallback)
 {
-    dmGameObject::ResetInstanceIndex();
     uint32_t index = dmGameObject::AcquireInstanceIndex(m_Collection);
     dmhash_t id = dmGameObject::CreateInstanceId();
     dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test_create.goc", id, 0, Point3(2.0f, 0.0f, 0.0f), Quat(), Vector3(2, 2, 2));
