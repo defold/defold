@@ -186,12 +186,13 @@
         num-vertices (count-vertices renderable-datas)]
     (condp = pass
       pass/transparent
-      (let [shader (:shader user-data)
-            shader-bound-attributes (graphics/shader-bound-attributes gl shader (:material-attribute-infos user-data) [:position :texcoord0 :page-index] :coordinate-space-world)
+      (let [{:keys [blend-mode material-attribute-infos shader]} user-data
+            shader-attribute-infos-by-name (shader/attribute-infos shader gl)
+            manufactured-attribute-keys [:position :texcoord0 :page-index]
+            shader-bound-attributes (graphics/shader-bound-attributes shader-attribute-infos-by-name material-attribute-infos manufactured-attribute-keys :coordinate-space-world)
             vertex-description (graphics/make-vertex-description shader-bound-attributes)
             vbuf (graphics/put-attributes! (vtx/make-vertex-buffer vertex-description :dynamic num-vertices) renderable-datas)
-            vertex-binding (vtx/use-with ::sprite-trans vbuf shader)
-            blend-mode (:blend-mode user-data)]
+            vertex-binding (vtx/use-with ::sprite-trans vbuf shader)]
         (gl/with-gl-bindings gl render-args [shader vertex-binding]
           (doseq [{:keys [gpu-texture sampler]} scene-infos]
             (gl/bind gl gpu-texture render-args)
@@ -379,7 +380,7 @@
 
 (g/defnk produce-properties [_declared-properties _node-id default-animation material-attribute-infos material-max-page-count material-samplers material-shader texture-binding-infos vertex-attribute-overrides]
   (let [extension (workspace/resource-kind-extensions (project/workspace (project/get-project _node-id)) :atlas)
-        is-paged-material (shader/is-using-array-samplers? material-shader)
+        is-paged-material (boolean (some-> material-shader shader/is-using-array-samplers?))
         texture-binding-index (util/name-index texture-binding-infos :sampler)
         material-sampler-index (if (g/error-value? material-samplers)
                                  {}

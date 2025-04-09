@@ -130,18 +130,21 @@
       (.setIdentity)
       (.setTranslation (Vector3d. page-offset 0.0 0.0)))))
 
-(defn- array-sampler-name->uniform-names [array-sampler-uniform-name page-count]
-  (mapv #(str array-sampler-uniform-name "_" %) (range page-count)))
-
 ; TODO - macro of this
 (def atlas-shader
+  ;; TODO(instancing): Shouldn't we be transforming all shaders like this, really?
   (let [transformed-shader-result (ShaderUtil$VariantTextureArrayFallback/transform pos-uv-frag ShaderUtil$Common/MAX_ARRAY_SAMPLERS)
-        augmented-fragment-source (.source transformed-shader-result)
-        array-sampler-names (vec (.arraySamplers transformed-shader-result))
-        array-sampler-uniform-names (into {}
-                                          (map #(pair % (array-sampler-name->uniform-names % ShaderUtil$Common/MAX_ARRAY_SAMPLERS)))
-                                          array-sampler-names)]
-    (shader/make-shader ::atlas-shader pos-uv-vert augmented-fragment-source {} array-sampler-uniform-names)))
+        augmented-fragment-shader-source (.source transformed-shader-result)
+
+        array-sampler-name->uniform-names
+        (into {}
+              (map (fn [array-sampler-name]
+                     (pair array-sampler-name
+                           (mapv #(str array-sampler-name "_" %)
+                                 (range ShaderUtil$Common/MAX_ARRAY_SAMPLERS)))))
+              (.arraySamplers transformed-shader-result))]
+
+    (shader/make-shader ::atlas-shader pos-uv-vert augmented-fragment-shader-source {} array-sampler-name->uniform-names)))
 
 (defn- render-rect
   [^GL2 gl rect color offset-x]
@@ -1058,7 +1061,7 @@
 
 (defn- vec-move
   [v x offset]
-  (let [current-index (.indexOf ^java.util.List v x)
+  (let [current-index (.indexOf ^List v x)
         new-index (max 0 (+ current-index offset))
         [before after] (split-at new-index (remove #(= x %) v))]
     (vec (concat before [x] after))))
