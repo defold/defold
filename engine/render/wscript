@@ -32,13 +32,6 @@ def configure(conf):
 
     platform = conf.env['PLATFORM']
 
-    if platform in "linux":
-        conf.env.append_value('CXXFLAGS', '-DGL_GLEXT_PROTOTYPES')
-
-    if "win32" in platform:
-        conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib'])
-
-
     dynamo_home = os.getenv('DYNAMO_HOME')
     if not dynamo_home:
         conf.fatal("DYNAMO_HOME not set")

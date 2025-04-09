@@ -8,9 +8,9 @@ blddir = 'build'
 
 import sys, re, os
 import waf_dynamo, waf_ddf
-from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
 import waflib.Options
 import TestContext
+from build_constants import TargetOS
 
 test_context = None
 
@@ -28,14 +28,8 @@ def configure(conf):
     conf.load('waf_ddf')
     waf_ddf.configure(conf)
 
-    build_util = None
-    try:
-        build_util = create_build_utility(conf.env)
-    except BuildUtilityException as ex:
-        conf.fatal(ex.msg)
-    operating_sys = build_util.get_target_os()
-
     conf.recurse('src')
+    target_os = conf.env['TARGET_OS']
 
     conf.env.append_value('CPPPATH', "default/src")
 
@@ -45,12 +39,12 @@ def configure(conf):
     conf.env['STLIB_EXTENSION'] = 'extension'
     conf.env['STLIB_SCRIPT'] = 'script'
 
-    if operating_sys != "osx":
+    if target_os != TargetOS.MACOS:
         conf.env['STLIB_UNWIND'] = 'unwind'
 
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="CRASH"')
 
-    if operating_sys == "win":
+    if target_os == TargetOS.WINDOWS:
         conf.env.append_value('LINKFLAGS', ['dbghelp.lib'])
 
 def build(bld):
