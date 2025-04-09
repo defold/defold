@@ -34,7 +34,9 @@
 
 (defn image-path?
   [path]
-  (boolean (some (partial str/ends-with? path) exts)))
+  (->> exts
+       (some (partial str/ends-with? (str/lower-case path)))
+       boolean))
 
 (defn- build-texture [resource _dep-resources user-data]
   (let [{:keys [content-generator texture-profile compress?]} user-data
