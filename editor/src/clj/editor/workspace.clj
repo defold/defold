@@ -1102,14 +1102,3 @@ ordinary paths."
                          (when text-selection-fn
                            {:text-selection-fn text-selection-fn}))]
      (g/update-property workspace :view-types assoc (:id view-type) view-type)))
-
-(defn- get-resource-from-file
-  [workspace ^File file]
-  (when-let [path (as-proj-path workspace (.getAbsolutePath file))]
-    (resolve-workspace-resource workspace path)))
-
-(defn get-resources-from-files
-  [workspace files]
-  (->> files
-       (keep (partial get-resource-from-file workspace))
-       (sort-by resource/path)))
