@@ -91,6 +91,8 @@ namespace dmGameObject
     static bool InitCollection(Collection* collection);
     static bool FinalCollection(Collection* collection);
 
+    static uint32_t g_instance_index = 0;
+
     Prototype::~Prototype()
     {
         free(m_Components);
@@ -966,12 +968,16 @@ namespace dmGameObject
         return instance;
     }
 
+    void ResetInstanceIndex()
+    {
+        g_instance_index = 0;
+    }
+
     dmhash_t ConstructInstanceId()
     {
-        static uint32_t index = 0;
-        index += 1;
         char buffer[32] = { 0 };
-        int length = dmSnPrintf(buffer, sizeof(buffer), "%sinstance%d", ID_SEPARATOR, index);
+        int length = dmSnPrintf(buffer, sizeof(buffer), "%sinstance%d", ID_SEPARATOR, g_instance_index);
+        g_instance_index += 1;
         return dmHashBuffer64(buffer, (uint32_t)length);
     }
 

@@ -280,6 +280,7 @@ TEST_F(FactoryTest, FactoryPropertiesFailTypeMismatch)
 
 TEST_F(FactoryTest, FactoryCreateCallback)
 {
+    dmGameObject::ResetInstanceIndex();
     uint32_t index = dmGameObject::AcquireInstanceIndex(m_Collection);
     dmhash_t id = dmGameObject::ConstructInstanceId();
     dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test_create.goc", id, 0, Point3(2.0f, 0.0f, 0.0f), Quat(), Vector3(2, 2, 2));

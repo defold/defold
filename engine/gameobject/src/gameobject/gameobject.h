@@ -391,6 +391,9 @@ namespace dmGameObject
      * tracked by the collection, e.g resource.release(id) has been called
      */
     void RemoveDynamicResourceHash(HCollection collection, dmhash_t resource_hash);
+
+    // For tests
+    void ResetInstanceIndex();
 }
 
 #endif // DM_GAMEOBJECT_H

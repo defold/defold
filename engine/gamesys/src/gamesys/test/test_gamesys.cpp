@@ -1866,6 +1866,7 @@ TEST_F(WindowTest, Events)
 
 TEST_P(FactoryTest, Test)
 {
+    dmGameObject::ResetInstanceIndex();
     const char* resource_path[] = {
             "/factory/factory_resource.goc",
             "/sprite/valid.spritec",
@@ -1937,6 +1938,7 @@ TEST_P(FactoryTest, Test)
                 ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
                 ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
                 dmGameObject::PostUpdate(m_Register);
+                dmGameObject::ResetInstanceIndex();
             }
             ASSERT_EQ(3, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
             ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
