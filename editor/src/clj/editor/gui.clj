@@ -3266,11 +3266,11 @@
   (input script-resource resource/Resource)
 
   (input node-tree g/NodeID)
-  (input layers-node g/NodeID) ; for tests
-  (input layouts-node g/NodeID) ; for tests
-  (input fonts-node g/NodeID) ; for tests
-  (input textures-node g/NodeID) ; for tests
-  (input particlefx-resources-node g/NodeID) ; for tests
+  (input layers-node g/NodeID)
+  (input layouts-node g/NodeID)
+  (input fonts-node g/NodeID)
+  (input textures-node g/NodeID)
+  (input particlefx-resources-node g/NodeID)
   (input materials-node g/NodeID)
   (input handler-infos g/Any :array)
   (output handler-infos g/Any (g/fnk [handler-infos]
@@ -3937,25 +3937,25 @@
         (update :material #(or % default-material-proj-path)))))
 
 (defn- add-dropped-resource
-  [scene _selection resource]
-  (let [ext (str/lower-case (resource/ext resource))
-        resource-name (->> resource
-                           resource/resource-name
-                           (drop-last (inc (count ext)))
-                           (apply str))]
-    (cond 
-      (= ext "particlefx") 
-      (add-particlefx-resource scene (g/node-value scene :particlefx-resources-node) resource resource-name)
-      
-      (= ext "font") 
-      (add-font scene (g/node-value scene :fonts-node) resource resource-name)
-      
-      (contains? #{"atlas" "tilesource"} ext) 
-      (add-texture scene (g/node-value scene :textures-node) resource resource-name)
-      
-      (= ext "material") 
-      (add-material scene (g/node-value scene :materials-node) resource resource-name)
-      
+  [selection workspace resource]
+  (let [scene (node->gui-scene (first selection))
+        ext (str/lower-case (resource/ext resource))
+        base-name (resource/base-name resource)
+        gen-name #(->> (g/node-value (g/node-value scene %) :name-counts)
+                       (outline/resolve-id base-name))]
+    (cond
+      (= ext "particlefx")
+      (add-particlefx-resource scene (g/node-value scene :particlefx-resources-node) resource (gen-name :particlefx-resources-node))
+
+      (= ext "font")
+      (add-font scene (g/node-value scene :fonts-node) resource (gen-name :fonts-node))
+
+      (some #{ext} (workspace/resource-kind-extensions workspace :atlas))
+      (add-texture scene (g/node-value scene :textures-node) resource (gen-name :textures-node))
+
+      (= ext "material")
+      (add-material scene (g/node-value scene :materials-node) resource (gen-name :materials-node))
+
       :else
       nil)))
 
@@ -3965,8 +3965,7 @@
         ui-context (first (ui/node-contexts gesture-target false))
         {:keys [selection workspace]} (:env ui-context)
         resources (workspace/get-resources-from-files workspace files)
-        gui-scene (node->gui-scene (first selection))
-        add-resource (partial add-dropped-resource gui-scene selection)]
+        add-resource (partial add-dropped-resource selection workspace)]
     (g/tx-nodes-added
       (g/transact
         (concat
