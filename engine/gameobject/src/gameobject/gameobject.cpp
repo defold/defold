@@ -973,7 +973,7 @@ namespace dmGameObject
         g_InstanceIndex = 0;
     }
 
-    dmhash_t CreateIntanceId()
+    dmhash_t CreateInstanceId()
     {
         //20 bytes: '/'' + 'instance' + uint32 + null terminator = 1 + 8 + 10 + 1
         char buffer[32] = { 0 };

@@ -643,7 +643,7 @@ namespace dmGameSystem
                     return false;
                 }
                 dmGameObject::AssignInstanceIndex(index, bone_inst);
-                dmhash_t id = dmGameObject::ConstructInstanceId();
+                dmhash_t id = dmGameObject::CreateInstanceId();
                 dmGameObject::Result result = dmGameObject::SetIdentifier(collection, bone_inst, id);
                 if (dmGameObject::RESULT_OK != result)
                 {

@@ -548,10 +548,10 @@ namespace dmGameObject
 
     /*#
      * Creates a new unique instance ID and returns its hash.
-     * @name CreateIntanceId
+     * @name CreateInstanceId
      * @return id [type: dmhash_t] hash of the new unique instance id
      */
-    dmhash_t CreateIntanceId();
+    dmhash_t CreateInstanceId();
 
     /*#
      * Retrieve an instance index from the index pool for the collection.

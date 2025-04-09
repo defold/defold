@@ -339,7 +339,7 @@ namespace dmGameSystem
         }
         else
         {
-            dmhash_t id = dmGameObject::CreateIntanceId();
+            dmhash_t id = dmGameObject::CreateInstanceId();
 
             // TODO: When does this actually happen? In render scripts? Or unit tests only?
             bool msg_passing = dmGameObject::GetInstanceFromLua(L) == 0x0;
