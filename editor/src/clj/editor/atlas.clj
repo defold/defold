@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.atlas
-  (:require [dynamo.graph :as g]
+  (:require [clojure.string :as str]
+            [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.camera :as c]
             [editor.colors :as colors]
@@ -1191,12 +1192,6 @@
     (let [pivot-pos (rect->absolute-pivot-pos (-> selected-renderables util/only :user-data :rect))]
       (scene-tools/scale-factor camera viewport (Vector3d. (first pivot-pos) (second pivot-pos) 0.0)))))
 
-(defn- filter-image-files
-  [workspace files]
-  (filter (fn [^File file]
-            (when-let [path (workspace/as-proj-path workspace (.getAbsolutePath file))]
-              (image/image-path? path))) files))
-
 (defn- image-resources->image-msgs
   [image-resources]
   (mapv (partial hash-map :image) image-resources))
@@ -1226,12 +1221,14 @@
 
 (defn- handle-drop
   [action op-seq]
-  (let [{:keys [files gesture-target]} action
+  (let [{:keys [string gesture-target]} action
         ui-context (first (ui/node-contexts gesture-target false))
         {:keys [selection workspace]} (:env ui-context)]
     (when-let [parent (parent-animation-or-atlas selection)]
-      (let [image-resources (->> (filter-image-files workspace files)
-                                 (workspace/get-resources-from-files workspace))]
+      (let [image-resources (->> (str/split-lines string)
+                                 (filter image/image-path?)
+                                 (sort)
+                                 (keep (partial workspace/resolve-workspace-resource workspace)))]
         (create-dropped-images! parent image-resources op-seq)))))
 
 (defn handle-input [self action selection-data]

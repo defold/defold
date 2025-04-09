@@ -3961,15 +3961,15 @@
 
 (defn- handle-drop
   [action op-seq]
-  (let [{:keys [files gesture-target]} action
+  (let [{:keys [string gesture-target]} action
         ui-context (first (ui/node-contexts gesture-target false))
         {:keys [selection workspace]} (:env ui-context)
-        resources (workspace/get-resources-from-files workspace files)
-        add-resource (partial add-dropped-resource selection workspace)]
+        resources (->> (str/split-lines string)
+                       (keep (partial workspace/resolve-workspace-resource workspace)))]
     (g/tx-nodes-added
       (g/transact
         (concat
-          (keep add-resource resources)
+          (mapv (partial add-dropped-resource selection workspace) resources)
           (g/operation-sequence op-seq))))))
 
 (defn- register [workspace def]
