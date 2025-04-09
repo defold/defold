@@ -2437,6 +2437,54 @@ namespace dmGameSystem
         return found;
     }
 
+    uint32_t CompModelGetMeshCount(ModelComponent* component)
+    {
+        return component->m_RenderItems.Size();
+    }
+
+    void CompModelGetAABB(ModelComponent* component, dmVMath::Vector3* out_min, dmVMath::Vector3* out_max)
+    {
+        uint32_t mesh_count = component->m_RenderItems.Size();
+        if (mesh_count == 0)
+        {
+            *out_min = dmVMath::Vector3(0.f);
+            *out_max = dmVMath::Vector3(0.f);
+            return;
+        }
+
+        dmVMath::Vector3 first_mesh_position = component->m_RenderItems[0].m_Model->m_Local.GetTranslation();
+
+        *out_min = first_mesh_position + component->m_RenderItems[0].m_AabbMin;
+        *out_max = first_mesh_position + component->m_RenderItems[0].m_AabbMax;
+
+        for (uint32_t idx = 1; idx < mesh_count; ++idx)
+        {
+            const MeshRenderItem& item = component->m_RenderItems[idx];
+            dmVMath::Vector3 mesh_position = component->m_RenderItems[idx].m_Model->m_Local.GetTranslation();
+            
+            dmVMath::Vector3 transformed_min = mesh_position + item.m_AabbMin;
+            dmVMath::Vector3 transformed_max = mesh_position + item.m_AabbMax;
+
+            for (uint32_t elem_idx = 0; elem_idx < 3; ++elem_idx)
+            {
+                (*out_min)[elem_idx] = dmMath::Min(transformed_min[elem_idx], (*out_min)[elem_idx]);
+                (*out_max)[elem_idx] = dmMath::Max(transformed_max[elem_idx], (*out_max)[elem_idx]);
+            }
+        }
+    }
+
+    void CompModelGetMeshAABB(ModelComponent* component, uint32_t mesh_idx, dmhash_t* out_mesh_id, dmVMath::Vector3* out_min, dmVMath::Vector3* out_max)
+    {
+        if (mesh_idx >= component->m_RenderItems.Size())
+        {
+            return;
+        }
+        MeshRenderItem& item = component->m_RenderItems[mesh_idx];
+        *out_min = item.m_AabbMin;
+        *out_max = item.m_AabbMax;
+        *out_mesh_id = item.m_Model->m_Id;
+    }
+
     static bool CompModelIterPropertiesGetNext(dmGameObject::SceneNodePropertyIterator* pit)
     {
         ModelWorld* world = (ModelWorld*)pit->m_Node->m_ComponentWorld;

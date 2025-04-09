@@ -5701,6 +5701,18 @@ TEST_F(ShaderTest, ComputeResource)
 
 #endif
 
+TEST_F(ModelScriptTest, GetAABB)
+{
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/script_model.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+
 extern "C" void dmExportedSymbols();
 
 int main(int argc, char **argv)
