@@ -422,6 +422,7 @@ class Configuration(object):
                  dynamo_home = None,
                  target_platform = None,
                  skip_tests = False,
+                 keep_bob_uncompressed = False,
                  skip_codesign = False,
                  skip_docs = False,
                  incremental = False,
@@ -470,6 +471,7 @@ class Configuration(object):
         self.build_utility = BuildUtility.BuildUtility(self.target_platform, self.host, self.dynamo_home)
 
         self.skip_tests = skip_tests
+        self.keep_bob_uncompressed = keep_bob_uncompressed
         self.skip_codesign = skip_codesign
         self.skip_docs = skip_docs
         self.incremental = incremental
@@ -1390,7 +1392,7 @@ class Configuration(object):
         env['GRADLE_OPTS'] = '-Dorg.gradle.parallel=true' #-Dorg.gradle.daemon=true
 
         # Clean and build the project
-        s = run.command(" ".join([gradle, 'clean', 'installBobLight'] + gradle_args), cwd = bob_dir, shell = True, env = env)
+        s = run.command(" ".join([gradle, '-Pkeep-bob-uncompressed', 'clean', 'installBobLight'] + gradle_args), cwd = bob_dir, shell = True, env = env)
         if self.verbose:
         	print (s)
 
@@ -1567,13 +1569,16 @@ class Configuration(object):
             gradle_args += ['--info']
 
         env['GRADLE_OPTS'] = '-Dorg.gradle.parallel=true' #-Dorg.gradle.daemon=true
+        flags = ''
+        if self.keep_bob_uncompressed:
+            flags = '-Pkeep-bob-uncompressed'
 
         # Clean and build the project
-        run.command(" ".join([gradle, 'clean', 'install'] + gradle_args), cwd=bob_dir, shell = True, env = env)
+        run.command(" ".join([gradle, flags, 'clean', 'install'] + gradle_args), cwd=bob_dir, shell = True, env = env)
 
         # Run tests if not skipped
         if not self.skip_tests:
-            run.command(" ".join([gradle, 'testJar'] + gradle_args), cwd = test_dir, shell = True, env = env, stdout = None)
+            run.command(" ".join([gradle, flags, 'testJar'] + gradle_args), cwd = test_dir, shell = True, env = env, stdout = None)
 
 
     def build_sdk_headers(self):
@@ -2582,6 +2587,11 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = False,
                       help = 'Skip unit-tests. Default is false')
 
+    parser.add_option('--keep-bob-uncompressed', dest='keep_bob_uncompressed',
+                    action = 'store_true',
+                    default = False,
+                    help = 'do not apply compression to bob.jar. Default is false')
+
     parser.add_option('--skip-codesign', dest='skip_codesign',
                       action = 'store_true',
                       default = False,
@@ -2725,6 +2735,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
     c = Configuration(dynamo_home = os.environ.get('DYNAMO_HOME', None),
                       target_platform = target_platform,
                       skip_tests = options.skip_tests,
+                      keep_bob_uncompressed = options.keep_bob_uncompressed,
                       skip_codesign = options.skip_codesign,
                       skip_docs = options.skip_docs,
                       incremental = options.incremental,

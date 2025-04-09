@@ -54,7 +54,7 @@ cd defold
 ./scripts/build.py build_docs
 
 # Build Bob
-./scripts/build.py build_bob --skip-tests
+./scripts/build.py build_bob --skip-tests --keep-bob-uncompressed
 
 # Change directory to the editor subdirectory
 cd editor
