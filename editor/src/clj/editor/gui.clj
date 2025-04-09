@@ -3271,6 +3271,7 @@
   (input fonts-node g/NodeID) ; for tests
   (input textures-node g/NodeID) ; for tests
   (input particlefx-resources-node g/NodeID) ; for tests
+  (input materials-node g/NodeID)
   (input handler-infos g/Any :array)
   (output handler-infos g/Any (g/fnk [handler-infos]
                                 (into [] (mapcat one-or-many-handler-infos-to-vec) handler-infos)))
@@ -3723,6 +3724,7 @@
 
       ;; Materials list
       (g/make-nodes graph-id [materials-node MaterialsNode]
+        (g/connect materials-node :_node-id self :materials-node)
         (g/connect materials-node :_node-id self :nodes)
         (g/connect materials-node :build-errors self :build-errors)
         (g/connect materials-node :node-outline self :child-outlines)
@@ -3937,10 +3939,24 @@
 (defn- add-dropped-resource
   [scene _selection resource]
   (let [ext (str/lower-case (resource/ext resource))
-        resource-name (resource/resource-name resource)]
-    (case ext
-      "particlefx" (add-particlefx-resource scene (g/node-value scene :particlefx-resources-node) resource resource-name)
-      "font" (add-font scene (g/node-value scene :fonts-node) resource resource-name)
+        resource-name (->> resource
+                           resource/resource-name
+                           (drop-last (inc (count ext)))
+                           (apply str))]
+    (cond 
+      (= ext "particlefx") 
+      (add-particlefx-resource scene (g/node-value scene :particlefx-resources-node) resource resource-name)
+      
+      (= ext "font") 
+      (add-font scene (g/node-value scene :fonts-node) resource resource-name)
+      
+      (contains? #{"atlas" "tilesource"} ext) 
+      (add-texture scene (g/node-value scene :textures-node) resource resource-name)
+      
+      (= ext "material") 
+      (add-material scene (g/node-value scene :materials-node) resource resource-name)
+      
+      :else
       nil)))
 
 (defn- handle-drop
@@ -3949,11 +3965,12 @@
         ui-context (first (ui/node-contexts gesture-target false))
         {:keys [selection workspace]} (:env ui-context)
         resources (workspace/get-resources-from-files workspace files)
-        gui-scene (node->gui-scene (first selection))]
+        gui-scene (node->gui-scene (first selection))
+        add-resource (partial add-dropped-resource gui-scene selection)]
     (g/tx-nodes-added
       (g/transact
         (concat
-          (keep (partial add-dropped-resource gui-scene selection) resources)
+          (keep add-resource resources)
           (g/operation-sequence op-seq))))))
 
 (defn- register [workspace def]
