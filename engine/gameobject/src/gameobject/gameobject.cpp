@@ -91,7 +91,7 @@ namespace dmGameObject
     static bool InitCollection(Collection* collection);
     static bool FinalCollection(Collection* collection);
 
-    static uint32_t g_instance_index = 0;
+    static uint32_t g_InstanceIndex = 0;
 
     Prototype::~Prototype()
     {
@@ -970,14 +970,15 @@ namespace dmGameObject
 
     void ResetInstanceIndex()
     {
-        g_instance_index = 0;
+        g_InstanceIndex = 0;
     }
 
-    dmhash_t ConstructInstanceId()
+    dmhash_t CreateIntanceId()
     {
+        //20 bytes: '/'' + 'instance' + uint32 + null terminator = 1 + 8 + 10 + 1
         char buffer[32] = { 0 };
-        int length = dmSnPrintf(buffer, sizeof(buffer), "%sinstance%d", ID_SEPARATOR, g_instance_index);
-        g_instance_index += 1;
+        int length = dmSnPrintf(buffer, sizeof(buffer), "%sinstance%d", ID_SEPARATOR, g_InstanceIndex);
+        g_InstanceIndex += 1;
         return dmHashBuffer64(buffer, (uint32_t)length);
     }
 
@@ -1044,12 +1045,6 @@ namespace dmGameObject
     Result SetIdentifier(HCollection hcollection, HInstance instance, dmhash_t id)
     {
         return SetIdentifier(hcollection->m_Collection, instance, id);
-    }
-
-    Result SetConstructedIdentifier(HCollection hcollection, HInstance instance)
-    {
-        instance->m_Generated = 1;
-        return SetIdentifier(hcollection->m_Collection, instance, ConstructInstanceId());
     }
 
     void ReleaseIdentifier(Collection* collection, HInstance instance)
@@ -1216,7 +1211,6 @@ namespace dmGameObject
 
         bool success = CreateComponents(collection, instance);
         if (!success) {
-            dmLogError("Could not create components.");
             ReleaseIdentifier(collection, instance);
             UndoNewInstance(collection, instance);
             return 0;
@@ -2191,6 +2185,7 @@ namespace dmGameObject
     void SetBone(HInstance instance, bool bone)
     {
         instance->m_Bone = bone;
+        instance->m_Generated = 1;
     }
 
     bool IsBone(HInstance instance)

@@ -642,10 +642,9 @@ namespace dmGameSystem
                     component->m_NodeInstances.SetSize(i);
                     return false;
                 }
-
                 dmGameObject::AssignInstanceIndex(index, bone_inst);
-
-                dmGameObject::Result result = dmGameObject::SetConstructedIdentifier(collection, bone_inst);
+                dmhash_t id = dmGameObject::ConstructInstanceId();
+                dmGameObject::Result result = dmGameObject::SetIdentifier(collection, bone_inst, id);
                 if (dmGameObject::RESULT_OK != result)
                 {
                     dmGameObject::Delete(collection, bone_inst, false);
