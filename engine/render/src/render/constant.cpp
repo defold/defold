@@ -78,6 +78,8 @@ Result SetConstantValuesRef(HConstant constant, dmVMath::Vector4* values, uint32
     constant->m_AllocatedValues = 0;
     constant->m_NumValues = num_values;
     constant->m_Values    = values;
+
+    return dmRender::RESULT_OK;
 }
 
 dmhash_t GetConstantName(HConstant constant)

@@ -392,6 +392,7 @@ def default_flags(self):
         if index != -1 and (index + 1) < len(parts):
             flags += ["-fdebug-compilation-dir=engine/{}".format(parts[index + 1])]
         flags += ["-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"]
+        flags += ["-Werror=return-type"]
 
     if Options.options.ndebug:
         flags += [self.env.DEFINES_ST % 'NDEBUG']
