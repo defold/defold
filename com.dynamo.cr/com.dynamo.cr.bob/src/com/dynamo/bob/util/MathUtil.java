@@ -249,11 +249,4 @@ public class MathUtil {
         r.set(dR);
         s.set(dS);
     }
-
-    public static boolean isValid(Quat resultQuat) {
-        if (Float.isNaN(resultQuat.getX()) || Float.isNaN(resultQuat.getY()) || Float.isNaN(resultQuat.getZ()) || Float.isNaN(resultQuat.getW())) {
-            return false;
-        }
-        return true;
-    }
 }
