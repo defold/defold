@@ -251,7 +251,7 @@ namespace dmRender
 
                 dmRender::SetConstantLocation(render_constant, uniform_desc.m_Location);
 
-                // We are be about to add a duplicate. Make sure to reuse the data
+                // We are about to add a duplicate. Make sure to reuse the data
                 HConstant prev_constant = FindConstant(constants, uniform_desc.m_NameHash);
                 if (prev_constant != 0)
                 {
