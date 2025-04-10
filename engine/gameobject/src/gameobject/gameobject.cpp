@@ -231,7 +231,6 @@ namespace dmGameObject
         m_InstanceIdPool.SetCapacity(max_instances);
         m_InUpdate = 0;
         m_ToBeDeleted = 0;
-        m_ScaleAlongZ = 0;
         m_DirtyTransforms = 1;
         m_Initialized = 0;
         m_FixedAccumTime = 0.0f;
@@ -783,7 +782,6 @@ namespace dmGameObject
         }
         HInstance instance = AllocInstance(proto, prototype_name);
         instance->m_Collection = collection;
-        instance->m_ScaleAlongZ = collection->m_ScaleAlongZ;
         uint16_t instance_index = collection->m_InstanceIndices.Pop();
         instance->m_Index = instance_index;
         assert(collection->m_Instances[instance_index] == 0);
@@ -1372,7 +1370,6 @@ namespace dmGameObject
             if (!instance)
                 continue;
 
-            instance->m_ScaleAlongZ = collection_desc->m_ScaleAlongZ;
             instance->m_Generated = 1;
 
             // support legacy pipeline which outputs 0 for Scale3 and scale in Scale
@@ -1759,14 +1756,7 @@ namespace dmGameObject
             else
             {
                 const Matrix4* parent_trans = &collection->m_WorldTransforms[instance->m_Parent];
-                if (instance->m_ScaleAlongZ)
-                {
-                    *trans = (*parent_trans) * dmTransform::ToMatrix4(instance->m_Transform);
-                }
-                else
-                {
-                    *trans = dmTransform::MulNoScaleZ(*parent_trans, dmTransform::ToMatrix4(instance->m_Transform));
-                }
+                *trans = (*parent_trans) * dmTransform::ToMatrix4(instance->m_Transform);
             }
             return InitComponents(collection, instance);
         }
@@ -2167,16 +2157,6 @@ namespace dmGameObject
         return RESULT_COMPONENT_NOT_FOUND;
     }
 
-    bool ScaleAlongZ(HInstance instance)
-    {
-        return instance->m_ScaleAlongZ != 0;
-    }
-
-    bool ScaleAlongZ(HCollection hcollection)
-    {
-        return hcollection->m_Collection->m_ScaleAlongZ != 0;
-    }
-
     void SetBone(HInstance instance, bool bone)
     {
         instance->m_Bone = bone;
@@ -2302,26 +2282,11 @@ namespace dmGameObject
                 if (sp->m_KeepWorldTransform == 0)
                 {
                     Matrix4& world = collection->m_WorldTransforms[instance->m_Index];
-                    if (instance->m_ScaleAlongZ)
-                    {
-                        world = parent_t * dmTransform::ToMatrix4(instance->m_Transform);
-                    }
-                    else
-                    {
-                        world = dmTransform::MulNoScaleZ(parent_t, dmTransform::ToMatrix4(instance->m_Transform));
-                    }
+                    world = parent_t * dmTransform::ToMatrix4(instance->m_Transform);
                 }
                 else
                 {
-                    if (instance->m_ScaleAlongZ)
-                    {
-                        instance->m_Transform = dmTransform::ToTransform(inverse(parent_t) * collection->m_WorldTransforms[instance->m_Index]);
-                    }
-                    else
-                    {
-                        Matrix4 tmp = dmTransform::MulNoScaleZ(inverse(parent_t), collection->m_WorldTransforms[instance->m_Index]);
-                        instance->m_Transform = dmTransform::ToTransform(tmp);
-                    }
+                    instance->m_Transform = dmTransform::ToTransform(inverse(parent_t) * collection->m_WorldTransforms[instance->m_Index]);
                 }
 
                 dmGameObject::Result result = dmGameObject::SetParent(instance, parent);
@@ -2519,46 +2484,23 @@ namespace dmGameObject
             assert(parent_index == INVALID_INSTANCE_INDEX);
         }
 
-
-        if (collection->m_ScaleAlongZ) {
-            for (uint32_t level_i = 1; level_i < MAX_HIERARCHICAL_DEPTH; ++level_i)
+        for (uint32_t level_i = 1; level_i < MAX_HIERARCHICAL_DEPTH; ++level_i)
+        {
+            dmArray<uint16_t>& level = collection->m_LevelIndices[level_i];
+            uint32_t instance_count = level.Size();
+            for (uint32_t i = 0; i < instance_count; ++i)
             {
-                dmArray<uint16_t>& level = collection->m_LevelIndices[level_i];
-                uint32_t instance_count = level.Size();
-                for (uint32_t i = 0; i < instance_count; ++i)
-                {
-                    uint16_t index = level[i];
-                    Instance* instance = collection->m_Instances[index];
-                    CheckEuler(instance);
-                    Matrix4* trans = &collection->m_WorldTransforms[index];
+                uint16_t index = level[i];
+                Instance* instance = collection->m_Instances[index];
+                CheckEuler(instance);
+                Matrix4* trans = &collection->m_WorldTransforms[index];
 
-                    uint16_t parent_index = instance->m_Parent;
-                    assert(parent_index != INVALID_INSTANCE_INDEX);
+                uint16_t parent_index = instance->m_Parent;
+                assert(parent_index != INVALID_INSTANCE_INDEX);
 
-                    Matrix4* parent_trans = &collection->m_WorldTransforms[parent_index];
-                    Matrix4 own = dmTransform::ToMatrix4(instance->m_Transform);
-                    *trans = *parent_trans * own;
-                }
-            }
-        } else {
-            for (uint32_t level_i = 1; level_i < MAX_HIERARCHICAL_DEPTH; ++level_i)
-            {
-                dmArray<uint16_t>& level = collection->m_LevelIndices[level_i];
-                uint32_t instance_count = level.Size();
-                for (uint32_t i = 0; i < instance_count; ++i)
-                {
-                    uint16_t index = level[i];
-                    Instance* instance = collection->m_Instances[index];
-                    CheckEuler(instance);
-                    Matrix4* trans = &collection->m_WorldTransforms[index];
-
-                    uint16_t parent_index = instance->m_Parent;
-                    assert(parent_index != INVALID_INSTANCE_INDEX);
-
-                    Matrix4* parent_trans = &collection->m_WorldTransforms[parent_index];
-                    Matrix4 own = dmTransform::ToMatrix4(instance->m_Transform);
-                    *trans = dmTransform::MulNoScaleZ(*parent_trans, own);
-                }
+                Matrix4* parent_trans = &collection->m_WorldTransforms[parent_index];
+                Matrix4 own = dmTransform::ToMatrix4(instance->m_Transform);
+                *trans = *parent_trans * own;
             }
         }
 
@@ -3707,7 +3649,6 @@ namespace dmGameObject
         new_instance->m_Transform = instance->m_Transform;
         new_instance->m_EulerRotation = instance->m_EulerRotation;
         new_instance->m_PrevEulerRotation = instance->m_PrevEulerRotation;
-        new_instance->m_ScaleAlongZ = instance->m_ScaleAlongZ;
         // id-related
         new_instance->m_Identifier = instance->m_Identifier;
         new_instance->m_IdentifierIndex = instance->m_IdentifierIndex;
