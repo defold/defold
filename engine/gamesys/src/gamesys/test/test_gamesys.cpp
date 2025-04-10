@@ -1873,11 +1873,12 @@ TEST_P(FactoryTest, Test)
             "/sprite/sprite.materialc",
     };
     dmHashEnableReverseHash(true);
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
 
     dmGameSystem::ScriptLibContext scriptlibcontext;
     scriptlibcontext.m_Factory         = m_Factory;
     scriptlibcontext.m_Register        = m_Register;
-    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_LuaState        = L;
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
     scriptlibcontext.m_ScriptContext   = m_ScriptContext;
 
@@ -1929,11 +1930,23 @@ TEST_P(FactoryTest, Test)
         // Do this twice in order to ensure load/unload can be called multiple times, with and without deleting created objects
         for(uint32_t i = 0; i < 2; ++i)
         {
-            dmhash_t last_object_id = i == 0 ? dmHashString64("/instance1") : dmHashString64("/instance0"); // stacked index list in dynamic spawning
             for(;;)
             {
-                if(dmGameObject::GetInstanceFromIdentifier(m_Collection, last_object_id) != 0x0)
-                    break;
+                lua_getglobal(L, "global_created");
+                bool ready = !lua_isnil(L, -1);
+                lua_pop(L, 1);
+                if(ready)
+                {
+                    lua_getglobal(L, "first_instance");
+                    dmhash_t first_instance = dmScript::CheckHash(L, -1);
+                    lua_pop(L, 1);
+                    lua_getglobal(L, "second_instance");
+                    dmhash_t second_instance = dmScript::CheckHash(L, -1);
+                    lua_pop(L, 1);
+                    dmhash_t last_object_id = i == 0 ? second_instance : first_instance; // stacked index list in dynamic spawning
+                    if (dmGameObject::GetInstanceFromIdentifier(m_Collection, last_object_id) != 0x0)
+                        break;
+                }
                 ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
                 ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
                 dmGameObject::PostUpdate(m_Register);

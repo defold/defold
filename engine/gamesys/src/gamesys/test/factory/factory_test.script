@@ -22,8 +22,8 @@ end
 
 function load_complete(self, url, result)
     assert(result == true)
-    factory.create(url)
-    factory.create(url)
+    self.first_instance = factory.create(url)
+    self.second_instance = factory.create(url)
     self.unload = true
 end
 
@@ -36,6 +36,6 @@ function update(self, dt)
 end
 
 function final(self)
-    go.delete("/instance0", true)
-    go.delete("/instance1", true)
+    go.delete(self.first_instance, true)
+    go.delete(self.second_instance, true)
 end
