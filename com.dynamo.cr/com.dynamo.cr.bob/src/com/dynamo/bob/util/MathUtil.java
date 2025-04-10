@@ -49,9 +49,6 @@ public class MathUtil {
     }
 
     public static boolean isValid(Quat q) {
-        if (q.getX() == 0  && q.getY() == 0 && q.getZ() == 0 && q.getW() == 0) {
-            return false;
-        }
         if (Float.isNaN(q.getX()) || Float.isNaN(q.getY()) || Float.isNaN(q.getZ()) || Float.isNaN(q.getW())) {
             return false;
         }

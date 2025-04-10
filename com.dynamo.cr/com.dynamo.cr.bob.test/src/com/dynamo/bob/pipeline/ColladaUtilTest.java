@@ -133,7 +133,7 @@ public class ColladaUtilTest {
      */
     private void assertBone(Rig.Bone bone, Vector3d expectedPosition, Quat4d expectedRotation) {
         assertV(expectedPosition, MathUtil.ddfToVecmath(bone.getLocal().getTranslation()));
-        assertV(expectedRotation, MathUtil.ddfToVecmath(bone.getLocal().getRotation(), "bone " + bone.getName()));
+        assertV(expectedRotation, MathUtil.ddfToVecmath(bone.getLocal().getRotation(), "bone %s".formatted(bone.getName())));
     }
 
     /*
