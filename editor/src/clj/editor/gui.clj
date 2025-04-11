@@ -2634,20 +2634,13 @@
   (g/make-nodes (g/node-id->graph-id scene) [node [MaterialNode :name name :material resource]]
     (attach-material scene materials-node node)))
 
-(defn new-material-resource? [parent resource]
-  (->> (g/node-value parent :child-outlines)
-       (map :node-id)
-       (not-any? #(= (resource/resource->proj-path resource)
-                     (when-let [mat-res (g/node-value % :material-resource)]
-                       (resource/resource->proj-path mat-res))))))
-
 (defn- add-materials-handler [project {:keys [scene parent]} select-fn]
   (query-and-add-resources!
    "Materials" ["material"]
    (g/node-value parent :name-counts)
    project select-fn
    (partial add-material scene parent)
-   (partial new-material-resource? parent)))
+   (partial new-resource? parent)))
 
 (g/defnode MaterialsNode
   (inherits outline/OutlineNode)
