@@ -2348,13 +2348,15 @@
 
   (output node-id+child-index NodeIndex (g/fnk [_node-id child-index] [_node-id child-index]))
   (output name+child-index NameIndex (g/fnk [name child-index] [name child-index]))
-  (output node-outline outline/OutlineData :cached (g/fnk [_node-id name child-index build-errors]
-                                                     {:node-id _node-id
-                                                      :node-outline-key name
-                                                      :label name
-                                                      :icon layer-icon
-                                                      :child-index child-index
-                                                      :outline-error? (g/error-fatal? build-errors)}))
+  (output node-outline outline/OutlineData :cached (g/fnk [_node-id name material-resource child-index build-errors]
+                                                     (cond-> {:node-id _node-id
+                                                              :node-outline-key name
+                                                              :label name
+                                                              :icon layer-icon
+                                                              :child-index child-index
+                                                              :outline-error? (g/error-fatal? build-errors)}
+                                                       (resource/resource? material-resource)
+                                                       (assoc :link material-resource :outline-show-link? true))))
   (input dep-build-targets g/Any)
   (output dep-build-targets g/Any (gu/passthrough dep-build-targets))
   (output pb-msg g/Any (g/fnk [name material-resource]
@@ -2534,26 +2536,28 @@
        (not-any? #{resource})))
 
 ;; SDK api
-(defn query-and-add-resources! [resources-type-label resource-exts taken-ids project select-fn make-node-fn & [parent]]
-  (let [accept-fn (if parent (partial new-resource? parent) fn/constantly-true)]
-    (when-let [resources (browse (str "Select " resources-type-label) project resource-exts accept-fn)]
-      (let [names (outline/resolve-ids (map resource->id resources) taken-ids)
-            pairs (map vector resources names)
-            op-seq (gensym)
-            op-label (str "Add " resources-type-label)
-            new-nodes (g/tx-nodes-added
-                        (g/transact
-                          (concat
-                            (g/operation-sequence op-seq)
-                            (g/operation-label op-label)
-                            (for [[resource name] pairs]
-                              (make-node-fn resource name)))))]
-        (when (some? select-fn)
-          (g/transact
-            (concat
-              (g/operation-sequence op-seq)
-              (g/operation-label op-label)
-              (select-fn new-nodes))))))))
+(defn query-and-add-resources!
+  ([resources-type-label resource-exts taken-ids project select-fn make-node-fn]
+   (query-and-add-resources! resources-type-label resource-exts taken-ids project select-fn make-node-fn fn/constantly-true))
+  ([resources-type-label resource-exts taken-ids project select-fn make-node-fn accept-fn]
+   (when-let [resources (browse (str "Select " resources-type-label) project resource-exts accept-fn)]
+     (let [names (outline/resolve-ids (map resource->id resources) taken-ids)
+           pairs (map vector resources names)
+           op-seq (gensym)
+           op-label (str "Add " resources-type-label)
+           new-nodes (g/tx-nodes-added
+                      (g/transact
+                       (concat
+                        (g/operation-sequence op-seq)
+                        (g/operation-label op-label)
+                        (for [[resource name] pairs]
+                          (make-node-fn resource name)))))]
+       (when (some? select-fn)
+         (g/transact
+          (concat
+           (g/operation-sequence op-seq)
+           (g/operation-label op-label)
+           (select-fn new-nodes))))))))
 
 ;; //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -2588,7 +2592,7 @@
    (g/node-value parent :name-counts)
    project select-fn
    (partial add-texture scene parent) 
-   parent))
+   (partial new-resource? parent)))
 
 (g/defnode TexturesNode
   (inherits outline/OutlineNode)
@@ -2630,13 +2634,20 @@
   (g/make-nodes (g/node-id->graph-id scene) [node [MaterialNode :name name :material resource]]
     (attach-material scene materials-node node)))
 
+(defn new-material-resource? [parent resource]
+  (->> (g/node-value parent :child-outlines)
+       (map :node-id)
+       (not-any? #(= (resource/resource->proj-path resource)
+                     (when-let [mat-res (g/node-value % :material-resource)]
+                       (resource/resource->proj-path mat-res))))))
+
 (defn- add-materials-handler [project {:keys [scene parent]} select-fn]
   (query-and-add-resources!
    "Materials" ["material"]
    (g/node-value parent :name-counts)
    project select-fn
    (partial add-material scene parent)
-   parent))
+   (partial new-material-resource? parent)))
 
 (g/defnode MaterialsNode
   (inherits outline/OutlineNode)
@@ -2681,7 +2692,7 @@
    (g/node-value parent :name-counts)
    project select-fn
    (partial add-font scene parent)
-   parent))
+   (partial new-resource? parent)))
 
 (g/defnode FontsNode
   (inherits outline/OutlineNode)
@@ -2824,7 +2835,7 @@
    (g/node-value parent :name-counts)
    project select-fn
    (partial add-particlefx-resource scene parent)
-   parent))
+   (partial new-resource? parent)))
 
 (g/defnode ParticleFXResources
   (inherits outline/OutlineNode)
