@@ -24,6 +24,12 @@ SOURCE_DIR=${PWD}/source
 BUILD_DIR=${PWD}/build/${PLATFORM}
 SHA1=7bd151a780126e54de1ca00e9c1ab73dedf96e59
 
+if [ "" == "${DEFOLD_HOME}" ]; then
+    echo "You must run this under a Defold shell"
+    echo "Run: ./scripts/build.py shell"
+    exit 1
+fi
+
 . ../common.sh
 
 if [ -z "$PLATFORM" ]; then
@@ -31,7 +37,9 @@ if [ -z "$PLATFORM" ]; then
     exit 1
 fi
 
-eval $(python ${DYNAMO_HOME}/../../build_tools/set_sdk_vars.py VERSION_MACOSX_MIN)
+set -e
+
+eval $(python ${DEFOLD_HOME}/build_tools/set_sdk_vars.py VERSION_MACOSX_MIN)
 OSX_MIN_SDK_VERSION=$VERSION_MACOSX_MIN
 
 CMAKE_FLAGS="-DTINT_BUILD_DOCS=OFF ${CMAKE_FLAGS}"
@@ -40,7 +48,7 @@ CMAKE_FLAGS="-DTINT_BUILD_SPV_READER=ON ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DTINT_ENABLE_INSTALL=ON ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DTINT_BUILD_MSL_WRITER=OFF ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Release ${CMAKE_FLAGS}"
-CMAKE_FLAGS="-DBUILD_SHARED_LIBS=ON ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DBUILD_SHARED_LIBS=OFF ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DDAWN_FETCH_DEPENDENCIES=ON ${CMAKE_FLAGS}"
 
@@ -99,7 +107,12 @@ case $PLATFORM in
     win32|x86_64-win32)
         ;;
     *)
-        strip ./bin/$PLATFORM/tint${EXE_SUFFIX}
+        if [ "" != "$(which strip)" ]; then
+            # The strip tool may not work on the target architecture
+            set +e
+            strip ./bin/$PLATFORM/tint${EXE_SUFFIX}
+            set -e
+        fi
         ;;
 esac
 
@@ -112,8 +125,10 @@ echo VERSION=${VERSION}
 
 PACKAGE=${PRODUCT}-${VERSION}-${PLATFORM}.tar.gz
 
-pushd $BUILD_DIR
+pushd ${BUILD_DIR}
 tar cfvz ${PACKAGE} bin
 popd
 
 echo "Wrote ${PACKAGE}"
+
+cp -v ${BUILD_DIR}/${PACKAGE} ${DEFOLD_HOME}/packages
