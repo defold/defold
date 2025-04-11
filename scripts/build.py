@@ -224,7 +224,7 @@ PACKAGES_LINUX_X86_64=[
     "tremolo-b0cb4d1",
     "lipo-9ffdea2",
     "glfw-3.4",
-    "tint-22b958",
+    "tint-7bd151a780",
     "sassc-5472db213ec223a67482df2226622be372921847",
     "astcenc-8b0aa01",
     "box2d-3.0.0",
