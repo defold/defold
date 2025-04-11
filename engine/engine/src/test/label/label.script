@@ -97,6 +97,20 @@ local function test_set_vector4(name, startvalue)
 	test_vector4(name, expected)
 end
 
+local function test_set_scale_xy(val)
+	local expected = vmath.vector3(val, val+1, 3)
+	local set_value = vmath.vector3(val, val+1, val+2)
+	go.set("#label", "scale.xy", set_value)
+    local v = go.get("#label", "scale")
+    assert(expected == v)
+
+	expected = vmath.vector3(val+3, val+3, 3)
+	set_value = val + 3
+	go.set("#label", "scale.xy", set_value)
+	v = go.get("#label", "scale")
+    assert(expected == v)
+end
+
 
 local function test_bad_url()
 	label.set_text(nil, "hello") -- script
@@ -120,6 +134,8 @@ function init(self)
 	-- SET PROPERTIES
 	--
 
+	test_set_scale_xy(50)
+
 	test_set_vector3("scale", 100)
 	test_set_vector3("size", 200)
 
@@ -135,9 +151,37 @@ function init(self)
 	test_bad_url()
 
 	--
+	--
+	--
+
+	go.set("#label", "scale.z", 99)
+	go.animate("#label", "scale.xy", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(20), go.EASING_LINEAR, 1/120)
+
+	--
+	--
+	--
+
+	go.set(".", "scale.z", 199)
+	go.animate(".", "scale.xy", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(198), go.EASING_LINEAR, 1/120)
+
+	--
 	-- END TEST
 	--
 
-	msg.post("main:/main#script", "done")
+	timer.delay(0.1, false, function()
+		msg.post(".", "finish_test")
+	end)
+end
+
+function on_message(self, message_id, message)
+	if hash("finish_test") == message_id then
+		local v = go.get("#label", "scale")
+		assert(vmath.vector3(20, 20, 99) == v)
+
+		v = go.get(".", "scale")
+		assert(vmath.vector3(198, 198, 199) == v)
+
+		msg.post("main:/main#script", "done")
+	end
 end
 

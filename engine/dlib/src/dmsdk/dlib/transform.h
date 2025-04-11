@@ -160,6 +160,16 @@ namespace dmTransform
             m_Scale = dmVMath::Vector3(scale);
         }
 
+        /*# set scale for x and y
+         * @name SetScale
+         * @return scale [type: dmVMath::Vector3]
+         */
+        inline void SetScaleXY(float scale_x, float scale_y)
+        {
+            m_Scale.setX(scale_x);
+            m_Scale.setY(scale_y);
+        }
+
         /*# get rotatiom
          * @name GetRotation
          * @return rotation [type: dmVMath::Quat]

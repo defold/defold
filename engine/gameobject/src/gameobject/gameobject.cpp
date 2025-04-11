@@ -77,6 +77,8 @@ namespace dmGameObject
     const dmhash_t PROP_##var_name##_Z = dmHashString64(#prop_name ".z");\
     const dmhash_t PROP_##var_name##_W = dmHashString64(#prop_name ".w");
 
+    static const dmhash_t PROP_SCALE_XY = dmHashString64("scale.xy");
+
     PROP_VECTOR3(POSITION, position);
     PROP_QUAT(ROTATION, rotation);
     PROP_VECTOR3(EULER, euler);
@@ -3007,6 +3009,11 @@ namespace dmGameObject
         instance->m_Transform.SetScale(scale);
     }
 
+    void SetScaleXY(HInstance instance, float scale_x, float scale_y)
+    {
+        instance->m_Transform.SetScaleXY(scale_x, scale_y);
+    }
+
     float GetUniformScale(HInstance instance)
     {
         return instance->m_Transform.GetUniformScale();
@@ -3227,6 +3234,16 @@ namespace dmGameObject
                 out_value.m_ElementIds[0] = PROP_SCALE_X;
                 out_value.m_ElementIds[1] = PROP_SCALE_Y;
                 out_value.m_ElementIds[2] = PROP_SCALE_Z;
+                out_value.m_Variant = PropertyVar(instance->m_Transform.GetScale());
+            }
+            else if (property_id == PROP_SCALE_XY)
+            {
+                float* scale = instance->m_Transform.GetScalePtr();
+                out_value.m_ValuePtr = scale;
+                out_value.m_ElementIds[0] = PROP_SCALE_X;
+                out_value.m_ElementIds[1] = PROP_SCALE_Y;
+                out_value.m_ElementIds[2] = PROP_SCALE_Z;
+                // Should z always return 1.0f here?
                 out_value.m_Variant = PropertyVar(instance->m_Transform.GetScale());
             }
             else if (property_id == PROP_SCALE_X)
@@ -3477,6 +3494,22 @@ namespace dmGameObject
                     scale[0] = value.m_V4[0];
                     scale[1] = value.m_V4[1];
                     scale[2] = value.m_V4[2];
+                    return PROPERTY_RESULT_OK;
+                }
+                return PROPERTY_RESULT_TYPE_MISMATCH;
+            }
+            else if (property_id == PROP_SCALE_XY)
+            {
+                if (value.m_Type == PROPERTY_TYPE_NUMBER)
+                {
+                    scale[0] = (float)value.m_Number;
+                    scale[1] = scale[0];
+                    return PROPERTY_RESULT_OK;
+                }
+                else if (value.m_Type == PROPERTY_TYPE_VECTOR3)
+                {
+                    scale[0] = value.m_V4[0];
+                    scale[1] = value.m_V4[1];
                     return PROPERTY_RESULT_OK;
                 }
                 return PROPERTY_RESULT_TYPE_MISMATCH;

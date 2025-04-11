@@ -57,6 +57,13 @@ dmGameObject::PropertyResult GetProperty(dmGameObject::PropertyDesc& out_value, 
     {
         out_value.m_Variant = dmGameObject::PropertyVar(ref_value.getZ());
     }
+    else if (get_property == property.m_XY)
+    {
+        out_value.m_ElementIds[0] = property.m_X;
+        out_value.m_ElementIds[1] = property.m_Y;
+        out_value.m_ElementIds[2] = 1.0f;
+        out_value.m_Variant = dmGameObject::PropertyVar(ref_value);
+    }
     else
     {
         result = dmGameObject::PROPERTY_RESULT_NOT_FOUND;
@@ -115,6 +122,23 @@ dmGameObject::PropertyResult SetProperty(dmhash_t set_property, const dmGameObje
         if (in_value.m_Type == dmGameObject::PROPERTY_TYPE_NUMBER)
         {
             set_value.setZ(in_value.m_Number);
+        }
+        else
+        {
+            result = dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
+        }
+    }
+    else if (set_property == property.m_XY)
+    {
+        if (in_value.m_Type == dmGameObject::PROPERTY_TYPE_NUMBER)
+        {
+            set_value.setX(in_value.m_Number);
+            set_value.setY(in_value.m_Number);
+        }
+        else if (in_value.m_Type == dmGameObject::PROPERTY_TYPE_VECTOR3)
+        {
+            set_value.setX(in_value.m_V4[0]);
+            set_value.setY(in_value.m_V4[1]);
         }
         else
         {

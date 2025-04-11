@@ -664,6 +664,15 @@ namespace dmGameObject
      */
     void SetScale(HInstance instance, dmVMath::Vector3 scale);
 
+    /*# set scale only for width and height (x and y)
+     * Set gameobject instance x and y scale
+     * @name SetScaleXY
+     * @param instance [type:dmGameObject::HInstance] Gameobject instance
+     * @param scale_x New x scale
+     * @param scale_y New y scale
+     */
+    void SetScaleXY(HInstance instance, float scale_x, float scale_y);
+
     /*# get uniform scale
      * Get gameobject instance uniform scale
      * @name GetUniformScale

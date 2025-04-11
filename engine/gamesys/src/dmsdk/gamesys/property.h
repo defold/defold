@@ -31,14 +31,16 @@ namespace dmGameSystem
         dmhash_t m_X;
         dmhash_t m_Y;
         dmhash_t m_Z;
+        dmhash_t m_XY;
         bool m_ReadOnly;
 
-        PropVector3(dmhash_t v, dmhash_t x, dmhash_t y, dmhash_t z, bool readOnly)
+        PropVector3(dmhash_t v, dmhash_t x, dmhash_t y, dmhash_t z, dmhash_t xy, bool readOnly)
         {
             m_Vector = v;
             m_X = x;
             m_Y = y;
             m_Z = z;
+            m_XY = xy;
             m_ReadOnly = readOnly;
         }
     };
@@ -72,7 +74,7 @@ namespace dmGameSystem
      */
     inline bool IsReferencingProperty(const PropVector3& property, dmhash_t query)
     {
-        return property.m_Vector == query || property.m_X == query || property.m_Y == query || property.m_Z == query;
+        return property.m_Vector == query || property.m_X == query || property.m_Y == query || property.m_Z == query || property.m_XY == query;
     }
 
     /*#
@@ -116,6 +118,7 @@ namespace dmGameSystem
             dmHashString64(#prop_name ".x"),\
             dmHashString64(#prop_name ".y"),\
             dmHashString64(#prop_name ".z"),\
+            dmHashString64(#prop_name ".xy"),\
             readOnly);
 
 #define DM_GAMESYS_PROP_VECTOR4(var_name, prop_name, readOnly)\
