@@ -1917,7 +1917,12 @@ If you do not specifically require different script states, consider changing th
                     tab-panes (.getItems editor-tabs-split)]
                 (when (< 1 (count tab-panes))
                   (.remove tab-panes tab-pane)
-                  (.requestFocus ^TabPane (.get tab-panes 0)))))))))
+                  (let [remaining-tab-pane (.get tab-panes 0)
+                        selected-tab (ui/selected-tab remaining-tab-pane)
+                        resource-node (tab->resource-node selected-tab)
+                        view-type (tab->view-type selected-tab)]
+                    (.requestFocus ^TabPane remaining-tab-pane)
+                    (on-selected-tab-changed! app-view app-scene selected-tab resource-node view-type)))))))))
   (.addEventFilter tab-pane MouseEvent/MOUSE_PRESSED (ui/event-handler event (handle-tab-pane-mouse-pressed! tab-pane event)))
   (ui/register-tab-pane-context-menu tab-pane ::tab-menu))
 
