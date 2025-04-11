@@ -1924,14 +1924,14 @@ If you do not specifically require different script states, consider changing th
 (defn- handle-focus-owner-change! [app-view app-scene new-focus-owner]
   (let [old-editor-tab-pane (g/node-value app-view :active-tab-pane)
         new-editor-tab-pane (editor-tab-pane new-focus-owner)]
-    (when (some? new-editor-tab-pane)
-      (when (not (identical? old-editor-tab-pane new-editor-tab-pane))
-        (ui/add-style! old-editor-tab-pane "inactive")
-        (ui/remove-style! new-editor-tab-pane "inactive")
-        (g/set-property! app-view :active-tab-pane new-editor-tab-pane))
+    (when (and (some? new-editor-tab-pane)
+               (not (identical? old-editor-tab-pane new-editor-tab-pane)))
       (let [selected-tab (ui/selected-tab new-editor-tab-pane)
             resource-node (tab->resource-node selected-tab)
             view-type (tab->view-type selected-tab)]
+        (ui/add-style! old-editor-tab-pane "inactive")
+        (ui/remove-style! new-editor-tab-pane "inactive")
+        (g/set-property! app-view :active-tab-pane new-editor-tab-pane)
         (on-selected-tab-changed! app-view app-scene selected-tab resource-node view-type)))))
 
 (defn open-custom-keymap
