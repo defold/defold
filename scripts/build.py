@@ -242,7 +242,7 @@ PACKAGES_LINUX_ARM64=[
     "tremolo-b0cb4d1",
     "lipo-abb8ab1",
     "glfw-3.4",
-    "tint-22b958",
+    "tint-7bd151a780",
     "astcenc-8b0aa01",
     "box2d-3.0.0",
     "box2d_defold-2.2.1",
