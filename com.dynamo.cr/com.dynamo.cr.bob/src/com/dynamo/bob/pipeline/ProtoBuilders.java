@@ -384,11 +384,11 @@ public class ProtoBuilders {
                 emitterBuilder.setMaterial(BuilderUtil.replaceExt(emitterBuilder.getMaterial(), "material", "materialc"));
 
                 Point3d ep = MathUtil.ddfToVecmath(emitterBuilder.getPosition());
-                Quat4d er = MathUtil.ddfToVecmath(emitterBuilder.getRotation());
+                Quat4d er = MathUtil.ddfToVecmath(emitterBuilder.getRotation(), "%s emitter: %s".formatted(resource, emitterBuilder.getId()));
                 for (Modifier modifier : modifiers) {
                     Modifier.Builder mb = Modifier.newBuilder(modifier);
                     Point3d p = MathUtil.ddfToVecmath(modifier.getPosition());
-                    Quat4d r = MathUtil.ddfToVecmath(modifier.getRotation());
+                    Quat4d r = MathUtil.ddfToVecmath(modifier.getRotation(), "%s emitter: %s modifier: %s".formatted(resource, emitterBuilder.getId(), mb.getType().toString()));
                     MathUtil.invTransform(ep, er, p);
                     mb.setPosition(MathUtil.vecmathToDDF(p));
                     MathUtil.invTransform(er, r);
