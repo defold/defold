@@ -1495,13 +1495,13 @@
      (implies-completions? view-node evaluation-context)))
   ([view-node evaluation-context]
    (let [{:keys [trigger request-cursor]} (get-property view-node :completion-context evaluation-context)
-         trigger-characters (get-property view-node :completion-trigger-characters evaluation-context)]
+         trigger-characters (get-property view-node :completion-trigger-characters evaluation-context)
+         syntax-scope (syntax-scope-before-cursor view-node request-cursor evaluation-context)]
      (boolean (and (not (contains? #{"\n" "\t" " "} trigger))
                    (or (re-matches #"[a-zA-Z_]" trigger)
                        (contains? trigger-characters trigger))
-                   (not (string/starts-with?
-                          (syntax-scope-before-cursor view-node request-cursor evaluation-context)
-                          "punctuation.definition.string.end")))))))
+                   (not (string/starts-with? syntax-scope "punctuation.definition.string.end"))
+                   (not (string/starts-with? syntax-scope "comment")))))))
 
 (defn- hide-suggestions! [view-node]
   (set-properties! view-node nil
