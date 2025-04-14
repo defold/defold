@@ -856,7 +856,7 @@
         update current-layout
         assoc prop-kw new-value))))
 
-(defn layout-property-edit-type-set-impl [evaluation-context node-id prop-kw old-value new-value changes-fn]
+(defn layout-property-edit-type-set-impl [changes-fn prop-kw evaluation-context node-id old-value new-value]
   (let [trivial-gui-scene-info (g/valid-node-value node-id :trivial-gui-scene-info evaluation-context)
         current-layout (:current-layout trivial-gui-scene-info)
         changes (if (nil? changes-fn)
@@ -887,7 +887,7 @@
       (g/clear-property node-id prop-kw)
       (g/update-property node-id :layout->prop->override eutil/dissoc-in [current-layout prop-kw]))))
 
-(defn layout-property-edit-type-clear-impl [node-id prop-kw changes-fn]
+(defn layout-property-edit-type-clear-impl [changes-fn node-id prop-kw]
   (let [[current-layout cleared-prop-kws]
         (g/with-auto-evaluation-context evaluation-context
           (let [trivial-gui-scene-info (g/valid-node-value node-id :trivial-gui-scene-info evaluation-context)
@@ -910,26 +910,14 @@
 (defmacro wrap-layout-property-edit-type
   ([prop-sym edit-type-form]
    {:pre [(symbol? prop-sym)]}
-   (let [edit-type-set-fn-form
-         (let [prop-kw (keyword prop-sym)
-               edit-type-set-fn-sym (symbol (str (name prop-sym) "-edit-type-set-fn"))]
-           `(fn ~edit-type-set-fn-sym [~'evaluation-context ~'node-id ~'old-value ~'new-value]
-              (layout-property-edit-type-set-impl ~'evaluation-context ~'node-id ~prop-kw ~'old-value ~'new-value nil)))]
+   (let [edit-type-set-fn-form `(fn/partial layout-property-edit-type-set-impl nil ~(keyword prop-sym))]
      `(assoc ~edit-type-form
         :set-fn ~edit-type-set-fn-form
         :clear-fn basic-layout-property-edit-type-clear-fn)))
   ([prop-sym edit-type-form changes-fn-form]
    {:pre [(symbol? prop-sym)]}
-   (let [edit-type-set-fn-form
-         (let [prop-kw (keyword prop-sym)
-               edit-type-set-fn-sym (symbol (str (name prop-sym) "-edit-type-set-fn"))]
-           `(fn ~edit-type-set-fn-sym [~'evaluation-context ~'node-id ~'old-value ~'new-value]
-              (layout-property-edit-type-set-impl ~'evaluation-context ~'node-id ~prop-kw ~'old-value ~'new-value ~changes-fn-form)))
-
-         edit-type-clear-fn-form
-         (let [edit-type-clear-fn-sym (symbol (str (name prop-sym) "-edit-type-clear-fn"))]
-           `(fn ~edit-type-clear-fn-sym [~'node-id ~'prop-kw]
-              (layout-property-edit-type-clear-impl ~'node-id ~'prop-kw ~changes-fn-form)))]
+   (let [edit-type-set-fn-form `(fn/partial layout-property-edit-type-set-impl ~changes-fn-form ~(keyword prop-sym))
+         edit-type-clear-fn-form `(fn/partial layout-property-edit-type-clear-impl ~changes-fn-form)]
      `(assoc ~edit-type-form
         :set-fn ~edit-type-set-fn-form
         :clear-fn ~edit-type-clear-fn-form))))
@@ -942,6 +930,9 @@
   ([prop-sym edit-type-form changes-fn-form]
    `(g/constantly
       (wrap-layout-property-edit-type ~prop-sym ~edit-type-form ~changes-fn-form))))
+
+(defn- scale-property-changes-fn [_evaluation-context _self _prop-kw _old-value new-value]
+  {:scale (some-> new-value scene/non-zeroify-scale)})
 
 (g/defnode GuiNode
   (inherits core/Scope)
@@ -962,9 +953,7 @@
             (value (layout-property-getter rotation))
             (set (layout-property-setter rotation)))
   (property scale types/Vec3 (default scene/default-scale)
-            (dynamic edit-type (layout-property-edit-type scale {:type types/Vec3}
-                                 (fn [evaluation-context self prop-kw old-value new-value]
-                                   {:scale (some-> new-value scene/non-zeroify-scale)})))
+            (dynamic edit-type (layout-property-edit-type scale {:type types/Vec3 :precision 0.1} scale-property-changes-fn))
             (value (layout-property-getter scale))
             (set (layout-property-setter scale)))
 
@@ -1057,7 +1046,7 @@
                        :outline-overridden? (if (str/blank? current-layout)
                                               (< 1 (count _overridden-properties)) ; :layout->prop->override will always be present, and we shouldn't count it.
                                               (pos? (count (layout->prop->override current-layout))))}
-                      (resource/openable-resource? node-outline-link) (assoc :link node-outline-link :outline-reference? true)))))
+                      (resource/resource? node-outline-link) (assoc :link node-outline-link :outline-reference? true)))))
 
   (output transform-properties g/Any scene/produce-scalable-transform-properties)
   (output gui-base-node-msg g/Any produce-gui-base-node-msg)
@@ -1472,6 +1461,50 @@
     :texture-size
     :manual-size))
 
+(defn- size-mode-property-changes-fn [{:keys [basis] :as evaluation-context} self _prop-kw old-value new-value]
+  (coll/merge
+    {:size-mode new-value}
+    (when-some [texture (coll/not-empty (g/node-value self :texture evaluation-context))]
+      (cond
+        ;; Clear existing :manual-size override when switching
+        ;; from :size-mode-manual to :size-mode-auto with a
+        ;; texture assigned.
+        (and (= :manual-size (visible-size-property-label old-value texture))
+             (g/property-overridden? basis self :manual-size)
+             (let [effective-new-value
+                   (or new-value
+                       (let [original-node-id (g/override-original basis self)]
+                         (g/node-value original-node-id :size-mode evaluation-context)))]
+               (= :texture-size (visible-size-property-label effective-new-value texture))))
+        {:manual-size nil}
+
+        ;; Use the size of the assigned texture as :manual-size
+        ;; when the user switches from :size-mode-auto to
+        ;; :size-mode-manual.
+        (and (= :size-mode-auto old-value)
+             (= :size-mode-manual new-value))
+        (let [costly-gui-scene-info (g/node-value self :costly-gui-scene-info evaluation-context)
+              texture-infos (:texture-infos costly-gui-scene-info)
+              texture-info (get texture-infos texture)]
+          (when-some [anim-data (:anim-data texture-info)]
+            (let [texture-size [(float (:width anim-data)) (float (:height anim-data)) protobuf/float-zero]]
+              {:manual-size texture-size})))))))
+
+(defn- texture-property-changes-fn [{:keys [basis] :as evaluation-context} self _prop-kw old-value new-value]
+  ;; Clear any existing :manual-size override when
+  ;; assigning a texture will hide the :manual-size
+  ;; property.
+  (let [size-mode (g/node-value self :size-mode evaluation-context)]
+    (cond-> {:texture new-value}
+            (and (= :manual-size (visible-size-property-label size-mode old-value))
+                 (g/property-overridden? basis self :manual-size)
+                 (let [effective-new-value
+                       (or new-value
+                           (let [original-node-id (g/override-original basis self)]
+                             (g/node-value original-node-id :texture evaluation-context)))]
+                   (= :texture-size (visible-size-property-label size-mode effective-new-value))))
+            (assoc :manual-size nil))))
+
 (g/defnode ShapeNode
   (inherits VisualNode)
 
@@ -1492,35 +1525,7 @@
             (dynamic visible (g/fnk [size-mode texture]
                                (= :texture-size (visible-size-property-label size-mode texture)))))
   (property size-mode g/Keyword (default (protobuf/default Gui$NodeDesc :size-mode))
-            (dynamic edit-type (layout-property-edit-type size-mode (properties/->pb-choicebox Gui$NodeDesc$SizeMode)
-                                 (fn [{:keys [basis] :as evaluation-context} self prop-kw old-value new-value]
-                                   (merge
-                                     {:size-mode new-value}
-                                     (when-some [texture (coll/not-empty (g/node-value self :texture evaluation-context))]
-                                       (cond
-                                         ;; Clear existing :manual-size override when switching
-                                         ;; from :size-mode-manual to :size-mode-auto with a
-                                         ;; texture assigned.
-                                         (and (= :manual-size (visible-size-property-label old-value texture))
-                                              (g/property-overridden? basis self :manual-size)
-                                              (let [effective-new-value
-                                                    (or new-value
-                                                        (let [original-node-id (g/override-original basis self)]
-                                                          (g/node-value original-node-id :size-mode evaluation-context)))]
-                                                (= :texture-size (visible-size-property-label effective-new-value texture))))
-                                         {:manual-size nil}
-
-                                         ;; Use the size of the assigned texture as :manual-size
-                                         ;; when the user switches from :size-mode-auto to
-                                         ;; :size-mode-manual.
-                                         (and (= :size-mode-auto old-value)
-                                              (= :size-mode-manual new-value))
-                                         (let [costly-gui-scene-info (g/node-value self :costly-gui-scene-info evaluation-context)
-                                               texture-infos (:texture-infos costly-gui-scene-info)
-                                               texture-info (get texture-infos texture)]
-                                           (when-some [anim-data (:anim-data texture-info)]
-                                             (let [texture-size [(float (:width anim-data)) (float (:height anim-data)) protobuf/float-zero]]
-                                               {:manual-size texture-size})))))))))
+            (dynamic edit-type (layout-property-edit-type size-mode (properties/->pb-choicebox Gui$NodeDesc$SizeMode) size-mode-property-changes-fn))
             (value (layout-property-getter size-mode))
             (set (layout-property-setter size-mode)))
   (property material g/Str (default (protobuf/default Gui$NodeDesc :material))
@@ -1541,21 +1546,7 @@
             (dynamic edit-type (g/fnk [basic-gui-scene-info]
                                  (let [texture-page-counts (:texture-page-counts basic-gui-scene-info)
                                        texture-names (some-> texture-page-counts keys)]
-                                   (wrap-layout-property-edit-type texture (optional-gui-resource-choicebox texture-names)
-                                     (fn [{:keys [basis] :as evaluation-context} self prop-kw old-value new-value]
-                                       ;; Clear any existing :manual-size override when
-                                       ;; assigning a texture will hide the :manual-size
-                                       ;; property.
-                                       (let [size-mode (g/node-value self :size-mode evaluation-context)]
-                                         (cond-> {:texture new-value}
-                                                 (and (= :manual-size (visible-size-property-label size-mode old-value))
-                                                      (g/property-overridden? basis self :manual-size)
-                                                      (let [effective-new-value
-                                                            (or new-value
-                                                                (let [original-node-id (g/override-original basis self)]
-                                                                  (g/node-value original-node-id :texture evaluation-context)))]
-                                                        (= :texture-size (visible-size-property-label size-mode effective-new-value))))
-                                                 (assoc :manual-size nil))))))))
+                                   (wrap-layout-property-edit-type texture (optional-gui-resource-choicebox texture-names) texture-property-changes-fn))))
             (dynamic error (g/fnk [_node-id basic-gui-scene-info texture]
                              (let [texture-page-counts (:texture-page-counts basic-gui-scene-info)]
                                (validate-texture-resource _node-id texture-page-counts texture)))))
@@ -1674,7 +1665,9 @@
             (set (layout-property-setter inner-radius)))
   (property perimeter-vertices g/Int (default (protobuf/default Gui$NodeDesc :perimeter-vertices))
             (dynamic error (g/fnk [_node-id perimeter-vertices] (validate-perimeter-vertices _node-id perimeter-vertices)))
-            (dynamic edit-type (layout-property-edit-type perimeter-vertices {:type g/Int}))
+            (dynamic edit-type (layout-property-edit-type perimeter-vertices {:type g/Int
+                                                                              :min perimeter-vertices-min
+                                                                              :max perimeter-vertices-max}))
             (value (layout-property-getter perimeter-vertices))
             (set (layout-property-setter perimeter-vertices)))
   (property pie-fill-angle g/Num (default (protobuf/default Gui$NodeDesc :pie-fill-angle))
@@ -2257,7 +2250,7 @@
                                                               :label name
                                                               :icon texture-icon
                                                               :outline-error? (g/error-fatal? build-errors)}
-                                                             (resource/openable-resource? texture-resource) (assoc :link texture-resource :outline-show-link? true))))
+                                                             (resource/resource? texture-resource) (assoc :link texture-resource :outline-show-link? true))))
   (output pb-msg g/Any (g/fnk [name texture-resource]
                          (protobuf/make-map-without-defaults Gui$SceneDesc$TextureDesc
                            :name name
@@ -2305,7 +2298,7 @@
                                                               :label name
                                                               :icon font-icon
                                                               :outline-error? (g/error-fatal? build-errors)}
-                                                             (resource/openable-resource? font-resource) (assoc :link font-resource :outline-show-link? true))))
+                                                             (resource/resource? font-resource) (assoc :link font-resource :outline-show-link? true))))
   (output pb-msg g/Any (g/fnk [name font-resource]
                          (protobuf/make-map-without-defaults Gui$SceneDesc$FontDesc
                            :name name
@@ -2440,7 +2433,7 @@
                                                               :label name
                                                               :icon particlefx/particle-fx-icon
                                                               :outline-error? (g/error-fatal? build-errors)}
-                                                             (resource/openable-resource? particlefx-resource) (assoc :link particlefx-resource :outline-show-link? true))))
+                                                             (resource/resource? particlefx-resource) (assoc :link particlefx-resource :outline-show-link? true))))
   (output pb-msg g/Any (g/fnk [name particlefx]
                          (protobuf/make-map-without-defaults Gui$SceneDesc$ParticleFXDesc
                            :name name
@@ -2941,16 +2934,19 @@
       :nodes node-descs)))
 
 (defn- build-pb [resource dep-resources user-data]
-  (let [def (:def user-data)
-        pb  (:pb user-data)
-        pb  (if (:transform-fn def) ((:transform-fn def) pb) pb)
-        pb  (reduce (fn [pb [label resource]]
-                      (if (vector? label)
-                        (assoc-in pb label resource)
-                        (assoc pb label resource)))
-                    pb (map (fn [[label res]]
-                              [label (resource/resource->proj-path (get dep-resources res))])
-                            (:dep-resources user-data)))]
+  (let [pb (transduce
+             (map (fn [[label build-resource]]
+                    {:pre [(or (nil? build-resource) (workspace/build-resource? build-resource))]}
+                    (let [fused-build-resource (get dep-resources build-resource)
+                          fused-build-resource-path (resource/resource->proj-path fused-build-resource)]
+                      (pair label fused-build-resource-path))))
+             (completing
+               (fn [pb [label fused-build-resource-path]]
+                     (if (vector? label)
+                       (assoc-in pb label fused-build-resource-path)
+                       (assoc pb label fused-build-resource-path))))
+             (:pb user-data)
+             (:dep-resources user-data))]
     {:resource resource :content (protobuf/map->bytes (:pb-class user-data) pb)}))
 
 (defn- merge-rt-pb-msg [rt-pb-msg template-build-targets]
@@ -2973,24 +2969,6 @@
             [(persistent! textures) (persistent! materials) (persistent! fonts) (persistent! particlefx-resources) (persistent! resources)]))]
     (assoc rt-pb-msg :textures (mapv second textures) :materials (mapv second materials) :fonts (mapv second fonts) :particlefxs (mapv second particlefx-resources) :resources (mapv second resources))))
 
-(defn- transform-properties->pose
-  ^Pose [transform-properties]
-  {:pre [(map? transform-properties)]} ; Gui$NodeDesc in map format.
-  (pose/make (some-> (:position transform-properties) pose/seq-translation)
-             (some-> (:rotation transform-properties) pose/seq-euler-rotation)
-             (some-> (:scale transform-properties) pose/seq-scale)))
-
-(defn- pre-multiply-pb-pose [child-node-desc parent-transform-properties]
-  (let [pose (pose/pre-multiply (transform-properties->pose child-node-desc)
-                                (transform-properties->pose parent-transform-properties))]
-    (protobuf/assign child-node-desc
-      :position (when (pose/translated? pose)
-                  (pose/translation-v4 pose 1.0))
-      :rotation (when (pose/rotated? pose)
-                  (pose/euler-rotation-v4 pose))
-      :scale (when (pose/scaled? pose)
-               (pose/scale-v4 pose)))))
-
 (defn- node-desc->rt-node-desc [node-desc layout-name]
   {:pre [(map? node-desc) ; Gui$NodeDesc in map format.
          (string? layout-name)]}
@@ -3008,7 +2986,12 @@
         ;; :parent are used directly from the decorated-template-node-msg.
         (let [layout->prop->value-for-template-node (:layout->prop->value decorated-template-node-msg)
               prop->value-for-template-node (layout->prop->value-for-template-node layout-name)]
-          ;; Note: Protobuf defaults are included in the prop->value map.
+          ;; Beware:
+          ;; The prop->value map contains [prop-kw, prop-value] entries and
+          ;; includes defaults. The node-desc is a map of [pb-field, pb-value]
+          ;; with defaults stripped out. Refer to the property-conversions map
+          ;; earlier in this file to determine if conversions must be performed
+          ;; before combining values.
           (assert (map? layout->prop->value-for-template-node))
           (assert (map? prop->value-for-template-node))
           (cond-> imported-node-desc
@@ -3029,15 +3012,34 @@
 
                   (or (= (:id decorated-template-node-msg) (:parent imported-node-desc))
                       (coll/empty? (:parent imported-node-desc)))
-                  (->
-                    (protobuf/assign
-                      :parent (:parent decorated-template-node-msg)
-                      :enabled (when-not (and (:enabled imported-node-desc true)
-                                              (prop->value-for-template-node :enabled))
-                                 false)) ; Protobuf default is true, and we want to exclude defaults.
+                  (as-> imported-node-desc
+                        ;; In fact incorrect, but only possibility to retain rotation/scale separation.
+                        (let [template-node-pose
+                              (pose/make
+                                (pose/seq-translation (prop->value-for-template-node :position))
+                                (pose/seq-rotation (prop->value-for-template-node :rotation)) ; Property value is a clj-quat.
+                                (pose/seq-scale (prop->value-for-template-node :scale)))
 
-                    ;; In fact incorrect, but only possibility to retain rotation/scale separation.
-                    (pre-multiply-pb-pose prop->value-for-template-node)))))
+                              imported-node-pose
+                              (pose/make
+                                (some-> (:position imported-node-desc) pose/seq-translation)
+                                (some-> (:rotation imported-node-desc) pose/seq-euler-rotation) ; Protobuf value is a euler-v4.
+                                (some-> (:scale imported-node-desc) pose/seq-scale))
+
+                              baked-pose
+                              (pose/pre-multiply imported-node-pose template-node-pose)]
+
+                          (protobuf/assign imported-node-desc
+                            :parent (:parent decorated-template-node-msg)
+                            :enabled (when-not (and (:enabled imported-node-desc true)
+                                                    (prop->value-for-template-node :enabled))
+                                       false) ; Protobuf default is true, and we want to exclude defaults.
+                            :position (when (pose/translated? baked-pose)
+                                        (pose/translation-v4 baked-pose 1.0))
+                            :rotation (when (pose/rotated? baked-pose)
+                                        (pose/euler-rotation-v4 baked-pose))
+                            :scale (when (pose/scaled? baked-pose)
+                                     (pose/scale-v4 baked-pose))))))))
       (dissoc node-desc :overridden-fields :template-node-child)
       (:templates (meta node-desc)))
 
@@ -3069,7 +3071,14 @@
   ;; in a LayoutDesc will fully replace its original NodeDesc, if present in the
   ;; LayoutDesc. However, NodeDescs that are equivalent to their originals may
   ;; be omitted from the LayoutDesc to save space.
-  (g/precluding-errors build-errors
+  (if-not (resource/loaded? resource)
+    [(bt/with-content-hash
+       {:node-id _node-id
+        :resource (workspace/make-build-resource resource)
+        :build-fn build-pb
+        :user-data {:pb {}
+                    :pb-class (:pb-class pb-def)}})]
+    (g/precluding-errors build-errors
     (let [template-build-targets (flatten template-build-targets)
           rt-layout-descs (mapv #(make-rt-layout-desc % node-msgs)
                                 layout-names)
@@ -3093,9 +3102,8 @@
           :build-fn build-pb
           :user-data {:pb rt-pb-msg
                       :pb-class (:pb-class pb-def)
-                      :def pb-def
                       :dep-resources dep-resources}
-          :deps dep-build-targets})])))
+          :deps dep-build-targets})]))))
 
 (defn- validate-template-build-targets [template-build-targets]
   (let [gui-resource-type+name->value->resource-proj-paths
@@ -3340,12 +3348,20 @@
                                (let [node-tree-scene default-scene]
                                  (:children node-tree-scene))))
   (output scene g/Any :cached produce-scene)
-  (output scene-dims g/Any :cached (g/fnk [display-profiles project-settings trivial-gui-scene-info]
-                                     (let [current-layout (:current-layout trivial-gui-scene-info)]
-                                       (or (some #(and (= current-layout (:name %)) (first (:qualifiers %))) display-profiles)
-                                           (let [w (get project-settings ["display" "width"] 0)
-                                                 h (get project-settings ["display" "height"] 0)]
-                                             {:width w :height h})))))
+  (output scene-dims g/Any :cached
+          (g/fnk [display-profiles project-settings trivial-gui-scene-info]
+            (let [current-layout (:current-layout trivial-gui-scene-info)]
+              (or (some #(and (= current-layout (:name %))
+                              (first (:qualifiers %)))
+                        display-profiles)
+
+                  ;; If the layout doesn't override our dimensions, use project
+                  ;; settings. Note that project-settings might not have been
+                  ;; connected in case our .gui scene hasn't been loaded, so we
+                  ;; ultimately fall back on zero width and height.
+                  (let [w (get project-settings ["display" "width"] 0)
+                        h (get project-settings ["display" "height"] 0)]
+                    {:width w :height h})))))
   (output unused-display-profiles g/Any (g/fnk [layout-names display-profiles]
                                           (coll/transfer display-profiles []
                                             (map :name)
@@ -3895,6 +3911,7 @@
         :node-type GuiSceneNode
         :ddf-type (:pb-class def)
         :load-fn load-gui-scene
+        :allow-unloaded-use false ; Sort of works, but disabled until we can fix the file formats to not include all nodes imported from templates.
         :sanitize-fn sanitize-scene
         :icon (:icon def)
         :icon-class (:icon-class def)

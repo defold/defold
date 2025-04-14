@@ -30,11 +30,12 @@
 (def linux #{:x86_64-linux :arm64-linux})
 
 (def vulkan
-  #{:x86_64-osx :arm64-osx
-    :x86_64-linux :arm64-linux
+  #{:x86_64-linux :arm64-linux
     :x86-win32 :x86_64-win32
     :armv7-android :arm64-android
     :arm64-ios})
+
+(def vulkan-osx #{:x86_64-osx :arm64-osx})
 
 (def all-platforms
   #{;; ios
@@ -345,10 +346,15 @@
 
 (def physics-setting
   (make-choice-setting
-    :none (concat (libs-toggles all-platforms ["physics_null"]) (exclude-libs-toggles all-platforms ["physics" "LinearMath" "BulletDynamics" "BulletCollision" "Box2D" "script_box2d"]) (generic-contains-toggles all-platforms :excludeSymbols ["ScriptBox2DExt"]))
-    :2d   (concat (libs-toggles all-platforms ["physics_2d"])   (exclude-libs-toggles all-platforms ["physics" "LinearMath" "BulletDynamics" "BulletCollision"]))
-    :3d   (concat (libs-toggles all-platforms ["physics_3d"])   (exclude-libs-toggles all-platforms ["physics" "Box2D" "script_box2d"]) (generic-contains-toggles all-platforms :excludeSymbols ["ScriptBox2DExt"]))
+    :none (concat (libs-toggles all-platforms ["physics_null"]) (exclude-libs-toggles all-platforms ["physics" "LinearMath" "BulletDynamics" "BulletCollision" "box2d" "box2d_defold" "script_box2d" "script_box2d_defold"]) (generic-contains-toggles all-platforms :excludeSymbols ["ScriptBox2DExt"]))
+    :2d   (concat (libs-toggles all-platforms ["physics_2d_defold"])   (exclude-libs-toggles all-platforms ["physics" "LinearMath" "BulletDynamics" "BulletCollision"]))
+    :3d   (concat (libs-toggles all-platforms ["physics_3d"])   (exclude-libs-toggles all-platforms ["physics" "box2d" "box2d_defold" "script_box2d" "script_box2d_defold"]) (generic-contains-toggles all-platforms :excludeSymbols ["ScriptBox2DExt"]))
     :both))
+
+(def physics-2d-setting
+  (make-choice-setting
+    :box2d (concat (libs-toggles all-platforms ["physics_2d" "box2d" "script_box2d"]) (exclude-libs-toggles all-platforms ["physics" "box2d_defold" "script_box2d_defold"]))
+    :box2d-defold))
 
 (def image-setting
   (make-check-box-setting
@@ -366,14 +372,13 @@
 
 (def vulkan-toggles
   (concat
-    (exclude-libs-toggles [:x86_64-osx :arm64-osx :x86-win32 :x86_64-win32] ["platform"])
-    (libs-toggles [:x86_64-osx :arm64-osx :x86-win32 :x86_64-win32] ["platform_vulkan"])
-    (libs-toggles [:x86_64-osx :arm64-osx :arm64-ios] ["graphics_vulkan" "MoltenVK"])
+    (exclude-libs-toggles [:x86-win32 :x86_64-win32] ["platform"])
+    (libs-toggles [:x86-win32 :x86_64-win32 :arm64-linux :x86_64-linux] ["platform_vulkan"])
+    (libs-toggles [:arm64-ios] ["graphics_vulkan" "MoltenVK"])
     (libs-toggles android ["graphics_vulkan"])
     (libs-toggles windows ["graphics_vulkan" "vulkan"])
     (libs-toggles linux ["graphics_vulkan" "X11-xcb"])
     (generic-contains-toggles linux :dynamicLibs ["vulkan"])
-    (generic-contains-toggles [:x86_64-osx :arm64-osx] :frameworks ["Metal" "IOSurface" "QuartzCore"])
     (generic-contains-toggles [:arm64-ios] :frameworks ["Metal" "IOSurface" "QuartzCore"])
     (generic-contains-toggles vulkan :symbols ["GraphicsAdapterVulkan"])))
 
@@ -382,9 +387,25 @@
     :vulkan (concat
               vulkan-toggles
               (exclude-libs-toggles vulkan ["graphics"])
-              (generic-contains-toggles vulkan :excludeSymbols ["GraphicsAdapterOpenGL"]))
+              (generic-contains-toggles (disj vulkan :arm64-linux) :excludeSymbols ["GraphicsAdapterOpenGL"])
+              [(contains-toggle :arm64-linux :excludeSymbols "GraphicsAdapterOpenGLES")])
     :both vulkan-toggles
     :open-gl))
+
+(def open-gl-osx-toggles
+  (concat
+    (libs-toggles vulkan-osx ["graphics" "platform"])
+    (generic-contains-toggles vulkan-osx :symbols ["GraphicsAdapterOpenGL"])
+    (generic-contains-toggles vulkan-osx :frameworks ["OpenGL"])))
+
+(def graphics-setting-osx
+  (make-choice-setting
+    :open-gl (concat
+               open-gl-osx-toggles
+               (exclude-libs-toggles vulkan-osx ["graphics_vulkan" "platform_vulkan" "MoltenVK"])
+               (generic-contains-toggles vulkan-osx :excludeSymbols ["GraphicsAdapterVulkan"]))
+    :both open-gl-osx-toggles
+    :vulkan))
 
 (def webgpu-toggles
   (concat
@@ -471,6 +492,13 @@
                                                         [:none "None"]]}))
             (value (setting-property-getter physics-setting))
             (set (setting-property-setter physics-setting)))
+  (property physics-2d g/Any
+            (dynamic tooltip (g/constantly "Box2D version 3 or legacy Defold version"))
+            (dynamic edit-type (g/constantly {:type :choicebox
+                                              :options [[:box2d "Box2D Version 3"]
+                                                        [:box2d-defold "Box2D (Legacy Defold version)"]]}))
+            (value (setting-property-getter physics-2d-setting))
+            (set (setting-property-setter physics-2d-setting)))
   (property Rig+Model g/Any
             (dynamic tooltip (g/constantly "Rig, Model or none"))
             (dynamic edit-type (g/constantly {:type :choicebox
@@ -519,13 +547,21 @@
             (value (setting-property-getter use-android-support-lib-setting))
             (set (setting-property-setter use-android-support-lib-setting)))
   (property graphics g/Any
-            (dynamic tooltip (g/constantly "Vulkan support is in BETA (desktop and mobile platforms)"))
+            (dynamic tooltip (g/constantly "Vulkan supports desktop and mobile platforms only"))
             (dynamic edit-type (g/constantly {:type :choicebox
                                               :options [[:open-gl "OpenGL"]
                                                         [:vulkan "Vulkan"]
                                                         [:both "OpenGL & Vulkan"]]}))
             (value (setting-property-getter graphics-setting))
             (set (setting-property-setter graphics-setting)))
+  (property graphics-osx g/Any
+            (dynamic tooltip (g/constantly "Vulkan is the default renderer for OSX"))
+            (dynamic edit-type (g/constantly {:type :choicebox
+                                              :options [[:vulkan "Vulkan"]
+                                                        [:open-gl "OpenGL"]
+                                                        [:both "OpenGL & Vulkan"]]}))
+            (value (setting-property-getter graphics-setting-osx))
+            (set (setting-property-setter graphics-setting-osx)))
   (property graphics-web g/Any
             (dynamic tooltip (g/constantly "WebGPU support is in BETA (web platforms)"))
             (dynamic edit-type (g/constantly {:type :choicebox

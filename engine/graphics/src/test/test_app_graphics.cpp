@@ -218,7 +218,10 @@ struct ReadPixelsTest : ITest
                                     (float) color_a,
                                     1.0f, 0);
 
-        dmGraphics::ReadPixels(engine->m_GraphicsContext, m_Buffer, 512 * 512 * 4);
+        int32_t x = 0, y = 0;
+        uint32_t w = 0, h = 0;
+        dmGraphics::GetViewport(engine->m_GraphicsContext, &x, &y, &w, &h);
+        dmGraphics::ReadPixels(engine->m_GraphicsContext, x, y, w, h, m_Buffer, 512 * 512 * 4);
         dmLogInfo("%d, %d, %d, %d", m_Buffer[0], m_Buffer[1], m_Buffer[2], m_Buffer[3]);
     }
 };
@@ -481,6 +484,10 @@ static void* EngineCreate(int argc, char** argv)
     if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGL)
     {
         window_params.m_GraphicsApi = dmPlatform::PLATFORM_GRAPHICS_API_OPENGL;
+    }
+    else if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGLES)
+    {
+        window_params.m_GraphicsApi = dmPlatform::PLATFORM_GRAPHICS_API_OPENGLES;
     }
 
     dmPlatform::OpenWindow(engine->m_Window, window_params);

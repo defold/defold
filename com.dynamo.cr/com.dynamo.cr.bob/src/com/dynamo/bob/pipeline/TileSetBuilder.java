@@ -39,7 +39,7 @@ import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
 import com.dynamo.gamesys.proto.Tile.TileSet;
 
 @ProtoParams(srcClass = TileSet.class, messageClass = TileSet.class)
-@BuilderParams(name = "TileSet", inExts = {".tileset", ".tilesource"}, outExt = ".t.texturesetc", isCacheble = true)
+@BuilderParams(name = "TileSet", inExts = {".tileset", ".tilesource"}, outExt = ".t.texturesetc", isCacheble = true, paramsForSignature = {"texture-compression"})
 public class TileSetBuilder extends ProtoBuilder<TileSet.Builder> {
 
     private static Logger logger = Logger.getLogger(TileSetBuilder.class.getName());
@@ -66,12 +66,7 @@ public class TileSetBuilder extends ProtoBuilder<TileSet.Builder> {
                 taskBuilder.addInput(collision);
             }
 
-            // If there is a texture profiles file, we need to make sure
-            // it has been read before building this tile set, add it as an input.
-            String textureProfilesPath = this.project.getProjectProperties().getStringValue("graphics", "texture_profiles");
-            if (textureProfilesPath != null) {
-                taskBuilder.addInput(this.project.getResource(textureProfilesPath));
-            }
+            TextureUtil.addTextureProfileInput(taskBuilder, project);
 
             return taskBuilder.build();
         } else {
@@ -91,7 +86,7 @@ public class TileSetBuilder extends ProtoBuilder<TileSet.Builder> {
     public void build(Task task) throws CompileExceptionError,
             IOException {
 
-        TextureProfile texProfile = TextureUtil.getTextureProfileByPath(this.project.getTextureProfiles(), task.firstInput().getPath());
+        TextureProfile texProfile = TextureUtil.getTextureProfileByPath(task.lastInput(), task.firstInput().getPath());
         logger.fine("Compiling %s using profile %s", task.firstInput().getPath(), texProfile!=null?texProfile.getName():"<none>");
 
         TileSet.Builder builder = getSrcBuilder(task.firstInput());

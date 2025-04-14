@@ -36,6 +36,8 @@ public class ShaderProgramBuilderEditor {
         shaderDescs.add(module);
 
         ShaderCompilePipeline.Options options = new ShaderCompilePipeline.Options();
+        options.defines.add("EDITOR");
+
         ShaderCompilePipeline pipeline;
 
         try {

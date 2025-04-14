@@ -35,7 +35,7 @@
 #include "gamesys_private.h" // ShowFullBufferError
 
 DM_PROPERTY_EXTERN(rmtp_Components);
-DM_PROPERTY_U32(rmtp_CollisionObjectBullet3D, 0, FrameReset, "# components", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_CollisionObjectBullet3D, 0, PROFILE_PROPERTY_FRAME_RESET, "# components", &rmtp_Components);
 
 namespace dmGameSystem
 {

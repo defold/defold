@@ -106,7 +106,7 @@
 
 (defn- make-property-widget
   ^Parent [edit-type node-id prop-kw]
-  (let [context {}
+  (let [context {:prefs (test-util/make-build-stage-test-prefs)}
         coalesced-prop-info-fn (make-coalesced-prop-info-fn node-id prop-kw)
         [widget _update-ui-fn] (properties-view/create-property-control! edit-type context coalesced-prop-info-fn)]
     widget))
@@ -154,9 +154,9 @@
   (let [graph-id (g/node-id->graph-id node-id)
         original-value (g/node-value node-id prop-kw)
         widget (make-property-widget edit-type node-id prop-kw)
-        [color-picker] (test-util/editable-controls widget)]
+        [color-input] (test-util/editable-controls widget)]
     (with-open [_ (test-util/make-graph-reverter graph-id)]
-      (test-util/set-control-value! color-picker 0.11)
+      (test-util/set-control-value! color-input "#fff")
       (let [modified-value (g/node-value node-id prop-kw)]
         (is (not= original-value modified-value))
         (is (= (count original-value) (count modified-value)))
@@ -207,28 +207,29 @@
 
 (defn- ensure-numeric-properties-preserve-type! [original-property-values]
   (with-clean-system
-    (let [original-meta {:version "original"}
+    (test-util/with-ui-run-later-rebound
+      (let [original-meta {:version "original"}
 
-          property-values
-          (into (sorted-map)
-                (map (fn [[prop-kw prop-value]]
-                       (let [decorated-value (if (vector? prop-value)
-                                               (with-meta prop-value original-meta)
-                                               prop-value)]
-                         [prop-kw decorated-value])))
-                original-property-values)
-
-          graph-id (g/make-graph! :history true)
-          node-id (apply g/make-node! graph-id NumericPropertiesNode (mapcat identity property-values))]
-      (let [edit-type-by-prop-kw
+            property-values
             (into (sorted-map)
-                  (map (fn [[prop-kw prop-info]]
-                         (let [edit-type (properties/property-edit-type prop-info)]
-                           [prop-kw edit-type])))
-                  (:properties (g/node-value node-id :_properties)))]
-        (doseq [[prop-kw edit-type] edit-type-by-prop-kw]
-          (testing (format "Types preserved after editing (property %s)" (name prop-kw))
-            (test-property-widget! edit-type node-id prop-kw)))))))
+                  (map (fn [[prop-kw prop-value]]
+                         (let [decorated-value (if (vector? prop-value)
+                                                 (with-meta prop-value original-meta)
+                                                 prop-value)]
+                           [prop-kw decorated-value])))
+                  original-property-values)
+
+            graph-id (g/make-graph! :history true)
+            node-id (apply g/make-node! graph-id NumericPropertiesNode (mapcat identity property-values))]
+        (let [edit-type-by-prop-kw
+              (into (sorted-map)
+                    (map (fn [[prop-kw prop-info]]
+                           (let [edit-type (properties/property-edit-type prop-info)]
+                             [prop-kw edit-type])))
+                    (:properties (g/node-value node-id :_properties)))]
+          (doseq [[prop-kw edit-type] edit-type-by-prop-kw]
+            (testing (format "Types preserved after editing (property %s)" (name prop-kw))
+              (test-property-widget! edit-type node-id prop-kw))))))))
 
 (deftest numeric-properties-preserve-type-test
   (testing "Values are floats in generic vectors before editing"

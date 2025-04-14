@@ -2655,7 +2655,7 @@ namespace dmGraphics
         g_DX12Context->m_CurrentTextures[unit] = 0x0;
     }
 
-    static void DX12ReadPixels(HContext context, void* buffer, uint32_t buffer_size)
+    static void DX12ReadPixels(HContext context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size)
     {
     }
 
@@ -2669,6 +2669,14 @@ namespace dmGraphics
         viewport.m_W = (uint16_t) width;
         viewport.m_H = (uint16_t) height;
         context->m_ViewportChanged = 1;
+    }
+
+    static void DX12GetViewport(HContext context, int32_t* x, int32_t* y, uint32_t* width, uint32_t* height)
+    {
+        DX12Context* _context = (DX12Context*) context;
+
+        const DX12Viewport& viewport = _context->m_CurrentViewport;
+        *x = viewport.m_X, *y = viewport.m_Y, *width = viewport.m_W, *height = viewport.m_H;
     }
 
     static void DX12EnableState(HContext context, State state)

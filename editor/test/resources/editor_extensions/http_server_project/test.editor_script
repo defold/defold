@@ -1,0 +1,102 @@
+local M = {}
+
+function M.get_http_server_routes()
+    local function ok_handler(request) return 200 end
+    return {
+        http.server.route("/test/echo/string", "POST", "string", function(request)
+            return request.body
+        end),
+        http.server.route("/test/echo/json", "POST", "json", function(request)
+            return http.server.json_response(request.body)
+        end),
+        http.server.route("/test/route-merging", "GET", function(request)
+            return "get"
+        end),
+        http.server.route("/test/route-merging", "PUT", function(request)
+            return "put"
+        end),
+        http.server.route("/test/route-merging", "POST", function(request)
+            return "post"
+        end),
+        http.server.route("/test/path-pattern/{key}/{value}", function(request)
+            return 200, "key = " .. request.key .. ", value = " .. request.value
+        end),
+        http.server.route("/test/rest-pattern/{*rest}", function(request) 
+            return request.rest
+        end),
+        http.server.route("/test/files/{*file}", function(request)
+            local attrs = editor.external_file_attributes(request.file)
+            if attrs.is_file then
+                return http.server.external_file_response(request.file)
+            else
+                return attrs.is_directory and 400 or 404
+            end
+        end),
+        http.server.route("/test/resources/{*resource}", function(request)
+            local resource = "/" .. request.resource
+            local attrs = editor.resource_attributes(resource)
+            if attrs.is_file then
+                return http.server.resource_response(resource)
+            else
+                return attrs.is_directory and 400 or 404
+            end
+        end),
+        http.server.route("/test/conflict/same-path-and-method", "GET", ok_handler),
+        http.server.route("/test/conflict/same-path-and-method", "GET", ok_handler),
+        http.server.route("/test/conflict/no-param", ok_handler),
+        http.server.route("/test/conflict/{param}", ok_handler),
+        http.server.route("/command", ok_handler),
+        http.server.route("/command/{param}", ok_handler)
+    }
+end
+
+local function test(path, opts)
+    local success, result = pcall(http.request, http.server.url .. path, opts)
+    local method = opts and opts.method or "GET"
+    local as = (opts and opts.as and (" as " .. opts.as)) or ""
+    local body = (opts and opts.body and (" '" .. opts.body .. "'")) or ""
+    local prefix = ("%s %s%s%s"):format(method, path, body, as)
+    if success then
+        print(("%s => %s"):format(prefix, result.status))
+        result.headers.date = nil
+        local keys = {}
+        for key in pairs(result.headers) do
+            keys[#keys+1] = key
+        end
+        table.sort(keys)
+        for i = 1, #keys do
+            local k = keys[i]
+            local v = result.headers[k]
+            print("< " .. k .. ": " .. v)
+        end
+        if result.body then
+            pprint(result.body)
+        end
+    else
+        print(("%s => error (%s)"):format(prefix, result))
+    end
+end
+
+function M.get_commands() 
+    return {{
+        label = "Test",
+        locations = {"Edit"},
+        run = function()
+            test("/test/echo/string", {method = "POST", body = "hello", as = "string"})
+            test("/test/echo/json", {method = "POST", body = '{"a": 1}', as = "json"})
+            test("/test/route-merging", {method = "GET", as = "string"})
+            test("/test/route-merging", {method = "POST", as = "string"})
+            test("/test/route-merging", {method = "PUT", as = "string"})
+            test("/test/path-pattern/foo/bar", {method = "GET", as = "string"})
+            test("/test/rest-pattern/a/b/c", {method = "GET", as = "string"})
+            test("/test/files/not-found.txt", {method = "GET", as = "string"})
+            test("/test/files/test.txt", {method = "GET", as = "string"})
+            test("/test/files/test.json", {method = "GET", as = "json"})
+            test("/test/resources/not-found.txt", {method = "GET", as = "string"})
+            test("/test/resources/test.txt", {method = "GET", as = "string"})
+            test("/test/resources/test.json", {method = "GET", as = "json"})
+        end
+    }}
+end
+
+return M

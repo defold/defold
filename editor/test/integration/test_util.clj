@@ -62,7 +62,8 @@
             [util.http-server :as http-server]
             [util.text-util :as text-util]
             [util.thread-util :as thread-util])
-  (:import [clojure.core Vec]
+  (:import [ch.qos.logback.classic Level Logger]
+           [clojure.core Vec]
            [com.google.protobuf ByteString]
            [editor.properties Curve CurveSpread]
            [java.awt.image BufferedImage]
@@ -79,13 +80,26 @@
            [javafx.scene.paint Color]
            [javax.imageio ImageIO]
            [javax.vecmath Vector3d]
-           [org.apache.commons.io FilenameUtils IOUtils]))
+           [org.apache.commons.io FilenameUtils IOUtils]
+           [org.slf4j LoggerFactory]))
 
 (set! *warn-on-reflection* true)
+
+(.setLevel ^Logger (LoggerFactory/getLogger "org.eclipse.jetty") Level/ERROR)
 
 (def project-path "test/resources/test_project")
 
 (def ^:private ^:const system-cache-size 1000)
+
+;; String urls that will be added as library dependencies to our test project.
+;; These extensions register additional protobuf resource types that we want to
+;; cover in our tests.
+(def sanctioned-extension-urls
+  (mapv #(System/getProperty %)
+        ["defold.extension.rive.url"
+         "defold.extension.simpledata.url"
+         "defold.extension.spine.url"
+         "defold.extension.texturepacker.url"]))
 
 (defn number-type-preserving? [a b]
   (assert (or (number? a) (vector? a) (instance? Curve a) (instance? CurveSpread a)))
@@ -247,6 +261,32 @@
               (seq non-editable-directory-proj-paths)
               (assoc :non-editable-directories (vec non-editable-directory-proj-paths))))))
 
+(defn write-defunload-patterns!
+  ^File [project-path patterns]
+  (fs/create-file!
+    (io/file project-path ".defunload")
+    (string/join (System/getProperty "line.separator")
+                 patterns)))
+
+(defn- proj-path-resource-type [basis workspace proj-path]
+  (let [editable-proj-path? (g/raw-property-value basis workspace :editable-proj-path?)
+        editability (editable-proj-path? proj-path)
+        type-ext (resource/filename->type-ext proj-path)]
+    (workspace/get-resource-type workspace editability type-ext)))
+
+(defn write-file-resource!
+  ^File [workspace proj-path save-value]
+  {:pre [(string/starts-with? proj-path "/")]}
+  (let [basis (g/now)
+        resource-type (proj-path-resource-type basis workspace proj-path)
+        project-directory (workspace/project-directory basis workspace)
+        file (io/file project-directory (subs proj-path 1))
+        write-fn (:write-fn resource-type)
+        contents (write-fn save-value)]
+    (test-support/write-until-new-mtime
+      file contents)
+    file))
+
 (defn setup-workspace!
   ([graph]
    (setup-workspace! graph project-path))
@@ -297,6 +337,27 @@
          (workspace/install-validated-libraries! workspace))
     (workspace/resource-sync! workspace [] progress/null-render-progress!)))
 
+(defn distinct-resource-types-by-editability
+  ([workspace]
+   (distinct-resource-types-by-editability workspace fn/constantly-true))
+  ([workspace resource-type-predicate]
+   (let [editable-protobuf-resource-types
+         (into (sorted-map)
+               (filter (fn [[_ext editable-resource-type]]
+                         (resource-type-predicate editable-resource-type)))
+               (workspace/get-resource-type-map workspace :editable))
+
+         distinctly-non-editable-protobuf-resource-types
+         (into (sorted-map)
+               (filter (fn [[ext non-editable-resource-type]]
+                         (and (resource-type-predicate non-editable-resource-type)
+                              (not (identical? non-editable-resource-type
+                                               (editable-protobuf-resource-types ext))))))
+               (workspace/get-resource-type-map workspace :non-editable))]
+
+     {:editable (mapv val editable-protobuf-resource-types)
+      :non-editable (mapv val distinctly-non-editable-protobuf-resource-types)})))
+
 (defn setup-project!
   ([workspace]
    (let [proj-graph (g/make-graph! :history true :volatility 1)
@@ -314,16 +375,15 @@
      project)))
 
 (defn project-node-resources [project]
-  (g/with-auto-evaluation-context evaluation-context
-    (sort-by resource/proj-path
-             (map (comp #(g/node-value % :resource evaluation-context) first)
-                  (g/sources-of project :node-id+resources)))))
+  (->> (g/node-value project :node-id+resources)
+       (map second)
+       (sort-by resource/proj-path)))
 
-(defrecord FakeFileResource [workspace root ^File file children exists? source-type read-only? content]
+(defrecord FakeFileResource [workspace root ^File file children exists? source-type read-only? loaded? content]
   resource/Resource
   (children [this] children)
   (ext [this] (FilenameUtils/getExtension (.getPath file)))
-  (resource-type [this] (#'resource/get-resource-type workspace this))
+  (resource-type [this] (resource/lookup-resource-type (g/now) workspace this))
   (source-type [this] source-type)
   (exists? [this] exists?)
   (read-only? [this] read-only?)
@@ -335,6 +395,7 @@
   (resource-hash [this] (hash (resource/proj-path this)))
   (openable? [this] (= :file source-type))
   (editable? [this] true)
+  (loaded? [_this] loaded?)
 
   io/IOFactory
   (make-input-stream  [this opts] (io/make-input-stream content opts))
@@ -345,13 +406,14 @@
 (defn make-fake-file-resource
   ([workspace root file content]
    (make-fake-file-resource workspace root file content nil))
-  ([workspace root file content {:keys [children exists? source-type read-only?]
+  ([workspace root file content {:keys [children exists? source-type read-only? loaded?]
                                  :or {children nil
                                       exists? true
                                       source-type :file
-                                      read-only? false}
+                                      read-only? false
+                                      loaded? true}
                                  :as opts}]
-   (FakeFileResource. workspace root file children exists? source-type read-only? content)))
+   (FakeFileResource. workspace root file children exists? source-type read-only? loaded? content)))
 
 (defn resource-node [project path]
   (project/get-resource-node project path))
@@ -780,8 +842,9 @@
 (defn resource [workspace path]
   (workspace/file-resource workspace path))
 
-(defn file ^File [workspace ^String path]
-  (File. (workspace/project-path workspace) path))
+(defn file
+  ^File [workspace ^String path]
+  (File. (workspace/project-directory workspace) path))
 
 (defn selection [app-view]
   (-> app-view
@@ -790,32 +853,29 @@
 
 ;; Extension library server
 
-(defn ->lib-server []
-  (doto (http-server/->server 0 {"/lib" (fn [request]
-                                          (let [lib (subs (:url request) 5)
-                                                path-offset (count (format "test/resources/%s/" lib))
-                                                ignored #{".internal" "build"}
-                                                file-filter (reify FilenameFilter
-                                                              (accept [this file name] (not (contains? ignored name))))
-                                                files (->> (tree-seq (fn [^File f] (.isDirectory f)) (fn [^File f] (.listFiles f file-filter)) (io/file (format "test/resources/%s" lib)))
-                                                        (filter (fn [^File f] (not (.isDirectory f)))))]
-                                            (with-open [byte-stream (ByteArrayOutputStream.)
-                                                        out (ZipOutputStream. byte-stream)]
-                                              (doseq [^File f files]
-                                                (with-open [in (FileInputStream. f)]
-                                                  (let [entry (doto (ZipEntry. (subs (.getPath f) path-offset))
-                                                                (.setSize (.length f)))]
-                                                    (.putNextEntry out entry)
-                                                    (IOUtils/copy in out)
-                                                    (.closeEntry out))))
-                                              (.finish out)
-                                              (let [bytes (.toByteArray byte-stream)]
-                                                {:headers {"ETag" "tag"}
-                                                 :body bytes}))))})
-    (http-server/start!)))
-
-(defn kill-lib-server [server]
-  (http-server/stop! server))
+(def lib-server-handler
+  (http-server/router-handler
+    {"/lib/{*lib}"
+     {"GET" (fn [request]
+              (let [lib (-> request :path-params :lib)
+                    path-offset (count (format "test/resources/%s/" lib))
+                    ignored #{".internal" "build"}
+                    file-filter (reify FilenameFilter
+                                  (accept [this file name] (not (contains? ignored name))))
+                    files (->> (tree-seq (fn [^File f] (.isDirectory f))
+                                         (fn [^File f] (.listFiles f ^FilenameFilter file-filter))
+                                         (io/file (format "test/resources/%s" lib)))
+                               (filter (fn [^File f] (not (.isDirectory f)))))
+                    baos (ByteArrayOutputStream.)]
+                (with-open [out (ZipOutputStream. baos)]
+                  (doseq [^File f files]
+                    (with-open [in (FileInputStream. f)]
+                      (let [entry (doto (ZipEntry. (subs (.getPath f) path-offset))
+                                    (.setSize (.length f)))]
+                        (.putNextEntry out entry)
+                        (IOUtils/copy in out)
+                        (.closeEntry out)))))
+                (http-server/response 200 {"etag" "tag"} (.toByteArray baos))))}}))
 
 (defn lib-server-uri [server lib]
   (format "%s/lib/%s" (http-server/local-url server) lib))
@@ -1253,7 +1313,7 @@
              {:tag pb-class}))
 
 (defn- make-build-output-infos-by-path-impl [workspace resource-types-by-build-ext ^String build-output-path]
-  (let [build-ext (FilenameUtils/getExtension build-output-path)
+  (let [build-ext (resource/filename->type-ext build-output-path)
         resource-type (some (fn [[_ resource-type]]
                               (when (= build-ext (:build-ext resource-type))
                                 resource-type))

@@ -71,14 +71,8 @@ def configure(conf):
     architecture = build_util.get_target_architecture()
 
     sound_lib = 'sound'
-    glfw_lib = 'dmglfw'
-    platform_lib = 'platform'
-
-    if waf_dynamo.platform_glfw_version(conf.env.PLATFORM) == 3:
-        glfw_lib = "glfw3"
-
-        if waflib.Options.options.with_vulkan:
-            platform_lib = "platform_vulkan"
+    glfw_lib = waf_dynamo.platform_get_glfw_lib(conf.env.PLATFORM)
+    platform_lib =  waf_dynamo.platform_get_platform_lib(conf.env.PLATFORM)
 
     if target_os == 'macos':
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo', '-framework', 'QuartzCore'])
@@ -120,7 +114,7 @@ def configure(conf):
     conf.env['STLIB_EXTENSION'] = 'extension'
     conf.env['STLIB_RESOURCE'] = 'resource'
     conf.env['STLIB_RENDER'] = 'render render_font_default'.split()
-    conf.env['STLIB_GAMESYS'] = 'gamesys gamesys_model gamesys_rig script_box2d'.split()
+    conf.env['STLIB_GAMESYS'] = 'gamesys gamesys_model gamesys_rig script_box2d_defold'.split()
     conf.env['STLIB_GAMEOBJECT'] = 'gameobject'
     conf.env['STLIB_SCRIPT'] = 'script'
     conf.env['STLIB_DMGLFW'] = glfw_lib

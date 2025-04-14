@@ -45,7 +45,6 @@ void InitializeJNITypes(JNIEnv* env, TypeInfos* infos) {
         SETUP_CLASS(ShaderCompilerOptionsJNI, "ShaderCompilerOptions");
         GET_FLD_TYPESTR(version, "I");
         GET_FLD_TYPESTR(entryPoint, "Ljava/lang/String;");
-        GET_FLD(stage, "ShaderStage");
         GET_FLD_TYPESTR(removeUnusedVariables, "B");
         GET_FLD_TYPESTR(no420PackExtension, "B");
         GET_FLD_TYPESTR(glslEmitUboAsPlainUniforms, "B");
@@ -91,6 +90,7 @@ void InitializeJNITypes(JNIEnv* env, TypeInfos* infos) {
         GET_FLD_TYPESTR(location, "B");
         GET_FLD_TYPESTR(binding, "B");
         GET_FLD_TYPESTR(set, "B");
+        GET_FLD_TYPESTR(stageFlags, "B");
     }
     {
         SETUP_CLASS(ShaderReflectionJNI, "ShaderReflection");
@@ -130,7 +130,6 @@ jobject C2J_CreateShaderCompilerOptions(JNIEnv* env, TypeInfos* types, const Sha
     jobject obj = env->AllocObject(types->m_ShaderCompilerOptionsJNI.cls);
     dmJNI::SetUInt(env, obj, types->m_ShaderCompilerOptionsJNI.version, src->m_Version);
     dmJNI::SetString(env, obj, types->m_ShaderCompilerOptionsJNI.entryPoint, src->m_EntryPoint);
-    dmJNI::SetEnum(env, obj, types->m_ShaderCompilerOptionsJNI.stage, src->m_Stage);
     dmJNI::SetUByte(env, obj, types->m_ShaderCompilerOptionsJNI.removeUnusedVariables, src->m_RemoveUnusedVariables);
     dmJNI::SetUByte(env, obj, types->m_ShaderCompilerOptionsJNI.no420PackExtension, src->m_No420PackExtension);
     dmJNI::SetUByte(env, obj, types->m_ShaderCompilerOptionsJNI.glslEmitUboAsPlainUniforms, src->m_GlslEmitUboAsPlainUniforms);
@@ -188,6 +187,7 @@ jobject C2J_CreateShaderResource(JNIEnv* env, TypeInfos* types, const ShaderReso
     dmJNI::SetUByte(env, obj, types->m_ShaderResourceJNI.location, src->m_Location);
     dmJNI::SetUByte(env, obj, types->m_ShaderResourceJNI.binding, src->m_Binding);
     dmJNI::SetUByte(env, obj, types->m_ShaderResourceJNI.set, src->m_Set);
+    dmJNI::SetUByte(env, obj, types->m_ShaderResourceJNI.stageFlags, src->m_StageFlags);
     return obj;
 }
 
@@ -358,7 +358,6 @@ bool J2C_CreateShaderCompilerOptions(JNIEnv* env, TypeInfos* types, jobject obj,
     if (out == 0) return false;
     out->m_Version = dmJNI::GetUInt(env, obj, types->m_ShaderCompilerOptionsJNI.version);
     out->m_EntryPoint = dmJNI::GetString(env, obj, types->m_ShaderCompilerOptionsJNI.entryPoint);
-    out->m_Stage = (ShaderStage)dmJNI::GetEnum(env, obj, types->m_ShaderCompilerOptionsJNI.stage);
     out->m_RemoveUnusedVariables = dmJNI::GetUByte(env, obj, types->m_ShaderCompilerOptionsJNI.removeUnusedVariables);
     out->m_No420PackExtension = dmJNI::GetUByte(env, obj, types->m_ShaderCompilerOptionsJNI.no420PackExtension);
     out->m_GlslEmitUboAsPlainUniforms = dmJNI::GetUByte(env, obj, types->m_ShaderCompilerOptionsJNI.glslEmitUboAsPlainUniforms);
@@ -432,6 +431,7 @@ bool J2C_CreateShaderResource(JNIEnv* env, TypeInfos* types, jobject obj, Shader
     out->m_Location = dmJNI::GetUByte(env, obj, types->m_ShaderResourceJNI.location);
     out->m_Binding = dmJNI::GetUByte(env, obj, types->m_ShaderResourceJNI.binding);
     out->m_Set = dmJNI::GetUByte(env, obj, types->m_ShaderResourceJNI.set);
+    out->m_StageFlags = dmJNI::GetUByte(env, obj, types->m_ShaderResourceJNI.stageFlags);
     return true;
 }
 

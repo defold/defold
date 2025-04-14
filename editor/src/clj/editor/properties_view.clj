@@ -16,10 +16,12 @@
   (:require [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.color-dropper :as color-dropper]
             [editor.field-expression :as field-expression]
             [editor.handler :as handler]
             [editor.jfx :as jfx]
             [editor.math :as math]
+            [editor.prefs :as prefs]
             [editor.properties :as properties]
             [editor.resource :as resource]
             [editor.resource-dialog :as resource-dialog]
@@ -31,10 +33,11 @@
             [util.id-vec :as iv]
             [util.profiler :as profiler])
   (:import [editor.properties Curve CurveSpread]
+           [java.util Collection]
            [javafx.geometry Insets Point2D]
            [javafx.scene Node Parent]
            [javafx.scene.control Button CheckBox ColorPicker Control Label Slider TextArea TextField TextInputControl ToggleButton Tooltip]
-           [javafx.scene.input MouseEvent]
+           [javafx.scene.input MouseEvent MouseDragEvent]
            [javafx.scene.layout AnchorPane ColumnConstraints GridPane HBox Pane Priority Region VBox]
            [javafx.scene.paint Color]
            [javafx.util Duration]))
@@ -44,6 +47,8 @@
 (def ^{:private true :const true} grid-hgap 4)
 (def ^{:private true :const true} grid-vgap 6)
 (def ^{:private true :const true} all-available 5000)
+
+(defonce ^:private saved-colors-prefs-path [:workflow :saved-colors])
 
 (declare update-field-message)
 
@@ -154,20 +159,21 @@
   (let [text (TextField.)
         update-ui-fn (partial update-text-fn text field-expression/format-int)
         update-prop-fn (fn [_]
-                      (let [property (property-fn)]
-                        (update-ui-fn (properties/values property)
-                                      (properties/validation-message property)
-                                      (properties/read-only? property))))
+                         (let [property (property-fn)]
+                           (update-ui-fn (properties/values property)
+                                         (properties/validation-message property)
+                                         (properties/read-only? property))))
         cancel-fn update-prop-fn
         update-fn (fn [_]
                     (when-let [v (field-expression/to-int (.getText text))]
                       (let [property (property-fn)]
                         (properties/set-values! property (repeat v))
-                        (update-prop-fn nil))))]
+                        (update-prop-fn nil))))
+        drag-update-fn (fn [v update-val] (int (+ v update-val)))]
     (customize! text update-fn cancel-fn)
     (when-let [style-class (script-property-type->style-class (:script-property-type edit-type))]
       (add-style-class! text style-class))
-    [text update-ui-fn]))
+    [text update-ui-fn drag-update-fn]))
 
 (defmethod create-property-control! g/Num [edit-type _ property-fn]
   (let [text-field (TextField.)
@@ -183,11 +189,12 @@
                           num (parse-num (.getText text-field) old-num)]
                       (if (and num (not= num old-num))
                         (properties/set-values! property (repeat num))
-                        (cancel-fn nil))))]
+                        (cancel-fn nil))))
+        drag-update-fn (fn [v update-val] (properties/round-scalar (+ v update-val)))]
     (customize! text-field update-fn cancel-fn)
     (when-let [style-class (script-property-type->style-class (:script-property-type edit-type))]
       (add-style-class! text-field style-class))
-    [text-field update-ui-fn]))
+    [text-field update-ui-fn drag-update-fn]))
 
 (defmethod create-property-control! g/Bool [_ _ property-fn]
   (let [check (CheckBox.)
@@ -212,6 +219,53 @@
                         ctrls))
     box))
 
+(defn- handle-label-drag-event! [property-fn drag-update-fn update-ui-fn ^MouseDragEvent event]
+  (.consume event)
+  (let [target (.getTarget event)
+        property (property-fn)
+        edit-type (:edit-type property)
+        to-fn (:to-type edit-type identity)
+        from-fn (:from-type edit-type identity)
+        min-val (:min edit-type)
+        max-val (:max edit-type)
+        x (.getX event)
+        y (.getY event)
+        [prev-x prev-y] (ui/user-data target ::position)
+        delta-x (- x prev-x)
+        delta-y (- prev-y y)
+        max-delta (if (> (abs delta-x) (abs delta-y)) delta-x delta-y)
+        update-val (cond-> (or (:precision edit-type) 1.0)
+                     (.isShiftDown event) (* 10.0)
+                     (.isControlDown event) (* 0.1)
+                     (neg? max-delta) -)]
+    (when (> (abs max-delta) 1)
+      (let [op-seq (ui/user-data target ::op-seq)
+            values (or (ui/user-data target ::values)
+                       (properties/values property))
+            new-values (mapv (fn [value]
+                               (cond-> (drag-update-fn value update-val)
+                                 min-val (max min-val)
+                                 max-val (min max-val))) values)]
+        (properties/set-values! property values op-seq)
+        (ui/user-data! target ::position [x y])
+        (ui/user-data! target ::values new-values)
+        (update-ui-fn (mapv (comp to-fn from-fn) new-values)
+                      (properties/validation-message property)
+                      (properties/read-only? property))))))
+
+(defn handle-label-press-event!
+  [^MouseEvent event]
+  (doto (.getTarget event)
+    (ui/user-data! ::op-seq (gensym))
+    (ui/user-data! ::position [(.getX event) (.getY event)])))
+
+(defn- make-label-draggable!
+  [^Label label drag-event-handler]
+  (doto label
+    (ui/add-style! "draggable")
+    (.addEventHandler MouseEvent/MOUSE_DRAGGED (ui/event-handler event (drag-event-handler event)))
+    (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (handle-label-press-event! event)))))
+
 (defn- create-multi-text-field! [labels property-fn]
   (let [text-fields (mapv (fn [_] (TextField.)) labels)
         box (doto (GridPane.)
@@ -223,10 +277,15 @@
     (dorun
       (map
         (fn [index ^TextField text-field ^String label-text]
-          (let [children (if (seq label-text)
-                           [(doto (Label. label-text)
-                              (.setMinWidth Region/USE_PREF_SIZE))
-                            text-field]
+          (let [drag-update-fn (fn [v update-val]
+                                 (update v index #(properties/round-scalar (+ % update-val))))
+                children (if (seq label-text)
+                           (let [label (doto (Label. label-text)
+                                         (.setMinWidth Region/USE_PREF_SIZE))]
+                             (ui/do-run-later
+                               #(when-not (properties/read-only? (property-fn))
+                                  (make-label-draggable! label (partial handle-label-drag-event! property-fn drag-update-fn update-ui-fn))))
+                             [label text-field])
                            [text-field])
                 comp (doto (create-grid-pane children)
                        (GridPane/setConstraints index 0)
@@ -473,39 +532,90 @@
         update-ui-fn (make-curve-update-ui-fn editor-toggle-button value-text-field update-ui-fn)]
     [box update-ui-fn]))
 
-(defmethod create-property-control! types/Color [edit-type _ property-fn]
-  (let [color-picker (doto (ColorPicker.)
-                       (.setPrefWidth Double/MAX_VALUE))
-        update-ui-fn  (fn [values message read-only?]
-                        (let [v (properties/unify-values values)]
-                          (if (nil? v)
-                            (.setValue color-picker nil)
-                            (let [[r g b a] v]
-                              (.setValue color-picker (Color. r g b a)))))
-                        (update-field-message [color-picker] message)
-                        (ui/editable! color-picker (not read-only?)))]
+(defn- set-color-value! [property-fn ignore-alpha ^Color c]
+  (let [property (property-fn)
+        old-value (coalesced-property->any-value property)
+        num-fn (if (math/float32? (first old-value))
+                 properties/round-scalar-coarse-float
+                 properties/round-scalar-coarse)
+        new-value (-> (coll/empty-with-meta old-value)
+                      (conj (num-fn (.getRed c)))
+                      (conj (num-fn (.getGreen c)))
+                      (conj (num-fn (.getBlue c)))
+                      (conj (num-fn (.getOpacity c))))
+        values (if ignore-alpha
+                 (let [old-values (properties/values property)
+                       old-alphas (map #(nth % 3) old-values)]
+                   (mapv #(assoc new-value 3 %) old-alphas))
+                 (repeat new-value))]
+    (properties/set-values! property values)))
 
-    (ui/on-action!
-      color-picker
-      (fn [_]
-        (let [property (property-fn)
-              old-value (coalesced-property->any-value property)
-              num-fn (if (math/float32? (first old-value))
-                       properties/round-scalar-coarse-float
-                       properties/round-scalar-coarse)
-              ^Color c (.getValue color-picker)
-              new-value (-> (coll/empty-with-meta old-value)
-                            (conj (num-fn (.getRed c)))
-                            (conj (num-fn (.getGreen c)))
-                            (conj (num-fn (.getBlue c)))
-                            (conj (num-fn (.getOpacity c))))
-              values (if (:ignore-alpha? edit-type)
-                       (let [old-values (properties/values property)
-                             old-alphas (map #(nth % 3) old-values)]
-                         (mapv #(assoc new-value 3 %) old-alphas))
-                       (repeat new-value))]
-          (properties/set-values! property values))))
-    [color-picker update-ui-fn]))
+(defn- value->color [v]
+  (let [[r g b a] v]
+    (Color. r g b a)))
+
+(defn- color->web-string [^Color c ignore-alpha]
+  (cond->> (nnext (.toString c))
+    ignore-alpha (drop-last 2)
+    :always (apply str "#")))
+
+(defn- save-colors!
+  [colors prefs]
+  (->> (mapv #(color->web-string % false) colors)
+       (prefs/set! prefs saved-colors-prefs-path)))
+
+(defn- get-saved-colors
+  [prefs]
+  (->> (prefs/get prefs saved-colors-prefs-path)
+       (mapv #(Color/valueOf ^String %))))
+
+(defmethod create-property-control! types/Color [edit-type {:keys [color-dropper-view prefs]} property-fn]
+  (let [wrapper (doto (HBox.)
+                  (.setPrefWidth Double/MAX_VALUE))
+        pick-fn (fn [c] (set-color-value! property-fn (:ignore-alpha? edit-type) c))
+        saved-colors ^Collection (get-saved-colors prefs)
+        color-dropper (doto (Button. "" (jfx/get-image-view "icons/32/Icons_M_03_colorpicker.png" 16))
+                        (ui/add-style! "color-dropper")
+                        (AnchorPane/setRightAnchor 0.0)
+                        (ui/on-click! (fn [^MouseEvent event] (color-dropper/activate! color-dropper-view pick-fn event))))
+        text (TextField.)
+        color-picker (ColorPicker.)
+        ignore-alpha (:ignore-alpha? edit-type)
+        value->display-color #(some-> % value->color (color->web-string ignore-alpha))
+        pane (doto (AnchorPane. (ui/node-array [text color-dropper]))
+               (HBox/setHgrow Priority/ALWAYS)
+               (ui/add-style! "color-pane"))
+        update-ui-fn (fn [values message read-only?]
+                       (update-text-fn text value->display-color values message read-only?)
+                       (.setValue color-picker (some-> (properties/unify-values values) value->color))
+                       (update-field-message [color-picker] message)
+                       (ui/editable! color-picker (not read-only?)))
+        cancel-fn (fn [_]
+                    (let [property (property-fn)
+                          current-vals (properties/values property)]
+                      (update-ui-fn current-vals
+                                    (properties/validation-message property)
+                                    (properties/read-only? property))))
+        commit-fn (fn [_]
+                    (when-let [c (try (Color/valueOf (ui/text text))
+                                      (catch Exception _e (cancel-fn nil)))]
+                      (set-color-value! property-fn ignore-alpha c)))]
+    (when (seq saved-colors)
+      (.setAll (.getCustomColors color-picker) saved-colors))
+    (doto text
+      (AnchorPane/setTopAnchor 0.0)
+      (AnchorPane/setBottomAnchor 0.0)
+      (AnchorPane/setRightAnchor 0.0)
+      (AnchorPane/setLeftAnchor 0.0)
+      (ui/add-style! "color-input")
+      (customize! commit-fn cancel-fn))
+    (ui/on-action! color-picker (fn [_]
+                                  (let [c (.getValue color-picker)]
+                                    (set-color-value! property-fn ignore-alpha c)
+                                    (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true))))
+    (ui/observe-list (.getCustomColors color-picker) (fn [_ values] (save-colors! values prefs)))
+    (ui/children! wrapper [pane color-picker])
+    [wrapper update-ui-fn]))
 
 (defmethod create-property-control! :choicebox [{:keys [options]} _ property-fn]
   (let [combo-box (fuzzy-combo-box/make options)
@@ -747,7 +857,7 @@
   (let [^Label label (doto (create-property-label (properties/label property) key (properties/tooltip property))
                        (ui/context! :property (assoc context :property property) (->SelectionProvider original-node-ids))
                        (ui/register-context-menu ::properties-menu true))
-        [^Node control update-ctrl-fn] (create-property-control! (:edit-type property) context
+        [^Node control update-ctrl-fn drag-update-fn] (create-property-control! (:edit-type property) context
                                                                  (fn [] (property-fn key)))
         reset-btn (doto (Button. nil (jfx/get-image-view "icons/32/Icons_S_02_Reset.png"))
                     (.setFocusTraversable false)
@@ -784,6 +894,9 @@
                          (update-ctrl-fn (properties/values property)
                                          (properties/validation-message property)
                                          (properties/read-only? property))))]
+    
+    (when (and drag-update-fn (not (:read-only? property)))
+      (make-label-draggable! label (partial handle-label-drag-event! (fn [] property) drag-update-fn update-ctrl-fn)))
 
     (update-label-box (properties/overridden? property))
 
@@ -891,30 +1004,35 @@
 
 (g/defnode PropertiesView
   (property parent-view Parent)
+  (property prefs g/Any)
 
   (input workspace g/Any)
   (input project g/Any)
   (input app-view g/NodeID)
   (input search-results-view g/NodeID)
+  (input color-dropper-view g/NodeID)
   (input selected-node-properties g/Any)
 
-  (output pane Pane :cached (g/fnk [parent-view workspace project app-view search-results-view selected-node-properties]
+  (output pane Pane :cached (g/fnk [parent-view workspace project app-view search-results-view selected-node-properties color-dropper-view prefs]
                                    (let [context {:workspace workspace
                                                   :project project
                                                   :app-view app-view
-                                                  :search-results-view search-results-view}]
+                                                  :prefs prefs
+                                                  :search-results-view search-results-view
+                                                  :color-dropper-view color-dropper-view}]
                                      ;; Collecting the properties and then updating the view takes some time, but has no immediacy
                                      ;; This is effectively time-slicing it over two "frames" (or whenever JavaFX decides to run the second part)
                                      (ui/run-later
                                        (update-pane! parent-view context selected-node-properties))))))
 
-(defn make-properties-view [workspace project app-view search-results-view view-graph ^Node parent]
+(defn make-properties-view [workspace project app-view search-results-view view-graph color-dropper-view prefs ^Node parent]
   (first
     (g/tx-nodes-added
       (g/transact
-        (g/make-nodes view-graph [view [PropertiesView :parent-view parent]]
+        (g/make-nodes view-graph [view [PropertiesView :parent-view parent :prefs prefs]]
           (g/connect workspace :_node-id view :workspace)
           (g/connect project :_node-id view :project)
           (g/connect app-view :_node-id view :app-view)
           (g/connect app-view :selected-node-properties view :selected-node-properties)
-          (g/connect search-results-view :_node-id view :search-results-view))))))
+          (g/connect search-results-view :_node-id view :search-results-view)
+          (g/connect color-dropper-view :_node-id view :color-dropper-view))))))

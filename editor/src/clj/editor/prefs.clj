@@ -145,6 +145,9 @@
                                                      :label "Load External Changes on App Focus"}
                 :recent-files {:type :array
                                :item {:type :tuple :items [{:type :string} {:type :keyword}]}
+                               :scope :project}
+                :saved-colors {:type :array
+                               :item {:type :string}
                                :scope :project}}}
     :console {:type :object
               :properties

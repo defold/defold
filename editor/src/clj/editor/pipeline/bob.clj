@@ -20,6 +20,7 @@
             [editor.engine.build-errors :as engine-build-errors]
             [editor.engine.native-extensions :as native-extensions]
             [editor.error-reporting :as error-reporting]
+            [editor.fs :as fs]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.system :as system]
@@ -30,59 +31,15 @@
             [service.log :as log]
             [util.coll :as coll]
             [util.fn :as fn]
-            [util.http-util :as http-util])
+            [util.http-server :as http-server])
   (:import [com.dynamo.bob Bob Bob$CommandLineOption Bob$CommandLineOption$ArgCount Bob$CommandLineOption$ArgType IProgress TaskResult]
            [com.dynamo.bob.logging LogHelper]
            [java.io File OutputStream PrintStream PrintWriter]
-           [java.net URL]
            [java.nio.charset StandardCharsets]
            [java.nio.file Path]
-           [org.apache.commons.io FilenameUtils]
            [org.apache.commons.io.output WriterOutputStream]))
 
 (set! *warn-on-reflection* true)
-
-(def html5-url-prefix "/html5")
-(def html5-mime-types {"js" "application/javascript",
-                       "json" "application/json",
-                       "wasm" "application/wasm",
-                       "webmanifest" "application/manifest+json",
-                       "xhtml" "application/xhtml+xml",
-                       "zip" "application/zip",
-                       "aac" "audio/aac",
-                       "mp3" "audio/mp3",
-                       "m4a" "audio/mp4",
-                       "oga" "audio/ogg",
-                       "ogg" "audio/ogg",
-                       "wav" "audio/wav",
-                       "woff" "font/woff",
-                       "woff2" "font/woff2",
-                       "apng" "image/apng",
-                       "avif" "image/avif",
-                       "bmp" "image/bmp",
-                       "gif" "image/gif",
-                       "jpeg" "image/jpeg",
-                       "jpg" "image/jpeg",
-                       "jfif" "image/jpeg",
-                       "pjpeg" "image/jpeg",
-                       "pjp" "image/jpeg",
-                       "png" "image/png",
-                       "svg" "image/svg+xml",
-                       "webp" "image/webp",
-                       "cur" "image/x-icon",
-                       "ico" "image/x-icon",
-                       "tif" "image/tif",
-                       "tiff" "image/tiff",
-                       "css" "text/css",
-                       "htm" "text/html",
-                       "html" "text/html",
-                       "shtml" "text/html",
-                       "txt" "text/plain",
-                       "xml" "text/xml",
-                       "mp4" "video/mp4",
-                       "ogv" "video/ogg",
-                       "webm" "video/webm",
-                       "m4v" "video/x-m4v"})
 
 (defn ->progress
   ([render-progress!]
@@ -96,7 +53,7 @@
    (reify IProgress
      (isCanceled [_this]
        (task-cancelled?))
-     (setCanceled [_this canceled])
+     (setCanceled [_this _canceled])
      (subProgress [_this _work-claimed-from-this]
        (->progress render-progress! task-cancelled? msg-stack-atom))
      (beginTask [_this name _steps]
@@ -309,40 +266,19 @@
      "email" ""
      "auth" ""}))
 
-(defn- try-resolve-html5-file
-  ^File [project ^String rel-url]
-  (let [build-html5-output-path (build-html5-output-path project)
-        project-title (project-title project)
-        rel-path (subs rel-url (inc (count html5-url-prefix)))
-        content-path (.normalize (.toPath (io/file build-html5-output-path project-title)))
-        absolute-path (.normalize (.resolve content-path rel-path))]
-    (when (.startsWith absolute-path content-path)
-      (.toFile absolute-path))))
-
-(defn- handler [project {:keys [url method]}]
-  (when (= method "GET")
-    (if (or (= html5-url-prefix url)
-            (= (str html5-url-prefix "/") url))
-      {:code 302
-       :headers {"Location" (str html5-url-prefix "/index.html")}}
-
-      (let [url-without-query-params  (.getPath (URL. (str "http://" url)))
-            served-file   (try-resolve-html5-file project url-without-query-params)
-            extra-headers {"Content-Type" (html5-mime-types
-                                            (FilenameUtils/getExtension (clojure.string/lower-case url-without-query-params))
-                                            "application/octet-stream")}]
-        (cond
-          ;; The requested URL is a directory or located outside build-html5-output-path.
-          (or (nil? served-file) (.isDirectory served-file))
-          http-util/forbidden-response
-
-          (.exists served-file)
-          {:code 200
-           :headers (merge {"Content-Length" (str (.length served-file))} extra-headers)
-           :body served-file}
-
-          :else
-          http-util/not-found-response)))))
-
-(defn html5-handler [project req-headers]
-  (handler project req-headers))
+(defn routes [project]
+  (let [output-path (.toPath ^File (build-html5-output-path project))]
+    {"/html5/{*path}"
+     {"GET" (bound-fn [{:keys [path-params]}]
+              (let [path-str (:path path-params)]
+                (if (= "" path-str)
+                  (http-server/redirect "/html5/index.html")
+                  (let [resource-path (-> output-path
+                                          (.resolve ^String (project-title project))
+                                          (.resolve ^String path-str)
+                                          (.normalize))]
+                    (if (and (.startsWith resource-path output-path)
+                             (fs/path-exists? resource-path)
+                             (not (fs/path-is-directory? resource-path)))
+                      (http-server/response 200 resource-path)
+                      http-server/not-found)))))}}))
