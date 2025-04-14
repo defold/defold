@@ -2534,26 +2534,25 @@
        (not-any? #{resource})))
 
 ;; SDK api
-(defn query-and-add-resources! [resources-type-label resource-exts taken-ids project select-fn make-node-fn & [parent]]
-  (let [accept-fn (if parent (partial new-resource? parent) fn/constantly-true)]
-    (when-let [resources (browse (str "Select " resources-type-label) project resource-exts accept-fn)]
-      (let [names (outline/resolve-ids (map resource->id resources) taken-ids)
-            pairs (map vector resources names)
-            op-seq (gensym)
-            op-label (str "Add " resources-type-label)
-            new-nodes (g/tx-nodes-added
-                        (g/transact
-                          (concat
-                            (g/operation-sequence op-seq)
-                            (g/operation-label op-label)
-                            (for [[resource name] pairs]
-                              (make-node-fn resource name)))))]
-        (when (some? select-fn)
-          (g/transact
-            (concat
-              (g/operation-sequence op-seq)
-              (g/operation-label op-label)
-              (select-fn new-nodes))))))))
+(defn query-and-add-resources! [resources-type-label resource-exts taken-ids parent project select-fn make-node-fn]
+  (when-let [resources (browse (str "Select " resources-type-label) project resource-exts (partial new-resource? parent))]
+    (let [names (outline/resolve-ids (map resource->id resources) taken-ids)
+          pairs (map vector resources names)
+          op-seq (gensym)
+          op-label (str "Add " resources-type-label)
+          new-nodes (g/tx-nodes-added
+                     (g/transact
+                      (concat
+                       (g/operation-sequence op-seq)
+                       (g/operation-label op-label)
+                       (for [[resource name] pairs]
+                         (make-node-fn resource name)))))]
+      (when (some? select-fn)
+        (g/transact
+         (concat
+          (g/operation-sequence op-seq)
+          (g/operation-label op-label)
+          (select-fn new-nodes)))))))
 
 ;; //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -2586,9 +2585,8 @@
    "Textures"
    (workspace/resource-kind-extensions (project/workspace project) :atlas)
    (g/node-value parent :name-counts)
-   project select-fn
-   (partial add-texture scene parent) 
-   parent))
+   parent project select-fn
+   (partial add-texture scene parent)))
 
 (g/defnode TexturesNode
   (inherits outline/OutlineNode)
@@ -2634,9 +2632,8 @@
   (query-and-add-resources!
    "Materials" ["material"]
    (g/node-value parent :name-counts)
-   project select-fn
-   (partial add-material scene parent)
-   parent))
+   parent project select-fn
+   (partial add-material scene parent)))
 
 (g/defnode MaterialsNode
   (inherits outline/OutlineNode)
@@ -2679,9 +2676,8 @@
   (query-and-add-resources!
    "Fonts" ["font"]
    (g/node-value parent :name-counts)
-   project select-fn
-   (partial add-font scene parent)
-   parent))
+   parent project select-fn
+   (partial add-font scene parent)))
 
 (g/defnode FontsNode
   (inherits outline/OutlineNode)
@@ -2822,9 +2818,8 @@
   (query-and-add-resources!
    "Particle FX" [particlefx/particlefx-ext]
    (g/node-value parent :name-counts)
-   project select-fn
-   (partial add-particlefx-resource scene parent)
-   parent))
+   parent project select-fn
+   (partial add-particlefx-resource scene parent)))
 
 (g/defnode ParticleFXResources
   (inherits outline/OutlineNode)
