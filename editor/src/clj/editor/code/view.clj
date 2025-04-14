@@ -676,10 +676,6 @@
 (g/defnk produce-indent-level-pattern [tab-spaces]
   (data/indent-level-pattern tab-spaces))
 
-(g/defnk produce-document-width [glyph-metrics tab-spaces lines]
-  (let [tab-stops (data/tab-stops glyph-metrics tab-spaces)]
-    (data/max-line-width glyph-metrics tab-stops lines)))
-
 (g/defnk produce-font [font-name font-size]
   (Font. font-name font-size))
 
@@ -1070,6 +1066,7 @@
                                                               [completion-trigger-characters
                                                                (:completion-trigger-characters grammar)])))
   (property diagnostics r/Regions (default []) (dynamic visible (g/constantly false)))
+  (property document-width g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property color-scheme ColorScheme (dynamic visible (g/constantly false)))
   (property elapsed-time-at-last-action g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property grammar g/Any (dynamic visible (g/constantly false)))
@@ -1169,7 +1166,6 @@
   (output indent-string g/Str produce-indent-string)
   (output tab-spaces g/Num produce-tab-spaces)
   (output indent-level-pattern Pattern :cached produce-indent-level-pattern)
-  (output document-width g/Num :cached produce-document-width)
   (output font Font :cached produce-font)
   (output glyph-metrics data/GlyphMetrics :cached produce-glyph-metrics)
   (output gutter-metrics GutterMetrics :cached produce-gutter-metrics)
@@ -3177,11 +3173,17 @@
     (when is-code-resource-type
       (g/with-auto-evaluation-context evaluation-context
         (r/ensure-loaded! resource-node evaluation-context)))
-    (let [lines (g/with-auto-evaluation-context evaluation-context
-                  (let [lines (g/node-value resource-node :lines evaluation-context)]
-                    lines))]
+    (let [[lines document-width]
+          (g/with-auto-evaluation-context evaluation-context
+            (let [glyph-metrics (g/node-value view-node :glyph-metrics evaluation-context)
+                  tab-spaces (g/node-value view-node :tab-spaces evaluation-context)
+                  tab-stops (data/tab-stops glyph-metrics tab-spaces)
+                  lines (g/node-value resource-node :lines evaluation-context)
+                  document-width (data/max-line-width glyph-metrics tab-stops lines)]
+              [lines document-width]))]
       (g/transact
         (concat
+          (g/set-property view-node :document-width document-width)
           (g/connect app-view :debugger-execution-locations view-node :debugger-execution-locations)
           (gu/connect-existing-outputs resource-node-type resource-node view-node
             [[:completions :completions]
@@ -3818,6 +3820,13 @@
     (let [find-case-sensitive-setter (make-property-change-setter view-node :find-case-sensitive?)
           find-whole-word-setter (make-property-change-setter view-node :find-whole-word?)
           font-size-setter (make-property-change-setter view-node :font-size)
+          document-width-setter (make-property-change-setter view-node :document-width
+                                                             (fn [_]
+                                                               (let [glyph-metrics (g/node-value view-node :glyph-metrics)
+                                                                     tab-spaces (g/node-value view-node :tab-spaces)
+                                                                     tab-stops (data/tab-stops glyph-metrics tab-spaces)
+                                                                     lines (g/node-value view-node :lines)]
+                                                                 (data/max-line-width glyph-metrics tab-stops lines))))
           highlighted-find-term-setter (make-property-change-setter view-node :highlighted-find-term)
           visible-indentation-guides-setter (make-property-change-setter view-node :visible-indentation-guides?)
           visible-minimap-setter (make-property-change-setter view-node :visible-minimap?)
@@ -3825,6 +3834,7 @@
       (.addListener find-case-sensitive-property find-case-sensitive-setter)
       (.addListener find-whole-word-property find-whole-word-setter)
       (.addListener font-size-property font-size-setter)
+      (.addListener font-size-property document-width-setter)
       (.addListener highlighted-find-term-property highlighted-find-term-setter)
       (.addListener visible-indentation-guides-property visible-indentation-guides-setter)
       (.addListener visible-minimap-property visible-minimap-setter)
@@ -3849,6 +3859,7 @@
                              (.removeListener find-case-sensitive-property find-case-sensitive-setter)
                              (.removeListener find-whole-word-property find-whole-word-setter)
                              (.removeListener font-size-property font-size-setter)
+                             (.removeListener font-size-property document-width-setter)
                              (.removeListener highlighted-find-term-property highlighted-find-term-setter)
                              (.removeListener visible-indentation-guides-property visible-indentation-guides-setter)
                              (.removeListener visible-minimap-property visible-minimap-setter)
