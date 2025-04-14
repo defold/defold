@@ -156,6 +156,8 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
         IResource shaderResource = getShaderProgram(materialBuilder);
 
         materialBuilder.setProgram("/" + BuilderUtil.replaceExt(shaderResource.getPath(), ".spc"));
+        materialBuilder.setVertexProgram("");
+        materialBuilder.setFragmentProgram("");
 
         ShaderDesc.Builder shaderBuilder = ShaderDesc.newBuilder();
         shaderBuilder.mergeFrom(resShader.getContent());
