@@ -460,26 +460,22 @@
       (let [world-transform (:world-transform (peek original-values))
             start-delta (doto (Vector3d.) (.sub start-pos manip-pos))
             delta (doto (Vector3d.) (.sub pos manip-pos))
-            axis-scale (fn [axis]
-                         (let [local (case axis
-                                       :x (Vector3d. 1.0 0.0 0.0)
-                                       :y (Vector3d. 0.0 1.0 0.0)
-                                       :z (Vector3d. 0.0 0.0 1.0))]
-                           (.normalize local)
-                           (.transform ^Matrix4d world-transform local)
-                           (let [start-len (.dot start-delta local)
-                                 curr-len (.dot delta local)]
-                             (if (> (Math/abs start-len) 1e-12)
-                               (/ curr-len start-len)
-                               1.0))))
+            axis-scale (fn [local]
+                         (.transform ^Matrix4d world-transform local)
+                         (.normalize local)
+                         (let [start-len (.dot start-delta local)
+                               curr-len (.dot delta local)]
+                           (if (> (Math/abs start-len) 1e-12)
+                             (/ curr-len start-len)
+                             1.0)))
             sx (case manip
-                 (:scale-x :scale-xy :scale-xz) (axis-scale :x)
+                 (:scale-x :scale-xy :scale-xz) (axis-scale (Vector3d. 1.0 0.0 0.0))
                  1.0)
             sy (case manip
-                 (:scale-y :scale-xy :scale-yz) (axis-scale :y)
+                 (:scale-y :scale-xy :scale-yz) (axis-scale (Vector3d. 0.0 1.0 0.0))
                  1.0)
             sz (case manip
-                 (:scale-z :scale-xz :scale-yz) (axis-scale :z)
+                 (:scale-z :scale-xz :scale-yz) (axis-scale (Vector3d. 0.0 0.0 1.0))
                  1.0)
             scale-factor (Vector3d. sx sy sz)]
         (for [{:keys [node-id]} original-values]
