@@ -3242,9 +3242,10 @@ namespace dmGameObject
                 out_value.m_ValuePtr = scale;
                 out_value.m_ElementIds[0] = PROP_SCALE_X;
                 out_value.m_ElementIds[1] = PROP_SCALE_Y;
-                out_value.m_ElementIds[2] = PROP_SCALE_Z;
-                // Should z always return 1.0f here?
-                out_value.m_Variant = PropertyVar(instance->m_Transform.GetScale());
+                out_value.m_ElementIds[2] = 0;
+                Vector3 vec = instance->m_Transform.GetScale();
+                vec.setZ(1.0f);
+                out_value.m_Variant = PropertyVar(vec);
             }
             else if (property_id == PROP_SCALE_X)
             {
