@@ -460,7 +460,7 @@
       (let [world-transform (:world-transform (peek original-values))
             start-delta (doto (Vector3d.) (.sub start-pos manip-pos))
             delta (doto (Vector3d.) (.sub pos manip-pos))
-            axis-scale (fn [local]
+            axis-scale (fn [^Vector3d local]
                          (.transform ^Matrix4d world-transform local)
                          (.normalize local)
                          (let [start-len (.dot start-delta local)
