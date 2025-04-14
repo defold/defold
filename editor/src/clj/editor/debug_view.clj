@@ -912,4 +912,6 @@
                                                     :height 800}}]}
                            {:label "Rotated Device"
                             :command :set-rotate-device
-                            :check true}]}]}])
+                            :check true}]}
+               {:label :separator
+                :id ::debug-end}]}])

@@ -586,7 +586,7 @@
     (coerce/hash-map
       :req {:label coerce/string
             :locations (coerce/vector-of
-                         (coerce/enum "Edit" "View" "Assets" "Outline" "Bundle")
+                         (coerce/enum "Assets" "Bundle" "Debug" "Edit" "Outline" "Project" "View")
                          :distinct true
                          :min-count 1)}
       :opt {:query (coerce/hash-map
