@@ -442,7 +442,7 @@
   (run []
        (kill-launched-targets!)))
 
-(handler/register-menu! ::menubar :editor.defold-project/project-end
+(handler/register-menu! ::menubar :editor.defold-project/targets
   [{:label "Target"
     :id ::target
     :on-submenu-open update!
