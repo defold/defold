@@ -3820,13 +3820,6 @@
     (let [find-case-sensitive-setter (make-property-change-setter view-node :find-case-sensitive?)
           find-whole-word-setter (make-property-change-setter view-node :find-whole-word?)
           font-size-setter (make-property-change-setter view-node :font-size)
-          document-width-setter (make-property-change-setter view-node :document-width
-                                                             (fn [_]
-                                                               (let [glyph-metrics (g/node-value view-node :glyph-metrics)
-                                                                     tab-spaces (g/node-value view-node :tab-spaces)
-                                                                     tab-stops (data/tab-stops glyph-metrics tab-spaces)
-                                                                     lines (g/node-value view-node :lines)]
-                                                                 (data/max-line-width glyph-metrics tab-stops lines))))
           highlighted-find-term-setter (make-property-change-setter view-node :highlighted-find-term)
           visible-indentation-guides-setter (make-property-change-setter view-node :visible-indentation-guides?)
           visible-minimap-setter (make-property-change-setter view-node :visible-minimap?)
@@ -3834,7 +3827,6 @@
       (.addListener find-case-sensitive-property find-case-sensitive-setter)
       (.addListener find-whole-word-property find-whole-word-setter)
       (.addListener font-size-property font-size-setter)
-      (.addListener font-size-property document-width-setter)
       (.addListener highlighted-find-term-property highlighted-find-term-setter)
       (.addListener visible-indentation-guides-property visible-indentation-guides-setter)
       (.addListener visible-minimap-property visible-minimap-setter)
@@ -3859,7 +3851,6 @@
                              (.removeListener find-case-sensitive-property find-case-sensitive-setter)
                              (.removeListener find-whole-word-property find-whole-word-setter)
                              (.removeListener font-size-property font-size-setter)
-                             (.removeListener font-size-property document-width-setter)
                              (.removeListener highlighted-find-term-property highlighted-find-term-setter)
                              (.removeListener visible-indentation-guides-property visible-indentation-guides-setter)
                              (.removeListener visible-minimap-property visible-minimap-setter)
