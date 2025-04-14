@@ -12,15 +12,15 @@
   }
 
   Text {
-      -fx-fill: -df-text;
-      
-      &.insert {
-        -fx-fill: -df-text-light;
-      }
+    -fx-fill: -df-text;
+    
+    &.insert {
+      -fx-fill: -df-text-light;
+    }
 
-      &.delete {
-        -fx-fill: -df-text-light;
-      }
+    &.delete {
+      -fx-fill: -df-text-light;
+    }
   }
 
   #markers {
