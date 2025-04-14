@@ -158,6 +158,9 @@ namespace dmEngine
             ExtensionParamsSetContext(&m_Params, "render", engine->m_RenderContext);
             if (engine->m_HttpCache)
                 ExtensionParamsSetContext(&m_Params, "http_cache", engine->m_HttpCache);
+
+            if (engine->m_JobThreadContext)
+                ExtensionParamsSetContext(&m_Params, "job_thread", engine->m_JobThreadContext);
         }
         ~ScopedExtensionParams()
         {
