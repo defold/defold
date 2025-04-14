@@ -2519,23 +2519,15 @@
   (output template-build-targets g/Any (gu/passthrough template-build-targets)))
 
 
-(defn- browse [title project exts accept-fn]
-  (seq (resource-dialog/make (project/workspace project) project {:ext exts
-                                                                  :title title
-                                                                  :accept-fn accept-fn
-                                                                  :selection :multiple})))
+(defn- browse [title project exts]
+  (seq (resource-dialog/make (project/workspace project) project {:ext exts :title title :selection :multiple})))
 
 (defn- resource->id [resource]
   (resource/base-name resource))
 
-(defn new-resource? [parent resource]
-  (->> (g/node-value parent :child-outlines)
-       (map :link)
-       (not-any? #{resource})))
-
 ;; SDK api
-(defn query-and-add-resources! [resources-type-label resource-exts taken-ids parent project select-fn make-node-fn]
-  (when-let [resources (browse (str "Select " resources-type-label) project resource-exts (partial new-resource? parent))]
+(defn query-and-add-resources! [resources-type-label resource-exts taken-ids project select-fn make-node-fn]
+  (when-let [resources (browse (str "Select " resources-type-label) project resource-exts)]
     (let [names (outline/resolve-ids (map resource->id resources) taken-ids)
           pairs (map vector resources names)
           op-seq (gensym)
@@ -2582,10 +2574,7 @@
 
 (defn- add-textures-handler [project {:keys [scene parent]} select-fn]
   (query-and-add-resources!
-   "Textures"
-   (workspace/resource-kind-extensions (project/workspace project) :atlas)
-   (g/node-value parent :name-counts)
-   parent project select-fn
+   "Textures" (workspace/resource-kind-extensions (project/workspace project) :atlas) (g/node-value parent :name-counts) project select-fn
    (partial add-texture scene parent)))
 
 (g/defnode TexturesNode
@@ -2630,10 +2619,8 @@
 
 (defn- add-materials-handler [project {:keys [scene parent]} select-fn]
   (query-and-add-resources!
-   "Materials" ["material"]
-   (g/node-value parent :name-counts)
-   parent project select-fn
-   (partial add-material scene parent)))
+    "Materials" ["material"] (g/node-value parent :name-counts) project select-fn
+    (partial add-material scene parent)))
 
 (g/defnode MaterialsNode
   (inherits outline/OutlineNode)
@@ -2674,9 +2661,7 @@
 
 (defn- add-fonts-handler [project {:keys [scene parent]} select-fn]
   (query-and-add-resources!
-   "Fonts" ["font"]
-   (g/node-value parent :name-counts)
-   parent project select-fn
+   "Fonts" ["font"] (g/node-value parent :name-counts) project select-fn
    (partial add-font scene parent)))
 
 (g/defnode FontsNode
@@ -2816,9 +2801,7 @@
 
 (defn- add-particlefx-resources-handler [project {:keys [scene parent]} select-fn]
   (query-and-add-resources!
-   "Particle FX" [particlefx/particlefx-ext]
-   (g/node-value parent :name-counts)
-   parent project select-fn
+   "Particle FX" [particlefx/particlefx-ext] (g/node-value parent :name-counts) project select-fn
    (partial add-particlefx-resource scene parent)))
 
 (g/defnode ParticleFXResources
@@ -3961,20 +3944,16 @@
         gen-name #(->> (g/node-value (g/node-value scene %) :name-counts)
                        (outline/resolve-id base-name))]
     (cond
-      (and (= ext "particlefx")
-           (new-resource? (g/node-value scene :particlefx-resources-node) resource))
+      (= ext "particlefx")
       (add-particlefx-resource scene (g/node-value scene :particlefx-resources-node) resource (gen-name :particlefx-resources-node))
 
-      (and (= ext "font")
-           (new-resource? (g/node-value scene :fonts-node) resource))
+      (= ext "font")
       (add-font scene (g/node-value scene :fonts-node) resource (gen-name :fonts-node))
 
-      (and (some #{ext} (workspace/resource-kind-extensions workspace :atlas))
-           (new-resource? (g/node-value scene :textures-node) resource))
+      (some #{ext} (workspace/resource-kind-extensions workspace :atlas))
       (add-texture scene (g/node-value scene :textures-node) resource (gen-name :textures-node))
 
-      (and (= ext "material")
-           (new-resource? (g/node-value scene :materials-node) resource))
+      (= ext "material")
       (add-material scene (g/node-value scene :materials-node) resource (gen-name :materials-node))
 
       :else
