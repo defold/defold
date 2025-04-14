@@ -41,7 +41,7 @@
             outline   (g/node-value node-id :node-outline)
             scene     (g/node-value node-id :scene)]
         (is (= 3 (count (:children scene))))
-        (is (= ["Collision Object" "Box" "Capsule" "Sphere"] (outline-seq outline)))))))
+        (is (= ["Collision Object" "<Unnamed Box>" "<Unnamed Capsule>" "<Unnamed Sphere>"] (outline-seq outline)))))))
 
 (deftest add-shapes
   (testing "Adding a sphere"
@@ -51,7 +51,7 @@
         (test-util/handler-run :add [{:name :workbench :env {:selection [node-id] :app-view app-view}}] {:shape-type :type-sphere})
         (let [outline (g/node-value node-id :node-outline)]
           (is (= 4 (count (:children outline))))
-          (is (= "Sphere" (last (outline-seq outline)))))))))
+          (is (= "<Unnamed Sphere>" (last (outline-seq outline)))))))))
 
 (deftest validation
   (test-util/with-loaded-project
