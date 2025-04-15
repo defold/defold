@@ -1713,7 +1713,7 @@ If you do not specifically require different script states, consider changing th
     :id ::view
     :children [{:label "Toggle Assets Pane"
                 :command :toggle-pane-left}
-               {:label "Toggle Changed Files Pane"
+               {:label "Toggle Changed Files"
                 :command :toggle-pane-changed-files}
                {:label "Toggle Tools Pane"
                 :command :toggle-pane-bottom}
