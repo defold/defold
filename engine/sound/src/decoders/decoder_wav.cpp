@@ -534,15 +534,38 @@ namespace dmSoundCodec
     {
         DecodeStreamInfo *streamInfo = (DecodeStreamInfo *) stream;
         
-        if (streamInfo->m_Cursor >= streamInfo->m_Info.m_Size) {
-            *skipped = 0;
-            return RESULT_END_OF_STREAM;
+        if (!streamInfo->m_IsADPCM) {
+            if (streamInfo->m_Cursor >= streamInfo->m_Info.m_Size) {
+                *skipped = 0;
+                return RESULT_END_OF_STREAM;
+            }
+
+            uint32_t n = dmMath::Min(bytes, streamInfo->m_Info.m_Size - streamInfo->m_Cursor);
+            *skipped = n;
+            streamInfo->m_Cursor += n;
+            return RESULT_OK;
         }
 
-        uint32_t n = dmMath::Min(bytes, streamInfo->m_Info.m_Size - streamInfo->m_Cursor);
-        *skipped = n;
-        streamInfo->m_Cursor += n;
-        return RESULT_OK;
+        Result res = RESULT_OK;
+        *skipped = 0;
+        while(bytes != 0)
+        {
+            char buffer[512];
+            uint32_t n = dmMath::Min((uint32_t)sizeof(buffer), bytes);
+            uint32_t decoded = 0;
+            char* bufs[2] = {buffer, nullptr};
+            res = WavDecodeStream(stream, bufs, n, &decoded);
+            if (res != RESULT_OK) {
+                break;
+            }
+            bytes -= decoded;
+            *skipped += decoded;
+        }
+
+        if ((*skipped != 0) && (res == RESULT_END_OF_STREAM)) {
+            return RESULT_OK;
+        }
+        return res;
     }
 
     static void WavGetInfo(HDecodeStream stream, struct Info* out)
@@ -553,7 +576,16 @@ namespace dmSoundCodec
     static int64_t WavGetInternalPos(HDecodeStream stream)
     {
         DecodeStreamInfo *streamInfo = (DecodeStreamInfo *) stream;
-        return streamInfo->m_Cursor;
+        if (!streamInfo->m_IsADPCM) {
+            uint64_t stride = (streamInfo->m_Info.m_Channels * streamInfo->m_Info.m_BitsPerSample) >> 3;
+            return streamInfo->m_Cursor / stride;
+        }
+
+        uint64_t pos = streamInfo->m_Cursor - streamInfo->m_ADPCM.m_InBuffer.Size() + streamInfo->m_ADPCM.m_InBufferOffset;
+        uint64_t block_frames = (streamInfo->m_Info.m_Channels == 1) ? ((streamInfo->m_ADPCM.m_BlockAlign - 4) * 2) : (streamInfo->m_ADPCM.m_BlockAlign - 8);
+        uint64_t block = pos / streamInfo->m_ADPCM.m_BlockAlign;
+        int64_t block_off = pos - block * streamInfo->m_ADPCM.m_BlockAlign;
+        return block * block_frames + ((streamInfo->m_Info.m_Channels == 1) ? (dmMath::Max(block_off - 4, 0L) * 2) : (dmMath::Max(block_off - 8, 0L)));
     }
 
     DM_DECLARE_SOUND_DECODER(AudioDecoderWav, "WavDecoder", FORMAT_WAV,
