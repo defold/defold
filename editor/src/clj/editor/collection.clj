@@ -377,10 +377,9 @@
                                    (gen-ref-ddf id child-ids position rotation scale source-resource ddf-component-properties)))
   (output build-targets g/Any produce-referenced-go-build-targets))
 
-(g/defnk produce-proto-msg [name scale-along-z ref-inst-ddf embed-inst-ddf ref-coll-ddf]
+(g/defnk produce-proto-msg [name ref-inst-ddf embed-inst-ddf ref-coll-ddf]
   (protobuf/make-map-without-defaults GameObject$CollectionDesc
     :name name
-    :scale-along-z (protobuf/boolean->int scale-along-z)
     :instances ref-inst-ddf
     :embedded-instances embed-inst-ddf
     :collection-instances ref-coll-ddf))
@@ -414,11 +413,11 @@
       (protobuf/sanitize-repeated :embedded-instances embedded-instance-desc-save-value)
       (protobuf/sanitize-repeated :collection-instances collection-instance-desc-save-value)))
 
-(g/defnk produce-build-targets [_node-id name resource sub-build-targets dep-build-targets id-counts scale-along-z]
+(g/defnk produce-build-targets [_node-id name resource sub-build-targets dep-build-targets id-counts]
   (or (let [dup-ids (keep (fn [[id count]] (when (> count 1) id)) id-counts)]
         (game-object-common/maybe-duplicate-id-error _node-id dup-ids))
       (let [build-resource (workspace/make-build-resource resource)]
-        [(collection-common/collection-build-target build-resource _node-id name scale-along-z dep-build-targets sub-build-targets)])))
+        [(collection-common/collection-build-target build-resource _node-id name dep-build-targets sub-build-targets)])))
 
 (declare CollectionInstanceNode)
 
