@@ -575,7 +575,7 @@ def default_flags(self):
         if Options.options.with_pthread:
             emflags_link += [#'PTHREAD_POOL_SIZE_STRICT=2',
                              #'USE_PTHREADS=1',
-                             'PROXY_TO_PTHREAD',
+                             #'PROXY_TO_PTHREAD',
                              #'PTHREAD_POOL_SIZE=%d' % int(Options.options.pthread_pool_size)
                              ]
 
@@ -619,7 +619,7 @@ def default_flags(self):
             flags += ['-msimd128', '-msse4.2']
 
         self.env['DM_HOSTFS']           = '/node_vfs/'
-        self.env.append_value('DEFINES', ['JC_TEST_NO_DEATH_TEST'])
+        self.env.append_value('DEFINES', ['JC_TEST_NO_DEATH_TEST', 'PTHREADS_DEBUG'])
         # This disables a few tests in test_httpclient (no real investigation done)
         self.env.append_value('DEFINES', ['DM_TEST_DLIB_HTTPCLIENT_NO_HOST_SERVER'])
 

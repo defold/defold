@@ -553,13 +553,13 @@ var GameArchiveLoader = {
         this._files = json.content;
 
         var isWASMSupported = Module['isWASMSupported'];
-        if (isWASMSupported) {
-            EngineLoader.loadWasmAsync(exeName);
-            totalSize += EngineLoader.wasm_size + EngineLoader.wasmjs_size;
-        } else {
-            EngineLoader.loadAsmJsAsync(exeName);
-            totalSize += EngineLoader.asmjs_size;
-        }
+        // if (isWASMSupported) {
+        //     EngineLoader.loadWasmAsync(exeName);
+        //     totalSize += EngineLoader.wasm_size + EngineLoader.wasmjs_size;
+        // } else {
+        //     EngineLoader.loadAsmJsAsync(exeName);
+        //     totalSize += EngineLoader.asmjs_size;
+        // }
         if (!Module['isDMFSSupported']) {
             // we can download in parallel here because we will not rely on FS, otherwise
             // we have to wait until after the [w]asm is loaded.
@@ -567,7 +567,7 @@ var GameArchiveLoader = {
         }
         ProgressUpdater.resetCurrent();
         if (isWASMSupported) {
-            EngineLoader.updateWasmInstantiateProgress(totalSize);
+            // EngineLoader.updateWasmInstantiateProgress(totalSize);
         }
         ProgressUpdater.setupTotal(totalSize + EngineLoader.wasm_instantiate_progress);
     },

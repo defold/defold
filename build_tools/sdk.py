@@ -79,7 +79,7 @@ PACKAGES_WIN32_SDK_10=f"WindowsKits-{VERSION_WINDOWS_SDK_10}"
 ## **********************************************************************************************
 # Emscripten
 
-EMSCRIPTEN_VERSION_STR  =  "3.1.65"
+EMSCRIPTEN_VERSION_STR  =  "4.0.6"
 EMSCRIPTEN_SDK          = f"sdk-{EMSCRIPTEN_VERSION_STR}-64bit"
 PACKAGES_EMSCRIPTEN_SDK = f"emsdk-{EMSCRIPTEN_VERSION_STR}"
 
