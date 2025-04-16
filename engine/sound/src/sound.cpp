@@ -339,9 +339,8 @@ namespace dmSound
         HDevice device = 0;
         OpenDeviceParams device_params;
 
-        // TODO: m_BufferCount configurable?
-//Q: A BIT OF A CATCH 22: we could compute an appropriate number of buffers knowing threaded vs. not-threaded AND the buffer size -- but we only know that once we have told the device already how many buffers we want!
-        const uint16_t num_outbuffers = params->m_UseThread ? 2 : 3; //SOUND_OUTBUFFER_COUNT;
+// TODO: m_BufferCount configurable?
+        const uint16_t num_outbuffers = params->m_UseThread ? SOUND_OUTBUFFER_COUNT : SOUND_OUTBUFFER_COUNT_NO_THREADS;
         assert(num_outbuffers <= SOUND_OUTBUFFER_MAX_COUNT);
 
         device_params.m_BufferCount = num_outbuffers;

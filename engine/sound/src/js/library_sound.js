@@ -30,13 +30,6 @@ var LibrarySoundDevice =
                 var audioCtxCtor = window.AudioContext || window.webkitAudioContext;
                 // Use the preferred audio of the device
                 shared.audioCtx = new audioCtxCtor();
-
-// vvv HACK - trigger audiocontext to start work (so any startup behavior is gone before we deliver data)
-                var source = shared.audioCtx.createBufferSource();
-                source.buffer = shared.audioCtx.createBuffer(2, 1024, shared.audioCtx.sampleRate);
-                source.connect(shared.audioCtx.destination);
-                source.start();
-// ^^^ HACK
             }
             // Construct web audio device.
             device = {
@@ -75,7 +68,7 @@ var LibrarySoundDevice =
 
                     // Setup buffer for data delivery...
 
-//Optimize buffer allocation (assumes immediate copy-out - does not work on all platforms (although per spec))
+//Optimize buffer allocation (assumes immediate copy-out - does not work on many browsers (it should per spec, though))
 //                    var buf = this.bufferCache[frame_count];
 //                    if (!buf) {
 //                        buf = this.bufferCache[frame_count] = shared.audioCtx.createBuffer(2, frame_count, this.sampleRate);
