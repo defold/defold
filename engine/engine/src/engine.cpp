@@ -1085,7 +1085,7 @@ namespace dmEngine
         {
             char path[1024];
             dmHttpCache::NewParams cache_params;
-            dmSys::Result sys_result = dmSys::GetApplicationSupportPath("Defold", path, sizeof(path));
+            dmSys::Result sys_result = dmSys::GetApplicationSupportPath(DMSYS_APPLICATION_NAME, path, sizeof(path));
             if (sys_result == dmSys::RESULT_OK)
             {
                 dmStrlCat(path, "/http-cache", sizeof(path));
@@ -1098,7 +1098,7 @@ namespace dmEngine
             }
             else
             {
-                dmLogWarning("Unable to locate application support path for \"%s\": (%d)", "Defold", sys_result);
+                dmLogWarning("Unable to locate application support path for \"%s\": (%d)", DMSYS_APPLICATION_NAME, sys_result);
             }
         }
 #endif
