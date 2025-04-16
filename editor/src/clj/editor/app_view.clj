@@ -2478,8 +2478,10 @@ If you do not specifically require different script states, consider changing th
          (set-pane-visible! main-scene :bottom (not (pane-visible? main-scene :bottom))))))
 
 (handler/defhandler :toggle-pane-changed-files :global
+  (enabled? [^Stage main-stage]
+            (pane-visible? (.getScene main-stage) :left))
   (run [^Stage main-stage]
-       (let [main-scene (.getScene ^Stage main-stage)]
+       (let [main-scene (.getScene main-stage)]
          (set-pane-visible! main-scene :changed-files (not (pane-visible? main-scene :changed-files))))))
 
 (handler/defhandler :show-console :global
