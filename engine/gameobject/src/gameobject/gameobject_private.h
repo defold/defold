@@ -147,7 +147,7 @@ namespace dmGameObject
         // If this is a generated instance, i.e. if the instance id is uniquely generated
         uint16_t        m_Generated : 1;
         // Padding
-        uint16_t        m_Pad : 4;
+        uint16_t        m_Pad : 5;
 
         // Index to parent
         uint16_t        m_Parent : 16;

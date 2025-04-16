@@ -166,8 +166,12 @@ function init(self)
 	--
 	--
 	--
-
-	go.set(".", "scale.z", 199)
+	go.set(".", "scale", 199)
+	go.set(".", "scale.xy", 100)
+	v = go.get(".", "scale")
+	assert_near(100, v.x, epsilon)
+	assert_near(100, v.y, epsilon)
+	assert_near(199, v.z, epsilon)
 	v = go.get(".", "scale")
 	go.animate(".", "scale.xy", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(198), go.EASING_LINEAR, 1/120)
 
