@@ -183,16 +183,7 @@
 
 (defn- scroll-view [{:keys [content]}]
   {:fx/type fxui/scroll
-   :content content}
-  ;; We need to set ScrollPane skin, so it creates ScrollBars, so we can grow
-  ;; the content to fill the ScrollPane
-  #_{:fx/type ext-with-expanded-scroll-pane-content-props
-     :props {:content content}
-     :desc {:fx/type ext-with-scroll-pane-skin-props
-            :props {:skin true}
-            :desc {:fx/type fx.scroll-pane/lifecycle
-                   :style-class "ext-scroll-pane"
-                   :fit-to-width true}}})
+   :content content})
 
 (defn- apply-constraints [props props-key lifecycle grow-key constraints]
   (assoc props props-key (mapv (fn [maybe-constraint]
