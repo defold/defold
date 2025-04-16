@@ -479,11 +479,11 @@
 (defn- add-layout! [project app-view scene name]
   (let [parent (g/node-value scene :layouts-node)
         user-data {:scene scene :parent parent :display-profile name :handler-fn gui/add-layout-handler}]
-    (test-util/handler-run :add [{:name :workbench :env {:selection [parent] :project project :user-data user-data :app-view app-view}}] user-data)))
+    (test-util/handler-run :edit.add-embedded-component [{:name :workbench :env {:selection [parent] :project project :user-data user-data :app-view app-view}}] user-data)))
 
 (defn- run-add-gui-node! [project scene app-view parent node-type custom-type]
   (let [user-data {:scene scene :parent parent :node-type node-type :custom-type custom-type :handler-fn gui/add-gui-node-handler}]
-    (test-util/handler-run :add [{:name :workbench :env {:selection [parent] :project project :user-data user-data :app-view app-view}}] user-data)))
+    (test-util/handler-run :edit.add-embedded-component [{:name :workbench :env {:selection [parent] :project project :user-data user-data :app-view app-view}}] user-data)))
 
 (defn- set-visible-layout! [scene layout]
   (g/transact (g/set-property scene :visible-layout layout)))
@@ -569,12 +569,12 @@
     (let [node-id (test-util/resource-node project "/gui/layouts.gui")
           gui-resource (g/node-value node-id :resource)
           context (handler/->context :workbench {:active-resource gui-resource :project project})
-          options (test-util/handler-options :set-gui-layout [context] nil)
+          options (test-util/handler-options :scene.set-gui-layout [context] nil)
           options-by-label (zipmap (map :label options) options)]
       (is (= ["Default" "Landscape"] (map :label options)))
-      (is (= (get options-by-label "Default") (test-util/handler-state :set-gui-layout [context] nil)))
+      (is (= (get options-by-label "Default") (test-util/handler-state :scene.set-gui-layout [context] nil)))
       (g/set-property! node-id :visible-layout "Landscape")
-      (is (= (get options-by-label "Landscape") (test-util/handler-state :set-gui-layout [context] nil))))))
+      (is (= (get options-by-label "Landscape") (test-util/handler-state :scene.set-gui-layout [context] nil))))))
 
 (deftest paste-gui-resource-test
   (test-util/with-loaded-project "test/resources/gui_project"

@@ -67,43 +67,43 @@
 (handler/register-menu! ::changes-menu
   [{:label "Open"
     :icon "icons/32/Icons_S_14_linkarrow.png"
-    :command :open}
+    :command :file.open-selected}
    {:label "Open As"
     :icon "icons/32/Icons_S_14_linkarrow.png"
-    :command :open-as}
+    :command :file.open-as}
    {:label :separator}
-   {:label "Copy Project Path"
-    :command :copy-project-path}
+   {:label "Copy Resource Path"
+    :command :edit.copy-resource-path}
    {:label "Copy Full Path"
-    :command :copy-full-path}
+    :command :edit.copy-absolute-path}
    {:label "Copy Require Path"
-    :command :copy-require-path}
+    :command :edit.copy-require-path}
    {:label :separator}
    {:label "Show in Asset Browser"
     :icon "icons/32/Icons_S_14_linkarrow.png"
-    :command :show-in-asset-browser}
-   {:label "Show in Desktop"
+    :command :file.show-in-assets}
+   {:label "Open in Desktop"
     :icon "icons/32/Icons_S_14_linkarrow.png"
-    :command :show-in-desktop}
+    :command :file.open-in-desktop}
    {:label "Referencing Files..."
-    :command :referencing-files}
+    :command :file.show-references}
    {:label "Dependencies..."
-    :command :dependencies}
+    :command :file.show-dependencies}
    {:label "Show Overrides"
-    :command :show-overrides}
+    :command :window.show-overrides}
    {:label :separator}
    {:label "View Diff"
     :icon "icons/32/Icons_S_06_arrowup.png"
-    :command :diff}
+    :command :vcs.diff}
    {:label "Revert"
     :icon "icons/32/Icons_S_02_Reset.png"
-    :command :revert}])
+    :command :vcs.revert}])
 
 (defn- path->file
   ^File [workspace ^String path]
   (File. (workspace/project-directory workspace) path))
 
-(handler/defhandler :revert :changes-view
+(handler/defhandler :vcs.revert :changes-view
   (enabled? [selection]
             (and (disk-availability/available?)
                  (pos? (count selection))))
@@ -124,7 +124,7 @@
         (git/revert git (mapv (fn [status] (or (:new-path status) (:old-path status))) selection))
         (async-reload! changes-view moved-files)))))
 
-(handler/defhandler :diff :changes-view
+(handler/defhandler :vcs.diff :changes-view
   (enabled? [selection]
             (git/selection-diffable? selection))
   (run [selection ^Git git]
@@ -169,12 +169,13 @@
                  {resource/Resource (fn [status] (status->resource workspace status))})
     (ui/register-context-menu list-view ::changes-menu)
     (ui/cell-factory! list-view vcs-status/render)
-    (ui/bind-action! diff-button :diff)
-    (ui/bind-action! revert-button :revert)
+    (ui/bind-action! diff-button :vcs.diff)
+    (ui/bind-action! revert-button :vcs.revert)
     (ui/disable! diff-button true)
     (ui/disable! revert-button true)
     (ui/visible! progress-overlay false)
-    (ui/bind-double-click! list-view :open)
+    (ui/bind-double-click! list-view :file.open-selected)
+    (ui/bind-key-commands! list-view {"Enter" :file.open-selected})
     ; TODO: try/catch to protect against project without git setup
     ; Show warning/error etc?
     (try

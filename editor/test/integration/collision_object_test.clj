@@ -48,7 +48,7 @@
     (test-util/with-loaded-project
       (let [node-id   (test-util/resource-node project "/collision_object/three_shapes.collisionobject")]
         (app-view/select! app-view [node-id])
-        (test-util/handler-run :add [{:name :workbench :env {:selection [node-id] :app-view app-view}}] {:shape-type :type-sphere})
+        (test-util/handler-run :edit.add-embedded-component [{:name :workbench :env {:selection [node-id] :app-view app-view}}] {:shape-type :type-sphere})
         (let [outline (g/node-value node-id :node-outline)]
           (is (= 4 (count (:children outline))))
           (is (= "<Unnamed Sphere>" (last (outline-seq outline)))))))))

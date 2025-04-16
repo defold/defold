@@ -22,6 +22,7 @@
             [editor.error-reporting :as error-reporting]
             [editor.handler :as handler]
             [editor.icons :as icons]
+            [editor.keymap :as keymap]
             [editor.math :as math]
             [editor.os :as os]
             [editor.progress :as progress]
@@ -1166,27 +1167,27 @@
   [^TextInputControl control]
   (not (string/blank? (.getSelectedText control))))
 
-(handler/defhandler :cut :text-input-control
+(handler/defhandler :edit.cut :text-input-control
   (enabled? [^TextInputControl control] (and (editable control) (has-selection? control)))
   (run [^TextInputControl control] (.cut control)))
 
-(handler/defhandler :copy :text-input-control
+(handler/defhandler :edit.copy :text-input-control
   (enabled? [^TextInputControl control] (has-selection? control))
   (run [^TextInputControl control] (.copy control)))
 
-(handler/defhandler :paste :text-input-control
+(handler/defhandler :edit.paste :text-input-control
   (enabled? [^TextInputControl control] (and (editable control) (.. Clipboard getSystemClipboard hasString)))
   (run [^TextInputControl control] (.paste control)))
 
-(handler/defhandler :delete :text-input-control
+(handler/defhandler :edit.delete :text-input-control
   (enabled? [^TextInputControl control] (editable control))
   (run [^TextInputControl control] (.deleteNextChar control)))
 
-(handler/defhandler :undo :text-input-control
+(handler/defhandler :edit.undo :text-input-control
   (enabled? [^TextInputControl control] (.isUndoable control))
   (run [^TextInputControl control] (.undo control)))
 
-(handler/defhandler :redo :text-input-control
+(handler/defhandler :edit.redo :text-input-control
   (enabled? [^TextInputControl control] (.isRedoable control))
   (run [^TextInputControl control] (.redo control)))
 
@@ -1260,7 +1261,7 @@
       (execute-handler-ctx handler-ctx))))
 
 (defn- select-items [items options command-contexts]
-  (execute-command command-contexts :select-items {:items items :options options}))
+  (execute-command command-contexts :private/select-items {:items items :options options}))
 
 (defn image-icon
   "Cljfx image view with image loaded from classpath or workspace
@@ -1285,20 +1286,41 @@
    (invoke-handler command-contexts command nil))
   ([command-contexts command user-data]
    (if-let [handler-ctx (handler/active command command-contexts user-data)]
-     (if-let [options (and (nil? user-data) (handler/options handler-ctx))]
-       (when-let [user-data (some-> (select-items options {:title (handler/label handler-ctx)
-                                                           :filter-on :label
-                                                           :cell-fn (fn [item]
-                                                                      {:text (:label item)
-                                                                       :graphic {:fx/type image-icon
-                                                                                 :path (:icon item)
-                                                                                 :size 16.0}})}
-                                                  command-contexts)
+     (if-let [options (and (nil? user-data) (handler/option-items handler-ctx))]
+       (when-let [user-data (some-> (select-items
+                                      options
+                                      {:title (handler/label handler-ctx)
+                                       :filter-on :label
+                                       :cell-fn (fn [{:keys [label icon]}]
+                                                  (cond-> {:text label}
+                                                          icon
+                                                          (assoc :graphic {:fx/type image-icon
+                                                                           :path icon
+                                                                           :size 16.0})))}
+                                      command-contexts)
                                     first
                                     :user-data)]
          (execute-command command-contexts command user-data))
        (execute-command command-contexts command user-data))
      ::not-active)))
+
+(defn execute-accelerator-commands [commands]
+  ;; It is imperative that the handler is invoked using run-later as
+  ;; this avoids a JVM crash on some macOS versions. Prior to macOS
+  ;; Sierra, the order in which native menu events are delivered
+  ;; triggered a segfault in the native menu implementation when the
+  ;; stage is changed during the event dispatch. This happens for
+  ;; example when we have a shortcut triggering the opening of a
+  ;; dialog.
+  (run-later (let [command-contexts (contexts (main-scene))]
+               (reduce
+                 (fn [acc command]
+                   (let [ret (invoke-handler command-contexts command)]
+                     (case ret
+                       (::not-active ::not-enabled) acc
+                       (reduced ret))))
+                 nil
+                 commands))))
 
 (defn- make-desc [control menu-id]
   {:control control
@@ -1332,19 +1354,18 @@
         (finally
           (set! suppress? false))))))
 
-(defn- make-menu-command [^Scene scene id label icon ^Collection style-classes acc user-data command enabled? check]
-  (let [key-combo (and acc (KeyCombination/keyCombination acc))
-        ^MenuItem menu-item (if check
+(defn- make-menu-command [^Scene scene id label icon ^Collection style-classes key-combo user-data command enabled? check]
+  (let [^MenuItem menu-item (if check
                               (CheckMenuItem. label)
                               (MenuItem. label))]
-    ;; Currently not allowed due to a problem on macOS. See below.
-    ;; Still a problem in JavaFX 12.
-    (assert (not (and check key-combo)) "Keyboard shortcuts currently cannot be assigned to check menu items.")
-
     (user-data! menu-item ::menu-item-id id)
     (when command
       (user-data! menu-item ::command command))
-    (when (and (some? key-combo) (nil? user-data))
+    (when (and (some? key-combo)
+               ;; Currently not allowed due to a problem on macOS. See below.
+               ;; Still a problem in JavaFX 23.
+               (not check)
+               (nil? user-data))
       (.setAccelerator menu-item key-combo))
     (when icon
       (.setGraphic menu-item (icons/get-image-view icon 16)))
@@ -1363,7 +1384,8 @@
       ;; Note this doesn't seem to work for CheckMenuItems as the
       ;; CheckMenuItemAdapter in GlobalMenuAdapter.java does
       ;; getOnMenuValidation() on this instead of the target
-      ;; menuItem. In effect we never get a MENU_VALIDATION_EVENT.
+      ;; menuItem. In effect, we never get a MENU_VALIDATION_EVENT.
+      ;; See https://github.com/openjdk/jfx/blob/master/modules/javafx.controls/src/main/java/com/sun/javafx/scene/control/GlobalMenuAdapter.java
       (let [handler (->MenuEventHandler scene command user-data false)]
         (.setOnMenuValidation menu-item handler)
         (.setOnAction menu-item handler))
@@ -1373,7 +1395,7 @@
 
 (declare make-menu-items)
 
-(defn- make-menu-item [^Scene scene item command-contexts command->shortcut evaluation-context]
+(defn- make-menu-item [^Scene scene item command-contexts keymap evaluation-context]
   (let [id (:id item)
         icon (:icon item)
         style-classes (:style item)
@@ -1384,7 +1406,7 @@
                     item-label
                     icon
                     style-classes
-                    (make-menu-items scene children command-contexts command->shortcut evaluation-context)
+                    (make-menu-items scene children command-contexts keymap evaluation-context)
                     on-open)
       (if (= item-label :separator)
         (SeparatorMenuItem.)
@@ -1394,21 +1416,21 @@
           (when-let [handler-ctx (handler/active command command-contexts user-data evaluation-context)]
             (let [label (or (handler/label handler-ctx) item-label) ; Note that this is *not* updated on every menu refresh. Can't do "Show X" <-> "Hide X".
                   enabled? (handler/enabled? handler-ctx evaluation-context)
-                  acc (command->shortcut command)]
+                  key-combo (first (keymap/shortcuts keymap command))]
               (if-let [options (handler/options handler-ctx)]
-                (if (and acc (not (:expand? item)))
-                  (make-menu-command scene id label icon style-classes acc user-data command enabled? check)
+                (if (and key-combo (not (:expand? item)))
+                  (make-menu-command scene id label icon style-classes key-combo user-data command enabled? check)
                   (make-submenu id
                                 label
                                 icon
                                 style-classes
-                                (make-menu-items scene options command-contexts command->shortcut evaluation-context)
+                                (make-menu-items scene options command-contexts keymap evaluation-context)
                                 on-open))
-                (make-menu-command scene id label icon style-classes acc user-data command enabled? check)))))))))
+                (make-menu-command scene id label icon style-classes key-combo user-data command enabled? check)))))))))
 
-(defn- make-menu-items [^Scene scene menu command-contexts command->shortcut evaluation-context]
+(defn- make-menu-items [^Scene scene menu command-contexts keymap evaluation-context]
   (into []
-        (keep #(make-menu-item scene % command-contexts command->shortcut evaluation-context))
+        (keep #(make-menu-item scene % command-contexts keymap evaluation-context))
         menu))
 
 (defn- make-context-menu ^ContextMenu [menu-items]
@@ -1428,7 +1450,7 @@
 
 (defn init-context-menu! ^ContextMenu [menu-location ^Scene scene]
   (let [menu-items (g/with-auto-or-fake-evaluation-context evaluation-context
-                     (make-menu-items scene (handler/realize-menu menu-location) (contexts scene false) (or (user-data scene :command->shortcut) {}) evaluation-context))
+                     (make-menu-items scene (handler/realize-menu menu-location) (contexts scene false) (or (user-data scene :keymap) keymap/empty) evaluation-context))
         cm (make-context-menu menu-items)]
     (doto (.getItems cm)
       (refresh-separator-visibility)
@@ -1622,21 +1644,23 @@
         (when-not (neg? index)
           (.set parent-children index new))))))
 
-(defn- refresh-menubar? [menu-bar menu visible-command-contexts]
+(defn- refresh-menubar? [menu-bar menu visible-command-contexts keymap]
   (or (not= menu (user-data menu-bar ::menu))
-      (not= visible-command-contexts (user-data menu-bar ::visible-command-contexts))))
+      (not= visible-command-contexts (user-data menu-bar ::visible-command-contexts))
+      (not= keymap (user-data menu-bar ::keymap))))
 
-(defn- refresh-menubar! [^MenuBar menu-bar menu visible-command-contexts command->shortcut evaluation-context]
+(defn- refresh-menubar! [^MenuBar menu-bar menu visible-command-contexts keymap evaluation-context]
   (.clear (.getMenus menu-bar))
   ;; TODO: We must ensure that top-level element are of type Menu and note MenuItem here, i.e. top-level items with ":children"
   (.addAll (.getMenus menu-bar)
            ^Collection (make-menu-items (.getScene menu-bar)
                                         menu
                                         visible-command-contexts
-                                        command->shortcut
+                                        keymap
                                         evaluation-context))
   (user-data! menu-bar ::menu menu)
   (user-data! menu-bar ::visible-command-contexts visible-command-contexts)
+  (user-data! menu-bar ::keymap keymap)
   (clear-invalidated-menubar-items!))
 
 (defn- refresh-menubar-items?
@@ -1669,7 +1693,7 @@
     menu-data))
 
 (defn- refresh-menubar-items!
-  [^MenuBar menu-bar menu-data visible-command-contexts command->shortcut evaluation-context]
+  [^MenuBar menu-bar menu-data visible-command-contexts keymap evaluation-context]
   (let [id->menu-item (menu->id-map menu-bar)
         id->menu-data (menu-data->id-map menu-data)]
     (doseq [id @invalid-menubar-items]
@@ -1679,7 +1703,7 @@
           (let [new-menu-item (make-menu-item (.getScene menu-bar)
                                               menu-item-data
                                               visible-command-contexts
-                                              command->shortcut
+                                              keymap
                                               evaluation-context)]
             (replace-menu! menu-bar menu-item new-menu-item)))))
     (clear-invalidated-menubar-items!)))
@@ -1892,7 +1916,7 @@
   (contexts scene))
 
 (defn- refresh-menus!
-  [^Scene scene command->shortcut evaluation-context]
+  [^Scene scene keymap evaluation-context]
   (let [visible-command-contexts (visible-command-contexts scene)
         current-command-contexts (current-command-contexts scene)
         root (.getRoot scene)]
@@ -1902,11 +1926,11 @@
                          (os/is-mac-os?)
                          (menu-data-without-icons))]
         (cond
-          (refresh-menubar? menu-bar menu visible-command-contexts)
-          (refresh-menubar! menu-bar menu visible-command-contexts command->shortcut evaluation-context)
+          (refresh-menubar? menu-bar menu visible-command-contexts keymap)
+          (refresh-menubar! menu-bar menu visible-command-contexts keymap evaluation-context)
 
           (refresh-menubar-items?)
-          (refresh-menubar-items! menu-bar menu visible-command-contexts command->shortcut evaluation-context))
+          (refresh-menubar-items! menu-bar menu visible-command-contexts keymap evaluation-context))
 
         (refresh-menubar-state menu-bar current-command-contexts evaluation-context)))))
 
@@ -1924,11 +1948,18 @@
         (refresh-toolbar td visible-command-contexts evaluation-context)
         (refresh-toolbar-state (:control td) current-command-contexts evaluation-context)))))
 
+(defn- refresh-accelerators! [scene keymap]
+  (when-not (identical? keymap (user-data scene ::accelerators))
+    (user-data! scene ::accelerators keymap)
+    (keymap/install! keymap scene execute-accelerator-commands)))
+
 (defn refresh
   [^Scene scene]
   (g/with-auto-or-fake-evaluation-context evaluation-context
-    (refresh-menus! scene (or (user-data scene :command->shortcut) {}) evaluation-context)
-    (refresh-toolbars! scene evaluation-context)))
+    (let [keymap (or (user-data scene :keymap) keymap/empty)]
+      (refresh-accelerators! scene keymap)
+      (refresh-menus! scene keymap evaluation-context)
+      (refresh-toolbars! scene evaluation-context))))
 
 (defn render-progress-bar! [progress ^ProgressBar bar]
   (let [frac (progress/fraction progress)]

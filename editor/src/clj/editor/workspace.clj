@@ -542,7 +542,7 @@ ordinary paths."
          :actions [{:text "Fetch Libraries"
                     :on-action #(ui/execute-command
                                   (ui/contexts (ui/main-scene))
-                                  :fetch-libraries
+                                  :project.fetch-libraries
                                   nil)}]})
       (notifications/close! notifications ::dependencies-missing))
     (if (pos? (count error))
@@ -555,8 +555,8 @@ ordinary paths."
          :actions [{:text "Open game.project"
                     :on-action #(ui/execute-command
                                   (ui/contexts (ui/main-scene))
-                                  :open
-                                  {:resources [(find-resource workspace "/game.project")]})}]})
+                                  :file.open
+                                  "/game.project")}]})
       (notifications/close! notifications ::dependencies-error))))
 
 (defn set-project-dependencies! [workspace lib-states]

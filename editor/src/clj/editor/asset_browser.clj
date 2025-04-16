@@ -40,7 +40,7 @@
            [javafx.scene.input DragEvent MouseEvent TransferMode]
            [javafx.scene Node]
            [javafx.scene.control SelectionMode TreeItem TreeView]
-           [javafx.scene.input MouseEvent]
+           [javafx.scene.input KeyCode KeyEvent MouseEvent]
            [javafx.stage Stage]
            [org.apache.commons.io FilenameUtils]))
 
@@ -87,52 +87,52 @@
 (handler/register-menu! ::resource-menu
   [{:label "Open"
     :icon "icons/32/Icons_S_14_linkarrow.png"
-    :command :open}
+    :command :file.open-selected}
    {:label "Open As"
     :icon "icons/32/Icons_S_14_linkarrow.png"
-    :command :open-as}
+    :command :file.open-as}
    {:label :separator}
-   {:label "Copy Project Path"
-    :command :copy-project-path}
+   {:label "Copy Resource Path"
+    :command :edit.copy-resource-path}
    {:label "Copy Full Path"
-    :command :copy-full-path}
+    :command :edit.copy-absolute-path}
    {:label "Copy Require Path"
-    :command :copy-require-path}
+    :command :edit.copy-require-path}
    {:label :separator}
-   {:label "Show in Desktop"
+   {:label "Open in Desktop"
     :icon "icons/32/Icons_S_14_linkarrow.png"
-    :command :show-in-desktop}
+    :command :file.open-in-desktop}
    {:label "Referencing Files..."
-    :command :referencing-files}
+    :command :file.show-references}
    {:label "Dependencies..."
-    :command :dependencies}
+    :command :file.show-dependencies}
    {:label "Show Overrides"
-    :command :show-overrides}
+    :command :window.show-overrides}
    {:label :separator}
    {:label "New"
-    :command :new-file
+    :command :file.new
     :expand? true
     :icon "icons/64/Icons_29-AT-Unknown.png"}
    {:label "New File"
-    :command :new-file
+    :command :file.new
     :user-data {:any-file true}
     :icon "icons/64/Icons_29-AT-Unknown.png"}
    {:label "New Folder"
-    :command :new-folder
+    :command :file.new-folder
     :icon "icons/32/Icons_01-Folder-closed.png"}
    {:label :separator}
    {:label "Cut"
-    :command :cut}
+    :command :edit.cut}
    {:label "Copy"
-    :command :copy}
+    :command :edit.copy}
    {:label "Paste"
-    :command :paste}
+    :command :edit.paste}
    {:label "Delete"
-    :command :delete
+    :command :edit.delete
     :icon "icons/32/Icons_M_06_trash.png"}
    {:label :separator}
    {:label "Rename..."
-    :command :rename}
+    :command :file.rename}
    {:label :separator
     :id ::context-menu-end}])
 
@@ -189,7 +189,7 @@
     (.putFiles content files)
     (.setContent cb content)))
 
-(handler/defhandler :copy :asset-browser
+(handler/defhandler :edit.copy :asset-browser
   (enabled? [selection] (not (empty? selection)))
   (run [selection]
        (copy (-> selection roots fileify-resources!))))
@@ -219,7 +219,7 @@
        (seq resources)
        (every? deletable-resource? resources)))
 
-(handler/defhandler :cut :asset-browser
+(handler/defhandler :edit.cut :asset-browser
   (enabled? [selection] (delete? selection))
   (run [selection selection-provider asset-browser]
     (let [next (-> (handler/succeeding-selection selection-provider)
@@ -343,7 +343,7 @@
         (select-files! (mapv second pairs))
         (workspace/resource-sync! workspace)))))
 
-(handler/defhandler :paste :asset-browser
+(handler/defhandler :edit.paste :asset-browser
   (enabled? [selection] (paste? (.hasFiles (Clipboard/getSystemClipboard)) selection))
   (run [selection workspace asset-browser]
        (let [tree-view (g/node-value asset-browser :tree-view)
@@ -431,7 +431,7 @@
     (when (resource-watch/reserved-proj-path? project-directory-file prospect-path)
       (format "The name %s is reserved" new-name))))
 
-(handler/defhandler :rename :asset-browser
+(handler/defhandler :file.rename :asset-browser
   (enabled? [selection] (rename? selection))
   (run [selection workspace]
     (let [first-resource (first selection)
@@ -454,7 +454,7 @@
                                         (some #(validate-new-resource-name project-directory % file-name) parent-paths)))]
         (rename selection new-name)))))
 
-(handler/defhandler :delete :asset-browser
+(handler/defhandler :edit.delete :asset-browser
   (enabled? [selection] (delete? selection))
   (run [selection asset-browser selection-provider]
     (let [next (-> (handler/succeeding-selection selection-provider)
@@ -501,7 +501,7 @@
         contents (replace-template-name template base-name)]
     (spit new-file contents)))
 
-(handler/defhandler :new-file :global
+(handler/defhandler :file.new :global
   (label [user-data] (if-not user-data
                        "New..."
                        (let [rt (:resource-type user-data)]
@@ -546,14 +546,14 @@
       (sort-by (comp string/lower-case :label)
                (into [{:label "File"
                        :icon "icons/64/Icons_29-AT-Unknown.png"
-                       :command :new-file
+                       :command :file.new
                        :user-data {:any-file true}}]
                      (keep (fn [[_ext resource-type]]
                              (when (workspace/has-template? workspace resource-type)
                                {:label (or (:label resource-type) (:ext resource-type))
                                 :icon (:icon resource-type)
                                 :style (resource/type-style-classes resource-type)
-                                :command :new-file
+                                :command :file.new
                                 :user-data {:resource-type resource-type}})))
                      (workspace/get-resource-type-map workspace))))))
 
@@ -573,7 +573,7 @@
               (not (resource/read-only? resource))
               (some? (resource/abs-path resource))))))
 
-(handler/defhandler :new-folder :asset-browser
+(handler/defhandler :file.new-folder :asset-browser
   (enabled? [selection] (new-folder? selection))
   (run [selection workspace asset-browser]
     (let [parent-resource (first selection)
@@ -593,7 +593,7 @@
   (or (handler/adapt-single selection resource/Resource)
       active-resource))
 
-(handler/defhandler :show-in-asset-browser :global
+(handler/defhandler :file.show-in-assets :global
   (active? [active-resource selection] (selected-or-active-resource selection active-resource))
   (enabled? [active-resource selection]
             (when-let [r (selected-or-active-resource selection active-resource)]
@@ -818,12 +818,26 @@
         dropped-handler (ui/event-handler e (error-reporting/catch-all! (drag-dropped e)))
         detected-handler (ui/event-handler e (drag-detected e (handler/selection selection-provider)))
         entered-handler (ui/event-handler e (drag-entered e))
-        exited-handler (ui/event-handler e (drag-exited e))]
+        exited-handler (ui/event-handler e (drag-exited e))
+        original-dispatcher (.getEventDispatcher tree-view)]
     (doto tree-view
       (ui/customize-tree-view! {:double-click-expand? true})
-      (ui/bind-double-click! :open)
-      (ui/bind-key-commands! {"Enter" :open
-                              "F2" :rename})
+      (ui/bind-double-click! :file.open-selected)
+      (ui/bind-key-commands! {"Enter" :file.open-selected})
+      (.setEventDispatcher
+        (ui/event-dispatcher event tail
+           ;; by default, TreeView handles F2 as an edit operation. We override
+           ;; the dispatcher here to bubble up the F2 key presses so they are
+           ;; still handled upstream (e.g. if we use F2 shortcut for rename,
+           ;; which is a default)
+           (if (instance? KeyEvent event)
+             (let [^KeyEvent event event]
+               (if (and (= KeyCode/F2 (.getCode event))
+                        (or (= KeyEvent/KEY_PRESSED (.getEventType event))
+                            (= KeyEvent/KEY_RELEASED (.getEventType event))))
+                 event
+                 (.dispatchEvent original-dispatcher event tail)))
+             (.dispatchEvent original-dispatcher event tail))))
       (.setOnDragDetected detected-handler)
       (ui/cell-factory! (fn [resource]
                           (if (nil? resource)

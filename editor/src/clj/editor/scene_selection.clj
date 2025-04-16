@@ -32,21 +32,21 @@
 
 (handler/register-menu! ::scene-selection-menu
                         [{:label "Cut"
-                          :command :cut}
+                          :command :edit.cut}
                          {:label "Copy"
-                          :command :copy}
+                          :command :edit.copy}
                          {:label "Paste"
-                          :command :paste}
+                          :command :edit.paste}
                          {:label "Delete"
                           :icon "icons/32/Icons_M_06_trash.png"
-                          :command :delete}
+                          :command :edit.delete}
                          {:label :separator}
                          {:label "Show/Hide Objects"
-                          :command :hide-toggle-selected}
+                          :command :scene.visibility.toggle-selection}
                          {:label "Hide Unselected Objects"
-                          :command :hide-unselected}
+                          :command :scene.visibility.hide-unselected}
                          {:label "Show All Hidden Objects"
-                          :command :show-all-hidden}
+                          :command :scene.visibility.show-all}
                          {:label :separator
                           :id ::context-menu-end}])
 

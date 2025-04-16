@@ -674,7 +674,7 @@
     (ui/on-action! open-button (fn [_]  (when-let [resource (-> (property-fn)
                                                               properties/values
                                                               properties/unify-values)]
-                                          (ui/run-command open-button :open {:resources [resource]}))))
+                                          (ui/run-command open-button :file.open resource))))
     (customize! text commit-fn cancel-fn)
     (ui/children! box [text browse-button open-button])
     (GridPane/setConstraints text 0 0)
@@ -840,7 +840,7 @@
     (.setMinWidth Label/USE_PREF_SIZE)
     (.setMinHeight 28.0)))
 
-(handler/defhandler :show-overrides :property
+(handler/defhandler :window.show-overrides :property
   (active? [evaluation-context selection]
     (when-let [node-id (handler/selection->node-id selection)]
       (pos? (count (g/overrides (:basis evaluation-context) node-id)))))
@@ -849,7 +849,7 @@
 
 (handler/register-menu! ::properties-menu
   [{:label "Show Overrides"
-    :command :show-overrides}])
+    :command :window.show-overrides}])
 
 (defrecord SelectionProvider [original-node-ids]
   handler/SelectionProvider
