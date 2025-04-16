@@ -118,7 +118,10 @@
            :split-id "workbench-split"}
    :bottom {:index 1
             :pane-id "bottom-pane"
-            :split-id "center-split"}})
+            :split-id "center-split"}
+   :changed-files {:index 1
+                   :pane-id "changed-files-pane"
+                   :split-id "assets-split"}})
 
 (defn- pane-visible? [^Scene main-scene pane-kw]
   (let [{:keys [pane-id split-id]} (split-info-by-pane-kw pane-kw)]
@@ -1710,6 +1713,8 @@ If you do not specifically require different script states, consider changing th
     :id ::view
     :children [{:label "Toggle Assets Pane"
                 :command :toggle-pane-left}
+               {:label "Toggle Changed Files"
+                :command :toggle-pane-changed-files}
                {:label "Toggle Tools Pane"
                 :command :toggle-pane-bottom}
                {:label "Toggle Properties Pane"
@@ -1917,7 +1922,12 @@ If you do not specifically require different script states, consider changing th
                     tab-panes (.getItems editor-tabs-split)]
                 (when (< 1 (count tab-panes))
                   (.remove tab-panes tab-pane)
-                  (.requestFocus ^TabPane (.get tab-panes 0)))))))))
+                  (let [remaining-tab-pane (.get tab-panes 0)
+                        selected-tab (ui/selected-tab remaining-tab-pane)
+                        resource-node (tab->resource-node selected-tab)
+                        view-type (tab->view-type selected-tab)]
+                    (.requestFocus ^TabPane remaining-tab-pane)
+                    (on-selected-tab-changed! app-view app-scene selected-tab resource-node view-type)))))))))
   (.addEventFilter tab-pane MouseEvent/MOUSE_PRESSED (ui/event-handler event (handle-tab-pane-mouse-pressed! tab-pane event)))
   (ui/register-tab-pane-context-menu tab-pane ::tab-menu))
 
@@ -2466,6 +2476,13 @@ If you do not specifically require different script states, consider changing th
   (run [^Stage main-stage]
        (let [main-scene (.getScene main-stage)]
          (set-pane-visible! main-scene :bottom (not (pane-visible? main-scene :bottom))))))
+
+(handler/defhandler :toggle-pane-changed-files :global
+  (enabled? [^Stage main-stage]
+            (pane-visible? (.getScene main-stage) :left))
+  (run [^Stage main-stage]
+       (let [main-scene (.getScene main-stage)]
+         (set-pane-visible! main-scene :changed-files (not (pane-visible? main-scene :changed-files))))))
 
 (handler/defhandler :show-console :global
   (run [^Stage main-stage tool-tab-pane] (show-console! (.getScene main-stage) tool-tab-pane)))

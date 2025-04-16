@@ -122,7 +122,8 @@ namespace dmRender
         dmhash_t                                m_NameHash;
         dmRenderDDF::MaterialDesc::ConstantType m_Type;         // TODO: Make this a uint16_t as well
         dmGraphics::HUniformLocation            m_Location;     // Vulkan encodes vs/fs location in the lower/upper bits
-        uint16_t                                m_NumValues;
+        uint16_t                                m_NumValues:15;
+        uint16_t                                m_AllocatedValues:1; // If set, this constant owns the actual values
 
         Constant();
         Constant(dmhash_t name_hash, dmGraphics::HUniformLocation location);
@@ -278,6 +279,8 @@ namespace dmRender
     dmGraphics::HProgram            GetMaterialProgram(HMaterial material);
     void                            SetMaterialProgramConstantType(HMaterial material, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type);
     bool                            GetMaterialProgramConstant(HMaterial, dmhash_t name_hash, HConstant& out_value);
+
+    Result                          SetConstantValuesRef(HConstant constant, dmVMath::Vector4* values, uint32_t num_values);
 
     dmGraphics::HVertexDeclaration  GetVertexDeclaration(HMaterial material);
     dmGraphics::HVertexDeclaration  GetVertexDeclaration(HMaterial material, dmGraphics::VertexStepFunction step_function);

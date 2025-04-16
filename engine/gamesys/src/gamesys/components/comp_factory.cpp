@@ -214,7 +214,7 @@ namespace dmGameSystem
                     return dmGameObject::UPDATE_RESULT_OK;
                 }
 
-                id = dmGameObject::ConstructInstanceId(index);
+                id = dmGameObject::CreateInstanceId();
             }
 
             // m_Scale is legacy, so use it if Scale3 is all zeroes

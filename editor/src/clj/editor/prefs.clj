@@ -180,7 +180,8 @@
                                :scope :project}}}
     :console {:type :object
               :properties
-              {:filters {:type :array
+              {:filtering {:type :boolean :default true}
+               :filters {:type :array
                          :item {:type :tuple :items [{:type :string} {:type :boolean}]}}}}
     :run {:type :object
           :properties

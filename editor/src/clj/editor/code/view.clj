@@ -991,6 +991,16 @@
       :text)
     display-string))
 
+(defn- update-document-width
+  [evaluation-context view-node]
+  (when-let [resource-node (g/maybe-node-value view-node :resource-node)]
+    (let [glyph-metrics (g/node-value view-node :glyph-metrics evaluation-context)
+          tab-spaces (g/node-value view-node :tab-spaces evaluation-context)
+          lines (g/node-value resource-node :lines evaluation-context)
+          tab-stops (data/tab-stops glyph-metrics tab-spaces)
+          document-width (data/max-line-width glyph-metrics tab-stops lines)]
+      (g/set-property view-node :document-width document-width))))
+
 (g/defnk produce-completions-combined [completions-built-in completions-lsp completion-context]
   (let [all-completions (into []
                               (comp cat (util/distinct-by completion-identifier))
@@ -1136,8 +1146,13 @@
   (output completions-combined-ids g/Any :cached produce-completions-combined-ids)
   (input project g/NodeID) ;; used for completions doc popup, e.g. for opening defold:// URIs
 
-  (property font-name g/Str (default "Dejavu Sans Mono"))
-  (property font-size g/Num (default (g/constantly default-font-size)))
+  (property font-name g/Str (default "Dejavu Sans Mono")
+            (set (fn [evaluation-context self _old-value _new-value]
+                   (update-document-width evaluation-context self))))
+  (property font-size g/Num
+            (default (g/constantly default-font-size))
+            (set (fn [evaluation-context self _old-value _new-value]
+                   (update-document-width evaluation-context self))))
   (property line-height-factor g/Num (default 1.0))
   (property visible-indentation-guides? g/Bool (default false))
   (property visible-minimap? g/Bool (default false))
@@ -1495,13 +1510,13 @@
      (implies-completions? view-node evaluation-context)))
   ([view-node evaluation-context]
    (let [{:keys [trigger request-cursor]} (get-property view-node :completion-context evaluation-context)
-         trigger-characters (get-property view-node :completion-trigger-characters evaluation-context)]
+         trigger-characters (get-property view-node :completion-trigger-characters evaluation-context)
+         syntax-scope (syntax-scope-before-cursor view-node request-cursor evaluation-context)]
      (boolean (and (not (contains? #{"\n" "\t" " "} trigger))
                    (or (re-matches #"[a-zA-Z_]" trigger)
                        (contains? trigger-characters trigger))
-                   (not (string/starts-with?
-                          (syntax-scope-before-cursor view-node request-cursor evaluation-context)
-                          "punctuation.definition.string.end")))))))
+                   (not (string/starts-with? syntax-scope "punctuation.definition.string.end"))
+                   (not (string/starts-with? syntax-scope "comment")))))))
 
 (defn- hide-suggestions! [view-node]
   (set-properties! view-node nil

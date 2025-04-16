@@ -6,6 +6,9 @@ allprojects {
     tasks.withType(Jar) {
         exclude('tmp/**')
         includeEmptyDirs = false
+        if (project.hasProperty('keep-bob-uncompressed')) {
+            entryCompression = ZipEntryCompression.STORED
+        }
     }
     tasks.withType(Zip) {
         includeEmptyDirs = false

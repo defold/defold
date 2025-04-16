@@ -36,8 +36,6 @@ def configure(conf):
     conf.env['STLIB_GRAPHICS_NULL_NOASAN'] = ['graphics_null_noasan', 'graphics_proto_noasan'] # For the shared library used in editor
     conf.env['STLIB_PLATFORM_NULL']        = ['platform_null']
 
-    platform = conf.env['PLATFORM']
-
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="PARTICLE"')
 
 def build(bld):
