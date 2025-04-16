@@ -418,8 +418,7 @@ namespace dmSys
     {
         const char* xdg_env = dmSys::GetEnv("XDG_DATA_HOME");
         const char* xdg = xdg_env ? xdg_env : "$HOME/.local/share";
-        const uint32_t char_len = path_len;
-        char xdg_buf[char_len];
+        char xdg_buf[path_len];
 
         dmStrlCpy(xdg_buf, xdg, path_len);
         dmStrlCat(xdg_buf, "/", path_len);
@@ -446,12 +445,12 @@ namespace dmSys
                home = "."; // fall back to current directory, because the server instance might not have any of those paths set
         }
 
-        char home_buf[char_len];
-        if (dmStrlCpy(home_buf, home, path_len) >= path_len);
+        char home_buf[path_len];
+        if (dmStrlCpy(home_buf, home, path_len) >= path_len)
             return RESULT_INVAL;
-        if (dmStrlCat(home_buf, "/", path_len) >= path_len);
+        if (dmStrlCat(home_buf, "/", path_len) >= path_len)
             return RESULT_INVAL;
-        if (dmStrlCat(home_buf, ".", path_len) >= path_len);
+        if (dmStrlCat(home_buf, ".", path_len) >= path_len)
             return RESULT_INVAL;
         if (dmStrlCat(home_buf, application_name, path_len) >= path_len)
             return RESULT_INVAL;
