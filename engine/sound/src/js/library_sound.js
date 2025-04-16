@@ -81,10 +81,12 @@ var LibrarySoundDevice =
                     var buf = shared.audioCtx.createBuffer(2, frame_count, this.sampleRate);
 
                     for(var c=0;c<2;c++) {
-                        var input = this.arrayCache[samples];
-                        if (!input) {
-                            input = this.arrayCache[samples] = new Float32Array(HEAPF32.buffer, samples, frame_count);
-                        }
+//Optimize sub array creation by caching -> will fail as soon as the internal HEAPF32 representation changes (often after many seconds of use). Disabled.
+//                        var input = this.arrayCache[samples];
+//                        if (!input) {
+//                            input = this.arrayCache[samples] = HEAPF32.subarray(samples / 4, samples / 4 + frame_count);
+//                        }
+                        var input = HEAPF32.subarray(samples / 4, samples / 4 + frame_count);
                         buf.copyToChannel(input, c);
                         samples += frame_count * 4; // 4 bytes = sizeof(float)
                     }
