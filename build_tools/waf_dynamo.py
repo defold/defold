@@ -569,12 +569,15 @@ def default_flags(self):
             'IMPORTED_MEMORY=1',
             'STACK_SIZE=5MB',
             'MIN_FIREFOX_VERSION=79',
-            'MIN_SAFARI_VERSION=140100',
-            'MIN_CHROME_VERSION=74']
+            'MIN_SAFARI_VERSION=150000',
+            'MIN_CHROME_VERSION=75']
 
         if Options.options.with_pthread:
             emflags_link += [#'PTHREAD_POOL_SIZE_STRICT=2',
-                             'PTHREAD_POOL_SIZE=%d' % int(Options.options.pthread_pool_size)]
+                             #'USE_PTHREADS=1',
+                             'PROXY_TO_PTHREAD',
+                             #'PTHREAD_POOL_SIZE=%d' % int(Options.options.pthread_pool_size)
+                             ]
 
         if Options.options.with_webgpu and platform_supports_feature(build_util.get_target_platform(), 'webgpu', {}):
             emflags_link += ['USE_WEBGPU', 'GL_WORKAROUND_SAFARI_GETCONTEXT_BUG=0']
@@ -592,18 +595,19 @@ def default_flags(self):
         emflags_link =[j for i in emflags_link for j in i]
 
         flags = []
+        linkflags = []
         if os.environ.get('EMCFLAGS', None) is not None:
             flags += os.environ.get("EMCFLAGS", "").split(' ')
-        linkflags = []
+
         if os.environ.get('EMLINKFLAGS', None) is not None:
             linkflags += os.environ.get("EMLINKFLAGS", "").split(' ')
 
         if int(opt_level) < 2:
-            flags = ['-gseparate-dwarf', '-gsource-map']
-            linkflags = ['-gseparate-dwarf', '-gsource-map']
+            flags += ['-gseparate-dwarf', '-gsource-map']
+            linkflags += ['-gseparate-dwarf', '-gsource-map']
 
-        flags += ['-O%s' % opt_level, '-pthread']
-        linkflags += ['-O%s' % opt_level, '-pthread']
+        flags += ['-O%s' % opt_level]
+        linkflags += ['-O%s' % opt_level]
 
         if Options.options.with_pthread:
             flags += ['-pthread']
