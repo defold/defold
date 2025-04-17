@@ -466,7 +466,6 @@
                  [(convex-hull-scene _node-id convex-shape-data collision-group-color)]
                  child-scenes)}))
 
-
 (defn- make-embedded-collision-shape [shapes]
   (loop [idx 0
          [shape & rest] shapes
