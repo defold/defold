@@ -185,6 +185,7 @@ def build(bld):
         create_test(bld, 'test_job_thread')
 
     create_test(bld, 'test_sys', extra_libs = ['THREAD'], extra_defines = extra_defines)
+    create_test(bld, 'test_xdg', extra_libs = ['THREAD'])
     create_test(bld, 'test_template', extra_libs = ['THREAD'])
     create_test(bld, 'test_ssdp_internals', extra_libs = ['THREAD'], skip_run = skip_run or skip_ssdp)
     create_test(bld, 'test_ssdp', extra_libs = ['THREAD'], skip_run = skip_run or skip_ssdp)
