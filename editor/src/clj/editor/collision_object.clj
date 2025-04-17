@@ -421,19 +421,16 @@
                                           [(repeat Double/MAX_VALUE) (repeat Double/MIN_VALUE)]
                                           points)
           aabb (geom/coords->aabb max-coords min-coords)
-          center (-> aabb geom/aabb-center types/Point3d->Vec3)
           point-count (count points)
-          pos-vtx-put! (fn [vb [x y z]] (scene-shapes/pos-vtx-put! vb x y z 0.0))
-          triangles (->> points
-                         (reduce-kv (fn [vb i point]
-                                      (let [next-point (nth points (inc i) (first points))]
-                                        (reduce pos-vtx-put! vb [center point next-point])))
-                                    (scene-shapes/->pos-vtx (* 3 point-count) :static))
-                         vtx/flip!)
+          polygon (->> points
+                       (reduce (fn [vb [x y z]] (scene-shapes/pos-vtx-put! vb x y z 0.0))
+                               (scene-shapes/->pos-vtx point-count :static))
+                       vtx/flip!)
           lines (->> points
-                     (reduce-kv (fn [vb i point]
-                                  (let [next-point (nth points (inc i) (first points))]
-                                    (reduce pos-vtx-put! vb [point next-point])))
+                     (reduce-kv (fn [vb i [x y z]]
+                                  (let [[next-x next-y next-z] (nth points (inc i) (first points))]
+                                    (-> (scene-shapes/pos-vtx-put! vb x y z 0.0)
+                                        (scene-shapes/pos-vtx-put! next-x next-y next-z 0.0))))
                                 (scene-shapes/->pos-vtx (* 2 point-count) :static))
                      vtx/flip!)]
       {:node-id _node-id
@@ -444,8 +441,8 @@
                     :passes [pass/transparent pass/selection]
                     :user-data {:color color
                                 :double-sided true
-                                :geometry {:primitive-type GL2/GL_TRIANGLES
-                                           :vbuf triangles}}}
+                                :geometry {:primitive-type GL2/GL_POLYGON
+                                           :vbuf polygon}}}
        :children [{:node-id _node-id
                    :aabb aabb
                    :renderable {:render-fn render-lines-uniform-scale
