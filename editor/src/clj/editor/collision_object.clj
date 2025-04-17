@@ -421,18 +421,14 @@
                                           [(repeat Double/MAX_VALUE) (repeat Double/MIN_VALUE)]
                                           points)
           aabb (geom/coords->aabb max-coords min-coords)
-          point-count (count points)
           polygon (->> points
                        (reduce (fn [vb [x y z]] (scene-shapes/pos-vtx-put! vb x y z 0.0))
-                               (scene-shapes/->pos-vtx point-count :static))
+                               (scene-shapes/->pos-vtx (count points) :static))
                        vtx/flip!)
-          lines (->> points
-                     (reduce-kv (fn [vb i [x y z]]
-                                  (let [[next-x next-y next-z] (nth points (inc i) (first points))]
-                                    (-> (scene-shapes/pos-vtx-put! vb x y z 0.0)
-                                        (scene-shapes/pos-vtx-put! next-x next-y next-z 0.0))))
-                                (scene-shapes/->pos-vtx (* 2 point-count) :static))
-                     vtx/flip!)]
+          outline (->> points
+                       (reduce (fn [vb [x y z]] (scene-shapes/pos-vtx-put! vb x y z 0.0))
+                               (scene-shapes/->pos-vtx (count points) :static))
+                       vtx/flip!)]
       {:node-id _node-id
        :node-outline-key "Convex Hull"
        :aabb aabb
@@ -449,8 +445,8 @@
                                 :tags #{:collision-shape :outline}
                                 :passes [pass/outline]
                                 :user-data {:color color
-                                            :geometry {:primitive-type GL2/GL_LINES
-                                                       :vbuf lines}}}}]})))
+                                            :geometry {:primitive-type GL2/GL_LINE_LOOP
+                                                       :vbuf outline}}}}]})))
 
 (g/defnk produce-scene
   [_node-id child-scenes collision-shape dep-build-targets collision-group-color]
