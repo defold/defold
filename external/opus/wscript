@@ -29,8 +29,8 @@ def build(bld):
     name = '%s-%s' % (APPNAME, VERSION)
     packagedir = 'package/%s/src' % name
 
-#Q: seems one could go "celt only" -- the "old" Opus codec --> which will be much smaller & faster, but not decode everything "just encoded" these days anymore... ???
-# (which, it seems, would mean only compiling the "celt" folder and using it's API in a custom fashion...?! Related: "OPUS_CUSTOM")
+    #Q: seems one could go "celt only" -- the "old" Opus codec --> which will be much smaller & faster, but not decode everything "just encoded" these days anymore... ???
+    # (which, it seems, would mean only compiling the "celt" folder and using it's API in a custom fashion...?! Related: "OPUS_CUSTOM")
     source_files = bld.path.ant_glob(['src/opus.c',
                                       'src/opus_decoder.c',
 
@@ -75,7 +75,7 @@ def build(bld):
                                        'silk/tables_other.c',
                                        'silk/tables_pitch_lag.c',
                                        'silk/tables_pulses_per_block.c',
-                                       'silk/control_audio_bandwidth.c',
+                                       #'silk/control_audio_bandwidth.c',
                                        'silk/quant_LTP_gains.c',
                                        'silk/HP_variable_cutoff.c',
                                        'silk/NLSF_encode.c',
@@ -85,16 +85,16 @@ def build(bld):
                                        'silk/process_NLSFs.c',
                                        'silk/stereo_LR_to_MS.c',
                                        'silk/stereo_MS_to_LR.c',
-                                       'silk/check_control_input.c',
-                                       'silk/control_SNR.c',
-                                       'silk/init_encoder.c',
-                                       'silk/control_codec.c',
+                                       #'silk/check_control_input.c',
+                                       #'silk/control_SNR.c',
+                                       #'silk/init_encoder.c',
+                                       #'silk/control_codec.c',
                                        'silk/A2NLSF.c',
                                        'silk/ana_filt_bank_1.c',
                                        'silk/biquad_alt.c',
                                        'silk/bwexpander_32.c',
                                        'silk/bwexpander.c',
-                                       'silk/debug.c',
+                                       #'silk/debug.c',
                                        'silk/decode_pitch.c',
                                        'silk/inner_prod_aligned.c',
                                        'silk/lin2log.c',
@@ -104,7 +104,7 @@ def build(bld):
                                        'silk/table_LSF_cos.c',
                                        'silk/NLSF2A.c',
                                        'silk/NLSF_stabilize.c',
-                                       'silk/NLSF_VQ_weights_laroia.c',
+                                       #'silk/NLSF_VQ_weights_laroia.c',
                                        'silk/pitch_est_tables.c',
                                        'silk/resampler.c',
                                        'silk/resampler_down2_3.c',
@@ -114,13 +114,13 @@ def build(bld):
                                        'silk/resampler_private_IIR_FIR.c',
                                        'silk/resampler_private_up2_HQ.c',
                                        'silk/resampler_rom.c',
-                                       'silk/sigm_Q15.c',
+                                       #'silk/sigm_Q15.c',
                                        'silk/sort.c',
                                        'silk/sum_sqr_shift.c',
                                        'silk/stereo_decode_pred.c', 
-                                       'silk/stereo_encode_pred.c',
-                                       'silk/stereo_find_predictor.c',
-                                       'silk/stereo_quant_pred.c',
+                                       #'silk/stereo_encode_pred.c',
+                                       #'silk/stereo_find_predictor.c',
+                                       #'silk/stereo_quant_pred.c',
                                        'silk/LPC_fit.c',
                                        'silk/NSQ.c',
                                        'silk/NSQ_del_dec.c',
@@ -145,16 +145,16 @@ def build(bld):
                                        ])
 
     simd_defs = []
-    if bld.env.PLATFORM in ('x86_64-win32', 'x86_64-linux', 'x86_64-macos'):
+    if bld.env.PLATFORM in ('win32', 'x86_64-win32', 'x86_64-linux', 'x86_64-macos'):
         simd_defs = simd_defs + ['OPUS_HAVE_RTCD', 'OPUS_X86_MAY_HAVE_SSE', 'OPUS_X86_MAY_HAVE_SSE2', 'OPUS_X86_MAY_HAVE_SSE4_1', 'CPU_INFO_BY_C'];
         source_files = source_files + x86_simd_source_files
     #elif bld.env.PLATFORM in ('wasm-web', 'js-web'):
     #    simd_defs = simd_defs + ['OPUS_X86_MAY_HAVE_SSE', 'OPUS_X86_MAY_HAVE_SSE2', 'OPUS_X86_MAY_HAVE_SSE4_1', 'OPUS_X86_PRESUME_SSE', 'OPUS_X86_PRESUME_SSE2', 'OPUS_X86_PRESUME_SSE4_1'];
     #    source_files = source_files + x86_simd_source_files
 
-    opus_decoder    = bld.stlib(features = 'c cxx',
+    opus_decoder    = bld.stlib(features = 'c',
                                 source    = source_files,
-                                defines   = ['NDEBUG', 'OPUS_BUILD', 'VAR_ARRAYS'] + simd_defs,
+                                defines   = ['NDEBUG', 'OPUS_BUILD', 'USE_ALLOCA'] + simd_defs,
                                 includes  = ['include', 'celt', 'silk', 'silk/float', 'silk/fixed', '.'],
                                 target    = 'opus')
 
@@ -164,22 +164,46 @@ def build(bld):
         bld.env.cxxstlib_PATTERN = 'lib%s.lib'
 
     bld.install_files('${PREFIX}/%s/lib/%s/' % (name, bld.env.PLATFORM), bld.env.cxxstlib_PATTERN % 'opus')
-    bld.install_files('${PREFIX}/ext/include/%s/' % (APPNAME), bld.path.ant_glob('include/*.h'))
+    bld.install_files('${PREFIX}/%s/include/%s/' % (name, APPNAME), bld.path.ant_glob('include/*.h'))
 
     if isinstance(bld, Build.InstallContext):
         bld.add_group() # make sure the previous install step is done before we create the archive
 
         output_dir = '%s/%s-%s' % (bld.env.PREFIX, APPNAME, VERSION)
+
         pkg = bld(rule=create_package,
                   cwd=output_dir,
                   target='%s-%s.tar.gz' % (name, bld.env.PLATFORM),
                   always=True)
 
+
+        target_tar = '%s-common.tar.gz' % name
+
+        pkg = bld(rule=create_package,
+                  cwd=output_dir,
+                  target=target_tar,
+                  always=True)
+
+# from Box2d
 def create_package(self):
     target = self.outputs[0].abspath()
     name = self.outputs[0].name
-    args = ['tar', 'zcvf', os.path.normpath(target)]
-    args.extend(os.listdir(self.cwd))
+
+    dirs = []
+    dirs_search = ['lib', 'sdk', 'share']
+
+    # Create the common package with includes
+    if target.find("-common") > 0:
+        dirs_search = ['include']
+
+    print("SELF.CWD", self.cwd)
+    for x in dirs_search:
+        try_path = os.path.join(self.cwd, x)
+        if os.path.exists(try_path):
+            dirs.append(x)
+
+    args = ['tar', 'zcvf', os.path.normpath(target)] + dirs
+
     run.command(args, cwd=self.cwd)
     print("Wrote", target)
 
@@ -189,7 +213,5 @@ def create_package(self):
     shutil.copy2(source, target)
     print("Installed to", target)
 
-    shutil.rmtree(self.cwd)
-
-def package(self):
+def package(package):
     pass

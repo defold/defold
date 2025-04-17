@@ -212,7 +212,7 @@
              :outline-overridden? overridden?
              :children (:children source-outline)}
           (cond->
-            (resource/openable-resource? source-resource) (assoc :link source-resource :outline-reference? true)
+            (some-> source-resource resource/proj-path) (assoc :link source-resource :outline-reference? true)
             source-id (assoc :alt-outline source-outline))))))
   (output ddf-message g/Any :abstract)
   (output scene g/Any :cached (g/fnk [_node-id id transform scene]
@@ -618,6 +618,7 @@
     :node-type GameObjectNode
     :ddf-type GameObject$PrototypeDesc
     :load-fn load-game-object
+    :allow-unloaded-use true
     :dependencies-fn (game-object-common/make-game-object-dependencies-fn #(workspace/get-resource-type-map workspace))
     :sanitize-fn (partial sanitize-game-object workspace)
     :string-encode-fn (partial string-encode-game-object workspace)

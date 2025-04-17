@@ -48,7 +48,7 @@ MACOS_ASAN_PATH="usr/lib/clang/%s/lib/darwin/libclang_rt.asan_osx_dynamic.dylib"
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
 # (MinimumOSVersion and perhaps DTPlatformVersion)
 VERSION_IPHONEOS_MIN="11.0"
-VERSION_MACOSX_MIN="10.13"
+VERSION_MACOSX_MIN="10.15"
 
 SWIFT_VERSION="5.5"
 
@@ -327,6 +327,70 @@ def get_local_compiler_version():
 
 windows_info = None
 
+def _fatal(msg):
+    print("sdk.py: %s" % msg)
+    sys.exit(1)
+
+def get_windows_include_dirs(vs_root, sdk_includes_root):
+    includes = [os.path.join(vs_root,'include'),
+                os.path.join(vs_root,'atlmfc','include'),
+                os.path.join(sdk_includes_root,'ucrt'),
+                os.path.join(sdk_includes_root,'winrt'),
+                os.path.join(sdk_includes_root,'um'),
+                os.path.join(sdk_includes_root,'shared')]
+
+    for x in includes:
+        if not os.path.exists(x):
+            _fatal("Path does not exist: %s" % x)
+
+    return ','.join(includes)
+
+def get_windows_lib_dirs(vs_root, sdk_libs_root, arch):
+    libdirs = [ os.path.join(vs_root,'lib',arch),
+                os.path.join(vs_root,'atlmfc','lib',arch),
+                os.path.join(sdk_libs_root,'ucrt',arch),
+                os.path.join(sdk_libs_root,'um',arch)]
+
+    for x in libdirs:
+        if not os.path.exists(x):
+            _fatal("Path does not exist: %s" % x)
+
+    return ','.join(libdirs)
+
+def get_windows_bin_dirs(vs_root, sdk_bin_root, arch):
+    bindirs = [ os.path.join(vs_root,'bin', 'Host%s'%arch, arch),
+                os.path.join(sdk_bin_root, arch)]
+
+    for x in bindirs:
+        if not os.path.exists(x):
+            _fatal("Path does not exist: %s" % x)
+
+    return ','.join(bindirs)
+
+def get_windows_info(vs_root, vs_version, sdk_root, sdk_version, platform):
+    arch = 'x64'
+    if platform == 'win32':
+        arch = 'x86'
+
+    sdk_includes_root = os.path.join(sdk_root, 'Include', sdk_version)
+    sdk_libs_root = os.path.join(sdk_root, 'Lib', sdk_version)
+    sdk_bin_root = os.path.join(sdk_root, 'bin', sdk_version)
+
+    includes = get_windows_include_dirs(vs_root, sdk_includes_root)
+    lib_paths = get_windows_lib_dirs(vs_root, sdk_libs_root, arch)
+    bin_paths = get_windows_bin_dirs(vs_root, sdk_bin_root, arch)
+
+    info = {}
+    info['sdk_root'] = sdk_root
+    info['sdk_version'] = sdk_version
+    info['includes'] = includes
+    info['lib_paths'] = lib_paths
+    info['bin_paths'] = bin_paths
+    info['vs_root'] = vs_root
+    info['vs_version'] = vs_version
+    return info
+
+
 def get_windows_local_sdk_info(platform):
     global windows_info
 
@@ -346,7 +410,7 @@ def get_windows_local_sdk_info(platform):
             print ("Couldn't find executable '%s'" % vswhere_path)
             return None
 
-    sdk_root = run.shell_command('%s --sdk_root' % vswhere_path).strip()
+    sdk_root = run.shell_command('%s --sdk_root' % vswhere_path).strip() # C:\Program Files (x86)\Windows Kits\10\
     sdk_version = run.shell_command('%s --sdk_version' % vswhere_path).strip()
     includes = run.shell_command('%s --includes' % vswhere_path).strip()
     lib_paths = run.shell_command('%s --lib_paths' % vswhere_path).strip()
@@ -354,22 +418,9 @@ def get_windows_local_sdk_info(platform):
     vs_root = run.shell_command('%s --vs_root' % vswhere_path).strip()
     vs_version = run.shell_command('%s --vs_version' % vswhere_path).strip()
 
-    if platform == 'win32':
-        arch64 = 'x64'
-        arch32 = 'x86'
-        bin_paths = bin_paths.replace(arch64, arch32)
-        lib_paths = lib_paths.replace(arch64, arch32)
-
-    info = {}
-    info['sdk_root'] = sdk_root
-    info['sdk_version'] = sdk_version
-    info['includes'] = includes
-    info['lib_paths'] = lib_paths
-    info['bin_paths'] = bin_paths
-    info['vs_root'] = vs_root
-    info['vs_version'] = vs_version
-    windows_info = info
+    windows_info = get_windows_info(vs_root, vs_version, sdk_root, sdk_version, platform)
     return windows_info
+
 
 def get_windows_packaged_sdk_info(sdkdir, platform):
     global windows_info
@@ -402,27 +453,10 @@ def get_windows_packaged_sdk_info(sdkdir, platform):
     msvc_path = (os.path.join(msvcdir,'VC', 'Tools', 'MSVC', msvc_version, 'bin', 'Host'+arch, arch),
                 os.path.join(windowskitsdir,'10','bin',ucrt_version,arch))
 
-    includes = [os.path.join(msvcdir,'VC','Tools','MSVC',msvc_version,'include'),
-                os.path.join(msvcdir,'VC','Tools','MSVC',msvc_version,'atlmfc','include'),
-                os.path.join(windowskitsdir,'10','Include',ucrt_version,'ucrt'),
-                os.path.join(windowskitsdir,'10','Include',ucrt_version,'winrt'),
-                os.path.join(windowskitsdir,'10','Include',ucrt_version,'um'),
-                os.path.join(windowskitsdir,'10','Include',ucrt_version,'shared')]
+    vs_root = os.path.join(msvcdir,'VC','Tools','MSVC',msvc_version)
+    sdk_root = os.path.join(windowskitsdir,'10')
 
-    libdirs = [ os.path.join(msvcdir,'VC','Tools','MSVC',msvc_version,'lib',arch),
-                os.path.join(msvcdir,'VC','Tools','MSVC',msvc_version,'atlmfc','lib',arch),
-                os.path.join(windowskitsdir,'10','Lib',ucrt_version,'ucrt',arch),
-                os.path.join(windowskitsdir,'10','Lib',ucrt_version,'um',arch)]
-
-    info = {}
-    info['sdk_root'] = os.path.join(windowskitsdir,'10')
-    info['sdk_version'] = ucrt_version
-    info['includes'] = ','.join(includes)
-    info['lib_paths'] = ','.join(libdirs)
-    info['bin_paths'] = ','.join(msvc_path)
-    info['vs_root'] = msvcdir
-    info['vs_version'] = msvc_version
-    windows_info = info
+    windows_info = get_windows_info(vs_root, msvc_version, sdk_root, ucrt_version, platform)
     return windows_info
 
 def _setup_info_from_windowsinfo(windowsinfo, platform):

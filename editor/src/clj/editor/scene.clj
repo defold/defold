@@ -32,6 +32,7 @@
             [editor.protobuf :as protobuf]
             [editor.render :as render]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.rulers :as rulers]
             [editor.scene-async :as scene-async]
             [editor.scene-cache :as scene-cache]
@@ -99,8 +100,8 @@
   (scene-text/overlay gl text x y))
 
 (defn- get-resource-name [node-id]
-  (let [{:keys [resource] :as resource-node} (and node-id (g/node-by-id node-id))]
-    (and resource (resource/resource-name resource))))
+  (when-let [resource (resource-node/as-resource node-id)]
+    (resource/resource-name resource)))
 
 (defn- render-error
   [gl render-args renderables nrenderables]
@@ -1389,6 +1390,8 @@
     (.setOnMouseClicked parent event-handler)
     (.setOnMouseMoved parent event-handler)
     (.setOnMouseDragged parent event-handler)
+    (.setOnDragOver parent event-handler)
+    (.setOnDragDropped parent event-handler)
     (.setOnScroll parent event-handler)
     (.setOnKeyPressed parent (ui/event-handler e
                                (when @process-events?
@@ -1676,6 +1679,7 @@
             (dynamic visible (g/fnk [transform-properties] (contains? transform-properties :rotation)))
             (dynamic edit-type (g/constantly properties/quat-rotation-edit-type)))
   (property scale types/Vec3 (default default-scale)
+            (dynamic edit-type (g/constantly {:type types/Vec3 :precision 0.1}))
             (dynamic visible (g/fnk [transform-properties] (contains? transform-properties :scale)))
             (set (fn [_evaluation-context self _old-value new-value]
                    (when (some? new-value)

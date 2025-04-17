@@ -42,10 +42,10 @@
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/resource/resource.hpp>
 
-DM_PROPERTY_GROUP(rmtp_GameObject, "Gameobjects");
+DM_PROPERTY_GROUP(rmtp_GameObject, "Gameobjects", 0);
 
-DM_PROPERTY_U32(rmtp_GOInstances, 0, FrameReset, "# alive go instances / frame", &rmtp_GameObject);
-DM_PROPERTY_U32(rmtp_GODeleted, 0, FrameReset, "# deleted instances / frame", &rmtp_GameObject);
+DM_PROPERTY_U32(rmtp_GOInstances, 0, PROFILE_PROPERTY_FRAME_RESET, "# alive go instances / frame", &rmtp_GameObject);
+DM_PROPERTY_U32(rmtp_GODeleted, 0, PROFILE_PROPERTY_FRAME_RESET, "# deleted instances / frame", &rmtp_GameObject);
 
 namespace dmGameObject
 {
@@ -53,7 +53,8 @@ namespace dmGameObject
     const char* COLLECTION_MAX_INPUT_STACK_ENTRIES_KEY = "collection.max_input_stack_entries";
     const dmhash_t UNNAMED_IDENTIFIER = dmHashBuffer64("__unnamed__", strlen("__unnamed__"));
     const dmhash_t GAME_OBJECT_EXT = dmHashString64("goc");
-    const char* ID_SEPARATOR = "/";
+#define ID_SEPARATOR_CHAR "/"
+    const char* ID_SEPARATOR = ID_SEPARATOR_CHAR;
     const uint32_t MAX_DISPATCH_ITERATION_COUNT = 10;
 
     static Prototype EMPTY_PROTOTYPE;
@@ -966,10 +967,13 @@ namespace dmGameObject
         return instance;
     }
 
-    dmhash_t ConstructInstanceId(uint32_t index)
+    dmhash_t CreateInstanceId()
     {
-        char buffer[16] = { 0 };
-        int length = dmSnPrintf(buffer, sizeof(buffer), "%sinstance%d", ID_SEPARATOR, index);
+        static uint32_t index = 0;
+        //20 bytes: '/'' + 'instance' + uint32 + null terminator = 1 + 8 + 10 + 1
+        char buffer[32] = { 0 };
+        int length = dmSnPrintf(buffer, sizeof(buffer), ID_SEPARATOR_CHAR "instance%d", index);
+        index += 1;
         return dmHashBuffer64(buffer, (uint32_t)length);
     }
 
@@ -1217,6 +1221,7 @@ namespace dmGameObject
 
         if (success) {
             AddToUpdate(collection, instance);
+            instance->m_Generated = 1;
         } else {
             Delete(collection, instance, false);
             return 0;
@@ -2175,6 +2180,7 @@ namespace dmGameObject
     void SetBone(HInstance instance, bool bone)
     {
         instance->m_Bone = bone;
+        instance->m_Generated = 1;
     }
 
     bool IsBone(HInstance instance)

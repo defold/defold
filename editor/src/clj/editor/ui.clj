@@ -59,6 +59,8 @@
 
 (set! *warn-on-reflection* true)
 
+(def ^:private ^:dynamic *programmatic-selection* nil)
+
 ;; Next line of code makes sure JavaFX is initialized, which is required during
 ;; compilation even when we are not actually running the editor. To properly
 ;; generate reflection-less code, clojure compiler loads classes and searches
@@ -1804,7 +1806,7 @@
                                                             (.setConverter (DefoldStringConverter. :label #(some #{%} (map :label opts)))))]
                                                    (.setAll (.getItems cb) ^Collection opts)
                                                    (observe (.valueProperty cb) (fn [this old new]
-                                                                                  (when new
+                                                                                  (when (and new (not *programmatic-selection*))
                                                                                     (let [command-contexts (contexts scene)]
                                                                                       (execute-command command-contexts (:command new) (:user-data new))))))
                                                    (.add (.getChildren hbox) (icons/get-image-view (:icon menu-item) 16))
@@ -1862,7 +1864,8 @@
             (let [selection-model (.getSelectionModel cb)
                   item (.getSelectedItem selection-model)]
               (when (not= item state)
-                (.select selection-model state)))))))))
+                (binding [*programmatic-selection* true]
+                  (.select selection-model state))))))))))
 
 (defn- window-parents [^Window window]
   (when-let [parent (condp instance? window
@@ -1911,10 +1914,17 @@
   [^Scene scene evaluation-context]
   (let [visible-command-contexts (visible-command-contexts scene)
         current-command-contexts (current-command-contexts scene)
-        root (.getRoot scene)]
+        root (.getRoot scene)
+        app-view (-> current-command-contexts first :env :app-view)
+        active-tab (g/maybe-node-value app-view :active-tab evaluation-context)]
     (doseq [td (vals (user-data root ::toolbars))]
-      (refresh-toolbar td visible-command-contexts evaluation-context)
-      (refresh-toolbar-state (:control td) current-command-contexts evaluation-context))))
+      (let [control (:control td)
+            is-active (boolean (when active-tab
+                                 (nodes-along-path? control (.getContent ^Tab active-tab) root)))]
+        (visible! control is-active)
+        (when is-active
+          (refresh-toolbar td visible-command-contexts evaluation-context)
+          (refresh-toolbar-state (:control td) current-command-contexts evaluation-context))))))
 
 (defn refresh
   [^Scene scene]

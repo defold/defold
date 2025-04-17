@@ -18,16 +18,17 @@ import java.io.IOException;
 import java.io.File;
 import java.io.InputStream;
 import java.io.FileInputStream;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import com.dynamo.bob.archive.ArchiveEntry;
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.fs.IResource;
 
 public abstract class Publisher {
 
     private final PublisherSettings settings;
-    protected final Map<String, ArchiveEntry> entries = new HashMap<String, ArchiveEntry>();
+    protected final Map<String, ArchiveEntry> entries = new ConcurrentHashMap<>();
     protected String platform = "";
 
     public Publisher(PublisherSettings settings) {
@@ -41,6 +42,8 @@ public abstract class Publisher {
     public String getManifestPrivateKey() {
         return this.settings.getManifestPrivateKey();
     }
+
+    public IResource getPublisherSettingsResorce() { return this.settings.getResource(); }
 
     public String getSupportedVersions() {
         return this.settings.getSupportedVersions();

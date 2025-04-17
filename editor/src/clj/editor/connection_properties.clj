@@ -12,7 +12,8 @@
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
-(ns editor.connection-properties)
+(ns editor.connection-properties
+  (:require [editor.system :as system]))
 
 (def ^:const connection-properties
   {:sentry {:project-id "97739"
@@ -26,3 +27,8 @@
                                               "beta" "https://build-stage.defold.com"}}
    :updater {:download-url-template "https://%s/archive/%s/%s/editor2/Defold-%s.zip"
              :update-url-template "https://%s/editor2/channels/%s/update-v4.json"}})
+
+(def ^:const defold-build-server-url
+  (or
+    (get-in connection-properties [:native-extensions :custom-build-servers (system/defold-channel)])
+    (get-in connection-properties [:native-extensions :build-server-url])))

@@ -34,6 +34,9 @@ namespace dmSound
     int64_t GetInternalPos(HSoundInstance);
     int32_t GetRefCount(HSoundData);
 
+    #define DM_SOUND_USE_LEGACY_GAIN (1)     // if defined to 0 gain will be an exponential parameter rather than a linear scale
+    #define DM_SOUND_USE_LEGACY_STEREO_PAN (0)  // define this to 1 to enable legacy behavior regarding panning of stereo instances
+
     #define SOUND_MAX_DECODE_CHANNELS (2)
     #define SOUND_MAX_MIX_CHANNELS (2)
     #define SOUND_OUTBUFFER_COUNT (6)

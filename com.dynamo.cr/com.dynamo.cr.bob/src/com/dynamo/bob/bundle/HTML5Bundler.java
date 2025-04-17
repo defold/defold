@@ -47,6 +47,7 @@ import com.dynamo.bob.util.StringUtil;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
+import com.dynamo.bob.archive.EngineVersion;
 
 @BundlerParams(platforms = {"js-web", "wasm-web"})
 public class HTML5Bundler implements IBundler {
@@ -105,6 +106,8 @@ public class HTML5Bundler implements IBundler {
         properties.put("DEFOLD_WASM_SIZE", WasmSize);
         properties.put("DEFOLD_WASMJS_SHA1", WasmjsSHA1);
         properties.put("DEFOLD_WASMJS_SIZE", WasmjsSize);
+        properties.put("DEFOLD_ENGINE_VERSION", EngineVersion.version);
+        properties.put("DEFOLD_SDK_SHA1", project.option("defoldsdk", EngineVersion.sha1));
         properties.put("ASMJS_SHA1", AsmjsSHA1);
         properties.put("ASMJS_SIZE", AsmjsSize);
 

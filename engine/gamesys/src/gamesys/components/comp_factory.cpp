@@ -31,7 +31,7 @@
 #include "../gamesys_private.h"
 
 DM_PROPERTY_EXTERN(rmtp_Components);
-DM_PROPERTY_U32(rmtp_Factory, 0, FrameReset, "# components", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_Factory, 0, PROFILE_PROPERTY_FRAME_RESET, "# components", &rmtp_Components);
 
 namespace dmGameSystem
 {
@@ -214,7 +214,7 @@ namespace dmGameSystem
                     return dmGameObject::UPDATE_RESULT_OK;
                 }
 
-                id = dmGameObject::ConstructInstanceId(index);
+                id = dmGameObject::CreateInstanceId();
             }
 
             // m_Scale is legacy, so use it if Scale3 is all zeroes

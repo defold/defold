@@ -250,11 +250,15 @@ there is no way a user can know what the generated id will be for older shaders.
     :vector-type-mat3 :mat4
     :vector-type-mat4 :mat4))
 
+(def unsupported-semantic-types
+  #{:semantic-type-bone-weights
+    :semantic-type-bone-indices})
+
 (def ^:private vertex-attribute-fields
   [{:path [:semantic-type]
     :label "Semantic Type"
     :type :choicebox
-    :options (protobuf-forms/make-enum-options Graphics$VertexAttribute$SemanticType)
+    :options (remove #(unsupported-semantic-types (first %)) (protobuf-forms/make-enum-options Graphics$VertexAttribute$SemanticType))
     :default graphics/default-attribute-semantic-type}
    {:path [:step-function]
     :label "Step Function"

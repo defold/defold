@@ -601,6 +601,12 @@ TEST_F(ResourceTest, TestSetTextureFromScript)
     ASSERT_EQ(dmGraphics::GetTextureWidth(backing_texture), 32);
     ASSERT_EQ(dmGraphics::GetTextureHeight(backing_texture), 32);
 
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    // Test 6: Set texture with mipmaps
+    //      -> set_texture.script::test_success_mipmap
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
     // cleanup
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
@@ -1867,11 +1873,12 @@ TEST_P(FactoryTest, Test)
             "/sprite/sprite.materialc",
     };
     dmHashEnableReverseHash(true);
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
 
     dmGameSystem::ScriptLibContext scriptlibcontext;
     scriptlibcontext.m_Factory         = m_Factory;
     scriptlibcontext.m_Register        = m_Register;
-    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_LuaState        = L;
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
     scriptlibcontext.m_ScriptContext   = m_ScriptContext;
 
@@ -1923,11 +1930,23 @@ TEST_P(FactoryTest, Test)
         // Do this twice in order to ensure load/unload can be called multiple times, with and without deleting created objects
         for(uint32_t i = 0; i < 2; ++i)
         {
-            dmhash_t last_object_id = i == 0 ? dmHashString64("/instance1") : dmHashString64("/instance0"); // stacked index list in dynamic spawning
             for(;;)
             {
-                if(dmGameObject::GetInstanceFromIdentifier(m_Collection, last_object_id) != 0x0)
-                    break;
+                lua_getglobal(L, "global_created");
+                bool ready = !lua_isnil(L, -1);
+                lua_pop(L, 1);
+                if(ready)
+                {
+                    lua_getglobal(L, "first_instance");
+                    dmhash_t first_instance = dmScript::CheckHash(L, -1);
+                    lua_pop(L, 1);
+                    lua_getglobal(L, "second_instance");
+                    dmhash_t second_instance = dmScript::CheckHash(L, -1);
+                    lua_pop(L, 1);
+                    dmhash_t last_object_id = i == 0 ? second_instance : first_instance; // stacked index list in dynamic spawning
+                    if (dmGameObject::GetInstanceFromIdentifier(m_Collection, last_object_id) != 0x0)
+                        break;
+                }
                 ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
                 ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
                 dmGameObject::PostUpdate(m_Register);
@@ -3746,7 +3765,6 @@ INSTANTIATE_TEST_CASE_P(Label, ComponentFailTest, jc_test_values_in(invalid_labe
 const char* invalid_vertexspace_resources[] =
 {
     "/sprite/invalid_vertexspace.spritec",
-    "/model/invalid_vertexspace.modelc",
     "/tile/invalid_vertexspace.tilegridc",
     "/particlefx/invalid_vertexspace.particlefxc",
     "/gui/invalid_vertexspace.guic",
@@ -5695,6 +5713,18 @@ TEST_F(ShaderTest, ComputeResource)
 }
 
 #endif
+
+TEST_F(ModelScriptTest, GetAABB)
+{
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/script_model.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 
 extern "C" void dmExportedSymbols();
 

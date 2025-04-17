@@ -20,10 +20,10 @@
             [cljfx.fx.label :as fx.label]
             [cljfx.fx.list-view :as fx.list-view]
             [cljfx.fx.region :as fx.region]
+            [cljfx.fx.separator :as fx.separator]
             [cljfx.fx.stack-pane :as fx.stack-pane]
             [cljfx.fx.text-field :as fx.text-field]
             [cljfx.fx.v-box :as fx.v-box]
-            [clojure.data.json :as json]
             [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
@@ -41,7 +41,7 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [util.coll :as coll]
-            [util.http-util :as http-util])
+            [util.http-server :as http-server])
   (:import [editor.code.data Cursor CursorRange LayoutInfo Rect]
            [java.io BufferedReader IOException]
            [java.util.regex MatchResult]
@@ -60,6 +60,7 @@
 (defonce ^:const url-prefix "/console")
 
 (def ^:const console-filters-prefs-key [:console :filters])
+(def ^:const console-filtering-key [:console :filtering])
 
 (def ^:private pending-atom
   ;; Implementation notes:
@@ -189,8 +190,9 @@
                               :index 0))))))
 
 (defn- save-filters! [prefs filters]
-  (prefs/set! prefs console-filters-prefs-key filters)
-  (set-filters! filters))
+  (let [filtering (prefs/get prefs console-filtering-key)]
+    (prefs/set! prefs console-filters-prefs-key filters)
+    (set-filters! (if filtering filters []))))
 
 ;; -----------------------------------------------------------------------------
 ;; Tool Bar
@@ -225,9 +227,9 @@
                                      :style-class "cross"}
                            :on-action {:event-type :delete :index i}}]}}))
 
-(defn- filter-console-view [^Node filter-console-button {:keys [open filters text]}]
+(defn- filter-console-view [^Node filter-console-button {:keys [open enabled filters text]}]
   (let [active-filters-count (count (filterv second filters))
-        show-counter (pos? active-filters-count)
+        show-counter (and enabled (pos? active-filters-count))
         anchor (.localToScreen filter-console-button
                                -12.0 ;; shadow offset
                                (- (.getMaxY (.getBoundsInLocal filter-console-button))
@@ -266,7 +268,17 @@
                             :style-class "console-filter-popup-background"}
                            {:fx/type fx.v-box/lifecycle
                             :children
-                            [{:fx/type fx.list-view/lifecycle
+                            [{:fx/type fx.check-box/lifecycle
+                              :focus-traversable false
+                              :max-width ##Inf
+                              :v-box/margin 4
+                              :id "global-console-filtering"
+                              :selected enabled
+                              :on-selected-changed {:event-type :toggle-global-filtering}
+                              :text "Enable filtering"}
+                             {:fx/type fx.separator/lifecycle
+                              :style-class "console-filter-popup-separator"}
+                             {:fx/type fx.list-view/lifecycle
                               :focus-traversable false
                               :style-class "console-filter-popup-list-view"
                               :items (into [] (map-indexed vector) filters)
@@ -286,6 +298,10 @@
   (case (:event-type e)
     :hide (swap! state assoc :open false)
     :show-or-hide (swap! state update :open not)
+    :toggle-global-filtering (let [enabled (not (:enabled @state))]
+                               (prefs/set! prefs console-filtering-key enabled)
+                               (set-filters! (if enabled (:filters @state) []))
+                               (swap! state assoc :enabled enabled))
     :type (swap! state assoc :text (:fx/event e))
     :delete (let [new-state (swap! state update :filters util/remove-index (:index e))]
               (save-filters! prefs (:filters new-state)))
@@ -299,8 +315,9 @@
 
 (defn- init-console-filter! [filter-console-button prefs]
   (let [filters (prefs/get prefs console-filters-prefs-key)
-        state (atom {:open false :text "" :filters filters})]
-    (set-filters! filters)
+        filtering (prefs/get prefs console-filtering-key)
+        state (atom {:open false :enabled filtering :text "" :filters filters})]
+    (set-filters! (if filtering filters []))
     (fx/mount-renderer
       state
       (fx/create-renderer
@@ -401,11 +418,7 @@
 (defmethod json-compatible-region :default [region] (dissoc region :on-click!))
 
 (g/defnk produce-request-response [lines regions]
-  (let [json-regions (keep json-compatible-region regions)
-        body-data {:lines lines
-                   :regions json-regions}
-        body-string (json/write-str body-data)]
-    (http-util/make-json-response body-string)))
+  (http-server/json-response {:lines lines :regions (into [] (keep json-compatible-region) regions)}))
 
 (g/defnode ConsoleNode
   (property indent-type r/IndentType (default :two-spaces))
@@ -751,7 +764,7 @@
       (.addEventHandler MouseEvent/MOUSE_DRAGGED (ui/event-handler event (view/handle-mouse-moved! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_RELEASED (ui/event-handler event (view/handle-mouse-released! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_EXITED (ui/event-handler event (view/handle-mouse-exited! view-node event)))
-      (.addEventHandler ScrollEvent/SCROLL (ui/event-handler event (view/handle-scroll! view-node event))))
+      (.addEventHandler ScrollEvent/SCROLL (ui/event-handler event (view/handle-scroll! view-node false event))))
 
     ;; Configure contexts.
     (ui/context! console-grid-pane :console-grid-pane context-env nil)
@@ -778,20 +791,8 @@
     (ui/timer-start! repainter)
     view-node))
 
-(defn- handle-request! [{:keys [url method] :as _request} console-node]
-  (cond
-    (and (not= "/console" url)
-         (not= "/console/" url))
-    http-util/not-found-response
-
-    (not= "GET" method)
-    http-util/only-get-allowed-response
-
-    :else
-    (g/node-value console-node :request-response)))
-
-(defn make-request-handler [console-view]
+(defn routes [console-view]
   (let [console-node (g/node-value console-view :resource-node)]
     (assert (g/node-instance? ConsoleNode console-node))
-    (fn request-handler [request]
-      (handle-request! request console-node))))
+    {"/console" {"GET" (bound-fn [_]
+                         (g/node-value console-node :request-response))}}))

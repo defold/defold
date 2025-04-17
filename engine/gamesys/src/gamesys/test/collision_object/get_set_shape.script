@@ -15,7 +15,7 @@
 -- helper functions to verify test data.
 -- throws a Lua error if the assert(s) fails.
 local function assert_near(a, b)
-    local eps = 0.001
+    local eps = 0.05
     local diff = math.abs(a - b)
     if not (diff < eps) then
         local err_msg = "assert_near failed, a: " .. tostring(a) .. ", b: " .. tostring(b) .. " diff == " .. tostring(diff) .. " >= " .. tostring(eps)

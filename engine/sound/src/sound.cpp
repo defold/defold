@@ -284,7 +284,7 @@ namespace dmSound
 
     static float GainToScale(float gain)
     {
-    #ifdef DM_SOUND_USE_LEGACY_GAIN
+    #if defined(DM_SOUND_USE_LEGACY_GAIN) && (DM_SOUND_USE_LEGACY_GAIN != 0)
         return gain;
     #else
         gain = dmMath::Clamp(gain, 0.0f, 1.0f);
@@ -398,14 +398,12 @@ namespace dmSound
             }
         }
 
-
         // note: this will be an NoOp if the build target has DM_SOUND_EXPECTED_SIMD defined (compile-time implementation selection)
         DSPImplType dsp_impl = params->m_DSPImplementation;
         if (dsp_impl == DSPIMPL_TYPE_DEFAULT) {
             dsp_impl = device_info.m_DSPImplementation;
         }
         SelectDSPImpl(dsp_impl);
-
 
         sound->m_FrameCount = sound->m_DeviceFrameCount;
         sound->m_MixRate = device_info.m_MixRate;
@@ -1105,7 +1103,8 @@ namespace dmSound
         instance->m_FrameCount = SOUND_MAX_HISTORY + (avail_framecount - used_framecount) + SOUND_MAX_FUTURE;
         assert(instance->m_FrameCount <= SOUND_INSTANCE_STATEFRAMECOUNT);
         uint32_t state_bytes = instance->m_FrameCount * sizeof(float);
-        uint32_t state_offset = used_framecount - SOUND_MAX_HISTORY;
+        // note: offset can be negative without exceeding allocate memory - we hence need to ensure proper, signed extension to 64-bit on system using 64-bit pointers
+        int32_t state_offset = (int32_t)(used_framecount - SOUND_MAX_HISTORY);
 
         for(uint32_t c=0; c<channels; ++c)
         {
@@ -1116,6 +1115,7 @@ namespace dmSound
 
     static inline void MixResampleIdentity(const MixContext* mix_context, SoundInstance* instance, uint32_t channels, uint64_t delta, float* mix_buffer[], uint32_t mix_buffer_count, uint32_t avail_framecount)
     {
+        DM_PROFILE(__FUNCTION__);
         (void)delta;
 
         PrepTempBufferState(instance, channels);
@@ -1140,7 +1140,8 @@ namespace dmSound
     }
 
     static inline void MixResamplePolyphase(const MixContext* mix_context, SoundInstance* instance, uint32_t channels, uint64_t delta, float* mix_buffer[], uint32_t mix_buffer_count, uint32_t avail_framecount)
-    { 
+    {
+        DM_PROFILE(__FUNCTION__);
         static_assert(SOUND_MAX_MIX_CHANNELS == 2, "this code assumes 2 mix channels");
 
         PrepTempBufferState(instance, channels);
@@ -1171,6 +1172,7 @@ namespace dmSound
 
     static inline void MixResample(const MixContext* mix_context, SoundInstance* instance, const dmSoundCodec::Info* info, uint64_t delta, float* mix_buffer[], uint32_t mix_buffer_count, uint32_t avail_framecount)
     {
+        DM_PROFILE(__FUNCTION__);
         // Make sure to update the mixing scale values...
         if (instance->m_ScaleDirty != 0) {
             instance->m_ScaleDirty = 0;
@@ -1189,7 +1191,7 @@ namespace dmSound
             else {
                 assert(info->m_Channels == 2);
 
-#ifdef SOUND_USE_LEGACY_STEREO_PAN
+#if defined(DM_SOUND_USE_LEGACY_STEREO_PAN) && (DM_SOUND_USE_LEGACY_STEREO_PAN != 0)
                 float rs, ls;
                 GetPanScale(instance->m_Pan.m_Current, &ls, &rs);
                 instance->m_ScaleL[0].Set(ls * gain, reset);
@@ -1226,7 +1228,7 @@ namespace dmSound
             else {
                 assert(info->m_Channels == 2);
 
-#if defined(SOUND_USE_LEGACY_STEREO_PAN) && (SOUND_USE_LEGACY_STEREO_PAN != 0)
+#if defined(DM_SOUND_USE_LEGACY_STEREO_PAN) && (DM_SOUND_USE_LEGACY_STEREO_PAN != 0)
                 float rs, ls;
                 GetPanScale(instance->m_Pan.m_Current, &ls, &rs);
                 instance->m_ScaleL[0].Set(ls * gain, reset);
@@ -1301,6 +1303,7 @@ namespace dmSound
 
     static inline void MixInstance(const MixContext* mix_context, SoundInstance* instance)
     {
+        DM_PROFILE(__FUNCTION__);
         SoundSystem* sound = g_SoundSystem;
 
         dmSoundCodec::Info info;
@@ -1542,7 +1545,7 @@ namespace dmSound
                 float max_sq_left;
                 float max_sq_right;
                 GatherPowerData(g->m_MixBuffer, frame_count, g->m_Gain.m_Current, sum_sq_left, sum_sq_right, max_sq_left, max_sq_right);
-                int memory_slot = g->m_NextMemorySlot; 
+                int memory_slot = g->m_NextMemorySlot;
                 g->m_FrameCounts[memory_slot] = frame_count;
                 g->m_SumSquaredMemory[2 * memory_slot + 0] = sum_sq_left;
                 g->m_SumSquaredMemory[2 * memory_slot + 1] = sum_sq_right;
@@ -1722,9 +1725,15 @@ namespace dmSound
             // Get the number of frames available
             uint32_t frame_count = sound->m_DeviceFrameCount;
             if (sound->m_DeviceType->m_GetAvailableFrames)
+            {
                 frame_count = sound->m_DeviceType->m_GetAvailableFrames(sound->m_Device);
+            }
 
             sound->m_FrameCount = frame_count;
+
+            if (frame_count < SOUND_MAX_HISTORY)
+                continue;
+
             MixContext mix_context(current_buffer, total_buffers, frame_count);
             MixInstances(&mix_context);
 
@@ -1733,7 +1742,10 @@ namespace dmSound
             // DEF-2540: Make sure to keep feeding the sound device if audio is being generated,
             // if you don't you'll get more slots free, thus updating sound (redundantly) every call,
             // resulting in a huge performance hit. Also, you'll fast forward the sounds.
-            sound->m_DeviceType->m_Queue(sound->m_Device, (const int16_t*) sound->m_OutBuffers[sound->m_NextOutBuffer], frame_count);
+            {
+                DM_PROFILE("QueueBuffer");
+                sound->m_DeviceType->m_Queue(sound->m_Device, (const int16_t*) sound->m_OutBuffers[sound->m_NextOutBuffer], frame_count);
+            }
 
             sound->m_NextOutBuffer = (sound->m_NextOutBuffer + 1) % SOUND_OUTBUFFER_COUNT;
             current_buffer++;

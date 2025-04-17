@@ -68,7 +68,8 @@ import com.dynamo.rig.proto.Rig.AnimationSet;
 
 import static com.dynamo.bob.util.ComponentsCounter.isCompCounterStorage;
 
-@BuilderParams(name = "GameProjectBuilder", inExts = ".project", outExt = "")
+@BuilderParams(name = "GameProjectBuilder", inExts = ".project", outExt = "", paramsForSignature = {"liveupdate", "variant", "archive", "archive-resource-padding",
+                "platform", "manifest-private-key", "manifest-public-key", "build-report-json", "build-report-html"})
 public class GameProjectBuilder extends Builder {
 
     // Root nodes to follow (default values from engine.cpp)
@@ -122,8 +123,7 @@ public class GameProjectBuilder extends Builder {
         ProtoBuilder.addMessageClass(".skeletonc", Skeleton.class);
         ProtoBuilder.addMessageClass(".texturesetc", TextureSet.class);
 
-        boolean shouldPublish = project.option("liveupdate", "false").equals("true");
-        project.createPublisher(shouldPublish);
+        project.createPublisher();
         TaskBuilder builder = Task.newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
@@ -161,7 +161,12 @@ public class GameProjectBuilder extends Builder {
         }
 
         String textureProfilesPath = project.getProjectProperties().getStringValue("graphics", "texture_profiles", "/builtins/graphics/default.texture_profiles");
-        createSubTask(textureProfilesPath, "", builder);
+        createSubTask(textureProfilesPath, "graphics.texture_profiles", builder);
+
+        IResource publisherSettingsResorce = project.getPublisher().getPublisherSettingsResorce();
+        if (publisherSettingsResorce != null) {
+            builder.addInput(publisherSettingsResorce);
+        }
 
         return builder.build();
     }
@@ -244,6 +249,7 @@ public class GameProjectBuilder extends Builder {
 
     private ManifestBuilder createManifestBuilder(ResourceGraph resourceGraph) throws IOException {
         String projectIdentifier = project.getProjectProperties().getStringValue("project", "title", "<anonymous>");
+        final String variant = project.option("variant", Bob.VARIANT_RELEASE);
         String supportedEngineVersionsString = project.getPublisher().getSupportedVersions();
         String privateKeyFilepath = project.getPublisher().getManifestPrivateKey();
         String publicKeyFilepath = project.getPublisher().getManifestPublicKey();
@@ -253,6 +259,7 @@ public class GameProjectBuilder extends Builder {
         manifestBuilder.setSignatureHashAlgorithm(HashAlgorithm.HASH_SHA256);
         manifestBuilder.setSignatureSignAlgorithm(SignAlgorithm.SIGN_RSA);
         manifestBuilder.setProjectIdentifier(projectIdentifier);
+        manifestBuilder.setBuildVariant(variant);
         manifestBuilder.setResourceGraph(resourceGraph);
 
         // Try manifest signing keys specified through the publisher
@@ -413,6 +420,7 @@ public class GameProjectBuilder extends Builder {
                 ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder, getResourcePadding(), project);
                 createArchive(archiveBuilder, resources, archiveIndex, archiveData, excludedResources);
                 byte[] manifestFile = manifestBuilder.buildManifest();
+                this.project.setArchiveBuilder(archiveBuilder);
 
                 // Write outputs to the build system
                 // game.arci

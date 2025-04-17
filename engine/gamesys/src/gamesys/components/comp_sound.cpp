@@ -32,8 +32,8 @@
 #include "comp_private.h"
 
 DM_PROPERTY_EXTERN(rmtp_Components);
-DM_PROPERTY_U32(rmtp_Sound, 0, FrameReset, "# components", &rmtp_Components);
-DM_PROPERTY_U32(rmtp_SoundPlaying, 0, FrameReset, "# sounds playing", &rmtp_Sound);
+DM_PROPERTY_U32(rmtp_Sound, 0, PROFILE_PROPERTY_FRAME_RESET, "# components", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_SoundPlaying, 0, PROFILE_PROPERTY_FRAME_RESET, "# sounds playing", &rmtp_Sound);
 
 namespace dmGameSystem
 {

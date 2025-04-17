@@ -72,7 +72,7 @@
 (defonce ^:private reload-job-atom (atom nil))
 
 (defn- start-reload-job! [render-progress! workspace moved-files changes-view]
-  (let [project-path (workspace/project-path workspace)
+  (let [project-directory (workspace/project-directory workspace)
         dependencies (workspace/dependencies workspace)
         snapshot-cache (workspace/snapshot-cache workspace)
         success-promise (promise)
@@ -86,7 +86,7 @@
     (future
       (try
         (render-progress! (progress/make-indeterminate "Loading external changes..."))
-        (let [snapshot-info (workspace/make-snapshot-info workspace project-path dependencies snapshot-cache)]
+        (let [snapshot-info (workspace/make-snapshot-info workspace project-directory dependencies snapshot-cache)]
           (render-progress! progress/done)
           (ui/run-later
             (try

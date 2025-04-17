@@ -10,6 +10,7 @@ import sys, re, os
 import waf_dynamo, waf_ddf
 import waflib.Options
 import TestContext
+from build_constants import TargetOS
 
 test_context = None
 
@@ -25,6 +26,7 @@ def configure(conf):
     conf.load('waf_dynamo')
     conf.recurse('src')
 
+    target_os = conf.env['TARGET_OS']
     conf.env.append_value('INCLUDES', "default/src")
 
     conf.env['STLIB_DLIB'] = 'dlib'
@@ -32,7 +34,7 @@ def configure(conf):
 
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="PROFILER"')
 
-    if 'win32' in conf.env.PLATFORM:
+    if target_os == TargetOS.WINDOWS:
         conf.env.append_value('LINKFLAGS', ['Psapi.lib'])
 
 def build(bld):

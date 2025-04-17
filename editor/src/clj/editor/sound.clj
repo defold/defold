@@ -56,7 +56,7 @@
             (aget (.getExeSuffixes platform) 0))))
 
 (defn validate-if-ogg [_node-id resource]
-  (when (= "ogg" (resource/ext resource))
+  (when (some #{(resource/ext resource)} ["ogg" "opus"])
     (let [temp-file (fs/create-temp-file! "sound" ".ogg")]
       (try
         (with-open [is (io/input-stream resource)]

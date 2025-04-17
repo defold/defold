@@ -10,6 +10,7 @@ import sys, re
 import waf_dynamo, waf_ddf
 import waflib.Options
 import TestContext
+from build_constants import TargetOS
 
 test_context = None
 
@@ -23,6 +24,7 @@ def options(opt):
 
 def configure(conf):
     conf.load('waf_dynamo')
+    target_os = conf.env['TARGET_OS']
 
     waf_ddf.configure(conf)
 
@@ -44,11 +46,9 @@ def configure(conf):
 
     if platform in ("x86_64-macos",):
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'CoreVideo'])
-    if platform in ("arm64-ios",'x86_64-ios'):
+    if target_os == TargetOS.IOS:
         conf.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'OpenGLES', '-framework', 'QuartzCore', '-framework', 'CoreGraphics'])
-    if platform in ("x86_64-linux",):
-        conf.env['LIB_X'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']
-    if 'win32' in platform:
+    if target_os == TargetOS.WINDOWS:
         conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'glu32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib'])
 
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="GUI"')

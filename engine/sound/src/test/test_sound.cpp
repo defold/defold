@@ -105,7 +105,6 @@ extern uint32_t MUSIC_OPUS_SIZE;
 extern unsigned char AMBIENCE_OPUS[];
 extern uint32_t AMBIENCE_OPUS_SIZE;
 
-
 struct TestParams
 {
     typedef dmSound::SoundDataType SoundDataType;
@@ -118,7 +117,7 @@ struct TestParams
     uint32_t    m_Channels;
     uint32_t    m_ToneRate;
     uint32_t    m_MixRate;
-    uint32_t    m_BufferFrameCount;
+    uint32_t    m_BufferFrameCount; // For the sound device
     float       m_Pan;
     float       m_Speed;
     uint8_t     m_Loopcount;
@@ -173,6 +172,13 @@ struct TestParams
         m_BufferFrameCount = buffer_frame_count;
     }
 
+    float LengthInSeconds()
+    {
+        if (!m_MixRate)
+            return 0.0f;
+
+        return (m_FrameCount / (float)m_MixRate) * m_Speed;
+    }
 };
 
 struct TestParams2
@@ -199,7 +205,7 @@ struct TestParams2
     float       m_Gain2;
     bool        m_Ramp2;
 
-    uint32_t    m_BufferFrameCount;
+    uint32_t    m_BufferFrameCount; // For the sound device
     bool        m_UseThread;
 
     TestParams2(const char* device_name,
@@ -524,8 +530,8 @@ INSTANTIATE_TEST_CASE_P(dmSoundTestLoopingTest, dmSoundTestLoopingTest, jc_test_
 // gain to scale conversion
 static float GainToScale(float gain)
 {
-#ifdef DM_SOUND_USE_LEGACY_GAIN
-    return gain
+#if defined(DM_SOUND_USE_LEGACY_GAIN) && (DM_SOUND_USE_LEGACY_GAIN == 1)
+    return gain;
 #else
     gain = dmMath::Clamp(gain, 0.0f, 1.0f);
     const float l = 0.1f;   // linear taper-off range
@@ -1336,7 +1342,7 @@ TEST_P(dmSoundVerifyOpusTest, SkipSync)
     ASSERT_EQ(dmSound::RESULT_OK, r);
     ASSERT_NE((dmSound::HSoundInstance) 0, instance);
 
-    r = dmSound::SetParameter(instance, dmSound::PARAMETER_GAIN, dmVMath::Vector4(0.8f,0,0,0));
+    r = dmSound::SetParameter(instance, dmSound::PARAMETER_GAIN, dmVMath::Vector4(0.5f,0,0,0));
     ASSERT_EQ(dmSound::RESULT_OK, r);
     r = dmSound::SetParameter(instance, dmSound::PARAMETER_SPEED, dmVMath::Vector4(params.m_Speed,0,0,0));
     ASSERT_EQ(dmSound::RESULT_OK, r);
@@ -1389,7 +1395,7 @@ TEST_P(dmSoundVerifyOpusTest, SoundDataRefCount)
     ASSERT_EQ(dmSound::RESULT_OK, r);
     ASSERT_NE((dmSound::HSoundInstance) 0, instance);
 
-    r = dmSound::SetParameter(instance, dmSound::PARAMETER_GAIN, dmVMath::Vector4(0.8f,0,0,0));
+    r = dmSound::SetParameter(instance, dmSound::PARAMETER_GAIN, dmVMath::Vector4(0.5f,0,0,0));
     ASSERT_EQ(dmSound::RESULT_OK, r);
     r = dmSound::SetParameter(instance, dmSound::PARAMETER_SPEED, dmVMath::Vector4(params.m_Speed,0,0,0));
     ASSERT_EQ(dmSound::RESULT_OK, r);
@@ -1465,6 +1471,9 @@ TEST_P(dmSoundTestPlayTest, Play)
     r = dmSound::Play(instance);
     ASSERT_EQ(dmSound::RESULT_OK, r);
 
+    bool playing = false;
+    float length = params.LengthInSeconds();
+    uint64_t tstart = dmTime::GetMonotonicTime();
     do {
         r = dmSound::Update();
         ASSERT_EQ(dmSound::RESULT_OK, r);
@@ -1475,7 +1484,15 @@ TEST_P(dmSoundTestPlayTest, Play)
         r = dmSound::SetParameter(instance, dmSound::PARAMETER_PAN, dmVMath::Vector4(cosf(a),0,0,0));
         ASSERT_EQ(dmSound::RESULT_OK, r);
 
-    } while (dmSound::IsPlaying(instance));
+        uint64_t tend = dmTime::GetMonotonicTime();
+        float elapsed = (tend - tstart) / 1000000.0f;
+
+        if (length > 0.0f)
+            playing = elapsed <= length;
+        else
+            playing = dmSound::IsPlaying(instance);
+
+    } while (playing);
 
     r = dmSound::DeleteSoundInstance(instance);
     ASSERT_EQ(dmSound::RESULT_OK, r);
@@ -1563,6 +1580,10 @@ const TestParams params_test_play_test[] = {
     SOUND_TEST("default", STEREO, 2000, 44000, 11000, 2048, 2),
     SOUND_TEST("default", STEREO, 2000, 44100, 11025, 2048, 2),
     SOUND_TEST("default", STEREO, 2000, 48000, 12000, 2048, 2),
+
+    TestParams("default", AMBIENCE_OPUS, AMBIENCE_OPUS_SIZE, dmSound::SOUND_DATA_TYPE_OPUS, 0, 0, 0, 2048, 2),
+//  TestParams("default", MUSIC_OPUS, MUSIC_OPUS_SIZE, dmSound::SOUND_DATA_TYPE_OPUS, 0, 0, 0, 2048, 2),
+    TestParams("default", MONO_RESAMPLE_FRAMECOUNT_16000_OPUS, MONO_RESAMPLE_FRAMECOUNT_16000_OPUS_SIZE, dmSound::SOUND_DATA_TYPE_OPUS, 0, 0, 0, 2048, 1),
 };
 INSTANTIATE_TEST_CASE_P(dmSoundTestPlayTest, dmSoundTestPlayTest, jc_test_values_in(params_test_play_test));
 

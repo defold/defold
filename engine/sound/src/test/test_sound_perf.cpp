@@ -223,6 +223,7 @@ TEST_F(dmSoundTest, MeasureOpusSkip)
 {
     RunSuite("OpusDecoder", dmSound::SOUND_DATA_TYPE_OPUS, true);
 }
+
 #endif
 
 extern "C" void dmExportedSymbols();

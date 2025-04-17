@@ -1,30 +1,61 @@
 #! /usr/bin/env python
 from waf_dynamo import platform_supports_feature
 
+from BuildUtility import create_build_utility
+
 def build(bld):
-    bld.program(features = 'cxx test',
-                source = 'test_physics.cpp',
-                use = 'TESTMAIN DLIB PROFILE_NULL PLATFORM_THREAD SOCKET BULLET physics Box2D',
-                includes = ['../../../src', '../../../src/box2d'],
-                target = 'test_physics')
+    build_util = create_build_utility(bld.env)
+
+    box2d_defold_includes = [build_util.get_dynamo_ext('include', 'box2d_defold')]
 
     bld.program(features = 'cxx test',
-                    source = 'test_physics_2d.cpp',
-                    use = 'TESTMAIN DLIB PROFILE_NULL PLATFORM_THREAD SOCKET BULLET physics_2d Box2D',
-                    includes = ['../../../src', '../../../src/box2d'],
-                    target = 'test_physics_2d')
+                defines = 'PHYSICS_TEST_BULLET_3D',
+                source = 'test_physics.cpp',
+                use = 'TESTMAIN DLIB PROFILE_NULL PLATFORM_THREAD SOCKET BULLET physics',
+                includes = ['../../../src'],
+                target = 'test_physics_bullet3d')
+
+    bld.program(features = 'cxx test',
+                defines = 'PHYSICS_TEST_BOX2D',
+                source = 'test_physics.cpp',
+                use = 'TESTMAIN DLIB PROFILE_NULL PLATFORM_THREAD SOCKET BOX2D physics_2d',
+                includes = ['../../../src'],
+                target = 'test_physics_box2d')
+
+    bld.program(features = 'cxx test',
+                defines = 'PHYSICS_TEST_BOX2D_DEFOLD',
+                source = 'test_physics.cpp',
+                use = 'TESTMAIN DLIB PROFILE_NULL PLATFORM_THREAD SOCKET BOX2D_DEFOLD physics_2d_defold',
+                includes = ['../../../src'] + box2d_defold_includes,
+                target = 'test_physics_box2d_defold')
+
+    bld.program(features = 'cxx test',
+                source = 'test_physics_2d.cpp',
+                defines = 'PHYSICS_TEST_BOX2D',
+                use = 'TESTMAIN DLIB PROFILE_NULL PLATFORM_THREAD SOCKET BULLET BOX2D physics_2d',
+                includes = ['../../../src'],
+                target = 'test_physics_2d_box2d')
+
+    bld.program(features = 'cxx test',
+                source = 'test_physics_2d.cpp',
+                defines = 'PHYSICS_TEST_BOX2D_DEFOLD',
+                use = 'TESTMAIN DLIB PROFILE_NULL PLATFORM_THREAD SOCKET BULLET BOX2D_DEFOLD physics_2d_defold',
+                includes = ['../../../src'] + box2d_defold_includes,
+                target = 'test_physics_2d_box2d_defold')
 
     # Note that these null tests won't actually work since the tests aren't written that way.
     # The test is instead that the executables link properly (so that we don't miss any unresolved symbols)
     # We do this by removing the 'test' feature which excludes it from the test run
     bld.program(features = 'cxx test skip_test',
-                    source = 'test_physics.cpp',
-                    use = 'TESTMAIN DLIB PROFILE_NULL GTEST PLATFORM_THREAD SOCKET BULLET physics_null',
-                    includes = ['../../../src', '../../../src/box2d'],
-                    target = 'test_physics_null')
+                source = 'test_physics.cpp',
+                defines = 'PHYSICS_TEST_BOX2D',
+                use = 'TESTMAIN DLIB PROFILE_NULL GTEST PLATFORM_THREAD SOCKET BULLET physics_null',
+                includes = ['../../../src'],
+                target = 'test_physics_null')
 
     bld.program(features = 'cxx test skip_test',
-                    source = 'test_physics_2d.cpp',
-                    use = 'TESTMAIN DLIB PROFILE_NULL GTEST PLATFORM_THREAD SOCKET BULLET physics_null',
-                    includes = ['../../../src', '../../../src/box2d'],
-                    target = 'test_physics_2d_null')
+                source = 'test_physics_2d.cpp',
+                defines = 'PHYSICS_TEST_BOX2D',
+                use = 'TESTMAIN DLIB PROFILE_NULL GTEST PLATFORM_THREAD SOCKET BULLET physics_null',
+                includes = ['../../../src'],
+                target = 'test_physics_2d_null')

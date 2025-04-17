@@ -110,6 +110,7 @@
         items        (into []
                            (filter #(and (= :file (resource/source-type %))
                                          (accepted-ext (resource/type-ext %))
+                                         (resource/loaded? %)
                                          (not (resource/internal? %))
                                          (accept-fn %)))
                            (g/node-value workspace :resource-list))

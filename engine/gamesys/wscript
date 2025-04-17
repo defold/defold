@@ -11,6 +11,7 @@ import waf_ddf, waf_graphics, waf_dynamo, waf_physics, waf_render
 from waf_dynamo import platform_supports_feature
 import waflib.Options
 import TestContext
+from build_constants import TargetOS
 
 test_context = None
 
@@ -26,23 +27,20 @@ def options(opt):
 def configure(conf):
     conf.load('waf_dynamo')
     conf.load('java')
+    target_os = conf.env['TARGET_OS']
 
     waf_ddf.configure(conf)
     waf_graphics.configure(conf)
     waf_physics.configure(conf)
     waf_render.configure(conf)
 
-    platform = conf.env['PLATFORM']
-
-    if platform in ("x86_64-macos",):
+    if target_os == TargetOS.MACOS:
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo', '-framework', 'QuartzCore'])
-    elif platform in ('arm64-ios', 'x86_64-ios'):
+    elif target_os == TargetOS.IOS:
         pass
-    elif re.match('arm.*?android', platform):
+    elif target_os == TargetOS.ANDROID:
         conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2', '-landroid'])
-    elif platform == "linux" or platform == "x86_64-linux":
-        conf.env['LIB_X'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']
-    elif "win32" in platform:
+    elif target_os == TargetOS.WINDOWS:
         conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'dinput8.lib', 'dxguid.lib'])
 
     conf.env.append_value('INCLUDES', "default/src")

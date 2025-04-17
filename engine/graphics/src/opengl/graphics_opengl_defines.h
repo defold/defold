@@ -17,10 +17,17 @@
 
 #if defined(__linux__) && !defined(ANDROID)
 
+#if defined(DM_GRAPHICS_USE_OPENGLES)
+#define GL_GLEXT_PROTOTYPES
+#include <GLES3/gl3.h>
+#include <GLES2/gl2ext.h>
+#define GL_BGRA GL_BGRA_EXT
+#else
 #define GL_HAS_RENDERDOC_SUPPORT
 #include <GL/gl.h>
 #include <GL/glu.h>
 #include <GL/glut.h>
+#endif
 
 #elif defined (__MACH__)
 
@@ -96,6 +103,19 @@
     #define DMGRAPHICS_IMAGE_2D                         (GL_IMAGE_2D)
 #else
     #define DMGRAPHICS_IMAGE_2D                         (0x904D)
+#endif
+
+// 3D Texturing
+#ifdef GL_SAMPLER_3D
+    #define DMGRAPHICS_SAMPLER_3D (GL_SAMPLER_3D)
+#else
+    #define DMGRAPHICS_SAMPLER_3D (0x8B5F)
+#endif
+
+#ifdef GL_IMAGE_3D
+    #define DMGRAPHICS_IMAGE_3D (GL_IMAGE_3D)
+#else
+    #define DMGRAPHICS_IMAGE_3D (0x904E)
 #endif
 
 // Barrier bits

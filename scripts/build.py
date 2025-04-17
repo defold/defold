@@ -26,6 +26,7 @@ import s3
 import sdk
 import release_to_github
 import release_to_steam
+import release_to_egs
 import BuildUtility
 import http_cache
 from datetime import datetime
@@ -98,22 +99,190 @@ assert(hasattr(build_private, 'get_tag_suffix'))
 def get_target_platforms():
     return BASE_PLATFORMS + build_private.get_target_platforms()
 
-PACKAGES_ALL="protobuf-3.20.1 waf-2.0.3 junit-4.6 jsign-4.2 protobuf-java-3.20.1 openal-1.1 maven-3.0.1 vecmath vpx-1.7.0 luajit-2.1.0-a4f56a4 tremolo-b0cb4d1 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.10.2 vulkan-v1.3.299".split()
-PACKAGES_HOST="vpx-1.7.0 luajit-2.1.0-a4f56a4 tremolo-b0cb4d1".split()
-PACKAGES_IOS_X86_64="protobuf-3.20.1 luajit-2.1.0-a4f56a4 tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
-PACKAGES_IOS_64="protobuf-3.20.1 luajit-2.1.0-a4f56a4 tremolo-b0cb4d1 bullet-2.77 moltenvk-1.3.261.1 glfw-2.7.1".split()
-PACKAGES_MACOS_X86_64="protobuf-3.20.1 luajit-2.1.0-a4f56a4 vpx-1.7.0 tremolo-b0cb4d1 bullet-2.77 spirv-cross-9040e0d2 spirv-tools-b21dda0e glslang-42d9adf5 moltenvk-1.3.261.1 lipo-9ffdea2 sassc-5472db213ec223a67482df2226622be372921847 glfw-3.4 tint-22b958 astcenc-8b0aa01".split()
-PACKAGES_MACOS_ARM64="protobuf-3.20.1 luajit-2.1.0-a4f56a4 vpx-1.7.0 tremolo-b0cb4d1 bullet-2.77 spirv-cross-9040e0d2 spirv-tools-b21dda0e glslang-42d9adf5 moltenvk-1.3.261.1 lipo-9ffdea2 glfw-3.4 tint-22b958 astcenc-8b0aa01".split()
-PACKAGES_WIN32="protobuf-3.20.1 luajit-2.1.0-a4f56a4 glut-3.7.6 bullet-2.77 vulkan-1.3.261.1 glfw-3.4".split()
-PACKAGES_WIN32_64="protobuf-3.20.1 luajit-2.1.0-a4f56a4 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 glslang-42d9adf5 spirv-cross-9040e0d2 spirv-tools-d24a39a7 vulkan-1.3.261.1 lipo-9ffdea2 glfw-3.4 tint-22b958 astcenc-8b0aa01 directx-headers-1.611.0".split()
-PACKAGES_LINUX_X86_64="protobuf-3.20.1 luajit-2.1.0-a4f56a4 bullet-2.77 glslang-ba5c010c spirv-cross-9040e0d2 spirv-tools-d24a39a7 vulkan-1.1.108  tremolo-b0cb4d1 lipo-9ffdea2 glfw-3.4 tint-22b958 sassc-5472db213ec223a67482df2226622be372921847 astcenc-8b0aa01  opus-1.5.2".split()
-PACKAGES_LINUX_ARM64 ="protobuf-3.20.1 luajit-2.1.0-a4f56a4 bullet-2.77 glslang-2fed4fc0 spirv-cross-9040e0d2 spirv-tools-4fab7435 vulkan-v1.3.299 tremolo-b0cb4d1 lipo-abb8ab1 glfw-3.4 tint-22b958 astcenc-8b0aa01".split() # vulkan-1.1.108".split()
-PACKAGES_ANDROID="protobuf-3.20.1 android-support-multidex androidx-multidex luajit-2.1.0-a4f56a4 tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
+PACKAGES_ALL=[
+    "protobuf-3.20.1",
+    "waf-2.0.3",
+    "junit-4.6",
+    "jsign-4.2",
+    "protobuf-java-3.20.1",
+    "openal-1.1",
+    "maven-3.0.1",
+    "vecmath",
+    "vpx-1.7.0",
+    "luajit-2.1.0-a4f56a4",
+    "tremolo-b0cb4d1",
+    "defold-robot-0.7.0",
+    "bullet-2.77",
+    "libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a",
+    "jctest-0.10.2",
+    "vulkan-v1.4.307",
+    "box2d-3.0.0",
+    "box2d_defold-2.2.1",
+    "opus-1.5.2"]
+
+PACKAGES_HOST=[
+    "vpx-1.7.0",
+    "luajit-2.1.0-a4f56a4",
+    "tremolo-b0cb4d1"]
+
+PACKAGES_IOS_X86_64=[
+    "protobuf-3.20.1",
+    "luajit-2.1.0-a4f56a4",
+    "tremolo-b0cb4d1",
+    "bullet-2.77",
+    "glfw-2.7.1",
+    "box2d-3.0.0",
+    "box2d_defold-2.2.1",
+    "opus-1.5.2"]
+
+PACKAGES_IOS_64=[
+    "protobuf-3.20.1",
+    "luajit-2.1.0-a4f56a4",
+    "tremolo-b0cb4d1",
+    "bullet-2.77",
+    "moltenvk-1474891",
+    "glfw-2.7.1",
+    "box2d-3.0.0",
+    "box2d_defold-2.2.1",
+    "opus-1.5.2"]
+
+PACKAGES_MACOS_X86_64=[
+    "protobuf-3.20.1",
+    "luajit-2.1.0-a4f56a4",
+    "vpx-1.7.0",
+    "tremolo-b0cb4d1",
+    "bullet-2.77",
+    "spirv-cross-9040e0d2",
+    "spirv-tools-b21dda0e",
+    "glslang-42d9adf5",
+    "moltenvk-1474891",
+    "lipo-9ffdea2",
+    "sassc-5472db213ec223a67482df2226622be372921847",
+    "glfw-3.4",
+    "tint-22b958",
+    "astcenc-8b0aa01",
+    "box2d-3.0.0",
+    "box2d_defold-2.2.1",
+    "opus-1.5.2"]
+
+PACKAGES_MACOS_ARM64=[
+    "protobuf-3.20.1",
+    "luajit-2.1.0-a4f56a4",
+    "vpx-1.7.0",
+    "tremolo-b0cb4d1",
+    "bullet-2.77",
+    "spirv-cross-9040e0d2",
+    "spirv-tools-b21dda0e",
+    "glslang-42d9adf5",
+    "moltenvk-1474891",
+    "lipo-9ffdea2",
+    "glfw-3.4",
+    "tint-22b958",
+    "astcenc-8b0aa01",
+    "box2d-3.0.0",
+    "box2d_defold-2.2.1",
+    "opus-1.5.2"]
+
+PACKAGES_WIN32=[
+    "protobuf-3.20.1",
+    "luajit-2.1.0-a4f56a4",
+    "glut-3.7.6",
+    "bullet-2.77",
+    "vulkan-v1.4.307",
+    "glfw-3.4",
+    "box2d-3.0.0",
+    "box2d_defold-2.2.1",
+    "opus-1.5.2"]
+
+PACKAGES_WIN32_64=[
+    "protobuf-3.20.1",
+    "luajit-2.1.0-a4f56a4",
+    "glut-3.7.6",
+    "sassc-5472db213ec223a67482df2226622be372921847",
+    "bullet-2.77",
+    "glslang-42d9adf5",
+    "spirv-cross-9040e0d2",
+    "spirv-tools-d24a39a7",
+    "vulkan-v1.4.307",
+    "lipo-9ffdea2",
+    "glfw-3.4",
+    "tint-22b958",
+    "astcenc-8b0aa01",
+    "directx-headers-1.611.0",
+    "box2d-3.0.0",
+    "box2d_defold-2.2.1",
+    "opus-1.5.2"]
+
+PACKAGES_LINUX_X86_64=[
+    "protobuf-3.20.1",
+    "luajit-2.1.0-a4f56a4",
+    "bullet-2.77",
+    "glslang-ba5c010c",
+    "spirv-cross-9040e0d2",
+    "spirv-tools-d24a39a7",
+    "vulkan-v1.4.307",
+    "tremolo-b0cb4d1",
+    "lipo-9ffdea2",
+    "glfw-3.4",
+    "tint-7bd151a780",
+    "sassc-5472db213ec223a67482df2226622be372921847",
+    "astcenc-8b0aa01",
+    "box2d-3.0.0",
+    "box2d_defold-2.2.1",
+    "opus-1.5.2"]
+
+PACKAGES_LINUX_ARM64=[
+    "protobuf-3.20.1",
+    "luajit-2.1.0-a4f56a4",
+    "bullet-2.77",
+    "glslang-2fed4fc0",
+    "spirv-cross-9040e0d2",
+    "spirv-tools-4fab7435",
+    "vulkan-v1.4.307",
+    "tremolo-b0cb4d1",
+    "lipo-abb8ab1",
+    "glfw-3.4",
+    "tint-7bd151a780",
+    "astcenc-8b0aa01",
+    "box2d-3.0.0",
+    "box2d_defold-2.2.1",
+    "opus-1.5.2"]
+
+PACKAGES_ANDROID=[
+"protobuf-3.20.1",
+    "android-support-multidex",
+    "androidx-multidex",
+    "luajit-2.1.0-a4f56a4",
+    "tremolo-b0cb4d1",
+    "bullet-2.77",
+    "glfw-2.7.1",
+    "box2d-3.0.0",
+    "box2d_defold-2.2.1",
+    "opus-1.5.2"]
 PACKAGES_ANDROID.append(sdk.ANDROID_PACKAGE)
-PACKAGES_ANDROID_64="protobuf-3.20.1 android-support-multidex androidx-multidex luajit-2.1.0-a4f56a4 tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
+
+PACKAGES_ANDROID_64=[
+"protobuf-3.20.1",
+    "android-support-multidex",
+    "androidx-multidex",
+    "luajit-2.1.0-a4f56a4",
+    "tremolo-b0cb4d1",
+    "bullet-2.77",
+    "glfw-2.7.1",
+    "box2d-3.0.0",
+    "box2d_defold-2.2.1",
+    "opus-1.5.2"]
 PACKAGES_ANDROID_64.append(sdk.ANDROID_PACKAGE)
-PACKAGES_EMSCRIPTEN="protobuf-3.20.1 bullet-2.77 glfw-2.7.1".split()
-PACKAGES_NODE_MODULES="xhr2-0.1.0".split()
+
+PACKAGES_EMSCRIPTEN=[
+    "protobuf-3.20.1",
+    "bullet-2.77",
+    "glfw-2.7.1",
+    "box2d-3.0.0",
+    "box2d_defold-2.2.1",
+    "opus-1.5.2"]
+
+PACKAGES_NODE_MODULES=["xhr2-0.1.0"]
 
 PLATFORM_PACKAGES = {
     'win32':          PACKAGES_WIN32,
@@ -153,7 +322,7 @@ if os.environ.get('TERM','') in ('cygwin',):
 ENGINE_LIBS = "testmain dlib jni texc modelc shaderc ddf platform graphics particle lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record profiler engine sdk".split()
 HOST_LIBS = "testmain dlib jni texc modelc shaderc".split()
 
-EXTERNAL_LIBS = "glfw bullet3d opus".split()
+EXTERNAL_LIBS = "box2d glfw bullet3d opus".split()
 
 def get_host_platform():
     return sdk.get_host_platform()
@@ -248,9 +417,12 @@ def download_sdk(conf, url, targetfolder, strip_components=1, force_extract=Fals
         print ("SDK already installed:", targetfolder)
 
 class Configuration(object):
-    def __init__(self, dynamo_home = None,
+    def __init__(self,
+                 defold_home = None,
+                 dynamo_home = None,
                  target_platform = None,
                  skip_tests = False,
+                 keep_bob_uncompressed = False,
                  skip_codesign = False,
                  skip_docs = False,
                  incremental = False,
@@ -287,7 +459,8 @@ class Configuration(object):
         else:
             home = os.environ['HOME']
 
-        self.dynamo_home = dynamo_home if dynamo_home else join(os.getcwd(), 'tmp', 'dynamo_home')
+        self.defold_home = os.path.normpath(join(os.path.dirname(__file__), '..'))
+        self.dynamo_home = dynamo_home if dynamo_home else join(self.defold_home, 'tmp', 'dynamo_home')
         self.ext = join(self.dynamo_home, 'ext')
         self.dmsdk = join(self.dynamo_home, 'sdk')
         self.defold = normpath(join(dirname(abspath(__file__)), '..'))
@@ -298,6 +471,7 @@ class Configuration(object):
         self.build_utility = BuildUtility.BuildUtility(self.target_platform, self.host, self.dynamo_home)
 
         self.skip_tests = skip_tests
+        self.keep_bob_uncompressed = keep_bob_uncompressed
         self.skip_codesign = skip_codesign
         self.skip_docs = skip_docs
         self.incremental = incremental
@@ -348,7 +522,8 @@ class Configuration(object):
             os._exit(5)
 
     def get_python(self):
-        return ['python']
+        self.check_python()
+        return [sys.executable]
 
     def _create_common_dirs(self):
         for p in ['ext/lib/python', 'share', 'lib/js-web/js', 'lib/wasm-web/js']:
@@ -558,6 +733,13 @@ class Configuration(object):
             sys.exit(1)
         return path
 
+    def check_python(self):
+        if sys.version_info.major != 3:
+            self.fatal("The build scripts requires Python 3!")
+
+    def has_sdk(self, sdkfolder, target_platform):
+        return None != sdk.get_sdk_info(sdkfolder, target_platform, False)
+
     def check_sdk(self):
         sdkfolder = join(self.ext, 'SDKs')
 
@@ -597,8 +779,13 @@ class Configuration(object):
 
     def install_sdk(self):
         sdkfolder = join(self.ext, 'SDKs')
-
         target_platform = self.target_platform
+
+        # check host tools availability
+        has_host_sdk = False
+        if sdk.get_host_platform() != target_platform:
+            has_host_sdk = self.has_sdk(sdkfolder, sdk.get_host_platform())
+
         if target_platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
             # macOS SDK
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_MACOS_SDK), join(sdkfolder, sdk.PACKAGES_MACOS_SDK))
@@ -609,7 +796,7 @@ class Configuration(object):
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_IOS_SDK), join(sdkfolder, sdk.PACKAGES_IOS_SDK))
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_IOS_SIMULATOR_SDK), join(sdkfolder, sdk.PACKAGES_IOS_SIMULATOR_SDK))
 
-        if 'win32' in target_platform or ('win32' in self.host):
+        if 'win32' in target_platform or ('win32' in self.host and not has_host_sdk):
             win32_sdk_folder = join(self.ext, 'SDKs', 'Win32')
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_WIN32_TOOLCHAIN), join(win32_sdk_folder, 'MicrosoftVisualStudio14.0'), strip_components=0 )
@@ -631,7 +818,7 @@ class Configuration(object):
         if target_platform in ('armv7-android', 'arm64-android'):
             host = self.host
             if 'win32' in host:
-                host = 'windows'
+                host = 'win'
             elif 'linux' in host:
                 host = 'linux'
             elif 'macos' in host:
@@ -1205,7 +1392,7 @@ class Configuration(object):
         env['GRADLE_OPTS'] = '-Dorg.gradle.parallel=true' #-Dorg.gradle.daemon=true
 
         # Clean and build the project
-        s = run.command(" ".join([gradle, 'clean', 'installBobLight'] + gradle_args), cwd = bob_dir, shell = True, env = env)
+        s = run.command(" ".join([gradle, '-Pkeep-bob-uncompressed', 'clean', 'installBobLight'] + gradle_args), cwd = bob_dir, shell = True, env = env)
         if self.verbose:
         	print (s)
 
@@ -1382,13 +1569,16 @@ class Configuration(object):
             gradle_args += ['--info']
 
         env['GRADLE_OPTS'] = '-Dorg.gradle.parallel=true' #-Dorg.gradle.daemon=true
+        flags = ''
+        if self.keep_bob_uncompressed:
+            flags = '-Pkeep-bob-uncompressed'
 
         # Clean and build the project
-        run.command(" ".join([gradle, 'clean', 'install'] + gradle_args), cwd=bob_dir, shell = True, env = env)
+        run.command(" ".join([gradle, flags, 'clean', 'install'] + gradle_args), cwd=bob_dir, shell = True, env = env)
 
         # Run tests if not skipped
         if not self.skip_tests:
-            run.command(" ".join([gradle, 'testJar'] + gradle_args), cwd = test_dir, shell = True, env = env, stdout = None)
+            run.command(" ".join([gradle, flags, 'testJar'] + gradle_args), cwd = test_dir, shell = True, env = env, stdout = None)
 
 
     def build_sdk_headers(self):
@@ -1651,7 +1841,8 @@ class Configuration(object):
 
 
     def shell(self):
-        print ('Setting up shell with DYNAMO_HOME, PATH, JAVA_HOME, and LD_LIBRARY_PATH/DYLD_LIBRARY_PATH (where applicable) set')
+        self.check_python()
+        print ('Setting up shell with DEFOLD_HOME, DYNAMO_HOME, PATH, JAVA_HOME, and LD_LIBRARY_PATH/DYLD_LIBRARY_PATH (where applicable) set')
 
         args = [SHELL, '-l']
 
@@ -1663,6 +1854,7 @@ class Configuration(object):
             sys.exit(process.returncode)
 
     def fatal(self, msg):
+        self._log("****************************************************")
         self._log(msg)
         sys.exit(1)
 
@@ -1904,6 +2096,24 @@ class Configuration(object):
 
         release_to_github.release(self, tag_name, release_sha1, releases[0], release_name=release_name, body=body, prerelease=prerelease, editor_only=is_editor_branch)
 
+    def get_editor_urls_from_s3(self, archive_path, tag_name):
+        release = s3.get_single_release(archive_path, tag_name)
+        if not release.get("files"):
+            log("No files found on S3")
+            exit(1)
+
+        # get a set of editor files only
+        # for some reasons files are listed more than once in 'release'
+        urls = set()
+        base_url = "https://" + urlparse(archive_path).hostname
+        for file in release.get("files", None):
+            path = file.get("path")
+            if os.path.basename(path) in ('Defold-x86_64-macos.dmg',
+                                          'Defold-x86_64-linux.zip',
+                                          'Defold-x86_64-win32.zip'):
+                urls.add(base_url + path)
+
+        return urls
 
     # Use with ./scripts/build.py release_to_steam --version=1.4.8
     def release_to_steam(self):
@@ -1911,8 +2121,18 @@ class Configuration(object):
         engine_channel = "stable"
         tag_name = self.compose_tag_name(self.version, engine_channel)
         archive_path = self.get_archive_path(editor_channel)
-        release = s3.get_single_release(archive_path, tag_name)
-        release_to_steam.release(self, tag_name, release)
+        urls = self.get_editor_urls_from_s3(archive_path, tag_name)
+        release_to_steam.release(self, urls)
+
+
+    # Use with ./scripts/build.py release_to_egs --version=1.4.8
+    def release_to_egs(self):
+        editor_channel = "editor-alpha"
+        engine_channel = "stable"
+        tag_name = self.compose_tag_name(self.version, engine_channel)
+        archive_path = self.get_archive_path(editor_channel)
+        urls = self.get_editor_urls_from_s3(archive_path, tag_name)
+        release_to_egs.release(self, urls, tag_name)
 
 #
 # END: RELEASE
@@ -2285,6 +2505,7 @@ class Configuration(object):
             self.fatal("Failed to find JAVA_HOME environment variable or valid java executable")
         env['JAVA_HOME'] = os.environ['JAVA_HOME']
 
+        env['DEFOLD_HOME'] = self.defold_home
         env['DYNAMO_HOME'] = self.dynamo_home
 
         android_host = self.host
@@ -2365,6 +2586,11 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       action = 'store_true',
                       default = False,
                       help = 'Skip unit-tests. Default is false')
+
+    parser.add_option('--keep-bob-uncompressed', dest='keep_bob_uncompressed',
+                    action = 'store_true',
+                    default = False,
+                    help = 'do not apply compression to bob.jar. Default is false')
 
     parser.add_option('--skip-codesign', dest='skip_codesign',
                       action = 'store_true',
@@ -2509,6 +2735,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
     c = Configuration(dynamo_home = os.environ.get('DYNAMO_HOME', None),
                       target_platform = target_platform,
                       skip_tests = options.skip_tests,
+                      keep_bob_uncompressed = options.keep_bob_uncompressed,
                       skip_codesign = options.skip_codesign,
                       skip_docs = options.skip_docs,
                       incremental = options.incremental,
@@ -2546,7 +2773,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
             needs_dynamo_home = False
             break
     if needs_dynamo_home:
-        for env_var in ['DYNAMO_HOME', 'PYTHONPATH', 'JAVA_HOME']:
+        for env_var in ['DEFOLD_HOME', 'DYNAMO_HOME', 'PYTHONPATH', 'JAVA_HOME']:
             if not env_var in os.environ:
                 c._log("CMD: " + ' '.join(sys.argv))
                 msg = f"{env_var} was not found in environment.\nDid you use './scripts/build.py shell'?"

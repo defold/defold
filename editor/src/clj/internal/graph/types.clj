@@ -92,7 +92,7 @@
   (node-type             [this]                          "Return the node type that created this node.")
   (get-property          [this basis property]           "Return the value of the named property")
   (set-property          [this basis property value]     "Set the named property")
-  (own-properties        [this]                          "Return a map of property name to value explicitly assigned to this node")
+  (assigned-properties   [this]                          "Return a map of property name to value explicitly assigned to this node")
   (overridden-properties [this]                          "Return a map of property name to override value")
   (property-overridden?  [this property]))
 

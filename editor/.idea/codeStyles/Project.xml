@@ -22,14 +22,17 @@
           <entry key="dynamo.graph/precluding-errors" value="-1" />
           <entry key="dynamo.graph/set-property" value="-1" />
           <entry key="dynamo.graph/transact" value="-1" />
+          <entry key="dynamo.graph/tx-cached-value!" value="-1" />
           <entry key="dynamo.graph/with-auto-evaluation-context" value="-1" />
           <entry key="dynamo.graph/with-auto-or-fake-evaluation-context" value="-1" />
           <entry key="dynamo.graph/with-system" value="-1" />
           <entry key="editor.analytics-test/with-config!" value="-1" />
           <entry key="editor.code.resource/register-code-resource-type" value="-1" />
+          <entry key="editor.defold-project/read-nodes" value="-1" />
           <entry key="editor.defold-project/with-transpiler-txs-fn" value="-1" />
           <entry key="editor.editor-extensions.runtime/lua-fn" value="-1" />
           <entry key="editor.editor-extensions.runtime/suspendable-lua-fn" value="-1" />
+          <entry key="editor.editor-extensions.runtime/varargs-lua-fn" value="-1" />
           <entry key="editor.editor-extensions.validation/ensure" value="-1" />
           <entry key="editor.editor-extensions.vm/with-lock" value="-1" />
           <entry key="editor.file-test/with-temp-dir" value="-1" />
@@ -73,7 +76,6 @@
           <entry key="editor.ui/with-controls" value="-1" />
           <entry key="editor.ui/with-on-edit-event-suppressed" value="-1" />
           <entry key="editor.ui/with-progress" value="-1" />
-          <entry key="editor.updater-test/with-server" value="2" />
           <entry key="editor.workspace/register-resource-type" value="-1" />
           <entry key="editor.workspace/register-view-type" value="-1" />
           <entry key="editor.yaml/with-error-translation" value="-1" />
@@ -86,6 +88,7 @@
           <entry key="integration.test-util/with-prop" value="-1" />
           <entry key="integration.test-util/with-scratch-project" value="-1" />
           <entry key="integration.test-util/with-temp-dir!" value="-1" />
+          <entry key="integration.test-util/write-file-resource!" value="-1" />
           <entry key="org.httpkit.server/with-channel" value="-1" />
           <entry key="support.test-support/with-clean-system" value="-1" />
           <entry key="util.coll/assoc-in-ex" value="-1" />

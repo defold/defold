@@ -96,8 +96,8 @@ extern "C" {
 #endif
 
 DM_PROPERTY_EXTERN(rmtp_Script);
-DM_PROPERTY_U32(rmtp_LuaMem, 0, FrameReset, "kb", &rmtp_Script); // kilo bytes
-DM_PROPERTY_U32(rmtp_LuaRefs, 0, FrameReset, "# Lua references", &rmtp_Script);
+DM_PROPERTY_U32(rmtp_LuaMem, 0, PROFILE_PROPERTY_FRAME_RESET, "kb", &rmtp_Script); // kilo bytes
+DM_PROPERTY_U32(rmtp_LuaRefs, 0, PROFILE_PROPERTY_FRAME_RESET, "# Lua references", &rmtp_Script);
 
 namespace dmEngine
 {
@@ -394,19 +394,32 @@ namespace dmEngine
         if (engine->m_GuiContext)
             dmGui::DeleteContext(engine->m_GuiContext, engine->m_GuiScriptContext);
 
+        ScopedExtensionParams extension_params(engine);
         if (engine->m_SharedScriptContext) {
+            extension_params.SetLuaContext(engine->m_SharedScriptContext);
+            dmExtension::Finalize(extension_params);
+
             dmScript::Finalize(engine->m_SharedScriptContext);
             dmScript::DeleteContext(engine->m_SharedScriptContext);
         } else {
             if (engine->m_GOScriptContext) {
+                extension_params.SetLuaContext(engine->m_GOScriptContext);
+                dmExtension::Finalize(extension_params);
+
                 dmScript::Finalize(engine->m_GOScriptContext);
                 dmScript::DeleteContext(engine->m_GOScriptContext);
             }
             if (engine->m_RenderScriptContext) {
+                extension_params.SetLuaContext(engine->m_RenderScriptContext);
+                dmExtension::Finalize(extension_params);
+
                 dmScript::Finalize(engine->m_RenderScriptContext);
                 dmScript::DeleteContext(engine->m_RenderScriptContext);
             }
             if (engine->m_GuiScriptContext) {
+                extension_params.SetLuaContext(engine->m_GuiScriptContext);
+                dmExtension::Finalize(extension_params);
+
                 dmScript::Finalize(engine->m_GuiScriptContext);
                 dmScript::DeleteContext(engine->m_GuiScriptContext);
             }
@@ -639,12 +652,13 @@ namespace dmEngine
     {
         switch(family)
         {
-            case dmGraphics::ADAPTER_FAMILY_NULL:    return dmPlatform::PLATFORM_GRAPHICS_API_NULL;
-            case dmGraphics::ADAPTER_FAMILY_OPENGL:  return dmPlatform::PLATFORM_GRAPHICS_API_OPENGL;
-            case dmGraphics::ADAPTER_FAMILY_VULKAN:  return dmPlatform::PLATFORM_GRAPHICS_API_VULKAN;
-            case dmGraphics::ADAPTER_FAMILY_VENDOR:  return dmPlatform::PLATFORM_GRAPHICS_API_VENDOR;
-            case dmGraphics::ADAPTER_FAMILY_WEBGPU:  return dmPlatform::PLATFORM_GRAPHICS_API_WEBGPU;
-            case dmGraphics::ADAPTER_FAMILY_DIRECTX: return dmPlatform::PLATFORM_GRAPHICS_API_DIRECTX;
+            case dmGraphics::ADAPTER_FAMILY_NULL:     return dmPlatform::PLATFORM_GRAPHICS_API_NULL;
+            case dmGraphics::ADAPTER_FAMILY_OPENGL:   return dmPlatform::PLATFORM_GRAPHICS_API_OPENGL;
+            case dmGraphics::ADAPTER_FAMILY_OPENGLES: return dmPlatform::PLATFORM_GRAPHICS_API_OPENGLES;
+            case dmGraphics::ADAPTER_FAMILY_VULKAN:   return dmPlatform::PLATFORM_GRAPHICS_API_VULKAN;
+            case dmGraphics::ADAPTER_FAMILY_VENDOR:   return dmPlatform::PLATFORM_GRAPHICS_API_VENDOR;
+            case dmGraphics::ADAPTER_FAMILY_WEBGPU:   return dmPlatform::PLATFORM_GRAPHICS_API_WEBGPU;
+            case dmGraphics::ADAPTER_FAMILY_DIRECTX:  return dmPlatform::PLATFORM_GRAPHICS_API_DIRECTX;
             default:break;
         }
         assert(0);
@@ -1072,7 +1086,7 @@ namespace dmEngine
         {
             char path[1024];
             dmHttpCache::NewParams cache_params;
-            dmSys::Result sys_result = dmSys::GetApplicationSupportPath("defold", path, sizeof(path));
+            dmSys::Result sys_result = dmSys::GetApplicationSupportPath(DMSYS_APPLICATION_NAME, path, sizeof(path));
             if (sys_result == dmSys::RESULT_OK)
             {
                 dmStrlCat(path, "/http-cache", sizeof(path));
@@ -1085,7 +1099,7 @@ namespace dmEngine
             }
             else
             {
-                dmLogWarning("Unable to locate application support path for \"%s\": (%d)", "defold", sys_result);
+                dmLogWarning("Unable to locate application support path for \"%s\": (%d)", DMSYS_APPLICATION_NAME, sys_result);
             }
         }
 #endif
@@ -1347,6 +1361,8 @@ namespace dmEngine
         engine->m_ModelContext.m_RenderContext = engine->m_RenderContext;
         engine->m_ModelContext.m_Factory = engine->m_Factory;
         engine->m_ModelContext.m_MaxModelCount = dmConfigFile::GetInt(engine->m_Config, "model.max_count", 128);
+        engine->m_ModelContext.m_MaxBoneMatrixTextureWidth  = (uint16_t) dmConfigFile::GetInt(engine->m_Config, "model.max_bone_matrix_texture_width", 1024);
+        engine->m_ModelContext.m_MaxBoneMatrixTextureHeight = (uint16_t) dmConfigFile::GetInt(engine->m_Config, "model.max_bone_matrix_texture_height", 1024);
 
         engine->m_LabelContext.m_RenderContext      = engine->m_RenderContext;
         engine->m_LabelContext.m_MaxLabelCount      = dmConfigFile::GetInt(engine->m_Config, "label.max_count", 64);
@@ -1499,6 +1515,7 @@ namespace dmEngine
         script_lib_context.m_GraphicsContext = engine->m_GraphicsContext;
         script_lib_context.m_JobThread       = engine->m_JobThreadContext;
         script_lib_context.m_ConfigFile      = engine->m_Config;
+        script_lib_context.m_Window          = engine->m_Window;
 
         if (engine->m_SharedScriptContext)
         {
@@ -1783,7 +1800,7 @@ bail:
                 dmJobThread::Update(engine->m_JobThreadContext);
 
                 {
-                    DM_PROFILE("Script");
+                    DM_PROFILE("Extension");
 
                     // Script context updates
                     dmGameSystem::ScriptLibContext script_lib_context;
@@ -1985,11 +2002,12 @@ bail:
                 {
                     if (record_data->m_FrameCount % record_data->m_FramePeriod == 0)
                     {
-                        uint32_t width = dmGraphics::GetWidth(engine->m_GraphicsContext);
-                        uint32_t height = dmGraphics::GetHeight(engine->m_GraphicsContext);
-                        uint32_t buffer_size = width * height * 4;
+                        int32_t x = 0, y = 0;
+                        uint32_t w = 0, h = 0;
+                        dmGraphics::GetViewport(engine->m_GraphicsContext, &x, &y, &w, &h);
+                        uint32_t buffer_size = w * h * 4;
 
-                        dmGraphics::ReadPixels(engine->m_GraphicsContext, record_data->m_Buffer, buffer_size);
+                        dmGraphics::ReadPixels(engine->m_GraphicsContext, x, y, w, h, record_data->m_Buffer, buffer_size);
 
                         dmRecord::Result r = dmRecord::RecordFrame(record_data->m_Recorder, record_data->m_Buffer, buffer_size, dmRecord::BUFFER_FORMAT_BGRA);
                         if (r != dmRecord::RESULT_OK)
@@ -2160,8 +2178,9 @@ bail:
 
                 record_data->m_FramePeriod = start_record->m_FramePeriod;
 
-                uint32_t width = dmGraphics::GetWidth(self->m_GraphicsContext);
-                uint32_t height = dmGraphics::GetHeight(self->m_GraphicsContext);
+                int32_t x = 0, y = 0;
+                uint32_t width = 0, height = 0;
+                dmGraphics::GetViewport(self->m_GraphicsContext, &x, &y, &width, &height);
                 dmRecord::NewParams params;
                 params.m_Width = width;
                 params.m_Height = height;
