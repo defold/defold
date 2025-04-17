@@ -123,7 +123,7 @@ def build(bld):
     # ******************************************************************************************************************************
     # Resource providers
     skip_http_test = []
-    if bld.env.PLATFORM in ['wasm-web','js-web']:
+    if bld.env.PLATFORM in ['wasm-web','wasm_pthread-web','js-web']:
         skip_http_test = ['skip_test']
 
     bld.program(features     = 'cxx test',

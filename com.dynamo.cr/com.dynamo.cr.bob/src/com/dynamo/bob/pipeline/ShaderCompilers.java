@@ -84,7 +84,8 @@ public class ShaderCompilers {
             }
             else
             if (platform == Platform.JsWeb ||
-                platform == Platform.WasmWeb) {
+                platform == Platform.WasmWeb ||
+                platform == Platform.WasmPthreadWeb) {
                     if (!isComputeType) {
                         shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
                         shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
@@ -222,7 +223,7 @@ public class ShaderCompilers {
             shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
             shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM430); // Compute
         } else if (platform == Platform.Arm64Linux || platform == Platform.Armv7Android || platform == Platform.Arm64Android ||
-                platform == Platform.JsWeb ||  platform == Platform.WasmWeb) {
+                platform == Platform.JsWeb || platform == Platform.WasmWeb || platform == Platform.WasmPthreadWeb) {
             shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
             shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
         }

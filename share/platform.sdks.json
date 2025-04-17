@@ -1,8 +1,9 @@
 {
     "armv7-android": ["android", "ndk25"],
     "arm64-android": ["android", "ndk25"],
-    "js-web": ["emsdk", "3165"],
-    "wasm-web": ["emsdk", "3165"],
+    "js-web": ["emsdk", "406"],
+    "wasm-web": ["emsdk", "406"],
+    "wasm_pthread-web": ["emsdk", "406"],
     "x86_64-win32": ["winsdk", "2022"],
     "x86-win32": ["winsdk", "2022"],
     "x86_64-linux": ["linux", "latest"],

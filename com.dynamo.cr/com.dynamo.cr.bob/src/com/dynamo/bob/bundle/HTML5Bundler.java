@@ -49,7 +49,7 @@ import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.archive.EngineVersion;
 
-@BundlerParams(platforms = {"js-web", "wasm-web"})
+@BundlerParams(platforms = {"js-web", "wasm-web", "wasm_pthread-web"})
 public class HTML5Bundler implements IBundler {
     private static Logger logger = Logger.getLogger(HTML5Bundler.class.getName());
 
@@ -168,7 +168,8 @@ public class HTML5Bundler implements IBundler {
         // set flag so that we can disable wasm support in the engine_template.html if we're not
         // bundling with a wasm engine
         final List<Platform> architectures = Platform.getArchitecturesFromString(project.option("architectures", ""), platform);
-        properties.put("DEFOLD_HAS_WASM_ENGINE", architectures.contains(Platform.WasmWeb));
+        boolean hasWasm = architectures.contains(Platform.WasmWeb) || architectures.contains(Platform.WasmPthreadWeb);
+        properties.put("DEFOLD_HAS_WASM_ENGINE", hasWasm);
     }
 
     class SplitFile {
@@ -400,7 +401,7 @@ public class HTML5Bundler implements IBundler {
                 try {
                     binsWasm = Bob.getDefaultDmengineFiles(targetPlatform, variant);
                 } catch(IOException e) {
-                    System.err.println("Unable to bundle wasm-web: " + e.getMessage());
+                    System.err.println(String.format("Unable to bundle platform %s: %s", platform, e.getMessage()));
                 }
             }
             else {

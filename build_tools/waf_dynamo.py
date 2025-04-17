@@ -73,15 +73,15 @@ def platform_supports_feature(platform, feature, data):
     if is_platform_private(platform):
         return waf_dynamo_vendor.supports_feature(platform, feature, data)
     if feature == 'vulkan' or feature == 'compute':
-        return platform not in ['js-web', 'wasm-web', 'x86_64-ios']
+        return platform not in ['js-web', 'wasm-web', 'wasm_pthread-web', 'x86_64-ios']
     if feature == 'dx12':
         return platform in ['x86_64-win32']
     if feature == 'opengl_compute':
-        return platform not in ['js-web', 'wasm-web', 'x86_64-ios', 'arm64-ios', 'arm64-macos', 'x86_64-macos']
+        return platform not in ['js-web', 'wasm-web', 'wasm_pthread-web', 'x86_64-ios', 'arm64-ios', 'arm64-macos', 'x86_64-macos']
     if feature == 'opengles':
         return platform in ['arm64-linux']
     if feature == 'webgpu':
-        return platform in ['js-web', 'wasm-web']
+        return platform in ['js-web', 'wasm-web', 'wasm_pthread-web']
     return waf_dynamo_vendor.supports_feature(platform, feature, data)
 
 def platform_setup_tools(ctx, build_util):
@@ -577,13 +577,6 @@ def default_flags(self):
             'MIN_SAFARI_VERSION=150000',
             'MIN_CHROME_VERSION=75']
 
-        if Options.options.with_pthread:
-            emflags_link += [#'PTHREAD_POOL_SIZE_STRICT=2',
-                             #'USE_PTHREADS=1',
-                             #'PROXY_TO_PTHREAD',
-                             #'PTHREAD_POOL_SIZE=%d' % int(Options.options.pthread_pool_size)
-                             ]
-
         if Options.options.with_webgpu and platform_supports_feature(build_util.get_target_platform(), 'webgpu', {}):
             emflags_link += ['USE_WEBGPU', 'GL_WORKAROUND_SAFARI_GETCONTEXT_BUG=0']
             # This is needed so long as we have to use sleep to make initialization
@@ -614,7 +607,11 @@ def default_flags(self):
         flags += ['-O%s' % opt_level]
         linkflags += ['-O%s' % opt_level]
 
-        if Options.options.with_pthread:
+        with_pthread = False
+        if target_arch == 'wasm_pthread':
+            with_pthread = True
+
+        if with_pthread:
             flags += ['-pthread']
             linkflags += ['-pthread']
         else:
@@ -1703,7 +1700,7 @@ def detect(conf):
         print ("Codesign disabled", Options.options.skip_codesign)
 
     # Vulkan support
-    if Options.options.with_vulkan and build_util.get_target_platform() in ('arm64-linux', 'x86_64-ios', 'js-web', 'wasm-web'):
+    if Options.options.with_vulkan and build_util.get_target_platform() in ('arm64-linux', 'x86_64-ios', 'js-web', 'wasm-web', 'wasm_pthread-web'):
         conf.fatal('Vulkan is unsupported on %s' % build_util.get_target_platform())
 
     if target_os == TargetOS.WINDOWS:
@@ -2152,5 +2149,3 @@ def options(opt):
     opt.add_option('--with-dx12', action='store_true', default=False, dest='with_dx12', help='Enables DX12 as a graphics backend')
     opt.add_option('--with-opus', action='store_true', default=False, dest='with_opus', help='Enable Opus audio codec support in runtime')
     opt.add_option('--with-webgpu', action='store_true', default=False, dest='with_webgpu', help='Enables WebGPU as graphics backend')
-    opt.add_option('--with-pthread', action='store_true', default=False, dest='with_pthread', help='Enables pthread support for html5 targets')
-    opt.add_option('--pthread-pool-size', default="4", dest='pthread_pool_size', help='The number of (html5) threads available')
