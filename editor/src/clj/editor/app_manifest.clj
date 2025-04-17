@@ -313,7 +313,7 @@
   (make-check-box-setting
     (concat
       (exclude-libs-toggles all-platforms ["sound" "tremolo"])
-      (generic-contains-toggles all-platforms :excludeSymbols ["DefaultSoundDevice" "AudioDecoderWav" "AudioDecoderStbVorbis" "AudioDecoderTremolo" "AudioDecoderOpus"])
+      (generic-contains-toggles all-platforms :excludeSymbols ["DefaultSoundDevice" "AudioDecoderWav" "AudioDecoderStbVorbis" "AudioDecoderTremolo"])
       (libs-toggles all-platforms ["sound_null"]))))
 
 (def sound-decoder-wav-setting

@@ -72,27 +72,9 @@
         (finally
           (fs/delete! temp-file {:fail :silently}))))))
 
-(defn validate-if-opus [_node-id resource]
-  (when (= "opus" (resource/ext resource))
-    (let [temp-file (fs/create-temp-file! "sound" ".opus")]
-      (try
-        (with-open [is (io/input-stream resource)]
-          (io/copy is temp-file))
-        (let [p (process/start! {:err :stdout} (oggz-validate-path) (str temp-file))
-              output (process/capture! (process/out p))]
-          (when-not (zero? (process/await-exit-code p))
-            (g/->error _node-id :resource :fatal resource
-                       (if output
-                         (str "Invalid ogg file (oggz-validate):\n"
-                              (string/replace output #"^[^\n]+\n" "")) ;; remove first line
-                         "Invalid ogg file"))))
-        (finally
-          (fs/delete! temp-file {:fail :silently}))))))
-
 (g/defnk produce-source-build-targets [_node-id resource]
   (try
     (or (validate-if-ogg _node-id resource)
-        (validate-if-opus _node-id resource)
         [(bt/with-content-hash
            {:node-id _node-id
             :resource (workspace/make-build-resource resource)

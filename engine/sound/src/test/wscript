@@ -117,8 +117,6 @@ def build(bld):
 
     bld.add_group()
 
-    defines = []
-
     embedded_wavs = bld.stlib(features = 'cxx embed test',
                                      target = 'embedded_wavs',
                                      source = 'dummy.cpp',  # Make waf happy
