@@ -132,8 +132,9 @@ TEST(dmSys, Unlink)
 TEST(dmSys, GetApplicationSupportPathBuffer)
 {
     char path[4];
+    char discard[128];
     path[3] = '!';
-    dmSys::Result result = dmSys::GetApplicationSupportPath("testing", path, 3);
+    dmSys::Result result = dmSys::GetApplicationSupportPath(dmTestUtil::MakeHostPath(discard, sizeof(discard), "testdir"), path, 3);
     ASSERT_EQ(dmSys::RESULT_INVAL, result);
     ASSERT_EQ('\0', path[2]);
     ASSERT_EQ('!', path[3]);
@@ -142,8 +143,9 @@ TEST(dmSys, GetApplicationSupportPathBuffer)
 TEST(dmSys, GetApplicationSavePathBuffer)
 {
     char path[4];
+    char discard[128];
     path[3] = '!';
-    dmSys::Result result = dmSys::GetApplicationSavePath("testing", path, 3);
+    dmSys::Result result = dmSys::GetApplicationSavePath(dmTestUtil::MakeHostPath(discard, sizeof(discard), "testdir"), path, 3);
     ASSERT_EQ(dmSys::RESULT_INVAL, result);
     ASSERT_EQ('\0', path[2]);
     ASSERT_EQ('!', path[3]);
@@ -152,7 +154,7 @@ TEST(dmSys, GetApplicationSavePathBuffer)
 TEST(dmSys, GetApplicationSupportPath)
 {
     char path[1024];
-    dmSys::Result result = dmSys::GetApplicationSupportPath("testing", path, sizeof(path));
+    dmSys::Result result = dmSys::GetApplicationSupportPath(dmTestUtil::MakeHostPath(path, sizeof(path), "testdir"), path, sizeof(path));
     ASSERT_EQ(dmSys::RESULT_OK, result);
     ASSERT_EQ(dmSys::RESULT_OK, dmSys::IsDir(path));
 }

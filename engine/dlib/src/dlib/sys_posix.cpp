@@ -414,20 +414,27 @@ namespace dmSys
         return GetApplicationSupportPath(application_name, path, path_len);
     }
 
-    Result GetApplicationSupportPath(const char* application_name, char* path_out, uint32_t path_len)
+    Result GetApplicationSupportPath(const char* application_name, char* path_out, const uint32_t path_len)
     {
         const char* xdg_env = dmSys::GetEnv("XDG_DATA_HOME");
-        const char* xdg = xdg_env ? xdg_env : "$HOME/.local/share";
+        const char* xdg = xdg_env ? xdg_env : dmSys::GetEnv("HOME");
         char xdg_buf[path_len];
 
         dmStrlCpy(xdg_buf, xdg, path_len);
+        //The spec expects us to make $HOME/.local/share with 0700 if it doesn't exist.
+        if (!xdg_env)
+        {
+            dmStrlCat(xdg_buf, "/.local", path_len);
+            dmSys::Mkdir(xdg_buf, 0700);
+            dmStrlCat(xdg_buf, "/share", path_len);
+            dmSys::Mkdir(xdg_buf, 0700);
+        }
         dmStrlCat(xdg_buf, "/", path_len);
         if (dmStrlCat(xdg_buf, application_name, path_len) >= path_len)
             return RESULT_INVAL;
-        const char* xdg_path = xdg_buf;
 
         // No need to continue if {application_name} dir already exists
-        if (realpath(xdg_path, path_out))
+        if (realpath(xdg_buf, path_out))
             return RESULT_OK;
 
         const char* dirs[] = {"HOME", "TMPDIR", "TMP", "TEMP"}; // Added common temp directories since server instances usually don't have a HOME set
@@ -454,25 +461,25 @@ namespace dmSys
             return RESULT_INVAL;
         if (dmStrlCat(home_buf, application_name, path_len) >= path_len)
             return RESULT_INVAL;
-        const char* home_path = home_buf;
 
         // If {home}/.{application_name exists}, return it here
-        if (realpath(home_path, path_out))
+        if (realpath(home_buf, path_out))
         {
-            if (dmStrlCpy(path_out, home_path, path_len) >= path_len)
+            if (dmStrlCpy(path_out, home_buf, path_len) >= path_len)
                 return RESULT_INVAL;
             return RESULT_OK;
         }
         // Default to $HOME/.local/store or $XDG_DATA_DIR
-        if (dmStrlCpy(path_out, xdg_path, path_len) >= path_len)
+        if (dmStrlCpy(path_out, xdg_buf, path_len) >= path_len)
             return RESULT_INVAL;
-        Result r = Mkdir(path_out, 0755);
+
+        Result r = dmSys::Mkdir(path_out, 0755);
         if (r == RESULT_EXIST)
             return RESULT_OK;
         else
             return r;
     }
-    
+
     Result OpenURL(const char* url, const char* target)
     {
         char buf[1024];
