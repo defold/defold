@@ -608,7 +608,7 @@ def default_flags(self):
         linkflags += ['-O%s' % opt_level]
 
         with_pthread = False
-        if target_arch == 'wasm_pthread':
+        if build_util.get_target_platform() == 'wasm_pthread-web':
             with_pthread = True
 
         if with_pthread:
