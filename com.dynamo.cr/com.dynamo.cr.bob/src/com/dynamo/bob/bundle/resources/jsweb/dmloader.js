@@ -264,6 +264,10 @@ var EngineLoader = {
     wasm_size: {{ DEFOLD_WASM_SIZE }},
     {{#DEFOLD_WASMJS_SHA1}}wasmjs_sha1: "{{DEFOLD_WASMJS_SHA1}}",{{/DEFOLD_WASMJS_SHA1}}
     wasmjs_size: {{ DEFOLD_WASMJS_SIZE }},
+    {{#DEFOLD_WASM_PTHREAD_SHA1}}wasm_pthread_sha1: "{{DEFOLD_WASM_PTHREAD_SHA1}}",{{/DEFOLD_WASM_PTHREAD_SHA1}}
+    wasm_pthread_size: {{ DEFOLD_WASM_PTHREAD_SIZE }},
+    {{#DEFOLD_WASMJS_PTHREAD_SHA1}}wasmjs_pthread_sha1: "{{DEFOLD_WASMJS_PTHREAD_SHA1}}",{{/DEFOLD_WASMJS_PTHREAD_SHA1}}
+    wasmjs_pthread_size: {{ DEFOLD_WASMJS_PTHREAD_SIZE }},
     {{#ASMJS_SHA1}}asmjs_sha1: "{{ASMJS_SHA1}}",{{/ASMJS_SHA1}}
     asmjs_size: {{ ASMJS_SIZE }},
     wasm_instantiate_progress: 0,
@@ -1259,12 +1263,22 @@ Module['onRuntimeInitialized'] = function() {
     Module.runApp("canvas");
 };
 
+{{#DEFOLD_HAS_WASM_PTHREAD_ENGINE}}
+Module["isWASMPthreadSupported"] = {{DEFOLD_HAS_WASM_PTHREAD_ENGINE}};
+{{/DEFOLD_HAS_WASM_PTHREAD_ENGINE}}
+
 Module["locateFile"] = function(path, scriptDirectory)
 {
     // dmengine*.wasm is hardcoded in the built JS loader for WASM,
     // we need to replace it here with the correct project name.
     if (path == "dmengine.wasm" || path == "dmengine_release.wasm" || path == "dmengine_headless.wasm") {
         path = "{{exe-name}}.wasm";
+    }
+    if (Module['isWASMPthreadSupported'])
+    {
+        if (path == "dmengine.wasm" || path == "dmengine_release.wasm" || path == "dmengine_headless.wasm") {
+            path = "{{exe-name}}.wasm";
+        }
     }
     return scriptDirectory + path;
 };
