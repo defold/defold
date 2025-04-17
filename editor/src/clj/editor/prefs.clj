@@ -38,20 +38,29 @@
                    positional schemas
 
   Additionally, each schema map supports these optional keys:
-    :default        explicit default value to use instead of a type default
-    :scope          either :global or :project
-    :label          short description of the schema, a string
-    :description    longer description of the schema, a string
+    :default    explicit default value to use instead of a type default
+    :scope      either :global or :project
+    :ui         the ui configuration, a map with the following keys:
+                  :label          short description of the schema, a string
+                  :description    longer description of the schema, a string
+                  :multiline      for string inputs: whether to show a multiline
+                                  text-area, a boolean
+                  :prompt         for string inputs: prompt text
+                  :type           different schema type, the input should
+                                  support the value
 
   See also:
     https://code.visualstudio.com/api/references/contribution-points#contributes.configuration
     https://docs.google.com/document/d/17ke9huzMaagHAYmdzGGGRHnDD5ViLZrChT3OYaEXZuU/edit
     https://json-schema.org/understanding-json-schema/reference"
   (:refer-clojure :exclude [get set?])
-  (:require [clojure.edn :as edn]
+  (:require [camel-snake-kebab :as camel]
+            [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.spec.alpha :as s]
+            [clojure.string :as string]
             [cognitect.transit :as transit]
+            [editor.connection-properties :as connection-properties]
             [editor.fs :as fs]
             [editor.os :as os]
             [util.coll :as coll]
@@ -75,19 +84,25 @@
    :properties
    {:asset-browser {:type :object
                     :properties
-                    {:track-active-tab {:type :boolean :label "Track Active Tab in Asset Browser"}}}
+                    {:track-active-tab {:type :boolean
+                                        :ui {:label "Track Active Tab in Asset Browser"}}}}
     :input {:type :object
             :properties
-            {:keymap-path {:type :string :label "Path to Custom Keymap"}}}
+            {:keymap-path {:type :string
+                           :ui {:label "Path to Custom Keymap"}}}}
     :code {:type :object
            :properties
            {:custom-editor {:type :string}
             :open-file {:type :string :default "{file}"}
-            :open-file-at-line {:type :string :default "{file}:{line}" :label "Open File at Line"}
-            :zoom-on-scroll {:type :boolean}
+            :open-file-at-line {:type :string
+                                :default "{file}:{line}"
+                                :ui {:label "Open File at Line"}}
+            :zoom-on-scroll {:type :boolean :ui {:label "Zoom on Scroll"}}
             :font {:type :object
                    :properties
-                   {:name {:type :string :default "Dejavu Sans Mono"}
+                   {:name {:type :string
+                           :default "Dejavu Sans Mono"
+                           :ui {:label "Code Editor Font (Requires Restart)"}}
                     :size {:type :number :default 12.0}}}
             :find {:type :object
                    :scope :project
@@ -105,17 +120,19 @@
     :tools {:type :object
             :properties
             {:adb-path {:type :string
-                        :label "ADB path"
-                        :description "Path to ADB command that might be used to install and launch the Android app when it's bundled"}
+                        :ui {:label "ADB path"
+                             :description "Path to ADB command that might be used to install and launch the Android app when it's bundled"}}
              :ios-deploy-path {:type :string
-                               :label "ios-deploy path"
-                               :description "Path to ios-deploy command that might be used to install and launch iOS app when it's bundled"}}}
+                               :ui {:label "ios-deploy path"
+                                    :description "Path to ios-deploy command that might be used to install and launch iOS app when it's bundled"}}}}
     :extensions {:type :object
                  :properties
-                 {:build-server {:type :string}
+                 {:build-server {:type :string
+                                 :ui {:prompt connection-properties/defold-build-server-url}}
                   :build-server-username {:type :string}
                   :build-server-password {:type :password}
-                  :build-server-headers {:type :string}}}
+                  :build-server-headers {:type :string
+                                         :ui {:multiline true}}}}
     :search-in-files {:type :object
                       :scope :project
                       :properties
@@ -129,15 +146,22 @@
     :build {:type :object
             :scope :project
             :properties
-            {:lint-code {:type :boolean :default true :label "Lint Code on Build"}
-             :texture-compression {:type :boolean}
-             :open-html5-build {:type :boolean :default true :label "Open Browser After `Build HTML5`"}}}
+            {:lint-code {:type :boolean
+                         :default true
+                         :ui {:label "Lint Code on Build"}}
+             :texture-compression {:type :boolean
+                                   :ui {:label "Enable Texture Compression"}}
+             :open-html5-build {:type :boolean
+                                :default true
+                                :ui {:label "Open Browser After `Build HTML5`"}}}}
     :bundle {:type :object
              :scope :project
              :properties
              {:last-bundle-command {:type :any}
               :output-directory {:type :string}
-              :open-output-directory {:type :boolean :default true}}}
+              :open-output-directory {:type :boolean
+                                      :default true
+                                      :ui {:label "Open Bundle Target Folder"}}}}
     :window {:type :object
              :properties
              {:dimensions {:type :any}
@@ -147,7 +171,7 @@
                :properties
                {:load-external-changes-on-app-focus {:type :boolean
                                                      :default true
-                                                     :label "Load External Changes on App Focus"}
+                                                     :ui {:label "Load External Changes on App Focus"}}
                 :recent-files {:type :array
                                :item {:type :tuple :items [{:type :string} {:type :keyword}]}
                                :scope :project}
@@ -156,23 +180,30 @@
                                :scope :project}}}
     :console {:type :object
               :properties
-              {:filters {:type :array
+              {:filtering {:type :boolean :default true}
+               :filters {:type :array
                          :item {:type :tuple :items [{:type :string} {:type :boolean}]}}}}
     :run {:type :object
           :properties
           {:instance-count {:type :integer :default 1 :scope :project}
            :selected-target-id {:type :any}
            :manual-target-ip+port {:type :string}
-           :quit-on-escape {:type :boolean :label "Escape Quits Game"}
+           :quit-on-escape {:type :boolean
+                            :ui {:label "Escape Quits Game"}}
            :simulate-rotated-device {:type :boolean :scope :project}
            :simulated-resolution {:type :any :scope :project}
-           :engine-arguments {:type :string :scope :project}}}
+           :engine-arguments {:type :string
+                              :scope :project
+                              :ui {:multiline true
+                                   :prompt "One argument per line"
+                                   :description "Arguments that will be passed to the dmengine executables when the editor builds and runs.\n Use one argument per line. For example:\n--config=bootstrap.main_collection=/my dir/1.collectionc\n--verbose\n--graphics-adapter=vulkan"}}}}
     :scene {:type :object
             :properties
             {:move-whole-pixels {:type :boolean :default true}}}
     :dev {:type :object
           :properties
-          {:custom-engine {:type :any}}}
+          {:custom-engine {:type :any
+                           :ui {:type :string}}}}
     :git {:type :object
           :properties
           {:credentials {:type :any :scope :project}}}
@@ -276,16 +307,20 @@
 (defn- default-valid? [schema]
   (let [v (:default schema ::not-found)]
     (or (identical? v ::not-found) (valid? schema v))))
-(defmulti type-spec :type)
 (s/def ::label string?)
 (s/def ::description string?)
+(s/def ::multiline boolean?) ;; for string schemas
+(s/def ::prompt string?) ;; for textual inputs
+(s/def ::ui
+  (s/keys :opt-un [::label ::description ::multiline ::prompt ::type]))
 (s/def ::default any?)
 (s/def ::scope #{:global :project})
 (s/def ::type #{:any :boolean :string :password :keyword :integer :number :array :set :object :object-of :enum :tuple})
+(defmulti type-spec :type)
 (s/def ::schema
   (s/and
     (s/multi-spec type-spec :type)
-    (s/keys :req-un [::type] :opt-un [::label ::description ::default ::scope])
+    (s/keys :req-un [::type] :opt-un [::default ::scope ::ui])
     default-valid?))
 (defmethod type-spec :default [_] any?)
 (s/def ::item ::schema)
@@ -622,18 +657,22 @@
   invalid (unregistered) path is provided. Does not perform file IO.
 
   Using [] as a path will return the full preference map"
-  [prefs path]
-  {:pre [(vector? path)]}
-  (let [{:keys [registry storage]} @global-state
-        schema (combined-schema-at-path registry prefs path)]
-    (lookup-valid-value-at-path (:scopes prefs) storage schema path)))
+  ([prefs path]
+   (get @global-state prefs path))
+  ([current-state prefs path]
+   {:pre [(vector? path)]}
+   (let [{:keys [registry storage]} current-state
+         schema (combined-schema-at-path registry prefs path)]
+     (lookup-valid-value-at-path (:scopes prefs) storage schema path))))
 
 (defn set?
   "Check if there is an explicit prefs value set for the path"
-  [prefs path]
-  (let [{:keys [registry storage]} @global-state
-        schema (combined-schema-at-path registry prefs path)]
-    (value-at-path-set? (:scopes prefs) storage schema path)))
+  ([prefs path]
+   (set? @global-state prefs path))
+  ([current-state prefs path]
+   (let [{:keys [registry storage]} current-state
+         schema (combined-schema-at-path registry prefs path)]
+     (value-at-path-set? (:scopes prefs) storage schema path))))
 
 (defn set!
   "Set a value in preferences at a specified assoc-in path
@@ -658,8 +697,20 @@
 
 (defn schema
   "Get a preference schema at a specified get-in path"
-  [prefs path]
-  (combined-schema-at-path (:registry @global-state) prefs path))
+  ([prefs path]
+   (schema @global-state prefs path))
+  ([current-state prefs path]
+   (combined-schema-at-path (:registry current-state) prefs path)))
+
+(defn label
+  ([prefs path]
+   (label @global-state prefs path))
+  ([current-state prefs path]
+   {:pre [(vector? path)]}
+   (or (:label (:ui (schema current-state prefs path)))
+       (if-let [path-keyword (peek path)]
+         (string/trim (camel/->TitleCase (name path-keyword)))
+         "Value"))))
 
 (defn register-schema!
   "Register a new schema, e.g. a project-specific one"

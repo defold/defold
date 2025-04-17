@@ -241,6 +241,10 @@ TYPED_TEST(PhysicsTest, SetGridShapeHull)
 
     dmPhysics::CreateGridCellShape(grid_co, 0, 0);
 
+    ASSERT_TRUE(dmPhysics::SetGridShapeHull(grid_co, 0, 0, 0, dmPhysics::GRIDSHAPE_EMPTY_CELL, EMPTY_FLAGS));
+    // Trigger a bug where the invalid index isn't checked
+    dmPhysics::CreateGridCellShape(grid_co, 0, 0);
+
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, grid_co);
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(grid_shape);
     dmPhysics::DeleteHullSet2D(hull_set);

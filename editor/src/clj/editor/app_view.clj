@@ -118,7 +118,10 @@
            :split-id "workbench-split"}
    :bottom {:index 1
             :pane-id "bottom-pane"
-            :split-id "center-split"}})
+            :split-id "center-split"}
+   :changed-files {:index 1
+                   :pane-id "changed-files-pane"
+                   :split-id "assets-split"}})
 
 (defn- pane-visible? [^Scene main-scene pane-kw]
   (let [{:keys [pane-id split-id]} (split-info-by-pane-kw pane-kw)]
@@ -617,7 +620,7 @@
 
 (handler/defhandler :preferences :global
   (run [workspace prefs app-view]
-    (prefs-dialog/open-prefs prefs)
+    (prefs-dialog/open! prefs)
     (workspace/update-build-settings! workspace prefs)
     (ui/invalidate-menubar-item! ::file)))
 
@@ -869,13 +872,13 @@
           {:title "Launch Failed"
            :icon :icon/triangle-error
            :header {:fx/type fx.v-box/lifecycle
-                    :children [{:fx/type fxui/label
+                    :children [{:fx/type fxui/legacy-label
                                 :variant :header
                                 :text (format "Launching %s failed"
                                               (if (some? selected-target)
                                                 (targets/target-message-label selected-target)
                                                 "New Local Engine"))}
-                               {:fx/type fxui/label
+                               {:fx/type fxui/legacy-label
                                 :text "If the engine is already running, shut down the process manually and retry"}]}
            :content (.getMessage e)})))))
 
@@ -919,7 +922,7 @@
                 {:title "Build Error"
                  :icon :icon/triangle-error
                  :header "Cyclic resource dependency detected"
-                 :content {:fx/type fxui/label
+                 :content {:fx/type fxui/legacy-label
                            :style-class "dialog-content-padding"
                            :text (get-cycle-detected-help-message (-> cause-ex-data :endpoint gt/endpoint-node-id))}}))
             (error-reporting/report-exception! error))
@@ -1259,7 +1262,7 @@
           {:title "Debugging Not Supported"
            :icon :icon/triangle-error
            :header "This project cannot be used with the debugger"
-           :content {:fx/type fxui/label
+           :content {:fx/type fxui/legacy-label
                      :style-class "dialog-content-padding"
                      :text "It is configured to disable shared script state.
 
@@ -1710,6 +1713,8 @@ If you do not specifically require different script states, consider changing th
     :id ::view
     :children [{:label "Toggle Assets Pane"
                 :command :toggle-pane-left}
+               {:label "Toggle Changed Files"
+                :command :toggle-pane-changed-files}
                {:label "Toggle Tools Pane"
                 :command :toggle-pane-bottom}
                {:label "Toggle Properties Pane"
@@ -1917,7 +1922,12 @@ If you do not specifically require different script states, consider changing th
                     tab-panes (.getItems editor-tabs-split)]
                 (when (< 1 (count tab-panes))
                   (.remove tab-panes tab-pane)
-                  (.requestFocus ^TabPane (.get tab-panes 0)))))))))
+                  (let [remaining-tab-pane (.get tab-panes 0)
+                        selected-tab (ui/selected-tab remaining-tab-pane)
+                        resource-node (tab->resource-node selected-tab)
+                        view-type (tab->view-type selected-tab)]
+                    (.requestFocus ^TabPane remaining-tab-pane)
+                    (on-selected-tab-changed! app-view app-scene selected-tab resource-node view-type)))))))))
   (.addEventFilter tab-pane MouseEvent/MOUSE_PRESSED (ui/event-handler event (handle-tab-pane-mouse-pressed! tab-pane event)))
   (ui/register-tab-pane-context-menu tab-pane ::tab-menu))
 
@@ -1945,7 +1955,7 @@ If you do not specifically require different script states, consider changing th
           {:title "Couldn't load custom keymap config"
            :icon :icon/triangle-error
            :header {:fx/type fx.v-box/lifecycle
-                    :children [{:fx/type fxui/label
+                    :children [{:fx/type fxui/legacy-label
                                 :text (str "The keymap from " path " couldn't be opened.")}]}
            :content (.getMessage e)})
          (log/error :exception e)
@@ -2326,7 +2336,7 @@ If you do not specifically require different script states, consider changing th
                         :size :default
                         :icon :icon/triangle-error
                         :header "Uncommitted changes detected"
-                        :content {:fx/type fxui/label
+                        :content {:fx/type fxui/legacy-label
                                   :style-class "dialog-content-padding"
                                   :text "Due to potential data-loss concerns, file format upgrades should start from a clean working directory.\n\nWe recommend you commit your local changes before retrying the operation."}
                         :buttons [{:text "Abort"
@@ -2360,7 +2370,7 @@ If you do not specifically require different script states, consider changing th
                            :size :large
                            :icon :icon/circle-question
                            :header "Re-save all files in the latest file format?"
-                           :content {:fx/type fxui/label
+                           :content {:fx/type fxui/legacy-label
                                      :style-class "dialog-content-padding"
                                      :text "Files in the project will be re-saved in the latest file format. This operation cannot be undone.\n\nDue to the potentially large number of affected files, you should coordinate with your project lead before doing this."}
                            :buttons buttons})
@@ -2466,6 +2476,13 @@ If you do not specifically require different script states, consider changing th
   (run [^Stage main-stage]
        (let [main-scene (.getScene main-stage)]
          (set-pane-visible! main-scene :bottom (not (pane-visible? main-scene :bottom))))))
+
+(handler/defhandler :toggle-pane-changed-files :global
+  (enabled? [^Stage main-stage]
+            (pane-visible? (.getScene main-stage) :left))
+  (run [^Stage main-stage]
+       (let [main-scene (.getScene main-stage)]
+         (set-pane-visible! main-scene :changed-files (not (pane-visible? main-scene :changed-files))))))
 
 (handler/defhandler :show-console :global
   (run [^Stage main-stage tool-tab-pane] (show-console! (.getScene main-stage) tool-tab-pane)))
@@ -2796,7 +2813,7 @@ If you do not specifically require different script states, consider changing th
              {:title "Desktop Entry Created"
               :header "Desktop Entry Has Been Created!"
               :icon :icon/circle-happy
-              :content {:fx/type fxui/label
+              :content {:fx/type fxui/legacy-label
                         :style-class "dialog-content-padding"
                         :text "You may now launch the Defold editor from the system menu."}
               :buttons [{:text "Close"

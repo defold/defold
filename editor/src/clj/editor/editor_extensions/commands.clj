@@ -95,15 +95,19 @@
         contexts (into #{}
                        (map {"Assets" :asset-browser
                              "Bundle" :global
-                             "Outline" :outline
+                             "Debug" :global
                              "Edit" :global
+                             "Outline" :outline
+                             "Project" :global
                              "View" :global})
                        locations)
         locations (into #{}
                         (map {"Assets" :editor.asset-browser/context-menu-end
                               "Bundle" :editor.bundle/menu
-                              "Outline" :editor.outline-view/context-menu-end
+                              "Debug" :editor.debug-view/debug-end
                               "Edit" :editor.app-view/edit-end
+                              "Outline" :editor.outline-view/context-menu-end
+                              "Project" ::project/project-end
                               "View" :editor.app-view/view-end})
                         locations)]
     (cond-> {:contexts contexts

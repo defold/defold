@@ -642,10 +642,8 @@ namespace dmGameSystem
                     component->m_NodeInstances.SetSize(i);
                     return false;
                 }
-
-                dmhash_t id = dmGameObject::ConstructInstanceId(index);
                 dmGameObject::AssignInstanceIndex(index, bone_inst);
-
+                dmhash_t id = dmGameObject::CreateInstanceId();
                 dmGameObject::Result result = dmGameObject::SetIdentifier(collection, bone_inst, id);
                 if (dmGameObject::RESULT_OK != result)
                 {
@@ -1088,13 +1086,13 @@ namespace dmGameSystem
     }
     #endif
 
-    static void SetupSkinnedMatrixCache(dmRender::RenderObject& ro, dmGraphics::HTexture cache_texture, int32_t first_free_index, dmGameObject::HInstance instance)
+    static void SetupSkinnedMatrixCache(dmRender::RenderObject& ro, dmRender::HMaterial material, dmGraphics::HTexture cache_texture, int32_t first_free_index, dmGameObject::HInstance instance)
     {
-        if (dmRender::GetMaterialHasSkinnedMatrixCache(ro.m_Material))
+        if (dmRender::GetMaterialHasSkinnedMatrixCache(material))
         {
             if (first_free_index >= 0)
             {
-                if (dmRender::SetMaterialSampler(ro.m_Material,
+                if (dmRender::SetMaterialSampler(material,
                     dmRender::SAMPLER_POSE_MATRIX_CACHE, first_free_index,
                     dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE,
                     dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 0.0f))
@@ -1141,6 +1139,7 @@ namespace dmGameSystem
         dmRender::HMaterial render_context_material, uint32_t material_index,
         ModelComponent* component, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end, dmGraphics::HVertexDeclaration inst_decl)
     {
+        DM_PROFILE("VSInstanced");
         MeshRenderItem* render_item           = (MeshRenderItem*) buf[*begin].m_UserData;
         uint32_t instance_count               = end - begin;
         uint32_t instance_stride              = dmGraphics::GetVertexDeclarationStride(inst_decl);
@@ -1305,7 +1304,7 @@ namespace dmGameSystem
                     instance_data->m_AnimationData = dmVMath::Vector4(0.0f, 0.0f, 0.0f, 0.0f);
                 }
 
-                SetupSkinnedMatrixCache(ro, world->m_SkinnedAnimationData.m_BindPoseCacheTexture, first_free_index, instance_component->m_Instance);
+                SetupSkinnedMatrixCache(ro, render_material, world->m_SkinnedAnimationData.m_BindPoseCacheTexture, first_free_index, instance_component->m_Instance);
                 instance_write_ptr += sizeof(ModelSkinnedInstanceData);
             }
             else
@@ -1341,7 +1340,7 @@ namespace dmGameSystem
 
     static inline HComponentRenderConstants GetScratchConstantBuffer(ModelWorld* world)
     {
-        if (world->m_ScratchConstantBuffers.Full())
+        if (world->m_ScratchConstantBuffers.Size() == world->m_ScratchConstantBuffersCount)
         {
             world->m_ScratchConstantBuffers.OffsetCapacity(8);
             uint32_t size_now = world->m_ScratchConstantBuffers.Size();
@@ -1364,6 +1363,7 @@ namespace dmGameSystem
         dmRender::HMaterial render_context_material, uint32_t material_index,
         ModelComponent* component, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
+        DM_PROFILE("VSUninstanced");
         bool render_context_material_custom_attributes = false;
         if (render_context_material)
         {
@@ -1436,7 +1436,7 @@ namespace dmGameSystem
 
             if (IsRenderItemSkinned(component, render_item))
             {
-                SetupSkinnedMatrixCache(ro, world->m_SkinnedAnimationData.m_BindPoseCacheTexture, first_free_index, component->m_Instance);
+                SetupSkinnedMatrixCache(ro, render_material, world->m_SkinnedAnimationData.m_BindPoseCacheTexture, first_free_index, component->m_Instance);
 
                 // We need individual constants here, otherwise we will overwrite the values in the buffer.
                 // If the component doesn't have their own constant buffer, we need to retrieve a temporary constant buffer from the world.
@@ -1776,7 +1776,6 @@ namespace dmGameSystem
         uint32_t pose_matrix_count;
 
         dmRig::GetPoseMatrixCacheData(world->m_RigContext, &pose_matrix_read_ptr, &pose_matrix_count);
-
         if (pose_matrix_count == 0)
             return;
 
@@ -1800,8 +1799,6 @@ namespace dmGameSystem
         tp.m_MinFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
         tp.m_MagFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
         dmGraphics::SetTexture(world->m_SkinnedAnimationData.m_BindPoseCacheTexture, tp);
-
-        dmRig::ResetPoseMatrixCache(world->m_RigContext);
     }
 
     static void UpdateMeshTransforms(ModelComponent* component)
@@ -1879,6 +1876,7 @@ namespace dmGameSystem
     {
         ModelWorld* world = (ModelWorld*)params.m_World;
         ModelContext* context = (ModelContext*)params.m_Context;
+        dmRig::ResetPoseMatrixCache(world->m_RigContext);
 
         const dmArray<ModelComponent*>& components = world->m_Components.GetRawObjects();
         const uint32_t count = components.Size();
@@ -2435,6 +2433,54 @@ namespace dmGameSystem
             }
         }
         return found;
+    }
+
+    uint32_t CompModelGetMeshCount(ModelComponent* component)
+    {
+        return component->m_RenderItems.Size();
+    }
+
+    void CompModelGetAABB(ModelComponent* component, dmVMath::Vector3* out_min, dmVMath::Vector3* out_max)
+    {
+        uint32_t mesh_count = component->m_RenderItems.Size();
+        if (mesh_count == 0)
+        {
+            *out_min = dmVMath::Vector3(0.f);
+            *out_max = dmVMath::Vector3(0.f);
+            return;
+        }
+
+        dmVMath::Vector3 first_mesh_position = component->m_RenderItems[0].m_Model->m_Local.GetTranslation();
+
+        *out_min = first_mesh_position + component->m_RenderItems[0].m_AabbMin;
+        *out_max = first_mesh_position + component->m_RenderItems[0].m_AabbMax;
+
+        for (uint32_t idx = 1; idx < mesh_count; ++idx)
+        {
+            const MeshRenderItem& item = component->m_RenderItems[idx];
+            dmVMath::Vector3 mesh_position = component->m_RenderItems[idx].m_Model->m_Local.GetTranslation();
+            
+            dmVMath::Vector3 transformed_min = mesh_position + item.m_AabbMin;
+            dmVMath::Vector3 transformed_max = mesh_position + item.m_AabbMax;
+
+            for (uint32_t elem_idx = 0; elem_idx < 3; ++elem_idx)
+            {
+                (*out_min)[elem_idx] = dmMath::Min(transformed_min[elem_idx], (*out_min)[elem_idx]);
+                (*out_max)[elem_idx] = dmMath::Max(transformed_max[elem_idx], (*out_max)[elem_idx]);
+            }
+        }
+    }
+
+    void CompModelGetMeshAABB(ModelComponent* component, uint32_t mesh_idx, dmhash_t* out_mesh_id, dmVMath::Vector3* out_min, dmVMath::Vector3* out_max)
+    {
+        if (mesh_idx >= component->m_RenderItems.Size())
+        {
+            return;
+        }
+        MeshRenderItem& item = component->m_RenderItems[mesh_idx];
+        *out_min = item.m_AabbMin;
+        *out_max = item.m_AabbMax;
+        *out_mesh_id = item.m_Model->m_Id;
     }
 
     static bool CompModelIterPropertiesGetNext(dmGameObject::SceneNodePropertyIterator* pit)

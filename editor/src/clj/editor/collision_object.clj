@@ -113,7 +113,7 @@
                                                      {:node-id _node-id
                                                       :node-outline-key node-outline-key
                                                       :label (if (empty? id)
-                                                               (shape-type-label shape-type)
+                                                               (str "<Unnamed " (shape-type-label shape-type) ">")
                                                                id)
                                                       :icon (shape-type-icon shape-type)})))
 

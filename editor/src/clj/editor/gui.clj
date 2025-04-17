@@ -2942,15 +2942,15 @@
                       (pair label fused-build-resource-path))))
              (completing
                (fn [pb [label fused-build-resource-path]]
-                     (if (vector? label)
-                       (assoc-in pb label fused-build-resource-path)
-                       (assoc pb label fused-build-resource-path))))
+                 (if (vector? label)
+                   (assoc-in pb label fused-build-resource-path)
+                   (assoc pb label fused-build-resource-path))))
              (:pb user-data)
              (:dep-resources user-data))]
     {:resource resource :content (protobuf/map->bytes (:pb-class user-data) pb)}))
 
 (defn- merge-rt-pb-msg [rt-pb-msg template-build-targets]
-  (let [merge-fn! (fn [coll msg kw] (reduce conj! coll (map #(do [(:name %) %]) (get msg kw))))
+  (let [merge-fn! (fn [coll msg kw] (reduce conj! coll (e/map (coll/pair-fn :name) (get msg kw))))
         [textures materials fonts particlefx-resources resources]
         (loop [textures (transient {})
                materials (transient {})
@@ -3079,31 +3079,65 @@
         :user-data {:pb {}
                     :pb-class (:pb-class pb-def)}})]
     (g/precluding-errors build-errors
-    (let [template-build-targets (flatten template-build-targets)
-          rt-layout-descs (mapv #(make-rt-layout-desc % node-msgs)
-                                layout-names)
-          rt-node-descs (coll/transfer node-msgs []
-                          (keep
-                            (fn [decorated-node-msg]
-                              (-> decorated-node-msg
-                                  (dissoc :layout->prop->override :layout->prop->value)
-                                  (node-desc->rt-node-desc "")))))
-          rt-pb-msg (protobuf/assign-repeated pb-msg
-                      :layouts rt-layout-descs
-                      :nodes rt-node-descs)
-          rt-pb-msg (merge-rt-pb-msg rt-pb-msg template-build-targets)
-          dep-build-targets (concat (flatten dep-build-targets) (mapcat :deps (flatten template-build-targets)))
-          deps-by-source (into {} (map #(let [res (:resource %)] [(resource/resource->proj-path (:resource res)) res]) dep-build-targets))
-          resource-fields (mapcat (fn [field] (if (vector? field) (mapv (fn [i] (into [(first field) i] (rest field))) (range (count (get rt-pb-msg (first field))))) [field])) (:resource-fields pb-def))
-          dep-resources (mapv (fn [label] [label (get deps-by-source (if (vector? label) (get-in rt-pb-msg label) (get rt-pb-msg label)))]) resource-fields)]
-      [(bt/with-content-hash
-         {:node-id _node-id
-          :resource (workspace/make-build-resource resource)
-          :build-fn build-pb
-          :user-data {:pb rt-pb-msg
-                      :pb-class (:pb-class pb-def)
-                      :dep-resources dep-resources}
-          :deps dep-build-targets})]))))
+      (let [template-build-targets (flatten template-build-targets)
+
+            rt-layout-descs
+            (mapv #(make-rt-layout-desc % node-msgs)
+                  layout-names)
+
+            rt-node-descs
+            (coll/transfer node-msgs []
+              (keep
+                (fn [decorated-node-msg]
+                  (-> decorated-node-msg
+                      (dissoc :layout->prop->override :layout->prop->value)
+                      (node-desc->rt-node-desc "")))))
+
+            rt-pb-msg
+            (protobuf/assign-repeated pb-msg
+              :layouts rt-layout-descs
+              :nodes rt-node-descs)
+
+            rt-pb-msg (merge-rt-pb-msg rt-pb-msg template-build-targets)
+
+            dep-build-targets
+            (into (vec (flatten dep-build-targets))
+                  (mapcat :deps)
+                  template-build-targets)
+
+            ;; TODO: Can we replace all this with pipeline/make-protobuf-build-target?
+            deps-by-source
+            (coll/transfer dep-build-targets {}
+              (map (fn [dep-build-target]
+                     (let [build-resource (:resource dep-build-target)
+                           source-resource (:resource build-resource)
+                           source-proj-path (resource/resource->proj-path source-resource)]
+                       (pair source-proj-path build-resource)))))
+
+            dep-resources
+            (coll/transfer (:resource-fields pb-def) []
+              (mapcat (fn [field]
+                        (if (vector? field)
+                          (e/map (fn [index]
+                                   (into [(first field) index]
+                                         (rest field)))
+                                 (range (count (get rt-pb-msg (first field)))))
+                          [field])))
+              (map (fn [label]
+                     (pair label
+                           (get deps-by-source
+                                (if (vector? label)
+                                  (get-in rt-pb-msg label)
+                                  (get rt-pb-msg label)))))))]
+
+        [(bt/with-content-hash
+           {:node-id _node-id
+            :resource (workspace/make-build-resource resource)
+            :build-fn build-pb
+            :user-data {:pb rt-pb-msg
+                        :pb-class (:pb-class pb-def)
+                        :dep-resources dep-resources}
+            :deps dep-build-targets})]))))
 
 (defn- validate-template-build-targets [template-build-targets]
   (let [gui-resource-type+name->value->resource-proj-paths

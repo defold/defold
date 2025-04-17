@@ -20,6 +20,7 @@
             [cljfx.fx.label :as fx.label]
             [cljfx.fx.list-view :as fx.list-view]
             [cljfx.fx.region :as fx.region]
+            [cljfx.fx.separator :as fx.separator]
             [cljfx.fx.stack-pane :as fx.stack-pane]
             [cljfx.fx.text-field :as fx.text-field]
             [cljfx.fx.v-box :as fx.v-box]
@@ -59,6 +60,7 @@
 (defonce ^:const url-prefix "/console")
 
 (def ^:const console-filters-prefs-key [:console :filters])
+(def ^:const console-filtering-key [:console :filtering])
 
 (def ^:private pending-atom
   ;; Implementation notes:
@@ -188,8 +190,9 @@
                               :index 0))))))
 
 (defn- save-filters! [prefs filters]
-  (prefs/set! prefs console-filters-prefs-key filters)
-  (set-filters! filters))
+  (let [filtering (prefs/get prefs console-filtering-key)]
+    (prefs/set! prefs console-filters-prefs-key filters)
+    (set-filters! (if filtering filters []))))
 
 ;; -----------------------------------------------------------------------------
 ;; Tool Bar
@@ -224,9 +227,9 @@
                                      :style-class "cross"}
                            :on-action {:event-type :delete :index i}}]}}))
 
-(defn- filter-console-view [^Node filter-console-button {:keys [open filters text]}]
+(defn- filter-console-view [^Node filter-console-button {:keys [open enabled filters text]}]
   (let [active-filters-count (count (filterv second filters))
-        show-counter (pos? active-filters-count)
+        show-counter (and enabled (pos? active-filters-count))
         anchor (.localToScreen filter-console-button
                                -12.0 ;; shadow offset
                                (- (.getMaxY (.getBoundsInLocal filter-console-button))
@@ -265,7 +268,17 @@
                             :style-class "console-filter-popup-background"}
                            {:fx/type fx.v-box/lifecycle
                             :children
-                            [{:fx/type fx.list-view/lifecycle
+                            [{:fx/type fx.check-box/lifecycle
+                              :focus-traversable false
+                              :max-width ##Inf
+                              :v-box/margin 4
+                              :id "global-console-filtering"
+                              :selected enabled
+                              :on-selected-changed {:event-type :toggle-global-filtering}
+                              :text "Enable filtering"}
+                             {:fx/type fx.separator/lifecycle
+                              :style-class "console-filter-popup-separator"}
+                             {:fx/type fx.list-view/lifecycle
                               :focus-traversable false
                               :style-class "console-filter-popup-list-view"
                               :items (into [] (map-indexed vector) filters)
@@ -285,6 +298,10 @@
   (case (:event-type e)
     :hide (swap! state assoc :open false)
     :show-or-hide (swap! state update :open not)
+    :toggle-global-filtering (let [enabled (not (:enabled @state))]
+                               (prefs/set! prefs console-filtering-key enabled)
+                               (set-filters! (if enabled (:filters @state) []))
+                               (swap! state assoc :enabled enabled))
     :type (swap! state assoc :text (:fx/event e))
     :delete (let [new-state (swap! state update :filters util/remove-index (:index e))]
               (save-filters! prefs (:filters new-state)))
@@ -298,8 +315,9 @@
 
 (defn- init-console-filter! [filter-console-button prefs]
   (let [filters (prefs/get prefs console-filters-prefs-key)
-        state (atom {:open false :text "" :filters filters})]
-    (set-filters! filters)
+        filtering (prefs/get prefs console-filtering-key)
+        state (atom {:open false :enabled filtering :text "" :filters filters})]
+    (set-filters! (if filtering filters []))
     (fx/mount-renderer
       state
       (fx/create-renderer
