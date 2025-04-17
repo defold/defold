@@ -415,7 +415,7 @@
   [_node-id convex-shape-data color]
   (when (and (= (:shape-type convex-shape-data) :type-hull)
              (not-empty (:data convex-shape-data)))
-    (let [points (->> convex-shape-data :data (partition 3) vec)
+    (let [points (partition 3 (:data convex-shape-data))
           [min-coords max-coords] (reduce (fn [[min-point max-point] point]
                                             [(mapv min min-point point) (mapv max max-point point)])
                                           [(repeat Double/MAX_VALUE) (repeat Double/MIN_VALUE)]
