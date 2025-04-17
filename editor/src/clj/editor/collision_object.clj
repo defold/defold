@@ -21,6 +21,7 @@
             [editor.defold-project :as project]
             [editor.geom :as geom]
             [editor.gl.pass :as pass]
+            [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.math :as math]
@@ -38,6 +39,7 @@
             [schema.core :as s]
             [util.murmur :as murmur])
   (:import [com.dynamo.gamesys.proto Physics$CollisionObjectDesc Physics$CollisionObjectType Physics$CollisionShape$Shape]
+           [com.jogamp.opengl GL2]
            [javax.vecmath Matrix4d Quat4d Vector3d]))
 
 (set! *warn-on-reflection* true)
@@ -409,12 +411,61 @@
                   (outline/gen-node-outline-keys (map (comp shape-type-label :shape-type)
                                                       shapes)))))))
 
+(defn convex-hull-scene
+  [_node-id convex-shape-data color]
+  (when (and (= (:shape-type convex-shape-data) :type-hull)
+             (not-empty (:data convex-shape-data)))
+    (let [points (->> convex-shape-data :data (partition 3) vec)
+          [min-coords max-coords] (reduce (fn [[min-point max-point] point]
+                                            [(mapv min min-point point) (mapv max max-point point)])
+                                          [(repeat Double/MAX_VALUE) (repeat Double/MIN_VALUE)]
+                                          points)
+          aabb (geom/coords->aabb max-coords min-coords)
+          center (-> aabb geom/aabb-center types/Point3d->Vec3)
+          point-count (count points)
+          pos-vtx-put! (fn [vb [x y z]] (scene-shapes/pos-vtx-put! vb x y z 0.0))
+          triangles (->> points
+                         (reduce-kv (fn [vb i point]
+                                      (let [next-point (nth points (inc i) (first points))]
+                                        (reduce pos-vtx-put! vb [center point next-point])))
+                                    (scene-shapes/->pos-vtx (* 3 point-count) :static))
+                         vtx/flip!)
+          lines (->> points
+                     (reduce-kv (fn [vb i point]
+                                  (let [next-point (nth points (inc i) (first points))]
+                                    (reduce pos-vtx-put! vb [point next-point])))
+                                (scene-shapes/->pos-vtx (* 2 point-count) :static))
+                     vtx/flip!)]
+      {:node-id _node-id
+       :node-outline-key "Convex Hull"
+       :aabb aabb
+       :renderable {:render-fn render-triangles-uniform-scale
+                    :tags #{:collision-shape}
+                    :passes [pass/transparent pass/selection]
+                    :user-data {:color color
+                                :double-sided true
+                                :geometry {:primitive-type GL2/GL_TRIANGLES
+                                           :vbuf triangles}}}
+       :children [{:node-id _node-id
+                   :aabb aabb
+                   :renderable {:render-fn render-lines-uniform-scale
+                                :tags #{:collision-shape :outline}
+                                :passes [pass/outline]
+                                :user-data {:color color
+                                            :geometry {:primitive-type GL2/GL_LINES
+                                                       :vbuf lines}}}}]})))
+
 (g/defnk produce-scene
-  [_node-id child-scenes]
-  {:node-id _node-id
-   :aabb geom/null-aabb
-   :renderable {:passes [pass/selection]}
-   :children child-scenes})
+  [_node-id child-scenes collision-shape dep-build-targets collision-group-color]
+  (let [convex-shape-data (when (and collision-shape (= (resource/type-ext collision-shape) "convexshape"))
+                            (-> dep-build-targets ffirst :user-data :pb))]
+    {:node-id _node-id
+     :aabb geom/null-aabb
+     :renderable {:passes [pass/selection]}
+     :children (if convex-shape-data
+                 [(convex-hull-scene _node-id convex-shape-data collision-group-color)]
+                 child-scenes)}))
+
 
 (defn- make-embedded-collision-shape [shapes]
   (loop [idx 0
