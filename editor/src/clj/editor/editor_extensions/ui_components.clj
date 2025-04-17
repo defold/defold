@@ -22,7 +22,6 @@
             [cljfx.fx.label :as fx.label]
             [cljfx.fx.region :as fx.region]
             [cljfx.fx.row-constraints :as fx.row-constraints]
-            [cljfx.fx.scroll-pane :as fx.scroll-pane]
             [cljfx.fx.stage :as fx.stage]
             [cljfx.fx.tooltip :as fx.tooltip]
             [cljfx.fx.v-box :as fx.v-box]
@@ -53,16 +52,12 @@
            [java.nio.file Path]
            [java.util Collection List]
            [javafx.animation SequentialTransition TranslateTransition]
-           [javafx.beans Observable]
-           [javafx.beans.binding Bindings]
            [javafx.beans.property ReadOnlyProperty]
            [javafx.beans.value ChangeListener]
            [javafx.event Event]
            [javafx.scene Node]
-           [javafx.scene.control CheckBox ComboBox ScrollPane TextField]
-           [javafx.scene.control.skin ScrollPaneSkin]
+           [javafx.scene.control CheckBox ComboBox TextField]
            [javafx.scene.input KeyCode KeyEvent]
-           [javafx.scene.layout Region]
            [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
            [javafx.util Duration]
            [org.luaj.vm2 LuaError LuaValue]))
@@ -147,39 +142,6 @@
     :left (assoc props :alignment :center-left)
     :right (assoc props :alignment :center-right)
     :bottom (assoc props :alignment :bottom-center)))
-
-(def ^:private ext-with-expanded-scroll-pane-content-props
-  (fx/make-ext-with-props
-    {:content (fx.prop/make
-                (fx.mutator/adder-remover
-                  (fn add-scroll-pane-content [^ScrollPane scroll-pane ^Region content]
-                    (let [^Region scroll-bar (.lookup scroll-pane ".ext-scroll-pane>.scroll-bar:horizontal")]
-                      (.setContent scroll-pane content)
-                      (.bind (.minHeightProperty content)
-                             (Bindings/createDoubleBinding
-                               (fn []
-                                 (cond-> (.getHeight scroll-pane)
-                                         (.isVisible scroll-bar)
-                                         (- (.getHeight scroll-bar))))
-                               (into-array
-                                 Observable
-                                 [(.heightProperty scroll-pane)
-                                  (.visibleProperty scroll-bar)
-                                  (.heightProperty scroll-bar)])))))
-                  (fn remove-scroll-pane-content [_ ^Region content]
-                    (.unbind (.minHeightProperty content))))
-                fx.lifecycle/dynamic)}))
-
-(def ^:private ext-with-scroll-pane-skin-props
-  (fx/make-ext-with-props
-    {:skin (fx.prop/make
-             (fx.mutator/adder-remover
-               (fn add-skin [^ScrollPane instance flag]
-                 {:pre [(true? flag)]}
-                 (.setSkin instance (ScrollPaneSkin. instance)))
-               (fn remove-skin [_ _]
-                 (throw (AssertionError. "Can't remove skin!"))))
-             fx.lifecycle/scalar)}))
 
 (defn- scroll-view [{:keys [content]}]
   {:fx/type fxui/scroll
