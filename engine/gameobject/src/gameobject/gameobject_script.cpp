@@ -1156,7 +1156,7 @@ namespace dmGameObject
      *
      * ```lua
      * local s = 1.2
-     * go.set_scale_xy(s, "obj_id")
+     * go.set_scale_xy(s, "obj_id") -- z will not be set here, only x and y
      * ```
      */
     int Script_SetScaleXY(lua_State* L)
@@ -1170,7 +1170,7 @@ namespace dmGameObject
             Vector3 scale = *v;
             if (scale.getX() <= 0.0f || scale.getY() <= 0.0f)
             {
-                return luaL_error(L, "Vector passed to go.set_scale contains components that are below or equal to zero");
+                return luaL_error(L, "Vector passed to go.set_scale_xy contains components that are below or equal to zero");
             }
             dmGameObject::SetScaleXY(instance, scale.getX(), scale.getY());
             return 0;
@@ -1179,7 +1179,7 @@ namespace dmGameObject
         lua_Number n = luaL_checknumber(L, 1);
         if (n <= 0.0)
         {
-            return luaL_error(L, "The scale supplied to go.set_scale must be greater than 0.");
+            return luaL_error(L, "The scale supplied to go.set_scale_xy must be greater than 0.");
         }
         float value = (float)n;
         dmGameObject::SetScaleXY(instance, value, value);

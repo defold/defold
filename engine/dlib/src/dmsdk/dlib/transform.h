@@ -161,8 +161,9 @@ namespace dmTransform
         }
 
         /*# set scale for x and y
-         * @name SetScale
-         * @return scale [type: dmVMath::Vector3]
+         * @name SetScaleXY
+         * @param scale_x [type: float]
+         * @param scale_y [type: float]
          */
         inline void SetScaleXY(float scale_x, float scale_y)
         {

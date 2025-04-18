@@ -14,43 +14,43 @@
 
 
 local function assert_near(exp, act, eps)
-    assert(math.abs(exp - act) < eps, string.format("expected %f but was %f, differing by %f which exceeds %f", exp, act, math.abs(exp - act), eps))
+	assert(math.abs(exp - act) < eps, string.format("expected %f but was %f, differing by %f which exceeds %f", exp, act, math.abs(exp - act), eps))
 end
 
 local epsilon = 0.000001
 
 local function compare_fp(lhs, rhs)
-    local epsilon = 1e-10
-    local diff = math.abs(lhs - rhs)
-    return epsilon > diff
+	local epsilon = 1e-10
+	local diff = math.abs(lhs - rhs)
+	return epsilon > diff
 end
 
 local function test_vector4(name, expected)
 
-    local v = go.get("#label", name)
-    local vx = go.get("#label", name .. ".x")
-    local vy = go.get("#label", name .. ".y")
-    local vz = go.get("#label", name .. ".z")
-    local vw = go.get("#label", name .. ".w")
+	local v = go.get("#label", name)
+	local vx = go.get("#label", name .. ".x")
+	local vy = go.get("#label", name .. ".y")
+	local vz = go.get("#label", name .. ".z")
+	local vw = go.get("#label", name .. ".w")
 
-    assert(expected == v)
-    assert(expected.x == vx)
-    assert(expected.y == vy)
-    assert(expected.z == vz)
-    assert(expected.w == vw)
+	assert(expected == v)
+	assert(expected.x == vx)
+	assert(expected.y == vy)
+	assert(expected.z == vz)
+	assert(expected.w == vw)
 end
 
 local function test_vector3(name, expected)
 
-    local v = go.get("#label", name)
-    local vx = go.get("#label", name .. ".x")
-    local vy = go.get("#label", name .. ".y")
-    local vz = go.get("#label", name .. ".z")
+	local v = go.get("#label", name)
+	local vx = go.get("#label", name .. ".x")
+	local vy = go.get("#label", name .. ".y")
+	local vz = go.get("#label", name .. ".z")
 
-    assert(expected == v)
-    assert(expected.x == vx)
-    assert(expected.y == vy)
-    assert(expected.z == vz)
+	assert(expected == v)
+	assert(expected.x == vx)
+	assert(expected.y == vy)
+	assert(expected.z == vz)
 end
 
 
@@ -107,14 +107,14 @@ local function test_set_scale_xy(val)
 	local expected = vmath.vector3(val, val+1, 3)
 	local set_value = vmath.vector3(val, val+1, val+2)
 	go.set("#label", "scale.xy", set_value)
-    local v = go.get("#label", "scale")
-    assert(expected == v)
+	local v = go.get("#label", "scale")
+	assert(expected == v)
 
 	expected = vmath.vector3(val+3, val+3, 3)
 	set_value = val + 3
 	go.set("#label", "scale.xy", set_value)
 	v = go.get("#label", "scale")
-    assert(expected == v)
+	assert(expected == v)
 end
 
 

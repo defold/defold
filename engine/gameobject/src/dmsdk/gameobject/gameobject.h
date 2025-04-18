@@ -664,7 +664,7 @@ namespace dmGameObject
      */
     void SetScale(HInstance instance, dmVMath::Vector3 scale);
 
-    /*# set scale only for width and height (x and y)
+    /*# set scale only for X and Y
      * Set gameobject instance x and y scale
      * @name SetScaleXY
      * @param instance [type:dmGameObject::HInstance] Gameobject instance
