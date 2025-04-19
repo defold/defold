@@ -1842,10 +1842,14 @@ class Configuration(object):
         args = [SHELL, '-l']
 
         process = subprocess.Popen(args, env=self._form_env(), shell=True)
-        output = process.communicate()[0]
+        try:
+            output = process.communicate()[0]
+        except KeyboardInterrupt as e:
+            sys.exit(0)
 
         if process.returncode != 0:
-            self._log(str(output, encoding='utf-8'))
+            if output is not None:
+                self._log(str(output, encoding='utf-8'))
             sys.exit(process.returncode)
 
     def fatal(self, msg):
@@ -2528,7 +2532,7 @@ class Configuration(object):
         if self.no_colors:
             env['NOCOLOR'] = '1'
 
-
+        # XMLHttpRequest Emulation for node.js
         xhr2_path = os.path.join(self.dynamo_home, NODE_MODULE_LIB_DIR, 'xhr2', 'package', 'lib')
         if 'NODE_PATH' in env:
             env['NODE_PATH'] = xhr2_path + os.path.pathsep + env['NODE_PATH']
