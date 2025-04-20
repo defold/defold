@@ -309,7 +309,7 @@ brew install git
 
 ### Required Software - Platform SDK's
 
-These tools install platform SDK's and debuggers
+Each platform requires SDK's and other tools (e.g. debuggers)
 
 <details><summary>macOS/iOS...</summary><p>
 

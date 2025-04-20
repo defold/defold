@@ -16,6 +16,8 @@ The standard workflow when building the engine is the following:
 
 When working on a new feature or fixing a bug you start by first building the engine once as described above. You then proceed to develop your feature or fix the bug and rebuild and test changes until satisfied. When you do a rebuild you can speed things up by only building the parts that have changed.
 
+*NOTE: Make sure you also have read our [Contribution Guide](https://github.com/defold/defold/blob/build-doc-update/CONTRIBUTING.md). Especially before undertaking larger tasks.*
+
 ## Build examples
 
 To give an quick overview of the steps required.
@@ -192,7 +194,7 @@ $ ./scripts/submodule.sh arm64-macos dlib sound --with-asan
 
 ## Unit tests
 
-Unit tests are run automatically when invoking waf if not `--skip-tests` is specified. A typically workflow when working on a single test is to run:
+Unit tests are run automatically when invoking waf if `--skip-tests` isn't specified. A typically workflow when working on a single test is to run:
 
 ```sh
 $ waf --skip-tests && ./build/default/.../test_xxx
@@ -203,8 +205,7 @@ You can build a single target:
 $ waf --skip-tests --target=test_foo && ./build/default/.../test_foo
 ```
 
-With the flag `--test-filter=` it's possible to run a single test in the suite, see [jctest documentation](https://jcash.github.io/jctest/api/03-runtime/#command-line-options)
-
+With the flag `--test-filter` it's possible to run a single test in the suite, see [jctest documentation](https://jcash.github.io/jctest/api/03-runtime/#command-line-options)
 
 ```sh
 $ waf --skip-tests --target=test_foo && ./build/default/.../test_foo --test-filter SomeTestPattern
