@@ -10,12 +10,12 @@ At the very minimum, you need to install the SDK for your host platform (Windows
 
 ## Supported hosts + targets
 
-Here is a table of our supported target platforms, and which host platform you need to build it:
+Here is a table of our supported target platforms, and on which host platform you can build it:
 
-|host\target   | macOS | Linux | Windows | Android | iOS     | Hmtl5   | PS4/PS5 | Switch | XBox  |
+|host↓  target→ | macOS | Linux | Windows | Android | iOS     | Hmtl5   | PS4/PS5 | Switch | XBox  |
 |--------------|-------|-------|---------|---------|---------|---------|---------|--------|-------|
 |macOS         | ✅    |       |         | ✅      | ✅      | ✅     |         |        |       |
-|Linux         |       | ✅    |         |         |         | ✅      |         |        |       |
+|Linux         |       | ✅    |         | ✅      |         | ✅      |         |        |       |
 |Windows (x64) |       |       | ✅      | ✅      |         |         | ✅      | ✅     | ✅    |
 
 
