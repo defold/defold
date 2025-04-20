@@ -440,6 +440,14 @@
    :help "Enables sound threading",
    :default true,
    :path ["sound" "use_thread"]}
+  {:type :boolean,
+   :help "Enables sound streaming",
+   :default false,
+   :path ["sound" "stream_enabled"]}
+  {:type :integer,
+   :help "Size in bytes of the sound streaming cache, 2097152 by default",
+   :default 2097152,
+   :path ["sound" "stream_cache_size"]}
   {:type :integer,
    :help "max number of sprites, 128 by default",
    :default 128,
