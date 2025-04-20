@@ -25,7 +25,7 @@ Here is a table of our supported target platforms, and which host platform you n
 
 Our build system detects local installations of the platform SDK's.
 
-*See more detailed [installation details](#required-software-platform-sdks) further down in this document.*
+*See more detailed [installation details](#required-software---platform-sdks) further down in this document.*
 
 * macOS + iOS: [XCode](https://apps.apple.com/us/app/xcode/id497799835)
 * Linux: [Clang++](https://apt.llvm.org/) (v17)
@@ -436,13 +436,20 @@ defold$ ./scripts/build.py check_sdk --verbose --platform=wasm-web
 
 For each console we detect the appropriate environment variables used by each platform. We refer to each vendor's installation notes for their SDK's.
 
+Once installed, verify the installation with
+```sh
+defold$ ./scripts/build.py check_sdk --verbose --platform=...
+```
+
 </p></details>
 
 <details><summary>Extender packages...</summary><p>
 
+*NOTE: this is not required to build the engine locally!*
+
 In order to build Extender images locally, you need access to prepackaged SDK's for each platform.
 
-Due to licensing restrictions **the SDKs are not distributed with Defold**. You need to provide these from a URL accessible by your local machine so that `build.py` and the `install_ext` command can download and unpack them.
+Due to licensing restrictions **the SDKs are not distributed with Defold**. You need to provide these from a URL accessible by your local machine so that `build.py` and the `install_sdk` command can download and unpack them.
 
 __In order to simplify this process we provide scripts to download and package the SDKs__ [Read more about this process here](/scripts/package/README.md).
 

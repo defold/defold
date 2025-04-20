@@ -11,7 +11,7 @@ Make sure you have followed the [setup guide](/README_SETUP.md) to install the t
 The standard workflow when building the engine is the following:
 
 1. [Setup](/README_SETUP.md) environment
-2. [Install](/README_SETUP.md#required-software-platform-sdks) libraries and SDKs
+2. [Install](/README_SETUP.md#required-software---platform-sdks) libraries and SDKs
 3. Build the engine
 
 When working on a new feature or fixing a bug you start by first building the engine once as described above. You then proceed to develop your feature or fix the bug and rebuild and test changes until satisfied. When you do a rebuild you can speed things up by only building the parts that have changed.
