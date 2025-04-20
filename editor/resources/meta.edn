@@ -449,6 +449,14 @@
    :default 2097152,
    :path ["sound" "stream_cache_size"]}
   {:type :integer,
+   :help "Size of each chunk that is loaded from a file, 16384 by default",
+   :default 16384,
+   :path ["sound" "stream_chunk_size"]}
+  {:type :integer,
+   :help "Size of the initial chunk that is loaded from each sound file, 16384 by default",
+   :default 16384,
+   :path ["sound" "stream_preload_size"]}
+  {:type :integer,
    :help "max number of sprites, 128 by default",
    :default 128,
    :path ["sprite" "max_count"]}
