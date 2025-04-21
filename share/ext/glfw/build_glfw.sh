@@ -83,6 +83,19 @@ function cmi_unpack() {
     mv $FILE_BASE/* .
 }
 
+function convert_line_endings() {
+    local platform=$(uname)
+    case $platform in
+         *linux)
+            DOS2UNIX=fromdos
+            ;;
+         *)
+            DOS2UNIX=dos2unix
+            ;;
+    esac
+    find . -type f -name "*.*" -exec $DOS2UNIX {} \;
+}
+
 download
 
 mkdir -p ${SOURCE_DIR}
@@ -90,7 +103,7 @@ mkdir -p ${SOURCE_DIR}
 pushd $SOURCE_DIR
 
 cmi_unpack
-
+convert_line_endings
 cmi_patch
 
 ## BUILD

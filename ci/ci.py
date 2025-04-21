@@ -610,7 +610,7 @@ def main(argv):
         elif command == "install_ext":
             install_ext(platform = platform)
         elif command == "install_sdk":
-            install_ext(platform = platform)
+            install_sdk(platform = platform)
         elif command == "distclean":
             distclean()
         elif command == "release":
