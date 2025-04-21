@@ -84,19 +84,16 @@ function cmi_unpack() {
 }
 
 function convert_line_endings() {
-    local platform=$(uname)
-    case $platform in
-         *linux)
-            DOS2UNIX=fromdos
-            ;;
-         *)
-            DOS2UNIX=dos2unix
-            ;;
-    esac
-    find . -type f -name "*.*" -exec $DOS2UNIX {} \;
-    if [ -f "../patch_${VERSION}" ]; then
-        echo "Converting patch file ../patch_${VERSION} to Unix line endings..."
-        "$DOS2UNIX" ../patch_${VERSION}
+    if [[ "${PLATFORM,,}" == *win* ]]; then
+        echo "Running dos2unix conversion on Windows platform..."
+        find . -type f -name "*.*" -exec "$DOS2UNIX" {} \;
+
+        if [ -f "../patch_${VERSION}" ]; then
+            echo "Converting patch file ../patch_${VERSION} to Unix line endings..."
+            "$DOS2UNIX" "../patch_${VERSION}"
+        fi
+    else
+        echo "Skipping line ending conversion: PLATFORM is '${PLATFORM}'"
     fi
 }
 
