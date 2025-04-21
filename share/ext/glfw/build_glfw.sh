@@ -93,7 +93,7 @@ function convert_line_endings() {
             DOS2UNIX=dos2unix
             ;;
     esac
-    find . -type f -name "*.*" -exec $DOS2UNIX {} \;
+    find . -type f -name "*" -exec $DOS2UNIX {} \;
 }
 
 download
