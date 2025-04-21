@@ -93,7 +93,11 @@ function convert_line_endings() {
             DOS2UNIX=dos2unix
             ;;
     esac
-    find . -type f -name "*" -exec $DOS2UNIX {} \;
+    find . -type f -name "*.*" -exec $DOS2UNIX {} \;
+    if [ -f "../patch_${VERSION}" ]; then
+        echo "Converting patch file ../patch_${VERSION} to Unix line endings..."
+        "$DOS2UNIX" ../patch_${VERSION}
+    fi
 }
 
 download
