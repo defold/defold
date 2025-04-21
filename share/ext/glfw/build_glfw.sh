@@ -85,10 +85,9 @@ function cmi_unpack() {
 
 function convert_line_endings() {
     if [[ "${PLATFORM}" == *win* ]]; then
-        find . -type f -name "*.*" -exec $DOS2UNIX {} \;
         if [ -f "../patch_${VERSION}" ]; then
             echo "Converting patch file ../patch_${VERSION} to Unix line endings..."
-            "$DOS2UNIX" ../patch_${VERSION}
+            dos2unix ../patch_${VERSION}
         fi
     fi
 }
