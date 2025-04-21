@@ -118,6 +118,7 @@ namespace dmSound
         uint8_t     m_Channels;
         uint8_t     m_BitsPerSample;
         uint8_t     m_Interleaved;
+        uint32_t    m_StreamOffset;
     };
 
     struct SoundGroup
@@ -160,6 +161,9 @@ namespace dmSound
         ALenum                  m_FormatMonoFloat32;
         ALenum                  m_FormatStereoFloat32;
         bool                    m_SourceSpatialize;
+
+        ALenum                  m_Eos;
+        ALenum                  m_DirectStreamingFormat[SOUND_DATA_TYPE_MAX];
 
         Result initOpenal() {
             m_AlDevice = alcOpenDevice(nullptr);
@@ -316,6 +320,7 @@ namespace dmSound
         sound->m_Sources.SetSize(max_sources);
         sound->m_SourcesPool.SetCapacity(max_sources);
         alGenSources(max_sources, sound->m_Sources.Begin());
+        checkForAlErrors("alGenSources");
 
         /**
          * Currently we repurpose the unused max_sound_buffers option to determine the number of
@@ -338,6 +343,7 @@ namespace dmSound
         sound->m_Buffers.SetCapacity(total_buffers);
         sound->m_Buffers.SetSize(total_buffers);
         alGenBuffers(total_buffers, sound->m_Buffers.Begin());
+        checkForAlErrors("alGenBuffers");
 
         sound->m_GroupMap.SetCapacity(MAX_GROUPS * 2 + 1, MAX_GROUPS);
         for (uint32_t i = 0; i < MAX_GROUPS; ++i) {
@@ -365,9 +371,27 @@ namespace dmSound
         if (alIsExtensionPresent("AL_EXT_float32")) {
             sound->m_FormatMonoFloat32 = alGetEnumValue("AL_FORMAT_MONO_FLOAT32");
             sound->m_FormatStereoFloat32 = alGetEnumValue("AL_FORMAT_STEREO_FLOAT32");
+            checkForAlErrors("alGetEnumValue");
         } else {
             sound->m_FormatMonoFloat32 = 0;
             sound->m_FormatStereoFloat32 = 0;
+        }
+
+        // check for ability to stream encoded audio
+        sound->m_Eos = AL_NONE;
+        memset(sound->m_DirectStreamingFormat, 0, sizeof(sound->m_DirectStreamingFormat));
+        if (alIsExtensionPresent("AL_NF_end_of_stream")) {
+            sound->m_Eos = alGetEnumValue("AL_NF_END_OF_STREAM");
+            checkForAlErrors("alGetEnumValue");
+            if (sound->m_Eos) {
+                dmLogInfo("OpenAL streaming supported");
+
+                // check for specific codec support
+                if (alIsExtensionPresent("AL_EXT_vorbis")) {
+                    dmLogInfo("ogg/vorbis streaming supported");
+                    sound->m_DirectStreamingFormat[SOUND_DATA_TYPE_OGG_VORBIS] = alGetEnumValue("AL_FORMAT_VORBIS_EXT");
+                }
+            }
         }
 
         sound->m_SourceSpatialize = alIsExtensionPresent("AL_SOFT_source_spatialize");
@@ -541,7 +565,7 @@ namespace dmSound
         return RESULT_OK;
     }
 
-    // Called by the decoders in the context of a dmSound update loop (MixInstances), the the mutex acquired
+    // Called by the decoders in the context of a dmSound update loop
     Result SoundDataRead(HSoundData sound_data, uint32_t offset, uint32_t size, void* out, uint32_t* out_size)
     {
         assert(sound_data);
@@ -625,6 +649,7 @@ namespace dmSound
         si->m_Group = MASTER_GROUP_HASH;
         si->m_Format = 0;
         si->m_Rate = 0;
+        si->m_StreamOffset = 0;
 
         *sound_instance = si;
 
@@ -750,13 +775,17 @@ namespace dmSound
 
     static dmSoundCodec::Result GetInstanceProperties(HSoundInstance sound_instance) {
         SoundSystem* sound = g_SoundSystem;
+        SoundData &sound_data = sound->m_SoundData[sound_instance->m_SoundDataIndex];
         dmSoundCodec::Info info;
         dmSoundCodec::GetInfo(sound->m_CodecContext, sound_instance->m_Decoder, &info);
         sound_instance->m_Rate = info.m_Rate;
         sound_instance->m_Interleaved = info.m_IsInterleaved;
         uint8_t channels = sound_instance->m_Channels = info.m_Channels;
         uint8_t bits_per_sample = sound_instance->m_BitsPerSample = info.m_BitsPerSample;
-        switch (channels) {
+
+        if (sound->m_DirectStreamingFormat[sound_data.m_Type]) {
+            sound_instance->m_Format = sound->m_DirectStreamingFormat[sound_data.m_Type];
+        } else switch (channels) {
             case 1: {
                 if (bits_per_sample == 8) {
                     sound_instance->m_Format = AL_FORMAT_MONO8;
@@ -793,6 +822,7 @@ namespace dmSound
 
     static dmSoundCodec::Result Feed(HSoundInstance sound_instance) {
         SoundSystem* sound = g_SoundSystem;
+        SoundData &sound_data = sound->m_SoundData[sound_instance->m_SoundDataIndex];
         dmSoundCodec::Result r;
 
         if (!sound_instance->m_Rate) {
@@ -805,14 +835,35 @@ namespace dmSound
 
         uint16_t buffer_index = sound_instance->m_SourceIndex * sound->m_BuffersPerSource + sound_instance->m_BufferPtr;
         ALuint source = sound->m_Sources[sound_instance->m_SourceIndex];
-        ALuint buffer = sound->m_Buffers[buffer_index];
+        ALuint *buffer = &sound->m_Buffers[buffer_index];
         char *original_ptr = &sound->m_BufferData[buffer_index * sound->m_MaxBufferSize];
         uint32_t buffer_size = SAMPLES_PER_FRAME / BUFFERS_PER_FRAME * sound_instance->m_Channels * sound_instance->m_BitsPerSample / 8;
         char *buffer_ptr = original_ptr;
         uint32_t total_decoded = 0;
-        uint32_t decoded;
+        uint32_t decoded = 0;
         do {
-            r = dmSoundCodec::Decode(sound->m_CodecContext, sound_instance->m_Decoder, &buffer_ptr, buffer_size, &decoded);
+            if (sound->m_DirectStreamingFormat[sound_data.m_Type]) {
+                // this is a supported streaming format; we can directly read from the stream and pipe that data to OpenAL
+                Result read_result = SoundDataRead(&sound_data, sound_instance->m_StreamOffset, buffer_size - total_decoded, buffer_ptr, &decoded);
+                sound_instance->m_StreamOffset += decoded;
+                // TODO: handle end of stream...
+                if (read_result == Result::RESULT_OK) {
+                    r = dmSoundCodec::Result::RESULT_OK;
+                } else if (read_result == Result::RESULT_PARTIAL_DATA) {
+                    r = dmSoundCodec::Result::RESULT_OK;
+                } else if (read_result == Result::RESULT_END_OF_STREAM) {
+                    r = dmSoundCodec::RESULT_END_OF_STREAM;
+                    sound_instance->m_StreamOffset = 0;
+                    alSourcei(source, sound->m_Eos, AL_TRUE);
+                    checkForAlErrors("alSourcei");
+                } else {
+                    dmLogError("stream read error: %i\n", (int)read_result);
+                    r = dmSoundCodec::Result::RESULT_UNKNOWN_ERROR;
+                }
+            } else {
+                // decode PCM
+                r = dmSoundCodec::Decode(sound->m_CodecContext, sound_instance->m_Decoder, &buffer_ptr, buffer_size, &decoded);
+            }
             if (r == dmSoundCodec::RESULT_END_OF_STREAM) {
                 if (sound_instance->m_Looping && sound_instance->m_Loopcounter != 0) {
                     // loop
@@ -831,9 +882,9 @@ namespace dmSound
             buffer_ptr += decoded;
         } while (total_decoded < buffer_size);
         if (r == dmSoundCodec::RESULT_OK && total_decoded) {
-            alBufferData(buffer, sound_instance->m_Format, original_ptr, (ALsizei)total_decoded, sound_instance->m_Rate);
+            alBufferData(*buffer, sound_instance->m_Format, original_ptr, (ALsizei)total_decoded, sound_instance->m_Rate);
             checkForAlErrors("alBufferData");
-            alSourceQueueBuffers(source, 1, &buffer);
+            alSourceQueueBuffers(source, 1, buffer);
             checkForAlErrors("alSourceQueueBuffers");
             float gain = sound_instance->m_Parameters[PARAMETER_GAIN];
             int *group_index = sound->m_GroupMap.Get(sound_instance->m_Group);
@@ -842,6 +893,7 @@ namespace dmSound
             }
             alSourcef(source, AL_PITCH, sound_instance->m_Parameters[PARAMETER_SPEED]);
             alSourcef(source, AL_GAIN, gain);
+            checkForAlErrors("alSourcef");
             float pan = sound_instance->m_Parameters[PARAMETER_PAN];
             // openal position: x is left-right, y is down-up, and z is away-towards
             if (pan == 0.5f) {
@@ -850,8 +902,8 @@ namespace dmSound
                 if (sound_instance->m_Channels > 1 && sound->m_SourceSpatialize) {
                     // if AL_SOFT_source_spatialize is present, we can explicitly enable spatialization;
                     // otherwise multichannel sources will disable spatialization by default
-                    #define AL_SOURCE_SPATIALIZE_SOFT 0x1214
-                    alSourcei(source, AL_SOURCE_SPATIALIZE_SOFT, AL_TRUE);
+                    alSourcei(source, alGetEnumValue("AL_SOURCE_SPATIALIZE_SOFT"), AL_TRUE);
+                    checkForAlErrors("alSourcei");
                 }
                 // 90 degree FOV; pan is between 0 and 1
                 // defold panning is linear, so it directly sets the x value; from there we find the
@@ -859,6 +911,7 @@ namespace dmSound
                 ALfloat x = -0.5 + pan;
                 ALfloat z = -sqrtf(1 - x * x);
                 alSource3f(source, AL_POSITION, x, 0, z);
+                checkForAlErrors("alSource3f");
             }
             sound_instance->m_BufferPtr = (sound_instance->m_BufferPtr + 1) % sound->m_BuffersPerSource;
             ++sound_instance->m_BufferCount;
@@ -882,30 +935,7 @@ namespace dmSound
         uint16_t source_index = sound->m_SourcesPool.Pop();
         sound_instance->m_SourceIndex = source_index;
         sound->m_InstancesActive.Push(sound_instance->m_Index);
-        ALint buffers_processed = 0;
-        ALint buffers_queued = 0;
-        alGetSourcei(sound->m_Sources[source_index], AL_BUFFERS_PROCESSED,
-                    &buffers_processed);
-        alGetSourcei(sound->m_Sources[source_index], AL_BUFFERS_QUEUED,
-                    &buffers_queued);
         return RESULT_OK;
-    }
-
-    void DrainBuffers(HSoundInstance sound_instance) {
-        assert(sound_instance->m_SourceIndex != 0xffff);
-        SoundSystem* sound = g_SoundSystem;
-        ALuint source = sound->m_Sources[sound_instance->m_SourceIndex];
-        ALint buffers_processed = 0;
-        alGetSourcei(source, AL_BUFFERS_PROCESSED,
-                    &buffers_processed);
-        assert(buffers_processed <= sound_instance->m_BufferCount);
-        while (buffers_processed) {
-            ALuint buffer;
-            alSourceUnqueueBuffers(source, 1, &buffer);
-            --buffers_processed;
-            checkForAlErrors("alSourceUnqueueBuffers");
-            --sound_instance->m_BufferCount;
-        }
     }
 
     void ReclaimSource(HSoundInstance sound_instance) {
@@ -937,7 +967,10 @@ namespace dmSound
         if (sound_instance->m_SourceIndex != 0xffff) {
             ALuint source = sound->m_Sources[sound_instance->m_SourceIndex];
             alSourceStop(source);
-            DrainBuffers(sound_instance);
+            checkForAlErrors("alSourceStop");
+            // setting AL_BUFFER to AL_NONE will unqueue any buffers
+            alSourcei(source, AL_BUFFER, AL_NONE);
+            checkForAlErrors("alSourcei AL_BUFFER=0");
             sound_instance->m_BufferCount = 0;
             ReclaimSource(sound_instance);
             for (uint32_t i = 0; i < sound->m_InstancesActive.Size(); ++i) {
@@ -1003,8 +1036,19 @@ namespace dmSound
             SoundInstance &instance = sound->m_Instances[instance_index];
             ALuint source = sound->m_Sources[instance.m_SourceIndex];
             if (instance.m_BufferCount) {
-                // drain processed buffers
-                DrainBuffers(&instance);
+                // drain any processed buffers
+                ALuint source = sound->m_Sources[instance.m_SourceIndex];
+                ALint buffers_processed = 0;
+                alGetSourcei(source, AL_BUFFERS_PROCESSED,
+                            &buffers_processed);
+                assert(buffers_processed <= instance.m_BufferCount);
+                while (buffers_processed) {
+                    ALuint buffer;
+                    alSourceUnqueueBuffers(source, 1, &buffer);
+                    checkForAlErrors("alSourceUnqueueBuffers");
+                    --buffers_processed;
+                    --instance.m_BufferCount;
+                }
             }
             ALenum state;
             alGetSourcei(source, AL_SOURCE_STATE, &state);
@@ -1030,9 +1074,13 @@ namespace dmSound
             } else {
                 // if we're no longer playing this instance, we still need to wait for its buffers to finish
                 if (state != AL_PLAYING) {
-                    DrainBuffers(&instance);
+                    // setting AL_BUFFER to AL_NONE will unqueue any buffers
+                    alSourcei(source, AL_BUFFER, AL_NONE);
+                    checkForAlErrors("alSourcei AL_BUFFER=0");
+                    instance.m_BufferCount = 0;
                     if (state != AL_STOPPED) {
                         alSourceStop(source);
+                        checkForAlErrors("alSourceStop");
                     }
                     instance.m_BufferCount = 0;
                 }
