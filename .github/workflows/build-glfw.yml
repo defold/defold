@@ -4,9 +4,11 @@ on:
   workflow_dispatch:
   push:
 
+env:
+  DM_PACKAGES_URL: ${{ secrets.DM_PACKAGES_URL }}
+
+
 jobs:
-  env:
-    DM_PACKAGES_URL: ${{ secrets.DM_PACKAGES_URL }}
   build-linux:
     strategy:
       matrix:
