@@ -1,0 +1,46 @@
+name: Build GLFW
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    strategy:
+      matrix:
+        arch: [x86_64-linux]
+    runs-on: ubuntu-22.04
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+
+  build-linux-arm:
+    strategy:
+      matrix:
+        arch: [arm64-linux]
+    runs-on: ubuntu-22.04-arm
+    steps:
+        
+    - name: Checkout repo
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+
+  build-macos:
+    strategy:
+      matrix:
+        arch: [arm64-macos, x86_64-macos]
+    runs-on: macOS-14
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+
+  build-windows:
+    strategy:
+      matrix:
+        arch: [win32, x86_64-win32]
+    runs-on: windows-latest
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
