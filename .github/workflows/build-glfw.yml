@@ -142,12 +142,14 @@ jobs:
       run: |
         cd share/ext
         ./build.sh glfw ${{ matrix.platform }}
+      shell: bash
     - name: Check artifact existence and list folder
       run: |
         if [ ! -f share/ext/glfw/glfw-3.4-${{ matrix.platform }}.tar.gz ]; then
           echo "Artifact not found. Listing contents of share/ext/glfw:"
           ls -lh share/ext/glfw || echo "Directory missing"
         fi
+      shell: bash
     - name: Archive results
       uses: actions/upload-artifact@v4
       with:
