@@ -1187,7 +1187,7 @@ public class Project {
                 } else if (cause.getCause() instanceof MultipleCompileException) {
                     throw (MultipleCompileException) cause.getCause();
                 } else {
-                    throw (RuntimeException) e;
+                    throw new RuntimeException(e);
                 }
             }
         }
