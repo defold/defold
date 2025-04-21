@@ -2,6 +2,7 @@ name: Build GLFW
 
 on:
   workflow_dispatch:
+  push:
 
 jobs:
   build-linux:
@@ -12,7 +13,25 @@ jobs:
     steps:
     - name: Checkout repo
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-
+      with:
+        ref: '${{env.BUILD_BRANCH}}'
+    - name: Install Python
+      uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c
+      with:
+        python-version: 3.13
+    - name: Run shell build
+      run: ./scripts/build.py shell
+    - name: Install ext and sdk
+      run: ./scripts/build.py install_ext --platform=${{ matrix.platform }} && ./scripts/build.py install_sdk --platform=${{ matrix.platform }}
+    - name: Build GLFW
+      run: |
+        cd share/ext
+        ./build.sh glfw ${{ matrix.platform }}
+    - name: Archive results
+      uses: actions/upload-artifact@v4
+      with:
+        name: glfw-3.4-${{ matrix.platform }}.tar.gz
+        path: share/ext/glfw/glfw-3.4-${{ matrix.platform }}.tar.gz
 
   build-linux-arm:
     strategy:
@@ -23,7 +42,25 @@ jobs:
         
     - name: Checkout repo
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-
+      with:
+        ref: '${{env.BUILD_BRANCH}}'
+    - name: Install Python
+      uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c
+      with:
+        python-version: 3.13
+    - name: Run shell build
+      run: ./scripts/build.py shell
+    - name: Install ext and sdk
+      run: ./scripts/build.py install_ext --platform=${{ matrix.platform }} && ./scripts/build.py install_sdk --platform=${{ matrix.platform }}
+    - name: Build GLFW
+      run: |
+        cd share/ext
+        ./build.sh glfw ${{ matrix.platform }}
+    - name: Archive results
+      uses: actions/upload-artifact@v4
+      with:
+        name: glfw-3.4-${{ matrix.platform }}.tar.gz
+        path: share/ext/glfw/glfw-3.4-${{ matrix.platform }}.tar.gz
 
   build-macos:
     strategy:
@@ -33,7 +70,25 @@ jobs:
     steps:
     - name: Checkout repo
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-
+      with:
+        ref: '${{env.BUILD_BRANCH}}'
+    - name: Install Python
+      uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c
+      with:
+        python-version: 3.13
+    - name: Run shell build
+      run: ./scripts/build.py shell
+    - name: Install ext and sdk
+      run: ./scripts/build.py install_ext --platform=${{ matrix.platform }} && ./scripts/build.py install_sdk --platform=${{ matrix.platform }}
+    - name: Build GLFW
+      run: |
+        cd share/ext
+        ./build.sh glfw ${{ matrix.platform }}
+    - name: Archive results
+      uses: actions/upload-artifact@v4
+      with:
+        name: glfw-3.4-${{ matrix.platform }}.tar.gz
+        path: share/ext/glfw/glfw-3.4-${{ matrix.platform }}.tar.gz
 
   build-windows:
     strategy:
@@ -43,4 +98,22 @@ jobs:
     steps:
     - name: Checkout repo
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-
+      with:
+        ref: '${{env.BUILD_BRANCH}}'
+    - name: Install Python
+      uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c
+      with:
+        python-version: 3.13
+    - name: Run shell build
+      run: ./scripts/build.py shell
+    - name: Install ext and sdk
+      run: ./scripts/build.py install_ext --platform=${{ matrix.platform }} && ./scripts/build.py install_sdk --platform=${{ matrix.platform }}
+    - name: Build GLFW
+      run: |
+        cd share/ext
+        ./build.sh glfw ${{ matrix.platform }}
+    - name: Archive results
+      uses: actions/upload-artifact@v4
+      with:
+        name: glfw-3.4-${{ matrix.platform }}.tar.gz
+        path: share/ext/glfw/glfw-3.4-${{ matrix.platform }}.tar.gz
