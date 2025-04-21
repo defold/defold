@@ -216,6 +216,7 @@ namespace dmGameSystem
             params.m_X          = upload_params.m_X;
             params.m_Y          = upload_params.m_Y;
             params.m_Z          = upload_params.m_Z;
+            params.m_Slice      = upload_params.m_Slice;
             params.m_SubUpdate  = upload_params.m_SubUpdate;
             params.m_MipMap     = specific_mip_requested ? upload_params.m_MipMap : 0;
 

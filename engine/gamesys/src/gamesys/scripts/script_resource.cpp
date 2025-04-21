@@ -570,6 +570,7 @@ static float CheckTableNumber(lua_State* L, int index, const char* name, float d
 static inline bool IsTextureFormatSupported(dmGraphics::TextureType type)
 {
     return type == dmGraphics::TEXTURE_TYPE_2D ||
+           type == dmGraphics::TEXTURE_TYPE_2D_ARRAY ||
            type == dmGraphics::TEXTURE_TYPE_3D ||
            type == dmGraphics::TEXTURE_TYPE_CUBE_MAP ||
            type == dmGraphics::TEXTURE_TYPE_IMAGE_2D ||
@@ -601,11 +602,11 @@ static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceP
     int depth                        = CheckTableInteger(L, 2, "depth", 1);
     uint32_t max_mipmaps             = (uint32_t) CheckTableInteger(L, 2, "max_mipmaps", 0);
     uint32_t usage_flags             = (uint32_t) CheckTableInteger(L, 2, "flags", dmGraphics::TEXTURE_USAGE_FLAG_SAMPLE);
-    uint32_t layer_count             = 1; // TODO
+    uint32_t layer_count             = (uint32_t) CheckTableInteger(L, 2, "layer_count", 1);
 
-    if (width < 1 || height < 1 || depth < 1)
+    if (width < 1 || height < 1 || depth < 1 || layer_count < 1)
     {
-        return luaL_error(L, "Unable to create texture, width, height and depth must be larger than 0");
+        return luaL_error(L, "Unable to create texture, width, height, depth and layer count must be larger than 0");
     }
 
     if (!IsTextureFormatSupported(type))
@@ -1460,6 +1461,7 @@ static int SetTexture(lua_State* L)
     uint32_t height                  = (uint32_t) CheckTableInteger(L, 2, "height");
     uint32_t depth                   = (uint32_t) CheckTableInteger(L, 2, "depth", 1);
     uint32_t mipmap                  = (uint32_t) CheckTableInteger(L, 2, "mipmap", 0);
+    int32_t slice                    = (int32_t)  CheckTableInteger(L, 2, "slice", DEFAULT_INT_NOT_SET);
     int32_t x                        = (int32_t)  CheckTableInteger(L, 2, "x", DEFAULT_INT_NOT_SET);
     int32_t y                        = (int32_t)  CheckTableInteger(L, 2, "y", DEFAULT_INT_NOT_SET);
     int32_t z                        = (int32_t)  CheckTableInteger(L, 2, "z", DEFAULT_INT_NOT_SET);
@@ -1469,7 +1471,6 @@ static int SetTexture(lua_State* L)
         return luaL_error(L, "Unable to set texture, unsupported texture format '%s'.", dmGraphics::GetTextureFormatLiteral(format));
     }
 
-    // TODO: Texture arrays
     if (!IsTextureFormatSupported(type))
     {
         return luaL_error(L, "Unable to set texture, unsupported texture type '%s'.", dmGraphics::GetTextureTypeLiteral(type));
@@ -1482,10 +1483,11 @@ static int SetTexture(lua_State* L)
 
     dmGraphics::TextureImage::CompressionType compression_type = (dmGraphics::TextureImage::CompressionType) CheckTableInteger(L, 2, "compression_type", (int) dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT);
 
-    bool sub_update = x != DEFAULT_INT_NOT_SET || y != DEFAULT_INT_NOT_SET || z != DEFAULT_INT_NOT_SET;
+    bool sub_update = x != DEFAULT_INT_NOT_SET || y != DEFAULT_INT_NOT_SET || z != DEFAULT_INT_NOT_SET || slice != DEFAULT_INT_NOT_SET;
     x               = dmMath::Max(0, x);
     y               = dmMath::Max(0, y);
     z               = dmMath::Max(0, z);
+    slice           = dmMath::Max(0, slice);
 
     dmScript::LuaHBuffer* lua_buffer = dmScript::CheckBuffer(L, 3);
     dmBuffer::HBuffer buffer_handle  = dmGameSystem::UnpackLuaBuffer(lua_buffer);
@@ -1507,6 +1509,7 @@ static int SetTexture(lua_State* L)
     params.m_X                      = x;
     params.m_Y                      = y;
     params.m_Z                      = z;
+    params.m_Slice                  = slice;
     params.m_MipMap                 = mipmap;
     params.m_SubUpdate              = sub_update;
 
