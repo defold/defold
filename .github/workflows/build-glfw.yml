@@ -129,7 +129,6 @@ jobs:
     - name: Install dependencies
       run: ci/ci.sh install --platform=${{ matrix.platform }}
       shell: bash
-      shell: bash
     - name: Build GLFW
       run: |
         cd share/ext
