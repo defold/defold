@@ -398,13 +398,6 @@ def install_ext(platform = None):
 
     call("python scripts/build.py install_ext %s" % ' '.join(opts))
 
-def install_sdk(platform = None):
-    opts = []
-    if platform:
-        opts.append('--platform=%s' % platform)
-
-    call("python scripts/build.py install_sdk %s" % ' '.join(opts))
-
 def build_bob(channel, branch = None):
     args = "python scripts/build.py install_sdk install_ext sync_archive build_bob archive_bob".split()
     opts = []
@@ -609,8 +602,6 @@ def main(argv):
             install(args)
         elif command == "install_ext":
             install_ext(platform = platform)
-        elif command == "install_sdk":
-            install_sdk(platform = platform)
         elif command == "distclean":
             distclean()
         elif command == "release":
