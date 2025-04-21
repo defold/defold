@@ -84,7 +84,7 @@ function cmi_unpack() {
 }
 
 function convert_line_endings() {
-    if [[ "${PLATFORM,,}" == *win* ]]; then
+    if [[ "${PLATFORM}" == *win* ]]; then
         echo "Running dos2unix conversion on Windows platform..."
         find . -type f -name "*.*" -exec "$DOS2UNIX" {} \;
 
