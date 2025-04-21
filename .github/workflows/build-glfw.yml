@@ -8,7 +8,7 @@ jobs:
   build-linux:
     strategy:
       matrix:
-        arch: [x86_64-linux]
+        platform: [x86_64-linux]
     runs-on: ubuntu-22.04
     steps:
     - name: Checkout repo
@@ -36,7 +36,7 @@ jobs:
   build-linux-arm:
     strategy:
       matrix:
-        arch: [arm64-linux]
+        platform: [arm64-linux]
     runs-on: ubuntu-22.04-arm
     steps:
         
@@ -65,7 +65,7 @@ jobs:
   build-macos:
     strategy:
       matrix:
-        arch: [arm64-macos, x86_64-macos]
+        platform: [arm64-macos, x86_64-macos]
     runs-on: macOS-14
     steps:
     - name: Checkout repo
@@ -93,7 +93,7 @@ jobs:
   build-windows:
     strategy:
       matrix:
-        arch: [win32, x86_64-win32]
+        platform: [win32, x86_64-win32]
     runs-on: windows-latest
     steps:
     - name: Checkout repo

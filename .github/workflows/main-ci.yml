@@ -6,6 +6,7 @@ on:
       - 'skip-ci-*'
       - 'DEFEDIT-*'
       - 'editor-dev'
+      - 'issue-10437-glfw'
   repository_dispatch: {}
 
 env:
