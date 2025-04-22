@@ -23,7 +23,7 @@
            [java.util Collection]
            [org.eclipse.jgit.api Git]
            [org.eclipse.jgit.diff DiffEntry RenameDetector]
-           [org.eclipse.jgit.errors MissingObjectException InvalidObjectIdException]
+           [org.eclipse.jgit.errors MissingObjectException]
            [org.eclipse.jgit.lib BranchConfig ObjectId Repository]
            [org.eclipse.jgit.revwalk RevCommit RevWalk]
            [org.eclipse.jgit.transport RemoteConfig URIish]
@@ -50,12 +50,7 @@
 
 (defn get-commit
   ^RevCommit [^Repository repository revision]
-  (when-some [object-id 
-              (try
-                ;; Repository resolution errors can cause the editor to hang
-                (.resolve repository revision)
-                (catch InvalidObjectIdException _
-                  nil))]
+  (when-some [object-id (.resolve repository revision)]
     (let [walk (RevWalk. repository)]
       (.setRetainBody walk true)
       (.parseCommit walk object-id))))
