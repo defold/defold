@@ -32,7 +32,6 @@ ordinary paths."
             [editor.ui :as ui]
             [editor.url :as url]
             [editor.util :as util]
-            [internal.cache :as c]
             [internal.java :as java]
             [internal.util :as iutil]
             [schema.core :as s]

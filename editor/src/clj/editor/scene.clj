@@ -929,7 +929,6 @@
   (let [x          (:x action)
         y          (:y action)
         screen-pos (Vector3d. x y 0)
-        view-graph (g/node-id->graph-id view)
         camera     (g/node-value (view->camera view) :camera)
         viewport   (g/node-value view :viewport)
         world-pos  (Point3d. (screen->world camera viewport screen-pos))
@@ -1542,7 +1541,8 @@
         tool-controller-type (get opts :tool-controller scene-tools/ToolController)]
     (g/make-nodes view-graph
                   [background      background/Background
-                   selection       [selection/SelectionController :select-fn (fn [selection op-seq]
+                   selection       [selection/SelectionController :drop-fn (:drop-fn opts)
+                                                                  :select-fn (fn [selection op-seq]
                                                                                (g/transact
                                                                                  (concat
                                                                                    (g/operation-sequence op-seq)
