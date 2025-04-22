@@ -2017,9 +2017,10 @@ If you do not specifically require different script states, consider changing th
         right-link (Hyperlink. "Read more…")
         spacer (Region.)]
     (HBox/setHgrow spacer Priority/ALWAYS)
-    (.setStyle info-panel "-fx-background-color: #444; -fx-padding: 4;")
-    (.setTextFill left-label Color/LIGHTGRAY)
-    (.setTextFill right-link Color/CORNFLOWERBLUE)
+    (.getStyleClass info-panel)
+    (ui/set-style! info-panel "info-panel" true)
+    (ui/set-style! left-label "info-panel-label" true)
+    (ui/set-style! right-link "info-panel-link" true)
     (.setOnAction right-link (ui/event-handler _ (ui/open-url "https://www.defold.com/manuals/editor/")))
     (.addAll  (.getChildren info-panel) (Arrays/asList (into-array Node [left-label spacer right-link])))
     info-panel))
@@ -2028,10 +2029,11 @@ If you do not specifically require different script states, consider changing th
                   resource-type view-type make-view-fn ^ObservableList tabs
                   open-resource opts]
   (let [parent (AnchorPane.)
-        tab-content (VBox.)
-        content-nodes (if (resource/read-only? resource)
+        res-read-only? (if (resource/read-only? resource) true false)
+        tab-content (if res-read-only? (VBox.) parent)
+        content-nodes (if res-read-only?
                         [(make-info-box!) parent]
-                        [parent])
+                        [])
         tab (doto (Tab. (tab-title resource false))
               (.setContent tab-content)
               (.setTooltip (Tooltip. (or (resource/proj-path resource) "unknown")))
