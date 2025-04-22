@@ -377,12 +377,16 @@
                                 :aabb aabb
                                 :renderable {:render-fn render-outline
                                              :tags #{:model :outline}
+                                             :batch-key nil
+                                             :select-batch-key :not-rendered
                                              :passes [pass/outline]}}]
                               model-scenes)]
     {:node-id model-scene-resource-node-id
      :aabb aabb
      :renderable {:render-fn render-outline
                   :tags #{:model}
+                  :batch-key nil ; Batching is disabled in the editor for simplicity.
+                  :select-batch-key :not-rendered ; The render-fn only does anything during the outline pass.
                   :passes [pass/opaque-selection]} ; Include in a selection pass to ensure it can be selected and manipulated.
      :children children-scenes}))
 
