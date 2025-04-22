@@ -6,7 +6,6 @@ on:
 env:
   DM_PACKAGES_URL: ${{ secrets.DM_PACKAGES_URL }}
 
-
 jobs:
   build-linux:
     strategy:
