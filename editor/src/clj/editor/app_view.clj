@@ -2029,11 +2029,11 @@ If you do not specifically require different script states, consider changing th
                   resource-type view-type make-view-fn ^ObservableList tabs
                   open-resource opts]
   (let [parent (AnchorPane.)
-        res-read-only? (if (resource/read-only? resource) true false)
-        tab-content (if res-read-only? (VBox.) parent)
-        content-nodes (if res-read-only?
-                        [(make-info-box!) parent]
-                        [])
+        tab-content (if (resource/read-only? resource)
+                      (doto (VBox.)
+                        (ui/children! [(make-info-box!)
+                                       (doto parent (VBox/setVgrow Priority/ALWAYS))]))
+                      parent)
         tab (doto (Tab. (tab-title resource false))
               (.setContent tab-content)
               (.setTooltip (Tooltip. (or (resource/proj-path resource) "unknown")))
@@ -2050,8 +2050,6 @@ If you do not specifically require different script states, consider changing th
                      :workspace workspace
                      :tab tab})
         view (make-view-fn view-graph parent resource-node opts)]
-    (VBox/setVgrow parent Priority/ALWAYS)
-    (.addAll (.getChildren tab-content) (Arrays/asList (into-array Node content-nodes)))
     (assert (g/node-instance? view/WorkbenchView view))
     (recent-files/add! prefs resource view-type)
     (g/transact
