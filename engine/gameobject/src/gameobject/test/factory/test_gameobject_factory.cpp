@@ -124,9 +124,6 @@ static dmGameObject::CreateResult TestComponentCreate(const dmGameObject::Compon
 {
     // Hard coded for the specific case "CreateCallback" below
     dmGameObject::HInstance instance = params.m_Instance;
-    if (dmGameObject::GetIdentifier(instance) != dmHashString64("/instance0")) {
-        return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
-    }
     if (dmGameObject::GetWorldPosition(instance).getX() != 2.0f) {
         return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
     }
@@ -160,7 +157,7 @@ TEST_F(FactoryTest, Factory)
     for (int i = 0; i < count; ++i)
     {
         uint32_t index = dmGameObject::AcquireInstanceIndex(m_Collection);
-        dmhash_t id = dmGameObject::ConstructInstanceId(index);
+        dmhash_t id = dmGameObject::CreateInstanceId();
 
         ASSERT_NE(0u, id);
         dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test.goc", id, 0, Point3(), Quat(), Vector3(1, 1, 1));
@@ -171,7 +168,7 @@ TEST_F(FactoryTest, Factory)
 TEST_F(FactoryTest, FactoryScale)
 {
     uint32_t index = dmGameObject::AcquireInstanceIndex(m_Collection);
-    dmhash_t id = dmGameObject::ConstructInstanceId(index);
+    dmhash_t id = dmGameObject::CreateInstanceId();
     ASSERT_NE(0u, id);
     dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test.goc", id, 0, Point3(), Quat(), Vector3(2, 2, 2));
     ASSERT_EQ(2.0f, dmGameObject::GetUniformScale(instance));
@@ -180,14 +177,14 @@ TEST_F(FactoryTest, FactoryScale)
 TEST_F(FactoryTest, FactoryScaleAlongZ)
 {
     uint32_t index = dmGameObject::AcquireInstanceIndex(m_Collection);
-    dmhash_t id = dmGameObject::ConstructInstanceId(index);
+    dmhash_t id = dmGameObject::CreateInstanceId();
 
     m_Collection->m_Collection->m_ScaleAlongZ = 1;
     dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test.goc", id, 0, Point3(), Quat(), Vector3(2, 2, 2));
     ASSERT_TRUE(dmGameObject::ScaleAlongZ(instance));
 
     index = dmGameObject::AcquireInstanceIndex(m_Collection);
-    id = dmGameObject::ConstructInstanceId(index);
+    id = dmGameObject::CreateInstanceId();
     m_Collection->m_Collection->m_ScaleAlongZ = 0;
     instance = Spawn(m_Factory, m_Collection, "/test.goc", id, 0, Point3(), Quat(), Vector3(2, 2, 2));
     ASSERT_FALSE(dmGameObject::ScaleAlongZ(instance));
@@ -228,12 +225,12 @@ TEST_F(FactoryTest, FactoryProperties)
     dmGameObject::PropertyContainerPrint(properties);
 
     uint32_t index = dmGameObject::AcquireInstanceIndex(m_Collection);
-    dmhash_t id = dmGameObject::ConstructInstanceId(index);
+    dmhash_t id = dmGameObject::CreateInstanceId();
     dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test_props.goc", id, properties, Point3(), Quat(), Vector3(2, 2, 2));
     ASSERT_NE((void*)0, instance);
 
     index = dmGameObject::AcquireInstanceIndex(m_Collection);
-    id = dmGameObject::ConstructInstanceId(index);
+    id = dmGameObject::CreateInstanceId();
     instance = Spawn(m_Factory, m_Collection, "/test_props.goc", id, properties, Point3(), Quat(), Vector3(2, 2, 2));
     ASSERT_NE((void*)0, instance);
 
@@ -252,7 +249,7 @@ TEST_F(FactoryTest, FactoryPropertiesFailUnsupportedType)
     lua_pop(L, 1);
 
     uint32_t index = dmGameObject::AcquireInstanceIndex(m_Collection);
-    dmhash_t id = dmGameObject::ConstructInstanceId(index);
+    dmhash_t id = dmGameObject::CreateInstanceId();
     dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test_props.goc", id, properties, Point3(), Quat(), Vector3(2, 2, 2));
     ASSERT_EQ((void*)0, instance);
 
@@ -271,7 +268,7 @@ TEST_F(FactoryTest, FactoryPropertiesFailTypeMismatch)
     lua_pop(L, 1);
 
     uint32_t index = dmGameObject::AcquireInstanceIndex(m_Collection);
-    dmhash_t id = dmGameObject::ConstructInstanceId(index);
+    dmhash_t id = dmGameObject::CreateInstanceId();
     dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test_props.goc", id, properties, Point3(), Quat(), Vector3(2, 2, 2));
     ASSERT_EQ((void*)0, instance);
 
@@ -281,7 +278,7 @@ TEST_F(FactoryTest, FactoryPropertiesFailTypeMismatch)
 TEST_F(FactoryTest, FactoryCreateCallback)
 {
     uint32_t index = dmGameObject::AcquireInstanceIndex(m_Collection);
-    dmhash_t id = dmGameObject::ConstructInstanceId(index);
+    dmhash_t id = dmGameObject::CreateInstanceId();
     dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test_create.goc", id, 0, Point3(2.0f, 0.0f, 0.0f), Quat(), Vector3(2, 2, 2));
     ASSERT_NE((void*)0, instance);
 }

@@ -1138,19 +1138,21 @@
                {:label "Live Update Settings"
                 :command :live-update-settings}
                {:label :separator
+                :id ::targets}
+               {:label :separator
                 :id ::project-end}]}])
 
 (defn- update-selection [s open-resource-nodes active-resource-node selection-value]
   (->> (assoc s active-resource-node selection-value)
-    (filter (comp (set open-resource-nodes) first))
-    (into {})))
+       (filter (comp (set open-resource-nodes) first))
+       (into {})))
 
 (defn- perform-selection [project all-selections]
   (let [all-node-ids (->> all-selections
-                       vals
-                       (reduce into [])
-                       distinct
-                       vec)
+                          vals
+                          (reduce into [])
+                          distinct
+                          vec)
         old-all-selections (g/node-value project :all-selections)]
     (when-not (= old-all-selections all-selections)
       (concat

@@ -224,7 +224,7 @@ PACKAGES_LINUX_X86_64=[
     "tremolo-b0cb4d1",
     "lipo-9ffdea2",
     "glfw-3.4",
-    "tint-22b958",
+    "tint-7bd151a780",
     "sassc-5472db213ec223a67482df2226622be372921847",
     "astcenc-8b0aa01",
     "box2d-3.0.0",
@@ -242,7 +242,7 @@ PACKAGES_LINUX_ARM64=[
     "tremolo-b0cb4d1",
     "lipo-abb8ab1",
     "glfw-3.4",
-    "tint-22b958",
+    "tint-7bd151a780",
     "astcenc-8b0aa01",
     "box2d-3.0.0",
     "box2d_defold-2.2.1",
@@ -422,6 +422,7 @@ class Configuration(object):
                  dynamo_home = None,
                  target_platform = None,
                  skip_tests = False,
+                 keep_bob_uncompressed = False,
                  skip_codesign = False,
                  skip_docs = False,
                  incremental = False,
@@ -470,6 +471,7 @@ class Configuration(object):
         self.build_utility = BuildUtility.BuildUtility(self.target_platform, self.host, self.dynamo_home)
 
         self.skip_tests = skip_tests
+        self.keep_bob_uncompressed = keep_bob_uncompressed
         self.skip_codesign = skip_codesign
         self.skip_docs = skip_docs
         self.incremental = incremental
@@ -1390,7 +1392,7 @@ class Configuration(object):
         env['GRADLE_OPTS'] = '-Dorg.gradle.parallel=true' #-Dorg.gradle.daemon=true
 
         # Clean and build the project
-        s = run.command(" ".join([gradle, 'clean', 'installBobLight'] + gradle_args), cwd = bob_dir, shell = True, env = env)
+        s = run.command(" ".join([gradle, '-Pkeep-bob-uncompressed', 'clean', 'installBobLight'] + gradle_args), cwd = bob_dir, shell = True, env = env)
         if self.verbose:
         	print (s)
 
@@ -1567,13 +1569,16 @@ class Configuration(object):
             gradle_args += ['--info']
 
         env['GRADLE_OPTS'] = '-Dorg.gradle.parallel=true' #-Dorg.gradle.daemon=true
+        flags = ''
+        if self.keep_bob_uncompressed:
+            flags = '-Pkeep-bob-uncompressed'
 
         # Clean and build the project
-        run.command(" ".join([gradle, 'clean', 'install'] + gradle_args), cwd=bob_dir, shell = True, env = env)
+        run.command(" ".join([gradle, flags, 'clean', 'install'] + gradle_args), cwd=bob_dir, shell = True, env = env)
 
         # Run tests if not skipped
         if not self.skip_tests:
-            run.command(" ".join([gradle, 'testJar'] + gradle_args), cwd = test_dir, shell = True, env = env, stdout = None)
+            run.command(" ".join([gradle, flags, 'testJar'] + gradle_args), cwd = test_dir, shell = True, env = env, stdout = None)
 
 
     def build_sdk_headers(self):
@@ -1842,10 +1847,14 @@ class Configuration(object):
         args = [SHELL, '-l']
 
         process = subprocess.Popen(args, env=self._form_env(), shell=True)
-        output = process.communicate()[0]
+        try:
+            output = process.communicate()[0]
+        except KeyboardInterrupt as e:
+            sys.exit(0)
 
         if process.returncode != 0:
-            self._log(str(output, encoding='utf-8'))
+            if output is not None:
+                self._log(str(output, encoding='utf-8'))
             sys.exit(process.returncode)
 
     def fatal(self, msg):
@@ -2528,7 +2537,7 @@ class Configuration(object):
         if self.no_colors:
             env['NOCOLOR'] = '1'
 
-
+        # XMLHttpRequest Emulation for node.js
         xhr2_path = os.path.join(self.dynamo_home, NODE_MODULE_LIB_DIR, 'xhr2', 'package', 'lib')
         if 'NODE_PATH' in env:
             env['NODE_PATH'] = xhr2_path + os.path.pathsep + env['NODE_PATH']
@@ -2581,6 +2590,11 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       action = 'store_true',
                       default = False,
                       help = 'Skip unit-tests. Default is false')
+
+    parser.add_option('--keep-bob-uncompressed', dest='keep_bob_uncompressed',
+                    action = 'store_true',
+                    default = False,
+                    help = 'do not apply compression to bob.jar. Default is false')
 
     parser.add_option('--skip-codesign', dest='skip_codesign',
                       action = 'store_true',
@@ -2725,6 +2739,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
     c = Configuration(dynamo_home = os.environ.get('DYNAMO_HOME', None),
                       target_platform = target_platform,
                       skip_tests = options.skip_tests,
+                      keep_bob_uncompressed = options.keep_bob_uncompressed,
                       skip_codesign = options.skip_codesign,
                       skip_docs = options.skip_docs,
                       incremental = options.incremental,

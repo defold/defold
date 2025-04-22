@@ -209,7 +209,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
                 properties.put(pathPrefix + instProps.getId(), instProps.getPropertiesList());
             }
             Point3d p = MathUtil.ddfToVecmath(collInst.getPosition());
-            Quat4d r = MathUtil.ddfToVecmath(collInst.getRotation());
+            Quat4d r = MathUtil.ddfToVecmath(collInst.getRotation(), "%s collection: %s".formatted(owner, collInst.getId()));
 
             Vector3d s;
             if (collInst.hasScale3()) {
@@ -255,7 +255,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
                     MathUtil.rotate(r, instP);
                     instP.add(p);
                     instBuilder.setPosition(MathUtil.vecmathToDDF(instP));
-                    Quat4d instR = MathUtil.ddfToVecmath(inst.getRotation());
+                    Quat4d instR = MathUtil.ddfToVecmath(inst.getRotation(), "%s gameobject: %s".formatted(owner, inst.getId()));
                     instR.mul(r, instR);
                     instBuilder.setRotation(MathUtil.vecmathToDDF(instR));
                     instBuilder.setScale3(MathUtil.vecmathToDDFOne(instS));
@@ -299,7 +299,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
                     MathUtil.rotate(r, instP);
                     instP.add(p);
                     instBuilder.setPosition(MathUtil.vecmathToDDF(instP));
-                    Quat4d instR = MathUtil.ddfToVecmath(inst.getRotation());
+                    Quat4d instR = MathUtil.ddfToVecmath(inst.getRotation(), "%s go: %s".formatted(owner, inst.getId()));
                     instR.mul(r, instR);
                     instBuilder.setRotation(MathUtil.vecmathToDDF(instR));
                     instBuilder.setScale3(MathUtil.vecmathToDDFOne(instS));

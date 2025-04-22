@@ -45,8 +45,6 @@ def configure(conf):
         #conf.env['LIB_JDK'] = ['native']
         conf.env['DEFINES_JDK'] = ['DM_HAS_JDK']
 
-    platform = conf.env['PLATFORM']
-
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="MODELC"')
 
 def build(bld):
