@@ -530,18 +530,9 @@ INSTANTIATE_TEST_CASE_P(dmSoundTestLoopingTest, dmSoundTestLoopingTest, jc_test_
 // gain to scale conversion
 static float GainToScale(float gain)
 {
-#if defined(DM_SOUND_USE_LEGACY_GAIN) && (DM_SOUND_USE_LEGACY_GAIN == 1)
-    return gain;
-#else
-    gain = dmMath::Clamp(gain, 0.0f, 1.0f);
-    const float l = 0.1f;   // linear taper-off range
-    const float a = 1e-3f;
-    const float b = 6.908f;
-    float scale = a * expf(gain * b);
-    if (gain < l)
-        scale *= gain * (1.0f / l);
-    return dmMath::Min(scale, 1.0f);
-#endif
+    float scale;
+    dmSound::GetScaleFromGain(gain, &scale);
+    return scale;
 }
 
 // Generate sine wave per given parametyers and resasmple it as needed to mimic runtimes signal path for generated test waves

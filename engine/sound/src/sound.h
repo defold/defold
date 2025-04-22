@@ -97,6 +97,8 @@ namespace dmSound
         uint32_t     m_MaxInstances;
         bool         m_UseThread;
         DSPImplType  m_DSPImplementation;
+        bool         m_UseLegacyStereoPan;
+        bool         m_UseLinearGain;
 
         InitializeParams()
         {
@@ -145,6 +147,7 @@ namespace dmSound
 
     Result GetGroupRMS(dmhash_t group_hash, float window, float* rms_left, float* rms_right);
     Result GetGroupPeak(dmhash_t group_hash, float window, float* peak_left, float* peak_right);
+    Result GetScaleFromGain(float gain, float* scale);
 
     Result Play(HSoundInstance sound_instance);
     Result Stop(HSoundInstance sound_instance);
