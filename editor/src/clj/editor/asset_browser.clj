@@ -691,6 +691,9 @@
 (defn- drag-detected [^MouseEvent e selection]
   (let [resources (roots selection)
         files (fileify-resources! resources)
+        paths (->> resources
+                   (mapv resource/proj-path)
+                   (string/join "\n"))
         ;; Note: It would seem we should use the TransferMode/COPY_OR_MOVE mode
         ;; here in order to support making copies of non-readonly files, but
         ;; that results in every drag operation becoming a copy on macOS due to
@@ -707,6 +710,7 @@
       (.setDragView db (icons/get-image (workspace/resource-icon (first resources)) 16)
                     0 16))
     (.putFiles content files)
+    (.putString content paths)
     (.setContent db content)
     (.consume e)))
 

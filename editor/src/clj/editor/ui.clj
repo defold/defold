@@ -1918,13 +1918,11 @@
         app-view (-> current-command-contexts first :env :app-view)
         active-tab (g/maybe-node-value app-view :active-tab evaluation-context)]
     (doseq [td (vals (user-data root ::toolbars))]
-      (let [control (:control td)
-            is-active (boolean (when active-tab
-                                 (nodes-along-path? control (.getContent ^Tab active-tab) root)))]
-        (visible! control is-active)
-        (when is-active
-          (refresh-toolbar td visible-command-contexts evaluation-context)
-          (refresh-toolbar-state (:control td) current-command-contexts evaluation-context))))))
+      (let [control (:control td)]
+        (when active-tab
+          (visible! control (nodes-along-path? control (.getContent ^Tab active-tab) root)))
+        (refresh-toolbar td visible-command-contexts evaluation-context)
+        (refresh-toolbar-state (:control td) current-command-contexts evaluation-context)))))
 
 (defn refresh
   [^Scene scene]
