@@ -1109,7 +1109,7 @@ namespace dmGameObject
      * go.set_scale(s, "obj_id")
      * ```
      */
-    int Script_SetScale(lua_State* L)
+    static int Script_SetScale(lua_State* L)
     {
         Instance* instance = ResolveInstance(L, 2);
 
@@ -1159,7 +1159,7 @@ namespace dmGameObject
      * go.set_scale_xy(s, "obj_id") -- z will not be set here, only x and y
      * ```
      */
-    int Script_SetScaleXY(lua_State* L)
+    static int Script_SetScaleXY(lua_State* L)
     {
         Instance* instance = ResolveInstance(L, 2);
 
