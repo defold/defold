@@ -444,15 +444,13 @@
                                                        :vbuf vbuf}}}}]})))
 
 (g/defnk produce-scene
-  [_node-id child-scenes collision-shape dep-build-targets collision-group-color]
-  (let [convex-shape-data (when (and collision-shape (= (resource/type-ext collision-shape) "convexshape"))
-                            (-> dep-build-targets ffirst :user-data :pb))]
-    {:node-id _node-id
-     :aabb geom/null-aabb
-     :renderable {:passes [pass/selection]}
-     :children (if convex-shape-data
-                 [(convex-hull-scene _node-id convex-shape-data collision-group-color)]
-                 child-scenes)}))
+  [_node-id child-scenes convex-shape-data collision-group-color]
+  {:node-id _node-id
+   :aabb geom/null-aabb
+   :renderable {:passes [pass/selection]}
+   :children (if convex-shape-data
+               [(convex-hull-scene _node-id convex-shape-data collision-group-color)]
+               child-scenes)})
 
 (defn- make-embedded-collision-shape [shapes]
   (loop [idx 0
@@ -593,13 +591,15 @@
   (input dep-build-targets g/Any :array)
   (input collision-groups-data g/Any)
   (input project-settings g/Any)
+  (input convex-shape-data g/Any)
 
   (property collision-shape resource/Resource ; Nil is valid default.
             (value (gu/passthrough collision-shape-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :collision-shape-resource]
-                                            [:build-targets :dep-build-targets])))
+                                            [:build-targets :dep-build-targets]
+                                            [:save-value :convex-shape-data])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext #{"convexshape" "tilemap"}}))
             (dynamic error (g/fnk [_node-id collision-shape shapes]
                              (or (validation/prop-error :fatal _node-id :collision-shape validation/prop-resource-not-exists? collision-shape "Collision Shape")
