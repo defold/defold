@@ -375,10 +375,8 @@
                            renderable-models)
         children-scenes (into [{:node-id model-scene-resource-node-id
                                 :aabb aabb
-                                :renderable {:render-fn render-outline
-                                             :tags #{:model :outline}
+                                :renderable {:tags #{:model :outline}
                                              :batch-key nil
-                                             :select-batch-key :not-rendered
                                              :passes [pass/outline]}}]
                               model-scenes)]
     {:node-id model-scene-resource-node-id
