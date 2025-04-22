@@ -23,6 +23,10 @@ jobs:
         python-version: 3.13
     - name: Install dependencies
       run: ci/ci.sh install --platform=${{ matrix.platform }}
+    - name: Install Wayland dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y wayland-protocols libwayland-dev
     - name: Build GLFW
       run: |
         cd share/ext
@@ -58,6 +62,10 @@ jobs:
         python-version: 3.13
     - name: Install dependencies
       run: ci/ci.sh install --platform=${{ matrix.platform }}
+    - name: Install Wayland dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y wayland-protocols libwayland-dev
     - name: Build GLFW
       run: |
         cd share/ext
