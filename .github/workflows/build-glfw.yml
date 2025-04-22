@@ -2,7 +2,7 @@ name: Build GLFW
 
 on:
   workflow_dispatch:
-
+  push:
 env:
   DM_PACKAGES_URL: ${{ secrets.DM_PACKAGES_URL }}
 

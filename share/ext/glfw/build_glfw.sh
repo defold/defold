@@ -92,6 +92,19 @@ function convert_line_endings() {
     fi
 }
 
+function normalize_package_folders() {
+    echo "Normalizing folder names..."
+
+    # Rename folders to lowercase if incorrectly capitalized
+    [ -d "${SOURCE_DIR}/${PRODUCT^^}" ] && mv "${SOURCE_DIR}/${PRODUCT^^}" "${SOURCE_DIR}/${PRODUCT}"
+    [ -d "${SOURCE_DIR}/Include" ] && mv "${SOURCE_DIR}/Include" "${SOURCE_DIR}/include"
+
+    # Prepare a clean packaging directory
+    mkdir -p "${SOURCE_DIR}/tmp_package"
+    cp -r "${SOURCE_DIR}/lib" "${SOURCE_DIR}/tmp_package/lib"
+    cp -r "${SOURCE_DIR}/include" "${SOURCE_DIR}/tmp_package/include"
+}
+
 download
 
 mkdir -p ${SOURCE_DIR}
@@ -121,7 +134,8 @@ cp -v ${SRC_LIB} ${TARGET_LIB}/${LIB_TARGET_NAME}
 
 PACKAGE=glfw-${VERSION}-${PLATFORM}.tar.gz
 
-tar cfvz $PACKAGE lib include
+normalize_package_folders
+tar cfvz $PACKAGE -C "${SOURCE_DIR}/tmp_package" lib include
 
 popd
 
