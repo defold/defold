@@ -111,21 +111,21 @@ namespace dmSoundCodec
 
         struct DecodeStreamInfo {
             Info m_Info;
-            int m_IsADPCM : 1;
-            int : 31;
+            bool m_IsADPCM : 1;
+            uint8_t : 7;
             uint32_t m_Cursor;
             const void* m_Buffer;
             uint32_t m_BufferOffset;
             struct ADPCM {
-                uint16_t m_BlockAlign;
-                uint16_t m_BlockFrames;
-                uint16_t m_OutFramesOffset;
                 dmArray<int16_t> m_OutBuffer;
                 dmArray<int8_t> m_InBuffer;
                 uint32_t m_InBufferOffset;
                 int32_t m_Pred[2];
                 int32_t m_StepIndex[2];
                 int32_t m_Step[2];
+                uint16_t m_BlockAlign;
+                uint16_t m_BlockFrames;
+                uint16_t m_OutFramesOffset;
             } m_ADPCM;
             dmSound::HSoundData m_SoundData;
         };
@@ -159,7 +159,6 @@ namespace dmSoundCodec
             header.m_Format == FOUR_CC('W', 'A', 'V', 'E')) {
 
             DecodeStreamInfo *streamOut = new DecodeStreamInfo;
-            assert(streamOut);
             
             uint32_t current_offset = sizeof(header);
             do {
