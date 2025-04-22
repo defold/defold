@@ -2021,7 +2021,7 @@ If you do not specifically require different script states, consider changing th
     (ui/set-style! info-panel "info-panel" true)
     (ui/set-style! left-label "info-panel-label" true)
     (ui/set-style! right-link "info-panel-link" true)
-    (.setOnAction right-link (ui/event-handler _ (ui/open-url "https://www.defold.com/manuals/editor/")))
+    (.setOnAction right-link (ui/event-handler _ (ui/open-url "https://defold.com/manuals/libraries/#editing-files-in-library-dependencies")))
     (.addAll  (.getChildren info-panel) (Arrays/asList (into-array Node [left-label spacer right-link])))
     info-panel))
 
