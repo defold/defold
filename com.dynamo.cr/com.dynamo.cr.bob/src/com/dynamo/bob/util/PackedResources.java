@@ -1,24 +1,29 @@
-package com.dynamo.bob;
+package com.dynamo.bob.util;
 
-import com.dynamo.bob.util.TimeProfiler;
+import com.dynamo.bob.Bob;
+import com.dynamo.bob.Platform;
 
 import java.io.File;
+import java.io.FilterInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.JarURLConnection;
 import java.net.URL;
 import java.util.jar.JarFile;
 
-public class PackedTools {
+public class PackedResources {
     // Async unpack state and synchronization
     private static volatile boolean unpackStarted = false;
     private static volatile boolean unpackDone = false;
     private static final Object unpackLock = new Object();
-    /**
-     * Unpack all tools for a given platform from the /libexec/<platform> directory in the JAR to the root folder.
-     * Excludes files containing "dmengine" in their name.
-     */
-    private static void unpackAll(Platform platform) throws IOException {
-        TimeProfiler.start("UnpackAllTools");
+
+    private static final Object bobInputStreamLock = new Object();
+    private static InputStream sharedBobInputStream = null;
+    private static int sharedBobInputStreamRefCount = 0;
+    private static JarFile jarFile;
+
+    private static void unpackAllLibs(Platform platform) throws IOException {
+        TimeProfiler.start("unpackAllHostLibs");
         String platformPair = platform.getPair();
         File targetDir = new File(Bob.getRootFolder(), platformPair);
 
@@ -41,11 +46,9 @@ public class PackedTools {
         if (libexecRoot.getProtocol().equals("jar")) {
             try {
                 JarURLConnection jarConnection = (JarURLConnection) libexecRoot.openConnection();
-                JarFile jarFile = jarConnection.getJarFile();
+                jarFile = jarConnection.getJarFile();
                 String basePath = "libexec/" + platformPair + "/";
                 String luaZip = "lib/luajit-share.zip";
-                // Do not close this stream manually and keep it up to JVM
-                // Because jar also used in the main thread as Bob.class.getResourceAsStream()
                 jarFile.stream().forEach(entry -> {
                     String name = entry.getName();
                     if (!entry.isDirectory()) {
@@ -107,9 +110,9 @@ public class PackedTools {
     }
 
     /**
-     * Run unpackAll asynchronously. Only starts once.
+     * Run unpackAllHostLibs asynchronously. Only starts once.
      */
-    public static void runUnpackAllAsync(Platform platform) {
+    public static void runUnpackAllLibsAsync(Platform platform) {
         synchronized (unpackLock) {
             if (unpackStarted) {
                 return;
@@ -118,7 +121,7 @@ public class PackedTools {
         }
         Thread unpackThread = new Thread(() -> {
             try {
-                unpackAll(platform);
+                unpackAllLibs(platform);
             } catch (IOException e) {
                 throw new RuntimeException("Failed to unpack tools", e);
             } finally {
@@ -132,9 +135,9 @@ public class PackedTools {
     }
 
     /**
-     * Wait for the completion of async unpackAll.
+     * Wait for the completion of async unpackAllHostLibs.
      */
-    public static void waitForUnpackAll() {
+    public static void waitForUnpackLibs() {
         synchronized (unpackLock) {
             if (!unpackStarted) {
                 return;
@@ -150,8 +153,11 @@ public class PackedTools {
         }
     }
 
-    public static void reset() {
+    public static void reset() throws IOException {
         unpackStarted = false;
         unpackDone = false;
+        if (jarFile != null) {
+            jarFile.close();
+        }
     }
 }

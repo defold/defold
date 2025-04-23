@@ -22,6 +22,7 @@ import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.util.HttpUtil;
+import com.dynamo.bob.util.PackedResources;
 import com.dynamo.bob.util.TimeProfiler;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -119,7 +120,11 @@ public class Bob {
                     System.out.println("Warning: Failed to clean up temp directory '" + tmpDirFile.getAbsolutePath() + "'");
                 }
                 finally {
-                    PackedTools.reset();
+                    try {
+                        PackedResources.reset();
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
                 }
             }
         }));
@@ -153,8 +158,8 @@ public class Bob {
     }
 
     public static void initLua() {
-        PackedTools.runUnpackAllAsync(Platform.getHostPlatform());
-        PackedTools.waitForUnpackAll();
+        PackedResources.runUnpackAllLibsAsync(Platform.getHostPlatform());
+        PackedResources.waitForUnpackLibs();
     }
 
     public static File getRootFolder() {
@@ -275,7 +280,7 @@ public class Bob {
 
     private static String getExeWithExtension(Platform platform, String name, String extension) throws IOException {
         init();
-        PackedTools.waitForUnpackAll();
+        PackedResources.waitForUnpackLibs();
         TimeProfiler.start("getExeWithExtension %s.%s", name, extension);
         String exeName = platform.getPair() + "/" + platform.getExePrefix() + name + extension;
         File f = new File(rootFolder, exeName);
@@ -718,7 +723,7 @@ public class Bob {
         String rootDirectory = getOptionsValue(cmd, 'r', cwd);
 
         init();
-        PackedTools.runUnpackAllAsync(Platform.getHostPlatform());
+        PackedResources.runUnpackAllLibsAsync(Platform.getHostPlatform());
 
         String build_report_json = null;
         String build_report_html = null;
