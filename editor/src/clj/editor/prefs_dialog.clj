@@ -39,7 +39,8 @@
             [editor.util :as eutil]
             [util.coll :as coll]
             [util.eduction :as e]
-            [util.fn :as fn])
+            [util.fn :as fn]
+            [util.text-util :as text-util])
   (:import [javafx.event ActionEvent]
            [javafx.scene Scene]
            [javafx.scene.control MenuItem TableView]
@@ -172,8 +173,8 @@
     {}))
 
 (defn filtered-command? [command shortcuts filter-text]
-  (or (eutil/includes-ignore-case? (filterable-command-label command) filter-text)
-      (coll/some #(eutil/includes-ignore-case? (keymap/shortcut-filterable-text %) filter-text) shortcuts)))
+  (or (text-util/includes-ignore-case? (filterable-command-label command) filter-text)
+      (coll/some #(text-util/includes-ignore-case? (keymap/shortcut-filterable-text %) filter-text) shortcuts)))
 
 (defn- handle-table-view-context-menu-requested-event [swap-state ^ContextMenuEvent e]
   (let [^TableView table-view (.getSource e)]
@@ -311,6 +312,7 @@
   [{:keys [update-keymap state swap-state keymap handler-state]}]
   (let [{:keys [filter-text context-menu new-shortcut-popup]} state
         commands (-> (handler/public-commands handler-state)
+                     (into (keymap/commands keymap))
                      (cond->> (not= filter-text "")
                               (filterv #(filtered-command? % (keymap/shortcuts keymap %) filter-text)))
                      (sort)
@@ -423,7 +425,7 @@
                                                  {:fx/type fx.column-constraints/lifecycle
                                                   :hgrow :always}]
                             :children (->> paths
-                                           (coll/mapcat-indexed
+                                           (e/mapcat-indexed
                                              (fn [row path]
                                                (let [schema (prefs/schema prefs-state prefs path)
                                                      tooltip (:description (:ui schema))]

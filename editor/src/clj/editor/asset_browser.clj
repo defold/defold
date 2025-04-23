@@ -99,19 +99,19 @@
    {:label "Copy Require Path"
     :command :edit.copy-require-path}
    {:label :separator}
-   {:label "Open in Desktop"
+   {:label "Show in Desktop"
     :icon "icons/32/Icons_S_14_linkarrow.png"
-    :command :file.open-in-desktop}
+    :command :file.show-in-desktop}
    {:label "Referencing Files..."
     :command :file.show-references}
    {:label "Dependencies..."
     :command :file.show-dependencies}
    {:label "Show Overrides"
-    :command :window.show-overrides}
+    :command :edit.show-overrides}
    {:label :separator}
    {:label "New"
     :command :file.new
-    :expand? true
+    :expand true
     :icon "icons/64/Icons_29-AT-Unknown.png"}
    {:label "New File"
     :command :file.new

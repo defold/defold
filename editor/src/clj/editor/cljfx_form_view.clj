@@ -52,12 +52,12 @@
             [editor.system :as system]
             [editor.ui :as ui]
             [editor.url :as url]
-            [editor.util :as eutil]
             [editor.view :as view]
             [editor.workspace :as workspace]
             [internal.util :as util]
             [util.coll :as coll]
-            [util.fn :as fn])
+            [util.fn :as fn]
+            [util.text-util :as text-util])
   (:import [com.defold.control DefoldStringConverter]
            [java.io File]
            [javafx.event Event]
@@ -1394,8 +1394,8 @@
 (defn- set-field-visibility [field values filter-term section-visible]
   (let [value (get values (:path field) ::no-value)
         visible (and (or section-visible
-                         (eutil/includes-ignore-case? (:label field) filter-term)
-                         (boolean (some #(eutil/includes-ignore-case? % filter-term)
+                         (text-util/includes-ignore-case? (:label field) filter-term)
+                         (boolean (some #(text-util/includes-ignore-case? % filter-term)
                                         (filterable-strings
                                           (assoc field :value (if (= value ::no-value)
                                                                 (form/field-default field)
@@ -1408,9 +1408,9 @@
     (assoc field :visible visible)))
 
 (defn- set-section-visibility [{:keys [title help fields] :as section} values filter-term]
-  (let [visible (or (eutil/includes-ignore-case? title filter-term)
+  (let [visible (or (text-util/includes-ignore-case? title filter-term)
                     (and (some? help)
-                         (eutil/includes-ignore-case? help filter-term)))
+                         (text-util/includes-ignore-case? help filter-term)))
         fields (into []
                      (comp
                        (remove :hidden?)

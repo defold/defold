@@ -235,20 +235,20 @@
    {:label "Show in Asset Browser"
     :icon "icons/32/Icons_S_14_linkarrow.png"
     :command :file.show-in-assets}
-   {:label "Open in Desktop"
+   {:label "Show in Desktop"
     :icon "icons/32/Icons_S_14_linkarrow.png"
-    :command :file.open-in-desktop}
+    :command :file.show-in-desktop}
    {:label "Referencing Files..."
     :command :file.show-references}
    {:label "Dependencies..."
     :command :file.show-dependencies}
    {:label "Show Overrides"
-    :command :window.show-overrides}
+    :command :edit.show-overrides}
    {:label :separator}
    {:label "Add"
     :icon "icons/32/Icons_M_07_plus.png"
     :command :edit.add-embedded-component
-    :expand? true}
+    :expand true}
    {:label "Add From File"
     :icon "icons/32/Icons_M_07_plus.png"
     :command :edit.add-referenced-component}

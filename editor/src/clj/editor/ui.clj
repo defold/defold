@@ -1418,7 +1418,7 @@
                   enabled? (handler/enabled? handler-ctx evaluation-context)
                   key-combo (first (keymap/shortcuts keymap command))]
               (if-let [options (handler/options handler-ctx)]
-                (if (and key-combo (not (:expand? item)))
+                (if (and key-combo (not (:expand item)))
                   (make-menu-command scene id label icon style-classes key-combo user-data command enabled? check)
                   (make-submenu id
                                 label

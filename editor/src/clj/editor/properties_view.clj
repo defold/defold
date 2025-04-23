@@ -840,7 +840,7 @@
     (.setMinWidth Label/USE_PREF_SIZE)
     (.setMinHeight 28.0)))
 
-(handler/defhandler :window.show-overrides :property
+(handler/defhandler :edit.show-overrides :property
   (active? [evaluation-context selection]
     (when-let [node-id (handler/selection->node-id selection)]
       (pos? (count (g/overrides (:basis evaluation-context) node-id)))))
@@ -849,7 +849,7 @@
 
 (handler/register-menu! ::properties-menu
   [{:label "Show Overrides"
-    :command :window.show-overrides}])
+    :command :edit.show-overrides}])
 
 (defrecord SelectionProvider [original-node-ids]
   handler/SelectionProvider

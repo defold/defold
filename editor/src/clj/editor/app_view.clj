@@ -483,7 +483,7 @@
 (def ^:const prefs-split-positions [:window :split-positions])
 (def ^:const prefs-hidden-panes [:window :hidden-panes])
 
-(handler/defhandler :file.quit :global
+(handler/defhandler :app.quit :global
   (run []
     (let [^Stage main-stage (ui/main-stage)]
       (.fireEvent main-stage (WindowEvent. main-stage WindowEvent/WINDOW_CLOSE_REQUEST)))))
@@ -571,7 +571,7 @@
     (doseq [pane-kw hidden-panes]
       (set-pane-visible! scene pane-kw false))))
 
-(handler/defhandler :file.preferences :global
+(handler/defhandler :app.preferences :global
   (run [workspace prefs app-view]
     (prefs-dialog/open! prefs)
     (workspace/update-build-settings! workspace prefs)
@@ -1502,7 +1502,7 @@ If you do not specifically require different script states, consider changing th
          (.select (.getSelectionModel dest-tab-pane) selected-tab)
          (.requestFocus dest-tab-pane))))
 
-(handler/defhandler :window.tab.swap :global
+(handler/defhandler :window.tab.swap-with-other-group :global
   (enabled? [app-view evaluation-context]
             (< 1 (open-tab-pane-count app-view evaluation-context)))
   (run [app-view user-data]
@@ -1585,10 +1585,10 @@ If you do not specifically require different script states, consider changing th
 (handler/defhandler :help.open-donations :global
   (run [] (ui/open-url "https://www.defold.com/donate")))
 
-(handler/defhandler :help.about :global
+(handler/defhandler :app.about :global
   (run [] (make-about-dialog)))
 
-(handler/defhandler :window.reload-css :global
+(handler/defhandler :dev.reload-css :global
   (run [] (ui/reload-root-styles!)))
 
 (handler/defhandler :file.open-project :global
@@ -1611,7 +1611,7 @@ If you do not specifically require different script states, consider changing th
                 :command :file.open}
                {:label "Load External Changes"
                 :id ::async-reload
-                :command :project.load-external-changes}
+                :command :file.load-external-changes}
                {:label "Save All"
                 :id ::save-all
                 :command :file.save-all}
@@ -1636,16 +1636,16 @@ If you do not specifically require different script states, consider changing th
                {:label "Dependencies..."
                 :command :file.show-dependencies}
                {:label "Show Overrides"
-                :command :window.show-overrides}
+                :command :edit.show-overrides}
                {:label "Hot Reload"
                 :command :run.hot-reload}
                {:label :separator}
                {:label "Open Project..."
                 :command :file.open-project}
                {:label "Preferences..."
-                :command :file.preferences}
+                :command :app.preferences}
                {:label "Quit"
-                :command :file.quit}]}
+                :command :app.quit}]}
    {:label "Edit"
     :id ::edit
     :children [{:label "Undo"
@@ -1695,11 +1695,8 @@ If you do not specifically require different script states, consider changing th
                {:label :separator
                 :id ::view-end}]}
    {:label "Help"
-    :children [{:label "Profiler"
-                :children [{:label "Measure and Show"
-                            :command :dev.open-profiler}]}
-               {:label "Reload Stylesheet"
-                :command :window.reload-css}
+    :children [{:label "Reload Stylesheet"
+                :command :dev.reload-css}
                {:label "Show Logs"
                 :command :help.open-logs}
                {:label :separator}
@@ -1724,7 +1721,7 @@ If you do not specifically require different script states, consider changing th
                 :command :help.open-donations}
                {:label :separator}
                {:label "About"
-                :command :help.about}]}])
+                :command :app.about}]}])
 
 (handler/register-menu! ::tab-menu
   [{:label "Close"
@@ -1737,7 +1734,7 @@ If you do not specifically require different script states, consider changing th
    {:label "Move to Other Tab Pane"
     :command :window.tab.move-to-other-group}
    {:label "Swap With Other Tab Pane"
-    :command :window.tab.swap}
+    :command :window.tab.swap-with-other-group}
    {:label "Join Tab Panes"
     :command :window.tab.join-groups}
    {:label :separator}
@@ -1751,15 +1748,15 @@ If you do not specifically require different script states, consider changing th
    {:label "Show in Asset Browser"
     :icon "icons/32/Icons_S_14_linkarrow.png"
     :command :file.show-in-assets}
-   {:label "Open in Desktop"
+   {:label "Show in Desktop"
     :icon "icons/32/Icons_S_14_linkarrow.png"
-    :command :file.open-in-desktop}
+    :command :file.show-in-desktop}
    {:label "Referencing Files..."
     :command :file.show-references}
    {:label "Dependencies..."
     :command :file.show-dependencies}
    {:label "Show Overrides"
-    :command :window.show-overrides}])
+    :command :edit.show-overrides}])
 
 (defrecord SelectionProvider [app-view]
   handler/SelectionProvider
@@ -2338,12 +2335,12 @@ If you do not specifically require different script states, consider changing th
                (project/clear-cached-save-data! project)
                (async-save! app-view changes-view project save-data-fn)))))))
 
-(handler/defhandler :project.load-external-changes :global
+(handler/defhandler :file.load-external-changes :global
   (active? [prefs] (not (async-reload-on-app-focus? prefs)))
   (enabled? [] (can-async-reload?))
   (run [app-view changes-view workspace] (async-reload! app-view changes-view workspace [])))
 
-(handler/defhandler :file.open-in-desktop :global
+(handler/defhandler :file.show-in-desktop :global
   (active? [app-view selection evaluation-context]
            (context-resource app-view selection evaluation-context))
   (enabled? [app-view selection evaluation-context]
@@ -2404,7 +2401,7 @@ If you do not specifically require different script states, consider changing th
         (when (contains? (:tags (resource/resource-type resource)) :overridable-properties)
           (project/get-resource-node project resource evaluation-context)))))
 
-(handler/defhandler :window.show-overrides :global
+(handler/defhandler :edit.show-overrides :global
   (enabled? [selection project evaluation-context]
     (let [node-id (select-possibly-overridable-resource-node selection project evaluation-context)]
       (and node-id (pos? (count (g/overrides (:basis evaluation-context) node-id))))))

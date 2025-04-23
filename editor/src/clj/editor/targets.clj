@@ -447,12 +447,12 @@
     :id ::target
     :on-submenu-open update!
     :command :run.select-target
-    :expand? true}
+    :expand true}
    {:label "Close Engine"
     :command :run.stop}
    {:label "Launched Instance Count"
     :command :run.set-instance-count
-    :expand? true}
+    :expand true}
    {:label "Enter Target IP"
     :command :run.set-target-ip}
    {:label "Target Discovery Log"

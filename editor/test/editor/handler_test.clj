@@ -335,7 +335,7 @@
                                   :command :edit.redo}]}
                      {:label "Help"
                       :children [{:label "About"
-                                  :command :help.about}]}])
+                                  :command :app.about}]}])
 
 (def scene-menu-data [{:label "Scene"
                        :children [{:label "Do stuff"}

@@ -87,7 +87,7 @@
            ["Meta+B" :project.build]
            ["Meta+M" :project.build-html5]
            ["Meta+C" :edit.copy]
-           ["Meta+Comma" :file.preferences]
+           ["Meta+Comma" :app.preferences]
            ["Meta+D" :code.select-next-occurrence]
            ["Meta+Down" :code.goto-file-end]
            ["Meta+E" :scene.visibility.toggle-selection]
@@ -98,7 +98,7 @@
            ["Meta+N" :file.new]
            ["Meta+O" :file.open-selected]
            ["Meta+P" :file.open]
-           ["Meta+Q" :file.quit]
+           ["Meta+Q" :app.quit]
            ["Meta+R" :run.hot-reload]
            ["Meta+Right" :code.goto-line-end]
            ["Meta+S" :file.save-all]
@@ -149,7 +149,7 @@
            ["Shift+Meta+T" :file.reopen-recent]
            ["Shift+Meta+Up" :code.select-file-start]
            ["Shift+Meta+W" :window.tab.close-all]
-           ["Shift+Meta+Y" :project.load-external-changes]
+           ["Shift+Meta+Y" :file.load-external-changes]
            ["Shift+Meta+Z" :edit.redo]
            ["Shift+Page Down" :code.select-page-down]
            ["Shift+Page Up" :code.select-page-up]
@@ -182,7 +182,7 @@
            ["Ctrl+M" :project.build-html5]
            ["Ctrl+Backspace" :code.delete-previous-word]
            ["Ctrl+C" :edit.copy]
-           ["Ctrl+Comma" :file.preferences]
+           ["Ctrl+Comma" :app.preferences]
            ["Ctrl+D" :code.select-next-occurrence]
            ["Ctrl+Delete" :code.delete-next-word]
            ["Ctrl+E" :scene.visibility.toggle-selection]
@@ -198,7 +198,7 @@
            ["Ctrl+N" :file.new]
            ["Ctrl+O" :file.open-selected]
            ["Ctrl+P" :file.open]
-           ["Ctrl+Q" :file.quit]
+           ["Ctrl+Q" :app.quit]
            ["Ctrl+R" :run.hot-reload]
            ["Ctrl+Right" :code.goto-next-word]
            ["Ctrl+S" :file.save-all]
@@ -253,7 +253,7 @@
            ["Shift+Ctrl+Right" :code.select-next-word]
            ["Shift+Ctrl+T" :file.reopen-recent]
            ["Shift+Ctrl+W" :window.tab.close-all]
-           ["Shift+Ctrl+Y" :project.load-external-changes]
+           ["Shift+Ctrl+Y" :file.load-external-changes]
            ["Shift+Ctrl+Z" :edit.redo]
            ["Shift+Down" :scene.move-down-major]
            ["Shift+Down" :code.select-down]
@@ -296,7 +296,7 @@
            ["Ctrl+M" :project.build-html5]
            ["Ctrl+Backspace" :code.delete-previous-word]
            ["Ctrl+C" :edit.copy]
-           ["Ctrl+Comma" :file.preferences]
+           ["Ctrl+Comma" :app.preferences]
            ["Ctrl+D" :code.select-next-occurrence]
            ["Ctrl+Delete" :code.delete-next-word]
            ["Ctrl+E" :scene.visibility.toggle-selection]
@@ -312,7 +312,7 @@
            ["Ctrl+N" :file.new]
            ["Ctrl+O" :file.open-selected]
            ["Ctrl+P" :file.open]
-           ["Ctrl+Q" :file.quit]
+           ["Ctrl+Q" :app.quit]
            ["Ctrl+R" :run.hot-reload]
            ["Ctrl+Right" :code.goto-next-word]
            ["Ctrl+S" :file.save-all]
@@ -367,7 +367,7 @@
            ["Shift+Ctrl+Right" :code.select-next-word]
            ["Shift+Ctrl+T" :file.reopen-recent]
            ["Shift+Ctrl+W" :window.tab.close-all]
-           ["Shift+Ctrl+Y" :project.load-external-changes]
+           ["Shift+Ctrl+Y" :file.load-external-changes]
            ["Shift+Ctrl+Z" :edit.redo]
            ["Shift+Down" :scene.move-down-major]
            ["Shift+Down" :code.select-down]
@@ -677,11 +677,15 @@
   (get (:command->shortcuts keymap) command))
 
 (defn commands
-  "Returns a non-empty set of commands for a shortcut (or nil)"
-  [keymap shortcut]
-  {:pre [(or (string? shortcut) (instance? KeyCombination shortcut))]}
-  (let [shortcut (if (string? shortcut) (KeyCombination/valueOf shortcut) shortcut)]
-    (get (:shortcut->commands keymap) shortcut)))
+  "Returns a non-empty set of commands or nil
+
+  When provided a shortcut, returns commands or nil for the shortcut"
+  ([keymap]
+   (coll/not-empty (into #{} (keys (:command->shortcuts keymap)))))
+  ([keymap shortcut]
+   {:pre [(or (string? shortcut) (instance? KeyCombination shortcut))]}
+   (let [shortcut (if (string? shortcut) (KeyCombination/valueOf shortcut) shortcut)]
+     (get (:shortcut->commands keymap) shortcut))))
 
 (defn display-text
   "Return a display text string for one of its shortcuts (or not-found value)"
@@ -782,7 +786,7 @@
 
 (defn migrate-from-file! [prefs]
   (let [legacy-keymap-path (prefs/get prefs [:input :keymap-path])
-        legacy->new-command {:about :help.about
+        legacy->new-command {:about :app.about
                              :asset-portal :help.open-asset-portal
                              :documentation :help.open-documentation
                              :donate :help.open-donations
@@ -803,7 +807,7 @@
                              :rebuild :project.clean-build
                              :rebuild-html5 :project.clean-build-html5
                              :fetch-libraries :project.fetch-libraries
-                             :async-reload :project.load-external-changes
+                             :async-reload :file.load-external-changes
                              :rebundle :project.rebundle
                              :reload-extensions :project.reload-editor-scripts
                              :hot-reload :run.hot-reload
@@ -817,7 +821,7 @@
                              :close-other :window.tab.close-others
                              :join-tab-panes :window.tab.join-groups
                              :move-tab :window.tab.move-to-other-group
-                             :swap-tabs :window.tab.swap
+                             :swap-tabs :window.tab.swap-with-other-group
                              :break :debugger.break
                              :continue :debugger.continue
                              :detach-debugger :debugger.detach
@@ -835,18 +839,18 @@
                              :new-file :file.new
                              :new-folder :file.new-folder
                              :open-as :file.open-as
-                             :show-in-desktop :file.open-in-desktop
+                             :show-in-desktop :file.show-in-desktop
                              :live-update-settings :file.open-liveupdate-settings
                              :open-project :file.open-project
                              :open-recent-file :file.open-recent
                              :shared-editor-settings :file.open-shared-editor-settings
-                             :preferences :file.preferences
-                             :quit :file.quit
+                             :preferences :app.preferences
+                             :quit :app.quit
                              :show-search-results :window.show-search-results
                              :show-build-errors :window.show-build-errors
                              :show-console :window.show-console
                              :show-curve-editor :window.show-curve-editor
-                             :show-overrides :window.show-overrides
+                             :show-overrides :edit.show-overrides
                              :proposals :code.show-completions
                              :find-references :code.show-references
                              :goto-definition :code.goto-definition
@@ -887,8 +891,8 @@
                              :toggle-visibility-filters :scene.visibility.toggle-filters
                              :toggle-grid :scene.visibility.toggle-grid
                              :hide-toggle-selected :scene.visibility.toggle-selection
-                             :clear-console :window.clear-console
-                             :reload-stylesheet :window.reload-css
+                             :clear-console :console.clear
+                             :reload-stylesheet :dev.reload-css
                              :diff :vcs.diff
                              :revert :vcs.revert
                              :toggle-perspective-camera :scene.toggle-camera-type
@@ -956,7 +960,6 @@
                              :set-camera-type :scene.set-camera-type
                              :set-gui-layout :scene.set-gui-layout
                              :convert-indentation :code.convert-indentation
-                             :profile-show :dev.open-profiler
                              :find-text :edit.find
                              :filter-form :edit.find
                              :sort-lines :code.sort-lines

@@ -71,7 +71,9 @@
   (= (namespace x) synthetic-command-str))
 
 (defn private-command? [x]
-  (= (namespace x) "private"))
+  (case (namespace x)
+    "private" true
+    false))
 
 (defn- register [state registration menus handlers]
   (let [handlers (mapv (fn [h]

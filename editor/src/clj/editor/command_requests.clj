@@ -127,7 +127,7 @@
     :resource-sync true}
 
    :reload-stylesheets
-   {:ui-handler :window.reload-css
+   {:ui-handler :dev.reload-css
     :help "Reload editor stylesheets."}
 
    :report-issue

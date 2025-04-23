@@ -3166,7 +3166,7 @@
    {:label :separator}
    {:command :code.toggle-comment :label "Toggle Comment"}
    {:command :code.reindent :label "Reindent Lines"}
-   {:command :code.convert-indentation :expand? true}
+   {:command :code.convert-indentation :expand true}
    {:label :separator}
    {:command :code.sort-lines :user-data :case-insensitive}
    {:command :code.sort-lines :user-data :case-sensitive}

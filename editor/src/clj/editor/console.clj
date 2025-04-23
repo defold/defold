@@ -283,7 +283,7 @@
                                      {:fx/type fx.list-view/lifecycle
                                       :focus-traversable false
                                       :style-class "console-filter-popup-list-view"
-                                      :items (into [] (map-indexed vector) filters)
+                                      :items (into [] (map-indexed coll/pair) filters)
                                       :fixed-cell-size 27
                                       :max-height (* 27 (min 10 (count filters)))
                                       :cell-factory {:fx/cell-type :list-cell
@@ -345,7 +345,7 @@
                                            "Shift+Enter" :code.find-previous})
     (ui/bind-action! prev-console :code.find-previous)
     (ui/bind-action! next-console :code.find-next)
-    (ui/bind-action! clear-console :window.clear-console))
+    (ui/bind-action! clear-console :console.clear))
   tool-bar)
 
 (defn- dispose-tool-bar! [^Parent tool-bar]
@@ -408,7 +408,7 @@
 ;; Console view action handlers
 ;; -----------------------------------------------------------------------------
 
-(handler/defhandler :window.clear-console :console-tool-bar
+(handler/defhandler :console.clear :console-tool-bar
   (run [view-node] (clear-console!)))
 
 ;; -----------------------------------------------------------------------------

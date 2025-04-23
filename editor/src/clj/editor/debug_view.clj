@@ -906,7 +906,7 @@
                 :command :run.reset-resolution}
                {:label "Set Resolution"
                 :command :run.set-resolution
-                :expand? true}
+                :expand true}
                {:label "Rotated Device"
                 :command :run.toggle-device-rotated
                 :check true}
