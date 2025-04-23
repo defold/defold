@@ -839,7 +839,8 @@ namespace dmInput
                                     Action* action = gamepad_binding->m_Actions.Get(trigger.m_ActionId);
                                     if (action != 0x0)
                                     {
-                                        if (dmMath::Abs(action->m_Value) < dmMath::Abs(v)) {
+                                        if (dmMath::Abs(action->m_Value) < dmMath::Abs(v))
+                                        {
                                             action->m_Value = v;
                                         }
 
