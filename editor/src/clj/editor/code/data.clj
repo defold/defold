@@ -3291,7 +3291,7 @@
                                       cursor-ranges)))
          ret (splice lines all-regions ascending-cursor-ranges-and-replacements)
          new-regions (:regions ret all-regions)]
-     (assoc ret :regions (into [] (remove ::cursor) (:regions ret all-regions))
+     (assoc ret :regions (into [] (remove ::cursor) new-regions)
                 :cursor-ranges (into []
                                      (comp
                                        (filter ::cursor)

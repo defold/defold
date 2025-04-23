@@ -842,7 +842,8 @@
                    results so far"
   [lsp resource cursor context result-callback & {:keys [timeout-ms]
                                                   :or {timeout-ms 1000}}]
-  (if (resource/file-resource? resource)
+  (if (and (resource/file-resource? resource)
+           (resource/editable? resource))
     (lsp (bound-fn [state]
            (let [ch (a/chan 1)]
              (a/go (result-callback (<! (a/reduce
@@ -903,7 +904,8 @@
 
 (defn prepare-rename [lsp resource cursor result-callback & {:keys [timeout-ms]
                                                              :or {timeout-ms 1000}}]
-  (if (resource/file-resource? resource)
+  (if (and (resource/file-resource? resource)
+           (resource/editable? resource))
     (lsp (bound-fn [state]
            (let [ch (a/chan 1 (take 1))]
              (a/go (result-callback (<! ch)))
