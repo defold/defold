@@ -694,9 +694,9 @@ namespace dmInput
 
                     if (action != 0x0)
                     {
-                        if (dmMath::Abs(action->m_Value) < dmMath::Abs(v))
+                        if (dmMath::Abs(action->m_Value) < v)
                         {
-                            action->m_Value = (float) dmMath::Abs(v);
+                            action->m_Value = v;
                         }
                         action->m_X = packet->m_PositionX;
                         action->m_Y = packet->m_PositionY;
