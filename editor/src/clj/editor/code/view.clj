@@ -24,6 +24,7 @@
             [cljfx.fx.region :as fx.region]
             [cljfx.fx.stack-pane :as fx.stack-pane]
             [cljfx.fx.svg-path :as fx.svg-path]
+            [cljfx.fx.text-field :as fx.text-field]
             [cljfx.fx.v-box :as fx.v-box]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as mutator]
@@ -35,6 +36,7 @@
             [editor.code.data :as data]
             [editor.code.resource :as r]
             [editor.code.util :refer [split-lines]]
+            [editor.defold-project :as project]
             [editor.error-reporting :as error-reporting]
             [editor.fxui :as fxui]
             [editor.graph-util :as gu]
@@ -78,7 +80,7 @@
            [javafx.scene Node Parent Scene]
            [javafx.scene.canvas Canvas GraphicsContext]
            [javafx.scene.control Button CheckBox Tab TextField]
-           [javafx.scene.input Clipboard DataFormat InputMethodEvent InputMethodRequests KeyCode KeyCombination KeyEvent MouseButton MouseDragEvent MouseEvent ScrollEvent]
+           [javafx.scene.input Clipboard DataFormat InputMethodEvent InputMethodRequests KeyCode KeyEvent MouseButton MouseDragEvent MouseEvent ScrollEvent]
            [javafx.scene.layout ColumnConstraints GridPane Pane Priority]
            [javafx.scene.paint Color LinearGradient Paint]
            [javafx.scene.shape Rectangle]
@@ -1025,6 +1027,240 @@
 (g/defnk produce-completions-combined-ids [completions-combined]
   (mapv completion-identifier completions-combined))
 
+;; region get/set properties
+
+(defn- operation-sequence-tx-data [view-node undo-grouping]
+  (if (nil? undo-grouping)
+    []
+    (let [[prev-undo-grouping prev-opseq] (g/node-value view-node :undo-grouping-info)]
+      (assert (contains? undo-groupings undo-grouping))
+      (cond
+        (= undo-grouping prev-undo-grouping)
+        [(g/operation-sequence prev-opseq)]
+
+        (and (contains? #{:navigation :selection} undo-grouping)
+             (contains? #{:navigation :selection} prev-undo-grouping))
+        [(g/operation-sequence prev-opseq)
+         (g/set-property view-node :undo-grouping-info [undo-grouping prev-opseq])]
+
+        :else
+        (let [opseq (gensym)]
+          [(g/operation-sequence opseq)
+           (g/set-property view-node :undo-grouping-info [undo-grouping opseq])])))))
+
+(defn- prelude-tx-data [view-node undo-grouping values-by-prop-kw]
+  ;; Along with undo grouping info, we also keep track of when an action was
+  ;; last performed in the document. We use this to stop the cursor from
+  ;; blinking while typing or navigating.
+  (into (operation-sequence-tx-data view-node undo-grouping)
+        (when (or (contains? values-by-prop-kw :cursor-ranges)
+                  (contains? values-by-prop-kw :lines))
+          (g/set-property view-node :elapsed-time-at-last-action (or (g/user-data view-node :elapsed-time) 0.0)))))
+
+;; -----------------------------------------------------------------------------
+
+;; The functions that perform actions in the core.data module return maps of
+;; properties that were modified by the operation. Some of these properties need
+;; to be stored at various locations in order to be undoable, some are transient,
+;; and so on. These two functions should be used to read and write these managed
+;; properties at all times. Basically, get-property needs to be able to get any
+;; property that is supplied to set-properties! in values-by-prop-kw.
+
+(defn get-property
+  "Gets the value of a property that is managed by the functions in the code.data module."
+  ([view-node prop-kw]
+   (g/with-auto-evaluation-context evaluation-context
+     (get-property view-node prop-kw evaluation-context)))
+  ([view-node prop-kw evaluation-context]
+   (case prop-kw
+     :invalidated-row
+     (invalidated-row (:invalidated-rows (g/user-data view-node :canvas-repaint-info))
+                      (g/node-value view-node :invalidated-rows evaluation-context))
+
+     (g/node-value view-node prop-kw evaluation-context))))
+
+(defn- region->prop-kw [region]
+  (case (:type region)
+    :diagnostic :diagnostics
+    :hover (if (:hoverable region)
+             :hover-showing-lsp-regions
+             :hover-cursor-lsp-regions)
+    :regions))
+
+(defn- set-properties
+  "Return transaction steps for the view changes"
+  [view-node undo-grouping values-by-prop-kw]
+  (let [resource-node (g/node-value view-node :resource-node)
+        resource-node-type (g/node-type* resource-node)]
+    (into (prelude-tx-data view-node undo-grouping values-by-prop-kw)
+          (mapcat (fn [[prop-kw value]]
+                    (case prop-kw
+                      :cursor-ranges
+                      (if (g/has-property? resource-node-type :cursor-ranges)
+                        (g/set-property resource-node :cursor-ranges value)
+                        (g/set-property view-node :fallback-cursor-ranges value))
+
+                      :regions
+                      (let [{:keys [diagnostics hover-showing-lsp-regions hover-cursor-lsp-regions regions]}
+                            (group-by region->prop-kw value)]
+                        (concat
+                          (g/set-property view-node :hover-showing-lsp-regions hover-showing-lsp-regions)
+                          (g/set-property view-node :hover-cursor-lsp-regions hover-cursor-lsp-regions)
+                          (g/set-property view-node :diagnostics (or diagnostics []))
+                          (g/set-property resource-node prop-kw (or regions []))))
+
+                      ;; Several actions might have invalidated rows since
+                      ;; we last produced syntax-info. We keep an ever-
+                      ;; growing history of invalidated-rows. Then when
+                      ;; producing syntax-info we find the first invalidated
+                      ;; row by comparing the history of invalidated rows to
+                      ;; what it was at the time of the last call. See the
+                      ;; invalidated-row function for details.
+                      :invalidated-row
+                      (g/update-property resource-node :invalidated-rows conj value)
+
+                      ;; The :indent-type output in the resource node is
+                      ;; cached, but reads from disk unless a value exists
+                      ;; for the :modified-indent-type property.
+                      :indent-type
+                      (g/set-property resource-node :modified-indent-type value)
+
+                      ;; The :lines output in the resource node is uncached.
+                      ;; It reads from disk unless a value exists for the
+                      ;; :modified-lines property. This means only modified
+                      ;; or currently open files are kept in memory.
+                      :lines
+                      (g/set-property resource-node :modified-lines value)
+
+                      ;; All other properties are set on the view node.
+                      (g/set-property view-node prop-kw value))))
+          values-by-prop-kw)))
+
+(defn- set-resource-properties
+  "Return transaction steps eduction for the editable resource node changes"
+  [resource-node values-by-prop-kw]
+  (e/mapcat
+    (fn [[prop-kw value]]
+      (case prop-kw
+        :cursor-ranges (g/set-property resource-node :cursor-ranges value)
+        :regions (g/set-property resource-node :regions (filterv #(= :regions (region->prop-kw %)) value))
+        :invalidated-row (g/update-property resource-node :invalidated-rows conj value)
+        :lines (g/set-property resource-node :modified-lines value)
+        :indent-type (g/set-property resource-node :modified-indent-type value)))
+    values-by-prop-kw))
+
+(defn set-properties!
+  "Sets values of properties that are managed by the functions in the code.data module.
+  Returns true if any property changed, false otherwise."
+  [view-node undo-grouping values-by-prop-kw]
+  (if (empty? values-by-prop-kw)
+    false
+    (do (g/transact
+          (set-properties view-node undo-grouping values-by-prop-kw))
+        true)))
+
+;; endregion
+
+;; region rename
+
+(defn- handle-rename-key-pressed [view-node text rename-cursor-range swap-state ^KeyEvent e]
+  (when (= KeyCode/ENTER (.getCode e))
+    (.consume e)
+    (g/with-auto-evaluation-context evaluation-context
+      (let [resource-node (g/node-value view-node :resource-node evaluation-context)
+            lsp (lsp/get-node-lsp (:basis evaluation-context) resource-node)]
+        (swap-state assoc :done true)
+        (lsp/rename
+          lsp
+          rename-cursor-range
+          text
+          (fn on-rename-response [resource->ascending-cursor-ranges-and-replacements]
+            (ui/run-later
+              (some->
+                (g/with-auto-evaluation-context evaluation-context
+                  (when (identical? rename-cursor-range (get-property view-node :rename-cursor-range evaluation-context))
+                    (let [resource->view (->> (get-property view-node :open-views evaluation-context)
+                                              (e/keep
+                                                (fn [[view {:keys [resource]}]]
+                                                  (when (g/node-kw-instance? (:basis evaluation-context) ::CodeEditorView view)
+                                                    [resource view])))
+                                              (into {}))
+                          project (get-property view-node :project evaluation-context)]
+                      (into (set-properties view-node nil {:rename-cursor-range nil})
+                            (mapcat
+                              (fn [[resource ascending-cursor-ranges-and-replacements]]
+                                (when-let [resource-node (project/get-resource-node project resource evaluation-context)]
+                                  (when (g/node-instance? (:basis evaluation-context) r/CodeEditorResourceNode resource-node)
+                                    (if-let [view (resource->view resource)]
+                                      (set-properties
+                                        view nil
+                                        (data/apply-edits
+                                          (get-property view :lines evaluation-context)
+                                          (get-property view :regions evaluation-context)
+                                          (get-property view :cursor-ranges evaluation-context)
+                                          ascending-cursor-ranges-and-replacements
+                                          (get-property view :layout evaluation-context)))
+                                      (set-resource-properties
+                                        resource-node
+                                        (data/apply-edits
+                                          (g/node-value resource-node :lines evaluation-context)
+                                          (g/node-value resource-node :regions evaluation-context)
+                                          (g/node-value resource-node :cursor-ranges evaluation-context)
+                                          ascending-cursor-ranges-and-replacements)))))))
+                            resource->ascending-cursor-ranges-and-replacements))))
+                g/transact))))))))
+
+(fxui/defc rename-popup-view
+  {:compose [{:fx/type fx/ext-state
+              :initial-state {:text (data/cursor-range-text
+                                      (:lines (:canvas-repaint-info props))
+                                      (:rename-cursor-range props))
+                              :done false}}]}
+  [{:keys [canvas-repaint-info _node-id rename-cursor-range state swap-state]}]
+  (let [{:keys [^Canvas canvas layout lines ^Font font]} canvas-repaint-info
+        {:keys [text done]} state
+        ^Rect r (->> rename-cursor-range
+                     (data/adjust-cursor-range lines)
+                     (data/cursor-range-rects layout lines)
+                     first)
+        anchor (.localToScreen canvas
+                               (min (max 0.0 (.-x r)) (.getWidth canvas))
+                               (min (max 0.0 (.-y r)) (.getHeight canvas)))
+        padding (+
+                  ;; text field padding
+                  4.0
+                  ;; border width
+                  1.0)]
+    {:fx/type fxui/with-popup-window
+     :desc {:fx/type fxui/ext-value :value canvas}
+     :popup {:fx/type fx.popup/lifecycle
+             :on-hidden (fn [_] (set-properties! _node-id nil {:rename-cursor-range nil}))
+             :showing true
+             :on-window true
+             :anchor-x (- (.getX anchor) padding 12.0) ;; adjust for shadow
+             :anchor-y (- (.getY anchor) padding 2.0) ;; adjust for shadow
+             :auto-hide true
+             :consume-auto-hiding-events false
+             :content [{:fx/type fx.stack-pane/lifecycle
+                        :stylesheets [(str (io/resource "editor.css"))]
+                        :children [{:fx/type fx.region/lifecycle
+                                    :style-class "completion-popup-background"}
+                                   {:fx/type fx.text-field/lifecycle
+                                    :editable (not done)
+                                    :style-class "rename-text-field"
+                                    :font font
+                                    :min-width (+ (.-w r) (* 2.0 padding))
+                                    :pref-width (-> (Text. text)
+                                                    (doto (.setFont font))
+                                                    .getLayoutBounds
+                                                    .getWidth
+                                                    (+ (* 2.0 padding)))
+                                    :on-key-pressed #(handle-rename-key-pressed _node-id text rename-cursor-range swap-state %)
+                                    :text text
+                                    :on-text-changed #(swap-state assoc :text %)}]}]}}))
+
+;; endregion
+
 (g/defnode CodeEditorView
   (inherits view/WorkbenchView)
 
@@ -1140,6 +1376,12 @@
                                                        (data/->Cursor (.-row hover-showing-cursor)
                                                                       (inc (.-col hover-showing-cursor))))))))
 
+  ;; prepared rename range
+  (property rename-cursor-range g/Any (dynamic visible (g/constantly false)))
+  (output rename-view g/Any :cached (g/fnk [_node-id rename-cursor-range canvas-repaint-info :as props]
+                                      (assoc props :fx/type rename-popup-view)))
+  (input open-views g/Any) ;; open views from app-view
+
   (output completions-selected-index g/Any :cached produce-completions-selected-index) ;; either in completions index range or nil
   (output completions-selection g/Any produce-completions-selection)
   (output completions-combined g/Any :cached produce-completions-combined)
@@ -1213,117 +1455,6 @@
     MouseButton/BACK :back
     MouseButton/FORWARD :forward))
 
-(defn- operation-sequence-tx-data [view-node undo-grouping]
-  (if (nil? undo-grouping)
-    []
-    (let [[prev-undo-grouping prev-opseq] (g/node-value view-node :undo-grouping-info)]
-      (assert (contains? undo-groupings undo-grouping))
-      (cond
-        (= undo-grouping prev-undo-grouping)
-        [(g/operation-sequence prev-opseq)]
-
-        (and (contains? #{:navigation :selection} undo-grouping)
-             (contains? #{:navigation :selection} prev-undo-grouping))
-        [(g/operation-sequence prev-opseq)
-         (g/set-property view-node :undo-grouping-info [undo-grouping prev-opseq])]
-
-        :else
-        (let [opseq (gensym)]
-          [(g/operation-sequence opseq)
-           (g/set-property view-node :undo-grouping-info [undo-grouping opseq])])))))
-
-(defn- prelude-tx-data [view-node undo-grouping values-by-prop-kw]
-  ;; Along with undo grouping info, we also keep track of when an action was
-  ;; last performed in the document. We use this to stop the cursor from
-  ;; blinking while typing or navigating.
-  (into (operation-sequence-tx-data view-node undo-grouping)
-        (when (or (contains? values-by-prop-kw :cursor-ranges)
-                  (contains? values-by-prop-kw :lines))
-          (g/set-property view-node :elapsed-time-at-last-action (or (g/user-data view-node :elapsed-time) 0.0)))))
-
-;; -----------------------------------------------------------------------------
-
-;; The functions that perform actions in the core.data module return maps of
-;; properties that were modified by the operation. Some of these properties need
-;; to be stored at various locations in order to be undoable, some are transient,
-;; and so on. These two functions should be used to read and write these managed
-;; properties at all times. Basically, get-property needs to be able to get any
-;; property that is supplied to set-properties! in values-by-prop-kw.
-
-(defn get-property
-  "Gets the value of a property that is managed by the functions in the code.data module."
-  ([view-node prop-kw]
-   (g/with-auto-evaluation-context evaluation-context
-     (get-property view-node prop-kw evaluation-context)))
-  ([view-node prop-kw evaluation-context]
-   (case prop-kw
-     :invalidated-row
-     (invalidated-row (:invalidated-rows (g/user-data view-node :canvas-repaint-info))
-                      (g/node-value view-node :invalidated-rows evaluation-context))
-
-     (g/node-value view-node prop-kw evaluation-context))))
-
-(defn- region->prop-kw [region]
-  (case (:type region)
-    :diagnostic :diagnostics
-    :hover (if (:hoverable region)
-             :hover-showing-lsp-regions
-             :hover-cursor-lsp-regions)
-    :regions))
-
-(defn set-properties!
-  "Sets values of properties that are managed by the functions in the code.data module.
-  Returns true if any property changed, false otherwise."
-  [view-node undo-grouping values-by-prop-kw]
-  (if (empty? values-by-prop-kw)
-    false
-    (let [resource-node (g/node-value view-node :resource-node)
-          resource-node-type (g/node-type* resource-node)]
-      (g/transact
-        (into (prelude-tx-data view-node undo-grouping values-by-prop-kw)
-              (mapcat (fn [[prop-kw value]]
-                        (case prop-kw
-                          :cursor-ranges
-                          (if (g/has-property? resource-node-type :cursor-ranges)
-                            (g/set-property resource-node :cursor-ranges value)
-                            (g/set-property view-node :fallback-cursor-ranges value))
-
-                          :regions
-                          (let [{:keys [diagnostics hover-showing-lsp-regions hover-cursor-lsp-regions regions]}
-                                (group-by region->prop-kw value)]
-                            (concat
-                              (g/set-property view-node :hover-showing-lsp-regions hover-showing-lsp-regions)
-                              (g/set-property view-node :hover-cursor-lsp-regions hover-cursor-lsp-regions)
-                              (g/set-property view-node :diagnostics (or diagnostics []))
-                              (g/set-property resource-node prop-kw (or regions []))))
-
-                          ;; Several actions might have invalidated rows since
-                          ;; we last produced syntax-info. We keep an ever-
-                          ;; growing history of invalidated-rows. Then when
-                          ;; producing syntax-info we find the first invalidated
-                          ;; row by comparing the history of invalidated rows to
-                          ;; what it was at the time of the last call. See the
-                          ;; invalidated-row function for details.
-                          :invalidated-row
-                          (g/update-property resource-node :invalidated-rows conj value)
-
-                          ;; The :indent-type output in the resource node is
-                          ;; cached, but reads from disk unless a value exists
-                          ;; for the :modified-indent-type property.
-                          :indent-type
-                          (g/set-property resource-node :modified-indent-type value)
-
-                          ;; The :lines output in the resource node is uncached.
-                          ;; It reads from disk unless a value exists for the
-                          ;; :modified-lines property. This means only modified
-                          ;; or currently open files are kept in memory.
-                          :lines
-                          (g/set-property resource-node :modified-lines value)
-
-                          ;; All other properties are set on the view node.
-                          (g/set-property view-node prop-kw value))))
-              values-by-prop-kw))
-      true)))
 
 ;; -----------------------------------------------------------------------------
 ;; Code completion
@@ -2608,6 +2739,21 @@
                                                   regions
                                                   breakpoint-rows)))))
 
+(handler/defhandler :code.rename :code-view
+  (active? [editable] editable)
+  (run [view-node]
+    (g/with-auto-evaluation-context evaluation-context
+      (let [resource-node (get-property view-node :resource-node)
+            lsp (lsp/get-node-lsp (:basis evaluation-context) resource-node)
+            resource (g/node-value resource-node :resource)
+            cursor (data/CursorRange->Cursor (first (get-property view-node :cursor-ranges)))]
+        (lsp/prepare-rename
+          lsp resource cursor
+          (fn on-prepare-rename-response [maybe-rename-range]
+            (when maybe-rename-range
+              (ui/run-later
+                (set-properties! view-node nil {:rename-cursor-range maybe-rename-range})))))))))
+
 (handler/defhandler :debugger.edit-breakpoint :code-view
   (run [view-node]
     (let [lines (get-property view-node :lines)
@@ -3174,6 +3320,7 @@
    {:command :code.select-next-occurrence :label "Select Next Occurrence"}
    {:command :code.split-selection-into-lines :label "Split Selection Into Lines"}
    {:label :separator}
+   {:command :code.rename :label "Rename"}
    {:command :code.goto-definition :label "Go to Definition"}
    {:command :code.show-references :label "Find References"}
    {:label :separator}
@@ -3321,6 +3468,13 @@
           :max-width 350.0
           :max-height max-popup-height}]}]}}))
 
+(defn- advance-user-data-component! [view-node key desc]
+  (let [component (g/user-data view-node key)]
+    (cond
+      (and component desc) (g/user-data! view-node key (fx/advance-component component desc))
+      component (do (fx/delete-component component) (g/user-data! view-node key nil))
+      desc (g/user-data! view-node key (fx/create-component desc)))))
+
 (defn repaint-view! [view-node elapsed-time {:keys [cursor-visible editable] :as _opts}]
   (assert (boolean? cursor-visible))
 
@@ -3360,20 +3514,25 @@
       (let [row (data/last-visible-row (:layout canvas-repaint-info))]
         (repaint-canvas! canvas-repaint-info (get-valid-syntax-info resource-node canvas-repaint-info row))))
 
-    ;; Show completion suggestions if appropriate.
     (when editable
-      (let [renderer (or (g/user-data view-node :completion-popup-renderer)
-                         (g/user-data!
-                           view-node
-                           :completion-popup-renderer
-                           (fx/create-renderer
-                             :error-handler error-reporting/report-exception!
-                             :middleware (comp
-                                           fxui/wrap-dedupe-desc
-                                           (fx/wrap-map-desc #'completion-popup-view))
-                             :opts {:fx.opt/map-event-handler #(handle-completion-popup-event view-node %)})))
-            ^Canvas canvas (:canvas canvas-repaint-info)]
-        (g/with-auto-evaluation-context evaluation-context
+      (g/with-auto-evaluation-context evaluation-context
+        ;; Show rename popup if appropriate
+        (advance-user-data-component!
+          view-node :rename-popup
+          (when (g/node-value view-node :rename-cursor-range evaluation-context)
+            (g/node-value view-node :rename-view evaluation-context)))
+        ;; Show completion suggestions if appropriate.
+        (let [renderer (or (g/user-data view-node :completion-popup-renderer)
+                           (g/user-data!
+                             view-node
+                             :completion-popup-renderer
+                             (fx/create-renderer
+                               :error-handler error-reporting/report-exception!
+                               :middleware (comp
+                                             fxui/wrap-dedupe-desc
+                                             (fx/wrap-map-desc #'completion-popup-view))
+                               :opts {:fx.opt/map-event-handler #(handle-completion-popup-event view-node %)})))
+              ^Canvas canvas (:canvas canvas-repaint-info)]
           (renderer {:completions-combined (g/node-value view-node :completions-combined evaluation-context)
                      :completions-selected-index (g/node-value view-node :completions-selected-index evaluation-context)
                      :completions-showing (g/node-value view-node :completions-showing evaluation-context)
@@ -3776,7 +3935,8 @@
                        :visible-minimap? (.getValue visible-minimap-property)
                        :visible-whitespace (boolean->visible-whitespace (.getValue visible-whitespace-property))]]
                 (g/connect project :_node-id view :project)
-                (g/connect app-view :keymap view :keymap))
+                (g/connect app-view :keymap view :keymap)
+                (g/connect app-view :open-views view :open-views))
               g/transact
               g/tx-nodes-added
               first)
