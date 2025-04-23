@@ -6,6 +6,7 @@ on:
       - 'skip-ci-*'
       - 'DEFEDIT-*'
       - 'editor-dev'
+
   repository_dispatch: {}
 
 env:

@@ -44,6 +44,7 @@ CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Release ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DGLFW_BUILD_EXAMPLES=OFF ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DGLFW_BUILD_TESTS=OFF ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DGLFW_BUILD_DOCS=OFF ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DGLFW_USE_HYBRID_HPG=ON ${CMAKE_FLAGS}"
 
 case $PLATFORM in
     win32)
@@ -82,6 +83,22 @@ function cmi_unpack() {
     mv $FILE_BASE/* .
 }
 
+function convert_line_endings() {
+    if [[ "${PLATFORM}" == *win* ]]; then
+        if [ -f "../patch_${VERSION}" ]; then
+            echo "Converting patch file ../patch_${VERSION} to Unix line endings..."
+            dos2unix ../patch_${VERSION}
+        fi
+    fi
+}
+
+function normalize_package_folders() {
+    echo "Normalizing folder names..."
+    # Rename folders to lowercase if incorrectly capitalized
+    UPPER_PRODUCT=$(echo "$PRODUCT" | tr '[:lower:]' '[:upper:]')
+    [ -d "include/${UPPER_PRODUCT}" ] && mv "include/${UPPER_PRODUCT}" "include/${PRODUCT}"
+}
+
 download
 
 mkdir -p ${SOURCE_DIR}
@@ -89,7 +106,7 @@ mkdir -p ${SOURCE_DIR}
 pushd $SOURCE_DIR
 
 cmi_unpack
-
+convert_line_endings
 cmi_patch
 
 ## BUILD
@@ -111,6 +128,7 @@ cp -v ${SRC_LIB} ${TARGET_LIB}/${LIB_TARGET_NAME}
 
 PACKAGE=glfw-${VERSION}-${PLATFORM}.tar.gz
 
+normalize_package_folders
 tar cfvz $PACKAGE lib include
 
 popd
