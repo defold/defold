@@ -221,12 +221,13 @@
 
 (defn- handle-label-drag-event! [property-fn drag-update-fn update-ui-fn ^MouseDragEvent event]
   (.consume event)
-  (let [target (.getTarget event)
+  (let [property (property-fn)
+        target (.getTarget event)
         position (ui/user-data target ::position)
-        op-seq (ui/user-data target ::op-seq)]
-    (when (and position op-seq)
-      (let [property (property-fn)
-            edit-type (:edit-type property)
+        op-seq (ui/user-data target ::op-seq)
+        is-read-only (properties/read-only? (property-fn))]
+    (when (and position op-seq (not is-read-only))
+      (let [edit-type (:edit-type property)
             to-fn (:to-type edit-type identity)
             from-fn (:from-type edit-type identity)
             min-val (:min edit-type)
@@ -292,9 +293,7 @@
                 children (if (seq label-text)
                            (let [label (doto (Label. label-text)
                                          (.setMinWidth Region/USE_PREF_SIZE))]
-                             (ui/run-later
-                               (when-not (properties/read-only? (property-fn))
-                                 (make-label-draggable! label (partial handle-label-drag-event! property-fn drag-update-fn update-ui-fn))))
+                             (make-label-draggable! label (partial handle-label-drag-event! property-fn drag-update-fn update-ui-fn))
                              [label text-field])
                            [text-field])
                 comp (doto (create-grid-pane children)
@@ -908,8 +907,7 @@
                          (update-ctrl-fn (properties/values property)
                                          (properties/validation-message property)
                                          (properties/read-only? property))))]
-    
-    (when (and drag-update-fn (not (:read-only? property)))
+    (when drag-update-fn
       (make-label-draggable! label (partial handle-label-drag-event! (fn [] property) drag-update-fn update-ctrl-fn)))
 
     (update-label-box (properties/overridden? property))
