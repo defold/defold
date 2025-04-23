@@ -3320,6 +3320,7 @@
    {:command :code.select-next-occurrence :label "Select Next Occurrence"}
    {:command :code.split-selection-into-lines :label "Split Selection Into Lines"}
    {:label :separator}
+   {:command :code.rename :label "Rename"}
    {:command :code.goto-definition :label "Go to Definition"}
    {:command :code.show-references :label "Find References"}
    {:label :separator}
