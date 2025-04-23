@@ -14,6 +14,25 @@
 
 package com.dynamo.bob;
 
+import com.dynamo.bob.archive.EngineVersion;
+import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.logging.LogHelper;
+import com.dynamo.bob.logging.Logger;
+import com.dynamo.bob.util.BobProjectProperties;
+import com.dynamo.bob.util.FileUtil;
+import com.dynamo.bob.util.HttpUtil;
+import com.dynamo.bob.util.TimeProfiler;
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.CommandLineParser;
+import org.apache.commons.cli.HelpFormatter;
+import org.apache.commons.cli.Option;
+import org.apache.commons.cli.Options;
+import org.apache.commons.cli.ParseException;
+import org.apache.commons.cli.PosixParser;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
+
 import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -25,6 +44,7 @@ import java.nio.file.AccessDeniedException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileSystemException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -35,29 +55,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
-import java.lang.NumberFormatException;
 
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.CommandLineParser;
-import org.apache.commons.cli.HelpFormatter;
-import org.apache.commons.cli.Option;
-import org.apache.commons.cli.Options;
-import org.apache.commons.cli.ParseException;
-import org.apache.commons.cli.PosixParser;
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.IOUtils;
-
-import com.dynamo.bob.archive.EngineVersion;
-import com.dynamo.bob.fs.DefaultFileSystem;
-import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.logging.Logger;
-import com.dynamo.bob.logging.LogHelper;
-import com.dynamo.bob.util.BobProjectProperties;
-import com.dynamo.bob.util.TimeProfiler;
-import com.dynamo.bob.util.HttpUtil;
-import com.dynamo.bob.util.FileUtil;
-
-import static com.dynamo.bob.Bob.CommandLineOption.ArgCount.*;
+import static com.dynamo.bob.Bob.CommandLineOption.ArgCount.MANY;
+import static com.dynamo.bob.Bob.CommandLineOption.ArgCount.ONE;
+import static com.dynamo.bob.Bob.CommandLineOption.ArgCount.ZERO;
 import static com.dynamo.bob.Bob.CommandLineOption.ArgType.ABS_OR_CWD_REL_PATH;
 
 public class Bob {
@@ -152,6 +153,7 @@ public class Bob {
     }
 
     public static void initLua() {
+        PackedTools.runUnpackAllAsync(Platform.getHostPlatform());
         PackedTools.waitForUnpackAll();
     }
 
@@ -305,6 +307,13 @@ public class Bob {
         TimeProfiler.addData("path", f.getAbsolutePath());
         TimeProfiler.stop();
         return f.getAbsolutePath();
+    }
+
+    public static String getHostExeOnce(String exeName, String currentExe) throws IOException {
+        if (currentExe != null && Files.exists(Path.of(currentExe))) {
+            return currentExe;
+        }
+        return Bob.getExe(Platform.getHostPlatform(), exeName);
     }
 
     private static List<File> downloadExes(Platform platform, String variant, String artifactsURL) throws IOException {

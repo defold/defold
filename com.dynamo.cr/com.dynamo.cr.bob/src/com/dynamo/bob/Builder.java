@@ -150,13 +150,6 @@ public abstract class Builder {
         }
     }
 
-    public String getExeOnce(String exeName, String currentExe) throws IOException {
-        if (currentExe != null) {
-            return currentExe;
-        }
-        return Bob.getExe(Platform.getHostPlatform(), exeName);
-    }
-
     /**
      * Set project
      * @param project project to set

@@ -51,7 +51,7 @@ public class OpusBuilder extends CopyBuilder{
             throw new CompileExceptionError(input, 0, 
                 String.format("Cannot copy opus(ogg) file to further process", new String(exc.getMessage())));
         }
-        oggzValidateExePath = getExeOnce("oggz-validate", oggzValidateExePath);
+        oggzValidateExePath = Bob.getHostExeOnce("oggz-validate", oggzValidateExePath);
         Result result = Exec.execResult(oggzValidateExePath, tmpOggFile.getAbsolutePath());
 
         if (result.ret != 0) {

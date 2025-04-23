@@ -28,43 +28,75 @@ public class PackedTools {
 
         // List all resources in the /libexec/<platform> directory
         URL libexecRoot = Bob.class.getResource("/libexec/" + platformPair);
+        URL libRoot = Bob.class.getResource("/lib/");
         if (libexecRoot == null) {
             throw new IOException("Could not find /libexec/" + platformPair);
         }
 
-        // The resource might be in a JAR, so we extract entries from the JAR
-        try {
-            JarURLConnection jarConnection = (JarURLConnection) new URL(libexecRoot.toString()).openConnection();
-            try (var jarFile = jarConnection.getJarFile()) {
-                String basePath = "libexec/" + platformPair + "/";
-                String luaZip = "lib/luajit-share.zip";
-                jarFile.stream().forEach(entry -> {
-                    String name = entry.getName();
-                    if (!entry.isDirectory()) {
-                        if(name.startsWith(basePath) && !name.contains("dmengine")) {
-                            String relativeName = name.substring(basePath.length());
-                            File targetFile = new File(targetDir, relativeName);
-                            try {
-                                URL resourceUrl = Bob.class.getResource("/" + name);
-                                if (resourceUrl != null) {
-                                    Bob.atomicCopy(resourceUrl, targetFile, true);
+        // The resource might be in a JAR, or a directory in the file system
+        if (libexecRoot.getProtocol().equals("jar")) {
+            try {
+                JarURLConnection jarConnection = (JarURLConnection) libexecRoot.openConnection();
+                try (var jarFile = jarConnection.getJarFile()) {
+                    String basePath = "libexec/" + platformPair + "/";
+                    String luaZip = "lib/luajit-share.zip";
+                    jarFile.stream().forEach(entry -> {
+                        String name = entry.getName();
+                        if (!entry.isDirectory()) {
+                            if(name.startsWith(basePath) && !name.contains("dmengine")) {
+                                String relativeName = name.substring(basePath.length());
+                                File targetFile = new File(targetDir, relativeName);
+                                try {
+                                    URL resourceUrl = Bob.class.getResource("/" + name);
+                                    if (resourceUrl != null) {
+                                        Bob.atomicCopy(resourceUrl, targetFile, true);
+                                    }
+                                } catch (IOException e) {
+                                    throw new RuntimeException("Failed to copy tool: " + name, e);
                                 }
-                            } catch (IOException e) {
-                                throw new RuntimeException("Failed to copy tool: " + name, e);
+                            }
+                            else if (name.startsWith(luaZip)) {
+                                try {
+                                    Bob.extract(Bob.class.getResource("/lib/luajit-share.zip"), new File(Bob.getRootFolder(), "share"));
+                                } catch (IOException e) {
+                                    throw new RuntimeException("Failed to extract: " + name, e);
+                                }
                             }
                         }
-                        else if (name.startsWith(luaZip)) {
-                            try {
-                                Bob.extract(Bob.class.getResource("/lib/luajit-share.zip"), new File(Bob.getRootFolder(), "share"));
-                            } catch (IOException e) {
-                                throw new RuntimeException("Failed to extract: " + name, e);
-                            }
+                    });
+                }
+            } catch (IOException e) {
+                throw new IOException("Failed to unpack tools from /libexec/" + platformPair, e);
+            }
+        } else if ("file".equals(libexecRoot.getProtocol())) {
+            // Directory in file system case (e.g. during development)
+            File dir = new File(libexecRoot.getPath());
+            // Copy tools (excluding dmengine)
+            File[] files = dir.listFiles((d, name) -> !name.contains("dmengine"));
+            if (files != null) {
+                for (File file : files) {
+                    if (file.isFile()) {
+                        File targetFile = new File(targetDir, file.getName());
+                        try {
+                            Bob.atomicCopy(file.toURI().toURL(), targetFile, true);
+                        } catch (IOException e) {
+                            throw new RuntimeException("Failed to copy tool: " + file.getName(), e);
                         }
                     }
-                });
+                }
             }
-        } catch (IOException e) {
-            throw new IOException("Failed to unpack tools from /libexec/" + platformPair, e);
+            // Extract luajit-share.zip if present in lib directory
+            File libDir = new File(libRoot.getPath());
+            File luajitZip = new File(libDir, "luajit-share.zip");
+            if (luajitZip.exists()) {
+                try {
+                    Bob.extract(luajitZip.toURI().toURL(), new File(Bob.getRootFolder(), "share"));
+                } catch (IOException e) {
+                    throw new RuntimeException("Failed to extract: " + luajitZip.getAbsolutePath(), e);
+                }
+            }
+        } else {
+            throw new IOException("Unsupported protocol for /libexec/" + platformPair + ": " + libexecRoot.getProtocol());
         }
         TimeProfiler.stop();
     }

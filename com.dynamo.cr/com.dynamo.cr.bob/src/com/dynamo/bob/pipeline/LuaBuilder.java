@@ -173,7 +173,7 @@ public abstract class LuaBuilder extends Builder {
         // get path of LuaJIT executable if the platform uses LuaJIT
         Bob.initLua();
         useLua51 = LUA51_PLATFORMS.contains(this.project.getPlatform());
-        luaJITExePath = getExeOnce("luajit-64", luaJITExePath);
+        luaJITExePath = Bob.getHostExeOnce("luajit-64", luaJITExePath);
 
         return taskBuilder.build();
     }
