@@ -904,8 +904,8 @@ namespace dmInput
                             {
                                 action->m_Value = 1.0;
                             }
-                            UpdateActionPressedReleasedRepeated(action, binding->m_Context, dt);
                         }
+                        UpdateActionPressedReleasedRepeated(action, binding->m_Context, dt);
                         action->m_TouchCount = packet->m_TouchCount;
                     }
                 }
