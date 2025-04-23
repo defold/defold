@@ -13,13 +13,15 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.ui-test
-  (:require [clojure.test :refer :all]
+  (:require [cljfx.api :as fx]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.handler :as handler]
             [editor.ui :as ui]
             [support.test-support :as test-support])
   (:import [javafx.scene Scene]
-           [javafx.scene.control ComboBox ListView Menu MenuBar MenuItem SelectionMode TreeItem TreeView]
+           [javafx.scene.control ComboBox ListView Menu MenuBar MenuItem SelectionMode Tab TabPane TreeItem TreeView]
+           [javafx.scene.control.skin TabPaneSkin]
            [javafx.scene.layout Pane VBox]))
 
 (defn- make-fake-stage []
@@ -67,15 +69,15 @@
       [{:label "File"
         :children [{:label "Open"
                     :id ::open
-                    :command :open}
+                    :command :file.open}
                    {:label "Save"
-                    :command :save}]}])
+                    :command :file.save}]}])
 
-    (handler/defhandler :open :global
+    (handler/defhandler :file.open :global
         (enabled? [selection] true)
         (run [selection] 123))
 
-    (handler/defhandler :save :global
+    (handler/defhandler :file.save :global
       (enabled? [selection] true)
       (run [selection] 124))
 
@@ -93,16 +95,16 @@
   (test-support/with-clean-system
     (handler/register-menu! ::my-menu
       [{:label "Add"
-        :command :add}])
+        :command :edit.add-embedded-component}])
 
-    (handler/defhandler :add :global
+    (handler/defhandler :edit.add-embedded-component :global
       (run [user-data] user-data)
       (active? [user-data] (or (not user-data) (= user-data 1)))
       (options [user-data] (when-not user-data [{:label "first"
-                                                 :command :add
+                                                 :command :edit.add-embedded-component
                                                  :user-data 1}
                                                 {:label "second"
-                                                 :command :add
+                                                 :command :edit.add-embedded-component
                                                  :user-data 2}])))
 
     (let [command-context {:name :global :env {}}]
@@ -110,81 +112,89 @@
         (is (= 1 (count menu-items)))
         (is (= 1 (count (.getItems (first menu-items)))))))))
 
+(g/defnode FakeAppView
+  (property active-tab g/Any))
+
 (deftest toolbar-test
-  (ui/run-now
-    (test-support/with-clean-system
-      (handler/register-menu! ::my-menu
-        [{:label "Open"
-          :command :open
-          :id ::open}])
+  @(fx/on-fx-thread
+     (test-support/with-clean-system
+       (handler/register-menu! ::my-menu
+         [{:label "Open"
+           :command :file.open
+           :id ::open}])
 
-      (handler/defhandler :open :global
-        (enabled? [selection] true)
-        (run [selection] 123)
-        (state [] false))
+       (handler/defhandler :file.open :global
+         (enabled? [selection] true)
+         (run [selection] 123)
+         (state [] false))
 
-      (handler/defhandler :save :global
-        (enabled? [selection] true)
-        (run [selection] 124)
-        (state [] false))
+       (handler/defhandler :file.save :global
+         (enabled? [selection] true)
+         (run [selection] 124)
+         (state [] false))
 
-      (let [root (Pane.)
-            scene (Scene. root)
-            selection-provider (TestSelectionProvider. [])]
-        (.setId root "toolbar")
-        (ui/context! root :global {} selection-provider)
-        (ui/register-toolbar scene root "#toolbar" ::my-menu)
-        (ui/refresh scene)
-        (let [c1 (do (ui/refresh scene) (.getChildren root))
-              c2 (do (ui/refresh scene) (.getChildren root))]
-          (is (= 1 (count c1) (count c2)))
-          (is (= (.get c1 0) (.get c2 0))))
+       (let [root (Pane.)
+             tab (Tab. "tab" root)
+             tab-pane (TabPane.)
+             app-view (g/make-node! world FakeAppView :active-tab tab)
+             scene (Scene. tab-pane)
+             selection-provider (TestSelectionProvider. [])]
+         (.add (.getTabs tab-pane) tab)
+         (.setSkin tab-pane (TabPaneSkin. tab-pane)) ;;
+         (.setId root "toolbar")
+         (ui/context! root :global {:app-view app-view} selection-provider)
+         (ui/register-toolbar scene root "#toolbar" ::my-menu)
+         (ui/refresh scene)
+         (let [c1 (do (ui/refresh scene) (.getChildren root))
+               c2 (do (ui/refresh scene) (.getChildren root))]
+           (is (= 1 (count c1) (count c2)))
+           (is (= (.get c1 0) (.get c2 0))))
 
-        (handler/register-menu! ::extra ::open
-          [{:label "Save"
-            :command :save}])
-        (ui/refresh scene)
-        (is (= 2 (count (.getChildren root))))))))
+         (handler/register-menu! ::extra ::open
+           [{:label "Save"
+             :command :file.save}])
+         (ui/refresh scene)
+         (is (= 2 (count (.getChildren root))))))))
 
 (deftest menubar-test
-  (ui/run-now
-    (test-support/with-clean-system
-      (handler/register-menu! ::my-menu
-        [{:label "File"
-          :children
-          [{:label "Open"
-            :id ::open
-            :command :open}]}])
+  @(fx/on-fx-thread
+     (test-support/with-clean-system
+       (handler/register-menu! ::my-menu
+         [{:label "File"
+           :children
+           [{:label "Open"
+             :id ::open
+             :command :file.open}]}])
 
-      (handler/defhandler :open :global
-        (enabled? [selection] true)
-        (run [selection] 123))
+       (handler/defhandler :file.open :global
+         (enabled? [selection] true)
+         (run [selection] 123))
 
-      (handler/defhandler :save :global
-        (enabled? [selection] true)
-        (run [selection] 124))
+       (handler/defhandler :file.save :global
+         (enabled? [selection] true)
+         (run [selection] 124))
 
-      (let [root (Pane.)
-            scene (Scene. root)
-            selection-provider (TestSelectionProvider. [])
-            menubar (MenuBar.)]
-        (ui/context! root :global {} selection-provider)
-        (.add (.getChildren root) menubar)
-        (.setId menubar "menubar")
-        (ui/register-menubar scene menubar ::my-menu)
-        (ui/refresh scene)
-        (let [c1 (do (ui/refresh scene) (.getItems (first (.getMenus menubar))))
-              c2 (do (ui/refresh scene) (.getItems (first (.getMenus menubar))))]
-          (is (= 1 (count c1) (count c2)))
-          (is (= (.get c1 0) (.get c2 0))))
-        (handler/register-menu! ::extra ::open
-          [{:label "Save"
-            :command :save}])
-        (ui/refresh scene)
-        (let [c1 (do (ui/refresh scene) (.getItems (first (.getMenus menubar))))
-              c2 (do (ui/refresh scene) (.getItems (first (.getMenus menubar))))]
-          (is (= 2 (count c1) (count c2)))
-          (is (= (.get c1 0) (.get c2 0))))))))
+       (let [root (Pane.)
+             scene (Scene. root)
+             selection-provider (TestSelectionProvider. [])
+             menubar (MenuBar.)]
+         (ui/context! root :global {} selection-provider)
+         (.add (.getChildren root) menubar)
+         (.setId menubar "menubar")
+         (ui/register-menubar scene menubar ::my-menu)
+         (ui/refresh scene)
+         (let [c1 (do (ui/refresh scene) (.getItems (first (.getMenus menubar))))
+               c2 (do (ui/refresh scene) (.getItems (first (.getMenus menubar))))]
+           (is (= 1 (count c1) (count c2)))
+           (is (= (.get c1 0) (.get c2 0))))
+         (handler/register-menu! ::extra ::open
+           [{:label "Save"
+             :command :file.save}])
+         (ui/refresh scene)
+         (let [c1 (do (ui/refresh scene) (.getItems (first (.getMenus menubar))))
+               c2 (do (ui/refresh scene) (.getItems (first (.getMenus menubar))))]
+           (is (= 2 (count c1) (count c2)))
+           (is (= (.get c1 0) (.get c2 0))))))))
 
 (deftest list-view-test
   (let [selected-items (atom nil)]

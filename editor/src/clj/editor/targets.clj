@@ -365,13 +365,13 @@
 
 (defn- target-option [target]
   {:label     (target-menu-label target)
-   :command   :target
+   :command   :run.select-target
    :check     true
    :user-data target})
 
 (def ^:private separator {:label :separator})
 
-(handler/defhandler :target :global
+(handler/defhandler :run.select-target :global
   (run [user-data prefs workspace]
     (when user-data
       (try
@@ -379,23 +379,23 @@
         (catch Exception e
           (show-error-message e workspace)))))
   (state [user-data prefs]
-         (let [selected-target (selected-target prefs)]
-           (or (= user-data selected-target)
-               (= (:id user-data) (:id selected-target) :all-launched-targets)
-               (and (nil? selected-target)
-                    (= user-data :new-local-engine)))))
+    (let [selected-target (selected-target prefs)]
+      (or (= user-data selected-target)
+          (= (:id user-data) (:id selected-target) :all-launched-targets)
+          (and (nil? selected-target)
+               (= user-data :new-local-engine)))))
   (options [user-data]
-           (when-not user-data
-             (let [launched-options (mapv target-option @launched-targets)
-                   ssdp-options (mapv target-option @ssdp-targets)]
-               (cond
-                 (seq launched-options)
-                 (if (> (count launched-options) 1)
-                 (into [{:label "All Launched Instances" :check true :command :target :user-data {:id :all-launched-targets}}] (concat launched-options [separator] ssdp-options))
-                 (into launched-options (concat [separator] ssdp-options)))
+    (when-not user-data
+      (let [launched-options (mapv target-option @launched-targets)
+            ssdp-options (mapv target-option @ssdp-targets)]
+        (cond
+          (seq launched-options)
+          (if (> (count launched-options) 1)
+            (into [{:label "All Launched Instances" :check true :command :run.select-target :user-data {:id :all-launched-targets}}] (concat launched-options [separator] ssdp-options))
+            (into launched-options (concat [separator] ssdp-options)))
 
-                 :else
-                 (into [{:label "New Local Engine" :check true :command :target :user-data :new-local-engine} separator] ssdp-options))))))
+          :else
+          (into [{:label "New Local Engine" :check true :command :run.select-target :user-data :new-local-engine} separator] ssdp-options))))))
 
 (defn- locate-device [ip port]
   (when (not-empty ip)
@@ -411,54 +411,49 @@
         device
         (throw (ex-info (format "'%s' could not be reached from this host" ip) {}))))))
 
-(handler/defhandler :target-ip :global
+(handler/defhandler :run.set-target-ip :global
   (run [prefs]
-       (ui/run-later
-         (loop [manual-ip+port (dialogs/make-target-ip-dialog (prefs/get prefs [:run :manual-target-ip+port]) nil)]
-           (when (some? manual-ip+port)
-             (prefs/set! prefs [:run :manual-target-ip+port] manual-ip+port)
-             (let [[manual-ip port] (str/split manual-ip+port #":")
-                   device (try
-                            (locate-device manual-ip port)
-                            (catch Exception e (.getMessage e)))
-                   target (when (not (string? device))
-                            (device->target update-targets-context device))
-                   error-msg (or (and (string? target) target)
-                                 (and (string? device) device))]
-               (if error-msg
-                 (recur (dialogs/make-target-ip-dialog manual-ip+port error-msg))
-                 (do
-                   (reset! manual-device device)
-                   (select-target! prefs target)
-                   (invalidate-target-menu!)))))))))
+    (ui/run-later
+      (loop [manual-ip+port (dialogs/make-target-ip-dialog (prefs/get prefs [:run :manual-target-ip+port]) nil)]
+        (when (some? manual-ip+port)
+          (prefs/set! prefs [:run :manual-target-ip+port] manual-ip+port)
+          (let [[manual-ip port] (str/split manual-ip+port #":")
+                device (try
+                         (locate-device manual-ip port)
+                         (catch Exception e (.getMessage e)))
+                target (when (not (string? device))
+                         (device->target update-targets-context device))
+                error-msg (or (and (string? target) target)
+                              (and (string? device) device))]
+            (if error-msg
+              (recur (dialogs/make-target-ip-dialog manual-ip+port error-msg))
+              (do
+                (reset! manual-device device)
+                (select-target! prefs target)
+                (invalidate-target-menu!)))))))))
 
-(handler/defhandler :target-log :global
+(handler/defhandler :run.show-target-log :global
   (run []
-       (dialogs/make-target-log-dialog event-log #(reset! event-log []) restart)))
+    (dialogs/make-target-log-dialog event-log #(reset! event-log []) restart)))
 
-(handler/defhandler :close-engine :global
+(handler/defhandler :run.stop :global
   (enabled? [app-view] (launched-targets?))
   (active? [] true)
   (run []
        (kill-launched-targets!)))
 
-(handler/register-menu! ::menubar :editor.defold-project/project-end
+(handler/register-menu! ::menubar :editor.defold-project/targets
   [{:label "Target"
     :id ::target
     :on-submenu-open update!
-    :command :target}
+    :command :run.select-target
+    :expand true}
    {:label "Close Engine"
-    :command :close-engine}
+    :command :run.stop}
    {:label "Launched Instance Count"
-    :children (mapv (fn [i]
-                      {:label (str i (if (> i 1)
-                                       " Instances"
-                                       " Instance"))
-                       :command :set-instance-count
-                       :check true
-                       :user-data {:instance-count i}})
-                    (range 1 5))}
+    :command :run.set-instance-count
+    :expand true}
    {:label "Enter Target IP"
-    :command :target-ip}
+    :command :run.set-target-ip}
    {:label "Target Discovery Log"
-    :command :target-log}])
+    :command :run.show-target-log}])

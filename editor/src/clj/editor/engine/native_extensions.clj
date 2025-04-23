@@ -16,7 +16,7 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
-            [editor.connection-properties :refer [connection-properties]]
+            [editor.connection-properties :as connection-properties]
             [editor.defold-project :as project]
             [editor.engine.build-errors :as engine-build-errors]
             [editor.fs :as fs]
@@ -35,13 +35,6 @@
            [java.util ArrayList Base64]))
 
 (set! *warn-on-reflection* true)
-
-(def ^:const defold-build-server-url
-  (or
-    (get-in connection-properties [:native-extensions :custom-build-servers (system/defold-channel)])
-    (get-in connection-properties [:native-extensions :build-server-url])))
-
-(def ^:const defold-build-server-headers "")
 
 ;;; Caching
 
@@ -157,7 +150,7 @@
   (^String [prefs project evaluation-context]
    (or (not-empty (string/trim (prefs/get prefs [:extensions :build-server]))) ;; always trim because `prefs/get` does not return nil
        (not-empty (some-> (shared-editor-settings/get-setting project ["extensions" "build_server"] evaluation-context) string/trim)) ;; use `some->` because `get-setting` may return nil
-       defold-build-server-url)))
+       connection-properties/defold-build-server-url)))
 
 (defn get-build-server-headers
   "Returns a (possibly empty) vector of header strings"

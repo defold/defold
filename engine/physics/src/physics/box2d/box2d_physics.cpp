@@ -1082,7 +1082,11 @@ namespace dmPhysics
             return;
         }
 
-        HullSet::Hull& hull = shape_data->m_HullSet->m_Hulls[shape_data->m_Cells[child].m_Index];
+        const GridShapeData::Cell& cell = shape_data->m_Cells[child];
+        if (cell.m_Index == B2GRIDSHAPE_EMPTY_CELL)
+            return;
+
+        HullSet::Hull& hull = shape_data->m_HullSet->m_Hulls[cell.m_Index];
         assert(hull.m_Count <= B2_MAX_POLYGON_VERTICES);
 
         b2Vec2 vertices[B2_MAX_POLYGON_VERTICES];
@@ -1204,6 +1208,10 @@ namespace dmPhysics
         if (shape_data->m_Type == SHAPE_TYPE_GRID)
         {
             GridShapeData* grid_shape = (GridShapeData*) shape_data;
+
+            GridShapeData::Cell* cell = &grid_shape->m_Cells[child];
+            if (cell->m_Index == B2GRIDSHAPE_EMPTY_CELL)
+                return;
 
             grid_shape->m_CellFilters[child].m_Group = group;
             grid_shape->m_CellFilters[child].m_Mask = mask;
@@ -1637,6 +1645,7 @@ namespace dmPhysics
 
             polygon->m_Polygon = b2MakeOffsetBox(w * scale, h * scale, centroid, b2MakeRot(angle));
             memcpy(polygon->m_VerticesOriginal, polygon->m_Polygon.vertices, sizeof(b2Vec2) * polygon->m_Polygon.count);
+            b2Shape_SetPolygon(shape->m_ShapeId, &polygon->m_Polygon);
         }
     }
 

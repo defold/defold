@@ -1460,7 +1460,7 @@
       (g/operation-label "Add layer")
       (make-layer-node tile-map-node (make-new-layer layer-id))))))
 
-(handler/defhandler :add :workbench
+(handler/defhandler :edit.add-embedded-component :workbench
   (label [user-data] "Add layer")
   (active? [selection] (selection->tile-map selection))
   (run [selection user-data] (add-layer-handler (selection->tile-map selection))))
@@ -1487,7 +1487,7 @@
   (let [input-handlers (map first (g/sources-of scene-view :input-handlers))]
     (first (filter (partial g/node-instance? TileMapController) input-handlers))))
 
-(handler/defhandler :erase-tool :workbench
+(handler/defhandler :scene.select-erase-tool :workbench
   (label [user-data] "Select Eraser")
   (active? [app-view evaluation-context]
            (and (active-tile-map app-view evaluation-context)
@@ -1501,7 +1501,7 @@
 (defn- tile-map-palette-handler [tool-controller]
   (g/update-property! tool-controller :mode (toggler :palette :editor)))
 
-(handler/defhandler :show-palette :workbench
+(handler/defhandler :scene.toggle-tile-palette :workbench
   (active? [app-view evaluation-context]
            (and (active-tile-map app-view evaluation-context)
                 (active-scene-view app-view evaluation-context)))
@@ -1517,7 +1517,7 @@
         tool-controller (scene-view->tool-controller scene-view)]
     (g/update-property! tool-controller :brush transform-brush-fn)))
 
-(handler/defhandler :flip-brush-horizontally :workbench
+(handler/defhandler :scene.flip-brush-horizontally :workbench
   (active? [app-view evaluation-context]
            (and (active-tile-map app-view evaluation-context)
                 (active-scene-view app-view evaluation-context)))
@@ -1527,7 +1527,7 @@
              (g/node-value :tile-source-resource evaluation-context))))
   (run [app-view] (transform-brush! app-view flip-brush-horizontally)))
 
-(handler/defhandler :flip-brush-vertically :workbench
+(handler/defhandler :scene.flip-brush-vertically :workbench
   (active? [app-view evaluation-context]
            (and (active-tile-map app-view evaluation-context)
                 (active-scene-view app-view evaluation-context)))
@@ -1537,7 +1537,7 @@
                      (g/node-value :tile-source-resource evaluation-context))))
   (run [app-view] (transform-brush! app-view flip-brush-vertically)))
 
-(handler/defhandler :rotate-brush-90-degrees :workbench
+(handler/defhandler :scene.rotate-brush-90-degrees :workbench
   (active? [app-view evaluation-context]
            (and (active-tile-map app-view evaluation-context)
                 (active-scene-view app-view evaluation-context)))
@@ -1549,15 +1549,15 @@
 
 (handler/register-menu! ::menubar :editor.app-view/edit-end
   [{:label "Select Tile..."
-    :command :show-palette}
+    :command :scene.toggle-tile-palette}
    {:label "Select Eraser"
-    :command :erase-tool}
+    :command :scene.select-erase-tool}
    {:label "Flip Brush Horizontally"
-    :command :flip-brush-horizontally}
+    :command :scene.flip-brush-horizontally}
    {:label "Flip Brush Vertically"
-    :command :flip-brush-vertically}
+    :command :scene.flip-brush-vertically}
    {:label "Rotate Brush 90 Degrees"
-    :command :rotate-brush-90-degrees}])
+    :command :scene.rotate-brush-90-degrees}])
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace

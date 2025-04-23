@@ -70,6 +70,11 @@
 (defn synthetic-command? [x]
   (= (namespace x) synthetic-command-str))
 
+(defn private-command? [x]
+  (case (namespace x)
+    "private" true
+    false))
+
 (defn- register [state registration menus handlers]
   (let [handlers (mapv (fn [h]
                          (if (contains? h :command)
@@ -297,12 +302,18 @@
   ([name env selection-provider dynamics adapters]
    (->Context name env selection-provider dynamics adapters)))
 
-(defn available-commands []
-  (->> @state-atom
-       :handlers
-       keys
-       (e/map first)
-       (into #{})))
+(defn public-commands
+  "Returns a set of user-facing commands that may be e.g. assigned shortcuts"
+  ([]
+   (public-commands @state-atom))
+  ([handler-state]
+   (->> handler-state
+        :handlers
+        keys
+        (e/map first)
+        (e/remove synthetic-command?)
+        (e/remove private-command?)
+        (into #{}))))
 
 (defonce ^:private throwing-handlers (atom #{}))
 
@@ -369,12 +380,37 @@
 (defn options [[handler command-context]]
   (invoke-fnk handler :options command-context nil))
 
+(defn- flatten-menu-item-tree [item]
+  (->> item
+       :children
+       (e/mapcat (fn [child-item]
+                   (-> child-item
+                       (cond-> (not= :separator (:label child-item)) (update :label #(str (:label item) " → " %)))
+                       (flatten-menu-item-tree))))
+       (e/cons item)))
+
+(defn option-items
+  "Produce a flat list of options from menu items returned from options handler
+
+  Returns either a non-empty vector or nil"
+  [[{:keys [command]} :as handler+command-context]]
+  (when-let [opts (options handler+command-context)]
+    (->> opts
+         (e/mapcat flatten-menu-item-tree)
+         (e/remove #(= :separator (:label %)))
+         (e/filter #(= command (:command %)))
+         vec
+         coll/not-empty)))
+
 (defn- eval-dynamics [context]
   (cond-> context
     (contains? context :dynamics)
     (update :env merge (into {} (map (fn [[k [node v]]] [k (g/node-value (get-in context [:env node]) v)]) (:dynamics context))))))
 
 (defn active
+  ([command command-contexts]
+   (g/with-auto-evaluation-context evaluation-context
+     (active command command-contexts nil evaluation-context)))
   ([command command-contexts user-data]
    (g/with-auto-evaluation-context evaluation-context
      (active command command-contexts user-data evaluation-context)))

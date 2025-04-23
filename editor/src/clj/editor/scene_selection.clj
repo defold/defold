@@ -24,6 +24,7 @@
   (:import [editor.types Rect]
            [java.lang Runnable Math]
            [com.jogamp.opengl GL2]
+           [javafx.scene.input DragEvent]
            [javafx.scene Node Scene]
            [javax.vecmath Point2i Point3d Matrix4d]))
 
@@ -31,21 +32,21 @@
 
 (handler/register-menu! ::scene-selection-menu
                         [{:label "Cut"
-                          :command :cut}
+                          :command :edit.cut}
                          {:label "Copy"
-                          :command :copy}
+                          :command :edit.copy}
                          {:label "Paste"
-                          :command :paste}
+                          :command :edit.paste}
                          {:label "Delete"
                           :icon "icons/32/Icons_M_06_trash.png"
-                          :command :delete}
+                          :command :edit.delete}
                          {:label :separator}
                          {:label "Show/Hide Objects"
-                          :command :hide-toggle-selected}
+                          :command :scene.visibility.toggle-selection}
                          {:label "Hide Unselected Objects"
-                          :command :hide-unselected}
+                          :command :scene.visibility.hide-unselected}
                          {:label "Show All Hidden Objects"
-                          :command :show-all-hidden}
+                          :command :scene.visibility.show-all}
                          {:label :separator
                           :id ::context-menu-end}])
 
@@ -127,6 +128,18 @@
         cursor-pos [(:x action) (:y action) 0]
         contextual? (= (:button action) :secondary)]
     (case (:type action)
+      :drag-dropped (when-let [drop-fn (g/node-value self :drop-fn)]
+                      (let [op-seq (gensym)
+                            select-fn (g/node-value self :select-fn)
+                            drag-event ^DragEvent (:event action)
+                            _ (ui/request-focus! (:gesture-target action))
+                            added-nodes (drop-fn action op-seq)]
+                        (.consume drag-event)
+                        (when (seq added-nodes)
+                          (select-fn added-nodes op-seq)
+                          (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
+                          (.setDropCompleted drag-event true)))
+                      nil)
       :mouse-pressed (let [op-seq (gensym)
                            toggle? (true? (some true? (map #(% action) toggle-modifiers)))
                            mode :single]
@@ -189,6 +202,7 @@
 
 (g/defnode SelectionController
   (property select-fn Runnable)
+  (property drop-fn Runnable)
   (property start types/Vec3)
   (property current types/Vec3)
   (property op-seq g/Any)

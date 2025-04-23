@@ -47,6 +47,7 @@
             [editor.scene-tools :as scene-tools]
             [editor.texture-set :as texture-set]
             [editor.types :as types]
+            [editor.ui :as ui]
             [editor.util :as eutil]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
@@ -61,7 +62,6 @@
            [com.jogamp.opengl GL GL2]
            [editor.gl.shader ShaderLifecycle]
            [editor.gl.texture TextureLifecycle]
-           [editor.pose Pose]
            [internal.graph.types Arc]
            [java.awt.image BufferedImage]
            [javax.vecmath Quat4d]))
@@ -2942,15 +2942,15 @@
                       (pair label fused-build-resource-path))))
              (completing
                (fn [pb [label fused-build-resource-path]]
-                     (if (vector? label)
-                       (assoc-in pb label fused-build-resource-path)
-                       (assoc pb label fused-build-resource-path))))
+                 (if (vector? label)
+                   (assoc-in pb label fused-build-resource-path)
+                   (assoc pb label fused-build-resource-path))))
              (:pb user-data)
              (:dep-resources user-data))]
     {:resource resource :content (protobuf/map->bytes (:pb-class user-data) pb)}))
 
 (defn- merge-rt-pb-msg [rt-pb-msg template-build-targets]
-  (let [merge-fn! (fn [coll msg kw] (reduce conj! coll (map #(do [(:name %) %]) (get msg kw))))
+  (let [merge-fn! (fn [coll msg kw] (reduce conj! coll (e/map (coll/pair-fn :name) (get msg kw))))
         [textures materials fonts particlefx-resources resources]
         (loop [textures (transient {})
                materials (transient {})
@@ -2969,24 +2969,6 @@
             [(persistent! textures) (persistent! materials) (persistent! fonts) (persistent! particlefx-resources) (persistent! resources)]))]
     (assoc rt-pb-msg :textures (mapv second textures) :materials (mapv second materials) :fonts (mapv second fonts) :particlefxs (mapv second particlefx-resources) :resources (mapv second resources))))
 
-(defn- transform-properties->pose
-  ^Pose [transform-properties]
-  {:pre [(map? transform-properties)]} ; Gui$NodeDesc in map format.
-  (pose/make (some-> (:position transform-properties) pose/seq-translation)
-             (some-> (:rotation transform-properties) pose/seq-euler-rotation)
-             (some-> (:scale transform-properties) pose/seq-scale)))
-
-(defn- pre-multiply-pb-pose [child-node-desc parent-transform-properties]
-  (let [pose (pose/pre-multiply (transform-properties->pose child-node-desc)
-                                (transform-properties->pose parent-transform-properties))]
-    (protobuf/assign child-node-desc
-      :position (when (pose/translated? pose)
-                  (pose/translation-v4 pose 1.0))
-      :rotation (when (pose/rotated? pose)
-                  (pose/euler-rotation-v4 pose))
-      :scale (when (pose/scaled? pose)
-               (pose/scale-v4 pose)))))
-
 (defn- node-desc->rt-node-desc [node-desc layout-name]
   {:pre [(map? node-desc) ; Gui$NodeDesc in map format.
          (string? layout-name)]}
@@ -3004,7 +2986,12 @@
         ;; :parent are used directly from the decorated-template-node-msg.
         (let [layout->prop->value-for-template-node (:layout->prop->value decorated-template-node-msg)
               prop->value-for-template-node (layout->prop->value-for-template-node layout-name)]
-          ;; Note: Protobuf defaults are included in the prop->value map.
+          ;; Beware:
+          ;; The prop->value map contains [prop-kw, prop-value] entries and
+          ;; includes defaults. The node-desc is a map of [pb-field, pb-value]
+          ;; with defaults stripped out. Refer to the property-conversions map
+          ;; earlier in this file to determine if conversions must be performed
+          ;; before combining values.
           (assert (map? layout->prop->value-for-template-node))
           (assert (map? prop->value-for-template-node))
           (cond-> imported-node-desc
@@ -3025,15 +3012,34 @@
 
                   (or (= (:id decorated-template-node-msg) (:parent imported-node-desc))
                       (coll/empty? (:parent imported-node-desc)))
-                  (->
-                    (protobuf/assign
-                      :parent (:parent decorated-template-node-msg)
-                      :enabled (when-not (and (:enabled imported-node-desc true)
-                                              (prop->value-for-template-node :enabled))
-                                 false)) ; Protobuf default is true, and we want to exclude defaults.
+                  (as-> imported-node-desc
+                        ;; In fact incorrect, but only possibility to retain rotation/scale separation.
+                        (let [template-node-pose
+                              (pose/make
+                                (pose/seq-translation (prop->value-for-template-node :position))
+                                (pose/seq-rotation (prop->value-for-template-node :rotation)) ; Property value is a clj-quat.
+                                (pose/seq-scale (prop->value-for-template-node :scale)))
 
-                    ;; In fact incorrect, but only possibility to retain rotation/scale separation.
-                    (pre-multiply-pb-pose prop->value-for-template-node)))))
+                              imported-node-pose
+                              (pose/make
+                                (some-> (:position imported-node-desc) pose/seq-translation)
+                                (some-> (:rotation imported-node-desc) pose/seq-euler-rotation) ; Protobuf value is a euler-v4.
+                                (some-> (:scale imported-node-desc) pose/seq-scale))
+
+                              baked-pose
+                              (pose/pre-multiply imported-node-pose template-node-pose)]
+
+                          (protobuf/assign imported-node-desc
+                            :parent (:parent decorated-template-node-msg)
+                            :enabled (when-not (and (:enabled imported-node-desc true)
+                                                    (prop->value-for-template-node :enabled))
+                                       false) ; Protobuf default is true, and we want to exclude defaults.
+                            :position (when (pose/translated? baked-pose)
+                                        (pose/translation-v4 baked-pose 1.0))
+                            :rotation (when (pose/rotated? baked-pose)
+                                        (pose/euler-rotation-v4 baked-pose))
+                            :scale (when (pose/scaled? baked-pose)
+                                     (pose/scale-v4 baked-pose))))))))
       (dissoc node-desc :overridden-fields :template-node-child)
       (:templates (meta node-desc)))
 
@@ -3073,31 +3079,65 @@
         :user-data {:pb {}
                     :pb-class (:pb-class pb-def)}})]
     (g/precluding-errors build-errors
-    (let [template-build-targets (flatten template-build-targets)
-          rt-layout-descs (mapv #(make-rt-layout-desc % node-msgs)
-                                layout-names)
-          rt-node-descs (coll/transfer node-msgs []
-                          (keep
-                            (fn [decorated-node-msg]
-                              (-> decorated-node-msg
-                                  (dissoc :layout->prop->override :layout->prop->value)
-                                  (node-desc->rt-node-desc "")))))
-          rt-pb-msg (protobuf/assign-repeated pb-msg
-                      :layouts rt-layout-descs
-                      :nodes rt-node-descs)
-          rt-pb-msg (merge-rt-pb-msg rt-pb-msg template-build-targets)
-          dep-build-targets (concat (flatten dep-build-targets) (mapcat :deps (flatten template-build-targets)))
-          deps-by-source (into {} (map #(let [res (:resource %)] [(resource/resource->proj-path (:resource res)) res]) dep-build-targets))
-          resource-fields (mapcat (fn [field] (if (vector? field) (mapv (fn [i] (into [(first field) i] (rest field))) (range (count (get rt-pb-msg (first field))))) [field])) (:resource-fields pb-def))
-          dep-resources (mapv (fn [label] [label (get deps-by-source (if (vector? label) (get-in rt-pb-msg label) (get rt-pb-msg label)))]) resource-fields)]
-      [(bt/with-content-hash
-         {:node-id _node-id
-          :resource (workspace/make-build-resource resource)
-          :build-fn build-pb
-          :user-data {:pb rt-pb-msg
-                      :pb-class (:pb-class pb-def)
-                      :dep-resources dep-resources}
-          :deps dep-build-targets})]))))
+      (let [template-build-targets (flatten template-build-targets)
+
+            rt-layout-descs
+            (mapv #(make-rt-layout-desc % node-msgs)
+                  layout-names)
+
+            rt-node-descs
+            (coll/transfer node-msgs []
+              (keep
+                (fn [decorated-node-msg]
+                  (-> decorated-node-msg
+                      (dissoc :layout->prop->override :layout->prop->value)
+                      (node-desc->rt-node-desc "")))))
+
+            rt-pb-msg
+            (protobuf/assign-repeated pb-msg
+              :layouts rt-layout-descs
+              :nodes rt-node-descs)
+
+            rt-pb-msg (merge-rt-pb-msg rt-pb-msg template-build-targets)
+
+            dep-build-targets
+            (into (vec (flatten dep-build-targets))
+                  (mapcat :deps)
+                  template-build-targets)
+
+            ;; TODO: Can we replace all this with pipeline/make-protobuf-build-target?
+            deps-by-source
+            (coll/transfer dep-build-targets {}
+              (map (fn [dep-build-target]
+                     (let [build-resource (:resource dep-build-target)
+                           source-resource (:resource build-resource)
+                           source-proj-path (resource/resource->proj-path source-resource)]
+                       (pair source-proj-path build-resource)))))
+
+            dep-resources
+            (coll/transfer (:resource-fields pb-def) []
+              (mapcat (fn [field]
+                        (if (vector? field)
+                          (e/map (fn [index]
+                                   (into [(first field) index]
+                                         (rest field)))
+                                 (range (count (get rt-pb-msg (first field)))))
+                          [field])))
+              (map (fn [label]
+                     (pair label
+                           (get deps-by-source
+                                (if (vector? label)
+                                  (get-in rt-pb-msg label)
+                                  (get rt-pb-msg label)))))))]
+
+        [(bt/with-content-hash
+           {:node-id _node-id
+            :resource (workspace/make-build-resource resource)
+            :build-fn build-pb
+            :user-data {:pb rt-pb-msg
+                        :pb-class (:pb-class pb-def)
+                        :dep-resources dep-resources}
+            :deps dep-build-targets})]))))
 
 (defn- validate-template-build-targets [template-build-targets]
   (let [gui-resource-type+name->value->resource-proj-paths
@@ -3226,11 +3266,12 @@
   (input script-resource resource/Resource)
 
   (input node-tree g/NodeID)
-  (input layers-node g/NodeID) ; for tests
-  (input layouts-node g/NodeID) ; for tests
-  (input fonts-node g/NodeID) ; for tests
-  (input textures-node g/NodeID) ; for tests
-  (input particlefx-resources-node g/NodeID) ; for tests
+  (input layers-node g/NodeID)
+  (input layouts-node g/NodeID)
+  (input fonts-node g/NodeID)
+  (input textures-node g/NodeID)
+  (input particlefx-resources-node g/NodeID)
+  (input materials-node g/NodeID)
   (input handler-infos g/Any :array)
   (output handler-infos g/Any (g/fnk [handler-infos]
                                 (into [] (mapcat one-or-many-handler-infos-to-vec) handler-infos)))
@@ -3467,7 +3508,7 @@
     (add-gui-node-with-props! scene parent node-type custom-type props select-fn))))
 
 (defn- make-add-handler [scene parent label icon handler-fn user-data]
-  {:label label :icon icon :command :add
+  {:label label :icon icon :command :edit.add-embedded-component
    :user-data (merge {:handler-fn handler-fn :scene scene :parent parent} user-data)})
 
 (defn- add-handler-options [node]
@@ -3519,7 +3560,7 @@
       (mapv #(make-add-handler scene parent % layout-icon add-layout-handler {:display-profile %})
             (g/node-value scene :unused-display-profiles evaluation-context)))))
 
-(handler/defhandler :add :workbench
+(handler/defhandler :edit.add-embedded-component :workbench
   (active? [selection] (not-empty (some->> (handler/selection->node-id selection) add-handler-options)))
   (run [project user-data app-view] (when user-data ((:handler-fn user-data) project user-data (fn [node-ids] (app-view/select app-view node-ids)))))
   (options [selection user-data]
@@ -3683,6 +3724,7 @@
 
       ;; Materials list
       (g/make-nodes graph-id [materials-node MaterialsNode]
+        (g/connect materials-node :_node-id self :materials-node)
         (g/connect materials-node :_node-id self :nodes)
         (g/connect materials-node :build-errors self :build-errors)
         (g/connect materials-node :node-outline self :child-outlines)
@@ -3894,6 +3936,42 @@
         (protobuf/assign-repeated :resources merged-resource-descs)
         (update :material #(or % default-material-proj-path)))))
 
+(defn- add-dropped-resource
+  [selection workspace resource]
+  (let [scene (node->gui-scene (first selection))
+        ext (str/lower-case (resource/ext resource))
+        base-name (resource/base-name resource)
+        gen-name #(->> (g/node-value (g/node-value scene %) :name-counts)
+                       (outline/resolve-id base-name))]
+    (cond
+      (= ext "particlefx")
+      (add-particlefx-resource scene (g/node-value scene :particlefx-resources-node) resource (gen-name :particlefx-resources-node))
+
+      (= ext "font")
+      (add-font scene (g/node-value scene :fonts-node) resource (gen-name :fonts-node))
+
+      (some #{ext} (workspace/resource-kind-extensions workspace :atlas))
+      (add-texture scene (g/node-value scene :textures-node) resource (gen-name :textures-node))
+
+      (= ext "material")
+      (add-material scene (g/node-value scene :materials-node) resource (gen-name :materials-node))
+
+      :else
+      nil)))
+
+(defn- handle-drop
+  [action op-seq]
+  (let [{:keys [string gesture-target]} action
+        ui-context (first (ui/node-contexts gesture-target false))
+        {:keys [selection workspace]} (:env ui-context)
+        resources (->> (str/split-lines string)
+                       (keep (partial workspace/resolve-workspace-resource workspace)))]
+    (g/tx-nodes-added
+      (g/transact
+        (concat
+          (mapv (partial add-dropped-resource selection workspace) resources)
+          (g/operation-sequence op-seq))))))
+
 (defn- register [workspace def]
   (let [ext (:ext def)
         exts (if (vector? ext) ext [ext])]
@@ -3913,7 +3991,8 @@
         :tag-opts (:tag-opts def)
         :template (:template def)
         :view-types [:scene :text]
-        :view-opts {:scene {:grid true}}))))
+        :view-opts {:scene {:grid true
+                            :drop-fn handle-drop}}))))
 
 (defn register-resource-types [workspace]
   (register workspace pb-def))
@@ -3942,7 +4021,7 @@
 (defn- selection->layer-node [selection]
   (g/override-root (handler/adapt-single selection LayerNode)))
 
-(handler/defhandler :move-up :workbench
+(handler/defhandler :edit.reorder-up :workbench
   (active? [selection] (or (selection->gui-node selection)
                            (selection->layer-node selection)))
   (enabled? [selection] (let [selected-node-id (g/override-root (handler/selection->node-id selection))
@@ -3953,7 +4032,7 @@
   (run [selection] (let [selected (g/override-root (handler/selection->node-id selection))]
                      (move-child-node! selected -1))))
 
-(handler/defhandler :move-down :workbench
+(handler/defhandler :edit.reorder-down :workbench
   (active? [selection] (or (selection->gui-node selection)
                            (selection->layer-node selection)))
   (enabled? [selection] (let [selected-node-id (g/override-root (handler/selection->node-id selection))
@@ -3974,7 +4053,8 @@
      (when (and res-node (g/node-instance? GuiSceneNode res-node))
        res-node))))
 
-(handler/defhandler :set-gui-layout :workbench
+(handler/defhandler :scene.set-gui-layout :workbench
+  :label "Set GUI Layout"
   (active? [project active-resource evaluation-context]
            (boolean (resource->gui-scene project active-resource evaluation-context)))
   (run [project active-resource user-data] (when user-data
@@ -3984,7 +4064,7 @@
          (when-let [scene (resource->gui-scene project active-resource)]
            (let [visible (g/node-value scene :visible-layout)]
              {:label (if (empty? visible) "Default" visible)
-              :command :set-gui-layout
+              :command :scene.set-gui-layout
               :user-data visible})))
   (options [project active-resource user-data]
            (when-not user-data
@@ -3993,13 +4073,13 @@
                      layouts (cons "" layout-names)]
                  (for [l layouts]
                    {:label (if (empty? l) "Default" l)
-                    :command :set-gui-layout
+                    :command :scene.set-gui-layout
                     :user-data l}))))))
 
 (handler/register-menu! ::toolbar :visibility-settings
   [{:label :separator}
    {:icon layout-icon
-    :command :set-gui-layout
+    :command :scene.set-gui-layout
     :label "Test"}])
 
 ;; SDK api

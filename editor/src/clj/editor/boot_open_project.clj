@@ -51,7 +51,6 @@
             [editor.targets :as targets]
             [editor.ui :as ui]
             [editor.ui.updater :as ui.updater]
-            [editor.web-profiler :as web-profiler]
             [editor.web-server :as web-server]
             [editor.workspace :as workspace]
             [service.log :as log]
@@ -206,11 +205,11 @@
                          (into []
                                cat
                                [(engine-profiler/routes)
-                                (web-profiler/routes)
                                 (console/routes console-view)
                                 (hot-reload/routes workspace)
                                 (bob/routes project)
                                 (command-requests/router root (app-view/make-render-task-progress :resource-sync))])))]
+      (.addEventFilter ^StackPane (.lookup root "#overlay") MouseEvent/ANY ui/ignore-event-filter)
       (ui/add-application-focused-callback! :main-stage app-view/handle-application-focused! app-view changes-view workspace prefs)
       (app-view/reload-extensions! app-view project :all workspace changes-view build-errors-view prefs web-server)
 
@@ -343,7 +342,7 @@
                     {:title "Updated .gitignore File"
                      :icon :icon/circle-info
                      :header "Updated .gitignore file"
-                     :content {:fx/type fxui/label
+                     :content {:fx/type fxui/legacy-label
                                :style-class "dialog-content-padding"
                                :text (str "The .gitignore file was automatically updated to ignore build output and metadata files.\n"
                                           "You should include it along with your changes the next time you synchronize.")}})

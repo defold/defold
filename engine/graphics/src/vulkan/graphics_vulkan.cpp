@@ -1628,6 +1628,11 @@ bail:
             vk_scissor.offset.y = 0;
 
             VkResult res = CreateGraphicsPipeline(vk_device, vk_scissor, vk_sample_count, pipelineState, program, vertexDeclaration, vertexDeclarationCount, rt, &new_pipeline);
+            if (res == VK_ERROR_INITIALIZATION_FAILED)
+            {
+                dmLogError("Failed to create VkPipeline");
+                return 0;
+            }
             CHECK_VK_ERROR(res);
 
             if (pipelineCache.Full())
@@ -2248,7 +2253,7 @@ bail:
         vkCmdBindPipeline(vk_command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, *pipeline);
     }
 
-    static void DrawSetup(VulkanContext* context, VkCommandBuffer vk_command_buffer, ScratchBuffer* scratchBuffer, DeviceBuffer* indexBuffer, Type indexBufferType)
+    static bool DrawSetup(VulkanContext* context, VkCommandBuffer vk_command_buffer, ScratchBuffer* scratchBuffer, DeviceBuffer* indexBuffer, Type indexBufferType)
     {
         RenderTarget* current_rt = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, context->m_CurrentRenderTarget);
         BeginRenderPass(context, context->m_CurrentRenderTarget);
@@ -2332,6 +2337,11 @@ bail:
             pipeline_state_draw, context->m_PipelineCache,
             program_ptr, current_rt, vx_declarations, num_vx_buffers);
 
+        if (!pipeline)
+        {
+            return false;
+        }
+
         if (pipeline != context->m_CurrentPipeline)
         {
             vkCmdBindPipeline(vk_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, *pipeline);
@@ -2353,6 +2363,7 @@ bail:
         }
 
         vkCmdBindVertexBuffers(vk_command_buffer, 0, num_vx_buffers, vk_buffers, vk_buffer_offsets);
+        return true;
     }
 
     static void VulkanDrawElements(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer, uint32_t instance_count)
@@ -2366,7 +2377,11 @@ bail:
         const uint8_t image_ix = context->m_SwapChain->m_ImageIndex;
         VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[image_ix];
         context->m_PipelineState.m_PrimtiveType = prim_type;
-        DrawSetup(context, vk_command_buffer, &context->m_MainScratchBuffers[image_ix], (DeviceBuffer*) index_buffer, type);
+        if (!DrawSetup(context, vk_command_buffer, &context->m_MainScratchBuffers[image_ix], (DeviceBuffer*) index_buffer, type))
+        {
+            dmLogError("Failed setup draw state");
+            return;
+        }
 
         // The 'first' value that comes in is intended to be a byte offset,
         // but vkCmdDrawIndexed only operates with actual offset values into the index buffer
@@ -4204,6 +4219,33 @@ bail:
 
     static void PrepareTextureForUploading(VulkanContext* context, VulkanTexture* texture, const TextureParams& params)
     {
+        VkFormat vk_format = GetVulkanFormatFromTextureFormat(params.m_Format);
+        if (!params.m_SubUpdate && params.m_MipMap == 0)
+        {
+            if (texture->m_Format != vk_format ||
+                texture->m_Width != params.m_Width ||
+                texture->m_Height != params.m_Height ||
+                (IsTextureType3D(texture->m_Type) && (texture->m_Depth != params.m_Depth)))
+            {
+                DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], texture);
+                texture->m_Format = vk_format;
+                texture->m_Width  = params.m_Width;
+                texture->m_Height = params.m_Height;
+                texture->m_Depth  = params.m_Depth;
+
+                // Note:
+                // If the texture has requested mipmaps and we need to recreate the texture, make sure to allocate enough mipmaps.
+                // For vulkan this means that we can't cap a texture to a specific mipmap count since the engine expects
+                // that setting texture data works like the OpenGL backend where we set the mipmap count to zero and then
+                // update the mipmap count based on the params. If we recreate the texture when that is detected (i.e we have too few mipmaps in the texture)
+                // we will lose all the data that was previously uploaded. We could copy that data, but for now this is the easiest way of dealing with this..
+
+                if (texture->m_MipMapCount > 1)
+                {
+                    texture->m_MipMapCount = (uint16_t) GetMipmapCount(dmMath::Max(texture->m_Width, texture->m_Height));
+                }
+            }
+        }
         // If texture hasn't been used yet or if it has been changed
         if (texture->m_Destroyed || texture->m_Handle.m_Image == VK_NULL_HANDLE)
         {
@@ -4211,7 +4253,6 @@ bail:
             VkImageUsageFlags vk_usage_flags        = VK_IMAGE_USAGE_TRANSFER_DST_BIT;
             VkFormatFeatureFlags vk_format_features = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
             VkMemoryPropertyFlags vk_memory_type    = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-            VkFormat vk_format                      = GetVulkanFormatFromTextureFormat(params.m_Format);
             uint16_t tex_depth                      = dmMath::Max(texture->m_Depth, params.m_Depth);
             uint16_t tex_layer_count                = dmMath::Max(texture->m_LayerCount, params.m_LayerCount);
             TextureFormat format_orig               = params.m_Format;

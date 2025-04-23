@@ -26,7 +26,6 @@ def configure(conf):
     conf.env['STLIB_EXTENSION'] = 'extension'
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="SDK"')
 
-
 def build(bld):
     global test_context
     bld.recurse('src')

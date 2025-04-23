@@ -20,6 +20,7 @@
             [cljfx.fx.label :as fx.label]
             [cljfx.fx.list-cell :as fx.list-cell]
             [cljfx.fx.list-view :as fx.list-view]
+            [cljfx.fx.popup :as fx.popup]
             [cljfx.fx.region :as fx.region]
             [cljfx.fx.stack-pane :as fx.stack-pane]
             [cljfx.fx.svg-path :as fx.svg-path]
@@ -33,7 +34,7 @@
             [editor.code-completion :as code-completion]
             [editor.code.data :as data]
             [editor.code.resource :as r]
-            [editor.code.util :refer [find-insert-index split-lines]]
+            [editor.code.util :refer [split-lines]]
             [editor.error-reporting :as error-reporting]
             [editor.fxui :as fxui]
             [editor.graph-util :as gu]
@@ -991,6 +992,16 @@
       :text)
     display-string))
 
+(defn- update-document-width
+  [evaluation-context view-node]
+  (when-let [resource-node (g/maybe-node-value view-node :resource-node)]
+    (let [glyph-metrics (g/node-value view-node :glyph-metrics evaluation-context)
+          tab-spaces (g/node-value view-node :tab-spaces evaluation-context)
+          lines (g/node-value resource-node :lines evaluation-context)
+          tab-stops (data/tab-stops glyph-metrics tab-spaces)
+          document-width (data/max-line-width glyph-metrics tab-stops lines)]
+      (g/set-property view-node :document-width document-width))))
+
 (g/defnk produce-completions-combined [completions-built-in completions-lsp completion-context]
   (let [all-completions (into []
                               (comp cat (util/distinct-by completion-identifier))
@@ -1085,7 +1096,6 @@
 
   (property completions-showing g/Bool (default false) (dynamic visible (g/constantly false)))
   (property completions-doc g/Bool (default false) (dynamic visible (g/constantly false)))
-  (property completions-shortcut-text g/Any (dynamic visible (g/constantly false)))
   (property completions-insert-cursor g/Any (dynamic visible (g/constantly false)))
   (property completions-built-in g/Any (default []) (dynamic visible (g/constantly false)))
   (property completions-lsp g/Any)
@@ -1136,8 +1146,17 @@
   (output completions-combined-ids g/Any :cached produce-completions-combined-ids)
   (input project g/NodeID) ;; used for completions doc popup, e.g. for opening defold:// URIs
 
-  (property font-name g/Str (default "Dejavu Sans Mono"))
-  (property font-size g/Num (default (g/constantly default-font-size)))
+  (input keymap g/Any)
+  (output completions-shortcut-text g/Any :cached (g/fnk [keymap]
+                                                    (keymap/display-text keymap :code.show-completions nil)))
+
+  (property font-name g/Str (default "Dejavu Sans Mono")
+            (set (fn [evaluation-context self _old-value _new-value]
+                   (update-document-width evaluation-context self))))
+  (property font-size g/Num
+            (default (g/constantly default-font-size))
+            (set (fn [evaluation-context self _old-value _new-value]
+                   (update-document-width evaluation-context self))))
   (property line-height-factor g/Num (default 1.0))
   (property visible-indentation-guides? g/Bool (default false))
   (property visible-minimap? g/Bool (default false))
@@ -1495,13 +1514,13 @@
      (implies-completions? view-node evaluation-context)))
   ([view-node evaluation-context]
    (let [{:keys [trigger request-cursor]} (get-property view-node :completion-context evaluation-context)
-         trigger-characters (get-property view-node :completion-trigger-characters evaluation-context)]
+         trigger-characters (get-property view-node :completion-trigger-characters evaluation-context)
+         syntax-scope (syntax-scope-before-cursor view-node request-cursor evaluation-context)]
      (boolean (and (not (contains? #{"\n" "\t" " "} trigger))
                    (or (re-matches #"[a-zA-Z_]" trigger)
                        (contains? trigger-characters trigger))
-                   (not (string/starts-with?
-                          (syntax-scope-before-cursor view-node request-cursor evaluation-context)
-                          "punctuation.definition.string.end")))))))
+                   (not (string/starts-with? syntax-scope "punctuation.definition.string.end"))
+                   (not (string/starts-with? syntax-scope "comment")))))))
 
 (defn- hide-suggestions! [view-node]
   (set-properties! view-node nil
@@ -1979,17 +1998,19 @@
          {:fx/type fx/ext-many
           :desc
           (cond->
-            [{:fx/type fxui/with-popup
+            [{:fx/type fxui/with-popup-window
               :desc {:fx/type fxui/ext-value :value canvas}
-              :anchor-x (- (.getX anchor) 12.0)
-              :anchor-y (- (.getY anchor) 4.0)
-              :anchor-location :window-top-left
-              :showing completions-showing
-              :auto-fix false
-              :auto-hide true
-              :on-auto-hide {:event :auto-hide}
-              :hide-on-escape false
-              :content [{:fx/type fx/ext-get-ref :ref :content}]}]
+              :popup
+              {:fx/type fx.popup/lifecycle
+               :anchor-x (- (.getX anchor) 12.0)
+               :anchor-y (- (.getY anchor) 4.0)
+               :anchor-location :window-top-left
+               :showing completions-showing
+               :auto-fix false
+               :auto-hide true
+               :on-auto-hide {:event :auto-hide}
+               :hide-on-escape false
+               :content [{:fx/type fx/ext-get-ref :ref :content}]}}]
             completions-doc
             (conj
               (let [pref-doc-width 350.0
@@ -2016,36 +2037,38 @@
                                  (case (:type doc)
                                    :markdown (:value doc)
                                    :plaintext (format "<pre>%s</pre>" (:value doc))))]
-                {:fx/type fxui/with-popup
+                {:fx/type fxui/with-popup-window
                  :desc {:fx/type fx/ext-get-ref :ref :content}
-                 :anchor-x (let [x (- (.getX anchor) 12.0)]
-                             (if align-right
-                               (+ x completions-width spacing)
-                               (- x doc-width spacing)))
-                 :anchor-y (- (.getY anchor) 5.0)
-                 :anchor-location :window-top-left
-                 :showing true
-                 :auto-fix false
-                 :auto-hide false
-                 :hide-on-escape false
-                 :content [{:fx/type fx.stack-pane/lifecycle
-                            :stylesheets [(str (io/resource "editor.css"))]
-                            :children [{:fx/type fx.region/lifecycle
-                                        :style-class "flat-list-doc-background"}
-                                       (cond->
-                                         {:fx/type markdown/view
-                                          :base-url (:base-url doc)
-                                          :event-filter {:event :doc-event-filter}
-                                          :max-width doc-width
-                                          :max-height doc-max-height
-                                          :project project
-                                          :content (cond
-                                                     (and small-string doc-string) (str small-string "\n\n" doc-string)
-                                                     small-string small-string
-                                                     doc-string doc-string
-                                                     :else "<small>no documentation</small>")}
-                                         (not align-right)
-                                         (assoc :min-width doc-width))]}]})))}}))))
+                 :popup
+                 {:fx/type fx.popup/lifecycle
+                  :anchor-x (let [x (- (.getX anchor) 12.0)]
+                              (if align-right
+                                (+ x completions-width spacing)
+                                (- x doc-width spacing)))
+                  :anchor-y (- (.getY anchor) 5.0)
+                  :anchor-location :window-top-left
+                  :showing true
+                  :auto-fix false
+                  :auto-hide false
+                  :hide-on-escape false
+                  :content [{:fx/type fx.stack-pane/lifecycle
+                             :stylesheets [(str (io/resource "editor.css"))]
+                             :children [{:fx/type fx.region/lifecycle
+                                         :style-class "flat-list-doc-background"}
+                                        (cond->
+                                          {:fx/type markdown/view
+                                           :base-url (:base-url doc)
+                                           :event-filter {:event :doc-event-filter}
+                                           :max-width doc-width
+                                           :max-height doc-max-height
+                                           :project project
+                                           :content (cond
+                                                      (and small-string doc-string) (str small-string "\n\n" doc-string)
+                                                      small-string small-string
+                                                      doc-string doc-string
+                                                      :else "<small>no documentation</small>")}
+                                          (not align-right)
+                                          (assoc :min-width doc-width))]}]}})))}}))))
 
 (defn- handle-completion-popup-event [view-node e]
   (case (:event e)
@@ -2205,15 +2228,15 @@
     :else
     (deindent! view-node)))
 
-(handler/defhandler :tab :code-view
+(handler/defhandler :code.tab-forward :code-view
   (active? [editable] editable)
   (run [view-node] (tab! view-node)))
 
-(handler/defhandler :backwards-tab-trigger :code-view
+(handler/defhandler :code.tab-backward :code-view
   (active? [editable] editable)
   (run [view-node] (shift-tab! view-node)))
 
-(handler/defhandler :proposals :code-view
+(handler/defhandler :code.show-completions :code-view
   (active? [editable] editable)
   (run [view-node] (show-suggestions! view-node :explicit true)))
 
@@ -2301,16 +2324,10 @@
                   ::unhandled))
       (.consume event))))
 
-(defn- typable-key-event?
-  [^KeyEvent e]
-  (-> e
-      keymap/key-event->map
-      keymap/typable?))
-
 (defn handle-key-typed! [view-node ^KeyEvent event]
   (.consume event)
   (let [character (.getCharacter event)]
-    (when (and (typable-key-event? event)
+    (when (and (keymap/typable? event)
                ;; Ignore Alt+Space on macOS
                (not (and (os/is-mac-os?) (= " " character) (.isAltDown event)))
                ;; Ignore characters in the control range and the ASCII delete
@@ -2485,8 +2502,8 @@
   (when (if (.isShortcutDown event)
           (do (when zoom-on-scroll
                 (-> (g/node-value view-node :canvas)
-                    (ui/run-command (cond (pos? (.getDeltaY event)) :zoom-in
-                                          (neg? (.getDeltaY event)) :zoom-out))))
+                    (ui/run-command (cond (pos? (.getDeltaY event)) :code.zoom.increase
+                                          (neg? (.getDeltaY event)) :code.zoom.decrease))))
               true)
           (set-properties! view-node :navigation
                            (data/scroll (get-property view-node :lines)
@@ -2546,41 +2563,41 @@
                    (data/split-selection-into-lines (get-property view-node :lines)
                                                     (get-property view-node :cursor-ranges))))
 
-(handler/defhandler :cut :code-view
+(handler/defhandler :edit.cut :code-view
   (active? [editable] editable)
   (enabled? [view-node evaluation-context]
             (has-selection? view-node evaluation-context))
   (run [view-node clipboard] (cut! view-node clipboard)))
 
-(handler/defhandler :paste :code-view
+(handler/defhandler :edit.paste :code-view
   (active? [editable] editable)
   (enabled? [view-node clipboard evaluation-context]
             (can-paste? view-node clipboard evaluation-context))
   (run [view-node clipboard] (paste! view-node clipboard)))
 
-(handler/defhandler :delete :code-view
+(handler/defhandler :code.delete-next-char :code-view
   (active? [editable] editable)
   (run [view-node] (delete! view-node :delete-after)))
 
-(handler/defhandler :toggle-comment :code-view
+(handler/defhandler :code.toggle-comment :code-view
   (active? [editable view-node evaluation-context]
            (and editable
                 (contains? (get-property view-node :grammar evaluation-context) :line-comment)))
   (run [view-node] (toggle-comment! view-node)))
 
-(handler/defhandler :delete-backward :code-view
+(handler/defhandler :code.delete-previous-char :code-view
   (active? [editable] editable)
   (run [view-node] (delete! view-node :delete-before)))
 
-(handler/defhandler :delete-prev-word :code-view
+(handler/defhandler :code.delete-previous-word :code-view
   (active? [editable] editable)
   (run [view-node] (delete! view-node :delete-word-before)))
 
-(handler/defhandler :delete-next-word :code-view
+(handler/defhandler :code.delete-next-word :code-view
   (active? [editable] editable)
   (run [view-node] (delete! view-node :delete-word-after)))
 
-(handler/defhandler :toggle-breakpoint :code-view
+(handler/defhandler :debugger.toggle-breakpoint :code-view
   (run [view-node]
        (let [lines (get-property view-node :lines)
              cursor-ranges (get-property view-node :cursor-ranges)
@@ -2591,7 +2608,7 @@
                                                   regions
                                                   breakpoint-rows)))))
 
-(handler/defhandler :edit-breakpoint :code-view
+(handler/defhandler :debugger.edit-breakpoint :code-view
   (run [view-node]
     (let [lines (get-property view-node :lines)
           cursor-ranges (get-property view-node :cursor-ranges)
@@ -2601,7 +2618,7 @@
         nil
         (data/edit-breakpoint-from-single-cursor-range lines cursor-ranges regions)))))
 
-(handler/defhandler :reindent :code-view
+(handler/defhandler :code.reindent :code-view
   (active? [editable] editable)
   (enabled? [view-node evaluation-context]
             (not-every? data/cursor-range-empty?
@@ -2616,7 +2633,24 @@
                                        (get-property view-node :regions)
                                        (get-property view-node :layout)))))
 
-(handler/defhandler :convert-indentation :code-view
+(handler/defhandler :code.convert-indentation :code-view
+  (label [user-data]
+    (case user-data
+      :tabs "To Tabs"
+      :two-spaces "To Two Spaces"
+      :four-spaces "To Four Spaces"
+      nil "Convert Indentation"))
+  (options [user-data]
+    (when-not user-data
+      [{:label "To Tabs"
+        :command :code.convert-indentation
+        :user-data :tabs}
+       {:label "To Two Spaces"
+        :command :code.convert-indentation
+        :user-data :two-spaces}
+       {:label "To Four Spaces"
+        :command :code.convert-indentation
+        :user-data :four-spaces}]))
   (active? [editable] editable)
   (run [view-node user-data]
        (set-properties! view-node nil
@@ -2681,7 +2715,7 @@
        :actions [{:text "About LSP in Defold"
                   :on-action #(ui/open-url "https://forum.defold.com/t/linting-in-the-code-editor/72465")}]})))
 
-(handler/defhandler :goto-definition :code-view
+(handler/defhandler :code.goto-definition :code-view
   (enabled? [view-node evaluation-context]
     (let [resource-node (get-property view-node :resource-node evaluation-context)
           resource (g/node-value resource-node :resource evaluation-context)]
@@ -2705,7 +2739,7 @@
                 (show-goto-popup! view-node open-resource-fn results)))))
         (show-no-language-server-for-resource-language-notification! resource)))))
 
-(handler/defhandler :find-references :code-view
+(handler/defhandler :code.show-references :code-view
   (enabled? [view-node evaluation-context]
     (let [resource-node (get-property view-node :resource-node evaluation-context)
           resource (g/node-value resource-node :resource evaluation-context)]
@@ -2739,15 +2773,26 @@
                                     (get-property view-node :regions)
                                     sort-key-fn)))
 
-(handler/defhandler :sort-lines :code-view
+(handler/defhandler :code.sort-lines :code-view
+  (label [user-data]
+    (case user-data
+      :case-insensitive "Sort Lines"
+      :case-sensitive "Sort Lines (Case Sensitive)"
+      nil "Sort Lines"))
+  (options [user-data]
+    (when-not user-data
+      [{:label "Case Insensitive"
+        :command :code.sort-lines
+        :user-data :case-insensitive}
+       {:label "Case Sensitive"
+        :command :code.sort-lines
+        :user-data :case-sensitive}]))
   (active? [editable] editable)
   (enabled? [view-node evaluation-context] (can-sort-lines? view-node evaluation-context))
-  (run [view-node] (sort-lines! view-node string/lower-case)))
-
-(handler/defhandler :sort-lines-case-sensitive :code-view
-  (active? [editable] editable)
-  (enabled? [view-node evaluation-context] (can-sort-lines? view-node evaluation-context))
-  (run [view-node] (sort-lines! view-node identity)))
+  (run [view-node user-data]
+    (sort-lines! view-node (case user-data
+                             :case-insensitive string/lower-case
+                             :case-sensitive identity))))
 
 ;; -----------------------------------------------------------------------------
 ;; Properties shared among views
@@ -2798,28 +2843,28 @@
 ;; View Settings
 ;; -----------------------------------------------------------------------------
 
-(handler/defhandler :zoom-out :code-view-tools
+(handler/defhandler :code.zoom.decrease :code-view-tools
   (enabled? [] (<= 4.0 ^double (.getValue font-size-property)))
   (run [] (when (<= 4.0 ^double (.getValue font-size-property))
             (.setValue font-size-property (dec ^double (.getValue font-size-property))))))
 
-(handler/defhandler :zoom-in :code-view-tools
+(handler/defhandler :code.zoom.increase :code-view-tools
   (enabled? [] (>= 32.0 ^double (.getValue font-size-property)))
   (run [] (when (>= 32.0 ^double (.getValue font-size-property))
             (.setValue font-size-property (inc ^double (.getValue font-size-property))))))
 
-(handler/defhandler :reset-zoom :code-view-tools
+(handler/defhandler :code.zoom.reset :code-view-tools
   (run [] (.setValue font-size-property default-font-size)))
 
-(handler/defhandler :toggle-indentation-guides :code-view-tools
+(handler/defhandler :code.toggle-indentation-guides :code-view-tools
   (run [] (.setValue visible-indentation-guides-property (not (.getValue visible-indentation-guides-property))))
   (state [] (.getValue visible-indentation-guides-property)))
 
-(handler/defhandler :toggle-minimap :code-view-tools
+(handler/defhandler :code.toggle-minimap :code-view-tools
   (run [] (.setValue visible-minimap-property (not (.getValue visible-minimap-property))))
   (state [] (.getValue visible-minimap-property)))
 
-(handler/defhandler :toggle-visible-whitespace :code-view-tools
+(handler/defhandler :code.toggle-visible-whitespace :code-view-tools
   (run [] (.setValue visible-whitespace-property (not (.getValue visible-whitespace-property))))
   (state [] (.getValue visible-whitespace-property)))
 
@@ -2869,8 +2914,8 @@
 (defn- setup-goto-line-bar! [^GridPane goto-line-bar view-node]
   (b/bind-presence! goto-line-bar (b/= :goto-line bar-ui-type-property))
   (ui/with-controls goto-line-bar [^TextField line-field ^Button go-button]
-    (ui/bind-keys! goto-line-bar {KeyCode/ENTER :goto-entered-line})
-    (ui/bind-action! go-button :goto-entered-line)
+    (ui/bind-keys! goto-line-bar {KeyCode/ENTER :private/goto-entered-line})
+    (ui/bind-action! go-button :private/goto-entered-line)
     (ui/observe (.textProperty line-field)
                 (fn [_ _ line-field-text]
                   (ui/refresh-bound-action-enabled! go-button)
@@ -2889,14 +2934,14 @@
 (defn- dispose-goto-line-bar! [^GridPane goto-line-bar]
   (b/unbind! (.visibleProperty goto-line-bar)))
 
-(handler/defhandler :goto-line :code-view-tools
+(handler/defhandler :code.goto-line :code-view-tools
   (run [goto-line-bar]
        (set-bar-ui-type! :goto-line)
        (ui/with-controls goto-line-bar [^TextField line-field]
          (.requestFocus line-field)
          (.selectAll line-field))))
 
-(handler/defhandler :goto-entered-line :goto-line-bar
+(handler/defhandler :private/goto-entered-line :goto-line-bar
   (enabled? [goto-line-bar view-node evaluation-context]
             (some? (try-parse-goto-line-bar-row view-node goto-line-bar evaluation-context)))
   (run [goto-line-bar view-node]
@@ -2927,10 +2972,10 @@
     (b/bind-bidirectional! (.selectedProperty whole-word) find-whole-word-property)
     (b/bind-bidirectional! (.selectedProperty case-sensitive) find-case-sensitive-property)
     (b/bind-bidirectional! (.selectedProperty wrap) find-wrap-property)
-    (ui/bind-key-commands! find-bar {"Enter" :find-next
-                                     "Shift+Enter" :find-prev})
-    (ui/bind-action! next :find-next)
-    (ui/bind-action! prev :find-prev))
+    (ui/bind-key-commands! find-bar {"Enter" :code.find-next
+                                     "Shift+Enter" :code.find-previous})
+    (ui/bind-action! next :code.find-next)
+    (ui/bind-action! prev :code.find-previous))
   find-bar)
 
 (defn- dispose-find-bar! [^GridPane find-bar]
@@ -2953,10 +2998,10 @@
     (b/bind-bidirectional! (.selectedProperty whole-word) find-whole-word-property)
     (b/bind-bidirectional! (.selectedProperty case-sensitive) find-case-sensitive-property)
     (b/bind-bidirectional! (.selectedProperty wrap) find-wrap-property)
-    (ui/bind-action! next :find-next)
-    (ui/bind-action! replace :replace-next)
-    (ui/bind-keys! replace-bar {KeyCode/ENTER :replace-next})
-    (ui/bind-action! replace-all :replace-all))
+    (ui/bind-action! next :code.find-next)
+    (ui/bind-action! replace :code.replace-next)
+    (ui/bind-keys! replace-bar {KeyCode/ENTER :code.replace-next})
+    (ui/bind-action! replace-all :code.replace-all))
   replace-bar)
 
 (defn- dispose-replace-bar! [^GridPane replace-bar]
@@ -3033,14 +3078,14 @@
                                          (.getValue find-case-sensitive-property)
                                          (.getValue find-whole-word-property))))))
 
-(handler/defhandler :find-text :code-view
+(handler/defhandler :edit.find :code-view
   (run [find-bar view-node]
        (when-some [selected-text (non-empty-single-selection-text view-node)]
          (set-find-term! selected-text))
        (set-bar-ui-type! :find)
        (focus-term-field! find-bar)))
 
-(handler/defhandler :replace-text :code-view
+(handler/defhandler :code.replace-text :code-view
   (active? [editable] editable)
   (run [replace-bar view-node]
        (when-some [selected-text (non-empty-single-selection-text view-node)]
@@ -3048,18 +3093,18 @@
        (set-bar-ui-type! :replace)
        (focus-term-field! replace-bar)))
 
-(handler/defhandler :find-text :code-view-tools ;; In practice, from find / replace and go to line bars.
+(handler/defhandler :edit.find :code-view-tools ;; In practice, from find / replace and go to line bars.
   (run [find-bar]
        (set-bar-ui-type! :find)
        (focus-term-field! find-bar)))
 
-(handler/defhandler :replace-text :code-view-tools
+(handler/defhandler :code.replace-text :code-view-tools
   (active? [editable] editable)
   (run [replace-bar]
        (set-bar-ui-type! :replace)
        (focus-term-field! replace-bar)))
 
-(handler/defhandler :escape :code-view-tools
+(handler/defhandler :code.escape :code-view-tools
   (run [find-bar replace-bar view-node]
        (cond
          (in-tab-trigger? view-node)
@@ -3079,83 +3124,72 @@
          (set-properties! view-node :selection
                           (data/escape (get-property view-node :cursor-ranges))))))
 
-(handler/defhandler :find-next :code-view-find-bar
+(handler/defhandler :code.find-next :code-view-find-bar
   (run [view-node] (find-next! view-node)))
 
-(handler/defhandler :find-next :code-view-replace-bar
+(handler/defhandler :code.find-next :code-view-replace-bar
   (run [view-node] (find-next! view-node)))
 
-(handler/defhandler :find-next :code-view
+(handler/defhandler :code.find-next :code-view
   (run [view-node] (find-next! view-node)))
 
-(handler/defhandler :find-prev :code-view-find-bar
+(handler/defhandler :code.find-previous :code-view-find-bar
   (run [view-node] (find-prev! view-node)))
 
-(handler/defhandler :find-prev :code-view-replace-bar
+(handler/defhandler :code.find-previous :code-view-replace-bar
   (run [view-node] (find-prev! view-node)))
 
-(handler/defhandler :find-prev :code-view
+(handler/defhandler :code.find-previous :code-view
   (run [view-node] (find-prev! view-node)))
 
-(handler/defhandler :replace-next :code-view-replace-bar
+(handler/defhandler :code.replace-next :code-view-replace-bar
   (active? [editable] editable)
   (run [view-node] (replace-next! view-node)))
 
-(handler/defhandler :replace-next :code-view
+(handler/defhandler :code.replace-next :code-view
   (active? [editable] editable)
   (run [view-node] (replace-next! view-node)))
 
-(handler/defhandler :replace-all :code-view-replace-bar
+(handler/defhandler :code.replace-all :code-view-replace-bar
   (active? [editable] editable)
   (run [view-node] (replace-all! view-node)))
 
 ;; -----------------------------------------------------------------------------
 
 (handler/register-menu! ::menubar-edit :editor.app-view/edit-end
-  [{:command :find-text :label "Find..."}
-   {:command :find-next :label "Find Next"}
-   {:command :find-prev :label "Find Previous"}
+  [{:command :edit.find :label "Find..."}
+   {:command :code.find-next :label "Find Next"}
+   {:command :code.find-previous :label "Find Previous"}
    {:label :separator}
-   {:command :replace-text :label "Replace..."}
-   {:command :replace-next :label "Replace Next"}
+   {:command :code.replace-text :label "Replace..."}
+   {:command :code.replace-next :label "Replace Next"}
    {:label :separator}
-   {:command :toggle-comment :label "Toggle Comment"}
-   {:command :reindent :label "Reindent Lines"}
-
-   {:label "Convert Indentation"
-    :children [{:label "To Tabs"
-                :command :convert-indentation
-                :user-data :tabs}
-               {:label "To Two Spaces"
-                :command :convert-indentation
-                :user-data :two-spaces}
-               {:label "To Four Spaces"
-                :command :convert-indentation
-                :user-data :four-spaces}]}
-
+   {:command :code.toggle-comment :label "Toggle Comment"}
+   {:command :code.reindent :label "Reindent Lines"}
+   {:command :code.convert-indentation :expand true}
    {:label :separator}
-   {:command :sort-lines :label "Sort Lines"}
-   {:command :sort-lines-case-sensitive :label "Sort Lines (Case Sensitive)"}
+   {:command :code.sort-lines :user-data :case-insensitive}
+   {:command :code.sort-lines :user-data :case-sensitive}
    {:label :separator}
-   {:command :select-next-occurrence :label "Select Next Occurrence"}
-   {:command :split-selection-into-lines :label "Split Selection Into Lines"}
+   {:command :code.select-next-occurrence :label "Select Next Occurrence"}
+   {:command :code.split-selection-into-lines :label "Split Selection Into Lines"}
    {:label :separator}
-   {:command :goto-definition :label "Go to Definition"}
-   {:command :find-references :label "Find References"}
+   {:command :code.goto-definition :label "Go to Definition"}
+   {:command :code.show-references :label "Find References"}
    {:label :separator}
-   {:command :toggle-breakpoint :label "Toggle Breakpoint"}
-   {:command :edit-breakpoint :label "Edit Breakpoint"}])
+   {:command :debugger.toggle-breakpoint :label "Toggle Breakpoint"}
+   {:command :debugger.edit-breakpoint :label "Edit Breakpoint"}])
 
 (handler/register-menu! ::menubar-view :editor.app-view/view-end
-  [{:command :toggle-minimap :label "Minimap" :check true}
-   {:command :toggle-indentation-guides :label "Indentation Guides" :check true}
-   {:command :toggle-visible-whitespace :label "Visible Whitespace" :check true}
+  [{:command :code.toggle-minimap :label "Minimap" :check true}
+   {:command :code.toggle-indentation-guides :label "Indentation Guides" :check true}
+   {:command :code.toggle-visible-whitespace :label "Visible Whitespace" :check true}
    {:label :separator}
-   {:command :zoom-in :label "Increase Font Size"}
-   {:command :zoom-out :label "Decrease Font Size"}
-   {:command :reset-zoom :label "Reset Font Size"}
+   {:command :code.zoom.increase :label "Increase Font Size"}
+   {:command :code.zoom.decrease :label "Decrease Font Size"}
+   {:command :code.zoom.reset :label "Reset Font Size"}
    {:label :separator}
-   {:command :goto-line :label "Go to Line..."}])
+   {:command :code.goto-line :label "Go to Line..."}])
 
 ;; -----------------------------------------------------------------------------
 
@@ -3246,44 +3280,46 @@
         ^Rectangle2D screen-rect (coll/some #(when (.contains ^Rectangle2D % anchor) %)
                                             screen-bounds)
         max-popup-height (- (.getY anchor) (.getMinY screen-rect))]
-    {:fx/type fxui/with-popup
+    {:fx/type fxui/with-popup-window
      :desc {:fx/type fxui/ext-value :value canvas}
-     :showing true
-     :anchor-x (.getX anchor)
-     :anchor-y (.getY anchor)
-     :anchor-location :window-bottom-left
-     :auto-hide true
-     :on-auto-hide (fn/partial handle-hover-popup-auto-hide! view-node)
-     :on-hidden (fn/partial handle-hover-popup-on-hidden! view-node)
-     :auto-fix true
-     :hide-on-escape true
-     :consume-auto-hiding-events true
-     :content
-     [{:fx/type fx.stack-pane/lifecycle
-       :stylesheets [(str (io/resource "editor.css"))]
-       :on-mouse-entered (fn/partial handle-hover-popup-mouse-entered! view-node)
-       :on-mouse-exited (fn/partial handle-hover-popup-mouse-exited! view-node)
-       :children
-       [{:fx/type fx.region/lifecycle
-         :min-width 10
-         :min-height 10
-         :style-class "hover-background"}
-        {:fx/type markdown/view
-         :content (->> hover-showing-regions
-                       (e/mapcat
-                         (fn [region]
-                           (when (:hoverable region)
-                             (case (:type region)
-                               :diagnostic (map plaintext->markdown (:messages region))
-                               :hover [(let [{:keys [content]} region
-                                             {:keys [type value]} content]
-                                         (case type
-                                           :plaintext (plaintext->markdown value)
-                                           :markdown value))]))))
-                       (coll/join-to-string "\n\n<hr>\n\n"))
-         :project project
-         :max-width 350.0
-         :max-height max-popup-height}]}]}))
+     :popup
+     {:fx/type fx.popup/lifecycle
+      :showing true
+      :anchor-x (.getX anchor)
+      :anchor-y (.getY anchor)
+      :anchor-location :window-bottom-left
+      :auto-hide true
+      :on-auto-hide (fn/partial handle-hover-popup-auto-hide! view-node)
+      :on-hidden (fn/partial handle-hover-popup-on-hidden! view-node)
+      :auto-fix true
+      :hide-on-escape true
+      :consume-auto-hiding-events true
+      :content
+      [{:fx/type fx.stack-pane/lifecycle
+        :stylesheets [(str (io/resource "editor.css"))]
+        :on-mouse-entered (fn/partial handle-hover-popup-mouse-entered! view-node)
+        :on-mouse-exited (fn/partial handle-hover-popup-mouse-exited! view-node)
+        :children
+        [{:fx/type fx.region/lifecycle
+          :min-width 10
+          :min-height 10
+          :style-class "hover-background"}
+         {:fx/type markdown/view
+          :content (->> hover-showing-regions
+                        (e/mapcat
+                          (fn [region]
+                            (when (:hoverable region)
+                              (case (:type region)
+                                :diagnostic (map plaintext->markdown (:messages region))
+                                :hover [(let [{:keys [content]} region
+                                              {:keys [type value]} content]
+                                          (case type
+                                            :plaintext (plaintext->markdown value)
+                                            :markdown value))]))))
+                        (coll/join-to-string "\n\n<hr>\n\n"))
+          :project project
+          :max-width 350.0
+          :max-height max-popup-height}]}]}}))
 
 (defn repaint-view! [view-node elapsed-time {:keys [cursor-visible editable] :as _opts}]
   (assert (boolean? cursor-visible))
@@ -3605,65 +3641,67 @@
                                   12) ;; shadow offset
                                (+ (* ^double (data/line-height (:glyph layout)) 0.5)
                                   (data/row->y layout (data/breakpoint-row edited-breakpoint))))]
-    {:fx/type fxui/with-popup
+    {:fx/type fxui/with-popup-window
      :desc {:fx/type fxui/ext-value :value (.getWindow (.getScene canvas))}
-     :showing true
-     :anchor-x (.getX anchor)
-     :anchor-y (.getY anchor)
-     :anchor-location :window-top-left
-     :auto-hide true
-     :auto-fix true
-     :hide-on-escape true
-     :on-auto-hide {:event :cancel}
-     :consume-auto-hiding-events true
-     :event-handler consume-breakpoint-popup-events
-     :content
-     [{:fx/type fx.v-box/lifecycle
-       :stylesheets [(str (io/resource "editor.css"))]
-       :children
-       [{:fx/type fx.v-box/lifecycle
-         :style-class "breakpoint-editor"
-         :fill-width false
-         :spacing -1
-         :children
-         [{:fx/type fx.region/lifecycle
-           :view-order -1
-           :style-class "breakpoint-editor-arrow"
-           :min-width 10
-           :min-height 10}
-          {:fx/type fx.stack-pane/lifecycle
-           :children
-           [{:fx/type fx.region/lifecycle
-             :style-class "breakpoint-editor-background"}
-            {:fx/type fx.v-box/lifecycle
-             :style-class "breakpoint-editor-content"
-             :spacing padding
-             :children
-             [{:fx/type fx.label/lifecycle
-               :style-class ["label" "breakpoint-editor-label" "breakpoint-editor-header"]
-               :text (format "Breakpoint on line %d" (data/CursorRange->line-number edited-breakpoint))}
-              {:fx/type fx.h-box/lifecycle
-               :spacing spacing
-               :alignment :baseline-left
-               :children
-               [{:fx/type fx.label/lifecycle
-                 :style-class ["label" "breakpoint-editor-label"]
-                 :text "Condition"}
-                {:fx/type fxui/text-field
-                 :h-box/hgrow :always
-                 :style-class ["text-field" "breakpoint-editor-label"]
-                 :prompt-text "e.g. i == 1"
-                 :text (:condition edited-breakpoint "")
-                 :on-text-changed {:event :edit}
-                 :on-action {:event :apply}}]}
-              {:fx/type fx.h-box/lifecycle
-               :spacing spacing
-               :alignment :center-right
-               :children
-               [{:fx/type fx.button/lifecycle
-                 :style-class ["button" "breakpoint-editor-button"]
-                 :text "OK"
-                 :on-action {:event :apply}}]}]}]}]}]}]}))
+     :popup
+     {:fx/type fx.popup/lifecycle
+      :showing true
+      :anchor-x (.getX anchor)
+      :anchor-y (.getY anchor)
+      :anchor-location :window-top-left
+      :auto-hide true
+      :auto-fix true
+      :hide-on-escape true
+      :on-auto-hide {:event :cancel}
+      :consume-auto-hiding-events true
+      :event-handler consume-breakpoint-popup-events
+      :content
+      [{:fx/type fx.v-box/lifecycle
+        :stylesheets [(str (io/resource "editor.css"))]
+        :children
+        [{:fx/type fx.v-box/lifecycle
+          :style-class "breakpoint-editor"
+          :fill-width false
+          :spacing -1
+          :children
+          [{:fx/type fx.region/lifecycle
+            :view-order -1
+            :style-class "breakpoint-editor-arrow"
+            :min-width 10
+            :min-height 10}
+           {:fx/type fx.stack-pane/lifecycle
+            :children
+            [{:fx/type fx.region/lifecycle
+              :style-class "breakpoint-editor-background"}
+             {:fx/type fx.v-box/lifecycle
+              :style-class "breakpoint-editor-content"
+              :spacing padding
+              :children
+              [{:fx/type fx.label/lifecycle
+                :style-class ["label" "breakpoint-editor-label" "breakpoint-editor-header"]
+                :text (format "Breakpoint on line %d" (data/CursorRange->line-number edited-breakpoint))}
+               {:fx/type fx.h-box/lifecycle
+                :spacing spacing
+                :alignment :baseline-left
+                :children
+                [{:fx/type fx.label/lifecycle
+                  :style-class ["label" "breakpoint-editor-label"]
+                  :text "Condition"}
+                 {:fx/type fxui/legacy-text-field
+                  :h-box/hgrow :always
+                  :style-class ["text-field" "breakpoint-editor-label"]
+                  :prompt-text "e.g. i == 1"
+                  :text (:condition edited-breakpoint "")
+                  :on-text-changed {:event :edit}
+                  :on-action {:event :apply}}]}
+               {:fx/type fx.h-box/lifecycle
+                :spacing spacing
+                :alignment :center-right
+                :children
+                [{:fx/type fx.button/lifecycle
+                  :style-class ["button" "breakpoint-editor-button"]
+                  :text "OK"
+                  :on-action {:event :apply}}]}]}]}]}]}]}}))
 
 (defn- create-breakpoint-editor! [view-node canvas ^Tab tab]
   (let [state (atom nil)
@@ -3674,10 +3712,10 @@
                   (when (and (.isSelected tab) (not (ui/ui-disabled?)))
                     (g/with-auto-evaluation-context evaluation-context
                       (reset! state
-                        (when-let [edited-breakpoint (g/node-value view-node :edited-breakpoint evaluation-context)]
-                          {:edited-breakpoint edited-breakpoint
-                           :gutter-metrics (g/node-value view-node :gutter-metrics evaluation-context)
-                           :layout (g/node-value view-node :layout evaluation-context)}))))))]
+                              (when-let [edited-breakpoint (g/node-value view-node :edited-breakpoint evaluation-context)]
+                                {:edited-breakpoint edited-breakpoint
+                                 :gutter-metrics (g/node-value view-node :gutter-metrics evaluation-context)
+                                 :layout (g/node-value view-node :layout evaluation-context)}))))))]
     (fx/mount-renderer
       state
       (fx/create-renderer
@@ -3720,13 +3758,6 @@
         canvas-pane (Pane. (into-array Node [canvas]))
         undo-grouping-info (pair :navigation (gensym))
         lsp (lsp/get-node-lsp basis resource-node)
-        completions-shortcut-text (transduce
-                                    (comp
-                                      (mapcat val)
-                                      (filter #(= :proposals (:command %)))
-                                      (map #(.getDisplayText ^KeyCombination (:key-combo %))))
-                                    util/first-rf
-                                    (g/node-value app-view :keymap))
         view-node
         (setup-view!
           resource-node
@@ -3740,12 +3771,12 @@
                        :gutter-view (->CodeEditorGutterView)
                        :highlighted-find-term (.getValue highlighted-find-term-property)
                        :line-height-factor 1.2
-                       :completions-shortcut-text completions-shortcut-text
                        :undo-grouping-info undo-grouping-info
                        :visible-indentation-guides? (.getValue visible-indentation-guides-property)
                        :visible-minimap? (.getValue visible-minimap-property)
                        :visible-whitespace (boolean->visible-whitespace (.getValue visible-whitespace-property))]]
-                (g/connect project :_node-id view :project))
+                (g/connect project :_node-id view :project)
+                (g/connect app-view :keymap view :keymap))
               g/transact
               g/tx-nodes-added
               first)
@@ -3865,109 +3896,109 @@
     view-node))
 
 (def ^:private fundamental-read-only-handlers
-  {[:view/select-up]
+  {[:view/code.select-up]
    {:run (g/fnk [view-node]
            (move! view-node :selection :up))}
 
-   [:view/select-down]
+   [:view/code.select-down]
    {:run (g/fnk [view-node]
            (move! view-node :selection :down))}
 
-   [:view/select-left]
+   [:view/code.select-left]
    {:run (g/fnk [view-node]
            (move! view-node :selection :left))}
 
-   [:view/select-right]
+   [:view/code.select-right]
    {:run (g/fnk [view-node]
            (move! view-node :selection :right))}
 
-   [:view/prev-word]
+   [:view/code.goto-previous-word]
    {:run (g/fnk [view-node]
            (move! view-node :navigation :prev-word))}
 
-   [:view/select-prev-word]
+   [:view/code.select-previous-word]
    {:run (g/fnk [view-node]
            (move! view-node :selection :prev-word))}
 
-   [:view/next-word]
+   [:view/code.goto-next-word]
    {:run (g/fnk [view-node]
            (move! view-node :navigation :next-word))}
 
-   [:view/select-next-word]
+   [:view/code.select-next-word]
    {:run (g/fnk [view-node]
            (move! view-node :selection :next-word))}
 
-   [:view/beginning-of-line]
+   [:view/code.goto-line-start]
    {:run (g/fnk [view-node]
            (move! view-node :navigation :line-start))}
 
-   [:view/select-beginning-of-line]
+   [:view/code.select-line-start]
    {:run (g/fnk [view-node]
            (move! view-node :selection :line-start))}
 
-   [:view/beginning-of-line-text]
+   [:view/code.goto-line-text-start]
    {:run (g/fnk [view-node]
            (move! view-node :navigation :home))}
 
-   [:view/select-beginning-of-line-text]
+   [:view/code.select-line-text-start]
    {:run (g/fnk [view-node]
            (move! view-node :selection :home))}
 
-   [:view/end-of-line]
+   [:view/code.goto-line-end]
    {:run (g/fnk [view-node]
            (move! view-node :navigation :end))}
 
-   [:view/select-end-of-line]
+   [:view/code.select-line-end]
    {:run (g/fnk [view-node]
            (move! view-node :selection :end))}
 
-   [:view/page-up]
+   [:view/code.page-up]
    {:run (g/fnk [view-node]
            (page-up! view-node :navigation))}
 
-   [:view/select-page-up]
+   [:view/code.select-page-up]
    {:run (g/fnk [view-node]
            (page-up! view-node :selection))}
 
-   [:view/page-down]
+   [:view/code.page-down]
    {:run (g/fnk [view-node]
            (page-down! view-node :navigation))}
 
-   [:view/select-page-down]
+   [:view/code.select-page-down]
    {:run (g/fnk [view-node]
            (page-down! view-node :selection))}
 
-   [:view/beginning-of-file]
+   [:view/code.goto-file-start]
    {:run (g/fnk [view-node]
            (move! view-node :navigation :file-start))}
 
-   [:view/select-beginning-of-file]
+   [:view/code.select-file-start]
    {:run (g/fnk [view-node]
            (move! view-node :selection :file-start))}
 
-   [:view/end-of-file]
+   [:view/code.goto-file-end]
    {:run (g/fnk [view-node]
            (move! view-node :navigation :file-end))}
 
-   [:view/select-end-of-file]
+   [:view/code.select-file-end]
    {:run (g/fnk [view-node]
            (move! view-node :selection :file-end))}
 
-   [:view/copy]
+   [:view/edit.copy]
    {:enabled? (g/fnk [view-node evaluation-context]
                 (has-selection? view-node evaluation-context))
     :run (g/fnk [view-node clipboard]
            (copy! view-node clipboard))}
 
-   [:view/select-all]
+   [:view/code.select-all]
    {:run (g/fnk [view-node]
            (select-all! view-node))}
 
-   [:view/select-next-occurrence :tool/select-next-occurrence]
+   [:view/code.select-next-occurrence :tool/code.select-next-occurrence]
    {:run (g/fnk [view-node]
            (select-next-occurrence! view-node))}
 
-   [:view/split-selection-into-lines]
+   [:view/code.split-selection-into-lines]
    {:run (g/fnk [view-node]
            (split-selection-into-lines! view-node))}})
 

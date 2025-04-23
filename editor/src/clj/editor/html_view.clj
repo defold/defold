@@ -101,17 +101,15 @@
 (defmethod url->command "open"
   [^URI uri {:keys [project]}]
   (let [params (query-params->map (.getQuery uri))
-        proj-path (:path params)
-        resource-id (project/get-resource-node project proj-path)
-        resource (g/node-value resource-id :resource)]
-    {:command   :open
-     :user-data {:resources [resource]}}))
+        proj-path (:path params)]
+    {:command   :file.open
+     :user-data proj-path}))
 
 (defmethod url->command "add-dependency"
   [^URI uri {:keys [project]}]
   (let [params (query-params->map (.getQuery uri))
         dep-url (:url params)]
-    {:command   :add-dependency
+    {:command   :private/add-dependency
      :user-data {:dep-url dep-url}}))
 
 (defmethod url->command :default
@@ -245,8 +243,6 @@
     (ui/children! parent [web-view])
     (ui/fill-control web-view)
 
-    (ui/context! web-view :browser {:web-engine web-engine} nil)
-
     (doto web-engine
       (.setOnAlert (ui/event-handler ev
                      (dialogs/make-info-dialog
@@ -265,10 +261,3 @@
                                 :id :html
                                 :label "Web"
                                 :make-view-fn make-view))
-
-(handler/defhandler :reload :browser
-  (run [^WebEngine web-engine]
-    (.reload web-engine)))
-
-(handler/register-menu! ::menubar :editor.app-view/edit-end
-  [{:command :reload :label "Reload"}])

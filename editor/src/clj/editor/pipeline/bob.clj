@@ -41,6 +41,7 @@
 
 (set! *warn-on-reflection* true)
 
+
 (defn ->progress
   ([render-progress!]
    (->progress render-progress! fn/constantly-false))
@@ -244,7 +245,7 @@
          build-path (workspace/build-html5-path ws)]
      (io/file build-path "__htmlLaunchDir"))))
 
-(def rebuild-html5-bob-commands ["distclean" "resolve" "build" "bundle"])
+(def clean-build-html5-bob-commands ["distclean" "resolve" "build" "bundle"])
 (def build-html5-bob-commands ["build" "bundle"])
 
 (defn build-html5-bob-options [project prefs]

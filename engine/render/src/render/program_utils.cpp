@@ -197,6 +197,18 @@ namespace dmRender
         *samplers_count_out = samplers_count;
     }
 
+    static Constant* FindConstant(dmArray<RenderConstant>& constants, dmhash_t name_hash)
+    {
+        uint32_t n = constants.Size();
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            RenderConstant* constant = &constants[i];
+            if (constant->m_Constant->m_NameHash == name_hash)
+                return constant->m_Constant;
+        }
+        return 0;
+    }
+
     void SetProgramConstantValues(dmGraphics::HContext graphics_context, dmGraphics::HProgram program, uint32_t total_constants_count, dmHashTable64<dmGraphics::HUniformLocation>& name_hash_to_location, dmArray<RenderConstant>& constants, dmArray<Sampler>& samplers)
     {
         const uint32_t buffer_size = 128;
@@ -236,23 +248,38 @@ namespace dmRender
             if (uniform_desc.m_Type == dmGraphics::TYPE_FLOAT_VEC4 || uniform_desc.m_Type == dmGraphics::TYPE_FLOAT_MAT4)
             {
                 HConstant render_constant = dmRender::NewConstant(uniform_desc.m_NameHash);
+
                 dmRender::SetConstantLocation(render_constant, uniform_desc.m_Location);
 
-                if (uniform_desc.m_Type == dmGraphics::TYPE_FLOAT_MAT4)
+                // We are about to add a duplicate. Make sure to reuse the data
+                HConstant prev_constant = FindConstant(constants, uniform_desc.m_NameHash);
+                if (prev_constant != 0)
                 {
-                    num_values *= 4;
-                    dmRender::SetConstantType(render_constant, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4);
-                }
+                    uint32_t prev_num_values;
+                    dmVMath::Vector4* prev_values = GetConstantValues(prev_constant, &prev_num_values);
 
-                // Set correct size of the constant (Until the shader builder provides all the default values)
-                if (num_values > default_values_capacity)
-                {
-                    default_values_capacity = num_values;
-                    delete[] default_values;
-                    default_values = new dmVMath::Vector4[default_values_capacity];
-                    memset(default_values, 0, default_values_capacity * sizeof(dmVMath::Vector4));
+                    dmRender::SetConstantValuesRef(render_constant, prev_values, prev_num_values);
+                    dmRender::SetConstantType(render_constant, GetConstantType(prev_constant));
                 }
-                dmRender::SetConstantValues(render_constant, default_values, num_values);
+                else
+                {
+                    if (uniform_desc.m_Type == dmGraphics::TYPE_FLOAT_MAT4)
+                    {
+                        num_values *= 4;
+                        dmRender::SetConstantType(render_constant, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4);
+                    }
+
+                    // Set correct size of the constant (Until the shader builder provides all the default values)
+                    if (num_values > default_values_capacity)
+                    {
+                        default_values_capacity = num_values;
+                        delete[] default_values;
+                        default_values = new dmVMath::Vector4[default_values_capacity];
+                        memset(default_values, 0, default_values_capacity * sizeof(dmVMath::Vector4));
+                    }
+
+                    dmRender::SetConstantValues(render_constant, default_values, num_values);
+                }
 
                 RenderConstant constant;
                 constant.m_Constant = render_constant;

@@ -70,9 +70,9 @@
   (await-lsp
     (tu/handler-run command [{:name :global :env {:project-graph (project/graph project)}}] {})))
 
-(def ^:private undo! (partial handler-run! :undo))
+(def ^:private undo! (partial handler-run! :edit.undo))
 
-(def ^:private redo! (partial handler-run! :redo))
+(def ^:private redo! (partial handler-run! :edit.redo))
 
 (defn- pull-diagnostics! [lsp & args]
   (await-lsp

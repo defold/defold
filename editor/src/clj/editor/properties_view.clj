@@ -38,7 +38,7 @@
            [javafx.scene Node Parent]
            [javafx.scene.control Button CheckBox ColorPicker Control Label Slider TextArea TextField TextInputControl ToggleButton Tooltip]
            [javafx.scene.input MouseEvent MouseDragEvent]
-           [javafx.scene.layout AnchorPane ColumnConstraints GridPane HBox Pane Priority Region VBox]
+           [javafx.scene.layout AnchorPane ColumnConstraints GridPane HBox Pane Priority Region StackPane VBox]
            [javafx.scene.paint Color]
            [javafx.util Duration]))
 
@@ -221,48 +221,61 @@
 
 (defn- handle-label-drag-event! [property-fn drag-update-fn update-ui-fn ^MouseDragEvent event]
   (.consume event)
-  (let [target (.getTarget event)
-        property (property-fn)
-        {:keys [key node-ids edit-type]} (property-fn)
-        {:keys [precision from-type to-type]} edit-type
-        [x y] [(.getX event) (.getY event)]
-        [prev-x prev-y] (ui/user-data target ::position)
-        delta-x (- x prev-x)
-        delta-y (- prev-y y)
-        max-delta (if (> (abs delta-x) (abs delta-y)) delta-x delta-y)
-        update-val (cond-> (or precision 1.0)
-                     (.isShiftDown event) (* 10.0)
-                     (.isControlDown event) (* 0.1)
-                     (neg? max-delta) -)]
-    (when (> (abs max-delta) 1)
-      (g/transact
-        (for [node-id node-ids]
-          (let [current-value (cond-> (g/node-value node-id key) to-type to-type)
-                new-value (cond-> (drag-update-fn current-value update-val) 
-                            from-type from-type
-                            (:min edit-type) (max (:min edit-type))
-                            (:max edit-type) (min (:max edit-type)))]
-            (concat (g/operation-sequence (ui/user-data target ::op-seq))
-                    (g/set-property node-id key new-value)))))
-      (ui/user-data! target ::position [x y])
-      (when (apply = (properties/values property))
-        (update-ui-fn [(cond-> (g/node-value (first node-ids) key)
-                         to-type to-type)]
-                      (properties/validation-message property)
-                      (properties/read-only? property))))))
+  (let [property (property-fn)
+        target (.getTarget event)
+        position (ui/user-data target ::position)
+        op-seq (ui/user-data target ::op-seq)
+        is-read-only (properties/read-only? property)]
+    (when (and position op-seq (not is-read-only))
+      (let [edit-type (:edit-type property)
+            to-fn (:to-type edit-type identity)
+            from-fn (:from-type edit-type identity)
+            min-val (:min edit-type)
+            max-val (:max edit-type)
+            x (.getX event)
+            y (.getY event)
+            [prev-x prev-y] (ui/user-data target ::position)
+            delta-x (- x prev-x)
+            delta-y (- prev-y y)
+            max-delta (if (> (abs delta-x) (abs delta-y)) delta-x delta-y)
+            update-val (cond-> (or (:precision edit-type) 1.0)
+                         (.isShiftDown event) (* 10.0)
+                         (.isControlDown event) (* 0.1)
+                         (neg? max-delta) -)]
+        (when (> (abs max-delta) 1)
+          (let [values (or (ui/user-data target ::values)
+                           (properties/values property))
+                new-values (mapv (fn [value]
+                                   (cond-> (drag-update-fn value update-val)
+                                     min-val (max min-val)
+                                     max-val (min max-val))) values)]
+            (properties/set-values! property values op-seq)
+            (ui/user-data! target ::position [x y])
+            (ui/user-data! target ::values new-values)
+            (update-ui-fn (mapv (comp to-fn from-fn) new-values)
+                          (properties/validation-message property)
+                          (properties/read-only? property))))))))
 
 (defn handle-label-press-event!
   [^MouseEvent event]
   (doto (.getTarget event)
     (ui/user-data! ::op-seq (gensym))
-    (ui/user-data! ::position [(.getX event) (.getY event)])))
+    (ui/user-data! ::position [(.getX event) (.getY event)])
+    (ui/user-data! ::values nil)))
+
+(defn handle-label-release-event!
+  [^MouseEvent event]
+  (doto (.getTarget event)
+    (ui/user-data! ::op-seq nil)
+    (ui/user-data! ::position nil)))
 
 (defn- make-label-draggable!
   [^Label label drag-event-handler]
   (doto label
     (ui/add-style! "draggable")
     (.addEventHandler MouseEvent/MOUSE_DRAGGED (ui/event-handler event (drag-event-handler event)))
-    (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (handle-label-press-event! event)))))
+    (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (handle-label-press-event! event)))
+    (.addEventHandler MouseEvent/MOUSE_RELEASED (ui/event-handler event (handle-label-release-event! event)))))
 
 (defn- create-multi-text-field! [labels property-fn]
   (let [text-fields (mapv (fn [_] (TextField.)) labels)
@@ -280,9 +293,7 @@
                 children (if (seq label-text)
                            (let [label (doto (Label. label-text)
                                          (.setMinWidth Region/USE_PREF_SIZE))]
-                             (ui/do-run-later
-                               #(when-not (properties/read-only? (property-fn))
-                                  (make-label-draggable! label (partial handle-label-drag-event! property-fn drag-update-fn update-ui-fn))))
+                             (make-label-draggable! label (partial handle-label-drag-event! property-fn drag-update-fn update-ui-fn))
                              [label text-field])
                            [text-field])
                 comp (doto (create-grid-pane children)
@@ -580,6 +591,7 @@
         color-picker (ColorPicker.)
         ignore-alpha (:ignore-alpha? edit-type)
         value->display-color #(some-> % value->color (color->web-string ignore-alpha))
+        get-overlay #(.lookup (ui/main-root) "#overlay")
         pane (doto (AnchorPane. (ui/node-array [text color-dropper]))
                (HBox/setHgrow Priority/ALWAYS)
                (ui/add-style! "color-pane"))
@@ -607,10 +619,13 @@
       (AnchorPane/setLeftAnchor 0.0)
       (ui/add-style! "color-input")
       (customize! commit-fn cancel-fn))
-    (ui/on-action! color-picker (fn [_]
-                                  (let [c (.getValue color-picker)]
-                                    (set-color-value! property-fn ignore-alpha c)
-                                    (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true))))
+    (doto color-picker
+      (ui/on-action! (fn [_]
+                       (let [c (.getValue color-picker)]
+                         (set-color-value! property-fn ignore-alpha c)
+                         (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true))))
+      (.setOnShown (ui/event-handler event (.setVisible ^StackPane (get-overlay) true)))
+      (.setOnHidden (ui/event-handler event (.setVisible ^StackPane (get-overlay) false))))
     (ui/observe-list (.getCustomColors color-picker) (fn [_ values] (save-colors! values prefs)))
     (ui/children! wrapper [pane color-picker])
     [wrapper update-ui-fn]))
@@ -668,7 +683,7 @@
     (ui/on-action! open-button (fn [_]  (when-let [resource (-> (property-fn)
                                                               properties/values
                                                               properties/unify-values)]
-                                          (ui/run-command open-button :open {:resources [resource]}))))
+                                          (ui/run-command open-button :file.open resource))))
     (customize! text commit-fn cancel-fn)
     (ui/children! box [text browse-button open-button])
     (GridPane/setConstraints text 0 0)
@@ -834,7 +849,7 @@
     (.setMinWidth Label/USE_PREF_SIZE)
     (.setMinHeight 28.0)))
 
-(handler/defhandler :show-overrides :property
+(handler/defhandler :edit.show-overrides :property
   (active? [evaluation-context selection]
     (when-let [node-id (handler/selection->node-id selection)]
       (pos? (count (g/overrides (:basis evaluation-context) node-id)))))
@@ -843,7 +858,7 @@
 
 (handler/register-menu! ::properties-menu
   [{:label "Show Overrides"
-    :command :show-overrides}])
+    :command :edit.show-overrides}])
 
 (defrecord SelectionProvider [original-node-ids]
   handler/SelectionProvider
@@ -892,8 +907,7 @@
                          (update-ctrl-fn (properties/values property)
                                          (properties/validation-message property)
                                          (properties/read-only? property))))]
-    
-    (when (and drag-update-fn (not (:read-only? property)))
+    (when drag-update-fn
       (make-label-draggable! label (partial handle-label-drag-event! (fn [] property) drag-update-fn update-ctrl-fn)))
 
     (update-label-box (properties/overridden? property))

@@ -1100,13 +1100,13 @@
           :fail
           nil)))))
 
-(handler/defhandler :undo :global
+(handler/defhandler :edit.undo :global
   (enabled? [project-graph] (g/has-undo? project-graph))
   (run [project-graph]
     (g/undo! project-graph)
     (lsp/check-if-polled-resources-are-modified! (lsp/get-graph-lsp project-graph))))
 
-(handler/defhandler :redo :global
+(handler/defhandler :edit.redo :global
   (enabled? [project-graph] (g/has-redo? project-graph))
   (run [project-graph]
     (g/redo! project-graph)
@@ -1116,41 +1116,43 @@
   [{:label "Project"
     :id ::project
     :children [{:label "Build"
-                :command :build}
-               {:label "Rebuild"
-                :command :rebuild}
+                :command :project.build}
+               {:label "Clean Build"
+                :command :project.clean-build}
                {:label "Build HTML5"
-                :command :build-html5}
-               {:label "Rebuild HTML5"
-                :command :rebuild-html5}
+                :command :project.build-html5}
+               {:label "Clean Build HTML5"
+                :command :project.clean-build-html5}
                {:label "Bundle"
                 :id ::bundle
-                :command :bundle}
+                :command :project.bundle}
                {:label "Rebundle"
-                :command :rebundle}
+                :command :project.rebundle}
                {:label "Fetch Libraries"
-                :command :fetch-libraries}
+                :command :project.fetch-libraries}
                {:label "Reload Editor Scripts"
-                :command :reload-extensions}
+                :command :project.reload-editor-scripts}
                {:label :separator}
                {:label "Shared Editor Settings"
-                :command :shared-editor-settings}
+                :command :file.open-shared-editor-settings}
                {:label "Live Update Settings"
-                :command :live-update-settings}
+                :command :file.open-liveupdate-settings}
+               {:label :separator
+                :id ::targets}
                {:label :separator
                 :id ::project-end}]}])
 
 (defn- update-selection [s open-resource-nodes active-resource-node selection-value]
   (->> (assoc s active-resource-node selection-value)
-    (filter (comp (set open-resource-nodes) first))
-    (into {})))
+       (filter (comp (set open-resource-nodes) first))
+       (into {})))
 
 (defn- perform-selection [project all-selections]
   (let [all-node-ids (->> all-selections
-                       vals
-                       (reduce into [])
-                       distinct
-                       vec)
+                          vals
+                          (reduce into [])
+                          distinct
+                          vec)
         old-all-selections (g/node-value project :all-selections)]
     (when-not (= old-all-selections all-selections)
       (concat

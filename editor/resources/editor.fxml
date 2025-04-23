@@ -30,7 +30,7 @@
                         </TitledPane>
                       </children>
                     </AnchorPane>
-                    <AnchorPane prefHeight="100.0" prefWidth="160.0" SplitPane.resizableWithParent="false">
+                    <AnchorPane id="changed-files-pane" prefHeight="100.0" prefWidth="160.0" SplitPane.resizableWithParent="false">
                       <children>
                         <TitledPane animated="false" collapsible="false" layoutX="3.0" layoutY="38.0" prefHeight="200.0" prefWidth="200.0" text="Changed Files" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
                           <content>
@@ -253,4 +253,5 @@
       </HBox>
     </children>
   </VBox>
+  <StackPane id="overlay" visible="false" /> 
 </StackPane>

@@ -18,33 +18,48 @@
             [cljfx.component :as fx.component]
             [cljfx.fx.anchor-pane :as fx.anchor-pane]
             [cljfx.fx.button :as fx.button]
+            [cljfx.fx.check-box :as fx.check-box]
             [cljfx.fx.column-constraints :as fx.column-constraints]
             [cljfx.fx.grid-pane :as fx.grid-pane]
+            [cljfx.fx.h-box :as fx.h-box]
             [cljfx.fx.label :as fx.label]
             [cljfx.fx.list-cell :as fx.list-cell]
-            [cljfx.fx.popup :as fx.popup]
+            [cljfx.fx.password-field :as fx.password-field]
+            [cljfx.fx.scroll-pane :as fx.scroll-pane]
             [cljfx.fx.stage :as fx.stage]
             [cljfx.fx.svg-path :as fx.svg-path]
             [cljfx.fx.text-area :as fx.text-area]
             [cljfx.fx.text-field :as fx.text-field]
+            [cljfx.fx.tooltip :as fx.tooltip]
+            [cljfx.fx.v-box :as fx.v-box]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
             [cljfx.prop :as fx.prop]
+            [editor.editor-extensions.ui-docs :as ui-docs]
             [editor.error-reporting :as error-reporting]
+            [editor.future :as future]
             [editor.os :as os]
-            [editor.ui :as ui])
+            [editor.ui :as ui]
+            [util.coll :as coll]
+            [util.fn :as fn])
   (:import [clojure.lang MultiFn]
            [com.defold.control ListCell]
            [java.util Collection]
+           [javafx.animation Animation SequentialTransition TranslateTransition]
            [javafx.application Platform]
+           [javafx.beans Observable]
+           [javafx.beans.binding Bindings]
            [javafx.beans.property ReadOnlyProperty]
            [javafx.beans.value ChangeListener]
            [javafx.collections ObservableList]
            [javafx.event Event]
            [javafx.scene Node]
            [javafx.scene.control ListView ScrollPane TextInputControl]
-           [javafx.stage Popup Window]
-           [javafx.util Callback]))
+           [javafx.scene.control.skin ScrollPaneSkin]
+           [javafx.scene.input KeyCode KeyEvent]
+           [javafx.scene.layout Region]
+           [javafx.stage PopupWindow Window]
+           [javafx.util Callback Duration]))
 
 (set! *warn-on-reflection* true)
 
@@ -392,6 +407,24 @@
                    :middleware (fx/wrap-map-desc merge description))]
     (mount-renderer-and-await-result! state-atom renderer)))
 
+(defn show-stateless-dialog-and-await-result!
+  [desc-fn]
+  (let [event-loop-key (Object.)
+        result-promise (promise)
+        result-fn (fn deliver-result! [x] (deliver result-promise x))
+        desc (desc-fn result-fn)
+        component (fx/create-component desc)]
+    (future/io
+      (error-reporting/catch-all!
+        (let [result @result-promise]
+          (fx/run-later
+            (error-reporting/catch-all!
+              (try
+                (fx/delete-component component)
+                (finally
+                  (Platform/exitNestedEventLoop event-loop-key result))))))))
+    (Platform/enterNestedEventLoop event-loop-key)))
+
 (defn stage
   "Generic `:stage` that mirrors behavior of `editor.ui/make-stage`"
   [props]
@@ -430,8 +463,20 @@
                                                         :else style-class)]
                                  (into existing-classes classes)))))
 
-(defn label
+(defn prepend-style-classes [props & classes]
+  (update
+    props
+    :style-class
+    (fn [style-class]
+      (cond
+        (nil? style-class) (vec classes)
+        (string? style-class) (persistent! (conj! (reduce conj! (transient []) classes) style-class))
+        :else (persistent! (reduce conj! (reduce conj! (transient []) classes) style-class))))))
+
+(defn ^:deprecated legacy-label
   "Generic `:label` with sensible defaults (`:wrap-text` is true)
+
+  Deprecated: use [[label]] or [[paragraph]]
 
   Additional keys:
   - `:variant` (optional, default `:label`) - a styling variant, either `:label`
@@ -489,7 +534,7 @@
                                   cat)
                                 children)))))
 
-(defn text-field
+(defn ^:deprecated legacy-text-field
   "Generic `:text-field`
 
   Additional keys:
@@ -505,7 +550,7 @@
                                         :default "text-field-default"
                                         :error "text-field-error"))))
 
-(defn text-area
+(defn ^:deprecated legacy-text-area
   "Generic `:text-area`
 
   Additional keys:
@@ -522,40 +567,43 @@
                                        :error "text-area-error"
                                        :borderless "text-area-borderless"))))
 
-(def ^:private ext-with-popup-on-props
+(def ^:private ext-with-popup-window-on-props
   (fx/make-ext-with-props
     {:on (fx.prop/make
            (fx.mutator/adder-remover
-             (fn [^Popup popup [^Node on anchor-x anchor-y]]
+             (fn [^PopupWindow popup [^Node on anchor-x anchor-y on-window]]
                (condp instance? on
-                 Node (.show popup ^Node on (double anchor-x) (double anchor-y))
+                 Node (if on-window
+                        (.show popup (.getWindow (.getScene ^Node on)) (double anchor-x) (double anchor-y))
+                        (.show popup ^Node on (double anchor-x) (double anchor-y)))
                  Window (.show popup ^Window on (double anchor-x) (double anchor-y))))
-             (fn [^Popup popup _]
+             (fn [^PopupWindow popup _]
                (.hide popup)))
-           (tuple-lifecycle fx.lifecycle/dynamic fx.lifecycle/scalar fx.lifecycle/scalar))}))
+           (tuple-lifecycle fx.lifecycle/dynamic fx.lifecycle/scalar fx.lifecycle/scalar fx.lifecycle/scalar))}))
 
-(defn with-popup
-  "Helper popup lifecycle that adds a managed popup to :desc node
+(defn with-popup-window
+  "Helper lifecycle that adds a managed popup window to the wrapped node
 
   Supported props:
-    :desc        node or window desc that will show a popup
-    :showing     whether the popup is showing
-    :anchor-x    screen anchor x
-    :anchor-y    screen anchor y
-    ...the rest of :popup props"
-  [{:keys [desc showing anchor-x anchor-y]
-    :or {anchor-x 0.0
-         anchor-y 0.0}
-    :as props}]
+    :desc    required node or window desc that will show a popup
+    :popup   optional popup window desc, with these additional props:
+               :showing      whether the popup is showing, default false
+               :anchor-x     screen anchor x, default 0
+               :anchor-y     screen anchor y, default 0
+               :on-window    force the popup owner to be a window when the desc
+                             is node, default false; this is useful when you
+                             want to auto-hide it even when clicking on the desc
+                             node"
+  [{:keys [desc popup]}]
   {:fx/type fx/ext-let-refs
    :refs {::on desc}
    :desc {:fx/type fx/ext-let-refs
-          :refs {::popup {:fx/type ext-with-popup-on-props
-                          :props (when showing
-                                   {:on [{:fx/type fx/ext-get-ref :ref ::on} anchor-x anchor-y]})
-                          :desc (-> props
-                                    (dissoc :desc :showing :anchor-x :anchor-y)
-                                    (assoc :fx/type fx.popup/lifecycle))}}
+          :refs (when-let [{:keys [showing anchor-x anchor-y on-window]
+                            :or {anchor-x 0.0 anchor-y 0.0 on-window false}} popup]
+                  {::popup {:fx/type ext-with-popup-window-on-props
+                            :props (when showing
+                                     {:on [{:fx/type fx/ext-get-ref :ref ::on} anchor-x anchor-y on-window]})
+                            :desc (dissoc popup :showing :anchor-x :anchor-y :on-window)}})
           :desc {:fx/type fx/ext-get-ref :ref ::on}}})
 
 (defn icon
@@ -636,3 +684,422 @@
                                 (:icon/triangle-error :icon/triangle-sad) "#e32f44"
                                 :icon/triangle-warning "#e6b711"
                                 "#9fb0be"))))
+
+(def ^:private ^{:arglists '([props])} resolve-grid-spacing
+  (let [spacing->style-class (coll/pair-map-by identity #(str "ext-grid-spacing-" (name %)) (:spacing ui-docs/enums))]
+    (fn resolve-grid-spacing [props]
+      (let [spacing (get props :spacing ::not-found)]
+        (if (identical? spacing ::not-found)
+          props
+          (if-let [style-class (spacing->style-class spacing)]
+            (-> props
+                (dissoc :spacing)
+                (add-style-classes style-class))
+            (if (number? spacing)
+              (-> props
+                  (dissoc :spacing)
+                  (assoc :hgap spacing :vgap spacing))
+              (throw (AssertionError. (str "Invalid spacing: " spacing))))))))))
+
+(def ^:private ^{:arglists '([props])} resolve-spacing
+  (let [spacing->style-class (coll/pair-map-by identity #(str "ext-spacing-" (name %)) (:spacing ui-docs/enums))]
+    (fn resolve-spacing [props]
+      (let [spacing (get props :spacing ::not-found)]
+        (if (identical? spacing ::not-found)
+          props
+          (if-let [style-class (spacing->style-class spacing)]
+            (-> props
+                (dissoc :spacing)
+                (add-style-classes style-class))
+            (if (number? spacing)
+              props
+              (throw (AssertionError. (str "Invalid spacing: " spacing))))))))))
+
+(def ^:private ^{:arglists '([props])} resolve-padding
+  (let [padding->style-class (coll/pair-map-by identity #(str "ext-padding-" (name %)) (:padding ui-docs/enums))]
+    (fn resolve-padding [props]
+      (let [padding (get props :padding ::not-found)]
+        (if (identical? padding ::not-found)
+          props
+          (if-let [style-class (padding->style-class padding)]
+            (-> props (dissoc :padding) (add-style-classes style-class))
+            (if (number? padding)
+              props
+              (throw (AssertionError. (str "Invalid padding: " padding))))))))))
+
+(defn- resolve-alignment [props]
+  (let [alignment (get props :alignment ::not-found)]
+    (if (identical? alignment ::not-found)
+      props
+      (case alignment
+        (:top-left :top-center :top-right :center-left :center :center-right :bottom-left :bottom-center :bottom-right) props
+        :top (assoc props :alignment :top-center)
+        :left (assoc props :alignment :center-left)
+        :right (assoc props :alignment :center-right)
+        :bottom (assoc props :alignment :bottom-center)))))
+
+(defn grid
+  "Grid pane
+
+  Supports all :grid-pane props, plus:
+    :alignment    additionally supports :top, :left, :right and :bottom
+    :padding      either :none, :small, :medium, :large or number
+    :spacing      either :none, :small, :medium, :large or number"
+  [props]
+  (-> props
+      (assoc :fx/type fx.grid-pane/lifecycle)
+      resolve-grid-spacing
+      resolve-padding
+      resolve-alignment))
+
+(defn horizontal
+  "Horizontal Box
+
+  Supports all :h-box props, plus:
+    :alignment    additionally supports :top, :left, :right and :bottom
+    :padding      either :none, :small, :medium, :large or number
+    :spacing      either :none, :small, :medium, :large or number"
+  [props]
+  (-> props
+      (assoc :fx/type fx.h-box/lifecycle)
+      resolve-spacing
+      resolve-padding
+      resolve-alignment))
+
+(defn vertical
+  "Vertical Box
+
+  Supports all :v-box props, plus:
+    :alignment    additionally supports :top, :left, :right and :bottom
+    :padding      either :none, :small, :medium, :large or number
+    :spacing      either :none, :small, :medium, :large or number"
+  [props]
+  (-> props
+      (assoc :fx/type fx.v-box/lifecycle)
+      resolve-spacing
+      resolve-padding
+      resolve-alignment))
+
+(def ^:private ^{:arglists '([props])} resolve-label-color
+  (let [color->style-class (fn/make-case-fn (coll/pair-map-by identity #(str "ext-label-color-" (name %)) (:color ui-docs/enums)))]
+    (fn resolve-label-color [props]
+      (let [color (get props :color ::not-found)]
+        (if (identical? color ::not-found)
+          props
+          (-> props (dissoc :color) (add-style-classes (color->style-class color))))))))
+
+(defn- resolve-tooltip [{:keys [tooltip] :as props}]
+  (if (string? tooltip)
+    (assoc props :tooltip {:fx/type fx.tooltip/lifecycle
+                           :wrap-text true
+                           :max-width 600
+                           :text tooltip
+                           :hide-delay [200 :ms]
+                           :show-delay [200 :ms]
+                           :show-duration [30 :s]})
+    props))
+
+(defn label
+  "Unresizable label, intended to be used as a form input label
+
+  Supports all :label props, plus:
+    :alignment    additionally supports :top, :left, :right and :bottom
+    :color        either :text, :hint, :override, :warning or :error
+    :tooltip      additionally supports string values"
+  [props]
+  (-> props
+      (assoc :fx/type fx.label/lifecycle)
+      (prepend-style-classes "label" "ext-label")
+      (provide-defaults
+        :alignment :top-left
+        :min-width :use-pref-size
+        :min-height :use-pref-size
+        :max-width Double/MAX_VALUE
+        :max-height Double/MAX_VALUE)
+      resolve-alignment
+      resolve-label-color
+      resolve-tooltip))
+
+(defn- resolve-input-color [props]
+  (let [color (:color props ::not-found)]
+    (case color
+      ::not-found props
+      (:warning :error) (-> props (dissoc :color) (update :pseudo-classes (fnil conj #{}) color)))))
+
+(defn check-box
+  "Check box
+
+  Supports all :check-box props, plus:
+    :alignment    additionally supports :top, :left, :right and :bottom
+    :tooltip      additionally supports string values
+    :color        either :warning or :error"
+  [props]
+  (-> props
+      (assoc :fx/type fx.check-box/lifecycle)
+      (prepend-style-classes "check-box" "ext-check-box")
+      (provide-defaults
+        :mnemonic-parsing false
+        :min-width :use-pref-size
+        :min-height :use-pref-size
+        :max-width Double/MAX_VALUE
+        :max-height Double/MAX_VALUE)
+      resolve-alignment
+      resolve-input-color
+      resolve-tooltip))
+
+(defn text-field
+  "Text field
+
+  Supports all :text-field props, plus:
+    :alignment    additionally supports :top, :left, :right and :bottom
+    :tooltip      additionally supports string values
+    :color        either :warning or :error"
+  [props]
+  (-> props
+      (assoc :fx/type fx.text-field/lifecycle)
+      (prepend-style-classes "text-input" "text-field" "ext-text-field")
+      resolve-alignment
+      resolve-input-color
+      resolve-tooltip))
+
+(defn password-field
+  "Password field
+
+  Supports all :password-field props, plus:
+    :alignment    additionally supports :top, :left, :right and :bottom
+    :tooltip      additionally supports string values
+    :color        either :warning or :error"
+  [props]
+  (-> props
+      (assoc :fx/type fx.password-field/lifecycle)
+      (prepend-style-classes "text-input" "text-field" "ext-text-field" "password-field")
+      resolve-alignment
+      resolve-input-color
+      resolve-tooltip))
+
+(defn text-area
+  [props]
+  (-> props
+      (assoc :fx/type fx.text-area/lifecycle)
+      (prepend-style-classes "text-input" "text-area" "ext-text-area")
+      resolve-input-color
+      resolve-tooltip))
+
+(defn- handle-value-field-key-pressed [edit text swap-state on-value-changed to-value commit-on-enter ^KeyEvent e]
+  (condp = (.getCode e)
+    KeyCode/ENTER
+    (when (and (or commit-on-enter (.isShortcutDown e))
+               (not= edit text))
+      (.consume e)
+      (if-some [value (to-value edit)]
+        (do (swap-state #(-> % (assoc :value value) (dissoc :edit)))
+            (when on-value-changed (on-value-changed value)))
+        (.play
+          (SequentialTransition.
+            (.getSource e)
+            (into-array Animation [(doto (TranslateTransition. (Duration. 30.0)) (.setByX 4.0))
+                                   (doto (TranslateTransition. (Duration. 30.0)) (.setByX -8.0))
+                                   (doto (TranslateTransition. (Duration. 30.0)) (.setByX 7.0))
+                                   (doto (TranslateTransition. (Duration. 30.0)) (.setByX -4.0))
+                                   (doto (TranslateTransition. (Duration. 30.0)) (.setByX 1.0))])))))
+
+    KeyCode/ESCAPE
+    (when-not (= edit text)
+      (.consume e)
+      (swap-state dissoc :edit))
+
+    nil))
+
+(defn- handle-value-field-focused-changed [edit text swap-state on-value-changed to-value focused]
+  (when (and (not focused) (not= edit text))
+    (if-some [value (to-value edit)]
+      (do (swap-state #(-> % (assoc :value value) (dissoc :edit)))
+          (when on-value-changed (on-value-changed value)))
+      (swap-state dissoc :edit))))
+
+(def ^:private ext-with-value-field-text-props
+  (fx/make-ext-with-props
+    {:text (fx.prop/make
+             (fx.mutator/setter
+               (fn [^TextInputControl text-input text]
+                 (when-not (= text (.getText text-input))
+                   (.setText text-input text)
+                   (.selectAll text-input))))
+             fx.lifecycle/scalar)}))
+
+(defn- value-field-impl-final-step [{:keys [state swap-state text on-value-changed to-value component commit-on-enter]
+                                     :or {to-value identity}
+                                     :as props}]
+  (let [edit (:edit state text)]
+    {:fx/type ext-with-value-field-text-props
+     :props {:text edit}
+     :desc (-> props
+               (assoc :fx/type component
+                      :on-text-changed (fn/partial swap-state assoc :edit)
+                      :on-key-pressed (fn/partial handle-value-field-key-pressed edit text swap-state on-value-changed to-value commit-on-enter)
+                      :on-focused-changed (fn/partial handle-value-field-focused-changed edit text swap-state on-value-changed to-value))
+               (dissoc :state :swap-state :on-value-changed :to-value :text :component :commit-on-enter))}))
+
+(defn- stringify-value [f v]
+  (if (identical? v ::not-found)
+    ""
+    (str (f v))))
+
+(defn- value-field-impl-stringify-step [props]
+  {:fx/type ext-memo
+   :fn stringify-value
+   :args [(:to-string props str) (-> props :state :value)]
+   :key :text
+   :desc (-> props
+             (assoc :fx/type value-field-impl-final-step)
+             (dissoc :to-string :value))})
+
+(defn- make-value-field [component commit-on-enter props]
+  {:fx/type fx/ext-state
+   :initial-state {:value (:value props ::not-found)}
+   :desc (assoc props :fx/type value-field-impl-stringify-step
+                      :component component
+                      :commit-on-enter commit-on-enter)})
+
+(defn value-field
+  "Text field with value commit/reset semantics
+
+  Supports all :text-field props, plus:
+    :value               the edited value
+    :on-value-changed    value change callback
+    :to-string           value->string converter, default str
+    :to-value            string->value converter, default identity, returning
+                         nil implies value could not be converted"
+  [props]
+  (make-value-field text-field true props))
+
+
+(defn password-value-field
+  "Password field with value commit/reset semantics
+
+  Supports all :password-field props, plus:
+    :value               the edited value
+    :on-value-changed    value change callback
+    :to-string           value->string converter, default str
+    :to-value            string->value converter, default identity, returning
+                         nil implies value could not be converted"
+  [props]
+  (make-value-field password-field true props))
+
+(defn value-area
+  "Text area with value commit/reset semantics
+
+  Supports all :text-area props, plus:
+    :value               the edited value
+    :on-value-changed    value change callback
+    :to-string           value->string converter, default str
+    :to-value            string->value converter, default identity, returning
+                         nil implies value could not be converted"
+  [props]
+  (make-value-field text-area false props))
+
+(def ^:private ext-with-expanded-scroll-pane-content-props
+  (fx/make-ext-with-props
+    {:content (fx.prop/make
+                (fx.mutator/adder-remover
+                  (fn add-scroll-pane-content [^ScrollPane scroll-pane ^Region content]
+                    (let [^Region scroll-bar (.lookup scroll-pane ".ext-scroll-pane>.scroll-bar:horizontal")]
+                      (.setContent scroll-pane content)
+                      (.bind (.minHeightProperty content)
+                             (Bindings/createDoubleBinding
+                               (fn []
+                                 (cond-> (.getHeight scroll-pane)
+                                         (.isVisible scroll-bar)
+                                         (- (.getHeight scroll-bar))))
+                               (into-array
+                                 Observable
+                                 [(.heightProperty scroll-pane)
+                                  (.visibleProperty scroll-bar)
+                                  (.heightProperty scroll-bar)])))))
+                  (fn remove-scroll-pane-content [_ ^Region content]
+                    (.unbind (.minHeightProperty content))))
+                fx.lifecycle/dynamic)}))
+
+(def ^:private ext-with-scroll-pane-skin-props
+  (fx/make-ext-with-props
+    {:skin (fx.prop/make
+             (fx.mutator/adder-remover
+               (fn add-skin [^ScrollPane instance flag]
+                 {:pre [(true? flag)]}
+                 (.setSkin instance (ScrollPaneSkin. instance)))
+               (fn remove-skin [_ _]
+                 (throw (AssertionError. "Can't remove skin!"))))
+             fx.lifecycle/scalar)}))
+
+(defn scroll
+  "Scroll pane that automatically makes its content to fill the whole viewport
+
+  Supports all :scroll-pane props"
+  [props]
+  ;; We need to set ScrollPane skin, so it creates ScrollBars, so we can grow
+  ;; the content to fill the ScrollPane
+  {:fx/type ext-with-expanded-scroll-pane-content-props
+   :props (if-let [content (:content props)]
+            {:content content}
+            {})
+   :desc {:fx/type ext-with-scroll-pane-skin-props
+          :props {:skin true}
+          :desc (-> props
+                    (assoc :fx/type fx.scroll-pane/lifecycle)
+                    (dissoc :content)
+                    (prepend-style-classes "ext-scroll-pane")
+                    (provide-defaults :fit-to-width true))}})
+
+(defmacro defc
+  "Define a composed component
+
+  Requires attr-map with :compose vector that contains a flat list of extension
+  lifecycles that requires :desc, and passes extra props to the desc — but
+  without the :desc specified. The resulting component is a composition of such
+  lifecycles
+
+  Example:
+    (fxui/defc stateful-text-field
+      {:compose [{:fx/type fx/ext-state
+                  :initial-state \"\"}]}
+      [{:keys [state swap-state]}]
+      {:fx/type fxui/text-field
+       :text state
+       :on-text-changed #(swap-state (constantly %)})"
+  [name attr-map & fn-tail]
+  (let [{:keys [compose]} attr-map]
+    (assert (vector? compose) "defc requires the attr-map to define a :compose key")
+    `(do
+       ~@(let [n (count compose)]
+           (loop [i (dec n)
+                  acc-name (if (zero? n) name (symbol (str name "$phase-" n)))
+                  acc [`(defn ~acc-name ~@fn-tail)]]
+             (if (neg? i)
+               acc
+               (let [def-name (if (zero? i) name (symbol (str name "$phase-" i)))]
+                 (recur
+                   (dec i)
+                   def-name
+                   (let [ext (compose i)]
+                     (conj acc
+                           `(defn ~def-name [~'props]
+                              ~(assoc ext :desc `(assoc ~'props :fx/type ~acc-name)))))))))))))
+
+(defn paragraph
+  "Resizable label with word-wrapping
+
+  Supports all :label props, plus:
+    :alignment    additionally supports :top, :left, :right and :bottom
+    :color        either :text, :hint, :override, :warning or :error
+    :tooltip      additionally supports string values"
+  [props]
+  (-> props
+      (assoc :fx/type fx.label/lifecycle)
+      (prepend-style-classes "label")
+      (provide-defaults
+        :max-width Double/MAX_VALUE
+        :max-height Double/MAX_VALUE
+        :wrap-text true)
+      resolve-alignment
+      resolve-label-color
+      resolve-tooltip))

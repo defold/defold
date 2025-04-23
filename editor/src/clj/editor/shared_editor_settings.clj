@@ -101,10 +101,10 @@
          :icon :icon/triangle-error
          :always-on-top true
          :header {:fx/type fx.v-box/lifecycle
-                  :children [{:fx/type fxui/label
+                  :children [{:fx/type fxui/legacy-label
                               :variant :header
                               :text header-message}
-                             {:fx/type fxui/label
+                             {:fx/type fxui/legacy-label
                               :text sub-header-message}]}
          :content (str file-info-message "\n\n" exception-message)}))))
 

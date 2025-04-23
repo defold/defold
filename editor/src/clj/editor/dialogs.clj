@@ -34,7 +34,6 @@
             [editor.field-expression :as field-expression]
             [editor.fxui :as fxui]
             [editor.github :as github]
-            [editor.handler :as handler]
             [editor.os :as os]
             [editor.progress :as progress]
             [editor.ui :as ui]
@@ -46,7 +45,6 @@
            [javafx.application Platform]
            [javafx.collections ListChangeListener]
            [javafx.event Event]
-           [javafx.scene Node]
            [javafx.scene.control ListView TextField]
            [javafx.scene.input KeyCode KeyEvent MouseButton MouseEvent]
            [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter Stage Window]
@@ -106,7 +104,7 @@
 
 (defn- confirmation-dialog-header->fx-desc [header]
   (if (string? header)
-    {:fx/type fxui/label
+    {:fx/type fxui/legacy-label
      :variant :header
      :text header}
     header))
@@ -151,7 +149,7 @@
 
 (defn content-text-area [props]
   (-> props
-      (assoc :fx/type fxui/text-area)
+      (assoc :fx/type fxui/legacy-text-area)
       (fxui/add-style-classes "text-area-with-dialog-content-padding")
       (fxui/provide-defaults
         :pref-row-count (max 3 (count (string/split (:text props "") #"\n" 10)))
@@ -236,22 +234,22 @@
      :title "Set Custom Resolution"
      :size :small
      :header {:fx/type fx.v-box/lifecycle
-              :children [{:fx/type fxui/label
+              :children [{:fx/type fxui/legacy-label
                           :variant :header
                           :text "Set custom game resolution"}
-                         {:fx/type fxui/label
+                         {:fx/type fxui/legacy-label
                           :text "Game window will be resized to this size"}]}
      :content {:fx/type fxui/two-col-input-grid-pane
                :style-class "dialog-content-padding"
-               :children [{:fx/type fxui/label
+               :children [{:fx/type fxui/legacy-label
                            :text "Width"}
-                          {:fx/type fxui/text-field
+                          {:fx/type fxui/legacy-text-field
                            :variant (if width-valid :default :error)
                            :text width-text
                            :on-text-changed {:event-type :set-width}}
-                          {:fx/type fxui/label
+                          {:fx/type fxui/legacy-label
                            :text "Height"}
-                          {:fx/type fxui/text-field
+                          {:fx/type fxui/legacy-text-field
                            :variant (if height-valid :default :error)
                            :text height-text
                            :on-text-changed {:event-type :set-height}}]}
@@ -286,10 +284,10 @@
                   :owner owner
                   :icon :icon/triangle-error
                   :header {:fx/type fx.v-box/lifecycle
-                           :children [{:fx/type fxui/label
+                           :children [{:fx/type fxui/legacy-label
                                        :variant :header
                                        :text "An error occurred during update installation"}
-                                      {:fx/type fxui/label
+                                      {:fx/type fxui/legacy-label
                                        :text "You probably should perform a fresh install"}]}
                   :buttons [{:text "Quit"
                              :cancel-button true
@@ -307,10 +305,10 @@
      :size :large
      :owner owner
      :header {:fx/type fx.v-box/lifecycle
-              :children [{:fx/type fxui/label
+              :children [{:fx/type fxui/legacy-label
                           :variant :header
                           :text "Update is ready, but there is even newer version available"}
-                         {:fx/type fxui/label
+                         {:fx/type fxui/legacy-label
                           :text "You can install downloaded update or download newer one"}]}
      :buttons [{:text "Not Now"
                 :cancel-button true
@@ -326,10 +324,10 @@
      :icon :icon/circle-sad
      :owner owner
      :header {:fx/type fx.v-box/lifecycle
-              :children [{:fx/type fxui/label
+              :children [{:fx/type fxui/legacy-label
                           :variant :header
                           :text "Updates are no longer provided for this platform"}
-                         {:fx/type fxui/label
+                         {:fx/type fxui/legacy-label
                           :text "Supported platforms are 64-bit Linux, macOS and Windows"}]}
      :buttons [{:text "Close"
                 :cancel-button true
@@ -370,14 +368,14 @@
             :alignment :center-left
             :children [{:fx/type fxui/icon
                         :type :icon/triangle-sad}
-                       {:fx/type fxui/label
+                       {:fx/type fxui/legacy-label
                         :variant :header
                         :text "An error occurred"}]}
    :content {:fx/type content-text-area
              :text (messages ex-map)}
    :footer {:fx/type fx.v-box/lifecycle
             :style-class "spacing-smaller"
-            :children [{:fx/type fxui/label
+            :children [{:fx/type fxui/legacy-label
                         :text "You can help us fix this problem by reporting it and providing more information about what you were doing when it happened."}
                        {:fx/type dialog-buttons
                         :children [{:fx/type fxui/button
@@ -416,12 +414,12 @@
                                     :scale-x 0.25
                                     :scale-y 0.25
                                     :image "logo.png"}]}
-                       {:fx/type fxui/label
+                       {:fx/type fxui/legacy-label
                         :variant :header
                         :text "Loading project"}]}
    :content {:fx/type fx.v-box/lifecycle
              :style-class ["dialog-content-padding" "spacing-smaller"]
-             :children [{:fx/type fxui/label
+             :children [{:fx/type fxui/legacy-label
                          :wrap-text false
                          :text (:message progress)}
                         {:fx/type fx.progress-bar/lifecycle
@@ -456,7 +454,7 @@
     {:title "Insufficient OpenGL Support"
      :header {:fx/type fx.v-box/lifecycle
               :children
-              (-> [{:fx/type fxui/label
+              (-> [{:fx/type fxui/legacy-label
                     :variant :header
                     :text "This is a very common issue. See if any of these instructions help:"}]
                   (cond->
@@ -468,7 +466,7 @@
                     {:fx/type fx.hyperlink/lifecycle
                      :on-action (fn [_] (ui/open-url (github/glgenbuffers-link)))
                      :text "glGenBuffers"}
-                    {:fx/type fxui/label
+                    {:fx/type fxui/legacy-label
                      :text "You can continue with scene editing disabled."}))}
      :icon :icon/circle-sad
      :content {:fx/type content-text-area
@@ -505,25 +503,6 @@
         (.setTitle title))
       (.showDialog owner-window)))
 
-(handler/defhandler ::confirm :dialog
-  (enabled? [selection]
-            (seq selection))
-  (run [^Stage stage selection]
-       (ui/user-data! stage ::selected-items selection)
-       (ui/close! stage)))
-
-(handler/defhandler ::close :dialog
-  (run [^Stage stage]
-       (ui/close! stage)))
-
-(handler/defhandler ::focus :dialog
-  (active? [user-data] (if-let [active-fn (:active-fn user-data)]
-                         (active-fn nil)
-                         true))
-  (run [^Stage stage user-data]
-       (when-let [^Node node (:node user-data)]
-         (ui/request-focus! node))))
-
 (defn- default-filter-fn [filter-on text items]
   (let [text (string/lower-case text)]
     (filterv (fn [item]
@@ -559,7 +538,7 @@
    :owner owner
    :on-close-request {:event-type :cancel}
    :size :large
-   :header {:fx/type fxui/text-field
+   :header {:fx/type fxui/legacy-text-field
             :prompt-text prompt
             :text filter-term
             :on-text-changed {:event-type :set-filter-term}}
@@ -712,20 +691,20 @@
      :on-close-request {:event-type :cancel}
      :title "New Folder"
      :size :small
-     :header {:fx/type fxui/label
+     :header {:fx/type fxui/legacy-label
               :variant :header
               :text "Enter New Folder Name"}
      :content {:fx/type fxui/two-col-input-grid-pane
                :style-class "dialog-content-padding"
-               :children [{:fx/type fxui/label
+               :children [{:fx/type fxui/legacy-label
                            :text "Name"}
-                          {:fx/type fxui/text-field
+                          {:fx/type fxui/legacy-text-field
                            :text ""
                            :variant (if invalid :error :default)
                            :on-text-changed {:event-type :set-folder-name}}
-                          {:fx/type fxui/label
+                          {:fx/type fxui/legacy-label
                            :text "Preview"}
-                          {:fx/type fxui/text-field
+                          {:fx/type fxui/legacy-text-field
                            :editable false
                            :text (or error-msg sanitized-name)}]}
      :footer {:fx/type dialog-buttons
@@ -759,14 +738,14 @@
      :on-close-request {:event-type :cancel}
      :title "Enter Target IP"
      :size :small
-     :header {:fx/type fxui/label
+     :header {:fx/type fxui/legacy-label
               :variant :header
               :text msg}
      :content {:fx/type fxui/two-col-input-grid-pane
                :style-class "dialog-content-padding"
-               :children [{:fx/type fxui/label
+               :children [{:fx/type fxui/legacy-label
                            :text "Target IP Address"}
-                          {:fx/type fxui/text-field
+                          {:fx/type fxui/legacy-text-field
                            :variant (if ip-valid :default :error)
                            :text ip
                            :on-text-changed {:event-type :set-ip}}]}
@@ -847,20 +826,20 @@
      :on-close-request {:event-type :cancel}
      :title title
      :size :small
-     :header {:fx/type fxui/label
+     :header {:fx/type fxui/legacy-label
               :variant :header
               :text (str "Rename " initial-name)}
      :content {:fx/type fxui/two-col-input-grid-pane
                :style-class "dialog-content-padding"
                :children [{:fx/type fx.label/lifecycle
                            :text label}
-                          {:fx/type fxui/text-field
+                          {:fx/type fxui/legacy-text-field
                            :text name
                            :variant (if invalid :error :default)
                            :on-text-changed {:event-type :set-name}}
                           {:fx/type fx.label/lifecycle
                            :text "Preview"}
-                          {:fx/type fxui/text-field
+                          {:fx/type fxui/legacy-text-field
                            :editable false
                            :text (or validation-msg
                                      (->> extensions
@@ -925,22 +904,22 @@
      :on-close-request {:event-type :cancel}
      :title (str "New " (or type "File"))
      :size :small
-     :header {:fx/type fxui/label
+     :header {:fx/type fxui/legacy-label
               :variant :header
               :text (str "Enter " (or type "the") " File Name")}
      :content {:fx/type fxui/two-col-input-grid-pane
                :style-class "dialog-content-padding"
-               :children [{:fx/type fxui/label
+               :children [{:fx/type fxui/legacy-label
                            :text "Name"}
-                          {:fx/type fxui/text-field
+                          {:fx/type fxui/legacy-text-field
                            :text ""
                            :variant (if empty :error :default)
                            :on-text-changed {:event-type :set-file-name}}
-                          {:fx/type fxui/label
+                          {:fx/type fxui/legacy-label
                            :text "Location"}
                           {:fx/type fx.h-box/lifecycle
                            :spacing 4
-                           :children [{:fx/type fxui/text-field
+                           :children [{:fx/type fxui/legacy-text-field
                                        :h-box/hgrow :always
                                        :variant (if location-exists :default :error)
                                        :on-text-changed {:event-type :set-location}
@@ -949,9 +928,9 @@
                                        :variant :icon
                                        :on-action {:event-type :pick-location}
                                        :text "…"}]}
-                          {:fx/type fxui/label
+                          {:fx/type fxui/legacy-label
                            :text "Preview"}
-                          {:fx/type fxui/text-field
+                          {:fx/type fxui/legacy-text-field
                            :editable false
                            :text (if valid-input
                                    (str relative-path \/ sanitized-name)
@@ -1042,7 +1021,7 @@
                         :modality :none
                         :showing true
                         :size :large
-                        :header {:fx/type fxui/label
+                        :header {:fx/type fxui/legacy-label
                                  :variant :header
                                  :text "Target discovery log"}
                         :content (let [str (string/join "\n" log)]

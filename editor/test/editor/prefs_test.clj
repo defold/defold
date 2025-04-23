@@ -20,7 +20,8 @@
             [clojure.test.check.clojure-test :refer [defspec]]
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
-            [integration.test-util :as test-util]))
+            [integration.test-util :as test-util]
+            [service.log :as log]))
 
 (defmacro with-schemas [id->schema & body]
   `(try
@@ -300,11 +301,12 @@
 
 (deftest invalid-edn-test
   (with-schemas {::invalid-edn {:type :object :properties {:name {:type :string}}}}
-    (let [file (fs/create-temp-file! "global" "test.editor_settings")
-          _ (spit file "{")
-          p (prefs/make :scopes {:global file}
-                        :schemas [::invalid-edn])]
-      (is (= "" (prefs/get p [:name]))))))
+    (log/without-logging ;; no need to additionally log the error here
+      (let [file (fs/create-temp-file! "global" "test.editor_settings")
+            _ (spit file "{")
+            p (prefs/make :scopes {:global file}
+                          :schemas [::invalid-edn])]
+        (is (= "" (prefs/get p [:name])))))))
 
 (deftest scopes-test
   (with-schemas {::scopes
@@ -586,3 +588,18 @@
                           :schemas [::test])]
         (is (not (prefs/set? p [])))
         (is (= "pass" (prefs/get p [])))))))
+
+(deftest update-test
+  (with-schemas {::test {:type :object
+                         :properties {:counter {:type :integer}}}}
+    (let [p (prefs/make :scopes {:global (fs/create-temp-file! "global" "test.editor_settings")}
+                        :schemas [::test])
+          thread-count 20
+          inc-count-per-thread 1000]
+      (->> #(future
+              (dotimes [_ inc-count-per-thread]
+                (prefs/update! p [:counter] inc)))
+           (repeatedly thread-count)
+           (vec)
+           (run! deref))
+      (is (= (* thread-count inc-count-per-thread) (prefs/get p [:counter]))))))

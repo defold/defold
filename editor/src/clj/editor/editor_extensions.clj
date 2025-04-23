@@ -582,21 +582,7 @@
 ;; region reload
 
 (def commands-coercer
-  (coerce/vector-of
-    (coerce/hash-map
-      :req {:label coerce/string
-            :locations (coerce/vector-of
-                         (coerce/enum "Edit" "View" "Assets" "Outline" "Bundle")
-                         :distinct true
-                         :min-count 1)}
-      :opt {:query (coerce/hash-map
-                     :opt {:selection (coerce/hash-map
-                                        :req {:type (coerce/enum :resource :outline)
-                                              :cardinality (coerce/enum :one :many)})
-                           :argument (coerce/const true)})
-            :id prefs-docs/serializable-keyword-coercer
-            :active coerce/function
-            :run coerce/function})))
+  (coerce/vector-of commands/command-coercer))
 
 (defn- reload-commands! [project state evaluation-context]
   (let [{:keys [display-output! rt]} state]
@@ -854,6 +840,7 @@
                                "get" (make-ext-get-fn project)
                                "can_get" (make-ext-can-get-fn project)
                                "can_set" (make-ext-can-set-fn project)
+                               "command" commands/ext-command-fn
                                "create_directory" (make-ext-create-directory-fn project reload-resources!)
                                "delete_directory" (make-ext-delete-directory-fn project reload-resources!)
                                "resource_attributes" (make-ext-resource-attributes-fn project)

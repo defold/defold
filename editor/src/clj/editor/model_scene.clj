@@ -372,15 +372,21 @@
 (defn- make-scene [renderable-mesh-set model-scene-resource-node-id]
   (let [{:keys [aabb renderable-models]} renderable-mesh-set
         model-scenes (mapv #(make-model-scene % model-scene-resource-node-id)
-                           renderable-models)]
+                           renderable-models)
+        children-scenes (into [{:node-id model-scene-resource-node-id
+                                :aabb aabb
+                                :renderable {:render-fn render-outline
+                                             :tags #{:model :outline}
+                                             :batch-key nil
+                                             :select-batch-key :not-rendered
+                                             :passes [pass/outline]}}]
+                              model-scenes)]
     {:node-id model-scene-resource-node-id
      :aabb aabb
-     :renderable {:render-fn render-outline
-                  :tags #{:model :outline}
+     :renderable {:tags #{:model}
                   :batch-key nil ; Batching is disabled in the editor for simplicity.
-                  :select-batch-key :not-rendered ; The render-fn only does anything during the outline pass.
-                  :passes [pass/outline pass/opaque-selection]} ; Include in a selection pass to ensure it can be selected and manipulated.
-     :children model-scenes}))
+                  :passes [pass/opaque-selection]} ; A selection pass to ensure it can be selected and manipulated.
+     :children children-scenes}))
 
 (g/defnk produce-scene [_node-id renderable-mesh-set]
   (make-scene renderable-mesh-set _node-id))

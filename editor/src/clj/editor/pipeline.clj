@@ -90,10 +90,10 @@
               :user-data {:pb-class pb-class
                           :pb-map pb-map}}
 
-             dep-build-targets
+             (coll/not-empty dep-build-targets)
              (assoc :deps dep-build-targets)
 
-             dynamic-deps
+             (coll/not-empty dynamic-deps)
              (assoc :dynamic-deps dynamic-deps)))))
 
 ;;--------------------------------------------------------------------

@@ -113,7 +113,7 @@
                                                      {:node-id _node-id
                                                       :node-outline-key node-outline-key
                                                       :label (if (empty? id)
-                                                               (shape-type-label shape-type)
+                                                               (str "<Unnamed " (shape-type-label shape-type) ">")
                                                                id)
                                                       :icon (shape-type-icon shape-type)})))
 
@@ -672,7 +672,7 @@
 (defn- selection->collision-object [selection]
   (handler/adapt-single selection CollisionObjectNode))
 
-(handler/defhandler :add :workbench
+(handler/defhandler :edit.add-embedded-component :workbench
   (label [user-data]
          (if-not user-data
            "Add Shape"
@@ -687,7 +687,7 @@
                     (reduce-kv (fn [res shape-type {:keys [label icon]}]
                                  (conj res {:label label
                                             :icon icon
-                                            :command :add
+                                            :command :edit.add-embedded-component
                                             :user-data {:_node-id self :shape-type shape-type}}))
                                [])
                     (sort-by :label)

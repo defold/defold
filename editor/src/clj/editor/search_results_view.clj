@@ -385,11 +385,11 @@
 (defn- resource-cell [{:keys [resource qualifier]}]
   {:graphic {:fx/type fx.h-box/lifecycle
              :spacing 6
-             :children (cond-> [{:fx/type fxui/label
+             :children (cond-> [{:fx/type fxui/legacy-label
                                  :text (resource/resource->proj-path resource)}]
                                qualifier
-                               (conj {:fx/type fxui/label
-                                      :style {:-fx-text-fill :-df-text-darker}
+                               (conj {:fx/type fxui/legacy-label
+                                      :style {:-fx-text-fill :-df-text-dark}
                                       :text qualifier}))}})
 
 (defn- property->edit-type-dispatch-value [property]
@@ -416,7 +416,7 @@
 (defmethod override-value-cell-view :default [{:keys [value] :as property}]
   {:fx/type fx.h-box/lifecycle
    :alignment (if (number? value) :top-right :top-left)
-   :children [{:fx/type fxui/label
+   :children [{:fx/type fxui/legacy-label
                :h-box/hgrow :always
                :style-class (overridden-style-classes property)
                :text (string/replace (str value) \newline \space)}]})
@@ -436,7 +436,7 @@
    :children (into []
                    (map-indexed
                      (fn [i v]
-                       {:fx/type fxui/label
+                       {:fx/type fxui/legacy-label
                         :grid-pane/column i
                         :grid-pane/halignment :right
                         :style-class (overridden-style-classes property)
@@ -460,7 +460,7 @@
           ng (Math/round (double (* 255 g)))
           nb (Math/round (double (* 255 b)))
           na (Math/round (double (* 255 a)))]
-      {:fx/type fxui/label
+      {:fx/type fxui/legacy-label
        :style-class (overridden-style-classes property)
        :graphic {:fx/type fx.region/lifecycle
                  :min-width 10
@@ -469,11 +469,11 @@
        :text (if (= 255 na)
                (format "#%02x%02x%02x" nr ng nb)
                (format "#%02x%02x%02x%02x" nr ng nb na))})
-    {:fx/type fxui/label}))
+    {:fx/type fxui/legacy-label}))
 
 (defmethod override-value-cell-view :choicebox [{:keys [edit-type value] :as property}]
   (let [labels (into {} (:options edit-type))]
-    {:fx/type fxui/label
+    {:fx/type fxui/legacy-label
      :style-class (overridden-style-classes property)
      :text (get labels value)}))
 

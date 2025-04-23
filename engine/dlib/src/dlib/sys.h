@@ -20,6 +20,12 @@
 
 #include <dmsdk/dlib/sys.h>
 
+/**
+ * Engine supportpath folder name.
+ * e.g: /support/path/.Defold
+ */
+#define DMSYS_APPLICATION_NAME "Defold"
+
 namespace dmSys
 {
     /**

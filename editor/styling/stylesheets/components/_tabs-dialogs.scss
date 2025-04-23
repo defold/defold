@@ -1,0 +1,34 @@
+.tab-header-background {
+    -fx-background-color: -df-background;
+}
+
+.tab-header-area {
+    -fx-padding: 0;
+}
+
+.tab-label {
+    -fx-text-fill: -df-text;
+}
+
+.tab {
+    -fx-background-color: -df-background;
+    -fx-background-radius: 0;
+    -fx-border-width: 0 0 2px 0;
+    -fx-border-color: -df-background;
+    -fx-padding: 10px 14px 8px 14px;
+    &:selected {
+        -fx-border-color: -df-defold-orange;
+    }
+    &:selected, &:hover {
+        & > .tab-container > .tab-label {
+            -fx-text-fill: -df-text-selected;
+        }
+    }
+    &>.tab-container>.focus-indicator {
+        -fx-border-width: 0;
+    }
+}
+
+.tab-content-area {
+    -fx-background-color: -df-background-light;
+}

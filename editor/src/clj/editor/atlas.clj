@@ -50,7 +50,9 @@
             [editor.workspace :as workspace]
             [internal.util :as util]
             [schema.core :as s]
+            [util.coll :as coll :refer [pair]]
             [util.digestable :as digestable]
+            [util.eduction :as e]
             [util.fn :as fn]
             [util.murmur :as murmur])
   (:import [com.dynamo.bob.pipeline AtlasUtil ShaderUtil$Common ShaderUtil$VariantTextureArrayFallback]
@@ -137,8 +139,8 @@
         augmented-fragment-source (.source transformed-shader-result)
         array-sampler-names (vec (.arraySamplers transformed-shader-result))
         array-sampler-uniform-names (into {}
-                                          (map (fn [item] [item (array-sampler-name->uniform-names item ShaderUtil$Common/MAX_ARRAY_SAMPLERS)])
-                                               array-sampler-names))]
+                                          (map #(pair % (array-sampler-name->uniform-names % ShaderUtil$Common/MAX_ARRAY_SAMPLERS)))
+                                          array-sampler-names)]
     (shader/make-shader ::atlas-shader pos-uv-vert augmented-fragment-source {} array-sampler-uniform-names)))
 
 (defn- render-rect
@@ -684,9 +686,9 @@
   ;; to the TextureSetGenerator.calculateLayout() method that only includes data
   ;; that can affect the layout.
   (or (validate-layout-properties _node-id margin inner-padding extrude-borders)
-      (let [fake-animations (map make-animation
-                                 (repeat "")
-                                 animation-images)
+      (let [fake-animations (mapv make-animation
+                                  (repeat "")
+                                  animation-images)
             augmented-args (-> args
                                (dissoc :_node-id :animation-images)
                                (assoc :animations fake-animations
@@ -737,12 +739,12 @@
   [animations layout-data all-atlas-images rename-patterns]
   (let [incomplete-ddf-texture-set (:texture-set layout-data)
         incomplete-ddf-animations (:animations incomplete-ddf-texture-set)
-        animation-present-in-ddf? (comp not-empty :images)
+        animation-present-in-ddf? (comp coll/not-empty :images)
         animations-in-ddf (filter animation-present-in-ddf?
                                   animations)
-        complete-ddf-animations (map complete-ddf-animation
-                                     incomplete-ddf-animations
-                                     animations-in-ddf)
+        complete-ddf-animations (mapv complete-ddf-animation
+                                      incomplete-ddf-animations
+                                      animations-in-ddf)
         ;; Texture set must contain hashed references to images:
         ;; - for stand-alone images: as simple `base-name`
         ;; - for images in animations: as `animation/base-name`
@@ -759,9 +761,8 @@
                                     (into
                                       (mapcat
                                         (fn [{:keys [id images]}]
-                                          (eduction
-                                            (map #(-> % :path (texture-set-gen/resource-id id rename-patterns) murmur/hash64))
-                                            images)))
+                                          (e/map #(-> % :path (texture-set-gen/resource-id id rename-patterns) murmur/hash64)
+                                                 images)))
                                       animations))
         complete-ddf-texture-set (assoc incomplete-ddf-texture-set
                                    :animations complete-ddf-animations
@@ -1012,7 +1013,7 @@
                                (make-atlas-animation atlas-node default-animation))))]
     (select! app-view [animation-node] op-seq)))
 
-(handler/defhandler :add :workbench
+(handler/defhandler :edit.add-embedded-component :workbench
   (label [] "Add Animation Group")
   (active? [selection] (selection->atlas selection))
   (run [app-view selection] (add-animation-group-handler app-view (selection->atlas selection))))
@@ -1043,7 +1044,7 @@
                                                 {:parent-node-type parent-node-type})))))))]
       (select! app-view image-nodes op-seq))))
 
-(handler/defhandler :add-from-file :workbench
+(handler/defhandler :edit.add-referenced-component :workbench
   (label [] "Add Images...")
   (active? [selection] (or (selection->atlas selection) (selection->animation selection)))
   (run [app-view project selection]
@@ -1087,7 +1088,7 @@
     core/scope
     (g/node-instance? AtlasAnimation)))
 
-(handler/defhandler :move-up :workbench
+(handler/defhandler :edit.reorder-up :workbench
   (active? [selection] (move-active? selection))
   (enabled? [selection] (let [node-id (selection->image selection)
                               parent (core/scope node-id)
@@ -1096,7 +1097,7 @@
                           (pos? node-child-index)))
   (run [selection] (move-node! (selection->image selection) -1)))
 
-(handler/defhandler :move-down :workbench
+(handler/defhandler :edit.reorder-down :workbench
   (active? [selection] (move-active? selection))
   (enabled? [selection] (let [node-id (selection->image selection)
                               parent (core/scope node-id)
@@ -1191,22 +1192,6 @@
     (let [pivot-pos (rect->absolute-pivot-pos (-> selected-renderables util/only :user-data :rect))]
       (scene-tools/scale-factor camera viewport (Vector3d. (first pivot-pos) (second pivot-pos) 0.0)))))
 
-(defn- image-path?
-  [path]
-  (boolean (some (partial str/ends-with? path) image/exts)))
-
-(defn- get-image-resource-from-file
-  [workspace ^File file]
-  (when-let [path (workspace/as-proj-path workspace (.getAbsolutePath file))]
-    (when (image-path? path)
-      (workspace/resolve-workspace-resource workspace path))))
-
-(defn- get-image-resources-from-files
-  [files workspace]
-  (->> files
-       (keep (partial get-image-resource-from-file workspace))
-       (sort-by resource/path)))
-
 (defn- image-resources->image-msgs
   [image-resources]
   (mapv (partial hash-map :image) image-resources))
@@ -1234,24 +1219,20 @@
       (first (map #(core/scope-of-type % AtlasNode) selection))
       (first (handler/adapt-every selection AtlasNode))))
 
+(defn- handle-drop
+  [action op-seq]
+  (let [{:keys [string gesture-target]} action
+        ui-context (first (ui/node-contexts gesture-target false))
+        {:keys [selection workspace]} (:env ui-context)]
+    (when-let [parent (parent-animation-or-atlas selection)]
+      (let [image-resources (->> (str/split-lines string)
+                                 (filter image/image-path?)
+                                 (sort)
+                                 (keep (partial workspace/resolve-workspace-resource workspace)))]
+        (create-dropped-images! parent image-resources op-seq)))))
+
 (defn handle-input [self action selection-data]
   (case (:type action)
-    :drag-dropped (when-let [files (:files action)]
-                    (let [image-view (:gesture-target action)
-                          _ (ui/request-focus! image-view)
-                          ui-context (first (ui/node-contexts image-view false))
-                          {:keys [app-view selection workspace]} (:env ui-context)]
-                      (when-let [parent (parent-animation-or-atlas selection)]
-                        (let [image-resources (get-image-resources-from-files files workspace)
-                              op-seq (gensym)
-                              image-nodes (create-dropped-images! parent image-resources op-seq)
-                              drag-event ^DragEvent (:event action)]
-                          (when (seq image-nodes)
-                            (.consume drag-event)
-                            (select! app-view image-nodes op-seq)
-                            (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
-                            (.setDropCompleted drag-event true))))
-                      nil))
     :mouse-pressed (if (first (get selection-data self))
                      (do
                        (g/transact
@@ -1318,4 +1299,5 @@
     :icon atlas-icon
     :icon-class :design
     :view-types [:scene :text]
-    :view-opts {:scene {:tool-controller AtlasToolController}}))
+    :view-opts {:scene {:drop-fn handle-drop
+                        :tool-controller AtlasToolController}}))

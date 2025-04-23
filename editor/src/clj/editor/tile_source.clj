@@ -1005,7 +1005,7 @@
 (defn- selection->tile-source [selection]
   (handler/adapt-single selection TileSourceNode))
 
-(handler/defhandler :add :workbench
+(handler/defhandler :edit.add-embedded-component :workbench
   (active? [selection] (selection->tile-source selection))
   (label [selection user-data]
          (if-not user-data
@@ -1015,11 +1015,11 @@
            (when-not user-data
              [{:label "Animation"
                :icon animation-icon
-               :command :add
+               :command :edit.add-embedded-component
                :user-data {:action add-animation-node!}}
               {:label "Collision Group"
                :icon collision-icon
-               :command :add
+               :command :edit.add-embedded-component
                :user-data {:action add-collision-group-node!}}]))
   (run [selection user-data app-view]
     ((:action user-data) (selection->tile-source selection) (fn [node-ids] (app-view/select app-view node-ids)))))
