@@ -607,7 +607,10 @@ namespace dmInput
                     if (action != 0x0)
                     {
                         if (dmMath::Abs(action->m_Value) < v)
+                        {
                             action->m_Value = v;
+                        }
+                        UpdateActionPressedReleasedRepeated(action, binding->m_Context, dt);
                     }
                 }
                 *prev_packet = *packet;
