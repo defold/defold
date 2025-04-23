@@ -33,6 +33,9 @@ public class PackedTools {
         if (libexecRoot == null) {
             throw new IOException("Could not find /libexec/" + platformPair);
         }
+        if (libRoot == null) {
+            throw new IOException("Could not find /lib/");
+        }
 
         // The resource might be in a JAR, or a directory in the file system
         if (libexecRoot.getProtocol().equals("jar")) {
@@ -41,6 +44,8 @@ public class PackedTools {
                 JarFile jarFile = jarConnection.getJarFile();
                 String basePath = "libexec/" + platformPair + "/";
                 String luaZip = "lib/luajit-share.zip";
+                // Do not close this stream manually and keep it up to JVM
+                // Because jar also used in the main thread as Bob.class.getResourceAsStream()
                 jarFile.stream().forEach(entry -> {
                     String name = entry.getName();
                     if (!entry.isDirectory()) {
@@ -65,7 +70,6 @@ public class PackedTools {
                         }
                     }
                 });
-                jarFile.close();
             } catch (IOException e) {
                 throw new IOException("Failed to unpack tools from /libexec/" + platformPair, e);
             }
