@@ -491,12 +491,12 @@
    {:id :grid
     :tooltip "Grid"
     :graphic-fn (partial icons/make-svg-icon-graphic grid-svg-path)
-    :command :toggle-grid
+    :command :scene.visibility.toggle-grid
     :more :show-grid-settings}
    {:id :snap
     :tooltip "Snap"
     :graphic-fn (partial icons/make-svg-icon-graphic magnet-svg-path)
-    :command :toggle-snap
+    :command :scene.visibility.toggle-snap
     :more :show-snap-settings}
    {:id :2d-mode
     :tooltip "2d mode"
