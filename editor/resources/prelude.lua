@@ -374,7 +374,12 @@ function editor.bundle.command(label, id, fn, rest)
     result.locations = {"Bundle"}
     result.query = {argument = true}
     result.run = function(opts)
-        local success, ret_or_message = pcall(fn, opts.argument)
+        local argument = opts.argument
+        if opts.argument == nil then
+            argument = true
+        else
+        end
+        local success, ret_or_message = pcall(fn, argument)
         if success or ret_or_message == editor.bundle.abort_message then
             return
         end

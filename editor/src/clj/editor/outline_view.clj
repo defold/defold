@@ -220,68 +220,68 @@
 (handler/register-menu! ::outline-menu
   [{:label "Open"
     :icon "icons/32/Icons_S_14_linkarrow.png"
-    :command :open}
+    :command :file.open-selected}
    {:label "Open As"
     :icon "icons/32/Icons_S_14_linkarrow.png"
-    :command :open-as}
+    :command :file.open-as}
    {:label :separator}
-   {:label "Copy Project Path"
-    :command :copy-project-path}
+   {:label "Copy Resource Path"
+    :command :edit.copy-resource-path}
    {:label "Copy Full Path"
-    :command :copy-full-path}
+    :command :edit.copy-absolute-path}
    {:label "Copy Require Path"
-    :command :copy-require-path}
+    :command :edit.copy-require-path}
    {:label :separator}
    {:label "Show in Asset Browser"
     :icon "icons/32/Icons_S_14_linkarrow.png"
-    :command :show-in-asset-browser}
+    :command :file.show-in-assets}
    {:label "Show in Desktop"
     :icon "icons/32/Icons_S_14_linkarrow.png"
-    :command :show-in-desktop}
+    :command :file.show-in-desktop}
    {:label "Referencing Files..."
-    :command :referencing-files}
+    :command :file.show-references}
    {:label "Dependencies..."
-    :command :dependencies}
+    :command :file.show-dependencies}
    {:label "Show Overrides"
-    :command :show-overrides}
+    :command :edit.show-overrides}
    {:label :separator}
    {:label "Add"
     :icon "icons/32/Icons_M_07_plus.png"
-    :command :add
-    :expand? true}
+    :command :edit.add-embedded-component
+    :expand true}
    {:label "Add From File"
     :icon "icons/32/Icons_M_07_plus.png"
-    :command :add-from-file}
+    :command :edit.add-referenced-component}
    {:label "Add Secondary"
     :icon "icons/32/Icons_M_07_plus.png"
-    :command :add-secondary}
+    :command :edit.add-secondary-embedded-component}
    {:label "Add Secondary From File"
     :icon "icons/32/Icons_M_07_plus.png"
-    :command :add-secondary-from-file}
+    :command :edit.add-secondary-referenced-component}
    {:label :separator}
    {:label "Cut"
-    :command :cut}
+    :command :edit.cut}
    {:label "Copy"
-    :command :copy}
+    :command :edit.copy}
    {:label "Paste"
-    :command :paste}
+    :command :edit.paste}
    {:label "Delete"
     :icon "icons/32/Icons_M_06_trash.png"
-    :command :delete}
+    :command :edit.delete}
    {:label :separator}
    {:label "Move Up"
-    :command :move-up}
+    :command :edit.reorder-up}
    {:label "Move Down"
-    :command :move-down}
+    :command :edit.reorder-down}
    {:label :separator}
    {:label "Show/Hide Objects"
-    :command :hide-toggle-selected}
+    :command :scene.visibility.toggle-selection}
    {:label "Hide Unselected Objects"
-    :command :hide-unselected}
+    :command :scene.visibility.hide-unselected}
    {:label "Show Last Hidden Objects"
-    :command :show-last-hidden}
+    :command :scene.visibility.show-last-hidden}
    {:label "Show All Hidden Objects"
-    :command :show-all-hidden}
+    :command :scene.visibility.show-all}
    {:label :separator
     :id ::context-menu-end}])
 
@@ -295,7 +295,7 @@
   ([outline-view evaluation-context]
    (g/node-value outline-view :tree-selection-root-its evaluation-context)))
 
-(handler/defhandler :delete :workbench
+(handler/defhandler :edit.delete :workbench
   (active? [selection] (handler/selection->node-ids selection))
   (enabled? [selection outline-view evaluation-context]
             (and (< 0 (count selection))
@@ -328,7 +328,7 @@
 (defn- set-paste-parent! [root-its]
   (alter-var-root #'*paste-into-parent* (constantly (some-> (single-parent-it root-its) outline/value :node-id))))
 
-(handler/defhandler :copy :workbench
+(handler/defhandler :edit.copy :workbench
   (active? [selection] (handler/selection->node-ids selection))
   (enabled? [selection] (< 0 (count selection)))
   (run [outline-view project]
@@ -344,7 +344,7 @@
           single-parent)
       (first item-iterators))))
 
-(handler/defhandler :paste :workbench
+(handler/defhandler :edit.paste :workbench
   (active? [selection] (handler/selection->node-ids selection))
   (enabled? [project selection outline-view evaluation-context]
             (let [cb (Clipboard/getSystemClipboard)
@@ -360,7 +360,7 @@
       (outline/paste! project target-item-it (.getContent cb data-format) (partial app-view/select app-view))
       (set-paste-parent! (root-iterators outline-view)))))
 
-(handler/defhandler :cut :workbench
+(handler/defhandler :edit.cut :workbench
   (active? [selection] (handler/selection->node-ids selection))
   (enabled? [selection outline-view evaluation-context]
             (let [item-iterators (root-iterators outline-view evaluation-context)]
@@ -466,7 +466,7 @@
       (ui/user-data! cell :future-expand nil))))
 
 (defn- toggle-visibility! [node-outline-key-path ^MouseEvent event]
-  (ui/run-command (.getSource event) :hide-toggle {:node-outline-key-path node-outline-key-path}))
+  (ui/run-command (.getSource event) :private/hide-toggle {:node-outline-key-path node-outline-key-path}))
 
 (defn add-scroll-listeners!
   [visibility-button ^TreeView tree-view]
@@ -490,7 +490,7 @@
                             (ui/add-style! "visibility-toggle")
                             (AnchorPane/setRightAnchor 0.0))
         text-label (doto (Label.)
-                     (ui/bind-double-click! :open))
+                     (ui/bind-double-click! :file.open-selected))
         h-box (doto (HBox. 5 (ui/node-array [image-view-icon text-label]))
                 (ui/add-style! "h-box")
                 (AnchorPane/setRightAnchor 0.0)
@@ -583,6 +583,7 @@
       (.setCellFactory (reify Callback (call ^TreeCell [this view] (make-tree-cell view drag-entered-handler drag-exited-handler))))
       (ui/observe-selection #(propagate-selection %2 app-view))
       (ui/register-context-menu ::outline-menu)
+      (ui/bind-key-commands! {"Enter" :file.open-selected})
       (ui/context! :outline {} (SelectionProvider. outline-view) {} {java.lang.Long :node-id
                                                                      resource/Resource :link}))))
 

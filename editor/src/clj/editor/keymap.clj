@@ -13,11 +13,17 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.keymap
-  (:require [editor.os :as os]
-            [editor.ui :as ui]
+  (:refer-clojure :exclude [empty])
+  (:require [clojure.edn :as edn]
+            [editor.os :as os]
+            [editor.prefs :as prefs]
+            [internal.util :as util]
+            [service.log :as log]
+            [util.coll :as coll]
+            [util.eduction :as e]
             [util.fn :as fn])
   (:import [javafx.scene Scene]
-           [javafx.scene.input KeyCharacterCombination KeyCodeCombination KeyCombination KeyCombination$ModifierValue KeyEvent]))
+           [javafx.scene.input KeyCharacterCombination KeyCode KeyCodeCombination KeyCombination KeyCombination$ModifierValue KeyEvent]))
 
 (set! *warn-on-reflection* true)
 
@@ -29,439 +35,365 @@
   ;; something you may want to type in the code editor.
   ;; The function key-binding-data->keymap attempts to catch this type
   ;; of mistake.
-  ;; Note that specifying Shortcut key (which is Meta on mac and Ctrl on windows
-  ;; and linux) is not allowed.
-  {:macos [["A" :add]
-           ["Alt+Backspace" :delete-prev-word]
-           ["Alt+Delete" :delete-next-word]
-           ["Alt+Down" :end-of-line]
-           ["Alt+Down" :move-down]
-           ["Alt+Left" :prev-word]
-           ["Alt+F9" :edit-breakpoint]
-           ["Alt+Meta+E" :select-next-occurrence]
-           ["Alt+Meta+F" :replace-text]
-           ["Alt+Meta+G" :replace-next]
-           ["Alt+Right" :next-word]
-           ["Alt+Space" :proposals]
-           ["Alt+Up" :beginning-of-line]
-           ["Alt+Up" :move-up]
-           ["Backspace" :delete-backward]
-           ["Ctrl+A" :beginning-of-line]
-           ["Ctrl+D" :delete-line]
-           ["Ctrl+E" :end-of-line]
-           ["Ctrl+I" :reindent]
-           ["Ctrl+K" :delete-to-end-of-line]
-           ["Ctrl+Meta+H" :toggle-component-guides]
-           ["Ctrl+R" :open-recent-file]
-           ["Ctrl+Space" :proposals]
-           ["Delete" :delete]
-           ["Down" :down]
-           ["E" :rotate-tool]
-           ["End" :end-of-line]
-           ["Enter" :enter]
-           ["Esc" :escape]
-           ["F" :frame-selection]
-           ["F1" :documentation]
-           ["F10" :step-over]
-           ["F11" :step-into]
-           ["F2" :rename]
-           ["F5" :start-debugger]
-           ["F5" :continue]
-           ["F6" :toggle-pane-left]
-           ["F7" :toggle-pane-bottom]
-           ["F8" :toggle-pane-right]
-           ["F9" :toggle-breakpoint]
-           ["F12" :goto-definition]
-           ["Home" :beginning-of-line-text]
-           ["Left" :left]
-           ["Meta+'+'" :zoom-in]
-           ["Meta+Add" :zoom-in]
-           ["Meta+'-'" :zoom-out]
-           ["Meta+Subtract" :zoom-out]
-           ["Meta+0" :reset-zoom]
-           ["Meta+A" :select-all]
-           ["Meta+B" :build]
-           ["Meta+M" :build-html5]
-           ["Meta+C" :copy]
-           ["Meta+Comma" :preferences]
-           ["Meta+D" :select-next-occurrence]
-           ["Meta+Delete" :delete-to-end-of-line]
-           ["Meta+Down" :end-of-file]
-           ["Meta+E" :hide-toggle-selected]
-           ["Meta+F" :filter-form]
-           ["Meta+F" :find-text]
-           ["Meta+G" :find-next]
-           ["Meta+L" :goto-line]
-           ["Meta+Left" :beginning-of-line-text]
-           ["Meta+N" :new-file]
-           ["Meta+O" :open]
-           ["Meta+P" :open-asset]
-           ["Meta+Q" :quit]
-           ["Meta+R" :hot-reload]
-           ["Meta+Right" :end-of-line]
-           ["Meta+S" :save-all]
-           ["Meta+'/'" :toggle-comment]
-           ["Meta+T" :scene-stop]
-           ["Meta+U" :rebundle]
-           ["Meta+J" :close-engine]
-           ["Meta+Up" :beginning-of-file]
-           ["Meta+V" :paste]
-           ["Meta+W" :close]
-           ["Meta+X" :cut]
-           ["Meta+Z" :undo]
-           ["Page Down" :page-down]
-           ["Page Up" :page-up]
-           ["Period" :realign-camera]
-           ["R" :scale-tool]
-           ["Right" :right]
-           ["Shift+A" :add-secondary]
-           ["Shift+Alt+Down" :select-end-of-line]
-           ["Shift+Alt+Left" :select-prev-word]
-           ["Shift+Alt+Right" :select-next-word]
-           ["Shift+Alt+Up" :select-beginning-of-line]
-           ["Shift+Backspace" :delete-backward]
-           ["Shift+Ctrl+A" :select-beginning-of-line]
-           ["Shift+Ctrl+E" :select-end-of-line]
-           ["Shift+Ctrl+Left" :select-prev-word]
-           ["Shift+Ctrl+Right" :select-next-word]
-           ["Shift+Down" :down-major]
-           ["Shift+Down" :select-down]
-           ["Shift+E" :erase-tool]
-           ["Shift+End" :select-end-of-line]
-           ["Shift+F11" :step-out]
-           ["Shift+F12" :find-references]
-           ["Shift+Home" :select-beginning-of-line-text]
-           ["Shift+Left" :left-major]
-           ["Shift+Left" :select-left]
-           ["Shift+Meta+B" :rebuild]
-           ["Shift+Meta+M" :rebuild-html5]
-           ["Shift+Meta+Delete" :delete-to-end-of-line]
-           ["Shift+Meta+Down" :select-end-of-file]
-           ["Shift+Meta+E" :show-last-hidden]
-           ["Shift+Meta+F" :search-in-files]
-           ["Shift+Meta+G" :find-prev]
-           ["Shift+Meta+I" :toggle-visibility-filters]
-           ["Shift+Meta+L" :split-selection-into-lines]
-           ["Shift+Meta+Left" :select-beginning-of-line-text]
-           ["Shift+Meta+R" :reload-extensions]
-           ["Shift+Meta+Right" :select-end-of-line]
-           ["Shift+Meta+T" :reopen-recent-file]
-           ["Shift+Meta+Up" :select-beginning-of-file]
-           ["Shift+Meta+W" :close-all]
-           ["Shift+Meta+Y" :async-reload]
-           ["Shift+Meta+Z" :redo]
-           ["Shift+Page Down" :select-page-down]
-           ["Shift+Page Up" :select-page-up]
-           ["Shift+Right" :right-major]
-           ["Shift+Right" :select-right]
-           ["Shift+Tab" :backwards-tab-trigger]
-           ["Shift+Up" :select-up]
-           ["Shift+Up" :up-major]
-           ["Space" :scene-play]
-           ["Space" :show-palette]
-           ["Tab" :tab]
-           ["Up" :up]
-           ["W" :move-tool]
-           ["X" :flip-brush-horizontally]
-           ["Y" :flip-brush-vertically]
-           ["Z" :rotate-brush-90-degrees]]
-   :win32 [["A" :add]
-           ["Alt+Down" :move-down]
-           ["Alt+F9" :edit-breakpoint]
-           ["Alt+R" :open-recent-file]
-           ["Alt+Up" :move-up]
-           ["Backspace" :delete-backward]
-           ["Ctrl+'+'" :zoom-in]
-           ["Ctrl+Add" :zoom-in]
-           ["Ctrl+'-'" :zoom-out]
-           ["Ctrl+Subtract" :zoom-out]
-           ["Ctrl+0" :reset-zoom]
-           ["Ctrl+A" :select-all]
-           ["Ctrl+B" :build]
-           ["Ctrl+M" :build-html5]
-           ["Ctrl+Backspace" :delete-prev-word]
-           ["Ctrl+C" :copy]
-           ["Ctrl+Comma" :preferences]
-           ["Ctrl+D" :select-next-occurrence]
-           ["Ctrl+Delete" :delete-next-word]
-           ["Ctrl+E" :hide-toggle-selected]
-           ["Ctrl+End" :end-of-file]
-           ["Ctrl+F" :filter-form]
-           ["Ctrl+F" :find-text]
-           ["Ctrl+G" :find-next]
-           ["Ctrl+H" :replace-text]
-           ["Ctrl+H" :toggle-component-guides]
-           ["Ctrl+Home" :beginning-of-file]
-           ["Ctrl+I" :reindent]
-           ["Ctrl+K" :delete-to-end-of-line]
-           ["Ctrl+L" :goto-line]
-           ["Ctrl+Left" :prev-word]
-           ["Ctrl+N" :new-file]
-           ["Ctrl+O" :open]
-           ["Ctrl+P" :open-asset]
-           ["Ctrl+Q" :quit]
-           ["Ctrl+R" :hot-reload]
-           ["Ctrl+Right" :next-word]
-           ["Ctrl+S" :save-all]
-           ["Ctrl+'/'" :toggle-comment]
-           ["Ctrl+Space" :proposals]
-           ["Ctrl+T" :scene-stop]
-           ["Ctrl+U" :rebundle]
-           ["Ctrl+J" :close-engine]
-           ["Ctrl+V" :paste]
-           ["Ctrl+W" :close]
-           ["Ctrl+X" :cut]
-           ["Ctrl+Z" :undo]
-           ["Delete" :delete]
-           ["Down" :down]
-           ["E" :rotate-tool]
-           ["End" :end-of-line]
-           ["Enter" :enter]
-           ["Esc" :escape]
-           ["F" :frame-selection]
-           ["F1" :documentation]
-           ["F10" :step-over]
-           ["F11" :step-into]
-           ["F2" :rename]
-           ["F5" :start-debugger]
-           ["F5" :continue]
-           ["F6" :toggle-pane-left]
-           ["F7" :toggle-pane-bottom]
-           ["F8" :toggle-pane-right]
-           ["F9" :toggle-breakpoint]
-           ["F12" :goto-definition]
-           ["Home" :beginning-of-line-text]
-           ["Left" :left]
-           ["Page Down" :page-down]
-           ["Page Up" :page-up]
-           ["Period" :realign-camera]
-           ["R" :scale-tool]
-           ["Right" :right]
-           ["Shift+A" :add-secondary]
-           ["Shift+Backspace" :delete-backward]
-           ["Shift+Ctrl+B" :rebuild]
-           ["Shift+Ctrl+M" :rebuild-html5]
-           ["Shift+Ctrl+Delete" :delete-to-end-of-line]
-           ["Shift+Ctrl+E" :show-last-hidden]
-           ["Shift+Ctrl+End" :select-end-of-file]
-           ["Shift+Ctrl+F" :search-in-files]
-           ["Shift+Ctrl+G" :find-prev]
-           ["Shift+Ctrl+H" :replace-next]
-           ["Shift+Ctrl+Home" :select-beginning-of-file]
-           ["Shift+Ctrl+I" :toggle-visibility-filters]
-           ["Shift+Ctrl+L" :split-selection-into-lines]
-           ["Shift+Ctrl+Left" :select-prev-word]
-           ["Shift+Ctrl+R" :reload-extensions]
-           ["Shift+Ctrl+Right" :select-next-word]
-           ["Shift+Ctrl+T" :reopen-recent-file]
-           ["Shift+Ctrl+W" :close-all]
-           ["Shift+Ctrl+Y" :async-reload]
-           ["Shift+Ctrl+Z" :redo]
-           ["Shift+Down" :down-major]
-           ["Shift+Down" :select-down]
-           ["Shift+E" :erase-tool]
-           ["Shift+End" :select-end-of-line]
-           ["Shift+F11" :step-out]
-           ["Shift+F12" :find-references]
-           ["Shift+F5" :stop-debugger]
-           ["Shift+Home" :select-beginning-of-line-text]
-           ["Shift+Left" :left-major]
-           ["Shift+Left" :select-left]
-           ["Shift+Page Down" :select-page-down]
-           ["Shift+Page Up" :select-page-up]
-           ["Shift+Right" :right-major]
-           ["Shift+Right" :select-right]
-           ["Shift+Tab" :backwards-tab-trigger]
-           ["Shift+Up" :select-up]
-           ["Shift+Up" :up-major]
-           ["Space" :scene-play]
-           ["Space" :show-palette]
-           ["Tab" :tab]
-           ["Up" :up]
-           ["W" :move-tool]
-           ["X" :flip-brush-horizontally]
-           ["Y" :flip-brush-vertically]
-           ["Z" :rotate-brush-90-degrees]]
-   :linux [["A" :add]
-           ["Alt+Down" :move-down]
-           ["Alt+F9" :edit-breakpoint]
-           ["Alt+R" :open-recent-file]
-           ["Alt+Up" :move-up]
-           ["Backspace" :delete-backward]
-           ["Ctrl+'+'" :zoom-in]
-           ["Ctrl+Add" :zoom-in]
-           ["Ctrl+'-'" :zoom-out]
-           ["Ctrl+Subtract" :zoom-out]
-           ["Ctrl+0" :reset-zoom]
-           ["Ctrl+A" :select-all]
-           ["Ctrl+B" :build]
-           ["Ctrl+M" :build-html5]
-           ["Ctrl+Backspace" :delete-prev-word]
-           ["Ctrl+C" :copy]
-           ["Ctrl+Comma" :preferences]
-           ["Ctrl+D" :select-next-occurrence]
-           ["Ctrl+Delete" :delete-next-word]
-           ["Ctrl+E" :hide-toggle-selected]
-           ["Ctrl+End" :end-of-file]
-           ["Ctrl+F" :filter-form]
-           ["Ctrl+F" :find-text]
-           ["Ctrl+G" :find-next]
-           ["Ctrl+H" :replace-text]
-           ["Ctrl+H" :toggle-component-guides]
-           ["Ctrl+Home" :beginning-of-file]
-           ["Ctrl+I" :reindent]
-           ["Ctrl+K" :delete-to-end-of-line]
-           ["Ctrl+L" :goto-line]
-           ["Ctrl+Left" :prev-word]
-           ["Ctrl+N" :new-file]
-           ["Ctrl+O" :open]
-           ["Ctrl+P" :open-asset]
-           ["Ctrl+Q" :quit]
-           ["Ctrl+R" :hot-reload]
-           ["Ctrl+Right" :next-word]
-           ["Ctrl+S" :save-all]
-           ["Ctrl+'/'" :toggle-comment]
-           ["Ctrl+Space" :proposals]
-           ["Ctrl+T" :scene-stop]
-           ["Ctrl+U" :rebundle]
-           ["Ctrl+J" :close-engine]
-           ["Ctrl+V" :paste]
-           ["Ctrl+W" :close]
-           ["Ctrl+X" :cut]
-           ["Ctrl+Z" :undo]
-           ["Delete" :delete]
-           ["Down" :down]
-           ["E" :rotate-tool]
-           ["End" :end-of-line]
-           ["Enter" :enter]
-           ["Esc" :escape]
-           ["F" :frame-selection]
-           ["F1" :documentation]
-           ["F10" :step-over]
-           ["F11" :step-into]
-           ["F2" :rename]
-           ["F5" :start-debugger]
-           ["F5" :continue]
-           ["F6" :toggle-pane-left]
-           ["F7" :toggle-pane-bottom]
-           ["F8" :toggle-pane-right]
-           ["F9" :toggle-breakpoint]
-           ["F12" :goto-definition]
-           ["Home" :beginning-of-line-text]
-           ["Left" :left]
-           ["Page Down" :page-down]
-           ["Page Up" :page-up]
-           ["Period" :realign-camera]
-           ["R" :scale-tool]
-           ["Right" :right]
-           ["Shift+A" :add-secondary]
-           ["Shift+Backspace" :delete-backward]
-           ["Shift+Ctrl+B" :rebuild]
-           ["Shift+Ctrl+M" :rebuild-html5]
-           ["Shift+Ctrl+Delete" :delete-to-end-of-line]
-           ["Shift+Ctrl+E" :show-last-hidden]
-           ["Shift+Ctrl+End" :select-end-of-file]
-           ["Shift+Ctrl+F" :search-in-files]
-           ["Shift+Ctrl+G" :find-prev]
-           ["Shift+Ctrl+H" :replace-next]
-           ["Shift+Ctrl+Home" :select-beginning-of-file]
-           ["Shift+Ctrl+I" :toggle-visibility-filters]
-           ["Shift+Ctrl+L" :split-selection-into-lines]
-           ["Shift+Ctrl+Left" :select-prev-word]
-           ["Shift+Ctrl+R" :reload-extensions]
-           ["Shift+Ctrl+Right" :select-next-word]
-           ["Shift+Ctrl+T" :reopen-recent-file]
-           ["Shift+Ctrl+W" :close-all]
-           ["Shift+Ctrl+Y" :async-reload]
-           ["Shift+Ctrl+Z" :redo]
-           ["Shift+Down" :down-major]
-           ["Shift+Down" :select-down]
-           ["Shift+E" :erase-tool]
-           ["Shift+End" :select-end-of-line]
-           ["Shift+F11" :step-out]
-           ["Shift+F12" :find-references]
-           ["Shift+F5" :stop-debugger]
-           ["Shift+Home" :select-beginning-of-line-text]
-           ["Shift+Left" :left-major]
-           ["Shift+Left" :select-left]
-           ["Shift+Page Down" :select-page-down]
-           ["Shift+Page Up" :select-page-up]
-           ["Shift+Right" :right-major]
-           ["Shift+Right" :select-right]
-           ["Shift+Tab" :backwards-tab-trigger]
-           ["Shift+Up" :select-up]
-           ["Shift+Up" :up-major]
-           ["Space" :scene-play]
-           ["Space" :show-palette]
-           ["Tab" :tab]
-           ["Up" :up]
-           ["W" :move-tool]
-           ["X" :flip-brush-horizontally]
-           ["Y" :flip-brush-vertically]
-           ["Z" :rotate-brush-90-degrees]]})
-
-(def default-host-key-bindings
-  (platform->default-key-bindings (os/os)))
-
-(def ^:private default-allowed-duplicate-shortcuts
-  #{"Alt+Down"
-    "Alt+Up"
-    "Ctrl+F"
-    "Ctrl+H"
-    "F5"
-    "Meta+F"
-    "Shift+Down"
-    "Shift+Left"
-    "Shift+Right"
-    "Shift+Up"
-    "Space"})
-
-;; These are only (?) used in contexts where there is no text field
-;; interested in the actual typable input.
-(def ^:private default-allowed-typable-shortcuts
-  #{"A"         ; :add
-    "E"         ; :rotate-tool
-    "F"         ; :frame-selection
-    "R"         ; :scale-tool
-    "W"         ; :move-tool
-    "X"         ; :flip-brush-horizontally
-    "Y"         ; :flip-brush-vertically
-    "Z"         ; :rotate-brush-90-degrees
-    "Shift+A"   ; :add-secondary
-    "Shift+E"}) ; :erase-tool
-
-(defprotocol KeyComboData
-  (key-combo->map [this] "returns a data representation of a KeyCombination."))
-
-(extend-protocol KeyComboData
-  KeyCodeCombination
-  (key-combo->map [key-combo]
-    {:key (.getName (.getCode key-combo))
-     :alt-down? (= KeyCombination$ModifierValue/DOWN (.getAlt key-combo))
-     :control-down? (= KeyCombination$ModifierValue/DOWN (.getControl key-combo))
-     :meta-down? (= KeyCombination$ModifierValue/DOWN (.getMeta key-combo))
-     :shift-down? (= KeyCombination$ModifierValue/DOWN (.getShift key-combo))
-     :shortcut-down? (= KeyCombination$ModifierValue/DOWN (.getShortcut key-combo))})
-
-  KeyCharacterCombination
-  (key-combo->map [key-combo]
-    {:key (.getCharacter key-combo)
-     :alt-down? (= KeyCombination$ModifierValue/DOWN (.getAlt key-combo))
-     :control-down? (= KeyCombination$ModifierValue/DOWN (.getControl key-combo))
-     :meta-down? (= KeyCombination$ModifierValue/DOWN (.getMeta key-combo))
-     :shift-down? (= KeyCombination$ModifierValue/DOWN (.getShift key-combo))
-     :shortcut-down? (= KeyCombination$ModifierValue/DOWN (.getShortcut key-combo))}))
-
-(defn key-event->map [^KeyEvent e]
-  {:key              (.getCharacter e)
-   :alt-down?        (.isAltDown e)
-   :control-down?    (.isControlDown e)
-   :meta-down?       (.isMetaDown e)
-   :shift-down?      (.isShiftDown e)
-   :shortcut-down?   (.isShortcutDown e)})
-
-(defn key-combo->display-text [s]
-  (.getDisplayText (KeyCombination/keyCombination s)))
+  ;; Note that specifying Shortcut key (which is Meta on macOS and Ctrl on
+  ;; Windows and Linux) is not allowed.
+  {:macos [["A" :edit.add-embedded-component]
+           ["Alt+Backspace" :code.delete-previous-word]
+           ["Alt+Delete" :code.delete-next-word]
+           ["Alt+Down" :code.goto-line-end]
+           ["Alt+Down" :edit.reorder-down]
+           ["Alt+Left" :code.goto-previous-word]
+           ["Alt+F9" :debugger.edit-breakpoint]
+           ["Alt+Meta+E" :code.select-next-occurrence]
+           ["Alt+Meta+F" :code.replace-text]
+           ["Alt+Meta+G" :code.replace-next]
+           ["Alt+Right" :code.goto-next-word]
+           ["Alt+Space" :code.show-completions]
+           ["Alt+Up" :code.goto-line-start]
+           ["Alt+Up" :edit.reorder-up]
+           ["Backspace" :code.delete-previous-char]
+           ["Ctrl+A" :code.goto-line-start]
+           ["Ctrl+E" :code.goto-line-end]
+           ["Ctrl+I" :code.reindent]
+           ["Ctrl+Meta+H" :scene.visibility.toggle-component-guides]
+           ["Ctrl+R" :file.open-recent]
+           ["Ctrl+Space" :code.show-completions]
+           ["Delete" :edit.delete]
+           ["Delete" :code.delete-next-char]
+           ["Down" :scene.move-down]
+           ["E" :scene.select-rotate-tool]
+           ["End" :code.goto-line-end]
+           ["Esc" :code.escape]
+           ["F" :scene.frame-selection]
+           ["F1" :help.open-documentation]
+           ["F10" :debugger.step-over]
+           ["F11" :debugger.step-into]
+           ["F2" :file.rename]
+           ["F5" :debugger.start]
+           ["F5" :debugger.continue]
+           ["F6" :window.toggle-left-pane]
+           ["F7" :window.toggle-bottom-pane]
+           ["F8" :window.toggle-right-pane]
+           ["F9" :debugger.toggle-breakpoint]
+           ["F12" :code.goto-definition]
+           ["Home" :code.goto-line-text-start]
+           ["Left" :scene.move-left]
+           ["Meta+'+'" :code.zoom.increase]
+           ["Meta+Add" :code.zoom.increase]
+           ["Meta+'-'" :code.zoom.decrease]
+           ["Meta+Subtract" :code.zoom.decrease]
+           ["Meta+0" :code.zoom.reset]
+           ["Meta+A" :code.select-all]
+           ["Meta+B" :project.build]
+           ["Meta+M" :project.build-html5]
+           ["Meta+C" :edit.copy]
+           ["Meta+Comma" :app.preferences]
+           ["Meta+D" :code.select-next-occurrence]
+           ["Meta+Down" :code.goto-file-end]
+           ["Meta+E" :scene.visibility.toggle-selection]
+           ["Meta+F" :edit.find]
+           ["Meta+G" :code.find-next]
+           ["Meta+L" :code.goto-line]
+           ["Meta+Left" :code.goto-line-text-start]
+           ["Meta+N" :file.new]
+           ["Meta+O" :file.open-selected]
+           ["Meta+P" :file.open]
+           ["Meta+Q" :app.quit]
+           ["Meta+R" :run.hot-reload]
+           ["Meta+Right" :code.goto-line-end]
+           ["Meta+S" :file.save-all]
+           ["Meta+'/'" :code.toggle-comment]
+           ["Meta+T" :scene.stop]
+           ["Meta+U" :project.rebundle]
+           ["Meta+J" :run.stop]
+           ["Meta+Up" :code.goto-file-start]
+           ["Meta+V" :edit.paste]
+           ["Meta+W" :window.tab.close]
+           ["Meta+X" :edit.cut]
+           ["Meta+Z" :edit.undo]
+           ["Page Down" :code.page-down]
+           ["Page Up" :code.page-up]
+           ["Period" :scene.realign-camera]
+           ["R" :scene.select-scale-tool]
+           ["Right" :scene.move-right]
+           ["Shift+A" :edit.add-secondary-embedded-component]
+           ["Shift+Alt+Down" :code.select-line-end]
+           ["Shift+Alt+Left" :code.select-previous-word]
+           ["Shift+Alt+Right" :code.select-next-word]
+           ["Shift+Alt+Up" :code.select-line-start]
+           ["Shift+Backspace" :code.delete-previous-char]
+           ["Shift+Ctrl+A" :code.select-line-start]
+           ["Shift+Ctrl+E" :code.select-line-end]
+           ["Shift+Ctrl+Left" :code.select-previous-word]
+           ["Shift+Ctrl+Right" :code.select-next-word]
+           ["Shift+Down" :scene.move-down-major]
+           ["Shift+Down" :code.select-down]
+           ["Shift+E" :scene.select-erase-tool]
+           ["Shift+End" :code.select-line-end]
+           ["Shift+F11" :debugger.step-out]
+           ["Shift+F12" :code.show-references]
+           ["Shift+Home" :code.select-line-text-start]
+           ["Shift+Left" :scene.move-left-major]
+           ["Shift+Left" :code.select-left]
+           ["Shift+Meta+B" :project.clean-build]
+           ["Shift+Meta+M" :project.clean-build-html5]
+           ["Shift+Meta+Down" :code.select-file-end]
+           ["Shift+Meta+E" :scene.visibility.show-last-hidden]
+           ["Shift+Meta+F" :file.search]
+           ["Shift+Meta+G" :code.find-previous]
+           ["Shift+Meta+I" :scene.visibility.toggle-filters]
+           ["Shift+Meta+L" :code.split-selection-into-lines]
+           ["Shift+Meta+Left" :code.select-line-text-start]
+           ["Shift+Meta+R" :project.reload-editor-scripts]
+           ["Shift+Meta+Right" :code.select-line-end]
+           ["Shift+Meta+T" :file.reopen-recent]
+           ["Shift+Meta+Up" :code.select-file-start]
+           ["Shift+Meta+W" :window.tab.close-all]
+           ["Shift+Meta+Y" :file.load-external-changes]
+           ["Shift+Meta+Z" :edit.redo]
+           ["Shift+Page Down" :code.select-page-down]
+           ["Shift+Page Up" :code.select-page-up]
+           ["Shift+Right" :scene.move-right-major]
+           ["Shift+Right" :code.select-right]
+           ["Shift+Tab" :code.tab-backward]
+           ["Shift+Up" :code.select-up]
+           ["Shift+Up" :scene.move-up-major]
+           ["Space" :scene.play]
+           ["Space" :scene.toggle-tile-palette]
+           ["Tab" :code.tab-forward]
+           ["Up" :scene.move-up]
+           ["W" :scene.select-move-tool]
+           ["X" :scene.flip-brush-horizontally]
+           ["Y" :scene.flip-brush-vertically]
+           ["Z" :scene.rotate-brush-90-degrees]]
+   :win32 [["A" :edit.add-embedded-component]
+           ["Alt+Down" :edit.reorder-down]
+           ["Alt+F9" :debugger.edit-breakpoint]
+           ["Alt+R" :file.open-recent]
+           ["Alt+Up" :edit.reorder-up]
+           ["Backspace" :code.delete-previous-char]
+           ["Ctrl+'+'" :code.zoom.increase]
+           ["Ctrl+Add" :code.zoom.increase]
+           ["Ctrl+'-'" :code.zoom.decrease]
+           ["Ctrl+Subtract" :code.zoom.decrease]
+           ["Ctrl+0" :code.zoom.reset]
+           ["Ctrl+A" :code.select-all]
+           ["Ctrl+B" :project.build]
+           ["Ctrl+M" :project.build-html5]
+           ["Ctrl+Backspace" :code.delete-previous-word]
+           ["Ctrl+C" :edit.copy]
+           ["Ctrl+Comma" :app.preferences]
+           ["Ctrl+D" :code.select-next-occurrence]
+           ["Ctrl+Delete" :code.delete-next-word]
+           ["Ctrl+E" :scene.visibility.toggle-selection]
+           ["Ctrl+End" :code.goto-file-end]
+           ["Ctrl+F" :edit.find]
+           ["Ctrl+G" :code.find-next]
+           ["Ctrl+H" :code.replace-text]
+           ["Ctrl+H" :scene.visibility.toggle-component-guides]
+           ["Ctrl+Home" :code.goto-file-start]
+           ["Ctrl+I" :code.reindent]
+           ["Ctrl+L" :code.goto-line]
+           ["Ctrl+Left" :code.goto-previous-word]
+           ["Ctrl+N" :file.new]
+           ["Ctrl+O" :file.open-selected]
+           ["Ctrl+P" :file.open]
+           ["Ctrl+Q" :app.quit]
+           ["Ctrl+R" :run.hot-reload]
+           ["Ctrl+Right" :code.goto-next-word]
+           ["Ctrl+S" :file.save-all]
+           ["Ctrl+'/'" :code.toggle-comment]
+           ["Ctrl+Space" :code.show-completions]
+           ["Ctrl+T" :scene.stop]
+           ["Ctrl+U" :project.rebundle]
+           ["Ctrl+J" :run.stop]
+           ["Ctrl+V" :edit.paste]
+           ["Ctrl+W" :window.tab.close]
+           ["Ctrl+X" :edit.cut]
+           ["Ctrl+Z" :edit.undo]
+           ["Delete" :edit.delete]
+           ["Delete" :code.delete-next-char]
+           ["Down" :scene.move-down]
+           ["E" :scene.select-rotate-tool]
+           ["End" :code.goto-line-end]
+           ["Esc" :code.escape]
+           ["F" :scene.frame-selection]
+           ["F1" :help.open-documentation]
+           ["F10" :debugger.step-over]
+           ["F11" :debugger.step-into]
+           ["F2" :file.rename]
+           ["F5" :debugger.start]
+           ["F5" :debugger.continue]
+           ["F6" :window.toggle-left-pane]
+           ["F7" :window.toggle-bottom-pane]
+           ["F8" :window.toggle-right-pane]
+           ["F9" :debugger.toggle-breakpoint]
+           ["F12" :code.goto-definition]
+           ["Home" :code.goto-line-text-start]
+           ["Left" :scene.move-left]
+           ["Page Down" :code.page-down]
+           ["Page Up" :code.page-up]
+           ["Period" :scene.realign-camera]
+           ["R" :scene.select-scale-tool]
+           ["Right" :scene.move-right]
+           ["Shift+A" :edit.add-secondary-embedded-component]
+           ["Shift+Backspace" :code.delete-previous-char]
+           ["Shift+Ctrl+B" :project.clean-build]
+           ["Shift+Ctrl+M" :project.clean-build-html5]
+           ["Shift+Ctrl+E" :scene.visibility.show-last-hidden]
+           ["Shift+Ctrl+End" :code.select-file-end]
+           ["Shift+Ctrl+F" :file.search]
+           ["Shift+Ctrl+G" :code.find-previous]
+           ["Shift+Ctrl+H" :code.replace-next]
+           ["Shift+Ctrl+Home" :code.select-file-start]
+           ["Shift+Ctrl+I" :scene.visibility.toggle-filters]
+           ["Shift+Ctrl+L" :code.split-selection-into-lines]
+           ["Shift+Ctrl+Left" :code.select-previous-word]
+           ["Shift+Ctrl+R" :project.reload-editor-scripts]
+           ["Shift+Ctrl+Right" :code.select-next-word]
+           ["Shift+Ctrl+T" :file.reopen-recent]
+           ["Shift+Ctrl+W" :window.tab.close-all]
+           ["Shift+Ctrl+Y" :file.load-external-changes]
+           ["Shift+Ctrl+Z" :edit.redo]
+           ["Shift+Down" :scene.move-down-major]
+           ["Shift+Down" :code.select-down]
+           ["Shift+E" :scene.select-erase-tool]
+           ["Shift+End" :code.select-line-end]
+           ["Shift+F11" :debugger.step-out]
+           ["Shift+F12" :code.show-references]
+           ["Shift+F5" :debugger.stop]
+           ["Shift+Home" :code.select-line-text-start]
+           ["Shift+Left" :scene.move-left-major]
+           ["Shift+Left" :code.select-left]
+           ["Shift+Page Down" :code.select-page-down]
+           ["Shift+Page Up" :code.select-page-up]
+           ["Shift+Right" :scene.move-right-major]
+           ["Shift+Right" :code.select-right]
+           ["Shift+Tab" :code.tab-backward]
+           ["Shift+Up" :code.select-up]
+           ["Shift+Up" :scene.move-up-major]
+           ["Space" :scene.play]
+           ["Space" :scene.toggle-tile-palette]
+           ["Tab" :code.tab-forward]
+           ["Up" :scene.move-up]
+           ["W" :scene.select-move-tool]
+           ["X" :scene.flip-brush-horizontally]
+           ["Y" :scene.flip-brush-vertically]
+           ["Z" :scene.rotate-brush-90-degrees]]
+   :linux [["A" :edit.add-embedded-component]
+           ["Alt+Down" :edit.reorder-down]
+           ["Alt+F9" :debugger.edit-breakpoint]
+           ["Alt+R" :file.open-recent]
+           ["Alt+Up" :edit.reorder-up]
+           ["Backspace" :code.delete-previous-char]
+           ["Ctrl+'+'" :code.zoom.increase]
+           ["Ctrl+Add" :code.zoom.increase]
+           ["Ctrl+'-'" :code.zoom.decrease]
+           ["Ctrl+Subtract" :code.zoom.decrease]
+           ["Ctrl+0" :code.zoom.reset]
+           ["Ctrl+A" :code.select-all]
+           ["Ctrl+B" :project.build]
+           ["Ctrl+M" :project.build-html5]
+           ["Ctrl+Backspace" :code.delete-previous-word]
+           ["Ctrl+C" :edit.copy]
+           ["Ctrl+Comma" :app.preferences]
+           ["Ctrl+D" :code.select-next-occurrence]
+           ["Ctrl+Delete" :code.delete-next-word]
+           ["Ctrl+E" :scene.visibility.toggle-selection]
+           ["Ctrl+End" :code.goto-file-end]
+           ["Ctrl+F" :edit.find]
+           ["Ctrl+G" :code.find-next]
+           ["Ctrl+H" :code.replace-text]
+           ["Ctrl+H" :scene.visibility.toggle-component-guides]
+           ["Ctrl+Home" :code.goto-file-start]
+           ["Ctrl+I" :code.reindent]
+           ["Ctrl+L" :code.goto-line]
+           ["Ctrl+Left" :code.goto-previous-word]
+           ["Ctrl+N" :file.new]
+           ["Ctrl+O" :file.open-selected]
+           ["Ctrl+P" :file.open]
+           ["Ctrl+Q" :app.quit]
+           ["Ctrl+R" :run.hot-reload]
+           ["Ctrl+Right" :code.goto-next-word]
+           ["Ctrl+S" :file.save-all]
+           ["Ctrl+'/'" :code.toggle-comment]
+           ["Ctrl+Space" :code.show-completions]
+           ["Ctrl+T" :scene.stop]
+           ["Ctrl+U" :project.rebundle]
+           ["Ctrl+J" :run.stop]
+           ["Ctrl+V" :edit.paste]
+           ["Ctrl+W" :window.tab.close]
+           ["Ctrl+X" :edit.cut]
+           ["Ctrl+Z" :edit.undo]
+           ["Delete" :edit.delete]
+           ["Delete" :code.delete-next-char]
+           ["Down" :scene.move-down]
+           ["E" :scene.select-rotate-tool]
+           ["End" :code.goto-line-end]
+           ["Esc" :code.escape]
+           ["F" :scene.frame-selection]
+           ["F1" :help.open-documentation]
+           ["F10" :debugger.step-over]
+           ["F11" :debugger.step-into]
+           ["F2" :file.rename]
+           ["F5" :debugger.start]
+           ["F5" :debugger.continue]
+           ["F6" :window.toggle-left-pane]
+           ["F7" :window.toggle-bottom-pane]
+           ["F8" :window.toggle-right-pane]
+           ["F9" :debugger.toggle-breakpoint]
+           ["F12" :code.goto-definition]
+           ["Home" :code.goto-line-text-start]
+           ["Left" :scene.move-left]
+           ["Page Down" :code.page-down]
+           ["Page Up" :code.page-up]
+           ["Period" :scene.realign-camera]
+           ["R" :scene.select-scale-tool]
+           ["Right" :scene.move-right]
+           ["Shift+A" :edit.add-secondary-embedded-component]
+           ["Shift+Backspace" :code.delete-previous-char]
+           ["Shift+Ctrl+B" :project.clean-build]
+           ["Shift+Ctrl+M" :project.clean-build-html5]
+           ["Shift+Ctrl+E" :scene.visibility.show-last-hidden]
+           ["Shift+Ctrl+End" :code.select-file-end]
+           ["Shift+Ctrl+F" :file.search]
+           ["Shift+Ctrl+G" :code.find-previous]
+           ["Shift+Ctrl+H" :code.replace-next]
+           ["Shift+Ctrl+Home" :code.select-file-start]
+           ["Shift+Ctrl+I" :scene.visibility.toggle-filters]
+           ["Shift+Ctrl+L" :code.split-selection-into-lines]
+           ["Shift+Ctrl+Left" :code.select-previous-word]
+           ["Shift+Ctrl+R" :project.reload-editor-scripts]
+           ["Shift+Ctrl+Right" :code.select-next-word]
+           ["Shift+Ctrl+T" :file.reopen-recent]
+           ["Shift+Ctrl+W" :window.tab.close-all]
+           ["Shift+Ctrl+Y" :file.load-external-changes]
+           ["Shift+Ctrl+Z" :edit.redo]
+           ["Shift+Down" :scene.move-down-major]
+           ["Shift+Down" :code.select-down]
+           ["Shift+E" :scene.select-erase-tool]
+           ["Shift+End" :code.select-line-end]
+           ["Shift+F11" :debugger.step-out]
+           ["Shift+F12" :code.show-references]
+           ["Shift+F5" :debugger.stop]
+           ["Shift+Home" :code.select-line-text-start]
+           ["Shift+Left" :scene.move-left-major]
+           ["Shift+Left" :code.select-left]
+           ["Shift+Page Down" :code.select-page-down]
+           ["Shift+Page Up" :code.select-page-up]
+           ["Shift+Right" :scene.move-right-major]
+           ["Shift+Right" :code.select-right]
+           ["Shift+Tab" :code.tab-backward]
+           ["Shift+Up" :code.select-up]
+           ["Shift+Up" :scene.move-up-major]
+           ["Space" :scene.play]
+           ["Space" :scene.toggle-tile-palette]
+           ["Tab" :code.tab-forward]
+           ["Up" :scene.move-up]
+           ["W" :scene.select-move-tool]
+           ["X" :scene.flip-brush-horizontally]
+           ["Y" :scene.flip-brush-vertically]
+           ["Z" :scene.rotate-brush-90-degrees]]})
 
 (def ^:private typable-truth-table
   "Only act on key pressed events that look like textual input, and
@@ -491,167 +423,577 @@
 
   Truth table:
 
-  MAC  CTRL ALT  META    RESULT
-  no   no   no   no   => typable
-  no   no   no   yes  => typable  -- Haven't been able to repro META on non-mac, assume not typable if even possible
-  no   no   yes  no   => shortcut
-  no   no   yes  yes  => shortcut
-  no   yes  no   no   => shortcut
-  no   yes  no   yes  => shortcut
-  no   yes  yes  no   => typable
-  no   yes  yes  yes  => typable  -- As above
-  yes  no   no   no   => typable
-  yes  no   no   yes  => shortcut
-  yes  no   yes  no   => typable
-  yes  no   yes  yes  => typable  -- No other tested mac app reacts like this, but seems you can use cmd (Meta) as modifier in keyboard input sources
-  yes  yes  no   no   => shortcut
-  yes  yes  no   yes  => shortcut
-  yes  yes  yes  no   => typable  -- As above
-  yes  yes  yes  yes  => typable  -- As above
+  MAC   CTRL  ALT   META     RESULT
+  false false false false => true
+  false false false true  => true  -- Haven't been able to repro META on non-mac, assume not typable if even possible
+  false false true  false => false
+  false false true  true  => false
+  false true  false false => false
+  false true  false true  => false
+  false true  true  false => true
+  false true  true  true  => true  -- As above
+  true  false false false => true
+  true  false false true  => false
+  true  false true  false => true
+  true  false true  true  => true  -- No other tested macOS app reacts like this, but seems you can use cmd (Meta) as modifier in keyboard input sources
+  true  true  false false => false
+  true  true  false true  => false
+  true  true  true  false => true  -- As above
+  true  true  true  true  => true  -- As above
 
   This does not seem right. We probably want something like that:
 
-    MAC   CTRL  ALT   META  RESULT"
-  {[:no   :no   :no   :no ] :typable
-   [:no   :no   :no   :yes] :shortcut   ;; Now treated as possibly shortcut
-   [:no   :no   :yes  :no ] :shortcut
-   [:no   :no   :yes  :yes] :shortcut
-   [:no   :yes  :no   :no ] :shortcut
-   [:no   :yes  :no   :yes] :shortcut
-   [:no   :yes  :yes  :no ] :typable
-   [:no   :yes  :yes  :yes] :shortcut   ;; As above
-   [:yes  :no   :no   :no ] :typable
-   [:yes  :no   :no   :yes] :shortcut
-   [:yes  :no   :yes  :no ] :typable
-   [:yes  :no   :yes  :yes] :shortcut   ;; Now treated as possibly shortcut
-   [:yes  :yes  :no   :no ] :shortcut
-   [:yes  :yes  :no   :yes] :shortcut
-   [:yes  :yes  :yes  :no ] :typable    ;; As above
-   [:yes  :yes  :yes  :yes] :shortcut}) ;; Now treated as possibly shortcut
+    MAC   CTRL  ALT   META   TYPABLE"
+  {[false false false false] true
+   [false false false true]  false   ;; Now treated as possibly shortcut
+   [false false true  false] false
+   [false false true  true]  false
+   [false true  false false] false
+   [false true  false true]  false
+   [false true  true  false] true
+   [false true  true  true]  false   ;; As above
+   [true  false false false] true
+   [true  false false true]  false
+   [true  false true  false] true
+   [true  false true  true]  false   ;; Now treated as possibly shortcut
+   [true  true  false false] false
+   [true  true  false true]  false
+   [true  true  true  false] true    ;; As above
+   [true  true  true  true]  false}) ;; Now treated as possibly shortcut
 
-(defn- boolean->kw [b]
-  (if b :yes :no))
+(def ^:private key-code->typable-char-strings
+  ;; Based on javafx.scene.input.KeyCodeCombination/getSingleChar
+  ;; Additions: SPACE
+  ;; Deletions: ENTER, LEFT, UP, RIGHT, DOWN
+  {KeyCode/ADD "+"
+   KeyCode/AMPERSAND "&"
+   KeyCode/ASTERISK "*"
+   KeyCode/AT "@"
+   KeyCode/BACK_QUOTE "`"
+   KeyCode/BACK_SLASH "\\"
+   KeyCode/BRACELEFT "{"
+   KeyCode/BRACERIGHT "}"
+   KeyCode/CIRCUMFLEX "^"
+   KeyCode/CLOSE_BRACKET "]"
+   KeyCode/COLON ":"
+   KeyCode/COMMA ","
+   KeyCode/DECIMAL "."
+   KeyCode/DIGIT0 "0"
+   KeyCode/DIGIT1 "1"
+   KeyCode/DIGIT2 "2"
+   KeyCode/DIGIT3 "3"
+   KeyCode/DIGIT4 "4"
+   KeyCode/DIGIT5 "5"
+   KeyCode/DIGIT6 "6"
+   KeyCode/DIGIT7 "7"
+   KeyCode/DIGIT8 "8"
+   KeyCode/DIGIT9 "9"
+   KeyCode/DIVIDE "/"
+   KeyCode/DOLLAR "$"
+   KeyCode/EQUALS "="
+   KeyCode/EURO_SIGN "€"
+   KeyCode/EXCLAMATION_MARK "!"
+   KeyCode/GREATER ">"
+   KeyCode/LEFT_PARENTHESIS "("
+   KeyCode/LESS "<"
+   KeyCode/MINUS "-"
+   KeyCode/MULTIPLY "*"
+   KeyCode/NUMBER_SIGN "#"
+   KeyCode/OPEN_BRACKET "["
+   KeyCode/PERIOD "."
+   KeyCode/PLUS "+"
+   KeyCode/QUOTE "\""
+   KeyCode/RIGHT_PARENTHESIS ")"
+   KeyCode/SEMICOLON ";"
+   KeyCode/SLASH "/"
+   KeyCode/SPACE " "
+   KeyCode/SUBTRACT "-"
+   KeyCode/UNDERSCORE "_"})
 
 (defn typable?
-  ([key-combo-data]
-   (typable? key-combo-data (os/os)))
-  ([{:keys [alt-down? control-down? meta-down?]} os]
-   (let [mac? (= os :macos)]
-     (-> typable-truth-table
-         (get (mapv boolean->kw [mac? control-down? alt-down? meta-down?]))
-         (= :typable)))))
+  "Returns true if the input is typable (on a specific OS)
 
-(defn- platform-typable-shortcut? [key-combo-data os]
-  (and (typable? key-combo-data os)
-       (= 1 (count (:key key-combo-data)))))
+  Args:
+    key    either KeyCombination or KeyEvent
+    os     target os keyword (:linux, :macos or :win32), defaults to host os"
+  ([key-data-source]
+   (typable? key-data-source (os/os)))
+  ([key os]
+   (let [mac (= os :macos)]
+     (condp instance? key
+       KeyCombination
+       (let [^KeyCombination key key]
+         (and (typable-truth-table
+                [mac
+                 (= KeyCombination$ModifierValue/DOWN (.getControl key))
+                 (= KeyCombination$ModifierValue/DOWN (.getAlt key))
+                 (= KeyCombination$ModifierValue/DOWN (.getMeta key))])
+              (= 1 (count
+                     (condp instance? key
+                       KeyCodeCombination
+                       (let [code (.getCode ^KeyCodeCombination key)]
+                         (or (key-code->typable-char-strings code)
+                             (.getName code)))
 
-(defn- key-binding-data [key-bindings]
-  (map (fn [[shortcut command]]
-         (let [key-combo (KeyCombination/keyCombination shortcut)
-               key-combo-data (key-combo->map key-combo)]
-           {:shortcut shortcut
-            :command command
-            :key-combo key-combo
-            :key-combo-data key-combo-data}))
-       key-bindings))
+                       KeyCharacterCombination
+                       (.getCharacter ^KeyCharacterCombination key))))))
 
-(defn- key-binding-data->keymap
-  [key-bindings-data platform valid-command? allowed-duplicate-shortcuts allowed-typable-shortcuts]
-  (reduce (fn [ret {:keys [key-combo-data shortcut command ^KeyCombination key-combo]}]
-            (cond
-              (not (valid-command? command))
-              (update ret :errors conj {:type :unknown-command
-                                        :command command
-                                        :shortcut shortcut})
+       KeyEvent
+       (let [^KeyEvent key key]
+         (typable-truth-table
+           [mac
+            (.isControlDown key)
+            (.isAltDown key)
+            (.isMetaDown key)]))))))
 
-              (not= shortcut (.getName key-combo))
-              (update ret :errors conj {:type :unknown-shortcut
-                                        :command command
-                                        :shortcut shortcut})
+(def empty
+  {;; KeyCombination->#{command}
+   :shortcut->commands {}
+   ;; command->#{KeyCombination}
+   :command->shortcuts {}
+   ;; command->KeyCombination->{:type ...}
+   :command->shortcut->warnings {}})
 
-              (:shortcut-down? key-combo-data)
-              (update ret :errors conj {:type :shortcut-key
-                                        :command command
-                                        :shortcut shortcut})
+(def ^:private set-conj (fnil conj #{}))
 
-              (and (platform-typable-shortcut? key-combo-data platform)
-                   (not (allowed-typable-shortcuts shortcut)))
-              (update ret :errors conj {:type :typable-shortcut
-                                        :command command
-                                        :shortcut shortcut})
+(defn- update-removing-empty
+  ([m k f v]
+   (let [v (f (get m k) v)]
+     (if (coll/empty? v)
+       (dissoc m k)
+       (assoc m k v))))
+  ([m k f v1 v2 v3]
+   (let [v (f (get m k) v1 v2 v3)]
+     (if (coll/empty? v)
+       (dissoc m k)
+       (assoc m k v)))))
 
-              (and (some? (get-in ret [:keymap key-combo-data]))
-                   (not (allowed-duplicate-shortcuts shortcut)))
-              (update ret :errors into [{:type :duplicate-shortcut
-                                         :command command
-                                         :shortcut shortcut}
-                                        {:type :duplicate-shortcut
-                                         :command (get-in ret [:keymap key-combo-data])
-                                         :shortcut shortcut}])
+(defn from
+  "Make a keymap based on another keymap
 
-              :else
-              (update-in ret [:keymap key-combo-data] (fnil conj []) {:command command
-                                                                      :shortcut shortcut
-                                                                      :key-combo key-combo})))
-          {:keymap {}
-           :errors #{}}
-          key-bindings-data))
+  Args:
+    parent     the parent keymap (see [[empty]], [[default]])
+    os         target os keyword (:macos, :linux or :win32), defaults to host os
+    changes    map of command keyword keys and map vals with the following keys:
+                 :add       set of new shortcuts (strings like \"Meta+A\") to
+                            add
+                 :remove    set of existing shortcuts (strings) to remove"
+  ([parent changes]
+   (from parent (os/os) changes))
+  ([parent os changes]
+   (-> (reduce-kv
+         (fn [acc command {:keys [add remove]}]
+           (let [acc (reduce
+                       (fn [acc s]
+                         (let [shortcut (KeyCombination/valueOf s)]
+                           (if (-> acc :shortcut->commands (get shortcut) (contains? command))
+                             (-> acc
+                                 (update :shortcut->commands update-removing-empty shortcut disj command)
+                                 (update :command->shortcuts update-removing-empty command disj shortcut)
+                                 (update :command->shortcut->warnings update-removing-empty command dissoc shortcut)
+                                 (as-> $
+                                       (reduce
+                                         (fn [acc warning]
+                                           (case (:type warning)
+                                             :conflict (update acc :command->shortcut->warnings
+                                                               update-removing-empty (:command warning)
+                                                               update-removing-empty shortcut
+                                                               disj {:type :conflict :command command})
+                                             acc))
+                                         $
+                                         (-> acc :command->shortcut->warnings (get command) (get shortcut)))))
+                             acc)))
+                       acc
+                       remove)
+                 acc (reduce
+                       (fn [acc s]
+                         (let [shortcut (KeyCombination/valueOf s)]
+                           (-> acc
+                               (update-in [:shortcut->commands shortcut] set-conj command)
+                               (update-in [:command->shortcuts command] set-conj shortcut)
+                               (cond->
+                                 (= KeyCombination$ModifierValue/DOWN (.getShortcut shortcut))
+                                 (update-in [:command->shortcut->warnings command shortcut] set-conj {:type :shortcut-modifier})
 
-(defn- make-keymap*
-  [key-bindings platform valid-command? allowed-duplicate-shortcuts allowed-typable-shortcuts]
-  (-> (key-binding-data key-bindings)
-      (key-binding-data->keymap platform valid-command? allowed-duplicate-shortcuts allowed-typable-shortcuts)))
+                                 (not= s (.getName shortcut))
+                                 (update-in [:command->shortcut->warnings command shortcut] set-conj {:type :non-canonical-name})
 
-(defn make-keymap
-  ([key-bindings]
-   (make-keymap key-bindings nil))
-  ([key-bindings {:keys [valid-command?
-                         platform
-                         throw-on-error?
-                         allowed-duplicate-shortcuts
-                         allowed-typable-shortcuts]
-                  :or   {valid-command? fn/constantly-true
-                         platform (os/os)
-                         throw-on-error? false
-                         allowed-duplicate-shortcuts default-allowed-duplicate-shortcuts
-                         allowed-typable-shortcuts default-allowed-typable-shortcuts}}]
-   (let [{:keys [errors keymap]} (make-keymap* key-bindings platform valid-command? allowed-duplicate-shortcuts allowed-typable-shortcuts)]
-     (if (and (seq errors) throw-on-error?)
-       (throw (ex-info "Keymap has errors"
-                       {:errors       errors
-                        :key-bindings key-bindings}))
-       keymap))))
+                                 (typable? shortcut os)
+                                 (update-in [:command->shortcut->warnings command shortcut] set-conj {:type :typable})
 
-(defn command->shortcut
-  [keymap]
-  (into {}
-        (comp cat
-              (map (fn [{:keys [command shortcut]}]
-                     [command shortcut])))
-        (vals keymap)))
+                                 (contains? (:shortcut->commands acc) shortcut)
+                                 (as-> $
+                                       (reduce
+                                         (fn [acc conflicting-command]
+                                           (-> acc
+                                               (update-in [:command->shortcut->warnings conflicting-command shortcut] set-conj {:type :conflict :command command})
+                                               (update-in [:command->shortcut->warnings command shortcut] set-conj {:type :conflict :command conflicting-command})))
+                                         $
+                                         (disj (get (:shortcut->commands acc) shortcut) command)))))))
+                       acc
+                       add)]
+             acc))
+         parent
+         changes))))
 
-(defn- execute-command
-  [commands]
-  ;; It is imperative that the handler is invoked using run-later as
-  ;; this avoids a JVM crash on some macOS versions. Prior to macOS
-  ;; Sierra, the order in which native menu events are delivered
-  ;; triggered a segfault in the native menu implementation when the
-  ;; stage is changed during the event dispatch. This happens for
-  ;; example when we have a shortcut triggering the opening of a
-  ;; dialog.
-  (ui/run-later (let [command-contexts (ui/contexts (ui/main-scene))]
-                  (loop [[command & rest] commands]
-                    (when (some? command)
-                      (let [ret (ui/invoke-handler command-contexts command)]
-                        (if (or (= ret ::ui/not-active)
-                                (= ret ::ui/not-enabled))
-                          (recur rest)
-                          ret)))))))
+(def ^:private ^{:arglists '([os])} default-keymap
+  (fn/memoize
+    (fn [os]
+      (from
+        empty
+        os
+        (-> {}
+            (util/group-into #{} #(% 1) #(% 0) (platform->default-key-bindings os))
+            (update-vals (fn [s] {:add s})))))))
 
-(defn install-key-bindings!
-  [^Scene scene keymap]
-  (let [accelerators (.getAccelerators scene)]
-    (run! (fn [[_ commands]]
-            (let [key-combo (-> commands first :key-combo)]
-              (.put accelerators key-combo #(execute-command (map :command commands)))))
-          keymap)))
+(defn default
+  "Returns default keymap (for a given os)"
+  ([]
+   (default (os/os)))
+  ([os]
+   (default-keymap os)))
+
+(defn from-prefs
+  "Returns a keymap with changes taken from prefs"
+  ([prefs]
+   (from-prefs @prefs/global-state prefs))
+  ([prefs-state prefs]
+   (let [os (os/os)]
+     (from (default-keymap os) os (prefs/get prefs-state prefs [:window :keymap])))))
+
+(defn warnings
+  ([keymap]
+   (:command->shortcut->warnings keymap))
+  ([keymap command]
+   (get (warnings keymap) command))
+  ([keymap command shortcut]
+   {:pre [(or (string? shortcut) (instance? KeyCombination shortcut))]}
+   (let [shortcut (if (string? shortcut) (KeyCombination/valueOf shortcut) shortcut)]
+     (get (warnings keymap command) shortcut))))
+
+(defn shortcuts
+  "Returns a non-empty set of KeyCombination shortcuts for a command (or nil)"
+  [keymap command]
+  (get (:command->shortcuts keymap) command))
+
+(defn commands
+  "Returns a non-empty set of commands or nil
+
+  When provided a shortcut, returns commands or nil for the shortcut"
+  ([keymap]
+   (coll/not-empty (into #{} (keys (:command->shortcuts keymap)))))
+  ([keymap shortcut]
+   {:pre [(or (string? shortcut) (instance? KeyCombination shortcut))]}
+   (let [shortcut (if (string? shortcut) (KeyCombination/valueOf shortcut) shortcut)]
+     (get (:shortcut->commands keymap) shortcut))))
+
+(defn display-text
+  "Return a display text string for one of its shortcuts (or not-found value)"
+  [keymap command not-found]
+  (if-let [s (shortcuts keymap command)]
+    (.getDisplayText ^KeyCombination (first s))
+    not-found))
+
+(defn install!
+  "Install a keymap on a scene, replacing any predefined accelerators"
+  [keymap ^Scene scene execute-fn]
+  (doto (.getAccelerators scene)
+    (.clear)
+    (.putAll (persistent!
+               (reduce-kv
+                 (fn [acc shortcut commands]
+                   (assoc! acc shortcut #(execute-fn commands)))
+                 (transient {})
+                 (:shortcut->commands keymap)))))
+  nil)
+
+(defn shortcut-display-text
+  "Default display text of a shortcut"
+  [^KeyCombination shortcut]
+  (.getDisplayText shortcut))
+
+(defn shortcut-distinct-display-text
+  "Display text for a shortcut that takes shortcut type into account"
+  ([shortcut]
+   (shortcut-distinct-display-text shortcut (os/os)))
+  ([^KeyCombination shortcut os]
+   (condp instance? shortcut
+     KeyCodeCombination (.getDisplayText shortcut)
+     KeyCharacterCombination
+     (let [sb (StringBuilder.)
+           control (= KeyCombination$ModifierValue/DOWN (.getControl shortcut))
+           alt (= KeyCombination$ModifierValue/DOWN (.getAlt shortcut))
+           shift (= KeyCombination$ModifierValue/DOWN (.getShift shortcut))
+           meta (= KeyCombination$ModifierValue/DOWN (.getMeta shortcut))
+           shortcut-modifier (= KeyCombination$ModifierValue/DOWN (.getShortcut shortcut))]
+       (if (= os :macos)
+         (cond-> sb
+                 control (.append "⌃")
+                 alt (.append "⌥")
+                 shift (.append "⇧")
+                 (or meta shortcut-modifier) (.append "⌘"))
+         (cond-> sb
+                 (or control shortcut-modifier) (.append "Ctrl+")
+                 alt (.append "Alt+")
+                 shift (.append "Shift+")
+                 meta (.append "Meta+")))
+       (let [char-str (.getCharacter ^KeyCharacterCombination shortcut)]
+         (if (= "'" char-str)
+           (.append sb "\"'\"")
+           (.append sb (str "'" char-str "'"))))
+       (.toString sb)))))
+
+(defn shortcut-filterable-text
+  "User-typable shortcut text, uses Cmd/Win instead of Meta depending on the os"
+  ([^KeyCombination shortcut]
+   (shortcut-filterable-text shortcut (os/os)))
+  ([^KeyCombination shortcut os]
+   (let [sb (StringBuilder.)
+         control (= KeyCombination$ModifierValue/DOWN (.getControl shortcut))
+         alt (= KeyCombination$ModifierValue/DOWN (.getAlt shortcut))
+         shift (= KeyCombination$ModifierValue/DOWN (.getShift shortcut))
+         meta (= KeyCombination$ModifierValue/DOWN (.getMeta shortcut))
+         shortcut-modifier (= KeyCombination$ModifierValue/DOWN (.getShortcut shortcut))]
+     ;; See https://github.com/microsoft/vscode/blob/7ec68793e7d971def8c2ea3f669b8f85ebc726a4/src/vs/base/common/keybindingLabels.ts#L130-L152
+     (case os
+       :macos (cond-> sb
+                      control (.append "Ctrl+")
+                      alt (.append "Alt+")
+                      shift (.append "Shift+")
+                      (or meta shortcut-modifier) (.append "Cmd+"))
+       :win32 (cond-> sb
+                      (or control shortcut-modifier) (.append "Ctrl+")
+                      alt (.append "Alt+")
+                      shift (.append "Shift+")
+                      meta (.append "Win+"))
+       :linux (cond-> sb
+                      (or control shortcut-modifier) (.append "Ctrl+")
+                      alt (.append "Alt+")
+                      shift (.append "Shift+")
+                      meta (.append "Meta+")))
+     (condp instance? shortcut
+       KeyCharacterCombination
+       (.append sb (.getCharacter ^KeyCharacterCombination shortcut))
+
+       KeyCodeCombination
+       (let [code (.getCode ^KeyCodeCombination shortcut)]
+         (.append sb (or (when (= KeyCode/SPACE code) (.getName code))
+                         (key-code->typable-char-strings code)
+                         (.getName code)))))
+     (.toString sb))))
+
+;; TODO: remove migration from legacy keymap file after sufficient time has passed (e.g. after 2026-04-08)
+
+(defn migrate-from-file! [prefs]
+  (let [legacy-keymap-path (prefs/get prefs [:input :keymap-path])
+        legacy->new-command {:about :app.about
+                             :asset-portal :help.open-asset-portal
+                             :documentation :help.open-documentation
+                             :donate :help.open-donations
+                             :support-forum :help.open-forum
+                             :search-issues :help.open-issues
+                             :show-logs :help.open-logs
+                             :report-issue :help.report-issue
+                             :report-suggestion :help.report-suggestion
+                             :build :project.build
+                             :build-html5 :project.build-html5
+                             :bundle :project.bundle
+                             :bundle-android :project.bundle-android
+                             :bundle-html5 :project.bundle-html5
+                             :bundle-ios :project.bundle-ios
+                             :bundle-linux :project.bundle-linux
+                             :bundle-macos :project.bundle-macos
+                             :bundle-windows :project.bundle-windows
+                             :rebuild :project.clean-build
+                             :rebuild-html5 :project.clean-build-html5
+                             :fetch-libraries :project.fetch-libraries
+                             :async-reload :file.load-external-changes
+                             :rebundle :project.rebundle
+                             :reload-extensions :project.reload-editor-scripts
+                             :hot-reload :run.hot-reload
+                             :engine-profile-show :run.open-profiler
+                             :engine-resource-profile-show :run.open-resource-profiler
+                             :toggle-pane-bottom :window.toggle-bottom-pane
+                             :toggle-pane-left :window.toggle-left-pane
+                             :toggle-pane-right :window.toggle-right-pane
+                             :close :window.tab.close
+                             :close-all :window.tab.close-all
+                             :close-other :window.tab.close-others
+                             :join-tab-panes :window.tab.join-groups
+                             :move-tab :window.tab.move-to-other-group
+                             :swap-tabs :window.tab.swap-with-other-group
+                             :break :debugger.break
+                             :continue :debugger.continue
+                             :detach-debugger :debugger.detach
+                             :edit-breakpoint :debugger.edit-breakpoint
+                             :start-debugger :debugger.start
+                             :step-into :debugger.step-into
+                             :step-out :debugger.step-out
+                             :step-over :debugger.step-over
+                             :stop-debugger :debugger.stop
+                             :toggle-breakpoint :debugger.toggle-breakpoint
+                             :zoom-out :code.zoom.decrease
+                             :zoom-in :code.zoom.increase
+                             :reset-zoom :code.zoom.reset
+                             :create-desktop-entry :file.create-desktop-entry
+                             :new-file :file.new
+                             :new-folder :file.new-folder
+                             :open-as :file.open-as
+                             :show-in-desktop :file.show-in-desktop
+                             :live-update-settings :file.open-liveupdate-settings
+                             :open-project :file.open-project
+                             :open-recent-file :file.open-recent
+                             :shared-editor-settings :file.open-shared-editor-settings
+                             :preferences :app.preferences
+                             :quit :app.quit
+                             :show-search-results :window.show-search-results
+                             :show-build-errors :window.show-build-errors
+                             :show-console :window.show-console
+                             :show-curve-editor :window.show-curve-editor
+                             :show-overrides :edit.show-overrides
+                             :proposals :code.show-completions
+                             :find-references :code.show-references
+                             :goto-definition :code.goto-definition
+                             :toggle-comment :code.toggle-comment
+                             :toggle-indentation-guides :code.toggle-indentation-guides
+                             :toggle-minimap :code.toggle-minimap
+                             :toggle-visible-whitespace :code.toggle-visible-whitespace
+                             :copy-full-path :edit.copy-absolute-path
+                             :copy-project-path :edit.copy-resource-path
+                             :copy-require-path :edit.copy-require-path
+                             :cut :edit.cut
+                             :copy :edit.copy
+                             :paste :edit.paste
+                             :redo :edit.redo
+                             :undo :edit.undo
+                             :target :run.select-target
+                             :target-ip :run.set-target-ip
+                             :target-log :run.show-target-log
+                             :close-engine :run.stop
+                             :set-rotate-device :run.toggle-device-rotated
+                             :reset-custom-resolution :run.reset-resolution
+                             :set-instance-count :run.set-instance-count
+                             :frame-selection :scene.frame-selection
+                             :flip-brush-horizontally :scene.flip-brush-horizontally
+                             :flip-brush-vertically :scene.flip-brush-vertically
+                             :rotate-brush-90-degrees :scene.rotate-brush-90-degrees
+                             :realign-camera :scene.realign-camera
+                             :erase-tool :scene.select-erase-tool
+                             :move-tool :scene.select-move-tool
+                             :rotate-tool :scene.select-rotate-tool
+                             :scale-tool :scene.select-scale-tool
+                             :show-palette :scene.toggle-tile-palette
+                             :hide-unselected :scene.visibility.hide-unselected
+                             :show-all-hidden :scene.visibility.show-all
+                             :show-last-hidden :scene.visibility.show-last-hidden
+                             :show-visibility-settings :scene.visibility.show-settings
+                             :toggle-component-guides :scene.visibility.toggle-component-guides
+                             :toggle-visibility-filters :scene.visibility.toggle-filters
+                             :toggle-grid :scene.visibility.toggle-grid
+                             :hide-toggle-selected :scene.visibility.toggle-selection
+                             :clear-console :console.clear
+                             :reload-stylesheet :dev.reload-css
+                             :diff :vcs.diff
+                             :revert :vcs.revert
+                             :toggle-perspective-camera :scene.toggle-camera-type
+                             :toggle-move-whole-pixels :scene.toggle-move-whole-pixels
+                             :toggle-2d-mode :scene.toggle-interaction-mode
+                             :rename :file.rename
+                             :reopen-recent-file :file.reopen-recent
+                             :save-all :file.save-all
+                             :save-and-upgrade-all :file.save-and-upgrade-all
+                             :search-in-files :file.search
+                             :dependencies :file.show-dependencies
+                             :show-in-asset-browser :file.show-in-assets
+                             :referencing-files :file.show-references
+                             :down :scene.move-down
+                             :down-major :scene.move-down-major
+                             :left :scene.move-left
+                             :left-major :scene.move-left-major
+                             :right :scene.move-right
+                             :right-major :scene.move-right-major
+                             :up :scene.move-up
+                             :up-major :scene.move-up-major
+                             :move-down :edit.reorder-down
+                             :move-up :edit.reorder-up
+                             :select-up :code.select-up
+                             :select-right :code.select-right
+                             :select-down :code.select-down
+                             :select-left :code.select-left
+                             :select-next-word :code.select-next-word
+                             :select-prev-word :code.select-previous-word
+                             :select-page-down :code.select-page-down
+                             :select-page-up :code.select-page-up
+                             :split-selection-into-lines :code.split-selection-into-lines
+                             :backwards-tab-trigger :code.tab-backward
+                             :tab :code.tab-forward
+                             :select-end-of-line :code.select-line-end
+                             :select-beginning-of-line :code.select-line-start
+                             :select-beginning-of-line-text :code.select-line-text-start
+                             :select-next-occurrence :code.select-next-occurrence
+                             :select-all :code.select-all
+                             :select-end-of-file :code.select-file-end
+                             :select-beginning-of-file :code.select-file-start
+                             :end-of-file :code.goto-file-end
+                             :beginning-of-file :code.goto-file-start
+                             :goto-line :code.goto-line
+                             :end-of-line :code.goto-line-end
+                             :beginning-of-line :code.goto-line-start
+                             :beginning-of-line-text :code.goto-line-text-start
+                             :next-word :code.goto-next-word
+                             :prev-word :code.goto-previous-word
+                             :page-down :code.page-down
+                             :page-up :code.page-up
+                             :reindent :code.reindent
+                             :replace-all :code.replace-all
+                             :replace-next :code.replace-next
+                             :replace-text :code.replace-text
+                             :delete-next-word :code.delete-next-word
+                             :delete-backward :code.delete-previous-char
+                             :delete-prev-word :code.delete-previous-word
+                             :escape :code.escape
+                             :find-next :code.find-next
+                             :find-prev :code.find-previous
+                             :scene-play :scene.play
+                             :scene-stop :scene.stop
+                             :set-manip-space :scene.set-manipulator-space
+                             :set-camera-type :scene.set-camera-type
+                             :set-gui-layout :scene.set-gui-layout
+                             :convert-indentation :code.convert-indentation
+                             :find-text :edit.find
+                             :filter-form :edit.find
+                             :sort-lines :code.sort-lines
+                             :sort-lines-case-sensitive :code.sort-lines
+                             :set-custom-resolution :run.set-resolution
+                             :set-resolution :run.set-resolution
+                             :delete :edit.delete
+                             :add-secondary-from-file :edit.add-secondary-referenced-component
+                             :add-secondary :edit.add-secondary-embedded-component
+                             :add-from-file :edit.add-referenced-component
+                             :add :edit.add-embedded-component
+                             :open-asset :file.open
+                             :open :file.open-selected}]
+    (when (and (not= "" legacy-keymap-path)
+               (= {} (prefs/get prefs [:window :keymap])))
+      (let [keymap (default)]
+        (try
+          (prefs/set!
+            prefs
+            [:window :keymap]
+            (->> legacy-keymap-path
+                 slurp
+                 edn/read-string
+                 (e/keep
+                   (fn [[shortcut-str legacy-command]]
+                     (when-let [command (legacy->new-command legacy-command)]
+                       (coll/pair shortcut-str command))))
+                 (util/group-into {} [] key val)
+                 (reduce
+                   (fn [acc [shortcut shortcut-commands]]
+                     (let [conflicting-commands (commands keymap shortcut)
+                           acc (reduce #(update-in %1 [%2 :add] set-conj shortcut) acc shortcut-commands)
+                           acc (reduce #(update-in %1 [%2 :remove] set-conj shortcut) acc conflicting-commands)]
+                       acc))
+                   {})))
+          (catch Exception e (log/error :message "Failed to migrate legacy prefs" :exception e))
+          (finally (prefs/set! prefs [:input :keymap-path] "")))))))

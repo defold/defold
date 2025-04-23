@@ -21,6 +21,7 @@
             [editor.dialogs :as dialogs]
             [editor.error-reporting :as error-reporting]
             [editor.gl :as gl]
+            [editor.keymap :as keymap]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.system :as system]
@@ -126,9 +127,11 @@
 
   (let [args (Arrays/asList args)
         opts (cli/parse-opts args cli-options)
-        prefs (if-let [prefs-path (get-in opts [:options :preferences])]
-                (prefs/global prefs-path)
-                (doto (prefs/global) prefs/migrate-global-prefs!))
+        prefs (doto
+                (if-let [prefs-path (get-in opts [:options :preferences])]
+                  (prefs/global prefs-path)
+                  (doto (prefs/global) prefs/migrate-global-prefs!))
+                keymap/migrate-from-file!)
         updater (updater/start!)
         analytics-url (get connection-properties :analytics-url)
         analytics-send-interval 300]

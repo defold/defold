@@ -83,7 +83,7 @@
                ; Select the collection node
                (app-view/select! app-view [node-id])
                ; Run the add handler
-               (test-util/handler-run :add [{:name :workbench :env {:workspace workspace :project project :app-view app-view :selection [node-id]}}] {})
+               (test-util/handler-run :edit.add-embedded-component [{:name :workbench :env {:workspace workspace :project project :app-view app-view :selection [node-id]}}] {})
                ; Three game objects under the collection
                (is (= 3 (count (:children (g/node-value node-id :node-outline)))))))))
 
