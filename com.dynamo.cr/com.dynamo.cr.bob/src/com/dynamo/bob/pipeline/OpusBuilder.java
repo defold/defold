@@ -33,12 +33,11 @@ import com.dynamo.bob.fs.IResource;
 
 @BuilderParams(name = "Opus", inExts = ".opus", outExt = ".opusc")
 public class OpusBuilder extends CopyBuilder{
+    private static String oggzValidateExePath;
 
     @Override
     public Task create(IResource input) throws IOException, CompileExceptionError {
         Platform curr_platform = Platform.getHostPlatform();
-        List<String> deps = List.of("libogg", "liboggz");
-        Bob.unpackSharedLibraries(curr_platform, deps);
         File tmpOggFile = null;
         try {
             tmpOggFile = File.createTempFile("ogg_tmp", null, Bob.getRootFolder());
@@ -52,9 +51,8 @@ public class OpusBuilder extends CopyBuilder{
             throw new CompileExceptionError(input, 0, 
                 String.format("Cannot copy opus(ogg) file to further process", new String(exc.getMessage())));
         }
-        Result result = Exec.execResult(Bob.getExe(curr_platform, "oggz-validate"),
-            tmpOggFile.getAbsolutePath()
-        );
+        oggzValidateExePath = getExeOnce("oggz-validate", oggzValidateExePath);
+        Result result = Exec.execResult(oggzValidateExePath, tmpOggFile.getAbsolutePath());
 
         if (result.ret != 0) {
             throw new CompileExceptionError(input, 0, 

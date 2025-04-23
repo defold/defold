@@ -171,17 +171,9 @@ public abstract class LuaBuilder extends Builder {
 
         // check if the platform is using Lua 5.1 or LuaJIT
         // get path of LuaJIT executable if the platform uses LuaJIT
-        //
-        // note: Bob.getExe() will also copy the executable from the archive
-        // so that it can be used. We do this here to avoid problems if the
-        // exe is copied in the multi-threaded build stage
-        // https://bugs.openjdk.org/browse/JDK-8068370
         Bob.initLua();
         useLua51 = LUA51_PLATFORMS.contains(this.project.getPlatform());
-        if (luaJITExePath == null) {
-            final Platform host = Platform.getHostPlatform();
-            luaJITExePath = Bob.getExe(host, "luajit-64");
-        }
+        luaJITExePath = getExeOnce("luajit-64", luaJITExePath);
 
         return taskBuilder.build();
     }
