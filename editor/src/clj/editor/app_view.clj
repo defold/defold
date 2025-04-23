@@ -90,17 +90,17 @@
            [com.sun.javafx.scene NodeHelper]
            [java.io File PipedInputStream PipedOutputStream]
            [java.net URL]
-           [java.util Collection List]
+           [java.util Arrays Collection List]
            [java.util.concurrent ExecutionException]
            [javafx.beans.value ChangeListener]
            [javafx.collections ListChangeListener ObservableList]
            [javafx.event Event]
            [javafx.geometry HPos Orientation Pos]
-           [javafx.scene Parent Scene]
-           [javafx.scene.control Label MenuBar SplitPane Tab TabPane TabPane$TabClosingPolicy TabPane$TabDragPolicy Tooltip]
+           [javafx.scene Parent Scene Node]
+           [javafx.scene.control Label Hyperlink MenuBar SplitPane Tab TabPane TabPane$TabClosingPolicy TabPane$TabDragPolicy Tooltip]
            [javafx.scene.image Image ImageView]
            [javafx.scene.input Clipboard ClipboardContent MouseButton MouseEvent]
-           [javafx.scene.layout AnchorPane GridPane HBox Region StackPane]
+           [javafx.scene.layout AnchorPane GridPane VBox HBox Region StackPane Priority]
            [javafx.scene.paint Color]
            [javafx.scene.shape Ellipse]
            [javafx.scene.text Font]
@@ -2011,26 +2011,45 @@ If you do not specifically require different script states, consider changing th
       (ui/on-closed! stage (fn [_] (dispose-scene-views! app-view)))
       app-view)))
 
+(defn- make-info-box! []
+  (let [info-panel (HBox.)
+        left-label (Label. "This file is part of a library and cannot be saved.  ")
+        right-link (Hyperlink. "Read more…")
+        spacer (Region.)]
+    (HBox/setHgrow spacer Priority/ALWAYS)
+    (.getStyleClass info-panel)
+    (ui/set-style! info-panel "info-panel" true)
+    (ui/set-style! left-label "info-panel-label" true)
+    (ui/set-style! right-link "info-panel-link" true)
+    (.setOnAction right-link (ui/event-handler _ (ui/open-url "https://defold.com/manuals/libraries/#editing-files-in-library-dependencies")))
+    (.addAll  (.getChildren info-panel) (Arrays/asList (into-array Node [left-label spacer right-link])))
+    info-panel))
+
 (defn- make-tab! [app-view prefs workspace project resource resource-node
                   resource-type view-type make-view-fn ^ObservableList tabs
                   open-resource opts]
-  (let [parent     (AnchorPane.)
-        tab        (doto (Tab. (tab-title resource false))
-                     (.setContent parent)
-                     (.setTooltip (Tooltip. (or (resource/proj-path resource) "unknown")))
-                     (ui/user-data! ::view-type view-type))
+  (let [parent (AnchorPane.)
+        tab-content (if (resource/read-only? resource)
+                      (doto (VBox.)
+                        (ui/children! [(make-info-box!)
+                                       (doto parent (VBox/setVgrow Priority/ALWAYS))]))
+                      parent)
+        tab (doto (Tab. (tab-title resource false))
+              (.setContent tab-content)
+              (.setTooltip (Tooltip. (or (resource/proj-path resource) "unknown")))
+              (ui/user-data! ::view-type view-type))
         view-graph (g/make-graph! :history false :volatility 2)
-        select-fn  (partial select app-view)
-        opts       (merge opts
-                          (get (:view-opts resource-type) (:id view-type))
-                          {:app-view app-view
-                           :select-fn select-fn
-                           :open-resource-fn (partial open-resource app-view prefs workspace project)
-                           :prefs prefs
-                           :project project
-                           :workspace workspace
-                           :tab tab})
-        view       (make-view-fn view-graph parent resource-node opts)]
+        select-fn (partial select app-view)
+        opts (merge opts
+                    (get (:view-opts resource-type) (:id view-type))
+                    {:app-view app-view
+                     :select-fn select-fn
+                     :open-resource-fn (partial open-resource app-view prefs workspace project)
+                     :prefs prefs
+                     :project project
+                     :workspace workspace
+                     :tab tab})
+        view (make-view-fn view-graph parent resource-node opts)]
     (assert (g/node-instance? view/WorkbenchView view))
     (recent-files/add! prefs resource view-type)
     (g/transact
