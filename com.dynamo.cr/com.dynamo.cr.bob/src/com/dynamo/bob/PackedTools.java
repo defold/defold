@@ -6,6 +6,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.JarURLConnection;
 import java.net.URL;
+import java.util.jar.JarFile;
 
 public class PackedTools {
     // Async unpack state and synchronization
@@ -37,34 +38,34 @@ public class PackedTools {
         if (libexecRoot.getProtocol().equals("jar")) {
             try {
                 JarURLConnection jarConnection = (JarURLConnection) libexecRoot.openConnection();
-                try (var jarFile = jarConnection.getJarFile()) {
-                    String basePath = "libexec/" + platformPair + "/";
-                    String luaZip = "lib/luajit-share.zip";
-                    jarFile.stream().forEach(entry -> {
-                        String name = entry.getName();
-                        if (!entry.isDirectory()) {
-                            if(name.startsWith(basePath) && !name.contains("dmengine")) {
-                                String relativeName = name.substring(basePath.length());
-                                File targetFile = new File(targetDir, relativeName);
-                                try {
-                                    URL resourceUrl = Bob.class.getResource("/" + name);
-                                    if (resourceUrl != null) {
-                                        Bob.atomicCopy(resourceUrl, targetFile, true);
-                                    }
-                                } catch (IOException e) {
-                                    throw new RuntimeException("Failed to copy tool: " + name, e);
+                JarFile jarFile = jarConnection.getJarFile();
+                String basePath = "libexec/" + platformPair + "/";
+                String luaZip = "lib/luajit-share.zip";
+                jarFile.stream().forEach(entry -> {
+                    String name = entry.getName();
+                    if (!entry.isDirectory()) {
+                        if(name.startsWith(basePath) && !name.contains("dmengine")) {
+                            String relativeName = name.substring(basePath.length());
+                            File targetFile = new File(targetDir, relativeName);
+                            try {
+                                URL resourceUrl = Bob.class.getResource("/" + name);
+                                if (resourceUrl != null) {
+                                    Bob.atomicCopy(resourceUrl, targetFile, true);
                                 }
-                            }
-                            else if (name.startsWith(luaZip)) {
-                                try {
-                                    Bob.extract(Bob.class.getResource("/lib/luajit-share.zip"), new File(Bob.getRootFolder(), "share"));
-                                } catch (IOException e) {
-                                    throw new RuntimeException("Failed to extract: " + name, e);
-                                }
+                            } catch (IOException e) {
+                                throw new RuntimeException("Failed to copy tool: " + name, e);
                             }
                         }
-                    });
-                }
+                        else if (name.startsWith(luaZip)) {
+                            try {
+                                Bob.extract(Bob.class.getResource("/lib/luajit-share.zip"), new File(Bob.getRootFolder(), "share"));
+                            } catch (IOException e) {
+                                throw new RuntimeException("Failed to extract: " + name, e);
+                            }
+                        }
+                    }
+                });
+                jarFile.close();
             } catch (IOException e) {
                 throw new IOException("Failed to unpack tools from /libexec/" + platformPair, e);
             }
