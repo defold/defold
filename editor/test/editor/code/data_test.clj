@@ -1631,3 +1631,13 @@
         (is (= {:lines ["''''"]
                 :cursor-ranges [#code/range [[0 4] [0 4]]]}
                (key-typed ["''''"] [(c 0 3)] "'")))))))
+
+(deftest apply-edits-test
+  (is (= {:lines ["ab=1"]
+          :cursor-ranges [#code/range [[0 2] [0 2]]] ;; affected cursor moved right
+          :invalidated-row 0
+          :regions [#code/range [[0 2] [0 3] :type :foo]]}
+         (data/apply-edits ["xy=1"]
+                           [#code/range[[0 2] [0 3] :type :foo]] ;; region
+                           [#code/range [[0 1] [0 1]]] ;; cursor range within an edit
+                           [[#code/range [[0 0] [0 2]] ["ab"]]]))))

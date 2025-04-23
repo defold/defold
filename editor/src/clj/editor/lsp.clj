@@ -124,9 +124,9 @@
 (s/def ::resource resource/resource?)
 
 (defn- on-diagnostics-published [server resource diagnostics-result]
-  {:pre [(s/valid? ::server server)
-         (s/valid? ::resource resource)
-         (s/valid? ::lsp.server/diagnostics-result diagnostics-result)]}
+  {:pre [(s/assert ::server server)
+         (s/assert ::resource resource)
+         (s/assert ::lsp.server/diagnostics-result diagnostics-result)]}
   (fn [state]
     (let [state (assoc-in state [:server->server-state server :diagnostics resource] diagnostics-result)]
       (when-let [view-node (get-in state [:resource->view-node resource])]
@@ -161,8 +161,8 @@
     (set-view-node-completion-trigger-characters-tx state resource view-node)))
 
 (defn- on-server-initialized [server capabilities]
-  {:pre [(s/valid? ::server server)
-         (s/valid? ::lsp.server/capabilities capabilities)]}
+  {:pre [(s/assert ::server server)
+         (s/assert ::lsp.server/capabilities capabilities)]}
   (fn [{:keys [server->server-state] :as state}]
     (let [{:keys [languages]} server
           {:keys [in]} (get server->server-state server)
@@ -245,7 +245,7 @@
                    :editor.lsp.server-state/diagnostics]))
 
 (defn- dispose-server-state! [state server {:keys [in out diagnostics] :as server-state}]
-  {:pre [(s/valid? ::server-state server-state)]}
+  {:pre [(s/assert ::server-state server-state)]}
   (ui/run-later
     (g/transact
       (concat
@@ -328,7 +328,7 @@
       (resource-polled? state resource)))
 
 (defn- text-sync-kind [capabilities]
-  {:post [(s/valid? ::lsp.server/change %)]}
+  {:post [(s/assert ::lsp.server/change %)]}
   (-> capabilities :text-document-sync :change))
 
 (defn- capability-sync-text? [capabilities]
@@ -437,7 +437,7 @@
 (s/def ::new-servers (s/coll-of ::server :kind set?))
 
 (defn set-servers [new-servers]
-  {:pre [(s/valid? ::new-servers new-servers)]}
+  {:pre [(s/assert ::new-servers new-servers)]}
   (fn [{:keys [server->server-state project] :as state}]
     (let [old-servers (set (keys server->server-state))
           to-remove (set/difference old-servers new-servers)
@@ -900,6 +900,41 @@
                :timeout-ms timeout-ms
                :requests [(lsp.server/hover resource cursor)]))))
     (do (result-callback []) nil)))
+
+(defn prepare-rename [lsp resource cursor result-callback & {:keys [timeout-ms]
+                                                             :or {timeout-ms 1000}}]
+  (if (resource/file-resource? resource)
+    (lsp (bound-fn [state]
+           (let [ch (a/chan 1 (take 1))]
+             (a/go (result-callback (<! ch)))
+             (send-requests!
+               state ch
+               :capabilities-pred :rename
+               :language (resource/language resource)
+               :timeout-ms timeout-ms
+               :requests-fn (fn [_ {:keys [out]}]
+                              [(lsp.server/prepare-rename
+                                 resource
+                                 cursor
+                                 #(vary-meta % assoc
+                                             :editor.lsp.server-state/out out
+                                             :resource resource
+                                             :cursor cursor))])))))
+    (do (result-callback nil) nil)))
+
+(defn rename [lsp prepared-range new-name result-callback & {:keys [timeout-ms]
+                                                             :or {timeout-ms 5000}}]
+  (if-let [{:keys [resource cursor] rename-out :editor.lsp.server-state/out} (meta prepared-range)]
+    (lsp (bound-fn [state]
+           (let [ch (a/chan 1)]
+             (a/go (result-callback (<! ch)))
+             (send-requests!
+               state ch
+               :requests-fn (fn [_ {:keys [out]}]
+                              (when (= out rename-out)
+                                [(lsp.server/rename resource cursor new-name)]))
+               :timeout-ms timeout-ms))))
+    (throw (IllegalArgumentException. "Expected a prepared range" {:range prepared-range}))))
 
 (comment
   (val (first @running-lsps))

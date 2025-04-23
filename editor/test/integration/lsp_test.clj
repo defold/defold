@@ -86,6 +86,18 @@
       (lsp/hover! lsp resource cursor ret)
       @ret)))
 
+(defn- prepare-rename [lsp resource cursor]
+  (await-lsp
+    (let [ret (promise)]
+      (lsp/prepare-rename lsp resource cursor ret)
+      @ret)))
+
+(defn- rename [lsp prepared-range new-name]
+  (await-lsp
+    (let [ret (promise)]
+      (lsp/rename lsp prepared-range new-name ret)
+      @ret)))
+
 (defn- make-test-server-launcher [request-handlers]
   (reify lsp.server/Launcher
     (launch [_ _]
@@ -148,7 +160,8 @@
                   :pull-diagnostics :none
                   :goto-definition false
                   :find-references false
-                  :hover false}]
+                  :hover false
+                  :rename false}]
                 [:on-publish-diagnostics
                  (tu/resource workspace "/foo.json")
                  {:items [(assoc (data/->CursorRange (data/->Cursor 0 0) (data/->Cursor 0 1))
@@ -586,3 +599,26 @@
       (is (realized? matched-promise))
       (is (not (realized? unmatched-promise)))
       (await-lsp (set-servers! lsp #{})))))
+
+(deftest rename-test
+  (tu/with-scratch-project "test/resources/lsp_project"
+    (let [lsp (lsp/get-node-lsp project)
+          _ (set-servers! lsp #{{:languages #{"json"}
+                                 :launcher (make-test-server-launcher
+                                             {"initialize" (constantly {:capabilities {:renameProvider {:prepareProvider true}}})
+                                              "initialized" (constantly nil)
+                                              "textDocument/prepareRename" (fn [{:keys [position]} _]
+                                                                             {:range {:start position
+                                                                                      :end (update position :character inc)}})
+                                              "textDocument/rename" (fn [{:keys [position newName textDocument]} _]
+                                                                      {:changes {(:uri textDocument) [{:range {:start position
+                                                                                                               :end (update position :character inc)}
+                                                                                                       :newText newName}]}})
+                                              "shutdown" (constantly nil)
+                                              "exit" (constantly nil)})}})]
+      (let [resource (tu/resource workspace "/foo.json")
+            rename-region (prepare-rename lsp resource (data/->Cursor 0 0))]
+        (is (= #code/range[[0 0] [0 1]] rename-region))
+        (is (= {resource [[#code/range [[0 0] [0 1]] ["foo"]]]}
+               (rename lsp rename-region "foo")))
+        (await-lsp (set-servers! lsp #{}))))))
