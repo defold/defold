@@ -222,49 +222,59 @@
 (defn- handle-label-drag-event! [property-fn drag-update-fn update-ui-fn ^MouseDragEvent event]
   (.consume event)
   (let [target (.getTarget event)
-        property (property-fn)
-        edit-type (:edit-type property)
-        to-fn (:to-type edit-type identity)
-        from-fn (:from-type edit-type identity)
-        min-val (:min edit-type)
-        max-val (:max edit-type)
-        x (.getX event)
-        y (.getY event)
-        [prev-x prev-y] (ui/user-data target ::position)
-        delta-x (- x prev-x)
-        delta-y (- prev-y y)
-        max-delta (if (> (abs delta-x) (abs delta-y)) delta-x delta-y)
-        update-val (cond-> (or (:precision edit-type) 1.0)
-                     (.isShiftDown event) (* 10.0)
-                     (.isControlDown event) (* 0.1)
-                     (neg? max-delta) -)]
-    (when (> (abs max-delta) 1)
-      (let [op-seq (ui/user-data target ::op-seq)
-            values (or (ui/user-data target ::values)
-                       (properties/values property))
-            new-values (mapv (fn [value]
-                               (cond-> (drag-update-fn value update-val)
-                                 min-val (max min-val)
-                                 max-val (min max-val))) values)]
-        (properties/set-values! property values op-seq)
-        (ui/user-data! target ::position [x y])
-        (ui/user-data! target ::values new-values)
-        (update-ui-fn (mapv (comp to-fn from-fn) new-values)
-                      (properties/validation-message property)
-                      (properties/read-only? property))))))
+        position (ui/user-data target ::position)
+        op-seq (ui/user-data target ::op-seq)]
+    (when (and position op-seq)
+      (let [property (property-fn)
+            edit-type (:edit-type property)
+            to-fn (:to-type edit-type identity)
+            from-fn (:from-type edit-type identity)
+            min-val (:min edit-type)
+            max-val (:max edit-type)
+            x (.getX event)
+            y (.getY event)
+            [prev-x prev-y] (ui/user-data target ::position)
+            delta-x (- x prev-x)
+            delta-y (- prev-y y)
+            max-delta (if (> (abs delta-x) (abs delta-y)) delta-x delta-y)
+            update-val (cond-> (or (:precision edit-type) 1.0)
+                         (.isShiftDown event) (* 10.0)
+                         (.isControlDown event) (* 0.1)
+                         (neg? max-delta) -)]
+        (when (> (abs max-delta) 1)
+          (let [values (or (ui/user-data target ::values)
+                           (properties/values property))
+                new-values (mapv (fn [value]
+                                   (cond-> (drag-update-fn value update-val)
+                                     min-val (max min-val)
+                                     max-val (min max-val))) values)]
+            (properties/set-values! property values op-seq)
+            (ui/user-data! target ::position [x y])
+            (ui/user-data! target ::values new-values)
+            (update-ui-fn (mapv (comp to-fn from-fn) new-values)
+                          (properties/validation-message property)
+                          (properties/read-only? property))))))))
 
 (defn handle-label-press-event!
   [^MouseEvent event]
   (doto (.getTarget event)
     (ui/user-data! ::op-seq (gensym))
-    (ui/user-data! ::position [(.getX event) (.getY event)])))
+    (ui/user-data! ::position [(.getX event) (.getY event)])
+    (ui/user-data! ::values nil)))
+
+(defn handle-label-release-event!
+  [^MouseEvent event]
+  (doto (.getTarget event)
+    (ui/user-data! ::op-seq nil)
+    (ui/user-data! ::position nil)))
 
 (defn- make-label-draggable!
   [^Label label drag-event-handler]
   (doto label
     (ui/add-style! "draggable")
     (.addEventHandler MouseEvent/MOUSE_DRAGGED (ui/event-handler event (drag-event-handler event)))
-    (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (handle-label-press-event! event)))))
+    (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (handle-label-press-event! event)))
+    (.addEventHandler MouseEvent/MOUSE_RELEASED (ui/event-handler event (handle-label-release-event! event)))))
 
 (defn- create-multi-text-field! [labels property-fn]
   (let [text-fields (mapv (fn [_] (TextField.)) labels)
@@ -282,9 +292,9 @@
                 children (if (seq label-text)
                            (let [label (doto (Label. label-text)
                                          (.setMinWidth Region/USE_PREF_SIZE))]
-                             (ui/do-run-later
-                               #(when-not (properties/read-only? (property-fn))
-                                  (make-label-draggable! label (partial handle-label-drag-event! property-fn drag-update-fn update-ui-fn))))
+                             (ui/run-later
+                               (when-not (properties/read-only? (property-fn))
+                                 (make-label-draggable! label (partial handle-label-drag-event! property-fn drag-update-fn update-ui-fn))))
                              [label text-field])
                            [text-field])
                 comp (doto (create-grid-pane children)
