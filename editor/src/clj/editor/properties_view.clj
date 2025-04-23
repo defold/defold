@@ -225,7 +225,7 @@
         target (.getTarget event)
         position (ui/user-data target ::position)
         op-seq (ui/user-data target ::op-seq)
-        is-read-only (properties/read-only? (property-fn))]
+        is-read-only (properties/read-only? property)]
     (when (and position op-seq (not is-read-only))
       (let [edit-type (:edit-type property)
             to-fn (:to-type edit-type identity)
