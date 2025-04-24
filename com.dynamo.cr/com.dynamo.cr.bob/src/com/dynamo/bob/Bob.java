@@ -158,8 +158,8 @@ public class Bob {
     }
 
     public static void initLua() {
-        PackedResources.runUnpackAllLibsAsync(Platform.getHostPlatform());
-        PackedResources.waitForUnpackLibs();
+        PackedResources.unpackAllLibsAsync(Platform.getHostPlatform());
+        PackedResources.waitForuUpackAllLibsAsync();
     }
 
     public static File getRootFolder() {
@@ -280,7 +280,7 @@ public class Bob {
 
     private static String getExeWithExtension(Platform platform, String name, String extension) throws IOException {
         init();
-        PackedResources.waitForUnpackLibs();
+        PackedResources.waitForuUpackAllLibsAsync();
         TimeProfiler.start("getExeWithExtension %s.%s", name, extension);
         String exeName = platform.getPair() + "/" + platform.getExePrefix() + name + extension;
         File f = new File(rootFolder, exeName);
@@ -723,7 +723,7 @@ public class Bob {
         String rootDirectory = getOptionsValue(cmd, 'r', cwd);
 
         init();
-        PackedResources.runUnpackAllLibsAsync(Platform.getHostPlatform());
+        PackedResources.unpackAllLibsAsync(Platform.getHostPlatform());
 
         String build_report_json = null;
         String build_report_html = null;

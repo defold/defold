@@ -4,9 +4,7 @@ import com.dynamo.bob.Bob;
 import com.dynamo.bob.Platform;
 
 import java.io.File;
-import java.io.FilterInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.JarURLConnection;
 import java.net.URL;
 import java.util.jar.JarFile;
@@ -16,14 +14,10 @@ public class PackedResources {
     private static volatile boolean unpackStarted = false;
     private static volatile boolean unpackDone = false;
     private static final Object unpackLock = new Object();
-
-    private static final Object bobInputStreamLock = new Object();
-    private static InputStream sharedBobInputStream = null;
-    private static int sharedBobInputStreamRefCount = 0;
     private static JarFile jarFile;
 
-    private static void unpackAllLibs(Platform platform) throws IOException {
-        TimeProfiler.start("unpackAllHostLibs");
+    private static void runUnpackAllLibsAsync(Platform platform) throws IOException {
+        TimeProfiler.start("runUnpackAllLibsAsync");
         String platformPair = platform.getPair();
         File targetDir = new File(Bob.getRootFolder(), platformPair);
 
@@ -110,9 +104,9 @@ public class PackedResources {
     }
 
     /**
-     * Run unpackAllHostLibs asynchronously. Only starts once.
+     * Run unpackAllLibsAsync asynchronously. Only starts once.
      */
-    public static void runUnpackAllLibsAsync(Platform platform) {
+    public static void unpackAllLibsAsync(Platform platform) {
         synchronized (unpackLock) {
             if (unpackStarted) {
                 return;
@@ -121,7 +115,7 @@ public class PackedResources {
         }
         Thread unpackThread = new Thread(() -> {
             try {
-                unpackAllLibs(platform);
+                runUnpackAllLibsAsync(platform);
             } catch (IOException e) {
                 throw new RuntimeException("Failed to unpack tools", e);
             } finally {
@@ -135,9 +129,9 @@ public class PackedResources {
     }
 
     /**
-     * Wait for the completion of async unpackAllHostLibs.
+     * Wait for the completion of async unpackAllLibsAsync.
      */
-    public static void waitForUnpackLibs() {
+    public static void waitForuUpackAllLibsAsync() {
         synchronized (unpackLock) {
             if (!unpackStarted) {
                 return;
