@@ -43,7 +43,6 @@ public class BuildInputDataCollector {
         bobVersion.put("timestamp", EngineVersion.timestamp);
         data.put("BobVersion", bobVersion);
         data.put("DefoldSDK", defoldSdk);
-        data.put("Environment", System.getenv());
 
         Map<String, String> gitInfo = getGitInfoIfAvailable(rootDirectory);
         if (gitInfo != null) {
