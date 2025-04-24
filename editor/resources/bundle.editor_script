@@ -66,7 +66,7 @@ local html5_bundle_dialog = editor.ui.component(function(props)
     return editor.bundle.dialog("Bundle HTML5 Application", config, nil, architecture_error, {
         editor.bundle.grid_row("Architectures", {
             editor.bundle.set_element_check_box(config, set_config, "architectures", "js-web", "asm.js", architecture_error),
-            editor.bundle.set_element_check_box(config, set_config, "architectures", "wasm-web", "WebAssembly (wasm)", architecture_error)
+            editor.bundle.set_element_check_box(config, set_config, "architectures", "wasm-web", "WebAssembly (wasm)", architecture_error),
             editor.bundle.set_element_check_box(config, set_config, "architectures", "wasm_pthread-web", "WebAssembly (wasm) + Thread support", architecture_error)
         }),
         editor.bundle.common_variant_grid_row(config, set_config),
