@@ -237,7 +237,11 @@ def get_android_local_sdk_path(verbose=False):
             path = os.path.expanduser('~/Library/android/sdk')
         elif sys.platform == 'win32':
             path = os.path.expandvars('${LOCALAPPDATA}/Android/Sdk')
-        path = os.path.normpath(path)
+        elif sys.platform == 'linux':
+            path = os.path.expandvars('~/Android/Sdk')
+
+        if path is not None:
+            path = os.path.normpath(path)
 
     if path and os.path.exists(path):
         log_verbose(verbose, f"  Detected sdk path {path}")

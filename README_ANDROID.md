@@ -81,7 +81,7 @@ Here are some commands to help out with the process:
 After installing the SDK check that the PATH env variable contains the path to the android sdk. If not, add it manually.
 
 **Note** Newer version have the suffixes ".bin" or ".exe" as they are now installers.
-Simply use that as the suffix, and and extract with **7z**
+Simply use that as the suffix, and and extract with e.g. **7z**
 
 * How to launch the [Android Tool](http://developer.android.com/sdk/installing/adding-packages.html) manually
 
