@@ -37,6 +37,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.lang.NumberFormatException;
 
+import com.dynamo.bob.util.BuildInputDataCollector;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.HelpFormatter;
@@ -747,6 +748,7 @@ public class Bob {
 
         String cwd = new File(".").getAbsolutePath();
 
+        BuildInputDataCollector.setArgs(args);
         CommandLine cmd = parse(args);
         if (cmd == null) { // nothing to do: requested to print help
             return new InvocationResult(true, Collections.emptyList());
