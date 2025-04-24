@@ -41,12 +41,12 @@ public class BuildInputDataCollector {
         bobVersion.put("sha1", EngineVersion.sha1);
         bobVersion.put("version", EngineVersion.version);
         bobVersion.put("timestamp", EngineVersion.timestamp);
-        data.put("BobVersion", bobVersion);
-        data.put("DefoldSDK", defoldSdk);
+        data.put("bob_arguments", bobVersion);
+        data.put("defold_sdk", defoldSdk);
 
         Map<String, String> gitInfo = getGitInfoIfAvailable(rootDirectory);
         if (gitInfo != null) {
-            data.put("ProjectGit", gitInfo);
+            data.put("project_git", gitInfo);
         }
 
         if (dependencies != null && !dependencies.isEmpty()) {
@@ -60,7 +60,7 @@ public class BuildInputDataCollector {
                         md.update(fileBytes);
                         Map<String, String> depEntry = new HashMap<>();
                         depEntry.put("link", entry.getKey());
-                        depEntry.put("MD5", DatatypeConverter.printHexBinary(md.digest()).toUpperCase());
+                        depEntry.put("md5", DatatypeConverter.printHexBinary(md.digest()).toUpperCase());
                         depsList.add(depEntry);
                     } catch (Exception e) {
                         throw new RuntimeException("Failed to generate dependencies info", e);
@@ -92,7 +92,7 @@ public class BuildInputDataCollector {
 
             String sha = runGitCommand(rootDirectory, "rev-parse", "HEAD");
             if (sha != null) {
-                gitInfo.put("Sha1", sha);
+                gitInfo.put("sha1", sha);
             }
 
             String branch = runGitCommand(rootDirectory, "rev-parse", "--abbrev-ref", "HEAD");
