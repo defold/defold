@@ -35,7 +35,7 @@ public class BuildInputDataCollector {
     public static void saveDataAsJson(String rootDirectory, File bundleOutputDirectory, String defoldSdk) {
         TimeProfiler.start("BuildInputDataCollector");
         Map<String, Object> data = new HashMap<>();
-        data.put("BobArguments", bobArguments);
+        data.put("bob_arguments", bobArguments);
 
         Map<String, String> bobVersion = new HashMap<>();
         bobVersion.put("sha1", EngineVersion.sha1);
