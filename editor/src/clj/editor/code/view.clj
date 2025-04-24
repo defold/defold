@@ -994,12 +994,13 @@
       :text)
     display-string))
 
-(defn- update-document-width
-  [evaluation-context view-node]
-  (when-let [resource-node (g/maybe-node-value view-node :resource-node)]
+(defn- update-document-width [evaluation-context view-node]
+  ;; This is called in response to changing layout-related properties on the
+  ;; view-node. We only want to do something when we're connected to a resource
+  ;; node. If we're not, the lines output will return nil.
+  (when-some [lines (g/node-value view-node :lines evaluation-context)]
     (let [glyph-metrics (g/node-value view-node :glyph-metrics evaluation-context)
           tab-spaces (g/node-value view-node :tab-spaces evaluation-context)
-          lines (g/node-value resource-node :lines evaluation-context)
           tab-stops (data/tab-stops glyph-metrics tab-spaces)
           document-width (data/max-line-width glyph-metrics tab-stops lines)]
       (g/set-property view-node :document-width document-width))))
@@ -3354,29 +3355,24 @@
     (when is-code-resource-type
       (g/with-auto-evaluation-context evaluation-context
         (r/ensure-loaded! resource-node evaluation-context)))
-    (let [[lines document-width]
-          (g/with-auto-evaluation-context evaluation-context
-            (let [glyph-metrics (g/node-value view-node :glyph-metrics evaluation-context)
-                  tab-spaces (g/node-value view-node :tab-spaces evaluation-context)
-                  tab-stops (data/tab-stops glyph-metrics tab-spaces)
-                  lines (g/node-value resource-node :lines evaluation-context)
-                  document-width (data/max-line-width glyph-metrics tab-stops lines)]
-              [lines document-width]))]
-      (g/transact
-        (concat
-          (g/set-property view-node :document-width document-width)
-          (g/connect app-view :debugger-execution-locations view-node :debugger-execution-locations)
-          (gu/connect-existing-outputs resource-node-type resource-node view-node
-            [[:completions :completions]
-             [:cursor-ranges :cursor-ranges]
-             [:indent-type :indent-type]
-             [:invalidated-rows :invalidated-rows]
-             [:lines :lines]
-             [:regions :regions]])))
-      (when (and is-code-resource-type
-                 (resource/file-resource? resource))
-        (lsp/open-view! lsp view-node resource lines))
-      view-node)))
+    (g/transact
+      (concat
+        (g/connect app-view :debugger-execution-locations view-node :debugger-execution-locations)
+        (gu/connect-existing-outputs resource-node-type resource-node view-node
+          [[:completions :completions]
+           [:cursor-ranges :cursor-ranges]
+           [:indent-type :indent-type]
+           [:invalidated-rows :invalidated-rows]
+           [:lines :lines]
+           [:regions :regions]])))
+    (g/transact
+      (g/with-auto-evaluation-context evaluation-context
+        (update-document-width evaluation-context view-node)))
+    (when (and is-code-resource-type
+               (resource/file-resource? resource))
+      (let [lines (g/node-value view-node :lines)]
+        (lsp/open-view! lsp view-node resource lines)))
+    view-node))
 
 (defn- cursor-opacity
   ^double [^double elapsed-time-at-last-action ^double elapsed-time]
