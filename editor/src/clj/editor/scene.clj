@@ -50,8 +50,7 @@
             [editor.workspace :as workspace]
             [service.log :as log]
             [util.coll :as coll]
-            [util.profiler :as profiler]
-            [editor.prefs :as prefs])
+            [util.profiler :as profiler])
   (:import [com.jogamp.opengl GL GL2 GLAutoDrawable GLContext GLOffscreenAutoDrawable]
            [com.jogamp.opengl.glu GLU]
            [com.jogamp.opengl.util GLPixelStorageModes]
@@ -859,6 +858,7 @@
   (input manip-space g/Keyword)
   (input updatables g/Any)
   (input selected-updatables g/Any)
+  (input grid g/Any)
   (output inactive? g/Bool (g/fnk [_node-id active-view] (not= _node-id active-view)))
   (output info-text g/Str (g/fnk [scene tool-info-text]
                             (or tool-info-text (:info-text scene))))
@@ -1548,6 +1548,7 @@
 (defmethod attach-grid :editor.grid/Grid
   [_ grid-node-id snap-node-id view-id resource-node camera]
   (concat
+    (g/connect grid-node-id :_node-id        view-id      :grid)
     (g/connect grid-node-id :renderable      view-id      :aux-renderables)
     (g/connect grid-node-id :snapping-points snap-node-id :grid-points)
     (g/connect camera       :camera          grid-node-id :camera)))

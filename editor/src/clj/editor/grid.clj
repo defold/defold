@@ -215,7 +215,10 @@
      (.valueProperty slider)
      (fn [_observable _old-val new-val]
        (let [val (math/round-with-precision new-val 0.05)]
-         (prefs/set! prefs opacity-prefs-path val))))
+         (prefs/set! prefs opacity-prefs-path val)
+         (let [scene-view-id (g/node-value app-view :active-view)
+               grid-id (g/node-value scene-view-id :grid)]
+           (g/transact [(g/invalidate-output grid-id :renderable)])))))
     (VBox. 5 (ui/node-array [(Label. "Opacity") slider]))))
 
 (defn show-settings! [app-view ^Parent owner prefs]
