@@ -4,6 +4,7 @@ import com.dynamo.bob.archive.EngineVersion;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 
+import javax.xml.bind.DatatypeConverter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -31,16 +32,17 @@ public class BuildInputDataCollector {
         dependencies = libFiles;
     }
 
-    public static void saveDataAsJson(String rootDirectory, File bundleOutputDirectory) {
+    public static void saveDataAsJson(String rootDirectory, File bundleOutputDirectory, String defoldSdk) {
         TimeProfiler.start("BuildInputDataCollector");
         Map<String, Object> data = new HashMap<>();
         data.put("BobArguments", bobArguments);
 
-        Map<String, String> engineVersion = new HashMap<>();
-        engineVersion.put("sha1", EngineVersion.sha1);
-        engineVersion.put("version", EngineVersion.version);
-        engineVersion.put("timestamp", EngineVersion.timestamp);
-        data.put("EngineVersion", engineVersion);
+        Map<String, String> bobVersion = new HashMap<>();
+        bobVersion.put("sha1", EngineVersion.sha1);
+        bobVersion.put("version", EngineVersion.version);
+        bobVersion.put("timestamp", EngineVersion.timestamp);
+        data.put("BobVersion", bobVersion);
+        data.put("DefoldSDK", defoldSdk);
         data.put("Environment", System.getenv());
 
         Map<String, String> gitInfo = getGitInfoIfAvailable(rootDirectory);
@@ -56,16 +58,10 @@ public class BuildInputDataCollector {
                     try {
                         byte[] fileBytes = Files.readAllBytes(file.toPath());
                         MessageDigest md = MessageDigest.getInstance("MD5");
-                        byte[] digest = md.digest(fileBytes);
-                        StringBuilder hexString = new StringBuilder();
-                        for (byte b : digest) {
-                            String hex = Integer.toHexString(0xff & b);
-                            if (hex.length() == 1) hexString.append('0');
-                            hexString.append(hex);
-                        }
+                        md.update(fileBytes);
                         Map<String, String> depEntry = new HashMap<>();
                         depEntry.put("link", entry.getKey());
-                        depEntry.put("MD5", hexString.toString());
+                        depEntry.put("MD5", DatatypeConverter.printHexBinary(md.digest()).toUpperCase());
                         depsList.add(depEntry);
                     } catch (Exception e) {
                         throw new RuntimeException("Failed to generate dependencies info", e);

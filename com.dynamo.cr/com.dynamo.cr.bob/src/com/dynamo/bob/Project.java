@@ -890,7 +890,8 @@ public class Project {
         BundleHelper.throwIfCanceled(monitor);
         bundleDir.mkdirs();
         bundler.bundleApplication(this, platform, bundleDir, monitor);
-        BuildInputDataCollector.saveDataAsJson(getRootDirectory(), bundleDir);
+        String defoldSdk = this.option("defoldsdk", EngineVersion.sha1);
+        BuildInputDataCollector.saveDataAsJson(getRootDirectory(), bundleDir, defoldSdk);
         m.worked(1);
         m.done();
     }
