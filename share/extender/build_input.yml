@@ -401,7 +401,7 @@ platforms:
 
   wasm_pthread-web:
     context:
-        libPaths:   ["{{dynamo_home}}/lib/wasm-web", "{{dynamo_home}}/ext/lib/wasm-web"]
+        libPaths:   ["{{dynamo_home}}/lib/wasm_pthread-web", "{{dynamo_home}}/ext/lib/wasm_pthread-web"]
         emscriptenFlags: ["-pthread"]
         emscriptenLinkFlags: ["ALLOW_MEMORY_GROWTH=1", "WASM=1", "-pthread"]
 

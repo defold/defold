@@ -202,7 +202,7 @@ public class BundlerTest {
         }
         else if (platform == Platform.WasmPthreadWeb)
         {
-            File wasmjsFile = new File(outputDirFile, exeName + "_wasm_pthread.js");
+            File wasmjsFile = new File(outputDirFile, exeName + "_pthread_wasm.js");
             checkFileExist(outputDirFile, wasmjsFile);
             File wasmFile = new File(outputDirFile, exeName + "_pthread.wasm");
             checkFileExist(outputDirFile, wasmFile);

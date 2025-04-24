@@ -1272,11 +1272,9 @@ Module["locateFile"] = function(path, scriptDirectory)
     // dmengine*.wasm is hardcoded in the built JS loader for WASM,
     // we need to replace it here with the correct project name.
     if (path == "dmengine.wasm" || path == "dmengine_release.wasm" || path == "dmengine_headless.wasm") {
-        path = "{{exe-name}}.wasm";
-    }
-    if (Module['isWASMPthreadSupported'])
-    {
-        if (path == "dmengine.wasm" || path == "dmengine_release.wasm" || path == "dmengine_headless.wasm") {
+        if (Module['isWASMPthreadSupported']) {
+            path = "{{exe-name}}_pthread.wasm";
+        } else {
             path = "{{exe-name}}.wasm";
         }
     }
