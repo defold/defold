@@ -559,31 +559,9 @@ namespace dmInput
         action->m_HasGamepadPacket = 0;
     }
 
-    struct UpdateActionContext
+    void UpdateActionPressedReleasedRepeated(Action* action, Context* context, float dt)
     {
-        UpdateActionContext()
-        {
-            memset(this, 0, sizeof(UpdateActionContext));
-        }
-
-        float m_DT;
-        Context* m_Context;
-        int32_t m_X;
-        int32_t m_Y;
-        int32_t m_DX;
-        int32_t m_DY;
-        float m_AccX;
-        float m_AccY;
-        float m_AccZ;
-        uint32_t m_PositionSet : 1;
-        uint32_t m_AccelerationSet : 1;
-    };
-
-    void UpdateAction(void* context, const dmhash_t* id, Action* action)
-    {
-        UpdateActionContext* update_context = (UpdateActionContext*)context;
-
-        float pressed_threshold = update_context->m_Context->m_PressedThreshold;
+        float pressed_threshold = context->m_PressedThreshold;
         action->m_Pressed = (action->m_PrevValue < pressed_threshold && action->m_Value >= pressed_threshold) ? 1 : 0;
         action->m_Released = (action->m_PrevValue >= pressed_threshold && action->m_Value < pressed_threshold) ? 1 : 0;
 
@@ -593,32 +571,17 @@ namespace dmInput
             if (action->m_Pressed)
             {
                 action->m_Repeated = true;
-                action->m_RepeatTimer = update_context->m_Context->m_RepeatDelay;
+                action->m_RepeatTimer = context->m_RepeatDelay;
             }
             else
             {
-                action->m_RepeatTimer -= update_context->m_DT;
+                action->m_RepeatTimer -= dt;
                 if (action->m_RepeatTimer <= 0.0f)
                 {
                     action->m_Repeated = true;
-                    action->m_RepeatTimer += update_context->m_Context->m_RepeatInterval;
+                    action->m_RepeatTimer += context->m_RepeatInterval;
                 }
             }
-        }
-        if (action->m_PositionSet == 0)
-        {
-            action->m_X = update_context->m_X;
-            action->m_Y = update_context->m_Y;
-            action->m_DX = update_context->m_DX;
-            action->m_DY = update_context->m_DY;
-            action->m_PositionSet = update_context->m_PositionSet;
-        }
-        if (action->m_AccelerationSet == 0)
-        {
-            action->m_AccX = update_context->m_AccX;
-            action->m_AccY = update_context->m_AccY;
-            action->m_AccZ = update_context->m_AccZ;
-            action->m_AccelerationSet = update_context->m_AccelerationSet;
         }
     }
 
@@ -628,7 +591,6 @@ namespace dmInput
         binding->m_Actions.Iterate<void>(ClearAction, 0x0);
 
         dmHID::HContext hid_context = binding->m_Context->m_HidContext;
-        UpdateActionContext context;
         if (binding->m_KeyboardBinding != 0x0)
         {
             KeyboardBinding* keyboard_binding = binding->m_KeyboardBinding;
@@ -645,7 +607,10 @@ namespace dmInput
                     if (action != 0x0)
                     {
                         if (dmMath::Abs(action->m_Value) < v)
+                        {
                             action->m_Value = v;
+                        }
+                        UpdateActionPressedReleasedRepeated(action, binding->m_Context, dt);
                     }
                 }
                 *prev_packet = *packet;
@@ -706,11 +671,6 @@ namespace dmInput
             dmHID::MousePacket* prev_packet = &mouse_binding->m_PreviousPacket;
             if (dmHID::GetMousePacket(mouse_binding->m_Mouse, packet))
             {
-                context.m_X = packet->m_PositionX;
-                context.m_Y = packet->m_PositionY;
-                context.m_DX = packet->m_PositionX - prev_packet->m_PositionX;
-                context.m_DY = packet->m_PositionY - prev_packet->m_PositionY;
-                context.m_PositionSet = 1;
                 const dmArray<MouseTrigger>& triggers = mouse_binding->m_Triggers;
                 for (uint32_t i = 0; i < triggers.Size(); ++i)
                 {
@@ -732,11 +692,32 @@ namespace dmInput
                     v = dmMath::Clamp(v, 0.0f, 1.0f);
                     Action* action = binding->m_Actions.Get(trigger.m_ActionId);
 
-                    if (action != 0x0 && dmMath::Abs(action->m_Value) < dmMath::Abs(v))
+                    if (action != 0x0)
                     {
-                        action->m_Value = (float) dmMath::Abs(v);
+                        if (dmMath::Abs(action->m_Value) < v)
+                        {
+                            action->m_Value = v;
+                        }
+                        action->m_X = packet->m_PositionX;
+                        action->m_Y = packet->m_PositionY;
+                        action->m_DX = packet->m_PositionX - prev_packet->m_PositionX;
+                        action->m_DY = packet->m_PositionY - prev_packet->m_PositionY;
+                        action->m_PositionSet = 1;
+                        UpdateActionPressedReleasedRepeated(action, binding->m_Context, dt);
                     }
+
                 }
+                // mouse movement action
+                Action* action = binding->m_Actions.Get(0);
+                if (action != 0x0)
+                {
+                    action->m_X = packet->m_PositionX;
+                    action->m_Y = packet->m_PositionY;
+                    action->m_DX = packet->m_PositionX - prev_packet->m_PositionX;
+                    action->m_DY = packet->m_PositionY - prev_packet->m_PositionY;
+                    action->m_PositionSet = 1;
+                }
+
                 *prev_packet = *packet;
             }
         }
@@ -847,6 +828,7 @@ namespace dmInput
                                 {
                                     action->m_GamepadPacket = gamepad_binding->m_Packet;
                                     action->m_HasGamepadPacket = 1;
+                                    UpdateActionPressedReleasedRepeated(action, binding->m_Context, dt);
                                 }
                             }
                             else
@@ -857,14 +839,18 @@ namespace dmInput
                                     Action* action = gamepad_binding->m_Actions.Get(trigger.m_ActionId);
                                     if (action != 0x0)
                                     {
-                                        if (dmMath::Abs(action->m_Value) < dmMath::Abs(v)) {
+                                        if (dmMath::Abs(action->m_Value) < dmMath::Abs(v))
+                                        {
                                             action->m_Value = v;
                                         }
 
                                         // We want to make sure we report going back to 0 again
                                         action->m_Dirty = 0;
                                         if (input.m_Type == dmInputDDF::GAMEPAD_TYPE_AXIS && action->m_PrevValue != action->m_Value)
+                                        {
                                             action->m_Dirty = 1;
+                                        }
+                                        UpdateActionPressedReleasedRepeated(action, binding->m_Context, dt);
                                     }
                                 }
                             }
@@ -919,6 +905,7 @@ namespace dmInput
                                 action->m_Value = 1.0;
                             }
                         }
+                        UpdateActionPressedReleasedRepeated(action, binding->m_Context, dt);
                         action->m_TouchCount = packet->m_TouchCount;
                     }
                 }
@@ -927,35 +914,23 @@ namespace dmInput
         }
         if (binding->m_AccelerationBinding != 0x0)
         {
-            context.m_AccelerationSet = 0;
             if (dmHID::IsAccelerometerConnected(hid_context))
             {
-                AccelerationBinding* acceleration_binding = binding->m_AccelerationBinding;
-                dmHID::AccelerationPacket* packet = &acceleration_binding->m_Packet;
-                dmHID::AccelerationPacket* prev_packet = &acceleration_binding->m_PreviousPacket;
-                dmHID::GetAccelerationPacket(hid_context, packet);
-                context.m_AccX = packet->m_X;
-                context.m_AccY = packet->m_Y;
-                context.m_AccZ = packet->m_Z;
-                context.m_AccelerationSet = 1;
-                *prev_packet = *packet;
-            }
-        }
-        context.m_DT = dt;
-        context.m_Context = binding->m_Context;
-        binding->m_Actions.Iterate<void>(UpdateAction, &context);
-        if (binding->m_GamepadBindings.Size() > 0)
-        {
-            for (uint32_t i = 0; i < binding->m_GamepadBindings.Size(); ++i)
-            {
-                GamepadBinding* gamepad_binding = binding->m_GamepadBindings[i];
-                if (gamepad_binding == 0x0) {
-                    continue;
+                Action* action = binding->m_Actions.Get(0);
+                if (action)
+                {
+                    AccelerationBinding* acceleration_binding = binding->m_AccelerationBinding;
+                    dmHID::AccelerationPacket* packet = &acceleration_binding->m_Packet;
+                    dmHID::AccelerationPacket* prev_packet = &acceleration_binding->m_PreviousPacket;
+                    dmHID::GetAccelerationPacket(hid_context, packet);
+                    action->m_AccX = packet->m_X;
+                    action->m_AccY = packet->m_Y;
+                    action->m_AccZ = packet->m_Z;
+                    action->m_AccelerationSet = 1;
+                    *prev_packet = *packet;
                 }
-                gamepad_binding->m_Actions.Iterate<void>(UpdateAction, &context);
             }
         }
-
     }
 
     const Action* GetAction(HBinding binding, dmhash_t action_id)
