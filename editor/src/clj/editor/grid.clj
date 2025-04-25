@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.grid
-  (:require [dynamo.graph :as g]
+  (:require [clojure.string :as string]
+            [dynamo.graph :as g]
             [editor.camera :as c]
             [editor.colors :as colors]
             [editor.geom :as geom]
@@ -28,10 +29,10 @@
   (:import com.jogamp.opengl.GL2
            [com.sun.javafx.util Utils]
            [editor.types AABB Camera]
-           [javafx.geometry HPos Point2D VPos]
+           [javafx.geometry HPos Point2D Pos VPos]
            [javafx.scene Parent]
-           [javafx.scene.control Label Slider TextField PopupControl]
-           [javafx.scene.layout HBox Region StackPane VBox]
+           [javafx.scene.control Label Slider TextField ToggleButton ToggleGroup PopupControl]
+           [javafx.scene.layout HBox Priority Region StackPane VBox]
            [java.nio ByteBuffer ByteOrder DoubleBuffer]
            [javax.vecmath Matrix3d Point3d Vector4d]))
 
@@ -40,6 +41,10 @@
 
 (defonce opacity-prefs-path [:scene :grid :opacity])
 (defonce size-prefs-path [:scene :grid :size])
+(defonce active-plane-prefs-path [:scene :grid :active-plane])
+(defonce color-prefs-path [:scene :grid :color])
+
+(defonce axes [:x :y :z])
 
 (def x-axis-color colors/scene-grid-x-axis)
 (def y-axis-color colors/scene-grid-y-axis)
@@ -67,7 +72,7 @@
     (gl/gl-vertex-3dv gl vx)))
 
 (defn render-grid
-  [gl fixed-axis size aabb]
+  [gl fixed-axis u-size v-size aabb]
   (let [min-values (geom/as-array (types/min-p aabb))
         max-values (geom/as-array (types/max-p aabb))
         u-axis ^double (mod (inc ^int fixed-axis) 3)
@@ -78,8 +83,8 @@
         v-max (nth max-values v-axis)
         vertex ^DoubleBuffer (scene-cache/request-object! ::grid-vertex :grid-vertex {} nil)]
     (.put vertex ^int fixed-axis 0.0)
-    (render-grid-axis gl vertex u-axis u-min u-max size v-axis v-min v-max)
-    (render-grid-axis gl vertex v-axis v-min v-max size u-axis u-min u-max)))
+    (render-grid-axis gl vertex u-axis u-min u-max u-size v-axis v-min v-max)
+    (render-grid-axis gl vertex v-axis v-min v-max v-size u-axis u-min u-max)))
 
 (defn render-primary-axes
   [^GL2 gl ^AABB aabb]
@@ -94,48 +99,54 @@
   (gl/gl-vertex-3d gl 0.0 0.0 (-> aabb types/max-p .z)))
 
 (defn render-grid-sizes
-  [^GL2 gl ^doubles dir grids opacity]
+  [^GL2 gl ^doubles dir grids opacity color]
   (doall
-    (for [grid-index (range 2)
-          axis (range 3)
-          :let [ratio ^double (nth (:ratios grids) grid-index)
-                alpha (Math/abs (* ^double (aget dir axis) ratio opacity))]]
+   (for [grid-index (range 2)
+         :let [fixed-axis (:perp-axis grids)
+               ratio ^double (nth (:ratios grids) grid-index)
+               alpha (Math/abs (* ^double (aget dir fixed-axis) ratio opacity))
+               size-map (nth (:sizes grids) grid-index)
+               u-axis (mod (inc fixed-axis) 3)
+               v-axis (mod (inc u-axis) 3)
+               u-axis-key (nth axes u-axis)
+               v-axis-key (nth axes v-axis)
+               u-size (get size-map u-axis-key)
+               v-size (get size-map v-axis-key)]]
      (do
-       (gl/gl-color gl (colors/alpha colors/scene-grid alpha))
-       (render-grid gl axis
-                    (nth (:sizes grids) grid-index)
-                    (nth (:aabbs grids) grid-index))))))
+       (gl/gl-color gl (colors/alpha (colors/hex-color->color color) alpha))
+       (render-grid gl fixed-axis u-size v-size (nth (:aabbs grids) grid-index))))))
 
 (defn render-scaled-grids
   [^GL2 gl _pass renderables _count]
   (let [renderable (first renderables)
-        user-render-data (:user-render-data renderable)
-        camera (:camera user-render-data)
-        grids (:grids user-render-data)
+        {:keys [camera grids color opacity]} (:user-render-data renderable)
         view-matrix (c/camera-view-matrix camera)
         dir (double-array 4)
         _ (.getRow view-matrix 2 dir)]
     (gl/gl-lines gl
-      (render-grid-sizes dir grids (-> renderable :user-render-data :opacity))
+      (render-grid-sizes dir grids opacity color)
       (render-primary-axes (apply geom/aabb-union (:aabbs grids))))))
 
 (g/defnk grid-renderable
   [camera grids prefs]
-  (let [opacity (prefs/get prefs opacity-prefs-path)]
+  (let [opacity (prefs/get prefs opacity-prefs-path)
+        color (prefs/get prefs color-prefs-path)]
     {pass/infinity-grid ; Grid lines stretching to infinity. Not depth-clipped to frustum.
      [{:world-transform geom/Identity4d
        :tags #{:grid}
        :render-fn render-scaled-grids
        :user-render-data {:camera camera
                           :grids grids
-                          :opacity opacity}}]
+                          :opacity opacity
+                          :color color}}]
      pass/transparent ; Grid lines potentially intersecting scene geometry.
      [{:world-transform geom/Identity4d
        :tags #{:grid}
        :render-fn render-scaled-grids
        :user-render-data {:camera camera
                           :grids grids
-                          :opacity opacity}}]}))
+                          :opacity opacity
+                          :color color}}]}))
 
 (defn frustum-plane-projection
   [^Vector4d plane1 ^Vector4d plane2]
@@ -166,29 +177,30 @@
 (defn grid-snap-up   [^double a ^double sz] (* sz (Math/ceil  (/ a sz))))
 
 (defn snap-out-to-grid
-  [^AABB aabb grid-size]
-  (types/->AABB (Point3d. (grid-snap-down (-> aabb types/min-p .x) grid-size)
-                          (grid-snap-down (-> aabb types/min-p .y) grid-size)
-                          (grid-snap-down (-> aabb types/min-p .z) grid-size))
-                (Point3d. (grid-snap-up (-> aabb types/max-p .x) grid-size)
-                          (grid-snap-up (-> aabb types/max-p .y) grid-size)
-                          (grid-snap-up (-> aabb types/max-p .z) grid-size))))
+  [^AABB aabb size]
+  (types/->AABB (Point3d. (grid-snap-down (-> aabb types/min-p .x) (:x size))
+                          (grid-snap-down (-> aabb types/min-p .y) (:y size))
+                          (grid-snap-down (-> aabb types/min-p .z) (:z size)))
+                (Point3d. (grid-snap-up (-> aabb types/max-p .x) (:x size))
+                          (grid-snap-up (-> aabb types/max-p .y) (:y size))
+                          (grid-snap-up (-> aabb types/max-p .z) (:z size)))))
 
 (g/defnk update-grids
-  [camera]
+  [camera prefs active-plane]
   (let [frustum-planes (c/viewproj-frustum-planes camera)
         aabb (frustum-projection-aabb frustum-planes)
         extent (geom/as-array (geom/aabb-extent aabb))
-        perp-axis 2
+        perp-axis (.indexOf axes active-plane)
         _ (aset-double extent perp-axis Double/POSITIVE_INFINITY)
         smallest-extent (reduce min extent)
         first-grid-ratio (grid-ratio smallest-extent)
-        grid-size-small (small-grid-size smallest-extent)
-        grid-size-large (large-grid-size smallest-extent)]
+        sizes (prefs/get prefs size-prefs-path)
+        large-sizes (into {} (map (fn [[k v]] [k (* v 10)]) sizes))]
     {:ratios [first-grid-ratio (- 1.0 ^double first-grid-ratio)]
-     :sizes [grid-size-small grid-size-large]
-     :aabbs [(snap-out-to-grid aabb grid-size-small)
-             (snap-out-to-grid aabb grid-size-large)]}))
+     :sizes [sizes large-sizes]
+     :aabbs [(snap-out-to-grid aabb sizes)
+             (snap-out-to-grid aabb large-sizes)]
+     :perp-axis perp-axis}))
 
 (g/defnk produce-snapping-points
   [grids]
@@ -202,13 +214,21 @@
 
   (output grids g/Any :cached update-grids)
   (output snapping-points g/Any :cached produce-snapping-points)
-  (output renderable pass/RenderData :cached grid-renderable))
+  (output renderable pass/RenderData :cached grid-renderable)
+  (output active-plane g/Keyword (g/fnk [prefs active-plane]
+                                   (or active-plane
+                                       (prefs/get prefs active-plane-prefs-path)))))
 
 (defn- pref-popup-position
   ^Point2D [^Parent container]
   (Utils/pointRelativeTo container 0 0 HPos/CENTER VPos/BOTTOM 0.0 10.0 true))
 
-(defn- opacity-slider [app-view prefs]
+(defn- invalidate-grids! [app-view]
+  (let [scene-view-id (g/node-value app-view :active-view)
+        grid-id (g/node-value scene-view-id :grid)]
+    (g/transact [(g/invalidate-output grid-id :grids)])))
+
+(defn- opacity-row [app-view prefs]
   (let [value (prefs/get prefs opacity-prefs-path)
         slider (Slider. 0.0 0.5 value)]
     (ui/observe
@@ -216,25 +236,76 @@
      (fn [_observable _old-val new-val]
        (let [val (math/round-with-precision new-val 0.05)]
          (prefs/set! prefs opacity-prefs-path val)
-         (let [scene-view-id (g/node-value app-view :active-view)
-               grid-id (g/node-value scene-view-id :grid)]
-           (g/transact [(g/invalidate-output grid-id :renderable)])))))
-    (VBox. 5 (ui/node-array [(Label. "Opacity") slider]))))
+         (invalidate-grids! app-view))))
+    (HBox. 5 (ui/node-array [(doto (Label. "Opacity")
+                               (.setPrefWidth 70)) slider]))))
+
+(defn- axis-group 
+  [app-view prefs axis]
+  (let [text-field (TextField.)
+        label (Label. (string/upper-case (name axis)))
+        size-val (get (prefs/get prefs size-prefs-path) axis)]
+    (doto text-field
+      (ui/text! (str size-val))
+      (ui/on-action! (fn [_] (when-let [value (some-> (.getText text-field) Integer/parseInt)]
+                               (prefs/set! prefs (conj size-prefs-path axis) value)
+                               (invalidate-grids! app-view)))))
+    [label text-field]))
+
+(defn plane-toggle-button
+  [prefs plane-group plane]
+  (let [active-plane (prefs/get prefs active-plane-prefs-path)]
+    (doto (ToggleButton. (string/upper-case (name plane)))
+      (.setToggleGroup plane-group)
+      (.setSelected (= plane active-plane))
+      (ui/add-style! "plane-toggle"))))
+
+(defn- plane-row
+  [prefs plane-group]
+  (let [buttons (mapv (partial plane-toggle-button prefs plane-group) axes)
+        label (doto (Label. "Plane")
+                (HBox/setHgrow Priority/ALWAYS)
+                (.setPrefWidth 62))]
+    (doto (HBox. 0 (ui/node-array (concat [label] buttons)))
+      (.setAlignment Pos/CENTER))))
+
+(defn- color-row
+  [app-view prefs]
+  (let [text-field (TextField.)
+        color (prefs/get prefs color-prefs-path)
+        label (doto (Label. "Color")
+                (HBox/setHgrow Priority/ALWAYS)
+                (.setPrefWidth 70))]
+    (doto text-field
+      (ui/text! color)
+      (ui/on-action! (fn [_] (when-let [value (.getText text-field)]
+                               (prefs/set! prefs color-prefs-path value)
+                               (invalidate-grids! app-view)))))
+    (doto (HBox. 0 (ui/node-array [label text-field]))
+      (.setAlignment Pos/CENTER))))
 
 (defn show-settings! [app-view ^Parent owner prefs]
   (if-let [popup ^PopupControl (ui/user-data owner ::popup)]
     (.hide popup)
     (let [region (StackPane.)
-          size-row (HBox.)
+          plane-group (ToggleGroup.)
+          axis-groups (vec (flatten (map (partial axis-group app-view prefs) axes)))
+          size-row (doto (HBox. 5 (ui/node-array axis-groups))
+                     (.setAlignment Pos/CENTER))
           popup (popup/make-popup owner region)
           anchor ^Point2D (pref-popup-position (.getParent owner))]
-      (ui/children! size-row [(TextField.) (TextField.) (TextField.)])
+      (ui/observe (.selectedToggleProperty plane-group)
+                  (fn [_ _ active-toggle]
+                    (let [active-plane (-> (.getText active-toggle) string/lower-case keyword)]
+                      (prefs/set! prefs active-plane-prefs-path active-plane))
+                    (invalidate-grids! app-view)))
       (ui/children! region [(doto (Region.)
                               (ui/add-style! "popup-shadow"))
-                            (doto (VBox.)
-                              (ui/add-style! "grid-settings")
-                              (ui/add-child! size-row)
-                              (ui/add-child! (opacity-slider app-view prefs)))])
+                            (doto (VBox. 10 (ui/node-array [(color-row app-view prefs)
+                                                            (plane-row prefs plane-group)
+                                                            size-row 
+                                                            (opacity-row app-view prefs)]))
+                              (ui/add-style! "grid-settings"))])
       (ui/user-data! owner ::popup popup)
       (ui/on-closed! popup (fn [_] (ui/user-data! owner ::popup nil)))
       (.show popup owner (.getX anchor) (.getY anchor)))))

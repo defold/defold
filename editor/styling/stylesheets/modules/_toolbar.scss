@@ -15,6 +15,17 @@
     -fx-spacing: 10px;
     -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.2), 16, 0, 0, 0);
 
+    .plane-toggle {
+        -fx-text-fill: -df-text;
+        -fx-background-radius: 0;
+        -fx-border-radius: 0;
+        -fx-pref-width: 50px;
+
+        &:selected {
+            -fx-background-color: -df-background-light;
+        }
+    }
+
     > .toggle-button,
     > .button-group > .toggle-button {
         -fx-background-color: transparent;
@@ -126,7 +137,7 @@
         -fx-pref-width: 200px;
         -fx-background-color: -df-component-dark;
         -fx-background-radius: 4px;
-        -fx-padding: 7px;
+        -fx-padding: 12px;
     }
 
     .popup-shadow {

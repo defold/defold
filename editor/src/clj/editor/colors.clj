@@ -16,7 +16,7 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- hex-color->color [str]
+(defn hex-color->color [str]
   (let [conv (fn [s] (/ (Integer/parseInt s 16) 255.0))]
     [(conv (subs str 1 3))
      (conv (subs str 3 5))
