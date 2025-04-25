@@ -64,15 +64,13 @@ public class ShaderCompilePipeline {
     private static String tintExe = null;
     private static String glslangExe = null;
     private static String spirvOptExe = null;
+    private static String spirvCrossExe = null;
 
     public ShaderCompilePipeline(String pipelineName) throws IOException {
         this.pipelineName = pipelineName;
-        if (tintExe == null)
-            tintExe = Bob.getExe(Platform.getHostPlatform(), "tint");
-        if (glslangExe == null)
-            glslangExe = Bob.getExe(Platform.getHostPlatform(), "glslang");
-        if (spirvOptExe == null)
-            spirvOptExe = Bob.getExe(Platform.getHostPlatform(), "spirv-opt");
+        tintExe = Bob.getHostExeOnce("tint", tintExe);
+        glslangExe = Bob.getHostExeOnce("glslang", glslangExe);
+        spirvOptExe = Bob.getHostExeOnce("spirv-opt", spirvOptExe);
     }
 
     protected void reset() {
@@ -173,8 +171,9 @@ public class ShaderCompilePipeline {
     }
 
     protected static void generateHLSL(String resourcePath, String pathFileInSpv, String pathFileOutHLSL) throws IOException, CompileExceptionError {
+        spirvCrossExe = Bob.getHostExeOnce("spirv-cross", spirvCrossExe);
         Result result = Exec.execResult(
-            Bob.getExe(Platform.getHostPlatform(), "spirv-cross"),
+            spirvCrossExe,
             pathFileInSpv,
             "--output", pathFileOutHLSL,
             "--hlsl",

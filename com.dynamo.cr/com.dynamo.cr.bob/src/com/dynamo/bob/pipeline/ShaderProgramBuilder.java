@@ -39,7 +39,7 @@ import com.dynamo.bob.pipeline.shader.SPIRVReflector;
 
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
-@BuilderParams(name="ShaderProgramBuilder", inExts= {".shbundle", ".shbundlec"}, outExt=".spc",
+@BuilderParams(name="ShaderProgram", inExts= {".shbundle", ".shbundlec"}, outExt=".spc",
         // See configurePreBuildProjectOptions in Project.java
         paramsForSignature = {"platform", "output-spirv", "output-wgsl", "output-hlsl", "output-glsles100",
         "output-glsles300", "output-glsl120", "output-glsl330", "output-glsl430"})
