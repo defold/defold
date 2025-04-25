@@ -20,6 +20,7 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.logging.LogHelper;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
+import com.dynamo.bob.util.BuildInputDataCollector;
 import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.util.HttpUtil;
 import com.dynamo.bob.util.PackedResources;
@@ -715,6 +716,7 @@ public class Bob {
 
         String cwd = new File(".").getAbsolutePath();
 
+        BuildInputDataCollector.setArgs(args);
         CommandLine cmd = parse(args);
         if (cmd == null) { // nothing to do: requested to print help
             return new InvocationResult(true, Collections.emptyList());
