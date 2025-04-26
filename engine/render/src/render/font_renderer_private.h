@@ -128,7 +128,8 @@ namespace dmRender
         uint8_t                 m_CacheCellPadding;
         uint8_t                 m_LayerMask;
         uint8_t                 m_IsMonospaced:1;
-        uint8_t                 m_Padding:7;
+        uint8_t                 m_IsCacheSizeDirty:1;   // if the glyph cell size has changed, or if the layout needs to be recalculated
+        uint8_t                 m_Padding:6;            // The padding of the cell
     };
 
     ///////////////////////////////////////////////////////////////////////////////
