@@ -301,7 +301,7 @@ var EngineLoader = {
                     }
                 }
                 var wasmInstantiate = WebAssembly.instantiate(new Uint8Array(wasm), imports).then(function(output) {
-                    successCallback(output.instance);
+                    successCallback(output.instance, output.module);
                 }).catch(function(e) {
                     console.log('wasm instantiation failed! ' + e);
                     if (typeof CUSTOM_PARAMETERS["start_error"] === "function") {
@@ -340,7 +340,7 @@ var EngineLoader = {
 
         WebAssembly.instantiateStreaming(fetchFn(src), imports).then(function(output) {
             ProgressUpdater.updateCurrent(EngineLoader.wasm_instantiate_progress);
-            successCallback(output.instance);
+            successCallback(output.instance, output.module);
         }).catch(function(e) {
             console.log('wasm streaming instantiation failed! ' + e);
             console.log('Fallback to wasm loading');
@@ -402,9 +402,17 @@ var EngineLoader = {
                         }
                     }
                 }
-           var tag = document.createElement("script");
-                tag.text = response;
-                document.body.appendChild(tag);
+                const blob = new Blob([response], { type: 'text/javascript' });
+                const blobUrl = URL.createObjectURL(blob);
+
+                Module["mainScriptUrlOrBlob"] = blobUrl;
+
+                const script = document.createElement('script');
+                script.src = blobUrl;
+                script.type = "text/javascript";
+                //TODO: Clean up the blob URL when no need anymore
+                // URL.revokeObjectURL(blobUrl);
+                document.body.appendChild(script);
             },
             function(loadedDelta, currentAttempt){
                 ProgressUpdater.updateCurrent(-loadedDelta);
@@ -557,13 +565,13 @@ var GameArchiveLoader = {
         this._files = json.content;
 
         var isWASMSupported = Module['isWASMSupported'];
-        // if (isWASMSupported) {
-        //     EngineLoader.loadWasmAsync(exeName);
-        //     totalSize += EngineLoader.wasm_size + EngineLoader.wasmjs_size;
-        // } else {
-        //     EngineLoader.loadAsmJsAsync(exeName);
-        //     totalSize += EngineLoader.asmjs_size;
-        // }
+        if (isWASMSupported) {
+            EngineLoader.loadWasmAsync(exeName);
+            totalSize += EngineLoader.wasm_size + EngineLoader.wasmjs_size;
+        } else {
+            EngineLoader.loadAsmJsAsync(exeName);
+            totalSize += EngineLoader.asmjs_size;
+        }
         if (!Module['isDMFSSupported']) {
             // we can download in parallel here because we will not rely on FS, otherwise
             // we have to wait until after the [w]asm is loaded.
@@ -571,7 +579,7 @@ var GameArchiveLoader = {
         }
         ProgressUpdater.resetCurrent();
         if (isWASMSupported) {
-            // EngineLoader.updateWasmInstantiateProgress(totalSize);
+            EngineLoader.updateWasmInstantiateProgress(totalSize);
         }
         ProgressUpdater.setupTotal(totalSize + EngineLoader.wasm_instantiate_progress);
     },
