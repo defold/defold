@@ -525,14 +525,14 @@ local is_macos = editor.platform:sub(-#"macos") == "macos"
 
 function M.get_commands()
     return {
-        editor.bundle.command("iOS Application...", "bundle-ios", bundle_ios, {
+        editor.bundle.command("iOS Application...", "project.bundle-ios", bundle_ios, {
             active = function() return is_macos end
         }),
-        editor.bundle.command("Android Application...", "bundle-android", bundle_android),
-        editor.bundle.command("macOS Application...", "bundle-macos", bundle_macos),
-        editor.bundle.command("Windows Application...", "bundle-windows", bundle_windows),
-        editor.bundle.command("Linux Application...", "bundle-linux", bundle_linux),
-        editor.bundle.command("HTML5 Application...", "bundle-html5", bundle_html5),
+        editor.bundle.command("Android Application...", "project.bundle-android", bundle_android),
+        editor.bundle.command("macOS Application...", "project.bundle-macos", bundle_macos),
+        editor.bundle.command("Windows Application...", "project.bundle-windows", bundle_windows),
+        editor.bundle.command("Linux Application...", "project.bundle-linux", bundle_linux),
+        editor.bundle.command("HTML5 Application...", "project.bundle-html5", bundle_html5),
     }
 end
 

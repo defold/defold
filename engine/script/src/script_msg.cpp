@@ -549,7 +549,7 @@ namespace dmScript
             UrlToString(&receiver, receiver_buffer, sizeof(receiver_buffer));
             char sender_buffer[512];
             UrlToString(&sender, sender_buffer, sizeof(sender_buffer));
-            return luaL_error(L, "Could not send message '%s' from '%s' to '%s'.", dmHashReverseSafe64(message_id), sender_buffer, receiver_buffer);
+            return luaL_error(L, "Could not find socket '%s' when sending message '%s' from '%s' to '%s'.", dmHashReverseSafe64(receiver.m_Socket), dmHashReverseSafe64(message_id), sender_buffer, receiver_buffer);
         }
         else if (result != dmMessage::RESULT_OK)
         {

@@ -673,9 +673,9 @@
       (for [[[nid prop] idx] m]
         (g/update-property nid prop types/geom-delete idx)))))
 
-(handler/defhandler :delete :curve-view
+(handler/defhandler :edit.delete :curve-view
   (enabled? [selection] (not (empty? selection)))
   (run [selection] (delete-cps selection)))
 
-(handler/defhandler :frame-selection :curve-view
+(handler/defhandler :scene.frame-selection :curve-view
   (run [view-id selection] (frame-selection view-id selection true)))

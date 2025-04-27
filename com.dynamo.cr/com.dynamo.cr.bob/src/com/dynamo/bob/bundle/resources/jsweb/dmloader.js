@@ -337,6 +337,7 @@ var EngineLoader = {
                     }
                 }
                 var wasmInstantiate = WebAssembly.instantiate(new Uint8Array(wasm), imports).then(function(output) {
+                    Module.instance = output.instance;
                     successCallback(output.instance, output.module);
                 }).catch(function(e) {
                     console.log('wasm instantiation failed! ' + e);
@@ -376,6 +377,7 @@ var EngineLoader = {
 
         WebAssembly.instantiateStreaming(fetchFn(src), imports).then(function(output) {
             ProgressUpdater.updateCurrent(EngineLoader.wasm_instantiate_progress);
+            Module.instance = output.instance;
             successCallback(output.instance, output.module);
         }).catch(function(e) {
             console.log('wasm streaming instantiation failed! ' + e);

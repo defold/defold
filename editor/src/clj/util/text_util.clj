@@ -309,3 +309,16 @@
   [^String text ^Pattern re-pattern]
   (let [matcher (re-matcher re-pattern text)]
     (.find matcher)))
+
+(defn includes-ignore-case?
+  "Like clojure.string/includes?, but case-insensitive"
+  [^String str ^String sub]
+  (let [sub-length (.length sub)]
+    (if (zero? sub-length)
+      true
+      (let [str-length (.length str)]
+        (loop [i 0]
+          (cond
+            (= i str-length) false
+            (.regionMatches str true i sub 0 sub-length) true
+            :else (recur (inc i))))))))

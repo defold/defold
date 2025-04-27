@@ -62,6 +62,7 @@ import com.dynamo.bob.fs.IFileSystem;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ZipMountPoint;
 import com.dynamo.bob.plugin.PluginScanner;
+import com.dynamo.bob.util.BuildInputDataCollector;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
@@ -777,6 +778,7 @@ public class Project {
                 missingFiles = true;
             }
         }
+        BuildInputDataCollector.setDependencies(libFiles);
         if (missingFiles) {
             logWarning("Some libraries could not be found locally, use the resolve command to fetch them.");
         }
@@ -884,6 +886,17 @@ public class Project {
         Platform platform = getPlatform();
         IBundler bundler = createBundler(platform);
 
+        File bundleDir = getBundleOutputDirectory();
+        BundleHelper.throwIfCanceled(monitor);
+        bundleDir.mkdirs();
+        bundler.bundleApplication(this, platform, bundleDir, monitor);
+        String defoldSdk = this.option("defoldsdk", EngineVersion.sha1);
+        BuildInputDataCollector.saveDataAsJson(getRootDirectory(), bundleDir, defoldSdk);
+        m.worked(1);
+        m.done();
+    }
+
+    private File getBundleOutputDirectory() {
         String bundleOutput = option("bundle-output", null);
         File bundleDir = null;
         if (bundleOutput != null) {
@@ -891,11 +904,7 @@ public class Project {
         } else {
             bundleDir = new File(getRootDirectory(), getBuildDirectory());
         }
-        BundleHelper.throwIfCanceled(monitor);
-        bundleDir.mkdirs();
-        bundler.bundleApplication(this, platform, bundleDir, monitor);
-        m.worked(1);
-        m.done();
+        return bundleDir;
     }
 
     public void registerTextureCompressors() {
@@ -1187,7 +1196,7 @@ public class Project {
                 } else if (cause.getCause() instanceof MultipleCompileException) {
                     throw (MultipleCompileException) cause.getCause();
                 } else {
-                    throw (RuntimeException) e;
+                    throw new RuntimeException(e);
                 }
             }
         }

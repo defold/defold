@@ -51,7 +51,6 @@
             [editor.targets :as targets]
             [editor.ui :as ui]
             [editor.ui.updater :as ui.updater]
-            [editor.web-profiler :as web-profiler]
             [editor.web-server :as web-server]
             [editor.workspace :as workspace]
             [service.log :as log]
@@ -206,7 +205,6 @@
                          (into []
                                cat
                                [(engine-profiler/routes)
-                                (web-profiler/routes)
                                 (console/routes console-view)
                                 (hot-reload/routes workspace)
                                 (bob/routes project)

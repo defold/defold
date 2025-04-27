@@ -5608,22 +5608,37 @@ namespace dmGui
      *
      * Here is a brief description of the available table fields:
      *
-     * Field       | Description
-     * ----------- | ----------------------------------------------------------
-     * `value`     | The amount of input given by the user. This is usually 1 for buttons and 0-1 for analogue inputs. This is not present for mouse movement.
-     * `pressed`   | If the input was pressed this frame. This is not present for mouse movement.
-     * `released`  | If the input was released this frame. This is not present for mouse movement.
-     * `repeated`  | If the input was repeated this frame. This is similar to how a key on a keyboard is repeated when you hold it down. This is not present for mouse movement.
-     * `x`         | The x value of a pointer device, if present.
-     * `y`         | The y value of a pointer device, if present.
-     * `screen_x`  | The screen space x value of a pointer device, if present.
-     * `screen_y`  | The screen space y value of a pointer device, if present.
-     * `dx`        | The change in x value of a pointer device, if present.
-     * `dy`        | The change in y value of a pointer device, if present.
-     * `screen_dx` | The change in screen space x value of a pointer device, if present.
-     * `screen_dy` | The change in screen space y value of a pointer device, if present.
-     * `gamepad`   | The index of the gamepad device that provided the input.
-     * `touch`     | List of touch input, one element per finger, if present. See table below about touch input
+     *
+     * Field         | Description
+     * ------------- | ----------------------------------------------------------
+     * `value`       | The amount of input given by the user. This is usually 1 for buttons and 0-1 for analogue inputs. This is not present for mouse movement and text input.
+     * `pressed`     | If the input was pressed this frame. This is not present for mouse movement and text input.
+     * `released`    | If the input was released this frame. This is not present for mouse movement and text input.
+     * `repeated`    | If the input was repeated this frame. This is similar to how a key on a keyboard is repeated when you hold it down. This is not present for mouse movement and text input.
+     * `x`           | The x value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `y`           | The y value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `screen_x`    | The screen space x value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `screen_y`    | The screen space y value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `dx`          | The change in x value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `dy`          | The change in y value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `screen_dx`   | The change in screen space x value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `screen_dy`   | The change in screen space y value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `gamepad`     | The index of the gamepad device that provided the input. See table below about gamepad input.
+     * `touch`       | List of touch input, one element per finger, if present. See table below about touch input
+     * `text`        | Text input from a (virtual) keyboard or similar.
+     * `marked_text` | Sequence of entered symbols while entering a symbol combination, for example Japanese Kana.
+     *
+     * Gamepad specific fields:
+     *
+     * Field             | Description
+     * ----------------- | ----------------------------------------------------------
+     * `gamepad`         | The index of the gamepad device that provided the input.
+     * `userid`          | Id of the user associated with the controller. Usually only relevant on consoles.
+     * `gamepad_unknown` | True if the inout originated from an unknown/unmapped gamepad.
+     * `gamepad_name`    | Name of the gamepad
+     * `gamepad_axis`    | List of gamepad axis values. For raw gamepad input only.
+     * `gamepadhats`     | List of gamepad hat values. For raw gamepad input only.
+     * `gamepad_buttons` | List of gamepad button values. For raw gamepad input only.
      *
      * Touch input table:
      *

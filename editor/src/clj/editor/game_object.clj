@@ -505,7 +505,7 @@
 (defn- selection->game-object [selection]
   (g/override-root (handler/adapt-single selection GameObjectNode)))
 
-(handler/defhandler :add-from-file :workbench
+(handler/defhandler :edit.add-referenced-component :workbench
   (active? [selection] (selection->game-object selection))
   (label [] "Add Component File")
   (run [workspace project selection app-view]
@@ -569,12 +569,12 @@
     (->> (embeddable-component-resource-types workspace)
          (map (fn [res-type] {:label (or (:label res-type) (:ext res-type))
                               :icon (:icon res-type)
-                              :command :add
+                              :command :edit.add-embedded-component
                               :user-data {:_node-id self :resource-type res-type :workspace workspace}}))
          (sort-by :label)
          vec)))
 
-(handler/defhandler :add :workbench
+(handler/defhandler :edit.add-embedded-component :workbench
   (label [user-data] (add-embedded-component-label user-data))
   (active? [selection] (selection->game-object selection))
   (run [user-data app-view] (add-embedded-component-handler user-data (fn [node-ids] (app-view/select app-view node-ids))))

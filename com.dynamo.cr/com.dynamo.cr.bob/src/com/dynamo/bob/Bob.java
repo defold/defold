@@ -14,6 +14,27 @@
 
 package com.dynamo.bob;
 
+import com.dynamo.bob.archive.EngineVersion;
+import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.logging.LogHelper;
+import com.dynamo.bob.logging.Logger;
+import com.dynamo.bob.util.BobProjectProperties;
+import com.dynamo.bob.util.BuildInputDataCollector;
+import com.dynamo.bob.util.FileUtil;
+import com.dynamo.bob.util.HttpUtil;
+import com.dynamo.bob.util.PackedResources;
+import com.dynamo.bob.util.TimeProfiler;
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.CommandLineParser;
+import org.apache.commons.cli.HelpFormatter;
+import org.apache.commons.cli.Option;
+import org.apache.commons.cli.Options;
+import org.apache.commons.cli.ParseException;
+import org.apache.commons.cli.PosixParser;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
+
 import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -25,6 +46,7 @@ import java.nio.file.AccessDeniedException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileSystemException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -35,29 +57,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
-import java.lang.NumberFormatException;
 
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.CommandLineParser;
-import org.apache.commons.cli.HelpFormatter;
-import org.apache.commons.cli.Option;
-import org.apache.commons.cli.Options;
-import org.apache.commons.cli.ParseException;
-import org.apache.commons.cli.PosixParser;
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.IOUtils;
-
-import com.dynamo.bob.archive.EngineVersion;
-import com.dynamo.bob.fs.DefaultFileSystem;
-import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.logging.Logger;
-import com.dynamo.bob.logging.LogHelper;
-import com.dynamo.bob.util.BobProjectProperties;
-import com.dynamo.bob.util.TimeProfiler;
-import com.dynamo.bob.util.HttpUtil;
-import com.dynamo.bob.util.FileUtil;
-
-import static com.dynamo.bob.Bob.CommandLineOption.ArgCount.*;
+import static com.dynamo.bob.Bob.CommandLineOption.ArgCount.MANY;
+import static com.dynamo.bob.Bob.CommandLineOption.ArgCount.ONE;
+import static com.dynamo.bob.Bob.CommandLineOption.ArgCount.ZERO;
 import static com.dynamo.bob.Bob.CommandLineOption.ArgType.ABS_OR_CWD_REL_PATH;
 
 public class Bob {
@@ -70,7 +73,6 @@ public class Bob {
     public static final String ARTIFACTS_URL = "http://d.defold.com/archive/";
 
     private static File rootFolder = null;
-    private static boolean luaInitialized = false;
 
     public static class OptionValidationException extends Exception {
         public final int exitCode;
@@ -119,7 +121,11 @@ public class Bob {
                     System.out.println("Warning: Failed to clean up temp directory '" + tmpDirFile.getAbsolutePath() + "'");
                 }
                 finally {
-                    luaInitialized = false;
+                    try {
+                        PackedResources.reset();
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
                 }
             }
         }));
@@ -153,16 +159,8 @@ public class Bob {
     }
 
     public static void initLua() {
-        if (luaInitialized) {
-            return;
-        }
-        init();
-        try {
-            extract(Bob.class.getResource("/lib/luajit-share.zip"), new File(rootFolder, "share"));
-            luaInitialized = true;
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        PackedResources.unpackAllLibsAsync(Platform.getHostPlatform());
+        PackedResources.waitForuUpackAllLibsAsync();
     }
 
     public static File getRootFolder() {
@@ -242,28 +240,6 @@ public class Bob {
         return exes.get(0);
     }
 
-    public static void unpackSharedLibraries(Platform platform, List<String> names) throws IOException {
-        init();
-
-        TimeProfiler.start("unpackSharedLibraries");
-        String libSuffix = platform.getLibSuffix();
-        for (String name : names) {
-            TimeProfiler.start(name);
-            String depName = platform.getPair() + "/" + name + libSuffix;
-            File f = new File(rootFolder, depName);
-            if (!f.exists()) {
-                URL url = Bob.class.getResource("/libexec/" + depName);
-                if (url == null) {
-                    throw new RuntimeException(String.format("/libexec/%s could not be found.", depName));
-                }
-
-                atomicCopy(url, f, true);
-            }
-            TimeProfiler.stop();
-        }
-        TimeProfiler.stop();
-    }
-
     // https://stackoverflow.com/a/30755071/468516
     private static final String ENOTEMPTY = "Directory not empty";
     private static void move(final File source, final File target) throws FileAlreadyExistsException, IOException {
@@ -305,6 +281,7 @@ public class Bob {
 
     private static String getExeWithExtension(Platform platform, String name, String extension) throws IOException {
         init();
+        PackedResources.waitForuUpackAllLibsAsync();
         TimeProfiler.start("getExeWithExtension %s.%s", name, extension);
         String exeName = platform.getPair() + "/" + platform.getExePrefix() + name + extension;
         File f = new File(rootFolder, exeName);
@@ -338,20 +315,11 @@ public class Bob {
         return f.getAbsolutePath();
     }
 
-    public static String getJarFile(String filename) throws IOException {
-        init();
-        TimeProfiler.start("getJarFile %s", filename);
-        File f = new File(rootFolder, filename);
-        if (!f.exists()) {
-            URL url = Bob.class.getResource("/share/java/" + filename);
-            if (url == null) {
-                throw new RuntimeException(String.format("/share/java/%s not found", filename));
-            }
-            atomicCopy(url, f, false);
+    public static String getHostExeOnce(String exeName, String currentExe) throws IOException {
+        if (currentExe != null && Files.exists(Path.of(currentExe))) {
+            return currentExe;
         }
-        TimeProfiler.addData("path", f.getAbsolutePath());
-        TimeProfiler.stop();
-        return f.getAbsolutePath();
+        return Bob.getExe(Platform.getHostPlatform(), exeName);
     }
 
     private static List<File> downloadExes(Platform platform, String variant, String artifactsURL) throws IOException {
@@ -447,6 +415,7 @@ public class Bob {
         return f.getAbsolutePath();
     }
 
+    // Used by JNI tools, see ModelImporterJni.java, ShadercJni.java and TexcLibraryJni.java in engine folder
     public static File getSharedLib(String name) throws IOException {
         init();
         TimeProfiler.start("getSharedLib %s", name);
@@ -484,7 +453,7 @@ public class Bob {
         // Set the concatenated jna.library path
         System.setProperty(variable, newPath);
     }
-
+    // Used by JNI tools, see ModelImporterJni.java, ShadercJni.java and TexcLibraryJni.java in engine folder
     static public void addToPaths(String dir) {
         addToPath("jni.library.path", dir);
         addToPath("jna.library.path", dir);
@@ -747,12 +716,16 @@ public class Bob {
 
         String cwd = new File(".").getAbsolutePath();
 
+        BuildInputDataCollector.setArgs(args);
         CommandLine cmd = parse(args);
         if (cmd == null) { // nothing to do: requested to print help
             return new InvocationResult(true, Collections.emptyList());
         }
         String buildDirectory = getOptionsValue(cmd, 'o', "build/default");
         String rootDirectory = getOptionsValue(cmd, 'r', cwd);
+
+        init();
+        PackedResources.unpackAllLibsAsync(Platform.getHostPlatform());
 
         String build_report_json = null;
         String build_report_html = null;

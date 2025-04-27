@@ -40,13 +40,13 @@
 
 (deftest run-test
   (with-clean-system
-    (handler/defhandler :open :global
+    (handler/defhandler :file.open :global
       (enabled? [instances] (every? #(= % :foo) instances))
       (run [instances] 123))
-    (are [inst exp] (= exp (enabled? :open [(handler/->context :global {:instances [inst]})] {}))
+    (are [inst exp] (= exp (enabled? :file.open [(handler/->context :global {:instances [inst]})] {}))
          :foo true
          :bar false)
-    (is (= 123 (run :open [(handler/->context :global {:instances [:foo]})] {})))))
+    (is (= 123 (run :file.open [(handler/->context :global {:instances [:foo]})] {})))))
 
 (deftest context
   (with-clean-system
@@ -321,21 +321,21 @@
                       :id ::file
                       :children [{:label "New"
                                   :id ::new
-                                  :command :new}
+                                  :command :file.new}
                                  {:label "Open"
                                   :id ::open
-                                  :command :open}]}
+                                  :command :file.open}]}
                      {:label "Edit"
                       :id ::edit
                       :children [{:label "Undo"
                                   :icon "icons/undo.png"
-                                  :command :undo}
+                                  :command :edit.undo}
                                  {:label "Redo"
                                   :icon "icons/redo.png"
-                                  :command :redo}]}
+                                  :command :edit.redo}]}
                      {:label "Help"
                       :children [{:label "About"
-                                  :command :about}]}])
+                                  :command :app.about}]}])
 
 (def scene-menu-data [{:label "Scene"
                        :children [{:label "Do stuff"}

@@ -64,6 +64,68 @@
                           :types ["boolean"]
                           :doc ""}]
           :description "Check if `\"set\"` action with this property won't throw an error"}
+         {:name "editor.command"
+          :type :function
+          :description "Create an editor command"
+          :parameters [{:name "opts"
+                        :types ["table"]
+                        :doc (str "A table with the following keys:"
+                                  (lua-completion/args-doc-html
+                                    [{:name "label"
+                                      :types ["string"]
+                                      :doc "required, user-visible command name"}
+                                     {:name "locations"
+                                      :types ["string[]"]
+                                      :doc "required, a non-empty list of locations where the command is displayed in the editor, values are either <code>\"Edit\"</code>, <code>\"View\"</code>, <code>\"Project\"</code>, <code>\"Debug\"</code> (the editor menubar), <code>\"Assets\"</code> (the assets pane), or <code>\"Outline\"</code> (the outline pane)"}
+                                     {:name "query"
+                                      :types ["table"]
+                                      :doc (str "optional, a query that both controls the command availability and provides additional information to the command handler functions; a table with the following keys:"
+                                                (lua-completion/args-doc-html
+                                                  [{:name "selection"
+                                                    :types ["table"]
+                                                    :doc (str "current selection, a table with the following keys:"
+                                                              (lua-completion/args-doc-html
+                                                                [{:name "type"
+                                                                  :types ["string"]
+                                                                  :doc "either <code>\"resource\"</code> (selected resource) or <code>\"outline\"</code> (selected outline node)"}
+                                                                 {:name "cardinality"
+                                                                  :types ["string"]
+                                                                  :doc "either <code>\"one\"</code> (will use first selected item) or <code>\"many\"</code> (will use all selected items)"}]))}
+                                                   {:name "argument"
+                                                    :types ["table"]
+                                                    :doc "the command argument"}]))}
+                                     {:name "id"
+                                      :types ["string"]
+                                      :doc "optional, keyword identifier that may be used for assigning a shortcut to a command; should be a dot-separated identifier string, e.g. <code>\"my-extension.do-stuff\"</code>"}
+                                     {:name "active"
+                                      :types ["function"]
+                                      :doc "optional function that additionally checks if a command is active in the current context; will receive opts table with values populated by the query; should be fast to execute since the editor might invoke it in response to UI interactions (on key typed, mouse clicked)"}
+                                     {:name "run"
+                                      :types ["function"]
+                                      :doc "optional function that is invoked when the user decides to execute the command; will receive opts table with values populated by the query"}]))}]
+          :returnvalues [{:name "command"
+                          :types ["command"]
+                          :doc ""}]
+          :examples "Print Git history for a file:
+```
+editor.command({
+  label = \"Git History\",
+  query = {
+    selection = {
+      type = \"resource\",
+      cardinality = \"one\"
+    }
+  },
+  run = function(opts)
+    editor.execute(
+      \"git\",
+      \"log\",
+      \"--follow\",
+      \".\" .. editor.get(opts.selection, \"path\"),
+      {reload_resources=false})
+  end
+})
+```"}
          {:name "editor.resource_attributes"
           :type :function
           :description "Query information about a project resource"

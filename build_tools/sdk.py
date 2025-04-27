@@ -141,6 +141,11 @@ def _get_latest_version_from_folders(path, replace_patterns=[]):
     dirs.sort(key=lambda x: tuple(int(token) for token in _replace_pattern(x, replace_patterns).split('.')), reverse=True)
     return dirs[0]
 
+def _get_host_exe_suffix():
+    if sys.platform == 'win32':
+        return '.exe'
+    return ''
+
 class SDKException(Exception):
     pass
 
@@ -232,7 +237,11 @@ def get_android_local_sdk_path(verbose=False):
             path = os.path.expanduser('~/Library/android/sdk')
         elif sys.platform == 'win32':
             path = os.path.expandvars('${LOCALAPPDATA}/Android/Sdk')
-        path = os.path.normpath(path)
+        elif sys.platform == 'linux':
+            path = os.path.expandvars('~/Android/Sdk')
+
+        if path is not None:
+            path = os.path.normpath(path)
 
     if path and os.path.exists(path):
         log_verbose(verbose, f"  Detected sdk path {path}")
@@ -502,13 +511,15 @@ def get_defold_emsdk_config():
     emsdk = get_defold_emsdk()
     return os.path.join(emsdk, '.emscripten')
 
-def get_defold_emsdk_node():
-    emsdk = get_defold_emsdk()
+def _find_node_in_emsdk(emsdk):
     node_dir = _get_latest_version_from_folders(os.path.join(emsdk, 'node'), [('_64bit', '')])
-    node = os.path.join(emsdk, 'node', node_dir, 'bin', 'node')
-    if not os.path.exists(node):
-        raise SDKException(f"Failed to find local EMSDK_NODE installation: {node}")
-    return node
+    node = os.path.join(emsdk, 'node', node_dir, 'bin', 'node' + _get_host_exe_suffix())
+    if os.path.exists(node):
+        return os.path.normpath(node).replace('\\', '/')
+    raise SDKException(f"Failed to find local EMSDK_NODE installation: {node}")
+
+def get_defold_emsdk_node():
+    return _find_node_in_emsdk(get_defold_emsdk())
 
 # ------------------------------------------------------------
 
@@ -528,12 +539,11 @@ def _get_local_emsdk_config():
     emsdk = _get_local_emsdk()
     return os.path.join(emsdk, '.emscripten')
 
-# https://emscripten.org/docs/tools_reference/emcc.html?highlight=em_config
 def _get_local_emsdk_node():
     node = os.environ.get('EMSDK_NODE', None)
-    if node is None:
-        raise SDKException(f"Failed to find local EMSDK_NODE installation")
-    return node
+    if node is not None:
+        return node
+    return _find_node_in_emsdk(_get_local_emsdk())
 
 ## **********************************************************************************************
 

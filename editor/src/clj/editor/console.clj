@@ -19,6 +19,7 @@
             [cljfx.fx.h-box :as fx.h-box]
             [cljfx.fx.label :as fx.label]
             [cljfx.fx.list-view :as fx.list-view]
+            [cljfx.fx.popup :as fx.popup]
             [cljfx.fx.region :as fx.region]
             [cljfx.fx.separator :as fx.separator]
             [cljfx.fx.stack-pane :as fx.stack-pane]
@@ -235,7 +236,7 @@
                                (- (.getMaxY (.getBoundsInLocal filter-console-button))
                                   ;; shadow offset
                                   4.0))]
-    {:fx/type fxui/with-popup
+    {:fx/type fxui/with-popup-window
      :desc {:fx/type ext-with-button-props
             :desc {:fx/type fxui/ext-value
                    :value filter-console-button}
@@ -251,48 +252,49 @@
                                           :pseudo-classes (if open #{:open} #{})
                                           :h-box/margin {:left 10}
                                           :id "filter-console-arrow"}]}}}
-     :showing open
-     :anchor-location :window-bottom-left
-     :anchor-x (.getX anchor)
-     :anchor-y (.getY anchor)
-     :auto-hide true
-     :auto-fix true
-     :hide-on-escape true
-     :consume-auto-hiding-events true
-     :on-auto-hide {:event-type :hide}
-     :content [{:fx/type fx.stack-pane/lifecycle
-                :stylesheets [(str (io/resource "editor.css"))]
-                :style-class "console-filter-popup"
-                :children [{:fx/type fx.region/lifecycle
-                            :mouse-transparent true
-                            :style-class "console-filter-popup-background"}
-                           {:fx/type fx.v-box/lifecycle
-                            :children
-                            [{:fx/type fx.check-box/lifecycle
-                              :focus-traversable false
-                              :max-width ##Inf
-                              :v-box/margin 4
-                              :id "global-console-filtering"
-                              :selected enabled
-                              :on-selected-changed {:event-type :toggle-global-filtering}
-                              :text "Enable filtering"}
-                             {:fx/type fx.separator/lifecycle
-                              :style-class "console-filter-popup-separator"}
-                             {:fx/type fx.list-view/lifecycle
-                              :focus-traversable false
-                              :style-class "console-filter-popup-list-view"
-                              :items (into [] (map-indexed vector) filters)
-                              :fixed-cell-size 27
-                              :max-height (* 27 (min 10 (count filters)))
-                              :cell-factory {:fx/cell-type :list-cell
-                                             :describe filter-console-list-cell-view}}
-                             {:fx/type fxui/ext-focused-by-default
-                              :v-box/margin 4
-                              :desc {:fx/type fx.text-field/lifecycle
-                                     :text text
-                                     :on-text-changed {:event-type :type}
-                                     :on-action {:event-type :add}
-                                     :prompt-text "Add filter (e.g. text, !exclude)"}}]}]}]}))
+     :popup {:fx/type fx.popup/lifecycle
+             :showing open
+             :anchor-location :window-bottom-left
+             :anchor-x (.getX anchor)
+             :anchor-y (.getY anchor)
+             :auto-hide true
+             :auto-fix true
+             :hide-on-escape true
+             :consume-auto-hiding-events true
+             :on-auto-hide {:event-type :hide}
+             :content [{:fx/type fx.stack-pane/lifecycle
+                        :stylesheets [(str (io/resource "editor.css"))]
+                        :style-class "console-filter-popup"
+                        :children [{:fx/type fx.region/lifecycle
+                                    :mouse-transparent true
+                                    :style-class "console-filter-popup-background"}
+                                   {:fx/type fx.v-box/lifecycle
+                                    :children
+                                    [{:fx/type fx.check-box/lifecycle
+                                      :focus-traversable false
+                                      :max-width ##Inf
+                                      :v-box/margin 4
+                                      :id "global-console-filtering"
+                                      :selected enabled
+                                      :on-selected-changed {:event-type :toggle-global-filtering}
+                                      :text "Enable filtering"}
+                                     {:fx/type fx.separator/lifecycle
+                                      :style-class "console-filter-popup-separator"}
+                                     {:fx/type fx.list-view/lifecycle
+                                      :focus-traversable false
+                                      :style-class "console-filter-popup-list-view"
+                                      :items (into [] (map-indexed coll/pair) filters)
+                                      :fixed-cell-size 27
+                                      :max-height (* 27 (min 10 (count filters)))
+                                      :cell-factory {:fx/cell-type :list-cell
+                                                     :describe filter-console-list-cell-view}}
+                                     {:fx/type fxui/ext-focused-by-default
+                                      :v-box/margin 4
+                                      :desc {:fx/type fx.text-field/lifecycle
+                                             :text text
+                                             :on-text-changed {:event-type :type}
+                                             :on-action {:event-type :add}
+                                             :prompt-text "Add filter (e.g. text, !exclude)"}}]}]}]}}))
 
 (defn- handle-filter-event! [state prefs e]
   (case (:event-type e)
@@ -339,11 +341,11 @@
     (init-console-filter! filter-console prefs)
     (ui/context! tool-bar :console-tool-bar {:term-field search-console :view-node view-node} nil)
     (.bindBidirectional (.textProperty search-console) find-term-property)
-    (ui/bind-key-commands! search-console {"Enter" :find-next
-                                           "Shift+Enter" :find-prev})
-    (ui/bind-action! prev-console :find-prev)
-    (ui/bind-action! next-console :find-next)
-    (ui/bind-action! clear-console :clear-console))
+    (ui/bind-key-commands! search-console {"Enter" :code.find-next
+                                           "Shift+Enter" :code.find-previous})
+    (ui/bind-action! prev-console :code.find-previous)
+    (ui/bind-action! next-console :code.find-next)
+    (ui/bind-action! clear-console :console.clear))
   tool-bar)
 
 (defn- dispose-tool-bar! [^Parent tool-bar]
@@ -378,22 +380,22 @@
                                         false
                                         true)))
 
-(handler/defhandler :find-text :console-view
+(handler/defhandler :edit.find :console-view
   (run [term-field view-node]
        (when-some [selected-text (view/non-empty-single-selection-text view-node)]
          (set-find-term! selected-text))
        (focus-term-field! term-field)))
 
-(handler/defhandler :find-next :console-view
+(handler/defhandler :code.find-next :console-view
   (run [view-node] (find-next! view-node)))
 
-(handler/defhandler :find-next :console-tool-bar
+(handler/defhandler :code.find-next :console-tool-bar
   (run [view-node] (find-next! view-node)))
 
-(handler/defhandler :find-prev :console-view
+(handler/defhandler :code.find-previous :console-view
   (run [view-node] (find-prev! view-node)))
 
-(handler/defhandler :find-prev :console-tool-bar
+(handler/defhandler :code.find-previous :console-tool-bar
   (run [view-node] (find-prev! view-node)))
 
 ;; -----------------------------------------------------------------------------
@@ -406,7 +408,7 @@
 ;; Console view action handlers
 ;; -----------------------------------------------------------------------------
 
-(handler/defhandler :clear-console :console-tool-bar
+(handler/defhandler :console.clear :console-tool-bar
   (run [view-node] (clear-console!)))
 
 ;; -----------------------------------------------------------------------------
