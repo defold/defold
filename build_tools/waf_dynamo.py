@@ -572,10 +572,22 @@ def default_flags(self):
             'MAX_WEBGL_VERSION=2',
             'GL_SUPPORT_AUTOMATIC_ENABLE_EXTENSIONS=0',
             'IMPORTED_MEMORY=1',
-            'STACK_SIZE=5MB',
-            'MIN_FIREFOX_VERSION=79',
-            'MIN_SAFARI_VERSION=150000',
-            'MIN_CHROME_VERSION=75']
+            'STACK_SIZE=5MB']
+
+        with_pthread = False
+        if build_util.get_target_platform() == 'wasm_pthread-web':
+            with_pthread = True
+
+        if with_pthread:
+            emflags_link += [
+                'MIN_FIREFOX_VERSION=79',
+                'MIN_SAFARI_VERSION=150000',
+                'MIN_CHROME_VERSION=75']
+        else:
+            emflags_link += [
+                'MIN_FIREFOX_VERSION=34',
+                'MIN_SAFARI_VERSION=90000',
+                'MIN_CHROME_VERSION=32']
 
         if Options.options.with_webgpu and platform_supports_feature(build_util.get_target_platform(), 'webgpu', {}):
             emflags_link += ['USE_WEBGPU', 'GL_WORKAROUND_SAFARI_GETCONTEXT_BUG=0']
@@ -606,10 +618,6 @@ def default_flags(self):
 
         flags += ['-O%s' % opt_level]
         linkflags += ['-O%s' % opt_level]
-
-        with_pthread = False
-        if build_util.get_target_platform() == 'wasm_pthread-web':
-            with_pthread = True
 
         if with_pthread:
             flags += ['-pthread']
