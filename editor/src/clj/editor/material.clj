@@ -78,7 +78,7 @@
 (defn- build-target-attributes [attribute-infos]
   (mapv graphics/attribute-info->build-target-attribute attribute-infos))
 
-(g/defnk produce-base-pb-msg [name vertex-program fragment-program vertex-constants fragment-constants samplers tags vertex-space max-page-count]
+(g/defnk produce-base-pb-msg [name vertex-program fragment-program vertex-constants fragment-constants ^:raw samplers tags vertex-space max-page-count]
   (protobuf/make-map-without-defaults Material$MaterialDesc
     :name name
     :vertex-program (resource/resource->proj-path vertex-program)
@@ -239,6 +239,26 @@ there is no way a user can know what the generated id will be for older shaders.
                                         (pair resolved-sampler-name nil))))
                                samplers))]
         (shader/make-shader _node-id (:shader-source augmented-vertex-shader-info) (:shader-source augmented-fragment-shader-info) uniforms array-sampler-name->slice-sampler-names strip-resource-binding-namespace-regex-str))))
+
+(g/defnk produce-samplers [^:raw samplers default-sampler-filter-modes]
+  ;; Replace any default filter modes with the setting from game.project.
+  (let [{:keys [filter-mode-mag-default filter-mode-min-default]} default-sampler-filter-modes]
+    (mapv (fn [sampler]
+            {:pre [(map? sampler)]} ; Material$MaterialDesc$Sampler in map format.
+            (-> sampler
+                (update
+                  :filter-mag
+                  (fn [filter-mag]
+                    (case filter-mag
+                      :filter-mode-mag-default filter-mode-mag-default
+                      filter-mag)))
+                (update
+                  :filter-min
+                  (fn [filter-min]
+                    (case filter-min
+                      :filter-mode-min-default filter-mode-min-default
+                      filter-min)))))
+          samplers)))
 
 (defn- vector-type->form-field-type [vector-type]
   (case vector-type
@@ -424,7 +444,7 @@ there is no way a user can know what the generated id will be for older shaders.
   (let [processed-value (set-form-value-fn property value user-data)]
     (g/set-property! node-id property processed-value)))
 
-(g/defnk produce-form-data [_node-id name attributes vertex-program fragment-program vertex-constants fragment-constants max-page-count samplers tags vertex-space :as args]
+(g/defnk produce-form-data [_node-id name attributes vertex-program fragment-program vertex-constants fragment-constants max-page-count ^:raw samplers tags vertex-space :as args]
   (let [values (select-keys args (mapcat :path (get-in form-data [:sections 0 :fields])))
         form-values (into {} (map (fn [[k v]] [[k] v]) values))]
     (-> form-data
@@ -439,21 +459,21 @@ there is no way a user can know what the generated id will be for older shaders.
 
 (defn- filter-mode-min->gl [filter-min default-tex-params]
   (case filter-min
-    :filter-mode-min-default (:min-filter default-tex-params)
+    :filter-mode-min-default (or (:min-filter default-tex-params) GL2/GL_NEAREST_MIPMAP_LINEAR)
     :filter-mode-min-nearest GL2/GL_NEAREST
     :filter-mode-min-linear GL2/GL_LINEAR
     :filter-mode-min-nearest-mipmap-nearest GL2/GL_NEAREST_MIPMAP_NEAREST
     :filter-mode-min-nearest-mipmap-linear GL2/GL_NEAREST_MIPMAP_LINEAR
     :filter-mode-min-linear-mipmap-nearest GL2/GL_LINEAR_MIPMAP_NEAREST
     :filter-mode-min-linear-mipmap-linear GL2/GL_LINEAR_MIPMAP_LINEAR
-    nil))
+    GL2/GL_NEAREST_MIPMAP_LINEAR))
 
 (defn- filter-mode-mag->gl [filter-mag default-tex-params]
   (case filter-mag
-    :filter-mode-mag-default (:mag-filter default-tex-params)
+    :filter-mode-mag-default (or (:mag-filter default-tex-params) GL2/GL_LINEAR)
     :filter-mode-mag-nearest GL2/GL_NEAREST
     :filter-mode-mag-linear GL2/GL_LINEAR
-    nil))
+    GL2/GL_LINEAR))
 
 (def ^:private default-pb-sampler
   (protobuf/make-map-without-defaults Material$MaterialDesc$Sampler
@@ -556,6 +576,7 @@ there is no way a user can know what the generated id will be for older shaders.
 
   (output form-data g/Any :cached produce-form-data)
 
+  (input default-sampler-filter-modes g/Any)
   (input vertex-resource resource/Resource)
   (input vertex-shader-source-info g/Any)
   (input fragment-resource resource/Resource)
@@ -566,27 +587,29 @@ there is no way a user can know what the generated id will be for older shaders.
   (output save-value g/Any produce-save-value)
   (output build-targets g/Any :cached produce-build-targets)
   (output shader ShaderLifecycle :cached produce-shader)
-  (output samplers [g/KeywordMap] (gu/passthrough samplers))
+  (output samplers [g/KeywordMap] :cached produce-samplers)
   (output attribute-infos [g/KeywordMap] :cached produce-attribute-infos))
 
 (defn- legacy-texture->sampler [name]
   (assoc default-pb-sampler :name name))
 
-(defn load-material [_project self resource material-desc]
+(defn load-material [project self resource material-desc]
   {:pre [(map? material-desc)]} ; Material$MaterialDesc in map format.
   (let [resolve-resource #(workspace/resolve-resource resource %)
         attributes->editable-attributes #(mapv attribute->editable-attribute %)]
-    (gu/set-properties-from-pb-map self Material$MaterialDesc material-desc
-      vertex-program (resolve-resource :vertex-program)
-      fragment-program (resolve-resource :fragment-program)
-      vertex-constants (render-program-utils/constants->editable-constants :vertex-constants)
-      fragment-constants (render-program-utils/constants->editable-constants :fragment-constants)
-      attributes (attributes->editable-attributes :attributes)
-      name :name
-      samplers (render-program-utils/samplers->editable-samplers :samplers)
-      tags :tags
-      vertex-space :vertex-space
-      max-page-count :max-page-count)))
+    (concat
+      (g/connect project :default-sampler-filter-modes self :default-sampler-filter-modes)
+      (gu/set-properties-from-pb-map self Material$MaterialDesc material-desc
+        vertex-program (resolve-resource :vertex-program)
+        fragment-program (resolve-resource :fragment-program)
+        vertex-constants (render-program-utils/constants->editable-constants :vertex-constants)
+        fragment-constants (render-program-utils/constants->editable-constants :fragment-constants)
+        attributes (attributes->editable-attributes :attributes)
+        name :name
+        samplers (render-program-utils/samplers->editable-samplers :samplers)
+        tags :tags
+        vertex-space :vertex-space
+        max-page-count :max-page-count))))
 
 (defn- sanitize-material
   "The old format specified :textures as string names. Convert these into
