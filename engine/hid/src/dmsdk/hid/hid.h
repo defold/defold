@@ -654,28 +654,28 @@ namespace dmHID
     /*#
      * Obtain a gamepad packet reflecting the current input state of the gamepad in a  HID context.
      * @name GetGamepadPacket
-     * @param gamepad gamepad handle
-     * @param out_packet Gamepad packet out argument
-     * @return True if the packet was successfully updated.
+     * @param gamepad [type: dmHID::HGamepad] gamepad handle
+     * @param out_packet [type: dmHID::GamepadPacket] Gamepad packet out argument
+     * @return success [type: bool] True if the packet was successfully updated.
      */
     bool GetGamepadPacket(HGamepad gamepad, GamepadPacket* out_packet);
 
     /*#
      * Convenience function to retrieve the state of a gamepad button from a gamepad packet.
      * @name GetGamepadButton
-     * @param packet Gamepad packet
-     * @param button The requested button
-     * @return True if the button is currently pressed down.
+     * @param packet [type: dmHID::GamepadPacket] Gamepad packet
+     * @param button [type: uint32_t] The requested button
+     * @return success [type: bool] True if the button is currently pressed down.
      */
     bool GetGamepadButton(GamepadPacket* packet, uint32_t button);
 
     /*#
      * Convenience function to retrieve the state of a gamepad hat from a gamepad packet.
      * @name GetGamepadHat
-     * @param packet Gamepad packet
-     * @param hat The requested hat index
-     * @param out_hat_value Hat value out argument
-     * @return True if the hat has data.
+     * @param packet [type: dmHID::GamepadPacket] Gamepad packet
+     * @param hat [type: uint32_t] The requested hat index
+     * @param out_hat_value [type: uint8_t] Hat value out argument
+     * @return success [type: bool] True if the hat has data.
      */
     bool GetGamepadHat(GamepadPacket* packet, uint32_t hat, uint8_t* out_hat_value);
 }
