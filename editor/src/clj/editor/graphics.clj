@@ -495,7 +495,7 @@
                               i j k))
         :vector-type-mat4 double-values))))
 
-(defn attribute-data-type->buffer-data-type [attribute-data-type]
+(defn- attribute-data-type->buffer-data-type [attribute-data-type]
   (case attribute-data-type
     :type-byte :byte
     :type-unsigned-byte :ubyte
@@ -504,6 +504,16 @@
     :type-int :int
     :type-unsigned-int :uint
     :type-float :float))
+
+(defn- buffer-data-type->attribute-data-type [buffer-data-type]
+  (case buffer-data-type
+    :byte :type-byte
+    :ubyte :type-unsigned-byte
+    :short :type-short
+    :ushort :type-unsigned-short
+    :int :type-int
+    :uint :type-unsigned-int
+    :float :type-float))
 
 (defn attribute-values+data-type->byte-size [attribute-values attribute-data-type]
   (* (count attribute-values) (int (attribute-data-type->byte-size attribute-data-type))))
@@ -1137,18 +1147,23 @@
                                           (repeat vertex-count matrix-values)))))
 
                   ;; Mesh data doesn't exist. Use the attribute data from the
-                  ;; material or overrides.
-                  (put-renderables! attribute-byte-offset put-attribute-bytes!
-                                    (fn renderable-data->attribute-bytes [renderable-data]
-                                      (let [vertex-count (count (:position-data renderable-data))
-                                            attribute-bytes (get (:vertex-attribute-bytes renderable-data) name-key)
-                                            attribute-byte-count-max (* element-count (buffers/type-size buffer-data-type))]
-                                        ;; Clamp the buffer if the container format is smaller than specified in the material
-                                        (if (> (count attribute-bytes) attribute-byte-count-max)
-                                          (let [attribute-bytes-clamped (byte-array attribute-byte-count-max)]
-                                            (System/arraycopy attribute-bytes 0 attribute-bytes-clamped 0 attribute-byte-count-max)
-                                            (repeat vertex-count attribute-bytes-clamped))
-                                          (repeat vertex-count attribute-bytes))))))
+                  ;; material or overrides. If the material does not declare an
+                  ;; attribute bound by the shader, use a default that makes
+                  ;; sense for the attribute.
+                  (let [attribute-byte-count-max (* element-count (buffers/type-size buffer-data-type))
+                        attribute-data-type (buffer-data-type->attribute-data-type buffer-data-type)
+                        default-attribute-bytes (default-attribute-bytes semantic-type attribute-data-type vector-type normalize)]
+                    (put-renderables!
+                      attribute-byte-offset put-attribute-bytes!
+                      (fn renderable-data->attribute-bytes [renderable-data]
+                        (let [vertex-count (count (:position-data renderable-data))
+                              attribute-bytes (get (:vertex-attribute-bytes renderable-data) name-key default-attribute-bytes)]
+                          ;; Clamp the buffer if the container format is smaller than specified in the material
+                          (if (> (count attribute-bytes) attribute-byte-count-max)
+                            (let [attribute-bytes-clamped (byte-array attribute-byte-count-max)]
+                              (System/arraycopy attribute-bytes 0 attribute-bytes-clamped 0 attribute-byte-count-max)
+                              (repeat vertex-count attribute-bytes-clamped))
+                            (repeat vertex-count attribute-bytes)))))))
                 (-> reduce-info
                     (update semantic-type inc)
                     (assoc :attribute-byte-offset (+ attribute-byte-offset
