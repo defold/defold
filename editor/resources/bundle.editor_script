@@ -84,9 +84,9 @@ local function bundle_html5(show_dialog)
     local output_subdir = (js and has_wasm and "universal-web") or (has_wasm and "wasm-web") or "js-web"
     local output_directory = editor.bundle.output_directory(show_dialog, output_subdir)
     local architectures = {}
-    table.insert(architectures, js)
-    table.insert(architectures, wasm)
-    table.insert(architectures, wasm_pthread)
+    table.insert(architectures, js and "js-web" or nil)
+    table.insert(architectures, wasm and "wasm-web" or nil)
+    table.insert(architectures, wasm_pthread and "wasm_pthread-web" or nil)
     local architectures_str = table.concat(architectures, ',')
     editor.bundle.create(config, output_directory, {platform = "js-web", architectures = architectures_str})
 end
