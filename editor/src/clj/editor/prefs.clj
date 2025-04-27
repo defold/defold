@@ -880,6 +880,7 @@
                                "bundle-ios-launch-app?" [:bundle :ios :launch]
                                "bundle-html5-architecture-js-web?" [:bundle :html5 :architecture :js-web]
                                "bundle-html5-architecture-wasm-web?" [:bundle :html5 :architecture :wasm-web]
+                               "bundle-html5-architecture-wasm_pthread-web?" [:bundle :html5 :architecture :wasm_pthread-web]
                                "bundle-windows-platform" [:bundle :windows :platform]
                                "project-git-credentials" [:git :credentials]}
                               ;; these prefs already used project scope

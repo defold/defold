@@ -67,7 +67,7 @@ def build(bld):
                         'ScriptBox2DExt', 'ScriptImageExt', 'ScriptModelExt', 'ScriptTypesExt', 'ScriptHttp']
 
     # Add stb_vorbis and/or tremolo depending on platform
-    if bld.env['PLATFORM'] in ('arm64-nx64', 'win32', 'x86_64-win32', 'js-web', 'wasm-web'):
+    if bld.env['PLATFORM'] in ('arm64-nx64', 'win32', 'x86_64-win32', 'js-web', 'wasm-web', 'wasm_pthread-web'):
         exported_symbols.append('AudioDecoderStbVorbis')
     elif bld.env['PLATFORM'] in ('x86_64-ps4','x86_64-ps5',):
         pass # dont't add tremolo

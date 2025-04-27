@@ -96,3 +96,12 @@ platforms:
       libs: [graphics_webgpu]
       linkFlags: []
       emscriptenLinkFlags: [USE_WEBGPU=1, GL_WORKAROUND_SAFARI_GETCONTEXT_BUG=0, ASYNCIFY=1, ASYNCIFY_IGNORE_INDIRECT=1, 'ASYNCIFY_ADD=["main","dmEngineCreate(*)","requestDeviceCallback(*)","WebGPUCreateSwapchain(*)","instanceRequestAdapterCallback(*)"]']
+  wasm_pthread-web:
+    context:
+      excludeLibs: []
+      excludeJsLibs: []
+      excludeSymbols: []
+      symbols: [GraphicsAdapterWebGPU]
+      libs: [graphics_webgpu]
+      linkFlags: []
+      emscriptenLinkFlags: [USE_WEBGPU=1, GL_WORKAROUND_SAFARI_GETCONTEXT_BUG=0, ASYNCIFY=1, ASYNCIFY_IGNORE_INDIRECT=1, 'ASYNCIFY_ADD=["main","dmEngineCreate(*)","requestDeviceCallback(*)","WebGPUCreateSwapchain(*)","instanceRequestAdapterCallback(*)"]']
