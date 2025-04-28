@@ -1310,9 +1310,9 @@ Module['onRuntimeInitialized'] = function() {
     Module.runApp("canvas");
 };
 
-{{#DEFOLD_HAS_WASM_PTHREAD_ENGINE}}
-Module["isWASMPthreadSupported"] = {{DEFOLD_HAS_WASM_PTHREAD_ENGINE}};
-{{/DEFOLD_HAS_WASM_PTHREAD_ENGINE}}
+Module["isWASMPthreadSupported"] = {{DEFOLD_HAS_WASM_PTHREAD_ENGINE}} 
+    && ((typeof window === 'undefined') || window.isSecureContext && window.crossOriginIsolated)
+    && typeof SharedArrayBuffer !== 'undefined';
 
 Module["locateFile"] = function(path, scriptDirectory)
 {
