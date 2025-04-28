@@ -66,7 +66,8 @@
                 [:code :open-file]
                 [:code :open-file-at-line]
                 [:code :font :name]
-                [:code :zoom-on-scroll]]}
+                [:code :zoom-on-scroll]
+                [:code :hover]]}
        {:name "Extensions"
         :paths [[:extensions :build-server]
                 [:extensions :build-server-username]
