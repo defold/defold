@@ -585,9 +585,9 @@ def default_flags(self):
                 'MIN_CHROME_VERSION=75']
         else:
             emflags_link += [
-                'MIN_FIREFOX_VERSION=34',
-                'MIN_SAFARI_VERSION=90000',
-                'MIN_CHROME_VERSION=32']
+                'MIN_FIREFOX_VERSION=40',
+                'MIN_SAFARI_VERSION=101000',
+                'MIN_CHROME_VERSION=45']
 
         if Options.options.with_webgpu and platform_supports_feature(build_util.get_target_platform(), 'webgpu', {}):
             emflags_link += ['USE_WEBGPU', 'GL_WORKAROUND_SAFARI_GETCONTEXT_BUG=0']
