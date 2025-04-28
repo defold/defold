@@ -596,25 +596,24 @@ def default_flags(self):
             if int(opt_level) >= 3:
                 emflags_link += ['ASYNCIFY_ADVISE', 'ASYNCIFY_IGNORE_INDIRECT', 'ASYNCIFY_ADD=["main", "dmEngineCreate(int, char**)"]' ]
 
+        flags = []
+        linkflags = []
         if 'wasm' == target_arch:
             emflags_link += ['WASM=1', 'ALLOW_MEMORY_GROWTH=1']
+            if int(opt_level) < 2:
+                flags += ['-gseparate-dwarf', '-gsource-map']
+                linkflags += ['-gseparate-dwarf', '-gsource-map']
         else:
             emflags_link += ['WASM=0', 'LEGACY_VM_SUPPORT=1']
 
         emflags_link = zip(['-s'] * len(emflags_link), emflags_link)
         emflags_link =[j for i in emflags_link for j in i]
 
-        flags = []
-        linkflags = []
         if os.environ.get('EMCFLAGS', None) is not None:
             flags += os.environ.get("EMCFLAGS", "").split(' ')
 
         if os.environ.get('EMLINKFLAGS', None) is not None:
             linkflags += os.environ.get("EMLINKFLAGS", "").split(' ')
-
-        if int(opt_level) < 2:
-            flags += ['-gseparate-dwarf', '-gsource-map']
-            linkflags += ['-gseparate-dwarf', '-gsource-map']
 
         flags += ['-O%s' % opt_level]
         linkflags += ['-O%s' % opt_level]
