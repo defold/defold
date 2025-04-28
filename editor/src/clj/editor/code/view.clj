@@ -2551,7 +2551,7 @@
      (schedule-hover-refresh! view-node evaluation-context)))
   ([view-node evaluation-context]
    (some-> (g/node-value view-node :hover-request evaluation-context) ui/cancel)
-   {:hover-request (ui/->future 0.25 #(refresh-hover-state! view-node))}))
+   {:hover-request (ui/->future 0.2 #(refresh-hover-state! view-node))}))
 
 (defn- request-lsp-hover! [view-node lsp resource-node new-hover-cursor evaluation-context]
   (let [old-hover-cursor (get-property view-node :hover-cursor evaluation-context)
@@ -2575,7 +2575,9 @@
     ;; save the new hover cursor in the graph if it changed
     (cond-> ret (not= old-hover-cursor new-hover-cursor) (assoc :hover-cursor new-hover-cursor))))
 
-(defn handle-mouse-moved! [view-node ^MouseDragEvent event]
+(def ^:private hover-pref-path [:code :hover])
+
+(defn handle-mouse-moved! [view-node prefs ^MouseDragEvent event]
   (.consume event)
   (set-properties!
     view-node :selection
@@ -2595,7 +2597,9 @@
                                   (get-property view-node :hovered-element evaluation-context)
                                   x
                                   y)
-                (and lsp (not (get-property view-node :hover-mouse-over-popup evaluation-context)))
+                (and lsp
+                     (prefs/get prefs hover-pref-path)
+                     (not (get-property view-node :hover-mouse-over-popup evaluation-context)))
                 (merge
                   (let [hover-character-cursor (data/canvas->character-cursor layout lines x y)]
                     (request-lsp-hover! view-node lsp resource-node hover-character-cursor evaluation-context)))))))
@@ -3965,9 +3969,9 @@
       (.setFocusTraversable true)
       (.setCursor javafx.scene.Cursor/TEXT)
       (.addEventFilter KeyEvent/KEY_PRESSED (ui/event-handler event (handle-key-pressed! view-node event editable)))
-      (.addEventHandler MouseEvent/MOUSE_MOVED (ui/event-handler event (handle-mouse-moved! view-node event)))
+      (.addEventHandler MouseEvent/MOUSE_MOVED (ui/event-handler event (handle-mouse-moved! view-node prefs event)))
       (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (handle-mouse-pressed! view-node event)))
-      (.addEventHandler MouseEvent/MOUSE_DRAGGED (ui/event-handler event (handle-mouse-moved! view-node event)))
+      (.addEventHandler MouseEvent/MOUSE_DRAGGED (ui/event-handler event (handle-mouse-moved! view-node prefs event)))
       (.addEventHandler MouseEvent/MOUSE_RELEASED (ui/event-handler event (handle-mouse-released! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_EXITED (ui/event-handler event (handle-mouse-exited! view-node event)))
       (.addEventHandler ScrollEvent/SCROLL (ui/event-handler event (handle-scroll! view-node (prefs/get prefs [:code :zoom-on-scroll]) event))))
