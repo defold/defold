@@ -82,6 +82,7 @@ namespace dmRender
 
         font_map->m_CellTempData = (uint8_t*)malloc(font_map->m_CacheCellWidth*font_map->m_CacheCellHeight*4);
 
+        font_map->m_CacheCursor = 0;
         font_map->m_CacheIndices = (uint16_t*)malloc(sizeof(uint16_t) * font_map->m_CacheCellCount);
         memset(font_map->m_CacheIndices, 0, sizeof(uint16_t) * font_map->m_CacheCellCount);
 
@@ -110,6 +111,25 @@ namespace dmRender
         }
     }
 
+    static void ClearTexture(HFontMap font_map, uint32_t width, uint32_t height)
+    {
+        dmGraphics::TextureParams tex_params;
+        tex_params.m_Format = font_map->m_CacheFormat;
+        tex_params.m_Width = width;
+        tex_params.m_Height = height;
+        tex_params.m_Depth = 1;
+        tex_params.m_MinFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
+        tex_params.m_MagFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
+
+        tex_params.m_DataSize = width * height * font_map->m_CacheChannels;
+        tex_params.m_Data = malloc(tex_params.m_DataSize);
+        memset((void*)tex_params.m_Data, 0, tex_params.m_DataSize);
+
+        dmGraphics::SetTexture(font_map->m_Texture, tex_params);
+
+        free((void*)tex_params.m_Data);
+    }
+
     static void RecreateTexture(HFontMap font_map, dmGraphics::HContext graphics_context, uint32_t width, uint32_t height)
     {
         // create new texture to be used as a cache
@@ -119,29 +139,13 @@ namespace dmRender
         tex_create_params.m_OriginalWidth = width;
         tex_create_params.m_OriginalHeight = height;
 
-        dmGraphics::TextureParams tex_params;
-        tex_params.m_Format = font_map->m_CacheFormat;
-        tex_params.m_Data = 0;
-        tex_params.m_DataSize = 0;
-        tex_params.m_Width = width;
-        tex_params.m_Height = height;
-        tex_params.m_MinFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
-        tex_params.m_MagFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
-
         if (font_map->m_Texture)
         {
             dmGraphics::DeleteTexture(font_map->m_Texture);
         }
         font_map->m_Texture = dmGraphics::NewTexture(graphics_context, tex_create_params);
 
-        uint32_t data_size = tex_params.m_Width * tex_params.m_Height * font_map->m_CacheChannels;
-        tex_params.m_Data = malloc(data_size);
-        tex_params.m_DataSize = data_size;
-        memset((void*)tex_params.m_Data, 0, tex_params.m_DataSize);
-
-        dmGraphics::SetTexture(font_map->m_Texture, tex_params);
-
-        free((void*)tex_params.m_Data);
+        ClearTexture(font_map, width, height);
     }
 
     void SetFontMap(HFontMap font_map, dmRender::HRenderContext render_context, dmGraphics::HContext graphics_context, FontMapParams& params)
@@ -218,7 +222,8 @@ namespace dmRender
 
     void SetFontMapCacheSize(HFontMap font_map, uint32_t cell_width, uint32_t cell_height, uint32_t max_ascent)
     {
-        // TODO: DO we need to clear the texture?
+        font_map->m_IsCacheSizeDirty = 1;
+
         SetupCache(font_map, font_map->m_CacheWidth, font_map->m_CacheWidth,
                             cell_width, cell_height, max_ascent);
     }
@@ -316,7 +321,7 @@ namespace dmRender
         return x + 1;
     }
 
-    static void RecreateCache(HFontMap font_map, dmGraphics::HContext graphics_context, dmRender::FontMetrics* metrics)
+    static void ResetCache(HFontMap font_map, dmGraphics::HContext graphics_context, bool recreate_texture, dmRender::FontMetrics* metrics)
     {
         font_map->m_CacheWidth = dmMath::Max(font_map->m_CacheWidth, metrics->m_MaxWidth);
         font_map->m_CacheHeight = dmMath::Max(font_map->m_CacheHeight, metrics->m_MaxHeight);
@@ -328,24 +333,40 @@ namespace dmRender
 
         font_map->m_MaxAscent = metrics->m_MaxAscent;
         font_map->m_MaxDescent = metrics->m_MaxDescent;
-        RecreateTexture(font_map, graphics_context, font_map->m_CacheWidth, font_map->m_CacheHeight);
+        if (recreate_texture)
+            RecreateTexture(font_map, graphics_context, font_map->m_CacheWidth, font_map->m_CacheHeight);
+        else
+            ClearTexture(font_map, font_map->m_CacheWidth, font_map->m_CacheHeight);
+
         SetFontMapCacheSize(font_map, metrics->m_MaxWidth, metrics->m_MaxHeight, metrics->m_MaxAscent);
+    }
+
+    static bool IsTextureTooSmall(HFontMap font_map, dmRender::FontMetrics& font_metrics)
+    {
+        if (!font_map->m_GetFontMetrics)
+            return false;
+
+        uint32_t num_glyphs = font_map->m_GetFontMetrics(font_map->m_UserData, &font_metrics);
+
+        // If the texture is actually too small
+        return num_glyphs > 0 && (font_map->m_CacheWidth < font_metrics.m_MaxWidth || font_map->m_CacheHeight < font_metrics.m_MaxHeight);
+    }
+
+    void UpdateCacheTexture(HFontMap font_map)
+    {
+        dmRender::FontMetrics font_metrics = {0};
+        bool texture_too_small = IsTextureTooSmall(font_map, font_metrics);
+        bool update_cache = font_map->m_IsCacheSizeDirty || texture_too_small;
+
+        if (update_cache)
+        {
+            ResetCache(font_map, font_map->m_GraphicsContext, texture_too_small, &font_metrics);
+            font_map->m_IsCacheSizeDirty = 0;
+        }
     }
 
     static void UpdateGlyphTexture(HFontMap font_map, dmRender::FontGlyph* g, int32_t x, int32_t y, int offset_y)
     {
-        if (font_map->m_GetFontMetrics)
-        {
-            dmRender::FontMetrics font_metrics = {0};
-            uint32_t num_glyphs = font_map->m_GetFontMetrics(font_map->m_UserData, &font_metrics);
-
-            // If the texture is actually too small
-            if (num_glyphs > 0 && (font_map->m_CacheWidth < font_metrics.m_MaxWidth || font_map->m_CacheHeight < font_metrics.m_MaxHeight))
-            {
-                RecreateCache(font_map, font_map->m_GraphicsContext, &font_metrics);
-            }
-        }
-
         uint32_t glyph_data_compression = 0; // E.g. FONT_GLYPH_COMPRESSION_NONE;
         uint32_t glyph_data_size = 0;
         uint32_t glyph_image_width = 0;

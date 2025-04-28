@@ -575,11 +575,6 @@ public class Fontc {
             cell_max_descent = Math.max(cell_max_descent, descent);
         }
 
-        // Make sure it fits future glyphs (provided at runtime)
-        cell_max_ascent  = (int)Math.ceil(Math.max(cell_max_ascent, glyphBankBuilder.getMaxAscent()));
-        cell_max_descent = (int)Math.ceil(Math.max(cell_max_descent, glyphBankBuilder.getMaxDescent()));
-        cell_width = (int)Math.ceil(Math.max(cell_width, glyphBankBuilder.getMaxWidth()));
-
         cell_height       = cell_max_ascent + cell_max_descent + padding * 2 + cell_padding * 2;
         cell_max_ascent  += padding;
 
