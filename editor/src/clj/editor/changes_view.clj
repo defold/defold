@@ -25,6 +25,7 @@
             [editor.ui :as ui]
             [editor.vcs-status :as vcs-status]
             [editor.workspace :as workspace]
+            [editor.notifications :as notifications]
             [service.log :as log])
   (:import [java.io File]
            [javafx.beans.value ChangeListener]
@@ -143,13 +144,22 @@
 
 (defn- try-open-git
   ^Git [workspace]
-  (let [repo-directory (workspace/project-directory workspace)
-        git (git/try-open repo-directory)
-        head-commit (some-> git .getRepository (git/get-commit "HEAD"))]
-    (if (some? head-commit)
-      git
-      (when (some? git)
-        (.close git)))))
+  (try
+    (let [repo-directory (workspace/project-directory workspace)
+          git (git/try-open repo-directory)
+          head-commit (some-> git .getRepository (git/get-commit "HEAD"))]
+      (if (some? head-commit)
+        git
+        (when (some? git)
+          (.close git))))
+    (catch Exception e
+      (let [msg (str "Git error: " (.getMessage e))]
+        (log/error :msg msg :exception e)
+        (notifications/show!
+          (workspace/notifications workspace)
+          {:type :warning
+           :text "Due to a Git error, Git features are not available for this project."})
+        nil))))
 
 (defn make-changes-view [view-graph workspace prefs ^Parent parent async-reload!]
   (assert (fn? async-reload!))
