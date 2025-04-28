@@ -829,19 +829,18 @@ static WGPURenderPipeline WebGPUGetOrCreateRenderPipeline(WebGPUContext* context
     return pipeline;
 }
 
-static void WebGPUCreateSwapchain(WebGPUContext* context, uint32_t width, uint32_t height)
+static void WebGPUConfigure(WebGPUContext* context, uint32_t width, uint32_t height)
 {
-    // swapchain
+    // configure
     {
-        if (context->m_SwapChain)
-            wgpuSwapChainRelease(context->m_SwapChain);
-        WGPUSwapChainDescriptor swap_chain_desc = {};
-        swap_chain_desc.usage                   = WGPUTextureUsage_RenderAttachment;
-        swap_chain_desc.format                  = context->m_Format;
-        swap_chain_desc.width                   = width;
-        swap_chain_desc.height                  = height;
-        swap_chain_desc.presentMode             = WGPUPresentMode_Fifo;
-        context->m_SwapChain                    = wgpuDeviceCreateSwapChain(context->m_Device, context->m_Surface, &swap_chain_desc);
+        WGPUSurfaceConfiguration surface_conf = {};
+        surface_conf.device                   = context->m_Device;
+        surface_conf.usage                    = WGPUTextureUsage_RenderAttachment;
+        surface_conf.format                   = context->m_Format;
+        surface_conf.width                    = width;
+        surface_conf.height                   = height;
+        surface_conf.presentMode              = WGPUPresentMode_Fifo;
+        wgpuSurfaceConfigure(context->m_Surface, &surface_conf);
     }
 
     // rendertarget
@@ -934,7 +933,7 @@ static void requestDeviceCallback(WGPURequestDeviceStatus status, WGPUDevice dev
             context->m_Surface = wgpuInstanceCreateSurface(context->m_Instance, &surface_desc);
         }
         context->m_Format = wgpuSurfaceGetPreferredFormat(context->m_Surface, context->m_Adapter);
-        WebGPUCreateSwapchain(context, context->m_OriginalWidth, context->m_OriginalHeight);
+        WebGPUConfigure(context, context->m_OriginalWidth, context->m_OriginalHeight);
 
         dmLogInfo("WebGPU: Created device");
     }
@@ -1274,7 +1273,7 @@ static void WebGPUResizeWindow(HContext _context, uint32_t width, uint32_t heigh
     if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
     {
         dmPlatform::SetWindowSize(context->m_Window, width, height);
-        WebGPUCreateSwapchain(context, width, height);
+        WebGPUConfigure(context, width, height);
     }
 }
 
@@ -1470,11 +1469,23 @@ static void WebGPUBeginFrame(HContext _context)
     {
         const uint32_t windowWidth = GetWindowWidth(context->m_Window), windowHeight = GetWindowHeight(context->m_Window);
         if (!context->m_MainRenderTarget || windowWidth != context->m_Width || windowHeight != context->m_Height) // (re)create
-            WebGPUCreateSwapchain(context, windowWidth, windowHeight);
-        WGPUTexture     currentTexture = wgpuSwapChainGetCurrentTexture(context->m_SwapChain);
-        WGPUTextureView currentTextureView = wgpuSwapChainGetCurrentTextureView(context->m_SwapChain);
+            WebGPUConfigure(context, windowWidth, windowHeight);
+        WGPUSurfaceTexture surfaceTexture = {};
+        wgpuSurfaceGetCurrentTexture(context->m_Surface, &surfaceTexture);
+
+        WGPUTexture     currentTexture = surfaceTexture.texture;
         const uint32_t  currentWidth = wgpuTextureGetWidth(currentTexture),
-                        currentHeight = wgpuTextureGetHeight(currentTexture);
+                       currentHeight = wgpuTextureGetHeight(currentTexture);
+        WGPUTextureView currentTextureView;
+        {
+            WGPUTextureViewDescriptor textureViewDesc = {};
+            textureViewDesc.aspect                    = WGPUTextureAspect_All;
+            textureViewDesc.format                    = context->m_Format;
+            textureViewDesc.dimension                 = WGPUTextureViewDimension_2D;
+            textureViewDesc.arrayLayerCount           = 1;
+            textureViewDesc.mipLevelCount             = 1;
+            currentTextureView                        = wgpuTextureCreateView(currentTexture, &textureViewDesc);
+        }
 
         if (context->m_MainRenderTarget->m_Multisample == 1) {
             WebGPUTexture* textureColor = GetAssetFromContainer<WebGPUTexture>(context->m_AssetHandleContainer, context->m_MainRenderTarget->m_TextureColor[0]);
@@ -1531,7 +1542,7 @@ static void WebGPUFlip(HContext _context)
     context->m_CurrentRenderTarget = NULL;
     {
 #if !defined(__EMSCRIPTEN__)
-        wgpuSwapChainPresent(context->m_SwapChain);
+        wgpuSurfacePresent(context->m_Surface);
 #endif
         {
             WebGPUTexture* texture;
