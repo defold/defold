@@ -24,7 +24,9 @@
             [editor.gl.vertex :as vtx]
             [editor.math :as math]
             [editor.prefs :as prefs]
-            [editor.scene-picking :as scene-picking])
+            [editor.scene-picking :as scene-picking]
+            [util.coll :as coll]
+            [util.eduction :as e])
   (:import [com.jogamp.opengl GL GL2]
            [java.lang Math Runnable]
            [javax.vecmath AxisAngle4d Matrix3d Matrix4d Point3d Quat4d Tuple3d Vector3d]))
@@ -503,12 +505,12 @@
  
 (defn- top-nodes
   [nodes]
-  (let [node-ids (->> nodes (map :node-id) set)
+  (let [node-ids (into #{} (map :node-id) nodes)
         child? (fn [node]
                  (->> (:node-id-path node)
-                      (some #(and (not= % (:node-id node))
-                                  (contains? node-ids %)))))]
-    (filter (complement child?) nodes)))
+                      (coll/some #(and (not= % (:node-id node))
+                                       (contains? node-ids %)))))]
+    (e/remove child? nodes)))
 
 (defn handle-input [self action selection-data]
   (case (:type action)
