@@ -402,13 +402,6 @@
   (state [scene-visibility]
          (not (:grid (g/node-value scene-visibility :filtered-renderable-tags)))))
 
-;; TODO: Move to snap node
-(handler/defhandler :scene.visibility.toggle-snap :workbench
-  (active? [scene-visibility evaluation-context]
-           (g/node-value scene-visibility :active-scene-resource-node evaluation-context))
-  (run [scene-visibility] #())
-  (state [scene-visibility] false))
-
 (defn hidden-outline-key-path?
   [hidden-node-outline-key-paths node-outline-key-path]
   (boolean (some #(iutil/seq-starts-with? node-outline-key-path %)

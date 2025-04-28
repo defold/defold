@@ -218,12 +218,7 @@
                                          :z {:type :integer :default 10}}}
                                  :active-plane {:type :keyword :default :z}
                                  :opacity {:type :number :default 0.1}
-                                 :color {:type :string :default "#ffffff"}}}
-             :snap {:type :object
-                    :scope :project
-                    :properties {:enabled {:type :boolean}
-                                 :threshold {:type :number}
-                                 :active-groups {:type :set :item {:type :keyword}}}}}}
+                                 :color {:type :string :default "#ffffff"}}}}}
     :dev {:type :object
           :properties
           {:custom-engine {:type :any

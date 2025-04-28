@@ -20,7 +20,6 @@
             [cljfx.fx.text-flow :as fx.text-flow]
             [cljfx.fx.tooltip :as fx.tooltip]
             [cljfx.fx.v-box :as fx.v-box]
-            [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
@@ -459,9 +458,6 @@
 (def ^:private grid-svg-path
   (ui/load-svg-path "scene/images/grid.svg"))
 
-(def ^:private magnet-svg-path
-  (ui/load-svg-path "scene/images/magnet.svg"))
-
 (defn- make-visibility-settings-graphic []
   (doto (StackPane.)
     (.setId "visibility-settings-graphic")
@@ -493,11 +489,6 @@
     :graphic-fn (partial icons/make-svg-icon-graphic grid-svg-path)
     :command :scene.visibility.toggle-grid
     :more :show-grid-settings}
-   {:id :snap
-    :tooltip "Snap"
-    :graphic-fn (partial icons/make-svg-icon-graphic magnet-svg-path)
-    :command :scene.visibility.toggle-snap
-    :more :show-snap-settings}
    {:id :2d-mode
     :tooltip "2d mode"
     :graphic-fn (partial icons/make-svg-icon-graphic mode-2d-svg-path)

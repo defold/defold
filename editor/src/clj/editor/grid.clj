@@ -202,10 +202,6 @@
              (snap-out-to-grid aabb large-sizes)]
      :perp-axis perp-axis}))
 
-(g/defnk produce-snapping-points
-  [grids]
-  {})
-
 (g/defnode Grid
   (property active-plane g/Keyword)
   (property prefs g/Any)
@@ -213,7 +209,6 @@
   (input camera Camera)
 
   (output grids g/Any :cached update-grids)
-  (output snapping-points g/Any :cached produce-snapping-points)
   (output renderable pass/RenderData :cached grid-renderable)
   (output active-plane g/Keyword (g/fnk [prefs active-plane]
                                    (or active-plane
