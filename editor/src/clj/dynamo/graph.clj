@@ -1176,6 +1176,12 @@
   ([basis type node-id]
    (node-instance*? type (gt/node-by-id-at basis node-id))))
 
+(defn node-kw-instance?
+  "Returns true if the node is a member of a given type keyword, including
+   supertypes."
+  [basis type-kw node-id]
+  (isa? (node-type-kw basis node-id) type-kw))
+
 (defn node-instance-match*
   "Returns the first node-type from the provided sequence of node-types that
   matches the node or one of its supertypes, or nil if no match was found."

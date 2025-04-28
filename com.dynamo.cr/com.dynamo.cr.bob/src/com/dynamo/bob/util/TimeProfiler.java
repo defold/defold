@@ -161,19 +161,21 @@ public class TimeProfiler {
 
     public static String[] getHtmlContent() throws IOException {
         InputStream templateStream = Bob.class.getResourceAsStream("/lib/time_report_template.html");
-
-        StringWriter writer = new StringWriter();
         try {
+            StringWriter writer = new StringWriter();
             IOUtils.copy(templateStream, writer);
+            String templateString = writer.toString();
+            String token = "{{json-data}}";
+            int tokenIndex = templateString.indexOf(token);
+            String beforeToken = templateString.substring(0, tokenIndex - 1);
+            String afterToken = templateString.substring(tokenIndex + token.length()+1);
+            return new String[]{beforeToken, afterToken};
         } catch (IOException e) {
             throw new IOException("Error while reading time report template: " + e.toString());
         }
-        String templateString = writer.toString();
-        String token = "{{json-data}}";
-        int tokenIndex = templateString.indexOf(token);
-        String beforeToken = templateString.substring(0, tokenIndex - 1);
-        String afterToken = templateString.substring(tokenIndex + token.length()+1);
-        return new String[]{beforeToken, afterToken};
+        finally {
+            IOUtils.closeQuietly(templateStream);
+        }
     }
 
     public static void createReport() {

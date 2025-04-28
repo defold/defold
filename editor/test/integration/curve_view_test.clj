@@ -157,6 +157,6 @@
       (test-util/ensure-number-type-preserving! original-curve (g/node-value emitter :particle-key-alpha))
       ; Delete through handler
       (mouse-drag! curve-view 0.0 -2.0 1.0 2.0)
-      (test-util/handler-run :delete [context] {})
+      (test-util/handler-run :edit.delete [context] {})
       (is (every? (fn [i] (nil? (cp emitter :particle-key-alpha (+ i 2)))) (range 6)))
       (test-util/ensure-number-type-preserving! original-curve (g/node-value emitter :particle-key-alpha)))))

@@ -1832,7 +1832,7 @@ namespace dmGui
                         lua_settable(L, -3);
                     }
 
-                    if (ia->m_ActionId != 0)
+                    if (ia->m_ActionId != 0 && !ia->m_HasText)
                     {
                         lua_pushliteral(L, "value");
                         lua_pushnumber(L, ia->m_Value);

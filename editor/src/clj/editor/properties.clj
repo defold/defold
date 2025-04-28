@@ -626,7 +626,9 @@
       v0)))
 
 (defn overridden? [property]
-  (and (contains? property :original-values) (not-every? nil? (:values property))))
+  (and (contains? property :original-values)
+       (every? some? (:original-values property))
+       (not-every? nil? (:values property))))
 
 (defn error-aggregate [vals]
   (when-let [errors (seq (remove nil? (distinct (filter g/error? vals))))]

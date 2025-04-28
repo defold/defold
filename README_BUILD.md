@@ -2,55 +2,28 @@
 
 Defold uses the Python based build system [Waf](https://waf.io/). Most of the interaction is done through the `build.py` script but it is also possible to use Waf directly.
 
-## IMPORTANT PREREQUISITE - SETUP!
+## IMPORTANT PREREQUISITE - SETUP
 
-Make sure you have followed the [setup guide](/README_SETUP.md) before attempting to build the engine. If you do not install all of the required software from the setup guide your attempts to build the engine will likely fail.
-
-## IMPORTANT PREREQUISITE - PLATFORM SDKs!
-
-Our build setup can find the installation of the platform SDK's for the common platforms.
-
-See the setup for the [Platform SDK](./README_SETUP.md#platform-sdk)
-
-<details><summary>Locally installed platform sdks</summary><p>
-
-### Using local installation
-
-Our build setup can find the installation of the platform SDK's for the common platforms.
-See [Platform SDK](./README_SETUP.md#platform-sdk)
-
-If you have these tools installed, you can skip the `./scripts/build.py install_sdk` step altogether.
-
-Since support for locally installed SDK's is in progress, some platforms still _do_ require the `--install_sdk` step, and thus requires you to have the prepackaged sdk's available.
-
-### Prepackaged SDKs
-
-This step is currently needed for HTML5.
-
-Due to licensing restrictions **the SDKs are not distributed with Defold**. You need to provide these from a URL accessible by your local machine so that `build.py` and the `install_ext` command can download and unpack them.
-
-__In order to simplify this process we provide scripts to download and package the SDKs__ [Read more about this process here](/scripts/package/README.md).
-
-The path to the SDKs can either be passed to `build.py` using the `--package-path` option or by setting the `DM_PACKAGES_URL` environment variable.
-
-</p></details>
+Make sure you have followed the [setup guide](/README_SETUP.md) to install the tools and sdk's you want before attempting to build the engine. If you do not install all of the required software from the setup guide your attempts to build the engine will likely fail.
 
 ## Standard workflow
 
 The standard workflow when building the engine is the following:
 
-1. Setup environment
-2. Install platform specific libraries and SDKs
+1. [Setup](/README_SETUP.md) environment
+2. [Install](/README_SETUP.md#required-software---platform-sdks) libraries and SDKs
 3. Build the engine
 
 When working on a new feature or fixing a bug you start by first building the engine once as described above. You then proceed to develop your feature or fix the bug and rebuild and test changes until satisfied. When you do a rebuild you can speed things up by only building the parts that have changed.
+
+*NOTE: Make sure you also have read our [Contribution Guide](https://github.com/defold/defold/blob/build-doc-update/CONTRIBUTING.md). Especially before undertaking larger tasks.*
 
 ## Build examples
 
 To give an quick overview of the steps required.
 (The following paragraphs will explain in more detail what each step does.)
 
-The `--platform=` is implied in these examples, as it defaults to the host platform (x86_64-win32, x86_64-linux, x86_64-macos or arm64-macos)
+The `--platform=` is implied in these examples, as it defaults to the host platform (x86_64-win32, x86_64-linux, arm64-linux, x86_64-macos or arm64-macos)
 
 Once per session:
 ```
@@ -145,11 +118,11 @@ This step also installs some Python dependencies:
 * `requests` - Installed using pip
 * `pyaml` - Installed using pip
 
-### Step 3 - Installing SDKs
+### Step 3 - Installing SDKs (mostly optional)
 
 NOTE: As mentioned above, you may skip this step if your host OS and target OS is in the supported list of platforms that can use the local (host) installations of sdks.
 (Most likely, it is)
-See [Platform SDK](./README_SETUP.md#platform-sdk)
+See [Supported Hosts + Targets](./README_SETUP.md#supported-hosts-targets)
 
 <details><summary>Install sdk</summary><p>
 
@@ -208,17 +181,32 @@ You can also use rebuild a specific part of the engine and create a new executab
 
 ```sh
 # Rebuild dlib and sound modules and create a new executable
-$ ./scripts/submodule.sh x86_64-macos dlib sound
+$ ./scripts/submodule.sh arm64-macos dlib sound
+```
+
+You can also add extra arguments
+```sh
+# Rebuild dlib and sound modules and create a new executable
+$ ./scripts/submodule.sh arm64-macos dlib sound --with-asan
 ```
 
 ---
 
 ## Unit tests
 
-Unit tests are run automatically when invoking waf if not `--skip-tests` is specified. A typically workflow when working on a single test is to run:
+Unit tests are run automatically when invoking waf if `--skip-tests` isn't specified. A typically workflow when working on a single test is to run:
 
 ```sh
 $ waf --skip-tests && ./build/default/.../test_xxx
 ```
 
-With the flag `--test-filter=` it's possible to run a single test in the suite, see [jctest documentation](https://jcash.github.io/jctest/api/03-runtime/#command-line-options)
+You can build a single target:
+```sh
+$ waf --skip-tests --target=test_foo && ./build/default/.../test_foo
+```
+
+With the flag `--test-filter` it's possible to run a single test in the suite, see [jctest documentation](https://jcash.github.io/jctest/api/03-runtime/#command-line-options)
+
+```sh
+$ waf --skip-tests --target=test_foo && ./build/default/.../test_foo --test-filter SomeTestPattern
+```

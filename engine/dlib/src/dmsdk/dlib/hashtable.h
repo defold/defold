@@ -57,7 +57,7 @@ public:
         uint32_t m_Next;
     };
 
-    /**
+    /*#
      * Constructor. Create an empty hashtable with zero capacity and zero hashtable (buckets)
      * @name dmHashTable
      */
@@ -67,7 +67,7 @@ public:
         m_FreeEntries = INVALID_INDEX;
     }
 
-    /**
+    /*#
      * Creates a hashtable array with user allocated memory.
      * @note User allocated arrays can not change capacity.
      * @name dmHashTable
@@ -92,7 +92,7 @@ public:
         m_State = STATE_USER_ALLOCATED;
     }
 
-    /**
+    /*#
      * Removes all the entries from the table.
      * @name Clear
      */
@@ -125,7 +125,7 @@ public:
         }
     }
 
-    /**
+    /*#
      * Number of entries stored in table. (not the actual hashtable size)
      * @name Size
      * @return Number of entries.
@@ -135,7 +135,7 @@ public:
         return m_Count;
     }
 
-    /**
+    /*#
      * Hashtable capacity. Maximum number of entries possible to store in table
      * @name Capacity
      * @return [type: uint32_t] the capacity of the table
@@ -145,7 +145,7 @@ public:
         return (uint32_t)(uintptr_t)(m_InitialEntriesEnd - m_InitialEntries);
     }
 
-    /**
+    /*#
      * Set hashtable capacity. New capacity must be greater or equal to current capacity
      * @name SetCapacity
      * @param table_size Hashtable size, ie number of buckets. table_size < 0xffffffff
@@ -212,7 +212,7 @@ public:
         SetCapacity(Capacity() + offset);
     }
 
-    /**
+    /*#
      * Swaps the contents of two hash tables
      * @name Swap
      * @param other [type: dmHashTable<KEY, T>&] the other table
@@ -225,7 +225,7 @@ public:
         memcpy(this, buf, sizeof(buf));
     }
 
-    /**
+    /*#
      * Check if the table is full
      * @name Full
      * @return true if the table is full
@@ -235,7 +235,7 @@ public:
         return m_Count == Capacity();
     }
 
-    /**
+    /*#
      * Check if the table is empty
      * @name Empty
      * @return true if the table is empty
@@ -245,7 +245,7 @@ public:
         return m_Count == 0;
     }
 
-    /**
+    /*#
      * Put key/value pair in hash table. NOTE: The method will "assert" if the hashtable is full.
      * @name Put
      * @param key [type: Key] Key
@@ -295,7 +295,7 @@ public:
         m_Count++;
     }
 
-    /**
+    /*#
      * Get pointer to value from key
      * @name Get
      * @param key [type: Key] Key
@@ -349,9 +349,9 @@ public:
 
     // }
 
-    /**
+    /*#
      * Remove key/value pair.
-     * @name Get
+     * @name Erase
      * @param key [type: Key] Key to remove
      * @note Only valid if key exists in table
      */
@@ -393,7 +393,7 @@ public:
         assert(false && "Key not found (erase)");
     }
 
-    /**
+    /*#
      * Iterate over all entries in table
      * @name Iterate
      * @param call_back Call-back called for every entry

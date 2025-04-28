@@ -29,7 +29,6 @@
             [editor.pipeline.bob :as bob]
             [editor.progress :as progress]
             [editor.ui :as ui]
-            [editor.web-profiler :as web-profiler]
             [editor.web-server :as web-server]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
@@ -177,7 +176,6 @@
         (with-open [server (http-server/start!
                              (web-server/make-dynamic-handler
                                (into [] cat [(engine-profiler/routes)
-                                             (web-profiler/routes)
                                              (console/routes console-view)
                                              (hot-reload/routes workspace)
                                              (bob/routes project)
@@ -191,10 +189,6 @@
               (is (= 200 status))
               (is (= "text/javascript" (get headers "content-type")))
               (is (string/includes? body "class ThreadFrame")))
-            (let [{:keys [status headers body]} @(http/request (str url "/profiler") :as :string)]
-              (is (= 200 status))
-              (is (= "text/html" (get headers "content-type")))
-              (is (string/includes? body "var data = [")))
             (let [{:keys [status headers body]} @(http/request (str url "/console") :as :string)]
               (is (= 200 status))
               (is (= "application/json" (get headers "content-type")))

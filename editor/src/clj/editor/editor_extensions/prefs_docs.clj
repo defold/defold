@@ -36,7 +36,7 @@
   (coerce/wrap-with-pred coerce/userdata editor-script-defined-schema? "is not a schema"))
 
 (definline allowed-keyword-character? [ch]
-  `(or (Character/isLetterOrDigit (char ~ch)) (= \- ~ch) (= \_ ~ch)))
+  `(or (Character/isLetterOrDigit (char ~ch)) (= \- ~ch) (= \. ~ch) (= \_ ~ch)))
 
 (defn- edn-serializable-keyword-name? [^String s]
   (let [n (.length s)]

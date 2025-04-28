@@ -961,7 +961,7 @@
         (g/set-property view-id :play-mode new-play-mode)
         (g/set-property view-id :active-updatable-ids selected-updatable-ids)))))
 
-(handler/defhandler :scene-play :global
+(handler/defhandler :scene.play :global
   (active? [app-view evaluation-context]
            (when-let [view (active-scene-view app-view evaluation-context)]
              (seq (g/node-value view :updatables evaluation-context))))
@@ -979,7 +979,7 @@
       (g/set-property view-id :active-updatable-ids [])
       (g/set-property view-id :updatable-states {}))))
 
-(handler/defhandler :scene-stop :global
+(handler/defhandler :scene.stop :global
   (active? [app-view evaluation-context]
            (when-let [view (active-scene-view app-view evaluation-context)]
              (seq (g/node-value view :updatables evaluation-context))))
@@ -1103,7 +1103,7 @@
                        is-perspective (c/camera-orthographic->perspective c/fov-y-35mm-full-frame))]
       (set-camera! camera-node local-cam end-camera animate? #(set-camera-type! view :orthographic)))))
 
-(handler/defhandler :frame-selection :global
+(handler/defhandler :scene.frame-selection :global
   (active? [app-view evaluation-context]
            (active-scene-view app-view evaluation-context))
   (enabled? [app-view evaluation-context]
@@ -1119,25 +1119,39 @@
           (view->camera)
           (g/node-value :animating)))
 
-(handler/defhandler :realign-camera :global
+(handler/defhandler :scene.realign-camera :global
   (active? [app-view evaluation-context]
            (active-scene-view app-view evaluation-context))
   (enabled? [app-view] (not (camera-animating? app-view)))
   (run [app-view] (some-> (active-scene-view app-view) 
                           (realign-camera true))))
 
-(handler/defhandler :set-camera-type :global
+(handler/defhandler :scene.set-camera-type :global
+  (label [user-data]
+    (if user-data
+      (case (:camera-type user-data)
+        :orthographic "Orthographic Camera"
+        :perspective "Perspective Camera")
+      "Set Camera Type"))
   (active? [app-view evaluation-context]
            (active-scene-view app-view evaluation-context))
   (run [app-view user-data]
        (when-some [view (active-scene-view app-view)]
          (set-camera-type! view (:camera-type user-data))))
+  (options [user-data]
+    (when-not user-data
+      [{:label "Orthographic"
+        :command :scene.set-camera-type
+        :user-data {:camera-type :orthographic}}
+       {:label "Perspective"
+        :command :scene.set-camera-type
+        :user-data {:camera-type :perspective}}]))
   (state [app-view user-data]
          (some-> (active-scene-view app-view)
                  (g/node-value :camera-type)
                  (= (:camera-type user-data)))))
 
-(handler/defhandler :toggle-2d-mode :workbench
+(handler/defhandler :scene.toggle-interaction-mode :workbench
   (active? [app-view evaluation-context]
            (active-scene-view app-view evaluation-context))
   (enabled? [app-view] (not (camera-animating? app-view)))
@@ -1146,7 +1160,7 @@
   (state [app-view] (camera-2d? (active-scene-view app-view))))
 
 ;; Used in the scene view tool bar.
-(handler/defhandler :toggle-perspective-camera :workbench
+(handler/defhandler :scene.toggle-camera-type :workbench
   (active? [app-view evaluation-context]
            (active-scene-view app-view evaluation-context))
   (enabled? [app-view] (and (not (camera-2d? (active-scene-view app-view)))
@@ -1166,71 +1180,81 @@
   (assert (contains? #{:local :world} manip-space))
   (g/set-property! app-view :manip-space manip-space))
 
-(handler/defhandler :set-manip-space :global
+(handler/defhandler :scene.set-manipulator-space :global
+  (label [user-data]
+    (if user-data
+      (case (:manip-space user-data)
+        :world "World Space"
+        :local "Local Space")
+      "Set Manipulator Space"))
   (active? [app-view evaluation-context]
            (active-scene-view app-view evaluation-context))
   (enabled? [app-view user-data evaluation-context]
             (let [active-tool (g/node-value app-view :active-tool evaluation-context)]
               (contains? (scene-tools/supported-manip-spaces active-tool)
                          (:manip-space user-data))))
+  (options [user-data]
+    (when-not user-data
+      [{:label "World"
+        :command :scene.set-manipulator-space
+        :user-data {:manip-space :world}}
+       {:label "Local"
+        :command :scene.set-manipulator-space
+        :user-data {:manip-space :local}}]))
   (run [app-view user-data] (set-manip-space! app-view (:manip-space user-data)))
   (state [app-view user-data] (= (g/node-value app-view :manip-space) (:manip-space user-data))))
 
-(handler/defhandler :toggle-move-whole-pixels :global
+(handler/defhandler :scene.toggle-move-whole-pixels :global
   (active? [app-view evaluation-context] (active-scene-view app-view evaluation-context))
   (state [prefs] (scene-tools/move-whole-pixels? prefs))
   (run [prefs] (scene-tools/set-move-whole-pixels! prefs (not (scene-tools/move-whole-pixels? prefs)))))
 
 (handler/register-menu! ::menubar-edit :editor.app-view/edit-end
   [{:label :separator}
-   {:label "World Space"
-    :command :set-manip-space
+   {:command :scene.set-manipulator-space
     :user-data {:manip-space :world}
     :check true}
-   {:label "Local Space"
-    :command :set-manip-space
+   {:command :scene.set-manipulator-space
     :user-data {:manip-space :local}
     :check true}
    {:label :separator}
    {:label "Move Whole Pixels"
-    :command :toggle-move-whole-pixels
+    :command :scene.toggle-move-whole-pixels
     :check true}])
 
 (handler/register-menu! ::menubar-view :editor.app-view/view-end
   [{:label "Toggle Visibility Filters"
-    :command :toggle-visibility-filters}
+    :command :scene.visibility.toggle-filters}
    {:label "Toggle Component Guides"
-    :command :toggle-component-guides}
+    :command :scene.visibility.toggle-component-guides}
    {:label "Toggle Grid"
-    :command :toggle-grid}
+    :command :scene.visibility.toggle-grid}
    {:label :separator}
    {:label "Show/Hide Selected Objects"
-    :command :hide-toggle-selected}
+    :command :scene.visibility.toggle-selection}
    {:label "Hide Unselected Objects"
-    :command :hide-unselected}
+    :command :scene.visibility.hide-unselected}
    {:label "Show Last Hidden Objects"
-    :command :show-last-hidden}
+    :command :scene.visibility.show-last-hidden}
    {:label "Show All Hidden Objects"
-    :command :show-all-hidden}
+    :command :scene.visibility.show-all}
    {:label :separator}
    {:label "Play"
-    :command :scene-play}
+    :command :scene.play}
    {:label "Stop"
-    :command :scene-stop}
+    :command :scene.stop}
    {:label :separator}
-   {:label "Orthographic Camera"
-    :command :set-camera-type
+   {:command :scene.set-camera-type
     :user-data {:camera-type :orthographic}
     :check true}
-   {:label "Perspective Camera"
-    :command :set-camera-type
+   {:command :scene.set-camera-type
     :user-data {:camera-type :perspective}
     :check true}
    {:label :separator}
    {:label "Frame Selection"
-    :command :frame-selection}
+    :command :scene.frame-selection}
    {:label "Realign Camera"
-    :command :realign-camera}])
+    :command :scene.realign-camera}])
 
 (defn dispatch-input [input-handlers action user-data]
   (reduce (fn [action [node-id label]]
@@ -1313,48 +1337,51 @@
 
 (declare selection->movable)
 
-(handler/defhandler :up :workbench
+(handler/defhandler :scene.move-up :workbench
   (active? [selection] (selection->movable selection))
   (run [selection] (nudge! (selection->movable selection) 0.0 1.0 0.0)))
 
-(handler/defhandler :down :workbench
+(handler/defhandler :scene.move-down :workbench
   (active? [selection] (selection->movable selection))
   (run [selection] (nudge! (selection->movable selection) 0.0 -1.0 0.0)))
 
-(handler/defhandler :left :workbench
+(handler/defhandler :scene.move-left :workbench
   (active? [selection] (selection->movable selection))
   (run [selection] (nudge! (selection->movable selection) -1.0 0.0 0.0)))
 
-(handler/defhandler :right :workbench
+(handler/defhandler :scene.move-right :workbench
   (active? [selection] (selection->movable selection))
   (run [selection] (nudge! (selection->movable selection) 1.0 0.0 0.0)))
 
-(handler/defhandler :up-major :workbench
+(handler/defhandler :scene.move-up-major :workbench
   (active? [selection] (selection->movable selection))
   (run [selection] (nudge! (selection->movable selection) 0.0 10.0 0.0)))
 
-(handler/defhandler :down-major :workbench
+(handler/defhandler :scene.move-down-major :workbench
   (active? [selection] (selection->movable selection))
   (run [selection] (nudge! (selection->movable selection) 0.0 -10.0 0.0)))
 
-(handler/defhandler :left-major :workbench
+(handler/defhandler :scene.move-left-major :workbench
   (active? [selection] (selection->movable selection))
   (run [selection] (nudge! (selection->movable selection) -10.0 0.0 0.0)))
 
-(handler/defhandler :right-major :workbench
+(handler/defhandler :scene.move-right-major :workbench
   (active? [selection] (selection->movable selection))
   (run [selection] (nudge! (selection->movable selection) 10.0 0.0 0.0)))
 
 (defn- handle-key-pressed! [^KeyEvent event]
-  ;; Only handle bare key events that cannot be bound to handlers here.
+  ;; Always interpret UP/DOWN/LEFT/RIGHT as move commands because otherwise they
+  ;; would be consumed by the TabPane and will trigger next/prev tab selection.
+  ;; Because of that, such key presses will not reach the workbench view and
+  ;; will not trigger the commands as might be expected
   (when (not= ::unhandled
               (if (or (.isAltDown event) (.isMetaDown event) (.isShiftDown event) (.isShortcutDown event))
                 ::unhandled
                 (condp = (.getCode event)
-                  KeyCode/UP (ui/run-command (.getSource event) :up)
-                  KeyCode/DOWN (ui/run-command (.getSource event) :down)
-                  KeyCode/LEFT (ui/run-command (.getSource event) :left)
-                  KeyCode/RIGHT (ui/run-command (.getSource event) :right)
+                  KeyCode/UP (ui/run-command (.getSource event) :scene.move-up)
+                  KeyCode/DOWN (ui/run-command (.getSource event) :scene.move-down)
+                  KeyCode/LEFT (ui/run-command (.getSource event) :scene.move-left)
+                  KeyCode/RIGHT (ui/run-command (.getSource event) :scene.move-right)
                   ::unhandled)))
     (.consume event)))
 
