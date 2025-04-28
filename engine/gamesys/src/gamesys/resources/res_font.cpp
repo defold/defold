@@ -50,7 +50,8 @@ namespace dmGameSystem
         HResourceDescriptor     m_Resource; // For updating the resource size dynamically
         MaterialResource*       m_MaterialResource;
         GlyphBankResource*      m_GlyphBankResource;
-        uint32_t                m_CacheCellPadding;
+        uint32_t                m_CacheCellPadding:31;
+        uint32_t                m_IsDynamic; // Are the glyphs populated at runtime?
 
         dmHashTable32<dmRenderDDF::GlyphBank::Glyph*> m_Glyphs;
         dmHashTable32<DynamicGlyph*>                  m_DynamicGlyphs;
@@ -61,6 +62,8 @@ namespace dmGameSystem
             , m_Resource(0)
             , m_MaterialResource(0)
             , m_GlyphBankResource(0)
+            , m_CacheCellPadding(0)
+            , m_IsDynamic(0)
         {
         }
     };
@@ -417,6 +420,28 @@ namespace dmGameSystem
         glyph->m_DataImageHeight = inglyph->m_Height;
         glyph->m_DataImageChannels = inglyph->m_Channels;
         font->m_DynamicGlyphs.Put(codepoint, glyph);
+
+        uint32_t prev_width, prev_height, prev_ascent;
+        dmRender::GetFontMapCacheSize(font->m_FontMap, &prev_width, &prev_height, &prev_ascent);
+
+        if (!font->m_IsDynamic)
+        {
+            font->m_IsDynamic = 1;
+
+            // Discard any precalculated size
+            prev_width = prev_height = prev_ascent = 0;
+        }
+
+        bool dirty = inglyph->m_Width > prev_width ||
+                      inglyph->m_Height > prev_height ||
+                      inglyph->m_Ascent > prev_ascent;
+        if (dirty)
+        {
+            uint32_t cell_width = dmMath::Max((uint32_t)inglyph->m_Width, prev_width);
+            uint32_t cell_height = dmMath::Max((uint32_t)inglyph->m_Height, prev_height);
+            uint32_t cell_ascent = dmMath::Max((uint32_t)inglyph->m_Ascent, prev_ascent);
+            dmRender::SetFontMapCacheSize(font->m_FontMap, cell_width, cell_height, cell_ascent);
+        }
 
         dmResource::SetResourceSize(font->m_Resource, GetResourceSize(font));
         return dmResource::RESULT_OK;
