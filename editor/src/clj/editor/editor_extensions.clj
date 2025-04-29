@@ -28,10 +28,9 @@
             [editor.editor-extensions.commands :as commands]
             [editor.editor-extensions.error-handling :as error-handling]
             [editor.editor-extensions.graph :as graph]
-            [editor.editor-extensions.prefs-docs :as prefs-docs]
+            [editor.editor-extensions.http-server :as ext.http-server]
             [editor.editor-extensions.prefs-functions :as prefs-functions]
             [editor.editor-extensions.runtime :as rt]
-            [editor.editor-extensions.http-server :as ext.http-server]
             [editor.editor-extensions.ui-components :as ui-components]
             [editor.editor-extensions.zip :as zip]
             [editor.fs :as fs]
@@ -63,7 +62,7 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- ext-state
+(defn ext-state
   "Returns an extension state, a map with the following keys:
     :reload-resources!     0-arg function used to reload resources
     :display-output!       2-arg function used to display extension-related
