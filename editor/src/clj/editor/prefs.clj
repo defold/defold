@@ -99,6 +99,10 @@
                                 :default "{file}:{line}"
                                 :ui {:label "Open File at Line"}}
             :zoom-on-scroll {:type :boolean :ui {:label "Zoom on Scroll"}}
+            :hover {:type :boolean
+                    :default true
+                    :ui {:label "Hover popup"
+                         :description "Show code documentation popup on hover"}}
             :font {:type :object
                    :properties
                    {:name {:type :string

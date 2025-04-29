@@ -371,7 +371,8 @@ static void WebGPURealizeTexture(WebGPUTexture* texture, WGPUTextureFormat forma
     {
         WGPUTextureDescriptor desc = {};
         desc.usage                 = texture->m_UsageFlags | usage;
-        desc.size                  = { texture->m_Width, texture->m_Height, depth };
+        // NOTE: Due to some issue with our webgpu texture handling, we cannot use a width/height of 0 when creating a new texture.
+        desc.size                  = { dmMath::Max(1U, texture->m_Width), dmMath::Max(1U, texture->m_Height), dmMath::Max((uint8_t)1, depth) };
         desc.sampleCount           = sampleCount;
         desc.format                = texture->m_Format;
         desc.mipLevelCount         = texture->m_MipMapCount;
