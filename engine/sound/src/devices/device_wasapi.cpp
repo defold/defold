@@ -344,7 +344,7 @@ namespace dmDeviceWasapi
                 for (int i = 0; i < frames_available; ++i)
                 {
                     float left = samples[i*channels_in+0]/32768.0f;
-                    float right = samplesi*channels_in+1]/32768.0f;
+                    float right = samples[i*channels_in+1]/32768.0f;
 
                     fout[i*channels_out+0] = left;
                     fout[i*channels_out+1] = right;

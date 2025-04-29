@@ -72,20 +72,10 @@ var LibrarySoundDevice =
                     }
 
                     // Setup buffer for data delivery...
-
-//Optimize buffer allocation (assumes immediate copy-out - does not work on many browsers (it should per spec, though))
-//                    var buf = this.bufferCache[frame_count];
-//                    if (!buf) {
-//                        buf = this.bufferCache[frame_count] = shared.audioCtx.createBuffer(2, frame_count, this.sampleRate);
-//                    }
                     var buf = shared.audioCtx.createBuffer(2, frame_count, this.sampleRate);
-
+                    
+                    // Copy data from WASM memory
                     for(var c=0;c<2;c++) {
-//Optimize sub array creation by caching -> will fail as soon as the internal HEAPF32 representation changes (often after many seconds of use). Disabled.
-//                        var input = this.arrayCache[samples];
-//                        if (!input) {
-//                            input = this.arrayCache[samples] = HEAPF32.subarray(samples / 4, samples / 4 + frame_count);
-//                        }
                         var input = HEAPF32.subarray(samples / 4, samples / 4 + frame_count);
                         buf.copyToChannel(input, c);
                         samples += frame_count * 4; // 4 bytes = sizeof(float)

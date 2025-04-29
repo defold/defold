@@ -339,7 +339,7 @@ namespace dmSound
         HDevice device = 0;
         OpenDeviceParams device_params;
 
-// TODO: m_BufferCount configurable?
+        // TODO: m_BufferCount configurable?
         const uint16_t num_outbuffers = params->m_UseThread ? SOUND_OUTBUFFER_COUNT : SOUND_OUTBUFFER_COUNT_NO_THREADS;
         assert(num_outbuffers <= SOUND_OUTBUFFER_MAX_COUNT);
 
