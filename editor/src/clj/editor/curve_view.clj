@@ -19,12 +19,12 @@
             [editor.background :as background]
             [editor.camera :as camera]
             [editor.colors :as colors]
-            [editor.curve-grid :as curve-grid]
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
+            [editor.grid :as grid]
             [editor.handler :as handler]
             [editor.properties :as properties]
             [editor.rulers :as rulers]
@@ -588,6 +588,15 @@
                         res))]
       (app-view/sub-select! app-view selection))))
 
+(g/defnode CurveGrid
+  (inherits grid/Grid)
+  (output options g/Any (g/constantly {:active-plane :z
+                                       :color "#ffffff"
+                                       :opacity 0.1
+                                       :size {:x 10
+                                              :y 10
+                                              :z 10}})))
+
 (defn make-view!
   ([app-view graph ^Parent parent ^ListView list ^AnchorPane view opts]
     (let [view-id (make-view! app-view graph parent list view opts false)]
@@ -595,13 +604,13 @@
       view-id))
   ([app-view graph ^Parent parent ^ListView list ^AnchorPane view opts reloading?]
     (let [[node-id] (g/tx-nodes-added
-                      (g/transact (g/make-nodes graph [view-id    [CurveView :list list :hidden-curves #{}]
+                      (g/transact (g/make-nodes graph [view-id [CurveView :list list :hidden-curves #{}]
                                                        controller [CurveController :select-fn (fn [selection op-seq] (app-view/sub-select! app-view selection op-seq))]
-                                                       selection  [selection/SelectionController :select-fn (fn [selection op-seq] (app-view/sub-select! app-view selection op-seq))]
+                                                       selection [selection/SelectionController :select-fn (fn [selection op-seq] (app-view/sub-select! app-view selection op-seq))]
                                                        background background/Background
-                                                       camera     [camera/CameraController :local-camera (or (:camera opts) (camera/make-camera :orthographic camera-filter-fn))]
-                                                       grid       curve-grid/Grid
-                                                       rulers     [rulers/Rulers]]
+                                                       camera [camera/CameraController :local-camera (or (:camera opts) (camera/make-camera :orthographic camera-filter-fn))]
+                                                       grid CurveGrid
+                                                       rulers [rulers/Rulers]]
                                                 (g/update-property camera :movements-enabled disj :tumble) ; TODO - pass in to constructor
 
                                                 (g/connect camera :_node-id view-id :camera-id)
@@ -622,11 +631,11 @@
                                                 (g/connect controller :input-handler view-id :input-handlers)
                                                 (g/connect controller :info-text view-id :tool-info-text)
 
-                                                (g/connect selection            :renderable                view-id          :tool-renderables)
-                                                (g/connect selection            :input-handler             view-id          :input-handlers)
-                                                (g/connect selection            :picking-rect              view-id          :picking-rect)
-                                                (g/connect view-id              :picking-selection         selection        :picking-selection)
-                                                (g/connect app-view             :sub-selection             selection        :selection)
+                                                (g/connect selection :renderable view-id :tool-renderables)
+                                                (g/connect selection :input-handler view-id :input-handlers)
+                                                (g/connect selection :picking-rect view-id :picking-rect)
+                                                (g/connect view-id :picking-selection selection :picking-selection)
+                                                (g/connect app-view :sub-selection selection :selection)
 
                                                 (g/connect camera :camera rulers :camera)
                                                 (g/connect rulers :renderables view-id :aux-renderables)
