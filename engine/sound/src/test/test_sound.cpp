@@ -405,8 +405,10 @@ static void DeviceLoopbackClose(dmSound::HDevice device)
     g_LoopbackDevice = 0;
 }
 
-static dmSound::Result DeviceLoopbackQueue(dmSound::HDevice device, const int16_t* samples, uint32_t sample_count)
+static dmSound::Result DeviceLoopbackQueue(dmSound::HDevice device, const void* _samples, uint32_t sample_count)
 {
+    const int16_t* samples = (const int16_t*)_samples;
+
     LoopbackDevice* loopback = (LoopbackDevice*) device;
     loopback->m_NumWrites++;
 
