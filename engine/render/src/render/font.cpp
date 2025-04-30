@@ -238,7 +238,7 @@ namespace dmRender
     {
         font_map->m_IsCacheSizeDirty = 1;
 
-        SetupCache(font_map, font_map->m_CacheWidth, font_map->m_CacheWidth,
+        SetupCache(font_map, font_map->m_CacheWidth, font_map->m_CacheHeight,
                             cell_width, cell_height, max_ascent);
     }
 
