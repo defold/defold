@@ -53,6 +53,13 @@ namespace dmGraphics
      * @return mtl_queue [type: id<MTLCommandQueue>] the Metal graphics queue wrapped with a (__bridge void*)
      */
     void* VulkanGraphicsCommandQueueToMetal(HContext context);
+
+    VkDevice VulkanGetDevice(HContext context);
+    VkPhysicalDevice VulkanGetPhysicalDevice(HContext context);
+    VkInstance VulkanGetInstance(HContext context);
+    uint16_t VulkanGetQueueFamily(HContext context);
+    VkQueue VulkanGetQueue(HContext context);
+    VkRenderPass VulkanGetRenderPass(HContext context);
 }
 
 #endif // DMSDK_GRAPHICS_VULKAN_H

@@ -4634,6 +4634,44 @@ bail:
         return context->m_CurrentSwapchainTexture;
     }
 
+    VkDevice VulkanGetDevice(HContext context)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        return context->m_LogicalDevice->m_Device;
+    }
+
+    VkPhysicalDevice VulkanGetPhysicalDevice(HContext context)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        return context->m_PhysicalDevice->m_Device;
+    }
+
+    VkInstance VulkanGetInstance(HContext context)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        return context->m_Instance;
+    }
+
+    uint16_t VulkanGetQueueFamily(HContext context)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        return context->m_SwapChain->m_QueueFamily.m_GraphicsQueueIx;
+    }
+
+    VkQueue VulkanGetQueue(HContext context)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        return context->m_LogicalDevice.m_GraphicsQueue;
+
+    }
+    VkRenderPass VulkanGetRenderPass(HContext context)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        return context->m_MainRenderPass;
+    }
+
+
+
     static GraphicsAdapterFunctionTable VulkanRegisterFunctionTable()
     {
         GraphicsAdapterFunctionTable fn_table = {};
