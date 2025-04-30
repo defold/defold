@@ -88,14 +88,14 @@
     (render-grid-axis gl vertex v-axis v-min v-max v-size u-axis u-min u-max)))
 
 (defn render-primary-axes
-  [^GL2 gl ^AABB aabb]
-  (gl/gl-color gl x-axis-color)
+  [^GL2 gl ^AABB aabb colors]
+  (gl/gl-color gl (if (:x colors) (colors/hex-color->color (:x colors)) x-axis-color))
   (gl/gl-vertex-3d gl (-> aabb types/min-p .x) 0.0 0.0)
   (gl/gl-vertex-3d gl (-> aabb types/max-p .x) 0.0 0.0)
-  (gl/gl-color gl y-axis-color)
+  (gl/gl-color gl (if (:y colors) (colors/hex-color->color (:y colors)) y-axis-color))
   (gl/gl-vertex-3d gl 0.0 (-> aabb types/min-p .y) 0.0)
   (gl/gl-vertex-3d gl 0.0 (-> aabb types/max-p .y) 0.0)
-  (gl/gl-color gl z-axis-color)
+  (gl/gl-color gl (if (:z colors) (colors/hex-color->color (:z colors)) z-axis-color))
   (gl/gl-vertex-3d gl 0.0 0.0 (-> aabb types/min-p .z))
   (gl/gl-vertex-3d gl 0.0 0.0 (-> aabb types/max-p .z)))
 
@@ -121,13 +121,13 @@
   [^GL2 gl _pass renderables _count]
   (let [renderable (first renderables)
         {:keys [camera grids options]} (:user-render-data renderable)
-        {:keys [opacity color]} options
+        {:keys [opacity color axes-colors]} options
         view-matrix (c/camera-view-matrix camera)
         dir (double-array 4)
         _ (.getRow view-matrix 2 dir)]
     (gl/gl-lines gl
       (render-grid-sizes dir grids opacity color)
-      (render-primary-axes (apply geom/aabb-union (:aabbs grids))))))
+      (render-primary-axes (apply geom/aabb-union (:aabbs grids)) axes-colors))))
 
 (g/defnk grid-renderable
   [camera grids merged-options]
@@ -287,6 +287,8 @@
   (let [scene-view-id (g/node-value app-view :active-view)
         grid (g/node-value scene-view-id :grid)
         options (g/node-value grid :options)]
+    ;; Grid options override the preferences,
+    ;; so we hide the row of overridden prefs.
     (cond-> []
       (not (:color options))
       (conj (color-row app-view prefs))
@@ -302,7 +304,7 @@
 
 (defn- pref-popup-position
   ^Point2D [^Parent container]
-  (Utils/pointRelativeTo container 0 0 HPos/LEFT VPos/BOTTOM 0.0 10.0 true))
+  (Utils/pointRelativeTo container 0 0 HPos/RIGHT VPos/BOTTOM -190.0 10.0 true))
 
 (defn show-settings! [app-view ^Parent owner prefs]
   (if-let [popup ^PopupControl (ui/user-data owner ::popup)]

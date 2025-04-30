@@ -592,6 +592,9 @@
   (inherits grid/Grid)
   (output options g/Any (g/constantly {:active-plane :z
                                        :color "#ffffff"
+                                       :axes-colors {:x "#ffffff"
+                                                     :y "#ffffff"
+                                                     :z "#ffffff"}
                                        :opacity 0.1
                                        :size {:x 10
                                               :y 10
