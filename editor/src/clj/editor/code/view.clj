@@ -2711,7 +2711,7 @@
             (can-paste? view-node clipboard evaluation-context))
   (run [view-node clipboard] (paste! view-node clipboard)))
 
-(handler/defhandler :code.delete-next-char :code-view
+(handler/defhandler :edit.delete :code-view
   (active? [editable] editable)
   (run [view-node] (delete! view-node :delete-after)))
 
