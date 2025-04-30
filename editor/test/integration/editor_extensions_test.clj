@@ -20,6 +20,7 @@
             [editor.defold-project :as project]
             [editor.editor-extensions :as extensions]
             [editor.editor-extensions.coerce :as coerce]
+            [editor.editor-extensions.graph :as graph]
             [editor.editor-extensions.prefs-functions :as prefs-functions]
             [editor.editor-extensions.runtime :as rt]
             [editor.editor-extensions.vm :as vm]
@@ -30,6 +31,7 @@
             [editor.pipeline.bob :as bob]
             [editor.prefs :as prefs]
             [editor.process :as process]
+            [editor.properties :as properties]
             [editor.resource :as resource]
             [editor.ui :as ui]
             [editor.web-server :as web-server]
@@ -1102,3 +1104,26 @@ GET /test/resources/test.json as json => 200
         (let [actual (normalize-pprint-output (.toString out))]
           (is (= expected-http-server-test-output actual)
               (string/join "\n" (diff/make-diff-output-lines actual expected-http-server-test-output 3))))))))
+
+(deftest property-availability-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/property_availability_project"
+    (reload-editor-scripts! project)
+    (g/with-auto-evaluation-context ec
+      (let [{:keys [rt]} (extensions/ext-state project ec)]
+        (->> (g/node-value project :nodes ec)
+             (map #(g/node-value % :node-outline ec))
+             (mapcat #(tree-seq :children :children %))
+             (mapcat (fn [outline]
+                       (->> [(g/node-value (:node-id outline) :_properties ec)]
+                            properties/coalesce
+                            :properties
+                            vals
+                            (map #(assoc % :outline outline)))))
+             (keep (fn [{:keys [outline key edit-type] :as p}]
+                     (let [{:keys [node-id]} outline
+                           ext-key (string/replace (name key) \- \_)]
+                       (when-not (contains? #{:editor.properties.CurveSpread :editor.properties.Curve} (:k (:type edit-type)))
+                         (is (some? (graph/ext-value-getter node-id ext-key ec)))
+                         (when-not (properties/read-only? p)
+                           (is (some? (graph/ext-lua-value-setter node-id ext-key rt project ec))))))))
+             dorun)))))
