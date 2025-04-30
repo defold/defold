@@ -9,6 +9,7 @@ blddir = 'build'
 import os, sys, re, subprocess
 import waf_ddf, waf_graphics, waf_dynamo, waf_gamesys, waf_physics, waf_render, waf_resource
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
+from waflib import Logs
 import waflib.Options
 import TestContext
 from build_constants import TargetOS
@@ -72,7 +73,21 @@ def configure(conf):
 
     architecture = build_util.get_target_architecture()
 
-    sound_lib = 'sound decoder_wav decoder_ogg'.split()
+    simd_supported = True
+    if target_os == TargetOS.WEB:
+        simd_supported = False
+
+    if not simd_supported and 'simd' in waflib.Options.options.enable_features:
+        Logs.info("simd enabled")
+        simd_supported = True
+
+    sound_lib = []
+    if simd_supported:
+        sound_lib += ['sound']
+    else:
+        sound_lib += ['sound_nosimd']
+
+    sound_lib += ['decoder_wav', 'decoder_ogg']
     glfw_lib = waf_dynamo.platform_get_glfw_lib(conf.env.PLATFORM)
     platform_lib =  waf_dynamo.platform_get_platform_lib(conf.env.PLATFORM)
 
