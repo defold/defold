@@ -22,7 +22,8 @@
             [util.coll :as coll]
             [util.eduction :as e]
             [util.fn :as fn])
-  (:import [javafx.scene Scene]
+  (:import [javafx.event EventHandler]
+           [javafx.scene Scene]
            [javafx.scene.input KeyCharacterCombination KeyCode KeyCodeCombination KeyCombination KeyCombination$ModifierValue KeyEvent]))
 
 (set! *warn-on-reflection* true)
@@ -700,14 +701,20 @@
 (defn install!
   "Install a keymap on a scene, replacing any predefined accelerators"
   [keymap ^Scene scene execute-fn]
-  (doto (.getAccelerators scene)
-    (.clear)
-    (.putAll (persistent!
-               (reduce-kv
-                 (fn [acc shortcut commands]
-                   (assoc! acc shortcut #(execute-fn commands)))
-                 (transient {})
-                 (:shortcut->commands keymap)))))
+  (when-let [old-handler (.get (.getProperties scene) ::keymap)]
+    (.removeEventHandler scene KeyEvent/KEY_PRESSED old-handler))
+  (let [{:keys [shortcut->commands]} keymap
+        new-handler (reify EventHandler
+                      (handle [_ e]
+                        (reduce-kv
+                          (fn [_ ^KeyCombination shortcut commands]
+                            (when (.match shortcut e)
+                              (.consume e)
+                              (reduced (execute-fn commands))))
+                          nil
+                          shortcut->commands)))]
+    (.put (.getProperties scene) ::keymap new-handler)
+    (.addEventHandler scene KeyEvent/KEY_PRESSED new-handler))
   nil)
 
 (defn shortcut-display-text
