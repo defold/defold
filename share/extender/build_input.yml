@@ -358,8 +358,8 @@ platforms:
         initialMemory: 33554432
         engineJsLibs:   ["sys", "script", "sound", "render"]
         externalJsLibs: ["glfw"]
-        engineLibs: ["engine", "engine_service", "mbedtls", "zip", "profile_basic", "profilerext", "record_null", "gameobject", "ddf", "resource", "gamesys", "gamesys_model", "gamesys_rig", "script_box2d_defold", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "box2d_defold", "render", "render_font_default", "script", "lua", "extension", "hid", "input", "particle", "rig", "dlib", "image", "dmglfw", "gui", "crashext", "liveupdate", "sound", "decoder_wav", "decoder_ogg"]
         defines:    ["DM_PLATFORM_HTML5", "GL_ES_VERSION_2_0"]
+        engineLibs: ["engine", "engine_service", "mbedtls", "zip", "profile_basic", "profilerext", "record_null", "gameobject", "ddf", "resource", "gamesys", "gamesys_model", "gamesys_rig", "script_box2d_defold", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "box2d_defold", "render", "render_font_default", "script", "lua", "extension", "hid", "input", "particle", "rig", "dlib", "image", "dmglfw", "gui", "crashext", "liveupdate", "sound_nosimd", "decoder_wav", "decoder_ogg"]
         flags:      ["-fno-exceptions", "-fno-rtti", "-fPIC"]
         linkFlags:  ["--emit-symbol-map", "-O{{optLevel}}"]
         emscriptenFlags: ["DISABLE_EXCEPTION_CATCHING=1"]
