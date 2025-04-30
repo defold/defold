@@ -92,7 +92,9 @@ def build(bld):
         simd_flags = ['-DDM_SOUND_DSP_IMPL=SSE']
 
     elif bld.env['PLATFORM'] in ['x86_64-win32', 'win32']:
-        simd_flags = ['/arch:SSE4.2', '/DDM_SOUND_DSP_IMPL=SSE']
+        if bld.env['PLATFORM'] in ['x86_64-win32']:
+            simd_flags = ['/arch:SSE4.2']
+        simd_flags += ['/DDM_SOUND_DSP_IMPL=SSE']
 
     else:
         simd_flags = ['-DDM_SOUND_DSP_IMPL=Fallback']
@@ -100,7 +102,7 @@ def build(bld):
     for f in ['CFLAGS', 'CXXFLAGS']:
         sound.env.append_value(f, simd_flags)
 
-    if bld.env['PLATFORM'] in ('wasm-web', 'wasm_pthread-web'):
+    if bld.env['PLATFORM'] in ('js-web', 'wasm-web', 'wasm_pthread-web'):
         sound_nosimd = bld.stlib(features = 'c cxx ddf',
                                  includes = '. %s' % include,
                                  defines  = defines,
