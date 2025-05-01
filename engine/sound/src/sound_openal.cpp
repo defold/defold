@@ -391,6 +391,10 @@ namespace dmSound
                     dmLogInfo("ogg/vorbis streaming supported");
                     sound->m_DirectStreamingFormat[SOUND_DATA_TYPE_OGG_VORBIS] = alGetEnumValue("AL_FORMAT_VORBIS_EXT");
                 }
+                if (alIsExtensionPresent("AL_NF_opus")) {
+                    dmLogInfo("opus streaming supported");
+                    sound->m_DirectStreamingFormat[SOUND_DATA_TYPE_OPUS] = alGetEnumValue("AL_FORMAT_OPUS_EXT");
+                }
             }
         }
 
@@ -607,6 +611,8 @@ namespace dmSound
             codec_format = dmSoundCodec::FORMAT_WAV;
         } else if (sound_data->m_Type == SOUND_DATA_TYPE_OGG_VORBIS) {
             codec_format = dmSoundCodec::FORMAT_VORBIS;
+        } else if (sound_data->m_Type == SOUND_DATA_TYPE_OPUS) {
+            codec_format = dmSoundCodec::FORMAT_OPUS;
         } else {
             assert(0);
         }
