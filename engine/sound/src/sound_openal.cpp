@@ -644,7 +644,7 @@ namespace dmSound
         si->m_SoundDataIndex = sound_data->m_Index;
         si->m_Index = index;
         si->m_Parameters[PARAMETER_GAIN] = 1.0f;
-        si->m_Parameters[PARAMETER_PAN] = 0.5f;
+        si->m_Parameters[PARAMETER_PAN] = 0.0f;
         si->m_ScaleDirty = 1;
         si->m_ScaleInit = 1;
         si->m_ScaleDirty = 1;
@@ -902,7 +902,7 @@ namespace dmSound
             checkForAlErrors("alSourcef");
             float pan = sound_instance->m_Parameters[PARAMETER_PAN];
             // openal position: x is left-right, y is down-up, and z is away-towards
-            if (pan == 0.5f) {
+            if (pan == 0.0f) {
                 alSource3f(source, AL_POSITION, 0.0, 0.0, -1.0);
             } else {
                 if (sound_instance->m_Channels > 1 && sound->m_SourceSpatialize) {
@@ -911,10 +911,10 @@ namespace dmSound
                     alSourcei(source, alGetEnumValue("AL_SOURCE_SPATIALIZE_SOFT"), AL_TRUE);
                     checkForAlErrors("alSourcei");
                 }
-                // 90 degree FOV; pan is between 0 and 1
+                // 90 degree FOV; pan is between -1 and 1
                 // defold panning is linear, so it directly sets the x value; from there we find the
                 // z value that results in unit distance from the origin
-                ALfloat x = -0.5 + pan;
+                ALfloat x = pan * 0.5;
                 ALfloat z = -sqrtf(1 - x * x);
                 alSource3f(source, AL_POSITION, x, 0, z);
                 checkForAlErrors("alSource3f");
