@@ -72,3 +72,12 @@ TextFlow.deprecated > Text {
   -fx-border-radius: 2px;
   -fx-background-radius: 2px;
 }
+.rename-text-field {
+    -fx-background-color: -df-background-input;
+    -fx-background-radius: 2px;
+    -fx-border-radius: 2px;
+    -fx-border-color: -df-component-lighter;
+    -fx-text-fill: -df-text-selected;
+    -fx-highlight-fill: #4E4A46;
+    -fx-padding: 4px;
+}

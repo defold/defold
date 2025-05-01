@@ -34,7 +34,6 @@
             [editor.field-expression :as field-expression]
             [editor.fxui :as fxui]
             [editor.github :as github]
-            [editor.handler :as handler]
             [editor.os :as os]
             [editor.progress :as progress]
             [editor.ui :as ui]
@@ -46,7 +45,6 @@
            [javafx.application Platform]
            [javafx.collections ListChangeListener]
            [javafx.event Event]
-           [javafx.scene Node]
            [javafx.scene.control ListView TextField]
            [javafx.scene.input KeyCode KeyEvent MouseButton MouseEvent]
            [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter Stage Window]
@@ -504,25 +502,6 @@
         (.setInitialDirectory initial-dir)
         (.setTitle title))
       (.showDialog owner-window)))
-
-(handler/defhandler ::confirm :dialog
-  (enabled? [selection]
-            (seq selection))
-  (run [^Stage stage selection]
-       (ui/user-data! stage ::selected-items selection)
-       (ui/close! stage)))
-
-(handler/defhandler ::close :dialog
-  (run [^Stage stage]
-       (ui/close! stage)))
-
-(handler/defhandler ::focus :dialog
-  (active? [user-data] (if-let [active-fn (:active-fn user-data)]
-                         (active-fn nil)
-                         true))
-  (run [^Stage stage user-data]
-       (when-let [^Node node (:node user-data)]
-         (ui/request-focus! node))))
 
 (defn- default-filter-fn [filter-on text items]
   (let [text (string/lower-case text)]

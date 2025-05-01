@@ -75,6 +75,15 @@
                                  (->> ext sort (util/join-words ", " " or "))))))
         resource))))
 
+(defn- choicebox-converter [lua-value rt outline-property _project _evaluation-context]
+  (let [opts (->> outline-property properties/property-edit-type :options (mapv first))]
+    (rt/->clj rt (apply coerce/enum opts) lua-value)))
+
+(defn- slider-converter [lua-value rt outline-property _project _evaluation-context]
+  (let [{:keys [min max] :or {min 0.0 max 1.0}} (properties/property-edit-type outline-property)
+        coercer (coerce/wrap-with-pred coerce/number #(<= min % max) (str "should be between " min " and " max))]
+    (double (rt/->clj rt coercer lua-value))))
+
 (def ^:private edit-type-id->value-converter
   {g/Str {:to identity :from (coercing-converter coerce/string)}
    g/Bool {:to identity :from (coercing-converter coerce/boolean)}
@@ -83,7 +92,11 @@
    types/Vec2 {:to identity :from (coercing-converter (coerce/tuple coerce/number coerce/number))}
    types/Vec3 {:to identity :from (coercing-converter (coerce/tuple coerce/number coerce/number coerce/number))}
    types/Vec4 {:to identity :from (coercing-converter (coerce/tuple coerce/number coerce/number coerce/number coerce/number))}
-   'editor.resource.Resource {:to resource/proj-path :from resource-converter}})
+   'editor.resource.Resource {:to resource/proj-path :from resource-converter}
+   types/Color {:to identity :from (coercing-converter (coerce/tuple coerce/number coerce/number coerce/number coerce/number))}
+   :multi-line-text {:to identity :from (coercing-converter coerce/string)}
+   :choicebox {:to identity :from choicebox-converter}
+   :slider {:to identity :from slider-converter}})
 
 (defn- property->prop-kw [property]
   (if (string/starts-with? property "__")

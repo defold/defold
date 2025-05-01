@@ -69,15 +69,15 @@
       [{:label "File"
         :children [{:label "Open"
                     :id ::open
-                    :command :open}
+                    :command :file.open}
                    {:label "Save"
-                    :command :save}]}])
+                    :command :file.save}]}])
 
-    (handler/defhandler :open :global
+    (handler/defhandler :file.open :global
         (enabled? [selection] true)
         (run [selection] 123))
 
-    (handler/defhandler :save :global
+    (handler/defhandler :file.save :global
       (enabled? [selection] true)
       (run [selection] 124))
 
@@ -95,16 +95,16 @@
   (test-support/with-clean-system
     (handler/register-menu! ::my-menu
       [{:label "Add"
-        :command :add}])
+        :command :edit.add-embedded-component}])
 
-    (handler/defhandler :add :global
+    (handler/defhandler :edit.add-embedded-component :global
       (run [user-data] user-data)
       (active? [user-data] (or (not user-data) (= user-data 1)))
       (options [user-data] (when-not user-data [{:label "first"
-                                                 :command :add
+                                                 :command :edit.add-embedded-component
                                                  :user-data 1}
                                                 {:label "second"
-                                                 :command :add
+                                                 :command :edit.add-embedded-component
                                                  :user-data 2}])))
 
     (let [command-context {:name :global :env {}}]
@@ -120,15 +120,15 @@
      (test-support/with-clean-system
        (handler/register-menu! ::my-menu
          [{:label "Open"
-           :command :open
+           :command :file.open
            :id ::open}])
 
-       (handler/defhandler :open :global
+       (handler/defhandler :file.open :global
          (enabled? [selection] true)
          (run [selection] 123)
          (state [] false))
 
-       (handler/defhandler :save :global
+       (handler/defhandler :file.save :global
          (enabled? [selection] true)
          (run [selection] 124)
          (state [] false))
@@ -152,7 +152,7 @@
 
          (handler/register-menu! ::extra ::open
            [{:label "Save"
-             :command :save}])
+             :command :file.save}])
          (ui/refresh scene)
          (is (= 2 (count (.getChildren root))))))))
 
@@ -164,13 +164,13 @@
            :children
            [{:label "Open"
              :id ::open
-             :command :open}]}])
+             :command :file.open}]}])
 
-       (handler/defhandler :open :global
+       (handler/defhandler :file.open :global
          (enabled? [selection] true)
          (run [selection] 123))
 
-       (handler/defhandler :save :global
+       (handler/defhandler :file.save :global
          (enabled? [selection] true)
          (run [selection] 124))
 
@@ -189,7 +189,7 @@
            (is (= (.get c1 0) (.get c2 0))))
          (handler/register-menu! ::extra ::open
            [{:label "Save"
-             :command :save}])
+             :command :file.save}])
          (ui/refresh scene)
          (let [c1 (do (ui/refresh scene) (.getItems (first (.getMenus menubar))))
                c2 (do (ui/refresh scene) (.getItems (first (.getMenus menubar))))]

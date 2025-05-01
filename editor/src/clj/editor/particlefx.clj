@@ -1095,7 +1095,7 @@
 (defn- selection->particlefx [selection]
   (handler/adapt-single selection ParticleFXNode))
 
-(handler/defhandler :add-secondary :workbench
+(handler/defhandler :edit.add-secondary-embedded-component :workbench
   (active? [selection] (or (selection->emitter selection)
                            (selection->particlefx selection)))
   (label [user-data] (if-not user-data
@@ -1111,7 +1111,7 @@
     (when (not user-data)
       (mapv (fn [[type data]] {:label (:label data)
                                :icon modifier-icon
-                               :command :add-secondary
+                               :command :edit.add-secondary-embedded-component
                                :user-data {:modifier-type type}}) mod-types))))
 
 (defn- make-emitter
@@ -1173,7 +1173,7 @@
           (g/operation-label "Add Emitter")
           (make-emitter self (assoc emitter :type type) select-fn true))))))
 
-(handler/defhandler :add :workbench
+(handler/defhandler :edit.add-embedded-component :workbench
   (active? [selection] (selection->particlefx selection))
   (label [user-data] (if-not user-data
                        "Add Emitter"
@@ -1185,7 +1185,7 @@
              (let [self (selection->particlefx selection)]
                (mapv (fn [[type data]] {:label (:label data)
                                         :icon emitter-icon
-                                        :command :add
+                                        :command :edit.add-embedded-component
                                         :user-data {:emitter-type type}}) emitter-types)))))
 
 

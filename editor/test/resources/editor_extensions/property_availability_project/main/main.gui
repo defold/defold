@@ -1,0 +1,63 @@
+fonts {
+  name: "always_on_top"
+  font: "/builtins/fonts/debug/always_on_top.font"
+}
+nodes {
+  size {
+    x: 200.0
+    y: 100.0
+  }
+  type: TYPE_BOX
+  id: "box"
+  inherit_alpha: true
+  size_mode: SIZE_MODE_AUTO
+}
+nodes {
+  position {
+    x: 272.0
+  }
+  size {
+    x: 200.0
+    y: 100.0
+  }
+  type: TYPE_PIE
+  id: "pie"
+  inherit_alpha: true
+  size_mode: SIZE_MODE_AUTO
+}
+nodes {
+  size {
+    x: 200.0
+    y: 100.0
+  }
+  type: TYPE_TEXT
+  text: "<text>"
+  font: "always_on_top"
+  id: "text"
+  inherit_alpha: true
+}
+nodes {
+  type: TYPE_PARTICLEFX
+  id: "particlefx"
+  inherit_alpha: true
+  size_mode: SIZE_MODE_AUTO
+  particlefx: "main"
+}
+nodes {
+  type: TYPE_TEMPLATE
+  id: "template"
+  inherit_alpha: true
+  template: "/main/template.gui"
+}
+nodes {
+  type: TYPE_BOX
+  id: "template/box"
+  parent: "template"
+  template_node_child: true
+}
+material: "/builtins/materials/gui.material"
+adjust_reference: ADJUST_REFERENCE_PARENT
+particlefxs {
+  name: "main"
+  particlefx: "/main/main.particlefx"
+}

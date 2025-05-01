@@ -458,8 +458,6 @@ def default_flags(self):
 
         for f in ['CFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, [f'--target={clang_arch}', '-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-Werror=format', '-fno-exceptions','-fPIC', '-fvisibility=hidden'])
-            if build_util.get_target_platform() == 'x86_64-linux':
-                self.env.append_value(f, ['-msse4.1', '-DDM_SOUND_DSP_IMPL=SSE'])
 
             if f == 'CXXFLAGS':
                 self.env.append_value(f, ['-fno-rtti'])
@@ -483,9 +481,6 @@ def default_flags(self):
             if f == 'CXXFLAGS':
                 self.env.append_value(f, ['-fno-rtti', '-stdlib=libc++', '-fno-exceptions', '-nostdinc++'])
                 self.env.append_value(f, ['-isystem', '%s/usr/include/c++/v1' % sys_root])
-
-                if target_arch == 'x86_64':
-                    self.env.append_value(f, ['-DDM_SOUND_DSP_IMPL=SSE'])
 
         self.env.append_value('LINKFLAGS', ['-stdlib=libc++', '-isysroot', sys_root, '-mmacosx-version-min=%s' % sdk.VERSION_MACOSX_MIN, '-framework', 'Carbon','-flto'])
         self.env.append_value('LINKFLAGS', ['-target', '%s-apple-darwin19' % target_arch])
@@ -519,8 +514,6 @@ def default_flags(self):
             if f == 'CXXFLAGS':
                 self.env.append_value(f, ['-fno-exceptions', '-fno-rtti', '-stdlib=libc++', '-nostdinc++'])
                 self.env.append_value(f, ['-isystem', '%s/usr/include/c++/v1' % sys_root])
-                # While we have no Neon implementation, we may as well, use the fallback for the x86_64 target too
-                self.env.append_value(f, ['-DDM_SOUND_DSP_IMPL=Fallback'])
 
             self.env.append_value(f, ['-DDM_PLATFORM_IOS'])
             if 'x86_64' == target_arch:
@@ -605,9 +598,6 @@ def default_flags(self):
         flags += ['-O%s' % opt_level]
         linkflags += ['-O%s' % opt_level]
 
-        if 'wasm' == target_arch:
-            flags += ['-msimd128', '-msse4.2', '-DDM_SOUND_DSP_IMPL=WASM']
-
         self.env['DM_HOSTFS']           = '/node_vfs/'
         self.env.append_value('DEFINES', ['DM_NO_THREAD_SUPPORT', 'JC_TEST_NO_DEATH_TEST'])
         # This disables a few tests in test_httpclient (no real investigation done)
@@ -629,8 +619,7 @@ def default_flags(self):
             # 0x0600 = _WIN32_WINNT_VISTA
             self.env.append_value(f, ['/Oy-', '/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DDDF_EXPOSE_DESCRIPTORS',
                                         '/DWINVER=0x0600', '/D_WIN32_WINNT=0x0600', '/DNOMINMAX',
-                                        '/D_CRT_SECURE_NO_WARNINGS', '/wd4996', '/wd4200', '/DUNICODE', '/D_UNICODE',
-                                        '/arch:SSE4.2', '/DDM_SOUND_DSP_IMPL=SSE'])
+                                        '/D_CRT_SECURE_NO_WARNINGS', '/wd4996', '/wd4200', '/DUNICODE', '/D_UNICODE'])
 
         self.env.append_value('LINKFLAGS', '/DEBUG')
         self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB', 'Iphlpapi.LIB', 'AdvAPI32.Lib', 'Gdi32.lib'])
@@ -2121,7 +2110,6 @@ def options(opt):
     opt.add_option('--disable-ccache', action="store_true", default=False, dest='disable_ccache', help='force disable of ccache')
     opt.add_option('--generate-compile-commands', action="store_true", default=False, dest='generate_compile_commands', help='generate (appending mode) compile_commands.json')
     opt.add_option('--use-vanilla-lua', action="store_true", default=False, dest='use_vanilla_lua', help='use luajit')
-    opt.add_option('--disable-feature', action='append', default=[], dest='disable_features', help='disable feature, --disable-feature=foo')
     opt.add_option('--opt-level', default="2", dest='opt_level', help='optimization level')
     opt.add_option('--ndebug', action='store_true', default=False, help='Defines NDEBUG for the engine')
     opt.add_option('--with-asan', action='store_true', default=False, dest='with_asan', help='Enables address sanitizer')
@@ -2137,3 +2125,9 @@ def options(opt):
     opt.add_option('--with-dx12', action='store_true', default=False, dest='with_dx12', help='Enables DX12 as a graphics backend')
     opt.add_option('--with-opus', action='store_true', default=False, dest='with_opus', help='Enable Opus audio codec support in runtime')
     opt.add_option('--with-webgpu', action='store_true', default=False, dest='with_webgpu', help='Enables WebGPU as graphics backend')
+
+    # Currently supported features: physics
+    opt.add_option('--disable-feature', action='append', default=[], dest='disable_features', help='disable feature, --disable-feature=foo')
+
+    # Currently supported features: physics, simd (html5)
+    opt.add_option('--enable-feature', action='append', default=[], dest='enable_features', help='enable feature, --disable-feature=foo')

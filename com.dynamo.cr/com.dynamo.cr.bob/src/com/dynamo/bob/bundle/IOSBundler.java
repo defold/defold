@@ -503,6 +503,24 @@ public class IOSBundler implements IBundler {
             }
         }
 
+        // Copy all resources that were return as build result from Extender
+        // TODO: resources should be shared between architectures but it's not supported by Extender
+        for (Platform architecture : architectures) {
+            File architectureDir = new File(project.getBinaryOutputDirectory(), architecture.getExtenderPair());
+            if (!architectureDir.exists()) continue;
+            File resourcesDir = new File(architectureDir, "resources");
+            if (!resourcesDir.exists()) continue;
+            for (File resource : resourcesDir.listFiles()) {
+                File dest = new File(appDir, resource.getName());
+                if (resource.isDirectory()) {
+                    FileUtils.copyDirectory(resource, dest);
+                } else {
+                    FileUtils.copyFile(resource, dest);
+                }
+                logger.info("Copy resource " + resource);
+            }
+        }
+
         // Copy debug symbols
         // Create list of dSYM binaries
         File extenderBuildDir = new File(project.getRootDirectory(), "build");

@@ -358,8 +358,8 @@ platforms:
         initialMemory: 33554432
         engineJsLibs:   ["sys", "script", "sound", "render"]
         externalJsLibs: ["glfw"]
-        engineLibs: ["engine", "engine_service", "mbedtls", "zip", "profile_basic", "profilerext", "record_null", "gameobject", "ddf", "resource", "gamesys", "gamesys_model", "gamesys_rig", "script_box2d_defold", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "box2d_defold", "render", "render_font_default", "script", "lua", "extension", "hid", "input", "particle", "rig", "dlib", "image", "dmglfw", "gui", "crashext", "liveupdate", "sound", "decoder_wav", "decoder_ogg"]
         defines:    ["DM_PLATFORM_HTML5", "GL_ES_VERSION_2_0"]
+        engineLibs: ["engine", "engine_service", "mbedtls", "zip", "profile_basic", "profilerext", "record_null", "gameobject", "ddf", "resource", "gamesys", "gamesys_model", "gamesys_rig", "script_box2d_defold", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "box2d_defold", "render", "render_font_default", "script", "lua", "extension", "hid", "input", "particle", "rig", "dlib", "image", "dmglfw", "gui", "crashext", "liveupdate", "sound_nosimd", "decoder_wav", "decoder_ogg"]
         flags:      ["-fno-exceptions", "-fno-rtti", "-fPIC"]
         linkFlags:  ["--emit-symbol-map", "-O{{optLevel}}"]
         emscriptenFlags: ["DISABLE_EXCEPTION_CATCHING=1"]
@@ -397,7 +397,7 @@ platforms:
     symbolsPattern:  'dmengine.(js.symbols|wasm.debug.wasm)'
     zipContentPattern: 'dmengine.(wasm|js)'
     allowedFlags:   ["--profiling", "-msimd128"]
-    linkCmd:        '{{env.EMSCRIPTEN_BIN}}/em++ {{#src}}{{{.}}} {{/src}} -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#emscriptenLinkFlags}}-s {{{.}}} {{/emscriptenLinkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} -Wl,--start-group {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} -Wl,--end-group {{#ext.jsLibs}}--js-library {{{.}}} {{/ext.jsLibs}} {{#engineJsLibs}}--js-library {{dynamo_home}}/lib/wasm-web/js/library_{{{.}}}.js {{/engineJsLibs}} {{#externalJsLibs}}--js-library {{dynamo_home}}/ext/lib/js-web/js/library_{{{.}}}.js {{/externalJsLibs}}'
+    linkCmd:        '{{env.EMSCRIPTEN_BIN}}/em++ {{#src}}{{{.}}} {{/src}} -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#emscriptenLinkFlags}}-s {{{.}}} {{/emscriptenLinkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} -Wl,--start-group {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} -Wl,--end-group {{#ext.jsLibs}}--js-library {{{.}}} {{/ext.jsLibs}} {{#engineJsLibs}}--js-library {{dynamo_home}}/lib/wasm-web/js/library_{{{.}}}.js {{/engineJsLibs}} {{#externalJsLibs}}--js-library {{dynamo_home}}/ext/lib/wasm-web/js/library_{{{.}}}.js {{/externalJsLibs}}'
 
   win32:
     env:
