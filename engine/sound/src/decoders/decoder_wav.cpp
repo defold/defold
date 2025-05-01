@@ -159,7 +159,7 @@ namespace dmSoundCodec
             header.m_Format == FOUR_CC('W', 'A', 'V', 'E')) {
 
             DecodeStreamInfo *streamOut = new DecodeStreamInfo;
-            
+
             uint32_t current_offset = sizeof(header);
             do {
                 CommonHeader header, org_header;
@@ -273,17 +273,17 @@ namespace dmSoundCodec
         -1, -1, -1, -1, 2, 4, 6, 8
     };
 
-    static const int16_t ima_step_table[89] = { 
-        7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 
-        19, 21, 23, 25, 28, 31, 34, 37, 41, 45, 
-        50, 55, 60, 66, 73, 80, 88, 97, 107, 118, 
+    static const int16_t ima_step_table[89] = {
+        7, 8, 9, 10, 11, 12, 13, 14, 16, 17,
+        19, 21, 23, 25, 28, 31, 34, 37, 41, 45,
+        50, 55, 60, 66, 73, 80, 88, 97, 107, 118,
         130, 143, 157, 173, 190, 209, 230, 253, 279, 307,
         337, 371, 408, 449, 494, 544, 598, 658, 724, 796,
-        876, 963, 1060, 1166, 1282, 1411, 1552, 1707, 1878, 2066, 
+        876, 963, 1060, 1166, 1282, 1411, 1552, 1707, 1878, 2066,
         2272, 2499, 2749, 3024, 3327, 3660, 4026, 4428, 4871, 5358,
-        5894, 6484, 7132, 7845, 8630, 9493, 10442, 11487, 12635, 13899, 
-        15289, 16818, 18500, 20350, 22385, 24623, 27086, 29794, 32767 
-    }; 
+        5894, 6484, 7132, 7845, 8630, 9493, 10442, 11487, 12635, 13899,
+        15289, 16818, 18500, 20350, 22385, 24623, 27086, 29794, 32767
+    };
 
     static inline void DecodeNibble(uint32_t n, int32_t& pred, int32_t& step_index, int32_t& step)
     {
@@ -374,7 +374,7 @@ namespace dmSoundCodec
                 uint32_t read_size;
                 res = dmSound::SoundDataRead(streamInfo->m_SoundData, streamInfo->m_BufferOffset + streamInfo->m_Cursor, streamInfo->m_ADPCM.m_BlockAlign - streamInfo->m_ADPCM.m_InBuffer.Size(), streamInfo->m_ADPCM.m_InBuffer.End(), &read_size);
                 if (res != dmSound::RESULT_OK && res != dmSound::RESULT_PARTIAL_DATA)
-                {  
+                {
                     // Error case / EOS
                     break;
                 }
@@ -439,7 +439,7 @@ namespace dmSoundCodec
                 // No, direct decode to output buffer is best choice...
                 out = (int16_t*)outbuf;
                 uses_buffer = false;
-            }         
+            }
 
             // Decode data as needed / possible with data available...
             int8_t* in = streamInfo->m_ADPCM.m_InBuffer.Begin() + streamInfo->m_ADPCM.m_InBufferOffset;
@@ -532,7 +532,7 @@ namespace dmSoundCodec
     static Result WavSkipInStream(HDecodeStream stream, uint32_t bytes, uint32_t* skipped)
     {
         DecodeStreamInfo *streamInfo = (DecodeStreamInfo *) stream;
-        
+
         if (!streamInfo->m_IsADPCM) {
             if (streamInfo->m_Cursor >= streamInfo->m_Info.m_Size) {
                 *skipped = 0;
@@ -584,7 +584,7 @@ namespace dmSoundCodec
         uint64_t block_frames = (streamInfo->m_Info.m_Channels == 1) ? ((streamInfo->m_ADPCM.m_BlockAlign - 4) * 2) : (streamInfo->m_ADPCM.m_BlockAlign - 8);
         uint64_t block = pos / streamInfo->m_ADPCM.m_BlockAlign;
         int64_t block_off = pos - block * streamInfo->m_ADPCM.m_BlockAlign;
-        return block * block_frames + ((streamInfo->m_Info.m_Channels == 1) ? (dmMath::Max(block_off - 4, 0L) * 2) : (dmMath::Max(block_off - 8, 0L)));
+        return block * block_frames + ((streamInfo->m_Info.m_Channels == 1) ? (dmMath::Max(block_off - 4, (int64_t)0) * 2) : (dmMath::Max(block_off - 8, (int64_t)0)));
     }
 
     DM_DECLARE_SOUND_DECODER(AudioDecoderWav, "WavDecoder", FORMAT_WAV,
