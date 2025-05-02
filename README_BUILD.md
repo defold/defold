@@ -73,6 +73,7 @@ The following platforms are supported:
 * `arm64-android`
 * `js-web`
 * `wasm-web`
+* `wasm_pthread-web`
 
 ### STEP 1 - Setup environment
 

@@ -435,6 +435,7 @@ namespace dmProfile
 
     void SetThreadName(const char* name)
     {
+        PropertyInitialize();
         CHECK_INITIALIZED();
         DM_MUTEX_SCOPED_LOCK(g_Lock);
         if (g_ProfileContext->m_ThreadNames.Full())

@@ -8,11 +8,12 @@ blddir = 'build'
 
 import os, sys, re, run, shutil
 
-from waf_dynamo import platform_supports_feature
-import waf_ddf, waf_dynamo
 import waflib.Options
 import TestContext
 from waflib import Build
+
+from waf_dynamo import platform_supports_feature
+import waf_dynamo
 
 test_context = None
 
@@ -36,7 +37,6 @@ def configure(conf):
 
     conf.load('waf_dynamo')
     conf.load('java')
-    waf_ddf.configure(conf)
 
     platform = conf.env.PLATFORM
 
