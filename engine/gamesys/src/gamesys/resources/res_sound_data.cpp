@@ -62,12 +62,16 @@ namespace dmGameSystem
 
     void ResSoundDataSetStreamingCacheSize(uint32_t cache_size)
     {
+        if (!g_SoundDataContext)
+            return;
         g_SoundDataContext->m_CacheSize = cache_size;
     }
 
     // set the size of each streaming chunk size
     void ResSoundDataSetStreamingChunkSize(uint32_t chunk_size)
     {
+        if (!g_SoundDataContext)
+            return;
         g_SoundDataContext->m_ChunkSize = chunk_size;
     }
 
