@@ -120,8 +120,8 @@
             (map (fn [launched-target]
                    (if (= (:id launched-target) (:id target))
                      (let [result-target (merge launched-target target-info)]
-                       (when (and (:url target-info) (not (:url launched-target)))
-                         (on-service-url-found result-target))
+                       ;(when (and (:url target-info) (not (:url launched-target)))
+                       ;  (on-service-url-found result-target))
                        result-target)
                      launched-target))
                  old))
