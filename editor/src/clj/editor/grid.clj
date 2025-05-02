@@ -147,8 +147,11 @@
                         :options merged-options}}]})
 
 (defn frustum-plane-projection
-  [^Vector4d plane1 ^Vector4d plane2]
-  (let [m (Matrix3d. 0.0         0.0         1.0
+  [^Vector4d plane1 ^Vector4d plane2 perp-axis]
+  (let [nx (if (= perp-axis 0) 1.0 0.0)
+        ny (if (= perp-axis 1) 1.0 0.0)
+        nz (if (= perp-axis 2) 1.0 0.0)
+        m (Matrix3d. nx         ny         nz
                      (.x plane1) (.y plane1) (.z plane1)
                      (.x plane2) (.y plane2) (.z plane2))
         v (Point3d. 0.0 (- (.w plane1)) (- (.w plane2)))]
@@ -157,12 +160,12 @@
     v))
 
 (defn frustum-projection-aabb
-  [planes]
+  [planes perp-axis]
   (-> geom/null-aabb
-      (geom/aabb-incorporate (frustum-plane-projection (nth planes 0) (nth planes 2)))
-      (geom/aabb-incorporate (frustum-plane-projection (nth planes 0) (nth planes 3)))
-      (geom/aabb-incorporate (frustum-plane-projection (nth planes 1) (nth planes 2)))
-      (geom/aabb-incorporate (frustum-plane-projection (nth planes 1) (nth planes 3)))))
+      (geom/aabb-incorporate (frustum-plane-projection (nth planes 0) (nth planes 2) perp-axis))
+      (geom/aabb-incorporate (frustum-plane-projection (nth planes 0) (nth planes 3) perp-axis))
+      (geom/aabb-incorporate (frustum-plane-projection (nth planes 1) (nth planes 2) perp-axis))
+      (geom/aabb-incorporate (frustum-plane-projection (nth planes 1) (nth planes 3) perp-axis))))
 
 (defn grid-ratio [extent]
   (let [exp (Math/log10 extent)]
@@ -184,9 +187,9 @@
   [camera merged-options]
   (let [{:keys [size active-plane]} merged-options
         frustum-planes (c/viewproj-frustum-planes camera)
-        aabb (frustum-projection-aabb frustum-planes)
-        extent (geom/as-array (geom/aabb-extent aabb))
         perp-axis (.indexOf axes active-plane)
+        aabb (frustum-projection-aabb frustum-planes perp-axis)
+        extent (geom/as-array (geom/aabb-extent aabb))
         _ (aset-double extent perp-axis Double/POSITIVE_INFINITY)
         smallest-extent (reduce min extent)
         first-grid-ratio (grid-ratio smallest-extent)
@@ -242,10 +245,12 @@
                 (HBox/setHgrow Priority/ALWAYS)
                 (.setPrefWidth 62))]
     (ui/observe (.selectedToggleProperty plane-group)
-                (fn [_ _ active-toggle]
-                  (let [active-plane (-> (.getText active-toggle) string/lower-case keyword)]
-                    (prefs/set! prefs active-plane-prefs-path active-plane))
-                  (invalidate-grids! app-view)))
+                (fn [_ old-value new-value]
+                  (if new-value
+                    (do (let [active-plane (-> (.getText new-value) string/lower-case keyword)]
+                          (prefs/set! prefs active-plane-prefs-path active-plane))
+                        (invalidate-grids! app-view))
+                    (.setSelected old-value true))))
     (doto (HBox. 0 (ui/node-array (concat [label] buttons)))
       (.setAlignment Pos/CENTER))))
 
