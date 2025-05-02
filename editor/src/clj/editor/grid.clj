@@ -29,6 +29,7 @@
   (:import com.jogamp.opengl.GL2
            [com.sun.javafx.util Utils]
            [editor.types AABB Camera]
+           [java.util List]
            [javafx.geometry HPos Point2D Pos VPos]
            [javafx.scene Parent]
            [javafx.scene.control Label Slider TextField ToggleButton ToggleGroup PopupControl]
@@ -45,7 +46,7 @@
 (defonce active-plane-prefs-path [:scene :grid :active-plane])
 (defonce color-prefs-path [:scene :grid :color])
 
-(defonce axes [:x :y :z])
+(defonce ^List axes [:x :y :z])
 
 (def x-axis-color colors/scene-grid-x-axis)
 (def y-axis-color colors/scene-grid-y-axis)
@@ -100,34 +101,34 @@
   (gl/gl-vertex-3d gl 0.0 0.0 (-> aabb types/max-p .z)))
 
 (defn render-grid-sizes
-  [^GL2 gl ^doubles dir grids opacity color]
-  (doall
-   (for [grid-index (range 2)
-         :let [fixed-axis (:perp-axis grids)
-               ratio ^double (nth (:ratios grids) grid-index)
-               alpha (Math/abs (* ^double (aget dir fixed-axis) ratio opacity))
-               size-map (nth (:sizes grids) grid-index)
-               u-axis (mod (inc fixed-axis) 3)
-               v-axis (mod (inc u-axis) 3)
-               u-axis-key (nth axes u-axis)
-               v-axis-key (nth axes v-axis)
-               u-size (get size-map u-axis-key)
-               v-size (get size-map v-axis-key)]]
-     (do
-       (gl/gl-color gl (colors/alpha (colors/hex-color->color color) alpha))
-       (render-grid gl fixed-axis u-size v-size (nth (:aabbs grids) grid-index))))))
+  [^GL2 gl ^doubles dir grids options]
+  (let [{:keys [^double opacity color]} options]
+    (doall
+     (for [grid-index (range 2)
+           :let [^double fixed-axis (:perp-axis grids)
+                 ^double ratio (nth (:ratios grids) grid-index)
+                 alpha (Math/abs (* ^double (aget dir fixed-axis) ratio opacity))
+                 size-map (nth (:sizes grids) grid-index)
+                 ^double u-axis (mod (inc fixed-axis) 3)
+                 ^double v-axis (mod (inc u-axis) 3)
+                 u-axis-key (nth axes u-axis)
+                 v-axis-key (nth axes v-axis)
+                 u-size (get size-map u-axis-key)
+                 v-size (get size-map v-axis-key)]]
+       (do
+         (gl/gl-color gl (colors/alpha (colors/hex-color->color color) alpha))
+         (render-grid gl fixed-axis u-size v-size (nth (:aabbs grids) grid-index)))))))
 
 (defn render-scaled-grids
   [^GL2 gl _pass renderables _count]
   (let [renderable (first renderables)
         {:keys [camera grids options]} (:user-render-data renderable)
-        {:keys [opacity color axes-colors]} options
         view-matrix (c/camera-view-matrix camera)
         dir (double-array 4)
         _ (.getRow view-matrix 2 dir)]
     (gl/gl-lines gl
-      (render-grid-sizes dir grids opacity color)
-      (render-primary-axes (apply geom/aabb-union (:aabbs grids)) axes-colors))))
+      (render-grid-sizes dir grids options)
+      (render-primary-axes (apply geom/aabb-union (:aabbs grids)) (:axes-colors options)))))
 
 (g/defnk grid-renderable
   [camera grids merged-options]
@@ -193,7 +194,7 @@
         _ (aset-double extent perp-axis Double/POSITIVE_INFINITY)
         smallest-extent (reduce min extent)
         first-grid-ratio (grid-ratio smallest-extent)
-        large-size (into {} (map (fn [[k v]] [k (* v 10)]) size))]
+        large-size (into {} (map (fn [[k ^double  v]] [k (* v 10)]) size))]
     {:ratios [first-grid-ratio (- 1.0 ^double first-grid-ratio)]
      :sizes [size large-size]
      :aabbs [(snap-out-to-grid aabb size)
@@ -245,7 +246,7 @@
                 (HBox/setHgrow Priority/ALWAYS)
                 (.setPrefWidth 62))]
     (ui/observe (.selectedToggleProperty plane-group)
-                (fn [_ old-value new-value]
+                (fn [_ ^ToggleButton old-value ^ToggleButton new-value]
                   (if new-value
                     (do (let [active-plane (-> (.getText new-value) string/lower-case keyword)]
                           (prefs/set! prefs active-plane-prefs-path active-plane))
