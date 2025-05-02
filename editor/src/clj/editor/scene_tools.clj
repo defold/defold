@@ -24,7 +24,9 @@
             [editor.gl.vertex :as vtx]
             [editor.math :as math]
             [editor.prefs :as prefs]
-            [editor.scene-picking :as scene-picking])
+            [editor.scene-picking :as scene-picking]
+            [util.coll :as coll]
+            [util.eduction :as e])
   (:import [com.jogamp.opengl GL GL2]
            [java.lang Math Runnable]
            [javax.vecmath AxisAngle4d Matrix3d Matrix4d Point3d Quat4d Tuple3d Vector3d]))
@@ -500,16 +502,27 @@
       (apply-fn start-pos pos))))
 
 (def ^:private original-values #(select-keys % [:node-id :world-rotation :world-transform :parent-world-transform]))
+ 
+(defn- top-nodes
+  [nodes]
+  (let [node-ids (into #{} (map :node-id) nodes)
+        child? (fn [node]
+                 (->> (:node-id-path node)
+                      (coll/some #(and (not= % (:node-id node))
+                                       (contains? node-ids %)))))]
+    (e/remove child? nodes)))
 
 (defn handle-input [self action selection-data]
   (case (:type action)
     :mouse-pressed (if-let [manip (first (get selection-data self))]
-                     (let [evaluation-context   (g/make-evaluation-context)
-                           active-tool          (g/node-value self :active-tool evaluation-context)
-                           tool                 (get transform-tools active-tool)
-                           filter-fn            (:filter-fn tool)
+                     (let [evaluation-context (g/make-evaluation-context)
+                           active-tool (g/node-value self :active-tool evaluation-context)
+                           tool (get transform-tools active-tool)
+                           filter-fn (:filter-fn tool)
                            selected-renderables (filter #(filter-fn (:node-id %)) (g/node-value self :selected-renderables evaluation-context))
-                           original-values      (mapv original-values selected-renderables)]
+                           original-values (->> selected-renderables
+                                                top-nodes
+                                                (mapv original-values))]
                        (when (not (empty? original-values))
                          (g/transact
                             (concat

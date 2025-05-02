@@ -362,7 +362,8 @@
       {:type (:type property)}))
 
 (defn edit-type-id [property]
-  (let [t (:type (property-edit-type property))]
+  (let [t (:type (property-edit-type property))
+        t (or (g/value-type-dispatch-value t) t)]
     (if (:on-interface t)
       (:on t)
       t)))
@@ -626,7 +627,9 @@
       v0)))
 
 (defn overridden? [property]
-  (and (contains? property :original-values) (not-every? nil? (:values property))))
+  (and (contains? property :original-values)
+       (every? some? (:original-values property))
+       (not-every? nil? (:values property))))
 
 (defn error-aggregate [vals]
   (when-let [errors (seq (remove nil? (distinct (filter g/error? vals))))]

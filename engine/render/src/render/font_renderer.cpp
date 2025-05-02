@@ -294,6 +294,9 @@ namespace dmRender
 
         ro->m_ConstantBuffer = constants_buffer;
 
+        // The cache size may have changed, and we need to update the font map glyph texture
+        UpdateCacheTexture(font_map);
+
         for (uint32_t *i = begin;i != end; ++i)
         {
             const TextEntry& te = *(TextEntry*) buf[*i].m_UserData;

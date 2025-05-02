@@ -393,7 +393,7 @@
 
 (defn- augment-mesh-scene [mesh-scene old-node-id new-node-id new-node-outline-key material-name->material-scene-info]
   (let [mesh-renderable (:renderable mesh-scene)
-        material-name (:material-name mesh-renderable)
+        material-name (:material-name (:user-data mesh-renderable))
         material-scene-info (material-name->material-scene-info material-name)
         claimed-scene (scene/claim-child-scene old-node-id new-node-id new-node-outline-key mesh-scene)]
     (if (nil? material-scene-info)

@@ -238,6 +238,10 @@ namespace dmRender
      */
     void AddGlyphToCache(HFontMap font_map, uint32_t frame, FontGlyph* glyph, int32_t g_offset_y);
 
+    /** Checks if the glyph cache texture needs to be updated
+     */
+    void UpdateCacheTexture(HFontMap font_map);
+
     /**
      * Get the glyph from the font map given a unicode codepoint
      * @param font_map [type: HFontMap] Font map handle
