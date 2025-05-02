@@ -25,14 +25,15 @@
             [editor.scene-cache :as scene-cache]
             [editor.types :as types]
             [editor.ui :as ui]
-            [editor.ui.popup :as popup])
+            [editor.ui.popup :as popup]
+            [util.eduction :as e])
   (:import com.jogamp.opengl.GL2
            [com.sun.javafx.util Utils]
            [editor.types AABB Camera]
            [java.util List]
            [javafx.geometry HPos Point2D Pos VPos]
            [javafx.scene Parent]
-           [javafx.scene.control Label Slider TextField ToggleButton ToggleGroup PopupControl]
+           [javafx.scene.control Label Separator Slider TextField ToggleButton ToggleGroup PopupControl]
            [javafx.scene.layout HBox Priority Region StackPane VBox]
            [java.nio ByteBuffer ByteOrder DoubleBuffer]
            [javax.vecmath Matrix3d Point3d Vector4d]))
@@ -40,11 +41,7 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(defonce grid-options-prefs-path [:scene :grid])
-(defonce opacity-prefs-path [:scene :grid :opacity])
-(defonce size-prefs-path [:scene :grid :size])
-(defonce active-plane-prefs-path [:scene :grid :active-plane])
-(defonce color-prefs-path [:scene :grid :color])
+(defonce grid-prefs-path [:scene :grid])
 
 (defonce ^List axes [:x :y :z])
 
@@ -156,9 +153,11 @@
                      (.x plane1) (.y plane1) (.z plane1)
                      (.x plane2) (.y plane2) (.z plane2))
         v (Point3d. 0.0 (- (.w plane1)) (- (.w plane2)))]
-    (.invert m)
-    (.transform m v)
-    v))
+    (try
+      (.invert m)
+      (.transform m v)
+      v
+      (catch Exception _ (Point3d. 0.0 0.0 0.0)))))
 
 (defn frustum-projection-aabb
   [planes perp-axis]
@@ -186,15 +185,15 @@
 
 (g/defnk update-grids
   [camera merged-options]
-  (let [{:keys [size active-plane]} merged-options
+  (let [{:keys [size active-plane ^double scale-factor]} merged-options
         frustum-planes (c/viewproj-frustum-planes camera)
         perp-axis (.indexOf axes active-plane)
         aabb (frustum-projection-aabb frustum-planes perp-axis)
         extent (geom/as-array (geom/aabb-extent aabb))
         _ (aset-double extent perp-axis Double/POSITIVE_INFINITY)
         smallest-extent (reduce min extent)
-        first-grid-ratio (grid-ratio smallest-extent)
-        large-size (into {} (map (fn [[k ^double  v]] [k (* v 10)]) size))]
+        first-grid-ratio (grid-ratio smallest-extent) 
+        large-size (into {} (map (fn [[k ^double v]] [k (* v scale-factor)]) size))]
     {:ratios [first-grid-ratio (- 1.0 ^double first-grid-ratio)]
      :sizes [size large-size]
      :aabbs [(snap-out-to-grid aabb size)
@@ -208,7 +207,7 @@
 
   (output options g/Any (g/constantly nil))
   (output merged-options g/Any (g/fnk [prefs options] 
-                                 (cond-> (if prefs (prefs/get prefs grid-options-prefs-path) {})
+                                 (cond-> (if prefs (prefs/get prefs grid-prefs-path) {})
                                    options (merge options))))
   (output grids g/Any :cached update-grids)
   (output renderable pass/RenderData :cached grid-renderable))
@@ -218,30 +217,36 @@
         grid-id (g/node-value scene-view-id :grid)]
     (g/transact [(g/invalidate-output grid-id :grids)])))
 
-(defn- opacity-row [app-view prefs]
-  (let [value (prefs/get prefs opacity-prefs-path)
-        slider (Slider. 0.0 0.5 value)]
+(defmulti settings-row (fn [_app-view _prefs option] option))
+
+(defmethod settings-row :opacity
+  [app-view prefs option]
+  (let [prefs-path (conj grid-prefs-path option)
+        value (prefs/get prefs prefs-path)
+        slider (Slider. 0.0 0.5 value)
+        label (doto (Label. "Opacity")
+                (.setPrefWidth 70))]
     (ui/observe
      (.valueProperty slider)
      (fn [_observable _old-val new-val]
        (let [val (math/round-with-precision new-val 0.01)]
-         (prefs/set! prefs opacity-prefs-path val)
+         (prefs/set! prefs prefs-path val)
          (invalidate-grids! app-view))))
-    (HBox. 5 (ui/node-array [(doto (Label. "Opacity")
-                               (.setPrefWidth 70)) slider]))))
+    [label slider]))
 
 (defn plane-toggle-button
-  [prefs plane-group plane]
-  (let [active-plane (prefs/get prefs active-plane-prefs-path)]
+  [prefs plane-group prefs-path plane]
+  (let [active-plane (prefs/get prefs prefs-path)]
     (doto (ToggleButton. (string/upper-case (name plane)))
       (.setToggleGroup plane-group)
       (.setSelected (= plane active-plane))
       (ui/add-style! "plane-toggle"))))
 
-(defn- plane-row
-  [app-view prefs]
-  (let [plane-group (ToggleGroup.)
-        buttons (mapv (partial plane-toggle-button prefs plane-group) axes)
+(defmethod settings-row :active-plane
+  [app-view prefs option]
+  (let [prefs-path (conj grid-prefs-path option)
+        plane-group (ToggleGroup.)
+        buttons (mapv (partial plane-toggle-button prefs plane-group prefs-path) axes)
         label (doto (Label. "Plane")
                 (HBox/setHgrow Priority/ALWAYS)
                 (.setPrefWidth 62))]
@@ -249,64 +254,80 @@
                 (fn [_ ^ToggleButton old-value ^ToggleButton new-value]
                   (if new-value
                     (do (let [active-plane (-> (.getText new-value) string/lower-case keyword)]
-                          (prefs/set! prefs active-plane-prefs-path active-plane))
+                          (prefs/set! prefs prefs-path active-plane))
                         (invalidate-grids! app-view))
                     (.setSelected old-value true))))
-    (doto (HBox. 0 (ui/node-array (concat [label] buttons)))
-      (.setAlignment Pos/CENTER))))
+    (concat [label] buttons)))
 
-(defn- color-row
-  [app-view prefs]
-  (let [text-field (TextField.)
-        color (prefs/get prefs color-prefs-path)
+(defmethod settings-row :color
+  [app-view prefs option]
+  (let [prefs-path (conj grid-prefs-path option)
+        text-field (TextField.)
+        color (prefs/get prefs prefs-path)
         label (doto (Label. "Color")
                 (HBox/setHgrow Priority/ALWAYS)
-                (.setPrefWidth 70))]
+                (.setPrefWidth 83))]
     (doto text-field
       (ui/text! color)
       (ui/on-action! (fn [_] (when-let [value (.getText text-field)]
-                               (prefs/set! prefs color-prefs-path value)
-                               (invalidate-grids! app-view)))))
-    (doto (HBox. 0 (ui/node-array [label text-field]))
-      (.setAlignment Pos/CENTER))))
-
-(defn- axis-group
-  [app-view prefs axis]
-  (let [text-field (TextField.)
-        label (Label. (string/upper-case (name axis)))
-        size-val (get (prefs/get prefs size-prefs-path) axis)]
-    (doto text-field
-      (ui/text! (str size-val))
-      (ui/on-action! (fn [_] (when-let [value (some-> (.getText text-field) Integer/parseInt)]
-                               (prefs/set! prefs (conj size-prefs-path axis) value)
+                               (prefs/set! prefs prefs-path value)
                                (invalidate-grids! app-view)))))
     [label text-field]))
 
-(defn- size-row
-  [app-view prefs]
-  (let [axis-groups (vec (flatten (map (partial axis-group app-view prefs) axes)))]
-    (doto (HBox. 5 (ui/node-array axis-groups))
-      (.setAlignment Pos/CENTER))))
+(defn- axis-group
+  [app-view prefs prefs-path axis]
+  (let [text-field (TextField.)
+        label (Label. (string/upper-case (name axis)))
+        size-val (get (prefs/get prefs prefs-path) axis)]
+    (doto text-field
+      (ui/text! (str size-val))
+      (ui/on-action! (fn [_] (when-let [value (some-> (.getText text-field) Integer/parseInt)]
+                               (prefs/set! prefs (conj prefs-path axis) value)
+                               (invalidate-grids! app-view)))))
+    [label text-field]))
 
-(defn- settings-rows
+(defmethod settings-row :size
+  [app-view prefs option]
+  (let [prefs-path (conj grid-prefs-path option)]
+    (->> axes
+         (map (partial axis-group app-view prefs prefs-path))
+         (flatten)
+         (vec))))
+
+(defmethod settings-row :scale-factor
+  [app-view prefs option]
+  (let [prefs-path (conj grid-prefs-path option)
+        text-field (TextField.)
+        scale-factor (prefs/get prefs prefs-path)
+        label (doto (Label. "Auto scale factor")
+                (HBox/setHgrow Priority/ALWAYS)
+                (.setPrefWidth 180))]
+    (doto text-field
+      (ui/text! (str scale-factor))
+      (ui/on-action! (fn [_] (when-let [value (some-> (.getText text-field) Integer/parseInt)]
+                               (prefs/set! prefs prefs-path value)
+                               (invalidate-grids! app-view)))))
+    [label text-field]))
+
+(defmethod settings-row :separator
+  [_app-view _prefs _option]
+  [(doto (Separator.)
+     (HBox/setHgrow Priority/ALWAYS))])
+
+(defn- settings
   [app-view prefs]
   (let [scene-view-id (g/node-value app-view :active-view)
         grid (g/node-value scene-view-id :grid)
         options (g/node-value grid :options)]
-    ;; Grid options override the preferences,
-    ;; so we hide the row of overridden prefs.
-    (cond-> []
-      (not (:color options))
-      (conj (color-row app-view prefs))
-
-      (not (:active-plane options))
-      (conj (plane-row app-view prefs))
-
-      (not (:size options))
-      (conj (size-row app-view prefs))
-
-      (not (:opacity options))
-      (conj (opacity-row app-view prefs)))))
+    (->> [[:size :scale-factor :active-plane]
+          [:color :opacity]]
+         (mapv (partial e/remove (partial contains? options)))
+         (e/remove empty?)
+         (interpose :separator)
+         (flatten)
+         (reduce (fn [rows option]
+                   (conj rows (doto (HBox. 5 (ui/node-array (settings-row app-view prefs option)))
+                                (.setAlignment Pos/CENTER)))) []))))
 
 (defn- pref-popup-position
   ^Point2D [^Parent container]
@@ -320,7 +341,7 @@
           anchor ^Point2D (pref-popup-position (.getParent owner))]
       (ui/children! region [(doto (Region.)
                               (ui/add-style! "popup-shadow"))
-                            (doto (VBox. 10 (ui/node-array (settings-rows app-view prefs)))
+                            (doto (VBox. 10 (ui/node-array (settings app-view prefs)))
                               (ui/add-style! "grid-settings"))])
       (ui/user-data! owner ::popup popup)
       (ui/on-closed! popup (fn [_] (ui/user-data! owner ::popup nil)))

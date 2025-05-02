@@ -221,6 +221,7 @@
                                          :y {:type :integer :default 10}
                                          :z {:type :integer :default 10}}}
                                  :active-plane {:type :keyword :default :z}
+                                 :scale-factor {:type :integer :default 10}
                                  :opacity {:type :number :default 0.1}
                                  :color {:type :string :default "#ffffff"}}}}}
     :dev {:type :object
