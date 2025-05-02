@@ -1564,7 +1564,7 @@
   (input grid-size g/Any :substitute nil)
   (output options g/Any (g/fnk [grid-size]
                           {:active-plane :z
-                           :scale-factor 1.0
+                           :auto-scale false
                            :size {:x (first grid-size)
                                   :y (second grid-size)
                                   :z 1}})))

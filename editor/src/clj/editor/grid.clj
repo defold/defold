@@ -99,12 +99,15 @@
 
 (defn render-grid-sizes
   [^GL2 gl ^doubles dir grids options]
-  (let [{:keys [^double opacity color]} options]
+  (let [{:keys [^double opacity color auto-scale]} options]
     (doall
-     (for [grid-index (range 2)
+     (for [grid-index (range (if auto-scale 2 1))
            :let [^double fixed-axis (:perp-axis grids)
                  ^double ratio (nth (:ratios grids) grid-index)
-                 alpha (Math/abs (* ^double (aget dir fixed-axis) ratio opacity))
+                 alpha (cond-> opacity
+                         auto-scale
+                         (->> (* ^double (aget dir fixed-axis) ratio)
+                              (Math/abs)))
                  size-map (nth (:sizes grids) grid-index)
                  ^double u-axis (mod (inc fixed-axis) 3)
                  ^double v-axis (mod (inc u-axis) 3)
@@ -171,6 +174,9 @@
   (let [exp (Math/log10 extent)]
     (- 1.0 (- exp (Math/floor exp)))))
 
+(defn small-grid-size [extent size] (Math/pow size (dec (Math/floor (Math/log10 extent)))))
+(defn large-grid-size [extent size] (Math/pow size      (Math/floor (Math/log10 extent))))
+
 (defn grid-snap-down [^double a ^double sz] (* sz (Math/floor (/ a sz))))
 (defn grid-snap-up   [^double a ^double sz] (* sz (Math/ceil  (/ a sz))))
 
@@ -185,7 +191,7 @@
 
 (g/defnk update-grids
   [camera merged-options]
-  (let [{:keys [size active-plane ^double scale-factor]} merged-options
+  (let [{:keys [size active-plane auto-scale]} merged-options
         frustum-planes (c/viewproj-frustum-planes camera)
         perp-axis (.indexOf axes active-plane)
         aabb (frustum-projection-aabb frustum-planes perp-axis)
@@ -193,11 +199,12 @@
         _ (aset-double extent perp-axis Double/POSITIVE_INFINITY)
         smallest-extent (reduce min extent)
         first-grid-ratio (grid-ratio smallest-extent) 
-        large-size (into {} (map (fn [[k ^double v]] [k (* v scale-factor)]) size))]
+        grid-size-small (into {} (map (fn [[k ^double v]] [k (cond->> v auto-scale (small-grid-size smallest-extent))]) size))
+        grid-size-large (when auto-scale (into {} (map (fn [[k ^double v]] [k (large-grid-size smallest-extent v)]) size)))]
     {:ratios [first-grid-ratio (- 1.0 ^double first-grid-ratio)]
-     :sizes [size large-size]
-     :aabbs [(snap-out-to-grid aabb size)
-             (snap-out-to-grid aabb large-size)]
+     :sizes [grid-size-small grid-size-large]
+     :aabbs [(snap-out-to-grid aabb grid-size-small)
+             (snap-out-to-grid aabb grid-size-large)]
      :perp-axis perp-axis}))
 
 (g/defnode Grid
@@ -249,7 +256,7 @@
         buttons (mapv (partial plane-toggle-button prefs plane-group prefs-path) axes)
         label (doto (Label. "Plane")
                 (HBox/setHgrow Priority/ALWAYS)
-                (.setPrefWidth 62))]
+                (.setPrefWidth 70))]
     (ui/observe (.selectedToggleProperty plane-group)
                 (fn [_ ^ToggleButton old-value ^ToggleButton new-value]
                   (if new-value
@@ -290,41 +297,17 @@
   [app-view prefs option]
   (let [prefs-path (conj grid-prefs-path option)]
     (->> axes
-         (map (partial axis-group app-view prefs prefs-path))
+         (mapv (partial axis-group app-view prefs prefs-path))
          (flatten)
          (vec))))
-
-(defmethod settings-row :scale-factor
-  [app-view prefs option]
-  (let [prefs-path (conj grid-prefs-path option)
-        text-field (TextField.)
-        scale-factor (prefs/get prefs prefs-path)
-        label (doto (Label. "Auto scale factor")
-                (HBox/setHgrow Priority/ALWAYS)
-                (.setPrefWidth 180))]
-    (doto text-field
-      (ui/text! (str scale-factor))
-      (ui/on-action! (fn [_] (when-let [value (some-> (.getText text-field) Integer/parseInt)]
-                               (prefs/set! prefs prefs-path value)
-                               (invalidate-grids! app-view)))))
-    [label text-field]))
-
-(defmethod settings-row :separator
-  [_app-view _prefs _option]
-  [(doto (Separator.)
-     (HBox/setHgrow Priority/ALWAYS))])
 
 (defn- settings
   [app-view prefs]
   (let [scene-view-id (g/node-value app-view :active-view)
         grid (g/node-value scene-view-id :grid)
         options (g/node-value grid :options)]
-    (->> [[:size :scale-factor :active-plane]
-          [:color :opacity]]
-         (mapv (partial e/remove (partial contains? options)))
-         (e/remove empty?)
-         (interpose :separator)
-         (flatten)
+    (->> [:size :active-plane :color :opacity]
+         (e/remove (partial contains? options))
          (reduce (fn [rows option]
                    (conj rows (doto (HBox. 5 (ui/node-array (settings-row app-view prefs option)))
                                 (.setAlignment Pos/CENTER)))) []))))
