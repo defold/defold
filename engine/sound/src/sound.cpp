@@ -223,7 +223,6 @@ namespace dmSound
         bool                    m_IsDeviceStarted;
         bool                    m_IsAudioInterrupted;
         bool                    m_HasWindowFocus;
-        bool                    m_UseLegacyStereoPan;
         bool                    m_UseLinearGain;
 
         float* GetDecoderBufferBase(uint8_t channel) const { assert(channel < SOUND_MAX_DECODE_CHANNELS); return (float*)((uintptr_t)m_DecoderOutput[channel] + SOUND_MAX_HISTORY * sizeof(float)); }
@@ -261,7 +260,6 @@ namespace dmSound
         params->m_MaxInstances = 256;
         params->m_UseThread = true;
         params->m_DSPImplementation = DSPIMPL_TYPE_DEFAULT;
-        params->m_UseLegacyStereoPan = false;
         params->m_UseLinearGain = true;
 }
 
@@ -351,7 +349,6 @@ namespace dmSound
         uint32_t max_sources = params->m_MaxSources;
         uint32_t max_instances = params->m_MaxInstances;
         uint32_t sample_frame_count = params->m_FrameCount; // 0 means, use the defaults
-        bool use_legacy_stereopan = params->m_UseLegacyStereoPan;
         bool use_linear_gain = params->m_UseLinearGain;
 
         if (config)
@@ -361,7 +358,6 @@ namespace dmSound
             max_sources = (uint32_t) dmConfigFile::GetInt(config, "sound.max_sound_sources", (int32_t) max_sources);
             max_instances = (uint32_t) dmConfigFile::GetInt(config, "sound.max_sound_instances", (int32_t) max_instances);
             sample_frame_count = (uint32_t) dmConfigFile::GetInt(config, "sound.sample_frame_count", (int32_t) sample_frame_count);
-            use_legacy_stereopan = dmConfigFile::GetInt(config, "sound.use_legacy_stereopan", (int32_t) use_legacy_stereopan) != 0;
             use_linear_gain = dmConfigFile::GetInt(config, "sound.use_linear_gain", (int32_t) use_linear_gain) != 0;
         }
 
@@ -394,7 +390,6 @@ namespace dmSound
         dmSoundCodec::NewCodecContextParams codec_params;
         codec_params.m_MaxDecoders = params->m_MaxInstances;
         sound->m_CodecContext = dmSoundCodec::New(&codec_params);
-        sound->m_UseLegacyStereoPan = use_legacy_stereopan;
         sound->m_UseLinearGain = use_linear_gain;
 
         // The device wanted to provide the count (e.g. Wasapi)
@@ -1207,22 +1202,13 @@ namespace dmSound
             else {
                 assert(info->m_Channels == 2);
 
-                if (g_SoundSystem->m_UseLegacyStereoPan) {
-                    float rs, ls;
-                    GetPanScale(instance->m_Pan.m_Current, &ls, &rs);
-                    instance->m_ScaleL[0].Set(ls * gain, reset);
-                    instance->m_ScaleR[0].Set(0.0f, reset);
-                    instance->m_ScaleL[1].Set(0.0f, reset);
-                    instance->m_ScaleR[1].Set(rs * gain, reset);
-                } else {
-                    float rs, ls;
-                    GetPanScale(dmMath::Max(0.0f, instance->m_Pan.m_Current - 0.5f), &ls, &rs);
-                    instance->m_ScaleL[0].Set(ls * gain, reset);
-                    instance->m_ScaleR[0].Set(rs * gain, reset);
-                    GetPanScale(dmMath::Min(instance->m_Pan.m_Current + 0.5f, 1.0f), &ls, &rs);
-                    instance->m_ScaleL[1].Set(ls * gain, reset);
-                    instance->m_ScaleR[1].Set(rs * gain, reset);
-                }
+                float rs, ls;
+                GetPanScale(dmMath::Max(0.0f, instance->m_Pan.m_Current - 0.5f), &ls, &rs);
+                instance->m_ScaleL[0].Set(ls * gain, reset);
+                instance->m_ScaleR[0].Set(rs * gain, reset);
+                GetPanScale(dmMath::Min(instance->m_Pan.m_Current + 0.5f, 1.0f), &ls, &rs);
+                instance->m_ScaleL[1].Set(ls * gain, reset);
+                instance->m_ScaleR[1].Set(rs * gain, reset);
             }
         }
 
