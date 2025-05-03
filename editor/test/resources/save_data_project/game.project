@@ -168,6 +168,7 @@ max_particle_buffer_count = 512
 [sound]
 use_thread = 0
 gain = 0.9
+use_linear_gain = 1
 max_sound_data = 64
 max_sound_buffers = 16
 max_sound_sources = 32

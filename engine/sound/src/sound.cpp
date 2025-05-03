@@ -180,6 +180,7 @@ namespace dmSound
     {
         dmhash_t m_NameHash;
         Value    m_Gain;
+        float    m_GainParameter;
         float*   m_MixBuffer[SOUND_MAX_MIX_CHANNELS];
         float    m_SumSquaredMemory[SOUND_MAX_MIX_CHANNELS * GROUP_MEMORY_BUFFER_COUNT];
         float    m_PeakMemorySq[SOUND_MAX_MIX_CHANNELS * GROUP_MEMORY_BUFFER_COUNT];
@@ -222,6 +223,7 @@ namespace dmSound
         bool                    m_IsDeviceStarted;
         bool                    m_IsAudioInterrupted;
         bool                    m_HasWindowFocus;
+        bool                    m_UseLinearGain;
 
         float* GetDecoderBufferBase(uint8_t channel) const { assert(channel < SOUND_MAX_DECODE_CHANNELS); return (float*)((uintptr_t)m_DecoderOutput[channel] + SOUND_MAX_HISTORY * sizeof(float)); }
     };
@@ -258,7 +260,8 @@ namespace dmSound
         params->m_MaxInstances = 256;
         params->m_UseThread = true;
         params->m_DSPImplementation = DSPIMPL_TYPE_DEFAULT;
-    }
+        params->m_UseLinearGain = true;
+}
 
     Result RegisterDevice(struct DeviceType* device)
     {
@@ -281,6 +284,30 @@ namespace dmSound
         return RESULT_DEVICE_NOT_FOUND;
     }
 
+    static float GainToScale(float gain)
+    {
+        if (g_SoundSystem->m_UseLinearGain) {
+            return gain;
+        }
+
+        gain = dmMath::Clamp(gain, 0.0f, 1.0f);
+        // Convert "gain" to scale so progression over the range 'feels' linear
+        // (roughly 60dB(A) range assumed; rough approximation would be simply X^4 -- if this ever is too costly)
+        const float l = 0.1f;   // linear taper-off range
+        const float a = 1e-3f;
+        const float b = 6.908f;
+        float scale = a * expf(gain * b);
+        if (gain < l)
+            scale *= gain * (1.0f / l);
+        return dmMath::Min(scale, 1.0f);
+    }
+
+    Result GetScaleFromGain(float gain, float* scale)
+    {
+        *scale = GainToScale(gain);
+        return RESULT_OK;
+    }
+
     static int GetOrCreateGroup(const char* group_name)
     {
         dmhash_t group_hash = dmHashString64(group_name);
@@ -297,7 +324,8 @@ namespace dmSound
         uint32_t index = sound->m_GroupMap.Size();
         SoundGroup* group = &sound->m_Groups[index];
         group->m_NameHash = group_hash;
-        group->m_Gain.Reset(1.0f);
+        group->m_GainParameter = 1.0f;
+        group->m_Gain.Reset(GainToScale(group->m_GainParameter));
 
         for(uint32_t c=0; c<SOUND_MAX_MIX_CHANNELS; ++c)
         {
@@ -321,6 +349,7 @@ namespace dmSound
         uint32_t max_sources = params->m_MaxSources;
         uint32_t max_instances = params->m_MaxInstances;
         uint32_t sample_frame_count = params->m_FrameCount; // 0 means, use the defaults
+        bool use_linear_gain = params->m_UseLinearGain;
 
         if (config)
         {
@@ -329,6 +358,7 @@ namespace dmSound
             max_sources = (uint32_t) dmConfigFile::GetInt(config, "sound.max_sound_sources", (int32_t) max_sources);
             max_instances = (uint32_t) dmConfigFile::GetInt(config, "sound.max_sound_instances", (int32_t) max_instances);
             sample_frame_count = (uint32_t) dmConfigFile::GetInt(config, "sound.sample_frame_count", (int32_t) sample_frame_count);
+            use_linear_gain = dmConfigFile::GetInt(config, "sound.use_linear_gain", (int32_t) use_linear_gain) != 0;
         }
 
         HDevice device = 0;
@@ -360,6 +390,7 @@ namespace dmSound
         dmSoundCodec::NewCodecContextParams codec_params;
         codec_params.m_MaxDecoders = params->m_MaxInstances;
         sound->m_CodecContext = dmSoundCodec::New(&codec_params);
+        sound->m_UseLinearGain = use_linear_gain;
 
         // The device wanted to provide the count (e.g. Wasapi)
         if (device_info.m_FrameCount)
@@ -377,7 +408,6 @@ namespace dmSound
                 sound->m_DeviceFrameCount = GetDefaultFrameCount(device_info.m_MixRate);
             }
         }
-
 
         // note: this will be an NoOp if the build target has DM_SOUND_EXPECTED_SIMD defined (compile-time implementation selection)
         DSPImplType dsp_impl = params->m_DSPImplementation;
@@ -432,7 +462,8 @@ namespace dmSound
 
         int master_index = GetOrCreateGroup("master");
         SoundGroup* master = &sound->m_Groups[master_index];
-        master->m_Gain.Reset(master_gain);
+        master->m_GainParameter = master_gain;
+        master->m_Gain.Reset(GainToScale(master->m_GainParameter));
 
         dmAtomicStore32(&sound->m_IsRunning, 1);
         dmAtomicStore32(&sound->m_IsPaused, 0);
@@ -852,7 +883,8 @@ namespace dmSound
             }
         }
         SoundGroup* group = &sound->m_Groups[*index];
-        group->m_Gain.Set(gain, reset);
+        group->m_Gain.Set(GainToScale(gain), reset);
+        group->m_GainParameter = gain;
         return RESULT_OK;
     }
 
@@ -866,7 +898,7 @@ namespace dmSound
         }
 
         SoundGroup* group = &sound->m_Groups[*index];
-        *gain = group->m_Gain.m_Next;
+        *gain = group->m_GainParameter;
         return RESULT_OK;
     }
 
@@ -1034,7 +1066,7 @@ namespace dmSound
         {
             case PARAMETER_GAIN:
                 {
-                    sound_instance->m_Gain.Set(dmMath::Max(0.0f, value.getX()), reset);
+                    sound_instance->m_Gain.Set(GainToScale(value.getX()), reset);
                     // Trigger volume scale updates as soon as we know how many channels the instance has
                     // (we might not have that info initially)
                     sound_instance->m_ScaleDirty = 1;
@@ -1170,14 +1202,6 @@ namespace dmSound
             else {
                 assert(info->m_Channels == 2);
 
-#if defined(SOUND_USE_LEGACY_STEREO_PAN) && (SOUND_USE_LEGACY_STEREO_PAN != 0)
-                float rs, ls;
-                GetPanScale(instance->m_Pan.m_Current, &ls, &rs);
-                instance->m_ScaleL[0].Set(ls * gain, reset);
-                instance->m_ScaleR[0].Set(0.0f, reset);
-                instance->m_ScaleL[1].Set(0.0f, reset);
-                instance->m_ScaleR[1].Set(rs * gain, reset);
-#else
                 float rs, ls;
                 GetPanScale(dmMath::Max(0.0f, instance->m_Pan.m_Current - 0.5f), &ls, &rs);
                 instance->m_ScaleL[0].Set(ls * gain, reset);
@@ -1185,44 +1209,6 @@ namespace dmSound
                 GetPanScale(dmMath::Min(instance->m_Pan.m_Current + 0.5f, 1.0f), &ls, &rs);
                 instance->m_ScaleL[1].Set(ls * gain, reset);
                 instance->m_ScaleR[1].Set(rs * gain, reset);
-#endif
-            }
-        }
-
-        // Make sure to update the mixing scale values...
-        if (instance->m_ScaleDirty != 0) {
-            instance->m_ScaleDirty = 0;
-
-            bool reset = (instance->m_ScaleInit != 0);
-            instance->m_ScaleInit = 0;
-
-            float gain = instance->m_Gain.m_Current;
-
-            if (info->m_Channels == 1) {
-                float rs, ls;
-                GetPanScale(instance->m_Pan.m_Current, &ls, &rs);
-                instance->m_ScaleL[0].Set(ls * gain, reset);
-                instance->m_ScaleR[0].Set(rs * gain, reset);
-            }
-            else {
-                assert(info->m_Channels == 2);
-
-#if defined(SOUND_USE_LEGACY_STEREO_PAN) && (SOUND_USE_LEGACY_STEREO_PAN != 0)
-                float rs, ls;
-                GetPanScale(instance->m_Pan.m_Current, &ls, &rs);
-                instance->m_ScaleL[0].Set(ls * gain, reset);
-                instance->m_ScaleR[0].Set(0.0f, reset);
-                instance->m_ScaleL[1].Set(0.0f, reset);
-                instance->m_ScaleR[1].Set(rs * gain, reset);
-#else
-                float rs, ls;
-                GetPanScale(dmMath::Max(0.0f, instance->m_Pan.m_Current - 0.5f), &ls, &rs);
-                instance->m_ScaleL[0].Set(ls * gain, reset);
-                instance->m_ScaleR[0].Set(rs * gain, reset);
-                GetPanScale(dmMath::Min(instance->m_Pan.m_Current + 0.5f, 1.0f), &ls, &rs);
-                instance->m_ScaleL[1].Set(ls * gain, reset);
-                instance->m_ScaleR[1].Set(rs * gain, reset);
-#endif
             }
         }
 
