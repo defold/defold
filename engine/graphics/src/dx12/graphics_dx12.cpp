@@ -235,7 +235,7 @@ namespace dmGraphics
                 CHECK_HR_ERROR(hr);
 
                 const uint32_t memory_heap_alignment = 1024 * 64;
-                const uint32_t memory_heap_size      = memory_heap_alignment; // TODO: Some other memory metric here
+                const uint32_t memory_heap_size      = DM_ALIGN(DESCRIPTORS_PER_POOL * m_MemoryPools[i].m_BlockSize, memory_heap_alignment);
 
                 hr = context->m_Device->CreateCommittedResource(
                     &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // this heap will be used to upload the constant buffer data
@@ -249,10 +249,10 @@ namespace dmGraphics
                 for (int j = 0; j < DESCRIPTORS_PER_POOL; ++j)
                 {
                     D3D12_CONSTANT_BUFFER_VIEW_DESC view_desc = {};
-                    view_desc.BufferLocation = m_MemoryPools[i].m_MemoryHeap->GetGPUVirtualAddress() + i * m_MemoryPools[i].m_BlockSize;
+                    view_desc.BufferLocation = m_MemoryPools[i].m_MemoryHeap->GetGPUVirtualAddress() + j * m_MemoryPools[i].m_BlockSize;
                     view_desc.SizeInBytes    = m_MemoryPools[i].m_BlockSize;
 
-                    CD3DX12_CPU_DESCRIPTOR_HANDLE view_handle(m_MemoryPools[i].m_DescriptorHeap->GetCPUDescriptorHandleForHeapStart(), i, context->m_Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+                    CD3DX12_CPU_DESCRIPTOR_HANDLE view_handle(m_MemoryPools[i].m_DescriptorHeap->GetCPUDescriptorHandleForHeapStart(), j, context->m_Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
                     context->m_Device->CreateConstantBufferView(&view_desc, view_handle);
                 }
 
@@ -269,7 +269,7 @@ namespace dmGraphics
         uint32_t memory_cursor  = m_MemoryPools[pool_index].m_MemoryCursor;
         uint8_t* base_ptr       = ((uint8_t*) m_MemoryPools[pool_index].m_MappedDataPtr) + memory_cursor;
 
-        context->m_CommandList->SetGraphicsRootConstantBufferView(buffer_index, m_MemoryPools[0].m_MemoryHeap->GetGPUVirtualAddress() + memory_cursor);
+        context->m_CommandList->SetGraphicsRootConstantBufferView(buffer_index, m_MemoryPools[pool_index].m_MemoryHeap->GetGPUVirtualAddress() + memory_cursor);
 
         m_MemoryPools[pool_index].m_MemoryCursor += m_MemoryPools[pool_index].m_BlockSize;
         m_MemoryPools[pool_index].m_DescriptorCursor++;
@@ -1666,6 +1666,7 @@ namespace dmGraphics
         DX12ShaderProgram* program = context->m_CurrentProgram;
 
         uint32_t texture_unit_start = program->m_UniformBufferCount;
+        uint32_t ubo_ix = 0;
 
         for (int set = 0; set < program->m_BaseProgram.m_MaxSet; ++set)
         {
@@ -1710,8 +1711,9 @@ namespace dmGraphics
                     case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER:
                     {
                         const uint32_t uniform_size_nonalign = pgm_res.m_Res->m_BindingInfo.m_BlockSize;
-                        void* gpu_mapped_memory = frame_resources.m_ScratchBuffer.AllocateConstantBuffer(context, pgm_res.m_Res->m_Binding, uniform_size_nonalign);
+                        void* gpu_mapped_memory = frame_resources.m_ScratchBuffer.AllocateConstantBuffer(context, ubo_ix, uniform_size_nonalign);
                         memcpy(gpu_mapped_memory, &program->m_UniformData[pgm_res.m_DataOffset], uniform_size_nonalign);
+                        ubo_ix++;
                     } break;
                     case ShaderResourceBinding::BINDING_FAMILY_GENERIC:
                     default: continue;
