@@ -3101,7 +3101,7 @@ static uint32_t WebGPUGetTextureUsageHintFlags(HTexture _texture)
     return texture->m_UsageHintFlags;
 }
 
-static uint8_t WebGPUGetTextureSliceCount(HTexture texture)
+static uint8_t WebGPUGetTextureSliceCount(HTexture _texture)
 {
     TRACE_CALL;
     WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_AssetHandleContainer, _texture);

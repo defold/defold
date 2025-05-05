@@ -1682,7 +1682,7 @@ static void PushTextureInfo(lua_State* L, dmGraphics::HTexture texture_handle)
         lua_setfield(L, -2, "depth");
     }
     else
-    {        
+    {
         lua_pushinteger(L, texture_depth);
         lua_setfield(L, -2, "depth");
     }

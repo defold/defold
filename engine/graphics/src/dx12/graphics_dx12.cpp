@@ -2829,7 +2829,7 @@ namespace dmGraphics
     {
         // TODO: mutex is missed?
         // ScopedLock lock(g_DX12Context->m_AssetHandleContainerMutex);
-        DX12Texture* tex = GetAssetFromContainer<DX12Texture>(g_Context->m_AssetHandleContainer, texture);
+        DX12Texture* tex = GetAssetFromContainer<DX12Texture>(g_DX12Context->m_AssetHandleContainer, texture);
         return tex ? tex->m_SliceCount : 0;
 
     }
