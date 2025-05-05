@@ -11,8 +11,11 @@
 
 #include <dlib/job_thread.h>
 
+#include <dmsdk/gamesys/resources/res_font.h>
+
 #include "res_ttf.h"
 #include "fontgen.h"
+#include "job_thread.h"
 
 namespace dmFontGen
 {
@@ -25,9 +28,6 @@ struct FontInfo
     int                         m_EdgeValue;
     float                       m_Scale;
 
-    uint32_t                    m_CacheCellWidth;
-    uint32_t                    m_CacheCellHeight;
-    uint32_t                    m_CacheCellMaxAscent;
     uint8_t                     m_IsSdf:1;
     uint8_t                     m_HasShadow:1;
 };
@@ -44,10 +44,12 @@ struct Context
 Context* g_FontExtContext = 0;
 
 static const uint32_t ZERO_WIDTH_SPACE_UNICODE = 0x200b;
+static const uint32_t NO_BREAK_SPACE_UNICODE = 0x00a0;
+static const uint32_t IDEOGRAPHIC_SPACE_UNICODE = 0x3000;
 
 static inline bool IsWhiteSpace(uint32_t c)
 {
-    return c == ' ' || c == '\n' || c == '\t' || c == ZERO_WIDTH_SPACE_UNICODE;
+    return c == ' ' || c == '\n' || c == '\t' || c == ZERO_WIDTH_SPACE_UNICODE || c == NO_BREAK_SPACE_UNICODE || c == IDEOGRAPHIC_SPACE_UNICODE;
 }
 
 static bool CheckType(HResourceFactory factory, const char* path, const char** types, uint32_t num_types)
@@ -78,6 +80,7 @@ static TTFResource* LoadFontData(Context* ctx, const char* path)
     if (dmResource::RESULT_OK != r)
     {
         dmLogError("Failed to get resource '%s'", path);
+        //DeleteFontData(ctx, data);
         return 0;
     }
 
@@ -86,6 +89,7 @@ static TTFResource* LoadFontData(Context* ctx, const char* path)
     {
         dmLogError("Wrong type of resource %s (expected %s)", path, types[0]);
         dmResource::Release(ctx->m_ResourceFactory, resource);
+        //DeleteFontData(ctx, data);
         return 0;
     }
 
@@ -183,15 +187,12 @@ static FontInfo* LoadFont(Context* ctx, const char* fontc_path, const char* ttf_
     // TODO: Support bitmap fonts
     info->m_IsSdf        = dmRenderDDF::TYPE_DISTANCE_FIELD == font_info.m_OutputFormat;
 
-    uint32_t cell_width = 0;
-    uint32_t cell_height = 0;
-    uint32_t max_ascent = 0;
-    dmFontGen::GetCellSize(info->m_TTFResource, &cell_width, &cell_height, &max_ascent);
-
-    info->m_CacheCellWidth = info->m_Padding + cell_width*info->m_Scale;
-    info->m_CacheCellHeight = info->m_Padding + cell_height*info->m_Scale;
-    info->m_CacheCellMaxAscent = info->m_Padding + max_ascent*info->m_Scale;
-    r = ResFontSetCacheCellSize(info->m_FontResource, info->m_CacheCellWidth, info->m_CacheCellHeight, info->m_CacheCellMaxAscent);
+    // This returns a too large size, which is impractical, and causes the cache to be filled too quickly
+    // Instead, we do the cell size check in the engine, when adding more dybnamic glyphs
+    // uint32_t cell_width = 0;
+    // uint32_t cell_height = 0;
+    // uint32_t max_ascent = 0;
+    // dmFontGen::GetCellSize(info->m_TTFResource, &cell_width, &cell_height, &max_ascent);
 
     if (ctx->m_FontInfos.Full())
     {
@@ -248,7 +249,7 @@ struct JobItem
 // Called on the worker thread
 static int JobGenerateGlyph(void* context, void* data)
 {
-    //Context* ctx = (Context*)context;
+    Context* ctx = (Context*)context;
     JobItem* item = (JobItem*)data;
     FontInfo* info = item->m_FontInfo;
     uint32_t codepoint = item->m_Codepoint;
@@ -261,8 +262,11 @@ static int JobGenerateGlyph(void* context, void* data)
     if (!glyph_index)
         return 0;
 
+    uint32_t cell_width, cell_height, cell_ascent;
+    dmGameSystem::ResFontGetCacheCellSize(info->m_FontResource, &cell_width, &cell_height, &cell_ascent);
+
     item->m_Data = 0;
-    item->m_DataSize = 1 + info->m_CacheCellWidth * info->m_CacheCellHeight;
+    item->m_DataSize = 1 + cell_width * cell_height;
     if (info->m_IsSdf)
     {
         item->m_Data = dmFontGen::GenerateGlyphSdf(ttfresource, glyph_index, info->m_Scale, info->m_Padding, info->m_EdgeValue, &item->m_Glyph);
@@ -290,7 +294,7 @@ static int JobGenerateGlyph(void* context, void* data)
         {
             for (int x = 0; x < w; ++x)
             {
-                uint8_t value =         item->m_Data[1 + y * w + x];
+                uint8_t value = item->m_Data[1 + y * w + x];
                 rgb[y * (w * ch) + (x * ch) + 0] = value;
                 rgb[y * (w * ch) + (x * ch) + 1] = 0;
                 rgb[y * (w * ch) + (x * ch) + 2] = value;
@@ -360,9 +364,9 @@ static void DeleteItem(JobItem* item)
 // Called on the main thread
 static void JobPostProcessGlyph(void* context, void* data, int result)
 {
-    //Context* ctx = (Context*)context;
+    Context* ctx = (Context*)context;
     JobItem* item = (JobItem*)data;
-    //JobStatus* status = item->m_Status;
+    JobStatus* status = item->m_Status;
     uint32_t codepoint = item->m_Codepoint;
 
     if (!result)
@@ -437,6 +441,7 @@ static void RemoveGlyphs(FontInfo* info, const char* text)
     const char* cursor = text;
     uint32_t c = 0;
 
+    uint32_t num_added = 0;
     while ((c = dmUtf8::NextChar(&cursor)))
     {
         dmGameSystem::ResFontRemoveGlyph(info->m_FontResource, c);
@@ -452,12 +457,10 @@ bool Initialize(dmExtension::Params* params)
     g_FontExtContext->m_DefaultSdfPadding = dmConfigFile::GetInt(params->m_ConfigFile, "fontgen.sdf_base_padding", 3);
     g_FontExtContext->m_DefaultSdfEdge = dmConfigFile::GetInt(params->m_ConfigFile, "fontgen.sdf_edge_value", 190);
 
-    // dmJobThread::JobThreadCreationParams job_thread_create_param;
-    // job_thread_create_param.m_ThreadNames[0] = "FontGenJobThread";
-    // job_thread_create_param.m_ThreadCount    = 1;
-    // g_FontExtContext->m_Jobs = dmJobThread::Create(job_thread_create_param);
-
-    g_FontExtContext->m_Jobs = (dmJobThread::HContext)ExtensionParamsGetContextByName((ExtensionParams*)params, "job_thread");
+    dmJobThread::JobThreadCreationParams job_thread_create_param;
+    job_thread_create_param.m_ThreadNames[0] = "FontGenJobThread";
+    job_thread_create_param.m_ThreadCount    = 1;
+    g_FontExtContext->m_Jobs = dmJobThread::Create(job_thread_create_param);
     return true;
 }
 
@@ -471,6 +474,13 @@ void Finalize(dmExtension::Params* params)
 
     delete g_FontExtContext;
     g_FontExtContext = 0;
+}
+
+
+void Update(dmExtension::Params* params)
+{
+    if (g_FontExtContext->m_Jobs)
+        dmJobThread::Update(g_FontExtContext->m_Jobs, 1000); // Update for max 1 millisecond on non-threaded systems
 }
 
 // Scripting
