@@ -14,6 +14,7 @@
 
 (ns editor.game-object
   (:require [clojure.set :as set]
+            [clojure.string :as str]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.build-target :as bt]
@@ -31,6 +32,7 @@
             [editor.scene :as scene]
             [editor.scene-tools :as scene-tools]
             [editor.sound :as sound]
+            [editor.ui :as ui]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [internal.util :as util])
@@ -611,6 +613,27 @@
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace)]
     (collection-string-data/string-encode-prototype-desc ext->embedded-component-resource-type prototype-desc)))
 
+(defn- add-dropped-resource
+  [selection workspace resource]
+  (let [collection (selection->game-object selection)
+        ext (str/lower-case (resource/ext resource))]
+    (when (some #{ext} (get-all-comp-exts workspace))
+      (let [id (gen-component-id collection (resource/base-name resource))]
+        (add-component collection resource id nil nil nil)))))
+
+(defn- handle-drop
+  [action op-seq]
+  (let [{:keys [string gesture-target]} action
+        ui-context (first (ui/node-contexts gesture-target false))
+        {:keys [selection workspace]} (:env ui-context)
+        resources (->> (str/split-lines string)
+                       (keep (partial workspace/resolve-workspace-resource workspace)))]
+    (g/tx-nodes-added
+      (g/transact
+        (concat
+          (mapv (partial add-dropped-resource selection workspace) resources)
+          (g/operation-sequence op-seq))))))
+
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
     :ext "go"
@@ -625,4 +648,5 @@
     :icon game-object-common/game-object-icon
     :icon-class :design
     :view-types [:scene :text]
-    :view-opts {:scene {:grid true}}))
+    :view-opts {:scene {:grid true
+                        :drop-fn handle-drop}}))

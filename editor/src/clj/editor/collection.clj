@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.collection
-  (:require [dynamo.graph :as g]
+  (:require [clojure.string :as str]
+            [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.build-target :as bt]
             [editor.code.script :as script]
@@ -32,6 +33,7 @@
             [editor.resource-dialog :as resource-dialog]
             [editor.resource-node :as resource-node]
             [editor.scene :as scene]
+            [editor.ui :as ui]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [internal.cache :as c]
@@ -817,6 +819,35 @@
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace)]
     (collection-string-data/string-encode-collection-desc ext->embedded-component-resource-type collection-desc)))
 
+(defn- add-dropped-resource
+  [selection resource]
+  (let [ext (str/lower-case (resource/ext resource))
+        collection (or (selection->collection selection)
+                       (selection->game-object-instance selection))
+        base-name (resource/base-name resource)]
+    (cond
+      (= ext "go")
+      (make-ref-go collection resource (gen-instance-id collection base-name) nil collection nil nil)
+
+      (= ext "collection")
+      (make-collection-instance collection resource (gen-instance-id collection base-name) nil nil nil)
+
+      :else
+      nil)))
+
+(defn- handle-drop
+  [action op-seq]
+  (let [{:keys [string gesture-target x y]} action
+        ui-context (first (ui/node-contexts gesture-target false))
+        {:keys [selection workspace]} (:env ui-context)
+        resources (->> (str/split-lines string)
+                       (keep (partial workspace/resolve-workspace-resource workspace)))]
+    (g/tx-nodes-added
+      (g/transact
+        (concat
+          (mapv (partial add-dropped-resource selection) resources)
+          (g/operation-sequence op-seq))))))
+
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
     :ext "collection"
@@ -831,4 +862,5 @@
     :icon collection-common/collection-icon
     :icon-class :design
     :view-types [:scene :text]
-    :view-opts {:scene {:grid true}}))
+    :view-opts {:scene {:grid true
+                        :drop-fn handle-drop}}))
