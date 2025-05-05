@@ -734,6 +734,7 @@ namespace dmGraphics
     TextureType GetTextureType(HTexture texture);
     uint8_t     GetNumTextureHandles(HTexture texture);
     uint32_t    GetTextureUsageHintFlags(HTexture texture);
+    uint8_t     GetTextureSliceCount(HTexture texture);
 
     /**
      * Get status of texture.

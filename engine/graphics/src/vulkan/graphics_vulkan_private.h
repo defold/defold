@@ -109,6 +109,7 @@ namespace dmGraphics
         uint16_t          m_TextureSamplerIndex : 10;
         uint32_t          m_Destroyed           : 1;
         uint32_t          m_UsageHintFlags      : 8;
+        uint8_t           m_SliceCount; // slice count of texture array
 
         const VulkanResourceType GetType();
     };

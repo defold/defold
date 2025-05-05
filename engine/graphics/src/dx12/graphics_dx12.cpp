@@ -2330,6 +2330,7 @@ namespace dmGraphics
         tex->m_Height           = params.m_Height;
         tex->m_Depth            = params.m_Depth;
         tex->m_MipMapCount      = params.m_MipMapCount;
+        tex->m_SliceCount       = params.m_LayerCount;
 
         // tex->m_UsageFlags  = GetVulkanUsageFromHints(params.m_UsageHintBits);
 
@@ -2822,6 +2823,15 @@ namespace dmGraphics
     {
         return 0;
         // return GetAssetFromContainer<DX12Texture>(g_DX12Context->m_AssetHandleContainer, texture)->m_UsageHintFlags;
+    }
+
+    static uint8_t DX12GetTextureSliceCount(HTexture texture)
+    {
+        // TODO: mutex is missed?
+        // ScopedLock lock(g_DX12Context->m_AssetHandleContainerMutex);
+        DX12Texture* tex = GetAssetFromContainer<DX12Texture>(g_Context->m_AssetHandleContainer, texture);
+        return tex ? tex->m_SliceCount : 0;
+
     }
 
     static uint32_t DX12GetNumSupportedExtensions(HContext context)

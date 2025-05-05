@@ -246,6 +246,7 @@ namespace dmGameSystem
                 uint16_t tex_width_mipmap  = dmGraphics::GetMipmapSize(tex_width_full, params.m_MipMap);
                 uint16_t tex_height_mipmap = dmGraphics::GetMipmapSize(tex_height_full, params.m_MipMap);
                 uint8_t  tex_mipmap_count  = dmGraphics::GetMipmapCount(dmMath::Max(tex_width_full, tex_height_full));
+                uint8_t  tex_slice_count   = dmGraphics::GetTextureSliceCount(texture);
 
                 if (specific_mip_requested && params.m_MipMap > tex_mipmap_count)
                 {
@@ -258,6 +259,13 @@ namespace dmGameSystem
                 {
                     dmLogError("Texture size %ux%u at offset %u,%u exceeds maximum texture size (%ux%u) for mipmap level %u.",
                         params.m_Width, params.m_Height, params.m_X, params.m_Y, tex_width_mipmap, tex_height_mipmap, params.m_MipMap);
+                    result = dmResource::RESULT_INVALID_DATA;
+                    break;
+                }
+
+                if (params.m_SubUpdate && params.m_Slice > tex_slice_count)
+                {
+                    dmLogError("Slice index %u exceeds maximum texture slice count %u", params.m_Slice, tex_slice_count);
                     result = dmResource::RESULT_INVALID_DATA;
                     break;
                 }

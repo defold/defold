@@ -3715,6 +3715,7 @@ static void LogFrameBufferError(GLenum status)
         tex->m_Depth          = params.m_Depth;
         tex->m_NumTextureIds  = num_texture_ids;
         tex->m_UsageHintFlags = params.m_UsageHintBits;
+        tex->m_SliceCount     = params.m_LayerCount;
 
         if (params.m_OriginalWidth == 0)
         {
@@ -3925,6 +3926,13 @@ static void LogFrameBufferError(GLenum status)
         ScopedLock lock(g_Context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
         return tex ? tex->m_UsageHintFlags : 0;
+    }
+
+    static uint8_t OpenGLGetTextureSliceCount(HTexture texture)
+    {
+        ScopedLock lock(g_Context->m_AssetHandleContainerMutex);
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
+        return tex ? tex->m_SliceCount : 0;
     }
 
     static uint32_t OpenGLGetTextureStatusFlags(HTexture texture)

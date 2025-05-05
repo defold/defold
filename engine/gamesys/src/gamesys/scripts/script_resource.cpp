@@ -602,9 +602,9 @@ static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceP
     int depth                        = CheckTableInteger(L, 2, "depth", 1);
     uint32_t max_mipmaps             = (uint32_t) CheckTableInteger(L, 2, "max_mipmaps", 0);
     uint32_t usage_flags             = (uint32_t) CheckTableInteger(L, 2, "flags", dmGraphics::TEXTURE_USAGE_FLAG_SAMPLE);
-    uint32_t layer_count             = (uint32_t) CheckTableInteger(L, 2, "layer_count", 1);
+    uint32_t slice_count             = (uint32_t) CheckTableInteger(L, 2, "slice_count", 1);
 
-    if (width < 1 || height < 1 || depth < 1 || layer_count < 1)
+    if (width < 1 || height < 1 || depth < 1 || slice_count < 1)
     {
         return luaL_error(L, "Unable to create texture, width, height, depth and layer count must be larger than 0");
     }
@@ -669,7 +669,7 @@ static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceP
     params->m_Width           = width;
     params->m_Height          = height;
     params->m_Depth           = depth;
-    params->m_LayerCount      = layer_count;
+    params->m_LayerCount      = slice_count;
     params->m_MaxMipMaps      = max_mipmaps;
     params->m_Type            = type;
     params->m_Format          = format;
@@ -898,6 +898,20 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
  *     -- pass the backing texture to the render script
  *     msg.post("@render:", "add_textures", { t_volume })
  * end
+ * ```
+ *
+ *
+ * @examples
+ * How to create 512x512 texture array with 5 layers.
+ *
+ * ```lua
+ * 		local new_tex = resource.create_texture("/runtime/example_array.texturec", {
+ * 			type = graphics.TEXTURE_TYPE_2D_ARRAY,
+ * 			width = 512,
+ * 			height = 512,
+ * 			slice_count = 5,
+ * 			format = graphics.TEXTURE_FORMAT_RGB,
+ * 		})
  * ```
  */
 static int CreateTexture(lua_State* L)
@@ -1315,6 +1329,9 @@ static int ReleaseResource(lua_State* L)
  * `z`
  * : [type:number] optional z offset of the texture (in pixels). Only applies to 3D textures
  *
+ * `slice`
+ * : [type:number] optional slice of the array texture. Only applies to 2D texture arrays. Zero-based
+ *
  * `mipmap`
  * : [type:number] optional mipmap to upload the data to
  *
@@ -1445,6 +1462,25 @@ static int ReleaseResource(lua_State* L)
  *     -- use the "resource.create_texture" function.
  *     resource.set_texture("/my_3d_texture.texturec", t_args, tbuffer)
  * end
+ *
+ *
+ * @examples
+ * Update texture 2nd array slice with loaded texture from png
+ *
+ * ```lua
+ * 	-- new_tex is resource handle of texture which was created via resource.create_resource
+ *	local tex_path = "/bundle_resources/slice_02.png"
+ *	local data = sys.load_resource(tex_path)
+ *	local buf = image.load_buffer(data)
+ *	resource.set_texture(new_tex, {
+ *		type = graphics.TEXTURE_TYPE_2D_ARRAY,
+ *		width = buf.width,
+ *		height = buf.height,
+ *		slice = 1,
+ *		format = graphics.TEXTURE_FORMAT_RGB
+ *	}, buf.buffer)
+ *	go.set("#mesh", "texture0", new_tex)
+ * ```
  */
 static int SetTexture(lua_State* L)
 {
@@ -1543,7 +1579,10 @@ static int SetTexture(lua_State* L)
  * : [type:integer] height of the texture
  *
  * `depth`
- * : [type:integer] depth of the texture (i.e 1 for a 2D texture, 6 for a cube map, number of slices for an array texture and the actual depth of a 3D texture)
+ * : [type:integer] depth of the texture (i.e 1 for a 2D texture, 6 for a cube map, the actual depth of a 3D texture)
+ *
+ * `slice_count`
+ * : [type:integer] number of slices of the texture array. For 2D texture value is 1. For cube map - 6
  *
  * `mipmaps`
  * : [type:integer] number of mipmaps of the texture
@@ -1584,6 +1623,7 @@ static int SetTexture(lua_State* L)
  *     --      height = 128,
  *     --      depth = 1
  *     --      mipmaps = 1,
+ *     --      slice_count = 1,
  *     --      type = graphics.TEXTURE_TYPE_2D,
  *     --      flags = graphics.TEXTURE_USAGE_FLAG_SAMPLE
  *     -- }
@@ -1611,6 +1651,7 @@ static void PushTextureInfo(lua_State* L, dmGraphics::HTexture texture_handle)
     uint32_t texture_mipmaps             = dmGraphics::GetTextureMipmapCount(texture_handle);
     dmGraphics::TextureType texture_type = dmGraphics::GetTextureType(texture_handle);
     uint32_t texture_flags               = dmGraphics::GetTextureUsageHintFlags(texture_handle);
+    uint8_t  slice_count                 = dmGraphics::GetTextureSliceCount(texture_handle);
 
     lua_pushnumber(L, texture_handle);
     lua_setfield(L, -2, "handle");
@@ -1630,6 +1671,9 @@ static void PushTextureInfo(lua_State* L, dmGraphics::HTexture texture_handle)
     lua_pushinteger(L, texture_flags);
     lua_setfield(L, -2, "flags");
 
+    lua_pushinteger(L, slice_count);
+    lua_setfield(L, -2, "slice_count");
+
     // JG: We use depth to indicate the sides of a cube map, but the actual texture depth is 1,
     //     since it's not a 3D texture. This is a technicality that should't matter for now at least.
     if (texture_type == dmGraphics::TEXTURE_TYPE_CUBE_MAP)
@@ -1638,7 +1682,7 @@ static void PushTextureInfo(lua_State* L, dmGraphics::HTexture texture_handle)
         lua_setfield(L, -2, "depth");
     }
     else
-    {
+    {        
         lua_pushinteger(L, texture_depth);
         lua_setfield(L, -2, "depth");
     }

@@ -1301,6 +1301,7 @@ namespace dmGraphics
         tex->m_NumTextureIds  = num_texture_ids;
         tex->m_LastBoundUnit  = new int32_t[num_texture_ids];
         tex->m_UsageHintFlags = params.m_UsageHintBits;
+        tex->m_SliceCount     = params.m_LayerCount;
 
         for (int i = 0; i < num_texture_ids; ++i)
         {
@@ -1781,6 +1782,11 @@ namespace dmGraphics
     static uint32_t NullGetTextureUsageHintFlags(HTexture texture)
     {
         return GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture)->m_UsageHintFlags;
+    }
+
+    static uint8_t NullGetTextureSliceCount(HTexture texture)
+    {
+        return GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture)->m_SliceCount;
     }
 
     static bool NullIsContextFeatureSupported(HContext _context, ContextFeature feature)
