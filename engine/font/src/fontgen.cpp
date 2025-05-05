@@ -1,3 +1,17 @@
+// Copyright 2020-2025 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
 #include <dmsdk/dlib/dstrings.h>
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/dlib/hashtable.h>
@@ -15,7 +29,6 @@
 
 #include "res_ttf.h"
 #include "fontgen.h"
-#include "job_thread.h"
 
 namespace dmFontGen
 {
@@ -457,18 +470,12 @@ bool Initialize(dmExtension::Params* params)
     g_FontExtContext->m_DefaultSdfPadding = dmConfigFile::GetInt(params->m_ConfigFile, "fontgen.sdf_base_padding", 3);
     g_FontExtContext->m_DefaultSdfEdge = dmConfigFile::GetInt(params->m_ConfigFile, "fontgen.sdf_edge_value", 190);
 
-    dmJobThread::JobThreadCreationParams job_thread_create_param;
-    job_thread_create_param.m_ThreadNames[0] = "FontGenJobThread";
-    job_thread_create_param.m_ThreadCount    = 1;
-    g_FontExtContext->m_Jobs = dmJobThread::Create(job_thread_create_param);
+    g_FontExtContext->m_Jobs = dmExtension::GetContextAsType<dmJobThread::HContext>(params, "job_thread");
     return true;
 }
 
 void Finalize(dmExtension::Params* params)
 {
-    if (g_FontExtContext->m_Jobs)
-        dmJobThread::Destroy(g_FontExtContext->m_Jobs);
-
     g_FontExtContext->m_FontInfos.Iterate(DeleteFontInfoIter, g_FontExtContext);
     g_FontExtContext->m_FontInfos.Clear();
 
@@ -479,8 +486,6 @@ void Finalize(dmExtension::Params* params)
 
 void Update(dmExtension::Params* params)
 {
-    if (g_FontExtContext->m_Jobs)
-        dmJobThread::Update(g_FontExtContext->m_Jobs, 1000); // Update for max 1 millisecond on non-threaded systems
 }
 
 // Scripting
