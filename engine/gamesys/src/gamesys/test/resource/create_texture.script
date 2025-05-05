@@ -353,7 +353,7 @@ local function test_2d_array_texture()
     assert(t_info_by_handle.depth       == 1)
     assert(t_info_by_handle.slice_count == 3)
     assert(t_info_by_handle.mipmaps     == 1)
-    assert(t_info_by_handle.type        == graphics.TEXTURE_TYPE_2D)
+    assert(t_info_by_handle.type        == graphics.TEXTURE_TYPE_2D_ARRAY)
 
     resource.release(t_id)
 
