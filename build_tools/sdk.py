@@ -79,7 +79,7 @@ PACKAGES_WIN32_SDK_10=f"WindowsKits-{VERSION_WINDOWS_SDK_10}"
 ## **********************************************************************************************
 # Emscripten
 
-EMSCRIPTEN_VERSION_STR  =  "3.1.65"
+EMSCRIPTEN_VERSION_STR  =  "4.0.6"
 EMSCRIPTEN_SDK          = f"sdk-{EMSCRIPTEN_VERSION_STR}-64bit"
 PACKAGES_EMSCRIPTEN_SDK = f"emsdk-{EMSCRIPTEN_VERSION_STR}"
 
@@ -140,6 +140,11 @@ def _get_latest_version_from_folders(path, replace_patterns=[]):
 
     dirs.sort(key=lambda x: tuple(int(token) for token in _replace_pattern(x, replace_patterns).split('.')), reverse=True)
     return dirs[0]
+
+def _get_host_exe_suffix():
+    if sys.platform == 'win32':
+        return '.exe'
+    return ''
 
 class SDKException(Exception):
     pass
@@ -232,7 +237,11 @@ def get_android_local_sdk_path(verbose=False):
             path = os.path.expanduser('~/Library/android/sdk')
         elif sys.platform == 'win32':
             path = os.path.expandvars('${LOCALAPPDATA}/Android/Sdk')
-        path = os.path.normpath(path)
+        elif sys.platform == 'linux':
+            path = os.path.expandvars('~/Android/Sdk')
+
+        if path is not None:
+            path = os.path.normpath(path)
 
     if path and os.path.exists(path):
         log_verbose(verbose, f"  Detected sdk path {path}")
@@ -502,13 +511,15 @@ def get_defold_emsdk_config():
     emsdk = get_defold_emsdk()
     return os.path.join(emsdk, '.emscripten')
 
-def get_defold_emsdk_node():
-    emsdk = get_defold_emsdk()
+def _find_node_in_emsdk(emsdk):
     node_dir = _get_latest_version_from_folders(os.path.join(emsdk, 'node'), [('_64bit', '')])
-    node = os.path.join(emsdk, 'node', node_dir, 'bin', 'node')
-    if not os.path.exists(node):
-        raise SDKException(f"Failed to find local EMSDK_NODE installation: {node}")
-    return node
+    node = os.path.join(emsdk, 'node', node_dir, 'bin', 'node' + _get_host_exe_suffix())
+    if os.path.exists(node):
+        return os.path.normpath(node).replace('\\', '/')
+    raise SDKException(f"Failed to find local EMSDK_NODE installation: {node}")
+
+def get_defold_emsdk_node():
+    return _find_node_in_emsdk(get_defold_emsdk())
 
 # ------------------------------------------------------------
 
@@ -528,12 +539,11 @@ def _get_local_emsdk_config():
     emsdk = _get_local_emsdk()
     return os.path.join(emsdk, '.emscripten')
 
-# https://emscripten.org/docs/tools_reference/emcc.html?highlight=em_config
 def _get_local_emsdk_node():
     node = os.environ.get('EMSDK_NODE', None)
-    if node is None:
-        raise SDKException(f"Failed to find local EMSDK_NODE installation")
-    return node
+    if node is not None:
+        return node
+    return _find_node_in_emsdk(_get_local_emsdk())
 
 ## **********************************************************************************************
 
@@ -562,7 +572,7 @@ def check_defold_sdk(sdkfolder, host_platform, platform, verbose=False):
     elif platform in ('x86_64-linux','arm64-linux'):
         folders.append(os.path.join(sdkfolder, host_platform))
 
-    elif platform in ('wasm-web','js-web'):
+    elif platform in ('wasm-web','wasm_pthread-web','js-web'):
         folders.append(get_defold_emsdk())
 
     if not folders:
@@ -646,7 +656,7 @@ def _get_defold_sdk_info(sdkfolder, host_platform, platform):
         else:
             info['api'] = ANDROID_NDK_API_VERSION
 
-    elif platform in ('js-web', 'wasm-web'):
+    elif platform in ('js-web', 'wasm-web', 'wasm_pthread-web'):
         info['emsdk'] = {}
         info['emsdk']['path'] = get_defold_emsdk()
         info['emsdk']['cache'] = get_defold_emsdk_cache()
@@ -691,7 +701,7 @@ def _get_local_sdk_info(platform, verbose=False):
         else:
             info['api'] = ANDROID_NDK_API_VERSION
 
-    elif platform in ('js-web', 'wasm-web'):
+    elif platform in ('js-web', 'wasm-web', 'wasm_pthread-web'):
         info['emsdk'] = {}
         info['emsdk']['path'] = _get_local_emsdk()
         info['emsdk']['cache'] = _get_local_emsdk_cache()

@@ -1,20 +1,43 @@
-/* Preferences dialog window */
-#prefs {
-    .tab-header-area {
-        .tab-header-background {
-        }
-        .tab {
-            -fx-padding: 2 14 2 18;
-            .tab-label {
-                -fx-padding: 0 2 0 0;
-            }
-            &:selected {
-                -fx-padding: 2 14 2 18;
-            }
+.keymap {
+    &-shortcut {
+        -fx-background-color: -df-component-light;
+        -fx-border-radius: 4px;
+        -fx-background-radius: 4px;
+        -fx-padding: 0px 4px;
+        -fx-alignment: center;
+        &:warning { -fx-text-fill: -df-defold-yellow-dark; }
+    }
+    &-shortcuts { -fx-padding: 2px 0; }
+    &-command:overridden > .label { -fx-text-fill: -df-defold-blue-light; }
+    &-command-arrow { -fx-opacity: 0.6; }
+    &-warning {
+        -fx-background-color: -df-component-light;
+        -fx-pref-width: 15px;
+        -fx-pref-height: 13px;
+        -fx-scale-y: -1;
+    }
+    &-new-shortcut {
+        &-background {
+            -fx-background-color: -df-component-dark;
+            -fx-border-color: -df-component-lighter;
+            -fx-border-width: 1px;
+            -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.2), 12, 0.0, 0, 8);
         }
     }
-    .tab-content-area {
-        -fx-background-color: -df-background-light;
-        -fx-padding: 25px 15px 15px 20px;
+}
+.table-view:focused > .virtual-flow > .clipped-container > .sheet > .table-row-cell:selected > .table-cell {
+    & > .keymap-command {
+        & > .label { -fx-text-fill: -df-text-selected; }
+        &:overridden > .label { -fx-text-fill: -df-defold-blue-lighter; }
+    }
+    & > .keymap-shortcuts {
+        & > .keymap-shortcut {
+            -fx-text-fill: -df-text-selected;
+            -fx-background-color: -df-component-lighter;
+            &:warning { -fx-text-fill: -df-defold-yellow; }
+        }
+        & > .keymap-warning-container > .keymap-warning {
+            -fx-background-color: -df-component-lighter;
+        }
     }
 }

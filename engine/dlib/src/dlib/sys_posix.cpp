@@ -49,6 +49,10 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+#if defined(__linux__)
+#include "dalloca.h"
+#endif
+
 #ifndef S_ISREG
 #define S_ISREG(mode) (((mode)&S_IFMT) == S_IFREG)
 #endif
@@ -414,30 +418,66 @@ namespace dmSys
         return GetApplicationSupportPath(application_name, path, path_len);
     }
 
-    Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
+    Result GetApplicationSupportPath(const char* application_name, char* path_out, uint32_t path_len)
     {
+        const char* xdg_env = dmSys::GetEnv("XDG_DATA_HOME");
+        const char* xdg = xdg_env ? xdg_env : dmSys::GetEnv("HOME");
+        char* xdg_buf = (char*)dmAlloca(path_len);
+
+        dmStrlCpy(xdg_buf, xdg, path_len);
+        //The spec expects us to make $HOME/.local/share with 0700 if it doesn't exist.
+        if (!xdg_env)
+        {
+            dmStrlCat(xdg_buf, "/.local", path_len);
+            dmSys::Mkdir(xdg_buf, 0700);
+            dmStrlCat(xdg_buf, "/share", path_len);
+            dmSys::Mkdir(xdg_buf, 0700);
+        }
+        dmStrlCat(xdg_buf, "/", path_len);
+        if (dmStrlCat(xdg_buf, application_name, path_len) >= path_len)
+            return RESULT_INVAL;
+
+        // No need to continue if {application_name} dir already exists
+        if (realpath(xdg_buf, path_out))
+            return RESULT_OK;
+
         const char* dirs[] = {"HOME", "TMPDIR", "TMP", "TEMP"}; // Added common temp directories since server instances usually don't have a HOME set
         size_t count = sizeof(dirs)/sizeof(dirs[0]);
         const char* home = 0;
-        for (size_t i = 0; i < count; ++i)
+
+        for (size_t i = 0; i < count; i++)
         {
-            home = getenv(dirs[i]);
+            home = dmSys::GetEnv(dirs[i]);
             if (home)
                 break;
         }
-        if (!home) {
-            home = "."; // fall back to current directory, because the server instance might not have any of those paths set
+
+        if (!home){
+               home = "."; // fall back to current directory, because the server instance might not have any of those paths set
         }
 
-        if (dmStrlCpy(path, home, path_len) >= path_len)
+        char home_buf[path_len];
+        if (dmStrlCpy(home_buf, home, path_len) >= path_len)
             return RESULT_INVAL;
-        if (dmStrlCat(path, "/", path_len) >= path_len)
+        if (dmStrlCat(home_buf, "/", path_len) >= path_len)
             return RESULT_INVAL;
-        if (dmStrlCat(path, ".", path_len) >= path_len)
+        if (dmStrlCat(home_buf, ".", path_len) >= path_len)
             return RESULT_INVAL;
-        if (dmStrlCat(path, application_name, path_len) >= path_len)
+        if (dmStrlCat(home_buf, application_name, path_len) >= path_len)
             return RESULT_INVAL;
-        Result r =  Mkdir(path, 0755);
+
+        // If {home}/.{application_name exists}, return it here
+        if (realpath(home_buf, path_out))
+        {
+            if (dmStrlCpy(path_out, home_buf, path_len) >= path_len)
+                return RESULT_INVAL;
+            return RESULT_OK;
+        }
+        // Default to $HOME/.local/store or $XDG_DATA_DIR
+        if (dmStrlCpy(path_out, xdg_buf, path_len) >= path_len)
+            return RESULT_INVAL;
+
+        Result r = dmSys::Mkdir(path_out, 0755);
         if (r == RESULT_EXIST)
             return RESULT_OK;
         else

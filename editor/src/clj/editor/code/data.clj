@@ -3280,3 +3280,27 @@
                                                 (update :to dissoc ::sticky)
                                                 (dissoc ::cursor))))
                                     new-regions))))
+
+(defn apply-edits
+  ([lines regions cursor-ranges ascending-cursor-ranges-and-replacements]
+   (let [all-regions (vec (sort (into regions
+                                      (map #(-> %
+                                                (update :from assoc ::sticky :right)
+                                                (update :to assoc ::sticky :right)
+                                                (assoc ::cursor true)))
+                                      cursor-ranges)))
+         ret (splice lines all-regions ascending-cursor-ranges-and-replacements)
+         new-regions (:regions ret all-regions)]
+     (assoc ret :regions (into [] (remove ::cursor) new-regions)
+                :cursor-ranges (into []
+                                     (comp
+                                       (filter ::cursor)
+                                       (map #(-> %
+                                                 (update :from dissoc ::sticky)
+                                                 (update :to dissoc ::sticky)
+                                                 (dissoc ::cursor))))
+                                     new-regions))))
+  ([lines regions cursor-ranges ascending-cursor-ranges-and-replacements layout]
+   (-> (apply-edits lines regions cursor-ranges ascending-cursor-ranges-and-replacements)
+       (update-document-width-after-splice layout)
+       (frame-cursor layout))))

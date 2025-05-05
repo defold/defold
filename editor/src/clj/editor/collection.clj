@@ -666,7 +666,7 @@
 (defn- select-go-file [workspace project]
   (first (resource-dialog/make workspace project {:ext "go" :title "Select Game Object File"})))
 
-(handler/defhandler :add-from-file :workbench
+(handler/defhandler :edit.add-referenced-component :workbench
   (active? [selection] (selection->collection selection))
   (label [selection] "Add Game Object File")
   (run [workspace project app-view selection]
@@ -714,7 +714,7 @@
         (g/operation-label "Add Game Object")
         (make-embedded-go coll-node project prototype-desc id nil parent select-fn)))))
 
-(handler/defhandler :add :workbench
+(handler/defhandler :edit.add-embedded-component :workbench
   (active? [selection] (selection->collection selection))
   (label [selection user-data] "Add Game Object")
   (run [selection workspace project user-data app-view]
@@ -742,7 +742,7 @@
       (g/operation-label "Add Collection")
       (make-collection-instance self source-resource id transform-properties overrides select-fn))))
 
-(handler/defhandler :add-secondary :workbench
+(handler/defhandler :edit.add-secondary-embedded-component :workbench
   (active? [selection] (selection->game-object-instance selection))
   (label [] "Add Game Object")
   (run [selection project workspace app-view]
@@ -750,7 +750,7 @@
              collection (core/scope-of-type go-node CollectionNode)]
          (add-embedded-game-object! workspace project collection go-node (fn [node-ids] (app-view/select app-view node-ids))))))
 
-(handler/defhandler :add-secondary-from-file :workbench
+(handler/defhandler :edit.add-secondary-referenced-component :workbench
   (active? [selection] (or (selection->collection selection)
                          (selection->game-object-instance selection)))
   (label [selection] (if (selection->collection selection)

@@ -24,7 +24,7 @@
 
 (def meta-settings (:settings basic-meta-info))
 
-(defn default-settings []
+(def default-settings
   (-> meta-settings
       settings-core/make-default-settings
       settings-core/make-settings-map))

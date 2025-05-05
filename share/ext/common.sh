@@ -18,7 +18,7 @@ set -e
 
 SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
-eval $(python $SCRIPTDIR/../../build_tools/set_sdk_vars.py VERSION_IPHONEOS VERSION_IPHONESIMULATOR VERSION_IPHONEOS_MIN VERSION_MACOSX_MIN VERSION_MACOSX VERSION_XCODE)
+eval $(python $SCRIPTDIR/../../build_tools/set_sdk_vars.py VERSION_IPHONEOS VERSION_IPHONESIMULATOR VERSION_IPHONEOS_MIN VERSION_MACOSX_MIN VERSION_MACOSX VERSION_XCODE PACKAGES_EMSCRIPTEN_SDK)
 
 # config
 IOS_SDK_VERSION=$VERSION_IPHONEOS
@@ -33,6 +33,31 @@ OSX_SDK_ROOT=${DYNAMO_HOME}/ext/SDKs/MacOSX${OSX_SDK_VERSION}.sdk
 IOS_SDK_ROOT=${DYNAMO_HOME}/ext/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk
 IOS_SIMULATOR_SDK_ROOT=${DYNAMO_HOME}/ext/SDKs/iPhoneSimulator${IOS_SDK_VERSION}.sdk
 DARWIN_TOOLCHAIN_ROOT=${DYNAMO_HOME}/ext/SDKs/XcodeDefault${XCODE_VERSION}.xctoolchain
+
+EMSCRIPTEN_SDK_ROOT=${DYNAMO_HOME}/ext/SDKs/${PACKAGES_EMSCRIPTEN_SDK}
+export EMSCRIPTEN_BIN_DIR=${EMSCRIPTEN_SDK_ROOT}/upstream/emscripten
+export EM_CACHE=${EMSCRIPTEN_SDK_ROOT}/.defold_cache
+export EM_CONFIG=${EMSCRIPTEN_SDK_ROOT}/.emscripten
+
+readonly HOST_UNAME=$(uname)
+readonly HOST_ARCH=$(arch)
+
+HOST_PLATFORM=${HOST_UNAME}
+if [ "Darwin" == "${HOST_PLATFORM}" ]; then
+    HOST_PLATFORM="x86_64-macos"
+    if [ "arm64" == "${HOST_ARCH}" ]; then
+        HOST_PLATFORM="arm64-macos"
+    fi
+fi
+# if [ "Linux" == "${HOST_PLATFORM}" ]; then
+
+# fi
+
+if [ "${HOST_PLATFORM}" == "${HOST_UNAME}" ]; then
+    echo "Error setting HOST_PLATFORM: '${HOST_PLATFORM}'"
+    exit 1
+fi
+
 
 if [ "Darwin" == "$(uname)" ]; then
     if [ ! -d "${DARWIN_TOOLCHAIN_ROOT}" ]; then
@@ -148,7 +173,7 @@ function cmi_cleanup() {
 }
 
 function cmi_cross() {
-    if [[ $2 == "js-web" ]] || [[ $2 == "wasm-web" ]]; then
+    if [[ $2 == "js-web" ]] || [[ $2 == "wasm-web" ]] || [[ $2 == "wasm_pthread-web" ]]; then
         # Cross compiling protobuf for js-web with --host doesn't work
         # Unknown host in reported by configure script
         cmi_do $1
@@ -407,26 +432,28 @@ function cmi_setup_cc() {
             export RANLIB=i586-mingw32msvc-ranlib
             ;;
 
-        js-web)
-            export CONFIGURE_WRAPPER=${EMSCRIPTEN}/emconfigure
-            export CC=${EMSCRIPTEN}/emcc
-            export CXX=${EMSCRIPTEN}/em++
-            export AR=${EMSCRIPTEN}/emar
-            export LD=${EMSCRIPTEN}/em++
-            export RANLIB=${EMSCRIPTEN}/emranlib
+        js-web|wasm-web)
+            export CONFIGURE_WRAPPER=${EMSCRIPTEN_BIN_DIR}/emconfigure
+            export CC=${EMSCRIPTEN_BIN_DIR}/emcc
+            export CXX=${EMSCRIPTEN_BIN_DIR}/em++
+            export AR=${EMSCRIPTEN_BIN_DIR}/emar
+            export LD=${EMSCRIPTEN_BIN_DIR}/em++
+            export RANLIB=${EMSCRIPTEN_BIN_DIR}/emranlib
             export CFLAGS="${CFLAGS} -fPIC -fno-exceptions"
             export CXXFLAGS="${CXXFLAGS} -fPIC -fno-exceptions"
+            export CMAKE_TOOLCHAIN_FILE="${EMSCRIPTEN_BIN_DIR}/cmake/Modules/Platform/Emscripten.cmake"
             ;;
 
-        wasm-web)
-            export CONFIGURE_WRAPPER=${EMSCRIPTEN}/emconfigure
-            export CC=${EMSCRIPTEN}/emcc
-            export CXX=${EMSCRIPTEN}/em++
-            export AR=${EMSCRIPTEN}/emar
-            export LD=${EMSCRIPTEN}/em++
-            export RANLIB=${EMSCRIPTEN}/emranlib
-            export CFLAGS="${CFLAGS} -fPIC -fno-exceptions"
-            export CXXFLAGS="${CXXFLAGS} -fPIC -fno-exceptions"
+        wasm_pthread-web)
+            export CONFIGURE_WRAPPER=${EMSCRIPTEN_BIN_DIR}/emconfigure
+            export CC=${EMSCRIPTEN_BIN_DIR}/emcc
+            export CXX=${EMSCRIPTEN_BIN_DIR}/em++
+            export AR=${EMSCRIPTEN_BIN_DIR}/emar
+            export LD=${EMSCRIPTEN_BIN_DIR}/em++
+            export RANLIB=${EMSCRIPTEN_BIN_DIR}/emranlib
+            export CFLAGS="${CFLAGS} -fPIC -fno-exceptions -pthread"
+            export CXXFLAGS="${CXXFLAGS} -fPIC -fno-exceptions -pthread"
+            export CMAKE_TOOLCHAIN_FILE="${EMSCRIPTEN_BIN_DIR}/cmake/Modules/Platform/Emscripten.cmake"
             ;;
 
         *)
@@ -451,7 +478,7 @@ function cmi() {
             cmi_cross $1 arm-linux
             ;;
 
-        arm64-ios|x86_64-ios|armv7-android|arm64-android|js-web|wasm-web)
+        arm64-ios|x86_64-ios|armv7-android|arm64-android|js-web|wasm-web|wasm_pthread-web)
             cmi_cross $1 arm-ios
             ;;
 

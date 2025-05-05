@@ -54,7 +54,7 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
 
     local_libs = 'dlib mbedtls zip'.split()
 
-    if bld.env.PLATFORM in ('js-web','wasm-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5'):
+    if bld.env.PLATFORM in ('js-web', 'wasm-web', 'wasm_pthread-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5'):
         local_libs += ['profile_null','remotery_null']
     else:
         local_libs += ['profile','remotery']
@@ -123,9 +123,10 @@ def build(bld):
 
     skip_http = False
     skip_threads = False
-    if bld.env.PLATFORM in ('js-web', 'wasm-web'):
-        skip_threads = True
+    if bld.env.PLATFORM in ('js-web', 'wasm-web', 'wasm_pthread-web'):
         skip_http = True
+        if bld.env in ('js-web', 'wasm-web'):
+            skip_threads = True
 
     create_test(bld, 'test_memory')
 
@@ -196,6 +197,9 @@ def build(bld):
     create_test(bld, 'test_intersection', extra_libs = ['THREAD'])
     create_test(bld, 'test_easing', extra_libs = ['THREAD'])
     create_test(bld, 'test_utf8', extra_libs = ['THREAD'])
+
+    if bld.env.PLATFORM in ['arm64-linux', 'x86_64-linux']:
+        create_test(bld, 'test_xdg', extra_libs = ['THREAD'])
 
     create_test(bld, 'test_zip', extra_features = ['embed'], extra_libs = ['THREAD'], embed_source = ['data/foo.zip'])
     create_test(bld, 'test_zlib', extra_features = ['embed'], extra_libs = ['THREAD'],

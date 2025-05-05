@@ -31,139 +31,139 @@
   ;; Notable exclusions:
   ;; :save-all, :quit, anything that would open a modal dialog.
   {:asset-portal
-   {:ui-handler :asset-portal
+   {:ui-handler :help.open-asset-portal
     :help "Open the Asset Portal in a web browser."}
 
    :build
-   {:ui-handler :build
+   {:ui-handler :project.build
     :help "Build and run the project."
     :resource-sync true}
 
    :build-html5
-   {:ui-handler :build-html5
+   {:ui-handler :project.build-html5
     :help "Build the project for HTML5 and open it in a web browser."
     :resource-sync true}
 
    :debugger-break
-   {:ui-handler :break
+   {:ui-handler :debugger.break
     :help "Break into the debugger."}
 
    :debugger-continue
-   {:ui-handler :continue
+   {:ui-handler :debugger.continue
     :help "Resume execution in the debugger."}
 
    :debugger-detach
-   {:ui-handler :detach-debugger
+   {:ui-handler :debugger.detach
     :help "Detach the debugger from the running project."}
 
    :debugger-start
-   {:ui-handler :start-debugger
+   {:ui-handler :debugger.start
     :help "Start the project with the debugger, or attach the debugger to the running project."
     :resource-sync true}
 
    :debugger-step-into
-   {:ui-handler :step-into
+   {:ui-handler :debugger.step-into
     :help "Step into the current expression in the debugger."}
 
    :debugger-step-out
-   {:ui-handler :step-out
+   {:ui-handler :debugger.step-out
     :help "Step out of the current expression in the debugger."}
 
    :debugger-step-over
-   {:ui-handler :step-over
+   {:ui-handler :debugger.step-over
     :help "Step over the current expression in the debugger."}
 
    :debugger-stop
-   {:ui-handler :stop-debugger
+   {:ui-handler :debugger.stop
     :help "Stop the debugger and the running project."}
 
    :documentation
-   {:ui-handler :documentation
+   {:ui-handler :help.open-documentation
     :help "Open the Defold documentation in a web browser."}
 
    :donate-page
-   {:ui-handler :donate
+   {:ui-handler :help.open-donations
     :help "Open the Donate to Defold page in a web browser."}
 
    :editor-logs
-   {:ui-handler :show-logs
+   {:ui-handler :help.open-logs
     :help "Show the directory containing the editor logs."}
 
    :engine-profiler
-   {:ui-handler :engine-profile-show
+   {:ui-handler :run.open-profiler
     :help "Open the Engine Profiler in a web browser."}
 
    :engine-resource-profiler
-   {:ui-handler :engine-resource-profile-show
+   {:ui-handler :run.open-resource-profiler
     :help "Open the Engine Resource Profiler in a web browser."}
 
    :fetch-libraries
-   {:ui-handler :fetch-libraries
+   {:ui-handler :project.fetch-libraries
     :help "Download the latest version of the project library dependencies."
     :resource-sync true}
 
    :hot-reload
-   {:ui-handler :hot-reload
+   {:ui-handler :run.hot-reload
     :help "Hot-reload all modified files into the running project."
     :resource-sync true}
 
    :issues
-   {:ui-handler :search-issues
+   {:ui-handler :help.open-issues
     :help "Open the Defold Issue Tracker in a web browser."}
 
    :rebuild
-   {:ui-handler :rebuild
+   {:ui-handler :project.clean-build
     :help "Rebuild and run the project."
     :resource-sync true}
 
    :rebundle
-   {:ui-handler :rebundle
+   {:ui-handler :project.rebundle
     :help "Re-bundle the project using the previous Bundle dialog settings."
     :resource-sync true}
 
    :reload-extensions
-   {:ui-handler :reload-extensions
+   {:ui-handler :project.reload-editor-scripts
     :help "Reload editor extensions."
     :resource-sync true}
 
    :reload-stylesheets
-   {:ui-handler :reload-stylesheet
+   {:ui-handler :dev.reload-css
     :help "Reload editor stylesheets."}
 
    :report-issue
-   {:ui-handler :report-issue
+   {:ui-handler :help.report-issue
     :help "Open the Report Issue page in a web browser."}
 
    :report-suggestion
-   {:ui-handler :report-suggestion
+   {:ui-handler :help.report-suggestion
     :help "Open the Report Suggestion page in a web browser."}
 
    :show-build-errors
-   {:ui-handler :show-build-errors
+   {:ui-handler :window.show-build-errors
     :help "Show the Build Errors tab."}
 
    :show-console
-   {:ui-handler :show-console
+   {:ui-handler :window.show-console
     :help "Show the Console tab."}
 
    :show-curve-editor
-   {:ui-handler :show-curve-editor
+   {:ui-handler :window.show-curve-editor
     :help "Show the Curve Editor tab."}
 
    :support-forum
-   {:ui-handler :support-forum
+   {:ui-handler :help.open-forum
     :help "Open the Defold Support Forum in a web browser."}
 
    :toggle-pane-bottom
-   {:ui-handler :toggle-pane-bottom
+   {:ui-handler :window.toggle-bottom-pane
     :help "Toggle visibility of the bottom editor pane."}
 
    :toggle-pane-left
-   {:ui-handler :toggle-pane-left
+   {:ui-handler :window.toggle-left-pane
     :help "Toggle visibility of the left editor pane."}
 
    :toggle-pane-right
-   {:ui-handler :toggle-pane-right
+   {:ui-handler :window.toggle-right-pane
     :help "Toggle visibility of the right editor pane."}})
 
 (def ^:private api-response

@@ -20,6 +20,7 @@
             [dynamo.graph :as g]
             [editor.code-completion :as code-completion]
             [editor.code.data :as data]
+            [editor.code.util :as util]
             [editor.lsp.async :as lsp.async]
             [editor.lsp.base :as lsp.base]
             [editor.lsp.jsonrpc :as lsp.jsonrpc]
@@ -28,6 +29,7 @@
             [editor.resource :as resource]
             [editor.workspace :as workspace]
             [service.log :as log]
+            [util.coll :as coll]
             [util.eduction :as e])
   (:import [editor.code.data Cursor CursorRange]
            [java.io File InputStream]
@@ -152,11 +154,13 @@
 (s/def ::trigger-characters (s/coll-of string? :kind set?))
 (s/def ::completion (s/keys :req-un [::resolve ::trigger-characters]))
 (s/def ::hover boolean?)
+(s/def ::rename boolean?)
 (s/def ::capabilities (s/keys :req-un [::text-document-sync
                                        ::pull-diagnostics
                                        ::goto-definition
                                        ::find-references
-                                       ::hover]
+                                       ::hover
+                                       ::rename]
                               :opt-un [::completion]))
 
 (defn- lsp-position->editor-cursor [{:keys [line character]}]
@@ -210,7 +214,8 @@
                                                       definitionProvider
                                                       referencesProvider
                                                       completionProvider
-                                                      hoverProvider]}]
+                                                      hoverProvider
+                                                      renameProvider]}]
   (cond-> {:text-document-sync (cond
                                  (nil? textDocumentSync)
                                  {:change :none :open-close false}
@@ -237,7 +242,10 @@
                               (map? referencesProvider))
            :hover (if (boolean? hoverProvider)
                     hoverProvider
-                    (map? hoverProvider))}
+                    (map? hoverProvider))
+           :rename (and (map? renameProvider)
+                        (let [prepare (:prepareProvider renameProvider)]
+                          (and (boolean? prepare) prepare)))}
           completionProvider
           (assoc :completion {:resolve (boolean (:resolveProvider completionProvider))
                               :trigger-characters (set (:triggerCharacters completionProvider))})))
@@ -321,12 +329,17 @@
             title ((g/node-value project :settings evaluation-context) ["project" "title"])]
         {:processId (.pid (ProcessHandle/current))
          :rootUri uri
-         :capabilities {:workspace {:diagnostics {}}
+         :capabilities {:workspace {:diagnostics {}
+                                    :workspaceEdit {:documentChanges false
+                                                    :normalizesLineEndings true}}
                         :textDocument {:definition {:dynamicRegistration false
                                                     :linkSupport true}
                                        :references {:dynamicRegistration false}
                                        :hover {:dynamicRegistration false
-                                               :contentFormat [:markdown :plaintext]}}
+                                               :contentFormat [:markdown :plaintext]}
+                                       :rename {:dynamicRegistration false
+                                                :prepareSupport true
+                                                :honorsChangeAnnotations false}}
                         :completion {:dynamicRegistration false
                                      :completionItem {:snippetSupport true
                                                       :commitCharactersSupport true
@@ -711,3 +724,42 @@
                      (when-not (-> region :content :value string/blank?)
                        region))))
                vec))))))
+
+(defn prepare-rename
+  "See also:
+    https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_prepareRename"
+  [resource cursor range-converter]
+  (raw-request
+    (lsp.jsonrpc/notification
+      "textDocument/prepareRename"
+      {:textDocument {:uri (resource-uri resource)}
+       :position (editor-cursor->lsp-position cursor)})
+    (bound-fn [result _]
+      (when result
+        (cond
+          (:range result) (range-converter (lsp-range->editor-cursor-range (:range result)))
+          (:start result) (range-converter (lsp-range->editor-cursor-range result)))))))
+
+(defn rename
+  "See also:
+    https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_rename"
+  [resource cursor new-name]
+  (raw-request
+    (lsp.jsonrpc/notification
+      "textDocument/rename"
+      {:textDocument {:uri (resource-uri resource)}
+       :position (editor-cursor->lsp-position cursor)
+       :newName new-name})
+    (bound-fn [result project]
+      (lsp.async/with-auto-evaluation-context evaluation-context
+        (->> result
+             :changes
+             (e/keep (fn [[k edits]]
+                       (when-let [resource (maybe-resource project (str (symbol k)) evaluation-context)]
+                         (coll/pair resource
+                                    (->> edits
+                                         (mapv text-edit:lsp->editor)
+                                         (sort-by :cursor-range)
+                                         (mapv (fn [{:keys [cursor-range value]}]
+                                                 (coll/pair cursor-range (util/split-lines value)))))))))
+             (into {}))))))

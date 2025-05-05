@@ -268,26 +268,27 @@ public class ReportGenerator {
      * @param jsonReportData JSON report data to be inlined
      */
     public String generateHTML(String jsonReportData) throws IOException {
-
         InputStream templateStream = Bob.class.getResourceAsStream("/lib/report_template.html");
-
-        StringWriter writer = new StringWriter();
         try {
+            StringWriter writer = new StringWriter();
             IOUtils.copy(templateStream, writer);
+            String templateString = writer.toString();
+
+            HashMap<String, Object> ctx = new HashMap<String, Object>();
+            ctx.put("json-data", jsonReportData);
+
+            Template template = Mustache.compiler().compile(templateString);
+            StringWriter sw = new StringWriter();
+            template.execute(ctx, sw);
+            sw.flush();
+
+            return sw.toString();
         } catch (IOException e) {
             throw new IOException("Error while reading report template: " + e.toString());
         }
-        String templateString = writer.toString();
-
-        HashMap<String, Object> ctx = new HashMap<String, Object>();
-        ctx.put("json-data", jsonReportData);
-
-        Template template = Mustache.compiler().compile(templateString);
-        StringWriter sw = new StringWriter();
-        template.execute(ctx, sw);
-        sw.flush();
-
-        return sw.toString();
+        finally {
+            IOUtils.closeQuietly(templateStream);
+        }
     }
 
 }

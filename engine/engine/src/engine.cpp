@@ -1089,7 +1089,7 @@ namespace dmEngine
         {
             char path[1024];
             dmHttpCache::NewParams cache_params;
-            dmSys::Result sys_result = dmSys::GetApplicationSupportPath("defold", path, sizeof(path));
+            dmSys::Result sys_result = dmSys::GetApplicationSupportPath(DMSYS_APPLICATION_NAME, path, sizeof(path));
             if (sys_result == dmSys::RESULT_OK)
             {
                 dmStrlCat(path, "/http-cache", sizeof(path));
@@ -1102,7 +1102,7 @@ namespace dmEngine
             }
             else
             {
-                dmLogWarning("Unable to locate application support path for \"%s\": (%d)", "defold", sys_result);
+                dmLogWarning("Unable to locate application support path for \"%s\": (%d)", DMSYS_APPLICATION_NAME, sys_result);
             }
         }
 #endif
@@ -1194,10 +1194,12 @@ namespace dmEngine
 
         dmSound::InitializeParams sound_params;
         sound_params.m_OutputDevice = "default";
-#if defined(__EMSCRIPTEN__)
+#if defined(__EMSCRIPTEN__) && !defined(__EMSCRIPTEN_PTHREADS__)
+        dmLogWarning("MAWE No use sound thread!");
         sound_params.m_UseThread = false;
 #else
         sound_params.m_UseThread = dmConfigFile::GetInt(engine->m_Config, "sound.use_thread", 1) != 0;
+        dmLogWarning("MAWE Use sound thread setting: %d", sound_params.m_UseThread);
 #endif
         dmSound::Result soundInit = dmSound::Initialize(engine->m_Config, &sound_params);
         if (dmSound::RESULT_OK == soundInit) {

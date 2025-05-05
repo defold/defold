@@ -70,6 +70,7 @@
                         :x (.getX drag-event)
                         :y (.getY drag-event)
                         :files (.getFiles dragboard)
+                        :string (.getString dragboard)
                         :transfer-mode (.getTransferMode drag-event)
                         :gesture-target (.getGestureTarget drag-event)
                         :gesture-source (.getGestureSource drag-event)))

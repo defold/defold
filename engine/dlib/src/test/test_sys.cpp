@@ -132,6 +132,7 @@ TEST(dmSys, Unlink)
 TEST(dmSys, GetApplicationSupportPathBuffer)
 {
     char path[4];
+    char discard[128];
     path[3] = '!';
     dmSys::Result result = dmSys::GetApplicationSupportPath("testing", path, 3);
     ASSERT_EQ(dmSys::RESULT_INVAL, result);
@@ -142,6 +143,7 @@ TEST(dmSys, GetApplicationSupportPathBuffer)
 TEST(dmSys, GetApplicationSavePathBuffer)
 {
     char path[4];
+    char discard[128];
     path[3] = '!';
     dmSys::Result result = dmSys::GetApplicationSavePath("testing", path, 3);
     ASSERT_EQ(dmSys::RESULT_INVAL, result);

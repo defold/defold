@@ -38,6 +38,7 @@
           <entry key="editor.file-test/with-temp-dir" value="-1" />
           <entry key="editor.file-test/with-temp-dir!" value="-1" />
           <entry key="editor.fs/maybe-silently" value="-1" />
+          <entry key="editor.fxui/defc" value="-1" />
           <entry key="editor.git-test/with-git" value="-1" />
           <entry key="editor.gl.shader/defshader" value="-1" />
           <entry key="editor.gl.vertex/defvertex" value="-1" />
@@ -69,6 +70,7 @@
           <entry key="editor.ui.bindings/-if" value="-1" />
           <entry key="editor.ui.bindings/when" value="-1" />
           <entry key="editor.ui.bindings/when-not" value="-1" />
+          <entry key="editor.ui/event-dispatcher" value="-1" />
           <entry key="editor.ui/event-handler" value="-1" />
           <entry key="editor.ui/invalidation-listener" value="-1" />
           <entry key="editor.ui/on-action!" value="-1" />

@@ -47,6 +47,7 @@
             [editor.scene-tools :as scene-tools]
             [editor.texture-set :as texture-set]
             [editor.types :as types]
+            [editor.ui :as ui]
             [editor.util :as eutil]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
@@ -61,7 +62,6 @@
            [com.jogamp.opengl GL GL2]
            [editor.gl.shader ShaderLifecycle]
            [editor.gl.texture TextureLifecycle]
-           [editor.pose Pose]
            [internal.graph.types Arc]
            [java.awt.image BufferedImage]
            [javax.vecmath Quat4d]))
@@ -3266,11 +3266,12 @@
   (input script-resource resource/Resource)
 
   (input node-tree g/NodeID)
-  (input layers-node g/NodeID) ; for tests
-  (input layouts-node g/NodeID) ; for tests
-  (input fonts-node g/NodeID) ; for tests
-  (input textures-node g/NodeID) ; for tests
-  (input particlefx-resources-node g/NodeID) ; for tests
+  (input layers-node g/NodeID)
+  (input layouts-node g/NodeID)
+  (input fonts-node g/NodeID)
+  (input textures-node g/NodeID)
+  (input particlefx-resources-node g/NodeID)
+  (input materials-node g/NodeID)
   (input handler-infos g/Any :array)
   (output handler-infos g/Any (g/fnk [handler-infos]
                                 (into [] (mapcat one-or-many-handler-infos-to-vec) handler-infos)))
@@ -3507,7 +3508,7 @@
     (add-gui-node-with-props! scene parent node-type custom-type props select-fn))))
 
 (defn- make-add-handler [scene parent label icon handler-fn user-data]
-  {:label label :icon icon :command :add
+  {:label label :icon icon :command :edit.add-embedded-component
    :user-data (merge {:handler-fn handler-fn :scene scene :parent parent} user-data)})
 
 (defn- add-handler-options [node]
@@ -3559,7 +3560,7 @@
       (mapv #(make-add-handler scene parent % layout-icon add-layout-handler {:display-profile %})
             (g/node-value scene :unused-display-profiles evaluation-context)))))
 
-(handler/defhandler :add :workbench
+(handler/defhandler :edit.add-embedded-component :workbench
   (active? [selection] (not-empty (some->> (handler/selection->node-id selection) add-handler-options)))
   (run [project user-data app-view] (when user-data ((:handler-fn user-data) project user-data (fn [node-ids] (app-view/select app-view node-ids)))))
   (options [selection user-data]
@@ -3723,6 +3724,7 @@
 
       ;; Materials list
       (g/make-nodes graph-id [materials-node MaterialsNode]
+        (g/connect materials-node :_node-id self :materials-node)
         (g/connect materials-node :_node-id self :nodes)
         (g/connect materials-node :build-errors self :build-errors)
         (g/connect materials-node :node-outline self :child-outlines)
@@ -3934,6 +3936,42 @@
         (protobuf/assign-repeated :resources merged-resource-descs)
         (update :material #(or % default-material-proj-path)))))
 
+(defn- add-dropped-resource
+  [selection workspace resource]
+  (let [scene (node->gui-scene (first selection))
+        ext (str/lower-case (resource/ext resource))
+        base-name (resource/base-name resource)
+        gen-name #(->> (g/node-value (g/node-value scene %) :name-counts)
+                       (outline/resolve-id base-name))]
+    (cond
+      (= ext "particlefx")
+      (add-particlefx-resource scene (g/node-value scene :particlefx-resources-node) resource (gen-name :particlefx-resources-node))
+
+      (= ext "font")
+      (add-font scene (g/node-value scene :fonts-node) resource (gen-name :fonts-node))
+
+      (some #{ext} (workspace/resource-kind-extensions workspace :atlas))
+      (add-texture scene (g/node-value scene :textures-node) resource (gen-name :textures-node))
+
+      (= ext "material")
+      (add-material scene (g/node-value scene :materials-node) resource (gen-name :materials-node))
+
+      :else
+      nil)))
+
+(defn- handle-drop
+  [action op-seq]
+  (let [{:keys [string gesture-target]} action
+        ui-context (first (ui/node-contexts gesture-target false))
+        {:keys [selection workspace]} (:env ui-context)
+        resources (->> (str/split-lines string)
+                       (keep (partial workspace/resolve-workspace-resource workspace)))]
+    (g/tx-nodes-added
+      (g/transact
+        (concat
+          (mapv (partial add-dropped-resource selection workspace) resources)
+          (g/operation-sequence op-seq))))))
+
 (defn- register [workspace def]
   (let [ext (:ext def)
         exts (if (vector? ext) ext [ext])]
@@ -3953,7 +3991,8 @@
         :tag-opts (:tag-opts def)
         :template (:template def)
         :view-types [:scene :text]
-        :view-opts {:scene {:grid true}}))))
+        :view-opts {:scene {:grid true
+                            :drop-fn handle-drop}}))))
 
 (defn register-resource-types [workspace]
   (register workspace pb-def))
@@ -3982,7 +4021,7 @@
 (defn- selection->layer-node [selection]
   (g/override-root (handler/adapt-single selection LayerNode)))
 
-(handler/defhandler :move-up :workbench
+(handler/defhandler :edit.reorder-up :workbench
   (active? [selection] (or (selection->gui-node selection)
                            (selection->layer-node selection)))
   (enabled? [selection] (let [selected-node-id (g/override-root (handler/selection->node-id selection))
@@ -3993,7 +4032,7 @@
   (run [selection] (let [selected (g/override-root (handler/selection->node-id selection))]
                      (move-child-node! selected -1))))
 
-(handler/defhandler :move-down :workbench
+(handler/defhandler :edit.reorder-down :workbench
   (active? [selection] (or (selection->gui-node selection)
                            (selection->layer-node selection)))
   (enabled? [selection] (let [selected-node-id (g/override-root (handler/selection->node-id selection))
@@ -4014,7 +4053,8 @@
      (when (and res-node (g/node-instance? GuiSceneNode res-node))
        res-node))))
 
-(handler/defhandler :set-gui-layout :workbench
+(handler/defhandler :scene.set-gui-layout :workbench
+  :label "Set GUI Layout"
   (active? [project active-resource evaluation-context]
            (boolean (resource->gui-scene project active-resource evaluation-context)))
   (run [project active-resource user-data] (when user-data
@@ -4024,7 +4064,7 @@
          (when-let [scene (resource->gui-scene project active-resource)]
            (let [visible (g/node-value scene :visible-layout)]
              {:label (if (empty? visible) "Default" visible)
-              :command :set-gui-layout
+              :command :scene.set-gui-layout
               :user-data visible})))
   (options [project active-resource user-data]
            (when-not user-data
@@ -4033,13 +4073,13 @@
                      layouts (cons "" layout-names)]
                  (for [l layouts]
                    {:label (if (empty? l) "Default" l)
-                    :command :set-gui-layout
+                    :command :scene.set-gui-layout
                     :user-data l}))))))
 
 (handler/register-menu! ::toolbar :visibility-settings
   [{:label :separator}
    {:icon layout-icon
-    :command :set-gui-layout
+    :command :scene.set-gui-layout
     :label "Test"}])
 
 ;; SDK api

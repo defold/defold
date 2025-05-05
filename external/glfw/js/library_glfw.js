@@ -628,30 +628,6 @@ var LibraryGLFW = {
     GLFW.addEventListenerCanvas('focus', GLFW.onFocus, true);
     GLFW.addEventListenerCanvas('blur', GLFW.onBlur, true);
 
-    __ATEXIT__.push({ func: function() {
-        GLFW.removeEventListener("gamepadconnected", GLFW.onJoystickConnected, true);
-        GLFW.removeEventListener("gamepaddisconnected", GLFW.onJoystickDisconnected, true);
-        GLFW.removeEventListener("keydown", GLFW.onKeydown, true);
-        GLFW.removeEventListener("keypress", GLFW.onKeyPress, true);
-        GLFW.removeEventListener("keyup", GLFW.onKeyup, true);
-        GLFW.removeEventListener("mousemove", GLFW.onMousemove, true);
-        GLFW.removeEventListener("mousedown", GLFW.onMouseButtonDown, true);
-        GLFW.removeEventListener("mouseup", GLFW.onMouseButtonUp, true);
-        GLFW.removeEventListener('DOMMouseScroll', GLFW.onMouseWheel, { capture: true, passive: false });
-        GLFW.removeEventListener('mousewheel', GLFW.onMouseWheel, { capture: true, passive: false });
-        GLFW.removeEventListenerCanvas('touchstart', GLFW.onTouchStart, true);
-        GLFW.removeEventListenerCanvas('touchend', GLFW.onTouchEnd, true);
-        GLFW.removeEventListenerCanvas('touchcancel', GLFW.onTouchEnd, true);
-        GLFW.removeEventListenerCanvas('touchmove', GLFW.onTouchMove, true);
-        GLFW.removeEventListenerCanvas('focus', GLFW.onFocus, true);
-        GLFW.removeEventListenerCanvas('blur', GLFW.onBlur, true);
-
-        var canvas = Module["canvas"];
-        if (typeof canvas !== 'undefined') {
-            Module["canvas"].width = Module["canvas"].height = 1;
-        }
-    }});
-
     //TODO: Init with correct values
     GLFW.params = new Array();
     GLFW.params[0x00030001] = true; // GLFW_MOUSE_CURSOR
@@ -701,7 +677,29 @@ var LibraryGLFW = {
     return 1; // GL_TRUE
   },
 
-  glfwTerminate: function() {},
+  glfwTerminate: () => {
+    GLFW.removeEventListener("gamepadconnected", GLFW.onJoystickConnected, true);
+    GLFW.removeEventListener("gamepaddisconnected", GLFW.onJoystickDisconnected, true);
+    GLFW.removeEventListener("keydown", GLFW.onKeydown, true);
+    GLFW.removeEventListener("keypress", GLFW.onKeyPress, true);
+    GLFW.removeEventListener("keyup", GLFW.onKeyup, true);
+    GLFW.removeEventListener("mousemove", GLFW.onMousemove, true);
+    GLFW.removeEventListener("mousedown", GLFW.onMouseButtonDown, true);
+    GLFW.removeEventListener("mouseup", GLFW.onMouseButtonUp, true);
+    GLFW.removeEventListener('DOMMouseScroll', GLFW.onMouseWheel, { capture: true, passive: false });
+    GLFW.removeEventListener('mousewheel', GLFW.onMouseWheel, { capture: true, passive: false });
+    GLFW.removeEventListenerCanvas('touchstart', GLFW.onTouchStart, true);
+    GLFW.removeEventListenerCanvas('touchend', GLFW.onTouchEnd, true);
+    GLFW.removeEventListenerCanvas('touchcancel', GLFW.onTouchEnd, true);
+    GLFW.removeEventListenerCanvas('touchmove', GLFW.onTouchMove, true);
+    GLFW.removeEventListenerCanvas('focus', GLFW.onFocus, true);
+    GLFW.removeEventListenerCanvas('blur', GLFW.onBlur, true);
+
+    var canvas = Module["canvas"];
+    if (typeof canvas !== 'undefined') {
+        Module["canvas"].width = Module["canvas"].height = 1;
+    }
+  },
 
   glfwGetVersion: function(major, minor, rev) {
     setValue(major, 2, 'i32');

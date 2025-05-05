@@ -1100,13 +1100,13 @@
           :fail
           nil)))))
 
-(handler/defhandler :undo :global
+(handler/defhandler :edit.undo :global
   (enabled? [project-graph] (g/has-undo? project-graph))
   (run [project-graph]
     (g/undo! project-graph)
     (lsp/check-if-polled-resources-are-modified! (lsp/get-graph-lsp project-graph))))
 
-(handler/defhandler :redo :global
+(handler/defhandler :edit.redo :global
   (enabled? [project-graph] (g/has-redo? project-graph))
   (run [project-graph]
     (g/redo! project-graph)
@@ -1116,27 +1116,27 @@
   [{:label "Project"
     :id ::project
     :children [{:label "Build"
-                :command :build}
-               {:label "Rebuild"
-                :command :rebuild}
+                :command :project.build}
+               {:label "Clean Build"
+                :command :project.clean-build}
                {:label "Build HTML5"
-                :command :build-html5}
-               {:label "Rebuild HTML5"
-                :command :rebuild-html5}
+                :command :project.build-html5}
+               {:label "Clean Build HTML5"
+                :command :project.clean-build-html5}
                {:label "Bundle"
                 :id ::bundle
-                :command :bundle}
+                :command :project.bundle}
                {:label "Rebundle"
-                :command :rebundle}
+                :command :project.rebundle}
                {:label "Fetch Libraries"
-                :command :fetch-libraries}
+                :command :project.fetch-libraries}
                {:label "Reload Editor Scripts"
-                :command :reload-extensions}
+                :command :project.reload-editor-scripts}
                {:label :separator}
                {:label "Shared Editor Settings"
-                :command :shared-editor-settings}
+                :command :file.open-shared-editor-settings}
                {:label "Live Update Settings"
-                :command :live-update-settings}
+                :command :file.open-liveupdate-settings}
                {:label :separator
                 :id ::targets}
                {:label :separator
@@ -1466,6 +1466,27 @@
       {:min-filter min
        :mag-filter mag})))
 
+(g/defnk produce-default-sampler-filter-modes
+  [default-tex-params]
+  ;; Values are keyword equivalents to Material$MaterialDesc$FilterModeMin and Material$MaterialDesc$FilterModeMag.
+  {:filter-mode-min-default
+   (condp = (:min-filter default-tex-params)
+     gl/nearest :filter-mode-min-nearest
+     gl/linear :filter-mode-min-linear
+     gl/nearest-mipmap-nearest :filter-mode-min-nearest-mipmap-nearest
+     gl/nearest-mipmap-linear :filter-mode-min-nearest-mipmap-linear
+     gl/linear-mipmap-nearest :filter-mode-min-linear-mipmap-nearest
+     gl/linear-mipmap-linear :filter-mode-min-linear-mipmap-linear)
+
+   :filter-mode-mag-default ; We convert the various mipmap filtering variants to non-mipmap ones.
+   (condp = (:mag-filter default-tex-params)
+     gl/nearest :filter-mode-mag-nearest
+     gl/linear :filter-mode-mag-linear
+     gl/nearest-mipmap-nearest :filter-mode-mag-nearest
+     gl/nearest-mipmap-linear :filter-mode-mag-nearest
+     gl/linear-mipmap-nearest :filter-mode-mag-linear
+     gl/linear-mipmap-linear :filter-mode-mag-linear)})
+
 (g/defnode Project
   (inherits core/Scope)
 
@@ -1482,7 +1503,7 @@
   (input resource-map g/Any)
   (input save-data g/Any :array :substitute gu/array-subst-remove-errors)
   (input node-id+resources g/Any :array)
-  (input settings g/Any :substitute (constantly (gpc/default-settings)))
+  (input settings g/Any :substitute nil)
   (input display-profiles g/Any)
   (input texture-profiles g/Any)
   (input collision-group-nodes g/Any :array :substitute gu/array-subst-remove-errors)
@@ -1516,12 +1537,13 @@
                                                             (and (resource/editable? resource)
                                                                  (not (resource/read-only? resource))))))
                                                    save-data)))
-  (output settings g/Any :cached (gu/passthrough settings))
+  (output settings g/Any (g/fnk [settings] (or settings gpc/default-settings)))
   (output display-profiles g/Any :cached (gu/passthrough display-profiles))
   (output texture-profiles g/Any :cached (gu/passthrough texture-profiles))
   (output nil-resource resource/Resource (g/constantly nil))
   (output collision-groups-data g/Any :cached produce-collision-groups-data)
   (output default-tex-params g/Any :cached produce-default-tex-params)
+  (output default-sampler-filter-modes g/Any :cached produce-default-sampler-filter-modes)
   (output build-settings g/Any (gu/passthrough build-settings))
   (output breakpoints Breakpoints :cached (g/fnk [breakpoints] (into [] cat breakpoints))))
 

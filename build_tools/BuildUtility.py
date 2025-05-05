@@ -41,6 +41,7 @@ class BuildUtility:
                             {'platform': 'arm64-android', 'os': TargetOS.ANDROID, 'arch': 'arm64'},
                             {'platform': 'js-web', 'os': TargetOS.WEB, 'arch': 'js'},
                             {'platform': 'wasm-web', 'os': TargetOS.WEB, 'arch': 'wasm'},
+                            {'platform': 'wasm_pthread-web', 'os': TargetOS.WEB, 'arch': 'wasm'},
                             {'platform': 'arm64-nx64', 'os': TargetOS.NX64, 'arch': 'arm64'},
                             {'platform': 'x86_64-ps4', 'os': TargetOS.PS4, 'arch': 'x86_64'},
                             {'platform': 'x86_64-ps5', 'os': TargetOS.PS5, 'arch': 'x86_64'},
