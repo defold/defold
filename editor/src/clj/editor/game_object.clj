@@ -32,6 +32,7 @@
             [editor.scene :as scene]
             [editor.scene-tools :as scene-tools]
             [editor.sound :as sound]
+            [editor.types :as types]
             [editor.ui :as ui]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
@@ -614,24 +615,25 @@
     (collection-string-data/string-encode-prototype-desc ext->embedded-component-resource-type prototype-desc)))
 
 (defn- add-dropped-resource
-  [selection workspace resource]
+  [selection workspace transform-props resource]
   (let [collection (selection->game-object selection)
         ext (str/lower-case (resource/ext resource))]
     (when (some #{ext} (get-all-comp-exts workspace))
       (let [id (gen-component-id collection (resource/base-name resource))]
-        (add-component collection resource id nil nil nil)))))
+        (add-component collection resource id transform-props nil nil)))))
 
 (defn- handle-drop
   [action op-seq]
-  (let [{:keys [string gesture-target]} action
+  (let [{:keys [string gesture-target world-pos]} action
         ui-context (first (ui/node-contexts gesture-target false))
         {:keys [selection workspace]} (:env ui-context)
+        transform-props {:position (types/Point3d->Vec3 world-pos)}
         resources (->> (str/split-lines string)
                        (keep (partial workspace/resolve-workspace-resource workspace)))]
     (g/tx-nodes-added
       (g/transact
         (concat
-          (mapv (partial add-dropped-resource selection workspace) resources)
+          (mapv (partial add-dropped-resource selection workspace transform-props) resources)
           (g/operation-sequence op-seq))))))
 
 (defn register-resource-types [workspace]

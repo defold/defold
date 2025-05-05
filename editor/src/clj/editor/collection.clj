@@ -33,6 +33,7 @@
             [editor.resource-dialog :as resource-dialog]
             [editor.resource-node :as resource-node]
             [editor.scene :as scene]
+            [editor.types :as types]
             [editor.ui :as ui]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
@@ -820,7 +821,7 @@
     (collection-string-data/string-encode-collection-desc ext->embedded-component-resource-type collection-desc)))
 
 (defn- add-dropped-resource
-  [selection resource]
+  [selection transform-props resource]
   (let [ext (str/lower-case (resource/ext resource))
         base-name (resource/base-name resource)
         collection (or (selection->collection selection)
@@ -830,7 +831,7 @@
       (let [id (gen-instance-id collection base-name)
             game-object (selection->game-object-instance selection)
             parent (or game-object collection)]
-        (make-ref-go collection resource id nil parent nil nil))
+        (make-ref-go collection resource id transform-props parent nil nil))
 
       "collection"
       (let [collection-resource (g/node-value collection :resource)
@@ -838,21 +839,22 @@
             collection-resource-path (resource/proj-path collection-resource)]
         (when (not= dropping-resource-path collection-resource-path)
           (let [id (gen-instance-id collection base-name)]
-            (make-collection-instance collection resource id nil nil nil))))
+            (make-collection-instance collection resource id transform-props nil nil))))
 
       nil)))
 
 (defn- handle-drop
   [action op-seq]
-  (let [{:keys [string gesture-target x y]} action
+  (let [{:keys [string gesture-target world-pos]} action
         ui-context (first (ui/node-contexts gesture-target false))
         {:keys [selection workspace]} (:env ui-context)
+        transform-props {:position (types/Point3d->Vec3 world-pos)}
         resources (->> (str/split-lines string)
                        (keep (partial workspace/resolve-workspace-resource workspace)))]
     (g/tx-nodes-added
       (g/transact
         (concat
-          (mapv (partial add-dropped-resource selection) resources)
+          (mapv (partial add-dropped-resource selection transform-props) resources)
           (g/operation-sequence op-seq))))))
 
 (defn register-resource-types [workspace]
