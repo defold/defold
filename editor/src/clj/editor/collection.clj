@@ -822,17 +822,24 @@
 (defn- add-dropped-resource
   [selection resource]
   (let [ext (str/lower-case (resource/ext resource))
+        base-name (resource/base-name resource)
         collection (or (selection->collection selection)
-                       (selection->game-object-instance selection))
-        base-name (resource/base-name resource)]
-    (cond
-      (= ext "go")
-      (make-ref-go collection resource (gen-instance-id collection base-name) nil collection nil nil)
+                       (first (map #(core/scope-of-type % CollectionNode) selection)))]
+    (case ext
+      "go"
+      (let [id (gen-instance-id collection base-name)
+            game-object (selection->game-object-instance selection)
+            parent (or game-object collection)]
+        (make-ref-go collection resource id nil parent nil nil))
 
-      (= ext "collection")
-      (make-collection-instance collection resource (gen-instance-id collection base-name) nil nil nil)
+      "collection"
+      (let [collection-resource (g/node-value collection :resource)
+            dropping-resource-path (resource/proj-path resource)
+            collection-resource-path (resource/proj-path collection-resource)]
+        (when (not= dropping-resource-path collection-resource-path)
+          (let [id (gen-instance-id collection base-name)]
+            (make-collection-instance collection resource id nil nil nil))))
 
-      :else
       nil)))
 
 (defn- handle-drop
