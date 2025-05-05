@@ -22,7 +22,7 @@
 #include <dmsdk/dlib/vmath.h>
 
 #include <script/script.h>
-
+#include <gamesys/components/comp_gui.h> 
 #include <gameobject/gameobject_props_lua.h>
 #include <gameobject/gameobject_script_util.h>
 
@@ -862,11 +862,50 @@ namespace dmGui
 
         Scene* scene = GuiScriptInstance_Check(L);
 
-        HNode hnode;
-        LuaCheckNodeInternal(L, 1, &hnode);
-
         dmhash_t property_hash = dmScript::CheckHashOrString(L, 2);
         dmGui::PropDesc* pd = dmGui::GetPropertyDesc(property_hash);
+
+        dmGameObject::PropertyVar property_var;
+        dmGameObject::PropertyResult result = dmGameObject::LuaToVar(L, 3, property_var);
+
+        if (result != dmGameObject::PROPERTY_RESULT_OK)
+        {
+            return DM_LUA_ERROR("Property '%s' has an unsupported type", dmHashReverseSafe64(property_hash));
+        }
+
+        dmGameObject::PropertyOptions property_options = {};
+        if (lua_gettop(L) > 3)
+        {
+            int options_result = LuaToPropertyOptions(L, 4, &property_options, property_hash, 0);
+            if (options_result != 0)
+            {
+                return options_result;
+            }
+        }
+
+        if (dmScript::IsURL(L, 1))
+        {
+            dmMessage::URL sender;
+            dmScript::GetURL(L, &sender);
+            dmMessage::URL target;
+            dmScript::ResolveURL(L, 1, &target, &sender);
+            bool is_self = (sender.m_Socket == target.m_Socket) &&
+                           (sender.m_Path == target.m_Path) &&
+                           (sender.m_Fragment == target.m_Fragment);
+            if (!is_self)
+            {
+                return DM_LUA_ERROR("'gui.set()' can only be used to change a property of the GUI component itself, use 'msg.url()'");
+            }
+            dmGameObject::HInstance instance = (dmGameObject::HInstance)dmGameSystem::GuiGetUserDataCallback(scene);
+            result = dmGameObject::SetProperty(instance, target.m_Fragment, property_hash, property_options, property_var);
+            if (result != dmGameObject::PROPERTY_RESULT_OK)
+            {
+                return HandleGoSetResult(L, result, property_hash, instance, target, property_options);
+            }
+            return 0;
+        }
+        HNode hnode;
+        LuaCheckNodeInternal(L, 1, &hnode);
 
         if (pd)
         {
@@ -919,25 +958,12 @@ namespace dmGui
             return 0;
         }
 
-        dmGameObject::PropertyVar property_var;
-        dmGameObject::PropertyOptions property_options = {};
-        dmGameObject::PropertyResult result = dmGameObject::LuaToVar(L, 3, property_var);
-
-        if (lua_gettop(L) > 3)
-        {
-            int options_result = LuaToPropertyOptions(L, 4, &property_options, property_hash, 0);
-            if (options_result != 0)
-            {
-                return options_result;
-            }
-        }
-
-        if (result == dmGameObject::PROPERTY_RESULT_OK && dmGui::SetMaterialProperty(scene, hnode, property_hash, property_var, &property_options))
+        if (dmGui::SetMaterialProperty(scene, hnode, property_hash, property_var, &property_options))
         {
             return 0;
         }
 
-        return DM_LUA_ERROR("property '%s' not found", dmHashReverseSafe64(property_hash));
+        return DM_LUA_ERROR("Property '%s' not found", dmHashReverseSafe64(property_hash));
     }
 
     /*# gets the index of the specified node
