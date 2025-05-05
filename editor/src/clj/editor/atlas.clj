@@ -13,8 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.atlas
-  (:require [clojure.string :as str]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.camera :as c]
             [editor.colors :as colors]
@@ -45,7 +44,6 @@
             [editor.scene-tools :as scene-tools]
             [editor.texture-set :as texture-set]
             [editor.types :as types]
-            [editor.ui :as ui]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [internal.util :as util]
@@ -62,10 +60,8 @@
            [editor.gl.vertex2 VertexBuffer]
            [editor.types AABB Animation Image]
            [java.awt.image BufferedImage]
-           [java.io File]
            [java.nio ByteBuffer]
            [java.util List]
-           [javafx.scene.input DragEvent]
            [javax.vecmath AxisAngle4d Matrix4d Point3d Vector3d]))
 
 (set! *warn-on-reflection* true)
@@ -1220,16 +1216,12 @@
       (first (handler/adapt-every selection AtlasNode))))
 
 (defn- handle-drop
-  [action op-seq]
-  (let [{:keys [string gesture-target]} action
-        ui-context (first (ui/node-contexts gesture-target false))
-        {:keys [selection workspace]} (:env ui-context)]
-    (when-let [parent (parent-animation-or-atlas selection)]
-      (let [image-resources (->> (str/split-lines string)
-                                 (filter image/image-path?)
-                                 (sort)
-                                 (keep (partial workspace/resolve-workspace-resource workspace)))]
-        (create-dropped-images! parent image-resources op-seq)))))
+  [selection workspace _world-pos resources op-seq]
+  (when-let [parent (parent-animation-or-atlas selection)]
+    (let [image-resources (->> resources
+                               (filter image/image-path?)
+                               (keep (partial workspace/resolve-workspace-resource workspace)))]
+      (create-dropped-images! parent image-resources op-seq))))
 
 (defn handle-input [self action selection-data]
   (case (:type action)

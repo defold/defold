@@ -19,6 +19,7 @@
             [editor.app-view :as app-view]
             [editor.build-target :as bt]
             [editor.collection-string-data :as collection-string-data]
+            [editor.core :as core]
             [editor.defold-project :as project]
             [editor.game-object-common :as game-object-common]
             [editor.graph-util :as gu]
@@ -33,7 +34,6 @@
             [editor.scene-tools :as scene-tools]
             [editor.sound :as sound]
             [editor.types :as types]
-            [editor.ui :as ui]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [internal.util :as util])
@@ -616,20 +616,17 @@
 
 (defn- add-dropped-resource
   [selection workspace transform-props resource]
-  (let [collection (selection->game-object selection)
+  (let [parent (or (selection->game-object selection)
+                   (first (map #(core/scope-of-type % GameObjectNode) selection)))
         ext (str/lower-case (resource/ext resource))]
     (when (some #{ext} (get-all-comp-exts workspace))
-      (let [id (gen-component-id collection (resource/base-name resource))]
-        (add-component collection resource id transform-props nil nil)))))
+      (let [id (gen-component-id parent (resource/base-name resource))]
+        (add-component parent resource id transform-props nil nil)))))
 
 (defn- handle-drop
-  [action op-seq]
-  (let [{:keys [string gesture-target world-pos]} action
-        ui-context (first (ui/node-contexts gesture-target false))
-        {:keys [selection workspace]} (:env ui-context)
-        transform-props {:position (types/Point3d->Vec3 world-pos)}
-        resources (->> (str/split-lines string)
-                       (keep (partial workspace/resolve-workspace-resource workspace)))]
+  [selection workspace world-pos resources op-seq]
+  (let [resources (keep (partial workspace/resolve-workspace-resource workspace) resources)
+        transform-props {:position (types/Point3d->Vec3 world-pos)}]
     (g/tx-nodes-added
       (g/transact
         (concat

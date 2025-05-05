@@ -34,7 +34,6 @@
             [editor.resource-node :as resource-node]
             [editor.scene :as scene]
             [editor.types :as types]
-            [editor.ui :as ui]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [internal.cache :as c]
@@ -844,13 +843,9 @@
       nil)))
 
 (defn- handle-drop
-  [action op-seq]
-  (let [{:keys [string gesture-target world-pos]} action
-        ui-context (first (ui/node-contexts gesture-target false))
-        {:keys [selection workspace]} (:env ui-context)
-        transform-props {:position (types/Point3d->Vec3 world-pos)}
-        resources (->> (str/split-lines string)
-                       (keep (partial workspace/resolve-workspace-resource workspace)))]
+  [selection workspace world-pos resources op-seq]
+  (let [resources (keep (partial workspace/resolve-workspace-resource workspace) resources)
+        transform-props {:position (types/Point3d->Vec3 world-pos)}]
     (g/tx-nodes-added
       (g/transact
         (concat

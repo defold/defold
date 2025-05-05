@@ -47,7 +47,6 @@
             [editor.scene-tools :as scene-tools]
             [editor.texture-set :as texture-set]
             [editor.types :as types]
-            [editor.ui :as ui]
             [editor.util :as eutil]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
@@ -3960,12 +3959,8 @@
       nil)))
 
 (defn- handle-drop
-  [action op-seq]
-  (let [{:keys [string gesture-target]} action
-        ui-context (first (ui/node-contexts gesture-target false))
-        {:keys [selection workspace]} (:env ui-context)
-        resources (->> (str/split-lines string)
-                       (keep (partial workspace/resolve-workspace-resource workspace)))]
+  [selection workspace _world-pos resources op-seq]
+  (let [resources (keep (partial workspace/resolve-workspace-resource workspace) resources)]
     (g/tx-nodes-added
       (g/transact
         (concat
