@@ -1192,7 +1192,7 @@
   [image-resources]
   (mapv (partial hash-map :image) image-resources))
 
-(defn- create-dropped-images!
+(defn- create-dropped-images
   [parent image-resources]
   (condp g/node-instance? parent
     AtlasNode (let [existing-image-resources (set (g/node-value parent :image-resources))
@@ -1216,7 +1216,7 @@
     (->> resources
          (filter image/image-path?)
          (keep (partial workspace/resolve-workspace-resource workspace))
-         (create-dropped-images! parent))))
+         (create-dropped-images parent))))
 
 (defn handle-input [self action selection-data]
   (case (:type action)

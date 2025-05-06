@@ -13,8 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.collection
-  (:require [clojure.string :as str]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.build-target :as bt]
             [editor.code.script :as script]
@@ -821,7 +820,7 @@
 
 (defn- add-dropped-resource
   [selection collection transform-props resource]
-  (let [ext (str/lower-case (resource/ext resource))
+  (let [ext (resource/type-ext resource)
         base-name (resource/base-name resource)]
     (case ext
       "go"
@@ -841,10 +840,11 @@
   [selection workspace world-pos resources]
   (let [transform-props {:position (types/Point3d->Vec3 world-pos)}
         collection (or (selection->collection selection)
-                       (first (map #(core/scope-of-type % CollectionNode) selection)))]
-    (->> resources
-         (keep (partial workspace/resolve-workspace-resource workspace))
-         (mapv (partial add-dropped-resource selection collection transform-props)))))
+                       (some #(core/scope-of-type % CollectionNode) selection))]
+    (into []
+          (comp (keep (partial workspace/resolve-workspace-resource workspace))
+                (map (partial add-dropped-resource selection collection transform-props)))
+          resources)))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace

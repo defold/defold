@@ -14,7 +14,6 @@
 
 (ns editor.game-object
   (:require [clojure.set :as set]
-            [clojure.string :as str]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.build-target :as bt]
@@ -616,7 +615,7 @@
 
 (defn- add-dropped-resource
   [parent workspace transform-props resource]
-  (let [ext (str/lower-case (resource/ext resource))]
+  (let [ext (resource/type-ext resource)]
     (when (some #{ext} (get-all-comp-exts workspace))
       (let [id (gen-component-id parent (resource/base-name resource))]
         (add-component parent resource id transform-props nil nil)))))
@@ -625,10 +624,11 @@
   [selection workspace world-pos resources]
   (let [transform-props {:position (types/Point3d->Vec3 world-pos)}
         parent (or (selection->game-object selection)
-                   (first (map #(core/scope-of-type % GameObjectNode) selection)))]
-    (->> resources
-         (keep (partial workspace/resolve-workspace-resource workspace))
-         (mapv (partial add-dropped-resource parent workspace transform-props)))))
+                   (some #(core/scope-of-type % GameObjectNode) selection))]
+    (into []
+          (comp (keep (partial workspace/resolve-workspace-resource workspace))
+                (map (partial add-dropped-resource parent workspace transform-props)))
+          resources)))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace

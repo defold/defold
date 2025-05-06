@@ -13,7 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.scene-selection
-  (:require [clojure.string :as str]
+  (:require [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.system :as system]
             [editor.geom :as geom]
@@ -121,23 +121,24 @@
   [[x0 y0 z0] [x1 y1 z1]]
   (.distance (Point3d. x0 y0 z0) (Point3d. x1 y1 z1)))
 
-(defn- handle-drag-dropped
+(defn- handle-drag-dropped!
   [drop-fn select-fn action]
   (let [op-seq (gensym)
         {:keys [^DragEvent event string gesture-target world-pos]} action
         _ (ui/request-focus! gesture-target)
         env (-> gesture-target (ui/node-contexts false) first :env)
         {:keys [selection workspace]} env
-        resources (-> string str/split-lines sort)
+        resources (-> string string/split-lines sort)
         added-nodes (g/tx-nodes-added
                       (g/transact
                         (concat
                           (drop-fn selection workspace world-pos resources)
                           (g/operation-sequence op-seq)
-                          (g/operation-label "Drop resources"))))]
+                          (g/operation-label "Drop Resources"))))]
     (.consume event)
     (when (seq added-nodes)
-      (select-fn added-nodes op-seq)
+      (let [top-ids (filterv (comp not :node-id g/node-by-id) added-nodes)]
+        (select-fn top-ids op-seq))
       (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
       (.setDropCompleted event true))))
 
@@ -152,7 +153,7 @@
       :drag-dropped (let [drop-fn (g/node-value self :drop-fn)
                           select-fn (g/node-value self :select-fn)]
                       (when drop-fn
-                        (handle-drag-dropped drop-fn select-fn action))
+                        (handle-drag-dropped! drop-fn select-fn action))
                       nil)
       :mouse-pressed (let [op-seq (gensym)
                            toggle? (true? (some true? (map #(% action) toggle-modifiers)))

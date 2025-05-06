@@ -3937,7 +3937,7 @@
 
 (defn- add-dropped-resource
   [scene workspace resource]
-  (let [ext (str/lower-case (resource/ext resource))
+  (let [ext (resource/type-ext resource)
         base-name (resource/base-name resource)
         gen-name #(->> (g/node-value (g/node-value scene %) :name-counts)
                        (outline/resolve-id base-name))]
@@ -3960,9 +3960,10 @@
 (defn- handle-drop
   [selection workspace _world-pos resources]
   (let [scene (node->gui-scene (first selection))]
-    (->> resources
-         (keep (partial workspace/resolve-workspace-resource workspace))
-         (mapv (partial add-dropped-resource scene workspace)))))
+    (into []
+          (comp (keep (partial workspace/resolve-workspace-resource workspace))
+                (map (partial add-dropped-resource scene workspace)))
+          resources)))
 
 (defn- register [workspace def]
   (let [ext (:ext def)
