@@ -831,12 +831,9 @@
         (make-ref-go collection resource id transform-props parent nil nil))
 
       "collection"
-      (let [collection-resource (g/node-value collection :resource)
-            dropping-resource-path (resource/proj-path resource)
-            collection-resource-path (resource/proj-path collection-resource)]
-        (when (not= dropping-resource-path collection-resource-path)
-          (let [id (gen-instance-id collection base-name)]
-            (make-collection-instance collection resource id transform-props nil nil))))
+      (when (not= (g/maybe-node-value collection :resource) resource)
+        (let [id (gen-instance-id collection base-name)]
+          (make-collection-instance collection resource id transform-props nil nil)))
 
       nil)))
 
