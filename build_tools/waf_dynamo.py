@@ -2000,7 +2000,10 @@ def detect(conf):
     conf.env['STLIB_CRASH'] = 'crashext'
     conf.env['STLIB_CRASH_NULL'] = 'crashext_null'
     if TargetOS.WEB == target_os:
-        conf.env['STLIB_PROFILE'] = ['profile_basic']
+        if 'profile_js' in Options.options.enable_features:
+            conf.env['STLIB_PROFILE'] = ['profile_js']
+        else:
+            conf.env['STLIB_PROFILE'] = ['profile_basic']
     else:
         conf.env['STLIB_PROFILE'] = ['profile', 'remotery']
     conf.env['STLIB_PROFILE_NULL'] = ['profile_null', 'remotery_null']

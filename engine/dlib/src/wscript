@@ -211,7 +211,13 @@ def build(bld):
     libprofile_includes = '. ./dlib/profile ./remotery'
     libprofile_defines = ['VALGRIND'] + extra_defines
 
-    if bld.env['PLATFORM'] not in ('js-web', 'wasm-web', 'wasm_pthread-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5'):
+    if bld.env['PLATFORM'] in ('js-web', 'wasm-web', 'wasm_pthread-web'):
+        libprofile_js = bld.stlib(features   = libprofile_features,
+                                  includes     = libprofile_includes,
+                                  defines      = libprofile_defines,
+                                  source       = 'dlib/profile/profile.cpp dlib/profile/profile_js.cpp',
+                                  target       = 'profile_js')
+    elif bld.env['PLATFORM'] not in ('arm64-nx64', 'x86_64-ps4', 'x86_64-ps5'):
         libprofile = bld.stlib(features     = libprofile_features,
                                includes     = libprofile_includes,
                                defines      = libprofile_defines,
@@ -454,6 +460,7 @@ def build(bld):
 
     if 'web' in bld.env['PLATFORM']:
         bld.install_files('${PREFIX}/lib/%s/js' % bld.env['PLATFORM'], 'dlib/js/library_sys.js')
+        bld.install_files('${PREFIX}/lib/%s/js' % bld.env['PLATFORM'], 'dlib/js/library_profile.js')
 
     # For the private platforms, check if the file exist and, if so, install them
     def check_install(bld, tgtpath, srcpath):
