@@ -22,7 +22,6 @@
 #include <dmsdk/dlib/vmath.h>
 
 #include <script/script.h>
-#include <gamesys/components/comp_gui.h> 
 #include <gameobject/gameobject_props_lua.h>
 #include <gameobject/gameobject_script_util.h>
 
@@ -808,11 +807,12 @@ namespace dmGui
      * If the material has a constant array called 'tint_array' specified in the material, you can use `gui.set(node, "tint_array", vmath.vec4(1,0,0,1), { index = 4})` to set the fourth array element to a different value.
      *
      * @name gui.set
-     * @param node [type:node] node to set the property for
+     * @param node [type:node|url] node to set the property for, or msg.url() to the gui itself
      * @param property [type:string|hash|constant] the property to set 
      * @param value [type:number|vector4|vector3|quat] the property to set
      * @param [options] [type:table] optional options table (only applicable for material constants)
      * - `index` [type:integer] index into array property (1 based)
+     * - `key` [type:hash] name of internal property
      *
      * @examples
      *
@@ -855,6 +855,21 @@ namespace dmGui
      * -- update a sub-element in an array constant at position 4
      * gui.set(node, "tint_array.x", 1, {index = 4})
      * ```
+     *
+     * Set a named property
+     *
+     * ```lua
+     * function on_message(self, message_id, message, sender)
+     *    if message_id == hash("set_font") then
+     *        gui.set(msg.url(), "fonts", message.font, {key = "my_font_name"})
+     *        gui.set_font(gui.get_node("text"), "my_font_name")
+     *    elseif message_id == hash("set_texture") then
+     *        gui.set(msg.url(), "textures", message.texture, {key = "my_texture"})
+     *        gui.set_texture(gui.get_node("box"), "my_texture")
+     *        gui.play_flipbook(gui.get_node("box"), "logo_256")
+     *    end
+     * end
+     * ```
      */
     static int LuaSet(lua_State* L)
     {
@@ -896,7 +911,7 @@ namespace dmGui
             {
                 return DM_LUA_ERROR("'gui.set()' can only be used to change a property of the GUI component itself, use 'msg.url()'");
             }
-            dmGameObject::HInstance instance = (dmGameObject::HInstance)dmGameSystem::GuiGetUserDataCallback(scene);
+            dmGameObject::HInstance instance = (dmGameObject::HInstance)scene->m_Context->m_GetUserDataCallback(scene);
             result = dmGameObject::SetProperty(instance, target.m_Fragment, property_hash, property_options, property_var);
             if (result != dmGameObject::PROPERTY_RESULT_OK)
             {
