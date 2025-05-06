@@ -615,23 +615,20 @@
     (collection-string-data/string-encode-prototype-desc ext->embedded-component-resource-type prototype-desc)))
 
 (defn- add-dropped-resource
-  [selection workspace transform-props resource]
-  (let [parent (or (selection->game-object selection)
-                   (first (map #(core/scope-of-type % GameObjectNode) selection)))
-        ext (str/lower-case (resource/ext resource))]
+  [parent workspace transform-props resource]
+  (let [ext (str/lower-case (resource/ext resource))]
     (when (some #{ext} (get-all-comp-exts workspace))
       (let [id (gen-component-id parent (resource/base-name resource))]
         (add-component parent resource id transform-props nil nil)))))
 
 (defn- handle-drop
-  [selection workspace world-pos resources op-seq]
-  (let [resources (keep (partial workspace/resolve-workspace-resource workspace) resources)
-        transform-props {:position (types/Point3d->Vec3 world-pos)}]
-    (g/tx-nodes-added
-      (g/transact
-        (concat
-          (mapv (partial add-dropped-resource selection workspace transform-props) resources)
-          (g/operation-sequence op-seq))))))
+  [selection workspace world-pos resources]
+  (let [transform-props {:position (types/Point3d->Vec3 world-pos)}
+        parent (or (selection->game-object selection)
+                   (first (map #(core/scope-of-type % GameObjectNode) selection)))]
+    (->> resources
+         (keep (partial workspace/resolve-workspace-resource workspace))
+         (mapv (partial add-dropped-resource parent workspace transform-props)))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace

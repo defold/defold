@@ -3936,9 +3936,8 @@
         (update :material #(or % default-material-proj-path)))))
 
 (defn- add-dropped-resource
-  [selection workspace resource]
-  (let [scene (node->gui-scene (first selection))
-        ext (str/lower-case (resource/ext resource))
+  [scene workspace resource]
+  (let [ext (str/lower-case (resource/ext resource))
         base-name (resource/base-name resource)
         gen-name #(->> (g/node-value (g/node-value scene %) :name-counts)
                        (outline/resolve-id base-name))]
@@ -3959,13 +3958,11 @@
       nil)))
 
 (defn- handle-drop
-  [selection workspace _world-pos resources op-seq]
-  (let [resources (keep (partial workspace/resolve-workspace-resource workspace) resources)]
-    (g/tx-nodes-added
-      (g/transact
-        (concat
-          (mapv (partial add-dropped-resource selection workspace) resources)
-          (g/operation-sequence op-seq))))))
+  [selection workspace _world-pos resources]
+  (let [scene (node->gui-scene (first selection))]
+    (->> resources
+         (keep (partial workspace/resolve-workspace-resource workspace))
+         (mapv (partial add-dropped-resource scene workspace)))))
 
 (defn- register [workspace def]
   (let [ext (:ext def)

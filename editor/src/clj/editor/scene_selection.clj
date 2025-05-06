@@ -129,7 +129,12 @@
         env (-> gesture-target (ui/node-contexts false) first :env)
         {:keys [selection workspace]} env
         resources (-> string str/split-lines sort)
-        added-nodes (drop-fn selection workspace world-pos resources op-seq)]
+        added-nodes (g/tx-nodes-added
+                      (g/transact
+                        (concat
+                          (drop-fn selection workspace world-pos resources)
+                          (g/operation-sequence op-seq)
+                          (g/operation-label "Drop resources"))))]
     (.consume event)
     (when (seq added-nodes)
       (select-fn added-nodes op-seq)

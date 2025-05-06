@@ -820,11 +820,9 @@
     (collection-string-data/string-encode-collection-desc ext->embedded-component-resource-type collection-desc)))
 
 (defn- add-dropped-resource
-  [selection transform-props resource]
+  [selection collection transform-props resource]
   (let [ext (str/lower-case (resource/ext resource))
-        base-name (resource/base-name resource)
-        collection (or (selection->collection selection)
-                       (first (map #(core/scope-of-type % CollectionNode) selection)))]
+        base-name (resource/base-name resource)]
     (case ext
       "go"
       (let [id (gen-instance-id collection base-name)
@@ -843,14 +841,13 @@
       nil)))
 
 (defn- handle-drop
-  [selection workspace world-pos resources op-seq]
-  (let [resources (keep (partial workspace/resolve-workspace-resource workspace) resources)
-        transform-props {:position (types/Point3d->Vec3 world-pos)}]
-    (g/tx-nodes-added
-      (g/transact
-        (concat
-          (mapv (partial add-dropped-resource selection transform-props) resources)
-          (g/operation-sequence op-seq))))))
+  [selection workspace world-pos resources]
+  (let [transform-props {:position (types/Point3d->Vec3 world-pos)}
+        collection (or (selection->collection selection)
+                       (first (map #(core/scope-of-type % CollectionNode) selection)))]
+    (->> resources
+         (keep (partial workspace/resolve-workspace-resource workspace))
+         (mapv (partial add-dropped-resource selection collection transform-props)))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace

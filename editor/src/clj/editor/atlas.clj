@@ -1193,20 +1193,15 @@
   (mapv (partial hash-map :image) image-resources))
 
 (defn- create-dropped-images!
-  [parent image-resources op-seq]
-  (g/tx-nodes-added
-    (g/transact
-      (concat
-        (g/operation-sequence op-seq)
-        (g/operation-label "Drop images")
-        (condp g/node-instance? parent
-          AtlasNode (let [existing-image-resources (set (g/node-value parent :image-resources))
-                          new-image? (complement existing-image-resources)]
-                      (->> (filter new-image? image-resources)
-                           (image-resources->image-msgs)
-                           (make-image-nodes-in-atlas parent)))
-          AtlasAnimation (->> (image-resources->image-msgs image-resources)
-                              (make-image-nodes-in-animation parent)))))))
+  [parent image-resources]
+  (condp g/node-instance? parent
+    AtlasNode (let [existing-image-resources (set (g/node-value parent :image-resources))
+                    new-image? (complement existing-image-resources)]
+                (->> (filter new-image? image-resources)
+                     (image-resources->image-msgs)
+                     (make-image-nodes-in-atlas parent)))
+    AtlasAnimation (->> (image-resources->image-msgs image-resources)
+                        (make-image-nodes-in-animation parent))))
 
 (defn- parent-animation-or-atlas
   [selection]
@@ -1216,12 +1211,12 @@
       (first (handler/adapt-every selection AtlasNode))))
 
 (defn- handle-drop
-  [selection workspace _world-pos resources op-seq]
-  (when-let [parent (parent-animation-or-atlas selection)]
-    (let [image-resources (->> resources
-                               (filter image/image-path?)
-                               (keep (partial workspace/resolve-workspace-resource workspace)))]
-      (create-dropped-images! parent image-resources op-seq))))
+  [selection workspace _world-pos resources]
+  (let [parent (parent-animation-or-atlas selection)]
+    (->> resources
+         (filter image/image-path?)
+         (keep (partial workspace/resolve-workspace-resource workspace))
+         (create-dropped-images! parent))))
 
 (defn handle-input [self action selection-data]
   (case (:type action)
