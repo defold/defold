@@ -622,7 +622,6 @@
           taken-ids (map first (g/node-value parent :component-ids))
           supported-exts (get-all-comp-exts workspace)]
       (->> resources
-           (e/keep (partial workspace/resolve-workspace-resource workspace))
            (e/filter #(some #{(resource/type-ext %)} supported-exts))
            (outline/name-resource-pairs taken-ids)
            (mapv (fn [[id resource]]

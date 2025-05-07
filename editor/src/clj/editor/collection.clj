@@ -835,15 +835,14 @@
       nil)))
 
 (defn- handle-drop
-  [selection workspace world-pos resources]
+  [selection _workspace world-pos resources]
   (when-let [collection (or (selection->collection selection)
                             (some #(core/scope-of-type % CollectionNode) selection))]
     (let [transform-props {:position (types/Point3d->Vec3 world-pos)}
           taken-ids (g/node-value collection :ids)
           supported-exts #{"go" "collection"}]
       (->> resources
-           (e/keep (partial workspace/resolve-workspace-resource workspace))
-           (e/filter #(some #{(resource/type-ext %)} supported-exts))
+           (e/filter (comp (partial contains? supported-exts) resource/type-ext))
            (outline/name-resource-pairs taken-ids)
            (mapv (partial add-dropped-resource selection collection transform-props))))))
 

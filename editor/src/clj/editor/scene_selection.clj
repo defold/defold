@@ -21,7 +21,9 @@
             [editor.types :as types]
             [editor.ui :as ui]
             [editor.gl.pass :as pass]
-            [schema.core :as s])
+            [editor.workspace :as workspace]
+            [schema.core :as s]
+            [util.eduction :as e])
   (:import [editor.types Rect]
            [java.lang Runnable Math]
            [com.jogamp.opengl GL2]
@@ -121,6 +123,15 @@
   [[x0 y0 z0] [x1 y1 z1]]
   (.distance (Point3d. x0 y0 z0) (Point3d. x1 y1 z1)))
 
+(defn- add-dropped-resources!
+  [drop-fn resources op-seq]
+  (g/tx-nodes-added
+    (g/transact
+      (concat
+        (drop-fn resources)
+        (g/operation-sequence op-seq)
+        (g/operation-label "Drop Resources")))))
+
 (defn- handle-drag-dropped!
   [drop-fn select-fn action]
   (let [op-seq (gensym)
@@ -128,13 +139,12 @@
         _ (ui/request-focus! gesture-target)
         env (-> gesture-target (ui/node-contexts false) first :env)
         {:keys [selection workspace]} env
-        resources (-> string string/split-lines sort)
-        added-nodes (g/tx-nodes-added
-                      (g/transact
-                        (concat
-                          (drop-fn selection workspace world-pos resources)
-                          (g/operation-sequence op-seq)
-                          (g/operation-label "Drop Resources"))))]
+        resource-strings (string/split-lines string)
+        resources (->>  resource-strings
+                        (e/keep (partial workspace/resolve-workspace-resource workspace))
+                        (sort-by :id))
+        drop-fn (partial drop-fn selection workspace world-pos)
+        added-nodes (add-dropped-resources! drop-fn resources op-seq)]
     (.consume event)
     (when (seq added-nodes)
       (let [top-ids (filterv (comp not :node-id g/node-by-id) added-nodes)

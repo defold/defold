@@ -1211,11 +1211,10 @@
       (first (handler/adapt-every selection AtlasNode))))
 
 (defn- handle-drop
-  [selection workspace _world-pos resources]
+  [selection _workspace _world-pos resources]
   (when-let [parent (parent-animation-or-atlas selection)]
     (->> resources
-         (e/filter image/image-path?)
-         (e/keep (partial workspace/resolve-workspace-resource workspace))
+         (e/filter image/image-resource?)
          (create-dropped-images parent))))
 
 (defn handle-input [self action selection-data]

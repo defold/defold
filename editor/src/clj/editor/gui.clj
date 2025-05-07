@@ -3961,9 +3961,7 @@
   [selection workspace _world-pos resources]
   (when (seq selection)
     (when-let [scene (node->gui-scene (first selection))]
-      (->> resources
-           (e/keep (partial workspace/resolve-workspace-resource workspace))
-           (mapv (partial add-dropped-resource scene workspace))))))
+      (mapv (partial add-dropped-resource scene workspace) resources))))
 
 (defn- register [workspace def]
   (let [ext (:ext def)
