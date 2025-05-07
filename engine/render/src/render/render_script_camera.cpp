@@ -206,7 +206,7 @@ namespace dmRender
     *
     * @name camera.get_orthographic_zoom
     * @param camera [type:url|handle|nil] camera id
-    * @return orthographic_zoom [type:boolean] true if the camera is using an orthographic projection.
+    * @return orthographic_zoom [type:number] the zoom level when the camera uses orthographic projection.
     */
     GET_CAMERA_DATA_PROPERTY_FN(OrthographicZoom, lua_pushnumber);
 
@@ -246,9 +246,9 @@ namespace dmRender
     *
     * @name camera.set_orthographic_zoom
     * @param camera [type:url|handle|nil] camera id
-    * @param orthographic_zoom [type:boolean] true if the camera is using an orthographic projection.
+    * @param orthographic_zoom [type:number] the zoom level when the camera uses orthographic projection.
     */
-    SET_CAMERA_DATA_PROPERTY_FN(OrthographicZoom, lua_toboolean);
+    SET_CAMERA_DATA_PROPERTY_FN(OrthographicZoom, lua_tonumber);
 
 #undef GET_CAMERA_DATA_PROPERTY_FN
 #undef SET_CAMERA_DATA_PROPERTY_FN
