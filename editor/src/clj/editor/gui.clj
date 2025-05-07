@@ -3959,11 +3959,12 @@
 
 (defn- handle-drop
   [selection workspace _world-pos resources]
-  (let [scene (node->gui-scene (first selection))]
-    (into []
-          (comp (keep (partial workspace/resolve-workspace-resource workspace))
-                (map (partial add-dropped-resource scene workspace)))
-          resources)))
+  (when (seq selection)
+    (when-let [scene (node->gui-scene (first selection))]
+      (into []
+            (comp (keep (partial workspace/resolve-workspace-resource workspace))
+                  (map (partial add-dropped-resource scene workspace)))
+            resources))))
 
 (defn- register [workspace def]
   (let [ext (:ext def)

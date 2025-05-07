@@ -1206,13 +1206,13 @@
 (defn- parent-animation-or-atlas
   [selection]
   (or (first (handler/adapt-every selection AtlasAnimation))
-      (first (map #(core/scope-of-type % AtlasAnimation) selection))
-      (first (map #(core/scope-of-type % AtlasNode) selection))
+      (some #(core/scope-of-type % AtlasAnimation) selection)
+      (some #(core/scope-of-type % AtlasNode) selection)
       (first (handler/adapt-every selection AtlasNode))))
 
 (defn- handle-drop
   [selection workspace _world-pos resources]
-  (let [parent (parent-animation-or-atlas selection)]
+  (when-let [parent (parent-animation-or-atlas selection)]
     (->> resources
          (filter image/image-path?)
          (keep (partial workspace/resolve-workspace-resource workspace))

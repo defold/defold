@@ -841,10 +841,11 @@
   (let [transform-props {:position (types/Point3d->Vec3 world-pos)}
         collection (or (selection->collection selection)
                        (some #(core/scope-of-type % CollectionNode) selection))]
-    (into []
-          (comp (keep (partial workspace/resolve-workspace-resource workspace))
-                (map (partial add-dropped-resource selection collection transform-props)))
-          resources)))
+    (when collection
+      (into []
+            (comp (keep (partial workspace/resolve-workspace-resource workspace))
+                  (map (partial add-dropped-resource selection collection transform-props)))
+            resources))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace

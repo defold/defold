@@ -625,10 +625,11 @@
   (let [transform-props {:position (types/Point3d->Vec3 world-pos)}
         parent (or (selection->game-object selection)
                    (some #(core/scope-of-type % GameObjectNode) selection))]
-    (into []
-          (comp (keep (partial workspace/resolve-workspace-resource workspace))
-                (map (partial add-dropped-resource parent workspace transform-props)))
-          resources)))
+    (when parent
+      (into []
+            (comp (keep (partial workspace/resolve-workspace-resource workspace))
+                  (map (partial add-dropped-resource parent workspace transform-props)))
+            resources))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
