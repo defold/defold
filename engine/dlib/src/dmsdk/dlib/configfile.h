@@ -34,7 +34,7 @@ extern "C" {
 
 /*# HConfigFile type definition
  *
- * Each game session has a single config file that holds all parameters from game.projec,t and any overridden values.
+ * Each game session has a single config file that holds all parameters from game.project and any overridden values.
  * @note Properties can be overridden on command line or via the config file extension system. (See [ref:DM_DECLARE_CONFIGFILE_EXTENSION])
  *
  * @typedef
