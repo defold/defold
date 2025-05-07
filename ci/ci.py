@@ -1,13 +1,13 @@
 #!/usr/bin/env python
-# Copyright 2020-2024 The Defold Foundation
+# Copyright 2020-2025 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -123,80 +123,104 @@ def setup_keychain(args):
 def get_github_token():
     return os.environ.get('SERVICES_GITHUB_TOKEN', None)
 
-def setup_steam_config(args):
-    print("Setting up Steam config")
-    system = platform.system()
-    steam_config_path = "~/.local/share/Steam/config"
-    os.makedirs(steam_config_path)
-    steam_config_file = os.path.abspath(os.path.join(steam_config_path, "config.vdf"))
-    b64decode_to_file(args.steam_config_b64, steam_config_file)
-    print("Wrote config to", steam_config_file)
+def install_linux(args):
+    host_platform = platform_from_host()
+
+    # # we use apt-fast to speed up apt-get downloads
+    # # https://github.com/ilikenwf/apt-fast
+    # call("sudo add-apt-repository ppa:apt-fast/stable")
+    call("sudo apt-get update", failonerror=False)
+    # call("echo debconf apt-fast/maxdownloads string 16 | sudo debconf-set-selections")
+    # call("echo debconf apt-fast/dlflag boolean true | sudo debconf-set-selections")
+    # call("echo debconf apt-fast/aptmanager string apt-get | sudo debconf-set-selections")
+    # call("sudo apt-get install -y apt-fast aria2")
+
+    call("sudo apt-get install -y software-properties-common")
+
+    call("update-alternatives --display clang")
+    call("update-alternatives --display clang++")
+
+    # libtinfo needed when building wasm-web
+    if host_platform == "arm64-linux":
+        call("wget http://ports.ubuntu.com/pool/universe/n/ncurses/libtinfo5_6.3-2ubuntu0.1_arm64.deb")
+        call("sudo apt install ./libtinfo5_6.3-2ubuntu0.1_arm64.deb")
+    else:
+        call("wget http://archive.ubuntu.com/ubuntu/pool/universe/n/ncurses/libtinfo5_6.3-2ubuntu0.1_amd64.deb")
+        call("sudo apt install ./libtinfo5_6.3-2ubuntu0.1_amd64.deb")
+
+    clang_priority = 200 # GA runner has clang at prio 100, so let's add a higher prio
+    clang_version = 16
+    clang_path = "/usr/bin"
+    clang_exe = f"/usr/bin/clang-{clang_version}" # installed on the recent GA runners
+
+    # On older ubuntu 20 clang-16 isn't available
+    # Also note that this is before the install_sdk step
+    # if we had to install it ourselves, let's use the correct path
+    if not os.path.exists(clang_exe):
+        print(f"{clang_exe} not found. Installing LLVM + CLANG {clang_version} ...")
+
+        call(f"wget https://apt.llvm.org/llvm.sh")
+        call(f"chmod +x ./llvm.sh")
+        call(f"sudo ./llvm.sh {clang_version}")
+        call(f"rm ./llvm.sh")
+
+        clang_path = f"/usr/lib/llvm-{clang_version}/bin"
+
+        # Add and select the correct version
+        call(f"sudo update-alternatives --install /usr/bin/clang clang {clang_path}/clang-{clang_version} {clang_priority}")
+        call(f"sudo update-alternatives --install /usr/bin/clang++ clang++ {clang_path}/clang++ {clang_priority}")
+        call(f"sudo update-alternatives --install /usr/bin/clang-cpp clang-cpp {clang_path}/clang-cpp {clang_priority}")
+        call(f"sudo update-alternatives --install /usr/bin/llvm-ar llvm-ar {clang_path}/llvm-ar {clang_priority}")
+
+    else:
+        print(f"{clang_exe} found. Selecting LLVM + CLANG {clang_version} ...")
+        # Add and select the correct version
+        call(f"sudo update-alternatives --install /usr/bin/clang clang {clang_path}/clang-{clang_version} {clang_priority}")
+        call(f"sudo update-alternatives --install /usr/bin/clang++ clang++ {clang_path}/clang++-{clang_version} {clang_priority}")
+        call(f"sudo update-alternatives --install /usr/bin/clang-cpp clang-cpp {clang_path}/clang-cpp-{clang_version} {clang_priority}")
+        call(f"sudo update-alternatives --install /usr/bin/llvm-ar llvm-ar {clang_path}/llvm-ar-{clang_version} {clang_priority}")
+
+    call("update-alternatives --display clang")
+    call("update-alternatives --display clang++")
+    call("update-alternatives --display clang-cpp")
+    call("update-alternatives --display llvm-ar")
+
+    packages = [
+        "autoconf",
+        "automake",
+        "build-essential",
+        "freeglut3-dev",
+        "libssl-dev",
+        "libtool",
+        "libxi-dev",
+        "libx11-xcb-dev",
+        "libxrandr-dev",
+        "libopenal-dev",
+        "libgl1-mesa-dev",
+        "libglw1-mesa-dev",
+        "openssl",
+        "tofrodos",
+        "tree",
+        "valgrind",
+        "uuid-dev",
+        "xvfb"
+    ]
+    aptget(" ".join(packages))
+
+
+def install_macos(args):
+    if args.keychain_cert:
+        setup_keychain(args)
 
 def install(args):
-    # installed tools: https://github.com/actions/virtual-environments/blob/main/images/linux/Ubuntu2004-Readme.md
+    # installed tools: https://github.com/actions/virtual-environments/blob/main/images/linux/Ubuntu2404-Readme.md
     system = platform.system()
     print("Installing dependencies for system '%s' " % (system))
     if system == "Linux":
-        # # we use apt-fast to speed up apt-get downloads
-        # # https://github.com/ilikenwf/apt-fast
-        # call("sudo add-apt-repository ppa:apt-fast/stable")
-        call("sudo apt-get update", failonerror=False)
-        # call("echo debconf apt-fast/maxdownloads string 16 | sudo debconf-set-selections")
-        # call("echo debconf apt-fast/dlflag boolean true | sudo debconf-set-selections")
-        # call("echo debconf apt-fast/aptmanager string apt-get | sudo debconf-set-selections")
-        # call("sudo apt-get install -y apt-fast aria2")
-
-        call("sudo apt-get install -y software-properties-common")
-
-        call("ls /usr/bin/clang*")
-
-        call("sudo update-alternatives --remove-all clang")
-        call("sudo update-alternatives --remove-all clang++")
-        call("sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-12 120 --slave /usr/bin/clang++ clang++ /usr/bin/clang++-12")
-
-        packages = [
-            "autoconf",
-            "automake",
-            "build-essential",
-            "freeglut3-dev",
-            "libssl-dev",
-            "libtool",
-            "libxi-dev",
-            "libx11-xcb-dev",
-            "libxrandr-dev",
-            "libopenal-dev",
-            "libgl1-mesa-dev",
-            "libglw1-mesa-dev",
-            "lib32z1",
-            "openssl",
-            "tofrodos",
-            "tree",
-            "valgrind",
-            "uuid-dev",
-            "xvfb"
-        ]
-        aptget(" ".join(packages))
-
-        if args.steam_config_b64:
-            # for steamcmd
-            # https://github.com/steamcmd/docker/blob/master/dockerfiles/ubuntu-22/Dockerfile#L15C5-L16C62
-            # https://github.com/game-ci/steam-deploy
-            call("sudo dpkg --add-architecture i386")
-            call("sudo apt-get update", failonerror=False)
-            # accept license agreement
-            call("echo steam steam/question select 'I AGREE' | sudo debconf-set-selections")
-            call("echo steam steam/license note '' | sudo debconf-set-selections")
-            packages = [
-                "steamcmd",
-                "lib32gcc1",
-                "hfsprogs"   # for mounting DMG files
-            ]
-            aptget(" ".join(packages))
-            setup_steam_config(args)
+        install_linux(args)
 
     elif system == "Darwin":
-        if args.keychain_cert:
-            setup_keychain(args)
+        install_macos(args)
 
 def build_engine(platform, channel, with_valgrind = False, with_asan = False, with_ubsan = False, with_tsan = False,
                 with_vanilla_lua = False, skip_tests = False, skip_build_tests = False, skip_codesign = True,
@@ -204,7 +228,7 @@ def build_engine(platform, channel, with_valgrind = False, with_asan = False, wi
 
     install_sdk = 'install_sdk'
     # for some platforms, we use the locally installed platform sdk
-    if platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios', 'js-web', 'wasm-web'):
+    if platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios', 'js-web', 'wasm-web', 'wasm_pthread-web', 'arm64-linux', 'x86_64-linux'):
         install_sdk = ''
 
     args = ('python scripts/build.py distclean %s install_ext check_sdk' % install_sdk).split()
@@ -465,7 +489,6 @@ def main(argv):
     parser.add_argument('--github-token', dest='github_token', help='GitHub authentication token when releasing to GitHub')
     parser.add_argument('--github-target-repo', dest='github_target_repo', help='GitHub target repo when releasing artefacts')
     parser.add_argument('--github-sha1', dest='github_sha1', help='A specific sha1 to use in github operations')
-    parser.add_argument("--steam-config-b64", dest="steam_config_b64", help="String containing Steam config (vdf) encoded as base 64")
 
     args = parser.parse_args()
 

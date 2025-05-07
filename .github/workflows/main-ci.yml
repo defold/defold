@@ -400,7 +400,7 @@ jobs:
       },
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
       { name: 'Setup git user', run: 'git config --global user.email "services@defold.se" && git config --global user.name "Defold Services"' },
-      { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }} --steam-config-b64="${{env.STEAM_CONFIG_VDF}}"' },
+      { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         # only needed for some python dependencies (should have a separate python setup function?)
         name: 'Install ext dependencies',
