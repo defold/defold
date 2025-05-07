@@ -139,10 +139,8 @@
         _ (ui/request-focus! gesture-target)
         env (-> gesture-target (ui/node-contexts false) first :env)
         {:keys [selection workspace]} env
-        resource-strings (string/split-lines string)
-        resources (->>  resource-strings
-                        (e/keep (partial workspace/resolve-workspace-resource workspace))
-                        (sort-by :id))
+        resource-strings (-> string string/split-lines sort)
+        resources (e/keep (partial workspace/resolve-workspace-resource workspace) resource-strings)
         drop-fn (partial drop-fn selection workspace world-pos)
         added-nodes (add-dropped-resources! drop-fn resources op-seq)]
     (.consume event)
