@@ -1431,7 +1431,7 @@ TEST_F(dmRenderScriptTest, TestRenderCameraGetSetInfo)
     dmRender::SetRenderCameraURL(m_Context, camera, &camera_url);
 
     dmRender::RenderCameraData data = {};
-    data.m_Viewport = dmVMath::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
+    data.m_Viewport         = dmVMath::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
     data.m_Fov              = 90.0f;
     data.m_NearZ            = 0.1f;
     data.m_FarZ             = 100.0f;
