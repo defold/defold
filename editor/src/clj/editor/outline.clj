@@ -353,6 +353,10 @@
                  [[] (ids->lookup taken-ids)]
                  wanted-ids)))
 
+(defn name-resource-pairs [taken-ids resources]
+  (let [names (resolve-ids (map resource/base-name resources) taken-ids)]
+    (map vector names resources)))
+
 (defn natural-sort [items]
   (->> items (sort-by :label util/natural-order) vec))
 

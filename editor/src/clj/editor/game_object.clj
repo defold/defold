@@ -35,7 +35,8 @@
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
-            [internal.util :as util])
+            [internal.util :as util]
+            [util.eduction :as e])
   (:import [com.dynamo.gameobject.proto GameObject$ComponentDesc GameObject$EmbeddedComponentDesc GameObject$PrototypeDesc]
            [com.dynamo.gamesys.proto Sound$SoundDesc]
            [javax.vecmath Vector3d]))
@@ -613,23 +614,19 @@
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace)]
     (collection-string-data/string-encode-prototype-desc ext->embedded-component-resource-type prototype-desc)))
 
-(defn- add-dropped-resource
-  [parent workspace transform-props resource]
-  (let [ext (resource/type-ext resource)]
-    (when (some #{ext} (get-all-comp-exts workspace))
-      (let [id (gen-component-id parent (resource/base-name resource))]
-        (add-component parent resource id transform-props nil nil)))))
-
 (defn- handle-drop
   [selection workspace world-pos resources]
-  (let [transform-props {:position (types/Point3d->Vec3 world-pos)}
-        parent (or (selection->game-object selection)
-                   (some #(core/scope-of-type % GameObjectNode) selection))]
-    (when parent
-      (into []
-            (comp (keep (partial workspace/resolve-workspace-resource workspace))
-                  (map (partial add-dropped-resource parent workspace transform-props)))
-            resources))))
+  (when-let [parent (or (selection->game-object selection)
+                        (some #(core/scope-of-type % GameObjectNode) selection))]
+    (let [transform-props {:position (types/Point3d->Vec3 world-pos)}
+          taken-ids (map first (g/node-value parent :component-ids))
+          supported-exts (get-all-comp-exts workspace)]
+      (->> resources
+           (e/keep (partial workspace/resolve-workspace-resource workspace))
+           (e/filter #(some #{(resource/type-ext %)} supported-exts))
+           (outline/name-resource-pairs taken-ids)
+           (mapv (fn [[id resource]]
+                   (add-component parent resource id transform-props nil nil)))))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace

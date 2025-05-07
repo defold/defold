@@ -1214,8 +1214,8 @@
   [selection workspace _world-pos resources]
   (when-let [parent (parent-animation-or-atlas selection)]
     (->> resources
-         (filter image/image-path?)
-         (keep (partial workspace/resolve-workspace-resource workspace))
+         (e/filter image/image-path?)
+         (e/keep (partial workspace/resolve-workspace-resource workspace))
          (create-dropped-images parent))))
 
 (defn handle-input [self action selection-data]

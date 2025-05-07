@@ -36,7 +36,8 @@
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [internal.cache :as c]
-            [internal.util :as util])
+            [internal.util :as util]
+            [util.eduction :as e])
   (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$CollectionInstanceDesc GameObject$EmbeddedInstanceDesc GameObject$InstanceDesc]
            [internal.graph.types Arc]))
 
@@ -819,33 +820,32 @@
     (collection-string-data/string-encode-collection-desc ext->embedded-component-resource-type collection-desc)))
 
 (defn- add-dropped-resource
-  [selection collection transform-props resource]
-  (let [ext (resource/type-ext resource)
-        base-name (resource/base-name resource)]
+  [selection collection transform-props [id resource]]
+  (let [ext (resource/type-ext resource)]
     (case ext
       "go"
-      (let [id (gen-instance-id collection base-name)
-            game-object (selection->game-object-instance selection)
+      (let [game-object (selection->game-object-instance selection)
             parent (or game-object collection)]
         (make-ref-go collection resource id transform-props parent nil nil))
 
       "collection"
       (when (not= (g/maybe-node-value collection :resource) resource)
-        (let [id (gen-instance-id collection base-name)]
-          (make-collection-instance collection resource id transform-props nil nil)))
+        (make-collection-instance collection resource id transform-props nil nil))
 
       nil)))
 
 (defn- handle-drop
   [selection workspace world-pos resources]
-  (let [transform-props {:position (types/Point3d->Vec3 world-pos)}
-        collection (or (selection->collection selection)
-                       (some #(core/scope-of-type % CollectionNode) selection))]
-    (when collection
-      (into []
-            (comp (keep (partial workspace/resolve-workspace-resource workspace))
-                  (map (partial add-dropped-resource selection collection transform-props)))
-            resources))))
+  (when-let [collection (or (selection->collection selection)
+                            (some #(core/scope-of-type % CollectionNode) selection))]
+    (let [transform-props {:position (types/Point3d->Vec3 world-pos)}
+          taken-ids (g/node-value collection :ids)
+          supported-exts #{"go" "collection"}]
+      (->> resources
+           (e/keep (partial workspace/resolve-workspace-resource workspace))
+           (e/filter #(some #{(resource/type-ext %)} supported-exts))
+           (outline/name-resource-pairs taken-ids)
+           (mapv (partial add-dropped-resource selection collection transform-props))))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace

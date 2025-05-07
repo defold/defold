@@ -137,8 +137,9 @@
                           (g/operation-label "Drop Resources"))))]
     (.consume event)
     (when (seq added-nodes)
-      (let [top-ids (filterv (comp not :node-id g/node-by-id) added-nodes)]
-        (select-fn top-ids op-seq))
+      (let [top-ids (filterv (comp not :node-id g/node-by-id) added-nodes)
+            ids-to-select (if (empty? top-ids) added-nodes top-ids)]
+        (select-fn ids-to-select op-seq))
       (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
       (.setDropCompleted event true))))
 
