@@ -1801,8 +1801,14 @@ bail:
                         return;
                     }
                 }
-
-                dmJobThread::Update(engine->m_JobThreadContext);
+#if defined(DM_HAS_THREADS)
+                uint64_t jobthread_max_time_us = 0;
+#else
+                // Dictates max time the job thread may take.
+                // Note that it will always process at least one item if available
+                uint64_t jobthread_max_time_us = 3 * 1000;
+#endif
+                dmJobThread::Update(engine->m_JobThreadContext, jobthread_max_time_us);
 
                 {
                     DM_PROFILE("Extension");

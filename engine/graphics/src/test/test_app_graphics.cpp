@@ -560,7 +560,7 @@ static UpdateResult EngineUpdate(void* _engine)
         return RESULT_EXIT;
     }
 
-    dmJobThread::Update(engine->m_JobThread);
+    dmJobThread::Update(engine->m_JobThread, 0);
 
     dmGraphics::BeginFrame(engine->m_GraphicsContext);
 

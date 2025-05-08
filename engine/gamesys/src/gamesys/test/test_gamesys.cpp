@@ -298,7 +298,7 @@ static bool UpdateAndWaitUntilDone(
             break;
         }
 
-        dmJobThread::Update(scriptlibcontext.m_JobThread);
+        dmJobThread::Update(scriptlibcontext.m_JobThread, 0);
         dmGameSystem::ScriptSysGameSysUpdate(scriptlibcontext);
         if (!dmGameSystem::GetScriptSysGameSysLastUpdateResult() && !ignore_script_update_fail)
         {

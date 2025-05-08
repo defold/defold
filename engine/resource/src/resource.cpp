@@ -460,7 +460,7 @@ void UpdateFactory(HFactory factory)
 {
     DM_PROFILE(__FUNCTION__);
     dmMessage::Dispatch(factory->m_Socket, &Dispatch, factory);
-    dmJobThread::Update(factory->m_JobThreadContext);
+    dmJobThread::Update(factory->m_JobThreadContext, 0);
     DM_PROPERTY_ADD_U32(rmtp_Resource, factory->m_Resources->Size());
 }
 
