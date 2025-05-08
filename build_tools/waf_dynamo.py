@@ -626,7 +626,7 @@ def default_flags(self):
         self.env.append_value('DEFINES', ['DM_TEST_DLIB_HTTPCLIENT_NO_HOST_SERVER'])
 
         for f in ['CFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-Wall', '-fPIC', '-fno-exceptions', '-fno-rtti',
+            self.env.append_value(f, ['-Wall', '-fPIC', '-fno-exceptions', '-fno-rtti', '-Wno-nontrivial-memcall',
                                       '-DGL_ES_VERSION_2_0', '-DGOOGLE_PROTOBUF_NO_RTTI', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DDM_NO_SYSTEM_FUNCTION'])
             self.env.append_value(f, emflags_compile)
             self.env.append_value(f, flags)
