@@ -32,6 +32,22 @@
 
 namespace dmFontGen
 {
+    static const uint32_t WHITESPACE_TAB               = 0x09;
+    static const uint32_t WHITESPACE_NEW_LINE          = 0x0A;
+    static const uint32_t WHITESPACE_SPACE             = 0x20;
+    static const uint32_t WHITESPACE_ZERO_WIDTH_SPACE  = 0x200b;
+    static const uint32_t WHITESPACE_NO_BREAK_SPACE    = 0x00a0;
+    static const uint32_t WHITESPACE_IDEOGRAPHIC_SPACE = 0x3000;
+
+    static inline bool IsWhiteSpace(uint32_t c)
+    {
+        return c == WHITESPACE_SPACE ||
+               c == WHITESPACE_NEW_LINE ||
+               c == WHITESPACE_TAB ||
+               c == WHITESPACE_ZERO_WIDTH_SPACE ||
+               c == WHITESPACE_NO_BREAK_SPACE ||
+               c == WHITESPACE_IDEOGRAPHIC_SPACE;
+    }
 
 struct FontInfo
 {
@@ -55,15 +71,6 @@ struct Context
 };
 
 Context* g_FontExtContext = 0;
-
-static const uint32_t ZERO_WIDTH_SPACE_UNICODE = 0x200b;
-static const uint32_t NO_BREAK_SPACE_UNICODE = 0x00a0;
-static const uint32_t IDEOGRAPHIC_SPACE_UNICODE = 0x3000;
-
-static inline bool IsWhiteSpace(uint32_t c)
-{
-    return c == ' ' || c == '\n' || c == '\t' || c == ZERO_WIDTH_SPACE_UNICODE || c == NO_BREAK_SPACE_UNICODE || c == IDEOGRAPHIC_SPACE_UNICODE;
-}
 
 static bool CheckType(HResourceFactory factory, const char* path, const char** types, uint32_t num_types)
 {
