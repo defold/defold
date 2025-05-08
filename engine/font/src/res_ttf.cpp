@@ -63,8 +63,6 @@ static TTFResource* CreateFont(const char* path, const void* buffer, uint32_t bu
     stbtt_GetFontVMetrics(&resource->m_Font, &resource->m_Ascent, &resource->m_Descent, &resource->m_LineGap);
     resource->m_Path = strdup(path);
 
-    //printf("stbtt_GetFontVMetrics: asc: %d  dsc: %d  lg: %d\n", resource->m_Ascent, resource->m_Descent, resource->m_LineGap);
-
     return resource;
 }
 
@@ -214,20 +212,8 @@ uint8_t* GenerateGlyphSdf(TTFResource* ttfresource, uint32_t glyph_index,
     out->m_Ascent = ascent;
     out->m_Descent = descent;
 
-    // printf("glyph: %d  w/h: %d, %d adv: %.2f  lsb: %.2f  asc/dsc: %.2f, %.2f\n", glyph_index,
-    //         out->m_Width, out->m_Height,
-    //         out->m_Advance, out->m_LeftBearing,
-    //         out->m_Ascent, out->m_Descent);
-
-
-    // printf("  box: p0: %d, %d p1: %d, %d\n", x0, y0, x1, y1);
-    // printf("  offset: %d, %d \n", offsetx, offsety);
-
-    // int gi_T = dmFontGen::CodePointToGlyphIndex(ttfresource, 'T');
-    // int gi_h = dmFontGen::CodePointToGlyphIndex(ttfresource, 'h');
-    // // int debug = glyph_index == 77 || glyph_index == 75;
-    // int debug = glyph_index == gi_T || glyph_index == gi_h;
-
+    // int gi = dmFontGen::CodePointToGlyphIndex(ttfresource, 'T');
+    // int debug = glyph_index == gi;
     // if (debug)
     //     DebugPrintBitmap((mem+1), srcw, srch);
 
