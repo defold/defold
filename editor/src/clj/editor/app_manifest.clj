@@ -441,6 +441,12 @@
     :both webgpu-toggles
     :web-gl))
 
+(def fontgen-setting
+  (make-check-box-setting
+    (concat
+      (libs-toggles all-platforms ["font"])
+      (generic-contains-toggles all-platforms :symbols ["ScriptFontExt" "ResourceTypeTTFFont"]))))
+
 (def ^:private app-manifest-key-order-pattern
   (let [platform-pattern [[:context [;; defines
                                      :defines
@@ -572,6 +578,10 @@
             (dynamic edit-type (g/constantly {:type g/Bool}))
             (value (setting-property-getter basis-transcoder-setting))
             (set (setting-property-setter basis-transcoder-setting)))
+  (property include-font g/Any
+            (dynamic edit-type (g/constantly {:type g/Bool}))
+            (value (setting-property-getter fontgen-setting))
+            (set (setting-property-setter fontgen-setting)))
   (property use-android-support-lib g/Any
             (dynamic tooltip (g/constantly "Use the old Android support libraries instead of AndroidX. Available from Defold 1.2.177."))
             (dynamic edit-type (g/constantly {:type g/Bool}))

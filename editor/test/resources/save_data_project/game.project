@@ -267,3 +267,6 @@ app_manifest = /checked.appmanifest
 player_name = Player One
 player_health = 120
 
+[fontgen]
+sdf_base_padding = 3
+sdf_edge_value = 190
