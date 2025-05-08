@@ -184,6 +184,9 @@ namespace dmGameSystem
 
     static void GetDynamicGlyphMetric(dmRender::FontMetrics* metrics, const uint32_t* key, DynamicGlyph** pglyph)
     {
+        if ((*key) == 0x0A) // new line doesn't have a size
+            return;
+
         DynamicGlyph* g = *pglyph;
         assert(g->m_DataImageWidth < 1000);
         assert(g->m_DataImageHeight < 1000);
