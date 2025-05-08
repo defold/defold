@@ -273,7 +273,15 @@ static int JobGenerateGlyph(void* context, void* data)
     TTFResource* ttfresource = info->m_TTFResource;
     uint32_t glyph_index = dmFontGen::CodePointToGlyphIndex(ttfresource, codepoint);
     if (!glyph_index)
+    {
+        bool is_space = IsWhiteSpace(codepoint);
+        if (is_space)
+        {
+            return 1; // We deal with white spaces in the next callback
+        }
+        dmLogError("Codepoint has no glyph index: '%c' 0x%04X", (char)codepoint, codepoint);
         return 0;
+    }
 
     uint32_t cell_width, cell_height, cell_ascent;
     dmGameSystem::ResFontGetCacheCellSize(info->m_FontResource, &cell_width, &cell_height, &cell_ascent);
@@ -385,7 +393,7 @@ static void JobPostProcessGlyph(void* context, void* data, int result)
     if (!result)
     {
         char msg[256];
-        dmSnPrintf(msg, sizeof(msg), "Failed to generate glyph '%c'", codepoint);
+        dmSnPrintf(msg, sizeof(msg), "Failed to generate glyph '%c' 0x%04X", codepoint, codepoint);
         SetFailedStatus(item, msg);
         InvokeCallback(item);
         DeleteItem(item);
