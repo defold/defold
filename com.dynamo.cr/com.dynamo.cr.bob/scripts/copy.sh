@@ -36,6 +36,7 @@ mkdir -p libexec/x86_64-ios
 mkdir -p libexec/arm64-android
 # mkdir -p libexec/js-web
 mkdir -p libexec/wasm-web
+mkdir -p libexec/wasm_pthread-web
 
 SHA1=`git log --pretty=%H -n1`
 
@@ -137,6 +138,11 @@ copy wasm-web/dmengine.js wasm-web/dmengine.js
 copy wasm-web/dmengine.wasm wasm-web/dmengine.wasm
 copy wasm-web/dmengine_release.js wasm-web/dmengine_release.js
 copy wasm-web/dmengine_release.wasm wasm-web/dmengine_release.wasm
+
+copy wasm_pthread-web/dmengine.js wasm_pthread-web/dmengine.js
+copy wasm_pthread-web/dmengine.wasm wasm_pthread-web/dmengine.wasm
+copy wasm_pthread-web/dmengine_release.js wasm_pthread-web/dmengine_release.js
+copy wasm_pthread-web/dmengine_release.wasm wasm_pthread-web/dmengine_release.wasm
 
 if [ -e "${DIR}/copy_private.sh" ]; then
     sh ${DIR}/copy_private.sh

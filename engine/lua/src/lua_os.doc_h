@@ -12,6 +12,7 @@
  * @document
  * @name Os
  * @namespace os
+ * @language Lua
  */
 
 /*# amount of elapsed/CPU time used (depending on OS)

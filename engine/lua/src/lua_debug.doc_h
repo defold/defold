@@ -12,6 +12,7 @@
  * @document
  * @name Debug
  * @namespace debug
+ * @language Lua
  */
 
 /*# enters interactive debugging

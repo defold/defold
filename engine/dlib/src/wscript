@@ -211,7 +211,7 @@ def build(bld):
     libprofile_includes = '. ./dlib/profile ./remotery'
     libprofile_defines = ['VALGRIND'] + extra_defines
 
-    if bld.env['PLATFORM'] not in ('js-web', 'wasm-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5'):
+    if bld.env['PLATFORM'] not in ('js-web', 'wasm-web', 'wasm_pthread-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5'):
         libprofile = bld.stlib(features     = libprofile_features,
                                includes     = libprofile_includes,
                                defines      = libprofile_defines,
@@ -251,7 +251,7 @@ def build(bld):
 
     remotery_defines = []
 
-    if bld.env['PLATFORM'] not in ('js-web', 'wasm-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5'):
+    if bld.env['PLATFORM'] not in ('js-web', 'wasm-web', 'wasm_pthread-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5'):
         libremotery = bld.stlib(features     = 'c cxx',
                                 includes     = '. ./remotery/lib',
                                 target       = 'remotery',
