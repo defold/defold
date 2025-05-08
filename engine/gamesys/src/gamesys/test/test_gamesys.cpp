@@ -52,6 +52,8 @@
 
 #include <dmsdk/gamesys/render_constants.h>
 
+#include <sound/sound.h>
+
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
@@ -1058,6 +1060,9 @@ TEST_F(SoundTest, LuaCallback)
     // Update sound component with custom buffer from lua. See set_sound.script:update()
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    // Update sound system once to ensure state updates etc.
+    dmSound::Update();
 
     // Allow for one more update for messages to go through
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -3304,7 +3309,7 @@ TEST_F(ComponentTest, DispatchBuffersInstancingTest)
         ASSERT_EQ(instance_stride_a, dmGraphics::GetVertexDeclarationStride(inst_decl_a));
         ASSERT_EQ(instance_stride_b, dmGraphics::GetVertexDeclarationStride(inst_decl_b));
 
-        // TODO: Ideally we should test the actual result of the dispatch here, but there are 
+        // TODO: Ideally we should test the actual result of the dispatch here, but there are
         //       currently limitations in how the content is generated via waf_gamesys.
         //       Right now all rig scenes will be referencing a skeleton, which isn't compatible
         //       with local spaced models.
@@ -4972,7 +4977,7 @@ TEST_F(MaterialTest, CustomVertexAttributes)
     //      attribute vec4 position;
     //      attribute vec3 normal;
     //      attribute vec2 texcoord0;
-    //      attribute vec4 color; 
+    //      attribute vec4 color;
 
     dmRender::GetMaterialProgramAttributes(material, &attributes, &attribute_count);
     ASSERT_EQ(4, attribute_count);
@@ -5687,7 +5692,7 @@ TEST_F(ShaderTest, ComputeResource)
 
     // Note: texture_a is a storage texture, so we only have two actual samplers here:
     ASSERT_EQ(2, compute_program_res->m_NumTextures);
-    
+
     dmRender::Sampler* sampler_tex_b = dmRender::GetComputeProgramSampler(compute_program, 0);
     dmRender::Sampler* sampler_tex_c = dmRender::GetComputeProgramSampler(compute_program, 1);
 
