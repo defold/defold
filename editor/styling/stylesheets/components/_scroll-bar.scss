@@ -6,8 +6,11 @@
         }
     }
     &:vertical {
+        -fx-pref-width: 10px;
         .increment-button, .decrement-button {
             -fx-padding: 0 10 0 0;
+            // this actually sets minimum scrollbar thumb height...
+            -fx-pref-width: 15px;
         }
     }
     .thumb {
