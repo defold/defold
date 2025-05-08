@@ -63,6 +63,7 @@
             [editor.connection-properties :as connection-properties]
             [editor.fs :as fs]
             [editor.os :as os]
+            [service.log :as log]
             [util.coll :as coll]
             [util.crypto :as crypto]
             [util.eduction :as e]
@@ -98,6 +99,10 @@
                                 :default "{file}:{line}"
                                 :ui {:label "Open File at Line"}}
             :zoom-on-scroll {:type :boolean :ui {:label "Zoom on Scroll"}}
+            :hover {:type :boolean
+                    :default true
+                    :ui {:label "Hover popup"
+                         :description "Show code documentation popup on hover"}}
             :font {:type :object
                    :properties
                    {:name {:type :string
@@ -166,7 +171,14 @@
              :properties
              {:dimensions {:type :any}
               :split-positions {:type :any}
-              :hidden-panes {:type :set :item {:type :keyword}}}}
+              :hidden-panes {:type :set :item {:type :keyword}}
+              :keymap {:type :object-of
+                       :key {:type :keyword} ;; command
+                       :val {:type :object
+                             :properties {;; custom shortcuts to add to keymap
+                                          :add {:type :set :item {:type :string}}
+                                          ;; built-in shortcuts to remove from keymap
+                                          :remove {:type :set :item {:type :string}}}}}}}
     :workflow {:type :object
                :properties
                {:load-external-changes-on-app-focus {:type :boolean
@@ -349,7 +361,11 @@
     (with-open [rdr (PushbackReader. (io/reader path))]
       (try
         (edn/read {:default fn/constantly-nil} rdr)
-        (catch Throwable _ ::not-found)))
+        (catch Throwable e
+          (let [content (try (slurp path) (catch Throwable _ ""))]
+            (when-not (= content "")
+              (log/error :message "Failed to read config" :content content :exception e)))
+          ::not-found)))
     ::not-found))
 
 (defn- array? [x]
@@ -423,7 +439,8 @@
                            (assoc acc file-path config)))
                        storage
                        events))))]
-      (swap! global-state incorporate-updated-storage updated-storage))))
+      (swap! global-state incorporate-updated-storage updated-storage)))
+  nil)
 
 (def ^:private ^ScheduledExecutorService sync-executor
   (Executors/newSingleThreadScheduledExecutor
@@ -454,7 +471,7 @@
                                             (coll/pair-map-by key #(resolve-schema (val %) scope) m)))
        schema))))
 
-(def global-state
+(defonce global-state
   ;; global state value is a map with the following keys:
   ;;   :storage     a map from absolute file Path to its prefs map
   ;;   :registry    a map from schema id (anything) to a schema map (schema)
@@ -626,6 +643,15 @@
       [[(-> schema :scope scopes) path (value->storage-value schema value)]]
       (throw (value-error path value schema)))))
 
+(defn- set-value-at-path [current-state scopes schema path value]
+  (reduce
+    (fn [acc [file-path config-path storage-value]]
+      (-> acc
+          (update-in [:storage file-path] safe-assoc-in config-path storage-value)
+          (assoc-in [:events file-path config-path] storage-value)))
+    current-state
+    (set-value-events scopes schema path value)))
+
 ;; endregion
 
 ;; region public api
@@ -685,14 +711,22 @@
   (let [{:keys [scopes]} prefs]
     (swap! global-state (fn [{:keys [registry] :as m}]
                           (let [schema (combined-schema-at-path registry prefs path)]
-                            (->> value
-                                 (set-value-events scopes schema path)
-                                 (reduce
-                                   (fn [acc [file-path config-path storage-value]]
-                                     (-> acc
-                                         (update-in [:storage file-path] safe-assoc-in config-path storage-value)
-                                         (assoc-in [:events file-path config-path] storage-value)))
-                                   m)))))
+                            (set-value-at-path m scopes schema path value))))
+    nil))
+
+(defn update!
+  "Atomically update a value in preferences at a specified assoc-in path
+
+  The new value must satisfy the combined schema. Will throw if invalid
+  (unregistered) path is provided. Does not perform file IO.
+
+  Using [] as a path allows changing the whole preference state"
+  [prefs path f & args]
+  (let [{:keys [scopes]} prefs]
+    (swap! global-state (fn [{:keys [registry storage] :as m}]
+                          (let [schema (combined-schema-at-path registry prefs path)
+                                value (lookup-valid-value-at-path scopes storage schema path)]
+                            (set-value-at-path m scopes schema path (apply f value args)))))
     nil))
 
 (defn schema
@@ -880,6 +914,7 @@
                                "bundle-ios-launch-app?" [:bundle :ios :launch]
                                "bundle-html5-architecture-js-web?" [:bundle :html5 :architecture :js-web]
                                "bundle-html5-architecture-wasm-web?" [:bundle :html5 :architecture :wasm-web]
+                               "bundle-html5-architecture-wasm_pthread-web?" [:bundle :html5 :architecture :wasm_pthread-web]
                                "bundle-windows-platform" [:bundle :windows :platform]
                                "project-git-credentials" [:git :credentials]}
                               ;; these prefs already used project scope

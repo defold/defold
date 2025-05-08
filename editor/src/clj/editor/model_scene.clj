@@ -393,7 +393,7 @@
 
 (defn- augment-mesh-scene [mesh-scene old-node-id new-node-id new-node-outline-key material-name->material-scene-info]
   (let [mesh-renderable (:renderable mesh-scene)
-        material-name (:material-name mesh-renderable)
+        material-name (:material-name (:user-data mesh-renderable))
         material-scene-info (material-name->material-scene-info material-name)
         claimed-scene (scene/claim-child-scene old-node-id new-node-id new-node-outline-key mesh-scene)]
     (if (nil? material-scene-info)
@@ -405,7 +405,6 @@
         (assert (every? map? material-attribute-infos))
         (assert (every? keyword? (map :name-key material-attribute-infos)))
         (assert (shader/shader-lifecycle? shader))
-        (assert (map? vertex-attribute-bytes))
         (assert (every? keyword? (keys vertex-attribute-bytes)))
         (assert (every? bytes? (vals vertex-attribute-bytes)))
         (assert (#{:vertex-space-local :vertex-space-world} vertex-space))
@@ -439,6 +438,33 @@
         :node-outline-key new-node-outline-key
         :children (mapv #(augment-model-scene % old-node-id new-node-id new-node-outline-key material-name->material-scene-info)
                         model-scenes)))))
+
+(defn make-material-name->material-scene-info
+  "Given some material-scene-infos, return a material-name->material-scene-info
+  fn suitable for use with the augment-scene function."
+  [material-scene-infos]
+  (let [;; When augmenting the scene, we only want to use material-scene-infos
+        ;; that are fully formed, and ignore the others.
+        usable-material-scene-infos
+        (filterv
+          (fn [material-scene-info]
+            (and (some? (:shader material-scene-info))
+                 (some? (:vertex-space material-scene-info))))
+          material-scene-infos)
+
+        ;; If we have no material associated with the index, we mirror the
+        ;; engine behavior by picking the first one:
+        ;; https://github.com/defold/defold/blob/a265a1714dc892eea285d54eae61d0846b48899d/engine/gamesys/src/gamesys/resources/res_model.cpp#L234-L238
+        fallback-material-scene-info
+        (first usable-material-scene-infos)
+
+        usable-material-scene-infos-by-material-name
+        (->> usable-material-scene-infos
+             (coll/pair-map-by :name)
+             (coll/not-empty))]
+
+    (fn material-name->material-scene-info [^String material-name]
+      (get usable-material-scene-infos-by-material-name material-name fallback-material-scene-info))))
 
 (g/defnode ModelSceneNode
   (inherits resource-node/ResourceNode)

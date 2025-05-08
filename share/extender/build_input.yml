@@ -342,24 +342,24 @@ platforms:
   web:
     # It's here to whitelist this as a platform, currently used for general settings
     env:
-        EM_CACHE:               "{{env.EMSCRIPTEN_CACHE_3_1_65}}"
-        EM_CONFIG:              "{{env.EMSCRIPTEN_CONFIG_3_1_65}}"
-        EMSDK_PYTHON:           "{{env.EMSCRIPTEN_PYTHON_3_1_65}}"
-        PATH:                   "{{env.EMSCRIPTEN_PATH_3_1_65}}:{{env.PATH}}"
-        EMSCRIPTEN_HOME:        "{{env.EMSCRIPTEN_HOME_3_1_65}}"
-        EMSCRIPTEN_BIN:         "{{env.EMSCRIPTEN_BIN_3_1_65}}"
+        EM_CACHE:               "{{env.EMSCRIPTEN_CACHE_4_0_6}}"
+        EM_CONFIG:              "{{env.EMSCRIPTEN_CONFIG_4_0_6}}"
+        EMSDK_PYTHON:           "{{env.EMSCRIPTEN_PYTHON_4_0_6}}"
+        PATH:                   "{{env.EMSCRIPTEN_PATH_4_0_6}}:{{env.PATH}}"
+        EMSCRIPTEN_HOME:        "{{env.EMSCRIPTEN_HOME_4_0_6}}"
+        EMSCRIPTEN_BIN:         "{{env.EMSCRIPTEN_BIN_4_0_6}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
     context:
         optLevel: 3
         stackSize: 5242880
-        minFirefoxVersion: 34
-        minChromeVersion: 32
-        minSafariVersion: 90000
+        minFirefoxVersion: 40
+        minChromeVersion: 45
+        minSafariVersion: 101000
         initialMemory: 33554432
         engineJsLibs:   ["sys", "script", "sound", "render"]
         externalJsLibs: ["glfw"]
-        engineLibs: ["engine", "engine_service", "mbedtls", "zip", "profile_basic", "profilerext", "record_null", "gameobject", "ddf", "resource", "gamesys", "gamesys_model", "gamesys_rig", "script_box2d_defold", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "box2d_defold", "render", "render_font_default", "script", "lua", "extension", "hid", "input", "particle", "rig", "dlib", "image", "dmglfw", "gui", "crashext", "liveupdate", "sound", "decoder_wav", "decoder_ogg"]
-        defines:    ["DM_PLATFORM_HTML5", "GL_ES_VERSION_2_0"]
+        defines:    ["DM_PLATFORM_HTML5"]
+        engineLibs: ["engine", "engine_service", "mbedtls", "zip", "profile_basic", "profilerext", "record_null", "gameobject", "ddf", "resource", "gamesys", "gamesys_model", "gamesys_rig", "script_box2d_defold", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "box2d_defold", "render", "render_font_default", "script", "lua", "extension", "hid", "input", "particle", "rig", "dlib", "image", "dmglfw", "gui", "crashext", "liveupdate", "sound_nosimd", "decoder_wav", "decoder_ogg"]
         flags:      ["-fno-exceptions", "-fno-rtti", "-fPIC"]
         linkFlags:  ["--emit-symbol-map", "-O{{optLevel}}"]
         emscriptenFlags: ["DISABLE_EXCEPTION_CATCHING=1"]
@@ -397,7 +397,23 @@ platforms:
     symbolsPattern:  'dmengine.(js.symbols|wasm.debug.wasm)'
     zipContentPattern: 'dmengine.(wasm|js)'
     allowedFlags:   ["--profiling", "-msimd128"]
-    linkCmd:        '{{env.EMSCRIPTEN_BIN}}/em++ {{#src}}{{{.}}} {{/src}} -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#emscriptenLinkFlags}}-s {{{.}}} {{/emscriptenLinkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} -Wl,--start-group {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} -Wl,--end-group {{#ext.jsLibs}}--js-library {{{.}}} {{/ext.jsLibs}} {{#engineJsLibs}}--js-library {{dynamo_home}}/lib/wasm-web/js/library_{{{.}}}.js {{/engineJsLibs}} {{#externalJsLibs}}--js-library {{dynamo_home}}/ext/lib/js-web/js/library_{{{.}}}.js {{/externalJsLibs}}'
+    linkCmd:        '{{env.EMSCRIPTEN_BIN}}/em++ {{#src}}{{{.}}} {{/src}} -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#emscriptenLinkFlags}}-s {{{.}}} {{/emscriptenLinkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} -Wl,--start-group {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} -Wl,--end-group {{#ext.jsLibs}}--js-library {{{.}}} {{/ext.jsLibs}} {{#engineJsLibs}}--js-library {{dynamo_home}}/lib/wasm-web/js/library_{{{.}}}.js {{/engineJsLibs}} {{#externalJsLibs}}--js-library {{dynamo_home}}/ext/lib/wasm-web/js/library_{{{.}}}.js {{/externalJsLibs}}'
+
+  wasm_pthread-web:
+    context:
+        stackSize: 5242880
+        minFirefoxVersion: 79
+        minChromeVersion: 75
+        minSafariVersion: 150000
+        libPaths:   ["{{dynamo_home}}/lib/wasm_pthread-web", "{{dynamo_home}}/ext/lib/wasm_pthread-web"]
+        flags: ["-pthread"]
+        linkFlags: ["-pthread"]
+        emscriptenLinkFlags: ["ALLOW_MEMORY_GROWTH=1", "WASM=1"]
+
+    symbolsPattern:  'dmengine.(js.symbols|wasm.debug.wasm)'
+    zipContentPattern: 'dmengine.(wasm|js)'
+    allowedFlags:   ["--profiling", "-msimd128"]
+    linkCmd:        '{{env.EMSCRIPTEN_BIN}}/em++ {{#src}}{{{.}}} {{/src}} -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#emscriptenLinkFlags}}-s {{{.}}} {{/emscriptenLinkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} -Wl,--start-group {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} -Wl,--end-group {{#ext.jsLibs}}--js-library {{{.}}} {{/ext.jsLibs}} {{#engineJsLibs}}--js-library {{dynamo_home}}/lib/wasm_pthread-web/js/library_{{{.}}}.js {{/engineJsLibs}} {{#externalJsLibs}}--js-library {{dynamo_home}}/ext/lib/wasm_pthread-web/js/library_{{{.}}}.js {{/externalJsLibs}}'
 
   win32:
     env:

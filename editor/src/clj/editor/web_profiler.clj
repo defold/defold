@@ -16,13 +16,15 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [editor.handler :as handler]
+            [editor.system :as system]
             [editor.ui :as ui]
             [util.http-server :as http-server])
   (:import [com.defold.util Profiler]))
 
-(handler/defhandler :profile-show :global
-  (run [web-server]
-    (ui/open-url (str (http-server/local-url web-server) "/profiler"))))
+(when (system/defold-dev?)
+  (handler/defhandler :dev.open-profiler :global
+    (run [web-server]
+      (ui/open-url (str (http-server/local-url web-server) "/profiler")))))
 
 (defn routes []
   {"/profiler"

@@ -1,16 +1,16 @@
 var LibrarySoundDevice = 
 {
-   $DefoldSoundDevice: {
-       TryResumeAudio: function() {
-         if (window && window._dmJSDeviceShared) {
-           var audioCtx = window._dmJSDeviceShared.audioCtx;
-           if (audioCtx !== undefined && audioCtx.state != "running") {
-               audioCtx.resume();
-           }
-         }
-      }
-   },
-   dmDeviceJSOpen: function(bufferCount) {
+    $DefoldSoundDevice: {
+        TryResumeAudio: function() {
+            if (window && window._dmJSDeviceShared) {
+            var audioCtx = window._dmJSDeviceShared.audioCtx;
+            if (audioCtx !== undefined && audioCtx.state != "running") {
+                audioCtx.resume();
+            }
+            }
+        }
+    },
+    dmDeviceJSOpen: function(bufferCount) {
 
         // globally shared data        
         var shared = window._dmJSDeviceShared;
@@ -140,14 +140,20 @@ var LibrarySoundDevice =
         } 
         return -1;
     },
-    
+    dmDeviceJSOpen__proxy: 'sync',
+    dmDeviceJSOpen__sig: 'ii',
+
     dmDeviceJSQueue: function(id, samples, sample_count) {
         window._dmJSDeviceShared.devices[id]._queue(samples, sample_count)
     },
+    dmDeviceJSQueue__proxy: 'sync',
+    dmDeviceJSQueue__sig: 'viii',
     
     dmDeviceJSFreeBufferSlots: function(id) {
         return window._dmJSDeviceShared.devices[id]._freeBufferSlots();
     },
+    dmDeviceJSFreeBufferSlots__proxy: 'sync',
+    dmDeviceJSFreeBufferSlots__sig: 'ii',
 
     dmGetDeviceSampleRate: function(id) {
         return window._dmJSDeviceShared.devices[id].sampleRate;

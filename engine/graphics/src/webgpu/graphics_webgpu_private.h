@@ -208,7 +208,6 @@ namespace dmGraphics
         WGPUQueue                          m_Queue;
         WGPUSurface                        m_Surface;
         WGPUTextureFormat                  m_Format;
-        WGPUSwapChain                      m_SwapChain;
         WGPUCommandEncoder                 m_CommandEncoder;
         uint32_t                           m_RenderPasses;
         uint32_t                           m_LastSubmittedRenderPass;

@@ -22,12 +22,13 @@ cd defold
 cd editor
 
 # Build with pre-built engine binaries suitable for your editor version
-lein init archived-stable
+lein init <sha1>
 
 # start the editor
 lein run
 ```
 
+*NOTE* To select a sha1 here, use one of the matching [Defold releases](https://github.com/defold/defold/releases). E.g. if you're on the dev branch, use the "alpha" release. if you're on the beta branch, use the "beta" release. And if you're using the master branch use the "stable" release.
 
 ## Build using local engine and tools
 These build steps build the engine and command line tools using the [engine build instructions](../README_BUILD.md).

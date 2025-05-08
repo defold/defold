@@ -228,7 +228,7 @@ def build_engine(platform, channel, with_valgrind = False, with_asan = False, wi
 
     install_sdk = 'install_sdk'
     # for some platforms, we use the locally installed platform sdk
-    if platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios', 'js-web', 'wasm-web', 'arm64-linux', 'x86_64-linux'):
+    if platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios', 'js-web', 'wasm-web', 'wasm_pthread-web', 'arm64-linux', 'x86_64-linux'):
         install_sdk = ''
 
     args = ('python scripts/build.py distclean %s install_ext check_sdk' % install_sdk).split()

@@ -273,7 +273,7 @@ public class TaskBuilder {
             for (Task task : tasks) {
                 if (task.getBuilder().isGameProjectBuilder() && remainingTasksCount > 1) continue;
                 String taskName = task.getName();
-                if (taskName.equals("FragmentProgram") || taskName.equals("VertexProgram") || taskName.equals("Material")) taskName = "Shader";
+                if (taskName.equals("FragmentProgram") || taskName.equals("VertexProgram") || taskName.equals("Material") || taskName.equals("ShaderProgram")) taskName = "Shader";
                 if (taskName.equals("TileSet")) taskName = "Atlas";
                 int count = taskNameCounter.getOrDefault(taskName, 0);
                 if (taskName.equals("Atlas") && (count == maxConcurrentHighMemoryTasks)) continue;

@@ -18,12 +18,10 @@
             [cljfx.fx.button :as fx.button]
             [cljfx.fx.column-constraints :as fx.column-constraints]
             [cljfx.fx.combo-box :as fx.combo-box]
-            [cljfx.fx.h-box :as fx.h-box]
             [cljfx.fx.image-view :as fx.image-view]
             [cljfx.fx.label :as fx.label]
             [cljfx.fx.region :as fx.region]
             [cljfx.fx.row-constraints :as fx.row-constraints]
-            [cljfx.fx.scroll-pane :as fx.scroll-pane]
             [cljfx.fx.stage :as fx.stage]
             [cljfx.fx.tooltip :as fx.tooltip]
             [cljfx.fx.v-box :as fx.v-box]
@@ -54,16 +52,12 @@
            [java.nio.file Path]
            [java.util Collection List]
            [javafx.animation SequentialTransition TranslateTransition]
-           [javafx.beans Observable]
-           [javafx.beans.binding Bindings]
            [javafx.beans.property ReadOnlyProperty]
            [javafx.beans.value ChangeListener]
            [javafx.event Event]
            [javafx.scene Node]
-           [javafx.scene.control CheckBox ComboBox ScrollPane TextField]
-           [javafx.scene.control.skin ScrollPaneSkin]
+           [javafx.scene.control CheckBox ComboBox TextField]
            [javafx.scene.input KeyCode KeyEvent]
-           [javafx.scene.layout Region]
            [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
            [javafx.util Duration]
            [org.luaj.vm2 LuaError LuaValue]))
@@ -140,26 +134,6 @@
 ;;   - `grid` does not expand its children, unless `grow` row or column
 ;;     setting is used.
 
-(def ^:private ^{:arglists '([props padding])} apply-spacing
-  (let [spacing->style-class (coll/pair-map-by identity #(str "ext-spacing-" (name %)) (:spacing ui-docs/enums))]
-    (fn apply-spacing [props spacing]
-      {:pre [(some? spacing)]}
-      (if-let [style-class (spacing->style-class spacing)]
-        (fxui/add-style-classes props style-class)
-        (if (number? spacing)
-          (assoc props :spacing spacing)
-          (throw (AssertionError. (str "Invalid spacing: " spacing))))))))
-
-(def ^:private ^{:arglists '([props padding])} apply-padding
-  (let [padding->style-class (coll/pair-map-by identity #(str "ext-padding-" (name %)) (:padding ui-docs/enums))]
-    (fn apply-padding [props padding]
-      {:pre [(some? padding)]}
-      (if-let [style-class (padding->style-class padding)]
-        (fxui/add-style-classes props style-class)
-        (if (number? padding)
-          (assoc props :padding padding)
-          (throw (AssertionError. (str "Invalid padding: " padding))))))))
-
 (defn- apply-alignment [props alignment]
   {:pre [(some? alignment)]}
   (case alignment
@@ -169,51 +143,9 @@
     :right (assoc props :alignment :center-right)
     :bottom (assoc props :alignment :bottom-center)))
 
-(def ^:private ext-with-expanded-scroll-pane-content-props
-  (fx/make-ext-with-props
-    {:content (fx.prop/make
-                (fx.mutator/adder-remover
-                  (fn add-scroll-pane-content [^ScrollPane scroll-pane ^Region content]
-                    (let [^Region scroll-bar (.lookup scroll-pane ".ext-scroll-pane>.scroll-bar:horizontal")]
-                      (.setContent scroll-pane content)
-                      (.bind (.minHeightProperty content)
-                             (Bindings/createDoubleBinding
-                               (fn []
-                                 (cond-> (.getHeight scroll-pane)
-                                         (.isVisible scroll-bar)
-                                         (- (.getHeight scroll-bar))))
-                               (into-array
-                                 Observable
-                                 [(.heightProperty scroll-pane)
-                                  (.visibleProperty scroll-bar)
-                                  (.heightProperty scroll-bar)])))))
-                  (fn remove-scroll-pane-content [_ ^Region content]
-                    (.unbind (.minHeightProperty content))))
-                fx.lifecycle/dynamic)}))
-
-(def ^:private ext-with-scroll-pane-skin-props
-  (fx/make-ext-with-props
-    {:skin (fx.prop/make
-             (fx.mutator/adder-remover
-               (fn add-skin [^ScrollPane instance flag]
-                 {:pre [(true? flag)]}
-                 (.setSkin instance (ScrollPaneSkin. instance)))
-               (fn remove-skin [_ _]
-                 (throw (AssertionError. "Can't remove skin!"))))
-             fx.lifecycle/scalar)}))
-
 (defn- scroll-view [{:keys [content]}]
-  ;; We need to set ScrollPane skin, so it creates ScrollBars, so we can grow
-  ;; the content to fill the ScrollPane
-  {:fx/type ext-with-expanded-scroll-pane-content-props
-   :props {:content content}
-   :desc {:fx/type ext-with-scroll-pane-skin-props
-          :props {:skin true}
-          :desc {:fx/type fx.scroll-pane/lifecycle
-                 :style-class "ext-scroll-pane"
-                 :fit-to-width true}}})
-
-
+  {:fx/type fxui/scroll
+   :content content})
 
 (defn- apply-constraints [props props-key lifecycle grow-key constraints]
   (assoc props props-key (mapv (fn [maybe-constraint]
@@ -264,23 +196,23 @@
 (defn- make-list-view-fn [fx-type grow-key]
   (fn list-view [{:keys [children padding spacing alignment]
                   :or {spacing :medium}}]
-    (-> {:fx/type fx-type
-         :children (into []
-                         (keep-indexed
-                           (fn [i desc]
-                             (when desc
-                               (-> desc
-                                   (assoc :fx/key i)
-                                   (cond-> (:grow (:props (meta desc)))
-                                           (assoc grow-key :always))))))
-                         children)}
-        (apply-spacing spacing)
-        (cond-> padding (apply-padding padding)
-                alignment (apply-alignment alignment)))))
+    (cond-> {:fx/type fx-type
+             :children (into []
+                             (keep-indexed
+                               (fn [i desc]
+                                 (when desc
+                                   (-> desc
+                                       (assoc :fx/key i)
+                                       (cond-> (:grow (:props (meta desc)))
+                                               (assoc grow-key :always))))))
+                             children)
+             :spacing spacing}
+            padding (assoc :padding padding)
+            alignment (assoc :alignment alignment))))
 
-(def ^:private horizontal-view (make-list-view-fn fx.h-box/lifecycle :h-box/hgrow))
+(def ^:private horizontal-view (make-list-view-fn fxui/horizontal :h-box/hgrow))
 
-(def ^:private vertical-view (make-list-view-fn fx.v-box/lifecycle :v-box/vgrow))
+(def ^:private vertical-view (make-list-view-fn fxui/vertical :v-box/vgrow))
 
 ;; endregion
 
@@ -312,15 +244,12 @@
                         :or {alignment :top-left
                              word_wrap true
                              color :text}}]
-  (-> {:fx/type fx.label/lifecycle
-       :style-class ["label"]
-       :max-width Double/MAX_VALUE
-       :max-height Double/MAX_VALUE
-       :wrap-text word_wrap}
-      (apply-alignment alignment)
-      (apply-label-color color)
-      (cond-> text (assoc :text text)
-              text_alignment (assoc :text-alignment text_alignment))))
+  (cond-> {:fx/type fxui/paragraph
+           :wrap-text word_wrap
+           :alignment alignment
+           :color color}
+          text (assoc :text text)
+          text_alignment (assoc :text-alignment text_alignment)))
 
 (def ^:private heading-style->label-style-class
   (fn/make-case-fn (coll/pair-map-by identity #(str "ext-heading-style-" (name %)) (:heading-style ui-docs/enums))))

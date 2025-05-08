@@ -389,7 +389,7 @@
                                  :text (resource/resource->proj-path resource)}]
                                qualifier
                                (conj {:fx/type fxui/legacy-label
-                                      :style {:-fx-text-fill :-df-text-darker}
+                                      :style {:-fx-text-fill :-df-text-dark}
                                       :text qualifier}))}})
 
 (defn- property->edit-type-dispatch-value [property]

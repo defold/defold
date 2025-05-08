@@ -255,7 +255,7 @@
                       (error-line-for-clipboard selection))]
     (str proj-path error-lines)))
 
-(handler/defhandler :copy :build-errors-view
+(handler/defhandler :edit.copy :build-errors-view
   (active? [selection] (not-empty selection))
   (enabled? [selection] (not-empty selection))
   (run [build-errors-view]
@@ -268,7 +268,7 @@
 
 (handler/register-menu! ::build-errors-menu
   [{:label "Copy"
-    :command :copy}])
+    :command :edit.copy}])
 
 (defn make-build-errors-view [^TreeView errors-tree open-resource-fn]
   (doto errors-tree

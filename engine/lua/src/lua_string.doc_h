@@ -152,6 +152,7 @@
  * @document
  * @name String
  * @namespace string
+ * @language Lua
  */
 
 /*# converts a character into its ASCII (decimal) equivalent

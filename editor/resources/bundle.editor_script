@@ -66,7 +66,8 @@ local html5_bundle_dialog = editor.ui.component(function(props)
     return editor.bundle.dialog("Bundle HTML5 Application", config, nil, architecture_error, {
         editor.bundle.grid_row("Architectures", {
             editor.bundle.set_element_check_box(config, set_config, "architectures", "js-web", "asm.js", architecture_error),
-            editor.bundle.set_element_check_box(config, set_config, "architectures", "wasm-web", "WebAssembly (wasm)", architecture_error)
+            editor.bundle.set_element_check_box(config, set_config, "architectures", "wasm-web", "WebAssembly (wasm)", architecture_error),
+            editor.bundle.set_element_check_box(config, set_config, "architectures", "wasm_pthread-web", "WebAssembly (wasm) + Thread support", architecture_error)
         }),
         editor.bundle.common_variant_grid_row(config, set_config),
         editor.bundle.texture_compression_grid_row(config, set_config),
@@ -78,10 +79,16 @@ local function bundle_html5(show_dialog)
     local config = editor.bundle.config(show_dialog, "bundle.html5", html5_bundle_dialog, html5_errors)
     local js = config.architectures["js-web"]
     local wasm = config.architectures["wasm-web"]
-    local output_subdir = (js and wasm and "universal-web") or (js and "js-web") or "wasm-web"
+    local wasm_pthread = config.architectures["wasm_pthread-web"]
+    local has_wasm = wasm or wasm_pthread
+    local output_subdir = (js and has_wasm and "universal-web") or (has_wasm and "wasm-web") or "js-web"
     local output_directory = editor.bundle.output_directory(show_dialog, output_subdir)
-    local architectures = (js and wasm and "js-web,wasm-web") or (js and "js-web") or "wasm-web"
-    editor.bundle.create(config, output_directory, {platform = "js-web", architectures = architectures})
+    local architectures = {}
+    table.insert(architectures, js and "js-web" or nil)
+    table.insert(architectures, wasm and "wasm-web" or nil)
+    table.insert(architectures, wasm_pthread and "wasm_pthread-web" or nil)
+    local architectures_str = table.concat(architectures, ',')
+    editor.bundle.create(config, output_directory, {platform = "js-web", architectures = architectures_str})
 end
 
 --- WINDOWS
@@ -518,14 +525,14 @@ local is_macos = editor.platform:sub(-#"macos") == "macos"
 
 function M.get_commands()
     return {
-        editor.bundle.command("iOS Application...", "bundle-ios", bundle_ios, {
+        editor.bundle.command("iOS Application...", "project.bundle-ios", bundle_ios, {
             active = function() return is_macos end
         }),
-        editor.bundle.command("Android Application...", "bundle-android", bundle_android),
-        editor.bundle.command("macOS Application...", "bundle-macos", bundle_macos),
-        editor.bundle.command("Windows Application...", "bundle-windows", bundle_windows),
-        editor.bundle.command("Linux Application...", "bundle-linux", bundle_linux),
-        editor.bundle.command("HTML5 Application...", "bundle-html5", bundle_html5),
+        editor.bundle.command("Android Application...", "project.bundle-android", bundle_android),
+        editor.bundle.command("macOS Application...", "project.bundle-macos", bundle_macos),
+        editor.bundle.command("Windows Application...", "project.bundle-windows", bundle_windows),
+        editor.bundle.command("Linux Application...", "project.bundle-linux", bundle_linux),
+        editor.bundle.command("HTML5 Application...", "project.bundle-html5", bundle_html5),
     }
 end
 
@@ -552,7 +559,7 @@ function M.get_prefs_schema()
         }),
         ["bundle.html5"] = editor.bundle.config_schema(editor.bundle.common_variant_schema, {
             architectures = editor.prefs.schema.set({
-                item = editor.prefs.schema.enum({values = {"js-web", "wasm-web"}}),
+                item = editor.prefs.schema.enum({values = {"js-web", "wasm-web", "wasm_pthread-web"}}),
                 default = {["wasm-web"] = true}
             })
         }),

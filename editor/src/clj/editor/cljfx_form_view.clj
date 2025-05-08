@@ -56,7 +56,8 @@
             [editor.workspace :as workspace]
             [internal.util :as util]
             [util.coll :as coll]
-            [util.fn :as fn])
+            [util.fn :as fn]
+            [util.text-util :as text-util])
   (:import [com.defold.control DefoldStringConverter]
            [java.io File]
            [javafx.event Event]
@@ -137,17 +138,6 @@
     #(some->> (when-not (string/blank? %) %)
               (workspace/to-absolute-path)
               (workspace/resolve-workspace-resource workspace))))
-
-(defn- contains-ignore-case? [^String str ^String sub]
-  (let [sub-length (.length sub)]
-    (if (zero? sub-length)
-      true
-      (let [str-length (.length str)]
-        (loop [i 0]
-          (cond
-            (= i str-length) false
-            (.regionMatches str true i sub 0 sub-length) true
-            :else (recur (inc i))))))))
 
 (defn- text-field [props]
   (assoc props :fx/type fx.text-field/lifecycle
@@ -1404,8 +1394,8 @@
 (defn- set-field-visibility [field values filter-term section-visible]
   (let [value (get values (:path field) ::no-value)
         visible (and (or section-visible
-                         (contains-ignore-case? (:label field) filter-term)
-                         (boolean (some #(contains-ignore-case? % filter-term)
+                         (text-util/includes-ignore-case? (:label field) filter-term)
+                         (boolean (some #(text-util/includes-ignore-case? % filter-term)
                                         (filterable-strings
                                           (assoc field :value (if (= value ::no-value)
                                                                 (form/field-default field)
@@ -1418,9 +1408,9 @@
     (assoc field :visible visible)))
 
 (defn- set-section-visibility [{:keys [title help fields] :as section} values filter-term]
-  (let [visible (or (contains-ignore-case? title filter-term)
+  (let [visible (or (text-util/includes-ignore-case? title filter-term)
                     (and (some? help)
-                         (contains-ignore-case? help filter-term)))
+                         (text-util/includes-ignore-case? help filter-term)))
         fields (into []
                      (comp
                        (remove :hidden?)
@@ -1661,7 +1651,7 @@
                                        (instance? ListView x)
                                        (.edit ^ListView x -1)))
                       :open-resource (fn [[node value] _]
-                                       (ui/run-command node :open {:resources [value]}))
+                                       (ui/run-command node :file.open value))
                       :show-dialog (fn [dialog-type _]
                                      (case dialog-type
                                        :directory-not-in-project
@@ -1713,7 +1703,7 @@
                                 :label "Form"
                                 :make-view-fn make-form-view))
 
-(handler/defhandler :filter-form :form
+(handler/defhandler :edit.find :form
   (run [^Node root]
        (when-let [node (.lookup root "#filter-text-field")]
          (.requestFocus node))))

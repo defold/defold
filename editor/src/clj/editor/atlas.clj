@@ -1013,7 +1013,7 @@
                                (make-atlas-animation atlas-node default-animation))))]
     (select! app-view [animation-node] op-seq)))
 
-(handler/defhandler :add :workbench
+(handler/defhandler :edit.add-embedded-component :workbench
   (label [] "Add Animation Group")
   (active? [selection] (selection->atlas selection))
   (run [app-view selection] (add-animation-group-handler app-view (selection->atlas selection))))
@@ -1044,7 +1044,7 @@
                                                 {:parent-node-type parent-node-type})))))))]
       (select! app-view image-nodes op-seq))))
 
-(handler/defhandler :add-from-file :workbench
+(handler/defhandler :edit.add-referenced-component :workbench
   (label [] "Add Images...")
   (active? [selection] (or (selection->atlas selection) (selection->animation selection)))
   (run [app-view project selection]
@@ -1088,7 +1088,7 @@
     core/scope
     (g/node-instance? AtlasAnimation)))
 
-(handler/defhandler :move-up :workbench
+(handler/defhandler :edit.reorder-up :workbench
   (active? [selection] (move-active? selection))
   (enabled? [selection] (let [node-id (selection->image selection)
                               parent (core/scope node-id)
@@ -1097,7 +1097,7 @@
                           (pos? node-child-index)))
   (run [selection] (move-node! (selection->image selection) -1)))
 
-(handler/defhandler :move-down :workbench
+(handler/defhandler :edit.reorder-down :workbench
   (active? [selection] (move-active? selection))
   (enabled? [selection] (let [node-id (selection->image selection)
                               parent (core/scope node-id)

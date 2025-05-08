@@ -53,6 +53,24 @@ Links:
   -fx-background-color: -df-background !important;
 }
 
+/* Info panel styles */
+.info-panel {
+  -fx-background-color: -df-background-lighter;
+  -fx-padding: 4;
+}
+
+.info-panel-label {
+  -fx-text-fill: -df-text;
+}
+
+.info-panel-link {
+  -fx-text-fill: -df-defold-blue-light;
+}
+
+.info-panel-link:hover {
+  -fx-text-fill: -df-defold-blue-lighter;
+}
+
 /* Overrides */
 
 .override-inspector-hyperlink {

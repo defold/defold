@@ -1338,7 +1338,14 @@ static inline void DeinterleaveFromS8(float* out[], const int8_t* in, uint32_t n
 
 static inline void SelectDSPImpl(DSPImplType /*impl_type*/)
 {
+    #define DM_TO_STRING_MACRO(x) _DM_TO_STRING_MACRO(x)
+    #define _DM_TO_STRING_MACRO(x) #x
+
     // nothing to do in this implementation
+    dmLogOnceInfo("  DSP backend: " DM_TO_STRING_MACRO(DM_SOUND_DSP_IMPL) );
+
+    #undef DM_TO_STRING_MACRO
+    #undef _DM_TO_STRING_MACRO
 }
 
 static inline void MixScaledMonoToStereo(float* out[], const float* in, uint32_t num, float scale_l, float scale_r, float scale_delta_l, float scale_delta_r)

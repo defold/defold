@@ -29,9 +29,6 @@ extern "C" {
     int dmGetDeviceSampleRate(int device);
     void dmDeviceJSQueue(int device, const float* samples, uint32_t sample_count);
     int dmDeviceJSFreeBufferSlots(int device);
-
-    // Implementation in library_sys.js
-    bool dmGetSIMDCapability();
 }
 
 
@@ -94,8 +91,6 @@ namespace dmDeviceJS
         assert(info);
         JSDevice *dev = (JSDevice*) device;
         info->m_MixRate = dmGetDeviceSampleRate(dev->devId);
-
-        info->m_DSPImplementation = dmGetSIMDCapability() ? dmSound::DSPIMPL_TYPE_WASM_SIMD128 : dmSound::DSPIMPL_TYPE_CPU;
 
         info->m_UseNonInterleaved = 1;
         info->m_UseFloats = 1;

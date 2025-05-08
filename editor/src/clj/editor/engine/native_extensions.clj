@@ -181,25 +181,27 @@
 
 (defn- get-main-manifest-section-and-key [platform]
    (case platform
-     "armv7-android" ["android" "manifest"]
-     "arm64-android" ["android" "manifest"]
-     "arm64-ios"     ["ios" "infoplist"]
-     "armv7-ios"     ["ios" "infoplist"]
-     "arm64-osx"     ["osx" "infoplist"]
-     "x86_64-osx"    ["osx" "infoplist"]
-     "js-web"        ["html5" "htmlfile"]
-     "wasm-web"      ["html5" "htmlfile"]))
+     "armv7-android"    ["android" "manifest"]
+     "arm64-android"    ["android" "manifest"]
+     "arm64-ios"        ["ios" "infoplist"]
+     "armv7-ios"        ["ios" "infoplist"]
+     "arm64-osx"        ["osx" "infoplist"]
+     "x86_64-osx"       ["osx" "infoplist"]
+     "js-web"           ["html5" "htmlfile"]
+     "wasm-web"         ["html5" "htmlfile"]
+     "wasm_pthread-web" ["html5" "htmlfile"]))
 
 (defn- get-main-manifest-name [ne-platform]
   (case ne-platform
-    "armv7-android" "AndroidManifest.xml"
-    "arm64-android" "AndroidManifest.xml"
-    "arm64-ios"     "Info.plist"
-    "armv7-ios"     "Info.plist"
-    "arm64-osx"     "Info.plist"
-    "x86_64-osx"    "Info.plist"
-    "js-web"        "engine_template.html"
-    "wasm-web"      "engine_template.html"
+    "armv7-android"    "AndroidManifest.xml"
+    "arm64-android"    "AndroidManifest.xml"
+    "arm64-ios"        "Info.plist"
+    "armv7-ios"        "Info.plist"
+    "arm64-osx"        "Info.plist"
+    "x86_64-osx"       "Info.plist"
+    "js-web"           "engine_template.html"
+    "wasm-web"         "engine_template.html"
+    "wasm_pthread-web" "engine_template.html"
     nil))
 
 (defn- get-main-manifest-file-upload-resource [project evaluation-context platform]
