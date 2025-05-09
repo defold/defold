@@ -1641,7 +1641,8 @@ const TestParams params_verify_adpcm_test[] = {TestParams("loopback",
                                             2000,
                                             44100,
                                             35200,
-                                            2048)};
+                                            2048,
+                                            1)};
 INSTANTIATE_TEST_CASE_P(dmSoundVerifyAdpcmTest, dmSoundVerifyAdpcmTest, jc_test_values_in(params_verify_adpcm_test));
 #endif
 

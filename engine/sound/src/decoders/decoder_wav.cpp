@@ -110,24 +110,31 @@ namespace dmSoundCodec
         };
 
         struct DecodeStreamInfo {
+            DecodeStreamInfo() : m_IsADPCM(false) {}
+            virtual ~DecodeStreamInfo() = default;
+
             Info m_Info;
             bool m_IsADPCM : 1;
             uint8_t : 7;
             uint32_t m_Cursor;
             const void* m_Buffer;
             uint32_t m_BufferOffset;
-            struct ADPCM {
-                dmArray<int16_t> m_OutBuffer;
-                dmArray<int8_t> m_InBuffer;
-                uint32_t m_InBufferOffset;
-                int32_t m_Pred[2];
-                int32_t m_StepIndex[2];
-                int32_t m_Step[2];
-                uint16_t m_BlockAlign;
-                uint16_t m_BlockFrames;
-                uint16_t m_OutFramesOffset;
-            } m_ADPCM;
             dmSound::HSoundData m_SoundData;
+        };
+
+        struct DecodeStreamInfoADPCM : public DecodeStreamInfo {
+            DecodeStreamInfoADPCM() { m_IsADPCM = true; }
+            virtual ~DecodeStreamInfoADPCM() = default;
+
+            dmArray<int16_t> m_OutBuffer;
+            dmArray<int8_t> m_InBuffer;
+            uint32_t m_InBufferOffset;
+            int32_t m_Pred[2];
+            int32_t m_StepIndex[2];
+            int32_t m_Step[2];
+            uint16_t m_BlockAlign;
+            uint16_t m_BlockFrames;
+            uint16_t m_OutFramesOffset;
         };
     }
 
@@ -158,7 +165,7 @@ namespace dmSoundCodec
         if (header.m_ChunkID == FOUR_CC('R', 'I', 'F', 'F') &&
             header.m_Format == FOUR_CC('W', 'A', 'V', 'E')) {
 
-            DecodeStreamInfo *streamOut = new DecodeStreamInfo;
+            DecodeStreamInfo *streamOut = nullptr;
 
             uint32_t current_offset = sizeof(header);
             do {
@@ -201,17 +208,19 @@ namespace dmSoundCodec
                         return RESULT_INVALID_FORMAT;
                     }
 
+                    streamOut = (fmt.m_AudioFormat == 0x11) ? new DecodeStreamInfoADPCM() : new DecodeStreamInfo();
+
                     streamOut->m_SoundData = sound_data;
 
-                    streamOut->m_IsADPCM = (fmt.m_AudioFormat == 0x11);
                     if (streamOut->m_IsADPCM) {
-                        streamOut->m_ADPCM.m_BlockAlign = fmt.m_BlockAlign;
-                        streamOut->m_ADPCM.m_BlockFrames = (fmt.m_NumChannels == 1) ? ((fmt.m_BlockAlign - 4) * 2) : (fmt.m_BlockAlign - 8);
-                        streamOut->m_ADPCM.m_OutFramesOffset = streamOut->m_ADPCM.m_BlockFrames;
-                        streamOut->m_ADPCM.m_OutBuffer.SetCapacity(fmt.m_NumChannels * 8);
-                        streamOut->m_ADPCM.m_OutBuffer.SetSize(0);
-                        streamOut->m_ADPCM.m_InBuffer.SetCapacity(streamOut->m_ADPCM.m_BlockAlign);
-                        streamOut->m_ADPCM.m_InBufferOffset = 0;
+                        DecodeStreamInfoADPCM* streamOutADPCM = static_cast<DecodeStreamInfoADPCM*>(streamOut);
+                        streamOutADPCM->m_BlockAlign = fmt.m_BlockAlign;
+                        streamOutADPCM->m_BlockFrames = (fmt.m_NumChannels == 1) ? ((fmt.m_BlockAlign - 4) * 2) : (fmt.m_BlockAlign - 8);
+                        streamOutADPCM->m_OutFramesOffset = streamOut->m_BlockFrames;
+                        streamOutADPCM->m_OutBuffer.SetCapacity(fmt.m_NumChannels * 8);
+                        streamOutADPCM->m_OutBuffer.SetSize(0);
+                        streamOutADPCM->m_InBuffer.SetCapacity(streamOut->m_BlockAlign);
+                        streamOutADPCM->m_InBufferOffset = 0;
                     }
 
                     streamOut->m_Info.m_Rate = fmt.m_SampleRate;
@@ -220,10 +229,12 @@ namespace dmSoundCodec
                     streamOut->m_Info.m_IsInterleaved = true;
 
                 } else if (header.m_ChunkID == FOUR_CC('d', 'a', 't', 'a')) {
-                    data_found = true;
+                    if (streamOut != nullptr) {
+                        data_found = true;
 
-                    streamOut->m_BufferOffset = current_offset + sizeof(DataChunk);
-                    streamOut->m_Info.m_Size = header.m_ChunkSize;
+                        streamOut->m_BufferOffset = current_offset + sizeof(DataChunk);
+                        streamOut->m_Info.m_Size = header.m_ChunkSize;
+                    }
                 }
                 // note: we assume the Riff header, format chunk and data chunk to roughly appear in this order and close proximity. Theoretically we might see WAV files that do NOT follow this pattern!
 //TODO: ^^^ WE SHOULD CATCH THAT! FILES LIKE THAT WOULD NOT BE SUITABLE FOR STREAMING IN THIS MANNER! --> WE WOULD NEED READ DATA CONVERSION!!!
@@ -260,10 +271,11 @@ namespace dmSoundCodec
         DecodeStreamInfo *streamInfo = (DecodeStreamInfo *) stream;
         streamInfo->m_Cursor = 0;
         if (streamInfo->m_IsADPCM) {
-            streamInfo->m_ADPCM.m_OutFramesOffset = 0;
-            streamInfo->m_ADPCM.m_InBuffer.SetSize(0);
-            streamInfo->m_ADPCM.m_InBufferOffset = 0;
-            streamInfo->m_ADPCM.m_OutBuffer.SetSize(0);
+            DecodeStreamInfoADPCM* streamInfoADPCM = static_cast<DecodeStreamInfoADPCM*>(streamInfo);
+            streamInfoADPCM->m_OutFramesOffset = 0;
+            streamInfoADPCM->m_InBuffer.SetSize(0);
+            streamInfoADPCM->m_InBufferOffset = 0;
+            streamInfoADPCM->m_OutBuffer.SetSize(0);
         }
         return RESULT_OK;
     }
@@ -298,10 +310,7 @@ namespace dmSoundCodec
 
     static Result WavDecodeStream(HDecodeStream stream, char* buffer[], uint32_t buffer_size, uint32_t* decoded)
     {
-        DecodeStreamInfo *streamInfo = (DecodeStreamInfo *) stream;
         DM_PROFILE(__FUNCTION__);
-
-        assert(streamInfo->m_Cursor <= streamInfo->m_Info.m_Size);
 
         if (!streamInfo->m_IsADPCM) {
             //
@@ -309,6 +318,10 @@ namespace dmSoundCodec
             //
             // (assumes little endian system!)
             //
+            DecodeStreamInfo *streamInfo = (DecodeStreamInfo *) stream;
+
+            assert(streamInfo->m_Cursor <= streamInfo->m_Info.m_Size);
+
             uint32_t n = dmMath::Min(buffer_size, streamInfo->m_Info.m_Size - streamInfo->m_Cursor);
 
             // WAV files can contain data beyond the end of the data chunk. Hence the EOS of the reader is not the only thing tgat can trigger an EOS logically!
@@ -335,6 +348,10 @@ namespace dmSoundCodec
         //
         // ADPCM read / decode
         //
+        DecodeStreamInfoADPCM* streamInfo = (DecodeStreamInfoADPCM*) stream;
+
+        assert(streamInfo->m_Cursor <= streamInfo->m_Info.m_Size);
+
         dmSound::Result res = dmSound::RESULT_OK;
         char *outbuf = buffer[0];
         uint32_t stride = sizeof(int16_t) * streamInfo->m_Info.m_Channels;
@@ -343,18 +360,18 @@ namespace dmSoundCodec
         uint32_t min_frames = (num_channels == 1) ? 2 : 8;
 
         // Do we have some decoded data left over from last time?
-        if (streamInfo->m_ADPCM.m_OutBuffer.Size() != 0) {
+        if (streamInfo->m_OutBuffer.Size() != 0) {
             // Yes. See what we can use...
-            uint32_t frames_in_buffer = streamInfo->m_ADPCM.m_OutBuffer.Size() / num_channels;
-            uint32_t num = dmMath::Min(frames_in_buffer - streamInfo->m_ADPCM.m_OutFramesOffset, (uint32_t)needed_frames);
+            uint32_t frames_in_buffer = streamInfo->m_OutBuffer.Size() / num_channels;
+            uint32_t num = dmMath::Min(frames_in_buffer - streamInfo->m_OutFramesOffset, (uint32_t)needed_frames);
 
-            memcpy(outbuf, streamInfo->m_ADPCM.m_OutBuffer.Begin() + streamInfo->m_ADPCM.m_OutFramesOffset * num_channels, num * stride);
+            memcpy(outbuf, streamInfo->m_OutBuffer.Begin() + streamInfo->m_OutFramesOffset * num_channels, num * stride);
 
             needed_frames -= num;
             outbuf += stride * num;
-            streamInfo->m_ADPCM.m_OutFramesOffset += num;
-            if (streamInfo->m_ADPCM.m_OutFramesOffset >= frames_in_buffer) {
-                streamInfo->m_ADPCM.m_OutBuffer.SetSize(0);
+            streamInfo->m_OutFramesOffset += num;
+            if (streamInfo->m_OutFramesOffset >= frames_in_buffer) {
+                streamInfo->m_OutBuffer.SetSize(0);
             }
         }
 
@@ -362,7 +379,7 @@ namespace dmSoundCodec
         while(needed_frames > 0) {
 
             // Try to get a full block into the input buffer... (this may only fill it partly)
-            if (streamInfo->m_ADPCM.m_InBuffer.Size() < streamInfo->m_ADPCM.m_BlockAlign) {
+            if (streamInfo->m_InBuffer.Size() < streamInfo->m_BlockAlign) {
 
                 // Check if we are at the end of the chunk in the WAV file (this does not need to be the end of the file)
                 if (streamInfo->m_Cursor >= streamInfo->m_Info.m_Size) {
@@ -372,7 +389,7 @@ namespace dmSoundCodec
                 }
 
                 uint32_t read_size;
-                res = dmSound::SoundDataRead(streamInfo->m_SoundData, streamInfo->m_BufferOffset + streamInfo->m_Cursor, streamInfo->m_ADPCM.m_BlockAlign - streamInfo->m_ADPCM.m_InBuffer.Size(), streamInfo->m_ADPCM.m_InBuffer.End(), &read_size);
+                res = dmSound::SoundDataRead(streamInfo->m_SoundData, streamInfo->m_BufferOffset + streamInfo->m_Cursor, streamInfo->m_BlockAlign - streamInfo->m_InBuffer.Size(), streamInfo->m_InBuffer.End(), &read_size);
                 if (res != dmSound::RESULT_OK && res != dmSound::RESULT_PARTIAL_DATA)
                 {
                     // Error case / EOS
@@ -380,26 +397,26 @@ namespace dmSoundCodec
                 }
 
                 streamInfo->m_Cursor += read_size;
-                streamInfo->m_ADPCM.m_InBuffer.SetSize(streamInfo->m_ADPCM.m_InBuffer.Size() + read_size);
+                streamInfo->m_InBuffer.SetSize(streamInfo->m_InBuffer.Size() + read_size);
             }
 
             // Do we need to decode a block header?
-            if (streamInfo->m_ADPCM.m_InBufferOffset == 0) {
+            if (streamInfo->m_InBufferOffset == 0) {
                 // Yes...
 
                 // Enough data read?
-                if (streamInfo->m_ADPCM.m_InBuffer.Size() < num_channels * 4) {
+                if (streamInfo->m_InBuffer.Size() < num_channels * 4) {
                     break;  // No...
                 }
 
-                int8_t* in = streamInfo->m_ADPCM.m_InBuffer.Begin();
+                int8_t* in = streamInfo->m_InBuffer.Begin();
                 for(uint32_t c=0; c<num_channels; ++c) {
-                    streamInfo->m_ADPCM.m_Pred[c] = *(int16_t*)in;
-                    streamInfo->m_ADPCM.m_StepIndex[c] = in[2];
-                    streamInfo->m_ADPCM.m_Step[c] = ima_step_table[streamInfo->m_ADPCM.m_StepIndex[c]];
+                    streamInfo->m_Pred[c] = *(int16_t*)in;
+                    streamInfo->m_StepIndex[c] = in[2];
+                    streamInfo->m_Step[c] = ima_step_table[streamInfo->m_StepIndex[c]];
                     in += 4;
                 }
-                streamInfo->m_ADPCM.m_InBufferOffset += num_channels * 4;
+                streamInfo->m_InBufferOffset += num_channels * 4;
             }
 
             // Given the blocking in the format, how many do we need to decode to actually get the number we need?
@@ -414,12 +431,12 @@ namespace dmSoundCodec
             uint32_t num;
             if (num_channels == 1) {
                 // note: we decode only on byte mulotiples (2 frames)
-                num = dmMath::Min(needed_frames_aligned, (streamInfo->m_ADPCM.m_InBuffer.Size() - streamInfo->m_ADPCM.m_InBufferOffset) * 2);
+                num = dmMath::Min(needed_frames_aligned, (streamInfo->m_InBuffer.Size() - streamInfo->m_InBufferOffset) * 2);
             }
             else {
                 assert(num_channels == 2);
                 // note: 8 byte sub-blocks are needed so we can decode 8 frames (data is interleaved in 4-byte per channel chunks)
-                num = dmMath::Min(needed_frames_aligned, (streamInfo->m_ADPCM.m_InBuffer.Size() & ~7) - streamInfo->m_ADPCM.m_InBufferOffset);
+                num = dmMath::Min(needed_frames_aligned, (streamInfo->m_InBuffer.Size() & ~7) - streamInfo->m_InBufferOffset);
             }
             if (num == 0) {
                 break;
@@ -430,9 +447,9 @@ namespace dmSoundCodec
             bool uses_buffer;
             if (needed_frames < needed_frames_aligned) {
                 // Yes, decode into temp buffer first, so we can save some frames to be delivered later...
-                streamInfo->m_ADPCM.m_OutBuffer.SetSize(needed_frames_aligned * num_channels);
-                streamInfo->m_ADPCM.m_OutFramesOffset = 0;
-                out = streamInfo->m_ADPCM.m_OutBuffer.Begin();
+                streamInfo->m_OutBuffer.SetSize(needed_frames_aligned * num_channels);
+                streamInfo->m_OutFramesOffset = 0;
+                out = streamInfo->m_OutBuffer.Begin();
                 uses_buffer = true;
             }
             else {
@@ -442,11 +459,11 @@ namespace dmSoundCodec
             }
 
             // Decode data as needed / possible with data available...
-            int8_t* in = streamInfo->m_ADPCM.m_InBuffer.Begin() + streamInfo->m_ADPCM.m_InBufferOffset;
+            int8_t* in = streamInfo->m_InBuffer.Begin() + streamInfo->m_InBufferOffset;
             if (num_channels == 1) {
-                int32_t pred = streamInfo->m_ADPCM.m_Pred[0];
-                int32_t step_index = streamInfo->m_ADPCM.m_StepIndex[0];
-                int32_t step = streamInfo->m_ADPCM.m_Step[0];
+                int32_t pred = streamInfo->m_Pred[0];
+                int32_t step_index = streamInfo->m_StepIndex[0];
+                int32_t step = streamInfo->m_Step[0];
 
                 uint32_t bytes = num >> 1;
                 for(uint32_t i=0; i<bytes; ++i) {
@@ -457,17 +474,17 @@ namespace dmSoundCodec
                     *(out++) = (int16_t)pred;
                     }
 
-                streamInfo->m_ADPCM.m_Pred[0] = pred;
-                streamInfo->m_ADPCM.m_StepIndex[0] = step_index;
-                streamInfo->m_ADPCM.m_Step[0] = step;
+                streamInfo->m_Pred[0] = pred;
+                streamInfo->m_StepIndex[0] = step_index;
+                streamInfo->m_Step[0] = step;
             }
             else {
-                int32_t pred0 = streamInfo->m_ADPCM.m_Pred[0];
-                int32_t pred1 = streamInfo->m_ADPCM.m_Pred[1];
-                int32_t step_index0 = streamInfo->m_ADPCM.m_StepIndex[0];
-                int32_t step_index1 = streamInfo->m_ADPCM.m_StepIndex[1];
-                int32_t step0 = streamInfo->m_ADPCM.m_Step[0];
-                int32_t step1 = streamInfo->m_ADPCM.m_Step[1];
+                int32_t pred0 = streamInfo->m_Pred[0];
+                int32_t pred1 = streamInfo->m_Pred[1];
+                int32_t step_index0 = streamInfo->m_StepIndex[0];
+                int32_t step_index1 = streamInfo->m_StepIndex[1];
+                int32_t step0 = streamInfo->m_Step[0];
+                int32_t step1 = streamInfo->m_Step[1];
 
                 int32_t bytes = num;
                 for(int32_t i=bytes; i>7; i-=8) {
@@ -486,24 +503,24 @@ namespace dmSoundCodec
                     }
                 }
 
-                streamInfo->m_ADPCM.m_Pred[0] = pred0;
-                streamInfo->m_ADPCM.m_Pred[1] = pred1;
-                streamInfo->m_ADPCM.m_StepIndex[0] = step_index0;
-                streamInfo->m_ADPCM.m_StepIndex[1] = step_index1;
-                streamInfo->m_ADPCM.m_Step[0] = step0;
-                streamInfo->m_ADPCM.m_Step[1] = step1;
+                streamInfo->m_Pred[0] = pred0;
+                streamInfo->m_Pred[1] = pred1;
+                streamInfo->m_StepIndex[0] = step_index0;
+                streamInfo->m_StepIndex[1] = step_index1;
+                streamInfo->m_Step[0] = step0;
+                streamInfo->m_Step[1] = step1;
 
             }
 
             // Update input buffer offset & needed frames
-            streamInfo->m_ADPCM.m_InBufferOffset = (uint32_t)(in - streamInfo->m_ADPCM.m_InBuffer.Begin());
+            streamInfo->m_InBufferOffset = (uint32_t)(in - streamInfo->m_InBuffer.Begin());
             needed_frames -= num;
 
             // Input buffer exhausted?
-            if (streamInfo->m_ADPCM.m_InBufferOffset >= streamInfo->m_ADPCM.m_BlockAlign) {
+            if (streamInfo->m_InBufferOffset >= streamInfo->m_BlockAlign) {
                 // Mark as empty...
-                streamInfo->m_ADPCM.m_InBufferOffset = 0;
-                streamInfo->m_ADPCM.m_InBuffer.SetSize(0);
+                streamInfo->m_InBufferOffset = 0;
+                streamInfo->m_InBuffer.SetSize(0);
             }
 
             // Update output buffer pointer if we did not use a temp buffer (we will do more updates)
@@ -515,8 +532,8 @@ namespace dmSoundCodec
         // If we overshot the need, we know we need to still copy some data into the output buffer...
         if (needed_frames < 0) {
             needed_frames += min_frames;
-            memcpy(outbuf, streamInfo->m_ADPCM.m_OutBuffer.Begin(), needed_frames * stride);
-            streamInfo->m_ADPCM.m_OutFramesOffset = needed_frames;
+            memcpy(outbuf, streamInfo->m_OutBuffer.Begin(), needed_frames * stride);
+            streamInfo->m_OutFramesOffset = needed_frames;
             outbuf += needed_frames * stride;
         }
 
@@ -531,9 +548,9 @@ namespace dmSoundCodec
 
     static Result WavSkipInStream(HDecodeStream stream, uint32_t bytes, uint32_t* skipped)
     {
-        DecodeStreamInfo *streamInfo = (DecodeStreamInfo *) stream;
-
         if (!streamInfo->m_IsADPCM) {
+            DecodeStreamInfo *streamInfo = (DecodeStreamInfo *) stream;
+
             if (streamInfo->m_Cursor >= streamInfo->m_Info.m_Size) {
                 *skipped = 0;
                 return RESULT_END_OF_STREAM;
@@ -544,6 +561,8 @@ namespace dmSoundCodec
             streamInfo->m_Cursor += n;
             return RESULT_OK;
         }
+
+        DecodeStreamInfoADPCM *streamInfo = (DecodeStreamInfoADPCM *) stream;
 
         Result res = RESULT_OK;
         *skipped = 0;
@@ -574,16 +593,17 @@ namespace dmSoundCodec
 
     static int64_t WavGetInternalPos(HDecodeStream stream)
     {
-        DecodeStreamInfo *streamInfo = (DecodeStreamInfo *) stream;
         if (!streamInfo->m_IsADPCM) {
+            DecodeStreamInfo *streamInfo = (DecodeStreamInfo *) stream;
             uint64_t stride = (streamInfo->m_Info.m_Channels * streamInfo->m_Info.m_BitsPerSample) >> 3;
             return streamInfo->m_Cursor / stride;
         }
 
-        uint64_t pos = streamInfo->m_Cursor - streamInfo->m_ADPCM.m_InBuffer.Size() + streamInfo->m_ADPCM.m_InBufferOffset;
-        uint64_t block_frames = (streamInfo->m_Info.m_Channels == 1) ? ((streamInfo->m_ADPCM.m_BlockAlign - 4) * 2) : (streamInfo->m_ADPCM.m_BlockAlign - 8);
-        uint64_t block = pos / streamInfo->m_ADPCM.m_BlockAlign;
-        int64_t block_off = pos - block * streamInfo->m_ADPCM.m_BlockAlign;
+        DecodeStreamInfoADPCM *streamInfo = (DecodeStreamInfoADPCM *) stream;
+        uint64_t pos = streamInfo->m_Cursor - streamInfo->m_InBuffer.Size() + streamInfo->m_InBufferOffset;
+        uint64_t block_frames = (streamInfo->m_Info.m_Channels == 1) ? ((streamInfo->m_BlockAlign - 4) * 2) : (streamInfo->m_BlockAlign - 8);
+        uint64_t block = pos / streamInfo->m_BlockAlign;
+        int64_t block_off = pos - block * streamInfo->m_BlockAlign;
         return block * block_frames + ((streamInfo->m_Info.m_Channels == 1) ? (dmMath::Max(block_off - 4, (int64_t)0) * 2) : (dmMath::Max(block_off - 8, (int64_t)0)));
     }
 
