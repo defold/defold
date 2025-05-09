@@ -216,10 +216,10 @@ namespace dmSoundCodec
                         DecodeStreamInfoADPCM* streamOutADPCM = static_cast<DecodeStreamInfoADPCM*>(streamOut);
                         streamOutADPCM->m_BlockAlign = fmt.m_BlockAlign;
                         streamOutADPCM->m_BlockFrames = (fmt.m_NumChannels == 1) ? ((fmt.m_BlockAlign - 4) * 2) : (fmt.m_BlockAlign - 8);
-                        streamOutADPCM->m_OutFramesOffset = streamOut->m_BlockFrames;
+                        streamOutADPCM->m_OutFramesOffset = streamOutADPCM->m_BlockFrames;
                         streamOutADPCM->m_OutBuffer.SetCapacity(fmt.m_NumChannels * 8);
                         streamOutADPCM->m_OutBuffer.SetSize(0);
-                        streamOutADPCM->m_InBuffer.SetCapacity(streamOut->m_BlockAlign);
+                        streamOutADPCM->m_InBuffer.SetCapacity(streamOutADPCM->m_BlockAlign);
                         streamOutADPCM->m_InBufferOffset = 0;
                     }
 
@@ -312,7 +312,7 @@ namespace dmSoundCodec
     {
         DM_PROFILE(__FUNCTION__);
 
-        if (!streamInfo->m_IsADPCM) {
+        if (!((DecodeStreamInfo *)stream)->m_IsADPCM) {
             //
             // PCM8/16 data delivery
             //
@@ -548,7 +548,7 @@ namespace dmSoundCodec
 
     static Result WavSkipInStream(HDecodeStream stream, uint32_t bytes, uint32_t* skipped)
     {
-        if (!streamInfo->m_IsADPCM) {
+        if (!((DecodeStreamInfo *)stream)->m_IsADPCM) {
             DecodeStreamInfo *streamInfo = (DecodeStreamInfo *) stream;
 
             if (streamInfo->m_Cursor >= streamInfo->m_Info.m_Size) {
@@ -593,7 +593,7 @@ namespace dmSoundCodec
 
     static int64_t WavGetInternalPos(HDecodeStream stream)
     {
-        if (!streamInfo->m_IsADPCM) {
+        if (!((DecodeStreamInfo *)stream)->m_IsADPCM) {
             DecodeStreamInfo *streamInfo = (DecodeStreamInfo *) stream;
             uint64_t stride = (streamInfo->m_Info.m_Channels * streamInfo->m_Info.m_BitsPerSample) >> 3;
             return streamInfo->m_Cursor / stride;
