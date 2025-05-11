@@ -1031,8 +1031,10 @@ namespace dmGameSystem
 
     inline uint32_t MakeFinalRenderOrder(uint32_t world_order, uint32_t scene_order, uint32_t sub_order)
     {
-        // scene_order limited to 0-15, see gui_script.gui LuaSetRenderOrder() funtion
-        return (world_order << 20) | (scene_order << 4) | sub_order;
+        // scene_order: 4 bits (max 15)
+        // world_order: 12 bits (max 4095)
+        // sub_order:   16 bits (max 65535)
+        return (scene_order << 28) | (world_order << 16) | sub_order;
     }
 
     static void SetBlendMode(dmRender::RenderObject& ro, dmGui::BlendMode blend_mode)
@@ -3153,7 +3155,7 @@ namespace dmGameSystem
         gui_context->m_MaxAnimationCount = dmConfigFile::GetInt(ctx->m_Config, "gui.max_animation_count", 1024);
         gui_context->m_MaxParticleBufferCount = dmConfigFile::GetInt(ctx->m_Config, "gui.max_particle_buffer_count", 1024);
 
-        // TODO: it seems like hidden game.project property which should be gui.world_count like it is in physics
+        // TODO: it seems like this is a hidden game.project property which should be gui.world_count like it is in physics
         int32_t max_world_count = dmConfigFile::GetInt(ctx->m_Config, "gui.max_instance_count", 128);
         if (max_world_count > 4096)
         {
