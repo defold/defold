@@ -110,8 +110,7 @@ namespace dmSoundCodec
         };
 
         struct DecodeStreamInfo {
-            DecodeStreamInfo() : m_IsADPCM(false) {}
-            virtual ~DecodeStreamInfo() = default;
+            virtual ~DecodeStreamInfo() {}
 
             Info m_Info;
             bool m_IsADPCM : 1;
@@ -123,8 +122,7 @@ namespace dmSoundCodec
         };
 
         struct DecodeStreamInfoADPCM : public DecodeStreamInfo {
-            DecodeStreamInfoADPCM() { m_IsADPCM = true; }
-            virtual ~DecodeStreamInfoADPCM() = default;
+            virtual ~DecodeStreamInfoADPCM() {}
 
             dmArray<int16_t> m_OutBuffer;
             dmArray<int8_t> m_InBuffer;
@@ -208,7 +206,14 @@ namespace dmSoundCodec
                         return RESULT_INVALID_FORMAT;
                     }
 
-                    streamOut = (fmt.m_AudioFormat == 0x11) ? new DecodeStreamInfoADPCM() : new DecodeStreamInfo();
+                    if (fmt.m_AudioFormat == 0x11) {
+                        streamOut = new DecodeStreamInfoADPCM();
+                        streamOut->m_IsADPCM = true;
+                    }
+                    else {
+                        streamOut = new DecodeStreamInfo();
+                        streamOut->m_IsADPCM = false;
+                    }
 
                     streamOut->m_SoundData = sound_data;
 
