@@ -3970,9 +3970,9 @@
 
 (defn- handle-drop
   [selection workspace _world-pos resources]
-  (when (seq selection)
-    (when-let [scene (node->gui-scene (first selection))]
-      (mapv (partial add-dropped-resource scene workspace) resources))))
+  (when-let [scene (some-> selection first resource-node/owner-resource-node-id)]
+    (mapv (partial add-dropped-resource scene workspace)
+          resources)))
 
 (defn- register [workspace def]
   (let [ext (:ext def)
