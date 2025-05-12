@@ -22,7 +22,6 @@
 #include <dmsdk/dlib/vmath.h>
 
 #include <script/script.h>
-
 #include <gameobject/gameobject_props_lua.h>
 #include <gameobject/gameobject_script_util.h>
 
@@ -808,11 +807,12 @@ namespace dmGui
      * If the material has a constant array called 'tint_array' specified in the material, you can use `gui.set(node, "tint_array", vmath.vec4(1,0,0,1), { index = 4})` to set the fourth array element to a different value.
      *
      * @name gui.set
-     * @param node [type:node] node to set the property for
+     * @param node [type:node|url] node to set the property for, or msg.url() to the gui itself
      * @param property [type:string|hash|constant] the property to set 
      * @param value [type:number|vector4|vector3|quat] the property to set
      * @param [options] [type:table] optional options table (only applicable for material constants)
      * - `index` [type:integer] index into array property (1 based)
+     * - `key` [type:hash] name of internal property
      *
      * @examples
      *
@@ -855,6 +855,21 @@ namespace dmGui
      * -- update a sub-element in an array constant at position 4
      * gui.set(node, "tint_array.x", 1, {index = 4})
      * ```
+     *
+     * Set a named property
+     *
+     * ```lua
+     * function on_message(self, message_id, message, sender)
+     *    if message_id == hash("set_font") then
+     *        gui.set(msg.url(), "fonts", message.font, {key = "my_font_name"})
+     *        gui.set_font(gui.get_node("text"), "my_font_name")
+     *    elseif message_id == hash("set_texture") then
+     *        gui.set(msg.url(), "textures", message.texture, {key = "my_texture"})
+     *        gui.set_texture(gui.get_node("box"), "my_texture")
+     *        gui.play_flipbook(gui.get_node("box"), "logo_256")
+     *    end
+     * end
+     * ```
      */
     static int LuaSet(lua_State* L)
     {
@@ -862,11 +877,50 @@ namespace dmGui
 
         Scene* scene = GuiScriptInstance_Check(L);
 
-        HNode hnode;
-        LuaCheckNodeInternal(L, 1, &hnode);
-
         dmhash_t property_hash = dmScript::CheckHashOrString(L, 2);
         dmGui::PropDesc* pd = dmGui::GetPropertyDesc(property_hash);
+
+        dmGameObject::PropertyVar property_var;
+        dmGameObject::PropertyResult result = dmGameObject::LuaToVar(L, 3, property_var);
+
+        if (result != dmGameObject::PROPERTY_RESULT_OK)
+        {
+            return DM_LUA_ERROR("Property '%s' has an unsupported type", dmHashReverseSafe64(property_hash));
+        }
+
+        dmGameObject::PropertyOptions property_options = {};
+        if (lua_gettop(L) > 3)
+        {
+            int options_result = LuaToPropertyOptions(L, 4, &property_options, property_hash, 0);
+            if (options_result != 0)
+            {
+                return options_result;
+            }
+        }
+
+        if (dmScript::IsURL(L, 1))
+        {
+            dmMessage::URL sender;
+            dmScript::GetURL(L, &sender);
+            dmMessage::URL target;
+            dmScript::ResolveURL(L, 1, &target, &sender);
+            bool is_self = (sender.m_Socket == target.m_Socket) &&
+                           (sender.m_Path == target.m_Path) &&
+                           (sender.m_Fragment == target.m_Fragment);
+            if (!is_self)
+            {
+                return DM_LUA_ERROR("'gui.set()' can only be used to change a property of the GUI component itself, use 'msg.url()'");
+            }
+            dmGameObject::HInstance instance = (dmGameObject::HInstance)scene->m_Context->m_GetUserDataCallback(scene);
+            result = dmGameObject::SetProperty(instance, target.m_Fragment, property_hash, property_options, property_var);
+            if (result != dmGameObject::PROPERTY_RESULT_OK)
+            {
+                return HandleGoSetResult(L, result, property_hash, instance, target, property_options);
+            }
+            return 0;
+        }
+        HNode hnode;
+        LuaCheckNodeInternal(L, 1, &hnode);
 
         if (pd)
         {
@@ -919,25 +973,12 @@ namespace dmGui
             return 0;
         }
 
-        dmGameObject::PropertyVar property_var;
-        dmGameObject::PropertyOptions property_options = {};
-        dmGameObject::PropertyResult result = dmGameObject::LuaToVar(L, 3, property_var);
-
-        if (lua_gettop(L) > 3)
-        {
-            int options_result = LuaToPropertyOptions(L, 4, &property_options, property_hash, 0);
-            if (options_result != 0)
-            {
-                return options_result;
-            }
-        }
-
-        if (result == dmGameObject::PROPERTY_RESULT_OK && dmGui::SetMaterialProperty(scene, hnode, property_hash, property_var, &property_options))
+        if (dmGui::SetMaterialProperty(scene, hnode, property_hash, property_var, &property_options))
         {
             return 0;
         }
 
-        return DM_LUA_ERROR("property '%s' not found", dmHashReverseSafe64(property_hash));
+        return DM_LUA_ERROR("Property '%s' not found", dmHashReverseSafe64(property_hash));
     }
 
     /*# gets the index of the specified node

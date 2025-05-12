@@ -168,17 +168,6 @@ namespace dmGameObject
         "on_reload"
     };
 
-    static const char* TYPE_NAMES[PROPERTY_TYPE_COUNT] = {
-        "number",        // PROPERTY_TYPE_NUMBER
-        "hash",          // PROPERTY_TYPE_HASH
-        "msg.url",       // PROPERTY_TYPE_URL
-        "vmath.vector3", // PROPERTY_TYPE_VECTOR3
-        "vmath.vector4", // PROPERTY_TYPE_VECTOR4
-        "vmath.quat",    // PROPERTY_TYPE_QUAT
-        "boolean",       // PROPERTY_TYPE_BOOLEAN
-        "vmath.matrix4", // PROPERTY_TYPE_MATRIX4
-    };
-
     HRegister g_Register = 0;
 
     CompScriptWorld::CompScriptWorld(uint32_t max_instance_count)
@@ -677,70 +666,6 @@ namespace dmGameObject
         return CheckGetPropertyResult(L, "go", result, property_desc, property_id, target, property_options, index_requested);
     }
 
-    static int HandleGoSetResult(lua_State* L, dmGameObject::PropertyResult result, dmhash_t property_id, dmGameObject::HInstance target_instance, const dmMessage::URL& target, const dmGameObject::PropertyOptions& property_options)
-    {
-        DM_HASH_REVERSE_MEM(hash_ctx, 512);
-
-        switch (result)
-        {
-            case dmGameObject::PROPERTY_RESULT_OK:
-                return 0;
-            case PROPERTY_RESULT_NOT_FOUND:
-            {
-                // The supplied URL parameter don't need to be a string,
-                // we let Lua handle the "conversion" to string using concatenation.
-                const char* name = "nil";
-                if (!lua_isnil(L, 1))
-                {
-                    lua_pushliteral(L, "");
-                    lua_pushvalue(L, 1);
-                    lua_concat(L, 2);
-                    name = lua_tostring(L, -1);
-                    lua_pop(L, 1);
-                }
-                return luaL_error(L, "'%s' does not have any property called '%s'", name, dmHashReverseSafe64Alloc(&hash_ctx, property_id));
-            }
-            case PROPERTY_RESULT_UNSUPPORTED_TYPE:
-            case PROPERTY_RESULT_TYPE_MISMATCH:
-            {
-                dmGameObject::PropertyDesc property_desc;
-                dmGameObject::GetProperty(target_instance, target.m_Fragment, property_id, property_options, property_desc);
-                return luaL_error(L, "the property '%s' of '%s' must be a %s", dmHashReverseSafe64Alloc(&hash_ctx, property_id), lua_tostring(L, 1), TYPE_NAMES[property_desc.m_Variant.m_Type]);
-            }
-            case PROPERTY_RESULT_READ_ONLY:
-            {
-                return luaL_error(L, "Unable to set the property '%s' since it is read only", dmHashReverseSafe64Alloc(&hash_ctx, property_id));
-            }
-            case dmGameObject::PROPERTY_RESULT_INVALID_INDEX:
-            {
-                if (property_options.m_HasKey)
-                {
-                    return luaL_error(L, "Property '%s' is an array, but in options table specified key instead of index.", dmHashReverseSafe64Alloc(&hash_ctx, property_id));
-                }
-                return luaL_error(L, "Invalid index %d for property '%s'", property_options.m_Index+1, dmHashReverseSafe64Alloc(&hash_ctx, property_id));
-            }
-            case dmGameObject::PROPERTY_RESULT_INVALID_KEY:
-            {
-                if (!property_options.m_HasKey)
-                {
-                    return luaL_error(L, "Property '%s' is a hashtable, but in options table specified index instead of key.", dmHashReverseSafe64Alloc(&hash_ctx, property_id));
-                }
-                return luaL_error(L, "Invalid key '%s' for property '%s'", dmHashReverseSafe64Alloc(&hash_ctx, property_options.m_Key), dmHashReverseSafe64Alloc(&hash_ctx, property_id));
-            }
-            case dmGameObject::PROPERTY_RESULT_COMP_NOT_FOUND:
-                return luaL_error(L, "could not find component '%s' when resolving '%s'", dmHashReverseSafe64Alloc(&hash_ctx, target.m_Fragment), lua_tostring(L, 1));
-            case dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE:
-                return luaL_error(L, "go.set failed because the value is unsupported");
-            case dmGameObject::PROPERTY_RESULT_UNSUPPORTED_OPERATION:
-                return luaL_error(L, "could not perform unsupported operation on '%s'", dmHashReverseSafe64Alloc(&hash_ctx, property_id));
-            default:
-                // Should never happen, programmer error
-                return luaL_error(L, "go.set failed with error code %d", result);
-        }
-
-        return 0;
-    }
-
     /*# sets a named property of the specified game object or component, or a material constant
      *
      * @name go.set
@@ -867,7 +792,7 @@ namespace dmGameObject
                     result = dmGameObject::SetProperty(target_instance, target.m_Fragment, property_id, property_options, property_var);
                     if (result != PROPERTY_RESULT_OK)
                     {
-                        return HandleGoSetResult(L, result, property_id, target_instance, target, property_options);
+                        return dmGameObject::HandleGoSetResult(L, result, property_id, target_instance, target, property_options);
                     }
                 }
 
@@ -885,7 +810,7 @@ namespace dmGameObject
                 result = dmGameObject::SetProperty(target_instance, target.m_Fragment, property_id, property_options, property_var);
             }
 
-            return HandleGoSetResult(L, result, property_id, target_instance, target, property_options);
+            return dmGameObject::HandleGoSetResult(L, result, property_id, target_instance, target, property_options);
         }
 
         return 0;
@@ -2573,7 +2498,7 @@ bail:
 #define CHECK_PROP_RESULT(key, type, expected_type, result)\
     if (result == PROPERTY_RESULT_OK) {\
         if (type != expected_type) {\
-            dmLogError("The property '%s' must be of type '%s'.", key, TYPE_NAMES[expected_type]);\
+            dmLogError("The property '%s' must be of type '%s'.", key, dmGameObject::TYPE_NAMES[expected_type]);\
             result = PROPERTY_RESULT_TYPE_MISMATCH;\
         }\
     }\
