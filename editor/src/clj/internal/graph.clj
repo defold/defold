@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -17,13 +17,12 @@
             [internal.graph.types :as gt]
             [internal.node :as in]
             [internal.util :as util]
-            [util.coll :refer [pair]])
-  (:import [clojure.lang IPersistentSet]
+            [util.coll :as coll :refer [pair]])
+  (:import [clojure.lang IPersistentSet Indexed]
            [com.github.benmanes.caffeine.cache Cache Caffeine]
            [internal.graph.types Arc Endpoint]
            [java.util ArrayList]
-           [java.util.concurrent ConcurrentHashMap ForkJoinPool TimeUnit]
-           [java.util.function Function]))
+           [java.util.concurrent ConcurrentHashMap ForkJoinPool TimeUnit]))
 
 ;; A brief braindump on Overrides.
 ;;
@@ -564,10 +563,15 @@
   (into '() (take-while some? (iterate (partial override-original basis) node-id))))
 
 (defn override-of [graph node-id override-id]
-  (some (fn [override-node-id]
-          (when (= override-id (gt/override-id (node-id->node graph override-node-id)))
-            override-node-id))
-        (overrides graph node-id)))
+  (let [^Indexed os (overrides graph node-id)
+        n (count os)]
+    (loop [i 0]
+      (if (= i n)
+        nil
+        (let [override-node-id (.nth os i)]
+          (if (= override-id (gt/override-id (node-id->node graph override-node-id)))
+            override-node-id
+            (recur (inc i))))))))
 
 (defn- node-id->arcs [graph node-id arc-kw]
   (into [] cat (vals (-> graph (get arc-kw) (get node-id)))))
@@ -824,20 +828,21 @@
 
 (defn- basis-dependencies [basis endpoints]
   (assert (every? gt/endpoint? endpoints))
-  (let [graph-id->node-successor-map
-        (persistent!
-          (reduce-kv
-            (fn [acc graph-id graph]
-              (assoc! acc graph-id (:successors graph)))
-            (transient {})
-            (:graphs basis)))
-        cache-key (into [endpoints]
-                        (map #(System/identityHashCode (val %)))
-                        graph-id->node-successor-map)]
-    (.get basis-dependencies-cache
-          cache-key
-          (reify Function
-            (apply [_ _]
+  (if (coll/empty? endpoints)
+    #{}
+    (let [graph-id->node-successor-map
+          (persistent!
+            (reduce-kv
+              (fn [acc graph-id graph]
+                (assoc! acc graph-id (:successors graph)))
+              (transient {})
+              (:graphs basis)))
+          cache-key (into [endpoints]
+                          (map #(System/identityHashCode (val %)))
+                          graph-id->node-successor-map)]
+      (.get basis-dependencies-cache
+            cache-key
+            (fn [_]
               (let [pool (ForkJoinPool/commonPool)
                     all-endpoints (ConcurrentHashMap.)
                     make-task! (fn [endpoints]
@@ -1051,9 +1056,10 @@
   [graphs]
   (MultigraphBasis. graphs))
 
-(defn make-override [root-id traverse-fn]
+(defn make-override [root-id traverse-fn init-props-fn]
   {:root-id root-id
-   :traverse-fn traverse-fn})
+   :traverse-fn traverse-fn
+   :init-props-fn init-props-fn})
 
 (defn override-traverse-fn [basis override-id]
   (let [graph-id (gt/override-id->graph-id override-id)]
@@ -1160,8 +1166,9 @@
                                                         (pair {} []))
                                                        ([[new-acc remove-acc] [node-id labels old-node-successors]]
                                                         (let [new-node-successors (when-some [node (gt/node-by-id-at basis node-id)]
-                                                                                    (let [node-type (gt/node-type node)
-                                                                                          deps-by-label (or (in/input-dependencies node-type) {})
+                                                                                    (let [deps (ArrayList.)
+                                                                                          node-type (gt/node-type node)
+                                                                                          deps-by-label (in/input-dependencies node-type)
                                                                                           overrides (node-id->overrides node-id)
                                                                                           labels (or labels (in/output-labels node-type))
                                                                                           arcs-by-source (if (> (count labels) 1)
@@ -1173,10 +1180,11 @@
                                                                                                              (gt/arcs-by-source basis node-id label)))]
                                                                                       (reduce (fn [new-node-successors label]
                                                                                                 (let [dep-labels (get deps-by-label label)
-                                                                                                      outgoing-arcs (arcs-by-source basis node-id label)
-                                                                                                      deps (ArrayList. (+ (count dep-labels)
-                                                                                                                          (count overrides)
-                                                                                                                          (* (long 10) (count outgoing-arcs))))]
+                                                                                                      outgoing-arcs (arcs-by-source basis node-id label)]
+                                                                                                  (.clear deps)
+                                                                                                  (.ensureCapacity deps (+ (count dep-labels)
+                                                                                                                           (count overrides)
+                                                                                                                           (* (long 10) (count outgoing-arcs))))
 
                                                                                                   ;; The internal dependent outputs.
                                                                                                   (doseq [dep-label dep-labels]

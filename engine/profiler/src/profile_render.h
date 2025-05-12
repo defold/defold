@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -82,6 +82,8 @@ namespace dmProfileRender
         dmArray<ProfilerThread*>    m_Threads;
         dmArray<ProfilerProperty>   m_Properties;
         uint64_t                    m_Time;           // The time of the last update for this frame
+
+        ProfilerFrame();
     };
 
 
@@ -96,6 +98,8 @@ namespace dmProfileRender
     void DeleteRenderProfile(HRenderProfile render_profile);
 
     void Draw(HRenderProfile render_profile, dmRender::HRenderContext render_context, dmRender::HFontMap font_map);
+
+    void DumpFrame(ProfilerFrame* frame);
 
     //
     void ClearProfilerThreadSamples(ProfilerThread* thread);

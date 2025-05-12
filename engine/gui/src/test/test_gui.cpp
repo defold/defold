@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -716,6 +716,16 @@ TEST_F(dmGuiTest, DynamicTexture)
     // Set data on deleted texture
     r = dmGui::SetDynamicTextureData(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, false, data, sizeof(data));
     ASSERT_EQ(r, dmGui::RESULT_INVAL_ERROR);
+
+    // test create same texture twice
+    // https://github.com/defold/defold/issues/9893
+    r = dmGui::NewDynamicTexture(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, false, data, sizeof(data));
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+    r = dmGui::NewDynamicTexture(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, false, data, sizeof(data));
+    ASSERT_EQ(r, dmGui::RESULT_TEXTURE_ALREADY_EXISTS);
+    r = dmGui::DeleteDynamicTexture(m_Scene, dmHashString64("t1"));
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
 
     dmGui::DeleteNode(m_Scene, node, true);
 
@@ -5441,6 +5451,15 @@ TEST_F(dmGuiTest, SetGetScreenPosition)
     ASSERT_EQ(dmGui::RESULT_OK, r);
 }
 
+TEST_F(dmGuiTest, ZeroMaxDynamicTextures)
+{
+    dmGui::NewSceneParams params;
+    params.m_UserData = (void*)this;
+    params.m_MaxDynamicTextures = 0;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    ASSERT_NE((void*)scene, (void*)0x0);
+    dmGui::DeleteScene(scene);
+}
 
 int main(int argc, char **argv)
 {

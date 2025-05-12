@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -14,17 +14,16 @@
 
 package com.dynamo.bob.pipeline;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Logger;
 
-import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.ProtoParams;
+import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 
@@ -35,35 +34,32 @@ import com.dynamo.gamesys.proto.ModelProto.Texture;
 import com.dynamo.graphics.proto.Graphics.VertexAttribute;
 import com.dynamo.render.proto.Material.MaterialDesc;
 import com.dynamo.rig.proto.Rig.RigScene;
-import com.google.protobuf.TextFormat;
 
-
+// for editing we use ModelDesc but in runtime Model
+// make sure '.model' and '.modelc' corresponds to right classes
+@ProtoParams(srcClass = ModelDesc.class, messageClass = Model.class)
 @BuilderParams(name="Model", inExts=".model", outExt=".modelc")
-public class ModelBuilder extends Builder<Void> {
+public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
 
     private static Logger logger = Logger.getLogger(ModelBuilder.class.getName());
 
     @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-        ModelDesc.Builder modelDescBuilder = ModelDesc.newBuilder();
-        ProtoUtil.merge(input, modelDescBuilder);
+    public Task create(IResource input) throws IOException, CompileExceptionError {
+        ModelDesc.Builder modelDescBuilder = getSrcBuilder(input);
 
-        Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
+        Task.TaskBuilder taskBuilder = Task.newBuilder(this)
             .setName(params.name())
-            .addInput(input);
-        taskBuilder.addOutput(input.changeExt(params.outExt()));
-        taskBuilder.addOutput(input.changeExt(".rigscenec"));
+            .addInput(input)
+            .addOutput(input.changeExt(params.outExt()))
+            .addOutput(input.changeExt(".rigscenec"));
 
-        IResource mesh = BuilderUtil.checkResource(this.project, input, "mesh", modelDescBuilder.getMesh());
-        taskBuilder.addInput(mesh);
+        createSubTask(modelDescBuilder.getMesh(), "mesh", taskBuilder);
+
         if(!modelDescBuilder.getSkeleton().isEmpty()) {
-            IResource skeleton = BuilderUtil.checkResource(this.project, input, "skeleton", modelDescBuilder.getSkeleton());
-            taskBuilder.addInput(skeleton);
+            createSubTask(modelDescBuilder.getSkeleton(), "skeleton", taskBuilder);
         }
-        // Check if it's an individual file or not
-        if((!modelDescBuilder.getAnimations().isEmpty()) && !modelDescBuilder.getAnimations().endsWith(".animationset")) {
-            IResource animations = BuilderUtil.checkResource(this.project, input, "animation", modelDescBuilder.getAnimations());
-            taskBuilder.addInput(animations);
+        if((!modelDescBuilder.getAnimations().isEmpty())) {
+            createSubTask(modelDescBuilder.getAnimations(), "animations", taskBuilder);
         }
 
         if (modelDescBuilder.getMaterialsCount() > 0) {
@@ -72,37 +68,21 @@ public class ModelBuilder extends Builder<Void> {
                     String t = texture.getTexture();
                     if (t.isEmpty())
                         continue; // TODO: Perhaps we can check if the material expects textures?
-
-                    IResource res = BuilderUtil.checkResource(this.project, input, "texture", t);
-                    Task<?> embedTask = this.project.createTask(res);
-                    if (embedTask == null) {
-                        throw new CompileExceptionError(input,
-                                                        0,
-                                                        String.format("Failed to create build task for component '%s'", res.getPath()));
-                    }
+                    createSubTask(t, "texture", taskBuilder);
                 }
 
-                IResource materialOutput = this.project.getResource(material.getMaterial()).changeExt(".materialc");
-                taskBuilder.addInput(materialOutput);
+                createSubTask(material.getMaterial(), "material", taskBuilder);
             }
         } else {
             // Deprecated workflow
             for (String t : modelDescBuilder.getTexturesList()) {
                 if (t.isEmpty())
                     continue; // TODO: Perhaps we can check if the material expects textures?
-
-                IResource res = BuilderUtil.checkResource(this.project, input, "texture", t);
-                Task<?> embedTask = this.project.createTask(res);
-                if (embedTask == null) {
-                    throw new CompileExceptionError(input,
-                                                    0,
-                                                    String.format("Failed to create build task for component '%s'", res.getPath()));
-                }
+                createSubTask(t, "texture", taskBuilder);
             }
 
             if (!modelDescBuilder.getMaterial().isEmpty()) {
-                IResource materialOutput = this.project.getResource(modelDescBuilder.getMaterial()).changeExt(".materialc");
-                taskBuilder.addInput(materialOutput);
+                createSubTask(modelDescBuilder.getMaterial(), "material", taskBuilder);
             }
         }
 
@@ -110,11 +90,8 @@ public class ModelBuilder extends Builder<Void> {
     }
 
     @Override
-    public void build(Task<Void> task) throws CompileExceptionError, IOException {
-        ByteArrayInputStream model_is = new ByteArrayInputStream(task.input(0).getContent());
-        InputStreamReader model_isr = new InputStreamReader(model_is);
-        ModelDesc.Builder modelDescBuilder = ModelDesc.newBuilder();
-        TextFormat.merge(model_isr, modelDescBuilder);
+    public void build(Task task) throws CompileExceptionError, IOException {
+        ModelDesc.Builder modelDescBuilder = getSrcBuilder(task.firstInput());
 
         // Rigscene
         RigScene.Builder rigBuilder = RigScene.newBuilder();
@@ -136,7 +113,7 @@ public class ModelBuilder extends Builder<Void> {
             // and because we also avoid possible resource name collision (ref: atlas <-> texture).
             rigBuilder.setAnimationSet(BuilderUtil.replaceExt(modelDescBuilder.getAnimations(), "_generated_0.animationsetc"));
         } else {
-            throw new CompileExceptionError(task.input(0), -1, "No animation set in model!");
+            throw new CompileExceptionError(task.firstInput(), -1, "No animation set in model!");
         }
 
         rigBuilder.setTextureSet(""); // this is set in the model
@@ -146,7 +123,7 @@ public class ModelBuilder extends Builder<Void> {
         task.output(1).setContent(out.toByteArray());
 
         // Model
-        IResource resource = task.input(0);
+        IResource resource = task.firstInput();
         Model.Builder model = Model.newBuilder();
         model.setRigScene(task.output(1).getPath().replace(this.project.getBuildDirectory(), ""));
 

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -48,6 +48,10 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
+
+#if defined(__linux__)
+#include "dalloca.h"
+#endif
 
 #ifndef S_ISREG
 #define S_ISREG(mode) (((mode)&S_IFMT) == S_IFREG)
@@ -129,7 +133,6 @@ namespace dmSys
 #endif
 
 
-#if !defined(__EMSCRIPTEN__)
     Result Rename(const char* dst_filename, const char* src_filename)
     {
 #if defined(_WIN32)
@@ -143,52 +146,6 @@ namespace dmSys
         }
         return RESULT_UNKNOWN;
     }
-#else // EMSCRIPTEN
-    Result Rename(const char* dst_filename, const char* src_filename)
-    {
-        FILE* src_file = fopen(src_filename, "rb");
-        if (!src_file)
-        {
-            return RESULT_IO;
-        }
-
-        fseek(src_file, 0, SEEK_END);
-        size_t buf_len = ftell(src_file);
-        fseek(src_file, 0, SEEK_SET);
-        char* buf = (char*)malloc(buf_len);
-        if (fread(buf, 1, buf_len, src_file) != buf_len)
-        {
-            fclose(src_file);
-            free(buf);
-            return RESULT_IO;
-        }
-
-        FILE* dst_file = fopen(dst_filename, "wb");
-        if (!dst_file)
-        {
-            fclose(src_file);
-            free(buf);
-            return RESULT_IO;
-        }
-
-        if(fwrite(buf, 1, buf_len, dst_file) != buf_len)
-        {
-            fclose(src_file);
-            fclose(dst_file);
-            free(buf);
-            return RESULT_IO;
-        }
-
-        fclose(src_file);
-        fclose(dst_file);
-        free(buf);
-
-        dmSys::Unlink(src_filename);
-
-        return RESULT_OK;
-    }
-
-#endif
 
     Result GetHostFileName(char* buffer, size_t buffer_size, const char* path)
     {
@@ -274,7 +231,7 @@ namespace dmSys
 
     Result OpenURL(const char* url, const char* target)
     {
-        int ret = (int) ShellExecuteA(NULL, "open", url, NULL, NULL, SW_SHOWNORMAL);
+        intptr_t ret = (intptr_t) ShellExecuteA(NULL, "open", url, NULL, NULL, SW_SHOWNORMAL);
         if (ret == 32)
         {
             return RESULT_OK;
@@ -461,30 +418,66 @@ namespace dmSys
         return GetApplicationSupportPath(application_name, path, path_len);
     }
 
-    Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
+    Result GetApplicationSupportPath(const char* application_name, char* path_out, uint32_t path_len)
     {
+        const char* xdg_env = dmSys::GetEnv("XDG_DATA_HOME");
+        const char* xdg = xdg_env ? xdg_env : dmSys::GetEnv("HOME");
+        char* xdg_buf = (char*)dmAlloca(path_len);
+
+        dmStrlCpy(xdg_buf, xdg, path_len);
+        //The spec expects us to make $HOME/.local/share with 0700 if it doesn't exist.
+        if (!xdg_env)
+        {
+            dmStrlCat(xdg_buf, "/.local", path_len);
+            dmSys::Mkdir(xdg_buf, 0700);
+            dmStrlCat(xdg_buf, "/share", path_len);
+            dmSys::Mkdir(xdg_buf, 0700);
+        }
+        dmStrlCat(xdg_buf, "/", path_len);
+        if (dmStrlCat(xdg_buf, application_name, path_len) >= path_len)
+            return RESULT_INVAL;
+
+        // No need to continue if {application_name} dir already exists
+        if (realpath(xdg_buf, path_out))
+            return RESULT_OK;
+
         const char* dirs[] = {"HOME", "TMPDIR", "TMP", "TEMP"}; // Added common temp directories since server instances usually don't have a HOME set
         size_t count = sizeof(dirs)/sizeof(dirs[0]);
         const char* home = 0;
-        for (size_t i = 0; i < count; ++i)
+
+        for (size_t i = 0; i < count; i++)
         {
-            home = getenv(dirs[i]);
+            home = dmSys::GetEnv(dirs[i]);
             if (home)
                 break;
         }
-        if (!home) {
-            home = "."; // fall back to current directory, because the server instance might not have any of those paths set
+
+        if (!home){
+               home = "."; // fall back to current directory, because the server instance might not have any of those paths set
         }
 
-        if (dmStrlCpy(path, home, path_len) >= path_len)
+        char home_buf[path_len];
+        if (dmStrlCpy(home_buf, home, path_len) >= path_len)
             return RESULT_INVAL;
-        if (dmStrlCat(path, "/", path_len) >= path_len)
+        if (dmStrlCat(home_buf, "/", path_len) >= path_len)
             return RESULT_INVAL;
-        if (dmStrlCat(path, ".", path_len) >= path_len)
+        if (dmStrlCat(home_buf, ".", path_len) >= path_len)
             return RESULT_INVAL;
-        if (dmStrlCat(path, application_name, path_len) >= path_len)
+        if (dmStrlCat(home_buf, application_name, path_len) >= path_len)
             return RESULT_INVAL;
-        Result r =  Mkdir(path, 0755);
+
+        // If {home}/.{application_name exists}, return it here
+        if (realpath(home_buf, path_out))
+        {
+            if (dmStrlCpy(path_out, home_buf, path_len) >= path_len)
+                return RESULT_INVAL;
+            return RESULT_OK;
+        }
+        // Default to $HOME/.local/store or $XDG_DATA_DIR
+        if (dmStrlCpy(path_out, xdg_buf, path_len) >= path_len)
+            return RESULT_INVAL;
+
+        Result r = dmSys::Mkdir(path_out, 0755);
         if (r == RESULT_EXIST)
             return RESULT_OK;
         else
@@ -665,7 +658,9 @@ namespace dmSys
     {
         memset(info, 0, sizeof(*info));
         struct utsname uts;
+#if !defined(__EMSCRIPTEN__)
         uname(&uts);
+#endif
 
 #if defined(__EMSCRIPTEN__)
         dmStrlCpy(info->m_SystemName, "HTML5", sizeof(info->m_SystemName));
@@ -954,6 +949,62 @@ namespace dmSys
         }
     }
 
+    Result LoadResourcePartial(const char* path, uint32_t offset, uint32_t size, void* buffer, uint32_t* nread)
+    {
+        if (buffer == 0 || size == 0)
+            return RESULT_INVAL;
+
+#ifdef __ANDROID__
+        const char* asset_path = FixAndroidResourcePath(path);
+
+        AAssetManager* am = g_AndroidApp->activity->assetManager;
+        // NOTE: Is AASSET_MODE_BUFFER is much faster than AASSET_MODE_RANDOM.
+        AAsset* asset = AAssetManager_open(am, asset_path, AASSET_MODE_BUFFER);
+        if (asset) {
+            int result = AAsset_seek(asset, offset, SEEK_SET);
+            if (result < 0)
+            {
+                return RESULT_INVAL;
+            }
+            uint32_t nmemb = (uint32_t)AAsset_read(asset, buffer, size);
+            AAsset_close(asset);
+            *nread = nmemb;
+            return RESULT_OK;
+        }
+#endif
+        struct stat file_stat;
+        if (stat(path, &file_stat) == 0) {
+            if (!S_ISREG(file_stat.st_mode)) {
+                return RESULT_NOENT;
+            }
+
+            FILE* f = fopen(path, "rb");
+            if (!f)
+            {
+                return RESULT_NOENT;
+            }
+
+            int result = fseek(f, offset, SEEK_SET);
+            if (result < 0)
+            {
+                fclose(f);
+                return ErrnoToResult(errno);
+            }
+
+            size_t nmemb = fread(buffer, 1, size, f);
+            if (ferror(f))
+            {
+                fclose(f);
+                return ErrnoToResult(errno);
+            }
+            fclose(f);
+
+            *nread = (uint32_t)nmemb;
+        } else {
+            return ErrnoToResult(errno);
+        }
+        return RESULT_OK;
+    }
 
     Result Rmdir(const char* path)
     {

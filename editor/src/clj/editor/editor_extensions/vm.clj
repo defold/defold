@@ -1,4 +1,4 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -31,8 +31,9 @@
   (:refer-clojure :exclude [read])
   (:require [clojure.java.io :as io])
   (:import [clojure.lang IReduceInit Named]
+           [java.net URI]
            [java.nio.charset StandardCharsets]
-           [java.util List Map]
+           [java.util List Map Set]
            [java.util.concurrent.locks ReentrantLock]
            [org.apache.commons.io.input CharSequenceInputStream]
            [org.luaj.vm2 Globals LuaBoolean LuaClosure LuaDouble LuaFunction LuaInteger LuaNil LuaString LuaTable LuaUserdata LuaValue Prototype Varargs]
@@ -96,29 +97,19 @@
   []
   (LuaVM. (Globals.) (ReentrantLock.)))
 
-(defn- invoke
-  ^Varargs [vm ^LuaFunction lua-fn args]
-  (with-lock vm (.invoke lua-fn (LuaValue/varargsOf (into-array LuaValue args)))))
+(defn invoke
+  "Call a lua function while holding a lock on the VM
+
+  Returns all returned values as a Varargs object"
+  ^Varargs [vm ^LuaFunction lua-fn & lua-args]
+  (with-lock vm (.invoke lua-fn (LuaValue/varargsOf (into-array LuaValue lua-args)))))
 
 (defn invoke-1
   "Call a lua function while holding a lock on the VM
 
   Return a LuaValue, the first value returned by the function"
   ^LuaValue [vm lua-fn & lua-args]
-  (.arg1 (invoke vm lua-fn lua-args)))
-
-(defn invoke-all
-  "Call a lua function while holding a lock on the VM
-  Return a vector of all returned LuaValues"
-  [vm ^LuaFunction lua-fn & lua-args]
-  (let [varargs (invoke vm lua-fn lua-args)
-        n (.narg varargs)]
-    (loop [acc (transient [])
-           i 0]
-      (if (= n i)
-        (persistent! acc)
-        (let [next-i (inc i)]
-          (recur (conj! acc (.arg varargs next-i)) next-i))))))
+  (.arg1 ^Varargs (apply invoke vm lua-fn lua-args)))
 
 (defn wrap-userdata
   "Wraps the value into a LuaUserdata"
@@ -132,6 +123,9 @@
 
 (defprotocol ->Lua
   (->lua [x]))
+
+(defprotocol ->Varargs
+  (->varargs [x]))
 
 (defprotocol ->Clj
   (->clj [lua-value vm]))
@@ -154,12 +148,25 @@
                    (.rawset ret (int (inc i)) ^LuaValue (->lua v))))
                (recur (inc i))))
            ret))
+  Set (->lua [x]
+        (reduce
+          (fn [^LuaTable acc x]
+            (cond-> acc (some? x) (doto (.hashset (->lua x) LuaValue/TRUE))))
+          (LuaTable. 0 (count x))
+          x))
   Map (->lua [x]
         (reduce-kv
           (fn [^LuaTable acc k v]
             (cond-> acc (and (some? k) (some? v)) (doto (.hashset (->lua k) (->lua v)))))
           (LuaTable. 0 (count x))
-          x)))
+          x))
+  URI (->lua [x] (LuaString/valueOf (str x))))
+
+(extend-protocol ->Varargs
+  ;; all lua values are singleton varargs
+  nil (->varargs [_] LuaValue/NIL)
+  Object (->varargs [x] (->lua x))
+  Varargs (->varargs [x] x))
 
 (defn- lua-table->clj-map-or-vector [^LuaTable table vm]
   (loop [prev-k LuaValue/NIL

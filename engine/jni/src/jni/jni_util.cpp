@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -111,6 +111,11 @@ void SetByte(JNIEnv* env, jobject obj, jfieldID field, jbyte value)
     env->SetByteField(obj, field, value);
 }
 
+void SetUByte(JNIEnv* env, jobject obj, jfieldID field, jbyte value)
+{
+    SetByte(env, obj, field, value);
+}
+
 void SetChar(JNIEnv* env, jobject obj, jfieldID field, jchar value)
 {
     env->SetCharField(obj, field, value);
@@ -121,14 +126,29 @@ void SetShort(JNIEnv* env, jobject obj, jfieldID field, jshort value)
     env->SetShortField(obj, field, value);
 }
 
+void SetUShort(JNIEnv* env, jobject obj, jfieldID field, jshort value)
+{
+    SetShort(env, obj, field, value);
+}
+
 void SetInt(JNIEnv* env, jobject obj, jfieldID field, jint value)
 {
     env->SetIntField(obj, field, value);
 }
 
+void SetUInt(JNIEnv* env, jobject obj, jfieldID field, jint value)
+{
+    SetInt(env, obj, field, value);
+}
+
 void SetLong(JNIEnv* env, jobject obj, jfieldID field, jlong value)
 {
     env->SetLongField(obj, field, value);
+}
+
+void SetULong(JNIEnv* env, jobject obj, jfieldID field, jlong value)
+{
+    SetLong(env, obj, field, value);
 }
 
 void SetFloat(JNIEnv* env, jobject obj, jfieldID field, jfloat value)
@@ -202,29 +222,45 @@ bool GetBoolean(JNIEnv* env, jobject obj, jfieldID field)
     return env->GetBooleanField(obj, field);
 }
 
+char GetChar(JNIEnv* env, jobject obj, jfieldID field)
+{
+    return env->GetCharField(obj, field);
+}
+
 uint8_t GetByte(JNIEnv* env, jobject obj, jfieldID field)
 {
     return env->GetByteField(obj, field);
 }
-
-char GetChar(JNIEnv* env, jobject obj, jfieldID field)
+uint8_t GetUByte(JNIEnv* env, jobject obj, jfieldID field)
 {
-    return env->GetCharField(obj, field);
+    return env->GetByteField(obj, field);
 }
 
 int16_t GetShort(JNIEnv* env, jobject obj, jfieldID field)
 {
     return env->GetShortField(obj, field);
 }
+uint16_t GetUShort(JNIEnv* env, jobject obj, jfieldID field)
+{
+    return (uint16_t)GetShort(env, obj, field);
+}
 
 int32_t GetInt(JNIEnv* env, jobject obj, jfieldID field)
 {
     return env->GetIntField(obj, field);
 }
+uint32_t GetUInt(JNIEnv* env, jobject obj, jfieldID field)
+{
+    return (uint32_t)GetInt(env, obj, field);
+}
 
 int64_t GetLong(JNIEnv* env, jobject obj, jfieldID field)
 {
     return env->GetLongField(obj, field);
+}
+uint64_t GetULong(JNIEnv* env, jobject obj, jfieldID field)
+{
+    return (uint64_t)GetLong(env, obj, field);
 }
 
 float GetFloat(JNIEnv* env, jobject obj, jfieldID field)
@@ -266,12 +302,16 @@ jbooleanArray C2J_CreateBooleanArray(JNIEnv* env, const bool* data, uint32_t dat
     return arr;
 }
 
-jbyteArray C2J_CreateByteArray(JNIEnv* env, const uint8_t* data, uint32_t data_count)
+jbyteArray C2J_CreateByteArray(JNIEnv* env, const int8_t* data, uint32_t data_count)
+{
+    return C2J_CreateUByteArray(env, (uint8_t*)data, data_count);
+}
+
+jbyteArray C2J_CreateUByteArray(JNIEnv* env, const uint8_t* data, uint32_t data_count)
 {
     jbyteArray arr = env->NewByteArray(data_count);
     env->SetByteArrayRegion(arr, 0, data_count, (const jbyte*)data);
     return arr;
-
 }
 
 jcharArray C2J_CreateCharArray(JNIEnv* env, const char* data, uint32_t data_count)
@@ -288,6 +328,11 @@ jshortArray C2J_CreateShortArray(JNIEnv* env, const int16_t* data, uint32_t data
     return arr;
 }
 
+jshortArray C2J_CreateUShortArray(JNIEnv* env, const uint16_t* data, uint32_t data_count)
+{
+    return C2J_CreateShortArray(env, (int16_t*)data, data_count);
+}
+
 jintArray C2J_CreateIntArray(JNIEnv* env, const int32_t* data, uint32_t data_count)
 {
     jintArray arr = env->NewIntArray(data_count);
@@ -295,11 +340,21 @@ jintArray C2J_CreateIntArray(JNIEnv* env, const int32_t* data, uint32_t data_cou
     return arr;
 }
 
+jintArray C2J_CreateUIntArray(JNIEnv* env, const uint32_t* data, uint32_t data_count)
+{
+    return C2J_CreateIntArray(env, (int32_t*)data, data_count);
+}
+
 jlongArray C2J_CreateLongArray(JNIEnv* env, const int64_t* data, uint32_t data_count)
 {
     jlongArray arr = env->NewLongArray(data_count);
     env->SetLongArrayRegion(arr, 0, data_count, (const jlong*)data);
     return arr;
+}
+
+jlongArray C2J_CreateULongArray(JNIEnv* env, const uint64_t* data, uint32_t data_count)
+{
+    return C2J_CreateLongArray(env, (int64_t*)data, data_count);
 }
 
 jfloatArray C2J_CreateFloatArray(JNIEnv* env, const float* data, uint32_t data_count)
@@ -336,6 +391,10 @@ uint8_t* J2C_CreateByteArray(JNIEnv* env, jbyteArray arr, uint32_t* out_count)
     *out_count = (uint32_t)len;
     return out;
 }
+uint8_t* J2C_CreateUByteArray(JNIEnv* env, jbyteArray arr, uint32_t* out_count)
+{
+    return J2C_CreateByteArray(env, arr, out_count);
+}
 char* J2C_CreateCharArray(JNIEnv* env, jcharArray arr, uint32_t* out_count)
 {
     jsize len = env->GetArrayLength(arr);
@@ -356,6 +415,10 @@ int16_t* J2C_CreateShortArray(JNIEnv* env, jshortArray arr, uint32_t* out_count)
     *out_count = (uint32_t)len;
     return out;
 }
+uint16_t* J2C_CreateUShortArray(JNIEnv* env, jshortArray arr, uint32_t* out_count)
+{
+    return (uint16_t*)J2C_CreateShortArray(env, arr, out_count);
+}
 int32_t* J2C_CreateIntArray(JNIEnv* env, jintArray arr, uint32_t* out_count)
 {
     jsize len = env->GetArrayLength(arr);
@@ -366,6 +429,10 @@ int32_t* J2C_CreateIntArray(JNIEnv* env, jintArray arr, uint32_t* out_count)
     *out_count = (uint32_t)len;
     return out;
 }
+uint32_t* J2C_CreateUIntArray(JNIEnv* env, jintArray arr, uint32_t* out_count)
+{
+    return (uint32_t*)J2C_CreateIntArray(env, arr, out_count);
+}
 int64_t* J2C_CreateLongArray(JNIEnv* env, jlongArray arr, uint32_t* out_count)
 {
     jsize len = env->GetArrayLength(arr);
@@ -375,6 +442,10 @@ int64_t* J2C_CreateLongArray(JNIEnv* env, jlongArray arr, uint32_t* out_count)
     env->ReleaseLongArrayElements(arr, carr, 0);
     *out_count = (uint32_t)len;
     return out;
+}
+uint64_t* J2C_CreateULongArray(JNIEnv* env, jlongArray arr, uint32_t* out_count)
+{
+    return (uint64_t*)J2C_CreateLongArray(env, arr, out_count);
 }
 float* J2C_CreateFloatArray(JNIEnv* env, jfloatArray arr, uint32_t* out_count)
 {

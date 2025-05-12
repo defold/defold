@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -73,7 +73,24 @@ namespace dmDeviceOpenAL
             return dmSound::RESULT_UNKNOWN_ERROR;
         }
 
-        al_context = alcCreateContext(al_device, 0);
+        // Since the alcGetIntegerv(al_device, ALC_FREQUENCY, ...) is giving me bogus... /MAWE
+        ALCint frequencies[] = {48000, 44100};
+        ALCint frequency = 0;
+        for (int i = 0; i < DM_ARRAY_SIZE(frequencies); ++i)
+        {
+            ALCint attrs[] = {
+                ALC_FREQUENCY, frequencies[i],
+                0 // sentinel
+            };
+
+            al_context = alcCreateContext(al_device, attrs);
+            if (al_context)
+            {
+                frequency = frequencies[i];
+                break;
+            }
+        }
+
         if (al_context == 0) {
             dmLogError("Failed to create OpenAL context");
             alcCloseDevice(al_device);
@@ -106,7 +123,7 @@ namespace dmDeviceOpenAL
         alGenSources(1, &openal->m_Source);
         CheckAndPrintError();
 
-        openal->m_MixRate = 44100;
+        openal->m_MixRate = frequency;
 
         *device = openal;
 
@@ -155,7 +172,7 @@ namespace dmDeviceOpenAL
         delete openal;
     }
 
-    dmSound::Result DeviceOpenALQueue(dmSound::HDevice device, const int16_t* samples, uint32_t sample_count)
+    dmSound::Result DeviceOpenALQueue(dmSound::HDevice device, const void* samples, uint32_t sample_count)
     {
         assert(device);
         OpenALDevice* openal = (OpenALDevice*) device;
@@ -167,7 +184,7 @@ namespace dmDeviceOpenAL
         }
         ALuint buffer = openal->m_Buffers[0];
         openal->m_Buffers.EraseSwap(0);
-        alBufferData(buffer, AL_FORMAT_STEREO16, samples, sample_count * 2 * sizeof(int16_t), openal->m_MixRate);
+        alBufferData(buffer, AL_FORMAT_STEREO16, (const int16_t*)samples, sample_count * 2 * sizeof(int16_t), openal->m_MixRate);
         CheckAndPrintError();
 
         alSourceQueueBuffers(openal->m_Source, 1, &buffer);
@@ -208,6 +225,7 @@ namespace dmDeviceOpenAL
         assert(info);
         OpenALDevice* openal = (OpenALDevice*) device;
         info->m_MixRate = openal->m_MixRate;
+        info->m_DSPImplementation = dmSound::DSPIMPL_TYPE_CPU;
     }
 
     void DeviceOpenALStart(dmSound::HDevice device)
@@ -241,5 +259,6 @@ namespace dmDeviceOpenAL
         }
     }
 
-    DM_DECLARE_SOUND_DEVICE(DefaultSoundDevice, "default", DeviceOpenALOpen, DeviceOpenALClose, DeviceOpenALQueue, DeviceOpenALFreeBufferSlots, DeviceOpenALDeviceInfo, DeviceOpenALStart, DeviceOpenALStop);
+    DM_DECLARE_SOUND_DEVICE(DefaultSoundDevice, "default", DeviceOpenALOpen, DeviceOpenALClose, DeviceOpenALQueue,
+                            DeviceOpenALFreeBufferSlots, 0, DeviceOpenALDeviceInfo, DeviceOpenALStart, DeviceOpenALStop);
 }

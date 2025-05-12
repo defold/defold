@@ -1,4 +1,4 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -14,7 +14,7 @@
 
 (ns editor.future
   (:refer-clojure :exclude [future])
-  (:import [java.util.concurrent CompletableFuture CompletionException]
+  (:import [java.util.concurrent CompletableFuture CompletionException Executors ThreadFactory]
            [java.util.function Function Supplier]))
 
 (set! *warn-on-reflection* true)
@@ -29,13 +29,35 @@
   ^CompletableFuture [x]
   (CompletableFuture/completedFuture x))
 
-(defmacro supply-async [& body]
+(defmacro compute
+  "Asynchronously perform a CPU-intensive operation (see also: io)"
+  [& body]
   `(let [bindings# (get-thread-bindings)]
      (CompletableFuture/supplyAsync
        (reify Supplier
          (get [~'_]
            (with-bindings bindings#
              ~@body))))))
+
+(def io-executor
+  (let [counter (atom 0)]
+    (Executors/newCachedThreadPool
+      (reify ThreadFactory
+        (newThread [_ r]
+          (doto (Thread. r)
+            (.setDaemon true)
+            (.setName (str "editor.future/io-executor#" (swap! counter inc)))))))))
+
+(defmacro io
+  "Asynchronously perform an IO-intensive operation (see also: compute)"
+  [& body]
+  `(let [bindings# (get-thread-bindings)]
+     (CompletableFuture/supplyAsync
+       (reify Supplier
+         (get [~'_]
+           (with-bindings bindings#
+             ~@body)))
+       io-executor)))
 
 (defn wrap [x]
   (if (instance? CompletableFuture x)

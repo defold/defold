@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -160,7 +160,9 @@
       (is (= false (g/node-value manifest :exclude-liveupdate)))
       (is (= false (g/node-value manifest :exclude-basis-transcoder)))
       (is (= false (g/node-value manifest :use-android-support-lib)))
-      (is (= :open-gl (g/node-value manifest :graphics))))
+      (is (= :open-gl (g/node-value manifest :graphics)))
+      (is (= :vulkan (g/node-value manifest :graphics-osx)))
+      (is (= :web-gl (g/node-value manifest :graphics-web))))
     (let [manifest (test-util/resource-node project "/app_manifest/exclude_physics_2d.appmanifest")]
       (is (= :3d (g/node-value manifest :physics)))
       (is (= false (g/node-value manifest :exclude-record)))
@@ -170,7 +172,9 @@
       (is (= false (g/node-value manifest :exclude-liveupdate)))
       (is (= false (g/node-value manifest :exclude-basis-transcoder)))
       (is (= false (g/node-value manifest :use-android-support-lib)))
-      (is (= :open-gl (g/node-value manifest :graphics))))
+      (is (= :open-gl (g/node-value manifest :graphics)))
+      (is (= :vulkan (g/node-value manifest :graphics-osx)))
+      (is (= :web-gl (g/node-value manifest :graphics-web))))
     (let [manifest (test-util/resource-node project "/app_manifest/exclude_physics_3d.appmanifest")]
       (is (= :2d (g/node-value manifest :physics)))
       (is (= false (g/node-value manifest :exclude-record)))
@@ -180,7 +184,9 @@
       (is (= false (g/node-value manifest :exclude-liveupdate)))
       (is (= false (g/node-value manifest :exclude-basis-transcoder)))
       (is (= false (g/node-value manifest :use-android-support-lib)))
-      (is (= :open-gl (g/node-value manifest :graphics))))
+      (is (= :open-gl (g/node-value manifest :graphics)))
+      (is (= :vulkan (g/node-value manifest :graphics-osx)))
+      (is (= :web-gl (g/node-value manifest :graphics-web))))
     (let [manifest (test-util/resource-node project "/app_manifest/exclude_physics.appmanifest")]
       (is (= :none (g/node-value manifest :physics)))
       (is (= false (g/node-value manifest :exclude-record)))
@@ -190,7 +196,22 @@
       (is (= false (g/node-value manifest :exclude-liveupdate)))
       (is (= false (g/node-value manifest :exclude-basis-transcoder)))
       (is (= false (g/node-value manifest :use-android-support-lib)))
-      (is (= :open-gl (g/node-value manifest :graphics))))
+      (is (= :open-gl (g/node-value manifest :graphics)))
+      (is (= :vulkan (g/node-value manifest :graphics-osx)))
+      (is (= :web-gl (g/node-value manifest :graphics-web))))
+    (let [manifest (test-util/resource-node project "/app_manifest/physics_2d_box2dv3.appmanifest")]
+      (is (= nil (g/node-value manifest :physics)))
+      (is (= :box2d (g/node-value manifest :physics-2d)))
+      (is (= false (g/node-value manifest :exclude-record)))
+      (is (= false (g/node-value manifest :exclude-profiler)))
+      (is (= false (g/node-value manifest :exclude-sound)))
+      (is (= false (g/node-value manifest :exclude-input)))
+      (is (= false (g/node-value manifest :exclude-liveupdate)))
+      (is (= false (g/node-value manifest :exclude-basis-transcoder)))
+      (is (= false (g/node-value manifest :use-android-support-lib)))
+      (is (= :open-gl (g/node-value manifest :graphics)))
+      (is (= :vulkan (g/node-value manifest :graphics-osx)))
+      (is (= :web-gl (g/node-value manifest :graphics-web))))
     (let [manifest (test-util/resource-node project "/app_manifest/exclude_many.appmanifest")]
       (is (= :both (g/node-value manifest :physics)))
       (is (= true (g/node-value manifest :exclude-record)))
@@ -200,7 +221,9 @@
       (is (= true (g/node-value manifest :exclude-liveupdate)))
       (is (= true (g/node-value manifest :exclude-basis-transcoder)))
       (is (= false (g/node-value manifest :use-android-support-lib)))
-      (is (= :open-gl (g/node-value manifest :graphics))))
+      (is (= :open-gl (g/node-value manifest :graphics)))
+      (is (= :vulkan (g/node-value manifest :graphics-osx)))
+      (is (= :web-gl (g/node-value manifest :graphics-web))))
     (let [manifest (test-util/resource-node project "/app_manifest/vulkan.appmanifest")]
       (is (= :both (g/node-value manifest :physics)))
       (is (= false (g/node-value manifest :exclude-record)))
@@ -210,7 +233,9 @@
       (is (= false (g/node-value manifest :exclude-liveupdate)))
       (is (= false (g/node-value manifest :exclude-basis-transcoder)))
       (is (= false (g/node-value manifest :use-android-support-lib)))
-      (is (= :vulkan (g/node-value manifest :graphics))))
+      (is (= :vulkan (g/node-value manifest :graphics)))
+      (is (= :vulkan (g/node-value manifest :graphics-osx)))
+      (is (= :web-gl (g/node-value manifest :graphics-web))))
     (let [manifest (test-util/resource-node project "/app_manifest/vulkan_and_opengl.appmanifest")]
       (is (= :both (g/node-value manifest :physics)))
       (is (= false (g/node-value manifest :exclude-record)))
@@ -220,7 +245,57 @@
       (is (= false (g/node-value manifest :exclude-liveupdate)))
       (is (= false (g/node-value manifest :exclude-basis-transcoder)))
       (is (= false (g/node-value manifest :use-android-support-lib)))
-      (is (= :both (g/node-value manifest :graphics))))
+      (is (= :both (g/node-value manifest :graphics)))
+      (is (= :vulkan (g/node-value manifest :graphics-osx)))
+      (is (= :web-gl (g/node-value manifest :graphics-web))))
+    (let [manifest (test-util/resource-node project "/app_manifest/opengl_osx.appmanifest")]
+      (is (= :both (g/node-value manifest :physics)))
+      (is (= false (g/node-value manifest :exclude-record)))
+      (is (= false (g/node-value manifest :exclude-profiler)))
+      (is (= false (g/node-value manifest :exclude-sound)))
+      (is (= false (g/node-value manifest :exclude-input)))
+      (is (= false (g/node-value manifest :exclude-liveupdate)))
+      (is (= false (g/node-value manifest :exclude-basis-transcoder)))
+      (is (= false (g/node-value manifest :use-android-support-lib)))
+      (is (= :open-gl (g/node-value manifest :graphics)))
+      (is (= :open-gl (g/node-value manifest :graphics-osx)))
+      (is (= :web-gl (g/node-value manifest :graphics-web))))
+    (let [manifest (test-util/resource-node project "/app_manifest/vulkan_and_opengl_osx.appmanifest")]
+      (is (= :both (g/node-value manifest :physics)))
+      (is (= false (g/node-value manifest :exclude-record)))
+      (is (= false (g/node-value manifest :exclude-profiler)))
+      (is (= false (g/node-value manifest :exclude-sound)))
+      (is (= false (g/node-value manifest :exclude-input)))
+      (is (= false (g/node-value manifest :exclude-liveupdate)))
+      (is (= false (g/node-value manifest :exclude-basis-transcoder)))
+      (is (= false (g/node-value manifest :use-android-support-lib)))
+      (is (= :open-gl (g/node-value manifest :graphics)))
+      (is (= :both (g/node-value manifest :graphics-osx)))
+      (is (= :web-gl (g/node-value manifest :graphics-web))))
+    (let [manifest (test-util/resource-node project "/app_manifest/webgpu.appmanifest")]
+      (is (= :both (g/node-value manifest :physics)))
+      (is (= false (g/node-value manifest :exclude-record)))
+      (is (= false (g/node-value manifest :exclude-profiler)))
+      (is (= false (g/node-value manifest :exclude-sound)))
+      (is (= false (g/node-value manifest :exclude-input)))
+      (is (= false (g/node-value manifest :exclude-liveupdate)))
+      (is (= false (g/node-value manifest :exclude-basis-transcoder)))
+      (is (= false (g/node-value manifest :use-android-support-lib)))
+      (is (= :open-gl (g/node-value manifest :graphics)))
+      (is (= :vulkan (g/node-value manifest :graphics-osx)))
+      (is (= :web-gpu (g/node-value manifest :graphics-web))))
+    (let [manifest (test-util/resource-node project "/app_manifest/webgpu_and_webgl.appmanifest")]
+      (is (= :both (g/node-value manifest :physics)))
+      (is (= false (g/node-value manifest :exclude-record)))
+      (is (= false (g/node-value manifest :exclude-profiler)))
+      (is (= false (g/node-value manifest :exclude-sound)))
+      (is (= false (g/node-value manifest :exclude-input)))
+      (is (= false (g/node-value manifest :exclude-liveupdate)))
+      (is (= false (g/node-value manifest :exclude-basis-transcoder)))
+      (is (= false (g/node-value manifest :use-android-support-lib)))
+      (is (= :open-gl (g/node-value manifest :graphics)))
+      (is (= :vulkan (g/node-value manifest :graphics-osx)))
+      (is (= :both (g/node-value manifest :graphics-web))))
     (let [manifest (test-util/resource-node project "/app_manifest/android_support.appmanifest")]
       (is (= :both (g/node-value manifest :physics)))
       (is (= false (g/node-value manifest :exclude-record)))
@@ -230,7 +305,9 @@
       (is (= false (g/node-value manifest :exclude-liveupdate)))
       (is (= false (g/node-value manifest :exclude-basis-transcoder)))
       (is (= true (g/node-value manifest :use-android-support-lib)))
-      (is (= :open-gl (g/node-value manifest :graphics))))))
+      (is (= :open-gl (g/node-value manifest :graphics)))
+      (is (= :vulkan (g/node-value manifest :graphics-osx)))
+      (is (= :web-gl (g/node-value manifest :graphics-web))))))
 
 (deftest modification-test
   (test-util/with-loaded-project

@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -309,6 +309,19 @@
   [^String text ^Pattern re-pattern]
   (let [matcher (re-matcher re-pattern text)]
     (.find matcher)))
+
+(defn includes-ignore-case?
+  "Like clojure.string/includes?, but case-insensitive"
+  [^String str ^String sub]
+  (let [sub-length (.length sub)]
+    (if (zero? sub-length)
+      true
+      (let [str-length (.length str)]
+        (loop [i 0]
+          (cond
+            (= i str-length) false
+            (.regionMatches str true i sub 0 sub-length) true
+            :else (recur (inc i))))))))
 
 (defn count->lower-case-string
   "Returns a human-readable string representation of the specified count.

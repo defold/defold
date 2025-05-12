@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -86,64 +86,51 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         }
     }
 
-    private void createResourcePropertyTasks(List<ComponentPropertyDesc> overrideProps, IResource input) throws CompileExceptionError {
-        for (ComponentPropertyDesc compProp : overrideProps) {
-            Collection<String> resources = PropertiesUtil.getPropertyDescResources(project, compProp.getPropertiesList());
-            for(String r : resources) {
-                IResource resource = BuilderUtil.checkResource(project, input, "resource", r);
-                PropertiesUtil.createResourcePropertyTasks(project, resource, input);
-            }
-        }
-    }
-
     @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-        Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
+    public Task create(IResource input) throws IOException, CompileExceptionError {
+        Task.TaskBuilder taskBuilder = Task.newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
                 .addOutput(input.changeExt(params.outExt()))
                 .addOutput(input.changeExt(ComponentsCounter.EXT_COL));
-        CollectionDesc.Builder builder = CollectionDesc.newBuilder();
-        ProtoUtil.merge(input, builder);
+        CollectionDesc.Builder builder = getSrcBuilder(input);
+        createSubTasks(builder, taskBuilder);
 
         Map<IResource, Integer> subCollections = new HashMap<>();
         collectSubCollections(builder, subCollections);
         for (IResource subCollection : subCollections.keySet()) {
-            taskBuilder.addInput(subCollection);
             IResource compCounterInput = input.getResource(ComponentsCounter.replaceExt(subCollection)).output();
-            taskBuilder.addInput(compCounterInput);
-            compCounterInputsCount.put(compCounterInput, subCollections.get(subCollection));
+            compCounterInputsCount.put(compCounterInput, 1);
         }
 
         for (InstanceDesc inst : builder.getInstancesList()) {
             InstanceDesc.Builder instBuilder = InstanceDesc.newBuilder(inst);
             List<ComponentPropertyDesc> sourceProperties = instBuilder.getComponentPropertiesList();
-            createResourcePropertyTasks(sourceProperties, input);
+            for (ComponentPropertyDesc compProp : sourceProperties) {
+                Map<String, String> resources = PropertiesUtil.getPropertyDescResources(project, compProp.getPropertiesList());
+                for (Map.Entry<String, String> entry : resources.entrySet()) {
+                    createSubTask(entry.getValue(), entry.getKey(), taskBuilder);
+                }
+            }
+
             IResource res = project.getResource(inst.getPrototype());
             IResource compCounterInput = input.getResource(ComponentsCounter.replaceExt(res)).output();
-            taskBuilder.addInput(compCounterInput);
-            compCounterInputsCount.put(compCounterInput, compCounterInputsCount.getOrDefault(compCounterInput, 0) + 1);
+            compCounterInputsCount.put(compCounterInput, 1);
         }
 
         Map<Long, IResource> uniqueResources = new HashMap<>();
         Map<Long, IResource> allResources = new HashMap<>();
         createGeneratedResources(this.project, builder, uniqueResources, allResources);
 
-        List<Task<?>> embedTasks = new ArrayList<>();
+        List<Task> embedTasks = new ArrayList<>();
         for (long hash : uniqueResources.keySet()) {
             IResource genResource = uniqueResources.get(hash);
-            taskBuilder.addOutput(genResource);
-            Task<?> embedTask = project.createTask(genResource);
-            if (embedTask == null) {
-                throw new CompileExceptionError(input,
-                                                0,
-                                                String.format("Failed to create build task for component '%s'", genResource.getPath()));
-            }
+            Task embedTask = createSubTask(genResource, taskBuilder);
             embedTasks.add(embedTask);
         }
-        
+
         for (IResource genResource : allResources.values()) {
-            Task<?> embedTask = project.createTask(genResource);
+            Task embedTask = createSubTask(genResource, taskBuilder);
             // if embeded objects have factories, they should be in input for our collection
             Set<IResource> counterInputs = ComponentsCounter.getCounterInputs(embedTask);
             for(IResource res : counterInputs) {
@@ -152,8 +139,8 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
             }
         }
 
-        Task<Void> task = taskBuilder.build();
-        for (Task<?> et : embedTasks) {
+        Task task = taskBuilder.build();
+        for (Task et : embedTasks) {
             et.setProductOf(task);
         }
         return task;
@@ -222,7 +209,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
                 properties.put(pathPrefix + instProps.getId(), instProps.getPropertiesList());
             }
             Point3d p = MathUtil.ddfToVecmath(collInst.getPosition());
-            Quat4d r = MathUtil.ddfToVecmath(collInst.getRotation());
+            Quat4d r = MathUtil.ddfToVecmath(collInst.getRotation(), "%s collection: %s".formatted(owner, collInst.getId()));
 
             Vector3d s;
             if (collInst.hasScale3()) {
@@ -268,7 +255,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
                     MathUtil.rotate(r, instP);
                     instP.add(p);
                     instBuilder.setPosition(MathUtil.vecmathToDDF(instP));
-                    Quat4d instR = MathUtil.ddfToVecmath(inst.getRotation());
+                    Quat4d instR = MathUtil.ddfToVecmath(inst.getRotation(), "%s gameobject: %s".formatted(owner, inst.getId()));
                     instR.mul(r, instR);
                     instBuilder.setRotation(MathUtil.vecmathToDDF(instR));
                     instBuilder.setScale3(MathUtil.vecmathToDDFOne(instS));
@@ -312,7 +299,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
                     MathUtil.rotate(r, instP);
                     instP.add(p);
                     instBuilder.setPosition(MathUtil.vecmathToDDF(instP));
-                    Quat4d instR = MathUtil.ddfToVecmath(inst.getRotation());
+                    Quat4d instR = MathUtil.ddfToVecmath(inst.getRotation(), "%s go: %s".formatted(owner, inst.getId()));
                     instR.mul(r, instR);
                     instBuilder.setRotation(MathUtil.vecmathToDDF(instR));
                     instBuilder.setScale3(MathUtil.vecmathToDDFOne(instS));
@@ -383,8 +370,9 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
     }
 
     @Override
-    protected CollectionDesc.Builder transform(Task<Void> task, IResource resource, CollectionDesc.Builder messageBuilder) throws CompileExceptionError, IOException {
+    protected CollectionDesc.Builder transform(Task task, IResource resource, CollectionDesc.Builder messageBuilder) throws CompileExceptionError, IOException {
         Integer countOfRealEmbededObjects = messageBuilder.getEmbeddedInstancesCount();
+        int goCount = messageBuilder.getInstancesCount();
         mergeSubCollections(resource, messageBuilder);
         ComponentsCounter.Storage compStorage = ComponentsCounter.createStorage();
         int embedIndex = 0;
@@ -400,7 +388,8 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
 
             // mergeSubCollections() embeds instances, but we want to count only "real" embeded instances
             if (embedIndex < countOfRealEmbededObjects) {
-                ComponentsCounter.countComponentsInEmbededObjects(project, genResource, compStorage);
+                ComponentsCounter.countComponentsInEmbededObjects(project, genResource, data, compStorage);
+                goCount++;
             }
 
             int buildDirLen = project.getBuildDirectory().length();
@@ -467,6 +456,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         }
         messageBuilder.addAllPropertyResources(propertyResources);
 
+        compStorage.add("goc", goCount);
         ComponentsCounter.sumInputs(compStorage, task.getInputs(), compCounterInputsCount);
         ComponentsCounter.copyDataToBuilder(compStorage, project, messageBuilder);
         task.output(1).setContent(compStorage.toByteArray());
@@ -474,4 +464,9 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         return messageBuilder;
     }
 
+    @Override
+    public void clearState() {
+        super.clearState();
+        compCounterInputsCount = null;
+    }
 }

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -61,7 +61,7 @@
  * int result = DM_ALIGN(24, 16);
  * ```
  */
-#define DM_ALIGN(x, a) (((uintptr_t) (x) + (a-1)) & ~(a-1))
+#define DM_ALIGN(x, a) (((uintptr_t) (x) + (a-1)) & ~(uintptr_t) (a-1))
 
 #if defined(__GNUC__)
 #define DM_ALIGNED(a) __attribute__ ((aligned (a)))

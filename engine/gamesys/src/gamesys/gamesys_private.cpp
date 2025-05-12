@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -273,7 +273,7 @@ namespace dmGameSystem
         return -1;
     }
 
-    // Prepares the list of sprite attributes that could potentially overrides an already specified material attribute
+    // Prepares the list of attributes that could potentially overrides an already specified material attribute
     void FillAttributeInfos(DynamicAttributePool* dynamic_attribute_pool, uint16_t component_dynamic_attribute_index, const dmGraphics::VertexAttribute* component_attributes, uint32_t num_component_attributes, dmGraphics::VertexAttributeInfos* material_infos, dmGraphics::VertexAttributeInfos* component_infos)
     {
         component_infos->m_NumInfos     = material_infos->m_NumInfos;
@@ -292,13 +292,9 @@ namespace dmGameSystem
                 int32_t dynamic_attribute_index = FindMaterialAttributeIndex(dynamic_info, name_hash);
                 if (dynamic_attribute_index >= 0)
                 {
-                    // TODO: We should optimally use converted values for this as well,
-                    //       but since we are not converting any other attribute value
-                    //       we will wait with that a bit.
-                    GetMaterialAttributeValues(dynamic_info, dynamic_attribute_index,
-                        material_infos->m_Infos[i].m_ValueByteSize,
-                        &component_infos->m_Infos[i].m_ValuePtr,
-                        &component_infos->m_Infos[i].m_ValueByteSize);
+                    component_infos->m_Infos[i].m_ValuePtr        = (uint8_t*) &dynamic_info.m_Infos[dynamic_attribute_index].m_Values;
+                    component_infos->m_Infos[i].m_ValueVectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4;
+                    component_infos->m_Infos[i].m_DataType        = dmGraphics::VertexAttribute::TYPE_FLOAT;
                     continue;
                 }
             }
@@ -307,9 +303,11 @@ namespace dmGameSystem
             int component_attribute_index = FindAttributeIndex(component_attributes, num_component_attributes, name_hash);
             if (component_attribute_index >= 0)
             {
+                // We don't use the byte size from the overridden attribute here, since we still need to match
+                // the stride of the materials vertex declaration
+                uint32_t value_byte_size_tmp;
                 dmGraphics::GetAttributeValues(component_attributes[component_attribute_index],
-                    &component_infos->m_Infos[i].m_ValuePtr,
-                    &component_infos->m_Infos[i].m_ValueByteSize);
+                    &component_infos->m_Infos[i].m_ValuePtr, &value_byte_size_tmp);
             }
 
             // 3. If all of the above failed, we fallback to using the material attribute instead
@@ -318,15 +316,15 @@ namespace dmGameSystem
 
     // Prepares the list of material attributes by getting all the vertex attributes and values for each attribute
     // as specified in the material
-    void FillMaterialAttributeInfos(dmRender::HMaterial material, dmGraphics::HVertexDeclaration vx_decl, dmGraphics::VertexAttributeInfos* infos)
+    void FillMaterialAttributeInfos(dmRender::HMaterial material, dmGraphics::HVertexDeclaration vx_decl, dmGraphics::VertexAttributeInfos* infos, dmGraphics::CoordinateSpace default_coordinate_space)
     {
         const dmGraphics::VertexAttribute* material_attributes;
         uint32_t material_attributes_count;
         dmRender::GetMaterialProgramAttributes(material, &material_attributes, &material_attributes_count);
-
         infos->m_NumInfos     = dmMath::Min(material_attributes_count, (uint32_t) dmGraphics::MAX_VERTEX_STREAM_COUNT);
         infos->m_VertexStride = dmGraphics::GetVertexDeclarationStride(vx_decl);
 
+        uint32_t value_byte_size;
         for (int i = 0; i < infos->m_NumInfos; ++i)
         {
             dmGraphics::VertexAttributeInfo& info = infos->m_Infos[i];
@@ -334,55 +332,17 @@ namespace dmGameSystem
             info.m_SemanticType     = material_attributes[i].m_SemanticType;
             info.m_DataType         = material_attributes[i].m_DataType;
             info.m_CoordinateSpace  = material_attributes[i].m_CoordinateSpace;
-            info.m_ElementCount     = material_attributes[i].m_ElementCount;
+            info.m_VectorType       = material_attributes[i].m_VectorType;
             info.m_Normalize        = material_attributes[i].m_Normalize;
+            info.m_StepFunction     = material_attributes[i].m_StepFunction;
+            info.m_ValueVectorType  = material_attributes[i].m_VectorType;
 
-            dmRender::GetMaterialProgramAttributeValues(material, i, &info.m_ValuePtr, &info.m_ValueByteSize);
-        }
-    }
+            if (info.m_CoordinateSpace == dmGraphics::COORDINATE_SPACE_DEFAULT)
+            {
+                info.m_CoordinateSpace = default_coordinate_space;
+            }
 
-    static inline float VertexAttributeDataTypeToFloat(const dmGraphics::VertexAttribute::DataType data_type, const uint8_t* value_ptr)
-    {
-        switch (data_type)
-        {
-            case dmGraphics::VertexAttribute::TYPE_BYTE:           return (float) ((int8_t*) value_ptr)[0];
-            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE:  return (float) value_ptr[0];
-            case dmGraphics::VertexAttribute::TYPE_SHORT:          return (float) ((int16_t*) value_ptr)[0];
-            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_SHORT: return (float) ((uint16_t*) value_ptr)[0];
-            case dmGraphics::VertexAttribute::TYPE_INT:            return (float) ((int32_t*) value_ptr)[0];
-            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT:   return (float) ((uint32_t*) value_ptr)[0];
-            case dmGraphics::VertexAttribute::TYPE_FLOAT:          return (float) ((float*) value_ptr)[0];
-            default:break;
-        }
-        return 0;
-    }
-
-    static inline void FloatToVertexAttributeDataType(float value, dmGraphics::VertexAttribute::DataType data_type, uint8_t* value_write_ptr)
-    {
-        switch (data_type)
-        {
-            case dmGraphics::VertexAttribute::TYPE_BYTE:
-                *((int8_t*) value_write_ptr) = (int8_t) dmMath::Clamp(value, -128.0f, 127.0f);
-                break;
-            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE:
-                *value_write_ptr = (uint8_t) dmMath::Clamp(value, 0.0f, 255.0f);
-                break;
-            case dmGraphics::VertexAttribute::TYPE_SHORT:
-                *((int16_t*) value_write_ptr) = (int16_t) dmMath::Clamp(value, -32768.0f, 32767.0f);
-                break;
-            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_SHORT:
-                *((uint16_t*) value_write_ptr) = (uint16_t) dmMath::Clamp(value, 0.0f, 65535.0f);
-                break;
-            case dmGraphics::VertexAttribute::TYPE_INT:
-                *((int32_t*) value_write_ptr) = (int32_t) dmMath::Clamp(value, -2147483648.0f, 2147483647.0f);
-                break;
-            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT:
-                *((uint32_t*) value_write_ptr) = (uint32_t) dmMath::Clamp(value, 0.0f, 4294967295.0f);
-                break;
-            case dmGraphics::VertexAttribute::TYPE_FLOAT:
-                *((float*) value_write_ptr) = value;
-                break;
-            default:break;
+            dmRender::GetMaterialProgramAttributeValues(material, i, &info.m_ValuePtr, &value_byte_size);
         }
     }
 
@@ -412,15 +372,9 @@ namespace dmGameSystem
         {
             for (int i = 0; i < attribute->m_ElementCount; ++i)
             {
-                FloatToVertexAttributeDataType(values[i], attribute->m_DataType, value_ptr + bytes_per_element * i);
+                WriteVertexAttributeFromFloat(value_ptr + bytes_per_element * i, values[i], attribute->m_DataType);
             }
         }
-    }
-
-    void GetMaterialAttributeValues(const DynamicAttributeInfo& info, uint32_t dynamic_attribute_index, uint32_t max_value_size, const uint8_t** value_ptr, uint32_t* value_size)
-    {
-        *value_ptr  = (uint8_t*) info.m_Infos[dynamic_attribute_index].m_Values;
-        *value_size = dmMath::Min(max_value_size, (uint32_t) sizeof(info.m_Infos[dynamic_attribute_index].m_Values));
     }
 
     void InitializeMaterialAttributeInfos(DynamicAttributePool& pool, uint32_t initial_capacity)

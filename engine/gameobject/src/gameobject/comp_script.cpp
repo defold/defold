@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -33,7 +33,7 @@ extern "C"
 }
 
 DM_PROPERTY_EXTERN(rmtp_GameObject);
-DM_PROPERTY_U32(rmtp_ScriptCount, 0, FrameReset, "# components", &rmtp_GameObject);
+DM_PROPERTY_U32(rmtp_ScriptCount, 0, PROFILE_PROPERTY_FRAME_RESET, "# components", &rmtp_GameObject);
 
 namespace dmGameObject
 {
@@ -564,7 +564,7 @@ namespace dmGameObject
                 lua_settable(L, -3);
             }
 
-            if (params.m_InputAction->m_ActionId != 0)
+            if (params.m_InputAction->m_ActionId != 0 && !params.m_InputAction->m_HasText)
             {
                 lua_pushliteral(L, "value");
                 lua_pushnumber(L, params.m_InputAction->m_Value);
@@ -685,11 +685,11 @@ namespace dmGameObject
                     lua_pushinteger(L, (lua_Integer) t.m_DY);
                     lua_settable(L, -3);
 
-                    lua_pushstring(L, "screen_dx");
+                    lua_pushliteral(L, "screen_dx");
                     lua_pushnumber(L, (lua_Integer) t.m_ScreenDX);
                     lua_rawset(L, -3);
 
-                    lua_pushstring(L, "screen_dy");
+                    lua_pushliteral(L, "screen_dy");
                     lua_pushnumber(L, (lua_Integer) t.m_ScreenDY);
                     lua_rawset(L, -3);
 
@@ -703,7 +703,7 @@ namespace dmGameObject
                 int tc = params.m_InputAction->m_TextCount;
                 lua_pushliteral(L, "text");
                 if (tc == 0) {
-                    lua_pushstring(L, "");
+                    lua_pushliteral(L, "");
                 } else {
                     lua_pushlstring(L, params.m_InputAction->m_Text, tc);
                 }

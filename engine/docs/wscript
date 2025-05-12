@@ -49,7 +49,7 @@ def build(bld):
             namespace_files[namespace] = []
         namespace_files[namespace].append(apidoc_file)
     for ns, files in namespace_files.items():
-        comments = '\n'.join([waflib.Utils.readf(f) for f in files])
+        comments = '\n'.join([waflib.Utils.readf(f, encoding='utf-8') for f in files])
         with open('src/%s.apidoc_' % ns, 'w') as out_f:
             out_f.write(comments)
     bld.recurse('src')

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -19,6 +19,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/endian.h>
 #include <dlib/log.h>
+#include <dlib/math.h>
 #include <dlib/memory.h>
 #include <dlib/sys.h>
 #include <dlib/testutil.h>
@@ -136,6 +137,7 @@ TEST(ArchiveProviderBasic, CanMount)
 
 struct ZipParams
 {
+    bool        m_Compressed;
     const char* m_Path;
     bool        m_ExtraFiles;
 };
@@ -145,6 +147,12 @@ class ArchiveProviderZip : public jc_test_params_class<ZipParams>
 protected:
     virtual void SetUp()
     {
+#if defined(__EMSCRIPTEN__)
+        // Trigger the vsf init for emscripten (hidden in MakeHostPath)
+        char path[1024];
+        dmTestUtil::MakeHostPath(path, sizeof(path), "src");
+#endif
+
         const ZipParams& params = GetParam();
 
         m_Loader = dmResourceProvider::FindLoaderByName(dmHashString64("zip"));
@@ -252,9 +260,71 @@ TEST_P(ArchiveProviderZip, ReadFile)
     }
 }
 
+TEST_P(ArchiveProviderZip, ReadFilePartial)
+{
+    if (GetParam().m_Compressed)
+    {
+        printf("Skipping comparing comrpessed archive\n");
+        return;
+    }
+
+    uint32_t header_size = 16;//sizeof(dmResourceArchive::LiveUpdateResource);
+
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(FILE_PATHS); ++i)
+    {
+        const char* path = FILE_PATHS[i];
+        dmhash_t path_hash = dmHashString64(path);
+
+        uint32_t expected_file_size;
+        uint8_t* expected_file = GetRawFile(path, &expected_file_size, false);
+        ASSERT_NE((uint8_t*)0, expected_file);
+
+        if (strstr(path, ".scriptc") != 0)
+        {
+            // Since the scripts are encrypted, we'll just skip the test for now,
+            // as the raw resource won't compare with the raw (encrypted) bytes we get from the archive.
+            printf("Skipping encrypted file: %s\n", path);
+            continue;
+        }
+
+        dmResourceProvider::Result result;
+
+        // Try to get chunk size non multiple of the file size
+        uint32_t total_size = expected_file_size + header_size;
+        uint8_t* buffer = new uint8_t[total_size];
+        uint32_t offset = 0;
+        uint32_t chunk_size = dmMath::Max(1u, total_size / 5 + 1);
+
+        while (offset < total_size)
+        {
+            uint32_t nread;
+            result = dmResourceProvider::ReadFilePartial(m_Archive, path_hash, path, offset, chunk_size, &buffer[offset], &nread);
+            ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
+            ASSERT_GE(chunk_size, nread);
+            ASSERT_NE(0u, nread);
+            offset += nread;
+        }
+
+        ASSERT_EQ(total_size, offset);
+
+        // since we don't want to compare the live update header, we'll skip that
+        ASSERT_ARRAY_EQ_LEN(expected_file, &buffer[header_size], expected_file_size);
+
+        delete[] buffer;
+        dmMemory::AlignedFree((void*)expected_file);
+    }
+}
+
+#define FSPREFIX ""
+#if defined(__EMSCRIPTEN__)
+    #undef FSPREFIX
+    #define FSPREFIX DM_HOSTFS
+#endif
+
+
 ZipParams params_zip_archives[] = {
-    {"zip:build/src/test/luresources.zip", true},
-    {"zip:build/src/test/luresources_compressed.zip", false},
+    {false, "zip:" FSPREFIX "build/src/test/luresources.zip", true},
+    {true, "zip:" FSPREFIX "build/src/test/luresources_compressed.zip", false},
 };
 
 INSTANTIATE_TEST_CASE_P(ArchiveProviderZipTest, ArchiveProviderZip, jc_test_values_in(params_zip_archives));

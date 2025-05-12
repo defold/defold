@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -21,7 +21,7 @@
 
 namespace dmPlatform
 {
-    struct Window
+    struct dmWindow
     {
         GLFWwindow*                   m_Window;
         GLFWwindow*                   m_AuxWindow;
@@ -42,6 +42,8 @@ namespace dmPlatform
         void*                         m_DeviceChangedCallbackUserData;
         double                        m_MouseScrollX;
         double                        m_MouseScrollY;
+        float                         m_XScale;
+        float                         m_YScale;
         int32_t                       m_Width;
         int32_t                       m_Height;
         int32_t                       m_WidthScreen;
@@ -53,7 +55,8 @@ namespace dmPlatform
     };
 
     void FocusWindowNative(HWindow window);
-    void CenterWindowNative(Window* wnd, GLFWmonitor* monitor);
+    void CenterWindowNative(HWindow wnd, GLFWmonitor* monitor);
+    void SetWindowsIconNative(HWindow window);
 }
 
 #endif // DM_PLATFORM_WINDOW_GLFW3_PRIVATE_H

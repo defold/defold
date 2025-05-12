@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -74,11 +74,11 @@
     (tu/prop-clear! node-id key)))
 
 (defn- make-fake-file-resource [workspace proj-path text]
-  (let [root-dir (workspace/project-path workspace)]
+  (let [root-dir (workspace/project-directory workspace)]
     (tu/make-fake-file-resource workspace (.getPath root-dir) (io/file root-dir proj-path) (.getBytes text "UTF-8"))))
 
 (defn- write-file! [workspace name content]
-  (let [root-dir (workspace/project-path workspace)
+  (let [root-dir (workspace/project-directory workspace)
         file (io/file root-dir name)]
     (fs/create-parent-directories! file)
     (spit-until-new-mtime file content))
@@ -325,13 +325,12 @@
           build-resource-path (comp resource/proj-path build-resource)
           build-resource-path-hash (comp murmur/hash64 build-resource-path)
           texture-build-resource (partial tu/texture-build-resource project)
-          vertex-shader-build-resource (partial tu/vertex-shader-build-resource project)
-          fragment-shader-build-resource (partial tu/fragment-shader-build-resource project)
+          shader-program-build-resource (partial tu/shader-program-build-resource project)
           build-output (partial tu/build-output project)
           make-atlas! (partial tu/make-atlas-resource-node! project)
           make-material! (partial make-material! project)
           make-resource-node! (partial tu/make-resource-node! project)]
-      (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
+      (with-open [_ (tu/make-directory-deleter (workspace/project-directory workspace))]
         (make-atlas!    "/from-props-script.atlas")
         (make-material! "/from-props-script.material")
         (let [props-script (doto (make-resource-node! "/props.script")
@@ -351,8 +350,7 @@
                        (build-resource                 "/from-props-script.atlas")
                        (texture-build-resource         "/from-props-script.atlas")
                        (build-resource                 "/from-props-script.material")
-                       (vertex-shader-build-resource   "/from-props-script.material")
-                       (fragment-shader-build-resource "/from-props-script.material")
+                       (shader-program-build-resource  "/from-props-script.material")
                        (build-resource                 "/from-props-script.png")}))
               (with-open [_ (tu/build! props-script)]
                 (let [built-props-script (protobuf/bytes->map-with-defaults Lua$LuaModule (build-output "/props.script"))]
@@ -432,12 +430,11 @@
           build-resource-path-hash (comp murmur/hash64 build-resource-path)
           build-output (partial tu/build-output project)
           texture-build-resource (partial tu/texture-build-resource project)
-          vertex-shader-build-resource (partial tu/vertex-shader-build-resource project)
-          fragment-shader-build-resource (partial tu/fragment-shader-build-resource project)
+          shader-program-build-resource (partial tu/shader-program-build-resource project)
           make-atlas! (partial tu/make-atlas-resource-node! project)
           make-material! (partial make-material! project)
           make-resource-node! (partial tu/make-resource-node! project)]
-      (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
+      (with-open [_ (tu/make-directory-deleter (workspace/project-directory workspace))]
         (make-atlas!    "/from-props-script.atlas")
         (make-material! "/from-props-script.material")
         (make-atlas!    "/from-props-game-object.atlas")
@@ -477,8 +474,7 @@
                        (build-resource                 "/from-props-script.atlas")
                        (texture-build-resource         "/from-props-script.atlas")
                        (build-resource                 "/from-props-script.material")
-                       (vertex-shader-build-resource   "/from-props-script.material")
-                       (fragment-shader-build-resource "/from-props-script.material")
+                       (shader-program-build-resource  "/from-props-script.material")
                        (build-resource                 "/from-props-script.png")}))
               (with-open [_ (tu/build! props-game-object)]
                 (let [built-props-game-object (protobuf/bytes->map-with-defaults GameObject$PrototypeDesc (build-output "/props.go"))
@@ -501,8 +497,7 @@
                          (build-resource                 "/from-props-script.atlas")
                          (texture-build-resource         "/from-props-script.atlas")
                          (build-resource                 "/from-props-script.material")
-                         (vertex-shader-build-resource   "/from-props-script.material")
-                         (fragment-shader-build-resource "/from-props-script.material")
+                         (shader-program-build-resource  "/from-props-script.material")
                          (build-resource                 "/from-props-script.png")}))
                 (with-open [_ (tu/build! props-game-object)]
                   (let [built-props-script (protobuf/bytes->map-with-defaults Lua$LuaModule (build-output "/props.script"))]
@@ -639,7 +634,7 @@
           build-output (partial tu/build-output project)
           make-atlas! (partial tu/make-atlas-resource-node! project)
           make-resource-node! (partial tu/make-resource-node! project)]
-      (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
+      (with-open [_ (tu/make-directory-deleter (workspace/project-directory workspace))]
         (make-atlas! "/from-props-script.atlas")
         (make-atlas! "/from-props-game-object.atlas")
         (let [props-script (doto (make-resource-node! "/props.script")
@@ -681,12 +676,11 @@
           build-resource-path-hash (comp murmur/hash64 build-resource-path)
           build-output (partial tu/build-output project)
           texture-build-resource (partial tu/texture-build-resource project)
-          vertex-shader-build-resource (partial tu/vertex-shader-build-resource project)
-          fragment-shader-build-resource (partial tu/fragment-shader-build-resource project)
+          shader-program-build-resource (partial tu/shader-program-build-resource project)
           make-atlas! (partial tu/make-atlas-resource-node! project)
           make-material! (partial make-material! project)
           make-resource-node! (partial tu/make-resource-node! project)]
-      (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
+      (with-open [_ (tu/make-directory-deleter (workspace/project-directory workspace))]
         (make-atlas!    "/from-props-script.atlas")
         (make-material! "/from-props-script.material")
         (make-atlas!    "/from-props-game-object.atlas")
@@ -739,8 +733,7 @@
                        (build-resource                 "/from-props-script.atlas")
                        (texture-build-resource         "/from-props-script.atlas")
                        (build-resource                 "/from-props-script.material")
-                       (vertex-shader-build-resource   "/from-props-script.material")
-                       (fragment-shader-build-resource "/from-props-script.material")
+                       (shader-program-build-resource  "/from-props-script.material")
                        (build-resource                 "/from-props-script.png")}))
               (with-open [_ (tu/build! props-collection)]
                 (let [built-props-collection (protobuf/bytes->map-with-defaults GameObject$CollectionDesc (build-output "/props.collection"))
@@ -763,8 +756,7 @@
                          (build-resource                 "/from-props-script.atlas")
                          (texture-build-resource         "/from-props-script.atlas")
                          (build-resource                 "/from-props-script.material")
-                         (vertex-shader-build-resource   "/from-props-script.material")
-                         (fragment-shader-build-resource "/from-props-script.material")
+                         (shader-program-build-resource  "/from-props-script.material")
                          (build-resource                 "/from-props-script.png")}))
                 (with-open [_ (tu/build! props-collection)]
                   (let [built-props-script (protobuf/bytes->map-with-defaults Lua$LuaModule (build-output "/props.script"))]
@@ -907,7 +899,7 @@
           build-output (partial tu/build-output project)
           make-atlas! (partial tu/make-atlas-resource-node! project)
           make-resource-node! (partial tu/make-resource-node! project)]
-      (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
+      (with-open [_ (tu/make-directory-deleter (workspace/project-directory workspace))]
         (make-atlas! "/from-props-script.atlas")
         (make-atlas! "/from-props-collection.atlas")
         (let [props-script (doto (make-resource-node! "/props.script")
@@ -955,12 +947,11 @@
           build-resource-path-hash (comp murmur/hash64 build-resource-path)
           build-output (partial tu/build-output project)
           texture-build-resource (partial tu/texture-build-resource project)
-          vertex-shader-build-resource (partial tu/vertex-shader-build-resource project)
-          fragment-shader-build-resource (partial tu/fragment-shader-build-resource project)
+          shader-program-build-resource(partial tu/shader-program-build-resource project)
           make-atlas! (partial tu/make-atlas-resource-node! project)
           make-material! (partial make-material! project)
           make-resource-node! (partial tu/make-resource-node! project)]
-      (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
+      (with-open [_ (tu/make-directory-deleter (workspace/project-directory workspace))]
         (make-atlas!    "/from-props-script.atlas")
         (make-material! "/from-props-script.material")
         (make-atlas!    "/from-props-game-object.atlas")
@@ -1025,8 +1016,7 @@
                        (build-resource                 "/from-props-script.atlas")
                        (texture-build-resource         "/from-props-script.atlas")
                        (build-resource                 "/from-props-script.material")
-                       (vertex-shader-build-resource   "/from-props-script.material")
-                       (fragment-shader-build-resource "/from-props-script.material")
+                       (shader-program-build-resource  "/from-props-script.material")
                        (build-resource                 "/from-props-script.png")}))
               (with-open [_ (tu/build! sub-props-collection)]
                 (let [built-sub-props-collection (protobuf/bytes->map-with-defaults GameObject$CollectionDesc (build-output "/sub-props.collection"))
@@ -1051,8 +1041,7 @@
                          (build-resource                 "/from-props-script.atlas")
                          (texture-build-resource         "/from-props-script.atlas")
                          (build-resource                 "/from-props-script.material")
-                         (vertex-shader-build-resource   "/from-props-script.material")
-                         (fragment-shader-build-resource "/from-props-script.material")
+                         (shader-program-build-resource  "/from-props-script.material")
                          (build-resource                 "/from-props-script.png")}))
                 (with-open [_ (tu/build! sub-props-collection)]
                   (let [built-props-script (protobuf/bytes->map-with-defaults Lua$LuaModule (build-output "/props.script"))]
@@ -1201,12 +1190,11 @@
           build-output (partial tu/build-output project)
           node-build-resource tu/node-build-resource
           texture-build-resource (partial tu/texture-build-resource project)
-          vertex-shader-build-resource (partial tu/vertex-shader-build-resource project)
-          fragment-shader-build-resource (partial tu/fragment-shader-build-resource project)
+          shader-program-build-resource(partial tu/shader-program-build-resource project)
           make-atlas! (partial tu/make-atlas-resource-node! project)
           make-material! (partial make-material! project)
           make-resource-node! (partial tu/make-resource-node! project)]
-      (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
+      (with-open [_ (tu/make-directory-deleter (workspace/project-directory workspace))]
         (make-atlas!    "/from-props-script.atlas")
         (make-material! "/from-props-script.material")
         (make-atlas!    "/from-embedded-game-object.atlas")
@@ -1273,8 +1261,7 @@
                        (build-resource                 "/from-props-script.atlas")
                        (texture-build-resource         "/from-props-script.atlas")
                        (build-resource                 "/from-props-script.material")
-                       (vertex-shader-build-resource   "/from-props-script.material")
-                       (fragment-shader-build-resource "/from-props-script.material")
+                       (shader-program-build-resource  "/from-props-script.material")
                        (build-resource                 "/from-props-script.png")}))
               (with-open [_ (tu/build! sub-props-collection)]
                 (let [built-sub-props-collection (protobuf/bytes->map-with-defaults GameObject$CollectionDesc (build-output "/sub-props.collection"))
@@ -1299,8 +1286,7 @@
                          (build-resource                 "/from-props-script.atlas")
                          (texture-build-resource         "/from-props-script.atlas")
                          (build-resource                 "/from-props-script.material")
-                         (vertex-shader-build-resource   "/from-props-script.material")
-                         (fragment-shader-build-resource "/from-props-script.material")
+                         (shader-program-build-resource  "/from-props-script.material")
                          (build-resource                 "/from-props-script.png")}))
                 (with-open [_ (tu/build! sub-props-collection)]
                   (let [built-props-script (protobuf/bytes->map-with-defaults Lua$LuaModule (build-output "/props.script"))]
@@ -1446,7 +1432,7 @@
           build-output (partial tu/build-output project)
           make-atlas! (partial tu/make-atlas-resource-node! project)
           make-resource-node! (partial tu/make-resource-node! project)]
-      (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
+      (with-open [_ (tu/make-directory-deleter (workspace/project-directory workspace))]
         (make-atlas! "/from-props-script.atlas")
         (make-atlas! "/from-sub-props-collection.atlas")
         (let [props-script (doto (make-resource-node! "/props.script")
@@ -1498,7 +1484,7 @@
           edit-property! (fn [node-id proj-path] (edit-property! node-id :__atlas (tu/resource workspace proj-path)))
           assigned-property? (fn [node-id proj-path] (atlas-resource-property? (get (properties node-id) :__atlas) (tu/resource workspace proj-path)))
           overridden-property? (fn [node-id] (overridden? node-id "atlas"))]
-      (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
+      (with-open [_ (tu/make-directory-deleter (workspace/project-directory workspace))]
         (make-atlas! "/from-props-script.atlas")
         (make-atlas! "/from-props-game-object.atlas")
         (make-atlas! "/from-props-collection.atlas")
@@ -1647,7 +1633,7 @@
           resource (partial tu/resource workspace)
           make-atlas! (partial tu/make-atlas-resource-node! project)
           make-resource-node! (partial tu/make-resource-node! project)]
-      (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
+      (with-open [_ (tu/make-directory-deleter (workspace/project-directory workspace))]
         (make-atlas! "/from-props-script.atlas")
         (make-atlas! "/from-props-game-object.atlas")
         (let [props-script (doto (make-resource-node! "/props.script")
@@ -1699,7 +1685,7 @@
           edit-property! (fn [node-id proj-path] (edit-property! node-id :__atlas (tu/resource workspace proj-path)))
           assigned-property? (fn [node-id proj-path] (atlas-resource-property? (get (properties node-id) :__atlas) (tu/resource workspace proj-path)))
           overridden-property? (fn [node-id] (overridden? node-id "atlas"))]
-      (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
+      (with-open [_ (tu/make-directory-deleter (workspace/project-directory workspace))]
         (make-atlas! "/from-props-script.atlas")
         (make-atlas! "/from-props-game-object.atlas")
         (make-atlas! "/from-props-collection.atlas")
@@ -1764,7 +1750,7 @@
   (with-clean-system
     (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
           project (tu/setup-project! workspace)]
-      (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
+      (with-open [_ (tu/make-directory-deleter (workspace/project-directory workspace))]
         (doto (tu/make-resource-node! project "/props.script")
           (edit-script! ["go.property('image', resource.atlas('/builtins/graphics/particle_blob.tilesource'))"]))
 

@@ -5,20 +5,57 @@ on:
 
 jobs:
   build-linux:
-    runs-on: ubuntu-20.04
+    strategy:
+      matrix:
+        arch: [x86_64-linux]
+    runs-on: ubuntu-22.04
     steps:
     - name: Checkout repo
-      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
     - name: Build
       run: |
         cd share/ext/luajit
-        ./build_luajit.sh x86_64-linux
+        ./build_luajit.sh ${{ matrix.arch }}
 
     - name: Archive results
       uses: actions/upload-artifact@v4
       with:
-        name: x86_64-linux-luajit-${{ github.sha }}
+        name: ${{ matrix.arch }}-luajit-${{ github.sha }}
+        path: |
+          ${{ github.workspace }}/share/ext/build/luajit*.tar.gz
+
+
+  build-linux-arm:
+    strategy:
+      matrix:
+        arch: [arm64-linux]
+    runs-on: ubuntu-22.04-arm
+    steps:
+      
+    - name: Add ARM64 architecture and install dependencies
+      run: |
+        sudo dpkg --add-architecture arm64
+        sudo apt update
+        sudo apt install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libc6-dev:arm64 build-essential
+
+    - name: Apply workaround for missing ARM headers
+      run: |
+        cd /usr/include/aarch64-linux-gnu
+        sudo cp -r . ..
+        
+    - name: Checkout repo
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+    - name: Build
+      run: |
+        cd share/ext/luajit
+        ./build_luajit.sh ${{ matrix.arch }}
+
+    - name: Archive results
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.arch }}-luajit-${{ github.sha }}
         path: |
           ${{ github.workspace }}/share/ext/build/luajit*.tar.gz
 
@@ -30,7 +67,7 @@ jobs:
     runs-on: macOS-14
     steps:
     - name: Checkout repo
-      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
     - name: Build
       run: |
@@ -52,7 +89,7 @@ jobs:
     runs-on: macOS-14
     steps:
     - name: Checkout repo
-      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
     - name: Build
       run: |
@@ -70,11 +107,11 @@ jobs:
   build-windows:
     strategy:
       matrix:
-        arch: [x64, amd64_x86]
+        arch: [x64, x86]
     runs-on: windows-latest
     steps:
     - name: Checkout repo
-      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
     - name: Setup MSVS
       uses: TheMrMilchmann/setup-msvc-dev@v3
@@ -89,7 +126,7 @@ jobs:
       shell: cmd
       run: |
         cd share/ext/luajit
-        ./build_win32.bat
+        ./build_win32.bat ${{ matrix.arch }}
 
     - name: Archive results
       uses: actions/upload-artifact@v4
@@ -103,10 +140,10 @@ jobs:
     strategy:
       matrix:
         platform: [armv7-android, arm64-android]
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
     - name: Checkout repo
-      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
     - name: Setup NDK
       uses: nttld/setup-ndk@v1

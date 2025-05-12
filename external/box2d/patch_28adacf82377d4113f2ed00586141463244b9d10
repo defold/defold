@@ -1,0 +1,188 @@
+diff --git a/include/box2d/box2d.h b/include/box2d/box2d.h
+index bee6e5c..8b030b0 100644
+--- a/include/box2d/box2d.h
++++ b/include/box2d/box2d.h
+@@ -38,6 +38,11 @@ B2_API bool b2World_IsValid( b2WorldId id );
+ /// @param subStepCount The number of sub-steps, increasing the sub-step count can increase accuracy. Usually 4.
+ B2_API void b2World_Step( b2WorldId worldId, float timeStep, int subStepCount );
+ 
++// DEFOLD EDIT BEGIN
++/// Get the lock status of the world.
++B2_API bool b2World_IsLocked( b2WorldId worldId );
++// DEFOLD EDIT END
++
+ /// Call this to draw shapes and other debug draw data
+ B2_API void b2World_Draw( b2WorldId worldId, b2DebugDraw* draw );
+ 
+@@ -316,6 +321,11 @@ B2_API void b2Body_ApplyForce( b2BodyId bodyId, b2Vec2 force, b2Vec2 point, bool
+ /// @param wake also wake up the body
+ B2_API void b2Body_ApplyForceToCenter( b2BodyId bodyId, b2Vec2 force, bool wake );
+ 
++// DEFOLD EDIT BEGIN
++/// Get the total force on a body due to all forces acting on it.
++B2_API b2Vec2 b2Body_GetTotalForce( b2BodyId bodyId );
++// DEFOLD EDIT END
++
+ /// Apply a torque. This affects the angular velocity without affecting the linear velocity.
+ /// This optionally wakes the body. The torque is ignored if the body is not awake.
+ /// @param bodyId The body id
+diff --git a/include/box2d/collision.h b/include/box2d/collision.h
+index c00946c..e092a27 100644
+--- a/include/box2d/collision.h
++++ b/include/box2d/collision.h
+@@ -21,7 +21,9 @@ typedef struct b2Hull b2Hull;
+ 
+ /// The maximum number of vertices on a convex polygon. Changing this affects performance even if you
+ /// don't use more vertices.
+-#define B2_MAX_POLYGON_VERTICES 8
++// DEFOLD EDIT BEGIN: This used to be 8
++#define B2_MAX_POLYGON_VERTICES 16
++// DEFOLD EDIT END
+ 
+ /// Low level ray cast input data
+ typedef struct b2RayCastInput
+diff --git a/src/body.c b/src/body.c
+index 286954f..a0770b0 100644
+--- a/src/body.c
++++ b/src/body.c
+@@ -884,6 +884,23 @@ void b2Body_ApplyForceToCenter( b2BodyId bodyId, b2Vec2 force, bool wake )
+ 	}
+ }
+ 
++// DEFOLD EDIT BEGIN
++b2Vec2 b2Body_GetTotalForce( b2BodyId bodyId )
++{
++	b2World* world = b2GetWorld( bodyId.world0 );
++	b2Body* body = b2GetBodyFullId( world, bodyId );
++	b2BodyState* state = b2GetBodyState( world, body );
++	if ( state == NULL )
++	{
++		return b2Vec2_zero;
++	}
++
++	b2SolverSet* set = b2SolverSetArray_Get( &world->solverSets, body->setIndex );
++	b2BodySim* bodySim = b2BodySimArray_Get( &set->bodySims, body->localIndex );
++	return bodySim->force;
++}
++// DEFOLD EDIT END
++
+ void b2Body_ApplyTorque( b2BodyId bodyId, float torque, bool wake )
+ {
+ 	b2World* world = b2GetWorld( bodyId.world0 );
+@@ -1808,7 +1825,10 @@ int b2Body_GetJoints( b2BodyId bodyId, b2JointId* jointArray, int capacity )
+ 
+ bool b2ShouldBodiesCollide( b2World* world, b2Body* bodyA, b2Body* bodyB )
+ {
+-	if ( bodyA->type != b2_dynamicBody && bodyB->type != b2_dynamicBody )
++	// DEFOLD EDIT BEGIN
++	// Support collisions for kinematic objects
++	if ( bodyA->type != b2_dynamicBody && bodyB->type != b2_dynamicBody && bodyA->type != b2_kinematicBody && bodyB->type != b2_kinematicBody )
++	// DEFOLD EDIT END
+ 	{
+ 		return false;
+ 	}
+diff --git a/src/broad_phase.c b/src/broad_phase.c
+index ebfff39..8b58fde 100644
+--- a/src/broad_phase.c
++++ b/src/broad_phase.c
+@@ -188,11 +188,14 @@ static bool b2PairQueryCallback( int proxyId, int shapeId, void* context )
+ 	// b2ShapeDef::forceContactCreation, b2ShapeDef::isSensor, or when a static shape is modified.
+ 	// There can easily be scenarios where the static proxy is in the moveSet but the dynamic proxy is not.
+ 	// I could have some flag to indicate that there are any static bodies in the moveSet.
+-	
++
+ 	// Is this proxy also moving?
+-	if ( queryProxyType == b2_dynamicBody)
++
++	// DEFOLD EDIT BEGIN
++	// Support for kinematic bodies that create contacts
++	if ( queryProxyType == b2_dynamicBody || queryProxyType == b2_kinematicBody )
+ 	{
+-		if ( treeType == b2_dynamicBody && proxyKey < queryProxyKey)
++		if ( (treeType == b2_dynamicBody || treeType == b2_kinematicBody) && proxyKey < queryProxyKey)
+ 		{
+ 			bool moved = b2ContainsKey( &broadPhase->moveSet, proxyKey + 1 );
+ 			if ( moved )
+@@ -204,7 +207,8 @@ static bool b2PairQueryCallback( int proxyId, int shapeId, void* context )
+ 	}
+ 	else
+ 	{
+-		B2_ASSERT( treeType == b2_dynamicBody );
++		// Support for kinematic bodies that create contacts
++		B2_ASSERT( treeType == b2_dynamicBody || treeType == b2_kinematicBody );
+ 		bool moved = b2ContainsKey( &broadPhase->moveSet, proxyKey + 1 );
+ 		if ( moved )
+ 		{
+@@ -212,6 +216,7 @@ static bool b2PairQueryCallback( int proxyId, int shapeId, void* context )
+ 			return true;
+ 		}
+ 	}
++	// DEFOLD EDIT END
+ 
+ 	uint64_t pairKey = B2_SHAPE_PAIR_KEY( shapeId, queryContext->queryShapeIndex );
+ 	if ( b2ContainsKey( &broadPhase->pairSet, pairKey ) )
+@@ -349,7 +354,11 @@ static void b2FindPairsTask( int startIndex, int endIndex, uint32_t threadIndex,
+ 		// Query trees. Only dynamic proxies collide with kinematic and static proxies.
+ 		// Using B2_DEFAULT_MASK_BITS so that b2Filter::groupIndex works.
+ 		b2TreeStats stats = { 0 };
+-		if ( proxyType == b2_dynamicBody )
++
++		// DEFOLD EDIT BEGIN
++		// Box2D normally does not support collisions for kinematic bodies, but we do.
++		if ( proxyType == b2_dynamicBody || proxyType == b2_kinematicBody )
++		// DEFOLD EDIT END
+ 		{
+ 			// consider using bits = groupIndex > 0 ? B2_DEFAULT_MASK_BITS : maskBits
+ 			queryContext.queryTreeType = b2_kinematicBody;
+@@ -362,6 +371,17 @@ static void b2FindPairsTask( int startIndex, int endIndex, uint32_t threadIndex,
+ 			stats.nodeVisits += statsStatic.nodeVisits;
+ 			stats.leafVisits += statsStatic.leafVisits;
+ 		}
++		// DEFOLD EDIT BEGIN
++		// If the proxy type is static, we need to check to kinematic body tree as well.
++		// This is because defold supports collisions with kinematic bodies.
++		else if (proxyType == b2_staticBody)
++		{
++			queryContext.queryTreeType = b2_kinematicBody;
++			b2TreeStats statsKinematic = b2DynamicTree_Query( bp->trees + b2_kinematicBody, fatAABB, B2_DEFAULT_MASK_BITS, b2PairQueryCallback, &queryContext );
++			stats.nodeVisits += statsKinematic.nodeVisits;
++			stats.leafVisits += statsKinematic.leafVisits;
++		}
++		// DEFOLD EDIT END
+ 
+ 		// All proxies collide with dynamic proxies
+ 		// Using B2_DEFAULT_MASK_BITS so that b2Filter::groupIndex works.
+diff --git a/src/core.c b/src/core.c
+index 4e39eb5..ce7d391 100644
+--- a/src/core.c
++++ b/src/core.c
+@@ -185,7 +185,9 @@ void* b2Alloc( int size )
+ 
+ #ifdef B2_PLATFORM_WINDOWS
+ 	void* ptr = _aligned_malloc( size32, B2_ALIGNMENT );
+-#elif defined( B2_PLATFORM_ANDROID )
++	// DEFOLD EDIT BEGIN - iOS11 doesn't support aligned_malloc
++#elif defined( B2_PLATFORM_ANDROID ) || defined( DEFOLD_USE_POSIX_MEMALIGN )
++	// DEFOLD EDIT END
+ 	void* ptr = NULL;
+ 	if ( posix_memalign( &ptr, B2_ALIGNMENT, size32 ) != 0 )
+ 	{
+diff --git a/src/world.c b/src/world.c
+index 7d8ad1e..7aae63d 100644
+--- a/src/world.c
++++ b/src/world.c
+@@ -682,6 +682,14 @@ static void b2Collide( b2StepContext* context )
+ 	b2TracyCZoneEnd( collide );
+ }
+ 
++// DEFOLD EDIT BEGIN
++bool b2World_IsLocked( b2WorldId worldId )
++{
++	b2World* world = b2GetWorldFromId( worldId );
++	return world->locked;
++}
++// DEFOLD EDIT END
++
+ void b2World_Step( b2WorldId worldId, float timeStep, int subStepCount )
+ {
+ 	b2World* world = b2GetWorldFromId( worldId );

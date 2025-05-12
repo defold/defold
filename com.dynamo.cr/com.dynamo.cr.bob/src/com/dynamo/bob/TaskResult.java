@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -20,30 +20,42 @@ package com.dynamo.bob;
  *
  */
 public class TaskResult {
-    private boolean ok = true;
+
+    public enum Result {
+        SUCCESS,
+        RETRY,
+        SKIPPED,
+        FAILED
+    }
+
+    private Result result = Result.SUCCESS;
     private String message = "OK";
-    private Task<?> task;
+    private Task task;
     private Throwable exception;
     private int lineNumber = 0;
 
-    public TaskResult(Task<?> task) {
+    public TaskResult(Task task) {
         this.task = task;
     }
 
     /**
-     * Set if the task completed successfully.
-     * @param ok If the task was successfully completed or not.
+     * Set the task result.
+     * @param result The result
      */
-    public void setOk(boolean ok) {
-        this.ok = ok;
+    public void setResult(Result result) {
+        this.result = result;
     }
 
     /**
-     * Return whether the task was completed successfully or not.
-     * @return success status
+     * Get the task result.
+     * @return result
      */
+    public Result getResult() {
+        return this.result;
+    }
+
     public boolean isOk() {
-        return this.ok;
+        return this.result != Result.FAILED;
     }
 
     /**
@@ -63,16 +75,16 @@ public class TaskResult {
     }
 
     /**
-     * Get corresponding tas
+     * Get corresponding task
      * @return {@link Task}
      */
-    public Task<?> getTask() {
+    public Task getTask() {
         return task;
     }
 
     @Override
     public String toString() {
-        return String.format("%s (%s)", message, this.ok ? "ok" : "failed");
+        return String.format("%s (%s)", message, this.result);
     }
 
     /**
@@ -85,10 +97,18 @@ public class TaskResult {
 
     /**
      * Get exception. If not null a unexpected error has occurred.
-     * @return exception. null of no exception is set.
+     * @return exception or null if no exception is set.
      */
     public Throwable getException() {
         return exception;
+    }
+
+    /**
+     * Check if the result contains an exception
+     * @return true if an exception happened
+     */
+    public boolean hasException() {
+        return exception != null;
     }
 
     /**

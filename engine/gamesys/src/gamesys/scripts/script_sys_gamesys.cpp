@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -119,8 +119,9 @@ namespace dmGameSystem
     // Assumes the g_SysModule.m_LoadRequestsMutex is held (if needed)
     static dmResource::Result HandleRequestLoading(dmResource::HFactory factory, const char* path, const char* original_name, dmResource::LoadBufferType* buffer, LuaRequest* request)
     {
+        uint32_t buffer_size;
         uint32_t resource_size;
-        dmResource::Result res = dmResource::LoadResourceFromBuffer(factory, path, original_name, &resource_size, buffer);
+        dmResource::Result res = dmResource::LoadResourceToBuffer(factory, path, original_name, RESOURCE_INVALID_PRELOAD_SIZE, &resource_size, &buffer_size, buffer);
 
         if (res != dmResource::RESULT_OK)
         {

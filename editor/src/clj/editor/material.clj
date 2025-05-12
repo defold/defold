@@ -1,19 +1,20 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.material
-  (:require [dynamo.graph :as g]
+  (:require [clojure.string :as string]
+            [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.code.shader :as code.shader]
             [editor.defold-project :as project]
@@ -32,8 +33,9 @@
             [util.coll :as coll :refer [pair]]
             [util.murmur :as murmur]
             [util.num :as num])
-  (:import [com.dynamo.bob.pipeline ShaderProgramBuilderEditor]
-           [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType]
+  (:import [com.dynamo.bob.pipeline ShaderProgramBuilderEditor Shaderc$ShaderResource]
+           [com.dynamo.bob.pipeline.shader SPIRVReflector]
+           [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType Graphics$VertexAttribute$VectorType Graphics$VertexStepFunction]
            [com.dynamo.render.proto Material$MaterialDesc Material$MaterialDesc$Sampler Material$MaterialDesc$VertexSpace]
            [com.jogamp.opengl GL2]
            [editor.gl.shader ShaderLifecycle]
@@ -66,7 +68,8 @@
       (-> editable-attribute
           (dissoc :values)
           (protobuf/assign attribute-value-keyword
-                           (when-not (coll/empty? stored-values)
+                           (when (and (not (graphics/engine-provided-attribute? editable-attribute))
+                                      (coll/not-empty stored-values))
                              {:v stored-values}))))))
 
 (defn- save-value-attributes [editable-attributes]
@@ -75,13 +78,13 @@
 (defn- build-target-attributes [attribute-infos]
   (mapv graphics/attribute-info->build-target-attribute attribute-infos))
 
-(g/defnk produce-base-pb-msg [name vertex-program fragment-program vertex-constants fragment-constants samplers tags vertex-space max-page-count]
+(g/defnk produce-base-pb-msg [name vertex-program fragment-program vertex-constants fragment-constants ^:raw samplers tags vertex-space max-page-count]
   (protobuf/make-map-without-defaults Material$MaterialDesc
     :name name
     :vertex-program (resource/resource->proj-path vertex-program)
     :fragment-program (resource/resource->proj-path fragment-program)
-    :vertex-constants (render-program-utils/hack-upgrade-constants vertex-constants)
-    :fragment-constants (render-program-utils/hack-upgrade-constants fragment-constants)
+    :vertex-constants (render-program-utils/editable-constants->constants vertex-constants)
+    :fragment-constants (render-program-utils/editable-constants->constants fragment-constants)
     :samplers (render-program-utils/editable-samplers->samplers samplers)
     :tags tags
     :vertex-space vertex-space
@@ -95,8 +98,7 @@
   (let [build-resource->fused-build-resource-path (comp resource/proj-path build-resource->fused-build-resource)
         material-desc-with-fused-build-resource-paths
         (-> (:material-desc-with-build-resources user-data)
-            (update :vertex-program build-resource->fused-build-resource-path)
-            (update :fragment-program build-resource->fused-build-resource-path))]
+            (update :program build-resource->fused-build-resource-path))]
     {:resource resource
      :content (protobuf/map->bytes Material$MaterialDesc material-desc-with-fused-build-resource-paths)}))
 
@@ -112,16 +114,12 @@
                                      (range max-page-count))))
         samplers))
 
-(defn- attribute-info->error-values [{:keys [data-type element-count error name normalize]} node-id label]
+(defn- attribute-info->error-values [{:keys [data-type error name normalize]} node-id label]
   (filterv some?
            [error
-            (when (not (<= 1 element-count 4))
-              (g/->error node-id label :fatal element-count
-                         (format "'%s' attribute element count must be between 1 and 4"
-                                 name)))
             (when (and normalize
                        (= :type-float data-type))
-              (g/->error node-id label :fatal element-count
+              (g/->error node-id label :fatal nil
                          (format "'%s' attribute uses normalize with float data type"
                                  name)))]))
 
@@ -130,15 +128,12 @@
         (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program" "vp")
         (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program" "fp")
         (mapcat #(attribute-info->error-values % _node-id :attributes) attribute-infos))
-      (let [compile-spirv true
-            vertex-shader-build-target (code.shader/make-shader-build-target vertex-shader-source-info compile-spirv max-page-count)
-            fragment-shader-build-target (code.shader/make-shader-build-target fragment-shader-source-info compile-spirv max-page-count)
+      (let [shader-desc-build-target (code.shader/make-shader-build-target _node-id [vertex-shader-source-info fragment-shader-source-info] max-page-count)
             build-target-samplers (build-target-samplers (:samplers base-pb-msg) max-page-count)
             build-target-attributes (build-target-attributes attribute-infos)
-            dep-build-targets [vertex-shader-build-target fragment-shader-build-target]
+            dep-build-targets [shader-desc-build-target]
             material-desc-with-build-resources (assoc base-pb-msg
-                                                 :vertex-program (:resource vertex-shader-build-target)
-                                                 :fragment-program (:resource fragment-shader-build-target)
+                                                 :program (:resource shader-desc-build-target)
                                                  :samplers build-target-samplers
                                                  :attributes build-target-attributes)]
         [(bt/with-content-hash
@@ -148,14 +143,43 @@
             :user-data {:material-desc-with-build-resources material-desc-with-build-resources}
             :deps dep-build-targets})])))
 
-(defn- transpile-shader-source [shader-ext ^String shader-source ^long max-page-count]
+"A resource namespace is the first literal up until the first dot in a resource binding.
+For example, if we have a uniform buffer with some nested data types:
+
+struct MyMaterial {
+  vec4 diffuse;
+  vec4 specular;
+};
+
+uniform my_uniforms {
+  MyMaterial material;
+};
+
+When crosscompiled to SM120 (which is used by the editor), we will get two uniforms:
+_<id>.material.diffuse
+_<id>.material.specular
+
+To be able to map this in a material constant, we need to strip the namespace from the
+reflected data when the shader is created (see editor.gl.shader:make-shader-program) since
+there is no way a user can know what the generated id will be for older shaders.
+"
+(defn- resource-binding-namespaces [^SPIRVReflector reflector]
+  ;; Storage buffers (also known as SSBOs) will need the same mapping as uniform buffers,
+  ;; but since we don't support them in the editor, we don't gather their namespaces here.
+  (mapv
+    (fn [^Shaderc$ShaderResource uniform-buffer-object]
+      (str "_" (.id uniform-buffer-object)))
+    (.getUBOs reflector)))
+
+(defn- transpile-shader-source [resource-path shader-ext ^String shader-source ^long max-page-count]
   (let [shader-type (code.shader/shader-type-from-ext shader-ext)
         shader-language (code.shader/shader-language-to-java :language-glsl-sm120) ; use the old gles2 compatible shaders
-        is-debug true
-        result (ShaderProgramBuilderEditor/buildGLSLVariantTextureArray shader-source shader-type shader-language is-debug max-page-count)
+        result (ShaderProgramBuilderEditor/buildGLSLVariantTextureArray resource-path shader-source shader-type shader-language max-page-count)
         full-source (.source result)
-        array-sampler-names-array (.arraySamplers result)]
+        array-sampler-names-array (.arraySamplers result)
+        ^SPIRVReflector reflector (.reflector result)]
     {:shader-source full-source
+     :resource-binding-namespaces (resource-binding-namespaces reflector)
      :array-sampler-names (vec array-sampler-names-array)}))
 
 (defn- constant->val [constant]
@@ -177,11 +201,14 @@
     :constant-type-worldview :world-view
     :constant-type-worldviewproj :world-view-proj))
 
+(defn- resource-binding-namespaces->regex-str [resource-binding-namespaces]
+  (str "^(" (string/join "|" resource-binding-namespaces) ")\\."))
+
 (g/defnk produce-shader [_node-id vertex-shader-source-info vertex-program fragment-shader-source-info fragment-program vertex-constants fragment-constants samplers max-page-count]
   (or (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program" "vp")
       (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program" "fp")
-      (let [augmented-vertex-shader-info (transpile-shader-source "vp" (:shader-source vertex-shader-source-info) max-page-count)
-            augmented-fragment-shader-info (transpile-shader-source "fp" (:shader-source fragment-shader-source-info) max-page-count)
+      (let [augmented-vertex-shader-info (transpile-shader-source (resource/proj-path vertex-program) "vp" (:shader-source vertex-shader-source-info) max-page-count)
+            augmented-fragment-shader-info (transpile-shader-source (resource/proj-path fragment-program) "fp" (:shader-source fragment-shader-source-info) max-page-count)
             array-sampler-name->slice-sampler-names
             (into {}
                   (comp (distinct)
@@ -194,6 +221,12 @@
                     (:array-sampler-names augmented-vertex-shader-info)
                     (:array-sampler-names augmented-fragment-shader-info)))
 
+            strip-resource-binding-namespace-regex-str
+            (resource-binding-namespaces->regex-str
+              (concat
+                (:resource-binding-namespaces augmented-vertex-shader-info)
+                (:resource-binding-namespaces augmented-fragment-shader-info)))
+
             uniforms (-> {}
                          (into (map (fn [constant]
                                       (pair (:name constant) (constant->val constant))))
@@ -205,7 +238,80 @@
                                  (map (fn [resolved-sampler-name]
                                         (pair resolved-sampler-name nil))))
                                samplers))]
-        (shader/make-shader _node-id (:shader-source augmented-vertex-shader-info) (:shader-source augmented-fragment-shader-info) uniforms array-sampler-name->slice-sampler-names))))
+        (shader/make-shader _node-id (:shader-source augmented-vertex-shader-info) (:shader-source augmented-fragment-shader-info) uniforms array-sampler-name->slice-sampler-names strip-resource-binding-namespace-regex-str))))
+
+(g/defnk produce-samplers [^:raw samplers default-sampler-filter-modes]
+  ;; Replace any default filter modes with the setting from game.project.
+  (let [{:keys [filter-mode-mag-default filter-mode-min-default]} default-sampler-filter-modes]
+    (mapv (fn [sampler]
+            {:pre [(map? sampler)]} ; Material$MaterialDesc$Sampler in map format.
+            (-> sampler
+                (update
+                  :filter-mag
+                  (fn [filter-mag]
+                    (case filter-mag
+                      :filter-mode-mag-default filter-mode-mag-default
+                      filter-mag)))
+                (update
+                  :filter-min
+                  (fn [filter-min]
+                    (case filter-min
+                      :filter-mode-min-default filter-mode-min-default
+                      filter-min)))))
+          samplers)))
+
+(defn- vector-type->form-field-type [vector-type]
+  (case vector-type
+    :vector-type-scalar :vec4
+    :vector-type-vec2 :vec4
+    :vector-type-vec3 :vec4
+    :vector-type-vec4 :vec4
+    :vector-type-mat2 :mat4
+    :vector-type-mat3 :mat4
+    :vector-type-mat4 :mat4))
+
+(def unsupported-semantic-types
+  #{:semantic-type-bone-weights
+    :semantic-type-bone-indices})
+
+(def ^:private vertex-attribute-fields
+  [{:path [:semantic-type]
+    :label "Semantic Type"
+    :type :choicebox
+    :options (remove #(unsupported-semantic-types (first %)) (protobuf-forms/make-enum-options Graphics$VertexAttribute$SemanticType))
+    :default graphics/default-attribute-semantic-type}
+   {:path [:step-function]
+    :label "Step Function"
+    :type :choicebox
+    :options (protobuf-forms/make-enum-options Graphics$VertexStepFunction)
+    :default graphics/default-attribute-step-function}
+   {:path [:coordinate-space]
+    :label "Coordinate Space"
+    :type :choicebox
+    :options (protobuf-forms/make-enum-options Graphics$CoordinateSpace)
+    :default :coordinate-space-local}
+   {:path [:data-type]
+    :label "Data Type"
+    :type :choicebox
+    :options (protobuf-forms/make-enum-options Graphics$VertexAttribute$DataType)
+    :default graphics/default-attribute-data-type}
+   {:path [:vector-type]
+    :label "Vector Type"
+    :type :choicebox
+    :options (protobuf-forms/make-enum-options Graphics$VertexAttribute$VectorType)
+    :default graphics/default-attribute-vector-type}
+   {:path [:values]
+    :label "Value"
+    :type (vector-type->form-field-type graphics/default-attribute-vector-type)
+    :default (graphics/default-attribute-doubles graphics/default-attribute-semantic-type graphics/default-attribute-vector-type)}
+   {:path [:normalize]
+    :label "Normalize"
+    :type :boolean
+    :default false}])
+
+(def ^:private ^long value-vertex-attribute-field-index
+  (util/first-index-where #(= [:values] (:path %))
+                          vertex-attribute-fields))
 
 (def ^:private form-data
   {:navigation false
@@ -224,43 +330,32 @@
        :type :resource :filter "fp"}
       {:path [:attributes]
        :label "Vertex Attributes"
-       :type :table
-       :columns (let [semantic-type-values (protobuf/enum-values Graphics$VertexAttribute$SemanticType)
-                      data-type-values (protobuf/enum-values Graphics$VertexAttribute$DataType)
-                      coordinate-space-values (protobuf/enum-values Graphics$CoordinateSpace)
-                      default-semantic-type :semantic-type-none
-                      default-element-count 3
-                      default-values (graphics/resize-doubles (vector-of :double) default-semantic-type default-element-count)]
-                  [{:path [:name]
-                    :label "Name"
-                    :type :string}
-                   {:path [:semantic-type]
-                    :label "Semantic Type"
-                    :type :choicebox
-                    :options (protobuf-forms/make-options semantic-type-values)
-                    :default default-semantic-type}
-                   {:path [:data-type]
-                    :label "Data Type"
-                    :type :choicebox
-                    :options (protobuf-forms/make-options data-type-values)
-                    :default :type-float}
-                   {:path [:element-count]
-                    :label "Count"
-                    :type :integer
-                    :default default-element-count}
-                   {:path [:normalize]
-                    :label "Normalize"
-                    :type :boolean
-                    :default false}
-                   {:path [:coordinate-space]
-                    :label "Coordinate Space"
-                    :type :choicebox
-                    :options (protobuf-forms/make-options coordinate-space-values)
-                    :default :coordinate-space-local}
-                   {:path [:values]
-                    :label "Value"
-                    :type :vec4
-                    :default default-values}])}
+       :type :2panel
+       :panel-key {:path [:name]
+                   :type :string
+                   :default "new_attribute"}
+       :panel-form-fn
+       (fn panel-form-fn [selected-attribute]
+         {:sections
+          [{:fields
+            (cond
+              (nil? selected-attribute)
+              vertex-attribute-fields
+
+              (graphics/engine-provided-attribute? selected-attribute)
+              (coll/remove-index vertex-attribute-fields value-vertex-attribute-field-index)
+
+              :else
+              (assoc vertex-attribute-fields
+                value-vertex-attribute-field-index
+                (let [semantic-type (:semantic-type selected-attribute graphics/default-attribute-semantic-type)
+                      vector-type (:vector-type selected-attribute graphics/default-attribute-vector-type)
+                      type (vector-type->form-field-type vector-type)
+                      default (graphics/default-attribute-doubles semantic-type vector-type)]
+                  {:path [:values]
+                   :label "Value"
+                   :type type
+                   :default default})))}]})}
       (render-program-utils/gen-form-data-constants "Vertex Constants" :vertex-constants)
       (render-program-utils/gen-form-data-constants "Fragment Constants" :fragment-constants)
       (render-program-utils/gen-form-data-samplers "Samplers" :samplers)
@@ -271,7 +366,7 @@
       {:path [:vertex-space]
        :label "Vertex Space"
        :type :choicebox
-       :options (protobuf-forms/make-options (protobuf/enum-values Material$MaterialDesc$VertexSpace))
+       :options (protobuf-forms/make-enum-options Material$MaterialDesc$VertexSpace)
        :default (ffirst (protobuf/enum-values Material$MaterialDesc$VertexSpace))}
       {:path [:max-page-count]
        :label "Max Atlas Pages"
@@ -281,10 +376,12 @@
 (defn- coerce-attribute [new-attribute old-attribute]
   ;; This assumes only a single property will change at a time, which is the
   ;; case when editing an attribute using the form view.
-  (let [old-element-count (:element-count old-attribute)
+  (let [old-vector-type (:vector-type old-attribute)
         old-normalize (:normalize old-attribute)
-        new-element-count (:element-count new-attribute)
+        new-vector-type (:vector-type new-attribute)
         new-normalize (:normalize new-attribute)]
+    (assert (graphics/vector-type? old-vector-type))
+    (assert (graphics/vector-type? new-vector-type))
     (cond
       ;; If an attribute changes from a non-normalized value to a normalized one
       ;; or vice versa, attempt to remap the value range. Note that we cannot do
@@ -314,13 +411,12 @@
                 :type-unsigned-int num/normalized->uint-double))]
         (update new-attribute :values #(into (empty %) (map coerce-fn) %)))
 
-      ;; If the element count changes, resize the default value in the material.
+      ;; If the vector type changes, resize the default value in the material.
       ;; This change will also cause attribute overrides stored elsewhere in the
-      ;; project to be saved with the updated element count.
-      (and (not= old-element-count new-element-count)
-           (<= 1 new-element-count 4))
+      ;; project to be saved with the updated vector type.
+      (not= old-vector-type new-vector-type)
       (let [semantic-type (:semantic-type new-attribute)]
-        (update new-attribute :values #(graphics/resize-doubles % semantic-type new-element-count)))
+        (update new-attribute :values #(graphics/convert-double-values % semantic-type old-vector-type new-vector-type)))
 
       ;; If something else changed, do not attempt value coercion.
       :else
@@ -330,7 +426,7 @@
   (case property
     :attributes
     ;; When setting the attributes, coerce the existing values to conform to the
-    ;; updated data type and element count. The attributes cannot be reordered
+    ;; updated data and vector type. The attributes cannot be reordered
     ;; using the form view, so we can assume any existing attribute will be at
     ;; the same index as the updated attribute.
     (let [old-attributes (:attributes user-data)]
@@ -348,7 +444,7 @@
   (let [processed-value (set-form-value-fn property value user-data)]
     (g/set-property! node-id property processed-value)))
 
-(g/defnk produce-form-data [_node-id name attributes vertex-program fragment-program vertex-constants fragment-constants max-page-count samplers tags vertex-space :as args]
+(g/defnk produce-form-data [_node-id name attributes vertex-program fragment-program vertex-constants fragment-constants max-page-count ^:raw samplers tags vertex-space :as args]
   (let [values (select-keys args (mapcat :path (get-in form-data [:sections 0 :fields])))
         form-values (into {} (map (fn [[k v]] [[k] v]) values))]
     (-> form-data
@@ -363,21 +459,21 @@
 
 (defn- filter-mode-min->gl [filter-min default-tex-params]
   (case filter-min
-    :filter-mode-min-default (:min-filter default-tex-params)
+    :filter-mode-min-default (or (:min-filter default-tex-params) GL2/GL_NEAREST_MIPMAP_LINEAR)
     :filter-mode-min-nearest GL2/GL_NEAREST
     :filter-mode-min-linear GL2/GL_LINEAR
     :filter-mode-min-nearest-mipmap-nearest GL2/GL_NEAREST_MIPMAP_NEAREST
     :filter-mode-min-nearest-mipmap-linear GL2/GL_NEAREST_MIPMAP_LINEAR
     :filter-mode-min-linear-mipmap-nearest GL2/GL_LINEAR_MIPMAP_NEAREST
     :filter-mode-min-linear-mipmap-linear GL2/GL_LINEAR_MIPMAP_LINEAR
-    nil))
+    GL2/GL_NEAREST_MIPMAP_LINEAR))
 
 (defn- filter-mode-mag->gl [filter-mag default-tex-params]
   (case filter-mag
-    :filter-mode-mag-default (:mag-filter default-tex-params)
+    :filter-mode-mag-default (or (:mag-filter default-tex-params) GL2/GL_LINEAR)
     :filter-mode-mag-nearest GL2/GL_NEAREST
     :filter-mode-mag-linear GL2/GL_LINEAR
-    nil))
+    GL2/GL_LINEAR))
 
 (def ^:private default-pb-sampler
   (protobuf/make-map-without-defaults Material$MaterialDesc$Sampler
@@ -480,6 +576,7 @@
 
   (output form-data g/Any :cached produce-form-data)
 
+  (input default-sampler-filter-modes g/Any)
   (input vertex-resource resource/Resource)
   (input vertex-shader-source-info g/Any)
   (input fragment-resource resource/Resource)
@@ -490,27 +587,29 @@
   (output save-value g/Any produce-save-value)
   (output build-targets g/Any :cached produce-build-targets)
   (output shader ShaderLifecycle :cached produce-shader)
-  (output samplers [g/KeywordMap] (gu/passthrough samplers))
+  (output samplers [g/KeywordMap] :cached produce-samplers)
   (output attribute-infos [g/KeywordMap] :cached produce-attribute-infos))
 
 (defn- legacy-texture->sampler [name]
   (assoc default-pb-sampler :name name))
 
-(defn load-material [_project self resource material-desc]
+(defn load-material [project self resource material-desc]
   {:pre [(map? material-desc)]} ; Material$MaterialDesc in map format.
   (let [resolve-resource #(workspace/resolve-resource resource %)
         attributes->editable-attributes #(mapv attribute->editable-attribute %)]
-    (gu/set-properties-from-pb-map self Material$MaterialDesc material-desc
-      vertex-program (resolve-resource :vertex-program)
-      fragment-program (resolve-resource :fragment-program)
-      vertex-constants (render-program-utils/hack-downgrade-constants :vertex-constants)
-      fragment-constants (render-program-utils/hack-downgrade-constants :fragment-constants)
-      attributes (attributes->editable-attributes :attributes)
-      name :name
-      samplers (render-program-utils/samplers->editable-samplers :samplers)
-      tags :tags
-      vertex-space :vertex-space
-      max-page-count :max-page-count)))
+    (concat
+      (g/connect project :default-sampler-filter-modes self :default-sampler-filter-modes)
+      (gu/set-properties-from-pb-map self Material$MaterialDesc material-desc
+        vertex-program (resolve-resource :vertex-program)
+        fragment-program (resolve-resource :fragment-program)
+        vertex-constants (render-program-utils/constants->editable-constants :vertex-constants)
+        fragment-constants (render-program-utils/constants->editable-constants :fragment-constants)
+        attributes (attributes->editable-attributes :attributes)
+        name :name
+        samplers (render-program-utils/samplers->editable-samplers :samplers)
+        tags :tags
+        vertex-space :vertex-space
+        max-page-count :max-page-count))))
 
 (defn- sanitize-material
   "The old format specified :textures as string names. Convert these into
@@ -528,6 +627,8 @@
     (-> material-desc
         (dissoc :textures)
         (protobuf/assign-repeated :samplers samplers)
+        (protobuf/sanitize-repeated :vertex-constants render-program-utils/sanitize-constant)
+        (protobuf/sanitize-repeated :fragment-constants render-program-utils/sanitize-constant)
         (protobuf/sanitize-repeated :attributes graphics/sanitize-attribute-definition))))
 
 (defn register-resource-types [workspace]

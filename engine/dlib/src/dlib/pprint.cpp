@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -48,11 +48,7 @@ namespace dmPPrint
         }
 
         int c = m_BufferSize - m_Cursor;
-    #if defined(_WIN32)
-        _vsnprintf_s(m_Buffer + m_Cursor, c, _TRUNCATE, format, argp);
-    #else
         vsnprintf(m_Buffer + m_Cursor, c, format, argp);
-    #endif
 
         m_Buffer[m_BufferSize-1] = '\0';
         m_Cursor = strlen(m_Buffer);

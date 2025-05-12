@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -101,6 +101,25 @@ namespace dmGraphics
         FrameBuffer     m_FrameBuffer;
     };
 
+    struct NullShaderModule
+    {
+        char*                m_Data;
+        ShaderDesc::Language m_Language;
+    };
+
+    struct NullProgram
+    {
+        Program              m_BaseProgram;
+        NullShaderModule*    m_VP;
+        NullShaderModule*    m_FP;
+        NullShaderModule*    m_Compute;
+        uint8_t*             m_UniformData;
+        uint32_t             m_UniformDataSize;
+        ShaderDesc::Language m_Language;
+    };
+
+    static const uint32_t UNIFORM_BUFFERS_ALIGNMENT = 4;
+
     struct NullContext
     {
         NullContext(const ContextParams& params);
@@ -111,11 +130,11 @@ namespace dmGraphics
         dmPlatform::HWindow                m_Window;
         SetTextureAsyncState               m_SetTextureAsyncState;
         dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
-        VertexStreamBuffer                 m_VertexStreams[MAX_VERTEX_STREAM_COUNT];
-        dmVMath::Vector4                   m_ProgramRegisters[MAX_REGISTER_COUNT];
+        VertexStreamBuffer                 m_VertexStreams[MAX_VERTEX_BUFFERS][MAX_VERTEX_STREAM_COUNT];
+        HVertexDeclaration                 m_VertexDeclarations[MAX_VERTEX_BUFFERS];
         TextureSampler                     m_Samplers[MAX_TEXTURE_COUNT];
         HTexture                           m_Textures[MAX_TEXTURE_COUNT];
-        HVertexBuffer                      m_VertexBuffer;
+        HVertexBuffer                      m_VertexBuffers[MAX_VERTEX_BUFFERS];
         FrameBuffer                        m_MainFrameBuffer;
         FrameBuffer*                       m_CurrentFrameBuffer;
         void*                              m_Program;
@@ -133,7 +152,7 @@ namespace dmGraphics
         uint32_t                           m_UseAsyncTextureLoad    : 1;
         uint32_t                           m_RequestWindowClose     : 1;
         uint32_t                           m_PrintDeviceInfo        : 1;
-        uint32_t                           m_ContextFeatures        : 3;
+        uint32_t                           m_ContextFeatures        : 8;
     };
 }
 

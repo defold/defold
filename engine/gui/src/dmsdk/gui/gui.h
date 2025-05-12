@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -117,7 +117,7 @@ namespace dmGui
      * @member NODE_TEXTURE_TYPE_TEXTURE
      * @member NODE_TEXTURE_TYPE_TEXTURE_SET
      */
-    enum NodeTextureType
+    enum NodeTextureType : uint8_t
     {
         NODE_TEXTURE_TYPE_NONE,
         NODE_TEXTURE_TYPE_TEXTURE,

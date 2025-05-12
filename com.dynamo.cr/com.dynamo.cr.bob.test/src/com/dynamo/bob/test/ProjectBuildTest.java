@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -21,7 +21,6 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.text.ParseException;
-import java.util.HashSet;
 import java.util.List;
 
 import static org.junit.Assert.assertTrue;
@@ -77,7 +76,6 @@ public class ProjectBuildTest {
         project.scan(scanner, "com.dynamo.bob.pipeline");
 
         // project.setOption("platform", Platform.X86Win32.getPair());
-        project.findSources(contentRoot, new HashSet<String>());
         List<TaskResult> result = project.build(new NullProgress(), "clean", "build");
         for (TaskResult taskResult : result) {
             assertTrue(taskResult.toString(), taskResult.isOk());

@@ -1,29 +1,29 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.handler-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer :all :exclude [run-test]]
             [dynamo.graph :as g]
             [editor.handler :as handler]
             [editor.core :as core]
-            [integration.test-util :as test-util]
             [support.test-support :refer [with-clean-system tx-nodes]]
-            [service.log :as log])
+            [service.log :as log]
+            [util.fn :as fn])
   (:import [clojure.lang Keyword]))
 
 (defn fixture [f]
-  (with-redefs [handler/state-atom (atom {})]
+  (with-redefs [handler/state-atom (atom handler/empty-state)]
     (f)))
 
 (use-fixtures :each fixture)
@@ -40,13 +40,13 @@
 
 (deftest run-test
   (with-clean-system
-    (handler/defhandler :open :global
+    (handler/defhandler :file.open :global
       (enabled? [instances] (every? #(= % :foo) instances))
       (run [instances] 123))
-    (are [inst exp] (= exp (enabled? :open [(handler/->context :global {:instances [inst]})] {}))
+    (are [inst exp] (= exp (enabled? :file.open [(handler/->context :global {:instances [inst]})] {}))
          :foo true
          :bar false)
-    (is (= 123 (run :open [(handler/->context :global {:instances [:foo]})] {})))))
+    (is (= 123 (run :file.open [(handler/->context :global {:instances [:foo]})] {})))))
 
 (deftest context
   (with-clean-system
@@ -131,8 +131,8 @@
 (deftest throwing-handler
   (with-clean-system
     (let [global (handler/->context :global {:global-context true} (->StaticSelection [:a]) {})
-          throwing-enabled? (test-util/make-call-logger (fn [selection] (throw (Exception. "Thrown from enabled?"))))
-          throwing-run (test-util/make-call-logger (fn [selection] (throw (Exception. "Thrown from run"))))]
+          throwing-enabled? (fn/make-call-logger (fn [selection] (throw (Exception. "Thrown from enabled?"))))
+          throwing-run (fn/make-call-logger (fn [selection] (throw (Exception. "Thrown from run"))))]
       (handler/enable-disabled-handlers!)
       (handler/defhandler :throwing :global
         (active? [selection] true)
@@ -142,18 +142,18 @@
         (testing "The enabled? function will not be called anymore if it threw an exception."
           (is (not (enabled? :throwing [global] {})))
           (is (not (enabled? :throwing [global] {})))
-          (is (= 1 (count (test-util/call-logger-calls throwing-enabled?)))))
+          (is (= 1 (count (fn/call-logger-calls throwing-enabled?)))))
         (testing "The command can be repeated even though an exception was thrown during run."
           (is (nil? (run :throwing [global] {})))
           (is (nil? (run :throwing [global] {})))
-          (is (= 2 (count (test-util/call-logger-calls throwing-run)))))
+          (is (= 2 (count (fn/call-logger-calls throwing-run)))))
         (testing "Disabled handlers can be re-enabled during development."
-          (is (= 1 (count (test-util/call-logger-calls throwing-enabled?))))
+          (is (= 1 (count (fn/call-logger-calls throwing-enabled?))))
           (enabled? :throwing [global] {})
-          (is (= 1 (count (test-util/call-logger-calls throwing-enabled?))))
+          (is (= 1 (count (fn/call-logger-calls throwing-enabled?))))
           (handler/enable-disabled-handlers!)
           (enabled? :throwing [global] {})
-          (is (= 2 (count (test-util/call-logger-calls throwing-enabled?)))))))))
+          (is (= 2 (count (fn/call-logger-calls throwing-enabled?)))))))))
 
 (defprotocol AProtocol)
 
@@ -322,21 +322,21 @@
                       :id ::file
                       :children [{:label "New"
                                   :id ::new
-                                  :command :new}
+                                  :command :file.new}
                                  {:label "Open"
                                   :id ::open
-                                  :command :open}]}
+                                  :command :file.open}]}
                      {:label "Edit"
                       :id ::edit
                       :children [{:label "Undo"
                                   :icon "icons/undo.png"
-                                  :command :undo}
+                                  :command :edit.undo}
                                  {:label "Redo"
                                   :icon "icons/redo.png"
-                                  :command :redo}]}
+                                  :command :edit.redo}]}
                      {:label "Help"
                       :children [{:label "About"
-                                  :command :about}]}])
+                                  :command :app.about}]}])
 
 (def scene-menu-data [{:label "Scene"
                        :children [{:label "Do stuff"}
@@ -347,7 +347,7 @@
                      :children [{:label "Erase Tile"}]}])
 
 (deftest main-menu
-  (with-redefs [handler/state-atom (atom {})]
+  (with-redefs [handler/state-atom (atom handler/empty-state)]
     (handler/register-menu! ::menubar main-menu-data)
     (handler/register-menu! ::edit scene-menu-data)
     (handler/register-menu! ::scene-end tile-map-data)

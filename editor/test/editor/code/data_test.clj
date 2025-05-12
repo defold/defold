@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,7 +15,8 @@
 (ns editor.code.data-test
   (:require [clojure.string :as string]
             [clojure.test :refer :all]
-            [editor.code.data :as data :refer [->Cursor ->CursorRange]])
+            [editor.code.data :as data :refer [->Cursor ->CursorRange]]
+            [editor.code.script :as script])
   (:import (java.io IOException)
            (java.nio CharBuffer)))
 
@@ -114,6 +115,26 @@
     [[0 1] [2 1]] [1 2] true
     [[0 1] [2 1]] [2 0] true
     [[0 1] [2 1]] [2 1] true
+    [[0 1] [2 1]] [2 2] false))
+
+(deftest cursor-range-contains-exclusive-test
+  (are [range cursor contains?]
+    (= contains? (data/cursor-range-contains-exclusive? (cr (range 0) (range 1))
+                                                        (->Cursor (cursor 0) (cursor 1))))
+    [[0 0] [0 0]] [0 0] false
+    [[0 0] [0 1]] [0 0] true
+    [[0 0] [0 1]] [0 1] false
+    [[0 1] [0 2]] [0 1] true
+    [[0 1] [0 2]] [0 0] false
+    [[0 1] [0 1]] [0 0] false
+    [[0 1] [1 1]] [1 0] true
+    [[0 1] [1 1]] [1 1] false
+    [[0 1] [1 1]] [1 2] false
+    [[0 1] [2 1]] [1 0] true
+    [[0 1] [2 1]] [1 1] true
+    [[0 1] [2 1]] [1 2] true
+    [[0 1] [2 1]] [2 0] true
+    [[0 1] [2 1]] [2 1] false
     [[0 1] [2 1]] [2 2] false))
 
 (deftest cursor-range-midpoint-follows-test
@@ -804,8 +825,10 @@
                                      (other-region 1 6 "second")]))))))
 
 (deftest delete-test
-  (let [backspace (fn [lines cursor-ranges] (data/delete lines cursor-ranges nil (layout-info lines) data/delete-character-before-cursor))
-        delete (fn [lines cursor-ranges] (data/delete lines cursor-ranges nil (layout-info lines) data/delete-character-after-cursor))]
+  (let [grammar nil
+        syntax-info []
+        backspace (fn [lines cursor-ranges] (data/delete lines grammar syntax-info cursor-ranges nil (layout-info lines) data/delete-character-before-cursor))
+        delete (fn [lines cursor-ranges] (data/delete lines grammar syntax-info cursor-ranges nil (layout-info lines) data/delete-character-after-cursor))]
     (testing "Single cursor"
       (is (= {:cursor-ranges [(c 0 0)]
               :invalidated-row 0
@@ -1463,3 +1486,158 @@
     (is (= [#code/range [[0 7] [0 10]]]
            (data/cursor-range-differences #code/range [[0 5] [0 10]]
                                           #code/range [[0 5] [0 7]])))))
+
+(deftest intersection-test
+  (testing "no intersection => nil"
+    (testing "not touching"
+      (is (nil? (data/cursor-range-intersection (cr [0 0] [0 1])
+                                                (cr [0 2] [0 3]))))
+      (is (nil? (data/cursor-range-intersection (cr [0 2] [0 3])
+                                                (cr [0 0] [0 1])))))
+    (testing "touching"
+      (is (nil? (data/cursor-range-intersection (cr [0 0] [0 1])
+                                                (cr [0 1] [0 2]))))
+      (is (nil? (data/cursor-range-intersection (cr [0 1] [0 2])
+                                                (cr [0 0] [0 1]))))
+      (testing "one is empty"
+       (is (nil? (data/cursor-range-intersection (cr [0 0] [0 1])
+                                                 (cr [0 1] [0 1]))))
+       (is (nil? (data/cursor-range-intersection (cr [0 1] [0 1])
+                                                 (cr [0 0] [0 1]))))
+       (is (nil? (data/cursor-range-intersection (cr [0 0] [0 0])
+                                                 (cr [0 0] [0 1]))))
+       (is (nil? (data/cursor-range-intersection (cr [0 0] [0 1])
+                                                 (cr [0 0] [0 0])))))))
+  (testing "one within another"
+    (is (= (cr [0 1] [0 2])
+           (data/cursor-range-intersection (cr [0 0] [0 3])
+                                           (cr [0 1] [0 2]))))
+    (is (= (cr [0 1] [0 2])
+           (data/cursor-range-intersection (cr [0 1] [0 2])
+                                           (cr [0 0] [0 3]))))
+    (testing "empty is still nil"
+      (is (nil? (data/cursor-range-intersection (cr [0 0] [0 2])
+                                                (cr [0 1] [0 1]))))))
+  (testing "partial intersection"
+    (is (= (cr [0 1] [0 2])
+           (data/cursor-range-intersection (cr [0 0] [0 2])
+                                           (cr [0 1] [0 3]))))
+    (is (= (cr [0 1] [0 2])
+           (data/cursor-range-intersection (cr [0 1] [0 3])
+                                           (cr [0 0] [0 2])))))
+  (testing "full overlap"
+    (is (= (cr [0 0] [0 1])
+           (data/cursor-range-intersection (cr [0 0] [0 1])
+                                           (cr [0 0] [0 1]))))
+    (testing "empty is still nil"
+      (is (nil? (data/cursor-range-intersection (cr [0 0] [0 0])
+                                                (cr [0 0] [0 0])))))))
+
+(deftest syntax-scope-before-cursor-test
+  (let [syntax-scope-before-cursor (fn syntax-scope-before-cursor [lines cursor]
+                                     (data/syntax-scope-before-cursor
+                                       (data/ensure-syntax-info [] (count lines) lines script/lua-grammar)
+                                       script/lua-grammar
+                                       cursor))]
+    (is (= "source.lua"
+           (syntax-scope-before-cursor ["foo('bar')"] (->Cursor 0 0))))
+    (is (= "source.lua"
+           (syntax-scope-before-cursor ["foo('bar')"] (->Cursor 0 100))))
+    (is (= "support.function.any-method.lua"
+           (syntax-scope-before-cursor ["foo('bar')"] (->Cursor 0 1))))
+    (is (= "punctuation.definition.string.quoted.begin.lua"
+           (syntax-scope-before-cursor ["'bar'"] (->Cursor 0 1))))
+    (is (= "punctuation.definition.string.quoted.end.lua"
+           (syntax-scope-before-cursor ["'bar'"] (->Cursor 0 5))))
+    (is (= "comment.block.lua"
+           (syntax-scope-before-cursor ["--[[" "inside a comment" "]]"] (->Cursor 1 1))))))
+
+
+(deftest auto-insert-test
+  (let [key-typed (fn key-typed [lines cursor-ranges typed]
+                    (select-keys
+                      (data/key-typed
+                        (data/indent-level-pattern 4)
+                        (data/indent-type->indent-string :four-spaces)
+                        script/lua-grammar
+                        lines
+                        cursor-ranges
+                        []
+                        (layout-info lines)
+                        []
+                        typed)
+                      [:lines :cursor-ranges]))
+        backspace-typed (fn backspace-typed [lines cursor-range]
+                          (select-keys
+                            (data/delete
+                              lines
+                              script/lua-grammar
+                              []
+                              [cursor-range]
+                              []
+                              (layout-info lines)
+                              data/delete-character-before-cursor)
+                            [:lines :cursor-ranges]))]
+    (testing "open auto-insert: insert both open and close characters"
+      (is (= {:lines ["foo[]"]
+              :cursor-ranges [#code/range [[0 4] [0 4]]]}
+             (key-typed ["foo"] [(cr [0 3] [0 3])] "[")))
+      (is (= {:lines ["{foo}"]
+              :cursor-ranges [#code/range [[0 1] [0 4]]]}
+             (key-typed ["foo"] [(cr [0 0] [0 3])] "{")))
+      (is (= {:lines ["foo() (bar)"]
+              :cursor-ranges [#code/range [[0 4] [0 4]]
+                              #code/range [[0 7] [0 10]]]}
+             (key-typed ["foo bar"] [(cr [0 3] [0 3]) (cr [0 4] [0 7])] "("))))
+    (testing "close auto-insert: move right instead of re-adding a close character"
+      (is (= {:lines ["foo()"]
+              :cursor-ranges [#code/range [[0 5] [0 5]]]}
+             (key-typed ["foo()"] [(cr [0 4] [0 4])] ")"))))
+    (testing "backspace auto-insert: delete both open and close characters"
+      (is (= {:lines ["foo"]
+              :cursor-ranges [#code/range [[0 3] [0 3]]]}
+             (backspace-typed ["foo()"] (cr [0 4] [0 4])))))
+    (testing "string regions are excluded from auto-inserts"
+      (is (= {:lines ["[[']]"]
+              :cursor-ranges [#code/range [[0 3] [0 3]]]}
+             (key-typed ["[[]]"] [(cr [0 2] [0 2])] "'")))
+      (is (= {:lines ["'{'"]
+              :cursor-ranges [#code/range [[0 2] [0 2]]]}
+             (key-typed ["''"] [(c 0 1)] "{")))
+      (is (= {:lines ["'\"'"]
+              :cursor-ranges [#code/range [[0 2] [0 2]]]}
+             (key-typed ["''"] [(c 0 1)] "\"")))
+      (testing "except for closing the regions"
+        (is (= {:lines ["''"]
+                :cursor-ranges [#code/range [[0 2] [0 2]]]}
+               (key-typed ["''"] [(c 0 1)] "'")))
+        (is (= {:lines ["')'"]
+                :cursor-ranges [#code/range [[0 1] [0 1]]]}
+               (backspace-typed ["'()'"] (c 0 2))))))
+    (testing "escaped open characters are not considered as open characters"
+      (is (= {:lines ["'\\'"]
+              :cursor-ranges [#code/range [[0 2] [0 2]]]}
+             (backspace-typed ["'\\''"] (c 0 3)))))
+    (testing "uses syntax information to figure out if it should open or close auto-insert"
+      (testing "opens"
+        (is (= {:lines ["''''''"]
+                :cursor-ranges [#code/range [[0 3] [0 3]]]}
+               (key-typed ["''''"] [(c 0 2)] "'"))))
+      (testing "deletes an opening"
+        (is (= {:lines ["''"]
+                :cursor-ranges [#code/range [[0 2] [0 2]]]}
+               (backspace-typed ["''''"] (c 0 3)))))
+      (testing "closes"
+        (is (= {:lines ["''''"]
+                :cursor-ranges [#code/range [[0 4] [0 4]]]}
+               (key-typed ["''''"] [(c 0 3)] "'")))))))
+
+(deftest apply-edits-test
+  (is (= {:lines ["ab=1"]
+          :cursor-ranges [#code/range [[0 2] [0 2]]] ; affected cursor moved right
+          :invalidated-row 0
+          :regions [#code/range [[0 2] [0 3] :type :foo]]}
+         (data/apply-edits ["xy=1"]
+                           [#code/range[[0 2] [0 3] :type :foo]] ; region
+                           [#code/range [[0 1] [0 1]]] ; cursor range within an edit
+                           [[#code/range [[0 0] [0 2]] ["ab"]]]))))

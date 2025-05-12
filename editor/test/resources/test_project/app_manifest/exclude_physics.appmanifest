@@ -3,7 +3,7 @@
 platforms:
     arm64-osx:
         context:
-            excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision","Box2D","script_box2d"]
+            excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision","box2d","box2d_defold","script_box2d","script_box2d_defold"]
             excludeSymbols: ["ScriptBox2DExt"]
             symbols: []
             libs: ["physics_null"]
@@ -12,7 +12,7 @@ platforms:
 
     x86_64-osx:
         context:
-            excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision","Box2D","script_box2d"]
+            excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision","box2d","box2d_defold","script_box2d","script_box2d_defold"]
             excludeSymbols: ["ScriptBox2DExt"]
             symbols: []
             libs: ["physics_null"]
@@ -21,7 +21,15 @@ platforms:
 
     x86_64-linux:
         context:
-            excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision","Box2D","script_box2d"]
+            excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision","box2d","box2d_defold","script_box2d","script_box2d_defold"]
+            excludeSymbols: ["ScriptBox2DExt"]
+            symbols: []
+            libs: ["physics_null"]
+            linkFlags: []
+
+    arm64-linux:
+        context:
+            excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision","box2d","box2d_defold","script_box2d","script_box2d_defold"]
             excludeSymbols: ["ScriptBox2DExt"]
             symbols: []
             libs: ["physics_null"]
@@ -29,7 +37,7 @@ platforms:
 
     js-web:
         context:
-            excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision","Box2D","script_box2d"]
+            excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision","box2d","box2d_defold","script_box2d","script_box2d_defold"]
             excludeJsLibs: []
             excludeSymbols: ["ScriptBox2DExt"]
             symbols: []
@@ -38,7 +46,16 @@ platforms:
 
     wasm-web:
         context:
-            excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision","Box2D","script_box2d"]
+            excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision","box2d","box2d_defold","script_box2d","script_box2d_defold"]
+            excludeJsLibs: []
+            excludeSymbols: ["ScriptBox2DExt"]
+            symbols: []
+            libs: ["physics_null"]
+            linkFlags: []
+
+    wasm_pthread-web:
+        context:
+            excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision","box2d","box2d_defold","script_box2d","script_box2d_defold"]
             excludeJsLibs: []
             excludeSymbols: ["ScriptBox2DExt"]
             symbols: []
@@ -47,7 +64,7 @@ platforms:
 
     x86-win32:
         context:
-            excludeLibs: ["libphysics","libLinearMath","libBulletDynamics","libBulletCollision","libBox2D","libscript_box2d"]
+            excludeLibs: ["libphysics","libLinearMath","libBulletDynamics","libBulletCollision","libbox2d","libbox2d_defold","libscript_box2d", "libscript_box2d_defold"]
             excludeSymbols: ["ScriptBox2DExt"]
             symbols: []
             libs: ["libphysics_null.lib"]
@@ -55,7 +72,7 @@ platforms:
 
     x86_64-win32:
         context:
-            excludeLibs: ["libphysics","libLinearMath","libBulletDynamics","libBulletCollision","libBox2D","libscript_box2d"]
+            excludeLibs: ["libphysics","libLinearMath","libBulletDynamics","libBulletCollision","libbox2d","libbox2d_defold","libscript_box2d", "libscript_box2d_defold"]
             excludeSymbols: ["ScriptBox2DExt"]
             symbols: []
             libs: ["libphysics_null.lib"]
@@ -63,7 +80,7 @@ platforms:
 
     armv7-android:
         context:
-            excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision","Box2D","script_box2d"]
+            excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision","box2d","box2d_defold","script_box2d","script_box2d_defold"]
             excludeJars: []
             excludeSymbols: ["ScriptBox2DExt"]
             symbols: []
@@ -73,7 +90,7 @@ platforms:
 
     arm64-android:
         context:
-            excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision","Box2D","script_box2d"]
+            excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision","box2d","box2d_defold","script_box2d","script_box2d_defold"]
             excludeJars: []
             excludeSymbols: ["ScriptBox2DExt"]
             symbols: []
@@ -83,7 +100,7 @@ platforms:
 
     armv7-ios:
         context:
-            excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision","Box2D","script_box2d"]
+            excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision","box2d","box2d_defold","script_box2d","script_box2d_defold"]
             excludeSymbols: ["ScriptBox2DExt"]
             symbols: []
             libs: ["physics_null"]
@@ -92,7 +109,7 @@ platforms:
 
     arm64-ios:
         context:
-            excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision","Box2D","script_box2d"]
+            excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision","box2d","box2d_defold","script_box2d","script_box2d_defold"]
             excludeSymbols: ["ScriptBox2DExt"]
             symbols: []
             libs: ["physics_null"]
@@ -101,7 +118,7 @@ platforms:
 
     x86_64-ios:
         context:
-            excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision","Box2D","script_box2d"]
+            excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision","box2d","box2d_defold","script_box2d","script_box2d_defold"]
             excludeSymbols: ["ScriptBox2DExt"]
             symbols: []
             libs: ["physics_null"]

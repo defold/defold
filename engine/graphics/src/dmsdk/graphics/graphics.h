@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,6 +16,8 @@
 #define DMSDK_GRAPHICS_H
 
 #include <stdint.h>
+
+#include <graphics/graphics_ddf.h>
 
 /*# Graphics API documentation
  * [file:<dmsdk/graphics/graphics.h>]
@@ -49,27 +51,6 @@ namespace dmGraphics
      * @name HRenderTarget
      */
     typedef uint64_t HRenderTarget; // Where is this currently used?
-
-    /*#
-     * Vertex program handle
-     * @typedef
-     * @name HVertexProgram
-     */
-    typedef uintptr_t HVertexProgram;
-
-    /*#
-     * Fragment program handle
-     * @typedef
-     * @name HFragmentProgram
-     */
-    typedef uintptr_t HFragmentProgram;
-
-    /*#
-     * Compute program handle
-     * @typedef
-     * @name HComputeProgram
-     */
-    typedef uintptr_t HComputeProgram;
 
     /*#
      * Program handle
@@ -243,6 +224,7 @@ namespace dmGraphics
         TEXTURE_FORMAT_RG_ETC2              = 14,
         TEXTURE_FORMAT_RGBA_ETC2            = 15,
         TEXTURE_FORMAT_RGBA_ASTC_4x4        = 16,
+        TEXTURE_FORMAT_RGBA_ASTC_4X4        = 16,
         TEXTURE_FORMAT_RGB_BC1              = 17,
         TEXTURE_FORMAT_RGBA_BC3             = 18,
         TEXTURE_FORMAT_R_BC4                = 19,
@@ -261,6 +243,21 @@ namespace dmGraphics
         TEXTURE_FORMAT_RGBA32UI             = 30,
         TEXTURE_FORMAT_BGRA8U               = 31,
         TEXTURE_FORMAT_R32UI                = 32,
+
+        // ASTC Formats
+        TEXTURE_FORMAT_RGBA_ASTC_5X4        = 33,
+        TEXTURE_FORMAT_RGBA_ASTC_5X5        = 34,
+        TEXTURE_FORMAT_RGBA_ASTC_6X5        = 35,
+        TEXTURE_FORMAT_RGBA_ASTC_6X6        = 36,
+        TEXTURE_FORMAT_RGBA_ASTC_8X5        = 37,
+        TEXTURE_FORMAT_RGBA_ASTC_8X6        = 38,
+        TEXTURE_FORMAT_RGBA_ASTC_8X8        = 39,
+        TEXTURE_FORMAT_RGBA_ASTC_10X5       = 40,
+        TEXTURE_FORMAT_RGBA_ASTC_10X6       = 41,
+        TEXTURE_FORMAT_RGBA_ASTC_10X8       = 42,
+        TEXTURE_FORMAT_RGBA_ASTC_10X10      = 43,
+        TEXTURE_FORMAT_RGBA_ASTC_12X10      = 44,
+        TEXTURE_FORMAT_RGBA_ASTC_12X12      = 45,
 
         TEXTURE_FORMAT_COUNT
     };
@@ -422,6 +419,15 @@ namespace dmGraphics
      * @member TYPE_FLOAT_MAT2
      * @member TYPE_FLOAT_MAT3
      * @member TYPE_IMAGE_2D
+     * @member TYPE_TEXTURE_2D
+     * @member TYPE_SAMPLER
+     * @member TYPE_TEXTURE_2D_ARRAY
+     * @member TYPE_TEXTURE_CUBE
+     * @member TYPE_SAMPLER_3D
+     * @member TYPE_TEXTURE_3D
+     * @member TYPE_IMAGE_3D
+     * @member TYPE_SAMPLER_3D_ARRAY
+     * @member TYPE_TEXTURE_3D_ARRAY
      */
     enum Type
     {
@@ -442,6 +448,15 @@ namespace dmGraphics
         TYPE_FLOAT_MAT2       = 14,
         TYPE_FLOAT_MAT3       = 15,
         TYPE_IMAGE_2D         = 16,
+        TYPE_TEXTURE_2D       = 17,
+        TYPE_SAMPLER          = 18,
+        TYPE_TEXTURE_2D_ARRAY = 19,
+        TYPE_TEXTURE_CUBE     = 20,
+        TYPE_SAMPLER_3D       = 21,
+        TYPE_TEXTURE_3D       = 22,
+        TYPE_IMAGE_3D         = 23,
+        TYPE_SAMPLER_3D_ARRAY = 24,
+        TYPE_TEXTURE_3D_ARRAY = 25,
     };
 
     /*#
@@ -484,19 +499,6 @@ namespace dmGraphics
     };
 
     /*#
-     * Vertex step function. Dictates how the data for a vertex attribute should be read in a vertex shader.
-     * @enum
-     * @name VertexStepFunction
-     * @member VERTEX_STEP_FUNCTION_VERTEX
-     * @member VERTEX_STEP_FUNCTION_INSTANCE
-     */
-    enum VertexStepFunction
-    {
-        VERTEX_STEP_FUNCTION_VERTEX,
-        VERTEX_STEP_FUNCTION_INSTANCE,
-    };
-
-    /*#
      * Create new vertex stream declaration. A stream declaration contains a list of vertex streams
      * that should be used to create a vertex declaration from.
      * @name NewVertexStreamDeclaration
@@ -504,6 +506,16 @@ namespace dmGraphics
      * @return declaration [type: dmGraphics::HVertexStreamDeclaration] the vertex declaration
      */
     HVertexStreamDeclaration NewVertexStreamDeclaration(HContext context);
+
+    /*#
+     * Create new vertex stream declaration. A stream declaration contains a list of vertex streams
+     * that should be used to create a vertex declaration from.
+     * @name NewVertexStreamDeclaration
+     * @param context [type: dmGraphics::HContext] the context
+     * @param step_function [type: dmGraphics::VertexStepFunction] the vertex step function to use
+     * @return declaration [type: dmGraphics::HVertexStreamDeclaration] the vertex declaration
+     */
+    HVertexStreamDeclaration NewVertexStreamDeclaration(HContext context, VertexStepFunction step_function);
 
     /*#
      * Adds a stream to a stream declaration
@@ -702,6 +714,28 @@ namespace dmGraphics
      * @return extension [type:const char*] the extension. 0 if index was out of bounds
      */
     const char* GetSupportedExtension(HContext context, uint32_t index);
+
+    /*# Read frame buffer pixels in BGRA format
+     * @name ReadPixels
+     * @param context [type:dmGraphics::HContext] the context
+     * @param x [type:int32_t] x-coordinate of the starting position
+     * @param y [type:int32_t] y-coordinate of the starting position
+     * @param width [type:uint32_t] width of the region
+     * @param height [type:uin32_t] height of the region
+     * @param buffer [type:void*] buffer to read to
+     * @param buffer_size [type:uint32_t] buffer size
+     */
+    void ReadPixels(HContext context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size);
+
+    /*# Get viewport's parameters
+     * @name GetViewport
+     * @param context [type:dmGraphics::HContext] the context
+     * @param x [type:int32_t] x-coordinate of the viewport's origin
+     * @param y [type:int32_t] y-coordinate of the viewport's origin
+     * @param width [type:uint32_t] viewport's width
+     * @param height [type:uint32_t] viewport's height
+     */
+    void GetViewport(HContext context, int32_t* x, int32_t* y, uint32_t* width, uint32_t* height);
 }
 
 #endif // DMSDK_GRAPHICS_H

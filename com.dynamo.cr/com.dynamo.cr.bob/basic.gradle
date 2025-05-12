@@ -45,8 +45,42 @@ ext {
 }
 
 gradle.taskGraph.whenReady { taskGraph ->
+    // Determine Python executable
+    def pythonExec = null
+    try {
+        // Check if python3 exists
+        def process = new ProcessBuilder("python3", "--version")
+                .redirectErrorStream(true)
+                .start()
+        process.waitFor()
+        if (process.exitValue() == 0) {
+            pythonExec = "python3"
+        } else {
+            throw new Exception("python3 not available")
+        }
+    } catch (Exception ignored) {
+        try {
+            // Fall back to python
+            def process = new ProcessBuilder("python", "--version")
+                    .redirectErrorStream(true)
+                    .start()
+            process.waitFor()
+            if (process.exitValue() == 0) {
+                pythonExec = "python"
+            } else {
+                throw new Exception("python not available")
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Neither python3 nor python is available on the system")
+        }
+    }
+
+    // Save Python executable to environment variable
+    ext.python = pythonExec
+    println "Using Python executable: ${ext.python}"
+
     def command = [
-            "python",
+            ext.python,
             "-c",
             "import sys; sys.path.append(r'${buildToolsDir}'); import sdk; print(sdk.get_host_platform())"
     ] as String[]

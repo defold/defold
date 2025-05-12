@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -33,11 +33,13 @@ import java.util.List;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.ArrayUtils;
+import com.google.protobuf.TextFormat;
 
 import javax.vecmath.Quat4d;
 import javax.vecmath.Tuple3d;
 import javax.vecmath.Tuple4d;
 import javax.vecmath.Vector3d;
+import javax.vecmath.Vector4d;
 
 import com.dynamo.bob.util.MathUtil;
 
@@ -45,16 +47,19 @@ import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.RigUtil;
 import com.dynamo.bob.util.RigUtil.AnimationKey;
 import com.dynamo.proto.DdfMath.Vector3;
+import com.dynamo.proto.DdfMath.Vector3One;
+import com.dynamo.proto.DdfMath.Vector4;
+import com.dynamo.proto.DdfMath.Vector4One;
 import com.dynamo.proto.DdfMath.Transform;
 
-import com.dynamo.bob.pipeline.ModelImporter.Bone;
-import com.dynamo.bob.pipeline.ModelImporter.Material;
-import com.dynamo.bob.pipeline.ModelImporter.Mesh;
-import com.dynamo.bob.pipeline.ModelImporter.Aabb;
-import com.dynamo.bob.pipeline.ModelImporter.Model;
-import com.dynamo.bob.pipeline.ModelImporter.Node;
-import com.dynamo.bob.pipeline.ModelImporter.Options;
-import com.dynamo.bob.pipeline.ModelImporter.Scene;
+import com.dynamo.bob.pipeline.Modelimporter.Bone;
+import com.dynamo.bob.pipeline.Modelimporter.Material;
+import com.dynamo.bob.pipeline.Modelimporter.Mesh;
+import com.dynamo.bob.pipeline.Modelimporter.Aabb;
+import com.dynamo.bob.pipeline.Modelimporter.Model;
+import com.dynamo.bob.pipeline.Modelimporter.Node;
+import com.dynamo.bob.pipeline.Modelimporter.Options;
+import com.dynamo.bob.pipeline.Modelimporter.Scene;
 
 
 import com.dynamo.rig.proto.Rig;
@@ -64,25 +69,24 @@ public class ModelUtil {
 
     private static final int MAX_SPLIT_VCOUNT = 65535;
 
-    public static Scene loadScene(byte[] content, String path, Options options, ModelImporter.DataResolver dataResolver) throws IOException {
+    public static Scene loadScene(byte[] content, String path, Options options, ModelImporterJni.DataResolver dataResolver) throws IOException {
         if (options == null)
             options = new Options();
 
-        Scene scene = ModelImporter.LoadFromBuffer(options, path, content, dataResolver);
+        Scene scene = ModelImporterJni.LoadFromBuffer(options, path, content, dataResolver);
 
-        for (ModelImporter.Buffer buffer : scene.buffers)
+        if (scene == null)
+            return null;
+
+        for (Modelimporter.Buffer buffer : scene.buffers)
         {
-            if (buffer.buffer == null)
+            if (buffer.buffer == null || buffer.buffer.length == 0)
                 throw new IOException(String.format("Failed to load buffer '%s' for file '%s", buffer.uri, path));
         }
-
-        if (scene != null)
-            return loadInternal(scene, options);
-
-        return scene;
+        return loadInternal(scene, options);
     }
 
-    public static Scene loadScene(InputStream stream, String path, Options options, ModelImporter.DataResolver dataResolver) throws IOException {
+    public static Scene loadScene(InputStream stream, String path, Options options, ModelImporterJni.DataResolver dataResolver) throws IOException {
         byte[] bytes = IOUtils.toByteArray(stream);
         return loadScene(bytes, path, options, dataResolver);
     }
@@ -90,30 +94,46 @@ public class ModelUtil {
     public static void unloadScene(Scene scene) {
     }
 
-    private static Vector3 toDDFVector3(ModelImporter.Vec4 v) {
+    private static Vector3 toDDFVector3(Modelimporter.Vector3 v) {
         return MathUtil.vecmathToDDF(new Vector3d(v.x, v.y, v.z));
     }
 
-    private static Transform toDDFTransform(ModelImporter.Transform transform) {
+    private static Vector3 toDDFVector3(float[] v) {
+        return MathUtil.vecmathToDDF(v[0], v[1], v[2]);
+    }
+
+    private static Vector4 toDDFVector4(float[] v) {
+        return MathUtil.vecmathToDDF(v[0], v[1], v[2], v[3]);
+    }
+
+    private static Vector4One toDDFVector4One(float[] v) {
+        return MathUtil.vecmathToDDFOne(v[0], v[1], v[2], v[3]);
+    }
+
+    private static Vector3One toDDFVector3One(float[] v) {
+        return MathUtil.vecmathToDDFOne(v[0], v[1], v[2]);
+    }
+
+    private static Transform toDDFTransform(Modelimporter.Transform transform) {
         Vector3d translation = new Vector3d(transform.translation.x, transform.translation.y, transform.translation.z);
         Vector3d scale = new Vector3d(transform.scale.x, transform.scale.y, transform.scale.z);
         Quat4d rotation = new Quat4d(transform.rotation.x, transform.rotation.y, transform.rotation.z, transform.rotation.w);
         return MathUtil.vecmathToDDF(translation, rotation, scale);
     }
 
-    // private static Point3d toPoint3d(ModelImporter.Vec4 v) {
+    // private static Point3d toPoint3d(Modelimporter.Vector3 v) {
     //     return new Point3d(v.x, v.y, v.z);
     // }
 
-    // private static Vector3d toVector3d(ModelImporter.Vec4 v) {
+    // private static Vector3d toVector3d(Modelimporter.Vector3 v) {
     //     return new Vector3d(v.x, v.y, v.z);
     // }
 
-    // private static Quat4d toQuat4d(ModelImporter.Vec4 v) {
+    // private static Quat4d toQuat4d(Modelimporter.Vector3 v) {
     //     return new Quat4d(v.x, v.y, v.z, v.w);
     // }
 
-    // private static Matrix4d toMatrix4d(ModelImporter.Transform transform) {
+    // private static Matrix4d toMatrix4d(Modelimporter.Transform transform) {
     //     Matrix4d t = new Matrix4d();
     //     t.setIdentity();
     //     t.setTranslation(new Vector3d(transform.translation.x, transform.translation.y, transform.translation.z));
@@ -188,8 +208,8 @@ public class ModelUtil {
         RigUtil.sampleTrack(track, scaleBuilder, startTime, duration, sampleRate, spf, interpolate);
     }
 
-    private static void copyKeys(ModelImporter.KeyFrame keys[], int componentSize, List<RigUtil.AnimationKey> outKeys) {
-        for (ModelImporter.KeyFrame key : keys) {
+    private static void copyKeys(Modelimporter.KeyFrame keys[], int componentSize, List<RigUtil.AnimationKey> outKeys) {
+        for (Modelimporter.KeyFrame key : keys) {
             RigUtil.AnimationKey outKey = createKey(key.time, false, componentSize);
 
             for (int i = 0; i < componentSize; ++i)
@@ -200,7 +220,7 @@ public class ModelUtil {
         }
     }
 
-    public static void createAnimationTracks(Rig.RigAnimation.Builder animBuilder, ModelImporter.NodeAnimation nodeAnimation,
+    public static void createAnimationTracks(Rig.RigAnimation.Builder animBuilder, Modelimporter.NodeAnimation nodeAnimation,
                                                     String bone_name, double duration, double startTime, double sampleRate) {
         double spf = 1.0 / sampleRate;
 
@@ -231,15 +251,15 @@ public class ModelUtil {
         animBuilder.addTracks(animTrackBuilder.build());
     }
 
-    public static void loadAnimations(byte[] content, String suffix, ModelImporter.Options options, ModelImporter.DataResolver dataResolver,
+    public static void loadAnimations(byte[] content, String suffix, Modelimporter.Options options, ModelImporterJni.DataResolver dataResolver,
                                         Rig.AnimationSet.Builder animationSetBuilder, String parentAnimationId, boolean selectLongest,
                                         ArrayList<String> animationIds) throws IOException {
         Scene scene = loadScene(content, suffix, options, dataResolver);
         loadAnimations(scene, animationSetBuilder, parentAnimationId, animationIds);
     }
 
-    private static Bone findBoneByName(ArrayList<ModelImporter.Bone> bones, String name) {
-        for (ModelImporter.Bone bone : bones) {
+    private static Bone findBoneByName(ArrayList<Modelimporter.Bone> bones, String name) {
+        for (Modelimporter.Bone bone : bones) {
             if ( (bone.node != null && bone.node.name.equals(name)) || bone.name.equals(name)) {
                 return bone;
             }
@@ -247,8 +267,8 @@ public class ModelUtil {
         return null;
     }
 
-    private static class SortAnimations implements Comparator<ModelImporter.Animation> {
-        public int compare(ModelImporter.Animation a, ModelImporter.Animation b) {
+    private static class SortAnimations implements Comparator<Modelimporter.Animation> {
+        public int compare(Modelimporter.Animation a, Modelimporter.Animation b) {
             if (a.duration == b.duration)
                 return 0;
             return (a.duration - b.duration) < 0 ? 1 : -1;
@@ -258,7 +278,7 @@ public class ModelUtil {
     public static void loadAnimations(Scene scene, Rig.AnimationSet.Builder animationSetBuilder,
                                       String parentAnimationId, ArrayList<String> animationIds) {
 
-        ArrayList<ModelImporter.Bone> bones = loadSkeleton(scene);
+        ArrayList<Modelimporter.Bone> bones = loadSkeleton(scene);
         String prevRootName = null;
         if (!bones.isEmpty()) {
             prevRootName = bones.get(0).node.name;
@@ -267,7 +287,7 @@ public class ModelUtil {
         boolean topLevel = parentAnimationId.isEmpty();
         boolean selectLongest = !topLevel;
 
-        for (ModelImporter.Animation animation : scene.animations) {
+        for (Modelimporter.Animation animation : scene.animations) {
 
             Rig.RigAnimation.Builder animBuilder = Rig.RigAnimation.newBuilder();
 
@@ -294,7 +314,7 @@ public class ModelUtil {
             }
 
             // TODO: add the start time to the Animation struct!
-            for (ModelImporter.NodeAnimation nodeAnimation : animation.nodeAnimations) {
+            for (Modelimporter.NodeAnimation nodeAnimation : animation.nodeAnimations) {
 
                 boolean has_keys =  nodeAnimation.translationKeys.length > 0 ||
                                     nodeAnimation.rotationKeys.length > 0 ||
@@ -313,7 +333,7 @@ public class ModelUtil {
 
             animBuilder.setDuration(animation.duration);
 
-            for (ModelImporter.NodeAnimation nodeAnimation : animation.nodeAnimations) {
+            for (Modelimporter.NodeAnimation nodeAnimation : animation.nodeAnimations) {
                 String nodeName = nodeAnimation.node.name;
                 if (prevRootName != null && prevRootName.equals(nodeName)) {
                     nodeName = "root";
@@ -331,10 +351,256 @@ public class ModelUtil {
         }
     }
 
+    // Materials
+
+    private static Rig.Sampler loadSampler(Modelimporter.Sampler src) {
+        Rig.Sampler.Builder builder = Rig.Sampler.newBuilder();
+
+        builder.setName(src.name);
+        builder.setIndex(src.index);
+        builder.setMinFilter(src.minFilter);
+        builder.setMagFilter(src.magFilter);
+        builder.setWrapS(src.wrapS);
+        builder.setWrapT(src.wrapT);
+
+        return builder.build();
+    }
+
+    private static Rig.Texture loadTexture(Modelimporter.Texture src) {
+        Rig.Texture.Builder builder = Rig.Texture.newBuilder();
+
+        builder.setName(src.name);
+        builder.setIndex(src.index);
+        if (src.image != null && src.image.uri != null)
+            builder.setPath(src.image.uri);
+        if (src.sampler != null)
+            builder.setSampler(loadSampler(src.sampler));
+
+        return builder.build();
+    }
+
+    private static Rig.TextureTransform loadTextureTransform(Modelimporter.TextureTransform src) {
+        Rig.TextureTransform.Builder builder = Rig.TextureTransform.newBuilder();
+
+        builder.setOffsetX(src.offset[0]);
+        builder.setOffsetY(src.offset[1]);
+        builder.setScaleX(src.scale[0]);
+        builder.setScaleY(src.scale[1]);
+        builder.setRotation(src.rotation);
+        builder.setTexcoord(src.texcoord);
+
+        return builder.build();
+    }
+
+    private static Rig.TextureView loadTextureView(Modelimporter.TextureView src) {
+        Rig.TextureView.Builder builder = Rig.TextureView.newBuilder();
+
+        if (src.texture != null)
+            builder.setTexture(loadTexture(src.texture));
+
+        if (src.transform != null)
+            builder.setTransform(loadTextureTransform(src.transform));
+
+        builder.setTexcoord(src.texcoord);
+        builder.setScale(src.scale);
+        return builder.build();
+    }
+
+    private static Rig.PbrMetallicRoughness loadPbrMetallicRoughness(Modelimporter.PbrMetallicRoughness src) {
+        Rig.PbrMetallicRoughness.Builder builder = Rig.PbrMetallicRoughness.newBuilder();
+
+       if (src.baseColorTexture != null)
+            builder.setBaseColorTexture(loadTextureView(src.baseColorTexture));
+
+       if (src.metallicRoughnessTexture != null)
+            builder.setMetallicRoughnessTexture(loadTextureView(src.metallicRoughnessTexture));
+
+        if (src.baseColorFactor != null)
+            builder.setBaseColorFactor(toDDFVector4One(src.baseColorFactor));
+
+        builder.setMetallicFactor(src.metallicFactor);
+        builder.setRoughnessFactor(src.roughnessFactor);
+
+        return builder.build();
+    }
+
+    private static Rig.PbrSpecularGlossiness loadPbrSpecularGlossiness(Modelimporter.PbrSpecularGlossiness src) {
+        Rig.PbrSpecularGlossiness.Builder builder = Rig.PbrSpecularGlossiness.newBuilder();
+
+       if (src.diffuseTexture != null)
+            builder.setDiffuseTexture(loadTextureView(src.diffuseTexture));
+
+       if (src.specularGlossinessTexture != null)
+            builder.setSpecularGlossinessTexture(loadTextureView(src.specularGlossinessTexture));
+
+        if (src.diffuseFactor != null)
+            builder.setDiffuseFactor(toDDFVector4One(src.diffuseFactor));
+
+        if (src.specularFactor != null)
+            builder.setSpecularFactor(toDDFVector3One(src.specularFactor));
+
+        builder.setGlossinessFactor(src.glossinessFactor);
+
+        return builder.build();
+    }
+
+    private static Rig.Clearcoat loadClearcoat(Modelimporter.Clearcoat src) {
+        Rig.Clearcoat.Builder builder = Rig.Clearcoat.newBuilder();
+
+       if (src.clearcoatTexture != null)
+            builder.setClearcoatTexture(loadTextureView(src.clearcoatTexture));
+
+       if (src.clearcoatRoughnessTexture != null)
+            builder.setClearcoatRoughnessTexture(loadTextureView(src.clearcoatRoughnessTexture));
+
+       if (src.clearcoatNormalTexture != null)
+            builder.setClearcoatNormalTexture(loadTextureView(src.clearcoatNormalTexture));
+
+        builder.setClearcoatFactor(src.clearcoatFactor);
+        builder.setClearcoatRoughnessFactor(src.clearcoatRoughnessFactor);
+
+        return builder.build();
+    }
+
+    private static Rig.Transmission loadTransmission(Modelimporter.Transmission src) {
+        Rig.Transmission.Builder builder = Rig.Transmission.newBuilder();
+        if (src.transmissionTexture != null)
+            builder.setTransmissionTexture(loadTextureView(src.transmissionTexture));
+
+        builder.setTransmissionFactor(src.transmissionFactor);
+        return builder.build();
+    }
+
+    private static Rig.Ior loadIor(Modelimporter.Ior src) {
+        Rig.Ior.Builder builder = Rig.Ior.newBuilder();
+        builder.setIor(src.ior);
+        return builder.build();
+    }
+
+    private static Rig.Specular loadSpecular(Modelimporter.Specular src) {
+        Rig.Specular.Builder builder = Rig.Specular.newBuilder();
+
+       if (src.specularTexture != null)
+            builder.setSpecularTexture(loadTextureView(src.specularTexture));
+
+       if (src.specularColorTexture != null)
+            builder.setSpecularColorTexture(loadTextureView(src.specularColorTexture));
+
+        if (src.specularColorFactor != null)
+            builder.setSpecularColorFactor(toDDFVector3One(src.specularColorFactor));
+
+        builder.setSpecularFactor(src.specularFactor);
+
+        return builder.build();
+    }
+
+    private static Rig.Volume loadVolume(Modelimporter.Volume src) {
+        Rig.Volume.Builder builder = Rig.Volume.newBuilder();
+
+       if (src.thicknessTexture != null)
+            builder.setThicknessTexture(loadTextureView(src.thicknessTexture));
+
+        if (src.attenuationColor != null)
+            builder.setAttenuationColor(toDDFVector3One(src.attenuationColor));
+
+        builder.setThicknessFactor(src.thicknessFactor);
+        builder.setAttenuationDistance(src.attenuationDistance);
+
+        return builder.build();
+    }
+
+    private static Rig.Sheen loadSheen(Modelimporter.Sheen src) {
+        Rig.Sheen.Builder builder = Rig.Sheen.newBuilder();
+
+       if (src.sheenColorTexture != null)
+            builder.setSheenColorTexture(loadTextureView(src.sheenColorTexture));
+
+       if (src.sheenRoughnessTexture != null)
+            builder.setSheenRoughnessTexture(loadTextureView(src.sheenRoughnessTexture));
+
+        if (src.sheenColorFactor != null)
+            builder.setSheenColorFactor(toDDFVector3(src.sheenColorFactor));
+
+        builder.setSheenRoughnessFactor(src.sheenRoughnessFactor);
+
+        return builder.build();
+    }
+
+    private static Rig.EmissiveStrength loadEmissiveStrength(Modelimporter.EmissiveStrength src) {
+        Rig.EmissiveStrength.Builder builder = Rig.EmissiveStrength.newBuilder();
+        builder.setEmissiveStrength(src.emissiveStrength);
+        return builder.build();
+    }
+
+    private static Rig.Iridescence loadIridescence(Modelimporter.Iridescence src) {
+        Rig.Iridescence.Builder builder = Rig.Iridescence.newBuilder();
+
+       if (src.iridescenceTexture != null)
+            builder.setIridescenceTexture(loadTextureView(src.iridescenceTexture));
+
+       if (src.iridescenceThicknessTexture != null)
+            builder.setIridescenceThicknessTexture(loadTextureView(src.iridescenceThicknessTexture));
+
+        builder.setIridescenceFactor(src.iridescenceFactor);
+        builder.setIridescenceIor(src.iridescenceIor);
+        builder.setIridescenceThicknessMin(src.iridescenceThicknessMin);
+        builder.setIridescenceThicknessMax(src.iridescenceThicknessMax);
+
+        return builder.build();
+    }
+
+    public static ArrayList<Rig.Material> loadMaterials(Scene scene) {
+        ArrayList<Rig.Material> materials = new ArrayList<>();
+        for (Modelimporter.Material material : scene.materials) {
+            Rig.Material.Builder materialBuilder = Rig.Material.newBuilder();
+
+            materialBuilder.setName(material.name);
+            materialBuilder.setIndex(material.index);
+            materialBuilder.setIsSkinned(material.isSkinned!=0);
+            materialBuilder.setAlphaCutoff(material.alphaCutoff);
+            materialBuilder.setAlphaMode(Rig.AlphaMode.valueOf(material.alphaMode.getValue()));
+            materialBuilder.setDoubleSided(material.doubleSided);
+            materialBuilder.setUnlit(material.unlit);
+
+            if (material.pbrMetallicRoughness != null)
+                materialBuilder.setPbrMetallicRoughness(loadPbrMetallicRoughness(material.pbrMetallicRoughness));
+            if (material.pbrSpecularGlossiness != null)
+                materialBuilder.setPbrSpecularGlossiness(loadPbrSpecularGlossiness(material.pbrSpecularGlossiness));
+            if (material.clearcoat != null)
+                materialBuilder.setClearcoat(loadClearcoat(material.clearcoat));
+            if (material.transmission != null)
+                materialBuilder.setTransmission(loadTransmission(material.transmission));
+            if (material.ior != null)
+                materialBuilder.setIor(loadIor(material.ior));
+            if (material.specular != null)
+                materialBuilder.setSpecular(loadSpecular(material.specular));
+            if (material.volume != null)
+                materialBuilder.setVolume(loadVolume(material.volume));
+            if (material.sheen != null)
+                materialBuilder.setSheen(loadSheen(material.sheen));
+            if (material.emissiveStrength != null)
+                materialBuilder.setEmissiveStrength(loadEmissiveStrength(material.emissiveStrength));
+            if (material.iridescence != null)
+                materialBuilder.setIridescence(loadIridescence(material.iridescence));
+
+           if (material.normalTexture != null)
+                materialBuilder.setNormalTexture(loadTextureView(material.normalTexture));
+           if (material.occlusionTexture != null)
+                materialBuilder.setOcclusionTexture(loadTextureView(material.occlusionTexture));
+           if (material.emissiveTexture != null)
+                materialBuilder.setEmissiveTexture(loadTextureView(material.emissiveTexture));
+
+            materialBuilder.setEmissiveFactor(toDDFVector3(material.emissiveFactor));
+
+            materials.add(materialBuilder.build());
+        }
+        return materials;
+    }
+
     // For editor
     public static ArrayList<String> getAnimationNames(Scene scene) {
         ArrayList<String> names = new ArrayList<>();
-        for (ModelImporter.Animation animation : scene.animations) {
+        for (Modelimporter.Animation animation : scene.animations) {
             names.add(animation.name);
         }
         return names;
@@ -382,7 +648,7 @@ public class ModelUtil {
         }
     }
 
-    private static void copyVertex(ModelImporter.Mesh inMesh, int inIndex, ModelImporter.Mesh outMesh, int outIndex) {
+    private static void copyVertex(Modelimporter.Mesh inMesh, int inIndex, Modelimporter.Mesh outMesh, int outIndex) {
         if (inMesh.positions != null) {
             copyFloatArray(inMesh.positions, inIndex, outMesh.positions, outIndex, 3);
         }
@@ -409,12 +675,12 @@ public class ModelUtil {
         }
     }
 
-    public static void splitMesh(ModelImporter.Mesh inMesh, List<ModelImporter.Mesh> outMeshes) {
-        int triangleCount = inMesh.indexCount / 3;
+    public static void splitMesh(Modelimporter.Mesh inMesh, List<Modelimporter.Mesh> outMeshes) {
+        int triangleCount = inMesh.indices.length / 3;
         int vertexCount = inMesh.vertexCount;
 
         int vcount = 0;
-        ModelImporter.Mesh newMesh = null;
+        Modelimporter.Mesh newMesh = null;
         HashMap<Integer, Integer> oldToNewIndex = null;
         ArrayList<Integer> newIndices = null;
 
@@ -427,7 +693,9 @@ public class ModelUtil {
                 newMesh = new Mesh();
                 newMesh.material = inMesh.material;
                 newMesh.name = String.format("%s_%d", inMesh.name, outMeshes.size());
-                newMesh.aabb = new Aabb(inMesh.aabb);
+                newMesh.aabb = new Modelimporter.Aabb();
+                ModelImporterJni.expandAabb(newMesh.aabb, inMesh.aabb.min.x, inMesh.aabb.min.y, inMesh.aabb.min.z);
+                ModelImporterJni.expandAabb(newMesh.aabb, inMesh.aabb.max.x, inMesh.aabb.max.y, inMesh.aabb.max.z);
 
                 newMesh.texCoords0NumComponents = inMesh.texCoords0NumComponents;
                 newMesh.texCoords1NumComponents = inMesh.texCoords1NumComponents;
@@ -486,7 +754,6 @@ public class ModelUtil {
             if (flush) {
 
                 newMesh.indices = newIndices.stream().mapToInt(idx->idx).toArray();
-                newMesh.indexCount = newIndices.size();
                 newMesh.vertexCount = vcount;
 
                 // Resize to actual size
@@ -528,7 +795,7 @@ public class ModelUtil {
         }
 
         if (outMeshes.size() != model.meshes.length) {
-            model.meshes = outMeshes.toArray(new ModelImporter.Mesh[0]);
+            model.meshes = outMeshes.toArray(new Modelimporter.Mesh[0]);
         }
     }
 
@@ -555,8 +822,6 @@ public class ModelUtil {
 
         float[] positions = mesh.positions;
         float[] normals = mesh.normals;
-        float[] texCoords0 = mesh.getTexCoords(0);
-        float[] texCoords1 = mesh.getTexCoords(1);
 
         meshBuilder.setAabbMin(toDDFVector3(mesh.aabb.min));
         meshBuilder.setAabbMax(toDDFVector3(mesh.aabb.max));
@@ -585,13 +850,13 @@ public class ModelUtil {
             meshBuilder.addAllBoneIndices(()->Arrays.stream(mesh.bones).iterator());
         }
 
-        if (mesh.getTexCoords(0) != null) {
-            meshBuilder.addAllTexcoord0(toList(mesh.getTexCoords(0)));
+        if (mesh.texCoords0 != null) {
+            meshBuilder.addAllTexcoord0(toList(mesh.texCoords0));
             meshBuilder.setNumTexcoord0Components(mesh.texCoords0NumComponents);
         }
-        if (mesh.getTexCoords(1) != null) {
-            meshBuilder.addAllTexcoord1(toList(mesh.getTexCoords(1)));
-            meshBuilder.setNumTexcoord0Components(mesh.texCoords1NumComponents);
+        if (mesh.texCoords1 != null) {
+            meshBuilder.addAllTexcoord1(toList(mesh.texCoords1));
+            meshBuilder.setNumTexcoord1Components(mesh.texCoords1NumComponents);
         }
 
         if (mesh.vertexCount >= 65536) {
@@ -611,7 +876,7 @@ public class ModelUtil {
         return meshBuilder.build();
     }
 
-    private static Rig.Model loadModel(Node node, Model model, ArrayList<ModelImporter.Bone> skeleton) {
+    private static Rig.Model loadModel(Node node, Model model, ArrayList<Modelimporter.Bone> skeleton) {
 
         Rig.Model.Builder modelBuilder = Rig.Model.newBuilder();
 
@@ -621,12 +886,12 @@ public class ModelUtil {
 
         modelBuilder.setId(MurmurHash.hash64(node.name)); // the node name is the human readable name (e.g Sword)
         modelBuilder.setLocal(toDDFTransform(node.local));
-        modelBuilder.setBoneId(MurmurHash.hash64(model.boneParentName));
+        modelBuilder.setBoneId(MurmurHash.hash64(model.parentBone != null ? model.parentBone.name : ""));
 
         return modelBuilder.build();
     }
 
-    private static void loadModelInstances(Node node, ArrayList<ModelImporter.Bone> skeleton, ArrayList<Rig.Model> models) {
+    private static void loadModelInstances(Node node, ArrayList<Modelimporter.Bone> skeleton, ArrayList<Rig.Model> models) {
 
         if (node.model != null)
         {
@@ -651,7 +916,7 @@ public class ModelUtil {
         if (node.model != null) {
             // As a default, we only count nodes with models, as the user
             // cannot currently see/use the lights or cameras etc that are present in the scene.
-            aabb.expand(node.world.translation.x, node.world.translation.y, node.world.translation.z);
+            ModelImporterJni.expandAabb(aabb, node.world.translation.x, node.world.translation.y, node.world.translation.z);
         }
 
         for (Node child : node.children) {
@@ -660,19 +925,20 @@ public class ModelUtil {
     }
 
     // Currently finds the center point using the world positions of each node
-    private static ModelImporter.Vec4 calcCenter(Scene scene) {
-        Aabb aabb = new Aabb();
+    private static Modelimporter.Vector3 calcCenter(Scene scene) {
+        Aabb aabb = ModelImporterJni.newAabb();
         for (Node root : scene.rootNodes) {
             calcCenterNode(root, aabb);
         }
 
-        ModelImporter.Vec4 center = new ModelImporter.Vec4(0.0f, 0.0f, 0.0f, 0.0f);
-        if (aabb.isValid())
-            center = aabb.center();
+        Modelimporter.Vector3 center = new Modelimporter.Vector3();
+        center.x = center.y = center.z = 0.0f;
+        if (ModelImporterJni.aabbIsIsValid(aabb))
+            center = ModelImporterJni.aabbCalcCenter(aabb, center);
         return center;
     }
 
-    private static void shiftNodes(Node node, ModelImporter.Vec4 center) {
+    private static void shiftNodes(Node node, Modelimporter.Vector3 center) {
         node.world.translation.x -= center.x;
         node.world.translation.y -= center.y;
         node.world.translation.z -= center.z;
@@ -682,7 +948,7 @@ public class ModelUtil {
         }
     }
 
-    private static void shiftNodes(Scene scene, ModelImporter.Vec4 center) {
+    private static void shiftNodes(Scene scene, Modelimporter.Vector3 center) {
         for (Node node : scene.rootNodes) {
             shiftNodes(node, center);
 
@@ -693,7 +959,7 @@ public class ModelUtil {
     }
 
     private static Scene loadInternal(Scene scene, Options options) {
-        ModelImporter.Vec4 center = calcCenter(scene);
+        Modelimporter.Vector3 center = calcCenter(scene);
         shiftNodes(scene, center); // We might make this optional
 
         // Sort on duration. This allows us to return a list of sorted animation names
@@ -703,9 +969,9 @@ public class ModelUtil {
 
 
     public static void loadModels(Scene scene, Rig.MeshSet.Builder meshSetBuilder) {
-        ArrayList<ModelImporter.Bone> skeleton = loadSkeleton(scene);
+        ArrayList<Modelimporter.Bone> skeleton = loadSkeleton(scene);
 
-        meshSetBuilder.addAllMaterials(loadMaterialNames(scene));
+        meshSetBuilder.addAllMaterials(loadMaterials(scene));
 
         ArrayList<Rig.Model> models = new ArrayList<>();
         for (Node root : scene.rootNodes) {
@@ -719,7 +985,7 @@ public class ModelUtil {
         meshSetBuilder.addAllModels(models);
         meshSetBuilder.setMaxBoneCount(skeleton.size());
 
-        for (ModelImporter.Bone bone : skeleton) {
+        for (Modelimporter.Bone bone : skeleton) {
             meshSetBuilder.addBoneList(MurmurHash.hash64(bone.name));
         }
     }
@@ -732,8 +998,8 @@ public class ModelUtil {
         return scene.animations.length;
     }
 
-    public static ArrayList<ModelImporter.Bone> loadSkeleton(Scene scene) {
-        ArrayList<ModelImporter.Bone> skeleton = new ArrayList<>();
+    public static ArrayList<Modelimporter.Bone> loadSkeleton(Scene scene) {
+        ArrayList<Modelimporter.Bone> skeleton = new ArrayList<>();
 
         if (scene.skins.length == 0)
         {
@@ -741,7 +1007,7 @@ public class ModelUtil {
         }
 
         // get the first skeleton
-        ModelImporter.Skin skin = scene.skins[0];
+        Modelimporter.Skin skin = scene.skins[0];
         for (Bone bone : skin.bones) {
             if (bone.index == 0) {
                 bone.name = "root";
@@ -752,14 +1018,14 @@ public class ModelUtil {
         return skeleton;
     }
 
-    public static ArrayList<ModelImporter.Bone> loadSkeleton(byte[] content, String suffix, Options options, ModelImporter.DataResolver dataResolver) throws IOException {
+    public static ArrayList<Modelimporter.Bone> loadSkeleton(byte[] content, String suffix, Options options, ModelImporterJni.DataResolver dataResolver) throws IOException {
         Scene scene = loadScene(content, suffix, options, dataResolver);
         return loadSkeleton(scene);
     }
 
     // Generate skeleton DDF data of bones.
     // It will extract the position, rotation and scale from the bone transform as needed by the runtime.
-    private static void boneToDDF(ModelImporter.Bone bone, ArrayList<Rig.Bone> ddfBones) {
+    private static void boneToDDF(Modelimporter.Bone bone, ArrayList<Rig.Bone> ddfBones) {
         Rig.Bone.Builder b = com.dynamo.rig.proto.Rig.Bone.newBuilder();
 
         int parentIndex = (bone.parent != null) ? bone.parent.index : -1;
@@ -803,20 +1069,19 @@ public class ModelUtil {
         return ddfBones.size() > 0;
     }
 
-    public static void skeletonToDDF(ArrayList<ModelImporter.Bone> bones, com.dynamo.rig.proto.Rig.Skeleton.Builder skeletonBuilder) {
+    public static void skeletonToDDF(ArrayList<Modelimporter.Bone> bones, com.dynamo.rig.proto.Rig.Skeleton.Builder skeletonBuilder) {
         // Generate DDF representation of bones.
         ArrayList<Rig.Bone> ddfBones = new ArrayList<>();
-        for (ModelImporter.Bone bone : bones) {
+        for (Modelimporter.Bone bone : bones) {
             boneToDDF(bone, ddfBones);
         }
         skeletonBuilder.addAllBones(ddfBones);
     }
 
     // For editor in a migration period
-    public static ModelImporter.DataResolver createFileDataResolver(File cwd) {
-        return new ModelImporter.FileDataResolver(cwd);
+    public static ModelImporterJni.DataResolver createFileDataResolver(File cwd) {
+        return new ModelImporterJni.FileDataResolver(cwd);
     }
-
 
 // $ java -cp ~/work/defold/tmp/dynamo_home/share/java/bob-light.jar com.dynamo.bob.pipeline.ModelUtil model_asset.dae
     public static void main(String[] args) throws IOException {
@@ -832,18 +1097,18 @@ public class ModelUtil {
             return;
         }
 
-        Scene scene;
+        Scene scene = null;
         try {
             long timeStart = System.currentTimeMillis();
 
             InputStream is = new FileInputStream(file);
             byte[] bytes = IOUtils.toByteArray(is);
 
-            ModelImporter.FileDataResolver dataResolver = new ModelImporter.FileDataResolver();
-            scene = loadScene(bytes, file.getPath(), new ModelImporter.Options(), dataResolver);
+            ModelImporterJni.FileDataResolver dataResolver = new ModelImporterJni.FileDataResolver();
+            scene = loadScene(bytes, file.getPath(), new Modelimporter.Options(), dataResolver);
 
             // **********************************
-            for (ModelImporter.Buffer buffer : scene.buffers) {
+            for (Modelimporter.Buffer buffer : scene.buffers) {
                 if (buffer.buffer == null)
                 {
                     System.out.printf("Unresolved buffer: %s\n");
@@ -856,24 +1121,73 @@ public class ModelUtil {
             System.out.printf("Loading took %d ms\n", (timeEnd - timeStart));
 
         } catch (Exception e) {
+            e.printStackTrace(System.out);
             System.out.printf("Failed reading '%s':\n%s\n", file, e.getMessage());
+            System.exit(1);
             return;
         }
 
         if (scene == null){
             System.out.printf("Failed to load '%s'\n", file);
+            System.exit(1);
             return;
+        }
+
+        System.out.printf("--------------------------------\n");
+
+        System.out.printf("Num images: %d\n", scene.images.length);
+        for (Modelimporter.Image image : scene.images)
+        {
+            ModelImporterJni.PrintIndent(1);
+            System.out.printf("-----------------\n");
+            ModelImporterJni.DebugPrintObject(image, 0);
+        }
+
+        System.out.printf("--------------------------------\n");
+
+        System.out.printf("Num Samplers: %d\n", scene.samplers.length);
+        for (Modelimporter.Sampler sampler : scene.samplers)
+        {
+            ModelImporterJni.PrintIndent(1);
+            System.out.printf("-----------------\n");
+            ModelImporterJni.DebugPrintObject(sampler, 0);
+        }
+
+        System.out.printf("--------------------------------\n");
+
+        System.out.printf("Num Textures: %d\n", scene.textures.length);
+        for (Modelimporter.Texture texture : scene.textures)
+        {
+            ModelImporterJni.PrintIndent(1);
+            System.out.printf("-----------------\n");
+            ModelImporterJni.DebugPrintObject(texture, 0);
+        }
+
+        System.out.printf("--------------------------------\n");
+
+        System.out.printf("Num Materials: %d\n", scene.materials.length);
+        for (Modelimporter.Material material : scene.materials)
+        {
+            ModelImporterJni.PrintIndent(1);
+            System.out.printf("-----------------\n");
+            ModelImporterJni.DebugPrintObject(material, 0);
+        }
+
+        System.out.printf("--------------------------------------------\n");
+        System.out.printf("Scene Models:\n");
+
+        for (Model model : scene.models) {
+            System.out.printf("  Scene Model: %s  index: %d  parentBone: %s\n", model.name, model.index, model.parentBone != null ? model.parentBone.name : "");
+            ModelImporterJni.DebugPrintModel(model, 3);
         }
 
         System.out.printf("--------------------------------------------\n");
         System.out.printf("Scene Nodes:\n");
 
         for (Node node : scene.nodes) {
-            System.out.printf("  Scene Node: %s  index: %d  id: %d  parent: %s\n", node.name, node.index, ModelImporter.AddressOf(node), node.parent != null ? node.parent.name : "");
-            System.out.printf("      local: id: %d\n", ModelImporter.AddressOf(node.local));
-            ModelImporter.DebugPrintTransform(node.local, 3);
+            System.out.printf("  Scene Node: %s  index: %d  parent: %s\n", node.name, node.index, node.parent != null ? node.parent.name : "");
+            ModelImporterJni.DebugPrintTransform(node.local, 3);
         }
-
 
         if (scene.skins.length > 0)
         {
@@ -882,13 +1196,11 @@ public class ModelUtil {
 
             int bone_count = 0;
             for (Bone bone : scene.skins[0].bones) {
-                System.out.printf("  Scene Bone %d: %s  index: %d  id: %d  nodeid: %d  parent: %s\n", bone_count++, bone.name, bone.index,
-                                            ModelImporter.AddressOf(bone), ModelImporter.AddressOf(bone.node),
+                System.out.printf("  Scene Bone %d: %s  index: %d  parent: %s\n", bone_count++, bone.name, bone.index,
                                             bone.parent != null ? bone.parent.name : "");
-                System.out.printf("      local: id: %d\n", ModelImporter.AddressOf(bone.node.local));
-                ModelImporter.DebugPrintTransform(bone.node.local, 3);
+                ModelImporterJni.DebugPrintTransform(bone.node.local, 3);
                 System.out.printf("      inv_bind_poser:\n");
-                ModelImporter.DebugPrintTransform(bone.invBindPose, 3);
+                ModelImporterJni.DebugPrintTransform(bone.invBindPose, 3);
             }
 
             System.out.printf("--------------------------------------------\n");
@@ -896,20 +1208,19 @@ public class ModelUtil {
 
         System.out.printf("Bones:\n");
 
-        ArrayList<ModelImporter.Bone> bones = loadSkeleton(scene);
+        ArrayList<Modelimporter.Bone> bones = loadSkeleton(scene);
         for (Bone bone : bones) {
             System.out.printf("  Bone: %s  index: %d  parent: %s\n", bone.name, bone.index, bone.parent != null ? bone.parent.name : "");
             System.out.printf("      local:\n");
-            ModelImporter.DebugPrintTransform(bone.node.local, 3);
+            ModelImporterJni.DebugPrintTransform(bone.node.local, 3);
         }
         System.out.printf("--------------------------------------------\n");
 
         System.out.printf("Root Nodes:\n");
 
         for (Node node : scene.rootNodes) {
-            System.out.printf("  Scene Node: %s  index: %d  id: %d  parent: %s\n", node.name, node.index, ModelImporter.AddressOf(node), node.parent != null ? node.parent.name : "");
-            System.out.printf("      local: id: %d\n", ModelImporter.AddressOf(node.local));
-            ModelImporter.DebugPrintTransform(node.local, 3);
+            System.out.printf("  Scene Node: %s  index: %d  parent: %s\n", node.name, node.index, node.parent != null ? node.parent.name : "");
+            ModelImporterJni.DebugPrintTransform(node.local, 3);
         }
 
         System.out.printf("--------------------------------------------\n");
@@ -932,7 +1243,7 @@ public class ModelUtil {
         ArrayList<String> animationIds = new ArrayList<>();
         loadAnimations(scene, animationSetBuilder, "", animationIds);
 
-        for (ModelImporter.Animation animation : scene.animations) {
+        for (Modelimporter.Animation animation : scene.animations) {
             System.out.printf("  Animation: %s\n", animation.name);
         }
         System.out.printf("--------------------------------------------\n");

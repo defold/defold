@@ -1,4 +1,4 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -36,8 +36,7 @@
             [editor.workspace :as workspace]
             [internal.util :as util]
             [schema.core :as s]
-            [util.coll :as coll]
-            [util.digest :as digest])
+            [util.coll :as coll])
   (:import [com.dynamo.gamesys.proto ModelProto$Material ModelProto$Model ModelProto$ModelDesc ModelProto$Texture]
            [editor.gl.shader ShaderLifecycle]))
 
@@ -226,6 +225,7 @@
                                             [:shader :shader]
                                             [:attribute-infos :material-attribute-infos]
                                             [:vertex-space :vertex-space]))))
+  (property material-index g/Num)
   (property vertex-attribute-overrides g/Any ; Always assigned in load-fn.
             (dynamic visible (g/constantly false)))
   (input material-resource resource/Resource)
@@ -251,8 +251,8 @@
                                             (g/error-value? texture-binding-infos) (assoc info :texture-binding-infos [])
                                             (g/error-value? samplers) (dissoc info :samplers)
                                             :else (update info :texture-binding-infos detect-and-apply-renames samplers)))))
-  (output vertex-attribute-bytes g/Any :cached (g/fnk [_node-id material-attribute-infos vertex-attribute-overrides]
-                                                 (graphics/attribute-bytes-by-attribute-key _node-id material-attribute-infos vertex-attribute-overrides))))
+  (output vertex-attribute-bytes g/Any :cached (g/fnk [_node-id material-attribute-infos material-index vertex-attribute-overrides]
+                                                 (graphics/attribute-bytes-by-attribute-key _node-id material-attribute-infos material-index vertex-attribute-overrides))))
 
 (defmethod material/handle-sampler-names-changed ::MaterialBinding
   [evaluation-context material-binding-node old-name-index _new-name-index sampler-renames sampler-deletions]
@@ -280,10 +280,11 @@
     (g/connect texture-binding :texture-binding-info material-binding :texture-binding-infos)
     (g/connect texture-binding :build-targets material-binding :dep-build-targets)))
 
-(defn- create-material-binding-tx [model-node-id name material textures vertex-attribute-overrides]
+(defn- create-material-binding-tx [model-node-id name material material-index textures vertex-attribute-overrides]
   (g/make-nodes (g/node-id->graph-id model-node-id) [material-binding [MaterialBinding
                                                                        :name name
                                                                        :material material
+                                                                       :material-index material-index
                                                                        :vertex-attribute-overrides vertex-attribute-overrides]]
     (g/connect material-binding :_node-id model-node-id :copied-nodes)
     (g/connect material-binding :dep-build-targets model-node-id :dep-build-targets)
@@ -307,7 +308,8 @@
     (workspace [_])
     (resource-hash [_])
     (openable? [_] false)
-    (editable? [_] false)))
+    (editable? [_] false)
+    (loaded? [_] false)))
 
 (g/defnk produce-model-properties [_node-id _declared-properties material-binding-infos mesh-material-ids]
   (let [model-node-id _node-id
@@ -319,8 +321,8 @@
         (into []
               (comp
                 (map-indexed
-                  (fn [index material-name]
-                    (let [material-prop-key (keyword (str "__material__" index))]
+                  (fn [material-index material-name]
+                    (let [material-prop-key (keyword (str "__material__" material-index))]
                       (if-let [{:keys [_node-id material name texture-binding-infos material-attribute-infos vertex-attribute-overrides samplers]} (proto-material-name->material-binding-info material-name)]
                         ;; material exists
                         (let [sampler-name-index (util/name-index samplers :name)
@@ -329,7 +331,7 @@
                                                         (set (keys sampler-name-index))
                                                         (set (keys texture-binding-name-index)))
                               should-be-deleted (not (mesh-material-names name))
-                              material-attribute-properties (graphics/attribute-properties-by-property-key _node-id material-attribute-infos vertex-attribute-overrides)
+                              material-attribute-properties (graphics/attribute-property-entries _node-id material-attribute-infos material-index vertex-attribute-overrides)
                               material-binding-node-id _node-id
                               material-property [material-prop-key
                                                  (cond-> {:node-id material-binding-node-id
@@ -352,7 +354,7 @@
                               combined-material-properties (into [material-property]
                                                                  (map-indexed
                                                                    (fn [binding-index sampler-name+order]
-                                                                     (let [texture-binding-prop-key (keyword (str "__sampler__" index "__" binding-index))]
+                                                                     (let [texture-binding-prop-key (keyword (str "__sampler__" material-index "__" binding-index))]
                                                                        ;; texture binding exists
                                                                        (if-let [texture-binding-index (texture-binding-name-index sampler-name+order)]
                                                                          (let [{:keys [sampler texture _node-id]} (texture-binding-infos texture-binding-index)
@@ -394,7 +396,7 @@
                            :edit-type {:type resource/Resource
                                        :ext "material"
                                        :set-fn (fn [_evaluation-context _id _old new]
-                                                 (create-material-binding-tx model-node-id material-name new [] {}))}}]]))))
+                                                 (create-material-binding-tx model-node-id material-name new material-index [] {}))}}]]))))
                 cat)
               (sort all-material-names))]
     (-> _declared-properties
@@ -439,13 +441,7 @@
 
   (output material-name->material-scene-info g/Any :cached
           (g/fnk [material-scene-infos]
-            (let [material-scene-infos-by-material-name (coll/pair-map-by :name material-scene-infos)]
-              (fn material-name->material-scene-info [^String material-name]
-                ;; If we have no material associated with the index, we mirror the
-                ;; engine behavior by picking the first one:
-                ;; https://github.com/defold/defold/blob/a265a1714dc892eea285d54eae61d0846b48899d/engine/gamesys/src/gamesys/resources/res_model.cpp#L234-L238
-                (or (material-scene-infos-by-material-name material-name)
-                    (first material-scene-infos))))))
+            (model-scene/make-material-name->material-scene-info material-scene-infos)))
 
   (property skeleton resource/Resource ; Nil is valid default.
             (value (gu/passthrough skeleton-resource))
@@ -537,13 +533,15 @@
       :mesh (workspace/resolve-resource resource mesh)
       :skeleton (workspace/resolve-resource resource skeleton)
       :animations (workspace/resolve-resource resource animations))
-    (for [{:keys [name material textures attributes]} materials
-          :let [material (workspace/resolve-resource resource material)
-                textures (mapv (fn [{:keys [texture] :as texture-desc}]
-                                 (assoc texture-desc :texture (workspace/resolve-resource resource texture)))
-                               textures)
-                vertex-attribute-overrides (graphics/override-attributes->vertex-attribute-overrides attributes)]]
-      (create-material-binding-tx self name material textures vertex-attribute-overrides))
+    (map-indexed
+      (fn [material-index {:keys [name material textures attributes]}]
+        (let [material (workspace/resolve-resource resource material)
+              textures (mapv (fn [{:keys [texture] :as texture-desc}]
+                               (assoc texture-desc :texture (workspace/resolve-resource resource texture)))
+                             textures)
+              vertex-attribute-overrides (graphics/override-attributes->vertex-attribute-overrides attributes)]
+          (create-material-binding-tx self name material material-index textures vertex-attribute-overrides)))
+      materials)
     (g/callback-ec detect-and-flag-migrated! self model-desc)))
 
 (defn- sanitize-model [{:keys [material textures materials] :as model-desc}]

@@ -23,7 +23,7 @@ Note that the API reference is generated from the source code of the Defold engi
 ## Feature requests
 We value your ideas on how to improve Defold! You can submit feature requests to our public issue tracker using the [Feature Request template](https://github.com/defold/defold/issues/new?assignees=&labels=feature+request&template=feature_request.md&title=). Some guidelines:
 
-* Please [search already submitted feature requests](https://github.com/defold/defold/labels/feature_request) before submitting your feature request. Maybe someone has already suggested the same thing or something only slightly different?
+* Please [search already submitted feature requests](https://github.com/defold/defold/labels/feature%20request) before submitting your feature request. Maybe someone has already suggested the same thing or something only slightly different?
   * If there is an already submitted feature request we appreciate if you add additional information instead of creating a new feature request.
   * We will close any duplicate feature requests.
 * If you do submit a new Feature Request it is important that you fill in all fields marked as required.

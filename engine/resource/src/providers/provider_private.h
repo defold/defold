@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -30,6 +30,9 @@ namespace dmResourceProvider
     struct ArchiveLoader
     {
         dmhash_t                m_NameHash;         // E.g. "http", "archive", "mutable", "file", "zip"
+        FInitializeLoader       m_Initialize;
+        FFinalizeLoader         m_Finalize;
+
         FCanMount               m_CanMount;
         FMount                  m_Mount;
         FUnmount                m_Unmount;
@@ -38,6 +41,7 @@ namespace dmResourceProvider
 
         FGetFileSize            m_GetFileSize;
         FReadFile               m_ReadFile;
+        FReadFilePartial        m_ReadFilePartial;
         FWriteFile              m_WriteFile;        // For writeable archives
 
         void Verify();

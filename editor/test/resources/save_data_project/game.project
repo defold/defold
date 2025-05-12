@@ -62,6 +62,7 @@ version = 1.1
 publisher = Defold Foundation
 developer = Defold Foundation
 write_log = 1
+minimum_log_level = 2
 compress_archive = 1
 custom_resources = /referenced/custom
 bundle_resources = /referenced/bundle
@@ -93,6 +94,7 @@ show_console_banner = 0
 scale_mode = no_scale
 retry_count = 11
 retry_time = 1.5
+transparent_graphics_context = 1
 
 [ios]
 app_icon_76x76 = /referenced/images/diamond.png
@@ -154,20 +156,29 @@ max_count = 64
 [model]
 max_count = 64
 split_meshes = 1
+max_bone_matrix_texture_width = 512
+max_bone_matrix_texture_height = 512
 
 [particle_fx]
 max_count = 128
 max_emitter_count = 128
 max_particle_count = 2048
+max_particle_buffer_count = 512
 
 [sound]
 use_thread = 0
 gain = 0.9
+use_linear_gain = 1
 max_sound_data = 64
 max_sound_buffers = 16
 max_sound_sources = 32
 max_sound_instances = 128
 max_component_count = 16
+sample_frame_count = 0
+stream_enabled = 0
+stream_chunk_size = 16384
+stream_preload_size = 16384
+stream_cache_size = 2097152
 
 [sprite]
 max_count = 256
@@ -180,6 +191,7 @@ max_tile_count = 1024
 [engine]
 run_while_iconified = 1
 fixed_update_frequency = 30
+max_time_step = 0.1
 
 [facebook]
 appid = com.defold.save-data-project
@@ -193,6 +205,8 @@ max_font_batches = 128
 max_debug_vertices = 8192
 texture_profiles = /checked.texture_profiles
 verify_graphics_calls = 0
+opengl_version_hint = 33
+opengl_core_profile_hint = 1
 
 [iap]
 auto_finish_transactions = 0

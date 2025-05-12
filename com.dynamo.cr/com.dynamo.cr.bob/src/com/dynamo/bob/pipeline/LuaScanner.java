@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -45,6 +45,25 @@ import org.antlr.v4.runtime.tree.TerminalNode;
 import org.antlr.v4.runtime.TokenStreamRewriter;
 
 public class LuaScanner extends LuaParserBaseListener {
+
+    public class LuaScannerException extends Exception {
+        private final String errorMessage;
+        private final int lineNumber;
+
+        public LuaScannerException(String errorMessage, int lineNumber) {
+            super(String.format("Error: %s at line: %d", errorMessage, lineNumber));
+            this.errorMessage = errorMessage;
+            this.lineNumber = lineNumber;
+        }
+
+        public String getErrorMessage() {
+            return errorMessage;
+        }
+
+        public int getLineNumber() {
+            return lineNumber;
+        }
+    }
 
     private static final Logger LOGGER = Logger.getLogger(LuaScanner.class.getName());
 
@@ -94,8 +113,15 @@ public class LuaScanner extends LuaParserBaseListener {
     private CommonTokenStream tokenStream = null;
     private TokenStreamRewriter rewriter;
 
-    private List<String> modules = new ArrayList<String>();
-    private List<Property> properties = new ArrayList<Property>();
+    private final List<String> modules = new ArrayList<String>();
+    private final List<Property> properties = new ArrayList<Property>();
+    public final List<LuaScannerException> exceptions = new ArrayList<>();
+
+    private boolean isDebug;
+
+    public void setDebug() {
+        isDebug = true;
+    }
 
     public static class Property {
         public enum Status {
@@ -170,7 +196,7 @@ public class LuaScanner extends LuaParserBaseListener {
      * @param str Lua code to parse
      * @return Parsed string
      */
-    public String parse(String str) {
+    public String parse(String str)  {
         TimeProfiler.start("Parse");
         modules.clear();
         properties.clear();
@@ -286,6 +312,7 @@ public class LuaScanner extends LuaParserBaseListener {
         if (firstCtx == null) {
             return null;
         }
+
         if (firstCtx.getRuleIndex() == LuaParser.RULE_explist) {
             firstCtx = ((LuaParser.ExplistContext)firstCtx).exp(0).getRuleContext(ParserRuleContext.class, 0);
         }
@@ -294,6 +321,46 @@ public class LuaScanner extends LuaParserBaseListener {
         }
         Token initialToken = firstCtx.getStart();
         return initialToken.getText().replace(QUOTES.getOrDefault(initialToken.getType(), ""), "");
+    }
+
+    private List<String> getAllStringArgs(LuaParser.ArgsContext argsCtx) {
+        if (argsCtx == null) {
+            return null;
+        }
+
+        ParserRuleContext firstCtx = argsCtx.getRuleContext(ParserRuleContext.class, 0);
+        if (firstCtx == null) {
+            return null;
+        }
+
+        List<String> stringArgs = new ArrayList<>();
+
+        // Check if firstCtx is an explist
+        if (firstCtx.getRuleIndex() == LuaParser.RULE_explist) {
+            LuaParser.ExplistContext explistCtx = (LuaParser.ExplistContext) firstCtx;
+
+            // Iterate through each expression in the explist
+            for (LuaParser.ExpContext expCtx : explistCtx.exp()) {
+                ParserRuleContext expChildCtx = expCtx.getRuleContext(ParserRuleContext.class, 0);
+
+                if (expChildCtx != null) {
+                    if (expChildCtx.getRuleIndex() == LuaParser.RULE_lstring) {
+                        Token token = expChildCtx.getStart();
+                        String stringArg = token.getText().replace(QUOTES.getOrDefault(token.getType(), ""), "");
+                        stringArgs.add(stringArg);
+                    } else if (expChildCtx instanceof LuaParser.FunctioncallContext) {
+                        LuaParser.FunctioncallContext fnCtx = ((LuaParser.FunctioncallContext) expChildCtx);
+                        String firstString = getFirstStringArg(fnCtx.nameAndArgs().args());
+                        stringArgs.add(firstString);
+                    }
+                }
+                else {
+                    stringArgs.add(null);
+                }
+            }
+        }
+
+        return stringArgs;
     }
 
     // returns boolean if parsing successfull and fill double[] with parsed values with needed length.
@@ -352,7 +419,9 @@ public class LuaScanner extends LuaParserBaseListener {
             }
         }
         else if (fnDesc.is("property", "go")) {
+            ParserRuleContext paramsContext;
             LuaParser.ArgsContext argsCtx = ctx.nameAndArgs().args();
+            paramsContext = argsCtx;
             String firstArg = getFirstStringArg(argsCtx);
             List<Token> tokens = getTokens(ctx, Token.DEFAULT_CHANNEL);
             Property property = new Property(tokens.get(0).getLine() - 1);
@@ -360,7 +429,12 @@ public class LuaScanner extends LuaParserBaseListener {
             if (firstArg == null) {
                 property.status = Status.INVALID_ARGS;
             } else {
-                if (parsePropertyValue(argsCtx, property)) {
+                try {
+                    paramsContext = parsePropertyValue(argsCtx, property);
+                } catch (LuaScannerException e) {
+                    exceptions.add(e);
+                }
+                if (paramsContext != null) {
                     property.status = Status.OK;
                 } else {
                     property.status = Status.INVALID_VALUE;
@@ -369,6 +443,11 @@ public class LuaScanner extends LuaParserBaseListener {
             properties.add(property);
 
             // strip property from code
+            // keep tokens for hash() in debug build
+            // see https://github.com/defold/defold/issues/7422
+            if (isDebug && !property.isResource && property.type == PropertyType.PROPERTY_TYPE_HASH) {
+                tokens.removeAll(getTokens(paramsContext));
+            }
             removeTokens(tokens, true);
         }
     }
@@ -400,8 +479,8 @@ public class LuaScanner extends LuaParserBaseListener {
         }
     }
 
-    private boolean parsePropertyValue(LuaParser.ArgsContext argsCtx, Property property) {
-        boolean result = false;
+    private ParserRuleContext parsePropertyValue(LuaParser.ArgsContext argsCtx, Property property) throws LuaScannerException {
+        ParserRuleContext resultContext = null;
         List<LuaParser.ExpContext> expCtxList = ((LuaParser.ExplistContext)argsCtx.getRuleContext(ParserRuleContext.class, 0)).exp();
         // go.property(name, vaule) should have a value and only one value
         if (expCtxList.size() == 2) {
@@ -419,68 +498,92 @@ public class LuaScanner extends LuaParserBaseListener {
             if (type == LuaParser.INT || type == LuaParser.HEX || type == LuaParser.FLOAT || type == LuaParser.HEX_FLOAT) {
                 property.type = PropertyType.PROPERTY_TYPE_NUMBER;
                 property.value = Double.parseDouble(expCtx.getText());
-                result = true;
+                resultContext = expCtx;
             } else if (type == LuaParser.FALSE || type == LuaParser.TRUE) {
                 property.type = PropertyType.PROPERTY_TYPE_BOOLEAN;
                 property.value = Boolean.parseBoolean(initialToken.getText());
-                result = true;
+                resultContext = expCtx;
             } else if (type == LuaParser.NAME) {
                 LuaParser.VariableContext varCtx = expCtx.variable();
                 // function expected
                 if (!(varCtx instanceof LuaParser.FunctioncallContext)) {
-                    return false;
+                    return expCtx;
                 }
                 LuaParser.FunctioncallContext ctx = (LuaParser.FunctioncallContext)varCtx;
                 FunctionDescriptor fnDesc = new FunctionDescriptor(ctx.variable());
                 if (fnDesc.functionName == null) {
-                    return result;
+                    return null;
                 }
                 if (fnDesc.isObject("vmath")){
                      if (fnDesc.isName("vector3")) {
                         Vector3d v = new Vector3d();
                         double[] resultArgs = new double[3];
-                        result = getNumArgs(ctx.nameAndArgs().args(), resultArgs);
+                        resultContext = getNumArgs(ctx.nameAndArgs().args(), resultArgs) ? ctx : null;
                         v.set(resultArgs);
                         property.value = v;
                         property.type = PropertyType.PROPERTY_TYPE_VECTOR3;
                     } else if (fnDesc.isName("vector4")) {
                         Vector4d v = new Vector4d();
                         double[] resultArgs = new double[4];
-                        result = getNumArgs(ctx.nameAndArgs().args(), resultArgs);
+                        resultContext = getNumArgs(ctx.nameAndArgs().args(), resultArgs) ? ctx : null;
                         v.set(resultArgs);
                         property.value = v;
                         property.type = PropertyType.PROPERTY_TYPE_VECTOR4;
                     } else if (fnDesc.isName("quat")) {
                         Quat4d q = new Quat4d();
                         double[] resultArgs = new double[4];
-                        result = getNumArgs(ctx.nameAndArgs().args(), resultArgs);
+                        resultContext = getNumArgs(ctx.nameAndArgs().args(), resultArgs) ? ctx : null;
                         q.set(resultArgs);
                         property.value = q;
                         property.type = PropertyType.PROPERTY_TYPE_QUAT;
                     }
                 }
                 else {
-                    String firstStrArg = getFirstStringArg(ctx.nameAndArgs().args());
                     if (fnDesc.isObject("resource")) {
                         property.type = PropertyType.PROPERTY_TYPE_HASH;
                         property.isResource = true;
-                        result = true;
+                        resultContext = ctx;
+                        String firstStrArg = getFirstStringArg(ctx.nameAndArgs().args());
+                        property.value = firstStrArg == null ? "" : firstStrArg;
                     }
                     else if (fnDesc.is("hash", null) || fnDesc.is("hash", "_G")) {
                         property.type = PropertyType.PROPERTY_TYPE_HASH;
+                        String firstStrArg = getFirstStringArg(ctx.nameAndArgs().args());
                         // hash(arg) requires an argument
                         if (firstStrArg != null) {
-                            result = true;
+                            resultContext = ctx;
                         }
+                        property.value = firstStrArg == null ? "" : firstStrArg;
                     }
                     else if (fnDesc.is("url", "msg")) {
                         property.type = PropertyType.PROPERTY_TYPE_URL;
-                        result = true;
+                        resultContext = ctx;
+                        List<String> allArgs = getAllStringArgs(ctx.nameAndArgs().args());
+                        try {
+                            property.value = concatenateUrl(allArgs);
+                        } catch (Exception e) {
+                            throw new LuaScannerException(e.getMessage(), ctx.start.getLine());
+                        }
                     }
-                    property.value = firstStrArg == null ? "" : firstStrArg;
                 }
             }
         }
-        return result;
+        return resultContext;
+    }
+
+    public static String concatenateUrl(List<String> allArgs) throws Exception {
+        if (allArgs == null || allArgs.size() == 0) {
+            return "";
+        }
+        if (allArgs.contains(null)) {
+            throw new Exception("`nil` can't be used in `go.property(msg.url(_))`");
+        }
+        if (allArgs.size() == 1) {
+            return allArgs.get(0);
+        }
+        if (allArgs.size() != 3) {
+            throw new Exception("The URL may have only one or three strings in it");
+        }
+        return allArgs.get(0) + ":" + allArgs.get(1) + "#" + allArgs.get(2);
     }
 }

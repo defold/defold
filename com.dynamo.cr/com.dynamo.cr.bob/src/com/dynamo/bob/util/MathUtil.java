@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -24,10 +24,14 @@ import javax.vecmath.Vector3d;
 import javax.vecmath.Vector3f;
 import javax.vecmath.Vector4d;
 
+import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.fs.IResource;
 import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.proto.DdfMath.Vector3;
 import com.dynamo.proto.DdfMath.Vector3One;
+import com.dynamo.proto.DdfMath.Vector4;
+import com.dynamo.proto.DdfMath.Vector4One;
 import com.dynamo.proto.DdfMath.Matrix4;
 import com.dynamo.proto.DdfMath.Transform;
 
@@ -44,7 +48,25 @@ public class MathUtil {
         return new Vector3d(v.getX(), v.getY(), v.getZ());
     }
 
-    public static Quat4d ddfToVecmath(Quat q) {
+    public static boolean isValid(Quat q) {
+        if (Float.isNaN(q.getX()) || Float.isNaN(q.getY()) || Float.isNaN(q.getZ()) || Float.isNaN(q.getW())) {
+            return false;
+        }
+        if (Float.isInfinite(q.getX()) || Float.isInfinite(q.getY()) || Float.isInfinite(q.getZ()) || Float.isInfinite(q.getW())) {
+            return false;
+        }
+        float lenSq = q.getX()*q.getX() + q.getY()*q.getY() + q.getZ()*q.getZ() + q.getW()*q.getW();
+        if (Math.abs(lenSq - 1.0f) > 1e-4f) {
+            return false;
+        }
+        return true;
+    }
+
+    public static Quat4d ddfToVecmath(Quat q, String owner) {
+        if (!isValid(q)) {
+            String err = new StringBuilder().append("Invalid quaternion: ").append(q).append(" in ").append(owner).toString();
+            throw new RuntimeException(new CompileExceptionError(err));
+        }
         return new Quat4d(q.getX(), q.getY(), q.getZ(), q.getW());
     }
 
@@ -63,9 +85,39 @@ public class MathUtil {
         return b.setX((float)p.getX()).setY((float)p.getY()).setZ((float)p.getZ()).build();
     }
 
+    public static Vector3 vecmathToDDF(float x, float y, float z) {
+        Vector3.Builder b = Vector3.newBuilder();
+        return b.setX(x).setY(y).setZ(z).build();
+    }
+
     public static Vector3One vecmathToDDFOne(Vector3d p) {
         Vector3One.Builder b = Vector3One.newBuilder();
         return b.setX((float)p.getX()).setY((float)p.getY()).setZ((float)p.getZ()).build();
+    }
+
+    public static Vector3One vecmathToDDFOne(float x, float y, float z) {
+        Vector3One.Builder b = Vector3One.newBuilder();
+        return b.setX(x).setY(y).setZ(z).build();
+    }
+
+    public static Vector4 vecmathToDDF(Vector4d p) {
+        Vector4.Builder b = Vector4.newBuilder();
+        return b.setX((float)p.getX()).setY((float)p.getY()).setZ((float)p.getZ()).setW((float)p.getW()).build();
+    }
+
+    public static Vector4One vecmathToDDFOne(Vector4d p) {
+        Vector4One.Builder b = Vector4One.newBuilder();
+        return b.setX((float)p.getX()).setY((float)p.getY()).setZ((float)p.getZ()).setW((float)p.getW()).build();
+    }
+
+    public static Vector4One vecmathToDDFOne(float x, float y, float z, float w) {
+        Vector4One.Builder b = Vector4One.newBuilder();
+        return b.setX(x).setY(y).setZ(z).setW(w).build();
+    }
+
+    public static Vector4 vecmathToDDF(float x, float y, float z, float w) {
+        Vector4.Builder b = Vector4.newBuilder();
+        return b.setX(x).setY(y).setZ(z).setW(w).build();
     }
 
     public static Transform vecmathToDDF(Vector3d t, Quat4d r, Vector3d s) {

@@ -1,33 +1,31 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.changes-view
-  (:require [clojure.java.io :as io]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
             [editor.core :as core]
             [editor.dialogs :as dialogs]
             [editor.diff-view :as diff-view]
             [editor.disk-availability :as disk-availability]
             [editor.error-reporting :as error-reporting]
-            [editor.fxui :as fxui]
             [editor.git :as git]
             [editor.handler :as handler]
             [editor.resource :as resource]
-            [editor.sync :as sync]
             [editor.ui :as ui]
             [editor.vcs-status :as vcs-status]
             [editor.workspace :as workspace]
+            [editor.notifications :as notifications]
             [service.log :as log])
   (:import [java.io File]
            [javafx.beans.value ChangeListener]
@@ -70,42 +68,43 @@
 (handler/register-menu! ::changes-menu
   [{:label "Open"
     :icon "icons/32/Icons_S_14_linkarrow.png"
-    :command :open}
+    :command :file.open-selected}
    {:label "Open As"
     :icon "icons/32/Icons_S_14_linkarrow.png"
-    :command :open-as}
+    :command :file.open-as}
    {:label :separator}
-   {:label "Copy Project Path"
-    :command :copy-project-path}
+   {:label "Copy Resource Path"
+    :command :edit.copy-resource-path}
    {:label "Copy Full Path"
-    :command :copy-full-path}
+    :command :edit.copy-absolute-path}
    {:label "Copy Require Path"
-    :command :copy-require-path}
+    :command :edit.copy-require-path}
    {:label :separator}
    {:label "Show in Asset Browser"
     :icon "icons/32/Icons_S_14_linkarrow.png"
-    :command :show-in-asset-browser}
+    :command :file.show-in-assets}
    {:label "Show in Desktop"
     :icon "icons/32/Icons_S_14_linkarrow.png"
-    :command :show-in-desktop}
+    :command :file.show-in-desktop}
    {:label "Referencing Files..."
-    :command :referencing-files}
+    :command :file.show-references}
    {:label "Dependencies..."
-    :command :dependencies}
+    :command :file.show-dependencies}
    {:label "Show Overrides"
-    :command :show-overrides}
+    :command :edit.show-overrides}
    {:label :separator}
    {:label "View Diff"
     :icon "icons/32/Icons_S_06_arrowup.png"
-    :command :diff}
+    :command :vcs.diff}
    {:label "Revert"
     :icon "icons/32/Icons_S_02_Reset.png"
-    :command :revert}])
+    :command :vcs.revert}])
 
-(defn- path->file [workspace ^String path]
-  (File. ^File (workspace/project-path workspace) path))
+(defn- path->file
+  ^File [workspace ^String path]
+  (File. (workspace/project-directory workspace) path))
 
-(handler/defhandler :revert :changes-view
+(handler/defhandler :vcs.revert :changes-view
   (enabled? [selection]
             (and (disk-availability/available?)
                  (pos? (count selection))))
@@ -126,44 +125,11 @@
         (git/revert git (mapv (fn [status] (or (:new-path status) (:old-path status))) selection))
         (async-reload! changes-view moved-files)))))
 
-(handler/defhandler :diff :changes-view
+(handler/defhandler :vcs.diff :changes-view
   (enabled? [selection]
             (git/selection-diffable? selection))
   (run [selection ^Git git]
        (diff-view/present-diff-data (git/selection-diff-data git selection))))
-
-(defn project-is-git-repo? [changes-view]
-  (some? (g/node-value changes-view :git)))
-
-(defn regular-sync! [changes-view]
-  (let [git (g/node-value changes-view :git)
-        prefs (g/node-value changes-view :prefs)
-        flow (sync/begin-flow! git prefs)]
-    (sync/open-sync-dialog flow prefs)))
-
-(defn ensure-no-locked-files! [changes-view]
-  (let [git (g/node-value changes-view :git)]
-    (loop []
-      (if-some [locked-files (not-empty (git/locked-files git))]
-        ;; Found locked files below the project. Notify user and offer to retry.
-        (if (dialogs/make-confirmation-dialog
-              {:title "Not Safe to Sync"
-               :icon :icon/circle-question
-               :header "There are locked files, retry?"
-               :content {:fx/type fxui/label
-                         :style-class "dialog-content-padding"
-                         :text (git/locked-files-error-message locked-files)}
-               :buttons [{:text "Cancel"
-                          :cancel-button true
-                          :result false}
-                         {:text "Retry"
-                          :default-button true
-                          :result true}]})
-          (recur)
-          false)
-
-        ;; Found no locked files.
-        true))))
 
 (g/defnode ChangesView
   (inherits core/Scope)
@@ -178,13 +144,22 @@
 
 (defn- try-open-git
   ^Git [workspace]
-  (let [repo-path (io/as-file (g/node-value workspace :root))
-        git (git/try-open repo-path)
-        head-commit (some-> git .getRepository (git/get-commit "HEAD"))]
-    (if (some? head-commit)
-      git
-      (when (some? git)
-        (.close git)))))
+  (try
+    (let [repo-directory (workspace/project-directory workspace)
+          git (git/try-open repo-directory)
+          head-commit (some-> git .getRepository (git/get-commit "HEAD"))]
+      (if (some? head-commit)
+        git
+        (when (some? git)
+          (.close git))))
+    (catch Exception e
+      (let [msg (str "Git error: " (.getMessage e))]
+        (log/error :msg msg :exception e)
+        (notifications/show!
+          (workspace/notifications workspace)
+          {:type :warning
+           :text "Due to a Git error, Git features are not available for this project."})
+        nil))))
 
 (defn make-changes-view [view-graph workspace prefs ^Parent parent async-reload!]
   (assert (fn? async-reload!))
@@ -204,12 +179,13 @@
                  {resource/Resource (fn [status] (status->resource workspace status))})
     (ui/register-context-menu list-view ::changes-menu)
     (ui/cell-factory! list-view vcs-status/render)
-    (ui/bind-action! diff-button :diff)
-    (ui/bind-action! revert-button :revert)
+    (ui/bind-action! diff-button :vcs.diff)
+    (ui/bind-action! revert-button :vcs.revert)
     (ui/disable! diff-button true)
     (ui/disable! revert-button true)
     (ui/visible! progress-overlay false)
-    (ui/bind-double-click! list-view :open)
+    (ui/bind-double-click! list-view :file.open-selected)
+    (ui/bind-key-commands! list-view {"Enter" :file.open-selected})
     ; TODO: try/catch to protect against project without git setup
     ; Show warning/error etc?
     (try

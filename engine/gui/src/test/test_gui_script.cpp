@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -290,6 +290,44 @@ TEST_F(dmGuiScriptTest, TestParenting)
             "    assert(gui.get_parent(child) == parent)\n"
             "    gui.set_parent(child, nil)\n"
             "    assert(gui.get_parent(child) == nil)\n"
+            "end\n";
+
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    result = dmGui::InitScene(scene);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    dmGui::DeleteScene(scene);
+
+    dmGui::DeleteScript(script);
+}
+
+TEST_F(dmGuiScriptTest, TestGetType)
+{
+    dmGui::HScript script = NewScript(m_Context);
+
+    dmGui::NewSceneParams params;
+    params.m_MaxNodes = 64;
+    params.m_MaxAnimations = 32;
+    params.m_UserData = this;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    dmGui::SetSceneScript(scene, script);
+
+    const char* src =
+            "function init(self)\n"
+            "    local node = gui.new_box_node(vmath.vector3(1, 1, 1), vmath.vector3(1, 1, 1))\n"
+            "    local type, subtype = gui.get_type(node)\n"
+            "    assert(type == gui.TYPE_BOX)\n"
+            "    assert(subtype == nil)\n"
+            "    local node = gui.new_text_node(vmath.vector3(1, 1, 1), \"TEST\")\n"
+            "    local type, subtype = gui.get_type(node)\n"
+            "    assert(type == gui.TYPE_TEXT)\n"
+            "    assert(subtype == nil)\n"
+            "    local node = gui.new_pie_node(vmath.vector3(1, 1, 1), vmath.vector3(1, 1, 1))\n"
+            "    local type, subtype = gui.get_type(node)\n"
+            "    assert(type == gui.TYPE_PIE)\n"
+            "    assert(subtype == nil)\n"
             "end\n";
 
     dmGui::Result result = SetScript(script, LuaSourceFromStr(src));

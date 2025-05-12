@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -23,8 +23,7 @@
 #include <dlib/log.h>
 #include <dlib/time.h>
 
-#include "../graphics.h"
-#include "../graphics_private.h"
+#include "test_app_graphics.h"
 
 #include <dmsdk/graphics/graphics_vulkan.h>
 
@@ -58,6 +57,22 @@ struct RunLoopParams
     EngineUpdateFn      m_EngineUpdate;
     EngineGetResultFn   m_EngineGetResult;
 };
+
+static dmGraphics::HUniformLocation GetUniformLocation(dmGraphics::HProgram program, const char* name)
+{
+    dmhash_t hash = dmHashString64(name);
+    for (int i = 0; i < dmGraphics::GetUniformCount(program); ++i)
+    {
+        dmGraphics::Uniform uniform;
+        dmGraphics::GetUniform(program, i, &uniform);
+
+        if (uniform.m_NameHash == hash)
+        {
+            return uniform.m_Location;
+        }
+    }
+    return dmGraphics::INVALID_UNIFORM_LOCATION;
+}
 
 // From engine_loop.cpp
 
@@ -143,11 +158,13 @@ struct EngineCtx
     int m_WasRun;
     int m_WasDestroyed;
     int m_WasResultCalled;
+    int m_Running;
 
     uint64_t m_TimeStart;
 
-    dmPlatform::HWindow  m_Window;
-    dmGraphics::HContext m_GraphicsContext;
+    dmPlatform::HWindow   m_Window;
+    dmGraphics::HContext  m_GraphicsContext;
+    dmJobThread::HContext m_JobThread;
 
     ITest* m_Test;
     bool m_WindowClosed;
@@ -157,7 +174,8 @@ struct EngineCtx
 struct ClearBackbufferTest : ITest
 {
     void Initialize(EngineCtx* engine) override
-    {}
+    {
+    }
 
     void Execute(EngineCtx* engine) override
     {
@@ -172,54 +190,6 @@ struct ClearBackbufferTest : ITest
                                     (float)color_b,
                                     (float)color_a,
                                     1.0f, 0);
-    }
-};
-
-struct CopyToBufferTest : ITest
-{
-    dmGraphics::HTexture      m_CopyBufferToTextureTexture;
-    dmGraphics::HVertexBuffer m_CopyBufferToTextureBuffer;
-
-    void Initialize(EngineCtx* engine) override
-    {
-        dmGraphics::TextureCreationParams tp = {};
-        tp.m_Width                           = 128;
-        tp.m_Height                          = 128;
-        tp.m_OriginalWidth                   = 128;
-        tp.m_OriginalHeight                  = 128;
-        m_CopyBufferToTextureTexture = dmGraphics::NewTexture(engine->m_GraphicsContext, tp);
-
-        dmGraphics::TextureParams p = {};
-        p.m_Width    = 128;
-        p.m_Height   = 128;
-        p.m_Format   = dmGraphics::TEXTURE_FORMAT_RGBA;
-        dmGraphics::SetTexture(m_CopyBufferToTextureTexture, p);
-
-        m_CopyBufferToTextureBuffer = dmGraphics::NewVertexBuffer(engine->m_GraphicsContext, 128 * 128 * 4, 0, dmGraphics::BUFFER_USAGE_TRANSFER);
-
-        uint8_t* pixels = (uint8_t*) dmGraphics::VulkanMapVertexBuffer(engine->m_GraphicsContext, m_CopyBufferToTextureBuffer, dmGraphics::BUFFER_ACCESS_READ_WRITE);
-
-        for (int i = 0; i < 128; i++)
-        {
-            for (int j = 0; j < 128; j++)
-            {
-                float u = ((float) j) / (float) 128;
-                float v = ((float) i) / (float) 128;
-
-                uint32_t ix = (i * 128 + j) * 4;
-                pixels[ix + 0] = (uint8_t) (u * 255.0f);
-                pixels[ix + 1] = 0;
-                pixels[ix + 2] = (uint8_t) (v * 255.0f);
-                pixels[ix + 3] = 255;
-            }
-        }
-
-        dmGraphics::VulkanUnmapVertexBuffer(engine->m_GraphicsContext, m_CopyBufferToTextureBuffer);
-    }
-
-    void Execute(EngineCtx* engine) override
-    {
-        dmGraphics::VulkanCopyBufferToTexture(engine->m_GraphicsContext, m_CopyBufferToTextureBuffer, m_CopyBufferToTextureTexture, dmGraphics::GetTextureWidth(m_CopyBufferToTextureTexture), dmGraphics::GetTextureHeight(m_CopyBufferToTextureTexture));
     }
 };
 
@@ -248,249 +218,114 @@ struct ReadPixelsTest : ITest
                                     (float) color_a,
                                     1.0f, 0);
 
-        dmGraphics::ReadPixels(engine->m_GraphicsContext, m_Buffer, 512 * 512 * 4);
+        int32_t x = 0, y = 0;
+        uint32_t w = 0, h = 0;
+        dmGraphics::GetViewport(engine->m_GraphicsContext, &x, &y, &w, &h);
+        dmGraphics::ReadPixels(engine->m_GraphicsContext, x, y, w, h, m_Buffer, 512 * 512 * 4);
         dmLogInfo("%d, %d, %d, %d", m_Buffer[0], m_Buffer[1], m_Buffer[2], m_Buffer[3]);
     }
 };
 
-enum BindingType
+struct AsyncTextureUploadTest : ITest
 {
-    BINDING_TYPE_INPUT,
-    BINDING_TYPE_OUTPUT,
-    BINDING_TYPE_TEXTURE,
-    BINDING_TYPE_UNIFORM_BUFFER,
-    BINDING_TYPE_STORAGE_BUFFER,
-};
-
-void AddShader(dmGraphics::ShaderDesc* desc, dmGraphics::ShaderDesc::Language language, uint8_t* source, int source_size)
-{
-    desc->m_Shaders.m_Data = (dmGraphics::ShaderDesc::Shader*) realloc(desc->m_Shaders.m_Data, sizeof(dmGraphics::ShaderDesc::Shader) * (desc->m_Shaders.m_Count + 1));
-    dmGraphics::ShaderDesc::Shader* shader = desc->m_Shaders.m_Data + desc->m_Shaders.m_Count;
-    memset(shader, 0, sizeof(dmGraphics::ShaderDesc::Shader));
-    desc->m_Shaders.m_Count++;
-
-    shader->m_Language       = language;
-    shader->m_Source.m_Data  = (uint8_t*) source;
-    shader->m_Source.m_Count = source_size;
-}
-
-void AddShaderResource(dmGraphics::ShaderDesc* desc, const char* name, dmGraphics::ShaderDesc::ShaderDataType shader_type, int type_index, uint32_t binding, uint32_t set, BindingType binding_type)
-{
-    dmGraphics::ShaderDesc::ResourceBinding** data = 0;
-    uint32_t* count = 0;
-
-    switch(binding_type)
+    struct Texture
     {
-    case BINDING_TYPE_INPUT:
-        data = &desc->m_Reflection.m_Inputs.m_Data;
-        count = &desc->m_Reflection.m_Inputs.m_Count;
-        break;
-    case BINDING_TYPE_OUTPUT:
-        data = &desc->m_Reflection.m_Outputs.m_Data;
-        count = &desc->m_Reflection.m_Outputs.m_Count;
-        break;
-    case BINDING_TYPE_TEXTURE:
-        data = &desc->m_Reflection.m_Textures.m_Data;
-        count = &desc->m_Reflection.m_Textures.m_Count;
-        break;
-    case BINDING_TYPE_UNIFORM_BUFFER:
-        data = &desc->m_Reflection.m_UniformBuffers.m_Data;
-        count = &desc->m_Reflection.m_UniformBuffers.m_Count;
-    case BINDING_TYPE_STORAGE_BUFFER:
-        data = &desc->m_Reflection.m_StorageBuffers.m_Data;
-        count = &desc->m_Reflection.m_StorageBuffers.m_Count;
+        dmGraphics::HTexture m_Texture;
+        dmGraphics::TextureParams m_Params;
+    };
+
+    dmArray<Texture> m_Textures;
+
+    Texture NewTexture(dmGraphics::HContext context)
+    {
+        dmGraphics::TextureCreationParams creation_params;
+        dmGraphics::TextureParams params;
+
+        const uint32_t WIDTH = 128;
+        const uint32_t HEIGHT = 128;
+
+        creation_params.m_Width = WIDTH;
+        creation_params.m_Height = HEIGHT;
+        creation_params.m_OriginalWidth = WIDTH;
+        creation_params.m_OriginalHeight = HEIGHT;
+
+        params.m_DataSize = WIDTH * HEIGHT;
+        params.m_Data = new char[params.m_DataSize];
+        params.m_Width = WIDTH;
+        params.m_Height = HEIGHT;
+        params.m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
+
+        Texture texture = {};
+        texture.m_Texture = dmGraphics::NewTexture(context, creation_params);
+        texture.m_Params = params;
+
+        return texture;
     }
 
-    *data = (dmGraphics::ShaderDesc::ResourceBinding*) realloc(data, sizeof(dmGraphics::ShaderDesc::ResourceBinding) * (*count + 1));
-    dmGraphics::ShaderDesc::ResourceBinding* res = *data + *count;
-    memset(res, 0, sizeof(dmGraphics::ShaderDesc::ResourceBinding));
-
-    *count++;
-    res->m_Name                     = name;
-    res->m_NameHash                 = dmHashString64(name);
-    res->m_Binding                  = binding;
-    res->m_Type.m_Type.m_ShaderType = shader_type;
-
-    if (type_index != -1)
+    void CheckTexture(dmGraphics::HContext context, dmGraphics::HTexture texture)
     {
-        res->m_Type.m_Type.m_TypeIndex = type_index;
-        res->m_Type.m_UseTypeIndex     = 1;
+        dmGraphics::SetTextureParams(texture, dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_WRAP_REPEAT, 0.0f);
+        dmGraphics::GetTextureResourceSize(texture);
+        dmGraphics::GetTextureWidth(texture);
+        dmGraphics::GetTextureHeight(texture);
+        dmGraphics::GetTextureDepth(texture);
+        dmGraphics::GetOriginalTextureWidth(texture);
+        dmGraphics::GetOriginalTextureHeight(texture);
+        dmGraphics::GetTextureMipmapCount(texture);
+        dmGraphics::GetTextureType(texture);
+        dmGraphics::GetNumTextureHandles(texture);
+        dmGraphics::GetTextureUsageHintFlags(texture);
+
+        dmGraphics::EnableTexture(context, 0, 0, texture);
+        dmGraphics::DisableTexture(context, 0, texture);
     }
-}
 
-void AddShaderResource(dmGraphics::ShaderDesc* desc, const char* name, dmGraphics::ShaderDesc::ShaderDataType shader_type, uint32_t binding, uint32_t set, BindingType binding_type)
-{
-    AddShaderResource(desc, name, shader_type, -1, binding, set, binding_type);
-}
+    void CreateTextures(EngineCtx* engine)
+    {
+        const uint32_t TEXTURE_COUNT = 512;
+        m_Textures.SetCapacity(TEXTURE_COUNT);
 
-void AddShaderResource(dmGraphics::ShaderDesc* desc, const char* name, int type_index, uint32_t binding, uint32_t set, BindingType binding_type)
-{
-    AddShaderResource(desc, name, (dmGraphics::ShaderDesc::ShaderDataType) -1, type_index, binding, set, binding_type);
-}
+        for (int i = 0; i < TEXTURE_COUNT; ++i)
+        {
+            if (!m_Textures.Full())
+            {
+                Texture t = NewTexture(engine->m_GraphicsContext);
+                m_Textures.Push(t);
 
-dmGraphics::ShaderDesc::ResourceTypeInfo* AddShaderType(dmGraphics::ShaderDesc* desc, const char* name)
-{
-    desc->m_Reflection.m_Types.m_Data = (dmGraphics::ShaderDesc::ResourceTypeInfo*) realloc(desc->m_Reflection.m_Types.m_Data, sizeof(dmGraphics::ShaderDesc::ResourceTypeInfo) * (desc->m_Reflection.m_Types.m_Count + 1));
-    dmGraphics::ShaderDesc::ResourceTypeInfo* type_info = desc->m_Reflection.m_Types.m_Data + desc->m_Reflection.m_Types.m_Count;
-    memset(type_info, 0, sizeof(dmGraphics::ShaderDesc::ResourceTypeInfo));
-    desc->m_Reflection.m_Types.m_Count++;
+                Texture& back = m_Textures.Back();
 
-    type_info->m_Name = name;
-    type_info->m_NameHash = dmHashString64(name);
-    return type_info;
-}
+                dmGraphics::SetTextureAsync(back.m_Texture, t.m_Params, 0, 0);
 
-void AddShaderTypeMember(dmGraphics::ShaderDesc* desc, dmGraphics::ShaderDesc::ResourceTypeInfo* type_info, const char* name, dmGraphics::ShaderDesc::ShaderDataType type)
-{
-    type_info->m_Members.m_Data = (dmGraphics::ShaderDesc::ResourceMember*) realloc(type_info->m_Members.m_Data, sizeof(dmGraphics::ShaderDesc::ResourceMember) * (type_info->m_Members.m_Count + 1));
-    dmGraphics::ShaderDesc::ResourceMember* member = type_info->m_Members.m_Data + type_info->m_Members.m_Count;
-    memset(member, 0, sizeof(dmGraphics::ShaderDesc::ResourceMember));
-    type_info->m_Members.m_Count++;
+                CheckTexture(engine->m_GraphicsContext, back.m_Texture);
 
-    member->m_Name = name;
-    member->m_Type.m_Type.m_ShaderType = type;
-    member->m_NameHash = dmHashString64(name);
-}
-
-void DeleteShaderDesc(dmGraphics::ShaderDesc* desc)
-{
-#define FREE_IF_SIZE_NOT_ZERO(x) if (x.m_Count > 0) free(x.m_Data);
-
-    FREE_IF_SIZE_NOT_ZERO(desc->m_Reflection.m_Inputs);
-    FREE_IF_SIZE_NOT_ZERO(desc->m_Reflection.m_Textures);
-    FREE_IF_SIZE_NOT_ZERO(desc->m_Reflection.m_Outputs);
-    FREE_IF_SIZE_NOT_ZERO(desc->m_Shaders);
-    FREE_IF_SIZE_NOT_ZERO(desc->m_Reflection.m_UniformBuffers);
-    FREE_IF_SIZE_NOT_ZERO(desc->m_Reflection.m_StorageBuffers);
-    FREE_IF_SIZE_NOT_ZERO(desc->m_Reflection.m_Types);
-
-#undef FREE_IF_SIZE_NOT_ZERO
-
-    free(desc);
-}
-
-struct SubPassTest : ITest
-{
-    dmGraphics::HRenderTarget      m_Rendertarget;
-    dmGraphics::HProgram           m_ShaderProgram;
-    dmGraphics::HVertexDeclaration m_VertexDeclaration;
-    dmGraphics::HVertexBuffer      m_VertexBuffer;
+                // Immediately delete, so we simulate putting them on a post-delete-queue
+                dmGraphics::DeleteTexture(back.m_Texture);
+            }
+        }
+    }
 
     void Initialize(EngineCtx* engine) override
     {
-        const float vertex_data_no_index[] = {
-            -0.5f, -0.5f,
-             0.5f, -0.5f,
-            -0.5f,  0.5f,
-             0.5f, -0.5f,
-             0.5f,  0.5f,
-            -0.5f,  0.5f,
-        };
-
-        m_VertexBuffer = dmGraphics::NewVertexBuffer(engine->m_GraphicsContext, sizeof(vertex_data_no_index), (void*) vertex_data_no_index, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
-
-        dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(engine->m_GraphicsContext);
-        dmGraphics::AddVertexStream(stream_declaration, "pos", 2, dmGraphics::TYPE_FLOAT, false);
-
-        dmGraphics::ShaderDesc vs_desc = {};
-        dmGraphics::ShaderDesc fs_desc = {};
-
-        AddShader(&vs_desc, dmGraphics::ShaderDesc::LANGUAGE_SPIRV, (uint8_t*) graphics_assets::spirv_vertex_program, sizeof(graphics_assets::spirv_vertex_program));
-        AddShaderResource(&vs_desc, "pos", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC2, 0, 0, BINDING_TYPE_INPUT);
-
-        AddShader(&fs_desc, dmGraphics::ShaderDesc::LANGUAGE_SPIRV, (uint8_t*) graphics_assets::spirv_fragment_program, sizeof(graphics_assets::spirv_fragment_program));
-        AddShaderResource(&fs_desc, "inputColor", dmGraphics::ShaderDesc::SHADER_TYPE_RENDER_PASS_INPUT, 0, 0, BINDING_TYPE_TEXTURE);
-
-        dmGraphics::HVertexProgram vs_program   = dmGraphics::NewVertexProgram(engine->m_GraphicsContext, &vs_desc, 0, 0);
-        dmGraphics::HFragmentProgram fs_program = dmGraphics::NewFragmentProgram(engine->m_GraphicsContext, &fs_desc, 0, 0);
-
-        DeleteShaderDesc(&vs_desc);
-        DeleteShaderDesc(&fs_desc);
-
-        m_ShaderProgram     = dmGraphics::NewProgram(engine->m_GraphicsContext, vs_program, fs_program);
-        m_VertexDeclaration = dmGraphics::NewVertexDeclaration(engine->m_GraphicsContext, stream_declaration);
-
-        //////////// RENDER TARGET ////////////
-        dmGraphics::RenderTargetCreationParams p = {};
-
-        for (int i = 0; i < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
-        {
-            p.m_ColorBufferCreationParams[i].m_Type           = dmGraphics::TEXTURE_TYPE_2D;
-            p.m_ColorBufferCreationParams[i].m_Width          = 512;
-            p.m_ColorBufferCreationParams[i].m_Height         = 512;
-            p.m_ColorBufferCreationParams[i].m_OriginalWidth  = 512;
-            p.m_ColorBufferCreationParams[i].m_OriginalHeight = 512;
-
-            p.m_ColorBufferParams[i].m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
-            p.m_ColorBufferParams[i].m_Width  = 512;
-            p.m_ColorBufferParams[i].m_Height = 512;
-        }
-
-        p.m_ColorBufferCreationParams[0].m_UsageHintBits = dmGraphics::TEXTURE_USAGE_FLAG_INPUT | dmGraphics::TEXTURE_USAGE_FLAG_MEMORYLESS;
-
-        m_Rendertarget = dmGraphics::NewRenderTarget(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_COLOR1_BIT, p);
-
-        //////////// RENDER PASS ////////////
-        uint8_t sub_pass_0_color_attachments[] = { 0 };
-        uint8_t sub_pass_1_color_attachments[] = { 1 };
-        uint8_t sub_pass_1_input_attachments[] = { 0 };
-
-        dmGraphics::CreateRenderPassParams rp = {};
-        rp.m_SubPassCount = 2;
-
-        rp.m_SubPasses[0].m_ColorAttachmentIndices      = sub_pass_0_color_attachments;
-        rp.m_SubPasses[0].m_ColorAttachmentIndicesCount = DM_ARRAY_SIZE(sub_pass_0_color_attachments);
-
-        rp.m_SubPasses[1].m_ColorAttachmentIndices      = sub_pass_1_color_attachments;
-        rp.m_SubPasses[1].m_ColorAttachmentIndicesCount = DM_ARRAY_SIZE(sub_pass_1_color_attachments);
-
-        rp.m_SubPasses[1].m_InputAttachmentIndices      = sub_pass_1_input_attachments;
-        rp.m_SubPasses[1].m_InputAttachmentIndicesCount = DM_ARRAY_SIZE(sub_pass_1_input_attachments);
-
-        rp.m_DependencyCount = 3;
-        rp.m_Dependencies[0].m_Src = dmGraphics::SUBPASS_EXTERNAL;
-        rp.m_Dependencies[0].m_Dst = 0;
-
-        rp.m_Dependencies[1].m_Src = 0;
-        rp.m_Dependencies[1].m_Dst = 1;
-
-        rp.m_Dependencies[2].m_Src = 1;
-        rp.m_Dependencies[2].m_Dst = dmGraphics::SUBPASS_EXTERNAL;
-
-        dmGraphics::VulkanCreateRenderPass(engine->m_GraphicsContext, m_Rendertarget, rp);
+        CreateTextures(engine);
     }
 
     void Execute(EngineCtx* engine) override
     {
-        dmGraphics::HTexture sub_pass_0_color = dmGraphics::GetRenderTargetTexture(m_Rendertarget, dmGraphics::BUFFER_TYPE_COLOR0_BIT);
+        for (int i = 0; i < m_Textures.Size(); ++i)
+        {
+            if (!dmGraphics::IsAssetHandleValid(engine->m_GraphicsContext, m_Textures[i].m_Texture))
+            {
+                // Texture deleted
+                free((void*)m_Textures[i].m_Params.m_Data);
+                m_Textures.EraseSwap(i);
+            }
+            else
+            {
+                CheckTexture(engine->m_GraphicsContext, m_Textures[i].m_Texture);
+            }
+        }
 
-        dmGraphics::SetRenderTarget(engine->m_GraphicsContext, m_Rendertarget, 0);
-
-        dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, 512, 512);
-
-        static uint8_t color_r = 0;
-        static uint8_t color_g = 80;
-        static uint8_t color_b = 140;
-        static uint8_t color_a = 255;
-
-        dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT,
-                                    (float)color_r,
-                                    (float)color_g,
-                                    (float)color_b,
-                                    (float)color_a,
-                                    1.0f, 0);
-
-        dmGraphics::VulkanNextRenderPass(engine->m_GraphicsContext, m_Rendertarget);
-
-        dmGraphics::EnableProgram(engine->m_GraphicsContext, m_ShaderProgram);
-        dmGraphics::DisableState(engine->m_GraphicsContext, dmGraphics::STATE_DEPTH_TEST);
-
-        dmGraphics::EnableTexture(engine->m_GraphicsContext, 0, 0, sub_pass_0_color);
-
-        dmGraphics::EnableVertexDeclaration(engine->m_GraphicsContext, m_VertexDeclaration, m_VertexBuffer);
-        dmGraphics::Draw(engine->m_GraphicsContext, dmGraphics::PRIMITIVE_TRIANGLES, 0, 6);
-
-        dmGraphics::SetRenderTarget(engine->m_GraphicsContext, 0, 0);
+        CreateTextures(engine);
     }
 };
 
@@ -521,13 +356,11 @@ struct ComputeTest : ITest
         AddShaderTypeMember(&compute_desc, type_info, "color", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC4);
         AddShaderResource(&compute_desc, "buf", 0, 0, 0, BINDING_TYPE_UNIFORM_BUFFER);
 
-        dmGraphics::HComputeProgram compute_program = dmGraphics::NewComputeProgram(engine->m_GraphicsContext, &compute_desc, 0, 0);
+        m_Program = dmGraphics::NewProgram(engine->m_GraphicsContext, &compute_desc, 0, 0);
 
         DeleteShaderDesc(&compute_desc);
 
-        m_Program = dmGraphics::NewProgram(engine->m_GraphicsContext, compute_program);
-
-        m_UniformLoc = dmGraphics::GetUniformLocation(m_Program, "buf");
+        m_UniformLoc = GetUniformLocation(m_Program, "buf");
     }
 
     void Execute(EngineCtx* engine) override
@@ -542,6 +375,9 @@ struct ComputeTest : ITest
     }
 };
 
+// Note: the vulkan dmsdk doens't contain these functions anymore, but since SSBOs is something we want eventually,
+//       we can leave this test code here for later.
+#if 0
 struct StorageBufferTest : ITest
 {
     dmGraphics::HProgram           m_Program;
@@ -615,14 +451,15 @@ struct StorageBufferTest : ITest
     {
         dmGraphics::EnableProgram(engine->m_GraphicsContext, m_Program);
         dmGraphics::EnableVertexBuffer(engine->m_GraphicsContext, m_VertexBuffer, 0);
-        dmGraphics::EnableVertexDeclaration(engine->m_GraphicsContext, m_VertexDeclaration, 0, m_Program);
+        dmGraphics::EnableVertexDeclaration(engine->m_GraphicsContext, m_VertexDeclaration, 0, 0, m_Program);
 
-        dmGraphics::HUniformLocation loc = dmGraphics::GetUniformLocation(m_Program, "Test");
+        dmGraphics::HUniformLocation loc = GetUniformLocation(m_Program, "Test");
         dmGraphics::VulkanSetStorageBuffer(engine->m_GraphicsContext, m_StorageBuffer, 0, 0, loc);
 
-        dmGraphics::Draw(engine->m_GraphicsContext, dmGraphics::PRIMITIVE_TRIANGLES, 0, 6);
+        dmGraphics::Draw(engine->m_GraphicsContext, dmGraphics::PRIMITIVE_TRIANGLES, 0, 6, 1);
     }
 };
+#endif
 
 static bool OnWindowClose(void* user_data)
 {
@@ -637,20 +474,29 @@ static void* EngineCreate(int argc, char** argv)
     engine->m_Window = dmPlatform::NewWindow();
 
     dmPlatform::WindowParams window_params = {};
-    window_params.m_Width                 = 512;
-    window_params.m_Height                = 512;
-    window_params.m_Title                 = "Vulkan Test App";
-    window_params.m_GraphicsApi           = dmPlatform::PLATFORM_GRAPHICS_API_VULKAN;
-    window_params.m_CloseCallback         = OnWindowClose;
-    window_params.m_CloseCallbackUserData = (void*) engine;
+    window_params.m_Width                  = 512;
+    window_params.m_Height                 = 512;
+    window_params.m_Title                  = "Graphics Test App";
+    window_params.m_GraphicsApi            = dmPlatform::PLATFORM_GRAPHICS_API_VULKAN;
+    window_params.m_CloseCallback          = OnWindowClose;
+    window_params.m_CloseCallbackUserData  = (void*) engine;
 
     if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGL)
     {
         window_params.m_GraphicsApi = dmPlatform::PLATFORM_GRAPHICS_API_OPENGL;
     }
+    else if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGLES)
+    {
+        window_params.m_GraphicsApi = dmPlatform::PLATFORM_GRAPHICS_API_OPENGLES;
+    }
 
     dmPlatform::OpenWindow(engine->m_Window, window_params);
     dmPlatform::ShowWindow(engine->m_Window);
+
+    dmJobThread::JobThreadCreationParams job_thread_create_param;
+    job_thread_create_param.m_ThreadNames[0] = "test_jobs";
+    job_thread_create_param.m_ThreadCount    = 1;
+    engine->m_JobThread = dmJobThread::Create(job_thread_create_param);
 
     dmGraphics::ContextParams graphics_context_params = {};
     graphics_context_params.m_DefaultTextureMinFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
@@ -660,18 +506,21 @@ static void* EngineCreate(int argc, char** argv)
     graphics_context_params.m_Window                  = engine->m_Window;
     graphics_context_params.m_Width                   = 512;
     graphics_context_params.m_Height                  = 512;
+    graphics_context_params.m_JobThread               = engine->m_JobThread;
 
     engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
 
     //engine->m_Test = new ComputeTest();
-    //engine->m_Test = new ComputeTest();
     //engine->m_Test = new StorageBufferTest();
     //engine->m_Test = new ReadPixelsTest();
-    engine->m_Test = new ClearBackbufferTest();
+    engine->m_Test = new AsyncTextureUploadTest();
+    // engine->m_Test = new ClearBackbufferTest();
     engine->m_Test->Initialize(engine);
 
     engine->m_WasCreated++;
-    engine->m_TimeStart = dmTime::GetTime();
+    engine->m_Running = 1;
+    engine->m_TimeStart = dmTime::GetMonotonicTime();
+
     return &g_EngineCtx;
 }
 
@@ -681,6 +530,10 @@ static void EngineDestroy(void* _engine)
     dmGraphics::CloseWindow(engine->m_GraphicsContext);
     dmGraphics::DeleteContext(engine->m_GraphicsContext);
     dmGraphics::Finalize();
+
+    if (engine->m_JobThread)
+        dmJobThread::Destroy(engine->m_JobThread);
+
     engine->m_WasDestroyed++;
 }
 
@@ -688,12 +541,17 @@ static UpdateResult EngineUpdate(void* _engine)
 {
     EngineCtx* engine = (EngineCtx*)_engine;
     engine->m_WasRun++;
-    uint64_t t = dmTime::GetTime();
+    uint64_t t = dmTime::GetMonotonicTime();
     float elapsed = (t - engine->m_TimeStart) / 1000000.0f;
     /*
     if (elapsed > 3.0f)
         return RESULT_EXIT;
     */
+
+    if (!engine->m_Running)
+    {
+        return RESULT_EXIT;
+    }
 
     dmPlatform::PollEvents(engine->m_Window);
 
@@ -701,6 +559,8 @@ static UpdateResult EngineUpdate(void* _engine)
     {
         return RESULT_EXIT;
     }
+
+    dmJobThread::Update(engine->m_JobThread);
 
     dmGraphics::BeginFrame(engine->m_GraphicsContext);
 
@@ -751,7 +611,7 @@ TEST(App, Run)
     ASSERT_EQ(0, ret);
 
 
-    uint64_t t = dmTime::GetTime();
+    uint64_t t = dmTime::GetMonotonicTime();
     float elapsed = (t - g_EngineCtx.m_TimeStart) / 1000000.0f;
     (void)elapsed;
 

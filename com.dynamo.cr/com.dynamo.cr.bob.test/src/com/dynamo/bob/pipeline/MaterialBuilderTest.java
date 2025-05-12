@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -14,14 +14,17 @@
 
 package com.dynamo.bob.pipeline;
 
-import static org.junit.Assert.assertEquals;
 import java.util.List;
 
+import com.dynamo.bob.util.MurmurHash;
+import com.dynamo.graphics.proto.Graphics;
 import org.junit.Before;
 import org.junit.Test;
 
 import com.dynamo.render.proto.Material.MaterialDesc;
-import com.google.protobuf.Message;
+
+import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 
 public class MaterialBuilderTest extends AbstractProtoBuilderTest {
 
@@ -30,23 +33,152 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
         addTestFiles();
     }
 
+    private void addAttribute(StringBuilder src, String name, int elementCount, Graphics.VertexAttribute.SemanticType semanticType) {
+        String nameEscaped = "\"" + name + "\"";
+        src.append("attributes {");
+        src.append("    name: ").append(nameEscaped);
+        src.append("    element_count: ").append(elementCount);
+        if (semanticType != Graphics.VertexAttribute.SemanticType.SEMANTIC_TYPE_NONE) {
+            src.append("    semantic_type: ").append(semanticType);
+        }
+        src.append("    double_values {");
+        src.append("        v: 1.0".repeat(Math.max(0, elementCount)));
+        src.append("    }");
+        src.append("}");
+    }
+
+    private void addAttribute(StringBuilder src, int elementCount) {
+        addAttribute(src, "ele_count_" + elementCount, elementCount, Graphics.VertexAttribute.SemanticType.SEMANTIC_TYPE_NONE);
+    }
+
+    private void assertAttribute(Graphics.VertexAttribute attribute, String name, Graphics.VertexAttribute.VectorType vectorType) {
+        assertEquals(name, attribute.getName());
+        assertEquals(vectorType, attribute.getVectorType());
+    }
+
     @Test
-    public void testMigrateTextures() throws Exception {
+    public void testCombinedShader() throws Exception {
+        String srcShaderStr = "void main() {}\n";
+        Graphics.ShaderDesc shaderDesc = addAndBuildShaderDescs(
+                new String[]{"/test_combined.vp", "/test_combined.fp"},
+                new String[]{srcShaderStr, srcShaderStr},
+                "/test_combined.shbundle");
+        assertEquals(2, shaderDesc.getShadersCount());
 
-        addFile("/test.material", "");
-        addFile("/test.vp", "");
-        addFile("/test.fp", "");
+        String src = """
+                name: "test_combined"
+                vertex_program: "/test_combined.vp"
+                fragment_program: "/test_combined.fp"
+                """;
 
-        StringBuilder srcShader = new StringBuilder();
-        srcShader.append("void main() {}\n");
+        MaterialDesc material = getMessage(build("/test_migrate_vx_attributes.material", src), MaterialDesc.class);
+        // We don't use them in runtime, so they should be empty
+        assertEquals("", material.getVertexProgram());
+        assertEquals("", material.getFragmentProgram());
 
-        build("/test.vp", srcShader.toString());
-        build("/test.fp", srcShader.toString());
+        assertNotNull(material);
+        assertTrue(material.hasProgram());
+
+        String program = material.getProgram();
+        String expectedProgram = "/" + MaterialBuilder.getShaderName("/test_combined.vp", "/test_combined.fp", 0, ".spc");
+        assertEquals(expectedProgram, program);
+    }
+
+    @Test
+    public void testMigrateVertexAttributes() throws Exception {
+        addFile("/test_migrate_vx_attributes.material", "");
+
+        String srcShaderStr = "void main() {}\n";
+        Graphics.ShaderDesc shaderDesc = addAndBuildShaderDescs(new String[]{"/test_migrate_vx_attributes.vp", "/test_migrate_vx_attributes.fp"}, new String[]{srcShaderStr,srcShaderStr}, "/test_migrate_vx_attributes.shbundle");
+        assertEquals(2, shaderDesc.getShadersCount());
 
         StringBuilder src = new StringBuilder();
         src.append("name: \"test_material\"\n");
-        src.append("vertex_program: \"/test.vp\"\n");
-        src.append("fragment_program: \"/test.fp\"\n");
+        src.append("vertex_program: \"/test_migrate_vx_attributes.vp\"\n");
+        src.append("fragment_program: \"/test_migrate_vx_attributes.fp\"\n");
+
+        addAttribute(src, 1);
+        addAttribute(src, 2);
+        addAttribute(src, 3);
+        addAttribute(src, 4);
+        addAttribute(src, 9);
+        addAttribute(src, 16);
+
+        addAttribute(src, "ele_count_4_normal", 4, Graphics.VertexAttribute.SemanticType.SEMANTIC_TYPE_NORMAL_MATRIX);
+        addAttribute(src, "ele_count_4_world", 4, Graphics.VertexAttribute.SemanticType.SEMANTIC_TYPE_WORLD_MATRIX);
+
+        MaterialDesc material = getMessage(build("/test_migrate_vx_attributes.material", src.toString()), MaterialDesc.class);
+        assertEquals(8, material.getAttributesCount());
+
+        assertAttribute(material.getAttributes(0), "ele_count_1", Graphics.VertexAttribute.VectorType.VECTOR_TYPE_SCALAR);
+        assertAttribute(material.getAttributes(1), "ele_count_2", Graphics.VertexAttribute.VectorType.VECTOR_TYPE_VEC2);
+        assertAttribute(material.getAttributes(2), "ele_count_3", Graphics.VertexAttribute.VectorType.VECTOR_TYPE_VEC3);
+        assertAttribute(material.getAttributes(3), "ele_count_4", Graphics.VertexAttribute.VectorType.VECTOR_TYPE_VEC4);
+        assertAttribute(material.getAttributes(4), "ele_count_9", Graphics.VertexAttribute.VectorType.VECTOR_TYPE_MAT3);
+        assertAttribute(material.getAttributes(5), "ele_count_16", Graphics.VertexAttribute.VectorType.VECTOR_TYPE_MAT4);
+
+        assertAttribute(material.getAttributes(6), "ele_count_4_normal", Graphics.VertexAttribute.VectorType.VECTOR_TYPE_MAT2);
+        assertAttribute(material.getAttributes(7), "ele_count_4_world", Graphics.VertexAttribute.VectorType.VECTOR_TYPE_MAT2);
+    }
+
+    @Test
+    public void testVariantArrayTextures() throws Exception {
+        String vsShaderLegacy = "void main() {}\n";
+        String fsShaderLegacy =
+                """
+                varying mediump vec2 var_texcoord0;
+                varying lowp vec4 var_color;
+                varying lowp float var_page_index;
+                uniform lowp sampler2DArray texture_sampler;
+                void main() {
+                    lowp vec4 tex = texture2DArray(texture_sampler, vec3(var_texcoord0.xy, var_page_index));
+                    gl_FragColor = tex * var_color;
+                }
+                """;
+
+        addFile("/test_vp.vp", vsShaderLegacy);
+        addFile("/test_fp.fp", fsShaderLegacy);
+
+        String materialSrc =
+                """
+                name: "test_material"
+                vertex_program: "/test_vp.vp"
+                fragment_program: "/test_fp.fp"
+                max_page_count: 4
+                samplers {
+                  name: "texture_sampler"
+                  wrap_u: WRAP_MODE_CLAMP_TO_EDGE
+                  wrap_v: WRAP_MODE_CLAMP_TO_EDGE
+                  filter_min: FILTER_MODE_MIN_DEFAULT
+                  filter_mag: FILTER_MODE_MAG_DEFAULT
+                }
+                """;
+
+        getProject().getProjectProperties().putBooleanValue("shader", "output_glsl120", true);
+
+        addFile("/test.material", "");
+        MaterialDesc material = getMessage(build("/test.material", materialSrc), MaterialDesc.class);
+
+        assertEquals("texture_sampler", material.getSamplers(0).getName());
+
+        for (int i = 0; i < material.getMaxPageCount(); i++) {
+            long sliceHash = MurmurHash.hash64(ShaderUtil.VariantTextureArrayFallback.samplerNameToSliceSamplerName("texture_sampler", i));
+            assertEquals(sliceHash, material.getSamplers(0).getNameIndirections(i));
+        }
+
+        getProject().getProjectProperties().putBooleanValue("shader", "output_glsl120", false);
+    }
+
+    @Test
+    public void testMigrateTextures() throws Exception {
+        String srcShaderStr = "void main() {}\n";
+        Graphics.ShaderDesc shaderDesc = addAndBuildShaderDescs(new String[]{"/test_vp.vp", "/test_fp.fp"}, new String[]{srcShaderStr,srcShaderStr}, "/test.shbundle");
+        assertEquals(2, shaderDesc.getShadersCount());
+
+        StringBuilder src = new StringBuilder();
+        src.append("name: \"test_material\"\n");
+        src.append("vertex_program: \"/test_vp.vp\"\n");
+        src.append("fragment_program: \"/test_fp.fp\"\n");
 
         // these should be migrated
         src.append("textures: \"tex0\"\n");
@@ -73,7 +205,8 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
         src.append("    filter_mag: FILTER_MODE_MAG_LINEAR\n");
         src.append("}\n");
 
-        MaterialDesc material = (MaterialDesc) build("/test.material", src.toString()).get(0);
+        addFile("/test.material", "");
+        MaterialDesc material = getMessage(build("/test.material", src.toString()), MaterialDesc.class);
         assertEquals(0, material.getTexturesCount());
         assertEquals(5, material.getSamplersCount());
 
@@ -83,5 +216,57 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
         assertEquals("tex0",                          samplers.get(2).getName());
         assertEquals("tex1",                          samplers.get(3).getName());
         assertEquals("tex2",                          samplers.get(4).getName());
+    }
+
+    private String makeMaterial(int[] tintRgb) {
+        String materialFormat =
+                """
+                name: "sprite"
+                tags: "tile"
+                vertex_program: "/test_vp.vp"
+                fragment_program: "/test_fp.fp"
+                fragment_constants {
+                  name: "tint"
+                  type: CONSTANT_TYPE_USER
+                  value {
+                    x: %d.0
+                    y: %d.0
+                    z: %d.0
+                    w: 1.0
+                  }
+                }
+                """;
+        return String.format(materialFormat, tintRgb[0], tintRgb[1], tintRgb[2]);
+    }
+
+    @Test
+    public void testSharedShaderProgram() throws Exception {
+        String vsShaderLegacy = "void main() {}\n";
+        String fsShaderLegacy =
+                """
+                uniform vec4 tint;
+                void main() {
+                    gl_FragColor = tint;
+                }
+                """;
+
+        addFile("/test_vp.vp", vsShaderLegacy);
+        addFile("/test_fp.fp", fsShaderLegacy);
+
+        String materialRedStr = makeMaterial(new int[]{1, 0, 0});
+        String materialGreenStr = makeMaterial(new int[]{0, 1, 0});
+        String materialBlueStr = makeMaterial(new int[]{0, 0, 1});
+
+        addFile("/red.material", "");
+        addFile("/green.material", "");
+        addFile("/blue.material", "");
+
+        MaterialDesc materialRed = getMessage(build("/red.material", materialRedStr), MaterialDesc.class);
+        MaterialDesc materialGreen = getMessage(build("/green.material", materialRedStr), MaterialDesc.class);
+        MaterialDesc materialBlue = getMessage(build("/blue.material", materialRedStr), MaterialDesc.class);
+
+        assertTrue(materialRed.hasProgram());
+        assertEquals(materialRed.getProgram(), materialGreen.getProgram());
+        assertEquals(materialGreen.getProgram(), materialBlue.getProgram());
     }
 }

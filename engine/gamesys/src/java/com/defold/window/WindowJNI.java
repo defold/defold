@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -26,21 +26,11 @@ public class WindowJNI {
     }
 
     public void enableScreenDimming() {
-        this.activity.runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                activity.getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-            }
-        });
+        this.activity.runOnUiThread(() -> activity.getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON));
     }
 
     public void disableScreenDimming() {
-        this.activity.runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                activity.getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-            }
-        });
+        this.activity.runOnUiThread(() -> activity.getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON));
     }
 
     public boolean isScreenDimmingEnabled() {

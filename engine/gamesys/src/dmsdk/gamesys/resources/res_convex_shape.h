@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -23,14 +23,14 @@ namespace dmPhysics
 
 namespace dmGameSystem
 {
-    struct ConvexShapeResource
+    struct ConvexShapeResourceBox2D
     {
-        union
-        {
-            dmPhysics::HCollisionShape3D m_Shape3D;
-            dmPhysics::HCollisionShape2D m_Shape2D;
-        };
-        bool m_3D;
+        dmPhysics::HCollisionShape2D m_Shape2D;
+    };
+
+    struct ConvexShapeResourceBullet3D
+    {
+        dmPhysics::HCollisionShape3D m_Shape3D;
     };
 }
 

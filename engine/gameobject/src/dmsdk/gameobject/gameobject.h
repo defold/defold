@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -547,12 +547,11 @@ namespace dmGameObject
     void Delete(HCollection collection, HInstance instance, bool recursive);
 
     /*#
-     * Construct a hash of an instance id based on the index provided.
-     * @name ConstructInstanceId
-     * @param index [type: uint32_t] The index to base the id off of.
-     * @return id [type: dmhash_t] hash of the instance id constructed.
+     * Creates a new unique instance ID and returns its hash.
+     * @name CreateInstanceId
+     * @return id [type: dmhash_t] hash of the new unique instance id
      */
-    dmhash_t ConstructInstanceId(uint32_t index);
+    dmhash_t CreateInstanceId();
 
     /*#
      * Retrieve an instance index from the index pool for the collection.

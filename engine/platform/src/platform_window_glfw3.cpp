@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -17,6 +17,7 @@
 #include "platform_window.h"
 #include "platform_window_constants.h"
 #include "platform_window_glfw3_private.h"
+#include "platform_window_opengl.h"
 
 #include <glfw/glfw3.h>
 
@@ -42,7 +43,7 @@ namespace dmPlatform
 
     static void OnError(int error, const char* description)
     {
-        dmLogError("GLFW Error: %s\n", description);
+        dmLogError("GLFW Error: %s", description);
     }
 
     static void OnWindowResize(GLFWwindow* glfw_window, int width, int height)
@@ -103,8 +104,9 @@ namespace dmPlatform
 
     static void OnContentScaleCallback(GLFWwindow* glfw_window, float xscale, float yscale)
     {
-        (void)xscale;
-        (void)yscale;
+        HWindow window = (HWindow) glfwGetWindowUserPointer(glfw_window);
+        window->m_XScale = xscale;
+        window->m_YScale = yscale;
 
         int width, height;
         glfwGetWindowSize(glfw_window, &width, &height);
@@ -114,8 +116,8 @@ namespace dmPlatform
     static void OnMouseScroll(GLFWwindow* glfw_window, double xoffset, double yoffset)
     {
         HWindow window = (HWindow) glfwGetWindowUserPointer(glfw_window);
-        window->m_MouseScrollX = xoffset;
-        window->m_MouseScrollY = yoffset;
+        window->m_MouseScrollX += xoffset;
+        window->m_MouseScrollY += yoffset;
     }
 
     static void OnJoystick(int id, int event)
@@ -140,20 +142,33 @@ namespace dmPlatform
 
     HWindow NewWindow()
     {
+        glfwSetErrorCallback(OnError);
+
     #ifdef __MACH__
         glfwInitHint(GLFW_COCOA_CHDIR_RESOURCES, GLFW_FALSE);
     #endif
 
+    #if defined(__linux__) && !defined(ANDROID)
+        glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11);
+        if (glfwInit() == GL_FALSE)
+        {
+            glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_WAYLAND);
+            if (glfwInit() == GL_FALSE)
+            {
+                dmLogError("Could not initialize glfw.");
+                return 0;
+            }
+        }
+    #else
         if (glfwInit() == GL_FALSE)
         {
             dmLogError("Could not initialize glfw.");
             return 0;
         }
+    #endif
 
-        Window* wnd = new Window;
-        memset(wnd, 0, sizeof(Window));
-
-        glfwSetErrorCallback(OnError);
+        dmWindow* wnd = new dmWindow;
+        memset(wnd, 0, sizeof(dmWindow));
 
         // Reset context
         memset(&g_GLFW3Context, 0, sizeof(PlatformContext));
@@ -172,13 +187,8 @@ namespace dmPlatform
         return 0;
     }
 
-    static PlatformResult OpenWindowOpenGL(Window* wnd, const WindowParams& params)
+    static PlatformResult OpenWindowOpenGL(dmWindow* wnd, const WindowParams& params)
     {
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-
-        glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
         glfwWindowHint(GLFW_SAMPLES, params.m_Samples);
 
         GLFWmonitor* fullscreen_monitor = NULL;
@@ -187,7 +197,49 @@ namespace dmPlatform
             fullscreen_monitor = glfwGetPrimaryMonitor();
         }
 
-        wnd->m_Window = glfwCreateWindow(params.m_Width, params.m_Height, params.m_Title, fullscreen_monitor, NULL);
+        if (params.m_GraphicsApi == PLATFORM_GRAPHICS_API_OPENGLES)
+        {
+            glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
+            glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_EGL_CONTEXT_API);
+            glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
+            glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+
+            wnd->m_Window = glfwCreateWindow(params.m_Width, params.m_Height, params.m_Title, fullscreen_monitor, NULL);
+        }
+        else
+        {
+            uint32_t major = 3, minor = 3;
+            if (!OpenGLGetVersion(params.m_OpenGLVersionHint, &major, &minor))
+            {
+                dmLogWarning("OpenGL version hint %d is not supported. Using default version (%d.%d)",
+                    params.m_OpenGLVersionHint, major, minor);
+            }
+
+            bool use_highest_version = major == 0 && minor == 0;
+            if (!use_highest_version)
+            {
+                glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, major);
+                glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, minor);
+            }
+
+            if (params.m_OpenGLUseCoreProfileHint)
+            {
+                bool can_set_profile_and_fc = true;
+
+            #ifdef _WIN32
+                // Not supported on windows when requesting the default OpenGL version (which will equate to the highest available)
+                can_set_profile_and_fc = !use_highest_version;
+            #endif
+
+                if (can_set_profile_and_fc)
+                {
+                    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+                    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+                }
+            }
+
+            wnd->m_Window = glfwCreateWindow(params.m_Width, params.m_Height, params.m_Title, fullscreen_monitor, NULL);
+        }
 
         if (!wnd->m_Window)
         {
@@ -207,7 +259,7 @@ namespace dmPlatform
         return PLATFORM_RESULT_OK;
     }
 
-    static PlatformResult OpenWindowVulkan(Window* wnd, const WindowParams& params)
+    static PlatformResult OpenWindowNoApi(dmWindow* wnd, const WindowParams& params)
     {
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
         glfwWindowHint(GLFW_SAMPLES, params.m_Samples);
@@ -250,10 +302,12 @@ namespace dmPlatform
         switch(params.m_GraphicsApi)
         {
             case PLATFORM_GRAPHICS_API_OPENGL:
+            case PLATFORM_GRAPHICS_API_OPENGLES:
                 res = OpenWindowOpenGL(window, params);
                 break;
+            case PLATFORM_GRAPHICS_API_DIRECTX:
             case PLATFORM_GRAPHICS_API_VULKAN:
-                res = OpenWindowVulkan(window, params);
+                res = OpenWindowNoApi(window, params);
                 break;
             default: assert(0);
         }
@@ -261,12 +315,14 @@ namespace dmPlatform
         if (res == PLATFORM_RESULT_OK)
         {
             FocusWindowNative(window);
+            SetWindowsIconNative(window);
 
         #ifdef __MACH__
             // Set size from settings
             glfwSetWindowSize(window->m_Window, params.m_Width, params.m_Height);
         #endif
 
+            glfwGetWindowContentScale(window->m_Window, &window->m_XScale, &window->m_YScale);
             glfwSetWindowUserPointer(window->m_Window, (void*) window);
             glfwSetWindowSizeCallback(window->m_Window, OnWindowResize);
             glfwSetWindowCloseCallback(window->m_Window, OnWindowClose);
@@ -322,8 +378,6 @@ namespace dmPlatform
 
     void PollEvents(HWindow window)
     {
-        window->m_MouseScrollX = 0.0;
-        window->m_MouseScrollY = 0.0;
         glfwPollEvents();
     }
 
@@ -359,6 +413,11 @@ namespace dmPlatform
         }
     }
 
+    void SetWindowTitle(HWindow window, const char* title)
+    {
+        glfwSetWindowTitle(window->m_Window, title);
+    }
+
     void SetWindowSize(HWindow window, uint32_t width, uint32_t height)
     {
         glfwSetWindowSize(window->m_Window, (int) width, (int) height);
@@ -371,9 +430,14 @@ namespace dmPlatform
         }
     }
 
+    void SetWindowPosition(HWindow window, int32_t x, int32_t y)
+    {
+        glfwSetWindowPos(window->m_Window, x, y);
+    }
+
     float GetDisplayScaleFactor(HWindow window)
     {
-        return dmMath::Max(window->m_Width / window->m_WidthScreen, window->m_Height / window->m_HeightScreen);
+        return dmMath::Max(window->m_XScale, window->m_YScale);
     }
 
     void* AcquireAuxContext(HWindow window)
@@ -420,6 +484,7 @@ namespace dmPlatform
             case WINDOW_STATE_SAMPLE_COUNT: return window->m_Samples;
             case WINDOW_STATE_HIGH_DPI:     return window->m_HighDPI;
             case WINDOW_STATE_AUX_CONTEXT:  return window->m_AuxWindow ? 1 : 0;
+            default: break;
         }
 
         return glfwGetWindowAttrib(window->m_Window, WindowStateToGLFW(state));
@@ -446,7 +511,7 @@ namespace dmPlatform
 
     int32_t GetMouseWheel(HWindow window)
     {
-        return (int32_t) window->m_MouseScrollY;
+        return (int32_t) round(window->m_MouseScrollY);
     }
 
     int32_t GetMouseButton(HWindow window, int32_t button)
@@ -474,7 +539,7 @@ namespace dmPlatform
     {
         switch(state)
         {
-            case DEVICE_STATE_CURSOR_LOCK:      return glfwGetInputMode(window->m_Window, GLFW_CURSOR);
+            case DEVICE_STATE_CURSOR_LOCK:      return glfwGetInputMode(window->m_Window, GLFW_CURSOR) != GLFW_CURSOR_NORMAL;
             case DEVICE_STATE_JOYSTICK_PRESENT: return glfwJoystickPresent(op1);
             default:break;
         }
@@ -540,7 +605,15 @@ namespace dmPlatform
     {
         if (state == DEVICE_STATE_CURSOR)
         {
-            glfwSetInputMode(window->m_Window, GLFW_CURSOR, op1 ? GLFW_CURSOR_NORMAL : GLFW_CURSOR_HIDDEN);
+            if (op1)
+            {
+                glfwSetInputMode(window->m_Window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            }
+            else
+            {
+                glfwSetInputMode(window->m_Window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+                glfwSetInputMode(window->m_Window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+            }
         }
     }
 

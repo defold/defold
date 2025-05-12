@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -52,7 +52,7 @@ namespace dmCrash
         // Construct a file path with the app name 'Defold' until it is modified by the application;
         // this also means crash files can be stored in two different places. At the default path or in the
         // application-specific location. So need to look for both when loading.
-        dmSys::Result r = dmSys::GetApplicationSupportPath("Defold", g_FilePathDefault, sizeof(g_FilePathDefault));
+        dmSys::Result r = dmSys::GetApplicationSupportPath(DMSYS_APPLICATION_NAME, g_FilePathDefault, sizeof(g_FilePathDefault));
         if (r == dmSys::RESULT_OK)
         {
             dmStrlCat(g_FilePathDefault, "/", sizeof(g_FilePathDefault));

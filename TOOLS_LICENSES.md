@@ -21,3 +21,4 @@ The following software is used by the Defold editor and command line tools:
     * [IconExe](/licenses/NOTICE-iconexe) - Used for replacing icons bundled in the .exe from bob.jar
   * Apache 2.0
     * [bundletool-all.jar](/licenses/NOTICE-bundletool) - Used by the command line tools when creating an Android App Bundle or APK.
+    * [aapt2](/licenses/NOTICE-aapt2) - Used by the command line tools to compile and package Android resources.

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -43,5 +43,19 @@ namespace dmTime
         t /= 10;
         t -= DELTA_EPOCH_IN_MICROSECS;
         return t;
+    }
+
+    static uint64_t frequency = 0;
+
+    uint64_t GetMonotonicTime()
+    {
+        if (frequency == 0) {
+            LARGE_INTEGER freq;
+            QueryPerformanceFrequency(&freq);
+            frequency = freq.QuadPart;
+        }
+        LARGE_INTEGER counter;
+        QueryPerformanceCounter(&counter);
+        return (uint64_t)counter.QuadPart * 1000000ULL / frequency;
     }
 }

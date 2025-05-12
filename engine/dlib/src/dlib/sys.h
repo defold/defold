@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -19,6 +19,12 @@
 #include <stdlib.h> // free
 
 #include <dmsdk/dlib/sys.h>
+
+/**
+ * Engine supportpath folder name.
+ * e.g: /support/path/.Defold
+ */
+#define DMSYS_APPLICATION_NAME "Defold"
 
 namespace dmSys
 {
@@ -84,7 +90,7 @@ namespace dmSys
         }
 
         /// Engine platform
-        char m_Platform[16];
+        char m_Platform[24];
         /// Engine version, e.g. 1.2.1
         char m_Version[16];
         /// Engine version hash string
@@ -288,7 +294,7 @@ namespace dmSys
     Result ResourceSize(const char* path, uint32_t* resource_size);
 
     /**
-     * Load resource. That path supplied should
+     * Load resource from disc. That path supplied should
      * be prepended by the path returned from GetResourcesPath()
      * @note LoadResource can only operate on local filesystem
      * @param path path
@@ -298,6 +304,20 @@ namespace dmSys
      * @return RESULT_OK on success. RESULT_INVAL if the buffer is too small. RESULT_NOENT if the file doesn't exists or isn't a regular file.
      */
     Result LoadResource(const char* path, void* buffer, uint32_t buffer_size, uint32_t* resource_size);
+
+    /**
+     * Load partial resource from disc. That path supplied should
+     * be prepended by the path returned from GetResourcesPath()
+     * @note LoadResourcePartial can only operate on local filesystem
+     * @note It opens and closes a file handle for each call
+     * @param path path
+     * @param offset where to read from
+     * @param size maximum number of bytes to read
+     * @param buffer buffer
+     * @param nread [out] actual number of bytes read
+     * @return RESULT_OK on success. RESULT_NOENT if the file doesn't exists or isn't a regular file.
+     */
+    Result LoadResourcePartial(const char* path, uint32_t offset, uint32_t size, void* buffer, uint32_t* nread);
 
     /**
      * Open URL in default application

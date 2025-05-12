@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -198,7 +198,7 @@ Result SetSslPublicKeys(const uint8_t* key, uint32_t keylen)
 static void TimingSetDelay(void* data, uint32_t int_ms, uint32_t fin_ms)
 {
     SSLSocket* socket = (SSLSocket*)data;
-    socket->m_TimeStart = dmTime::GetTime();
+    socket->m_TimeStart = dmTime::GetMonotonicTime();
     socket->m_TimeLimit1 = int_ms; // intermediate limit
     socket->m_TimeLimit2 = fin_ms; // final limit
 }
@@ -209,7 +209,7 @@ static int TimingGetDelay(void* data)
     if( socket->m_TimeLimit2 == 0 )
         return -1;
 
-    uint64_t t = dmTime::GetTime();
+    uint64_t t = dmTime::GetMonotonicTime();
     uint64_t elapsed_ms = (t - socket->m_TimeStart) / 1000;
 
     if( elapsed_ms >= socket->m_TimeLimit2 )
@@ -263,7 +263,7 @@ static int RecvTimeout( void* _ctx, unsigned char *buf, size_t len, uint32_t tim
 
 Result New(dmSocket::Socket socket, const char* host, uint64_t timeout, SSLSocket** sslsocket)
 {
-    uint64_t handshakestart = dmTime::GetTime();
+    uint64_t handshakestart = dmTime::GetMonotonicTime();
 
     SSLSocket* c = (SSLSocket*)malloc(sizeof(SSLSocket));
     memset(c, 0, sizeof(SSLSocket));
@@ -359,7 +359,7 @@ Result New(dmSocket::Socket socket, const char* host, uint64_t timeout, SSLSocke
     } while (ret == MBEDTLS_ERR_SSL_WANT_READ ||
              ret == MBEDTLS_ERR_SSL_WANT_WRITE);
 
-    uint64_t currenttime = dmTime::GetTime();
+    uint64_t currenttime = dmTime::GetMonotonicTime();
     if( timeout > 0 && int(currenttime - handshakestart) > timeout )
     {
         ret = MBEDTLS_ERR_SSL_TIMEOUT;

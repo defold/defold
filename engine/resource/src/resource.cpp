@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -29,6 +29,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
+#include <dlib/job_thread.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/memory.h>
@@ -63,7 +64,7 @@
  *  - Handle out of resources. Eg Hashtables full.
  */
 
-DM_PROPERTY_U32(rmtp_Resource, 0, FrameReset, "# resources");
+DM_PROPERTY_U32(rmtp_Resource, 0, PROFILE_PROPERTY_FRAME_RESET, "# resources", 0);
 
 
 struct ResourceReloadedCallbackPair
@@ -92,6 +93,8 @@ struct ResourceFactory
     // m_BuiltinsManifest, m_Manifest
     dmMutex::HMutex                              m_LoadMutex;
 
+    dmHttpCache::HCache                          m_HttpCache;
+
     // dmResource::Get recursion depth
     uint32_t                                     m_RecursionDepth;
     // List of resources currently in dmResource::Get call-stack
@@ -109,6 +112,9 @@ struct ResourceFactory
     dmResourceMounts::HContext                   m_Mounts;
     dmResourceProvider::HArchive                 m_BuiltinMount;
     dmResourceProvider::HArchive                 m_BaseArchiveMount;
+
+    // Streaming chunked reading support
+    dmJobThread::HContext                        m_JobThreadContext;
 
     // Serial version that increases per resource insertion
     uint16_t                                     m_Version;
@@ -222,6 +228,8 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         return 0;
     }
 
+    factory->m_HttpCache = params->m_HttpCache;
+
     factory->m_Mounts = 0;
 
     // Mount the base archive, regardless of the liveupdate.mounts
@@ -237,6 +245,16 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         {"dmanif", "archive", true},
         {"file", "file", true},
     };
+
+    dmResourceProvider::ArchiveLoaderParams archive_loader_params;
+    archive_loader_params.m_Factory = factory;
+    archive_loader_params.m_HttpCache = params->m_HttpCache;
+    dmResourceProvider::InitializeLoaders(&archive_loader_params);
+
+    dmJobThread::JobThreadCreationParams job_thread_create_param;
+    job_thread_create_param.m_ThreadNames[0] = "ResourceJobThread";
+    job_thread_create_param.m_ThreadCount    = 1;
+    factory->m_JobThreadContext              = dmJobThread::Create(job_thread_create_param);
 
     int num_mounted = 0;
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(type_pairs); ++i)
@@ -365,6 +383,22 @@ static void ResourceIteratorCallback(void*, const dmhash_t* id, ResourceDescript
 
 void DeleteFactory(HFactory factory)
 {
+    if (factory->m_JobThreadContext)
+    {
+        dmJobThread::Destroy(factory->m_JobThreadContext);
+        factory->m_JobThreadContext = 0;
+    }
+
+    ReleaseBuiltinsArchive(factory);
+
+    if (factory->m_Mounts)
+        dmResourceMounts::Destroy(factory->m_Mounts);
+
+    dmResourceProvider::ArchiveLoaderParams archive_loader_params;
+    archive_loader_params.m_Factory = factory;
+    archive_loader_params.m_HttpCache = 0;
+    dmResourceProvider::FinalizeLoaders(&archive_loader_params);
+
     if (factory->m_Socket)
     {
         dmMessage::DeleteSocket(factory->m_Socket);
@@ -373,11 +407,6 @@ void DeleteFactory(HFactory factory)
     {
         dmMutex::Delete(factory->m_LoadMutex);
     }
-
-    ReleaseBuiltinsArchive(factory);
-
-    if (factory->m_Mounts)
-        dmResourceMounts::Destroy(factory->m_Mounts);
 
     if (factory->m_Resources && !factory->m_Resources->Empty())
     {
@@ -431,6 +460,7 @@ void UpdateFactory(HFactory factory)
 {
     DM_PROFILE(__FUNCTION__);
     dmMessage::Dispatch(factory->m_Socket, &Dispatch, factory);
+    dmJobThread::Update(factory->m_JobThreadContext);
     DM_PROPERTY_ADD_U32(rmtp_Resource, factory->m_Resources->Size());
 }
 
@@ -451,7 +481,7 @@ HResourceType AllocateResourceType(HFactory factory, const char* extension)
 
     // Note, we don't increase the counter it at this point
     HResourceType type = &factory->m_ResourceTypes[factory->m_ResourceTypesCount++];
-    memset(type, 0, sizeof(ResourceType));
+    ResourceTypeReset(type);
     type->m_Index = factory->m_ResourceTypesCount - 1;
     return type;
 }
@@ -607,7 +637,7 @@ dmResourceProvider::HArchive GetBaseArchive(HFactory factory)
 }
 
 // Assumes m_LoadMutex is already held
-static Result LoadResourceFromBufferLocked(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size, LoadBufferType* buffer)
+Result LoadResourceToBufferLocked(HFactory factory, const char* path, const char* original_name, uint32_t offset, uint32_t size, uint32_t* resource_size, uint32_t* buffer_size, LoadBufferType* buffer)
 {
     DM_PROFILE(__FUNCTION__);
 
@@ -617,43 +647,87 @@ static Result LoadResourceFromBufferLocked(HFactory factory, const char* path, c
     // Let's find the resource in the current mounts
 
     dmhash_t normalized_path_hash = dmHashString64(normalized_path);
-    uint32_t file_size;
+    // TODO: It might be good to get the HMount for the resource, and use that for both GetResourceSize and ReadResource
+    // Otherwise, there's a small chance of a race condition between the two calls. (i.e. a mount gets added or removed)
+
+    uint32_t file_size; // The full size of the resources
     dmResource::Result r = dmResourceMounts::GetResourceSize(factory->m_Mounts, normalized_path_hash, normalized_path, &file_size);
     if (r == dmResource::RESULT_OK)
     {
-        if (buffer->Capacity() < file_size) {
-            buffer->SetCapacity(file_size);
-        }
-        buffer->SetSize(0);
+        *resource_size = file_size;
 
-        r = dmResourceMounts::ReadResource(factory->m_Mounts, normalized_path_hash, normalized_path, (uint8_t*)buffer->Begin(), file_size);
+        uint32_t bytes_to_read = file_size;
+        bool is_streaming = false;
+        if (size != RESOURCE_INVALID_PRELOAD_SIZE)
+        {
+            bytes_to_read = dmMath::Min(file_size, size);
+            is_streaming = true;
+        }
+
+        if (buffer->Capacity() < bytes_to_read) {
+            buffer->SetCapacity(bytes_to_read);
+        }
+        buffer->SetSize(bytes_to_read);
+
+        // Only actually read the resource if we requested any bytes
+        uint32_t nread = 0;
+        if (bytes_to_read > 0)
+        {
+            if (is_streaming)
+            {
+                // no decryption or decompressing is done on these resources
+                r = dmResourceMounts::ReadResourcePartial(factory->m_Mounts, normalized_path_hash, normalized_path, offset, bytes_to_read, (uint8_t*)buffer->Begin(), &nread);
+            }
+            else
+            {
+                // The non streaming code path supports unpacking compressed resources
+                r = dmResourceMounts::ReadResource(factory->m_Mounts, normalized_path_hash, normalized_path, (uint8_t*)buffer->Begin(), buffer->Size());
+                nread = buffer->Size();
+            }
+        }
+
         if (r == dmResource::RESULT_OK)
         {
-            buffer->SetSize(file_size);
-            *resource_size = file_size;
+            buffer->SetSize(nread); // If we read fewer bytes than previously set
+            *buffer_size = nread;
             return RESULT_OK;
+        }
+        else
+        {
+            buffer->SetSize(0);
         }
         return r;
     }
     return RESULT_RESOURCE_NOT_FOUND;
 }
 
+#if !defined(DM_HAS_THREADS)
+// Only used on single threaded systems (load_queue_sync.cpp)
+LoadBufferType* GetGlobalLoadBuffer(HFactory factory)
+{
+    return &factory->m_Buffer;
+}
+#endif
+
+// Called from the resource_preloader.cpp
 // Takes the lock.
-Result LoadResourceFromBuffer(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size, LoadBufferType* buffer)
+Result LoadResourceToBuffer(HFactory factory, const char* path, const char* original_name, uint32_t preload_size, uint32_t* resource_size, uint32_t* buffer_size, LoadBufferType* buffer)
 {
     // Called from async queue so we wrap around a lock
     dmMutex::ScopedLock lk(factory->m_LoadMutex);
-    return LoadResourceFromBufferLocked(factory, path, original_name, resource_size, buffer);
+    uint32_t offset = 0;
+    return LoadResourceToBufferLocked(factory, path, original_name, offset, preload_size, resource_size, buffer_size, buffer);
 }
 
 // Assumes m_LoadMutex is already held
-Result LoadResource(HFactory factory, const char* path, const char* original_name, void** buffer, uint32_t* resource_size)
+static Result LoadResource(HFactory factory, const char* path, const char* original_name, uint32_t preload_size, void** buffer, uint32_t* buffer_size, uint32_t* resource_size)
 {
     if (factory->m_Buffer.Capacity() != DEFAULT_BUFFER_SIZE) {
         factory->m_Buffer.SetCapacity(DEFAULT_BUFFER_SIZE);
     }
     factory->m_Buffer.SetSize(0);
-    Result r = LoadResourceFromBufferLocked(factory, path, original_name, resource_size, &factory->m_Buffer);
+    uint32_t offset = 0;
+    Result r = LoadResourceToBufferLocked(factory, path, original_name, offset, preload_size, resource_size, buffer_size, &factory->m_Buffer);
     if (r == RESULT_OK)
     {
         *buffer = factory->m_Buffer.Begin();
@@ -665,6 +739,11 @@ Result LoadResource(HFactory factory, const char* path, const char* original_nam
     return r;
 }
 
+Result LoadResource(HFactory factory, const char* path, const char* original_name, void** buffer, uint32_t* buffer_size, uint32_t* resource_size)
+{
+    return LoadResource(factory, path, original_name, RESOURCE_INVALID_PRELOAD_SIZE, buffer, buffer_size, resource_size);
+}
+
 const char* GetExtFromPath(const char* path)
 {
     return strrchr(path, '.');
@@ -672,7 +751,7 @@ const char* GetExtFromPath(const char* path)
 
 // Assumes m_LoadMutex is already held
 static Result DoCreateResource(HFactory factory, ResourceType* resource_type, const char* name, const char* canonical_path,
-    dmhash_t canonical_path_hash, void* buffer, uint32_t buffer_size, void** resource_out)
+    dmhash_t canonical_path_hash, void* buffer, uint32_t buffer_size, uint32_t resource_size, void** resource_out)
 {
     // TODO: We should *NOT* allocate SResource dynamically...
     ResourceDescriptor tmp_resource;
@@ -681,21 +760,28 @@ static Result DoCreateResource(HFactory factory, ResourceType* resource_type, co
     tmp_resource.m_ReferenceCount = 1;
     tmp_resource.m_ResourceType   = resource_type;
 
-    void *preload_data = 0;
+    void* preload_data = 0;
     Result create_error = RESULT_OK;
+
+    bool is_partial = buffer_size != resource_size;
 
     if (resource_type->m_PreloadFunction)
     {
         ResourcePreloadParams params;
-        params.m_Factory     = factory;
-        params.m_Type        = resource_type;
-        params.m_Context     = resource_type->m_Context;
-        params.m_Buffer      = buffer;
-        params.m_BufferSize  = buffer_size;
-        params.m_PreloadData = &preload_data;
-        params.m_Filename    = name;
-        params.m_HintInfo    = 0; // No hinting now
-        create_error         = (Result)resource_type->m_PreloadFunction(&params);
+        params.m_Factory                = factory;
+        params.m_Type                   = resource_type;
+        params.m_Context                = resource_type->m_Context;
+        params.m_Buffer                 = buffer;
+        params.m_BufferSize             = buffer_size;
+        params.m_FileSize               = resource_size;
+        params.m_IsBufferPartial        = is_partial;
+        params.m_IsBufferTransferrable  = 0;
+        params.m_Filename               = name;
+        params.m_HintInfo               = 0; // No hinting now
+        // out
+        params.m_PreloadData            = &preload_data;
+        params.m_IsBufferOwnershipTransferred = 0;
+        create_error                    = (Result)resource_type->m_PreloadFunction(&params);
     }
 
     if (create_error == RESULT_OK)
@@ -704,15 +790,17 @@ static Result DoCreateResource(HFactory factory, ResourceType* resource_type, co
         tmp_resource.m_ResourceSize       = 0; // Not everything will report a size (but instead rely on the disc size, sinze it's close enough)
 
         ResourceCreateParams params;
-        params.m_Factory     = factory;
-        params.m_Type        = resource_type;
-        params.m_Context     = resource_type->m_Context;
-        params.m_Buffer      = buffer;
-        params.m_BufferSize  = buffer_size;
-        params.m_PreloadData = preload_data;
-        params.m_Resource    = &tmp_resource;
-        params.m_Filename    = name;
-        create_error         = (Result)resource_type->m_CreateFunction(&params);
+        params.m_Factory        = factory;
+        params.m_Type           = resource_type;
+        params.m_Context        = resource_type->m_Context;
+        params.m_Buffer         = buffer;
+        params.m_BufferSize     = buffer_size;
+        params.m_FileSize       = resource_size;
+        params.m_IsBufferPartial= is_partial;
+        params.m_PreloadData    = preload_data;
+        params.m_Resource       = &tmp_resource;
+        params.m_Filename       = name;
+        create_error            = (Result)resource_type->m_CreateFunction(&params);
     }
 
     if (create_error == RESULT_OK && resource_type->m_PostCreateFunction)
@@ -764,8 +852,7 @@ static Result DoCreateResource(HFactory factory, ResourceType* resource_type, co
     }
 }
 
-// Assumes m_LoadMutex is already held
-static Result PrepareResourceCreation(HFactory factory, const char* canonical_path, dmhash_t canonical_path_hash, void** resource_out, HResourceType* resource_type_out)
+static Result CheckAndGetResourceFromPath(HFactory factory, dmhash_t canonical_path_hash, void** resource_out)
 {
     *resource_out = 0;
 
@@ -785,6 +872,11 @@ static Result PrepareResourceCreation(HFactory factory, const char* canonical_pa
         return RESULT_OUT_OF_RESOURCES;
     }
 
+    return RESULT_RESOURCE_NOT_FOUND;
+}
+
+static Result CheckAndGetResourceTypeFromPath(HFactory factory, const char* canonical_path, HResourceType* resource_type_out)
+{
     const char* ext = GetExtFromPath(canonical_path);
 
     if (!ext)
@@ -809,6 +901,16 @@ static Result PrepareResourceCreation(HFactory factory, const char* canonical_pa
 }
 
 // Assumes m_LoadMutex is already held
+static Result CheckAndGetResourceAndType(HFactory factory, const char* canonical_path, dmhash_t canonical_path_hash, void** resource_out, HResourceType* resource_type_out)
+{
+    Result r = CheckAndGetResourceFromPath(factory, canonical_path_hash, resource_out);
+    // If we found the resource, or if the result was anything other than "resource not exists", let's return
+    if (RESULT_OK == r || RESULT_RESOURCE_NOT_FOUND != r)
+        return r;
+    return CheckAndGetResourceTypeFromPath(factory, canonical_path, resource_type_out);
+}
+
+// Assumes m_LoadMutex is already held
 static Result CreateAndLoadResource(HFactory factory, const char* name, void** resource)
 {
     assert(name);
@@ -821,7 +923,7 @@ static Result CreateAndLoadResource(HFactory factory, const char* name, void** r
     dmhash_t canonical_path_hash = dmHashBuffer64(canonical_path, strlen(canonical_path));
 
     ResourceType* resource_type;
-    Result res = PrepareResourceCreation(factory, canonical_path, canonical_path_hash, resource, &resource_type);
+    Result res = CheckAndGetResourceAndType(factory, canonical_path, canonical_path_hash, resource, &resource_type);
     if (res != RESULT_OK)
     {
         return res;
@@ -832,19 +934,27 @@ static Result CreateAndLoadResource(HFactory factory, const char* name, void** r
         return RESULT_OK;
     }
 
+    uint32_t preload_size = RESOURCE_INVALID_PRELOAD_SIZE;
+    if (ResourceTypeIsStreaming(resource_type))
+    {
+        preload_size = ResourceTypeGetPreloadSize(resource_type);
+    }
+
     void* buffer         = 0;
     uint32_t buffer_size = 0;
-    Result result = LoadResource(factory, canonical_path, name, &buffer, &buffer_size);
+    uint32_t resource_size = 0;
+    Result result = LoadResource(factory, canonical_path, name, preload_size, &buffer, &buffer_size, &resource_size);
     if (result != RESULT_OK)
     {
         return result;
     }
     assert(buffer == factory->m_Buffer.Begin());
 
-    return DoCreateResource(factory, resource_type, name, canonical_path, canonical_path_hash, buffer, buffer_size, resource);
+    return DoCreateResource(factory, resource_type, name, canonical_path, canonical_path_hash,
+                                buffer, buffer_size, resource_size, resource);
 }
 
-Result CreateResource(HFactory factory, const char* name, void* data, uint32_t data_size, void** resource)
+Result CreateResourcePartial(HFactory factory, HResourceType type, const char* name, void* data, uint32_t data_size, uint32_t file_size, void** resource)
 {
     assert(name);
     assert(resource);
@@ -857,20 +967,29 @@ Result CreateResource(HFactory factory, const char* name, void* data, uint32_t d
     GetCanonicalPath(name, canonical_path);
     dmhash_t canonical_path_hash = dmHashBuffer64(canonical_path, strlen(canonical_path));
 
-    ResourceType* resource_type;
-    Result res = PrepareResourceCreation(factory, canonical_path, canonical_path_hash, resource, &resource_type);
-
-    if (res != RESULT_OK)
+    Result res = CheckAndGetResourceFromPath(factory, canonical_path_hash, resource);
+    // If we found the resource, or if the result was anything other than "resource not exists", let's return
+    if (RESULT_OK == res || RESULT_RESOURCE_NOT_FOUND != res)
     {
         return res;
     }
-    else if (*resource != 0x0)
+
+    ResourceType* resource_type = type;
+    if (resource_type == 0)
     {
-        // Resource already created
-        return RESULT_OK;
+        res = CheckAndGetResourceTypeFromPath(factory, canonical_path, &resource_type);
+        if (res != RESULT_OK)
+        {
+            return res;
+        }
     }
 
-    return DoCreateResource(factory, resource_type, name, canonical_path, canonical_path_hash, data, data_size, resource);
+    return DoCreateResource(factory, resource_type, name, canonical_path, canonical_path_hash, data, data_size, file_size, resource);
+}
+
+Result CreateResource(HFactory factory, const char* name, void* data, uint32_t data_size, void** resource)
+{
+    return CreateResourcePartial(factory, 0, name, data, data_size, data_size, resource);
 }
 
 Result Get(HFactory factory, const char* name, void** resource)
@@ -985,11 +1104,13 @@ Result GetRaw(HFactory factory, const char* name, void** resource, uint32_t* res
 
     void* buffer;
     uint32_t buffer_size;
-    Result result = LoadResource(factory, canonical_path, name, &buffer, &buffer_size);
+    uint32_t _resource_size;
+    Result result = LoadResource(factory, canonical_path, name, RESOURCE_INVALID_PRELOAD_SIZE, &buffer, &buffer_size, &_resource_size);
 
     if (result == RESULT_OK) {
         *resource = malloc(buffer_size);
         assert(buffer == factory->m_Buffer.Begin());
+        assert(buffer_size == _resource_size);
         memcpy(*resource, buffer, buffer_size);
         *resource_size = buffer_size;
     }
@@ -1015,9 +1136,16 @@ static Result DoReloadResource(HFactory factory, const char* name, HResourceDesc
     if (!resource_type->m_RecreateFunction)
         return RESULT_NOT_SUPPORTED;
 
+    uint32_t preload_size = RESOURCE_INVALID_PRELOAD_SIZE;
+    if (ResourceTypeIsStreaming(resource_type))
+    {
+        preload_size = ResourceTypeGetPreloadSize(resource_type);
+    }
+
     void* buffer;
     uint32_t buffer_size;
-    Result result = LoadResource(factory, canonical_path, name, &buffer, &buffer_size);
+    uint32_t resource_size;
+    Result result = LoadResource(factory, canonical_path, name, preload_size, &buffer, &buffer_size, &resource_size);
     if (result != RESULT_OK)
     {
         return result;
@@ -1026,15 +1154,17 @@ static Result DoReloadResource(HFactory factory, const char* name, HResourceDesc
     assert(buffer == factory->m_Buffer.Begin());
 
     ResourceRecreateParams params;
-    params.m_Factory    = factory;
-    params.m_Type       = resource_type;
-    params.m_Context    = resource_type->m_Context;
-    params.m_Message    = 0;
-    params.m_Buffer     = buffer;
-    params.m_BufferSize = buffer_size;
-    params.m_Resource   = rd;
-    params.m_Filename   = name;
-    rd->m_PrevResource  = 0;
+    params.m_Factory        = factory;
+    params.m_Type           = resource_type;
+    params.m_Context        = resource_type->m_Context;
+    params.m_Message        = 0;
+    params.m_Buffer         = buffer;
+    params.m_BufferSize     = buffer_size;
+    params.m_FileSize       = resource_size;
+    params.m_IsBufferPartial= buffer_size != resource_size;
+    params.m_Resource       = rd;
+    params.m_Filename       = name;
+    rd->m_PrevResource = 0;
     Result create_result = (Result)resource_type->m_RecreateFunction(&params);
     if (create_result == RESULT_OK)
     {
@@ -1272,23 +1402,25 @@ Result GetExtensionFromType(HFactory factory, HResourceType type, const char** e
     return RESULT_UNKNOWN_RESOURCE_TYPE;
 }
 
+
+Result GetDescriptorByHash(HFactory factory, dmhash_t path_hash, HResourceDescriptor* descriptor)
+{
+    ResourceDescriptor* tmp_descriptor = factory->m_Resources->Get(path_hash);
+    if (tmp_descriptor)
+    {
+        *descriptor = tmp_descriptor;
+        return RESULT_OK;
+    }
+    return RESULT_NOT_LOADED;
+}
+
 Result GetDescriptor(HFactory factory, const char* name, HResourceDescriptor* descriptor)
 {
     char canonical_path[RESOURCE_PATH_MAX];
     GetCanonicalPath(name, canonical_path);
 
     uint64_t canonical_path_hash = dmHashBuffer64(canonical_path, strlen(canonical_path));
-
-    ResourceDescriptor* tmp_descriptor = factory->m_Resources->Get(canonical_path_hash);
-    if (tmp_descriptor)
-    {
-        *descriptor = tmp_descriptor;
-        return RESULT_OK;
-    }
-    else
-    {
-        return RESULT_NOT_LOADED;
-    }
+    return GetDescriptorByHash(factory, canonical_path_hash, descriptor);
 }
 
 Result GetDescriptorWithExt(HFactory factory, uint64_t hashed_name, const uint64_t* exts, uint32_t ext_count, HResourceDescriptor* descriptor)
@@ -1459,6 +1591,11 @@ Result RemoveFile(HFactory factory, const char* path)
     return dmResourceMounts::RemoveFile(mounts, dmHashString64(path));
 }
 
+dmJobThread::HContext GetJobThread(const dmResource::HFactory factory)
+{
+    return factory->m_JobThreadContext;
+}
+
 dmMutex::HMutex GetLoadMutex(const dmResource::HFactory factory)
 {
     return factory->m_LoadMutex;
@@ -1540,3 +1677,69 @@ const char* ResultToString(Result r)
 }
 
 } // namespace dmResource
+
+// The C interface
+void ResourceRegisterReloadedCallback(HResourceFactory factory, FResourceReloadedCallback callback, void* user_data)
+{
+    dmResource::RegisterResourceReloadedCallback(factory, callback, user_data);
+}
+
+void ResourceUnregisterReloadedCallback(HResourceFactory factory, FResourceReloadedCallback callback, void* user_data)
+{
+    dmResource::UnregisterResourceReloadedCallback(factory, callback, user_data);
+}
+
+void ResourceRegisterDecryptionFunction(FResourceDecryption decrypt_resource)
+{
+   dmResource::RegisterResourceDecryptionFunction((dmResource::FDecryptResource)decrypt_resource);
+}
+
+ResourceResult ResourceGet(HResourceFactory factory, const char* name, void** resource)
+{
+    return (ResourceResult)dmResource::Get(factory, name, resource);
+}
+
+ResourceResult ResourceGetByHash(HResourceFactory factory, dmhash_t name, void** resource)
+{
+    return (ResourceResult)dmResource::Get(factory, name, resource);
+}
+
+ResourceResult ResourceGetRaw(HResourceFactory factory, const char* name, void** resource, uint32_t* resource_size)
+{
+    return (ResourceResult)dmResource::GetRaw(factory, name, resource, resource_size);
+}
+
+ResourceResult ResourceGetDescriptor(HResourceFactory factory, const char* path, HResourceDescriptor* rd)
+{
+    return (ResourceResult)dmResource::GetDescriptor(factory, path, rd);
+}
+
+ResourceResult ResourceGetDescriptorByHash(HResourceFactory factory, dmhash_t path_hash, HResourceDescriptor* rd)
+{
+    return (ResourceResult)dmResource::GetDescriptorByHash(factory, path_hash, rd);
+}
+
+void ResourceRelease(HResourceFactory factory, void* resource)
+{
+    dmResource::Release(factory, resource);
+}
+
+bool ResourcePreloadHint(HResourcePreloadHintInfo info, const char* name)
+{
+    return dmResource::PreloadHint(info, name);
+}
+
+ResourceResult ResourceGetPath(HResourceFactory factory, const void* resource, dmhash_t* hash)
+{
+    return (ResourceResult)dmResource::GetPath(factory, resource, hash);
+}
+
+ResourceResult ResourceAddFile(HResourceFactory factory, const char* path, uint32_t size, const void* resource)
+{
+    return (ResourceResult)dmResource::AddFile(factory, path, size, resource);
+}
+
+ResourceResult ResourceRemoveFile(HResourceFactory factory, const char* path)
+{
+    return (ResourceResult)dmResource::RemoveFile(factory, path);
+}

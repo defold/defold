@@ -1,4 +1,4 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -13,22 +13,36 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.editor-extensions-test
-  (:require [clojure.string :as string]
+  (:require [clojure.java.io :as io]
+            [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [editor.defold-project :as project]
             [editor.editor-extensions :as extensions]
             [editor.editor-extensions.coerce :as coerce]
+            [editor.editor-extensions.graph :as graph]
+            [editor.editor-extensions.prefs-functions :as prefs-functions]
             [editor.editor-extensions.runtime :as rt]
             [editor.editor-extensions.vm :as vm]
+            [editor.fs :as fs]
             [editor.future :as future]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
+            [editor.pipeline.bob :as bob]
+            [editor.prefs :as prefs]
             [editor.process :as process]
+            [editor.properties :as properties]
+            [editor.resource :as resource]
             [editor.ui :as ui]
+            [editor.web-server :as web-server]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
-            [support.test-support :as test-support])
-  (:import [org.luaj.vm2 LuaError]))
+            [support.test-support :as test-support]
+            [util.diff :as diff]
+            [util.http-server :as http-server])
+  (:import [java.util.zip ZipEntry]
+           [org.apache.commons.compress.archivers.zip ZipArchiveInputStream]
+           [org.luaj.vm2 LuaError]))
 
 (set! *warn-on-reflection* true)
 
@@ -36,14 +50,14 @@
   (test-support/with-clean-system
     (let [rt (rt/make)
           p (rt/read "return 1")]
-      (is (= 1 (rt/->clj rt (rt/invoke-immediate rt (rt/bind rt p))))))))
+      (is (= 1 (rt/->clj rt (rt/invoke-immediate-1 rt (rt/bind rt p))))))))
 
 (deftest thread-safe-access-test
   (test-support/with-clean-system
     (let [rt (rt/make)
-          _ (rt/invoke-immediate rt (rt/bind rt (rt/read "global = -1")))
+          _ (rt/invoke-immediate-1 rt (rt/bind rt (rt/read "global = -1")))
           inc-and-get (rt/read "return function () global = global + 1; return global end")
-          lua-inc-and-get (rt/invoke-immediate rt (rt/bind rt inc-and-get))
+          lua-inc-and-get (rt/invoke-immediate-1 rt (rt/bind rt inc-and-get))
           ec (g/make-evaluation-context)
           threads 10
           per-thread-calls 1000
@@ -51,7 +65,7 @@
       (dotimes [i iterations]
         (let [results (->> (fn []
                              (future
-                               (->> #(rt/invoke-immediate rt lua-inc-and-get ec)
+                               (->> #(rt/invoke-immediate-1 rt lua-inc-and-get ec)
                                     (repeatedly per-thread-calls)
                                     (vec))))
                            (repeatedly threads)
@@ -70,11 +84,11 @@
     (let [completable-future (future/make)
           rt (rt/make :env {"suspend_with_promise" (rt/suspendable-lua-fn [_] completable-future)
                             "no_suspend" (rt/lua-fn [_] (rt/->lua "immediate-result"))})
-          calls-suspending (rt/invoke-immediate rt (rt/bind rt (rt/read "return function() return suspend_with_promise() end ")))
-          calls-immediate (rt/invoke-immediate rt (rt/bind rt (rt/read "return function() return no_suspend() end")))
-          suspended-future (rt/invoke-suspending rt calls-suspending)]
+          calls-suspending (rt/invoke-immediate-1 rt (rt/bind rt (rt/read "return function() return suspend_with_promise() end ")))
+          calls-immediate (rt/invoke-immediate-1 rt (rt/bind rt (rt/read "return function() return no_suspend() end")))
+          suspended-future (rt/invoke-suspending-1 rt calls-suspending)]
       (is (false? (future/done? completable-future)))
-      (is (= "immediate-result" (rt/->clj rt (rt/invoke-immediate rt calls-immediate))))
+      (is (= "immediate-result" (rt/->clj rt (rt/invoke-immediate-1 rt calls-immediate))))
       (future/complete! completable-future "suspended-result")
       (when (is (true? (future/done? completable-future)))
         (is (= "suspended-result" (rt/->clj rt @suspended-future)))))))
@@ -92,20 +106,20 @@
 
                                  return fib")
                        (rt/bind rt)
-                       (rt/invoke-immediate rt))]
+                       (rt/invoke-immediate-1 rt))]
       ;; 30th fibonacci takes awhile to complete, but still done immediately
-      (is (future/done? (rt/invoke-suspending rt lua-fib (rt/->lua 30)))))))
+      (is (future/done? (rt/invoke-suspending-1 rt lua-fib (rt/->lua 30)))))))
 
 (deftest suspending-calls-in-immediate-mode-are-disallowed
   (test-support/with-clean-system
     (let [rt (rt/make :env {"suspending" (rt/suspendable-lua-fn [_] (future/make))})
           calls-suspending (->> (rt/read "return function () suspending() end")
                                 (rt/bind rt)
-                                (rt/invoke-immediate rt))]
+                                (rt/invoke-immediate-1 rt))]
       (is (thrown-with-msg?
             LuaError
             #"Cannot use long-running editor function in immediate context"
-            (rt/invoke-immediate rt calls-suspending))))))
+            (rt/invoke-immediate-1 rt calls-suspending))))))
 
 (deftest user-coroutines-are-separated-from-system-coroutines
   (test-support/with-clean-system
@@ -131,7 +145,7 @@
                                    }
                                  end")
                        (rt/bind rt)
-                       (rt/invoke-immediate rt))]
+                       (rt/invoke-immediate-1 rt))]
       (is (= [;; first yield: incremented input
               [true 6]
               ;; second yield: incremented again
@@ -140,7 +154,7 @@
               [true "done"]
               ;; user coroutine done, nothing to return
               [false "cannot resume dead coroutine"]]
-             (rt/->clj rt @(rt/invoke-suspending rt coromix (rt/->lua 5))))))))
+             (rt/->clj rt @(rt/invoke-suspending-1 rt coromix (rt/->lua 5))))))))
 
 (deftest user-coroutines-work-normally-in-immediate-mode
   (test-support/with-clean-system
@@ -165,7 +179,7 @@
                                   }
                                 end")
                       (rt/bind rt)
-                      (rt/invoke-immediate rt))]
+                      (rt/invoke-immediate-1 rt))]
       (is (= [;; first yield: 1
               [true 1]
               ;; second yield: 2
@@ -174,7 +188,7 @@
               [true "done"]
               ;; user coroutine done, nothing to return
               [false "cannot resume dead coroutine"]]
-             (rt/->clj rt (rt/invoke-immediate rt lua-fn)))))))
+             (rt/->clj rt (rt/invoke-immediate-1 rt lua-fn)))))))
 
 (g/defnode TestNode
   (property value g/Any)
@@ -200,14 +214,14 @@
                                   return {v1, change_result, v2}
                                 end")
                       (rt/bind rt)
-                      (rt/invoke-immediate rt))]
+                      (rt/invoke-immediate-1 rt))]
       (is (= [;; initial value
               1
               ;; success notification about change
               true
               ;; updated value
               2]
-             (rt/->clj rt @(rt/invoke-suspending rt lua-fn)))))))
+             (rt/->clj rt @(rt/invoke-suspending-1 rt lua-fn)))))))
 
 
 (deftest suspending-lua-failure-test
@@ -225,10 +239,10 @@
                                   }
                                 end")
                       (rt/bind rt)
-                      (rt/invoke-immediate rt))]
+                      (rt/invoke-immediate-1 rt))]
       (is (= [[false "failed immediately"]
               [false "failed async"]]
-             (rt/->clj rt @(rt/invoke-suspending rt lua-fn)))))))
+             (rt/->clj rt @(rt/invoke-suspending-1 rt lua-fn)))))))
 
 (deftest immediate-failures-test
   (test-support/with-clean-system
@@ -239,7 +253,7 @@
            (->> (rt/read "local success1, result1 = pcall(immediate_error)
                           return {success1, result1}")
                 (rt/bind rt)
-                (rt/invoke-immediate rt)
+                (rt/invoke-immediate-1 rt)
                 (rt/->clj rt)))))))
 
 (deftype StaticSelection [selection]
@@ -260,13 +274,36 @@
       (save-project! project)
       (future/completed nil))))
 
+(defn- open-resource-noop! [_]
+  (future/completed nil))
+
+(defn- make-invoke-bob-fn [project]
+  (fn invoke-bob! [options commands _]
+    (future/io
+      (let [ret (bob/invoke! project options commands)]
+        (when (or (:error ret) (:exception ret))
+          (throw (LuaError. "Bob invocation failed")))))))
+
+(def ^:private stopped-server
+  (http-server/stop! (http-server/start! (web-server/make-dynamic-handler [])) 0))
+
+(defn- reload-editor-scripts! [project & {:keys [display-output! open-resource! prefs web-server]
+                                          :or {display-output! println
+                                               open-resource! open-resource-noop!
+                                               web-server stopped-server}}]
+  (extensions/reload! project :all
+                      :prefs (or prefs (test-util/make-test-prefs))
+                      :reload-resources! (make-reload-resources-fn (project/workspace project))
+                      :display-output! display-output!
+                      :save! (make-save-fn project)
+                      :open-resource! open-resource!
+                      :invoke-bob! (make-invoke-bob-fn project)
+                      :web-server web-server))
+
 (deftest editor-scripts-commands-test
   (test-util/with-loaded-project "test/resources/editor_extensions/commands_project"
     (let [sprite-outline (:node-id (test-util/outline (test-util/resource-node project "/main/main.collection") [0 0]))]
-      (extensions/reload! project :all
-                          :reload-resources! (make-reload-resources-fn workspace)
-                          :display-output! println
-                          :save! (make-save-fn project))
+      (reload-editor-scripts! project)
       (let [handler+context (handler/active
                               (:command (first (handler/realize-menu :editor.outline-view/context-menu-end)))
                               (handler/eval-contexts
@@ -286,12 +323,9 @@
         (is (= 2.5 (test-util/prop sprite-outline :playback-rate)))))))
 
 (deftest refresh-context-after-write-test
-  (test-util/with-loaded-project "test/resources/editor_extensions/refresh_context_project"
+  (test-util/with-scratch-project "test/resources/editor_extensions/refresh_context_project"
     (let [output (atom [])
-          _ (extensions/reload! project :all
-                                :reload-resources! (make-reload-resources-fn workspace)
-                                :display-output! #(swap! output conj [%1 %2])
-                                :save! (make-save-fn project))
+          _ (reload-editor-scripts! project :display-output! #(swap! output conj [%1 %2]))
           handler+context (handler/active
                             (:command (first (handler/realize-menu :editor.asset-browser/context-menu-end)))
                             (handler/eval-contexts
@@ -308,20 +342,21 @@
       (is (= [[:out "old = Initial content, new = Another text!, reverted = Initial content"]]
              @output)))))
 
+(defn- run-edit-menu-test-command! []
+  (let [handler+context (handler/active
+                          (:command (last (handler/realize-menu :editor.app-view/edit-end)))
+                          (handler/eval-contexts
+                            [(handler/->context :global {} (->StaticSelection []))]
+                            false)
+                          {})]
+    (assert handler+context "Test bug: undefined test command")
+    @(handler/run handler+context)))
+
 (deftest execute-test
   (test-util/with-loaded-project "test/resources/editor_extensions/execute_test"
-    (let [output (atom [])
-          _ (extensions/reload! project :all
-                                :reload-resources! (make-reload-resources-fn workspace)
-                                :display-output! #(swap! output conj [%1 %2])
-                                :save! (make-save-fn project))
-          handler+context (handler/active
-                            (:command (last (handler/realize-menu :editor.app-view/edit-end)))
-                            (handler/eval-contexts
-                              [(handler/->context :global {} (->StaticSelection []))]
-                              false)
-                            {})]
-      @(handler/run handler+context)
+    (let [output (atom [])]
+      (reload-editor-scripts! project :display-output! #(swap! output conj [%1 %2]))
+      (run-edit-menu-test-command!)
       ;; see test.editor_script:
       ;; first, it tries to execute `git bleh`, catches the error, then prints it.
       ;; second, it captures the output of `git log --oneline --max-count=10` and
@@ -336,10 +371,7 @@
 (deftest transact-test
   (test-util/with-loaded-project "test/resources/editor_extensions/transact_test"
     (let [output (atom [])
-          _ (extensions/reload! project :all
-                                :reload-resources! (make-reload-resources-fn workspace)
-                                :display-output! #(swap! output conj [%1 %2])
-                                :save! (make-save-fn project))
+          _ (reload-editor-scripts! project :display-output! #(swap! output conj [%1 %2]))
           node (:node-id (test-util/outline (test-util/resource-node project "/main/main.collection") [0 0]))
           handler+context (handler/active
                             (:command (first (handler/realize-menu :editor.outline-view/context-menu-end)))
@@ -378,12 +410,9 @@
       (test-initial-state!))))
 
 (deftest save-test
-  (test-util/with-loaded-project "test/resources/editor_extensions/save_test"
+  (test-util/with-scratch-project "test/resources/editor_extensions/save_test"
     (let [output (atom [])
-          _ (extensions/reload! project :all
-                                :reload-resources! (make-reload-resources-fn workspace)
-                                :display-output! #(swap! output conj [%1 %2])
-                                :save! (make-save-fn project))
+          _ (reload-editor-scripts! project :display-output! #(swap! output conj [%1 %2]))
           handler+context (handler/active
                             (:command (first (handler/realize-menu :editor.asset-browser/context-menu-end)))
                             (handler/eval-contexts
@@ -396,9 +425,37 @@
       (is (= [[:out "file read: before save = 'Initial text', after save = 'New text'"]]
              @output)))))
 
+(deftest resource-attributes-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/resource_attributes_project"
+    (let [output (atom [])]
+      (reload-editor-scripts! project :display-output! #(swap! output conj [%1 %2]))
+      (run-edit-menu-test-command!)
+      ;; see test.editor script: it uses editor.resource_attributes with different resource
+      ;; paths and prints results
+      (is (= [[:out "test '/': exists = true, file = false, directory = true)"]
+              [:out "test '/game.project': exists = true, file = true, directory = false)"]
+              [:out "test '/does_not_exist.txt': exists = false, file = false, directory = false)"]
+              [:out "test 'not_a_resource_path.go': error"]]
+             @output)))))
+
+(deftest open-resource-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/open_resource_project"
+    (let [output (atom [])]
+      (reload-editor-scripts! project
+                              :display-output! #(swap! output conj [%1 %2])
+                              :open-resource! #(swap! output conj [:open-resource (resource/proj-path %)]))
+      (run-edit-menu-test-command!)
+      ;; see test.editor script: it uses editor.open_resource with different resource
+      ;; paths and prints results
+      (is (= [[:open-resource "/game.project"]
+              [:out "Open '/game.project': ok"]
+              [:out "Open '/does_not_exist.txt': ok"]
+              [:out "Open 'not_a_resource_path.go': error"]]
+             @output)))))
+
 (deftest coercer-test
   (let [vm (vm/make)
-        coerce #(coerce/coerce vm %1 (vm/->lua %2))]
+        coerce #(coerce/coerce vm %1 (apply rt/->varargs %&))]
 
     (testing "enum"
       (let [foo-str "foo"
@@ -408,6 +465,12 @@
         (is (identical? foo-str (coerce enum "foo")))
         (is (= :bar (coerce enum "bar")))
         (is (thrown? LuaError (coerce enum "something else")))))
+
+    (testing "const"
+      (let [foo-str "foo"
+            const (coerce/const foo-str)]
+        (is (identical? foo-str (coerce const "foo")))
+        (is (thrown? LuaError (coerce const 12)))))
 
     (testing "string"
       (is (= "foo" (coerce coerce/string "foo")))
@@ -516,7 +579,11 @@
       (is (= {:a 1 :b 2} (coerce (coerce/hash-map
                                    :req {:a coerce/integer}
                                    :opt {:b coerce/integer})
-                                 {:a 1 :b 2}))))
+                                 {:a 1 :b 2})))
+      (is (thrown? LuaError (coerce (coerce/hash-map :extra-keys false) {:a 1})))
+      (is (thrown? LuaError (coerce (coerce/hash-map :opt {:b coerce/integer} :extra-keys false) {:a 1})))
+      (is (= {:a 1} (coerce (coerce/hash-map :opt {:a coerce/integer} :extra-keys false) {:a 1})))
+      (is (= {:a 1} (coerce (coerce/hash-map :req {:a coerce/integer} :extra-keys false) {:a 1}))))
 
     (testing "one-of"
       (is (= "foo" (coerce (coerce/one-of coerce/string coerce/integer) "foo")))
@@ -536,4 +603,527 @@
         (is (thrown? LuaError (coerce by-key {"type" "dot"})))
         (is (thrown? LuaError (coerce by-key {"kind" "rect"})))
         (is (thrown? LuaError (coerce by-key "not a table")))
-        (is (thrown? LuaError (coerce by-key 42)))))))
+        (is (thrown? LuaError (coerce by-key 42)))))
+
+    (testing "regex"
+      (let [empty (coerce/regex)]
+        (is (= {} (coerce empty)))
+        (is (thrown-with-msg? LuaError #"nil is unexpected" (coerce empty nil)))
+        (is (thrown-with-msg? LuaError #"1 is unexpected" (coerce empty 1))))
+      (let [all-required (coerce/regex :first-name coerce/string
+                                       :last-name coerce/string
+                                       :age coerce/integer)]
+        (is (= {:first-name "Foo"
+                :last-name "Bar"
+                :age 18}
+               (coerce all-required "Foo" "Bar" 18)))
+        (is (thrown-with-msg? LuaError #"more arguments expected" (coerce all-required "Foo" "Bar")))
+        (is (thrown-with-msg? LuaError #"0 is unexpected" (coerce all-required "Foo" "Bar" 12 0))))
+
+      (let [some-optional (coerce/regex :path coerce/string
+                                        :method :? (coerce/enum :get :post :put :delete :head :options)
+                                        :as :? (coerce/enum :string :json))]
+        (is (= {:path "/foo" :method :get :as :json}
+               (coerce some-optional "/foo" :get :json)))
+        (is (= {:path "/foo" :as :json} (coerce some-optional "/foo" :json)))
+        (is (= {:path "/foo" :method :options} (coerce some-optional "/foo" :options)))
+        (is (= {:path "/foo"} (coerce some-optional "/foo")))
+        (is (thrown-with-msg? LuaError #"true is not a string" (coerce some-optional true))))
+      (let [required-after-optional (coerce/regex :string coerce/string
+                                                  :boolean :? coerce/boolean
+                                                  :integer coerce/integer)]
+        (is (= {:string "foo" :boolean true :integer 1} (coerce required-after-optional "foo" true 1)))
+        (is (= {:string "foo" :integer 1} (coerce required-after-optional "foo" 1)))
+        (is (thrown-with-msg? LuaError #"more arguments expected" (coerce required-after-optional "foo")))
+        (is (thrown-with-msg? LuaError #"(\"bar\" is not a boolean)\n.+(\"bar\" is not an integer)" (coerce required-after-optional "foo" "bar")))))))
+
+(deftest external-file-attributes-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/external_file_attributes_project"
+    (let [output (atom [])]
+      (reload-editor-scripts! project :display-output! #(swap! output conj [%1 %2]))
+      (run-edit-menu-test-command!)
+      ;; see test.editor_script: it uses editor.external_file_attributes() to
+      ;; get fs information about 3 paths, and then prints it
+      (is (= [[:out "path = '.', exists = true, file = false, directory = true"]
+              [:out "path = 'game.project', exists = true, file = true, directory = false"]
+              [:out "path = 'does_not_exist.txt', exists = false, file = false, directory = false"]]
+             @output)))))
+
+(deftest ui-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/ui_project"
+    (let [output (atom [])]
+      (reload-editor-scripts! project :display-output! #(swap! output conj [%1 %2]))
+      (run-edit-menu-test-command!)
+      ;; see test.editor_script: it creates a lot of ui components that should
+      ;; form a valid UI tree. In case of any errors the output will get error
+      ;; entries.
+      (is (= [] @output)))))
+
+(deftest prefs-round-trip-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/prefs_round_trip_project"
+    (let [output (atom [])
+          prefs (prefs/project
+                  "test/resources/editor_extensions/prefs_round_trip_project"
+                  (prefs/global test-util/shared-test-prefs-file))
+          _ (reload-editor-scripts! project
+                                    :prefs prefs
+                                    :display-output! #(swap! output conj [%1 %2]))
+          all-keys (mapv (comp name key) (:properties (prefs/schema prefs [])))
+          _ (prefs/set! prefs [:test :prefs-keys] all-keys)
+          initial-prefs (prefs/get prefs [])
+          ;; See test.editor_script: it iterates over every 'test.prefs-keys'
+          ;; preference, gets the value, and then sets the same value back.
+          ;; This get->set->get round-tripping should not cause any errors, and
+          ;; should not change any values
+          _ (run-edit-menu-test-command!)]
+      ;; no output => no runtime errors
+      (is (= [] @output))
+      ;; the prefs are unchanged
+      (is (= initial-prefs (prefs/get prefs []))))))
+
+(deftest prefs-set-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/prefs_get_set_test"
+    (let [output (atom [])
+          prefs (prefs/project
+                  "test/resources/editor_extensions/prefs_get_set_test"
+                  (prefs/global test-util/shared-test-prefs-file))]
+      (reload-editor-scripts! project
+                              :prefs prefs
+                              :display-output! #(swap! output conj [%1 %2]))
+      (run-edit-menu-test-command!)
+      ;; See test.editor_script: it defines prefs for every available schema,
+      ;; then, for every pref it sets a value, gets it and prints it (possibly
+      ;; with some metadata), then sets it to another value, and then gets and
+      ;; prints it again
+      (is (= [[:out "array: table 0"]
+              [:out "array: table 2 foo bar"]
+              [:out "boolean: boolean false"]
+              [:out "boolean: boolean true"]
+              [:out "enum: number 1"]
+              [:out "enum: string foo"]
+              [:out "integer: 42"]
+              [:out "integer: 43"]
+              [:out "keyword: string foo-bar"]
+              [:out "keyword: string code-view"]
+              [:out "number: 12.3"]
+              [:out "number: 0.1"]
+              [:out "object: table foo"]
+              [:out "object: table bar"]
+              [:out "object: table baz"]
+              [:out "object of: table foo = true, bar = false"]
+              [:out "object of: table foo = false, bar = true"]
+              [:out "set: table foo = true, bar = true"]
+              [:out "set: table foo = true, bar = nil"]
+              [:out "string: a string"]
+              [:out "string: another_string"]
+              [:out "password: password"]
+              [:out "password: another_password"]
+              [:out "tuple: a string 12"]
+              [:out "tuple: another string 42"]]
+             @output)))))
+
+(deftest prefs-schema-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/prefs_schema_errors"
+    (let [output (atom [])
+          prefs (prefs/project
+                  "test/resources/editor_extensions/prefs_schema_errors"
+                  (prefs/global test-util/shared-test-prefs-file))]
+      (reload-editor-scripts! project
+                              :prefs prefs
+                              :display-output! #(swap! output conj [%1 %2]))
+      (run-edit-menu-test-command!)
+      ;; See the test project:
+      ;; - /not_an_object_schema.editor_script defines a schema that is not
+      ;;   an object
+      ;; - /conflict_a.editor_script and /conflict_b.editor_script define
+      ;;   conflicting schemas
+      ;; - /builtin_conflict.editor_script defines a schema that conflicts with
+      ;;   a built-in editor schema (sets 'bundle' to boolean)
+      ;; - /test.editor_script accesses prefs defined by other editor scripts
+      (is (= #{[:err "Omitting prefs schema definition for path '': '/not_an_object_schema.editor_script' defines a schema that conflicts with the editor schema"]
+               [:err "Omitting prefs schema definition for path 'bundle': '/builtin_conflict.editor_script' defines a schema that conflicts with the editor schema"]
+               [:err "Omitting prefs schema definition for path 'test.conflict': conflicts with another editor script schema"]
+               [:out "pcall(editor.prefs.get, 'test.only-in-a') => true, a"]
+               [:out "pcall(editor.prefs.get, 'test.only-in-b') => true, b"]
+               [:out "pcall(editor.prefs.get, 'test.conflict') => false, No schema defined for prefs path 'test.conflict'"]
+               [:out "pcall(editor.prefs.get, 'bundle.variant') => true, debug"]}
+             (set @output))))))
+
+(deftest prefs-test
+  (testing "dot-separated paths parsing"
+    (are [s path] (= path (prefs-functions/parse-dot-separated-path s))
+      "foo.bar.baz" [:foo :bar :baz]
+      "foo-bar.baz" [:foo-bar :baz]
+      "foo-bar_baz" [:foo-bar_baz]
+      "3d" [:3d])
+    (are [s re] (thrown-with-msg? LuaError (re-pattern re) (prefs-functions/parse-dot-separated-path s))
+      "" "Key path element cannot be empty"
+      "." "Key path element cannot be empty"
+      "foo." "Key path element cannot be empty"
+      ".foo" "Key path element cannot be empty"
+      "foo..bar" "Key path element cannot be empty"
+      "foo.bar..." "Key path element cannot be empty"
+
+      "with space" "Invalid identifier character"
+      "brace{" "Invalid identifier character"
+      "brace[" "Invalid identifier character"
+      ":colon" "Invalid identifier character"
+      "hash#" "Invalid identifier character"
+      "hash#" "Invalid identifier character"
+      "\\backslash" "Invalid identifier character"
+      "/slash" "Invalid identifier character"
+      "^hat" "Invalid identifier character"
+      "%percent" "Invalid identifier character")))
+
+(deftest json-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/json_project"
+    (let [output (atom [])]
+      (reload-editor-scripts! project :display-output! #(swap! output conj [%1 %2]))
+      (run-edit-menu-test-command!)
+      ;; See test.editor_script: it prints various json encode/decode results
+      (is (= [[:out "Testing encoding..."]
+              [:out "json.encode(1) => 1"]
+              [:out "json.encode(\"foo\") => \"foo\""]
+              [:out "json.encode(nil) => null"]
+              [:out "json.encode(true) => true"]
+              [:out "json.encode({num = 1}) => {\"num\":1}"]
+              [:out "json.encode({bools = {true, false, true}}) => {\"bools\":[true,false,true]}"]
+              [:out "json.encode({empty_table_as_object = {}}) => {\"empty_table_as_object\":{}}"]
+              [:out "json.encode({[{\"object\"}] = {}}) => error"]
+              [:out "json.encode({fn = function() end}) => error"]
+              [:out "Testing decoding..."]
+              [:out "json.decode('1') => 1"]
+              [:out "json.decode('{\"a\":1}') => {a = 1}"]
+              [:out "json.decode('{\"null_is_omitted\": null}') => {}"]
+              [:out "json.decode('[false, true, null, 4, \"string\"]') => {false, true, nil, 4, \"string\"}"]
+              [:out "json.decode('{\"a\": [{\"b\": 4},42]}') => {a = {{b = 4}, 42}}"]
+              [:out "json.decode('true false \"string\" [] {}', {all = true}) => {true, false, \"string\", {}, {}}"]
+              [:out "json.decode('fals') => error"]
+              [:out "json.decode('true {', {all = true}) => error"]]
+             @output)))))
+
+(def expected-pprint-output
+  "scalars:
+1
+true
+<function: print>
+\"string\"
+empty:
+{} --[[0x0]]
+array only:
+{ --[[0x1]]
+  1,
+  2,
+  3,
+  \"a\"
+}
+hash only:
+{ --[[0x2]]
+  a = 1,
+  b = 2
+}
+array and hash:
+{ --[[0x3]]
+  1,
+  2,
+  a = 3,
+  b = 4
+}
+non-identifier keys:
+{ --[[0x4]]
+  [\"foo-bar\"] = 1
+}
+circular refs:
+{ --[[0x5]]
+  1,
+  2,
+  circular_ref = <table: 0x5>
+}
+nesting:
+{ --[[0x6]]
+  1,
+  false,
+  { --[[0x7]]
+    a = 1
+  },
+  { --[[0x8]]
+    [{ --[[0x9]]
+      \"table\",
+      \"key\"
+    }] = 1
+  },
+  \"a\"
+}
+")
+
+(defn- normalize-pprint-output [output-string]
+  (let [hash->stable-id (volatile! {})]
+    (string/replace
+      output-string
+      #"0x[0-9a-f]+"
+      (fn [s]
+        (or (@hash->stable-id s)
+            ((vswap! hash->stable-id #(assoc % s (str "0x" (count %)))) s))))))
+
+(deftest pprint-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/pprint-test"
+    (let [out (StringBuilder.)]
+      (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+      (run-edit-menu-test-command!)
+      (let [actual (normalize-pprint-output (str out))]
+        (is (= actual expected-pprint-output)
+            (string/join "\n" (diff/make-diff-output-lines actual expected-pprint-output 3)))))))
+
+(def expected-http-test-output
+  "GET http://localhost:23000 => error (ConnectException)
+GET not-an-url => error (URI with undefined scheme)
+HEAD http://localhost:23456 => 200
+GET http://localhost:23456 => 200
+GET http://localhost:23456/redirect/foo as string => 200
+\"successfully redirected\"
+GET http://localhost:23456/json as json => 200
+{ --[[0x0]]
+  a = 1,
+  b = { --[[0x1]]
+    true
+  }
+}
+POST http://localhost:23456/echo {\"y\":\"foo\",\"x\":4} as json => 200
+{ --[[0x2]]
+  y = \"foo\",
+  x = 4
+}
+POST http://localhost:23456/echo hello world! as string => 200
+\"hello world!\"
+")
+
+(deftest http-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/http_project"
+    (let [server (http-server/start!
+                   (http-server/router-handler
+                     {"/redirect/foo" {"GET" (constantly (http-server/redirect "/foo"))}
+                      "/foo" {"GET" (constantly (http-server/response 200 "successfully redirected"))}
+                      "/" {"GET" (constantly (http-server/response 200 ""))}
+                      "/json" {"GET" (constantly (http-server/json-response {:a 1 :b [true]}))}
+                      "/echo" {"POST" (fn [request] (http-server/response 200 (:body request)))}})
+                   :port 23456)
+          out (StringBuilder.)]
+      (try
+        (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+        ;; See test.editor_script: the test invokes http.request with various options and prints results
+        (run-edit-menu-test-command!)
+        (let [actual (normalize-pprint-output (str out))]
+          (is (= actual expected-http-test-output)
+              (string/join "\n" (diff/make-diff-output-lines actual expected-http-test-output 3))))
+        (finally
+          (http-server/stop! server 0))))))
+
+(deftest zip-test
+  (test-util/with-scratch-project "test/resources/editor_extensions/zip_project"
+    (let [output (atom [])
+          root (workspace/project-directory workspace)
+          list-entries (fn list-entries [path-str]
+                         (with-open [zis (ZipArchiveInputStream. (io/input-stream (fs/path root path-str)))]
+                           (loop [acc (transient #{})]
+                             (if-let [e (.getNextZipEntry zis)]
+                               (recur (conj! acc (.getName e)))
+                               (persistent! acc)))))
+          size (fn size [path-str]
+                 (fs/path-size (fs/path root path-str)))
+          list-methods (fn list-methods [path-str]
+                         (with-open [zis (ZipArchiveInputStream. (io/input-stream (fs/path root path-str)))]
+                           (loop [acc (transient {})]
+                             (if-let [e (.getNextZipEntry zis)]
+                               (recur (assoc! acc (.getName e) (condp = (.getMethod e)
+                                                                 ZipEntry/STORED :stored
+                                                                 ZipEntry/DEFLATED :deflated)))
+                               (persistent! acc)))))]
+      (reload-editor-scripts! project :display-output! #(swap! output conj [%1 %2]))
+      (run-edit-menu-test-command!)
+      ;; See test.editor_script: the script creates a bunch of archives and logs pack
+      ;; arguments with the result of execution
+      (is (= [;; Pack a single file
+              [:out "A file:"]
+              [:out "zip.pack(\"gitignore.zip\", {\".gitignore\"}) => ok"]
+              ;; Pack a directory
+              [:out "A directory:"]
+              [:out "zip.pack(\"foo.zip\", {\"foo\"}) => ok"]
+              ;; Pack multiple files
+              [:out "Multiple:"]
+              [:out "zip.pack(\"multiple.zip\", {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", {\"game.project\", \"settings.ini\"}}) => ok"]
+              ;; Pack a file from outside the project
+              [:out "Outside:"]
+              [:out (str "zip.pack(\"outside.zip\", {{\"" (System/getenv "PWD") "/project.clj\", \"project.clj\"}}) => ok")]
+              ;; Pack using stored compression method
+              [:out "Stored method:"]
+              [:out "zip.pack(\"stored.zip\", {method = \"stored\"}, {\"foo\"}) => ok"]
+              ;; Pack using different compression levels
+              [:out "Compression level 0:"]
+              [:out "zip.pack(\"level_0.zip\", {level = 0}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
+              [:out "Compression level 1:"]
+              [:out "zip.pack(\"level_1.zip\", {level = 1}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
+              [:out "Compression level 2:"]
+              [:out "zip.pack(\"level_2.zip\", {level = 2}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
+              [:out "Compression level 3:"]
+              [:out "zip.pack(\"level_3.zip\", {level = 3}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
+              [:out "Compression level 4:"]
+              [:out "zip.pack(\"level_4.zip\", {level = 4}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
+              [:out "Compression level 5:"]
+              [:out "zip.pack(\"level_5.zip\", {level = 5}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
+              [:out "Compression level 6:"]
+              [:out "zip.pack(\"level_6.zip\", {level = 6}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
+              [:out "Compression level 7:"]
+              [:out "zip.pack(\"level_7.zip\", {level = 7}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
+              [:out "Compression level 8:"]
+              [:out "zip.pack(\"level_8.zip\", {level = 8}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
+              [:out "Compression level 9:"]
+              [:out "zip.pack(\"level_9.zip\", {level = 9}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
+              ;; Different compression settings for different entries
+              [:out "Mixed compression settings:"]
+              [:out "zip.pack(\"mixed.zip\", {{\"foo\", \"9\", level = 9}, {\"foo\", \"1\", level = 1}, {\"foo\", \"0\", level = 0}, {\"foo\", \"stored\", method = \"stored\"}}) => ok"]
+              ;; Expected errors
+              [:out "Archive path is a directory:"]
+              [:out "zip.pack(\"foo\", {\"game.project\"}) => error: Output path is a directory: foo"]
+              [:out "Source path does not exist:"]
+              [:out (str "zip.pack(\"error.zip\", {\"does-not-exist.txt\"}) => error: Source path does not exist: " root "/does-not-exist.txt")]
+              [:out "Target path is absolute:"]
+              [:out (str "zip.pack(\"error.zip\", {\"" (System/getenv "HOME") "\"}) => error: Target path must be relative: " (System/getenv "HOME"))]
+              [:out "Target path is a relative path above root:"]
+              [:out "zip.pack(\"error.zip\", {{\"game.project\", \"../../game.project\"}}) => error: Target path is above archive root: ../../game.project"]
+              [:out "zip.pack(\"error.zip\", {{\"game.project\", \"foo/bar/../../../../game.project\"}}) => error: Target path is above archive root: ../../game.project"]]
+             @output))
+      (is (= #{".gitignore"} (list-entries "gitignore.zip")))
+      (is (= #{"foo/bar.txt" "foo/long.txt" "foo/subdir/baz.txt"} (list-entries "foo.zip")))
+      (is (= #{"foo/bar.txt" "foo/long.txt" "foo/subdir/baz.txt"
+               "bar/bar.txt" "bar/long.txt" "bar/subdir/baz.txt"
+               "settings.ini"
+               ".gitignore"}
+             (list-entries "multiple.zip")))
+      (is (= #{"project.clj"} (list-entries "outside.zip")))
+      ;; foo.zip and stored.zip are same archives with different compression methods
+      (is (and (= (list-entries "foo.zip") (list-entries "stored.zip"))
+               (< (size "foo.zip") (size "stored.zip"))))
+      (is (<= (size "level_9.zip")
+              (size "level_8.zip")
+              (size "level_7.zip")
+              (size "level_6.zip")
+              (size "level_5.zip")
+              (size "level_4.zip")
+              (size "level_3.zip")
+              (size "level_2.zip")
+              (size "level_1.zip")
+              (size "level_0.zip")))
+      (is (= {"0/bar.txt" :deflated
+              "0/long.txt" :deflated
+              "0/subdir/baz.txt" :deflated
+              "1/bar.txt" :deflated
+              "1/long.txt" :deflated
+              "1/subdir/baz.txt" :deflated
+              "9/bar.txt" :deflated
+              "9/long.txt" :deflated
+              "9/subdir/baz.txt" :deflated
+              "stored/bar.txt" :stored
+              "stored/long.txt" :stored
+              "stored/subdir/baz.txt" :stored}
+             (list-methods "mixed.zip"))))))
+
+(def expected-http-server-test-output
+  "Omitting conflicting routes for 'GET /test/conflict/same-path-and-method' defined in /test.editor_script
+Omitting conflicting routes for '/command/{param}' defined in /test.editor_script (conflict with the editor's built-in routes)
+Omitting conflicting routes for '/test/conflict/{param}' and '/test/conflict/no-param' defined in /test.editor_script
+POST /test/echo/string 'hello' as string => 200
+< content-length: 5
+< content-type: text/plain; charset=utf-8
+\"hello\"
+POST /test/echo/json '{\"a\": 1}' as json => 200
+< content-length: 7
+< content-type: application/json
+{ --[[0x0]]
+  a = 1
+}
+GET /test/route-merging as string => 200
+< content-length: 3
+< content-type: text/plain; charset=utf-8
+\"get\"
+POST /test/route-merging as string => 200
+< content-length: 4
+< content-type: text/plain; charset=utf-8
+\"post\"
+PUT /test/route-merging as string => 200
+< content-length: 3
+< content-type: text/plain; charset=utf-8
+\"put\"
+GET /test/path-pattern/foo/bar as string => 200
+< content-length: 22
+< content-type: text/plain; charset=utf-8
+\"key = foo, value = bar\"
+GET /test/rest-pattern/a/b/c as string => 200
+< content-length: 5
+< content-type: text/plain; charset=utf-8
+\"a/b/c\"
+GET /test/files/not-found.txt as string => 404
+< content-length: 0
+\"\"
+GET /test/files/test.txt as string => 200
+< content-length: 9
+< content-type: text/plain
+\"test file\"
+GET /test/files/test.json as json => 200
+< content-length: 14
+< content-type: application/json
+{ --[[0x1]]
+  test = true
+}
+GET /test/resources/not-found.txt as string => 404
+< content-length: 0
+\"\"
+GET /test/resources/test.txt as string => 200
+< content-length: 9
+< content-type: text/plain
+\"test file\"
+GET /test/resources/test.json as json => 200
+< content-length: 14
+< content-type: application/json
+{ --[[0x2]]
+  test = true
+}
+")
+
+(deftest http-server-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/http_server_project"
+    (with-open [server (http-server/start!
+                         (web-server/make-dynamic-handler
+                           ;; for testing conflicts with the built-in handlers
+                           {"/command" {"GET" (constantly http-server/not-found)}
+                            "/command/{command}" {"POST" (constantly http-server/not-found)}}))]
+      (let [out (StringBuilder.)]
+        (reload-editor-scripts! project
+                                :display-output! #(doto out (.append %2) (.append \newline))
+                                :web-server server)
+        (run-edit-menu-test-command!)
+        (let [actual (normalize-pprint-output (.toString out))]
+          (is (= expected-http-server-test-output actual)
+              (string/join "\n" (diff/make-diff-output-lines actual expected-http-server-test-output 3))))))))
+
+(deftest property-availability-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/property_availability_project"
+    (reload-editor-scripts! project)
+    (g/with-auto-evaluation-context ec
+      (let [{:keys [rt]} (extensions/ext-state project ec)]
+        (->> (g/node-value project :nodes ec)
+             (map #(g/node-value % :node-outline ec))
+             (mapcat #(tree-seq :children :children %))
+             (mapcat (fn [outline]
+                       (->> [(g/node-value (:node-id outline) :_properties ec)]
+                            properties/coalesce
+                            :properties
+                            vals
+                            (map #(assoc % :outline outline)))))
+             (keep (fn [{:keys [outline key edit-type] :as p}]
+                     (let [{:keys [node-id]} outline
+                           ext-key (string/replace (name key) \- \_)]
+                       (when-not (contains? #{:editor.properties.CurveSpread :editor.properties.Curve} (:k (:type edit-type)))
+                         (is (some? (graph/ext-value-getter node-id ext-key ec)))
+                         (when-not (properties/read-only? p)
+                           (is (some? (graph/ext-lua-value-setter node-id ext-key rt project ec))))))))
+             dorun)))))

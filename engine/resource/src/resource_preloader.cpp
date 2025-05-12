@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -132,8 +132,9 @@ struct PreloadRequest
     dmLoadQueue::HRequest m_LoadRequest;
 
     // Set for items that are pending and waiting for children to complete
-    void* m_Buffer;
-    uint32_t m_BufferSize;
+    void*       m_Buffer;
+    uint32_t    m_BufferSize;
+    uint32_t    m_FileSize;
 
     // Set once preload function has run
     void* m_PreloadData;
@@ -513,7 +514,7 @@ namespace dmResource
     //   2) Having failed, (or created and destroyed), leaving => RESULT_SOME_ERROR + everything free:d
     //
     // If buffer is null it means to use the items internal buffer
-    static void CreateResource(HPreloader preloader, PreloadRequest* req, void* buffer, uint32_t buffer_size)
+    static void CreateResource(HPreloader preloader, PreloadRequest* req, void* buffer, uint32_t buffer_size, uint32_t resource_size)
     {
         assert(req->m_LoadResult == RESULT_PENDING);
         assert(req->m_PendingChildCount == 0);
@@ -537,6 +538,7 @@ namespace dmResource
         params.m_PreloadData = req->m_PreloadData;
         params.m_Resource    = &tmp_resource;
         params.m_Filename    = req->m_PathDescriptor.m_InternalizedName;
+        params.m_FileSize                 = req->m_FileSize;
 
         if (!buffer)
         {
@@ -544,6 +546,8 @@ namespace dmResource
             tmp_resource.m_ResourceSizeOnDisc = req->m_BufferSize;
             params.m_Buffer                   = req->m_Buffer;
             params.m_BufferSize               = req->m_BufferSize;
+            params.m_FileSize                 = req->m_FileSize;
+            params.m_IsBufferPartial          = req->m_BufferSize != req->m_FileSize;
             req->m_LoadResult                 = (Result)resource_type->m_CreateFunction(&params);
 
             dmBlockAllocator::Free(preloader->m_BlockAllocator, req->m_Buffer, req->m_BufferSize);
@@ -555,6 +559,8 @@ namespace dmResource
             tmp_resource.m_ResourceSizeOnDisc = buffer_size;
             params.m_Buffer                   = buffer;
             params.m_BufferSize               = buffer_size;
+            params.m_FileSize                 = resource_size;
+            params.m_IsBufferPartial          = buffer_size != resource_size;
             req->m_LoadResult                 = (Result)resource_type->m_CreateFunction(&params);
         }
 
@@ -685,7 +691,7 @@ namespace dmResource
         {
             return false;
         }
-        CreateResource(preloader, parent_req, 0, 0);
+        CreateResource(preloader, parent_req, 0, 0, 0);
         UnmarkPathInProgress(preloader, &parent_req->m_PathDescriptor);
         PreloaderTryPruneParent(preloader, parent_req);
         return true;
@@ -696,7 +702,7 @@ namespace dmResource
     // copy the loaded buffer for later use when all the children has been created.
     //
     // Returns true if the resource was created
-    static bool FinishLoad(HPreloader preloader, PreloadRequest* req, dmLoadQueue::LoadResult& load_result, void* buffer, uint32_t buffer_size)
+    static bool FinishLoad(HPreloader preloader, PreloadRequest* req, dmLoadQueue::LoadResult& load_result, void* buffer, uint32_t buffer_size, uint32_t resource_size)
     {
         // Pop any hints the load/preload of the item that may have been generated
         PopHints(preloader);
@@ -728,7 +734,7 @@ namespace dmResource
             if (req->m_LoadResult == RESULT_PENDING)
             {
                 // Create the resource using the loading buffer directly.
-                CreateResource(preloader, req, buffer, buffer_size);
+                CreateResource(preloader, req, buffer, buffer_size, resource_size);
                 created_resource = true;
             }
             UnmarkPathInProgress(preloader, &req->m_PathDescriptor);
@@ -743,6 +749,7 @@ namespace dmResource
             req->m_Buffer = dmBlockAllocator::Allocate(preloader->m_BlockAllocator, buffer_size);
             memcpy(req->m_Buffer, buffer, buffer_size);
             req->m_BufferSize = buffer_size;
+            req->m_FileSize = resource_size;
             dmLoadQueue::FreeLoad(preloader->m_LoadQueue, req->m_LoadRequest);
             req->m_LoadRequest = 0;
         }
@@ -804,17 +811,18 @@ namespace dmResource
         {
             void* buffer;
             uint32_t buffer_size;
+            uint32_t resource_size;
 
             // Can hold the buffer till we FreeLoad it
             dmLoadQueue::LoadResult res;
-            dmLoadQueue::Result e = dmLoadQueue::EndLoad(preloader->m_LoadQueue, req->m_LoadRequest, &buffer, &buffer_size, &res);
+            dmLoadQueue::Result e = dmLoadQueue::EndLoad(preloader->m_LoadQueue, req->m_LoadRequest, &buffer, &buffer_size, &resource_size, &res);
             if (e == dmLoadQueue::RESULT_PENDING)
             {
                 return false;
             }
             preloader->m_LoadQueueFull = false;
 
-            if (FinishLoad(preloader, req, res, buffer, buffer_size))
+            if (FinishLoad(preloader, req, res, buffer, buffer_size, resource_size))
             {
                 return true;
             }
@@ -864,6 +872,7 @@ namespace dmResource
         info.m_HintInfo.m_Parent    = index;
         info.m_CompleteFunction     = req->m_PathDescriptor.m_ResourceType->m_PreloadFunction;
         info.m_Context              = req->m_PathDescriptor.m_ResourceType->m_Context;
+        info.m_Type                 = req->m_PathDescriptor.m_ResourceType;
 
         // If we can't add the request to the load queue it is because the queue is full
         // We will try again once we completed loading of an item via dmLoadQueue::EndLoad
@@ -927,7 +936,7 @@ namespace dmResource
     {
         DM_PROFILE("UpdatePreloader");
 
-        uint64_t start           = dmTime::GetTime();
+        uint64_t start           = dmTime::GetMonotonicTime();
         uint32_t empty_runs      = 0;
         bool close_to_time_limit = soft_time_limit < 1000;
 
@@ -1003,7 +1012,7 @@ namespace dmResource
             }
             else
             {
-                close_to_time_limit = (dmTime::GetTime() + 1000 - start) > soft_time_limit;
+                close_to_time_limit = (dmTime::GetMonotonicTime() + 1000 - start) > soft_time_limit;
                 if (close_to_time_limit)
                 {
                     // Sleep a very short time, on windows it this small number just means "give up time slice"
@@ -1016,7 +1025,7 @@ namespace dmResource
                 // more of our time waiting for files to complete loading.
                 dmTime::Sleep(1000);
             }
-        } while (dmTime::GetTime() - start <= soft_time_limit);
+        } while (dmTime::GetMonotonicTime() - start <= soft_time_limit);
 
         return RESULT_PENDING;
     }

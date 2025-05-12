@@ -1,4 +1,4 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -20,6 +20,7 @@
             [editor.defold-project :as project]
             [editor.editor-extensions.coerce :as coerce]
             [editor.editor-extensions.runtime :as rt]
+            [editor.game-project :as game-project]
             [editor.outline :as outline]
             [editor.properties :as properties]
             [editor.resource :as resource]
@@ -74,6 +75,15 @@
                                  (->> ext sort (util/join-words ", " " or "))))))
         resource))))
 
+(defn- choicebox-converter [lua-value rt outline-property _project _evaluation-context]
+  (let [opts (->> outline-property properties/property-edit-type :options (mapv first))]
+    (rt/->clj rt (apply coerce/enum opts) lua-value)))
+
+(defn- slider-converter [lua-value rt outline-property _project _evaluation-context]
+  (let [{:keys [min max] :or {min 0.0 max 1.0}} (properties/property-edit-type outline-property)
+        coercer (coerce/wrap-with-pred coerce/number #(<= min % max) (str "should be between " min " and " max))]
+    (double (rt/->clj rt coercer lua-value))))
+
 (def ^:private edit-type-id->value-converter
   {g/Str {:to identity :from (coercing-converter coerce/string)}
    g/Bool {:to identity :from (coercing-converter coerce/boolean)}
@@ -82,7 +92,11 @@
    types/Vec2 {:to identity :from (coercing-converter (coerce/tuple coerce/number coerce/number))}
    types/Vec3 {:to identity :from (coercing-converter (coerce/tuple coerce/number coerce/number coerce/number))}
    types/Vec4 {:to identity :from (coercing-converter (coerce/tuple coerce/number coerce/number coerce/number coerce/number))}
-   'editor.resource.Resource {:to resource/proj-path :from resource-converter}})
+   'editor.resource.Resource {:to resource/proj-path :from resource-converter}
+   types/Color {:to identity :from (coercing-converter (coerce/tuple coerce/number coerce/number coerce/number coerce/number))}
+   :multi-line-text {:to identity :from (coercing-converter coerce/string)}
+   :choicebox {:to identity :from choicebox-converter}
+   :slider {:to identity :from slider-converter}})
 
 (defn- property->prop-kw [property]
   (if (string/starts-with? property "__")
@@ -121,14 +135,17 @@
     property              string property name
     evaluation-context    used evaluation context"
   [node-id property evaluation-context]
-  (if (fn/multi-responds? ext-get node-id property evaluation-context)
-    #(ext-get node-id property evaluation-context)
-    (when-let [outline-property (outline-property node-id property evaluation-context)]
-      (when-let [to (-> outline-property
-                        properties/edit-type-id
-                        edit-type-id->value-converter
-                        :to)]
-        #(some-> (properties/value outline-property) to)))))
+  (or (when (fn/multi-responds? ext-get node-id property evaluation-context)
+        #(ext-get node-id property evaluation-context))
+      (when (and (= :editor.game-project/GameProjectNode (node-id->type-keyword node-id evaluation-context))
+                 (re-matches #"^[a-zA-Z_][a-zA-Z0-9_]*\.[a-zA-Z_][a-zA-Z0-9_]*$" property))
+        #(game-project/get-setting node-id (string/split property #"\." 2) evaluation-context))
+      (when-let [outline-property (outline-property node-id property evaluation-context)]
+        (when-let [to (-> outline-property
+                          properties/edit-type-id
+                          edit-type-id->value-converter
+                          :to)]
+          #(some-> (properties/value outline-property) to)))))
 
 ;; endregion
 

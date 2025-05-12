@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -166,17 +166,6 @@ namespace dmGameObject
         "on_message",
         "on_input",
         "on_reload"
-    };
-
-    static const char* TYPE_NAMES[PROPERTY_TYPE_COUNT] = {
-        "number",        // PROPERTY_TYPE_NUMBER
-        "hash",          // PROPERTY_TYPE_HASH
-        "msg.url",       // PROPERTY_TYPE_URL
-        "vmath.vector3", // PROPERTY_TYPE_VECTOR3
-        "vmath.vector4", // PROPERTY_TYPE_VECTOR4
-        "vmath.quat",    // PROPERTY_TYPE_QUAT
-        "boolean",       // PROPERTY_TYPE_BOOLEAN
-        "vmath.matrix4", // PROPERTY_TYPE_MATRIX4
     };
 
     HRegister g_Register = 0;
@@ -677,70 +666,6 @@ namespace dmGameObject
         return CheckGetPropertyResult(L, "go", result, property_desc, property_id, target, property_options, index_requested);
     }
 
-    static int HandleGoSetResult(lua_State* L, dmGameObject::PropertyResult result, dmhash_t property_id, dmGameObject::HInstance target_instance, const dmMessage::URL& target, const dmGameObject::PropertyOptions& property_options)
-    {
-        DM_HASH_REVERSE_MEM(hash_ctx, 512);
-
-        switch (result)
-        {
-            case dmGameObject::PROPERTY_RESULT_OK:
-                return 0;
-            case PROPERTY_RESULT_NOT_FOUND:
-            {
-                // The supplied URL parameter don't need to be a string,
-                // we let Lua handle the "conversion" to string using concatenation.
-                const char* name = "nil";
-                if (!lua_isnil(L, 1))
-                {
-                    lua_pushliteral(L, "");
-                    lua_pushvalue(L, 1);
-                    lua_concat(L, 2);
-                    name = lua_tostring(L, -1);
-                    lua_pop(L, 1);
-                }
-                return luaL_error(L, "'%s' does not have any property called '%s'", name, dmHashReverseSafe64Alloc(&hash_ctx, property_id));
-            }
-            case PROPERTY_RESULT_UNSUPPORTED_TYPE:
-            case PROPERTY_RESULT_TYPE_MISMATCH:
-            {
-                dmGameObject::PropertyDesc property_desc;
-                dmGameObject::GetProperty(target_instance, target.m_Fragment, property_id, property_options, property_desc);
-                return luaL_error(L, "the property '%s' of '%s' must be a %s", dmHashReverseSafe64Alloc(&hash_ctx, property_id), lua_tostring(L, 1), TYPE_NAMES[property_desc.m_Variant.m_Type]);
-            }
-            case PROPERTY_RESULT_READ_ONLY:
-            {
-                return luaL_error(L, "Unable to set the property '%s' since it is read only", dmHashReverseSafe64Alloc(&hash_ctx, property_id));
-            }
-            case dmGameObject::PROPERTY_RESULT_INVALID_INDEX:
-            {
-                if (property_options.m_HasKey)
-                {
-                    return luaL_error(L, "Property '%s' is an array, but in options table specified key instead of index.", dmHashReverseSafe64Alloc(&hash_ctx, property_id));
-                }
-                return luaL_error(L, "Invalid index %d for property '%s'", property_options.m_Index+1, dmHashReverseSafe64Alloc(&hash_ctx, property_id));
-            }
-            case dmGameObject::PROPERTY_RESULT_INVALID_KEY:
-            {
-                if (!property_options.m_HasKey)
-                {
-                    return luaL_error(L, "Property '%s' is a hashtable, but in options table specified index instead of key.", dmHashReverseSafe64Alloc(&hash_ctx, property_id));
-                }
-                return luaL_error(L, "Invalid key '%s' for property '%s'", dmHashReverseSafe64Alloc(&hash_ctx, property_options.m_Key), dmHashReverseSafe64Alloc(&hash_ctx, property_id));
-            }
-            case dmGameObject::PROPERTY_RESULT_COMP_NOT_FOUND:
-                return luaL_error(L, "could not find component '%s' when resolving '%s'", dmHashReverseSafe64Alloc(&hash_ctx, target.m_Fragment), lua_tostring(L, 1));
-            case dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE:
-                return luaL_error(L, "go.set failed because the value is unsupported");
-            case dmGameObject::PROPERTY_RESULT_UNSUPPORTED_OPERATION:
-                return luaL_error(L, "could not perform unsupported operation on '%s'", dmHashReverseSafe64Alloc(&hash_ctx, property_id));
-            default:
-                // Should never happen, programmer error
-                return luaL_error(L, "go.set failed with error code %d", result);
-        }
-
-        return 0;
-    }
-
     /*# sets a named property of the specified game object or component, or a material constant
      *
      * @name go.set
@@ -867,7 +792,7 @@ namespace dmGameObject
                     result = dmGameObject::SetProperty(target_instance, target.m_Fragment, property_id, property_options, property_var);
                     if (result != PROPERTY_RESULT_OK)
                     {
-                        return HandleGoSetResult(L, result, property_id, target_instance, target, property_options);
+                        return dmGameObject::HandleGoSetResult(L, result, property_id, target_instance, target, property_options);
                     }
                 }
 
@@ -885,7 +810,7 @@ namespace dmGameObject
                 result = dmGameObject::SetProperty(target_instance, target.m_Fragment, property_id, property_options, property_var);
             }
 
-            return HandleGoSetResult(L, result, property_id, target_instance, target, property_options);
+            return dmGameObject::HandleGoSetResult(L, result, property_id, target_instance, target, property_options);
         }
 
         return 0;
@@ -1677,7 +1602,7 @@ namespace dmGameObject
                 lua_concat(L, 2);
                 const char* name = lua_tostring(L, -1);
                 lua_pop(L, 1);
-                return luaL_error(L, "The property '%s' of '%s' has incorrect type", dmHashReverseSafe64Alloc(&hash_ctx, property_id), name);
+                return luaL_error(L, "The property '%s' of '%s' has incorrect type %d (errcode: %d)", dmHashReverseSafe64Alloc(&hash_ctx, property_id), name, property_var.m_Type, result);
             }
         case dmGameObject::PROPERTY_RESULT_COMP_NOT_FOUND:
             return luaL_error(L, "could not find component '%s' when resolving '%s'", dmHashReverseSafe64Alloc(&hash_ctx, target.m_Fragment), lua_tostring(L, 1));
@@ -1935,7 +1860,7 @@ namespace dmGameObject
             }
             else if(lua_isnil(L, 1))
             {
-                dmLogWarning("go.delete() invoked with nil and self will be deleted");
+                return luaL_error(L, "go.delete() invoked with first argument 'id' set to 'nil'");
             }
         }
 
@@ -2084,6 +2009,11 @@ namespace dmGameObject
     int Script_Exists(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
+        int top = lua_gettop(L);
+        if (top == 1 && lua_isnil(L, 1))
+        {
+            return luaL_error(L, "The url shouldn't be `nil`");
+        }
         ScriptInstance* i = ScriptInstance_Check(L);
         Instance* instance = i->m_Instance;
         dmMessage::URL sender;
@@ -2568,7 +2498,7 @@ bail:
 #define CHECK_PROP_RESULT(key, type, expected_type, result)\
     if (result == PROPERTY_RESULT_OK) {\
         if (type != expected_type) {\
-            dmLogError("The property '%s' must be of type '%s'.", key, TYPE_NAMES[expected_type]);\
+            dmLogError("The property '%s' must be of type '%s'.", key, dmGameObject::TYPE_NAMES[expected_type]);\
             result = PROPERTY_RESULT_TYPE_MISMATCH;\
         }\
     }\
@@ -2805,22 +2735,36 @@ bail:
      *
      * Here is a brief description of the available table fields:
      *
-     * Field       | Description
-     * ----------- | ----------------------------------------------------------
-     * `value`     | The amount of input given by the user. This is usually 1 for buttons and 0-1 for analogue inputs. This is not present for mouse movement.
-     * `pressed`   | If the input was pressed this frame. This is not present for mouse movement.
-     * `released`  | If the input was released this frame. This is not present for mouse movement.
-     * `repeated`  | If the input was repeated this frame. This is similar to how a key on a keyboard is repeated when you hold it down. This is not present for mouse movement.
-     * `x`         | The x value of a pointer device, if present.
-     * `y`         | The y value of a pointer device, if present.
-     * `screen_x`  | The screen space x value of a pointer device, if present.
-     * `screen_y`  | The screen space y value of a pointer device, if present.
-     * `dx`        | The change in x value of a pointer device, if present.
-     * `dy`        | The change in y value of a pointer device, if present.
-     * `screen_dx` | The change in screen space x value of a pointer device, if present.
-     * `screen_dy` | The change in screen space y value of a pointer device, if present.
-     * `gamepad`   | The index of the gamepad device that provided the input.
-     * `touch`     | List of touch input, one element per finger, if present. See table below about touch input
+     * Field         | Description
+     * ------------- | ----------------------------------------------------------
+     * `value`       | The amount of input given by the user. This is usually 1 for buttons and 0-1 for analogue inputs. This is not present for mouse movement and text input.
+     * `pressed`     | If the input was pressed this frame. This is not present for mouse movement and text input.
+     * `released`    | If the input was released this frame. This is not present for mouse movement and text input.
+     * `repeated`    | If the input was repeated this frame. This is similar to how a key on a keyboard is repeated when you hold it down. This is not present for mouse movement and text input.
+     * `x`           | The x value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `y`           | The y value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `screen_x`    | The screen space x value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `screen_y`    | The screen space y value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `dx`          | The change in x value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `dy`          | The change in y value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `screen_dx`   | The change in screen space x value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `screen_dy`   | The change in screen space y value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `gamepad`     | The index of the gamepad device that provided the input. See table below about gamepad input.
+     * `touch`       | List of touch input, one element per finger, if present. See table below about touch input
+     * `text`        | Text input from a (virtual) keyboard or similar.
+     * `marked_text` | Sequence of entered symbols while entering a symbol combination, for example Japanese Kana.
+     *
+     * Gamepad specific fields:
+     *
+     * Field             | Description
+     * ----------------- | ----------------------------------------------------------
+     * `gamepad`         | The index of the gamepad device that provided the input.
+     * `userid`          | Id of the user associated with the controller. Usually only relevant on consoles.
+     * `gamepad_unknown` | True if the inout originated from an unknown/unmapped gamepad.
+     * `gamepad_name`    | Name of the gamepad
+     * `gamepad_axis`    | List of gamepad axis values. For raw gamepad input only.
+     * `gamepadhats`     | List of gamepad hat values. For raw gamepad input only.
+     * `gamepad_buttons` | List of gamepad button values. For raw gamepad input only.
      *
      * Touch input table:
      *

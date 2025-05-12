@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -50,21 +50,18 @@ namespace dmGraphics
         memset(&m_Handle, 0, sizeof(m_Handle));
     }
 
-    Program::Program()
-    {
-        memset(this, 0, sizeof(*this));
-    }
-
     static inline VkFormat GetVertexAttributeFormat(Type type, uint16_t size, bool normalized)
     {
         if (type == TYPE_FLOAT)
         {
             switch(size)
             {
-                case 1: return VK_FORMAT_R32_SFLOAT;
-                case 2: return VK_FORMAT_R32G32_SFLOAT;
-                case 3: return VK_FORMAT_R32G32B32_SFLOAT;
-                case 4: return VK_FORMAT_R32G32B32A32_SFLOAT;
+                case 1:  return VK_FORMAT_R32_SFLOAT;
+                case 2:  return VK_FORMAT_R32G32_SFLOAT;
+                case 3:  return VK_FORMAT_R32G32B32_SFLOAT;
+                case 4:  return VK_FORMAT_R32G32B32A32_SFLOAT;
+                case 9:  return VK_FORMAT_R32G32B32_SFLOAT;
+                case 16: return VK_FORMAT_R32G32B32A32_SFLOAT;
                 default:break;
             }
         }
@@ -76,6 +73,8 @@ namespace dmGraphics
                 case 2: return VK_FORMAT_R32G32_SINT;
                 case 3: return VK_FORMAT_R32G32B32_SINT;
                 case 4: return VK_FORMAT_R32G32B32A32_SINT;
+                case 9: return VK_FORMAT_R32G32B32_SINT;
+                case 16: return VK_FORMAT_R32G32B32A32_SINT;
                 default:break;
             }
         }
@@ -87,6 +86,8 @@ namespace dmGraphics
                 case 2: return VK_FORMAT_R32G32_UINT;
                 case 3: return VK_FORMAT_R32G32B32_UINT;
                 case 4: return VK_FORMAT_R32G32B32A32_UINT;
+                case 9: return VK_FORMAT_R32G32B32_UINT;
+                case 16: return VK_FORMAT_R32G32B32A32_UINT;
                 default:break;
             }
         }
@@ -98,6 +99,8 @@ namespace dmGraphics
                 case 2: return normalized ? VK_FORMAT_R8G8_SNORM : VK_FORMAT_R8G8_SINT;
                 case 3: return normalized ? VK_FORMAT_R8G8B8_SNORM : VK_FORMAT_R8G8B8_SINT;
                 case 4: return normalized ? VK_FORMAT_R8G8B8A8_SNORM : VK_FORMAT_R8G8B8A8_SINT;
+                case 9: return normalized ? VK_FORMAT_R8G8B8_SNORM : VK_FORMAT_R8G8B8_SINT;
+                case 16: return normalized ? VK_FORMAT_R8G8B8A8_SNORM : VK_FORMAT_R8G8B8A8_SINT;
                 default:break;
             }
         }
@@ -109,6 +112,8 @@ namespace dmGraphics
                 case 2: return normalized ? VK_FORMAT_R8G8_UNORM : VK_FORMAT_R8G8_UINT;
                 case 3: return normalized ? VK_FORMAT_R8G8B8_UNORM : VK_FORMAT_R8G8B8_UINT;
                 case 4: return normalized ? VK_FORMAT_R8G8B8A8_UNORM : VK_FORMAT_R8G8B8A8_UINT;
+                case 9: return normalized ? VK_FORMAT_R8G8B8_UNORM : VK_FORMAT_R8G8B8_UINT;
+                case 16: return normalized ? VK_FORMAT_R8G8B8A8_UNORM : VK_FORMAT_R8G8B8A8_UINT;
                 default:break;
             }
         }
@@ -120,6 +125,8 @@ namespace dmGraphics
                 case 2: return normalized ? VK_FORMAT_R16G16_SNORM : VK_FORMAT_R16G16_SINT;
                 case 3: return normalized ? VK_FORMAT_R16G16B16_SNORM : VK_FORMAT_R16G16B16_SINT;
                 case 4: return normalized ? VK_FORMAT_R16G16B16A16_SNORM : VK_FORMAT_R16G16B16A16_SINT;
+                case 9: return normalized ? VK_FORMAT_R16G16B16_SNORM : VK_FORMAT_R16G16B16_SINT;
+                case 16: return normalized ? VK_FORMAT_R16G16B16A16_SNORM : VK_FORMAT_R16G16B16A16_SINT;
                 default:break;
             }
         }
@@ -131,10 +138,12 @@ namespace dmGraphics
                 case 2: return normalized ? VK_FORMAT_R16G16_UNORM : VK_FORMAT_R16G16_UINT;
                 case 3: return normalized ? VK_FORMAT_R16G16B16_UNORM : VK_FORMAT_R16G16B16_UINT;
                 case 4: return normalized ? VK_FORMAT_R16G16B16A16_UNORM : VK_FORMAT_R16G16B16A16_UINT;
+                case 9: return normalized ? VK_FORMAT_R16G16B16_UNORM : VK_FORMAT_R16G16B16_UINT;
+                case 16: return normalized ? VK_FORMAT_R16G16B16A16_UNORM : VK_FORMAT_R16G16B16A16_UINT;
                 default:break;
             }
         }
-        else if (type == TYPE_FLOAT_MAT4)
+        else if (type == TYPE_FLOAT_MAT4 || type == TYPE_FLOAT_MAT3 || type == TYPE_FLOAT_MAT2)
         {
             return VK_FORMAT_R32_SFLOAT;
         }
@@ -145,28 +154,6 @@ namespace dmGraphics
 
         assert(0 && "Unable to deduce type from dmGraphics::Type");
         return VK_FORMAT_UNDEFINED;
-    }
-
-    static uint16_t FillVertexInputAttributeDesc(HVertexDeclaration vertexDeclaration, VkVertexInputAttributeDescription* vk_vertex_input_descs, uint32_t binding)
-    {
-        uint16_t num_attributes = 0;
-        for (uint16_t i = 0; i < vertexDeclaration->m_StreamCount; ++i)
-        {
-            if (vertexDeclaration->m_Streams[i].m_Location == -1)
-            {
-                continue;
-            }
-
-            VertexDeclaration::Stream& stream              = vertexDeclaration->m_Streams[i];
-            vk_vertex_input_descs[num_attributes].binding  = binding;
-            vk_vertex_input_descs[num_attributes].location = stream.m_Location;
-            vk_vertex_input_descs[num_attributes].format   = GetVertexAttributeFormat(stream.m_Type, stream.m_Size, stream.m_Normalize);
-            vk_vertex_input_descs[num_attributes].offset   = stream.m_Offset;
-
-            num_attributes++;
-        }
-
-        return num_attributes;
     }
 
     static VkResult AllocateDescriptorPool(DescriptorAllocator* allocator, VkDevice vk_device)
@@ -323,7 +310,7 @@ namespace dmGraphics
         return RESOURCE_TYPE_TEXTURE;
     }
 
-    const VulkanResourceType Program::GetType()
+    const VulkanResourceType VulkanProgram::GetType()
     {
         return RESOURCE_TYPE_PROGRAM;
     }
@@ -466,15 +453,14 @@ namespace dmGraphics
         return vk_count_bits[dmMath::Min<uint8_t>(sample_count_index_requested, sample_count_index_max)];
     }
 
-    VkResult TransitionImageLayout(VkDevice vk_device, VkCommandPool vk_command_pool, VkQueue vk_graphics_queue, VulkanTexture* texture,
-        VkImageAspectFlags vk_image_aspect, VkImageLayout vk_to_layout,
-        uint32_t baseMipLevel, uint32_t layer_count)
+    void TransitionImageLayoutWithCmdBuffer(VkCommandBuffer vk_command_buffer, VulkanTexture* texture,
+        VkImageAspectFlags vk_image_aspect, VkImageLayout vk_to_layout, uint32_t base_mip_level, uint32_t layer_count)
     {
-        VkImageLayout vk_from_layout = texture->m_ImageLayout[baseMipLevel];
+        VkImageLayout vk_from_layout = texture->m_ImageLayout[base_mip_level];
 
         if (vk_from_layout == vk_to_layout)
         {
-            return VK_SUCCESS;
+            return;
         }
 
         VkImageMemoryBarrier vk_memory_barrier            = {};
@@ -485,7 +471,7 @@ namespace dmGraphics
         vk_memory_barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
         vk_memory_barrier.image                           = texture->m_Handle.m_Image;
         vk_memory_barrier.subresourceRange.aspectMask     = vk_image_aspect;
-        vk_memory_barrier.subresourceRange.baseMipLevel   = baseMipLevel;
+        vk_memory_barrier.subresourceRange.baseMipLevel   = base_mip_level;
         vk_memory_barrier.subresourceRange.levelCount     = 1;
         vk_memory_barrier.subresourceRange.baseArrayLayer = 0;
         vk_memory_barrier.subresourceRange.layerCount     = layer_count;
@@ -557,10 +543,24 @@ namespace dmGraphics
         }
         else
         {
-            // Transition not supported, so we early out.
-            return VK_SUCCESS;
+            // Transition not supported, so we early out
+            return;
         }
 
+        vkCmdPipelineBarrier(
+            vk_command_buffer,
+            vk_source_stage,
+            vk_destination_stage,
+            0, 0, 0, 0, 0, 1,
+            &vk_memory_barrier);
+
+        texture->m_ImageLayout[base_mip_level] = vk_to_layout;
+    }
+
+    VkResult TransitionImageLayout(VkDevice vk_device, VkCommandPool vk_command_pool, VkQueue vk_graphics_queue, VulkanTexture* texture,
+        VkImageAspectFlags vk_image_aspect, VkImageLayout vk_to_layout,
+        uint32_t base_mip_level, uint32_t layer_count)
+    {
         // Create a one-time-execute command buffer that will only be used for the transition
         VkCommandBuffer vk_command_buffer;
         CreateCommandBuffers(vk_device, vk_command_pool, 1, &vk_command_buffer);
@@ -571,12 +571,7 @@ namespace dmGraphics
 
         vkBeginCommandBuffer(vk_command_buffer, &vk_command_buffer_begin_info);
 
-        vkCmdPipelineBarrier(
-            vk_command_buffer,
-            vk_source_stage,
-            vk_destination_stage,
-            0, 0, 0, 0, 0, 1,
-            &vk_memory_barrier);
+        TransitionImageLayoutWithCmdBuffer(vk_command_buffer, texture, vk_image_aspect, vk_to_layout, base_mip_level, layer_count);
 
         vkEndCommandBuffer(vk_command_buffer);
 
@@ -590,8 +585,6 @@ namespace dmGraphics
         vkQueueSubmit(vk_graphics_queue, 1, &vk_submit_info, VK_NULL_HANDLE);
         vkQueueWaitIdle(vk_graphics_queue);
         vkFreeCommandBuffers(vk_device, vk_command_pool, 1, &vk_command_buffer);
-
-        texture->m_ImageLayout[baseMipLevel] = vk_to_layout;
 
         return VK_SUCCESS;
     }
@@ -632,6 +625,7 @@ namespace dmGraphics
             {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, max_descriptors},
             {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,          max_descriptors},
             {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,         max_descriptors},
+            {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,          max_descriptors},
         };
 
         VkDescriptorPoolCreateInfo vk_pool_create_info;
@@ -820,11 +814,12 @@ bail:
         return VK_SUCCESS;
     }
 
-    VkResult CreateTexture2D(
+    VkResult CreateTexture(
         VkPhysicalDevice      vk_physical_device,
         VkDevice              vk_device,
         uint32_t              imageWidth,
         uint32_t              imageHeight,
+        uint32_t              imageDepth,
         uint32_t              imageLayers,
         uint16_t              imageMips,
         VkSampleCountFlagBits vk_sample_count,
@@ -838,14 +833,14 @@ bail:
         DeviceBuffer& device_buffer = textureOut->m_DeviceBuffer;
         TextureType tex_type = textureOut->m_Type;
 
-        VkImageCreateInfo vk_image_create_info = {};
         VkImageViewType vk_view_type = VK_IMAGE_VIEW_TYPE_2D;
 
+        VkImageCreateInfo vk_image_create_info = {};
         vk_image_create_info.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
         vk_image_create_info.imageType     = VK_IMAGE_TYPE_2D;
         vk_image_create_info.extent.width  = imageWidth;
         vk_image_create_info.extent.height = imageHeight;
-        vk_image_create_info.extent.depth  = 1;
+        vk_image_create_info.extent.depth  = imageDepth;
         vk_image_create_info.mipLevels     = imageMips;
         vk_image_create_info.arrayLayers   = imageLayers;
         vk_image_create_info.format        = vk_format;
@@ -867,6 +862,11 @@ bail:
             assert(imageLayers > 0);
             vk_image_create_info.flags |= VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT;
             vk_view_type = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+        }
+        else if (tex_type == TEXTURE_TYPE_3D || tex_type == TEXTURE_TYPE_IMAGE_3D || tex_type == TEXTURE_TYPE_TEXTURE_3D)
+        {
+            vk_image_create_info.imageType = VK_IMAGE_TYPE_3D;
+            vk_view_type = VK_IMAGE_VIEW_TYPE_3D;
         }
 
         VkResult res = vkCreateImage(vk_device, &vk_image_create_info, 0, &textureOut->m_Handle.m_Image);
@@ -937,6 +937,7 @@ bail:
         {
             textureOut->m_Width  = imageWidth;
             textureOut->m_Height = imageHeight;
+            textureOut->m_Depth  = imageDepth;
         }
 
         return vkCreateImageView(vk_device, &vk_view_create_info, 0, &textureOut->m_Handle.m_ImageView);
@@ -1100,6 +1101,55 @@ bail:
         }
     }
 
+    static uint16_t FillVertexInputAttributeDesc(HVertexDeclaration vertexDeclaration, VkVertexInputAttributeDescription* vk_vertex_input_descs, uint32_t binding)
+    {
+        uint16_t num_attributes = 0;
+        for (uint16_t i = 0; i < vertexDeclaration->m_StreamCount; ++i)
+        {
+            if (vertexDeclaration->m_Streams[i].m_Location == -1)
+            {
+                continue;
+            }
+
+            VertexDeclaration::Stream& stream = vertexDeclaration->m_Streams[i];
+            VkFormat fmt = GetVertexAttributeFormat(stream.m_Type, stream.m_Size, stream.m_Normalize);
+
+            #define PUT_ATTRIBUTE(ix, loc, ofs, fmt) \
+                vk_vertex_input_descs[ix].binding = binding; \
+                vk_vertex_input_descs[ix].location = loc; \
+                vk_vertex_input_descs[ix].offset = ofs; \
+                vk_vertex_input_descs[ix].format = fmt;
+
+            uint32_t stream_data_size = GetGraphicsTypeDataSize(stream.m_Type);
+
+            // TODO: This doesn't support 2x2 matrices - we can't distinguish between a vec4 and a 2x2 matrix here currently
+            switch(stream.m_Size)
+            {
+            case 9: // 3x3 matrix
+                PUT_ATTRIBUTE(num_attributes + 0, (stream.m_Location + 0), (stream.m_Offset + 0 * stream_data_size * 3), fmt);
+                PUT_ATTRIBUTE(num_attributes + 1, (stream.m_Location + 1), (stream.m_Offset + 1 * stream_data_size * 3), fmt);
+                PUT_ATTRIBUTE(num_attributes + 2, (stream.m_Location + 2), (stream.m_Offset + 2 * stream_data_size * 3), fmt);
+                num_attributes += 3;
+                break;
+            case 16: // 4x4 matrix
+                PUT_ATTRIBUTE(num_attributes + 0, (stream.m_Location + 0), (stream.m_Offset + 0 * stream_data_size * 4), fmt);
+                PUT_ATTRIBUTE(num_attributes + 1, (stream.m_Location + 1), (stream.m_Offset + 1 * stream_data_size * 4), fmt);
+                PUT_ATTRIBUTE(num_attributes + 2, (stream.m_Location + 2), (stream.m_Offset + 2 * stream_data_size * 4), fmt);
+                PUT_ATTRIBUTE(num_attributes + 3, (stream.m_Location + 3), (stream.m_Offset + 3 * stream_data_size * 4), fmt);
+                num_attributes += 4;
+                break;
+            default:
+                PUT_ATTRIBUTE(num_attributes, stream.m_Location, stream.m_Offset, fmt);
+                num_attributes++;
+                break;
+            }
+
+            #undef PUT_ATTRIBUTE
+        }
+
+        return num_attributes;
+    }
+
     // These lookup values should match the ones in graphics_vulkan_constants.cpp
     static const VkPrimitiveTopology g_vk_primitive_types[] = {
         VK_PRIMITIVE_TOPOLOGY_LINE_LIST,
@@ -1150,7 +1200,7 @@ bail:
         VK_COMPARE_OP_ALWAYS
     };
 
-    VkResult CreateComputePipeline(VkDevice vk_device, Program* program, Pipeline* pipelineOut)
+    VkResult CreateComputePipeline(VkDevice vk_device, VulkanProgram* program, Pipeline* pipelineOut)
     {
         assert(pipelineOut && *pipelineOut == VK_NULL_HANDLE);
 
@@ -1166,13 +1216,16 @@ bail:
     }
 
     VkResult CreateGraphicsPipeline(VkDevice vk_device, VkRect2D vk_scissor, VkSampleCountFlagBits vk_sample_count,
-        PipelineState pipelineState, Program* program, VertexDeclaration** vertexDeclarations, uint32_t vertexDeclarationCount,
+        PipelineState pipelineState, VulkanProgram* program, VertexDeclaration** vertexDeclarations, uint32_t vertexDeclarationCount,
         RenderTarget* render_target, Pipeline* pipelineOut)
     {
         assert(pipelineOut && *pipelineOut == VK_NULL_HANDLE);
 
+        // This differs from MAX_VERTEX_STREAM_COUNT, since mat4 exhausts 4 desc slots
+        const uint32_t MAX_VERTEX_INPUT_DESCS_COUNT = 32;
+
         uint16_t active_attributes = 0;
-        VkVertexInputAttributeDescription vk_vertex_input_descs[MAX_VERTEX_STREAM_COUNT] = {};
+        VkVertexInputAttributeDescription vk_vertex_input_descs[MAX_VERTEX_INPUT_DESCS_COUNT] = {};
         VkVertexInputBindingDescription vk_vx_input_descriptions[MAX_VERTEX_BUFFERS] = {};
 
         for (int i = 0; i < vertexDeclarationCount; ++i)
@@ -1202,7 +1255,7 @@ bail:
 
         vk_input_assembly.sType                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
         vk_input_assembly.topology               = vk_primitive_type;
-        vk_input_assembly.primitiveRestartEnable = VK_FALSE;
+        vk_input_assembly.primitiveRestartEnable = VK_TRUE;
 
         VkViewport vk_viewport;
         memset(&vk_viewport, 0, sizeof(vk_viewport));
@@ -1379,7 +1432,7 @@ bail:
         scratchBuffer->m_MappedDataCursor = 0;
     }
 
-    void DestroyProgram(VkDevice vk_device, Program::VulkanHandle* handle)
+    void DestroyProgram(VkDevice vk_device, VulkanProgram::VulkanHandle* handle)
     {
         assert(handle);
         if (handle->m_PipelineLayout != VK_NULL_HANDLE)
@@ -1627,6 +1680,16 @@ bail:
             vk_create_pool_info.queueFamilyIndex = (uint32_t) queueFamily.m_GraphicsQueueIx;
             vk_create_pool_info.flags            = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
             res = vkCreateCommandPool(logicalDeviceOut->m_Device, &vk_create_pool_info, 0, &logicalDeviceOut->m_CommandPool);
+
+            if (res == VK_SUCCESS)
+            {
+                memset(&vk_create_pool_info, 0, sizeof(vk_create_pool_info));
+                vk_create_pool_info.sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+                vk_create_pool_info.queueFamilyIndex = (uint32_t) queueFamily.m_GraphicsQueueIx; // Use the same queue for now (use a transfer queue at some point)
+                vk_create_pool_info.flags            = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+
+                res = vkCreateCommandPool(logicalDeviceOut->m_Device, &vk_create_pool_info, 0, &logicalDeviceOut->m_CommandPoolWorker);
+            }
         }
 
         return res;

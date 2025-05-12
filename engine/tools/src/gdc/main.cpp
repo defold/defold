@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -105,7 +105,16 @@ int main(int argc, char *argv[])
     window_params.m_Height = 32;
     window_params.m_Title = "gdc";
     window_params.m_PrintDeviceInfo = false;
-    window_params.m_GraphicsApi = dmPlatform::PLATFORM_GRAPHICS_API_OPENGL;
+    window_params.m_OpenGLVersionHint = 33;
+    if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGLES)
+    {
+        window_params.m_GraphicsApi = dmPlatform::PLATFORM_GRAPHICS_API_OPENGLES;
+    }
+    else
+    {
+        window_params.m_GraphicsApi = dmPlatform::PLATFORM_GRAPHICS_API_OPENGL;
+    }
+    window_params.m_ContextAlphabits = 8;
 
     dmPlatform::HWindow window = dmPlatform::NewWindow();
     dmPlatform::OpenWindow(window, window_params);
@@ -154,8 +163,8 @@ retry:
     {
         for (uint32_t i = 0; i < gamepad_count; ++i)
         {
-            char device_name[128];
-            dmHID::GetGamepadDeviceName(g_HidContext, gamepads[i], device_name, sizeof(device_name));
+            char device_name[dmHID::MAX_GAMEPAD_NAME_LENGTH];
+            dmHID::GetGamepadDeviceName(g_HidContext, gamepads[i], device_name);
             printf("%d: %s\n", i+1, device_name);
         }
         printf("\n* Which gamepad do you want to calibrate? [1-%d] ", gamepad_count);
@@ -177,8 +186,8 @@ retry:
         gamepad = gamepads[0];
     }
 
-    char device_name[128];
-    dmHID::GetGamepadDeviceName(g_HidContext, gamepad, device_name, sizeof(device_name));
+    char device_name[dmHID::MAX_GAMEPAD_NAME_LENGTH];
+    dmHID::GetGamepadDeviceName(g_HidContext, gamepad, device_name);
 
     printf("\n%s will be added to %s\n\n", device_name, filename);
 

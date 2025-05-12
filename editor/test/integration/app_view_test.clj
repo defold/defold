@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -21,7 +21,6 @@
             [editor.build :as build]
             [editor.defold-project :as project]
             [editor.git :as git]
-            [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
@@ -132,8 +131,8 @@
           atlas-path2 "/atlas/single2.atlas"
           atlas-res2 (workspace/resolve-workspace-resource workspace atlas-path2)
           [atlas scene-view] (test-util/open-scene-view! project app-view atlas-path 64 64)
-          proj-path (.getAbsolutePath (workspace/project-path workspace))
-          git (init-git proj-path)
+          project-path (.getAbsolutePath (workspace/project-directory workspace))
+          git (init-git project-path)
           atlas-outline (fn [path] (test-util/outline (g/node-value app-view :active-resource-node) path))]
       (is (= atlas-res (g/node-value app-view :active-resource)))
       (test-util/move-file! workspace atlas-path atlas-path2)
@@ -207,7 +206,7 @@
                                      :debug false
                                      :build-engine false
                                      :old-artifact-map artifact-map
-                                     :prefs (prefs/make-prefs "unit-test")
+                                     :prefs (test-util/make-test-prefs)
                                      :result-fn (fn [build-results]
                                                   (when (is (nil? (:error build-results)))
 

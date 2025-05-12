@@ -10,6 +10,7 @@ import sys, os
 import waf_dynamo, waf_ddf
 import waflib.Options
 import TestContext
+from build_constants import TargetOS
 
 test_context = None
 
@@ -32,8 +33,6 @@ def configure(conf):
     conf.env['STLIB_DLIB'] = ['dlib', 'mbedtls']
     conf.env['STLIB_DDF'] = 'ddf'
     conf.env['STLIB_HID_NULL'] = 'hid_null'
-
-    platform = conf.env['PLATFORM']
 
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="INPUT"')
 

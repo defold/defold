@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -14,6 +14,8 @@
 
 package com.defold.editor;
 
+import java.io.IOException;
+
 /**
  * Using separate Main class is needed to avoid error "JavaFX runtime components
  * are missing, and are required to run this application."
@@ -26,7 +28,7 @@ package com.defold.editor;
  * discussion on github</a>
  */
 public class Main {
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
         Start.main(args);
     }
 }

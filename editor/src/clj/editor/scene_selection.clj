@@ -1,62 +1,56 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.scene-selection
-  (:require [clojure.set :as set]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
             [editor.system :as system]
-            [editor.background :as background]
-            [editor.colors :as colors]
-            [editor.camera :as c]
-            [editor.core :as core]
             [editor.geom :as geom]
-            [editor.gl :as gl]
-            [editor.grid :as grid]
-            [editor.input :as i]
-            [editor.math :as math]
+            [editor.handler :as handler]
             [editor.types :as types]
-            [editor.workspace :as workspace]
+            [editor.ui :as ui]
             [editor.gl.pass :as pass]
-            [schema.core :as s]
-            [service.log :as log])
-  (:import [com.defold.editor Start UIUtil]
-           [com.jogamp.opengl.util GLPixelStorageModes]
-           [com.jogamp.opengl.util.awt TextRenderer]
-           [editor.types Camera AABB Region Rect]
-           [java.awt Font]
-           [java.awt.image BufferedImage DataBufferByte]
-           [javafx.animation AnimationTimer]
-           [javafx.application Platform]
-           [javafx.beans.value ChangeListener]
-           [javafx.collections FXCollections ObservableList]
-           [javafx.embed.swing SwingFXUtils]
-           [javafx.event ActionEvent EventHandler]
-           [javafx.geometry BoundingBox]
-           [javafx.scene Scene Node Parent]
-           [javafx.scene.control Tab]
-           [javafx.scene.image Image ImageView WritableImage PixelWriter]
-           [javafx.scene.input MouseEvent]
-           [javafx.scene.layout AnchorPane Pane]
+            [schema.core :as s])
+  (:import [editor.types Rect]
            [java.lang Runnable Math]
-           [java.nio IntBuffer ByteBuffer ByteOrder]
-           [com.jogamp.opengl GL GL2 GL2GL3 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
-           [com.jogamp.opengl.glu GLU]
-           [javax.vecmath Point2i Point3d Quat4d Matrix4d Vector4d Matrix3d Vector3d]))
+           [com.jogamp.opengl GL2]
+           [javafx.scene.input DragEvent]
+           [javafx.scene Node Scene]
+           [javax.vecmath Point2i Point3d Matrix4d]))
 
 (set! *warn-on-reflection* true)
 
-(defn render-selection-box [^GL2 gl render-args renderables count]
+(handler/register-menu! ::scene-selection-menu
+                        [{:label "Cut"
+                          :command :edit.cut}
+                         {:label "Copy"
+                          :command :edit.copy}
+                         {:label "Paste"
+                          :command :edit.paste}
+                         {:label "Delete"
+                          :icon "icons/32/Icons_M_06_trash.png"
+                          :command :edit.delete}
+                         {:label :separator}
+                         {:label "Show/Hide Objects"
+                          :command :scene.visibility.toggle-selection}
+                         {:label "Hide Unselected Objects"
+                          :command :scene.visibility.hide-unselected}
+                         {:label "Show All Hidden Objects"
+                          :command :scene.visibility.show-all}
+                         {:label :separator
+                          :id ::context-menu-end}])
+
+(defn render-selection-box [^GL2 gl _render-args renderables _count]
   (let [user-data (:user-data (first renderables))
         start (:start user-data)
         current (:current user-data)]
@@ -90,15 +84,26 @@
 (defn- select [controller op-seq mode toggle?]
   (let [select-fn (g/node-value controller :select-fn)
         selection (g/node-value controller :picking-selection)
+        contextual? (g/node-value controller :contextual?)
         mode-filter-fn (case mode
                         :single (fn [selection] (if-let [sel (first selection)] [sel] []))
-                        :multi  identity)
-        toggle-filter-fn (if toggle?
+                        :multi identity)
+        toggle-filter-fn (cond
+                           toggle?
                            (fn [selection]
                              (let [selection-set (set selection)
                                    prev-selection (g/node-value controller :prev-selection)
                                    prev-selection-set (set prev-selection)]
                                (into [] (concat (filter (complement selection-set) prev-selection) (filter (complement prev-selection-set) selection)))))
+
+                           contextual?
+                           (fn [selection]
+                             (let [prev-selection (g/node-value controller :prev-selection)]
+                               (if (some #(= (first selection) %) prev-selection)
+                                 prev-selection
+                                 selection)))
+                           
+                           :else
                            identity)
         sel-filter-fn (comp toggle-filter-fn mode-filter-fn)
         selection (or (not-empty (sel-filter-fn selection))
@@ -115,14 +120,26 @@
   [[x0 y0 z0] [x1 y1 z1]]
   (.distance (Point3d. x0 y0 z0) (Point3d. x1 y1 z1)))
 
-(defn handle-selection-input [self action user-data]
-  (let [start      (g/node-value self :start)
-        current    (g/node-value self :current)
-        op-seq     (g/node-value self :op-seq)
-        mode       (g/node-value self :mode)
-        toggle?    (g/node-value self :toggle?)
-        cursor-pos [(:x action) (:y action) 0]]
+(defn handle-selection-input [self action _user-data]
+  (let [start (g/node-value self :start)
+        op-seq (g/node-value self :op-seq)
+        mode (g/node-value self :mode)
+        toggle? (g/node-value self :toggle?)
+        cursor-pos [(:x action) (:y action) 0]
+        contextual? (= (:button action) :secondary)]
     (case (:type action)
+      :drag-dropped (when-let [drop-fn (g/node-value self :drop-fn)]
+                      (let [op-seq (gensym)
+                            select-fn (g/node-value self :select-fn)
+                            drag-event ^DragEvent (:event action)
+                            _ (ui/request-focus! (:gesture-target action))
+                            added-nodes (drop-fn action op-seq)]
+                        (.consume drag-event)
+                        (when (seq added-nodes)
+                          (select-fn added-nodes op-seq)
+                          (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
+                          (.setDropCompleted drag-event true)))
+                      nil)
       :mouse-pressed (let [op-seq (gensym)
                            toggle? (true? (some true? (map #(% action) toggle-modifiers)))
                            mode :single]
@@ -133,8 +150,14 @@
                            (g/set-property self :current cursor-pos)
                            (g/set-property self :mode mode)
                            (g/set-property self :toggle? toggle?)
+                           (g/set-property self :contextual? contextual?)
                            (g/set-property self :prev-selection (g/node-value self :selection))))
                        (select self op-seq mode toggle?)
+                       (when contextual?
+                         (let [node ^Node (:target action)
+                               scene ^Scene (.getScene node)
+                               context-menu (ui/init-context-menu! ::scene-selection-menu scene)]
+                           (.show context-menu node ^double (:screen-x action) ^double (:screen-y action))))
                        nil)
       :mouse-released (do
                         (g/transact
@@ -144,9 +167,10 @@
                             (g/set-property self :op-seq nil)
                             (g/set-property self :mode nil)
                             (g/set-property self :toggle? nil)
+                            (g/set-property self :contextual? nil)
                             (g/set-property self :prev-selection nil)))
                         nil)
-      :mouse-moved (if start
+      :mouse-moved (if (and start (not (g/node-value self :contextual?)))
                      (let [new-mode (if (and (= :single mode) (< min-pick-size (distance start cursor-pos)))
                                       :multi
                                       mode)]
@@ -178,11 +202,13 @@
 
 (g/defnode SelectionController
   (property select-fn Runnable)
+  (property drop-fn Runnable)
   (property start types/Vec3)
   (property current types/Vec3)
   (property op-seq g/Any)
   (property mode SelectionMode)
   (property toggle? g/Bool)
+  (property contextual? g/Bool)
   (property prev-selection g/Any)
 
   (input selection g/Any)

@@ -9,8 +9,10 @@ blddir = 'build'
 import os, sys, re, subprocess
 import waf_ddf, waf_graphics, waf_dynamo, waf_gamesys, waf_physics, waf_render, waf_resource
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
+from waflib import Logs
 import waflib.Options
 import TestContext
+from build_constants import TargetOS
 
 test_context = None
 
@@ -52,6 +54,8 @@ def configure(conf):
     conf.load('waf_dynamo')
     conf.load('java')
     conf.load('waf_resource')
+    target_os = conf.env['TARGET_OS']
+
 
     build_util = None
     try:
@@ -67,20 +71,27 @@ def configure(conf):
 
     conf.recurse('src')
 
-    operating_sys = build_util.get_target_os()
     architecture = build_util.get_target_architecture()
 
-    sound_lib = 'sound'
-    glfw_lib = 'dmglfw'
-    platform_lib = 'platform'
+    simd_supported = True
+    if target_os == TargetOS.WEB:
+        simd_supported = False
 
-    if waf_dynamo.platform_glfw_version(conf.env.PLATFORM) == 3:
-        glfw_lib = "glfw3"
+    if not simd_supported and 'simd' in waflib.Options.options.enable_features:
+        Logs.info("simd enabled")
+        simd_supported = True
 
-        if waflib.Options.options.with_vulkan:
-            platform_lib = "platform_vulkan"
+    sound_lib = []
+    if simd_supported:
+        sound_lib += ['sound']
+    else:
+        sound_lib += ['sound_nosimd']
 
-    if operating_sys == 'macos':
+    sound_lib += ['decoder_wav', 'decoder_ogg']
+    glfw_lib = waf_dynamo.platform_get_glfw_lib(conf.env.PLATFORM)
+    platform_lib =  waf_dynamo.platform_get_platform_lib(conf.env.PLATFORM)
+
+    if target_os == TargetOS.MACOS:
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo', '-framework', 'QuartzCore'])
 
         # For Vulkan/MoltenVK
@@ -95,32 +106,32 @@ def configure(conf):
                 # Metal deps requires libc++ stdlib. Remove once we've updated to use libc++ std
                 conf.env.append_value('LINKFLAGS', ['-l', 'c++'])
 
-    elif operating_sys == 'ios':
+    elif target_os == TargetOS.IOS:
         conf.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'OpenGLES', '-framework', 'QuartzCore', '-framework', 'CoreGraphics', '-framework', 'OpenAL', '-framework', 'AudioToolbox'])
 
         # For Vulkan/MoltenVK
         if waflib.Options.options.with_vulkan and architecture == 'arm64':
             conf.env.append_value('LINKFLAGS', ['-l', 'MoltenVK', '-framework', 'Metal', '-framework', 'IOSurface'])
-    elif operating_sys == 'android':
+    elif target_os == TargetOS.ANDROID:
         conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2', '-landroid', '-Wl,-soname=libdmengine.so'])
         conf.env['STLIB_CPP_RUNTIME'] = 'c++_static'
-    elif operating_sys == "linux":
-        conf.env['LIB_X'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']
+
+    elif target_os == TargetOS.WINDOWS:
+        conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'dbghelp.lib', 'dinput8.lib', 'dxguid.lib'])
 
         if waflib.Options.options.with_vulkan:
-            conf.env.append_value('LIB_X', ['vulkan', 'X11-xcb'])
-    elif operating_sys == "win":
-        conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib', 'dbghelp.lib', 'dinput8.lib', 'dxguid.lib'])
-        # For Vulkan
-        if waflib.Options.options.with_vulkan:
             conf.env.append_value('LINKFLAGS', ['vulkan-1.lib'])
-    elif 'web' in operating_sys:
+
+        if waflib.Options.options.with_dx12:
+            conf.env.append_value('LINKFLAGS', ['D3D12.lib', 'DXGI.lib', 'D3DCompiler.lib'])
+
+    elif target_os == TargetOS.WEB:
         pass
 
     conf.env['STLIB_EXTENSION'] = 'extension'
     conf.env['STLIB_RESOURCE'] = 'resource'
-    conf.env['STLIB_RENDER'] = 'render'
-    conf.env['STLIB_GAMESYS'] = 'gamesys gamesys_model gamesys_rig script_box2d'.split()
+    conf.env['STLIB_RENDER'] = 'render render_font_default'.split()
+    conf.env['STLIB_GAMESYS'] = 'gamesys gamesys_model gamesys_rig script_box2d_defold'.split()
     conf.env['STLIB_GAMEOBJECT'] = 'gameobject'
     conf.env['STLIB_SCRIPT'] = 'script'
     conf.env['STLIB_DMGLFW'] = glfw_lib
@@ -131,14 +142,13 @@ def configure(conf):
     conf.env['STLIB_RIG'] = 'rig'
     conf.env['STLIB_SOUND'] = sound_lib
     conf.env['STLIB_SOUND_NULL'] = 'sound_null'
-    conf.env['STLIB_OPENAL_SOFT'] = 'openal_soft'
     conf.env['LIB_OPENSLES'] = 'OpenSLES'
     conf.env['STLIB_HID'] = 'hid'
     conf.env['STLIB_HID_NULL'] = 'hid_null'
     conf.env['STLIB_INPUT'] = 'input'
     conf.env['STLIB_LIVEUPDATE'] = 'liveupdate'
 
-    if operating_sys != "macos":
+    if target_os != TargetOS.MACOS:
         conf.env['STLIB_UNWIND'] = 'unwind'
 
     conf.env['STLIB_PROFILEREXT'] = 'profilerext'
@@ -146,11 +156,13 @@ def configure(conf):
 
     conf.env['STLIB_TREMOLO'] = 'tremolo'
 
-    if operating_sys == "linux":
+    conf.env['STLIB_OPUS'] = 'opus decoder_opus'.split()
+
+    if target_os == TargetOS.LINUX:
         conf.env['LIB_OPENAL'] = 'openal'
-    elif operating_sys == "macos":
+    elif target_os == TargetOS.MACOS:
         pass
-    elif operating_sys == "win" and architecture == "x86":
+    elif target_os == TargetOS.WINDOWS and architecture == "x86":
         conf.env['LIB_OPENAL'] = 'OpenAL32'
         conf.env.append_value('INCLUDES', build_util.get_dynamo_ext("include", "AL"))
 
@@ -190,11 +202,11 @@ def build(bld):
 
     bld.install_files('${PREFIX}/bin', 'scripts/dmengine_memprofile.sh', chmod=0O755)
 
-    if build_util.get_target_os() in ['web', 'macos', 'ios']:
+    if build_util.get_target_os() in [TargetOS.WEB, TargetOS.MACOS, TargetOS.IOS]:
         srcPath = os.path.join('build', 'src')
         builds = ['','_release', '_headless']
         for build in builds:
-            for suffix in ('.js.mem', '.js.symbols', '.js.map', '.wasm', '.wasm.map', '.dSYM.zip'):
+            for suffix in ('.js.mem', '.js.symbols', '.js.map', '.wasm', '.wasm.map', '.wasm.debug.wasm', '.dSYM.zip'):
                 filePath = os.path.join(srcPath, 'dmengine' + build + suffix)
                 if (os.path.exists(filePath)):
                     bld.install_files('${PREFIX}/bin/%s' % bld.env.PLATFORM, filePath)

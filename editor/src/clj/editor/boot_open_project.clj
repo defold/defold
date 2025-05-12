@@ -1,26 +1,26 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.boot-open-project
-  (:require [cljfx.fx.v-box :as fx.v-box]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.asset-browser :as asset-browser]
             [editor.build-errors-view :as build-errors-view]
             [editor.changes-view :as changes-view]
             [editor.cljfx-form-view :as cljfx-form-view]
             [editor.code.view :as code-view]
+            [editor.color-dropper :as color-dropper]
             [editor.command-requests :as command-requests]
             [editor.console :as console]
             [editor.curve-view :as curve-view]
@@ -37,6 +37,7 @@
             [editor.html-view :as html-view]
             [editor.icons :as icons]
             [editor.notifications-view :as notifications-view]
+            [editor.os :as os]
             [editor.outline-view :as outline-view]
             [editor.pipeline.bob :as bob]
             [editor.properties-view :as properties-view]
@@ -46,13 +47,11 @@
             [editor.scene-visibility :as scene-visibility]
             [editor.search-results-view :as search-results-view]
             [editor.shared-editor-settings :as shared-editor-settings]
-            [editor.sync :as sync]
             [editor.system :as system]
             [editor.targets :as targets]
             [editor.ui :as ui]
             [editor.ui.updater :as ui.updater]
-            [editor.util :as util]
-            [editor.web-profiler :as web-profiler]
+            [editor.web-server :as web-server]
             [editor.workspace :as workspace]
             [service.log :as log]
             [service.smoke-log :as slog]
@@ -61,7 +60,7 @@
            [javafx.scene Node Scene]
            [javafx.scene.control MenuBar SplitPane Tab TabPane TreeView]
            [javafx.scene.input DragEvent InputEvent KeyCombination KeyEvent MouseEvent]
-           [javafx.scene.layout VBox]
+           [javafx.scene.layout StackPane]
            [javafx.stage Stage]))
 
 (set! *warn-on-reflection* true)
@@ -149,9 +148,9 @@
     MouseEvent/MOUSE_RELEASED})
 
 (defn- load-stage! [workspace project prefs updater newly-created?]
-  (let [^VBox root (ui/load-fxml "editor.fxml")
-        stage      (ui/make-stage)
-        scene      (Scene. root)]
+  (let [^StackPane root (ui/load-fxml "editor.fxml")
+        stage (ui/make-stage)
+        scene (Scene. root)]
 
     (ui/set-main-stage stage)
     (.setScene stage scene)
@@ -178,6 +177,7 @@
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets prefs)
           open-resource        (partial #'app-view/open-resource app-view prefs workspace project)
           console-view         (console/make-console! *view-graph* workspace console-tab console-grid-pane open-resource prefs)
+          color-dropper-view   (color-dropper/make-color-dropper! *view-graph*)
           _                    (notifications-view/init! (g/node-value workspace :notifications) notifications)
           build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
                                                                          (fn [resource selected-node-ids opts]
@@ -186,7 +186,7 @@
           search-results-view  (search-results-view/make-search-results-view! *view-graph*
                                                                               (.lookup root "#search-results-container")
                                                                               open-resource)
-          properties-view      (properties-view/make-properties-view workspace project app-view search-results-view *view-graph* (.lookup root "#properties"))
+          properties-view      (properties-view/make-properties-view workspace project app-view search-results-view *view-graph* color-dropper-view prefs (.lookup root "#properties"))
           changes-view         (changes-view/make-changes-view *view-graph* workspace prefs (.lookup root "#changes-container")
                                                                (fn [changes-view moved-files]
                                                                  (app-view/async-reload! app-view changes-view workspace moved-files)))
@@ -200,23 +200,25 @@
                                                       root
                                                       open-resource
                                                       (partial app-view/debugger-state-changed! scene tool-tabs))
-          web-server           (-> (http-server/->server 0 {engine-profiler/url-prefix engine-profiler/handler
-                                                            web-profiler/url-prefix web-profiler/handler
-                                                            hot-reload/url-prefix (partial hot-reload/build-handler workspace project)
-                                                            hot-reload/verify-etags-url-prefix (partial hot-reload/verify-etags-handler workspace project)
-                                                            bob/html5-url-prefix (partial bob/html5-handler project)
-                                                            command-requests/url-prefix (command-requests/make-request-handler root (app-view/make-render-task-progress :resource-sync))
-                                                            console/url-prefix (console/make-request-handler console-view)})
-                                   http-server/start!)]
+          web-server (http-server/start!
+                       (web-server/make-dynamic-handler
+                         (into []
+                               cat
+                               [(engine-profiler/routes)
+                                (console/routes console-view)
+                                (hot-reload/routes workspace)
+                                (bob/routes project)
+                                (command-requests/router root (app-view/make-render-task-progress :resource-sync))])))]
+      (.addEventFilter ^StackPane (.lookup root "#overlay") MouseEvent/ANY ui/ignore-event-filter)
       (ui/add-application-focused-callback! :main-stage app-view/handle-application-focused! app-view changes-view workspace prefs)
-      (app-view/reload-extensions! app-view project :all workspace changes-view)
+      (app-view/reload-extensions! app-view project :all workspace changes-view build-errors-view prefs web-server)
 
       (when updater
         (let [update-link (.lookup root "#update-link")]
           (init-pending-update-indicator! stage update-link project changes-view updater)))
 
       ;; The menu-bar-space element should only be present if the menu-bar element is not.
-      (let [collapse-menu-bar? (and (util/is-mac-os?)
+      (let [collapse-menu-bar? (and (os/is-mac-os?)
                                     (.isUseSystemMenuBar menu-bar))]
         (.setVisible menu-bar-space collapse-menu-bar?)
         (.setManaged menu-bar-space collapse-menu-bar?))
@@ -306,6 +308,7 @@
           (g/connect app-view :active-scene scene-visibility :active-scene)
           (g/connect outline-view :tree-selection scene-visibility :outline-selection)
           (g/connect scene-visibility :hidden-renderable-tags app-view :hidden-renderable-tags)
+          (g/connect scene-visibility :outline-name-paths outline-view :outline-name-paths)
           (g/connect scene-visibility :hidden-node-outline-key-paths app-view :hidden-node-outline-key-paths)
           (for [label [:active-resource-node :active-outline :open-resource-nodes]]
             (g/connect app-view label outline-view label))
@@ -323,60 +326,31 @@
 
       ;; If sync was in progress when we shut down the editor we offer to resume the sync process.
       (let [git (g/node-value changes-view :git)]
-        (if (sync/flow-in-progress? git)
+        ;; If the project was just created, we automatically open the readme resource.
+        (when newly-created?
           (ui/run-later
-            (if-not (dialogs/make-confirmation-dialog
-                      {:title "Resume Sync?"
-                       :size :large
-                       :header {:fx/type fx.v-box/lifecycle
-                                :children [{:fx/type fxui/label
-                                            :variant :header
-                                            :text "The editor was shut down while synchronizing with the server"}
-                                           {:fx/type fxui/label
-                                            :text "Resume syncing or cancel and revert to the pre-sync state?"}]}
-                       :buttons [{:text "Cancel and Revert"
-                                  :cancel-button true
-                                  :result false}
-                                 {:text "Resume Sync"
-                                  :default-button true
-                                  :result true}]})
+            (when-some [readme-resource (workspace/find-resource workspace "/README.md")]
+              (open-resource readme-resource))))
 
-              ;; User chose to cancel sync.
-              (do (sync/interactive-cancel! (partial sync/cancel-flow-in-progress! git))
-                  (app-view/async-reload! app-view changes-view workspace []))
-
-              ;; User chose to resume sync.
-              (let [flow (sync/resume-flow git)]
-                (sync/open-sync-dialog flow prefs)
-                (app-view/async-reload! app-view changes-view workspace []))))
-
-          ;; A sync was not in progress.
-          (do
-            ;; If the project was just created, we automatically open the readme resource.
-            (when newly-created?
+        ;; Ensure .gitignore is configured to ignore build output and metadata files.
+        (let [gitignore-was-modified? (git/ensure-gitignore-configured! git)
+              internal-files-are-tracked? (git/internal-files-are-tracked? git)]
+          (if gitignore-was-modified?
+            (do (changes-view/refresh! changes-view)
+                (ui/run-later
+                  (dialogs/make-info-dialog
+                    {:title "Updated .gitignore File"
+                     :icon :icon/circle-info
+                     :header "Updated .gitignore file"
+                     :content {:fx/type fxui/legacy-label
+                               :style-class "dialog-content-padding"
+                               :text (str "The .gitignore file was automatically updated to ignore build output and metadata files.\n"
+                                          "You should include it along with your changes the next time you synchronize.")}})
+                  (when internal-files-are-tracked?
+                    (show-tracked-internal-files-warning!))))
+            (when internal-files-are-tracked?
               (ui/run-later
-                (when-some [readme-resource (workspace/find-resource workspace "/README.md")]
-                  (open-resource readme-resource))))
-
-            ;; Ensure .gitignore is configured to ignore build output and metadata files.
-            (let [gitignore-was-modified? (git/ensure-gitignore-configured! git)
-                  internal-files-are-tracked? (git/internal-files-are-tracked? git)]
-              (if gitignore-was-modified?
-                (do (changes-view/refresh! changes-view)
-                    (ui/run-later
-                      (dialogs/make-info-dialog
-                        {:title "Updated .gitignore File"
-                         :icon :icon/circle-info
-                         :header "Updated .gitignore file"
-                         :content {:fx/type fxui/label
-                                   :style-class "dialog-content-padding"
-                                   :text (str "The .gitignore file was automatically updated to ignore build output and metadata files.\n"
-                                              "You should include it along with your changes the next time you synchronize.")}})
-                      (when internal-files-are-tracked?
-                        (show-tracked-internal-files-warning!))))
-                (when internal-files-are-tracked?
-                  (ui/run-later
-                    (show-tracked-internal-files-warning!)))))))))
+                (show-tracked-internal-files-warning!)))))))
 
     (reset! the-root root)
     (ui/run-later (slog/smoke-log "stage-loaded"))

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import os
-from waf_dynamo import platform_supports_feature
+from waf_dynamo import platform_supports_feature, platform_glfw_version
 from BuildUtility import create_build_utility
 from waflib import Options
 
@@ -21,22 +21,31 @@ def build(bld):
                       target   = 'test_hid',
                       source   = 'test_hid.cpp')
 
-    platform_lib = ['PLATFORM']
-    graphics_lib = ['GRAPHICS', 'DMGLFW']
+    platform_lib = []
+    graphics_lib = []
     graphics_lib_symbols = []
 
-    if platform_supports_feature(bld.env.PLATFORM, 'opengl', {}):
+    if platform_supports_feature(bld.env.PLATFORM, 'opengles', {}):
+        platform_lib = ['PLATFORM']
+        graphics_lib = ['GRAPHICS_OPENGLES', 'DMGLFW']
+        graphics_lib += ['OPENGLES']
+        graphics_lib_symbols += ['GraphicsAdapterOpenGLES']
+    elif platform_supports_feature(bld.env.PLATFORM, 'opengl', {}):
+        platform_lib = ['PLATFORM']
+        graphics_lib = ['GRAPHICS', 'DMGLFW']
         graphics_lib += ['OPENGL']
         graphics_lib_symbols += ['GraphicsAdapterOpenGL']
 
     if platform_supports_feature(bld.env.PLATFORM, 'vulkan', {}) and Options.options.with_vulkan:
         graphics_lib_symbols += ['GraphicsAdapterVulkan']
         graphics_lib += ['GRAPHICS_VULKAN', 'VULKAN']
-        platform_lib = ['PLATFORM_VULKAN']
+        if platform_glfw_version(bld.env.PLATFORM) == 3:
+            platform_lib = ['PLATFORM_VULKAN']
 
     if len(graphics_lib_symbols) == 0:
         graphics_lib = ['GRAPHICS_NULL']
         graphics_lib_symbols = ['GraphicsAdapterNull']
+        platform_lib = ['PLATFORM_NULL']
 
     if bld.env.PLATFORM in ('arm64-nx64') and 'DMGLFW' in graphics_lib:
         graphics_lib.remove('DMGLFW')

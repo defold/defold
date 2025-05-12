@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -37,7 +37,12 @@
    :boolean false
    :integer 0
    :number 0.0
-   :vec4 [0.0 0.0 0.0 0.0]
+   :vec4 (vector-of :double 0.0 0.0 0.0 0.0)
+   :mat4 (vector-of :double
+           1.0 0.0 0.0 0.0
+           0.0 1.0 0.0 0.0
+           0.0 0.0 1.0 0.0
+           0.0 0.0 0.0 1.0)
    :2panel [],
    :list []})
 
@@ -76,9 +81,11 @@
               {}
               sections-defaults))))
 
-(defn two-panel-defaults [panel-field-info]
-  (let [panel-key-defaults (field-defaults [(:panel-key panel-field-info)])
-        panel-form-defaults (form-defaults (:panel-form panel-field-info))]
+(defn two-panel-defaults [{:keys [panel-key panel-form panel-form-fn] :as _panel-field-info}]
+  (let [panel-key-defaults (field-defaults [panel-key])
+        panel-form-defaults (form-defaults (if panel-form-fn
+                                             (panel-form-fn nil)
+                                             panel-form))]
     (when (and panel-key-defaults panel-form-defaults)
       (merge panel-key-defaults panel-form-defaults))))
 

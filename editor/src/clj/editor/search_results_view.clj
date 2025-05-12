@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -233,7 +233,7 @@
                         (.setExpanded true)))
   (ui/cell-factory! tree-view
                     (fn [item]
-                      (if (satisfies? resource/Resource item)
+                      (if (resource/resource? item)
                         {:text (resource/proj-path item)
                          :icon (workspace/resource-icon item)
                          :style (resource/style-classes item)}
@@ -255,7 +255,7 @@
 (defn- resolve-search-in-files-tree-view-selection [selection]
   (into []
         (keep (fn [item]
-                (if (satisfies? resource/Resource item)
+                (if (resource/resource? item)
                   (when (resource/exists? item)
                     [item {}])
                   (let [resource (:resource item)]
@@ -264,13 +264,13 @@
                         [resource opts]))))))
         selection))
 
-(def ^:private search-in-files-term-prefs-key "search-in-files-term")
-(def ^:private search-in-files-exts-prefs-key "search-in-files-exts")
-(def ^:private search-in-files-include-libraries-prefs-key "search-in-files-include-libraries")
+(def ^:private search-in-files-term-prefs-key [:search-in-files :term])
+(def ^:private search-in-files-exts-prefs-key [:search-in-files :exts])
+(def ^:private search-in-files-include-libraries-prefs-key [:search-in-files :include-libraries])
 
 (defn set-search-term! [prefs term]
   (assert (string? term))
-  (prefs/set-prefs prefs search-in-files-term-prefs-key term))
+  (prefs/set! prefs search-in-files-term-prefs-key term))
 
 (defn- start-search-in-files! [project prefs results-tab-tree-view results-tab-progress-indicator open-fn show-find-results-fn]
   (let [root      ^Parent (ui/load-fxml "search-in-files-dialog.fxml")
@@ -294,9 +294,9 @@
                                 (let [term (.getText search)
                                       exts (.getText types)
                                       include-libraries? (.isSelected include-libraries-check-box)]
-                                  (prefs/set-prefs prefs search-in-files-term-prefs-key term)
-                                  (prefs/set-prefs prefs search-in-files-exts-prefs-key exts)
-                                  (prefs/set-prefs prefs search-in-files-include-libraries-prefs-key include-libraries?)
+                                  (prefs/set! prefs search-in-files-term-prefs-key term)
+                                  (prefs/set! prefs search-in-files-exts-prefs-key exts)
+                                  (prefs/set! prefs search-in-files-include-libraries-prefs-key include-libraries?)
                                   (start-search! term exts include-libraries?)))
             dismiss-and-abort-search! (fn []
                                         (abort-search!)
@@ -336,9 +336,9 @@
                                                 (ui/request-focus! search))
                                nil))))
 
-        (let [term (prefs/get-prefs prefs search-in-files-term-prefs-key "")
-              exts (prefs/get-prefs prefs search-in-files-exts-prefs-key "")
-              include-libraries? (prefs/get-prefs prefs search-in-files-include-libraries-prefs-key true)]
+        (let [term (prefs/get prefs search-in-files-term-prefs-key)
+              exts (prefs/get prefs search-in-files-exts-prefs-key)
+              include-libraries? (prefs/get prefs search-in-files-include-libraries-prefs-key)]
           (ui/text! search term)
           (ui/text! types exts)
           (ui/value! include-libraries-check-box include-libraries?)
@@ -391,10 +391,10 @@
 (defn- resource-cell [{:keys [resource qualifier]}]
   {:graphic {:fx/type fx.h-box/lifecycle
              :spacing 6
-             :children (cond-> [{:fx/type fxui/label
+             :children (cond-> [{:fx/type fxui/legacy-label
                                  :text (resource/resource->proj-path resource)}]
                                qualifier
-                               (conj {:fx/type fxui/label
+                               (conj {:fx/type fxui/legacy-label
                                       :style {:-fx-text-fill :-df-text-dark}
                                       :text qualifier}))}})
 
@@ -422,7 +422,7 @@
 (defmethod override-value-cell-view :default [{:keys [value] :as property}]
   {:fx/type fx.h-box/lifecycle
    :alignment (if (number? value) :top-right :top-left)
-   :children [{:fx/type fxui/label
+   :children [{:fx/type fxui/legacy-label
                :h-box/hgrow :always
                :style-class (overridden-style-classes property)
                :text (string/replace (str value) \newline \space)}]})
@@ -442,7 +442,7 @@
    :children (into []
                    (map-indexed
                      (fn [i v]
-                       {:fx/type fxui/label
+                       {:fx/type fxui/legacy-label
                         :grid-pane/column i
                         :grid-pane/halignment :right
                         :style-class (overridden-style-classes property)
@@ -466,7 +466,7 @@
           ng (Math/round (double (* 255 g)))
           nb (Math/round (double (* 255 b)))
           na (Math/round (double (* 255 a)))]
-      {:fx/type fxui/label
+      {:fx/type fxui/legacy-label
        :style-class (overridden-style-classes property)
        :graphic {:fx/type fx.region/lifecycle
                  :min-width 10
@@ -475,11 +475,11 @@
        :text (if (= 255 na)
                (format "#%02x%02x%02x" nr ng nb)
                (format "#%02x%02x%02x%02x" nr ng nb na))})
-    {:fx/type fxui/label}))
+    {:fx/type fxui/legacy-label}))
 
 (defmethod override-value-cell-view :choicebox [{:keys [edit-type value] :as property}]
   (let [labels (into {} (:options edit-type))]
-    {:fx/type fxui/label
+    {:fx/type fxui/legacy-label
      :style-class (overridden-style-classes property)
      :text (get labels value)}))
 

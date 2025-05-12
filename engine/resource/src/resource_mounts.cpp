@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -22,6 +22,7 @@
 
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
+#include <dlib/math.h>
 #include <dlib/mutex.h>
 #include <dlib/sys.h>
 #include <algorithm> // std::sort
@@ -391,7 +392,28 @@ static dmResource::Result ReadCustomResource(HContext ctx, dmhash_t path_hash, u
 
         memcpy(buffer, file->m_Resource, buffer_size);
 
-        DM_RESOURCE_DBG_LOG(3, "ReadResource OK: %s  " DM_HASH_FMT " (%u bytes) (custom file)\n", path_hash, buffer_size);
+        DM_RESOURCE_DBG_LOG(3, "ReadResource OK: %s  " DM_HASH_FMT " (%u bytes) (custom file)\n", dmHashReverseSafe64(path_hash), path_hash, buffer_size);
+        return dmResource::RESULT_OK;
+    }
+    return dmResource::RESULT_RESOURCE_NOT_FOUND;
+}
+
+static dmResource::Result ReadCustomResourcePartial(HContext ctx, dmhash_t path_hash, uint32_t offset, uint32_t size, uint8_t* buffer, uint32_t* nread)
+{
+    // Lock should already be held
+    CustomFile* file = ctx->m_CustomFiles.Get(path_hash);
+    if (file)
+    {
+        if ((offset+size) > file->m_Size)
+        {
+            offset = dmMath::Min(offset, file->m_Size);
+            size = file->m_Size - offset;
+        }
+
+        memcpy(buffer, ((uint8_t*)file->m_Resource) + offset, size);
+        *nread = size;
+
+        DM_RESOURCE_DBG_LOG(3, "ReadResource OK: %s  " DM_HASH_FMT " (offset: %u  size: %u) (custom file)\n", dmHashReverseSafe64(path_hash), path_hash, offset, size);
         return dmResource::RESULT_OK;
     }
     return dmResource::RESULT_RESOURCE_NOT_FOUND;
@@ -410,7 +432,7 @@ dmResource::Result GetResourceSize(HContext ctx, dmhash_t path_hash, const char*
             continue;
         if (dmResourceProvider::RESULT_OK == result)
         {
-            DM_RESOURCE_DBG_LOG(3, "GetResourceSize OK: %s  " DM_HASH_FMT " (%u bytes)\n", path, path_hash, *resource_size);
+            DM_RESOURCE_DBG_LOG(3, "GetResourceSize OK: %s  " DM_HASH_FMT " (%u bytes) - mount %s\n", path, path_hash, *resource_size, mount.m_Name);
             DebugPrintMount(3, mount);
             return dmResource::RESULT_OK;
         }
@@ -442,7 +464,7 @@ dmResource::Result ReadResource(HContext ctx, dmhash_t path_hash, const char* pa
             continue;
         if (dmResourceProvider::RESULT_OK == result)
         {
-            DM_RESOURCE_DBG_LOG(3, "ReadResource: %s (%u bytes)\n", path, buffer_size);
+            DM_RESOURCE_DBG_LOG(3, "%s: %s (%u bytes) - mount %s\n", __FUNCTION__, path, buffer_size, mount.m_Name);
             DebugPrintMount(3, mount);
             return dmResource::RESULT_OK;
         }
@@ -455,41 +477,28 @@ dmResource::Result ReadResource(HContext ctx, dmhash_t path_hash, const char* pa
     return dmResource::RESULT_RESOURCE_NOT_FOUND;
 }
 
-dmResource::Result ReadResource(HContext ctx, const char* path, dmhash_t path_hash, dmArray<char>* buffer)
+dmResource::Result ReadResourcePartial(HContext ctx, dmhash_t path_hash, const char* path, uint32_t offset, uint32_t size, uint8_t* buffer, uint32_t* nread)
 {
     DM_MUTEX_SCOPED_LOCK(ctx->m_Mutex);
 
-    uint32_t resource_size;
-    uint32_t size = ctx->m_Mounts.Size();
-    for (uint32_t i = 0; i < size; ++i)
+    uint32_t num_mounts = ctx->m_Mounts.Size();
+    for (uint32_t i = 0; i < num_mounts; ++i)
     {
         ArchiveMount& mount = ctx->m_Mounts[i];
-        dmResourceProvider::Result result = dmResourceProvider::GetFileSize(mount.m_Archive, path_hash, path, &resource_size);
+        dmResourceProvider::Result result = dmResourceProvider::ReadFilePartial(mount.m_Archive, path_hash, path, offset, size, buffer, nread);
+        if (dmResourceProvider::RESULT_NOT_FOUND == result)
+            continue;
         if (dmResourceProvider::RESULT_OK == result)
         {
-            if (buffer->Capacity() < resource_size)
-                buffer->SetCapacity(resource_size);
-            buffer->SetSize(resource_size);
-
-            result = dmResourceProvider::ReadFile(mount.m_Archive, path_hash, path, (uint8_t*)buffer->Begin(), resource_size);
-            DM_RESOURCE_DBG_LOG(3, "ReadResource: %s (%u bytes) - result %d\n", path, resource_size, result);
+            DM_RESOURCE_DBG_LOG(3, "%s: %s (offset: %u  size: %u)\n", __FUNCTION__, path, offset, size);
             DebugPrintMount(3, mount);
-            return ProviderResultToResult(result);
+            return dmResource::RESULT_OK;
         }
+        return ProviderResultToResult(result);
     }
 
     if (!ctx->m_CustomFiles.Empty())
-    {
-        dmResource::Result result = GetCustomResourceSize(ctx, path_hash, path, &resource_size);
-        if (dmResource::RESULT_OK == result)
-        {
-            if (buffer->Capacity() < resource_size)
-                buffer->SetCapacity(resource_size);
-            buffer->SetSize(resource_size);
-
-            return ReadCustomResource(ctx, path_hash, (uint8_t*)buffer->Begin(), resource_size);
-        }
-    }
+        return ReadCustomResourcePartial(ctx, path_hash, offset, size, buffer, nread);
 
     return dmResource::RESULT_RESOURCE_NOT_FOUND;
 }

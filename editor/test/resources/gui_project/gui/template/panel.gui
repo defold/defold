@@ -1,0 +1,34 @@
+textures {
+  name: "panel_texture"
+  texture: "/assets/panel.atlas"
+}
+nodes {
+  position {
+    x: 160.0
+    y: 96.0
+  }
+  type: TYPE_TEMPLATE
+  id: "button"
+  inherit_alpha: true
+  template: "/gui/template/button.gui"
+}
+nodes {
+  color {
+    x: 0.0
+    z: 0.0
+  }
+  type: TYPE_BOX
+  texture: "panel_texture/button_checkered"
+  id: "button/box"
+  parent: "button"
+  layer: "panel_layer"
+  overridden_fields: 5
+  overridden_fields: 9
+  overridden_fields: 20
+  template_node_child: true
+}
+layers {
+  name: "panel_layer"
+}
+material: "/builtins/materials/gui.material"
+adjust_reference: ADJUST_REFERENCE_PARENT

@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -27,7 +27,8 @@
             [internal.util :as util]
             [potemkin.namespaces :as namespaces]
             [schema.core :as s]
-            [util.coll :as coll]
+            [service.log :as log]
+            [util.coll :as coll :refer [pair]]
             [util.fn :as fn])
   (:import [internal.graph.error_values ErrorValue]
            [internal.graph.types Arc]
@@ -82,6 +83,12 @@
   ([basis node-id]
    (gt/node-by-id-at basis node-id)))
 
+(defn node-exists?
+  ([node-id]
+   (node-exists? (now) node-id))
+  ([basis node-id]
+   (some? (gt/node-by-id-at basis node-id))))
+
 (defn node-type*
   "Return the node-type given a node-id.  Uses the current basis if not provided."
   ([node-id]
@@ -106,6 +113,18 @@
 
 (defn node-override? [node]
   (some? (gt/original node)))
+
+(defn own-property-values
+  "Returns a map of property-label property-value for the specified node. If the
+  queried node is an override node, the map will contain overridden properties
+  only. Otherwise, the map will include assigned properties and defaults."
+  [node]
+  (or (if (node-override? node)
+        (gt/overridden-properties node)
+        (coll/merge
+          (in/defaults (gt/node-type node))
+          (gt/assigned-properties node)))
+      {}))
 
 (defn invalidate-counters
   "The current state of the invalidate counters in the system."
@@ -199,7 +218,8 @@
          override-id-generator (is/override-id-generator system)
          tx-data-context-map (or (:tx-data-context-map opts) {})
          metrics-collector (:metrics opts)
-         transaction-context (it/new-transaction-context basis id-generators override-id-generator tx-data-context-map metrics-collector)
+         track-changes (:track-changes opts true)
+         transaction-context (it/new-transaction-context basis id-generators override-id-generator tx-data-context-map metrics-collector track-changes)
          tx-result (it/transact* transaction-context txs)]
      (when (and (not (:dry-run opts))
                 (= :ok (:status tx-result)))
@@ -225,16 +245,6 @@
  "Returns a list of the node-ids added given a result from a transaction, (tx-result)."
   [tx-result]
   (:nodes-added tx-result))
-
-(defn is-added?
-  "Returns a boolean if a node was added as a result of a transaction given a tx-result and node."
-  [tx-result node-id]
-  (contains? (:nodes-added tx-result) node-id))
-
-(defn is-deleted?
-  "Returns a boolean if a node was delete as a result of a transaction given a tx-result and node."
-  [tx-result node-id]
-  (contains? (:nodes-deleted tx-result) node-id))
 
 (defn transaction-basis
   "Returns the final basis from the result of a transaction given a tx-result"
@@ -382,11 +392,14 @@
   optional. _producer_ may be a var that names an fn, or fnk.  It may
   also be a function tail as [arglist] + forms.
 
-  In the arglist, you can specify ^:try metadata on arguments to allow
-  the computation of the output even when some of its arguments are
-  errors. Note that adding ^:try metadata on an array input will never
-  supply an error value to the output fnk; instead, it will provide
-  an array where some items might be errors.
+  In the arglist, you can specify ^:raw or ^:try metadata tags on arguments to
+  control how dependencies are evaluated. Tagging a property argument with ^:raw
+  will bypass any (value _getter_) declared for the property, and instead
+  produce the raw value assigned to the property map in the node or its override
+  chain. Tagging an argument with ^:try allows the computation of the output
+  even when some of its arguments are errors. Note that adding ^:try metadata on
+  an :array input will not supply an ErrorValue to the fnk; instead, it will
+  provide an array where some items might be ErrorValues.
 
   Values produced on an output with the :cached flag will be cached in
   memory until the node is affected by some change in inputs or
@@ -503,6 +516,22 @@
                                  (is/undo-stack)
                                  (last))]
       (:sequence-label prev-step))))
+
+(defn take-node-ids
+  "Given a count, returns a realized sequence of claimed, unique node-ids in the
+  specified graph."
+  [^long graph-id ^long node-id-count]
+  (when (pos? node-id-count)
+    (is/take-node-ids @*the-system* graph-id node-id-count)))
+
+(def add-node
+  "Returns the transaction step for adding a node to the graph. The node will
+  typically have been constructed beforehand using the construct function.
+
+  Example:
+
+  `(transact (add-node (construct SimpleTestNode)))`"
+  it/new-node)
 
 (defn- construct-node-with-id
   [graph-id node-type args]
@@ -740,6 +769,18 @@
   (assert node-id)
   (it/invalidate node-id))
 
+(defn invalidate-output
+  "Creates a transaction step to invalidate the specified output of the node.
+  It will take effect when the transaction is applied in a transact call.
+
+   Example:
+
+   `(transact (invalidate-output node-id :output-label))`"
+  [node-id output-label]
+  {:pre [(node-id? node-id)
+         (keyword? output-label)]}
+  (it/invalidate-output node-id output-label))
+
 (defn mark-defective
   "Creates the transaction step to mark a node as _defective_.
   This means that all the outputs of the node will be replace by the defective value.
@@ -921,12 +962,18 @@
      (valid-node-value node-id label evaluation-context)))
   ([node-id label evaluation-context]
    (let [value (node-value node-id label evaluation-context)]
-     (if (error? value)
-       (throw (ex-info "Evaluation produced an ErrorValue."
-                       {:node-type-kw (node-type-kw (:basis evaluation-context) node-id)
-                        :label label
-                        :error value}))
-       value))))
+     (if-not (error? value)
+       value
+       (let [node-type-kw (node-type-kw (:basis evaluation-context) node-id)]
+         (throw
+           (ex-info
+             (format "Evaluation produced an ErrorValue from %s on %s %d."
+                     label
+                     (symbol node-type-kw)
+                     node-id)
+             {:node-type-kw node-type-kw
+              :label label
+              :error value})))))))
 
 (defn maybe-node-value
   "Like the node-value function, but returns nil if evaluation produced an
@@ -942,6 +989,71 @@
          (let [value (in/node-value node label evaluation-context)]
            (when-not (error? value)
              value)))))))
+
+(defmacro tx-cached-value!
+  "Finds and returns a cached value at the specified key path of the
+  :tx-data-context in the supplied evaluation-context. If no existing value was
+  found in the :tx-data-context, evaluate the value-expr and store the value at
+  the specified key path in the :tx-data-context, then return the value."
+  [evaluation-context-expr tx-data-context-key-path-expr value-expr]
+  `(let [tx-data-context-atom# (:tx-data-context ~evaluation-context-expr)
+         tx-data-context-key-path# ~tx-data-context-key-path-expr
+         cached-value# (-> tx-data-context-atom#
+                           (deref)
+                           (get-in tx-data-context-key-path# :dynamo.graph/not-found))]
+     (case cached-value#
+       :dynamo.graph/not-found
+       (let [evaluated-value# ~value-expr]
+         (swap! tx-data-context-atom# assoc-in tx-data-context-key-path# evaluated-value#)
+         evaluated-value#)
+       cached-value#)))
+
+(defn tx-cached-node-value!
+  "Like the node-value function, but caches the result in the :tx-data-context
+  of the supplied evaluation-context if it doesn't have a cache. This is mostly
+  a workaround for the fact that the evaluation-context supplied to property
+  setters inside transactions does not contain a cache. Some operations, like
+  resource lookups, can benefit hugely from caching the lookup maps. However,
+  beware that this function bypasses the regular cache invalidation mechanism.
+  Don't use it on outputs that might otherwise have been invalidated between two
+  calls in the same transaction. The lack of a cache inside transactions has
+  previously been reported as DEFEDIT-1411."
+  [node-id label evaluation-context]
+  (cond
+    (nil? node-id)
+    nil
+
+    (some? (:cache evaluation-context))
+    (node-value node-id label evaluation-context)
+
+    :else
+    (let [tx-data-context-key-path (pair :tx-node-value-cache (gt/endpoint node-id label))]
+      (tx-cached-value! evaluation-context tx-data-context-key-path
+        (node-value node-id label evaluation-context)))))
+
+(definline raw-property-value*
+  "Fast raw property access to the given node. Will bypass the property value
+  fnk if present, but does traverse the override hierarchy. This can be more
+  efficient than the node-value function, as it doesn't need to create an
+  evaluation-context, check output jammers, and so on. It will simply return the
+  value in the property map for the first node in the override chain that
+  provides it. You should only really use this with properties that don't have a
+  value fnk on nodes that you're sure haven't been marked defective."
+  [basis node property-label]
+  `(gt/get-property ~node ~basis ~property-label))
+
+(definline raw-property-value
+  "Fast raw property access to the given node-id. Will bypass the property value
+  fnk if present, but does traverse the override hierarchy. This can be more
+  efficient than the node-value function, as it doesn't need to create an
+  evaluation-context, check output jammers, and so on. It will simply return the
+  value in the property map for the first node in the override chain that
+  provides it. You should only really use this with properties that don't have a
+  value fnk on nodes that you're sure haven't been marked defective."
+  [basis node-id property-label]
+  `(let [basis# ~basis
+         node# (gt/node-by-id-at basis# ~node-id)]
+     (raw-property-value* basis# node# ~property-label)))
 
 (defn graph-value
   "Returns the graph from the system given a graph-id and key.  It returns the graph at the point in time of the bais, if provided.
@@ -1063,6 +1175,12 @@
    (node-instance? (now) type node-id))
   ([basis type node-id]
    (node-instance*? type (gt/node-by-id-at basis node-id))))
+
+(defn node-kw-instance?
+  "Returns true if the node is a member of a given type keyword, including
+   supertypes."
+  [basis type-kw node-id]
+  (isa? (node-type-kw basis node-id) type-kw))
 
 (defn node-instance-match*
   "Returns the first node-type from the provided sequence of node-types that
@@ -1389,10 +1507,10 @@
   ([root-id opts]
    (override root-id opts default-override-init-fn))
   ([root-id opts init-fn]
-   (let [{:keys [traverse-fn properties-by-node-id]
+   (let [{:keys [traverse-fn init-props-fn properties-by-node-id]
           :or {traverse-fn always-override-traverse-fn
                properties-by-node-id default-override-properties-by-node-id}} opts]
-     (it/override root-id traverse-fn init-fn properties-by-node-id))))
+     (it/override root-id traverse-fn init-props-fn init-fn properties-by-node-id))))
 
 (defn transfer-overrides [from-id->to-id]
   (it/transfer-overrides from-id->to-id))
@@ -1537,7 +1655,10 @@
   "Set up the initial system including graphs, caches, and disposal queues"
   [config]
   (reset! *the-system* (is/make-system config))
-  (low-memory/add-callback! clear-system-cache!))
+  (low-memory/add-callback!
+    (fn low-memory-callback! []
+      (log/info :message "Clearing the system cache in desperation due to low-memory conditions.")
+      (clear-system-cache!))))
 
 (defn make-graph!
   "Create a new graph in the system with optional values of `:history` and `:volatility`. If no

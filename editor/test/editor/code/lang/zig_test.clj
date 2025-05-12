@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -28,7 +28,9 @@
           [9 "source.zig"]
           [12 "support.function.builtin.zig"]
           [19 "source.zig"]
-          [20 "string.quoted.double.zig"]
+          [20 "punctuation.definition.string.quoted.begin.zig"]
+          [21 "string.quoted.double.zig"]
+          [24 "punctuation.definition.string.quoted.end.zig"]
           [25 "source.zig"]]
          (analyze-runs "const std = @import(\"std\");"))))
 
@@ -83,8 +85,9 @@
           [10 "source.zig"]
           [11 "entity.name.function.zig"]
           [19 "source.zig"]
-          [20 "string.quoted.double.zig"]
+          [20 "punctuation.definition.string.quoted.begin.zig"]
+          [21 "string.quoted.double.zig"]
           [32 "constant.character.escape.zig"]
-          [34 "string.quoted.double.zig"]
+          [34 "punctuation.definition.string.quoted.end.zig"]
           [35 "source.zig"]]
          (analyze-runs "try stdOut.writeAll(\"Hello World\\n\");"))))

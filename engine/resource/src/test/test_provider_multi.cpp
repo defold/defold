@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -87,13 +87,22 @@ protected:
         {
             dmResourceProvider::Result result;
 
-            result = Mount(loader_file, "build/src/test/overrides", &m_Archives[0]);
+#define FSPREFIX ""
+#if defined(__EMSCRIPTEN__)
+            // Trigger the vsf init for emscripten (hidden in MakeHostPath)
+            char path[1024];
+            dmTestUtil::MakeHostPath(path, sizeof(path), "src");
+            #undef FSPREFIX
+            #define FSPREFIX DM_HOSTFS
+#endif
+
+            result = Mount(loader_file, FSPREFIX "build/src/test/overrides", &m_Archives[0]);
             ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
 
-            result = Mount(loader_archive, "dmanif:build/src/test/resources", &m_Archives[1]);
+            result = Mount(loader_archive, "dmanif:" FSPREFIX "build/src/test/resources", &m_Archives[1]);
             ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
 
-            result = Mount(loader_zip, "zip:build/src/test/luresources_compressed.zip", &m_Archives[2]);
+            result = Mount(loader_zip, "zip:" FSPREFIX "build/src/test/luresources_compressed.zip", &m_Archives[2]);
             ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
 
             m_Mounts = dmResourceMounts::Create(0);
@@ -237,7 +246,7 @@ TEST_F(ArchiveProvidersMulti, ReadCustomFile)
     // Test without having added the file
     result = dmResourceMounts::GetResourceSize(m_Mounts, file0_hash, file0_path, &resource_size);
     ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, result);
-    ASSERT_EQ(0u, resource_size);
+    ASSERT_EQ(0u, resource_size); // test that the value hasn't been touched
 
     // Test with adding the file
     result = dmResourceMounts::AddFile(m_Mounts, file0_hash, file0_size, file0_data);
@@ -268,6 +277,78 @@ TEST_F(ArchiveProvidersMulti, ReadCustomFile)
     result = dmResourceMounts::GetResourceSize(m_Mounts, file0_hash, file0_path, &resource_size);
     ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, result);
     ASSERT_EQ(0u, resource_size);
+}
+
+TEST_F(ArchiveProvidersMulti, ReadCustomFilePartial)
+{
+    uint8_t     file_data[] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15};
+    uint32_t    file_size = DM_ARRAY_SIZE(file_data);
+    const char* file_path = "/custom/test.adc";
+    dmhash_t    file_hash = dmHashString64(file_path);
+
+    dmResource::Result result = dmResource::RESULT_UNKNOWN_ERROR;
+
+    // Test with adding the file
+    result = dmResourceMounts::AddFile(m_Mounts, file_hash, file_size, file_data);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+
+    uint32_t resource_size = 0;
+    result = dmResourceMounts::GetResourceSize(m_Mounts, file_hash, file_path, &resource_size);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+    ASSERT_EQ(file_size, resource_size);
+
+    for (uint32_t chunk_size = 1; chunk_size < file_size+2; ++chunk_size)
+    {
+        uint8_t read_buffer[DM_ARRAY_SIZE(file_data)];
+        memset(read_buffer, 0, sizeof(read_buffer));
+
+        uint32_t offset = 0;
+        while (offset < file_size)
+        {
+            uint32_t nread;
+            result = dmResourceMounts::ReadResourcePartial(m_Mounts, file_hash, file_path, offset, chunk_size, read_buffer, &nread);
+            ASSERT_EQ(dmResource::RESULT_OK, result);
+            ASSERT_NE(0u, nread);
+            ASSERT_GE(chunk_size, nread);
+
+            ASSERT_ARRAY_EQ_LEN(&file_data[offset], read_buffer, nread);
+            offset += nread;
+        }
+    }
+
+    result = dmResourceMounts::RemoveFile(m_Mounts, file_hash);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+}
+
+TEST_F(ArchiveProvidersMulti, ReadCustomEmptyFile)
+{
+    uint8_t     file_data[] = {0};
+    uint32_t    file_size = 0;
+    const char* file_path = "/custom/empty.adc";
+    dmhash_t    file_hash = dmHashString64(file_path);
+
+    uint32_t resource_size = 0;
+    dmResource::Result result = dmResource::RESULT_UNKNOWN_ERROR;
+
+    // Test with adding the file
+    result = dmResourceMounts::AddFile(m_Mounts, file_hash, file_size, file_data);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+
+    result = dmResourceMounts::GetResourceSize(m_Mounts, file_hash, file_path, &resource_size);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+    ASSERT_EQ(file_size, resource_size);
+
+    uint8_t resource[1];
+    result = dmResourceMounts::ReadResource(m_Mounts, file_hash, file_path, resource, resource_size);
+    ASSERT_EQ(file_size, resource_size);
+
+    uint32_t nread;
+    result = dmResourceMounts::ReadResourcePartial(m_Mounts, file_hash, file_path, 0, file_size, resource, &nread);
+    ASSERT_EQ(file_size, nread);
+
+    // Test removing the file
+    result = dmResourceMounts::RemoveFile(m_Mounts, file_hash);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
 }
 
 extern "C" void dmExportedSymbols();

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -133,7 +133,7 @@ public class ColladaUtilTest {
      */
     private void assertBone(Rig.Bone bone, Vector3d expectedPosition, Quat4d expectedRotation) {
         assertV(expectedPosition, MathUtil.ddfToVecmath(bone.getLocal().getTranslation()));
-        assertV(expectedRotation, MathUtil.ddfToVecmath(bone.getLocal().getRotation()));
+        assertV(expectedRotation, MathUtil.ddfToVecmath(bone.getLocal().getRotation(), "bone %s".formatted(bone.getName())));
     }
 
     /*

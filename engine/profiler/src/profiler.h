@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -38,6 +38,9 @@ namespace dmProfiler
     void SetUpdateFrequency(uint32_t update_frequency);
     void ToggleProfiler();
     void RenderProfiler(dmProfile::HProfile profile, dmGraphics::HContext graphics_context, dmRender::HRenderContext render_context, dmRender::HFontMap system_font_map);
+
+    // Tag the currently recorded frame for output to console
+    void SetDumpFrame();
 
 } // dmProfiler
 

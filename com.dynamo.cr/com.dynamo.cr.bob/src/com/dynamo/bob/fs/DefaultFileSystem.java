@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -27,6 +27,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
@@ -40,7 +41,7 @@ public class DefaultFileSystem extends AbstractFileSystem<DefaultFileSystem, Def
         byte[] sha1;
     }
 
-    private Map<String, CacheEntry> cache = new HashMap<String, DefaultFileSystem.CacheEntry>();
+    private Map<String, CacheEntry> cache = new ConcurrentHashMap<String, CacheEntry>();
 
     @Override
     public IResource get(String path) {
@@ -87,7 +88,7 @@ public class DefaultFileSystem extends AbstractFileSystem<DefaultFileSystem, Def
     @SuppressWarnings("unchecked")
     @Override
     public void loadCache() {
-        cache = new HashMap<String, DefaultFileSystem.CacheEntry>();
+        cache = new ConcurrentHashMap<String, CacheEntry>();
         String fileName = FilenameUtils.concat(FilenameUtils.concat(this.rootDirectory, this.buildDirectory), "digest_cache");
         ObjectInputStream is = null;
         try {

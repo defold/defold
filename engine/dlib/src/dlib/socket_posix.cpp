@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -22,6 +22,11 @@
 
 #if defined(__linux__)
 #include <linux/if.h>
+#endif
+
+#if defined(__EMSCRIPTEN__)
+/// used for dmStrCpy
+#include <dlib/dstrings.h>
 #endif
 
 #if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
@@ -173,6 +178,7 @@ namespace dmSocket
             case TYPE_STREAM:  return SOCK_STREAM;
             case TYPE_DGRAM:   return SOCK_DGRAM;
         }
+        return 0;
     }
     static int ProtocolToNative(Protocol protocol)
     {
@@ -181,6 +187,7 @@ namespace dmSocket
             case PROTOCOL_TCP:  return IPPROTO_TCP;
             case PROTOCOL_UDP:  return IPPROTO_UDP;
         }
+        return 0;
     }
     static int DomainToNative(Domain domain)
     {
@@ -191,6 +198,7 @@ namespace dmSocket
             case DOMAIN_IPV6:     return AF_INET6;
             case DOMAIN_UNKNOWN:  return 0xff;
         }
+        return 0;
     }
 
     Result New(Domain domain, Type type, Protocol protocol, Socket* socket)
@@ -213,9 +221,13 @@ namespace dmSocket
 
     static Result SetSockoptBool(Socket socket, int level, int name, bool option)
     {
+#if defined(__EMSCRIPTEN__)
+        return NATIVETORESULT(DM_SOCKET_ERRNO);
+#else
         int on = (int) option;
         int ret = setsockopt(socket, level, name, (char *) &on, sizeof(on));
         return ret >= 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
+#endif
     }
 
     Result SetReuseAddress(Socket socket, bool reuse)
@@ -236,6 +248,9 @@ namespace dmSocket
 
     Result AddMembership(Socket socket, Address multi_addr, Address interface_addr, int ttl)
     {
+#if defined(__EMSCRIPTEN__)
+        return RESULT_AFNOSUPPORT;
+#else
         int result = -1;
         if (IsSocketIPv4(socket))
         {
@@ -261,10 +276,14 @@ namespace dmSocket
         }
 
         return result == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
+#endif
     }
 
     Result SetMulticastIf(Socket socket, Address address)
     {
+#if defined(__EMSCRIPTEN__)
+        return RESULT_AFNOSUPPORT;
+#else
         int result = -1;
         if (IsSocketIPv4(socket))
         {
@@ -288,6 +307,7 @@ namespace dmSocket
         }
 
         return result == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
+#endif
     }
 
     Result Delete(Socket socket)
@@ -433,6 +453,7 @@ namespace dmSocket
             case SHUTDOWNTYPE_READWRITE:    return SHUT_RDWR;
 #endif
         }
+        return 0;
     }
 
     Result Shutdown(Socket socket, ShutdownType how)
@@ -627,10 +648,15 @@ namespace dmSocket
 
     Result GetHostname(char* hostname, int hostname_length)
     {
+#if defined(__EMSCRIPTEN__)
+        dmStrlCpy(hostname, "emscripten", hostname_length);
+        return RESULT_OK;
+#else
         int r = gethostname(hostname, hostname_length);
         if (hostname_length > 0)
             hostname[hostname_length - 1] = '\0';
         return r == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
+#endif
     }
 
 #if !defined(__APPLE__)
@@ -775,6 +801,9 @@ namespace dmSocket
 
     static Result SetSockoptTime(Socket socket, int level, int name, uint64_t time)
     {
+#if defined(__EMSCRIPTEN__)
+        return NATIVETORESULT(DM_SOCKET_ERRNO);
+#else
 #ifdef WIN32
         DWORD timeval = time / 1000;
         if (time > 0 && timeval == 0) {
@@ -795,6 +824,7 @@ namespace dmSocket
         {
             return RESULT_OK;
         }
+#endif
     }
 
     Result SetSendTimeout(Socket socket, uint64_t timeout)

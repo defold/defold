@@ -3,6 +3,6 @@
 def build(bld):
     bld.program(features = 'cxx test',
                 includes = '../../src . ../../proto',
-                use      = 'TESTMAIN DLIB PROFILE_NULL SOCKET LUA SCRIPT rig',
+                use      = 'TESTMAIN DLIB PROFILE_NULL SOCKET LUA SCRIPT PLATFORM_NULL GRAPHICS_NULL rig',
                 target   = 'test_rig',
                 source   = 'test_rig.cpp')

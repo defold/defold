@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -162,16 +162,17 @@
 #define HID_KEY_MENU (HID_SPECIAL_START+55)
 #define HID_KEY_BACK (HID_SPECIAL_START+56)
 
-#define HID_MOUSE_BUTTON_LEFT   0
-#define HID_MOUSE_BUTTON_MIDDLE 1
-#define HID_MOUSE_BUTTON_RIGHT  2
-#define HID_MOUSE_BUTTON_1      3
-#define HID_MOUSE_BUTTON_2      4
-#define HID_MOUSE_BUTTON_3      5
-#define HID_MOUSE_BUTTON_4      6
-#define HID_MOUSE_BUTTON_5      7
-#define HID_MOUSE_BUTTON_6      8
-#define HID_MOUSE_BUTTON_7      9
-#define HID_MOUSE_BUTTON_8      10
+#define HID_MOUSE_BUTTON_1      0
+#define HID_MOUSE_BUTTON_2      1
+#define HID_MOUSE_BUTTON_3      2
+#define HID_MOUSE_BUTTON_4      3
+#define HID_MOUSE_BUTTON_5      4
+#define HID_MOUSE_BUTTON_6      5
+#define HID_MOUSE_BUTTON_7      6
+#define HID_MOUSE_BUTTON_8      7
+
+#define HID_MOUSE_BUTTON_LEFT   HID_MOUSE_BUTTON_1
+#define HID_MOUSE_BUTTON_MIDDLE HID_MOUSE_BUTTON_2
+#define HID_MOUSE_BUTTON_RIGHT  HID_MOUSE_BUTTON_3
 
 #endif

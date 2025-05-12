@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -38,7 +38,8 @@ HConstant NewConstant(dmhash_t name_hash)
 
 void DeleteConstant(HConstant constant)
 {
-    dmMemory::AlignedFree(constant->m_Values);
+   if (constant->m_AllocatedValues)
+        dmMemory::AlignedFree(constant->m_Values);
     delete constant;
 }
 
@@ -57,12 +58,27 @@ Result SetConstantValues(HConstant constant, dmVMath::Vector4* values, uint32_t 
         {
             return RESULT_OUT_OF_RESOURCES;
         }
-        dmMemory::AlignedFree(constant->m_Values);
+        if (constant->m_AllocatedValues)
+            dmMemory::AlignedFree(constant->m_Values);
         constant->m_Values = newmem;
     }
 
     memcpy(constant->m_Values, values, num_values * sizeof(dmVMath::Vector4));
     constant->m_NumValues = num_values;
+    constant->m_AllocatedValues = 1;
+
+    return dmRender::RESULT_OK;
+}
+
+Result SetConstantValuesRef(HConstant constant, dmVMath::Vector4* values, uint32_t num_values)
+{
+   if (constant->m_AllocatedValues)
+        dmMemory::AlignedFree(constant->m_Values);
+
+    constant->m_AllocatedValues = 0;
+    constant->m_NumValues = num_values;
+    constant->m_Values    = values;
+
     return dmRender::RESULT_OK;
 }
 

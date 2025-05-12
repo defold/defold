@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -28,8 +28,8 @@
 #include "particle.h"
 #include "particle_private.h"
 
-DM_PROPERTY_GROUP(rmtp_Particles, "Particles");
-DM_PROPERTY_U32(rmtp_ParticlesAlive, 0, FrameReset, "# particles alive", &rmtp_Particles);
+DM_PROPERTY_GROUP(rmtp_Particles, "Particles", 0);
+DM_PROPERTY_U32(rmtp_ParticlesAlive, 0, PROFILE_PROPERTY_FRAME_RESET, "# particles alive", &rmtp_Particles);
 
 namespace dmParticle
 {
@@ -48,8 +48,10 @@ namespace dmParticle
     const char* MAX_INSTANCE_COUNT_KEY = "particle_fx.max_count";
     /// Config key to use for tweaking maximum number of emitters in a context.
     const char* MAX_EMITTER_COUNT_KEY  = "particle_fx.max_emitter_count";
-    /// Config key to use for tweaking the total maximum number of particles in a context.
-    const char* MAX_PARTICLE_COUNT_KEY = "particle_fx.max_particle_count";
+    /// Config key to use for tweaking the total maximum number of particles in a context in GPU buffer.
+    const char* MAX_PARTICLE_GPU_COUNT_KEY = "particle_fx.max_particle_count";
+    /// Config key to use for tweaking the total maximum number of particles in a context in CPU buffer.
+    const char* MAX_PARTICLE_CPU_COUNT_KEY = "particle_fx.max_particle_buffer_count";
 
     /// Used for degree to radian conversion
     const float DEG_RAD = (float) (M_PI / 180.0);
@@ -599,7 +601,9 @@ namespace dmParticle
     static void UpdateEmitterState(Instance* instance, Emitter* emitter, EmitterPrototype* emitter_prototype, dmParticleDDF::Emitter* emitter_ddf, float dt);
     static void EvaluateEmitterProperties(Emitter* emitter, Property* emitter_properties, float duration, float properties[EMITTER_KEY_COUNT]);
     static void EvaluateParticleProperties(Emitter* emitter, Property* particle_properties, dmParticleDDF::Emitter* emitter_ddf, float dt);
-    static GenerateVertexDataResult UpdateRenderData(HParticleContext context, Instance* instance, Emitter* emitter, dmParticleDDF::Emitter* ddf, const dmGraphics::VertexAttributeInfos& attribute_infos, const Vector4& color, uint32_t vertex_index, uint8_t* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* bytes_written, float dt);
+    static GenerateVertexDataResult UpdateRenderData(HParticleContext context, Instance* instance, Emitter* emitter, dmParticleDDF::Emitter* ddf,
+                                                    uint32_t particle_start, uint32_t particle_count,
+                                                    const dmGraphics::VertexAttributeInfos& attribute_infos, const Vector4& color, uint32_t vertex_index, uint8_t* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* bytes_written, float dt);
     static void GenerateKeys(Emitter* emitter, float max_particle_life_time);
     static void SortParticles(Emitter* emitter);
     static void Simulate(Instance* instance, Emitter* emitter, EmitterPrototype* prototype, dmParticleDDF::Emitter* ddf, float dt);
@@ -640,7 +644,34 @@ namespace dmParticle
         emitter->m_LastPosition = world_position;
     }
 
-    GenerateVertexDataResult GenerateVertexData(HParticleContext context, float dt, HInstance instance, uint32_t emitter_index,  const dmGraphics::VertexAttributeInfos& attribute_infos, const Vector4& color, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size)
+    uint32_t GetParticleCount(HParticleContext context, HInstance instance, uint32_t emitter_index)
+    {
+        DM_PROFILE(__FUNCTION__);
+        if (instance == INVALID_INSTANCE)
+        {
+            return 0;
+        }
+
+        Instance* inst = GetInstance(context, instance);
+        if (IsSleeping(inst))
+        {
+            return 0;
+        }
+
+        Emitter* emitter = &inst->m_Emitters[emitter_index];
+        return emitter->m_Particles.Size();
+    }
+
+    static GenerateVertexDataResult GenerateVertexDataInternal(HParticleContext context,
+                                                                float dt,
+                                                                HInstance instance,
+                                                                uint32_t emitter_index,
+                                                                uint32_t particle_start,
+                                                                uint32_t particle_count,
+                                                                const dmGraphics::VertexAttributeInfos& attribute_infos,
+                                                                const Vector4& color,
+                                                                void* vertex_buffer,
+                                                                uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size)
     {
         assert(attribute_infos.m_StructSize == sizeof(dmGraphics::VertexAttributeInfos));
         assert(attribute_infos.m_VertexStride != 0);
@@ -677,13 +708,25 @@ namespace dmParticle
         GenerateVertexDataResult res = GENERATE_VERTEX_DATA_OK;
         if (vertex_buffer != 0x0 && vertex_buffer_size > 0)
         {
-            res = UpdateRenderData(context, inst, emitter, emitter_ddf, attribute_infos, color, vertex_index, vertex_buffer_write, vertex_buffer_size, &bytes_written, dt);
+            uint32_t count = dmMath::Min(emitter->m_Particles.Size(), particle_count);
+            res = UpdateRenderData(context, inst, emitter, emitter_ddf, particle_start, count,
+                                    attribute_infos, color, vertex_index, vertex_buffer_write, vertex_buffer_size, &bytes_written, dt);
             *out_vertex_buffer_size += bytes_written;
         }
 
         context->m_Stats.m_Particles = bytes_written / vertex_size / 6; // Debug data for editor playback
 
         return res;
+    }
+
+    GenerateVertexDataResult GenerateVertexData(HParticleContext context, float dt, HInstance instance, uint32_t emitter_index, const dmGraphics::VertexAttributeInfos& attribute_infos, const Vector4& color, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size)
+    {
+        return GenerateVertexDataInternal(context, dt, instance, emitter_index, 0, 0xFFFFFFFF, attribute_infos, color, vertex_buffer, vertex_buffer_size, out_vertex_buffer_size);
+    }
+
+    GenerateVertexDataResult GenerateVertexDataPartial(HParticleContext context, float dt, HInstance instance, uint32_t emitter_index, uint32_t particle_start, uint32_t particle_count, const dmGraphics::VertexAttributeInfos& attribute_infos, const Vector4& color, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size)
+    {
+        return GenerateVertexDataInternal(context, dt, instance, emitter_index, particle_start, particle_count, attribute_infos, color, vertex_buffer, vertex_buffer_size, out_vertex_buffer_size);
     }
 
     void Update(HParticleContext context, float dt, FetchAnimationCallback fetch_animation_callback)
@@ -1032,52 +1075,6 @@ namespace dmParticle
         particle->m_SourceAngularVelocity = emitter_properties[EMITTER_KEY_PARTICLE_ANGULAR_VELOCITY];
     }
 
-    // TODO: Use the shared dmGraphics function instead of this (needs to solve dynamic library linking for the particle library)
-    static uint8_t* WriteParticleVertex(const dmGraphics::VertexAttributeInfos& attribute_infos, uint8_t* write_ptr, const Vector3& p, const Vector3& p_local, const Vector4& color, float* uv, float page_index)
-    {
-        for (int i = 0; i < attribute_infos.m_NumInfos; ++i)
-        {
-            const dmGraphics::VertexAttributeInfo& info = attribute_infos.m_Infos[i];
-
-            switch(info.m_SemanticType)
-            {
-                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION:
-                {
-                    if (info.m_CoordinateSpace == dmGraphics::COORDINATE_SPACE_WORLD)
-                    {
-                        memcpy(write_ptr, &p, info.m_ValueByteSize);
-                    }
-                    else if (info.m_CoordinateSpace == dmGraphics::COORDINATE_SPACE_LOCAL)
-                    {
-                        memcpy(write_ptr, &p_local, info.m_ValueByteSize);
-                    }
-                    else assert(0);
-                } break;
-                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD:
-                {
-                    memcpy(write_ptr, uv, info.m_ValueByteSize);
-                } break;
-                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR:
-                {
-                    memcpy(write_ptr, &color, info.m_ValueByteSize);
-                } break;
-                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX:
-                {
-                    memcpy(write_ptr, &page_index, info.m_ValueByteSize);
-                } break;
-                default:
-                {
-                    assert(info.m_ValuePtr);
-                    memcpy(write_ptr, info.m_ValuePtr, info.m_ValueByteSize);
-                } break;
-            }
-
-            write_ptr += info.m_ValueByteSize;
-        }
-
-        return write_ptr;
-    }
-
     static float unit_tex_coords[] = {
         0.0f, 1.0f,
         0.0f, 0.0f,
@@ -1085,7 +1082,19 @@ namespace dmParticle
         1.0f, 1.0f,
     };
 
-    static GenerateVertexDataResult UpdateRenderData(HParticleContext context, Instance* instance, Emitter* emitter, dmParticleDDF::Emitter* ddf, const dmGraphics::VertexAttributeInfos& attribute_infos, const Vector4& color, uint32_t vertex_index, uint8_t* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* bytes_written, float dt)
+    static GenerateVertexDataResult UpdateRenderData(HParticleContext context,
+                                                    Instance* instance,
+                                                    Emitter* emitter,
+                                                    dmParticleDDF::Emitter* ddf,
+                                                    uint32_t particle_start,
+                                                    uint32_t particle_count,
+                                                    const dmGraphics::VertexAttributeInfos& attribute_infos,
+                                                    const Vector4& color,
+                                                    uint32_t vertex_index,
+                                                    uint8_t* vertex_buffer,
+                                                    uint32_t vertex_buffer_size,
+                                                    uint32_t* bytes_written,
+                                                    float dt)
     {
         DM_PROFILE(__FUNCTION__);
         static int tex_coord_order[] = {
@@ -1121,7 +1130,8 @@ namespace dmParticle
         bool anim_bwd = playback == ANIM_PLAYBACK_ONCE_BACKWARD || playback == ANIM_PLAYBACK_LOOP_BACKWARD;
         bool anim_ping_pong = playback == ANIM_PLAYBACK_ONCE_PINGPONG || playback == ANIM_PLAYBACK_LOOP_PINGPONG;
         bool use_pivot = length(pivot_vector) > 0.0f;
-        bool use_local_position = dmGraphics::HasLocalPositionAttribute(attribute_infos);
+
+        dmGraphics::VertexAttributeInfoMetadata material_attribute_info_meta = dmGraphics::GetVertexAttributeInfosMetaData(attribute_infos);
 
         if (anim_ping_pong) {
             tile_count = dmMath::Max(1u, tile_count * 2 - 2);
@@ -1142,13 +1152,15 @@ namespace dmParticle
         dmTransform::TransformS1 emission_transform;
         dmTransform::Transform particle_transform;
         emission_transform.SetIdentity();
+
+        dmVMath::Matrix4 normal_matrix;
+
         if (ddf->m_Space == EMISSION_SPACE_EMITTER)
         {
             emission_transform = instance->m_WorldTransform;
         }
 
         uint32_t max_vertex_count = vertex_buffer_size / vertex_size;
-        uint32_t particle_count = emitter->m_Particles.Size();
         uint32_t j;
 
         float width_factor = 1.0f;
@@ -1192,7 +1204,38 @@ namespace dmParticle
                 ddf->m_Pivot.getZ()));
         }
 
-        for (j = 0; j < particle_count && vertex_index + 6 <= max_vertex_count; j++)
+        Vector3 position_world_flat[6];
+        Vector3 position_local_flat[6];
+        float tex_coord_flat[6 * 2];
+
+        Vector4 color_to_write;
+        dmVMath::Matrix4 world_matrix;
+        float page_index;
+        dmGraphics::WriteAttributeParams write_params = {};
+
+        const float* world_matrix_channel[] = { (float*) &world_matrix };
+        const float* page_index_channel[] = { &page_index };
+        const float* position_world_channel[] = { (float*) position_world_flat };
+        const float* position_local_channel[] = { (float*) position_local_flat };
+        const float* color_channel[] = { (float*) &color_to_write };
+        const float* tex_coord_channel[] = { tex_coord_flat };
+
+        write_params.m_VertexAttributeInfos = &attribute_infos;
+        write_params.m_StepFunction         = dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
+
+        // Global write streams
+        dmGraphics::SetWriteAttributeStreamDesc(&write_params.m_WorldMatrix, world_matrix_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_MAT4, 1, true);
+        dmGraphics::SetWriteAttributeStreamDesc(&write_params.m_PageIndices, page_index_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR, 1, true);
+        dmGraphics::SetWriteAttributeStreamDesc(&write_params.m_Colors, color_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, 1, true);
+
+        // Per-vertex write streams
+        dmGraphics::SetWriteAttributeStreamDesc(&write_params.m_PositionsWorldSpace, position_world_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, 1, false);
+        dmGraphics::SetWriteAttributeStreamDesc(&write_params.m_PositionsLocalSpace, position_local_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, 1, false);
+        dmGraphics::SetWriteAttributeStreamDesc(&write_params.m_TexCoords, tex_coord_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2, 1, false);
+
+        uint32_t particle_full_count = emitter->m_Particles.Size();
+        uint32_t particle_end = dmMath::Min(particle_start + particle_count, particle_full_count);
+        for (j = particle_start; j < particle_end && vertex_index + 6 <= max_vertex_count; j++)
         {
             Particle* particle = &emitter->m_Particles[j];
             // Evaluate anim frame
@@ -1251,71 +1294,87 @@ namespace dmParticle
 
             Vector3 x_local = Vector3(width_factor, 0.0f, 0.0f);
             Vector3 y_local = Vector3(0.0f, height_factor, 0.0f);
+            Vector3 x       = dmTransform::Apply(particle_transform, x_local);
+            Vector3 y       = dmTransform::Apply(particle_transform, y_local);
 
-            Vector3 x = dmTransform::Apply(particle_transform, x_local);
-            Vector3 y = dmTransform::Apply(particle_transform, y_local);
-
-            Vector3 p0 = -x - y + particle_transform.GetTranslation();
-            Vector3 p1 = -x + y + particle_transform.GetTranslation();
-            Vector3 p2 = x - y + particle_transform.GetTranslation();
-            Vector3 p3 = x + y + particle_transform.GetTranslation();
-
-            Vector3 p0_local;
-            Vector3 p1_local;
-            Vector3 p2_local;
-            Vector3 p3_local;
-
-            if (use_local_position)
+            if (material_attribute_info_meta.m_HasAttributeWorldPosition)
             {
-                p0_local = -x - y;
-                p1_local = -x + y;
-                p2_local = x - y;
-                p3_local = x + y;
+                position_world_flat[0] = -x - y + particle_transform.GetTranslation();
+                position_world_flat[1] = -x + y + particle_transform.GetTranslation();
+                position_world_flat[2] = x + y + particle_transform.GetTranslation();
+                position_world_flat[3] = position_world_flat[2];
+                position_world_flat[4] = x - y + particle_transform.GetTranslation();
+                position_world_flat[5] = position_world_flat[0];
             }
 
-            uint32_t flip_flag = 0;
-            if (hFlip)
+            if (material_attribute_info_meta.m_HasAttributeLocalPosition)
             {
-                flip_flag = 1;
+                position_local_flat[0] = -x - y;
+                position_local_flat[1] = -x + y;
+                position_local_flat[2] = x + y;
+                position_local_flat[3] = position_local_flat[2];
+                position_local_flat[4] = x - y;
+                position_local_flat[5] = position_local_flat[0];
             }
-            if (vFlip)
+
+            if (material_attribute_info_meta.m_HasAttributeColor)
             {
-                flip_flag |= 2;
+                Vector4 c      = particle->GetColor();
+                color_to_write = Vector4(mulPerElem(c.getXYZ(), color.getXYZ()), c.getW() * color.getW());
             }
-            const int* tex_lookup = &tex_coord_order[flip_flag * 6];
 
-            Vector4 c = particle->GetColor();
-            c = Vector4(mulPerElem(c.getXYZ(), color.getXYZ()), c.getW() * color.getW());
-
-            float page_index = 0.0f;
-            if (frame_indices != 0x0)
+            if (material_attribute_info_meta.m_HasAttributeTexCoord)
             {
-                uint32_t page_indices_index = frame_indices[tile];
-                page_index                  = (float) page_indices[page_indices_index];
+                uint32_t flip_flag = 0;
+                if (hFlip)
+                {
+                    flip_flag = 1;
+                }
+                if (vFlip)
+                {
+                    flip_flag |= 2;
+                }
+                const int* tex_lookup = &tex_coord_order[flip_flag * 6];
+                for (int i = 0; i < 6; ++i)
+                {
+                    tex_coord_flat[i * 2]     = tex_coord[tex_lookup[i] * 2];
+                    tex_coord_flat[i * 2 + 1] = tex_coord[tex_lookup[i] * 2 + 1];
+                }
+            }
+
+            if (material_attribute_info_meta.m_HasAttributePageIndex)
+            {
+                if (frame_indices != 0x0)
+                {
+                    uint32_t page_indices_index = frame_indices[tile];
+                    page_index                  = (float) page_indices[page_indices_index];
+                }
+            }
+
+            if (material_attribute_info_meta.m_HasAttributeWorldMatrix)
+            {
+                world_matrix = dmTransform::ToMatrix4(particle_transform);
             }
 
             uint8_t* write_ptr = vertex_buffer + vertex_index * attribute_infos.m_VertexStride;
-            write_ptr          = WriteParticleVertex(attribute_infos, write_ptr, p0, p0_local, c, tex_coord + tex_lookup[0] * 2, page_index);
-            write_ptr          = WriteParticleVertex(attribute_infos, write_ptr, p1, p1_local, c, tex_coord + tex_lookup[1] * 2, page_index);
-            write_ptr          = WriteParticleVertex(attribute_infos, write_ptr, p3, p3_local, c, tex_coord + tex_lookup[2] * 2, page_index);
-            write_ptr          = WriteParticleVertex(attribute_infos, write_ptr, p3, p3_local, c, tex_coord + tex_lookup[3] * 2, page_index);
-            write_ptr          = WriteParticleVertex(attribute_infos, write_ptr, p2, p2_local, c, tex_coord + tex_lookup[4] * 2, page_index);
-            write_ptr          = WriteParticleVertex(attribute_infos, write_ptr, p0, p0_local, c, tex_coord + tex_lookup[5] * 2, page_index);
+            write_ptr = dmGraphics::WriteAttributes(write_ptr, 0, write_params);
+            write_ptr = dmGraphics::WriteAttributes(write_ptr, 1, write_params);
+            write_ptr = dmGraphics::WriteAttributes(write_ptr, 2, write_params);
+            write_ptr = dmGraphics::WriteAttributes(write_ptr, 3, write_params);
+            write_ptr = dmGraphics::WriteAttributes(write_ptr, 4, write_params);
+            write_ptr = dmGraphics::WriteAttributes(write_ptr, 5, write_params);
             vertex_index += 6;
         }
 
         GenerateVertexDataResult res = GENERATE_VERTEX_DATA_OK;
 
-        if (j < particle_count)
+        if (j < particle_count) // If we did an early out, it means the particles didn't fit the buffer
         {
-            if (emitter->m_RenderWarning == 0)
-            {
-                res = GENERATE_VERTEX_DATA_MAX_PARTICLES_EXCEEDED;
-                emitter->m_RenderWarning = 1;
-            }
+            res = GENERATE_VERTEX_DATA_MAX_PARTICLES_EXCEEDED;
         }
-        emitter->m_VertexCount = vertex_index - emitter->m_VertexIndex;
-        *bytes_written = emitter->m_VertexCount * attribute_infos.m_VertexStride;
+        uint32_t num_written = vertex_index - emitter->m_VertexIndex;
+        emitter->m_VertexCount += num_written; // since we check if it's == 0
+        *bytes_written = num_written * attribute_infos.m_VertexStride;
 
         return res;
     }

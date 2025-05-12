@@ -65,6 +65,7 @@ def build(bld):
         'script_vmath.cpp',
         'script_zlib.cpp',
         'script_graphics.cpp',
+        'script_types.cpp',
         'luasocket/luasocket.doc_h',
         'script/sys_ddf.proto'])
 
@@ -85,4 +86,5 @@ def build(bld):
     if 'web' in bld.env.PLATFORM:
         bld.install_files('${PREFIX}/lib/%s/js' % bld.env.PLATFORM, '../lib/js/library_script.js', postpone = False)
 
-    bld.recurse('test')
+    if not waflib.Options.options.skip_build_tests:
+        bld.recurse('test')

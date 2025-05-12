@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -38,19 +38,13 @@ import com.dynamo.gamesys.proto.BufferProto.ValueType;
 
 
 @BuilderParams(name="Buffer", inExts=".buffer", outExt=".bufferc")
-public class BufferBuilder extends Builder<Void> {
+public class BufferBuilder extends Builder {
 
     static String allowedTypeStrings = "uint8, uint16, uint32, uint64, int8, int16, int32, int64, float32";
 
     @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-
-        Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
-            .setName(params.name())
-            .addInput(input);
-        taskBuilder.addOutput(input.changeExt(params.outExt()));
-
-        return taskBuilder.build();
+    public Task create(IResource input) throws IOException, CompileExceptionError {
+        return defaultTask(input);
     }
 
     static ValueType stringTypeToDDFType(String type) throws CompileExceptionError {
@@ -146,7 +140,7 @@ public class BufferBuilder extends Builder<Void> {
     }
 
     @Override
-    public void build(Task<Void> task) throws CompileExceptionError, IOException {
+    public void build(Task task) throws CompileExceptionError, IOException {
         ByteArrayInputStream bufferJsonIs = new ByteArrayInputStream(task.input(0).getContent());
 
         BufferDesc.Builder bufferDescBuilder = BufferDesc.newBuilder();

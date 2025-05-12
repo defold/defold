@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -202,32 +202,39 @@ protected:
         dmArray<dmResourceMounts::MountFileEntry> entries;
         entries.SetCapacity(8);
 
+        // Trigger the vsf init for emscripten (hidden in MakeHostPath)
+        char path[1024];
+        dmTestUtil::MakeHostPath(path, sizeof(path), MOUNTFILE_PATH);
+
+#define FSPREFIX ""
+#if defined(__EMSCRIPTEN__)
+        #undef FSPREFIX
+        #define FSPREFIX DM_HOSTFS
+#endif
+
         dmResourceMounts::MountFileEntry entry;
 
         entry.m_Name = strdup("a");
-        entry.m_Uri = strdup("build/src/test/overrides");
+        entry.m_Uri = strdup(FSPREFIX "build/src/test/overrides");
         entry.m_Priority = 30;
         entries.Push(entry);
 
         entry.m_Name = strdup("b");
-        entry.m_Uri = strdup("dmanif:build/src/test/luresources"); // unknown scheme
+        entry.m_Uri = strdup("dmanif:" FSPREFIX "build/src/test/luresources"); // unknown scheme
         entry.m_Priority = 10;
         entries.Push(entry);
 
         entry.m_Name = strdup("c");
-        entry.m_Uri = strdup("zip:build/src/test/luresources_compressed.zip");
+        entry.m_Uri = strdup("zip:" FSPREFIX "build/src/test/luresources_compressed.zip");
         entry.m_Priority = 20;
         entries.Push(entry);
 
 #if defined(DM_SUPPORT_MUTABLE_ARCHIVE)
         entry.m_Name = strdup("d");
-        entry.m_Uri = strdup("archive:build/src/test/luresources");
+        entry.m_Uri = strdup("archive:" FSPREFIX "build/src/test/luresources");
         entry.m_Priority = 5;
         entries.Push(entry);
 #endif
-
-        char path[1024];
-        dmTestUtil::MakeHostPath(path, sizeof(path), MOUNTFILE_PATH);
 
         dmResource::Result result = dmResourceMounts::WriteMountsFile(path, entries);
         dmResourceMounts::FreeMountsFile(entries);

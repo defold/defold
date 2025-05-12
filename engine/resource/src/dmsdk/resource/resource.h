@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -211,9 +211,29 @@ ResourceResult ResourceGetByHash(HResourceFactory factory, dmhash_t name, void**
 ResourceResult ResourceGetRaw(HResourceFactory factory, const char* name, void** resource, uint32_t* resource_size);
 
 /*#
+ * Get resource descriptor from resource (name)
+ * @name GetDescriptor
+ * @param factory [type: HResourceFactory] Factory handle
+ * @param path [type: dmhash_t] Resource path
+ * @param descriptor [type: HResourceDescriptor*] Returned resource descriptor
+ * @return result [type: ResourceResult]  RESULT_OK on success
+ */
+ResourceResult ResourceGetDescriptor(HResourceFactory factory, const char* path, HResourceDescriptor* descriptor);
+
+/*#
+ * Get resource descriptor from resource (name)
+ * @name GetDescriptorByHash
+ * @param factory [type: HResourceFactory] Factory handle
+ * @param path_hash [type: dmhash_t] Resource path hash
+ * @param descriptor [type: HResourceDescriptor*] Returned resource descriptor
+ * @return result [type: ResourceResult]  RESULT_OK on success
+ */
+ResourceResult ResourceGetDescriptorByHash(HResourceFactory factory, dmhash_t path_hash, HResourceDescriptor* descriptor);
+
+/*#
  * Release resource
  * @note Decreases ref count by 1. If it reaches 0, the resource destroy function is called.
- * @name Release
+ * @name ResourceRelease
  * @param factory [type: HResourceFactory] Factory handle
  * @param resource [type: void*] Resource pointer
  */
@@ -223,8 +243,8 @@ void ResourceRelease(HResourceFactory factory, void* resource);
  * Hint the preloader what to load before Create is called on the resource.
  * The resources are not guaranteed to be loaded before Create is called.
  * This function can be called from a worker thread.
- * @name PreloadHint
- * @param factory [type: dmResource::HResourcePreloadHintInfo] Preloader handle
+ * @name ResourcePreloadHint
+ * @param preloader [type: dmResource::HResourcePreloadHintInfo] Preloader handle
  * @param path [type: const char*] Resource path
  * @return result [type: bool] if successfully invoking preloader.
  */
@@ -281,7 +301,7 @@ HResourceType   ResourceDescriptorGetType(HResourceDescriptor rd);
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Type functions
 
-void*  ResourceTypeContextGetContextByHash(HResourceTypeContext, dmhash_t extension_hash);
+void*   ResourceTypeContextGetContextByHash(HResourceTypeContext, dmhash_t extension_hash);
 
 typedef ResourceResult (*FResourceTypeRegister)(HResourceTypeContext ctx, HResourceType type);
 typedef ResourceResult (*FResourceTypeDeregister)(HResourceTypeContext ctx, HResourceType type);
@@ -300,8 +320,14 @@ void ResourceTypeSetCreateFn(HResourceType type, FResourceCreate fn);
 void ResourceTypeSetPostCreateFn(HResourceType type, FResourcePostCreate fn);
 void ResourceTypeSetDestroyFn(HResourceType type, FResourceDestroy fn);
 void ResourceTypeSetRecreateFn(HResourceType type, FResourceRecreate fn);
+// Enables streaming for a resource
+void        ResourceTypeSetStreaming(HResourceType type, uint32_t preload_size);
+bool        ResourceTypeIsStreaming(HResourceType type);
+uint32_t    ResourceTypeGetPreloadSize(HResourceType type);
 
 // internal
+void ResourceTypeReset(HResourceType type);
+
 ResourceResult ResourceRegisterType(HResourceFactory factory,
                                    const char* extension,
                                    void* context,
@@ -328,9 +354,14 @@ struct ResourcePreloadParams
     const char*              m_Filename;
     const void*              m_Buffer;
     uint32_t                 m_BufferSize;
+    uint32_t                 m_FileSize:30;
+    uint32_t                 m_IsBufferPartial:1;
+    uint32_t                 m_IsBufferTransferrable:1; // Can the callback take ownership?
     HResourcePreloadHintInfo m_HintInfo;
-    void**                   m_PreloadData;
     HResourceType            m_Type;
+    // Out
+    void**                   m_PreloadData;
+    bool*                    m_IsBufferOwnershipTransferred; // If set, the resource type has taken ownership of the data
 };
 
 /*#
@@ -352,6 +383,8 @@ struct ResourceCreateParams
     const char*         m_Filename;
     const void*         m_Buffer;
     uint32_t            m_BufferSize;
+    uint32_t            m_FileSize:31;
+    uint32_t            m_IsBufferPartial:1;
     void*               m_PreloadData;
     HResourceDescriptor m_Resource;
     HResourceType       m_Type;
@@ -399,6 +432,8 @@ struct ResourceRecreateParams
     const char*         m_Filename;
     const void*         m_Buffer;
     uint32_t            m_BufferSize;
+    uint32_t            m_FileSize:31;
+    uint32_t            m_IsBufferPartial:1;
     const void*         m_Message;
     HResourceDescriptor m_Resource;
     HResourceType       m_Type;
@@ -511,7 +546,7 @@ void ResourceRegisterTypeCreatorDesc(void* desc, uint32_t size, const char *name
  *     // ...
  * };
  *
- * static ResourceResult RegisterResourceTypeBlob(HResourceTypeRegisterContext ctx, HResourceType type)
+ * static ResourceResult RegisterResourceTypeBlob(HResourceTypeContext ctx, HResourceType type)
  * {
  *     // The engine.cpp creates the contexts for our built in types.
  *     // Here we register a custom type
@@ -523,10 +558,10 @@ void ResourceRegisterTypeCreatorDesc(void* desc, uint32_t size, const char *name
  *     ResourceTypeSetRecreateFn(type, MyResourceTypeScriptRecreate);
  * }
  *
- * static ResourceResult DeregisterResourceTypeBlob(ResourceTypeRegisterContext& ctx)
+ * static ResourceResult DeregisterResourceTypeBlob(HResourceTypeContext ctx, HResourceType type)
  * {
- *     MyContext** context = (MyContext*)ResourceTypeGetContext(type);
- *     delete *context;
+ *     MyContext* context = (MyContext*)ResourceTypeGetContext(type);
+ *     delete context;
  * }
  *
  * DM_DECLARE_RESOURCE_TYPE(ResourceTypeBlob, "blobc", RegisterResourceTypeBlob, DeregisterResourceTypeBlob);

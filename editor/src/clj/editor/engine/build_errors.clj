@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -20,7 +20,7 @@
             [editor.defold-project :as project]
             [editor.field-expression :as field-expression]
             [editor.resource :as resource])
-  (:import [com.dynamo.bob CompileExceptionError LibraryException MultipleCompileException MultipleCompileException$Info Task TaskResult]
+  (:import [com.dynamo.bob Bob$OptionValidationException CompileExceptionError LibraryException MultipleCompileException MultipleCompileException$Info Task TaskResult]
            [com.dynamo.bob.bundle BundleHelper$ResourceInfo]
            [com.dynamo.bob.fs IResource]
            [java.net UnknownHostException]
@@ -516,6 +516,9 @@
   [(g/map->error {:message (str (or (some-> ex class .getSimpleName) "Failed") ": " (ex-message ex))
                   :severity :fatal})])
 
+(def ^:private invalid-option-causes
+  [(g/map->error {:message "Invalid bob option supplied, see console output for more details"})])
+
 (defn exception->error-value [exception project evaluation-context]
   (g/map->error
     {:causes (cond
@@ -539,6 +542,9 @@
 
                (instance? UnknownHostException exception)
                (invalid-build-server-url-causes exception)
+
+               (instance? Bob$OptionValidationException exception)
+               invalid-option-causes
 
                :else
                (generic-error-causes exception))}))

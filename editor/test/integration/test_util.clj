@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,7 +15,7 @@
 (ns integration.test-util
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
-            [clojure.test :refer [is testing]]
+            [clojure.test :as test :refer [is testing]]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.atlas :as atlas]
@@ -32,6 +32,7 @@
             [editor.handler :as handler]
             [editor.material :as material]
             [editor.math :as math]
+            [editor.outline :as outline]
             [editor.particlefx :as particlefx]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
@@ -61,7 +62,8 @@
             [util.http-server :as http-server]
             [util.text-util :as text-util]
             [util.thread-util :as thread-util])
-  (:import [clojure.core Vec]
+  (:import [ch.qos.logback.classic Level Logger]
+           [clojure.core Vec]
            [com.google.protobuf ByteString]
            [editor.properties Curve CurveSpread]
            [java.awt.image BufferedImage]
@@ -78,13 +80,26 @@
            [javafx.scene.paint Color]
            [javax.imageio ImageIO]
            [javax.vecmath Vector3d]
-           [org.apache.commons.io FilenameUtils IOUtils]))
+           [org.apache.commons.io FilenameUtils IOUtils]
+           [org.slf4j LoggerFactory]))
 
 (set! *warn-on-reflection* true)
+
+(.setLevel ^Logger (LoggerFactory/getLogger "org.eclipse.jetty") Level/ERROR)
 
 (def project-path "test/resources/test_project")
 
 (def ^:private ^:const system-cache-size 1000)
+
+;; String urls that will be added as library dependencies to our test project.
+;; These extensions register additional protobuf resource types that we want to
+;; cover in our tests.
+(def sanctioned-extension-urls
+  (mapv #(System/getProperty %)
+        ["defold.extension.rive.url"
+         "defold.extension.simpledata.url"
+         "defold.extension.spine.url"
+         "defold.extension.texturepacker.url"]))
 
 (defn number-type-preserving? [a b]
   (assert (or (number? a) (vector? a) (instance? Curve a) (instance? CurveSpread a)))
@@ -180,8 +195,13 @@
       (let [^String file-name decl]
         (spit (io/file entry file-name) (.toString (UUID/randomUUID)))))))
 
+(defn make-build-stage-test-prefs []
+  (prefs/global "test/resources/test.editor_settings"))
+
+(defonce shared-test-prefs-file (fs/create-temp-file! "unit-test" "prefs.editor_settings"))
 (defn make-test-prefs []
-  (prefs/load-prefs "test/resources/test_prefs.json"))
+  (prefs/make :scopes {:global shared-test-prefs-file :project shared-test-prefs-file}
+              :schemas [:default]))
 
 (declare resolve-prop)
 
@@ -241,6 +261,32 @@
               (seq non-editable-directory-proj-paths)
               (assoc :non-editable-directories (vec non-editable-directory-proj-paths))))))
 
+(defn write-defunload-patterns!
+  ^File [project-path patterns]
+  (fs/create-file!
+    (io/file project-path ".defunload")
+    (string/join (System/getProperty "line.separator")
+                 patterns)))
+
+(defn- proj-path-resource-type [basis workspace proj-path]
+  (let [editable-proj-path? (g/raw-property-value basis workspace :editable-proj-path?)
+        editability (editable-proj-path? proj-path)
+        type-ext (resource/filename->type-ext proj-path)]
+    (workspace/get-resource-type workspace editability type-ext)))
+
+(defn write-file-resource!
+  ^File [workspace proj-path save-value]
+  {:pre [(string/starts-with? proj-path "/")]}
+  (let [basis (g/now)
+        resource-type (proj-path-resource-type basis workspace proj-path)
+        project-directory (workspace/project-directory basis workspace)
+        file (io/file project-directory (subs proj-path 1))
+        write-fn (:write-fn resource-type)
+        contents (write-fn save-value)]
+    (test-support/write-until-new-mtime
+      file contents)
+    file))
+
 (defn setup-workspace!
   ([graph]
    (setup-workspace! graph project-path))
@@ -291,33 +337,53 @@
          (workspace/install-validated-libraries! workspace))
     (workspace/resource-sync! workspace [] progress/null-render-progress!)))
 
+(defn distinct-resource-types-by-editability
+  ([workspace]
+   (distinct-resource-types-by-editability workspace fn/constantly-true))
+  ([workspace resource-type-predicate]
+   (let [editable-protobuf-resource-types
+         (into (sorted-map)
+               (filter (fn [[_ext editable-resource-type]]
+                         (resource-type-predicate editable-resource-type)))
+               (workspace/get-resource-type-map workspace :editable))
+
+         distinctly-non-editable-protobuf-resource-types
+         (into (sorted-map)
+               (filter (fn [[ext non-editable-resource-type]]
+                         (and (resource-type-predicate non-editable-resource-type)
+                              (not (identical? non-editable-resource-type
+                                               (editable-protobuf-resource-types ext))))))
+               (workspace/get-resource-type-map workspace :non-editable))]
+
+     {:editable (mapv val editable-protobuf-resource-types)
+      :non-editable (mapv val distinctly-non-editable-protobuf-resource-types)})))
+
 (defn setup-project!
   ([workspace]
    (let [proj-graph (g/make-graph! :history true :volatility 1)
          extensions (extensions/make proj-graph)
          project (project/make-project proj-graph workspace extensions)
-         project (project/load-project project)]
+         project (project/load-project! project)]
      (g/reset-undo! proj-graph)
      project))
   ([workspace resources]
    (let [proj-graph (g/make-graph! :history true :volatility 1)
          extensions (extensions/make proj-graph)
          project (project/make-project proj-graph workspace extensions)
-         project (project/load-project project resources)]
+         project (project/load-project! project progress/null-render-progress! resources)]
      (g/reset-undo! proj-graph)
      project)))
 
 (defn project-node-resources [project]
-  (g/with-auto-evaluation-context evaluation-context
-    (sort-by resource/proj-path
-             (map (comp #(g/node-value % :resource evaluation-context) first)
-                  (g/sources-of project :node-id+resources)))))
+  (->> (g/node-value project :node-id+resources)
+       (map second)
+       (sort-by resource/proj-path)))
 
-(defrecord FakeFileResource [workspace root ^File file children exists? source-type read-only? content]
+(defrecord FakeFileResource [workspace root ^File file children exists? source-type read-only? loaded? content]
   resource/Resource
   (children [this] children)
   (ext [this] (FilenameUtils/getExtension (.getPath file)))
-  (resource-type [this] (#'resource/get-resource-type workspace this))
+  (resource-type [this] (resource/lookup-resource-type (g/now) workspace this))
   (source-type [this] source-type)
   (exists? [this] exists?)
   (read-only? [this] read-only?)
@@ -329,6 +395,7 @@
   (resource-hash [this] (hash (resource/proj-path this)))
   (openable? [this] (= :file source-type))
   (editable? [this] true)
+  (loaded? [_this] loaded?)
 
   io/IOFactory
   (make-input-stream  [this opts] (io/make-input-stream content opts))
@@ -339,13 +406,14 @@
 (defn make-fake-file-resource
   ([workspace root file content]
    (make-fake-file-resource workspace root file content nil))
-  ([workspace root file content {:keys [children exists? source-type read-only?]
+  ([workspace root file content {:keys [children exists? source-type read-only? loaded?]
                                  :or {children nil
                                       exists? true
                                       source-type :file
-                                      read-only? false}
+                                      read-only? false
+                                      loaded? true}
                                  :as opts}]
-   (FakeFileResource. workspace root file children exists? source-type read-only? content)))
+   (FakeFileResource. workspace root file children exists? source-type read-only? loaded? content)))
 
 (defn resource-node [project path]
   (project/get-resource-node project path))
@@ -412,7 +480,7 @@
 
 (defn open-scene-view! [project app-view path width height]
   (make-tab! project app-view path (fn [view-graph resource-node]
-                                     (scene/make-preview view-graph resource-node {:prefs (make-test-prefs) :app-view app-view :project project :select-fn (partial app-view/select app-view)} width height))))
+                                     (scene/make-preview view-graph resource-node {:prefs (make-build-stage-test-prefs) :app-view app-view :project project :select-fn (partial app-view/select app-view)} width height))))
 
 (defn close-tab! [project app-view path]
   (let [node-id (project/get-resource-node project path)
@@ -556,7 +624,7 @@
 (defmacro with-ui-run-later-rebound
   [& forms]
   `(let [laters# (atom [])]
-     (with-redefs [ui/do-run-later (fn [f#] (swap! laters# conj f#))]
+     (with-redefs [ui/do-run-later (fn ~'fake-run-later [f#] (swap! laters# conj f#))]
        (let [result# (do ~@forms)]
          (doseq [f# @laters#] (f#))
          result#))))
@@ -665,6 +733,56 @@
 (defn outline [root path]
   (get-in (g/node-value root :node-outline) (interleave (repeat :children) path)))
 
+(defrecord OutlineItemIterator [root path]
+  outline/ItemIterator
+  (value [_this]
+    (outline root path))
+  (parent [_this]
+    (when (not (empty? path))
+      (->OutlineItemIterator root (butlast path)))))
+
+(defn- make-outline-item-iterator [root-node-id outline-path]
+  {:pre [(g/node-id? root-node-id)
+         (vector? outline-path)
+         (every? nat-int? outline-path)]}
+  (->OutlineItemIterator root-node-id outline-path))
+
+(defn outline-copy
+  "Return a serialized a data representation of the specified parts of the
+  edited scene. The returned value could be placed on the clipboard and later
+  pasted into an edited scene."
+  [project root-node-id & outline-paths]
+  (let [item-iterators (mapv #(make-outline-item-iterator root-node-id %) outline-paths)]
+    (outline/copy project item-iterators)))
+
+(defn outline-cut!
+  "Cut the specified parts of the edited scene and return a data representation
+  of the cut nodes that can be placed on the clipboard."
+  [project root-node-id outline-path & mode-outline-paths]
+  (let [item-iterators (into [(make-outline-item-iterator root-node-id outline-path)]
+                             (map #(make-outline-item-iterator root-node-id %))
+                             mode-outline-paths)]
+    (outline/cut! project item-iterators)))
+
+(defn outline-paste!
+  "Paste the copied-data into the edited scene, similar to how the user would
+  perform this operation in the editor."
+  ([project root-node-id outline-path copied-data]
+   (outline-paste! project root-node-id outline-path copied-data nil))
+  ([project root-node-id outline-path copied-data select-fn]
+   (let [item-iterator (make-outline-item-iterator root-node-id outline-path)]
+     (assert (outline/paste? project item-iterator copied-data))
+     (outline/paste! project item-iterator copied-data select-fn))))
+
+(defn outline-duplicate!
+  "Simulate a copy-paste operation of the specified node in-place, typically how
+  a user might duplicate an element in the edited scene."
+  ([project root-node-id outline-path]
+   (outline-duplicate! project root-node-id outline-path nil))
+  ([project root-node-id outline-path select-fn]
+   (let [copied-data (outline-copy project root-node-id outline-path)]
+     (outline-paste! project root-node-id outline-path copied-data select-fn))))
+
 (defn- outline->str
   ([outline]
    (outline->str outline "" true))
@@ -724,8 +842,9 @@
 (defn resource [workspace path]
   (workspace/file-resource workspace path))
 
-(defn file ^File [workspace ^String path]
-  (File. (workspace/project-path workspace) path))
+(defn file
+  ^File [workspace ^String path]
+  (File. (workspace/project-directory workspace) path))
 
 (defn selection [app-view]
   (-> app-view
@@ -734,32 +853,29 @@
 
 ;; Extension library server
 
-(defn ->lib-server []
-  (doto (http-server/->server 0 {"/lib" (fn [request]
-                                          (let [lib (subs (:url request) 5)
-                                                path-offset (count (format "test/resources/%s/" lib))
-                                                ignored #{".internal" "build"}
-                                                file-filter (reify FilenameFilter
-                                                              (accept [this file name] (not (contains? ignored name))))
-                                                files (->> (tree-seq (fn [^File f] (.isDirectory f)) (fn [^File f] (.listFiles f file-filter)) (io/file (format "test/resources/%s" lib)))
-                                                        (filter (fn [^File f] (not (.isDirectory f)))))]
-                                            (with-open [byte-stream (ByteArrayOutputStream.)
-                                                        out (ZipOutputStream. byte-stream)]
-                                              (doseq [^File f files]
-                                                (with-open [in (FileInputStream. f)]
-                                                  (let [entry (doto (ZipEntry. (subs (.getPath f) path-offset))
-                                                                (.setSize (.length f)))]
-                                                    (.putNextEntry out entry)
-                                                    (IOUtils/copy in out)
-                                                    (.closeEntry out))))
-                                              (.finish out)
-                                              (let [bytes (.toByteArray byte-stream)]
-                                                {:headers {"ETag" "tag"}
-                                                 :body bytes}))))})
-    (http-server/start!)))
-
-(defn kill-lib-server [server]
-  (http-server/stop! server))
+(def lib-server-handler
+  (http-server/router-handler
+    {"/lib/{*lib}"
+     {"GET" (fn [request]
+              (let [lib (-> request :path-params :lib)
+                    path-offset (count (format "test/resources/%s/" lib))
+                    ignored #{".internal" "build"}
+                    file-filter (reify FilenameFilter
+                                  (accept [this file name] (not (contains? ignored name))))
+                    files (->> (tree-seq (fn [^File f] (.isDirectory f))
+                                         (fn [^File f] (.listFiles f ^FilenameFilter file-filter))
+                                         (io/file (format "test/resources/%s" lib)))
+                               (filter (fn [^File f] (not (.isDirectory f)))))
+                    baos (ByteArrayOutputStream.)]
+                (with-open [out (ZipOutputStream. baos)]
+                  (doseq [^File f files]
+                    (with-open [in (FileInputStream. f)]
+                      (let [entry (doto (ZipEntry. (subs (.getPath f) path-offset))
+                                    (.setSize (.length f)))]
+                        (.putNextEntry out entry)
+                        (IOUtils/copy in out)
+                        (.closeEntry out)))))
+                (http-server/response 200 {"etag" "tag"} (.toByteArray baos))))}}))
 
 (defn lib-server-uri [server lib]
   (format "%s/lib/%s" (http-server/local-url server) lib))
@@ -783,54 +899,10 @@
   (let [[node-id# property# value#] binding]
     `(let [old-value# (prop ~node-id# ~property#)]
        (prop! ~node-id# ~property# ~value#)
-       ~@forms
-       (prop! ~node-id# ~property# old-value#))))
-
-(defn make-call-logger
-  "Returns a function that keeps track of its invocations. Every
-  time it is called, the call and its arguments are stored in the
-  metadata associated with the returned function. If fn f is
-  supplied, it will be invoked after the call is logged."
-  ([]
-   (make-call-logger (constantly nil)))
-  ([f]
-   (let [calls (atom [])]
-     (with-meta (fn [& args]
-                  (swap! calls conj args)
-                  (apply f args))
-                {::calls calls}))))
-
-(defn call-logger-calls
-  "Given a function obtained from make-call-logger, returns a
-  vector of sequences containing the arguments for every time it
-  was called."
-  [call-logger]
-  (-> call-logger meta ::calls deref))
-
-(defmacro with-logged-calls
-  "Temporarily redefines the specified functions into call-loggers
-  while executing the body. Returns a map of functions to the
-  result of (call-logger-calls fn). Non-invoked functions will not
-  be included in the returned map.
-
-  Example:
-  (with-logged-calls [print println]
-    (println :a)
-    (println :a :b))
-  => {#object[clojure.core$println] [(:a)
-                                     (:a :b)]}"
-  [var-symbols & body]
-  `(let [binding-map# ~(into {}
-                             (map (fn [var-symbol]
-                                    `[(var ~var-symbol) (make-call-logger)]))
-                             var-symbols)]
-     (with-redefs-fn binding-map# (fn [] ~@body))
-     (into {}
-           (keep (fn [[var# call-logger#]]
-                   (let [calls# (call-logger-calls call-logger#)]
-                     (when (seq calls#)
-                       [(deref var#) calls#]))))
-           binding-map#)))
+       (try
+         ~@forms
+         (finally
+           (prop! ~node-id# ~property# old-value#))))))
 
 (def temp-directory-path
   (memoize
@@ -936,7 +1008,7 @@
                       :node-type (g/node-type* basis node-id)})))))
 
 (defn- created-node [select-fn-call-logger]
-  (let [calls (call-logger-calls select-fn-call-logger)
+  (let [calls (fn/call-logger-calls select-fn-call-logger)
         args (last calls)
         selection (first args)
         node-id (first selection)]
@@ -947,7 +1019,7 @@
   node. Returns the id of the added ReferencedComponent node."
   [game-object-or-instance-id component-resource]
   (let [game-object-id (to-game-object-node-id game-object-or-instance-id)
-        select-fn (make-call-logger)]
+        select-fn (fn/make-call-logger)]
     (game-object/add-referenced-component! game-object-id component-resource select-fn)
     (created-node select-fn)))
 
@@ -956,7 +1028,7 @@
   node. Returns the id of the added EmbeddedComponent node."
   [game-object-or-instance-id resource-type]
   (let [game-object-id (to-game-object-node-id game-object-or-instance-id)
-        select-fn (make-call-logger)]
+        select-fn (fn/make-call-logger)]
     (game-object/add-embedded-component! game-object-id resource-type select-fn)
     (created-node select-fn)))
 
@@ -968,7 +1040,7 @@
      (add-referenced-game-object! collection-id collection-id game-object-resource)))
   ([collection-or-instance-id parent-id game-object-resource]
    (let [collection-id (to-collection-node-id collection-or-instance-id)
-         select-fn (make-call-logger)]
+         select-fn (fn/make-call-logger)]
      (collection/add-referenced-game-object! collection-id parent-id game-object-resource select-fn)
      (created-node select-fn))))
 
@@ -982,7 +1054,7 @@
    (let [collection-id (to-collection-node-id collection-or-instance-id)
          project (project/get-project collection-id)
          workspace (project/workspace project)
-         select-fn (make-call-logger)]
+         select-fn (fn/make-call-logger)]
      (collection/add-embedded-game-object! workspace project collection-id parent-id select-fn)
      (created-node select-fn))))
 
@@ -994,7 +1066,7 @@
         id (resource/base-name collection-resource)
         transform-properties nil
         overrides nil
-        select-fn (make-call-logger)]
+        select-fn (fn/make-call-logger)]
     (collection/add-referenced-collection! collection-id collection-resource id transform-properties overrides select-fn)
     (created-node select-fn)))
 
@@ -1173,6 +1245,21 @@
     (fs/delete-directory! build-directory {:fail :silently})
     (:error build-result)))
 
+(defn resolve-build-dependencies
+  "Returns a flat list of dependent build targets"
+  [node-id project]
+  (let [ret (build/resolve-node-dependencies node-id project)]
+    (when-not (is (not (g/error-value? ret)))
+      (let [path (some-> (g/maybe-node-value node-id :resource) resource/proj-path)
+            cause (->> ret
+                       (tree-seq :causes :causes)
+                       (some :message))]
+        (throw (ex-info (str "Failed to build"
+                             (when path (str " " path))
+                             (when cause (str ": " cause)))
+                        {:error ret}))))
+    ret))
+
 (defn node-build-resource [node-id]
   (:resource (first (g/node-value node-id :build-targets))))
 
@@ -1185,8 +1272,7 @@
     (:resource (nth (:deps (first (g/node-value resource-node :build-targets))) index))))
 
 (def texture-build-resource (partial nth-dep-build-resource 0))
-(def vertex-shader-build-resource (partial nth-dep-build-resource 0))
-(def fragment-shader-build-resource (partial nth-dep-build-resource 1))
+(def shader-program-build-resource (partial nth-dep-build-resource 0))
 
 (defn build-output
   ^bytes [project path]
@@ -1227,7 +1313,7 @@
              {:tag pb-class}))
 
 (defn- make-build-output-infos-by-path-impl [workspace resource-types-by-build-ext ^String build-output-path]
-  (let [build-ext (FilenameUtils/getExtension build-output-path)
+  (let [build-ext (resource/filename->type-ext build-output-path)
         resource-type (some (fn [[_ resource-type]]
                               (when (= build-ext (:build-ext resource-type))
                                 resource-type))
@@ -1612,7 +1698,7 @@
             save-text (resource-node/save-data-content save-data)]
         (text-diff-message disk-text save-text)))))
 
-(defn check-save-data-disk-equivalence! [save-data]
+(defn check-save-data-disk-equivalence! [save-data ^String project-path]
   (let [resource (:resource save-data)
         resource-type (resource/resource-type resource)
         read-fn (:read-fn resource-type)
@@ -1634,3 +1720,34 @@
             save-text (resource-node/save-data-content save-data)]
         ;; Compare text.
         (check-text-equivalence! disk-text save-text message)))))
+
+(defmethod test/assert-expr 'thrown-with-data? [msg [_ expected-data-pred & body :as form]]
+  `(try
+     (do ~@body)
+     (test/do-report {:type :fail :message ~msg :expected '~form :actual nil})
+     (catch Throwable e#
+       (let [actual-data# (ex-data e#)
+             result# (if (~expected-data-pred actual-data#) :pass :fail)]
+         (test/do-report {:type result# :message ~msg :expected '~form :actual e#})
+         e#))))
+
+(defmacro check-thrown-with-data! [expected-data-pred & body]
+  `(is (~'thrown-with-data? ~expected-data-pred ~@body)))
+
+(defmethod test/assert-expr 'thrown-with-root-cause-msg? [msg [_ re & body :as form]]
+  `(try
+     (do ~@body)
+     (test/do-report {:type :fail :message ~msg :expected '~form :actual nil})
+     (catch Throwable e#
+       (let [^Throwable root# (loop [e# e#]
+                                (if-let [cause# (ex-cause e#)]
+                                  (recur cause#)
+                                  e#))
+             m# (.getMessage root#)]
+         (if (re-find ~re m#)
+           (test/do-report {:type :pass :message ~msg :expected '~form :actual e#})
+           (test/do-report {:type :fail, :message ~msg, :expected '~form :actual e#})))
+       e#)))
+
+(defmacro check-thrown-with-root-cause-msg! [re & body]
+  `(is (~'thrown-with-root-cause-msg? ~re ~@body)))

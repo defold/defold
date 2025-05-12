@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -45,9 +45,9 @@
 #include "../resources/res_mesh.h"
 
 DM_PROPERTY_EXTERN(rmtp_Components);
-DM_PROPERTY_U32(rmtp_Mesh, 0, FrameReset, "# components", &rmtp_Components);
-DM_PROPERTY_U32(rmtp_MeshVertexCount, 0, FrameReset, "# vertices", &rmtp_Mesh);
-DM_PROPERTY_U32(rmtp_MeshVertexSize, 0, FrameReset, "size of vertices in bytes", &rmtp_Mesh);
+DM_PROPERTY_U32(rmtp_Mesh, 0, PROFILE_PROPERTY_FRAME_RESET, "# components", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_MeshVertexCount, 0, PROFILE_PROPERTY_FRAME_RESET, "# vertices", &rmtp_Mesh);
+DM_PROPERTY_U32(rmtp_MeshVertexSize, 0, PROFILE_PROPERTY_FRAME_RESET, "size of vertices in bytes", &rmtp_Mesh);
 
 namespace dmGameSystem
 {
@@ -235,6 +235,8 @@ namespace dmGameSystem
         world->m_WorldVertexData = 0x0;
         world->m_WorldVertexDataSize = 0;
 
+        world->m_GraphicsContext = dmRender::GetGraphicsContext(context->m_RenderContext);
+
         *params.m_World = world;
 
         dmResource::RegisterResourceReloadedCallback(context->m_Factory, ResourceReloadedCallback, world);
@@ -409,20 +411,24 @@ namespace dmGameSystem
         uint32_t index = (uint32_t)*params.m_UserData;
         MeshComponent* component = world->m_Components.Get(index);
         dmResource::HFactory factory = dmGameObject::GetFactory(params.m_Instance);
-        if (component->m_Material) {
-            dmResource::Release(factory, component->m_Material);
-        }
-        for (uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i) {
-            if (component->m_Textures[i]) {
-                dmResource::Release(factory, component->m_Textures[i]);
-            }
-        }
 
         dmGameSystem::BufferResource* br = GetVerticesBuffer(component, component->m_Resource);
 
         if (dmRender::GetMaterialVertexSpace(GetMaterial(component, component->m_Resource)) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL) {
             DecRefVertexBuffer(world, br->m_NameHash);
         }
+
+        if (component->m_Material)
+        {
+            dmResource::Release(factory, component->m_Material);
+        }
+
+        for (uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i) {
+            if (component->m_Textures[i]) {
+                dmResource::Release(factory, component->m_Textures[i]);
+            }
+        }
+
         if (component->m_BufferResource) {
             dmResource::Release(factory, component->m_BufferResource);
         }

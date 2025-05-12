@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -67,6 +67,8 @@ namespace dmGameSystem
     static const dmhash_t PROP_TEXTURES = dmHashString64("textures");
     static const dmhash_t PROP_TILE_SOURCE = dmHashString64("tile_source");
 
+    static const dmGraphics::TextureFormat BIND_POSE_CACHE_TEXTURE_FORMAT = dmGraphics::TEXTURE_FORMAT_RGBA32F;
+
     struct EmitterStateChangedScriptData
     {
         EmitterStateChangedScriptData()
@@ -119,7 +121,7 @@ namespace dmGameSystem
     typedef bool (*CompGetMaterialAttributeCallback)(void* user_data, dmhash_t name_hash, const dmGraphics::VertexAttribute** attribute);
 
     int32_t FindAttributeIndex(const dmGraphics::VertexAttribute* attributes, uint32_t attributes_count, dmhash_t name_hash);
-    void    FillMaterialAttributeInfos(dmRender::HMaterial material, dmGraphics::HVertexDeclaration vx_decl, dmGraphics::VertexAttributeInfos* infos);
+    void    FillMaterialAttributeInfos(dmRender::HMaterial material, dmGraphics::HVertexDeclaration vx_decl, dmGraphics::VertexAttributeInfos* infos, dmGraphics::CoordinateSpace default_coordinate_space);
     void    FillAttributeInfos(DynamicAttributePool* dynamic_attribute_pool, uint16_t component_dynamic_attribute_index, const dmGraphics::VertexAttribute* component_attributes, uint32_t num_component_attributes, dmGraphics::VertexAttributeInfos* material_infos, dmGraphics::VertexAttributeInfos* component_infos);
 
     int32_t                      FindMaterialAttributeIndex(const DynamicAttributeInfo& info, dmhash_t name_hash);
@@ -145,11 +147,13 @@ namespace dmGameSystem
         dmGraphics::TextureImage::CompressionType m_CompressionType;
         dmBuffer::HBuffer                         m_Buffer;
         const void*                               m_Data;
-        uint32_t                                  m_Width;
-        uint32_t                                  m_Height;
-        uint32_t                                  m_MaxMipMaps;
-        uint32_t                                  m_TextureBpp;
-        uint32_t                                  m_UsageFlags;
+        uint16_t                                  m_Width;
+        uint16_t                                  m_Height;
+        uint16_t                                  m_Depth;
+        uint16_t                                  m_LayerCount;
+        uint16_t                                  m_MaxMipMaps;
+        uint16_t                                  m_TextureBpp;
+        uint16_t                                  m_UsageFlags;
     };
 
     struct SetTextureResourceParams
@@ -160,18 +164,22 @@ namespace dmGameSystem
         dmGraphics::TextureImage::CompressionType m_CompressionType;
         const void*                               m_Data;
         size_t                                    m_DataSize;
-        uint32_t                                  m_Width;
-        uint32_t                                  m_Height;
-        uint32_t                                  m_X;
-        uint32_t                                  m_Y;
-        uint32_t                                  m_MipMap;
-        bool                                      m_SubUpdate;
+        uint16_t                                  m_Width;
+        uint16_t                                  m_Height;
+        uint16_t                                  m_Depth;
+        uint16_t                                  m_X;
+        uint16_t                                  m_Y;
+        uint16_t                                  m_Z;
+        uint16_t                                  m_Slice;
+        uint16_t                                  m_MipMap : 15;
+        bool                                      m_SubUpdate : 1;
     };
 
     dmGraphics::TextureImage::TextureFormat GraphicsTextureFormatToImageFormat(dmGraphics::TextureFormat textureformat);
     dmGraphics::TextureImage::Type GraphicsTextureTypeToImageType(dmGraphics::TextureType texturetype);
     void MakeTextureImage(CreateTextureResourceParams params, dmGraphics::TextureImage* texture_image);
     void DestroyTextureImage(dmGraphics::TextureImage& texture_image, bool destroy_image_data);
+    void FillTextureResourceBuffer(const dmGraphics::TextureImage* texture_image, dmArray<uint8_t>& texture_resource_buffer);
     dmResource::Result CreateTextureResource(dmResource::HFactory factory, const CreateTextureResourceParams& create_params, void** resource_out);
     dmResource::Result SetTextureResource(dmResource::HFactory factory, const SetTextureResourceParams& params);
     dmResource::Result ReleaseDynamicResource(dmResource::HFactory factory, dmGameObject::HCollection collection, dmhash_t path_hash);

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,10 +15,19 @@
 package com.dynamo.bob.pipeline;
 
 import java.io.IOException;
+import java.io.Serializable;
+import java.util.ArrayList;
 
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.pipeline.shader.ShaderCompilePipeline;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
 public interface IShaderCompiler {
-    ShaderProgramBuilder.ShaderCompileResult compile(String shaderSource, ShaderDesc.ShaderType shaderType, String resourceOutputPath, boolean outputSpirv) throws IOException, CompileExceptionError;
+    class CompileOptions implements Serializable {
+        public ArrayList<ShaderDesc.Language> forceIncludeShaderLanguages = new ArrayList<>();
+        public int maxPageCount;
+        public boolean forceSplitSamplers;
+    };
+
+    ShaderProgramBuilder.ShaderCompileResult compile(ArrayList<ShaderCompilePipeline.ShaderModuleDesc> shaderModules, String resourceOutputPath, CompileOptions options) throws IOException, CompileExceptionError;
 }

@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -34,7 +34,7 @@
                     "lib" ["libparticle_shared.dylib"]}
    "arm64-macos" {"bin" ["dmengine"]
                   "lib" ["libparticle_shared.dylib"]}
-   "x86_64-win32"  {"bin" ["dmengine.exe" "dmengine.pdb"]
+   "x86_64-win32"  {"bin" ["dmengine.pdb"]
                     "lib" ["particle_shared.dll"]}
    "x86_64-linux"  {"bin" ["dmengine"]
                     "lib" ["libparticle_shared.so"]}})
@@ -46,32 +46,33 @@
     platform))
 
 (def artifacts
-  {"${DYNAMO-HOME}/ext/lib/win32/OpenAL32.dll"        "x86-win32/bin/OpenAL32.dll"
-   "${DYNAMO-HOME}/ext/lib/win32/wrap_oal.dll"        "x86-win32/bin/wrap_oal.dll"
+  {
+   ; These artifacts are equal to the artifacts from bob
+   ; see ResourceUnpacker.java for more info
+   ; "${DYNAMO-HOME}/ext/lib/win32/OpenAL32.dll"          "x86-win32/bin/OpenAL32.dll"
+   ; "${DYNAMO-HOME}/ext/lib/win32/wrap_oal.dll"          "x86-win32/bin/wrap_oal.dll"
 
-   "${DYNAMO-HOME}/ext/bin/x86_64-win32/luajit-64.exe" "x86_64-win32/bin/luajit-64.exe"
-   "${DYNAMO-HOME}/ext/lib/x86_64-win32/OpenAL32.dll"  "x86_64-win32/bin/OpenAL32.dll"
-   "${DYNAMO-HOME}/ext/lib/x86_64-win32/wrap_oal.dll"  "x86_64-win32/bin/wrap_oal.dll"
+   ; "${DYNAMO-HOME}/ext/bin/x86_64-win32/luajit-64.exe"  "x86_64-win32/bin/luajit-64.exe"
+   ; "${DYNAMO-HOME}/ext/lib/x86_64-win32/OpenAL32.dll"   "x86_64-win32/bin/OpenAL32.dll"
+   ; "${DYNAMO-HOME}/ext/lib/x86_64-win32/wrap_oal.dll"   "x86_64-win32/bin/wrap_oal.dll"
 
-   "${DYNAMO-HOME}/ext/bin/x86_64-linux/luajit-64"            "x86_64-linux/bin/luajit-64"
+   ;"${DYNAMO-HOME}/ext/bin/x86_64-linux/luajit-64"       "x86_64-linux/bin/luajit-64"
+   ;"${DYNAMO-HOME}/ext/bin/x86_64-macos/luajit-64"       "x86_64-macos/bin/luajit-64"
+   ;"${DYNAMO-HOME}/ext/bin/arm64-macos/luajit-64"        "arm64-macos/bin/luajit-64"
 
-   "${DYNAMO-HOME}/ext/bin/x86_64-macos/luajit-64"           "x86_64-macos/bin/luajit-64"
+   "$DYNAMO_HOME/ext/bin/x86_64-macos/glslang"          "x86_64-macos/glslang"
+   "$DYNAMO_HOME/ext/bin/arm64-macos/glslang"           "arm64-macos/glslang"
+   "$DYNAMO_HOME/ext/bin/x86_64-linux/glslang"          "x86_64-linux/glslang"
+   "$DYNAMO_HOME/ext/bin/x86_64-win32/glslang.exe"      "x86_64-win32/glslang.exe"
 
-   "${DYNAMO-HOME}/ext/bin/arm64-macos/luajit-64"            "arm64-macos/bin/luajit-64"
+   "$DYNAMO_HOME/ext/bin/x86_64-linux/tint"             "x86_64-linux/tint"
+   "$DYNAMO_HOME/ext/bin/x86_64-macos/tint"             "x86_64-macos/tint"
+   "$DYNAMO_HOME/ext/bin/arm64-linux/tint"              "arm64-macos/tint"
+   "$DYNAMO_HOME/ext/bin/x86_64-win32/tint.exe"         "x86_64-win32/tint.exe"
 
-   "$DYNAMO_HOME/ext/bin/x86_64-macos/glslang"                  "x86_64-macos/glslang"
-   "$DYNAMO_HOME/ext/bin/arm64-macos/glslang"                   "arm64-macos/glslang"
-   "$DYNAMO_HOME/ext/bin/x86_64-linux/glslang"                  "x86_64-linux/glslang"
-   "$DYNAMO_HOME/ext/bin/x86_64-win32/glslang.exe"              "x86_64-win32/glslang.exe"
+   "${DYNAMO-HOME}/ext/share/luajit"                    "shared/luajit"
 
-   "$DYNAMO_HOME/ext/bin/x86_64-macos/spirv-cross"            "x86_64-macos/spirv-cross"
-   "$DYNAMO_HOME/ext/bin/arm64-macos/spirv-cross"             "arm64-macos/spirv-cross"
-   "$DYNAMO_HOME/ext/bin/x86_64-linux/spirv-cross"            "x86_64-linux/spirv-cross"
-   "$DYNAMO_HOME/ext/bin/x86_64-win32/spirv-cross.exe"        "x86_64-win32/spirv-cross.exe"
-
-   "${DYNAMO-HOME}/ext/share/luajit"                  "shared/luajit"
-
-   "bundle-resources/_defold"                          "_defold"})
+   "bundle-resources/_defold"                           "_defold"})
 
 (defn engine-artifact-files
   [archive-domain git-sha]

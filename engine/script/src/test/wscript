@@ -15,7 +15,7 @@ def build(bld):
         bld.env['JS_LIB_PATHS'] = lib_dirs
 
 
-    bld.stlib(features = 'c cxx',
+    bld.stlib(features = 'c cxx test test_install',
               includes = '..',
               use = 'DLIB LUA script',
               target = 'test_script',
@@ -58,7 +58,7 @@ def build(bld):
                                      exported_symbols = exported_symbols,
                                      proto_gen_py = True,
                                      target = 'test_script_vmath',
-                                     source = 'test_script_vmath.cpp test_number.lua test_vector.lua test_vector3.lua test_vector4.lua test_quat.lua test_matrix4.lua'.split())
+                                     source = 'test_script_vmath.cpp test_number.lua test_vector.lua test_vector3.lua test_vector4.lua test_quat.lua test_matrix4.lua test_script_vmath.lua'.split())
 
     script_table_features = flist + ' embed';
     test_script_table = bld.program(features = script_table_features,
@@ -160,6 +160,24 @@ def build(bld):
                                        proto_gen_py = True,
                                        target = 'test_script_bitop',
                                        source = 'test_script_bitop.cpp test_bitop.lua'.split())
+
+    test_script_types = bld.program(features = flist,
+                                       includes = '..',
+                                       use = libs,
+                                       web_libs = web_libs,
+                                       exported_symbols = exported_symbols + ['ScriptTypesExt'],
+                                       proto_gen_py = True,
+                                       target = 'test_script_types',
+                                       source = 'test_script_types.cpp test_types.lua'.split())
+
+    test_script_types_null = bld.program(features = flist,
+                                       includes = '..',
+                                       use = libs,
+                                       web_libs = web_libs,
+                                       exported_symbols = exported_symbols,
+                                       proto_gen_py = True,
+                                       target = 'test_script_types_null',
+                                       source = 'test_script_types_null.cpp test_types.lua'.split())
 
     bld.install_files('${PREFIX}/include/script', 'test_script.h')
 

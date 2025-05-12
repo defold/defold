@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,7 +16,7 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
-            [editor.connection-properties :refer [connection-properties]]
+            [editor.connection-properties :as connection-properties]
             [editor.defold-project :as project]
             [editor.engine.build-errors :as engine-build-errors]
             [editor.fs :as fs]
@@ -25,7 +25,8 @@
             [editor.resource-node :as resource-node]
             [editor.shared-editor-settings :as shared-editor-settings]
             [editor.system :as system]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [util.coll :as coll])
   (:import [com.defold.extender.client ExtenderClient ExtenderClientCache ExtenderResource]
            [com.dynamo.bob Platform]
            [java.io File]
@@ -34,13 +35,6 @@
            [java.util ArrayList Base64]))
 
 (set! *warn-on-reflection* true)
-
-(def ^:const defold-build-server-url
-  (or
-    (get-in connection-properties [:native-extensions :custom-build-servers (system/defold-channel)])
-    (get-in connection-properties [:native-extensions :build-server-url])))
-
-(def ^:const defold-build-server-headers "")
 
 ;;; Caching
 
@@ -69,7 +63,9 @@
    (.getPair Platform/X86_64Win32)  {:platform      "x86_64-win32"
                                      :library-paths #{"win32" "x86_64-win32"}}
    (.getPair Platform/X86_64Linux)  {:platform      "x86_64-linux"
-                                     :library-paths #{"linux" "x86_64-linux"}}})
+                                     :library-paths #{"linux" "x86_64-linux"}}
+   (.getPair Platform/Arm64Linux)   {:platform      "arm64-linux"
+                                     :library-paths #{"linux" "arm64-linux"}}})
 
 (def ^:private common-extension-paths
   [["ext.manifest"]
@@ -152,13 +148,14 @@
    (g/with-auto-evaluation-context evaluation-context
      (get-build-server-url prefs project evaluation-context)))
   (^String [prefs project evaluation-context]
-   (or (not-empty (string/trim (prefs/get-prefs prefs "extensions-server" ""))) ;; always trim because `get-prefs` does not return nil
+   (or (not-empty (string/trim (prefs/get prefs [:extensions :build-server]))) ;; always trim because `prefs/get` does not return nil
        (not-empty (some-> (shared-editor-settings/get-setting project ["extensions" "build_server"] evaluation-context) string/trim)) ;; use `some->` because `get-setting` may return nil
-       defold-build-server-url)))
+       connection-properties/defold-build-server-url)))
 
 (defn get-build-server-headers
-  ^String [prefs]
-  (prefs/get-prefs prefs "extensions-server-headers" defold-build-server-headers))
+  "Returns a (possibly empty) vector of header strings"
+  [prefs]
+  (into [] (remove string/blank?) (string/split-lines (prefs/get prefs [:extensions :build-server-headers]))))
 
 ;; Note: When we do bundling for Android via the editor, we need add
 ;;       [["android" "proguard"] "_app/app.pro"] to the returned table.
@@ -184,25 +181,27 @@
 
 (defn- get-main-manifest-section-and-key [platform]
    (case platform
-     "armv7-android" ["android" "manifest"]
-     "arm64-android" ["android" "manifest"]
-     "arm64-ios"     ["ios" "infoplist"]
-     "armv7-ios"     ["ios" "infoplist"]
-     "arm64-osx"     ["osx" "infoplist"]
-     "x86_64-osx"    ["osx" "infoplist"]
-     "js-web"        ["html5" "htmlfile"]
-     "wasm-web"      ["html5" "htmlfile"]))
+     "armv7-android"    ["android" "manifest"]
+     "arm64-android"    ["android" "manifest"]
+     "arm64-ios"        ["ios" "infoplist"]
+     "armv7-ios"        ["ios" "infoplist"]
+     "arm64-osx"        ["osx" "infoplist"]
+     "x86_64-osx"       ["osx" "infoplist"]
+     "js-web"           ["html5" "htmlfile"]
+     "wasm-web"         ["html5" "htmlfile"]
+     "wasm_pthread-web" ["html5" "htmlfile"]))
 
 (defn- get-main-manifest-name [ne-platform]
   (case ne-platform
-    "armv7-android" "AndroidManifest.xml"
-    "arm64-android" "AndroidManifest.xml"
-    "arm64-ios"     "Info.plist"
-    "armv7-ios"     "Info.plist"
-    "arm64-osx"     "Info.plist"
-    "x86_64-osx"    "Info.plist"
-    "js-web"        "engine_template.html"
-    "wasm-web"      "engine_template.html"
+    "armv7-android"    "AndroidManifest.xml"
+    "arm64-android"    "AndroidManifest.xml"
+    "arm64-ios"        "Info.plist"
+    "armv7-ios"        "Info.plist"
+    "arm64-osx"        "Info.plist"
+    "x86_64-osx"       "Info.plist"
+    "js-web"           "engine_template.html"
+    "wasm-web"         "engine_template.html"
+    "wasm_pthread-web" "engine_template.html"
     nil))
 
 (defn- get-main-manifest-file-upload-resource [project evaluation-context platform]
@@ -249,30 +248,37 @@
            (extension-resource-nodes-by-upload-path project evaluation-context platform)
            (get-main-manifest-file-upload-resource project evaluation-context platform))))
 
-(defn get-engine-archive [project evaluation-context platform build-server-url build-server-headers]
+(defn get-engine-archive [project platform prefs evaluation-context]
   (if-not (supported-platform? platform)
     (throw (engine-build-errors/unsupported-platform-error platform))
-    (let [extender-platform (get-in extender-platforms [platform :platform])
-          project-directory (workspace/project-path (project/workspace project evaluation-context) evaluation-context)
+    (let [basis (:basis evaluation-context)
+          extender-platform (get-in extender-platforms [platform :platform])
+          project-directory (workspace/project-directory basis (project/workspace project evaluation-context))
           cache-directory (cache-dir project-directory)
           sdk-version (system/defold-engine-sha1)
           cache (ExtenderClientCache. cache-directory)
           extender-resources (make-extender-resources project platform evaluation-context)
-          cache-key (.calcKey cache extender-platform sdk-version extender-resources)]
+          cache-key (.calcKey cache extender-platform sdk-version extender-resources)
+          url (get-build-server-url prefs project evaluation-context)
+          headers (get-build-server-headers prefs)
+          username (string/trim (prefs/get prefs [:extensions :build-server-username]))
+          password (prefs/get prefs [:extensions :build-server-password])]
       (if (.isCached cache extender-platform cache-key)
         {:id {:type :custom :version cache-key}
          :cached true
          :engine-archive (.getCachedBuildFile cache extender-platform)
          :extender-platform extender-platform}
-        (let [extender-client (ExtenderClient. build-server-url cache-directory)
-              user-info (.getUserInfo (URI. build-server-url))
-              headers (into [] (remove string/blank?) (string/split-lines build-server-headers))
+        (let [extender-client (ExtenderClient. url cache-directory)
               destination-file (fs/create-temp-file! (str "build_" sdk-version) ".zip")
               log-file (fs/create-temp-file! (str "build_" sdk-version) ".txt")
               async true]
           (try
-            (when (pos? (count user-info))
-              (.setHeader extender-client "Authorization" (str "Basic " (.encodeToString (Base64/getEncoder) (.getBytes user-info StandardCharsets/UTF_8)))))
+            (when-let [^String auth (or
+                                      (and (not (string/blank? username))
+                                           (not (coll/empty? password))
+                                           (str username ":" password))
+                                      (.getUserInfo (URI. url)))]
+              (.setHeader extender-client "Authorization" (str "Basic " (.encodeToString (Base64/getEncoder) (.getBytes auth StandardCharsets/UTF_8)))))
             (when (pos? (count headers))
               (.setHeaders extender-client headers))
             (.build extender-client extender-platform sdk-version extender-resources destination-file log-file async)

@@ -4,10 +4,22 @@
 
 ### Android SDK/NDK
 
+#### For contributors
+
+The Android Studio installation will be automatically picked up from the default installation
+
+* macOS - `~/Library/android/sdk`
+* Windows - `%LOCALAPPDATA%/Android/Sdk`
+
+or by specifying the `ANDROID_HOME` environment variable.
+
+#### For the maintainers
+
+_This is mainly for the Defold team and their CI_
+
 When building the engine, the build system tries to find the sdk in this order:
 
-* `$DYNAMO_HOME/ext/SDKs/android-sdk` -  This is mainly for the Defold team and their CI
-* `$ANDROID_HOME` - Set this path to point to your android studio sdk installation (e.g. `ANDROID_HOME=~/Library/Android/sdk` is the default installation on macOS)
+* `$DYNAMO_HOME/ext/SDKs/android-sdk`
 
 #### Android Studio
 
@@ -69,7 +81,7 @@ Here are some commands to help out with the process:
 After installing the SDK check that the PATH env variable contains the path to the android sdk. If not, add it manually.
 
 **Note** Newer version have the suffixes ".bin" or ".exe" as they are now installers.
-Simply use that as the suffix, and and extract with **7z**
+Simply use that as the suffix, and and extract with e.g. **7z**
 
 * How to launch the [Android Tool](http://developer.android.com/sdk/installing/adding-packages.html) manually
 
@@ -258,7 +270,7 @@ We ship Android "aapt" (Android Asset Packaging Tool) binaries for all platforms
 
 Creating a new android package is straight forward:
 
-    APILEVEL=34
+    APILEVEL=35
     mkdir -p sdkpack_android
     cd sdkpack_android
     mkdir -p share/java
@@ -274,7 +286,7 @@ Creating a new android package is straight forward:
 
 Update the reference to the tar ball in `<defold>/scripts/build.py`
 
-    PACKAGES_ANDROID="... android-34 ...".split()
+    PACKAGES_ANDROID="... android-35 ...".split()
 
 Find and update all `ANDROID_BUILD_TOOLS_VERSION`, `ANDROID_TARGET_API_LEVEL` and `ANDROID_PLATFORM` in the `defold` project folder.
 

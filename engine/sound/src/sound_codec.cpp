@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -64,7 +64,7 @@ namespace dmSoundCodec
         delete context;
     }
 
-    Result NewDecoder(HCodecContext context, Format format, const void* buffer, uint32_t buffer_size, HDecoder* decoder)
+    Result NewDecoder(HCodecContext context, Format format, dmSound::HSoundData sound_data, HDecoder* decoder)
     {
         if (context->m_DecodersPool.Remaining() == 0) {
             return RESULT_OUT_OF_RESOURCES;
@@ -80,7 +80,7 @@ namespace dmSoundCodec
         d->m_Index = index;
         d->m_DecoderInfo = decoderImpl;
 
-        Result r = decoderImpl->m_OpenStream(buffer, buffer_size, &d->m_Stream);
+        Result r = decoderImpl->m_OpenStream(sound_data, &d->m_Stream);
         if (r != RESULT_OK) {
             context->m_DecodersPool.Push(index);
             return r;
@@ -96,7 +96,7 @@ namespace dmSoundCodec
         decoder->m_DecoderInfo->m_GetStreamInfo(decoder->m_Stream, info);
     }
 
-    Result Decode(HCodecContext context, HDecoder decoder, char* buffer, uint32_t buffer_size, uint32_t* decoded)
+    Result Decode(HCodecContext context, HDecoder decoder, char* buffer[], uint32_t buffer_size, uint32_t* decoded)
     {
         DM_PROFILE(__FUNCTION__);
         assert(decoder);

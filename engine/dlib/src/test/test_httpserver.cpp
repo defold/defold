@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -131,7 +131,9 @@ public:
         }
     }
 
-    static void ClientHttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length)
+    static void ClientHttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length,
+                                    uint32_t range_start, uint32_t range_end, uint32_t document_size,
+                                    const char* method)
     {
         dmHttpServerTest* self = (dmHttpServerTest*) user_data;
         self->m_ClientData.append((const char*) content_data, content_data_size);

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -619,7 +619,7 @@ bail:
                     Connection connection;
                     memset(&connection, 0, sizeof(connection));
                     connection.m_Socket = client_socket;
-                    connection.m_ConnectionTimeStart = dmTime::GetTime();
+                    connection.m_ConnectionTimeStart = dmTime::GetMonotonicTime();
                     server->m_Connections.Push(connection);
                 }
             }
@@ -631,7 +631,7 @@ bail:
 
         dmSocket::SelectorZero(&selector);
 
-        uint64_t current_time = dmTime::GetTime();
+        uint64_t current_time = dmTime::GetMonotonicTime();
 
         // Iterate over persistent connections, timeout phase
         for (uint32_t i = 0; i < server->m_Connections.Size(); ++i)

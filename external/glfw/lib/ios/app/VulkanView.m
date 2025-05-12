@@ -82,6 +82,11 @@ int  _glfwPlatformOpenWindowVulkan( int width, int height,
                               const _GLFWwndconfig *wndconfig,
                               const _GLFWfbconfig *fbconfig )
 {
+    CGRect view_bounds = g_VulkanView.bounds;
+
+    [g_VulkanView setWindowWidth:view_bounds.size.width * g_VulkanView.contentScaleFactor];
+    [g_VulkanView setWindowHeight:view_bounds.size.height * g_VulkanView.contentScaleFactor];
+
     _glfwWin.width = [g_VulkanView getWindowWidth];
     _glfwWin.height = [g_VulkanView getWindowHeight];
 

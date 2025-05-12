@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -32,11 +32,16 @@ struct ReverseHashEntry
     uint16_t m_Length;
 };
 
+template<typename TABLE>
+static void IncreaseTableCapacity(TABLE* table, uint32_t increment)
+{
+    uint32_t capacity = table->Capacity() + increment;
+    table->SetCapacity((capacity*5)/7, capacity);
+}
+
 struct ReverseHashContainer
 {
-    static const size_t m_HashTableSize = 1024;
-    static const size_t m_HashTableCapacity = 512;
-    static const size_t m_HashTableCapacityIncrement = 256;
+    static const size_t m_HashTableCapacityIncrement = 16 * 1024;
     static const size_t m_HashStatesCapacity = 512;
     static const size_t m_HashStatesCapacityIncrement = 256;
 
@@ -81,12 +86,10 @@ struct ReverseHashContainer
 
         if(enable)
         {
-
-            if(m_HashTable32Entries.Capacity() < m_HashTableCapacity)
-                m_HashTable32Entries.SetCapacity(m_HashTableSize, m_HashTableCapacity);
-            m_HashTable32Entries.Clear();
-            if(m_HashTable64Entries.Capacity() < m_HashTableCapacity)
-                m_HashTable64Entries.SetCapacity(m_HashTableSize, m_HashTableCapacity);
+            if (m_HashTable32Entries.Full())
+                IncreaseTableCapacity(&m_HashTable32Entries, m_HashTableCapacityIncrement);
+            if (m_HashTable64Entries.Full())
+                IncreaseTableCapacity(&m_HashTable64Entries, m_HashTableCapacityIncrement);
             m_HashTable64Entries.Clear();
             m_HashStates.SetCapacity(m_HashStatesCapacity);
             m_HashStates.SetSize(m_HashStatesCapacity);
@@ -234,7 +237,7 @@ uint32_t dmHashBuffer32(const void * key, uint32_t len)
         {
             if (hash_table->Full())
             {
-                hash_table->SetCapacity(dmHashContainer().m_HashTableSize, hash_table->Capacity() + dmHashContainer().m_HashTableCapacityIncrement);
+                IncreaseTableCapacity(hash_table, dmHashContainer().m_HashTableCapacityIncrement);
             }
             char* copy = (char*) malloc(len + 1);
             memcpy(copy, key, len);
@@ -311,7 +314,7 @@ uint64_t dmHashBuffer64(const void * key, uint32_t len)
         {
             if (hash_table->Full())
             {
-                hash_table->SetCapacity(dmHashContainer().m_HashTableSize, hash_table->Capacity() + dmHashContainer().m_HashTableCapacityIncrement);
+                IncreaseTableCapacity(hash_table, dmHashContainer().m_HashTableCapacityIncrement);
             }
             char* copy = (char*) malloc(len + 1);
             memcpy(copy, key, len);
@@ -438,7 +441,7 @@ uint32_t dmHashFinal32(HashState32* hash_state)
         {
             if (hash_table->Full())
             {
-                hash_table->SetCapacity(dmHashContainer().m_HashTableSize, hash_table->Capacity() + dmHashContainer().m_HashTableCapacityIncrement);
+                IncreaseTableCapacity(hash_table, dmHashContainer().m_HashTableCapacityIncrement);
             }
             hash_table->Put(hash_state->m_Hash, dmHashContainer().m_HashStates[hash_state->m_ReverseHashEntryIndex]);
         }
@@ -574,7 +577,7 @@ uint64_t dmHashFinal64(HashState64* hash_state)
         {
             if (hash_table->Full())
             {
-                hash_table->SetCapacity(dmHashContainer().m_HashTableSize, hash_table->Capacity() + dmHashContainer().m_HashTableCapacityIncrement);
+                IncreaseTableCapacity(hash_table, dmHashContainer().m_HashTableCapacityIncrement);
             }
             hash_table->Put(hash_state->m_Hash, dmHashContainer().m_HashStates[hash_state->m_ReverseHashEntryIndex]);
         }

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -39,10 +39,14 @@ namespace dmJNI
     void SetObjectDeref(JNIEnv* env, jobject obj, jfieldID field, jobject value);
     void SetBoolean(JNIEnv* env, jobject obj, jfieldID field, jboolean value);
     void SetByte(JNIEnv* env, jobject obj, jfieldID field, jbyte value);
+    void SetUByte(JNIEnv* env, jobject obj, jfieldID field, jbyte value);
     void SetChar(JNIEnv* env, jobject obj, jfieldID field, jchar value);
     void SetShort(JNIEnv* env, jobject obj, jfieldID field, jshort value);
+    void SetUShort(JNIEnv* env, jobject obj, jfieldID field, jshort value);
     void SetInt(JNIEnv* env, jobject obj, jfieldID field, jint value);
+    void SetUInt(JNIEnv* env, jobject obj, jfieldID field, jint value);
     void SetLong(JNIEnv* env, jobject obj, jfieldID field, jlong value);
+    void SetULong(JNIEnv* env, jobject obj, jfieldID field, jlong value);
     void SetFloat(JNIEnv* env, jobject obj, jfieldID field, jfloat value);
     void SetDouble(JNIEnv* env, jobject obj, jfieldID field, jdouble value);
     void SetString(JNIEnv* env, jobject obj, jfieldID field, const char* value);
@@ -50,34 +54,46 @@ namespace dmJNI
     // Requires that the enum class has a "static Enum fromValue(int value)" function.
     void SetEnum(JNIEnv* env, jobject obj, jfieldID field, int value);
 
-    bool    GetBoolean(JNIEnv* env, jobject obj, jfieldID field);
-    uint8_t GetByte(JNIEnv* env, jobject obj, jfieldID field);
-    char    GetChar(JNIEnv* env, jobject obj, jfieldID field);
-    int16_t GetShort(JNIEnv* env, jobject obj, jfieldID field);
-    int32_t GetInt(JNIEnv* env, jobject obj, jfieldID field);
-    int64_t GetLong(JNIEnv* env, jobject obj, jfieldID field);
-    float   GetFloat(JNIEnv* env, jobject obj, jfieldID field);
-    double  GetDouble(JNIEnv* env, jobject obj, jfieldID field);
-    char*   GetString(JNIEnv* env, jobject obj, jfieldID field);
+    bool        GetBoolean(JNIEnv* env, jobject obj, jfieldID field);
+    char        GetChar(JNIEnv* env, jobject obj, jfieldID field);
+    uint8_t     GetByte(JNIEnv* env, jobject obj, jfieldID field);
+    uint8_t     GetUByte(JNIEnv* env, jobject obj, jfieldID field);
+    int16_t     GetShort(JNIEnv* env, jobject obj, jfieldID field);
+    uint16_t    GetUShort(JNIEnv* env, jobject obj, jfieldID field);
+    int32_t     GetInt(JNIEnv* env, jobject obj, jfieldID field);
+    uint32_t    GetUInt(JNIEnv* env, jobject obj, jfieldID field);
+    int64_t     GetLong(JNIEnv* env, jobject obj, jfieldID field);
+    uint64_t    GetULong(JNIEnv* env, jobject obj, jfieldID field);
+    float       GetFloat(JNIEnv* env, jobject obj, jfieldID field);
+    double      GetDouble(JNIEnv* env, jobject obj, jfieldID field);
+    char*       GetString(JNIEnv* env, jobject obj, jfieldID field);
 
     // Requires that the enum class has a "int getValue()" function.
     int     GetEnum(JNIEnv* env, jobject obj, jfieldID field);
 
     jbooleanArray   C2J_CreateBooleanArray(JNIEnv* env, const bool* data, uint32_t data_count);
-    jbyteArray      C2J_CreateByteArray(JNIEnv* env, const uint8_t* data, uint32_t data_count);
+    jbyteArray      C2J_CreateByteArray(JNIEnv* env, const int8_t* data, uint32_t data_count);
+    jbyteArray      C2J_CreateUByteArray(JNIEnv* env, const uint8_t* data, uint32_t data_count);
     jcharArray      C2J_CreateCharArray(JNIEnv* env, const char* data, uint32_t data_count);
     jshortArray     C2J_CreateShortArray(JNIEnv* env, const int16_t* data, uint32_t data_count);
+    jshortArray     C2J_CreateUShortArray(JNIEnv* env, const uint16_t* data, uint32_t data_count);
     jintArray       C2J_CreateIntArray(JNIEnv* env, const int32_t* data, uint32_t data_count);
+    jintArray       C2J_CreateUIntArray(JNIEnv* env, const uint32_t* data, uint32_t data_count);
     jlongArray      C2J_CreateLongArray(JNIEnv* env, const int64_t* data, uint32_t data_count);
+    jlongArray      C2J_CreateULongArray(JNIEnv* env, const uint64_t* data, uint32_t data_count);
     jfloatArray     C2J_CreateFloatArray(JNIEnv* env, const float* data, uint32_t data_count);
     jdoubleArray    C2J_CreateDoubleArray(JNIEnv* env, const double* data, uint32_t data_count);
 
     bool*           J2C_CreateBooleanArray(JNIEnv* env, jbooleanArray arr, uint32_t* out_count);
     uint8_t*        J2C_CreateByteArray(JNIEnv* env, jbyteArray arr, uint32_t* out_count);
+    uint8_t*        J2C_CreateUByteArray(JNIEnv* env, jbyteArray arr, uint32_t* out_count);
     char*           J2C_CreateCharArray(JNIEnv* env, jcharArray arr, uint32_t* out_count);
     int16_t*        J2C_CreateShortArray(JNIEnv* env, jshortArray arr, uint32_t* out_count);
+    uint16_t*       J2C_CreateUShortArray(JNIEnv* env, jshortArray arr, uint32_t* out_count);
     int32_t*        J2C_CreateIntArray(JNIEnv* env, jintArray arr, uint32_t* out_count);
+    uint32_t*       J2C_CreateUIntArray(JNIEnv* env, jintArray arr, uint32_t* out_count);
     int64_t*        J2C_CreateLongArray(JNIEnv* env, jlongArray arr, uint32_t* out_count);
+    uint64_t*       J2C_CreateULongArray(JNIEnv* env, jlongArray arr, uint32_t* out_count);
     float*          J2C_CreateFloatArray(JNIEnv* env, jfloatArray arr, uint32_t* out_count);
     double*         J2C_CreateDoubleArray(JNIEnv* env, jdoubleArray arr, uint32_t* out_count);
 
@@ -108,7 +124,7 @@ namespace dmJNI
         ScopedString(JNIEnv* env, jstring str)
         : m_Env(env)
         , m_JString(str)
-        , m_String(env->GetStringUTFChars(str, JNI_FALSE))
+        , m_String(str ? env->GetStringUTFChars(str, JNI_FALSE) : 0)
         {
         }
         ~ScopedString()
@@ -116,6 +132,28 @@ namespace dmJNI
             if (m_String)
             {
                 m_Env->ReleaseStringUTFChars(m_JString, m_String);
+            }
+        }
+    };
+
+    struct ScopedByteArray
+    {
+        JNIEnv*     m_Env;
+        jbyte*      m_Array;
+        jsize       m_ArraySize;
+        jbyteArray  m_JArray;
+        ScopedByteArray(JNIEnv* env, jbyteArray arr)
+        : m_Env(env)
+        , m_Array(arr ? env->GetByteArrayElements(arr, 0) : 0)
+        , m_ArraySize(arr ? env->GetArrayLength(arr) : 0)
+        , m_JArray(arr)
+        {
+        }
+        ~ScopedByteArray()
+        {
+            if (m_Array && m_JArray)
+            {
+                m_Env->ReleaseByteArrayElements(m_JArray, m_Array, JNI_ABORT);
             }
         }
     };

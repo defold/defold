@@ -1,4 +1,4 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -30,7 +30,7 @@
   to the console
 
   Leading kv-args:
-    :display-output!    require, 2-arg fn to display error output
+    :display-output!    required, 2-arg fn to display error output
     :label              optional, string error prefix, defaults to \"Extension\"
     :catch              optional, result value in case of exceptions (otherwise
                         the Exception is re-thrown)"

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -24,14 +24,14 @@
 #include <script/script.h>
 #include <algorithm> // std::stable_sort
 
-#include "test_render.h"
-
 #include "../../../graphics/src/graphics_private.h"
 #include "../../../graphics/src/null/graphics_null_private.h"
+#include "../../../graphics/src/test/test_graphics_util.h"
 
 #include "render/render.h"
 #include "render/render_private.h"
 #include "render/font_renderer_private.h"
+#include "render/font_renderer_default.h" // for dmRender::Layout
 
 const static uint32_t WIDTH = 600;
 const static uint32_t HEIGHT = 400;
@@ -45,6 +45,22 @@ const static uint32_t HEIGHT = 400;
 
 using namespace dmVMath;
 
+static dmRender::FontGlyph* GetGlyph(uint32_t utf8, void* user_ctx)
+{
+    dmRender::FontGlyph* glyphs = (dmRender::FontGlyph*)user_ctx;
+    return &glyphs[utf8];
+}
+
+static void* GetGlyphData(uint32_t codepoint, void* user_ctx, uint32_t* out_size, uint32_t* out_compression, uint32_t* out_width, uint32_t* out_height, uint32_t* out_channels)
+{
+    return 0;
+}
+
+static uint32_t GetFontMetrics(void* user_ctx, dmRender::FontMetrics* metrics)
+{
+    return 0;
+}
+
 class dmRenderTest : public jc_test_base_class
 {
 protected:
@@ -53,6 +69,7 @@ protected:
     dmGraphics::HContext m_GraphicsContext;
     dmScript::HContext m_ScriptContext;
     dmRender::HFontMap m_SystemFontMap;
+    dmRender::FontGlyph m_Glyphs[128];
 
     virtual void SetUp()
     {
@@ -61,6 +78,7 @@ protected:
         dmPlatform::WindowParams win_params = {};
         win_params.m_Width = 20;
         win_params.m_Height = 10;
+        win_params.m_ContextAlphabits = 8;
 
         m_Window = dmPlatform::NewWindow();
         dmPlatform::OpenWindow(m_Window, win_params);
@@ -90,19 +108,23 @@ protected:
         font_map_params.m_CacheCellHeight = 8;
         font_map_params.m_MaxAscent = 2;
         font_map_params.m_MaxDescent = 1;
-        font_map_params.m_Glyphs.SetCapacity(128);
-        font_map_params.m_Glyphs.SetSize(128);
-        memset((void*)&font_map_params.m_Glyphs[0], 0, sizeof(dmRender::Glyph)*128);
-        for (uint32_t i = 0; i < 128; ++i)
+        font_map_params.m_GetGlyph = GetGlyph;
+        font_map_params.m_GetGlyphData = GetGlyphData;
+        font_map_params.m_GetFontMetrics = GetFontMetrics;
+
+        m_SystemFontMap = dmRender::NewFontMap(m_Context, m_GraphicsContext, font_map_params);
+
+        memset(m_Glyphs, 0, sizeof(m_Glyphs));
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(m_Glyphs); ++i)
         {
-            font_map_params.m_Glyphs[i].m_Character = i;
-            font_map_params.m_Glyphs[i].m_Width = 1;
-            font_map_params.m_Glyphs[i].m_LeftBearing = 1;
-            font_map_params.m_Glyphs[i].m_Advance = 2;
-            font_map_params.m_Glyphs[i].m_Ascent = 2;
-            font_map_params.m_Glyphs[i].m_Descent = 1;
+            m_Glyphs[i].m_Character = i;
+            m_Glyphs[i].m_Width = 1;
+            m_Glyphs[i].m_LeftBearing = 1;
+            m_Glyphs[i].m_Advance = 2;
+            m_Glyphs[i].m_Ascent = 2;
+            m_Glyphs[i].m_Descent = 1;
         }
-        m_SystemFontMap = dmRender::NewFontMap(m_GraphicsContext, font_map_params);
+        dmRender::SetFontMapUserData(m_SystemFontMap, m_Glyphs);
     }
 
     virtual void TearDown()
@@ -121,27 +143,20 @@ TEST_F(dmRenderTest, TestFontMapTextureFiltering)
 {
     dmRender::HFontMap bitmap_font_map;
     dmRender::FontMapParams bitmap_font_map_params;
-    bitmap_font_map_params.m_CacheWidth = 1;
-    bitmap_font_map_params.m_CacheHeight = 1;
+    bitmap_font_map_params.m_CacheWidth = 8;
+    bitmap_font_map_params.m_CacheHeight = 8;
     bitmap_font_map_params.m_CacheCellWidth = 8;
     bitmap_font_map_params.m_CacheCellHeight = 8;
     bitmap_font_map_params.m_MaxAscent = 2;
     bitmap_font_map_params.m_MaxDescent = 1;
-    bitmap_font_map_params.m_Glyphs.SetCapacity(1);
-    bitmap_font_map_params.m_Glyphs.SetSize(1);
-    memset((void*)&bitmap_font_map_params.m_Glyphs[0], 0, sizeof(dmRender::Glyph)*1);
-    for (uint32_t i = 0; i < 1; ++i)
-    {
-        bitmap_font_map_params.m_Glyphs[i].m_Character = i;
-        bitmap_font_map_params.m_Glyphs[i].m_Width = 1;
-        bitmap_font_map_params.m_Glyphs[i].m_LeftBearing = 1;
-        bitmap_font_map_params.m_Glyphs[i].m_Advance = 2;
-        bitmap_font_map_params.m_Glyphs[i].m_Ascent = 2;
-        bitmap_font_map_params.m_Glyphs[i].m_Descent = 1;
-    }
+
     bitmap_font_map_params.m_ImageFormat = dmRenderDDF::TYPE_BITMAP;
 
-    bitmap_font_map = dmRender::NewFontMap(m_GraphicsContext, bitmap_font_map_params);
+    bitmap_font_map_params.m_GetGlyph = GetGlyph;
+    bitmap_font_map_params.m_GetGlyphData = GetGlyphData;
+    bitmap_font_map_params.m_GetFontMetrics = GetFontMetrics;
+
+    bitmap_font_map = dmRender::NewFontMap(m_Context, m_GraphicsContext, bitmap_font_map_params);
     ASSERT_TRUE(VerifyFontMapMinFilter(bitmap_font_map, dmGraphics::TEXTURE_FILTER_LINEAR));
     ASSERT_TRUE(VerifyFontMapMagFilter(bitmap_font_map, dmGraphics::TEXTURE_FILTER_LINEAR));
     dmRender::DeleteFontMap(bitmap_font_map);
@@ -436,13 +451,12 @@ TEST_F(dmRenderTest, TestRenderListDrawState)
 {
     dmRender::RenderListBegin(m_Context);
 
-    dmGraphics::ShaderDesc::Shader shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, "foo", 3);
-    dmGraphics::ShaderDesc vs_desc        = MakeDDFShaderDesc(&shader, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, 0, 0, 0, 0);
-    dmGraphics::ShaderDesc fs_desc        = MakeDDFShaderDesc(&shader, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, 0, 0, 0, 0);
+    dmGraphics::ShaderDescBuilder shader_desc_builder;
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
 
-    dmGraphics::HVertexProgram vp   = dmGraphics::NewVertexProgram(m_GraphicsContext, &vs_desc, 0, 0);
-    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fs_desc, 0, 0);
-    dmRender::HMaterial material    = dmRender::NewMaterial(m_Context, vp, fp);
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader_desc_builder.Get(), 0, 0);
+    dmRender::HMaterial material = dmRender::NewMaterial(m_Context, program);
     dmhash_t tag = dmHashString64("tag");
     dmRender::SetMaterialTags(material, 1, &tag);
 
@@ -490,9 +504,8 @@ TEST_F(dmRenderTest, TestRenderListDrawState)
 
     ASSERT_EQ(0, memcmp(&ps_before, &ps_after, sizeof(dmGraphics::PipelineState)));
 
-    dmGraphics::DeleteVertexProgram(vp);
-    dmGraphics::DeleteFragmentProgram(fp);
     dmRender::DeleteMaterial(m_Context, material);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
 
     dmGraphics::DeleteVertexBuffer(vx_buffer);
     dmGraphics::DeleteVertexDeclaration(vx_decl);
@@ -551,6 +564,19 @@ static dmGraphics::HTexture MakeDummyTexture(dmGraphics::HContext context, uint3
     return texture;
 }
 
+static inline int CountSamplersInTextureBindTable(dmRender::HRenderContext context, dmhash_t sampler_name)
+{
+    int c = 0;
+    for (int i = 0; i < context->m_TextureBindTable.Size(); ++i)
+    {
+        if (context->m_TextureBindTable[i].m_Samplerhash == sampler_name)
+        {
+            c++;
+        }
+    }
+    return c;
+}
+
 TEST_F(dmRenderTest, TestEnableTextureByHash)
 {
     const char* shader_src = "uniform lowp sampler2D texture_sampler_1;\n"
@@ -558,21 +584,18 @@ TEST_F(dmRenderTest, TestEnableTextureByHash)
                              "uniform lowp sampler2DArray texture_sampler_3;\n"
                              "uniform lowp sampler2D texture_sampler_4;\n";
 
-    dmGraphics::ShaderDesc::ResourceBinding fs_uniforms[4] = {};
-    FillResourceBinding(&fs_uniforms[0], "texture_sampler_1", dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
-    FillResourceBinding(&fs_uniforms[1], "texture_sampler_2", dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
-    FillResourceBinding(&fs_uniforms[2], "texture_sampler_3", dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY);
-    FillResourceBinding(&fs_uniforms[3], "texture_sampler_4", dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    dmGraphics::ShaderDescBuilder shader_desc_builder;
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, shader_src, strlen(shader_src));
 
-    dmGraphics::ShaderDesc::Shader vs_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, "foo", 3);
-    dmGraphics::ShaderDesc::Shader fs_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, shader_src, strlen(shader_src));
-    dmGraphics::ShaderDesc vs_desc           = MakeDDFShaderDesc(&vs_shader, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, 0, 0, 0, 0);
-    dmGraphics::ShaderDesc fs_desc           = MakeDDFShaderDesc(&fs_shader, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, 0, 0, fs_uniforms, 4);
+    shader_desc_builder.AddTexture("texture_sampler_1", 0, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    shader_desc_builder.AddTexture("texture_sampler_2", 1, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    shader_desc_builder.AddTexture("texture_sampler_3", 2, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY);
+    shader_desc_builder.AddTexture("texture_sampler_4", 3, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
 
-    dmGraphics::HVertexProgram vp   = dmGraphics::NewVertexProgram(m_GraphicsContext, &vs_desc, 0, 0);
-    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fs_desc, 0, 0);
-    dmRender::HMaterial material    = dmRender::NewMaterial(m_Context, vp, fp);
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader_desc_builder.Get(), 0, 0);
 
+    dmRender::HMaterial material    = dmRender::NewMaterial(m_Context, program);
     dmhash_t texture_sampler_1_hash = dmHashString64("texture_sampler_1");
     dmhash_t texture_sampler_2_hash = dmHashString64("texture_sampler_2");
     dmhash_t texture_sampler_3_hash = dmHashString64("texture_sampler_3");
@@ -699,6 +722,24 @@ TEST_F(dmRenderTest, TestEnableTextureByHash)
     ASSERT_EQ(1, m_Context->m_TextureBindTable.Size());
     ASSERT_EQ(test_texture_0, m_Context->m_TextureBindTable[0].m_Texture);
 
+    // Reset bind table
+    m_Context->m_TextureBindTable.SetSize(0);
+
+    // Test binding and unbinding in different order, each sampler can only have one entry in the list
+    SetTextureBindingByHash(m_Context, texture_sampler_1_hash, textures[0]);
+    SetTextureBindingByHash(m_Context, texture_sampler_2_hash, textures[0]);
+
+    ASSERT_EQ(1, CountSamplersInTextureBindTable(m_Context, texture_sampler_1_hash));
+    ASSERT_EQ(1, CountSamplersInTextureBindTable(m_Context, texture_sampler_2_hash));
+
+    // Unbinding the first sampler will clear up one slot
+    SetTextureBindingByHash(m_Context, texture_sampler_1_hash, 0);
+    SetTextureBindingByHash(m_Context, texture_sampler_2_hash, textures[1]);
+
+    // The second sampler should just be present once in the table
+    ASSERT_EQ(0, CountSamplersInTextureBindTable(m_Context, texture_sampler_1_hash));
+    ASSERT_EQ(1, CountSamplersInTextureBindTable(m_Context, texture_sampler_2_hash));
+
     dmGraphics::DeleteTexture(test_texture_0);
     dmGraphics::DeleteTexture(test_texture_1);
     dmGraphics::DeleteTexture(test_texture_array);
@@ -710,8 +751,7 @@ TEST_F(dmRenderTest, TestEnableTextureByHash)
 
     dmGraphics::DeleteTexture(test_texture_0);
 
-    dmGraphics::DeleteVertexProgram(vp);
-    dmGraphics::DeleteFragmentProgram(fp);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
     dmRender::DeleteMaterial(m_Context, material);
 
     dmGraphics::DeleteVertexBuffer(vx_buffer);
@@ -720,14 +760,12 @@ TEST_F(dmRenderTest, TestEnableTextureByHash)
 
 TEST_F(dmRenderTest, TestEnableDisableContextTextures)
 {
-    dmGraphics::ShaderDesc::Shader vs_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, "foo", 3);
-    dmGraphics::ShaderDesc::Shader fs_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, "foo", 3);
-    dmGraphics::ShaderDesc vs_desc           = MakeDDFShaderDesc(&vs_shader, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, 0, 0, 0, 0);
-    dmGraphics::ShaderDesc fs_desc           = MakeDDFShaderDesc(&fs_shader, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, 0, 0, 0, 0);
+    dmGraphics::ShaderDescBuilder shader_desc_builder;
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
 
-    dmGraphics::HVertexProgram vp   = dmGraphics::NewVertexProgram(m_GraphicsContext, &vs_desc, 0, 0);
-    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fs_desc, 0, 0);
-    dmRender::HMaterial material    = dmRender::NewMaterial(m_Context, vp, fp);
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader_desc_builder.Get(), 0, 0);
+    dmRender::HMaterial material = dmRender::NewMaterial(m_Context, program);
 
     dmhash_t tag = dmHashString64("tag");
     dmRender::SetMaterialTags(material, 1, &tag);
@@ -788,9 +826,8 @@ TEST_F(dmRenderTest, TestEnableDisableContextTextures)
     ASSERT_EQ(0, m_Context->m_TextureBindTable[1].m_Texture);
     ASSERT_EQ(0, m_Context->m_TextureBindTable[1].m_Samplerhash);
 
-    dmGraphics::DeleteVertexProgram(vp);
-    dmGraphics::DeleteFragmentProgram(fp);
     dmRender::DeleteMaterial(m_Context, material);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
 
     dmGraphics::DeleteVertexBuffer(vx_buffer);
     dmGraphics::DeleteVertexDeclaration(vx_decl);
@@ -839,18 +876,17 @@ TEST_F(dmRenderTest, TestDefaultSamplerFilters)
                              "uniform lowp sampler2D texture_sampler_2;\n"
                              "uniform lowp sampler2D texture_sampler_3;\n";
 
-    dmGraphics::ShaderDesc::ResourceBinding uniforms[3] = {};
-    FillResourceBinding(&uniforms[0], "texture_sampler_1", dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
-    FillResourceBinding(&uniforms[1], "texture_sampler_2", dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
-    FillResourceBinding(&uniforms[2], "texture_sampler_3", dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    dmGraphics::ShaderDescBuilder shader_desc_builder;
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, shader_src, strlen(shader_src));
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, shader_src, strlen(shader_src));
 
-    dmGraphics::ShaderDesc::Shader shader    = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, shader_src, strlen(shader_src));
-    dmGraphics::ShaderDesc vs_desc           = MakeDDFShaderDesc(&shader, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, 0, 0, uniforms, 3);
-    dmGraphics::ShaderDesc fs_desc           = MakeDDFShaderDesc(&shader, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, 0, 0, uniforms, 3);
-    dmGraphics::HVertexProgram vp            = dmGraphics::NewVertexProgram(m_GraphicsContext, &vs_desc, 0, 0);
-    dmGraphics::HFragmentProgram fp          = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fs_desc, 0, 0);
-    dmRender::HMaterial material             = dmRender::NewMaterial(m_Context, vp, fp);
-    dmRender::HMaterial material_no_samplers = dmRender::NewMaterial(m_Context, vp, fp);
+    shader_desc_builder.AddTexture("texture_sampler_1", 0, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    shader_desc_builder.AddTexture("texture_sampler_2", 1, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    shader_desc_builder.AddTexture("texture_sampler_3", 2, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+
+    dmGraphics::HProgram program             = dmGraphics::NewProgram(m_GraphicsContext, shader_desc_builder.Get(), 0, 0);
+    dmRender::HMaterial material             = dmRender::NewMaterial(m_Context, program);
+    dmRender::HMaterial material_no_samplers = dmRender::NewMaterial(m_Context, program);
 
     dmhash_t tag = dmHashString64("tag");
     dmRender::SetMaterialTags(material, 1, &tag);
@@ -964,10 +1000,9 @@ TEST_F(dmRenderTest, TestDefaultSamplerFilters)
         ASSERT_EQ(gfx_mag_filter_default, gfx_mag_filter_active);
     }
 
-    dmGraphics::DeleteVertexProgram(vp);
-    dmGraphics::DeleteFragmentProgram(fp);
     dmRender::DeleteMaterial(m_Context, material);
     dmRender::DeleteMaterial(m_Context, material_no_samplers);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
 
     dmGraphics::DeleteTexture(texture);
     dmGraphics::DeleteVertexBuffer(vx_buffer);
@@ -1380,6 +1415,16 @@ static inline float ExpectedHeight(float line_height, float num_lines, float lea
     return num_lines * (line_height * fabsf(leading)) - line_height * (fabsf(leading) - 1.0f);
 }
 
+static void GetTextMetrics(dmRender::HFontMap font_map, const char* text, float width, bool line_break, float leading, float tracking, dmRender::TextMetrics* metrics)
+{
+    dmRender::TextMetricsSettings settings;
+    settings.m_Width = width;
+    settings.m_LineBreak = line_break;
+    settings.m_Leading = leading;
+    settings.m_Tracking = tracking;
+    dmRender::GetTextMetrics(font_map, text, &settings, metrics);
+}
+
 TEST_F(dmRenderTest, GetTextMetrics)
 {
     dmRender::TextMetrics metrics;
@@ -1389,7 +1434,7 @@ TEST_F(dmRenderTest, GetTextMetrics)
     const int descent       = 1;
     const int lineheight    = ascent + descent;
 
-    dmRender::GetTextMetrics(m_SystemFontMap, "Hello World", 0, false, 1.0f, 0.0f, &metrics);
+    GetTextMetrics(m_SystemFontMap, "Hello World", 0, false, 1.0f, 0.0f, &metrics);
     ASSERT_EQ(ascent, metrics.m_MaxAscent);
     ASSERT_EQ(descent, metrics.m_MaxDescent);
     ASSERT_EQ(charwidth*11, metrics.m_Width);
@@ -1398,7 +1443,7 @@ TEST_F(dmRenderTest, GetTextMetrics)
     // line break in the middle of the sentence
     int numlines = 2;
 
-    dmRender::GetTextMetrics(m_SystemFontMap, "Hello World", 8*charwidth, true, 1.0f, 0.0f, &metrics);
+    GetTextMetrics(m_SystemFontMap, "Hello World", 8*charwidth, true, 1.0f, 0.0f, &metrics);
     ASSERT_EQ(ascent, metrics.m_MaxAscent);
     ASSERT_EQ(descent, metrics.m_MaxDescent);
     ASSERT_EQ(charwidth*5, metrics.m_Width);
@@ -1409,7 +1454,7 @@ TEST_F(dmRenderTest, GetTextMetrics)
 
     leading = 2.0f;
     tracking = 0.0f;
-    dmRender::GetTextMetrics(m_SystemFontMap, "Hello World", 8*charwidth, true, leading, tracking, &metrics);
+    GetTextMetrics(m_SystemFontMap, "Hello World", 8*charwidth, true, leading, tracking, &metrics);
     ASSERT_EQ(ascent, metrics.m_MaxAscent);
     ASSERT_EQ(descent, metrics.m_MaxDescent);
     ASSERT_EQ(charwidth*5, metrics.m_Width);
@@ -1417,7 +1462,7 @@ TEST_F(dmRenderTest, GetTextMetrics)
 
     leading = 0.0f;
     tracking = 0.0f;
-    dmRender::GetTextMetrics(m_SystemFontMap, "Hello World", 8*charwidth, true, leading, tracking, &metrics);
+    GetTextMetrics(m_SystemFontMap, "Hello World", 8*charwidth, true, leading, tracking, &metrics);
     ASSERT_EQ(ascent, metrics.m_MaxAscent);
     ASSERT_EQ(descent, metrics.m_MaxDescent);
     ASSERT_EQ(charwidth*5, metrics.m_Width);
@@ -1426,7 +1471,7 @@ TEST_F(dmRenderTest, GetTextMetrics)
     leading = 1.0f;
     tracking = 0.0f;
     numlines = 3;
-    dmRender::GetTextMetrics(m_SystemFontMap, "Hello World Bonanza", 8*charwidth, true, leading, tracking, &metrics);
+    GetTextMetrics(m_SystemFontMap, "Hello World Bonanza", 8*charwidth, true, leading, tracking, &metrics);
     ASSERT_EQ(ascent, metrics.m_MaxAscent);
     ASSERT_EQ(descent, metrics.m_MaxDescent);
     ASSERT_EQ(charwidth*7, metrics.m_Width);
@@ -1441,14 +1486,14 @@ TEST_F(dmRenderTest, GetTextMetricsMeasureTrailingSpace)
     dmRender::TextMetrics metricsSingleLineHelloAndSpace;
     dmRender::TextMetrics metricsSingleLineSpace;
 
-    dmRender::GetTextMetrics(m_SystemFontMap, "Hello", 0, true, 1.0f, 0.0f, &metricsHello);
-    dmRender::GetTextMetrics(m_SystemFontMap, "Hello      ", 0, true, 1.0f, 0.0f, &metricsMultiLineHelloAndSpace);
+    GetTextMetrics(m_SystemFontMap, "Hello", 0, true, 1.0f, 0.0f, &metricsHello);
+    GetTextMetrics(m_SystemFontMap, "Hello      ", 0, true, 1.0f, 0.0f, &metricsMultiLineHelloAndSpace);
     ASSERT_EQ(metricsHello.m_Width, metricsMultiLineHelloAndSpace.m_Width);
 
-    dmRender::GetTextMetrics(m_SystemFontMap, "Hello      ", 0, false, 1.0f, 0.0f, &metricsSingleLineHelloAndSpace);
+    GetTextMetrics(m_SystemFontMap, "Hello      ", 0, false, 1.0f, 0.0f, &metricsSingleLineHelloAndSpace);
     ASSERT_LT(metricsHello.m_Width, metricsSingleLineHelloAndSpace.m_Width);
 
-    dmRender::GetTextMetrics(m_SystemFontMap, " ", 0, false, 1.0f, 0.0f, &metricsSingleLineSpace);
+    GetTextMetrics(m_SystemFontMap, " ", 0, false, 1.0f, 0.0f, &metricsSingleLineSpace);
     ASSERT_GT(metricsSingleLineSpace.m_Width, 0);
 }
 
@@ -1470,7 +1515,7 @@ TEST_F(dmRenderTest, TextAlignment)
         float leading = leadings[i];
         tracking = 0.0f;
         numlines = 3;
-        dmRender::GetTextMetrics(m_SystemFontMap, "Hello World Bonanza", 8*charwidth, true, leading, tracking, &metrics);
+        GetTextMetrics(m_SystemFontMap, "Hello World Bonanza", 8*charwidth, true, leading, tracking, &metrics);
         ASSERT_EQ(ascent, metrics.m_MaxAscent);
         ASSERT_EQ(descent, metrics.m_MaxDescent);
         ASSERT_EQ(charwidth*7, metrics.m_Width);

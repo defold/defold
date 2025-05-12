@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -299,6 +299,18 @@ namespace dmScript
 
     /*#
      * @name graphics.TEXTURE_TYPE_IMAGE_2D
+     * @variable
+     */
+
+    /*#
+     * May be nil if the graphics driver doesn't support it
+     * @name graphics.TEXTURE_TYPE_3D
+     * @variable
+     */
+
+    /*#
+     * May be nil if the graphics driver doesn't support it
+     * @name graphics.TEXTURE_TYPE_IMAGE_3D
      * @variable
      */
 
@@ -696,8 +708,14 @@ namespace dmScript
         // TextureType
         SET_GRAPHICS_ENUM(TEXTURE_TYPE_2D);
         SET_GRAPHICS_ENUM(TEXTURE_TYPE_2D_ARRAY);
-        SET_GRAPHICS_ENUM(TEXTURE_TYPE_CUBE_MAP);
         SET_GRAPHICS_ENUM(TEXTURE_TYPE_IMAGE_2D);
+        SET_GRAPHICS_ENUM(TEXTURE_TYPE_CUBE_MAP);
+
+        if (graphics_context && dmGraphics::IsContextFeatureSupported(graphics_context, dmGraphics::CONTEXT_FEATURE_3D_TEXTURES))
+        {
+            SET_GRAPHICS_ENUM(TEXTURE_TYPE_3D);
+            SET_GRAPHICS_ENUM(TEXTURE_TYPE_IMAGE_3D);
+        }
 
         // TextureFilter
         SET_GRAPHICS_ENUM(TEXTURE_FILTER_DEFAULT);

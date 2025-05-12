@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -20,6 +20,7 @@
             [editor.scene-cache :as scene-cache]
             [internal.util :as util])
   (:import [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$TextureFormat]
+           [com.dynamo.bob.pipeline TextureGenerator$GenerateResult]
            [com.jogamp.opengl GL GL2 GL3 GLProfile]
            [com.jogamp.opengl.util.awt ImageUtil]
            [com.jogamp.opengl.util.texture Texture TextureData TextureIO]
@@ -242,24 +243,25 @@ If supplied, the unit is the offset of GL_TEXTURE0, i.e. 0 => GL_TEXTURE0. The d
                  (.getAlternativesList texture-image))))
 
 (defn- image->mipmap-buffers
-  ^"[Ljava.nio.Buffer;" [^Graphics$TextureImage$Image image]
-  (assert (= (.getMipMapSizeCount image) (.getMipMapOffsetCount image)))
+  ^"[Ljava.nio.Buffer;" [^Graphics$TextureImage$Image image mip-image-byte-arrays]
+  (assert (= (.getMipMapSizeCount image) (.getMipMapOffsetCount image) (count mip-image-byte-arrays)))
   (let [mipmap-count (.getMipMapSizeCount image)
-        data (.toByteArray (.getData image))
         ^"[Ljava.nio.Buffer;" bufs (make-array Buffer mipmap-count)]
     (loop [i 0]
       (if (< i mipmap-count)
-        (let [buf (ByteBuffer/wrap data (.getMipMapOffset image i) (.getMipMapSize image i))]
+        (let [buf (ByteBuffer/wrap (nth mip-image-byte-arrays i))]
           (aset bufs i buf)
           (recur (inc i)))
         bufs))))
 
 (defn- texture-image->texture-data
-  ^TextureData [^Graphics$TextureImage texture-image]
-  (let [image            (select-texture-image-image texture-image)
-        gl-profile       (GLProfile/getGL2GL3)
-        gl-format        (int (format->gl-format (.getFormat image)))
-        mipmap-buffers   (image->mipmap-buffers image)]
+  ^TextureData [^TextureGenerator$GenerateResult texture-generate-result]
+  (let [texture-image (.textureImage texture-generate-result)
+        mip-image-byte-arrays (.imageDatas texture-generate-result)
+        image (select-texture-image-image texture-image)
+        gl-profile (GLProfile/getGL2GL3)
+        gl-format (int (format->gl-format (.getFormat image)))
+        mipmap-buffers (image->mipmap-buffers image mip-image-byte-arrays)]
     (TextureData. gl-profile
                   gl-format
                   (.getWidth image)

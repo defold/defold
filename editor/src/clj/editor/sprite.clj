@@ -1,4 +1,4 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -271,7 +271,7 @@
   (or (validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
       (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material "Material")))
 
-(g/defnk produce-build-targets [_node-id resource textures texture-binding-infos default-animation material material-attribute-infos material-max-page-count material-samplers material-shader blend-mode size-mode manual-size slice9 dep-build-targets offset playback-rate vertex-attribute-bytes vertex-attribute-overrides]
+(g/defnk produce-build-targets [_node-id resource textures texture-binding-infos default-animation material material-attribute-infos material-max-page-count material-samplers material-shader blend-mode size-mode manual-size slice9 offset playback-rate vertex-attribute-bytes vertex-attribute-overrides]
   (g/precluding-errors
     (let [sampler-name->texture-binding-info (coll/pair-map-by :sampler texture-binding-infos)
           is-paged-material (shader/is-using-array-samplers? material-shader)
@@ -293,7 +293,7 @@
               (if unassigned-texture-error
                 [unassigned-texture-error]
                 [(validation/prop-error :fatal _node-id :textures shader/page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count label)
-                 (when (nil? unassigned-default-animation-error)
+                 (when (and anim-data (nil? unassigned-default-animation-error))
                    (validation/prop-error :fatal _node-id :textures validation/prop-anim-missing-in? default-animation anim-data label))])))
           material-samplers)
 
@@ -314,7 +314,10 @@
         :playback-rate playback-rate
         :attributes (graphics/vertex-attribute-overrides->build-target vertex-attribute-overrides vertex-attribute-bytes material-attribute-infos)
         :textures textures}
-       dep-build-targets)]))
+       nil
+       (into [(resource/proj-path material)]
+             (map (comp resource/proj-path :texture))
+             textures))]))
 
 (def ^:private fake-resource
   (reify resource/Resource
@@ -331,7 +334,8 @@
     (workspace [_])
     (resource-hash [_])
     (openable? [_] false)
-    (editable? [_] false)))
+    (editable? [_] false)
+    (loaded? [_] false)))
 
 (g/defnode TextureBinding
   (property sampler g/Str) ; Required protobuf field.
@@ -343,8 +347,7 @@
                                             [:anim-data :anim-data]
                                             [:anim-ids :anim-ids]
                                             [:gpu-texture :gpu-texture]
-                                            [:texture-page-count :texture-page-count]
-                                            [:build-targets :build-targets]))))
+                                            [:texture-page-count :texture-page-count]))))
   (input texture-resource resource/Resource)
   (input anim-data g/Any)
   (input anim-ids g/Any)
@@ -356,17 +359,16 @@
                                          (g/error-value? anim-data) (dissoc :anim-data)
                                          (g/error-value? anim-ids) (dissoc :anim-ids)
                                          (g/error-value? texture-page-count) (dissoc :texture-page-count))))
-  (output scene-info g/Any (g/fnk [sampler gpu-texture anim-data :as info] info))
-  (input build-targets g/Any :array)
-  (output build-targets g/Any (gu/passthrough build-targets)))
+  (output texture-binding-save-value g/Any (g/fnk [sampler texture :as info] info))
+  (output scene-info g/Any (g/fnk [sampler gpu-texture anim-data :as info] info)))
 
 (defn- create-texture-binding-tx [sprite sampler texture]
   (g/make-nodes (g/node-id->graph-id sprite) [texture-binding [TextureBinding
                                                                :sampler sampler
                                                                :texture texture]]
     (g/connect texture-binding :_node-id sprite :copied-nodes)
-    (g/connect texture-binding :build-targets sprite :dep-build-targets)
     (g/connect texture-binding :texture-binding-info sprite :texture-binding-infos)
+    (g/connect texture-binding :texture-binding-save-value sprite :texture-binding-save-values)
     (g/connect texture-binding :scene-info sprite :scene-infos)))
 
 (defn- clear-texture-binding-node-id [texture-binding-node-id _]
@@ -385,6 +387,7 @@
         combined-name+indices (-> #{}
                                   (into (map key) texture-binding-index)
                                   (into (map key) material-sampler-index))
+
         texture-binding-properties
         (->> combined-name+indices
              sort
@@ -432,7 +435,11 @@
                        :edit-type {:type resource/Resource
                                    :ext extension
                                    :set-fn (fn/partial set-texture-binding-id sampler-name)}}])))))
-        attribute-properties (graphics/attribute-properties-by-property-key _node-id material-attribute-infos vertex-attribute-overrides)]
+
+        attribute-properties
+        (when-not (g/error-value? material-attribute-infos)
+          (graphics/attribute-property-entries _node-id material-attribute-infos 0 vertex-attribute-overrides))]
+
     (-> _declared-properties
         (update :properties (fn [props]
                               (-> props
@@ -505,8 +512,7 @@
                                             [:shader :material-shader]
                                             [:samplers :material-samplers]
                                             [:max-page-count :material-max-page-count]
-                                            [:attribute-infos :material-attribute-infos]
-                                            [:build-targets :dep-build-targets])))
+                                            [:attribute-infos :material-attribute-infos])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext #{"material"}}))
             (dynamic error (g/fnk [_node-id material]
                              (validate-material _node-id material))))
@@ -552,6 +558,7 @@
             (dynamic visible (g/constantly false)))
 
   (input texture-binding-infos g/Any :array)
+  (input texture-binding-save-values g/Any :array)
   (input scene-infos g/Any :array)
   (output scene-infos g/Any :cached produce-scene-infos)
 
@@ -559,6 +566,10 @@
                                         (if (g/error-value? material-samplers)
                                           texture-binding-infos
                                           (detect-and-apply-renames texture-binding-infos material-samplers))))
+  (output texture-binding-save-values g/Any (g/fnk [texture-binding-save-values ^:try material-samplers]
+                                              (if (g/error-value? material-samplers)
+                                                texture-binding-save-values
+                                                (util/detect-and-apply-renames texture-binding-save-values :sampler material-samplers :name))))
   (output primary-texture-binding-info g/Any (g/fnk [texture-binding-infos ^:try material-samplers]
                                                (if (g/error-value? material-samplers)
                                                  (first texture-binding-infos)
@@ -568,15 +579,9 @@
                                                                  texture-binding-info))
                                                              texture-binding-infos)
                                                        (first texture-binding-infos))))))
-  (output textures g/Any (g/fnk [texture-binding-infos]
-                           (into []
-                                 (keep (fn [{:keys [sampler texture]}]
-                                         (when texture
-                                           {:sampler sampler :texture texture})))
-                                 texture-binding-infos)))
+  (output textures g/Any (g/fnk [texture-binding-save-values]
+                           (filterv :texture texture-binding-save-values)))
   (output anim-ids g/Any (g/fnk [primary-texture-binding-info] (:anim-ids primary-texture-binding-info)))
-
-  (input dep-build-targets g/Any :array)
 
   (input material-resource resource/Resource)
   (input material-shader ShaderLifecycle)
@@ -587,19 +592,30 @@
 
   (input copied-nodes g/Any :array :cascade-delete)
 
-  (output aabb AABB (g/fnk [size]
+  (output aabb AABB (g/fnk [size ^:try scene-infos]
                       (let [[^double width ^double height ^double depth] size
+                            first-animation (when-not (g/error-value? scene-infos)
+                                              (:animation (first scene-infos)))
+                            anim-pivot (when first-animation
+                                         (get-in first-animation [:frames 0 :pivot]))
+                            [pivot-x pivot-y] (if anim-pivot
+                                                anim-pivot
+                                                [0.0 0.0])
                             half-width (* 0.5 width)
                             half-height (* 0.5 height)
-                            half-depth (* 0.5 depth)]
-                        (geom/make-aabb (Point3d. (- half-width) (- half-height) (- half-depth))
-                                        (Point3d. half-width half-height half-depth)))))
+                            half-depth (* 0.5 depth)
+
+                            ; Adjusted calculations for min-x and min-y
+                            min-x (- (* (- width) pivot-x) half-width)
+                            min-y (- (* (- height) pivot-y) half-height)]
+                        (geom/make-aabb (Point3d. min-x min-y (- half-depth))
+                                        (Point3d. (+ min-x width) (+ min-y height) half-depth)))))
   (output save-value g/Any produce-save-value)
   (output scene g/Any :cached produce-scene)
   (output build-targets g/Any :cached produce-build-targets)
   (output _properties g/Properties :cached produce-properties)
   (output vertex-attribute-bytes g/Any :cached (g/fnk [_node-id material-attribute-infos vertex-attribute-overrides]
-                                                 (graphics/attribute-bytes-by-attribute-key _node-id material-attribute-infos vertex-attribute-overrides))))
+                                                 (graphics/attribute-bytes-by-attribute-key _node-id material-attribute-infos 0 vertex-attribute-overrides))))
 
 (def ^:private default-material-proj-path (protobuf/default Sprite$SpriteDesc :material))
 

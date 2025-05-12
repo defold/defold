@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,18 +15,19 @@
 (ns editor.engine
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
+            [clojure.data.json :as json]
+            [editor.code.util :refer [split-lines]]
             [editor.engine.native-extensions :as native-extensions]
             [editor.fs :as fs]
-            [editor.process :as process]
             [editor.prefs :as prefs]
             [editor.process :as process]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.system :as system])
   (:import [com.dynamo.bob Platform]
-           [com.dynamo.resource.proto Resource$Reload]
            [com.dynamo.render.proto Render$Resize]
-           [java.io BufferedReader File InputStream IOException]
+           [com.dynamo.resource.proto Resource$Reload]
+           [java.io BufferedReader File IOException InputStream]
            [java.net HttpURLConnection InetSocketAddress Socket URI]
            [java.util.zip ZipEntry ZipFile]))
 
@@ -84,6 +85,21 @@
       (finally
         (.disconnect conn)))))
 
+(defn get-engine-state! [target]
+  (let [uri (URI. (str (:url target) "/state"))
+        conn ^HttpURLConnection (get-connection uri)]
+    (try
+      (with-open [is (.getInputStream conn)]
+        (json/read-str (slurp is) :key-fn keyword))  ;; Read and return the response
+      (finally
+        (.disconnect conn)))))
+
+(defn apply-simulated-resolution! [prefs target]
+  (let [data (prefs/get prefs [:run :simulated-resolution])]
+    (when data
+      (change-resolution! target (:width data) (:height data)
+                          (prefs/get prefs [:run :simulate-rotated-device])))))
+
 (defn reboot! [target local-url debug?]
   (let [uri (URI. (format "%s/post/@system/reboot" (:url target)))
         conn ^HttpURLConnection (get-connection uri)
@@ -123,27 +139,28 @@
         (.disconnect conn)))))
 
 (defn get-log-service-stream [target]
-  (let [port (Integer/parseInt (:log-port target))
-        socket-addr (InetSocketAddress. ^String (:address target) port)
-        socket (doto (Socket.) (.setSoTimeout timeout))]
-    (try
-      (.connect socket socket-addr timeout)
-      ;; closing is will also close the socket
-      ;; https://docs.oracle.com/javase/7/docs/api/java/net/Socket.html#getInputStream()
-      (let [is (.getInputStream socket)
-            status (-> ^BufferedReader (io/reader is) (.readLine))]
-        ;; The '0 OK' string is part of the log service protocol
-        (if (= "0 OK" status)
-          (do
-            ;; Setting to 0 means wait indefinitely for new data
-            (.setSoTimeout socket 0)
-            is)
-          (do
-            (.close socket)
-            nil)))
-      (catch Exception e
-        (.close socket)
-        (throw e)))))
+  (when (and (:log-port target) (:address target))
+    (let [port (Integer/parseInt (:log-port target))
+          socket-addr (InetSocketAddress. ^String (:address target) port)
+          socket (doto (Socket.) (.setSoTimeout timeout))]
+      (try
+        (.connect socket socket-addr timeout)
+        ;; closing is will also close the socket
+        ;; https://docs.oracle.com/javase/7/docs/api/java/net/Socket.html#getInputStream()
+        (let [is (.getInputStream socket)
+              status (-> ^BufferedReader (io/reader is) (.readLine))]
+          ;; The '0 OK' string is part of the log service protocol
+          (if (= "0 OK" status)
+            (do
+              ;; Setting to 0 means wait indefinitely for new data
+              (.setSoTimeout socket 0)
+              is)
+            (do
+              (.close socket)
+              nil)))
+        (catch Exception e
+          (.close socket)
+          (throw e))))))
 
 (def ^:private loopback-address "127.0.0.1")
 
@@ -170,7 +187,7 @@
         engine (io/file path)]
     {:id {:type :bundled :path (.getCanonicalPath engine)} :dmengine engine :platform platform}))
 
-(def custom-engine-pref-key "dev-custom-engine")
+(def custom-engine-pref-key [:dev :custom-engine])
 
 (defn current-platform []
   (.getPair (Platform/getHostPlatform)))
@@ -178,7 +195,7 @@
 (defn- dev-custom-engine
   [prefs platform]
   (when (system/defold-dev?)
-    (when-some [custom-engine (prefs/get-prefs prefs custom-engine-pref-key nil)]
+    (when-some [custom-engine (prefs/get prefs custom-engine-pref-key)]
       (when-not (str/blank? custom-engine)
         (assert (= platform (current-platform)) "Can't use custom engine for platform other than current")
         (let [engine (io/file custom-engine)]
@@ -194,9 +211,7 @@
   [project evaluation-context prefs platform]
   (or (dev-custom-engine prefs platform)
       (if (native-extensions/has-engine-extensions? project evaluation-context)
-        (let [build-server-url (native-extensions/get-build-server-url prefs project evaluation-context)
-              build-server-headers (native-extensions/get-build-server-headers prefs)]
-          (native-extensions/get-engine-archive project evaluation-context platform build-server-url build-server-headers))
+        (native-extensions/get-engine-archive project platform prefs evaluation-context)
         (bundled-engine platform))))
 
 (defn- unpack-dmengine!
@@ -227,8 +242,8 @@
             (io/copy stream saveFile)))))))
 
 (def ^:private dmengine-dependencies
-  {"x86_64-win32" #{"OpenAL32.dll" "wrap_oal.dll"}
-   "x86-win32"    #{"OpenAL32.dll" "wrap_oal.dll"}})
+  ; Mapping between platform name and list of file names: {"x86_64-win32" #{"OpenAL32.dll" "wrap_oal.dll"}}
+  {})
 
 (defn- copy-dmengine-dependencies!
   [unpack-dir extender-platform]
@@ -261,6 +276,7 @@
                                (File.)
                                (.getAbsolutePath))
         command (.getAbsolutePath engine)
+        engine-arguments (prefs/get prefs [:run :engine-arguments])
         args (cond-> []
                      defold-log-dir
                      (into ["--config=project.write_log=1"
@@ -270,9 +286,12 @@
                      (into ["--config=bootstrap.debug_init_script=/_defold/debugger/start.luac"])
 
                      (> instance-index 0)
-                     (into [(format "--config=project.instance_index=%d" instance-index)]))
+                     (into [(format "--config=project.instance_index=%d" instance-index)])
+
+                     (not (str/blank? engine-arguments))
+                     (into (remove str/blank?) (split-lines engine-arguments)))
         env {"DM_SERVICE_PORT" "dynamic"
-             "DM_QUIT_ON_ESC" (if (prefs/get-prefs prefs "general-quit-on-esc" false)
+             "DM_QUIT_ON_ESC" (if (prefs/get prefs [:run :quit-on-escape])
                                 "1" "0")
              ;; Windows only. Sets the correct symbol search path, since we're also setting the cwd (https://docs.microsoft.com/en-us/windows/win32/debug/symbol-paths)
              "_NT_ALT_SYMBOL_PATH" (.getAbsolutePath (.getParentFile engine))

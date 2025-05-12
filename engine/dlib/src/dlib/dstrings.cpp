@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -25,19 +25,15 @@
 
 int dmSnPrintf(char *buffer, size_t count, const char *format, ...)
 {
-    // MS-compliance
+    // mimics ms pre-ucrt vsnprintf_s behavior
     if (buffer == 0x0 || count == 0 || format == 0x0)
         return -1;
     va_list argp;
     va_start(argp, format);
-#if defined(_WIN32)
-    int result = _vsnprintf_s(buffer, count, _TRUNCATE, format, argp);
-#else
     int result = vsnprintf(buffer, count, format, argp);
-#endif
     va_end(argp);
-    // MS-compliance
-    if (count == 0 || (count > 0 && result >= (int)count))
+    // mimics ms pre-ucrt vsnprintf_s behavior
+    if (result >= (int)count)
         return -1;
     return result;
 }
@@ -193,7 +189,7 @@ size_t dmStrlCpy(char *dst, const char *src, size_t siz)
  * Appends src to string dst of size siz (unlike strncat, siz is the
  * full size of dst, not space left).  At most siz-1 characters
  * will be copied.  Always NUL terminates (unless siz == 0).
- * Returns strlen(src); if retval >= siz, truncation occurred.
+ * Returns strlen(dst) + strlen(src); if retval >= siz, truncation occurred.
  */
 size_t
 dmStrlCat(char *dst, const char *src, size_t siz)

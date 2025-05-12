@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -42,17 +42,19 @@
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/resource/resource.hpp>
 
-DM_PROPERTY_GROUP(rmtp_GameObject, "Gameobjects");
+DM_PROPERTY_GROUP(rmtp_GameObject, "Gameobjects", 0);
 
-DM_PROPERTY_U32(rmtp_GOInstances, 0, FrameReset, "# alive go instances / frame", &rmtp_GameObject);
-DM_PROPERTY_U32(rmtp_GODeleted, 0, FrameReset, "# deleted instances / frame", &rmtp_GameObject);
+DM_PROPERTY_U32(rmtp_GOInstances, 0, PROFILE_PROPERTY_FRAME_RESET, "# alive go instances / frame", &rmtp_GameObject);
+DM_PROPERTY_U32(rmtp_GODeleted, 0, PROFILE_PROPERTY_FRAME_RESET, "# deleted instances / frame", &rmtp_GameObject);
 
 namespace dmGameObject
 {
     const char* COLLECTION_MAX_INSTANCES_KEY = "collection.max_instances";
     const char* COLLECTION_MAX_INPUT_STACK_ENTRIES_KEY = "collection.max_input_stack_entries";
     const dmhash_t UNNAMED_IDENTIFIER = dmHashBuffer64("__unnamed__", strlen("__unnamed__"));
-    const char* ID_SEPARATOR = "/";
+    const dmhash_t GAME_OBJECT_EXT = dmHashString64("goc");
+#define ID_SEPARATOR_CHAR "/"
+    const char* ID_SEPARATOR = ID_SEPARATOR_CHAR;
     const uint32_t MAX_DISPATCH_ITERATION_COUNT = 10;
 
     static Prototype EMPTY_PROTOTYPE;
@@ -249,7 +251,7 @@ namespace dmGameObject
     Result SetCollectionDefaultCapacity(HRegister regist, uint32_t capacity)
     {
         assert(regist != 0x0);
-        if(capacity >= INVALID_INSTANCE_INDEX-1)
+        if(capacity >= INVALID_INSTANCE_INDEX - 1 || capacity == 0)
             return RESULT_INVALID_OPERATION;
         regist->m_DefaultCollectionCapacity = capacity;
         return RESULT_OK;
@@ -328,6 +330,18 @@ namespace dmGameObject
         regist->m_Collections.SetSize(0);
     }
 
+    HCollection GetCollectionByHash(HRegister regist, dmhash_t socket_name)
+    {
+        uint32_t collection_count = regist->m_Collections.Size();
+        for (uint32_t i = 0; i < collection_count; ++i)
+        {
+            Collection* collection = regist->m_Collections[i];
+            if (collection->m_NameHash == socket_name)
+                return collection->m_HCollection;
+        }
+        return 0;
+    }
+
     void DeleteRegister(HRegister regist)
     {
         DeleteCollections(regist);
@@ -353,7 +367,16 @@ namespace dmGameObject
 
     Collection* AllocCollection(const char* name, HRegister regist, uint32_t max_instances, dmGameObjectDDF::CollectionDesc* collection_desc)
     {
-        Collection* collection = new Collection(0, 0, max_instances, GetInputStackDefaultCapacity(regist));
+        uint32_t instances_in_collection = GetMaxComponentInstances(GAME_OBJECT_EXT, collection_desc);
+        if (instances_in_collection == 0)
+        {
+            instances_in_collection = max_instances;
+        }
+        else
+        {
+            instances_in_collection = dmMath::Min(max_instances, instances_in_collection);
+        }
+        Collection* collection = new Collection(0, 0, instances_in_collection, GetInputStackDefaultCapacity(regist));
         collection->m_Mutex = dmMutex::New();
 
         for (uint32_t i = 0; i < regist->m_ComponentTypeCount; ++i)
@@ -481,7 +504,7 @@ namespace dmGameObject
     {
         if (max_instances > INVALID_INSTANCE_INDEX)
         {
-            dmLogError("max_instances must be less or equal to %d", INVALID_INSTANCE_INDEX);
+            dmLogError("max_instances must be less or equal to %d", INVALID_INSTANCE_INDEX - 1);
             return 0;
         }
 
@@ -491,7 +514,7 @@ namespace dmGameObject
             return 0;
         }
 
-        collection->m_NameHash = dmHashString64(name);
+        collection->m_NameHash = dmHashString64(name); // Same as the socket name
 
         HCollection hcollection = (HCollection)new CollectionHandle;
         Result result = AttachCollection(collection, name, factory, regist, hcollection);
@@ -944,11 +967,14 @@ namespace dmGameObject
         return instance;
     }
 
-    dmhash_t ConstructInstanceId(uint32_t index)
+    dmhash_t CreateInstanceId()
     {
-        char buffer[16] = { 0 };
-        dmSnPrintf(buffer, sizeof(buffer), "%sinstance%d", ID_SEPARATOR, index);
-        return dmHashString64(buffer);
+        static uint32_t index = 0;
+        //20 bytes: '/'' + 'instance' + uint32 + null terminator = 1 + 8 + 10 + 1
+        char buffer[32] = { 0 };
+        int length = dmSnPrintf(buffer, sizeof(buffer), ID_SEPARATOR_CHAR "instance%d", index);
+        index += 1;
+        return dmHashBuffer64(buffer, (uint32_t)length);
     }
 
     uint32_t AcquireInstanceIndex(HCollection hcollection)
@@ -1195,6 +1221,7 @@ namespace dmGameObject
 
         if (success) {
             AddToUpdate(collection, instance);
+            instance->m_Generated = 1;
         } else {
             Delete(collection, instance, false);
             return 0;
@@ -2153,6 +2180,7 @@ namespace dmGameObject
     void SetBone(HInstance instance, bool bone)
     {
         instance->m_Bone = bone;
+        instance->m_Generated = 1;
     }
 
     bool IsBone(HInstance instance)
@@ -2223,23 +2251,7 @@ namespace dmGameObject
         DispatchMessagesContext* context = (DispatchMessagesContext*) user_ptr;
         Collection* collection = context->m_Collection;
 
-        Instance* instance = 0x0;
-        // Start by looking for the instance in the user-data,
-        // which is the case when an instance sends to itself.
-        if (message->m_UserData1 != 0
-                && message->m_Sender.m_Socket == message->m_Receiver.m_Socket
-                && message->m_Sender.m_Path == message->m_Receiver.m_Path)
-        {
-            Instance* user_data_instance = (Instance*)message->m_UserData1;
-            if (message->m_Receiver.m_Path == user_data_instance->m_Identifier)
-            {
-                instance = user_data_instance;
-            }
-        }
-        if (instance == 0x0)
-        {
-            instance = GetInstanceFromIdentifier(context->m_Collection, message->m_Receiver.m_Path);
-        }
+        Instance* instance = GetInstanceFromIdentifier(collection, message->m_Receiver.m_Path);
         if (instance == 0x0)
         {
             DM_HASH_REVERSE_MEM(hash_ctx, 512);

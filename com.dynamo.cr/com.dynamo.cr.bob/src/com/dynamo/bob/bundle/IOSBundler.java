@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -54,7 +54,7 @@ import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
 import com.dynamo.bob.util.FileUtil;
 
-@BundlerParams(platforms = {Platform.Arm64Ios, Platform.X86_64Ios})
+@BundlerParams(platforms = {"arm64-ios", "x86_64-ios"})
 public class IOSBundler implements IBundler {
     private static Logger logger = Logger.getLogger(IOSBundler.class.getName());
 
@@ -503,6 +503,24 @@ public class IOSBundler implements IBundler {
             }
         }
 
+        // Copy all resources that were return as build result from Extender
+        // TODO: resources should be shared between architectures but it's not supported by Extender
+        for (Platform architecture : architectures) {
+            File architectureDir = new File(project.getBinaryOutputDirectory(), architecture.getExtenderPair());
+            if (!architectureDir.exists()) continue;
+            File resourcesDir = new File(architectureDir, "resources");
+            if (!resourcesDir.exists()) continue;
+            for (File resource : resourcesDir.listFiles()) {
+                File dest = new File(appDir, resource.getName());
+                if (resource.isDirectory()) {
+                    FileUtils.copyDirectory(resource, dest);
+                } else {
+                    FileUtils.copyFile(resource, dest);
+                }
+                logger.info("Copy resource " + resource);
+            }
+        }
+
         // Copy debug symbols
         // Create list of dSYM binaries
         File extenderBuildDir = new File(project.getRootDirectory(), "build");
@@ -735,5 +753,7 @@ public class IOSBundler implements IBundler {
         BundleHelper.throwIfCanceled(canceled);
         Files.move( Paths.get(zipFileTmp.getAbsolutePath()), Paths.get(zipFile.getAbsolutePath()), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
         logger.info("Finished ipa: " + getFileDescription(zipFile));
+
+        BundleHelper.moveBundleIfNeed(project, bundleDir);
     }
 }

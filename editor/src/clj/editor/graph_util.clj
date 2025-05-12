@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -21,6 +21,7 @@
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
+            [internal.graph.types :as gt]
             [internal.node :as in]
             [util.coll :as coll]))
 
@@ -75,11 +76,21 @@
    (g/with-auto-evaluation-context evaluation-context
      (node-debug-label node-id evaluation-context)))
   ([node-id {:keys [basis] :as evaluation-context}]
-   (let [node-type (g/node-type* basis node-id)]
+   (let [node (g/node-by-id basis node-id)
+         node-type (g/node-type node)]
      (or (when (in/inherits? node-type resource/ResourceNode)
            (let [resource (resource-node/resource basis node-id)]
-             (if (resource/memory-resource? resource)
+             (cond
+               (resource/memory-resource? resource)
                (str "embedded." (resource/ext resource))
+
+               (some? (gt/original node))
+               (let [proj-path (resource/proj-path resource)]
+                 (if-let [owner-resource (resource-node/owner-resource basis node-id)]
+                   (str proj-path " override in " (resource/proj-path owner-resource))
+                   (str proj-path " override")))
+
+               :else
                (resource/proj-path resource))))
          (node-qualifier-label node-id evaluation-context)
          (when (in/inherits? node-type outline/OutlineNode)

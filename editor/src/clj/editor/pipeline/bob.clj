@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,78 +16,31 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
-            [editor.code.util :as util]
             [editor.defold-project :as project]
             [editor.engine.build-errors :as engine-build-errors]
             [editor.engine.native-extensions :as native-extensions]
             [editor.error-reporting :as error-reporting]
+            [editor.fs :as fs]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
-            [editor.resource :as resource]
             [editor.system :as system]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
+            [internal.java :as java]
+            [internal.util :as util]
             [service.log :as log]
-            [util.coll :refer [pair]]
+            [util.coll :as coll]
             [util.fn :as fn]
-            [util.http-util :as http-util])
-  (:import [com.dynamo.bob ClassLoaderScanner IProgress IResourceScanner Project TaskResult]
-           [com.dynamo.bob.fs DefaultFileSystem]
+            [util.http-server :as http-server])
+  (:import [com.dynamo.bob Bob Bob$CommandLineOption Bob$CommandLineOption$ArgCount Bob$CommandLineOption$ArgType IProgress TaskResult]
            [com.dynamo.bob.logging LogHelper]
-           [com.dynamo.bob.util PathUtil]
-           [java.io File InputStream OutputStream PrintStream PrintWriter]
-           [java.net URI URL]
+           [java.io File OutputStream PrintStream PrintWriter]
            [java.nio.charset StandardCharsets]
-           [org.apache.commons.io FilenameUtils]
+           [java.nio.file Path]
            [org.apache.commons.io.output WriterOutputStream]))
 
 (set! *warn-on-reflection* true)
 
-(defn set-verbose-logging! [enable]
-  (LogHelper/setVerboseLogging enable))
-
-(def skip-dirs #{".git" "build" ".internal"})
-(def html5-url-prefix "/html5")
-(def html5-mime-types {"js" "application/javascript",
-                       "json" "application/json",
-                       "wasm" "application/wasm",
-                       "webmanifest" "application/manifest+json",
-                       "xhtml" "application/xhtml+xml",
-                       "zip" "application/zip",
-                       "aac" "audio/aac",
-                       "mp3" "audio/mp3",
-                       "m4a" "audio/mp4",
-                       "oga" "audio/ogg",
-                       "ogg" "audio/ogg",
-                       "wav" "audio/wav",
-                       "woff" "font/woff",
-                       "woff2" "font/woff2",
-                       "apng" "image/apng",
-                       "avif" "image/avif",
-                       "bmp" "image/bmp",
-                       "gif" "image/gif",
-                       "jpeg" "image/jpeg",
-                       "jpg" "image/jpeg",
-                       "jfif" "image/jpeg",
-                       "pjpeg" "image/jpeg",
-                       "pjp" "image/jpeg",
-                       "png" "image/png",
-                       "svg" "image/svg+xml",
-                       "webp" "image/webp",
-                       "cur" "image/x-icon",
-                       "ico" "image/x-icon",
-                       "tif" "image/tif",
-                       "tiff" "image/tiff",
-                       "css" "text/css",
-                       "htm" "text/html",
-                       "html" "text/html",
-                       "shtml" "text/html",
-                       "txt" "text/plain",
-                       "xml" "text/xml",
-                       "mp4" "video/mp4",
-                       "ogv" "video/ogg",
-                       "webm" "video/webm",
-                       "m4v" "video/x-m4v"})
 
 (defn ->progress
   ([render-progress!]
@@ -101,6 +54,7 @@
    (reify IProgress
      (isCanceled [_this]
        (task-cancelled?))
+     (setCanceled [_this _canceled])
      (subProgress [_this _work-claimed-from-this]
        (->progress render-progress! task-cancelled? msg-stack-atom))
      (beginTask [_this name _steps]
@@ -118,56 +72,11 @@
                                (progress/make-cancellable-indeterminate msg)
                                progress/done))))))))
 
-(defn- ->graph-resource-scanner [ws]
-  (let [res-map (->> (g/node-value ws :resource-map)
-                  (map (fn [[key val]] [(subs key 1) val]))
-                  (into {}))]
-    (reify IResourceScanner
-      (openInputStream ^InputStream [this path]
-        (when-let [r (get res-map path)]
-          (io/input-stream r)))
-      (exists [this path]
-        (if-let [r (get res-map path)]
-          (resource/exists? r)
-          false))
-      (isFile [this path]
-        (if-let [r (get res-map path)]
-          (= (resource/source-type r) :file)
-          false))
-      (scan [this pattern]
-        (let [res (->> res-map
-                    (map first)
-                    (filter #(PathUtil/wildcardMatch % pattern))
-                    set)]
-          res)))))
-
 (defn- project-title [project]
   (let [proj-settings (project/settings project)]
     (get proj-settings ["project" "title"] "Unnamed")))
 
-(defn- run-commands! [project evaluation-context ^Project bob-project commands render-progress! task-cancelled?]
-  (try
-    (let [result (ui/with-progress [render-progress! render-progress!]
-                   (.build bob-project (->progress render-progress! task-cancelled?) (into-array String commands)))
-          failed-tasks (filter (fn [^TaskResult r] (not (.isOk r))) result)]
-      (if (empty? failed-tasks)
-        nil
-        {:error {:causes (engine-build-errors/failed-tasks-error-causes project evaluation-context failed-tasks)}}))
-    (catch Exception e
-      {:exception e})))
-
-(defonce ^:private build-in-progress-atom
-  (add-watch
-    (atom false)
-    ::build-in-progress-watch
-    (fn build-in-progress-watch-fn [_ _ _ new-state]
-      (try
-        (set-verbose-logging! new-state)
-        (catch Exception _
-          ;; We can safely ignore any errors here since we've already
-          ;; thrown an exception in case we're unable to change it to
-          ;; false at the top of this file.
-          nil)))))
+(defonce ^:private build-in-progress-atom (atom false))
 
 (defn build-in-progress? []
   @build-in-progress-atom)
@@ -180,266 +89,198 @@
 
 (defn- quote-arg-if-needed
   ^String [^String arg-value]
-  (if (string/includes? arg-value " ")
+  (if (or (string/includes? arg-value " ") (string/blank? arg-value))
     (str "\"" arg-value "\"")
     arg-value))
 
-(defn- bob-command-line
-  ^String [bob-commands bob-args build-server-headers]
-  {:pre [(vector? bob-commands)
-         (every? string? bob-commands)
-         (every? (fn [[key val]] (and (string? key) (string? val))) bob-args)
-         (string? build-server-headers)]}
-  (->> (concat
-         ["java" "-jar" "bob.jar"]
-         (keep (fn [[key value]]
-                 (case value
-                   "" nil
-                   (format "--%s %s" key (quote-arg-if-needed value))))
-               (concat
-                 bob-args
-                 (eduction
-                   (filter not-empty)
-                   (map #(pair "build-server-header" %))
-                   (string/split-lines build-server-headers))))
-         bob-commands)
-       (filter not-empty)
-       (string/join " ")))
+(def ^:private long-option->option-config
+  (coll/pair-map-by #(.-longOpt ^Bob$CommandLineOption %) (Bob/getCommandLineOptions)))
 
-(defn bob-build! [project evaluation-context bob-commands bob-args build-server-headers render-progress! log-output-stream task-cancelled?]
-  {:pre [(vector? bob-commands)
-         (every? string? bob-commands)
-         (map? bob-args)
-         (every? (fn [[key val]] (and (string? key) (string? val))) bob-args)
+(defn- long-option? [x]
+  (contains? long-option->option-config x))
+
+(defn- parse-options
+  "Given bob options map, parses to a tuple of cli args and internal options
+
+  Returns a tuple of 2 elements:
+  - cli options: array of strings
+  - internal options: either a map of Project options (string->string) or nil"
+  [^Path project-root options-map]
+  (letfn [(validate-type [^Bob$CommandLineOption config ^Class expected-class value]
+            (when-not (instance? expected-class value)
+              (throw (IllegalArgumentException. (str (.-longOpt config) " option is expected to be " (.getSimpleName expected-class) ", was " (some-> (class value) .getSimpleName)))))
+            value)
+          (stringify-value [^Bob$CommandLineOption config value]
+            (condp = (.-argType config)
+              Bob$CommandLineOption$ArgType/UNSPECIFIED (str value)
+              Bob$CommandLineOption$ArgType/ABS_OR_CWD_REL_PATH (str (.normalize (.resolve project-root (str (validate-type config String value)))))))]
+    (let [{:keys [undefined cli internal]}
+          (util/group-into {} []
+                           (fn option-group [e]
+                             (let [k (key e)]
+                               (cond
+                                 (keyword? k) :internal
+                                 (long-option? k) :cli
+                                 :else :undefined)))
+                           identity
+                           options-map)]
+      (when undefined
+        (throw (IllegalArgumentException. (format "Undefined bob option%s: %s"
+                                                  (if (< 1 (count undefined)) "s" "")
+                                                  (string/join ", " (map key undefined))))))
+      [(into []
+             (mapcat (fn [[k v]]
+                       (let [k-str (str "--" k)
+                             ^Bob$CommandLineOption config (long-option->option-config k)]
+                         (condp = (.-argCount config)
+                           Bob$CommandLineOption$ArgCount/ZERO
+                           (if (validate-type config Boolean v) [k-str] [])
+                           Bob$CommandLineOption$ArgCount/ONE
+                           [k-str (stringify-value config v)]
+                           Bob$CommandLineOption$ArgCount/MANY
+                           (if (vector? v)
+                             (eduction (mapcat (fn [i] [k-str (stringify-value config i)])) v)
+                             [k-str (stringify-value config v)])))))
+             cli)
+       (when internal
+         (coll/pair-map-by (comp name key) (comp str val) internal))])))
+
+(defn invoke!
+  "Invoke bob, with the same API as Bob's command line
+
+  Args:
+    project     the project node id
+    options     a map of command line options. The keys are either long CLI
+                option names (strings) without the \"--\" prefix, or internal
+                options (keywords). When keys are long CLI option names, the
+                values are either:
+                - scalars like strings, booleans, integers etc.
+                - vectors of scalars — will cause the option to be repeated with
+                  each argument, useful for e.g. settings or build-server-header
+                  options
+                Use true for options that don't take args.
+                When keys are internal options, the values are simply coerced to
+                strings.
+    commands    vector of string bob commands, e.g. distclean, clean, build,
+                resolve, bundle
+
+  Kv-args (all optional):
+    :task-cancelled?       0-arg function that tells if the bob task invocation
+                           was cancelled by the editor, used to stop the build
+                           process
+    :render-progress!      progress render fn
+    :evaluation-context    evaluation context used for the invocation
+    :log-output-stream     output stream to pipe the logs to, by default will
+                           pipe the output to *out*
+
+  See also:
+    https://defold.com/manuals/bob/
+    (invoke! (dev/project) {\"help\" true} [])"
+  [project options commands
+   & {:keys [task-cancelled? render-progress! evaluation-context log-output-stream]
+      :or {task-cancelled? fn/constantly-false
+           render-progress! progress/null-render-progress!}}]
+  {:pre [(every? string? commands)
+         (map? options)
          (ifn? render-progress!)
-         (instance? OutputStream log-output-stream)
+         (or (nil? log-output-stream) (instance? OutputStream log-output-stream))
          (ifn? task-cancelled?)]}
   (reset! build-in-progress-atom true)
-  (let [prev-out System/out
+  (let [;; bob might notify the progress tracker AFTER it's done!
+        render-progress! (progress/until-done render-progress!)
+        provided-evaluation-context (some? evaluation-context)
+        evaluation-context (or evaluation-context (g/make-evaluation-context))
+        basis (:basis evaluation-context)
+        prev-out System/out
         prev-err System/err
+        log-output-stream (or log-output-stream
+                              (WriterOutputStream. ^PrintWriter *out* StandardCharsets/UTF_8 1024 true))
         ;; Don't close the writer because we don't own the log output stream,
         ;; hence we must not close it. Instead, we will only flush it in the end
         log-stream-writer (PrintWriter. log-output-stream true StandardCharsets/UTF_8)]
-    (with-open [build-out (PrintStream-on
-                            #(doseq [line (util/split-lines %)]
-                               (.println log-stream-writer line)))
-                build-err (PrintStream-on
-                            #(doseq [line (util/split-lines %)]
-                               (.println log-stream-writer line)))]
-      (log/info :bob-command (bob-command-line bob-commands bob-args build-server-headers))
-      (try
-        (System/setOut build-out)
-        (System/setErr build-err)
-        (if (and (some #(= "build" %) bob-commands)
-                 (native-extensions/has-engine-extensions? project evaluation-context)
-                 (not (native-extensions/supported-platform? (get bob-args "platform"))))
-          {:error {:causes (engine-build-errors/unsupported-platform-error-causes project evaluation-context)}}
-          (let [ws (project/workspace project evaluation-context)
-                proj-path (str (workspace/project-path ws evaluation-context))
-                bob-project (Project. workspace/class-loader (DefaultFileSystem.) proj-path "build/default")]
-            (doseq [[key val] bob-args]
-              (.setOption bob-project key val))
-            (when-not (string/blank? build-server-headers)
-              (doseq [header (string/split-lines build-server-headers)]
-                (.addBuildServerHeader bob-project header)))
-            (.setOption bob-project "liveupdate" (.option bob-project "liveupdate" "no"))
-            (doseq [pkg ["com.dynamo.bob" "com.dynamo.bob.pipeline"]]
-              (ClassLoaderScanner/scanClassLoader workspace/class-loader pkg))
-            (let [deps (workspace/dependencies ws)]
-              (when (seq deps)
-                (.setLibUrls bob-project (map #(.toURL ^URI %) deps))
-                (ui/with-progress [render-progress! render-progress!]
-                  (.resolveLibUrls bob-project (->progress render-progress! task-cancelled?)))))
-            (.mount bob-project (->graph-resource-scanner ws))
-            (.findSources bob-project proj-path skip-dirs)
-            (ui/with-progress [render-progress! render-progress!]
-              (run-commands! project evaluation-context bob-project bob-commands render-progress! task-cancelled?))))
-        (catch Throwable error
-          {:exception error})
-        (finally
-          (System/setOut prev-out)
-          (System/setErr prev-err)
-          (.flush log-stream-writer)
-          (reset! build-in-progress-atom false))))))
-
-;; -----------------------------------------------------------------------------
-;; Bundling
-;; -----------------------------------------------------------------------------
-
-(defn- generic-bundle-bob-args [prefs project {:keys [variant texture-compression generate-debug-symbols? generate-build-report? publish-live-update-content? bundle-contentless? platform ^File output-directory] :as _bundle-options}]
-  (assert (some? output-directory))
-  (assert (or (not (.exists output-directory))
-              (.isDirectory output-directory)))
-  (assert (string? (not-empty platform)))
-  (let [build-server-url (native-extensions/get-build-server-url prefs project)
-        editor-texture-compression (if (prefs/get-prefs prefs "general-enable-texture-compression" false) "true" "false")
-        build-report-path (.getAbsolutePath (io/file output-directory "report.html"))
-        bundle-output-path (.getAbsolutePath output-directory)
-        defold-sdk-sha1 (or (system/defold-engine-sha1) "")
-        strip-executable? (= "release" variant)]
-    (cond-> {"platform" platform
-             "variant" variant
-
-             ;; From AbstractBundleHandler
-             (if bundle-contentless? "exclude-archive" "archive") "true"
-             "bundle-output" bundle-output-path
-             "texture-compression" (case texture-compression
-                                     "enabled" "true"
-                                     "disabled" "false"
-                                     "editor" editor-texture-compression)
-
-             ;; From BundleGenericHandler
-             "build-server" build-server-url
-             "defoldsdk" defold-sdk-sha1
-
-             ;; Bob uses these to set X-Email/X-Auth HTTP headers,
-             ;; which fails if they are nil, so use empty string
-             ;; instead.
-             "email" ""
-             "auth" ""}
-
-            strip-executable? (assoc "strip-executable" "true")
-
-            ;; From BundleGenericHandler
-            generate-debug-symbols? (assoc "with-symbols" "")
-            generate-build-report? (assoc "build-report-html" build-report-path)
-            publish-live-update-content? (assoc "liveupdate" "true"))))
-
-(def ^:private android-architecture-option->bob-architecture-string
-  {:architecture-32bit? "armv7-android"
-   :architecture-64bit? "arm64-android"})
-
-(defn- android-bundle-bob-args [{:keys [^File keystore ^File keystore-pass ^File key-pass bundle-format] :as bundle-options}]
-  (let [bob-architectures
-        (for [[option-key bob-architecture] android-architecture-option->bob-architecture-string
-              :when (bundle-options option-key)]
-          bob-architecture)
-        bob-args {"architectures" (string/join "," bob-architectures)}]
-    (assert (or (and (nil? keystore)
-                     (nil? keystore-pass)
-                     (nil? key-pass))
-                (and (.isFile keystore)
-                     (.isFile keystore-pass)
-                     (or (nil? key-pass) (.isFile key-pass)))))
-    (cond-> bob-args
-            bundle-format (assoc "bundle-format" bundle-format)
-            keystore (assoc "keystore" (.getAbsolutePath keystore))
-            keystore-pass (assoc "keystore-pass" (.getAbsolutePath keystore-pass))
-            key-pass (assoc "key-pass" (.getAbsolutePath key-pass)))))
-
-(def ^:private ios-architecture-option->bob-architecture-string
-  {:architecture-64bit? "arm64-ios"
-   :architecture-simulator? "x86_64-ios"})
-
-(defn- ios-bundle-bob-args [{:keys [code-signing-identity ^File provisioning-profile sign-app?] :as bundle-options}]
-  (let [bob-architectures (for [[option-key bob-architecture] ios-architecture-option->bob-architecture-string
-                                :when (bundle-options option-key)]
-                            bob-architecture)
-        bob-args {"architectures" (string/join "," bob-architectures)}]
-    (if-not sign-app?
-      bob-args
-      (do (assert (string? (not-empty code-signing-identity)))
-          (assert (some-> provisioning-profile .isFile))
-          (let [provisioning-profile-path (.getAbsolutePath provisioning-profile)]
-            (assoc bob-args
-              "mobileprovisioning" provisioning-profile-path
-              "identity" code-signing-identity))))))
-
-(def ^:private html5-architecture-option->bob-architecture-string
-  {:architecture-js-web? "js-web"
-   :architecture-wasm-web? "wasm-web"})
-
-(defn- html5-bundle-bob-args [{:keys [] :as bundle-options}]
-  (let [bob-architectures (for [[option-key bob-architecture] html5-architecture-option->bob-architecture-string
-                                :when (bundle-options option-key)]
-                            bob-architecture)
-        bob-args {"architectures" (string/join "," bob-architectures)}]
-    bob-args))
-
-(def ^:private macos-architecture-option->bob-architecture-string
-  {:architecture-x86_64? "x86_64-macos"
-   :architecture-arm64? "arm64-macos"})
-
-(defn- macos-bundle-bob-args [bundle-options]
-  (let [bob-architectures (for [[option-key bob-architecture] macos-architecture-option->bob-architecture-string
-                                :when (bundle-options option-key)]
-                            bob-architecture)
-        bob-args {"architectures" (string/join "," bob-architectures)}]
-    bob-args))
-
-(def bundle-bob-commands ["distclean" "build" "bundle"])
-
-(defmulti bundle-bob-args (fn [_prefs _project platform _bundle-options] platform))
-(defmethod bundle-bob-args :default [_prefs _project platform _bundle-options] (throw (IllegalArgumentException. (str "Unsupported platform: " platform))))
-(defmethod bundle-bob-args :android [prefs project _platform bundle-options] (merge (generic-bundle-bob-args prefs project bundle-options) (android-bundle-bob-args bundle-options)))
-(defmethod bundle-bob-args :html5   [prefs project _platform bundle-options] (merge (generic-bundle-bob-args prefs project bundle-options) (html5-bundle-bob-args bundle-options)))
-(defmethod bundle-bob-args :ios     [prefs project _platform bundle-options] (merge (generic-bundle-bob-args prefs project bundle-options) (ios-bundle-bob-args bundle-options)))
-(defmethod bundle-bob-args :linux   [prefs project _platform bundle-options] (generic-bundle-bob-args prefs project bundle-options))
-(defmethod bundle-bob-args :macos   [prefs project _platform bundle-options] (merge (generic-bundle-bob-args prefs project bundle-options) (macos-bundle-bob-args bundle-options)))
-(defmethod bundle-bob-args :windows [prefs project _platform bundle-options] (merge (generic-bundle-bob-args prefs project bundle-options) {"architectures" (bundle-options :platform)}))
+    (try
+      (with-open [build-out (PrintStream-on #(doto log-stream-writer (.print %) .flush))
+                  build-err (PrintStream-on #(doto log-stream-writer (.print %) .flush))]
+        (let [workspace (project/workspace project evaluation-context)
+              options (cond-> options
+                              (not (contains? options "root"))
+                              (assoc "root" ".")
+                              (not (contains? options "verbose"))
+                              (assoc "verbose" true))
+              [cli-options internal-options] (parse-options (.toPath (workspace/project-directory basis workspace)) options)
+              cli-args (-> [] (into cli-options) (into commands))]
+          (log/info :bob-command (string/join " " (into ["java" "-jar" "bob.jar"] (map quote-arg-if-needed) cli-args)))
+          (System/setOut build-out)
+          (System/setErr build-err)
+          (ui/with-progress [render-progress! render-progress!]
+            (let [result (Bob/invoke
+                           java/class-loader
+                           (->progress render-progress! task-cancelled?)
+                           internal-options
+                           (into-array String cli-args))]
+              (if (.-success result)
+                nil
+                (let [failed-tasks (filterv #(not (.isOk ^TaskResult %)) (.-taskResults result))]
+                  (if (coll/empty? failed-tasks)
+                    {:error (g/map->error {:message "Bob failed, see console output for more details" :severity :fatal})}
+                    {:error {:causes (engine-build-errors/failed-tasks-error-causes project evaluation-context failed-tasks)}})))))))
+      (catch Exception e
+        {:exception e})
+      (finally
+        (reset! build-in-progress-atom false)
+        (System/setOut prev-out)
+        (System/setErr prev-err)
+        (LogHelper/setVerboseLogging false)
+        (.flush log-stream-writer)
+        (when-not provided-evaluation-context
+          (ui/run-later (g/update-cache-from-evaluation-context! evaluation-context)))))))
 
 ;; -----------------------------------------------------------------------------
 ;; Build HTML5
 ;; -----------------------------------------------------------------------------
 
-(defn- build-html5-output-path [project]
-  (let [ws (project/workspace project)
-        build-path (workspace/build-path ws)]
-    (io/file build-path "__htmlLaunchDir")))
+(defn- build-html5-output-path
+  ([project]
+   (let [ws (project/workspace project)
+         build-path (workspace/build-html5-path ws)]
+     (io/file build-path "__htmlLaunchDir"))))
 
-(def build-html5-bob-commands ["distclean" "build" "bundle"])
+(def clean-build-html5-bob-commands ["distclean" "resolve" "build" "bundle"])
+(def build-html5-bob-commands ["build" "bundle"])
 
-(defn build-html5-bob-args [project prefs]
+(defn build-html5-bob-options [project prefs]
   (let [output-path (build-html5-output-path project)
-        proj-settings (project/settings project)
         build-server-url (native-extensions/get-build-server-url prefs project)
-        defold-sdk-sha1 (or (system/defold-engine-sha1) "")
-        compress-archive? (get proj-settings ["project" "compress_archive"])]
-    (cond-> {"platform" "js-web"
-             "variant" "debug"
-             "archive" "true"
-             "bundle-output" (str output-path)
-             "build-server" build-server-url
-             "defoldsdk" defold-sdk-sha1
-             "local-launch" "true"
-             "email" ""
-             "auth" ""}
-            compress-archive? (assoc "compress" "true"))))
+        defold-sdk-sha1 (or (system/defold-engine-sha1) "")]
+    {"platform" "js-web"
+     "architectures" "wasm-web"
+     "variant" "debug"
+     "archive" true
+     "output" (subs workspace/build-html5-dir 1)
+     "bundle-output" (str output-path)
+     "build-server" build-server-url
+     "build-server-header" (native-extensions/get-build-server-headers prefs)
+     "defoldsdk" defold-sdk-sha1
+     "texture-compression" (prefs/get prefs [:build :texture-compression])
+     ;; internal option: can't set using command line, but it is needed to run
+     ;; the HTML5 build locally.
+     :local-launch true
+     "email" ""
+     "auth" ""}))
 
-(defn- try-resolve-html5-file
-  ^File [project ^String rel-url]
-  (let [build-html5-output-path (build-html5-output-path project)
-        project-title (project-title project)
-        rel-path (subs rel-url (inc (count html5-url-prefix)))
-        content-path (.normalize (.toPath (io/file build-html5-output-path project-title)))
-        absolute-path (.normalize (.resolve content-path rel-path))]
-    (when (.startsWith absolute-path content-path)
-      (.toFile absolute-path))))
-
-(defn- handler [project {:keys [url method]}]
-  (when (= method "GET")
-    (if (or (= html5-url-prefix url)
-            (= (str html5-url-prefix "/") url))
-      {:code 302
-       :headers {"Location" (str html5-url-prefix "/index.html")}}
-
-      (let [url-without-query-params  (.getPath (URL. (str "http://" url)))
-            served-file   (try-resolve-html5-file project url-without-query-params)
-            extra-headers {"Content-Type" (html5-mime-types
-                                            (FilenameUtils/getExtension (clojure.string/lower-case url-without-query-params))
-                                            "application/octet-stream")}]
-        (cond
-          ;; The requested URL is a directory or located outside build-html5-output-path.
-          (or (nil? served-file) (.isDirectory served-file))
-          http-util/forbidden-response
-
-          (.exists served-file)
-          {:code 200
-           :headers (merge {"Content-Length" (str (.length served-file))} extra-headers)
-           :body served-file}
-
-          :else
-          http-util/not-found-response)))))
-
-(defn html5-handler [project req-headers]
-  (handler project req-headers))
+(defn routes [project]
+  (let [output-path (.toPath ^File (build-html5-output-path project))]
+    {"/html5/{*path}"
+     {"GET" (bound-fn [{:keys [path-params]}]
+              (let [path-str (:path path-params)]
+                (if (= "" path-str)
+                  (http-server/redirect "/html5/index.html")
+                  (let [resource-path (-> output-path
+                                          (.resolve ^String (project-title project))
+                                          (.resolve ^String path-str)
+                                          (.normalize))]
+                    (if (and (.startsWith resource-path output-path)
+                             (fs/path-exists? resource-path)
+                             (not (fs/path-is-directory? resource-path)))
+                      (http-server/response 200 resource-path)
+                      http-server/not-found)))))}}))

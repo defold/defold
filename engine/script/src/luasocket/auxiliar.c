@@ -25,10 +25,10 @@ int auxiliar_open(lua_State *L) {
 void auxiliar_newclass(lua_State *L, const char *classname, luaL_Reg *func) {
     luaL_newmetatable(L, classname); /* mt */
     /* create __index table to place methods */
-    lua_pushstring(L, "__index");    /* mt,"__index" */
+    lua_pushliteral(L, "__index");   /* mt,"__index" */
     lua_newtable(L);                 /* mt,"__index",it */ 
     /* put class name into class metatable */
-    lua_pushstring(L, "class");      /* mt,"__index",it,"class" */
+    lua_pushliteral(L, "class");     /* mt,"__index",it,"class" */
     lua_pushstring(L, classname);    /* mt,"__index",it,"class",classname */
     lua_rawset(L, -3);               /* mt,"__index",it */
     /* pass all methods that start with _ to the metatable, and all others
@@ -48,17 +48,17 @@ void auxiliar_newclass(lua_State *L, const char *classname, luaL_Reg *func) {
 int auxiliar_tostring(lua_State *L) {
     char buf[32];
     if (!lua_getmetatable(L, 1)) goto error;
-    lua_pushstring(L, "__index");
+    lua_pushliteral(L, "__index");
     lua_gettable(L, -2);
     if (!lua_istable(L, -1)) goto error;
-    lua_pushstring(L, "class");
+    lua_pushliteral(L, "class");
     lua_gettable(L, -2);
     if (!lua_isstring(L, -1)) goto error;
     sprintf(buf, "%p", lua_touserdata(L, 1));
     lua_pushfstring(L, "%s: %s", lua_tostring(L, -1), buf);
     return 1;
 error:
-    lua_pushstring(L, "invalid object passed to 'auxiliar.c:__tostring'");
+    lua_pushliteral(L, "invalid object passed to 'auxiliar.c:__tostring'");
     lua_error(L);
     return 1;
 }

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -59,6 +59,24 @@ public class DefaultResource extends AbstractResource<DefaultFileSystem> {
         }
 
         BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(f));
+        try {
+            os.write(content);
+        } finally {
+            os.close();
+        }
+    }
+
+    public void appendContent(byte[] content) throws IOException {
+        File f = new File(getAbsPath());
+        if (!f.exists()) {
+            String dir = FilenameUtils.getFullPath(getAbsPath());
+            File dirFile = new File(dir);
+            if (!dirFile.exists()) {
+                dirFile.mkdirs();
+            }
+        }
+
+        BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(f, true));
         try {
             os.write(content);
         } finally {

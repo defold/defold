@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -19,7 +19,7 @@
 #include "profiler_proc_utils.h"
 
 DM_PROPERTY_EXTERN(rmtp_Profiler);
-DM_PROPERTY_BOOL(rmtp_AttachedToJVM, false, FrameReset, "Thread attached to JVM", &rmtp_Profiler);
+DM_PROPERTY_BOOL(rmtp_AttachedToJVM, false, PROFILE_PROPERTY_FRAME_RESET, "Thread attached to JVM", &rmtp_Profiler);
 
 extern struct android_app* __attribute__((weak)) g_AndroidApp;
 

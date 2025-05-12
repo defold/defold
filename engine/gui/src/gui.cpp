@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -40,16 +40,16 @@
 #include "gui_private.h"
 #include "gui_script.h"
 
-DM_PROPERTY_U32(rmtp_Gui, 0, FrameReset, "");
-DM_PROPERTY_U32(rmtp_GuiAnimations, 0, FrameReset, "", &rmtp_Gui);
-DM_PROPERTY_U32(rmtp_GuiActiveAnimations, 0, FrameReset, "", &rmtp_Gui);
-DM_PROPERTY_U32(rmtp_GuiNodes, 0, FrameReset, "", &rmtp_Gui);
-DM_PROPERTY_U32(rmtp_GuiActiveNodes, 0, FrameReset, "", &rmtp_Gui);
-DM_PROPERTY_U32(rmtp_GuiStaticTextures, 0, FrameReset, "", &rmtp_Gui);
-DM_PROPERTY_U32(rmtp_GuiDynamicTextures, 0, FrameReset, "", &rmtp_Gui);
-DM_PROPERTY_U32(rmtp_GuiTextures, 0, FrameReset, "", &rmtp_Gui);
-DM_PROPERTY_U32(rmtp_GuiParticlefx, 0, FrameReset, "", &rmtp_Gui);
-DM_PROPERTY_F32(rmtp_GuiDynamicTexturesSizeMb, 0, NoFlags, "size of dynamic tex in Mb", &rmtp_Gui);
+DM_PROPERTY_U32(rmtp_Gui, 0, PROFILE_PROPERTY_FRAME_RESET, "", 0);
+DM_PROPERTY_U32(rmtp_GuiAnimations, 0, PROFILE_PROPERTY_FRAME_RESET, "", &rmtp_Gui);
+DM_PROPERTY_U32(rmtp_GuiActiveAnimations, 0, PROFILE_PROPERTY_FRAME_RESET, "", &rmtp_Gui);
+DM_PROPERTY_U32(rmtp_GuiNodes, 0, PROFILE_PROPERTY_FRAME_RESET, "", &rmtp_Gui);
+DM_PROPERTY_U32(rmtp_GuiActiveNodes, 0, PROFILE_PROPERTY_FRAME_RESET, "", &rmtp_Gui);
+DM_PROPERTY_U32(rmtp_GuiStaticTextures, 0, PROFILE_PROPERTY_FRAME_RESET, "", &rmtp_Gui);
+DM_PROPERTY_U32(rmtp_GuiDynamicTextures, 0, PROFILE_PROPERTY_FRAME_RESET, "", &rmtp_Gui);
+DM_PROPERTY_U32(rmtp_GuiTextures, 0, PROFILE_PROPERTY_FRAME_RESET, "", &rmtp_Gui);
+DM_PROPERTY_U32(rmtp_GuiParticlefx, 0, PROFILE_PROPERTY_FRAME_RESET, "", &rmtp_Gui);
+DM_PROPERTY_F32(rmtp_GuiDynamicTexturesSizeMb, 0, PROFILE_PROPERTY_NONE, "size of dynamic tex in Mb", &rmtp_Gui);
 
 namespace dmGui
 {
@@ -360,7 +360,11 @@ namespace dmGui
         scene->m_NodePool.SetCapacity(params->m_MaxNodes);
         scene->m_Animations.SetCapacity(params->m_MaxAnimations);
         scene->m_Textures.SetCapacity(params->m_MaxTextures*2, params->m_MaxTextures);
-        scene->m_DynamicTextures.SetCapacity(params->m_MaxDynamicTextures*2, params->m_MaxDynamicTextures);
+        // hashtable has zero capacity by default
+        if (params->m_MaxDynamicTextures > 0)
+        {
+            scene->m_DynamicTextures.SetCapacity(params->m_MaxDynamicTextures*2, params->m_MaxDynamicTextures);
+        }
         scene->m_MaterialResources.SetCapacity(params->m_MaxMaterials*2, params->m_MaxMaterials);
         scene->m_Fonts.SetCapacity(params->m_MaxFonts*2, params->m_MaxFonts);
         scene->m_Particlefxs.SetCapacity(params->m_MaxParticlefxs*2, params->m_MaxParticlefxs);
@@ -596,6 +600,11 @@ namespace dmGui
         {
             dmLogError("Invalid image buffer size. Expected %d, got %d", expected_buffer_size, buffer_size);
             return RESULT_INVAL_ERROR;
+        }
+
+        if (scene->m_DynamicTextures.Get(path) != 0x0)
+        {
+            return RESULT_TEXTURE_ALREADY_EXISTS;
         }
 
         void* data = MakeDynamicTextureData(width, height, type, flip, buffer, buffer_size);
@@ -1823,71 +1832,71 @@ namespace dmGui
                         lua_settable(L, -3);
                     }
 
-                    if (ia->m_ActionId != 0)
+                    if (ia->m_ActionId != 0 && !ia->m_HasText)
                     {
-                        lua_pushstring(L, "value");
+                        lua_pushliteral(L, "value");
                         lua_pushnumber(L, ia->m_Value);
                         lua_rawset(L, -3);
 
-                        lua_pushstring(L, "pressed");
+                        lua_pushliteral(L, "pressed");
                         lua_pushboolean(L, ia->m_Pressed);
                         lua_rawset(L, -3);
 
-                        lua_pushstring(L, "released");
+                        lua_pushliteral(L, "released");
                         lua_pushboolean(L, ia->m_Released);
                         lua_rawset(L, -3);
 
-                        lua_pushstring(L, "repeated");
+                        lua_pushliteral(L, "repeated");
                         lua_pushboolean(L, ia->m_Repeated);
                         lua_rawset(L, -3);
                     }
 
                     if (ia->m_PositionSet)
                     {
-                        lua_pushstring(L, "x");
+                        lua_pushliteral(L, "x");
                         lua_pushnumber(L, ia->m_X);
                         lua_rawset(L, -3);
 
-                        lua_pushstring(L, "y");
+                        lua_pushliteral(L, "y");
                         lua_pushnumber(L, ia->m_Y);
                         lua_rawset(L, -3);
 
-                        lua_pushstring(L, "dx");
+                        lua_pushliteral(L, "dx");
                         lua_pushnumber(L, ia->m_DX);
                         lua_rawset(L, -3);
 
-                        lua_pushstring(L, "dy");
+                        lua_pushliteral(L, "dy");
                         lua_pushnumber(L, ia->m_DY);
                         lua_rawset(L, -3);
 
-                        lua_pushstring(L, "screen_x");
+                        lua_pushliteral(L, "screen_x");
                         lua_pushnumber(L, ia->m_ScreenX);
                         lua_rawset(L, -3);
 
-                        lua_pushstring(L, "screen_y");
+                        lua_pushliteral(L, "screen_y");
                         lua_pushnumber(L, ia->m_ScreenY);
                         lua_rawset(L, -3);
 
-                        lua_pushstring(L, "screen_dx");
+                        lua_pushliteral(L, "screen_dx");
                         lua_pushnumber(L, ia->m_ScreenDX);
                         lua_rawset(L, -3);
 
-                        lua_pushstring(L, "screen_dy");
+                        lua_pushliteral(L, "screen_dy");
                         lua_pushnumber(L, ia->m_ScreenDY);
                         lua_rawset(L, -3);
                     }
 
                     if (ia->m_AccelerationSet)
                     {
-                        lua_pushstring(L, "acc_x");
+                        lua_pushliteral(L, "acc_x");
                         lua_pushnumber(L, ia->m_AccX);
                         lua_rawset(L,-3);
 
-                        lua_pushstring(L, "acc_y");
+                        lua_pushliteral(L, "acc_y");
                         lua_pushnumber(L, ia->m_AccY);
                         lua_rawset(L,-3);
 
-                        lua_pushstring(L, "acc_z");
+                        lua_pushliteral(L, "acc_z");
                         lua_pushnumber(L, ia->m_AccZ);
                         lua_rawset(L,-3);
                     }
@@ -1928,11 +1937,11 @@ namespace dmGui
                             lua_pushinteger(L, (lua_Integer) t.m_Y);
                             lua_settable(L, -3);
 
-                            lua_pushstring(L, "screen_x");
+                            lua_pushliteral(L, "screen_x");
                             lua_pushnumber(L, (lua_Integer) t.m_ScreenX);
                             lua_rawset(L, -3);
 
-                            lua_pushstring(L, "screen_y");
+                            lua_pushliteral(L, "screen_y");
                             lua_pushnumber(L, (lua_Integer) t.m_ScreenY);
                             lua_rawset(L, -3);
 
@@ -1944,11 +1953,11 @@ namespace dmGui
                             lua_pushinteger(L, (lua_Integer) t.m_DY);
                             lua_settable(L, -3);
 
-                            lua_pushstring(L, "screen_dx");
+                            lua_pushliteral(L, "screen_dx");
                             lua_pushnumber(L, (lua_Integer) t.m_ScreenDX);
                             lua_rawset(L, -3);
 
-                            lua_pushstring(L, "screen_dy");
+                            lua_pushliteral(L, "screen_dy");
                             lua_pushnumber(L, (lua_Integer) t.m_ScreenDY);
                             lua_rawset(L, -3);
 
@@ -1961,7 +1970,7 @@ namespace dmGui
                     {
                         lua_pushliteral(L, "text");
                         if (ia->m_TextCount == 0) {
-                            lua_pushstring(L, "");
+                            lua_pushliteral(L, "");
                         } else {
                             lua_pushlstring(L, ia->m_Text, ia->m_TextCount);
                         }
@@ -2510,6 +2519,7 @@ namespace dmGui
         }
         if (n->m_Node.m_Text)
             free((void*)n->m_Node.m_Text);
+        free(n->m_Node.m_ResetPointProperties);
         memset(n, 0, sizeof(InternalNode));
         n->m_Index = INVALID_INDEX;
     }
@@ -2914,6 +2924,10 @@ namespace dmGui
     void SetNodeResetPoint(HScene scene, HNode node)
     {
         InternalNode* n = GetNode(scene, node);
+        if (!n->m_Node.m_ResetPointProperties)
+        {
+            n->m_Node.m_ResetPointProperties = (dmVMath::Vector4*)malloc(sizeof(dmVMath::Vector4) * PROPERTY_COUNT);
+        }
         memcpy(n->m_Node.m_ResetPointProperties, n->m_Node.m_Properties, sizeof(n->m_Node.m_Properties));
         n->m_Node.m_ResetPointState = n->m_Node.m_State;
         n->m_Node.m_HasResetPoint = 1;
@@ -4217,6 +4231,8 @@ namespace dmGui
 
         InternalNode* n = GetNode(scene, node);
         out_n->m_Node = n->m_Node;
+        out_n->m_Node.m_HasResetPoint = 0;
+        out_n->m_Node.m_ResetPointProperties = 0;
         if (n->m_Node.m_Text != 0x0)
             out_n->m_Node.m_Text = strdup(n->m_Node.m_Text);
         out_n->m_NameHash = dmHashString64(name);

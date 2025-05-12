@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -26,6 +26,18 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class GraphicsUtil {
+
+    public static boolean isEngineProvidedAttributeSemanticType(VertexAttribute.SemanticType semanticType) {
+        switch (semanticType) {
+            case SEMANTIC_TYPE_POSITION, SEMANTIC_TYPE_WORLD_MATRIX, SEMANTIC_TYPE_NORMAL_MATRIX -> {
+                // The engine will always provide a value for these.
+                return true;
+            }
+            default -> {
+                return false;
+            }
+        }
+    }
 
     private static void validateAttribute(VertexAttribute attr, VertexAttribute.DataType dataType, boolean normalize) throws CompileExceptionError {
         if (normalize || dataType == VertexAttribute.DataType.TYPE_FLOAT) {
@@ -175,6 +187,47 @@ public class GraphicsUtil {
         return ByteString.copyFrom(buffer);
     }
 
+    private static void migrateAttribute(VertexAttribute.Builder attributeBuilder) throws CompileExceptionError {
+        if (!attributeBuilder.hasVectorType() && attributeBuilder.hasElementCount()) {
+            int elementCount = attributeBuilder.getElementCount();
+            VertexAttribute.SemanticType semanticType = attributeBuilder.getSemanticType();
+
+            switch(elementCount) {
+                case 1:
+                    attributeBuilder.setVectorType(VertexAttribute.VectorType.VECTOR_TYPE_SCALAR);
+                    break;
+                case 2:
+                    attributeBuilder.setVectorType(VertexAttribute.VectorType.VECTOR_TYPE_VEC2);
+                    break;
+                case 3:
+                    attributeBuilder.setVectorType(VertexAttribute.VectorType.VECTOR_TYPE_VEC3);
+                    break;
+                case 4:
+                    // Guess the type based on semantic type, since it can be either a vec4 or a mat2
+                    if (semanticType == VertexAttribute.SemanticType.SEMANTIC_TYPE_WORLD_MATRIX ||
+                        semanticType == VertexAttribute.SemanticType.SEMANTIC_TYPE_NORMAL_MATRIX) {
+                        attributeBuilder.setVectorType(VertexAttribute.VectorType.VECTOR_TYPE_MAT2);
+                    } else {
+                        attributeBuilder.setVectorType(VertexAttribute.VectorType.VECTOR_TYPE_VEC4);
+                    }
+                    break;
+                case 9:
+                    attributeBuilder.setVectorType(VertexAttribute.VectorType.VECTOR_TYPE_MAT3);
+                    break;
+                case 16:
+                    attributeBuilder.setVectorType(VertexAttribute.VectorType.VECTOR_TYPE_MAT4);
+                    break;
+                default:break;
+            }
+
+            if (!attributeBuilder.hasVectorType()) {
+                throw new CompileExceptionError("Unable to determine shader type for attribute " + attributeBuilder.getName());
+            }
+
+            attributeBuilder.clearElementCount();
+        }
+    }
+
     public static VertexAttribute getAttributeByName(List<VertexAttribute> materialAttributes, String attributeName)
     {
         for (VertexAttribute attr : materialAttributes) {
@@ -187,11 +240,19 @@ public class GraphicsUtil {
 
     public static VertexAttribute buildVertexAttribute(VertexAttribute sourceAttr, VertexAttribute targetAttr) throws CompileExceptionError {
         VertexAttribute.DataType dataType = targetAttr.getDataType();
+        VertexAttribute.SemanticType semanticType = targetAttr.getSemanticType();
         boolean normalize = targetAttr.getNormalize();
-        validateAttribute(sourceAttr, dataType, normalize);
+        boolean isEngineProvidedAttribute = isEngineProvidedAttributeSemanticType(semanticType);
+
+        if (!isEngineProvidedAttribute) {
+            validateAttribute(sourceAttr, dataType, normalize);
+        }
+
+        ByteString binaryValues = isEngineProvidedAttribute ? ByteString.EMPTY : makeBinaryValues(sourceAttr, dataType, normalize);
         VertexAttribute.Builder attributeBuilder = VertexAttribute.newBuilder(sourceAttr);
+        migrateAttribute(attributeBuilder);
         attributeBuilder.setNameHash(MurmurHash.hash64(sourceAttr.getName()));
-        attributeBuilder.setBinaryValues(makeBinaryValues(sourceAttr, dataType, normalize));
+        attributeBuilder.setBinaryValues(binaryValues);
         return attributeBuilder.build();
     }
 

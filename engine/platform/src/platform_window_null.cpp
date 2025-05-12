@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -22,7 +22,7 @@
 
 namespace dmPlatform
 {
-    struct Window
+    struct dmWindow
     {
         WindowParams m_CreateParams;
         uint32_t     m_WindowWidth;
@@ -36,8 +36,8 @@ namespace dmPlatform
 
     HWindow NewWindow()
     {
-        Window* wnd = new Window();
-        memset(wnd, 0, sizeof(Window));
+        dmWindow* wnd = new dmWindow();
+        memset(wnd, 0, sizeof(dmWindow));
         return wnd;
     }
 
@@ -80,10 +80,13 @@ namespace dmPlatform
 
     uint32_t GetWindowStateParam(HWindow window, WindowState state)
     {
-        if (state == WINDOW_STATE_OPENED)
+        switch(state)
         {
-            return window->m_WindowOpened;
+            case WINDOW_STATE_OPENED: return window->m_WindowOpened;
+            case WINDOW_STATE_FSAA_SAMPLES: return window->m_CreateParams.m_Samples;
+            default:break;
         }
+
         return 0;
     }
 
@@ -91,6 +94,9 @@ namespace dmPlatform
     {
         return 1.0f;
     }
+
+    void SetWindowTitle(HWindow window, const char* title)
+    {}
 
     void SetWindowSize(HWindow window, uint32_t width, uint32_t height)
     {
@@ -103,6 +109,9 @@ namespace dmPlatform
         }
     }
 
+    void SetWindowPosition(HWindow window, int32_t x, int32_t y)
+    {}
+
     void ShowWindow(HWindow window)
     {}
 
@@ -113,6 +122,9 @@ namespace dmPlatform
     {}
 
     void PollEvents(HWindow window)
+    {}
+
+    void SwapBuffers(HWindow window)
     {}
 
     void SetDeviceState(HWindow window, DeviceState state, bool op1)

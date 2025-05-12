@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -22,9 +22,9 @@ namespace dmGameSystem
 {
     struct ComputeProgramResources
     {
-        dmGraphics::HComputeProgram m_ComputeProgram;
-        TextureResource*            m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-        dmhash_t                    m_SamplerNames[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        dmGraphics::HProgram m_ComputeProgram;
+        TextureResource*     m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        dmhash_t             m_SamplerNames[dmRender::RenderObject::MAX_TEXTURE_COUNT];
     };
 
     static void ReleaseTextures(dmResource::HFactory factory, TextureResource** textures)
@@ -84,7 +84,7 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
-    static void SetProgram(ComputeResource* resource, dmRenderDDF::ComputeDesc* ddf, ComputeProgramResources* resources)
+    static void SetProgram(const char* path, ComputeResource* resource, dmRenderDDF::ComputeDesc* ddf, ComputeProgramResources* resources)
     {
         //////////////////////////////
         // Set program constants
@@ -97,8 +97,16 @@ namespace dmGameSystem
             const char* name   = constants[i].m_Name;
             dmhash_t name_hash = dmHashString64(name);
 
-            dmRender::SetComputeProgramConstantType(resource->m_Program, name_hash, constants[i].m_Type);
-            dmRender::SetComputeProgramConstant(resource->m_Program, name_hash, (dmVMath::Vector4*) constants[i].m_Value.m_Data, constants[i].m_Value.m_Count);
+            dmRender::HConstant constant;
+            if (dmRender::GetComputeProgramConstant(resource->m_Program, name_hash, constant))
+            {
+                dmRender::SetComputeProgramConstantType(resource->m_Program, name_hash, constants[i].m_Type);
+                dmRender::SetComputeProgramConstant(resource->m_Program, name_hash, (dmVMath::Vector4*) constants[i].m_Value.m_Data, constants[i].m_Value.m_Count);
+            }
+            else
+            {
+                dmLogWarning("Compute %s has specified a constant named '%s', but it does not exist or isn't used in the shader.", path, name);
+            }
         }
 
         //////////////////////////////
@@ -120,6 +128,7 @@ namespace dmGameSystem
             dmGraphics::TextureFilter magfilter = dmRender::FilterMagFromDDF(sampler[i].m_FilterMag);
             float anisotropy                    = sampler[i].m_MaxAnisotropy;
 
+            uint32_t sampler_unit_before = sampler_unit;
             if (dmRender::SetComputeProgramSampler(resource->m_Program, base_name_hash, sampler_unit, uwrap, vwrap, minfilter, magfilter, anisotropy))
             {
                 sampler_unit++;
@@ -131,6 +140,11 @@ namespace dmGameSystem
                 {
                     sampler_unit++;
                 }
+            }
+
+            if (sampler_unit_before == sampler_unit)
+            {
+                dmLogWarning("Compute %s has specified a sampler named '%s', but it does not exist or isn't used in the shader.", path, sampler[i].m_Name);
             }
         }
 
@@ -153,21 +167,6 @@ namespace dmGameSystem
         }
     }
 
-    static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams* params)
-    {
-        ComputeResource* resource               = (ComputeResource*) params->m_UserData;
-        dmRender::HComputeProgram program       = resource->m_Program;
-        dmRender::HRenderContext render_context = dmRender::GetProgramRenderContext(program);
-        dmGraphics::HContext graphics_context   = dmRender::GetGraphicsContext(render_context);
-        dmGraphics::HComputeProgram shader      = GetComputeProgramShader(program);
-        dmGraphics::HProgram gfx_program        = GetComputeProgram(program);
-
-        if (!dmGraphics::ReloadProgram(graphics_context, gfx_program, shader))
-        {
-            dmLogWarning("Reloading the compute program failed.");
-        }
-    }
-
     dmResource::Result ResComputeCreate(const dmResource::ResourceCreateParams* params)
     {
         dmRender::HRenderContext render_context = (dmRender::HRenderContext) params->m_Context;
@@ -185,11 +184,9 @@ namespace dmGameSystem
             assert(res == dmResource::RESULT_OK);
             dmRender::SetProgramUserData(compute_program, ResourceDescriptorGetNameHash(desc));
 
-            dmResource::RegisterResourceReloadedCallback(params->m_Factory, ResourceReloadedCallback, compute_program);
-
             ComputeResource* resource = new ComputeResource();
             resource->m_Program       = compute_program;
-            SetProgram(resource, ddf, &resources);
+            SetProgram(params->m_Filename, resource, ddf, &resources);
 
             ResourceDescriptorSetResource(params->m_Resource, resource);
         }
@@ -202,12 +199,11 @@ namespace dmGameSystem
         ComputeResource* resource               = (ComputeResource*) dmResource::GetResource(params->m_Resource);
         dmRender::HRenderContext render_context = (dmRender::HRenderContext) params->m_Context;
         dmRender::HComputeProgram program       = resource->m_Program;
+        dmGraphics::HProgram gfx_program        = dmRender::GetComputeProgram(program);
 
         ReleaseTextures(params->m_Factory, resource->m_Textures);
 
-        dmResource::UnregisterResourceReloadedCallback(params->m_Factory, ResourceReloadedCallback, program);
-
-        dmResource::Release(params->m_Factory, (void*) dmRender::GetComputeProgramShader(program));
+        dmResource::Release(params->m_Factory, (void*) gfx_program);
         dmRender::DeleteComputeProgram(render_context, program);
 
         delete resource;
@@ -231,11 +227,13 @@ namespace dmGameSystem
             ComputeResource* resource         = (ComputeResource*) dmResource::GetResource(params->m_Resource);
             dmRender::HComputeProgram program = resource->m_Program;
 
+            dmGraphics::HProgram gfx_program = dmRender::GetComputeProgram(program);
+
             // Release old resources
-            dmResource::Release(params->m_Factory, (void*) program);
+            dmResource::Release(params->m_Factory, (void*) gfx_program);
 
             // Set up resources
-            SetProgram(resource, ddf, &resources);
+            SetProgram(params->m_Filename, resource, ddf, &resources);
         }
         dmDDF::FreeMessage(ddf);
         return r;

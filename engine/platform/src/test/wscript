@@ -10,15 +10,16 @@ def build(bld):
                 use = 'TESTMAIN DLIB PROFILE_NULL platform_null',
                 target = 'test_platform')
 
-    if bld.env['PLATFORM'] not in ('js-web', 'wasm-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5'):
 
-        use_libs = ["TESTMAIN", "APP", "DDF", "DLIB", "DMGLFW", "PROFILE", "OPENGL", "platform"]
+    if bld.env.PLATFORM not in ['js-web', 'wasm-web', 'wasm_pthread-web']:
+        if platform_supports_feature(bld.env.PLATFORM, "opengl", None):
+            use_libs = ["TESTMAIN", "APP", "DDF", "DLIB", "PROFILE_NULL", "DMGLFW", "OPENGL", "platform"]
 
-        if waflib.Options.options.with_vulkan:
-            use_libs.append('VULKAN')
+            if waflib.Options.options.with_vulkan:
+                use_libs.append('VULKAN')
 
-        bld.program(features = 'cxx cprogram test skip_test',
-                    includes = ['../../src'],
-                    source = 'test_platform_app.cpp',
-                    use = use_libs,
-                    target = 'test_platform_app')
+            bld.program(features = 'cxx cprogram test skip_test',
+                        includes = ['../../src'],
+                        source = 'test_platform_app.cpp',
+                        use = use_libs,
+                        target = 'test_platform_app')

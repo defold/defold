@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -143,10 +143,11 @@ static void* EngineCreate(int argc, char** argv)
     engine->m_Window = dmPlatform::NewWindow();
 
     dmPlatform::WindowParams window_params = {};
-    window_params.m_Width       = 32;
-    window_params.m_Height      = 32;
-    window_params.m_Title       = "hid_test_app";
-    window_params.m_GraphicsApi = dmPlatform::PLATFORM_GRAPHICS_API_OPENGL;
+    window_params.m_Width            = 32;
+    window_params.m_Height           = 32;
+    window_params.m_Title            = "hid_test_app";
+    window_params.m_GraphicsApi      = dmPlatform::PLATFORM_GRAPHICS_API_OPENGL;
+    window_params.m_ContextAlphabits = 8;
 
     (void)dmPlatform::OpenWindow(engine->m_Window, window_params);
 
@@ -191,6 +192,7 @@ static void* EngineCreate(int argc, char** argv)
 
 static const char* KeyToStr(dmHID::Key key)
 {
+#if !defined(DM_PLATFORM_VENDOR)
     switch(key)
     {
         case dmHID::KEY_SPACE:return "KEY_SPACE";
@@ -318,7 +320,9 @@ static const char* KeyToStr(dmHID::Key key)
         case dmHID::KEY_RSUPER:return "KEY_RSUPER";
         case dmHID::KEY_MENU:return "KEY_MENU";
         case dmHID::KEY_BACK:return "KEY_BACK";
+        default: break;
     }
+#endif // DM_PLATFORM_VENDOR
 
     return "<UNKNOWN-KEY>";
 }
@@ -429,9 +433,9 @@ static bool GamepadConnectivityCallback(uint32_t gamepad_index, bool connected, 
 
     if (connected)
     {
-        char name_buffer[128];
-        dmHID::GetGamepadDeviceName(g_EngineCtx.m_HidContext, pad, name_buffer, sizeof(name_buffer));
-        printf("Gamepad %d connected: %s\n", gamepad_index, name_buffer);
+        char device_name[dmHID::MAX_GAMEPAD_NAME_LENGTH];
+        dmHID::GetGamepadDeviceName(g_EngineCtx.m_HidContext, pad, device_name);
+        printf("Gamepad %d connected: %s\n", gamepad_index, device_name);
     }
     else
     {

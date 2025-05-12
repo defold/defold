@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -142,44 +142,90 @@ namespace dmInput
         return config;
     }
 
+    static GamepadConfig* GetGamepadConfig(HBinding binding, dmHID::HGamepad gamepad, char device_name_out[dmHID::MAX_GAMEPAD_NAME_LENGTH])
+    {
+        char device_name[dmHID::MAX_GAMEPAD_NAME_LENGTH];
+        dmHID::GetGamepadDeviceName(binding->m_Context->m_HidContext, gamepad, device_name);
+
+        /*
+         * NOTE: We used to log a warning here but the warning is removed for the following reasons:
+         *  - The input-binding file covers several platforms and certain platforms
+         *    doesn't have support for e.g. pads. But more importantly, sometimes you might have
+         *    a device connected but sometimes not. It should be up to the user and we shouldn't
+         *    spam out warnings in such cases. In other words. It's impossible to tell whether the
+         *    warning is appropriate or not.
+         *  - We should also have support dynamic pad-connections. Whether a pad is connected
+         *    or not should be up to the game-ui.
+         */
+        if (device_name[0] == 0)
+            return 0x0;
+
+        GamepadConfig* best_config = 0x0;
+        int best_config_name_index = -1;
+
+        uint32_t num_names = 1;
+        char* device_names[] = { device_name, 0 };
+
+    #ifdef _WIN32
+        // for backwards compatability with GLFW 2.7
+        device_names[num_names++] = "XBox 360 Controller";
+    #endif
+
+        for (int i = 0; i < num_names; ++i)
+        {
+            GamepadConfig* config = GetGamepadConfigFromDeviceName(binding, dmHashString32(device_names[i]));
+            if (!config)
+                continue;
+
+            best_config            = config;
+            best_config_name_index = i;
+
+            // if we have found a config with a valid gamepad id, we don't look further.
+            if (best_config->m_DeviceId != UNKNOWN_GAMEPAD_CONFIG_ID)
+            {
+                break;
+            }
+        }
+
+        if (best_config)
+        {
+            dmStrlCpy(device_name_out, device_names[best_config_name_index], dmHID::MAX_GAMEPAD_NAME_LENGTH);
+        }
+        return best_config;
+    }
+
     static GamepadBinding* NewGamepadBinding(HBinding binding, uint32_t gamepad_index)
     {
         dmHID::HGamepad gamepad = dmHID::GetGamepad(binding->m_Context->m_HidContext, gamepad_index);
-        char device_name[128];
-        dmHID::GetGamepadDeviceName(binding->m_Context->m_HidContext, gamepad, device_name, sizeof(device_name));
-        if (strlen(device_name) == 0)
+
+        char device_name_out[dmHID::MAX_GAMEPAD_NAME_LENGTH];
+        GamepadConfig* selected_config = GetGamepadConfig(binding, gamepad, device_name_out);
+
+        if (selected_config)
         {
-            /*
-             * NOTE: We used to log a warning here but the warning is removed for the following reasons:
-             *  - The input-binding file covers several platforms and certain platforms
-             *    doesn't have support for e.g. pads. But more importantly, sometimes you might have
-             *    a device connected but sometimes not. It should be up to the user and we shouldn't
-             *    spam out warnings in such cases. In other words. It's impossible to tell whether the
-             *    warning is appropriate or not.
-             *  - We should also have support dynamic pad-connections. Whether a pad is connected
-             *    or not should be up to the game-ui.
-             */
-            return 0x0;
-        } else {
-            GamepadConfig* config = GetGamepadConfigFromDeviceName(binding, dmHashString32(device_name));
-            if (config == 0x0)
-            {
-                dmLogWarning("No gamepad map found for gamepad %d (%s). Ignored.", gamepad_index, device_name);
-                return 0x0;
-            }
             GamepadBinding* gamepad_binding = new GamepadBinding();
             memset(gamepad_binding, 0, sizeof(*gamepad_binding));
             gamepad_binding->m_Gamepad = gamepad;
-            if (config->m_DeviceId == UNKNOWN_GAMEPAD_CONFIG_ID)
+
+            if (selected_config->m_DeviceId == UNKNOWN_GAMEPAD_CONFIG_ID)
             {
-                dmLogWarning("No gamepad map found for gamepad %d (%s). The raw gamepad map will be used.", gamepad_index, device_name);
+                dmLogWarning("No gamepad map found for gamepad %d (%s). The raw gamepad map will be used.", gamepad_index, device_name_out);
                 gamepad_binding->m_Unknown = 1;
             }
-
             ResetGamepadBindings(binding, gamepad_binding, gamepad_index);
-
             return gamepad_binding;
         }
+        else
+        {
+            char device_name[dmHID::MAX_GAMEPAD_NAME_LENGTH];
+            dmHID::GetGamepadDeviceName(binding->m_Context->m_HidContext, gamepad, device_name);
+
+            if (device_name[0])
+            {
+                dmLogWarning("No gamepad map found for gamepad %d (%s). Ignored.", gamepad_index, device_name);
+            }
+        }
+        return 0x0;
     }
 
     static void SetupGamepadBindings(HBinding binding)
@@ -438,6 +484,7 @@ namespace dmInput
 
         if (count == 0)
         {
+            dmLogInfo("No gamepads found in the gamepad map for this platform");
             return;
         }
 
@@ -512,65 +559,29 @@ namespace dmInput
         action->m_HasGamepadPacket = 0;
     }
 
-    struct UpdateActionContext
+    void UpdateActionPressedReleasedRepeated(Action* action, Context* context, float dt)
     {
-        UpdateActionContext()
-        {
-            memset(this, 0, sizeof(UpdateActionContext));
-        }
-
-        float m_DT;
-        Context* m_Context;
-        int32_t m_X;
-        int32_t m_Y;
-        int32_t m_DX;
-        int32_t m_DY;
-        float m_AccX;
-        float m_AccY;
-        float m_AccZ;
-        uint32_t m_PositionSet : 1;
-        uint32_t m_AccelerationSet : 1;
-    };
-
-    void UpdateAction(void* context, const dmhash_t* id, Action* action)
-    {
-        UpdateActionContext* update_context = (UpdateActionContext*)context;
-
-        float pressed_threshold = update_context->m_Context->m_PressedThreshold;
+        float pressed_threshold = context->m_PressedThreshold;
         action->m_Pressed = (action->m_PrevValue < pressed_threshold && action->m_Value >= pressed_threshold) ? 1 : 0;
         action->m_Released = (action->m_PrevValue >= pressed_threshold && action->m_Value < pressed_threshold) ? 1 : 0;
+
         action->m_Repeated = false;
         if (action->m_Value > 0.0f)
         {
             if (action->m_Pressed)
             {
                 action->m_Repeated = true;
-                action->m_RepeatTimer = update_context->m_Context->m_RepeatDelay;
+                action->m_RepeatTimer = context->m_RepeatDelay;
             }
             else
             {
-                action->m_RepeatTimer -= update_context->m_DT;
+                action->m_RepeatTimer -= dt;
                 if (action->m_RepeatTimer <= 0.0f)
                 {
                     action->m_Repeated = true;
-                    action->m_RepeatTimer += update_context->m_Context->m_RepeatInterval;
+                    action->m_RepeatTimer += context->m_RepeatInterval;
                 }
             }
-        }
-        if (action->m_PositionSet == 0)
-        {
-            action->m_X = update_context->m_X;
-            action->m_Y = update_context->m_Y;
-            action->m_DX = update_context->m_DX;
-            action->m_DY = update_context->m_DY;
-            action->m_PositionSet = update_context->m_PositionSet;
-        }
-        if (action->m_AccelerationSet == 0)
-        {
-            action->m_AccX = update_context->m_AccX;
-            action->m_AccY = update_context->m_AccY;
-            action->m_AccZ = update_context->m_AccZ;
-            action->m_AccelerationSet = update_context->m_AccelerationSet;
         }
     }
 
@@ -580,7 +591,6 @@ namespace dmInput
         binding->m_Actions.Iterate<void>(ClearAction, 0x0);
 
         dmHID::HContext hid_context = binding->m_Context->m_HidContext;
-        UpdateActionContext context;
         if (binding->m_KeyboardBinding != 0x0)
         {
             KeyboardBinding* keyboard_binding = binding->m_KeyboardBinding;
@@ -597,7 +607,10 @@ namespace dmInput
                     if (action != 0x0)
                     {
                         if (dmMath::Abs(action->m_Value) < v)
+                        {
                             action->m_Value = v;
+                        }
+                        UpdateActionPressedReleasedRepeated(action, binding->m_Context, dt);
                     }
                 }
                 *prev_packet = *packet;
@@ -653,20 +666,11 @@ namespace dmInput
         }
         if (binding->m_MouseBinding != 0x0)
         {
-            bool is_wheel_offsets = false; // glfw 2.x
-            #if defined(DM_INPUT_USE_GLFW3)
-                is_wheel_offsets = true; // glfw 3, the wheel scroll is offsets
-            #endif
             MouseBinding* mouse_binding = binding->m_MouseBinding;
             dmHID::MousePacket* packet = &mouse_binding->m_Packet;
             dmHID::MousePacket* prev_packet = &mouse_binding->m_PreviousPacket;
             if (dmHID::GetMousePacket(mouse_binding->m_Mouse, packet))
             {
-                context.m_X = packet->m_PositionX;
-                context.m_Y = packet->m_PositionY;
-                context.m_DX = packet->m_PositionX - prev_packet->m_PositionX;
-                context.m_DY = packet->m_PositionY - prev_packet->m_PositionY;
-                context.m_PositionSet = 1;
                 const dmArray<MouseTrigger>& triggers = mouse_binding->m_Triggers;
                 for (uint32_t i = 0; i < triggers.Size(); ++i)
                 {
@@ -675,45 +679,45 @@ namespace dmInput
                     switch (trigger.m_Input)
                     {
                     case dmInputDDF::MOUSE_WHEEL_UP:
-                        if (is_wheel_offsets)
-                        {
-                            if (packet->m_Wheel > 0)
-                            {
-                                v = (float) (packet->m_Wheel - prev_packet->m_Wheel);
-                            }
-                        }
-                        else
-                        {
-                            v = (float) (packet->m_Wheel - prev_packet->m_Wheel);
-                        }
+                        v = (float) (packet->m_Wheel - prev_packet->m_Wheel);
                         break;
                     case dmInputDDF::MOUSE_WHEEL_DOWN:
-                        if (is_wheel_offsets)
-                        {
-                            if (packet->m_Wheel < 0)
-                            {
-                                v = (float) -(packet->m_Wheel - prev_packet->m_Wheel);
-                            }
-                        }
-                        else
-                        {
-                            v = (float) -(packet->m_Wheel - prev_packet->m_Wheel);
-                        }
+                        v = (float) -(packet->m_Wheel - prev_packet->m_Wheel);
                         break;
                     default:
                         v = dmHID::GetMouseButton(packet, MOUSE_BUTTON_MAP[trigger.m_Input]) ? 1.0f : 0.0f;
                         break;
                     }
+
                     v = dmMath::Clamp(v, 0.0f, 1.0f);
                     Action* action = binding->m_Actions.Get(trigger.m_ActionId);
+
                     if (action != 0x0)
                     {
-                        if (dmMath::Abs(action->m_Value) < dmMath::Abs(v))
+                        if (dmMath::Abs(action->m_Value) < v)
                         {
                             action->m_Value = v;
                         }
+                        action->m_X = packet->m_PositionX;
+                        action->m_Y = packet->m_PositionY;
+                        action->m_DX = packet->m_PositionX - prev_packet->m_PositionX;
+                        action->m_DY = packet->m_PositionY - prev_packet->m_PositionY;
+                        action->m_PositionSet = 1;
+                        UpdateActionPressedReleasedRepeated(action, binding->m_Context, dt);
                     }
+
                 }
+                // mouse movement action
+                Action* action = binding->m_Actions.Get(0);
+                if (action != 0x0)
+                {
+                    action->m_X = packet->m_PositionX;
+                    action->m_Y = packet->m_PositionY;
+                    action->m_DX = packet->m_PositionX - prev_packet->m_PositionX;
+                    action->m_DY = packet->m_PositionY - prev_packet->m_PositionY;
+                    action->m_PositionSet = 1;
+                }
+
                 *prev_packet = *packet;
             }
         }
@@ -734,9 +738,10 @@ namespace dmInput
                 {
                     if (connected)
                     {
-                        char device_name[128];
-                        dmHID::GetGamepadDeviceName(binding->m_Context->m_HidContext, gamepad, device_name, sizeof(device_name));
-                        gamepad_binding->m_DeviceId = dmHashString32(device_name);
+                        char device_name_out[dmHID::MAX_GAMEPAD_NAME_LENGTH];
+                        GetGamepadConfig(binding, gamepad, device_name_out);
+
+                        gamepad_binding->m_DeviceId = dmHashString32(device_name_out);
                         gamepad_binding->m_Connected = 1;
                         gamepad_binding->m_NoMapWarning = 0;
                     }
@@ -807,10 +812,10 @@ namespace dmInput
 
                                     if (action->m_GamepadConnected)
                                     {
-                                        char device_name[128];
-                                        dmHID::GetGamepadDeviceName(binding->m_Context->m_HidContext, gamepad, device_name, sizeof(device_name));
-                                        action->m_TextCount = dmStrlCpy(action->m_Text, device_name, sizeof(action->m_Text));
+                                        char device_name_out[dmHID::MAX_GAMEPAD_NAME_LENGTH];
+                                        GetGamepadConfig(binding, gamepad, device_name_out);
 
+                                        action->m_TextCount = dmStrlCpy(action->m_Text, device_name_out, sizeof(action->m_Text));
                                         action->m_UserID = 0;
                                         dmHID::GetGamepadUserId(binding->m_Context->m_HidContext, gamepad_binding->m_Gamepad, &action->m_UserID);
                                     }
@@ -823,6 +828,7 @@ namespace dmInput
                                 {
                                     action->m_GamepadPacket = gamepad_binding->m_Packet;
                                     action->m_HasGamepadPacket = 1;
+                                    UpdateActionPressedReleasedRepeated(action, binding->m_Context, dt);
                                 }
                             }
                             else
@@ -833,14 +839,18 @@ namespace dmInput
                                     Action* action = gamepad_binding->m_Actions.Get(trigger.m_ActionId);
                                     if (action != 0x0)
                                     {
-                                        if (dmMath::Abs(action->m_Value) < dmMath::Abs(v)) {
+                                        if (dmMath::Abs(action->m_Value) < dmMath::Abs(v))
+                                        {
                                             action->m_Value = v;
                                         }
 
                                         // We want to make sure we report going back to 0 again
                                         action->m_Dirty = 0;
                                         if (input.m_Type == dmInputDDF::GAMEPAD_TYPE_AXIS && action->m_PrevValue != action->m_Value)
+                                        {
                                             action->m_Dirty = 1;
+                                        }
+                                        UpdateActionPressedReleasedRepeated(action, binding->m_Context, dt);
                                     }
                                 }
                             }
@@ -895,6 +905,7 @@ namespace dmInput
                                 action->m_Value = 1.0;
                             }
                         }
+                        UpdateActionPressedReleasedRepeated(action, binding->m_Context, dt);
                         action->m_TouchCount = packet->m_TouchCount;
                     }
                 }
@@ -903,35 +914,23 @@ namespace dmInput
         }
         if (binding->m_AccelerationBinding != 0x0)
         {
-            context.m_AccelerationSet = 0;
             if (dmHID::IsAccelerometerConnected(hid_context))
             {
-                AccelerationBinding* acceleration_binding = binding->m_AccelerationBinding;
-                dmHID::AccelerationPacket* packet = &acceleration_binding->m_Packet;
-                dmHID::AccelerationPacket* prev_packet = &acceleration_binding->m_PreviousPacket;
-                dmHID::GetAccelerationPacket(hid_context, packet);
-                context.m_AccX = packet->m_X;
-                context.m_AccY = packet->m_Y;
-                context.m_AccZ = packet->m_Z;
-                context.m_AccelerationSet = 1;
-                *prev_packet = *packet;
-            }
-        }
-        context.m_DT = dt;
-        context.m_Context = binding->m_Context;
-        binding->m_Actions.Iterate<void>(UpdateAction, &context);
-        if (binding->m_GamepadBindings.Size() > 0)
-        {
-            for (uint32_t i = 0; i < binding->m_GamepadBindings.Size(); ++i)
-            {
-                GamepadBinding* gamepad_binding = binding->m_GamepadBindings[i];
-                if (gamepad_binding == 0x0) {
-                    continue;
+                Action* action = binding->m_Actions.Get(0);
+                if (action)
+                {
+                    AccelerationBinding* acceleration_binding = binding->m_AccelerationBinding;
+                    dmHID::AccelerationPacket* packet = &acceleration_binding->m_Packet;
+                    dmHID::AccelerationPacket* prev_packet = &acceleration_binding->m_PreviousPacket;
+                    dmHID::GetAccelerationPacket(hid_context, packet);
+                    action->m_AccX = packet->m_X;
+                    action->m_AccY = packet->m_Y;
+                    action->m_AccZ = packet->m_Z;
+                    action->m_AccelerationSet = 1;
+                    *prev_packet = *packet;
                 }
-                gamepad_binding->m_Actions.Iterate<void>(UpdateAction, &context);
             }
         }
-
     }
 
     const Action* GetAction(HBinding binding, dmhash_t action_id)

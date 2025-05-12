@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -26,8 +26,8 @@
 #include <dlib/spinlock.h>
 #include <dlib/profile/profile.h>
 
-DM_PROPERTY_GROUP(rmtp_Message, "dmMessage");
-DM_PROPERTY_U32(rmtp_Messages, 0, FrameReset, "# messages/frame", &rmtp_Message);
+DM_PROPERTY_GROUP(rmtp_Message, "dmMessage", 0);
+DM_PROPERTY_U32(rmtp_Messages, 0, PROFILE_PROPERTY_FRAME_RESET, "# messages/frame", &rmtp_Message);
 
 namespace dmMessage
 {
@@ -353,6 +353,21 @@ namespace dmMessage
         if (message_socket != 0x0)
         {
             return message_socket->m_Name;
+        }
+        else
+        {
+            return 0x0;
+        }
+    }
+
+    dmhash_t GetSocketNameHash(HSocket socket)
+    {
+        DM_SPINLOCK_SCOPED_LOCK(g_MessageSpinlock);
+
+        MessageSocket* message_socket = g_MessageContext->m_Sockets.Get(socket);
+        if (message_socket != 0x0)
+        {
+            return message_socket->m_NameHash;
         }
         else
         {

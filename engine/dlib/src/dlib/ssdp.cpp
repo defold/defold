@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -769,7 +769,7 @@ bail:
         if (sr != dmSocket::RESULT_OK)
         {
             // When returning from sleep mode on iOS socket is in state ECONNABORTED
-            if (sr == dmSocket::RESULT_CONNABORTED || sr == dmSocket::RESULT_NOTCONN)
+            if (sr == dmSocket::RESULT_CONNABORTED || sr == dmSocket::RESULT_NOTCONN || sr == dmSocket::RESULT_NETDOWN)
             {
                 dmLogDebug("SSDP permanent dispatch error");
                 return false;

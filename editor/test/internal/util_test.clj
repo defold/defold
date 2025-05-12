@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -19,7 +19,6 @@
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
             [dynamo.graph :as g]
-            [integration.test-util :as test-util]
             [internal.util :as util]
             [util.fn :as fn]))
 
@@ -106,9 +105,9 @@
   (is (nil? (util/first-where even? [1 3 5])))
 
   (testing "stops calling pred after first true"
-    (let [pred (test-util/make-call-logger fn/constantly-true)]
+    (let [pred (fn/make-call-logger fn/constantly-true)]
       (is (= 0 (util/first-where pred (range 10))))
-      (is (= 1 (count (test-util/call-logger-calls pred)))))))
+      (is (= 1 (count (fn/call-logger-calls pred)))))))
 
 (deftest first-index-where-test
   (is (= 1 (util/first-index-where even? (range 1 4))))
@@ -123,9 +122,9 @@
   (is (nil? (util/first-index-where even? [1 3 5])))
 
   (testing "stops calling pred after first true"
-    (let [pred (test-util/make-call-logger fn/constantly-true)]
+    (let [pred (fn/make-call-logger fn/constantly-true)]
       (is (= 0 (util/first-index-where pred (range 10))))
-      (is (= 1 (count (test-util/call-logger-calls pred)))))))
+      (is (= 1 (count (fn/call-logger-calls pred)))))))
 
 (deftest only-test
   (is (= :a (util/only [:a])))

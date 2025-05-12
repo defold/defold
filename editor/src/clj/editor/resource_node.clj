@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -102,18 +102,19 @@
   (g/invalidate-outputs! [(g/endpoint node-id :source-value)]))
 
 (defn merge-source-values! [node-id+source-value-pairs]
-  (let [[invalidated-endpoints
-         user-data-values-by-key-by-node-id]
-        (util/into-multiple
-          (pair []
-                {})
-          (pair (map (fn [[node-id]]
-                       (g/endpoint node-id :source-value)))
-                (map (fn [[node-id source-value]]
-                       (pair node-id {:source-value source-value}))))
-          node-id+source-value-pairs)]
-    (g/user-data-merge! user-data-values-by-key-by-node-id)
-    (g/invalidate-outputs! invalidated-endpoints)))
+  (when-not (coll/empty? node-id+source-value-pairs)
+    (let [[invalidated-endpoints
+           user-data-values-by-key-by-node-id]
+          (util/into-multiple
+            (pair []
+                  {})
+            (pair (map (fn [[node-id]]
+                         (g/endpoint node-id :source-value)))
+                  (map (fn [[node-id source-value]]
+                         (pair node-id {:source-value source-value}))))
+            node-id+source-value-pairs)]
+      (g/user-data-merge! user-data-values-by-key-by-node-id)
+      (g/invalidate-outputs! invalidated-endpoints))))
 
 (g/defnk produce-lines [_node-id resource save-value]
   (if (nil? save-value)
@@ -131,6 +132,9 @@
   (inherits core/Scope)
   (inherits outline/OutlineNode)
   (inherits resource/ResourceNode)
+
+  (property loaded g/Bool :unjammable (default false)
+            (dynamic visible (g/constantly false)))
 
   (output save-data g/Any :cached produce-save-data)
   (output save-value g/Any (g/constantly nil))
@@ -165,11 +169,21 @@
   (output save-data g/Any (g/constantly nil))
   (output save-value g/Any (g/constantly nil)))
 
-(definline ^:private resource-node-resource [basis resource-node]
-  ;; This is faster than g/node-value, and doesn't require creating an
-  ;; evaluation-context. The resource property is unjammable and properties
-  ;; aren't cached, so there is no need to do a full g/node-value.
-  `(gt/get-property ~resource-node ~basis :resource))
+(definline node-loaded? [basis resource-node]
+  `(g/raw-property-value* ~basis ~resource-node :loaded))
+
+(defn loaded?
+  "Returns true if the specified node-id corresponds to a resource that has been
+  loaded. The node-id must refer to an existing resource node. A resource node
+  can exist in the project graph in an unloaded state, for example if its
+  proj-path matches a pattern listed in the .defunload file."
+  ([resource-node-id]
+   (loaded? (g/now) resource-node-id))
+  ([basis resource-node-id]
+   (let [resource-node (g/node-by-id basis resource-node-id)]
+     (assert (some? resource-node) (str "Node not found: " resource-node-id))
+     (assert (g/node-instance*? ResourceNode resource-node))
+     (node-loaded? basis resource-node))))
 
 (defn resource
   ([resource-node-id]
@@ -177,7 +191,7 @@
   ([basis resource-node-id]
    (let [resource-node (g/node-by-id basis resource-node-id)]
      (assert (g/node-instance*? resource/ResourceNode resource-node))
-     (resource-node-resource basis resource-node))))
+     (resource/node-resource basis resource-node))))
 
 (defn as-resource
   ([node-id]
@@ -185,7 +199,7 @@
   ([basis node-id]
    (when-some [node (g/node-by-id basis node-id)]
      (when (g/node-instance*? resource/ResourceNode node)
-       (resource-node-resource basis node)))))
+       (resource/node-resource basis node)))))
 
 (defn as-resource-original
   ([node-id]
@@ -194,7 +208,7 @@
    (when-some [node (g/node-by-id basis node-id)]
      (when (and (nil? (gt/original node))
                 (g/node-instance*? resource/ResourceNode node))
-       (resource-node-resource basis node)))))
+       (resource/node-resource basis node)))))
 
 (defn dirty?
   ([resource-node-id]
@@ -228,7 +242,7 @@
      ;; have a valid proj-path.
      (if (and (nil? (gt/original node))
               (g/node-instance*? ResourceNode node)
-              (some? (resource/proj-path (resource-node-resource basis node))))
+              (some? (resource/proj-path (resource/node-resource basis node))))
 
        ;; We found our owner ResourceNode. Return its node-id.
        node-id

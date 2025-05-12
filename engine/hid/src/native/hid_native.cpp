@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,7 +16,6 @@
 #include <string.h>
 
 #include <dlib/log.h>
-#include <dlib/utf8.h>
 #include <dlib/dstrings.h>
 #include <dlib/math.h>
 
@@ -127,9 +126,9 @@ namespace dmHID
             {
                 if (!context->m_GamepadConnectivityCallback(gamepad_index, connection_status, context->m_GamepadConnectivityUserdata))
                 {
-                    char buffer[128];
-                    GetGamepadDeviceName(context, gamepad, buffer, (uint32_t)sizeof(buffer));
-                    dmLogWarning("The connection for '%s' was ignored by the callback function!", buffer);
+                    char device_name[dmHID::MAX_GAMEPAD_NAME_LENGTH];
+                    GetGamepadDeviceName(context, gamepad, device_name);
+                    dmLogWarning("The connection for '%s' was ignored by the callback function!", device_name);
                     return;
                 }
             } else {
@@ -198,13 +197,15 @@ namespace dmHID
         if (context)
         {
             NativeContextUserData* user_data = (NativeContextUserData*) context->m_NativeContextUserData;
-
-            for (int i = 0; i < user_data->m_GamepadDrivers.Size(); ++i)
+            if (user_data)
             {
-                user_data->m_GamepadDrivers[i]->m_Destroy(context, user_data->m_GamepadDrivers[i]);
-            }
+                for (int i = 0; i < user_data->m_GamepadDrivers.Size(); ++i)
+                {
+                    user_data->m_GamepadDrivers[i]->m_Destroy(context, user_data->m_GamepadDrivers[i]);
+                }
 
-            delete user_data;
+                delete user_data;
+            }
             context->m_NativeContextUserData = 0;
         }
     }
@@ -261,6 +262,7 @@ namespace dmHID
                         packet.m_Buttons[i / 32] &= ~mask;
                 }
                 int32_t wheel = dmPlatform::GetMouseWheel(context->m_Window);
+
                 if (context->m_FlipScrollDirection)
                 {
                     wheel *= -1;
@@ -327,21 +329,19 @@ namespace dmHID
         }
     }
 
-    void GetGamepadDeviceName(HContext context, HGamepad gamepad, char* buffer, uint32_t buffer_length)
+    void GetGamepadDeviceName(HContext context, HGamepad gamepad, char name[MAX_GAMEPAD_NAME_LENGTH])
     {
-        assert(buffer_length != 0);
-        assert(buffer != 0);
-
         NativeContextUserData* user_data = (NativeContextUserData*) context->m_NativeContextUserData;
+
+        name[0] = 0;
         if (gamepad->m_Driver == DRIVER_HANDLE_FREE)
         {
-            buffer[0] = 0;
             return;
         }
 
         assert(gamepad->m_Driver < user_data->m_GamepadDrivers.Size());
         GamepadDriver* driver = user_data->m_GamepadDrivers[gamepad->m_Driver];
-        driver->m_GetGamepadDeviceName(context, driver, gamepad, buffer, buffer_length);
+        driver->m_GetGamepadDeviceName(context, driver, gamepad, name);
     }
 
     void ResetKeyboard(HContext context)

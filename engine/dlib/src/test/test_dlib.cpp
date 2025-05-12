@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -20,6 +20,7 @@
 #include <jc_test/jc_test.h>
 #include "../dlib/hash.h"
 #include "../dlib/log.h"
+#include "../dlib/time.h"
 
 class dlib : public jc_test_base_class
 {
@@ -493,6 +494,52 @@ TEST_F(dlib, HashMaxReverse)
 
     free((void*) buffer);
 }
+
+TEST_F(dlib, HashReverseStress)
+{
+    // Make sure creating many reverse hashes doesn't take too much time
+    uint32_t count_small = 1000;
+    uint32_t count_large = 100000;
+
+    uint64_t tsmall_start = dmTime::GetMonotonicTime();
+    for(uint32_t i = 0; i < count_small; ++i)
+    {
+        uint64_t h = dmHashBuffer64(&i, sizeof(i));
+
+        uint32_t* rh = (uint32_t*)dmHashReverse64(h, 0);
+
+        ASSERT_NE((uint32_t*)0, rh);
+        ASSERT_EQ(i, *rh);
+    }
+    uint64_t tsmall_end = dmTime::GetMonotonicTime();
+    float time_small = (tsmall_end - tsmall_start)/1000000.0f;
+
+    printf("Hash + reverse lookup of %u items took %f s\n", count_small, time_small);
+    // The complexity goes up
+    float multiplier = 1000.0f;
+    float expected_time = multiplier * (time_small * (count_large / count_small));
+    printf("Hash + reverse lookup of %u items x %f %%: ca %f s\n", count_large, multiplier*100.0f, expected_time);
+
+    uint64_t tlarge_start = dmTime::GetMonotonicTime();
+    for(uint32_t i = 0; i < count_large; ++i)
+    {
+        uint64_t h = dmHashBuffer64(&i, sizeof(i));
+
+        uint32_t* rh = (uint32_t*)dmHashReverse64(h, 0);
+
+        ASSERT_NE((uint32_t*)0, rh);
+        ASSERT_EQ(i, *rh);
+    }
+    uint64_t tlarge_end = dmTime::GetMonotonicTime();
+
+    float time_large = (tlarge_end - tlarge_start)/1000000.0f;
+
+    printf("Hash + reverse lookup of %u items took %f s\n", count_large, time_large);
+
+    ASSERT_GE(expected_time, time_large);
+
+}
+
 
 TEST_F(dlib, HashIncrementalReverse)
 {

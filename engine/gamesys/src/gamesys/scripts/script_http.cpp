@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -23,6 +23,7 @@
 #include <ddf/ddf.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
+#include <dlib/http_cache.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/uri.h>
@@ -30,6 +31,8 @@
 #include <script/script.h>
 #include <script/http_ddf.h>
 #include <script/http_service.h>
+
+#include <extension/extension.hpp>
 
 #include "script_http.h"
 
@@ -84,9 +87,14 @@ namespace dmGameSystem
      *
      * - [type:number] `status`: the status of the response
      * - [type:string] `response`: the response data (if not saved on disc)
-     * - [type:table] `headers`: all the returned headers
+     * - [type:table] `headers`: all the returned headers (if status is 200 or 206)
      * - [type:string] `path`: the stored path (if saved to disc)
      * - [type:string] `error`: if any unforeseen errors occurred (e.g. file I/O)
+     * - [type:number] `bytes_received`: the amount of bytes received/sent for a request, only if option `report_progress` is true
+     * - [type:number] `bytes_total`: the total amount of bytes for a request, only if option `report_progress` is true
+     * - [type:number] `range_start`: the start offset into the requested file
+     * - [type:number] `range_end`: the end offset into the requested file (inclusive)
+     * - [type:number] `document_size`: the full size of the requested file
      *
      * @param [headers] [type:table] optional table with custom headers
      * @param [post_data] [type:string] optional data to send
@@ -96,6 +104,7 @@ namespace dmGameSystem
      * - [type:string] `path`: path on disc where to download the file. Only overwrites the path if status is 200. [icon:attention] Path should be absolute
      * - [type:boolean] `ignore_cache`: don't return cached data if we get a 304. [icon:attention] Not available in HTML5 build
      * - [type:boolean] `chunked_transfer`: use chunked transfer encoding for https requests larger than 16kb. Defaults to true. [icon:attention] Not available in HTML5 build
+     * - [type:boolean] `report_progress`: when it is true, the amount of bytes sent and/or received for a request will be passed into the callback function
      *
      *
      * @examples
@@ -105,17 +114,21 @@ namespace dmGameSystem
      *
      * ```lua
      * local function http_result(self, _, response)
-     *     print(response.status)
-     *     print(response.response)
-     *     pprint(response.headers)
+     *     if response.bytes_total ~= nil then
+     *         update_my_progress_bar(self, response.bytes_received / response.bytes_total)
+     *     else
+     *         print(response.status)
+     *         print(response.response)
+     *         pprint(response.headers)
+     *     end
      * end
      *
      * function init(self)
-     *     http.request("http://www.google.com", "GET", http_result)
+     *     http.request("http://www.google.com", "GET", http_result, nil, nil, { report_progress = true })
      * end
      * ```
      */
-    int Http_Request(lua_State* L)
+    static int Http_Request(lua_State* L)
     {
         int top = lua_gettop(L);
 
@@ -277,31 +290,31 @@ namespace dmGameSystem
         g_Timeout = timeout;
     }
 
-    void ScriptHttpRegister(const ScriptLibContext& context)
+    static dmExtension::Result ScriptHttpInitialize(dmExtension::Params* params)
     {
-        lua_State* L = dmScript::GetLuaState(context.m_ScriptContext);
-        dmConfigFile::HConfig config_file = dmScript::GetConfigFile(context.m_ScriptContext);
+        lua_State* L = dmExtension::GetContextAsType<lua_State*>(params, "lua");
+        assert(L != 0);
+
+        dmConfigFile::HConfig config_file = dmExtension::GetContextAsType<dmConfigFile::HConfig>(params, "config");
+        assert(config_file != 0);
 
         int top = lua_gettop(L);
 
         if (g_Service == 0)
         {
-
-            dmHttpService::Params params;
-            params.m_ReportProgressCallback = ReportProgressCallback;
+            dmHttpService::Params service_params;
+            service_params.m_ReportProgressCallback = ReportProgressCallback;
 
             if (config_file)
             {
-                params.m_ThreadCount = dmConfigFile::GetInt(config_file, "network.http_thread_count", params.m_ThreadCount);
-                params.m_UseHttpCache = dmConfigFile::GetInt(config_file, "network.http_cache_enabled", params.m_UseHttpCache);
+                service_params.m_ThreadCount = dmConfigFile::GetInt(config_file, "network.http_thread_count", service_params.m_ThreadCount);
             }
 
-        #if defined(DM_NO_HTTP_CACHE)
-            params.m_UseHttpCache = 0;
-        #endif
+            service_params.m_HttpCache = dmExtension::GetContextAsType<dmHttpCache::HCache>(params, "http_cache");
 
-            g_Service = dmHttpService::New(&params);
+            g_Service = dmHttpService::New(&service_params);
             dmScript::RegisterDDFDecoder(dmHttpDDF::HttpResponse::m_DDFDescriptor, &HttpResponseDecoder);
+            dmScript::RegisterDDFDecoder(dmHttpDDF::HttpRequestProgress::m_DDFDescriptor, &HttpRequestProgressDecoder);
         }
 
         if (config_file)
@@ -314,14 +327,19 @@ namespace dmGameSystem
         lua_pop(L, 1);
 
         assert(top == lua_gettop(L));
+
+        return dmExtension::RESULT_OK;
     }
 
-    void ScriptHttpFinalize(const ScriptLibContext& context)
+    static dmExtension::Result ScriptHttpFinalize(dmExtension::Params* params)
     {
         if (g_Service != 0)
         {
             dmHttpService::Delete(g_Service);
             g_Service = 0;
         }
+        return dmExtension::RESULT_OK;
     }
+
+    DM_DECLARE_EXTENSION(ScriptHttp, "ScriptHttp", 0, 0, ScriptHttpInitialize, 0, 0, ScriptHttpFinalize);
 }

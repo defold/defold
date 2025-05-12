@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -21,55 +21,22 @@ import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.ProtoBuilder;
+import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 
 import com.dynamo.gamesys.proto.MeshProto.MeshDesc;
 import com.google.protobuf.TextFormat;
 
+@ProtoParams(srcClass = MeshDesc.class, messageClass = MeshDesc.class)
 @BuilderParams(name="Mesh", inExts=".mesh", outExt=".meshc")
-public class MeshBuilder extends Builder<Void> {
+public class MeshBuilder extends ProtoBuilder<MeshDesc.Builder> {
 
     @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-        MeshDesc.Builder meshDescBuilder = MeshDesc.newBuilder();
-        ProtoUtil.merge(input, meshDescBuilder);
-
-        Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
-            .setName(params.name())
-            .addInput(input);
-        taskBuilder.addOutput(input.changeExt(params.outExt()));
-
-        IResource res = BuilderUtil.checkResource(this.project, input, "vertices", meshDescBuilder.getVertices());
-        taskBuilder.addInput(res);
-        res = BuilderUtil.checkResource(this.project, input, "material", meshDescBuilder.getMaterial());
-        taskBuilder.addInput(res);
-
-        for (String t : meshDescBuilder.getTexturesList()) {
-            // Same as models
-            // This check is based on the material samplers only, but should we check if the material actually needs textures?
-            if (t.isEmpty())
-                continue;
-
-            res = BuilderUtil.checkResource(this.project, input, "texture", t);
-            taskBuilder.addInput(res);
-            Task<?> embedTask = this.project.createTask(res);
-            if (embedTask == null) {
-                throw new CompileExceptionError(input,
-                                                0,
-                                                String.format("Failed to create build task for component '%s'", res.getPath()));
-            }
-        }
-
-        return taskBuilder.build();
-    }
-
-
-    @Override
-    public void build(Task<Void> task) throws CompileExceptionError, IOException {
+    public void build(Task task) throws CompileExceptionError, IOException {
         ByteArrayInputStream mesh_is = new ByteArrayInputStream(task.input(0).getContent());
         InputStreamReader mesh_isr = new InputStreamReader(mesh_is);
         MeshDesc.Builder meshDescBuilder = MeshDesc.newBuilder();

@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -35,13 +35,12 @@
         (cond->> (pos? drop-count) (into [] (drop drop-count)))
         (conj x))))
 
-(defn add! [prefs workspace resource view-type]
+(defn add! [prefs resource view-type]
   {:pre [(resource/openable? resource)
          (some? (:id view-type))]}
   (let [item [(resource/proj-path resource) (:id view-type)]
-        k (prefs/make-project-specific-key "recent-files-by-workspace-root" workspace)]
-    (prefs/set-prefs prefs k (conj-history-item (prefs/get-prefs prefs k []) item))
-    nil))
+        k [:workflow :recent-files]]
+    (prefs/set! prefs k (conj-history-item (prefs/get prefs k) item))))
 
 (defn- project-path+view-type-id->resource+view-type [workspace evaluation-context [project-path view-type-id]]
   (when-let [res (workspace/find-resource workspace project-path evaluation-context)]
@@ -50,7 +49,7 @@
         [res view-type]))))
 
 (defn- ordered-resource+view-types [prefs workspace evaluation-context]
-  (-> (prefs/get-prefs prefs (prefs/make-project-specific-key "recent-files-by-workspace-root" workspace evaluation-context) [])
+  (-> (prefs/get prefs [:workflow :recent-files])
       rseq
       (->> (keep #(project-path+view-type-id->resource+view-type workspace evaluation-context %)))))
 

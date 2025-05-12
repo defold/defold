@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -584,12 +584,12 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
         }
 
         // / Returns 0 if the two intervals i1 and i2 are disjoint, or the length of their overlap otherwise.
-        private int commonIntervalLength (int i1start, int i1end, int i2start, int i2end) {
+        private int commonIntervalLength(int i1start, int i1end, int i2start, int i2end) {
             if (i1end < i2start || i2end < i1start) return 0;
             return Math.min(i1end, i2end) - Math.max(i1start, i2start);
         }
 
-        private int contactPointScoreNode (int x, int y, int width, int height) {
+        private int contactPointScoreNode(int x, int y, int width, int height) {
             int score = 0;
 
             if (x == 0 || x + width == binWidth) score += height;
@@ -607,32 +607,55 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
             return score;
         }
 
-        private RectNode findPositionForNewNodeContactPoint (int width, int height, int rotatedWidth, int rotatedHeight, boolean rotate) {
+        private RectNode evaluateContactPoint(int width, int height, int rotatedWidth, int rotatedHeight, boolean rotate, Rect currRect) {
             RectNode bestNode = new RectNode();
             bestNode.rect = new Rect(null, 0,0,0,0,0);
             bestNode.score1 = -1; // best contact score
 
-            for (int i = 0; i < freeRectangles.size(); i++) {
-                // Try to place the rectangle in upright (non-rotated) orientation.
-                RectNode currentNode = freeRectangles.get(i);
-                if (currentNode.rect.getWidth() >= width && currentNode.rect.getHeight() >= height) {
-                    int score = contactPointScoreNode(currentNode.rect.getX(), currentNode.rect.getY(), width, height);
-                    if (score > bestNode.score1) {
-                        bestNode.rect = new Rect(currentNode.rect.getId(), currentNode.rect.getIndex(), currentNode.rect.getX(), currentNode.rect.getY(), width, height);
-                        bestNode.score1 = score;
-                    }
-                }
-                if (rotate && currentNode.rect.getWidth() >= rotatedWidth && currentNode.rect.getHeight() >= rotatedHeight) {
-                    // This was width,height -- bug fixed?
-                    int score = contactPointScoreNode(currentNode.rect.getX(), currentNode.rect.getY(), rotatedWidth, rotatedHeight);
-                    if (score > bestNode.score1) {
-                        bestNode.rect = new Rect(currentNode.rect.getId(), currentNode.rect.getIndex(), currentNode.rect.getX(), currentNode.rect.getY(), rotatedWidth, rotatedHeight);
-                        bestNode.score1 = score;
-                        bestNode.rect.setRotated(true);
-                    }
+            // Try to place the rectangle in upright (non-rotated) orientation.
+            if (currRect.getWidth() >= width && currRect.getHeight() >= height) {
+                int score = contactPointScoreNode(currRect.getX(), currRect.getY(), width, height);
+                if (score > bestNode.score1) {
+                    bestNode.rect = new Rect(currRect.getId(), currRect.getIndex(), currRect.getX(), currRect.getY(), width, height);
+                    bestNode.score1 = score;
                 }
             }
+
+            if (rotate && currRect.getWidth() >= rotatedWidth && currRect.getHeight() >= rotatedHeight) {
+            	// This was width,height -- bug fixed?
+                int score = contactPointScoreNode(currRect.getX(), currRect.getY(), rotatedWidth, rotatedHeight);
+                if (score > bestNode.score1) {
+                    bestNode.rect = new Rect(currRect.getId(), currRect.getIndex(), currRect.getX(), currRect.getY(), rotatedWidth, rotatedHeight);
+                    bestNode.score1 = score;
+                    bestNode.rect.setRotated(true);
+                }
+            }
+
             return bestNode;
+        }
+
+        private RectNode findPositionForNewNodeContactPoint(int width, int height, int rotatedWidth, int rotatedHeight, boolean rotate) {
+            RectNode globalBestNode = new RectNode();
+            globalBestNode.rect = new Rect(null, 0,0,0,0,0);
+            globalBestNode.score1 = Integer.MIN_VALUE; // maximize contact points
+
+            if (freeRectangles.size() < 100) {
+                // Small set: sequential scan
+                for (RectNode currentNode : freeRectangles) {
+                    RectNode candidate = evaluateContactPoint(width, height, rotatedWidth, rotatedHeight, rotate, currentNode.rect);
+                    if (candidate.score1 > globalBestNode.score1) {
+                        globalBestNode = candidate;
+                    }
+                }
+            } else {
+                // Big set: parallel scan
+                globalBestNode = freeRectangles.parallelStream()
+                    .map(currentNode -> evaluateContactPoint(width, height, rotatedWidth, rotatedHeight, rotate, currentNode.rect))
+                    .reduce((best1, best2) -> (best1.score1 > best2.score1) ? best1 : best2)
+                    .orElse(globalBestNode);
+            }
+
+            return globalBestNode;
         }
 
         private boolean splitFreeNode (RectNode freeNode, RectNode usedNode) {

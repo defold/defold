@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -55,33 +55,13 @@ namespace dmGraphics
     static GraphicsAdapterFunctionTable NullRegisterFunctionTable();
     static bool                         NullIsSupported();
     static HContext                     NullGetContext();
-    static const int8_t    g_null_adapter_priority = 2;
+
     static GraphicsAdapter g_null_adapter(ADAPTER_FAMILY_NULL);
     static NullContext*    g_NullContext = 0x0;
 
-    DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterNull, &g_null_adapter, NullIsSupported, NullRegisterFunctionTable, NullGetContext, g_null_adapter_priority);
+    DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterNull, &g_null_adapter, NullIsSupported, NullRegisterFunctionTable, NullGetContext, ADAPTER_FAMILY_PRIORITY_NULL);
 
-    struct AssetContainerLock
-    {
-        AssetContainerLock(dmMutex::HMutex mutex)
-        : m_Mutex(mutex)
-        {
-            if (m_Mutex)
-            {
-                dmMutex::Lock(m_Mutex);
-            }
-        }
-        ~AssetContainerLock()
-        {
-            if (m_Mutex)
-            {
-                dmMutex::Unlock(m_Mutex);
-            }
-        }
-        dmMutex::HMutex m_Mutex;
-    };
-
-    static bool NullInitialize(HContext context);
+    static bool NullInitialize(HContext context, const ContextParams& params);
     static void PostDeleteTextures(NullContext* context, bool force_delete);
 
     static void NullFinalize()
@@ -129,7 +109,8 @@ namespace dmGraphics
         {
             g_NullContext = new NullContext(params);
 
-            if (NullInitialize(g_NullContext)){
+            if (NullInitialize(g_NullContext, params))
+            {
                 return g_NullContext;
             }
 
@@ -166,7 +147,7 @@ namespace dmGraphics
         }
     }
 
-    static bool NullInitialize(HContext _context)
+    static bool NullInitialize(HContext _context, const ContextParams& params)
     {
         assert(_context);
 
@@ -187,6 +168,8 @@ namespace dmGraphics
         context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_MULTI_TARGET_RENDERING;
         context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_TEXTURE_ARRAY;
         context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_COMPUTE_SHADER;
+        context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_INSTANCING;
+        context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_3D_TEXTURES;
 
         if (context->m_AsyncProcessingSupport)
         {
@@ -198,6 +181,9 @@ namespace dmGraphics
         {
             dmLogInfo("Device: null");
         }
+
+        SetSwapInterval(context, params.m_SwapInterval);
+
         return true;
     }
 
@@ -435,6 +421,16 @@ namespace dmGraphics
             memcpy(&(vb->m_Buffer)[offset], data, size);
     }
 
+    static uint32_t NullGetVertexBufferSize(HVertexBuffer buffer)
+    {
+        if (!buffer)
+        {
+            return 0;
+        }
+        VertexBuffer* buffer_ptr = (VertexBuffer*) buffer;
+        return buffer_ptr->m_Size;
+    }
+
     static uint32_t NullGetMaxElementsVertices(HContext context)
     {
         return 65536;
@@ -478,6 +474,16 @@ namespace dmGraphics
             memcpy(&(ib->m_Buffer)[offset], data, size);
     }
 
+    static uint32_t NullGetIndexBufferSize(HIndexBuffer buffer)
+    {
+        if (!buffer)
+        {
+            return 0;
+        }
+        IndexBuffer* buffer_ptr = (IndexBuffer*) buffer;
+        return buffer_ptr->m_Size;
+    }
+
     static bool NullIsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
     {
         return true;
@@ -512,15 +518,16 @@ namespace dmGraphics
                 vd->m_Stride += stream.m_Size * GetTypeSize(stream.m_Type);
             }
             vd->m_StreamCount = stream_declaration->m_StreamCount;
+            vd->m_StepFunction = stream_declaration->m_StepFunction;
         }
         return vd;
     }
 
-    static void EnableVertexStream(HContext context, uint16_t stream, uint16_t size, Type type, uint16_t stride, const void* vertex_buffer)
+    static void EnableVertexStream(HContext context, uint32_t binding_index, uint16_t stream, uint16_t size, Type type, uint16_t stride, const void* vertex_buffer)
     {
         assert(context);
         assert(vertex_buffer);
-        VertexStreamBuffer& s = ((NullContext*) context)->m_VertexStreams[stream];
+        VertexStreamBuffer& s = ((NullContext*) context)->m_VertexStreams[binding_index][stream];
         assert(s.m_Source == 0x0);
         assert(s.m_Buffer == 0x0);
         s.m_Source = vertex_buffer;
@@ -528,10 +535,10 @@ namespace dmGraphics
         s.m_Stride = stride;
     }
 
-    static void DisableVertexStream(HContext context, uint16_t stream)
+    static void DisableVertexStream(HContext context, uint32_t binding_index, uint16_t stream)
     {
         assert(context);
-        VertexStreamBuffer& s = ((NullContext*) context)->m_VertexStreams[stream];
+        VertexStreamBuffer& s = ((NullContext*) context)->m_VertexStreams[binding_index][stream];
         s.m_Size = 0;
         if (s.m_Buffer != 0x0)
         {
@@ -544,13 +551,21 @@ namespace dmGraphics
     static void NullEnableVertexBuffer(HContext _context, HVertexBuffer vertex_buffer, uint32_t binding_index)
     {
         NullContext* context = (NullContext*) _context;
-        context->m_VertexBuffer = vertex_buffer;
+        context->m_VertexBuffers[binding_index] = vertex_buffer;
     }
 
     static void NullDisableVertexBuffer(HContext _context, HVertexBuffer vertex_buffer)
     {
         NullContext* context = (NullContext*) _context;
-        context->m_VertexBuffer = 0;
+
+        for (int i = 0; i < MAX_VERTEX_BUFFERS; ++i)
+        {
+            if (context->m_VertexBuffers[i] == vertex_buffer)
+            {
+                context->m_VertexBuffers[i] = 0x0;
+                break;
+            }
+        }
     }
 
     void EnableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration, uint32_t binding_index)
@@ -560,7 +575,7 @@ namespace dmGraphics
 
         NullContext* context = (NullContext*) _context;
 
-        VertexBuffer* vb = (VertexBuffer*) context->m_VertexBuffer;
+        VertexBuffer* vb = (VertexBuffer*) context->m_VertexBuffers[binding_index];
         assert(vb);
 
         uint16_t stride = 0;
@@ -577,24 +592,46 @@ namespace dmGraphics
             if (stream.m_Size > 0)
             {
                 stream.m_Location = i;
-                EnableVertexStream(context, i, stream.m_Size, stream.m_Type, stride, &vb->m_Buffer[offset]);
+                EnableVertexStream(context, binding_index, i, stream.m_Size, stream.m_Type, stride, &vb->m_Buffer[offset]);
                 offset += stream.m_Size * TYPE_SIZE[stream.m_Type - dmGraphics::TYPE_BYTE];
             }
         }
+
+        context->m_VertexDeclarations[binding_index] = vertex_declaration;
     }
 
-    static void NullEnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, uint32_t binding_index, HProgram program)
+    static void NullEnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, uint32_t binding_index, uint32_t base_offset, HProgram program)
     {
         EnableVertexDeclaration(context, vertex_declaration, binding_index);
     }
 
-    static void NullDisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration)
+    static void NullDisableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration)
     {
+        NullContext* context = (NullContext*) _context;
         assert(context);
         assert(vertex_declaration);
+
+        int32_t binding_index = -1;
+
+        for (int i = 0; i < MAX_VERTEX_BUFFERS; ++i)
+        {
+            if (context->m_VertexDeclarations[i] == vertex_declaration)
+            {
+                binding_index = i;
+                break;
+            }
+        }
+
+        if (binding_index == -1)
+            return;
+
         for (uint32_t i = 0; i < vertex_declaration->m_StreamCount; ++i)
+        {
             if (vertex_declaration->m_Streams[i].m_Size > 0)
-                DisableVertexStream(context, i);
+            {
+                DisableVertexStream(context, binding_index, i);
+            }
+        }
     }
 
     static uint32_t GetIndex(Type type, HIndexBuffer ib, uint32_t index)
@@ -614,14 +651,17 @@ namespace dmGraphics
         return ~0;
     }
 
-    static void NullDrawElements(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
+    static void NullDrawElements(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer, uint32_t instance_count)
     {
         assert(_context);
         assert(index_buffer);
         NullContext* context = (NullContext*) _context;
+
+        uint32_t binding_index = 0;
+
         for (uint32_t i = 0; i < MAX_VERTEX_STREAM_COUNT; ++i)
         {
-            VertexStreamBuffer& vs = context->m_VertexStreams[i];
+            VertexStreamBuffer& vs = context->m_VertexStreams[binding_index][i];
             if (vs.m_Size > 0)
             {
                 vs.m_Buffer = new char[vs.m_Size * count];
@@ -632,9 +672,11 @@ namespace dmGraphics
             uint32_t index = GetIndex(type, index_buffer, i + first);
             for (uint32_t j = 0; j < MAX_VERTEX_STREAM_COUNT; ++j)
             {
-                VertexStreamBuffer& vs = context->m_VertexStreams[j];
+                VertexStreamBuffer& vs = context->m_VertexStreams[binding_index][j];
                 if (vs.m_Size > 0)
+                {
                     memcpy(&((char*)vs.m_Buffer)[i * vs.m_Size], &((char*)vs.m_Source)[index * vs.m_Stride], vs.m_Size);
+                }
             }
         }
 
@@ -646,7 +688,7 @@ namespace dmGraphics
         g_DrawCount++;
     }
 
-    static void NullDraw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count)
+    static void NullDraw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count)
     {
         assert(context);
 
@@ -674,279 +716,127 @@ namespace dmGraphics
         return g_DrawCount;
     }
 
-    struct ShaderBinding
+    static void CreateProgramResourceBindings(NullProgram* program, NullShaderModule* vertex_module, NullShaderModule* fragment_module, NullShaderModule* compute_module)
     {
-        ShaderBinding() : m_Name(0) {};
-        char*    m_Name;
-        uint32_t m_Index;
-        uint32_t m_Size;
-        uint32_t m_Stride;
-        Type     m_Type;
-    };
+        ResourceBindingDesc bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT] = {};
 
-    struct ShaderProgram
-    {
-        char*                  m_Data;
-        ShaderDesc::Language   m_Language;
-        dmArray<ShaderBinding> m_Uniforms;
-        dmArray<ShaderBinding> m_Attributes;
-    };
+        uint32_t ubo_alignment = UNIFORM_BUFFERS_ALIGNMENT;
+        uint32_t ssbo_alignment = 0;
 
-    static void PushBinding(dmArray<ShaderBinding>* binding_array, const char* name, uint32_t name_length, dmGraphics::Type type, uint32_t size)
-    {
-        if(binding_array->Full())
-        {
-            binding_array->OffsetCapacity(8);
-        }
+        ProgramResourceBindingsInfo binding_info = {};
+        FillProgramResourceBindings(&program->m_BaseProgram, bindings, ubo_alignment, ssbo_alignment, binding_info);
 
-        ShaderBinding binding;
-        name_length++;
-        binding.m_Name   = new char[name_length];
-        binding.m_Index  = binding_array->Size();
-        binding.m_Type   = type;
-        binding.m_Size   = size;
-        binding.m_Stride = GetTypeSize(type);
+        program->m_BaseProgram.m_MaxSet     = binding_info.m_MaxSet;
+        program->m_BaseProgram.m_MaxBinding = binding_info.m_MaxBinding;
+        program->m_UniformDataSize          = binding_info.m_UniformDataSize;
+        program->m_UniformData              = new uint8_t[binding_info.m_UniformDataSize];
+        memset(program->m_UniformData, 0, binding_info.m_UniformDataSize);
 
-        dmStrlCpy(binding.m_Name, name, name_length);
-        binding_array->Push(binding);
+        BuildUniforms(&program->m_BaseProgram);
     }
 
-    struct Program
+    static NullShaderModule* NewShaderModuleFromDDF(HContext context, ShaderDesc::Shader* ddf)
     {
-        Program(ShaderProgram* vp, ShaderProgram* fp)
-        {
-            m_Uniforms.SetCapacity(16);
-            m_Compute = 0;
-            m_VP      = vp;
-            m_FP      = fp;
-            if (m_VP != 0x0)
-            {
-                TransferUniforms(m_VP);
-                TransferAttributes(m_VP);
-                m_Language = m_VP->m_Language;
-            }
-            if (m_FP != 0x0)
-            {
-                TransferUniforms(m_FP);
-                m_Language = m_FP->m_Language;
-            }
-        }
+        NullShaderModule* shader = new NullShaderModule();
+        shader->m_Data           = new char[ddf->m_Source.m_Count+1];
+        shader->m_Language       = ddf->m_Language;
 
-        Program(ShaderProgram* compute)
-        {
-            m_Uniforms.SetCapacity(16);
-            m_VP      = 0;
-            m_FP      = 0;
-            m_Compute = compute;
-
-            if (m_Compute != 0x0)
-            {
-                TransferUniforms(m_Compute);
-                m_Language = compute->m_Language;
-            }
-        }
-
-        void TransferUniforms(ShaderProgram* p)
-        {
-            for (int i = 0; i < p->m_Uniforms.Size(); ++i)
-            {
-                PushBinding(&m_Uniforms, p->m_Uniforms[i].m_Name, strlen(p->m_Uniforms[i].m_Name), p->m_Uniforms[i].m_Type, p->m_Uniforms[i].m_Size);
-            }
-        }
-
-        void TransferAttributes(ShaderProgram* p)
-        {
-            for (int i = 0; i < p->m_Attributes.Size(); ++i)
-            {
-                PushBinding(&m_Attributes, p->m_Attributes[i].m_Name, strlen(p->m_Attributes[i].m_Name), p->m_Attributes[i].m_Type, p->m_Attributes[i].m_Size);
-            }
-        }
-
-        ~Program()
-        {
-            for(uint32_t i = 0; i < m_Uniforms.Size(); ++i)
-                delete[] m_Uniforms[i].m_Name;
-            for(uint32_t i = 0; i < m_Attributes.Size(); ++i)
-                delete[] m_Attributes[i].m_Name;
-        }
-
-        ShaderDesc::Language   m_Language;
-
-        ShaderProgram*         m_VP;
-        ShaderProgram*         m_FP;
-        ShaderProgram*         m_Compute;
-
-        dmArray<ShaderBinding> m_Uniforms;
-        dmArray<ShaderBinding> m_Attributes;
-    };
-
-    static ShaderProgram* NewShaderProgramFromDDF(HContext context, ShaderDesc* ddf)
-    {
-        assert(ddf);
-
-        ShaderDesc::Shader* shader = GetShaderProgram(context, ddf);
-        if (shader == 0x0)
-        {
-            return 0x0;
-        }
-
-        ShaderProgram* p = new ShaderProgram();
-        p->m_Data = new char[shader->m_Source.m_Count+1];
-        memcpy(p->m_Data, shader->m_Source.m_Data, shader->m_Source.m_Count);
-        p->m_Data[shader->m_Source.m_Count] = '\0';
-        p->m_Language = shader->m_Language;
-
-        ShaderDesc::ShaderReflection* reflection = &ddf->m_Reflection;
-
-        for (int i = 0; i < reflection->m_Inputs.m_Count; ++i)
-        {
-            ShaderDesc::ResourceBinding& res = reflection->m_Inputs[i];
-            PushBinding(&p->m_Attributes, res.m_Name, strlen(res.m_Name), ShaderDataTypeToGraphicsType(res.m_Type.m_Type.m_ShaderType), 1);
-        }
-
-        for (int i = 0; i < reflection->m_UniformBuffers.m_Count; ++i)
-        {
-            ShaderDesc::ResourceBinding& res = reflection->m_UniformBuffers[i];
-
-            if (res.m_Type.m_UseTypeIndex)
-            {
-                ShaderDesc::ResourceTypeInfo& type = reflection->m_Types[res.m_Type.m_Type.m_TypeIndex];
-                for (int j = 0; j < type.m_Members.m_Count; ++j)
-                {
-                    uint32_t element_count = dmMath::Max(type.m_Members[j].m_ElementCount, 1u);
-                    PushBinding(&p->m_Uniforms, type.m_Members[j].m_Name, strlen(type.m_Members[j].m_Name), ShaderDataTypeToGraphicsType(type.m_Members[j].m_Type.m_Type.m_ShaderType), element_count);
-                }
-            }
-            else
-            {
-                PushBinding(&p->m_Uniforms, res.m_Name, strlen(res.m_Name), ShaderDataTypeToGraphicsType(res.m_Type.m_Type.m_ShaderType), 1);
-            }
-        }
-
-        for (int i = 0; i < reflection->m_StorageBuffers.m_Count; ++i)
-        {
-            ShaderDesc::ResourceBinding& res = reflection->m_StorageBuffers[i];
-            PushBinding(&p->m_Uniforms, res.m_Name, strlen(res.m_Name), ShaderDataTypeToGraphicsType(res.m_Type.m_Type.m_ShaderType), 1);
-        }
-
-        for (int i = 0; i < reflection->m_Textures.m_Count; ++i)
-        {
-            ShaderDesc::ResourceBinding& res = reflection->m_Textures[i];
-            PushBinding(&p->m_Uniforms, res.m_Name, strlen(res.m_Name), ShaderDataTypeToGraphicsType(res.m_Type.m_Type.m_ShaderType), 1);
-        }
-
-        return p;
+        memcpy(shader->m_Data, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
+        shader->m_Data[ddf->m_Source.m_Count] = '\0';
+        return shader;
     }
 
-    static HComputeProgram NullNewComputeProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
+    static HProgram NullNewProgram(HContext _context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
-        return (HComputeProgram) NewShaderProgramFromDDF(context, ddf);
-    }
+        ShaderDesc::Shader* ddf_vp = 0x0;
+        ShaderDesc::Shader* ddf_fp = 0x0;
+        ShaderDesc::Shader* ddf_cp = 0x0;
 
-    static HProgram NullNewProgramFromCompute(HContext context, HComputeProgram compute_program)
-    {
-        return (HProgram) new Program((ShaderProgram*) compute_program);
-    }
-
-    static void NullDeleteComputeProgram(HComputeProgram prog)
-    {
-        ShaderProgram* p = (ShaderProgram*) prog;
-        delete [] (char*)p->m_Data;
-        for(uint32_t i = 0; i < p->m_Uniforms.Size(); ++i)
-            delete[] p->m_Uniforms[i].m_Name;
-        delete p;
-    }
-
-    static HProgram NullNewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
-    {
-        ShaderProgram* vertex   = 0x0;
-        ShaderProgram* fragment = 0x0;
-        if (vertex_program != INVALID_VERTEX_PROGRAM_HANDLE)
+        if (!GetShaderProgram(_context, ddf, &ddf_vp, &ddf_fp, &ddf_cp))
         {
-            vertex = (ShaderProgram*) vertex_program;
+            return 0;
         }
-        if (fragment_program != INVALID_FRAGMENT_PROGRAM_HANDLE)
+
+        NullProgram* p = new NullProgram();
+
+        if (ddf_cp)
         {
-            fragment = (ShaderProgram*) fragment_program;
+            p->m_Compute = NewShaderModuleFromDDF(_context, ddf_cp);
         }
-        return (HProgram) new Program(vertex, fragment);
-    }
-
-    static void NullDeleteProgram(HContext context, HProgram program)
-    {
-        delete (Program*) program;
-    }
-
-    static HVertexProgram NullNewVertexProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
-    {
-        return (HVertexProgram) NewShaderProgramFromDDF(context, ddf);
-    }
-
-    static HFragmentProgram NullNewFragmentProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
-    {
-        return (HFragmentProgram) NewShaderProgramFromDDF(context, ddf);
-    }
-
-    static bool NullReloadVertexProgram(HVertexProgram prog, ShaderDesc* ddf)
-    {
-        assert(prog);
-        assert(ddf);
-
-        ShaderDesc::Shader* shader = GetShaderProgram((HContext) g_NullContext, ddf);
-        if (shader == 0x0)
+        else
         {
+            p->m_VP = NewShaderModuleFromDDF(_context, ddf_vp);
+            p->m_FP = NewShaderModuleFromDDF(_context, ddf_fp);
+        }
+
+        CreateShaderMeta(&ddf->m_Reflection, &p->m_BaseProgram.m_ShaderMeta);
+        CreateProgramResourceBindings(p, p->m_VP, p->m_FP, p->m_Compute);
+
+        return (HProgram) p;
+    }
+
+    static void DeleteShader(NullShaderModule* shader)
+    {
+        if (!shader)
+            return;
+        delete [] (char*) shader->m_Data;
+        //DestroyShaderMeta(shader->m_ShaderMeta);
+        delete shader;
+    }
+
+    static void NullDeleteProgram(HContext context, HProgram _program)
+    {
+        NullProgram* program = (NullProgram*) _program;
+
+        DeleteShader(program->m_VP);
+        DeleteShader(program->m_FP);
+        DeleteShader(program->m_Compute);
+
+        delete[] program->m_UniformData;
+        delete program;
+    }
+
+    static bool NullReloadProgram(HContext _context, HProgram program, ShaderDesc* ddf)
+    {
+        NullProgram* p = (NullProgram*) program;
+
+        if (g_ForceVertexReloadFail || g_ForceFragmentReloadFail)
             return false;
-        }
 
+        ShaderDesc::Shader* ddf_vp = 0x0;
+        ShaderDesc::Shader* ddf_fp = 0x0;
+        ShaderDesc::Shader* ddf_cp = 0x0;
 
-        ShaderProgram* p = (ShaderProgram*) prog;
-        delete [] (char*)p->m_Data;
-        p->m_Data = new char[shader->m_Source.m_Count];
-        memcpy((char*)p->m_Data, shader->m_Source.m_Data, shader->m_Source.m_Count);
-        return !g_ForceVertexReloadFail;
-    }
-
-    static bool NullReloadFragmentProgram(HFragmentProgram prog, ShaderDesc* ddf)
-    {
-        assert(prog);
-        assert(ddf);
-
-        ShaderDesc::Shader* shader = GetShaderProgram((HContext) g_NullContext, ddf);
-        if (shader == 0x0)
+        if (!GetShaderProgram(_context, ddf, &ddf_vp, &ddf_fp, &ddf_cp))
         {
-            return false;
+            return 0;
         }
 
-        ShaderProgram* p = (ShaderProgram*)prog;
-        delete [] (char*)p->m_Data;
-        p->m_Data = new char[shader->m_Source.m_Count];
-        memcpy((char*)p->m_Data, shader->m_Source.m_Data, shader->m_Source.m_Count);
-        return !g_ForceFragmentReloadFail;
-    }
+        if (ddf_cp)
+        {
+            delete [] (char*) p->m_Compute->m_Data;
+            p->m_Compute->m_Data = new char[ddf_cp->m_Source.m_Count];
+            memcpy((char*)p->m_Compute->m_Data, ddf_cp->m_Source.m_Data, ddf_cp->m_Source.m_Count);
+        }
+        else
+        {
+            // VP
+            delete [] (char*) p->m_VP->m_Data;
+            p->m_VP->m_Data = new char[ddf_vp->m_Source.m_Count];
+            memcpy((char*)p->m_VP->m_Data, ddf_vp->m_Source.m_Data, ddf_vp->m_Source.m_Count);
 
-    static void NullDeleteVertexProgram(HVertexProgram program)
-    {
-        assert(program);
-        ShaderProgram* p = (ShaderProgram*)program;
-        delete [] (char*)p->m_Data;
-        for(uint32_t i = 0; i < p->m_Uniforms.Size(); ++i)
-            delete[] p->m_Uniforms[i].m_Name;
-        delete p;
-    }
+            // FP
+            delete [] (char*) p->m_FP->m_Data;
+            p->m_FP->m_Data = new char[ddf_fp->m_Source.m_Count];
+            memcpy((char*)p->m_FP->m_Data, ddf_fp->m_Source.m_Data, ddf_fp->m_Source.m_Count);
+        }
 
-    static void NullDeleteFragmentProgram(HFragmentProgram program)
-    {
-        assert(program);
-        ShaderProgram* p = (ShaderProgram*)program;
-        delete [] (char*)p->m_Data;
-        for(uint32_t i = 0; i < p->m_Uniforms.Size(); ++i)
-            delete[] p->m_Uniforms[i].m_Name;
-        delete p;
+        return true;
     }
 
     static ShaderDesc::Language NullGetProgramLanguage(HProgram program)
     {
-        return ((ShaderProgram*) program)->m_Language;
+        return ((NullShaderModule*) program)->m_Language;
     }
 
     static bool NullIsShaderLanguageSupported(HContext context, ShaderDesc::Language language, ShaderDesc::ShaderType shader_type)
@@ -961,11 +851,13 @@ namespace dmGraphics
         switch(shader_type)
         {
             case ShaderDesc::SHADER_TYPE_VERTEX:
-                return language == ShaderDesc::LANGUAGE_GLSL_SM140 ||
-                       language == ShaderDesc::LANGUAGE_GLSL_SM330;
+                return language == ShaderDesc::LANGUAGE_GLSL_SM330 ||
+                       language == ShaderDesc::LANGUAGE_GLES_SM300 ||
+                       language == ShaderDesc::LANGUAGE_SPIRV;
             case ShaderDesc::SHADER_TYPE_FRAGMENT:
-                return language == ShaderDesc::LANGUAGE_GLSL_SM140 ||
-                       language == ShaderDesc::LANGUAGE_GLSL_SM330;
+                return language == ShaderDesc::LANGUAGE_GLSL_SM330 ||
+                       language == ShaderDesc::LANGUAGE_GLES_SM300 ||
+                       language == ShaderDesc::LANGUAGE_SPIRV;
             case ShaderDesc::SHADER_TYPE_COMPUTE:
                 return language == ShaderDesc::LANGUAGE_GLSL_SM430 ||
                        language == ShaderDesc::LANGUAGE_SPIRV;
@@ -986,101 +878,57 @@ namespace dmGraphics
         ((NullContext*) context)->m_Program = 0x0;
     }
 
-    static bool NullReloadProgramGraphics(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
-    {
-        (void) context;
-        (void) program;
-
-        return true;
-    }
-
-    static bool NullReloadProgramCompute(HContext context, HProgram program, HComputeProgram compute_program)
-    {
-        (void) context;
-        (void) program;
-        return true;
-    }
-
-    static bool NullReloadComputeProgram(HComputeProgram prog, ShaderDesc* ddf)
-    {
-        (void)prog;
-        return true;
-    }
-
     static uint32_t NullGetAttributeCount(HProgram prog)
     {
-        return ((Program*) prog)->m_Attributes.Size();
-    }
+        NullProgram* program_ptr = (NullProgram*) prog;
 
-    static uint32_t GetElementCount(Type type)
-    {
-        switch(type)
+        uint32_t num_vx_inputs = 0;
+        for (int i = 0; i < program_ptr->m_BaseProgram.m_ShaderMeta.m_Inputs.Size(); ++i)
         {
-            case TYPE_BYTE:
-            case TYPE_UNSIGNED_BYTE:
-            case TYPE_SHORT:
-            case TYPE_UNSIGNED_SHORT:
-            case TYPE_INT:
-            case TYPE_UNSIGNED_INT:
-            case TYPE_FLOAT:
-                return 1;
-                break;
-            case TYPE_FLOAT_VEC4:       return 4;
-            case TYPE_FLOAT_MAT4:       return 16;
-            case TYPE_SAMPLER_2D:       return 1;
-            case TYPE_SAMPLER_CUBE:     return 1;
-            case TYPE_SAMPLER_2D_ARRAY: return 1;
-            case TYPE_IMAGE_2D:         return 1;
-            case TYPE_FLOAT_VEC2:       return 2;
-            case TYPE_FLOAT_VEC3:       return 3;
-            case TYPE_FLOAT_MAT2:       return 4;
-            case TYPE_FLOAT_MAT3:       return 9;
+            if (program_ptr->m_BaseProgram.m_ShaderMeta.m_Inputs[i].m_StageFlags & SHADER_STAGE_FLAG_VERTEX)
+            {
+                num_vx_inputs++;
+            }
         }
-        assert(0);
-        return 0;
+        return num_vx_inputs;
     }
 
     static void NullGetAttribute(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location)
     {
-        Program* program       = (Program*) prog;
-        ShaderBinding& binding = program->m_Attributes[index];
-        *name_hash             = dmHashString64(binding.m_Name);
-        *type                  = binding.m_Type;
-        *element_count         = GetElementCount(binding.m_Type);
-        *num_values            = binding.m_Size;
-        *location              = binding.m_Index;
-    }
+        NullProgram* program = (NullProgram*) prog;
 
-    static uint32_t NullGetUniformCount(HProgram prog)
-    {
-        return ((Program*)prog)->m_Uniforms.Size();
-    }
-
-    static uint32_t NullGetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size)
-    {
-        Program* program = (Program*)prog;
-        assert(index < program->m_Uniforms.Size());
-        ShaderBinding& uniform = program->m_Uniforms[index];
-        *buffer = '\0';
-        dmStrlCat(buffer, uniform.m_Name, buffer_size);
-        *type = uniform.m_Type;
-        *size = uniform.m_Size;
-        return (uint32_t)strlen(buffer);
-    }
-
-    static HUniformLocation NullGetUniformLocation(HProgram prog, const char* name)
-    {
-        Program* program = (Program*)prog;
-        uint32_t count = program->m_Uniforms.Size();
-        for (uint32_t i = 0; i < count; ++i)
+        uint32_t input_ix = 0;
+        for (int i = 0; i < program->m_BaseProgram.m_ShaderMeta.m_Inputs.Size(); ++i)
         {
-            ShaderBinding& uniform = program->m_Uniforms[i];
-            if (dmStrCaseCmp(uniform.m_Name, name)==0)
+            if (program->m_BaseProgram.m_ShaderMeta.m_Inputs[i].m_StageFlags & SHADER_STAGE_FLAG_VERTEX)
             {
-                return (int32_t)uniform.m_Index;
+                if (input_ix == index)
+                {
+                    ShaderResourceBinding& attr = program->m_BaseProgram.m_ShaderMeta.m_Inputs[i];
+                    *name_hash                  = attr.m_NameHash;
+                    *type                       = ShaderDataTypeToGraphicsType(attr.m_Type.m_ShaderType);
+                    *num_values                 = 1;
+                    *location                   = attr.m_Binding;
+                    *element_count              = GetShaderTypeSize(attr.m_Type.m_ShaderType) / sizeof(float);
+                }
+                input_ix++;
             }
         }
-        return INVALID_UNIFORM_LOCATION;
+    }
+
+    const Uniform* GetUniform(HProgram prog, dmhash_t name_hash)
+    {
+        NullProgram* program = (NullProgram*)prog;
+        uint32_t count = program->m_BaseProgram.m_Uniforms.Size();
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            Uniform& uniform = program->m_BaseProgram.m_Uniforms[i];
+            if (uniform.m_NameHash == name_hash)
+            {
+                return &uniform;
+            }
+        }
+        return 0x0;
     }
 
     static void NullSetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
@@ -1094,7 +942,24 @@ namespace dmGraphics
         assert(_context);
         NullContext* context = (NullContext*) _context;
         assert(context->m_Program != 0x0);
-        return context->m_ProgramRegisters[base_location];
+
+        uint32_t set           = UNIFORM_LOCATION_GET_OP0(base_location);
+        uint32_t binding       = UNIFORM_LOCATION_GET_OP1(base_location);
+        uint32_t buffer_offset = UNIFORM_LOCATION_GET_OP2(base_location);
+        assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
+
+        NullProgram* program            = (NullProgram*) context->m_Program;
+        ProgramResourceBinding& pgm_res = program->m_BaseProgram.m_ResourceBindings[set][binding];
+        uint32_t offset                 = pgm_res.m_DataOffset + buffer_offset;
+
+        Vector4* ptr = (Vector4*) (program->m_UniformData + offset);
+        return *ptr;
+    }
+
+    static inline void WriteConstantData(NullProgram* program, uint32_t offset, uint8_t* data_ptr, uint32_t data_size)
+    {
+        assert(offset + data_size <= program->m_UniformDataSize);
+        memcpy(program->m_UniformData + offset, data_ptr, data_size);
     }
 
     static void NullSetConstantV4(HContext _context, const Vector4* data, int count, HUniformLocation base_location)
@@ -1102,7 +967,17 @@ namespace dmGraphics
         assert(_context);
         NullContext* context = (NullContext*) _context;
         assert(context->m_Program != 0x0);
-        memcpy(&context->m_ProgramRegisters[base_location], data, sizeof(Vector4) * count);
+
+        uint32_t set           = UNIFORM_LOCATION_GET_OP0(base_location);
+        uint32_t binding       = UNIFORM_LOCATION_GET_OP1(base_location);
+        uint32_t buffer_offset = UNIFORM_LOCATION_GET_OP2(base_location);
+        assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
+
+        NullProgram* program            = (NullProgram*) context->m_Program;
+        ProgramResourceBinding& pgm_res = program->m_BaseProgram.m_ResourceBindings[set][binding];
+        uint32_t offset                 = pgm_res.m_DataOffset + buffer_offset;
+
+        WriteConstantData(program, offset, (uint8_t*) data, sizeof(dmVMath::Vector4) * count);
     }
 
     static void NullSetConstantM4(HContext _context, const Vector4* data, int count, HUniformLocation base_location)
@@ -1110,7 +985,17 @@ namespace dmGraphics
         assert(_context);
         NullContext* context = (NullContext*) _context;
         assert(context->m_Program != 0x0);
-        memcpy(&context->m_ProgramRegisters[base_location], data, sizeof(Vector4) * 4 * count);
+
+        uint32_t set           = UNIFORM_LOCATION_GET_OP0(base_location);
+        uint32_t binding       = UNIFORM_LOCATION_GET_OP1(base_location);
+        uint32_t buffer_offset = UNIFORM_LOCATION_GET_OP2(base_location);
+        assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
+
+        NullProgram* program            = (NullProgram*) context->m_Program;
+        ProgramResourceBinding& pgm_res = program->m_BaseProgram.m_ResourceBindings[set][binding];
+        uint32_t offset                 = pgm_res.m_DataOffset + buffer_offset;
+
+        WriteConstantData(program, offset, (uint8_t*) data, sizeof(dmVMath::Vector4) * 4 * count);
     }
 
     static void NullSetSampler(HContext context, HUniformLocation location, int32_t unit)
@@ -1391,7 +1276,6 @@ namespace dmGraphics
     static HTexture NullNewTexture(HContext _context, const TextureCreationParams& params)
     {
         NullContext* context  = (NullContext*) _context;
-        Texture* tex          = new Texture();
 
         uint16_t num_texture_ids = 1;
         TextureType texture_type = params.m_Type;
@@ -1401,7 +1285,12 @@ namespace dmGraphics
             num_texture_ids = params.m_Depth;
             texture_type    = TEXTURE_TYPE_2D;
         }
+        else if (IsTextureType3D(params.m_Type) && !IsContextFeatureSupported(_context, CONTEXT_FEATURE_3D_TEXTURES))
+        {
+            return 0;
+        }
 
+        Texture* tex          = new Texture();
         tex->m_Type           = texture_type;
         tex->m_Width          = params.m_Width;
         tex->m_Height         = params.m_Height;
@@ -1429,7 +1318,7 @@ namespace dmGraphics
             tex->m_OriginalHeight = params.m_OriginalHeight;
         }
 
-        AssetContainerLock lock(context->m_AssetContainerMutex);
+        ScopedLock lock(context->m_AssetContainerMutex);
 
         return StoreAssetInContainer(context->m_AssetHandleContainer, tex, ASSET_TYPE_TEXTURE);
     }
@@ -1437,7 +1326,7 @@ namespace dmGraphics
     static int DoDeleteTexture(void* _context, void* _h_texture)
     {
         NullContext* context = (NullContext*) _context;
-        AssetContainerLock lock(context->m_AssetContainerMutex);
+        ScopedLock lock(context->m_AssetContainerMutex);
         HTexture texture = (HTexture) _h_texture;
 
         Texture* tex = GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, texture);
@@ -1457,14 +1346,14 @@ namespace dmGraphics
     static void DoDeleteTextureComplete(void* _context, void* _h_texture, int result)
     {
         NullContext* context = (NullContext*) _context;
-        AssetContainerLock lock(context->m_AssetContainerMutex);
+        ScopedLock lock(context->m_AssetContainerMutex);
         HTexture texture = (HTexture) _h_texture;
         context->m_AssetHandleContainer.Release(texture);
     }
 
     static void NullDeleteTextureAsync(NullContext* context, HTexture texture)
     {
-        AssetContainerLock lock(context->m_AssetContainerMutex);
+        ScopedLock lock(context->m_AssetContainerMutex);
         dmJobThread::PushJob(context->m_JobThread, DoDeleteTexture, DoDeleteTextureComplete, context, (void*) texture);
     }
 
@@ -1545,7 +1434,7 @@ namespace dmGraphics
 
     static void NullSetTexture(HTexture texture, const TextureParams& params)
     {
-        AssetContainerLock lock(g_NullContext->m_AssetContainerMutex);
+        ScopedLock lock(g_NullContext->m_AssetContainerMutex);
         Texture* tex = GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture);
         assert(tex);
         assert(!params.m_SubUpdate || (params.m_X + params.m_Width <= tex->m_Width));
@@ -1644,12 +1533,10 @@ namespace dmGraphics
         ((NullContext*) context)->m_Textures[unit] = 0;
     }
 
-    static void NullReadPixels(HContext context, void* buffer, uint32_t buffer_size)
+    static void NullReadPixels(HContext context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size)
     {
-        uint32_t w = dmGraphics::GetWidth(context);
-        uint32_t h = dmGraphics::GetHeight(context);
-        assert (buffer_size >= w * h * 4);
-        memset(buffer, 0, w * h * 4);
+        assert (buffer_size >= width * height * 4);
+        memset(buffer, 0, width * height * 4);
     }
 
     static void NullEnableState(HContext context, State state)
@@ -1793,7 +1680,7 @@ namespace dmGraphics
         uint16_t param_array_index = (uint16_t) (size_t) data;
         SetTextureAsyncParams ap   = GetSetTextureAsyncParams(context->m_SetTextureAsyncState, param_array_index);
 
-        AssetContainerLock lock(context->m_AssetContainerMutex);
+        ScopedLock lock(context->m_AssetContainerMutex);
         Texture* tex = GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, ap.m_Texture);
         if (tex)
         {
@@ -1823,7 +1710,7 @@ namespace dmGraphics
     {
         if (g_NullContext->m_AsyncProcessingSupport && g_NullContext->m_UseAsyncTextureLoad)
         {
-            AssetContainerLock lock(g_NullContext->m_AssetContainerMutex);
+            ScopedLock lock(g_NullContext->m_AssetContainerMutex);
 
             Texture* tex               = GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture);
             tex->m_DataState          |= 1 << params.m_MipMap;
@@ -1844,7 +1731,7 @@ namespace dmGraphics
 
     static uint32_t NullGetTextureStatusFlags(HTexture texture)
     {
-        AssetContainerLock lock(g_NullContext->m_AssetContainerMutex);
+        ScopedLock lock(g_NullContext->m_AssetContainerMutex);
         Texture* tex   = GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture);
         uint32_t flags = TEXTURE_STATUS_OK;
         if(tex && tex->m_DataState)
@@ -1932,6 +1819,14 @@ namespace dmGraphics
         return false;
     }
 
+    static void NullInvalidateGraphicsHandles(HContext context) { }
+
+    static void NullGetViewport(HContext context, int32_t* x, int32_t* y, uint32_t* width, uint32_t* height)
+    {
+        assert(context);
+        *x = 0, *y = 0, *width = 1000, *height = 1000;
+    }
+
     bool UnmapIndexBuffer(HContext context, HIndexBuffer buffer)
     {
         IndexBuffer* ib = (IndexBuffer*)buffer;
@@ -1979,4 +1874,3 @@ namespace dmGraphics
         return fn_table;
     }
 }
-

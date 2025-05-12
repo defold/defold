@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -242,7 +242,7 @@ namespace dmGameSystem
      * @param [position] [type:vector3] position to assign to the newly spawned collection
      * @param [rotation] [type:quaternion] rotation to assign to the newly spawned collection
      * @param [properties] [type:table] table of script properties to propagate to any new game object instances
-     * @param [scale] [type:number] uniform scaling to apply to the newly spawned collection (must be greater than 0).
+     * @param [scale] [type:number|vector3] uniform scaling to apply to the newly spawned collection (must be greater than 0).
      * @return ids [type:table] a table mapping the id:s from the collection to the new instance id:s
      * @examples
      *
@@ -314,10 +314,6 @@ namespace dmGameSystem
             rotation = dmGameObject::GetWorldRotation(sender_instance);
         }
 
-        const uint32_t buffer_size = 4096;
-        uint8_t DM_ALIGNED(16) buffer[buffer_size];
-        uint32_t buffer_pos = 0;
-
         dmGameObject::InstancePropertyBuffers prop_bufs;
         prop_bufs.SetCapacity(8, 32);
 
@@ -332,8 +328,6 @@ namespace dmGameSystem
                 while (lua_next(L, -2))
                 {
                     dmhash_t instance_id = dmScript::CheckHash(L, -2);
-                    uint32_t left = buffer_size - buffer_pos;
-
                     dmGameObject::HPropertyContainer properties = dmGameObject::PropertyContainerCreateFromLua(L, -1);
 
                     prop_bufs.Put(instance_id, properties);

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,14 +15,15 @@
 #include "resource.h"
 #include "resource_private.h"
 #include "load_queue.h"
+#include "load_queue_private.h" // Request
 
+#include <dlib/array.h>
+#include <dlib/condition_variable.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
-#include <dlib/array.h>
-#include <dlib/thread.h>
 #include <dlib/mutex.h>
+#include <dlib/thread.h>
 #include <dlib/time.h>
-#include <dlib/condition_variable.h>
 
 namespace dmLoadQueue
 {
@@ -36,15 +37,6 @@ namespace dmLoadQueue
     // This sets the bandwidth of the loader.
     const uint64_t MAX_PENDING_DATA = 4 * 1024 * 1024;
     const uint32_t QUEUE_SLOTS      = 16;
-
-    struct Request
-    {
-        const char*                m_Name;
-        const char*                m_CanonicalPath;
-        dmResource::LoadBufferType m_Buffer;
-        PreloadInfo                m_PreloadInfo;
-        LoadResult                 m_Result;
-    };
 
     struct Queue
     {
@@ -131,37 +123,7 @@ namespace dmLoadQueue
             if (current)
             {
                 // We use the temporary result object here to fill in the data so it can be written with the mutex held.
-                uint32_t size = 0;
-
-                assert(current->m_Buffer.Size() == 0);
-                if (current->m_Buffer.Capacity() != DEFAULT_CAPACITY)
-                {
-                    current->m_Buffer.SetCapacity(DEFAULT_CAPACITY);
-                }
-
-                result.m_LoadResult = dmResource::LoadResourceFromBuffer(queue->m_Factory, current->m_CanonicalPath, current->m_Name, &size, &current->m_Buffer);
-                result.m_PreloadResult = dmResource::RESULT_PENDING;
-                result.m_PreloadData   = 0;
-
-                if (result.m_LoadResult == dmResource::RESULT_OK)
-                {
-                    assert(current->m_Buffer.Size() == size);
-                    if (current->m_PreloadInfo.m_CompleteFunction)
-                    {
-                        ResourcePreloadParams params;
-                        params.m_Factory       = queue->m_Factory;
-                        params.m_Context       = current->m_PreloadInfo.m_Context;
-                        params.m_Buffer        = current->m_Buffer.Begin();
-                        params.m_BufferSize    = current->m_Buffer.Size();
-                        params.m_HintInfo      = &current->m_PreloadInfo.m_HintInfo;
-                        params.m_PreloadData   = &result.m_PreloadData;
-                        result.m_PreloadResult = (dmResource::Result)current->m_PreloadInfo.m_CompleteFunction(&params);
-                    }
-                    else
-                    {
-                        result.m_PreloadResult = dmResource::RESULT_OK;
-                    }
-                }
+                DoLoadResource(queue->m_Factory, current, &current->m_Buffer, &result);
             }
         }
     }
@@ -218,6 +180,7 @@ namespace dmLoadQueue
         Request* req         = &queue->m_Request[(queue->m_Front++) % QUEUE_SLOTS];
         req->m_Name          = name;
         req->m_CanonicalPath = canonical_path;
+        req->m_ResourceSize  = 0;
 
         req->m_PreloadInfo         = *info;
         req->m_Result.m_LoadResult = dmResource::RESULT_PENDING;
@@ -225,16 +188,16 @@ namespace dmLoadQueue
         return req;
     }
 
-    Result EndLoad(HQueue queue, HRequest request, void** buf, uint32_t* size, LoadResult* load_result)
+    Result EndLoad(HQueue queue, HRequest request, void** buf, uint32_t* buffer_size, uint32_t* resource_size, LoadResult* load_result)
     {
         dmMutex::ScopedLock lk(queue->m_Mutex);
         if (request->m_Result.m_LoadResult == dmResource::RESULT_PENDING)
             return RESULT_PENDING;
 
-        *buf         = request->m_Buffer.Begin();
-        *size        = request->m_Buffer.Size();
-        *load_result = request->m_Result;
-
+        *buf            = request->m_Buffer.Begin();
+        *buffer_size    = request->m_Buffer.Size();
+        *resource_size  = request->m_ResourceSize;
+        *load_result    = request->m_Result;
         return RESULT_OK;
     }
 
@@ -244,11 +207,18 @@ namespace dmLoadQueue
 
         uint32_t old_bytes_waiting = queue->m_BytesWaiting;
 
+        uint32_t buffer_capacity = request->m_Buffer.Capacity();
+        queue->m_BytesWaiting -= buffer_capacity;
+
+        if (request->m_Result.m_IsBufferOwnershipTransferred)
+        {
+            // we reset the dmArray (size = 0, capacity = 0)
+            memset((void*)&request->m_Buffer, 0, sizeof(request->m_Buffer));
+        }
+
         // Make sure we don't copy any data if we reallocate the buffer
         request->m_Buffer.SetSize(0);
 
-        uint32_t buffer_capacity = request->m_Buffer.Capacity();
-        queue->m_BytesWaiting -= buffer_capacity;
         // If we either have blocked further processing by exceeding MAX_PENDING_DATA or
         // the buffer has a non-default capacity, we want to wake up the worker
         if (buffer_capacity != DEFAULT_CAPACITY || (old_bytes_waiting >= MAX_PENDING_DATA && queue->m_BytesWaiting < MAX_PENDING_DATA))

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -549,6 +549,14 @@ namespace dmPhysics
                                   uint16_t group, uint16_t mask);
 
     /**
+     * Create a grid shape for a layer and a cell index denoted by shape_index and child
+     * @param collision_object collision object
+     * @param shape_index shape index
+     * @param child sub-shape index
+     */
+    void CreateGridCellShape(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t child);
+
+    /**
      * Delete a 3D shape
      *
      * @param shape Shape
@@ -1085,11 +1093,11 @@ namespace dmPhysics
      */
     void SetBullet2D(HCollisionObject2D collision_object, bool value);
 
-    uint16_t GetGroup2D(HCollisionObject2D collision_object);
-    void SetGroup2D(HCollisionObject2D collision_object, uint16_t groupbit);
-    bool GetMaskBit2D(HCollisionObject2D collision_object, uint16_t groupbit);
-    void SetMaskBit2D(HCollisionObject2D collision_object, uint16_t groupbit, bool boolvalue);
-    bool UpdateMass2D(HCollisionObject2D collision_object, float mass);
+    uint16_t GetGroup2D(HWorld2D world, HCollisionObject2D collision_object);
+    void SetGroup2D(HWorld2D world, HCollisionObject2D collision_object, uint16_t groupbit);
+    bool GetMaskBit2D(HWorld2D world, HCollisionObject2D collision_object, uint16_t groupbit);
+    void SetMaskBit2D(HWorld2D world, HCollisionObject2D collision_object, uint16_t groupbit, bool boolvalue);
+    bool UpdateMass2D(HWorld2D world, HCollisionObject2D collision_object, float mass);
 
     uint16_t GetGroup3D(HCollisionObject3D collision_object);
     void SetGroup3D(HWorld3D world, HCollisionObject3D collision_object, uint16_t groupbit);
@@ -1410,8 +1418,8 @@ namespace dmPhysics
     void DeleteJoint2D(HWorld2D world, HJoint joint);
     bool GetJointReactionForce2D(HWorld2D world, HJoint joint, dmVMath::Vector3& force, float inv_dt);
     bool GetJointReactionTorque2D(HWorld2D world, HJoint joint, float& torque, float inv_dt);
-    void FlipH2D(HCollisionObject2D collision_object);
-    void FlipV2D(HCollisionObject2D collision_object);
+    void FlipH2D(HWorld2D world, HCollisionObject2D collision_object);
+    void FlipV2D(HWorld2D world, HCollisionObject2D collision_object);
     bool IsWorldLocked(HWorld2D world);
 
     void              ReplaceShape3D(HCollisionObject3D object, HCollisionShape3D old_shape, HCollisionShape3D new_shape);

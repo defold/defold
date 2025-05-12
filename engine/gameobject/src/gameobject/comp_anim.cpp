@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -31,7 +31,7 @@ extern "C"
 }
 
 DM_PROPERTY_EXTERN(rmtp_GameObject);
-DM_PROPERTY_U32(rmtp_ComponentsAnim, 0, FrameReset, "#", &rmtp_GameObject);
+DM_PROPERTY_U32(rmtp_ComponentsAnim, 0, PROFILE_PROPERTY_FRAME_RESET, "#", &rmtp_GameObject);
 
 namespace dmGameObject
 {
@@ -707,7 +707,9 @@ namespace dmGameObject
         {
             if (INVALID_INDEX == next)
             {
-                world->m_ListenerInstanceToIndex.Erase((uintptr_t)anim->m_Userdata1);
+                uint16_t* p = world->m_ListenerInstanceToIndex.Get((uintptr_t)anim->m_Userdata1);
+                if (p != 0)
+                    world->m_ListenerInstanceToIndex.Erase((uintptr_t)anim->m_Userdata1);
             }
             else
             {

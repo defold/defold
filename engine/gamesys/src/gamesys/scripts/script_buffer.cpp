@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,6 +16,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <dlib/dalloca.h>
 #include <dlib/buffer.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
@@ -26,11 +27,6 @@
 
 #include <dmsdk/script/script.h>
 #include <dmsdk/gamesys/script.h>
-
-#if defined(_WIN32)
-#include <malloc.h>
-#define alloca(_SIZE) _alloca(_SIZE)
-#endif
 
 extern "C"
 {
@@ -1271,31 +1267,44 @@ namespace dmScript
     // Note: the throw_error only controls this particular function, not the CheckUserType
     static dmBuffer::HBuffer CheckBufferUnpackInternal(lua_State* L, int index, bool throw_error, dmScript::LuaHBuffer** out_luabuffer)
     {
-        if (lua_type(L, index) == LUA_TUSERDATA)
+        if (!(lua_type(L, index) == LUA_TUSERDATA))
         {
-            dmScript::LuaHBuffer* buffer = (dmScript::LuaHBuffer*)dmScript::CheckUserType(L, index, SCRIPT_BUFFER_TYPE_HASH, 0);
-            if (!dmGameSystem::CanUnpackLuaBuffer(buffer))
-            {
-                if (throw_error)
-                    luaL_error(L, "The buffer handle was stale");
-                else
-                    return 0;
-            }
-
-            dmBuffer::HBuffer hbuffer = dmGameSystem::UnpackLuaBuffer(buffer);
-            if( dmBuffer::IsBufferValid( hbuffer ) ) {
-                if (out_luabuffer)
-                    *out_luabuffer = buffer;
-                return hbuffer;
-            }
-
             if (throw_error)
-                luaL_error(L, "The buffer handle is invalid");
-            else
+                luaL_typerror(L, index, SCRIPT_TYPE_NAME_BUFFER);
+            return 0;
+        }
+
+        dmScript::LuaHBuffer* buffer;
+        if (throw_error)
+        {
+            buffer = (dmScript::LuaHBuffer*)dmScript::CheckUserType(L, index, SCRIPT_BUFFER_TYPE_HASH, 0);
+        }
+        else
+        {
+            buffer = (dmScript::LuaHBuffer*)dmScript::ToUserType(L, index, SCRIPT_BUFFER_TYPE_HASH);
+            if (!buffer)
                 return 0;
         }
-        luaL_typerror(L, index, SCRIPT_TYPE_NAME_BUFFER);
-        return 0x0;
+
+        if (!dmGameSystem::CanUnpackLuaBuffer(buffer))
+        {
+            if (throw_error)
+                luaL_error(L, "The buffer handle was stale");
+            return 0;
+        }
+
+        dmBuffer::HBuffer hbuffer = dmGameSystem::UnpackLuaBuffer(buffer);
+        if( dmBuffer::IsBufferValid( hbuffer ) )
+        {
+            if (out_luabuffer)
+                *out_luabuffer = buffer;
+            return hbuffer;
+        }
+
+        if (throw_error)
+            luaL_error(L, "The buffer handle is invalid");
+
+        return 0;
     }
 
     dmBuffer::HBuffer CheckBufferUnpack(lua_State* L, int index)
@@ -1315,10 +1324,16 @@ namespace dmScript
         return hbuffer != 0 ? buffer : 0; // SHouldn't get here due to the lua_error
     }
 
-    dmScript::LuaHBuffer* CheckBufferNoError(lua_State* L, int index)
+    dmScript::LuaHBuffer* ToBuffer(lua_State* L, int index)
     {
         dmScript::LuaHBuffer* buffer = 0;
         dmBuffer::HBuffer hbuffer = CheckBufferUnpackInternal(L, index, false, &buffer);
         return hbuffer != 0 ? buffer : 0;
     }
+
+    dmScript::LuaHBuffer* CheckBufferNoError(lua_State* L, int index) // Deprecated
+    {
+        return ToBuffer(L, index);
+    }
+
 }

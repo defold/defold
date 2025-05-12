@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -45,7 +45,7 @@ import com.google.protobuf.TextFormat;
  */
 public class TileSetc {
 
-    private File contentRoot;
+    private final File contentRoot;
 
     public TileSetc(File contentRoot) {
         this.contentRoot = contentRoot;
@@ -54,24 +54,19 @@ public class TileSetc {
     BufferedImage loadImageFile(String fileName) throws IOException {
         File file = new File(this.contentRoot.getCanonicalPath()
                 + File.separator + fileName);
-        InputStream is = new BufferedInputStream(new FileInputStream(file));
-        try {
+        try (InputStream is = new BufferedInputStream(new FileInputStream(file))) {
             BufferedImage origImage = ImageIO.read(is);
             BufferedImage image = new BufferedImage(origImage.getWidth(), origImage.getHeight(), BufferedImage.TYPE_4BYTE_ABGR);
             Graphics2D g2d = image.createGraphics();
             g2d.drawImage(origImage, 0, 0, null);
             g2d.dispose();
             return image;
-        } finally {
-            is.close();
         }
     }
 
     public void compile(File inFile, File outFile) throws IOException {
-        Reader reader = new BufferedReader(new FileReader(inFile));
-        OutputStream output = new BufferedOutputStream(new FileOutputStream(outFile));
 
-        try {
+        try (Reader reader = new BufferedReader(new FileReader(inFile)); OutputStream output = new BufferedOutputStream(new FileOutputStream(outFile))) {
             TileSet.Builder builder = TileSet.newBuilder();
             TextFormat.merge(reader, builder);
             TileSet tileSet = builder.build();
@@ -91,7 +86,7 @@ public class TileSetc {
             if (image != null
                     && collisionImage != null
                     && (image.getWidth() != collisionImage.getWidth() || image.getHeight() != collisionImage
-                            .getHeight())) {
+                    .getHeight())) {
                 throw new RuntimeException("Image dimensions differ");
             }
             String compiledImageName = imagePath;
@@ -99,12 +94,10 @@ public class TileSetc {
             compiledImageName = compiledImageName.substring(0, index) + ".texturec";
             TextureSetResult result = TileSetGenerator.generate(tileSet, image, collisionImage);
             TextureSet.Builder textureSetBuilder = result.builder;
-            textureSetBuilder.setTexture(compiledImageName).setTileWidth(tileSet.getTileWidth())
+            textureSetBuilder.setTexture(compiledImageName)
+                    .setTileWidth(tileSet.getTileWidth())
                     .setTileHeight(tileSet.getTileHeight());
             textureSetBuilder.build().writeTo(output);
-        } finally {
-            reader.close();
-            output.close();
         }
     }
 

@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -486,7 +486,7 @@
                     :passes [pass/transparent pass/selection]}})))
 
 (g/defnk produce-layer-outline
-  [_node-id id z]
+  [_node-id id z visible]
   {:node-id _node-id
    :node-outline-key id
    :label id
@@ -1460,7 +1460,7 @@
       (g/operation-label "Add layer")
       (make-layer-node tile-map-node (make-new-layer layer-id))))))
 
-(handler/defhandler :add :workbench
+(handler/defhandler :edit.add-embedded-component :workbench
   (label [user-data] "Add layer")
   (active? [selection] (selection->tile-map selection))
   (run [selection user-data] (add-layer-handler (selection->tile-map selection))))
@@ -1487,7 +1487,7 @@
   (let [input-handlers (map first (g/sources-of scene-view :input-handlers))]
     (first (filter (partial g/node-instance? TileMapController) input-handlers))))
 
-(handler/defhandler :erase-tool :workbench
+(handler/defhandler :scene.select-erase-tool :workbench
   (label [user-data] "Select Eraser")
   (active? [app-view evaluation-context]
            (and (active-tile-map app-view evaluation-context)
@@ -1501,14 +1501,15 @@
 (defn- tile-map-palette-handler [tool-controller]
   (g/update-property! tool-controller :mode (toggler :palette :editor)))
 
-(handler/defhandler :show-palette :workbench
+(handler/defhandler :scene.toggle-tile-palette :workbench
   (active? [app-view evaluation-context]
            (and (active-tile-map app-view evaluation-context)
                 (active-scene-view app-view evaluation-context)))
   (enabled? [app-view selection evaluation-context]
-    (and (selection->layer selection)
-         (-> (active-tile-map app-view evaluation-context)
-             (g/node-value :tile-source-resource evaluation-context))))
+            (and (selection->layer selection)
+                 (let [active-tile (active-tile-map app-view evaluation-context)]
+                   (and (g/node-value active-tile :tile-source-resource evaluation-context)
+                        (not (g/error-value? (g/node-value active-tile :gpu-texture evaluation-context)))))))
   (run [app-view] (tile-map-palette-handler (-> (active-scene-view app-view) scene-view->tool-controller))))
 
 (defn- transform-brush! [app-view transform-brush-fn]
@@ -1516,7 +1517,7 @@
         tool-controller (scene-view->tool-controller scene-view)]
     (g/update-property! tool-controller :brush transform-brush-fn)))
 
-(handler/defhandler :flip-brush-horizontally :workbench
+(handler/defhandler :scene.flip-brush-horizontally :workbench
   (active? [app-view evaluation-context]
            (and (active-tile-map app-view evaluation-context)
                 (active-scene-view app-view evaluation-context)))
@@ -1526,7 +1527,7 @@
              (g/node-value :tile-source-resource evaluation-context))))
   (run [app-view] (transform-brush! app-view flip-brush-horizontally)))
 
-(handler/defhandler :flip-brush-vertically :workbench
+(handler/defhandler :scene.flip-brush-vertically :workbench
   (active? [app-view evaluation-context]
            (and (active-tile-map app-view evaluation-context)
                 (active-scene-view app-view evaluation-context)))
@@ -1536,7 +1537,7 @@
                      (g/node-value :tile-source-resource evaluation-context))))
   (run [app-view] (transform-brush! app-view flip-brush-vertically)))
 
-(handler/defhandler :rotate-brush-90-degrees :workbench
+(handler/defhandler :scene.rotate-brush-90-degrees :workbench
   (active? [app-view evaluation-context]
            (and (active-tile-map app-view evaluation-context)
                 (active-scene-view app-view evaluation-context)))
@@ -1548,15 +1549,15 @@
 
 (handler/register-menu! ::menubar :editor.app-view/edit-end
   [{:label "Select Tile..."
-    :command :show-palette}
+    :command :scene.toggle-tile-palette}
    {:label "Select Eraser"
-    :command :erase-tool}
+    :command :scene.select-erase-tool}
    {:label "Flip Brush Horizontally"
-    :command :flip-brush-horizontally}
+    :command :scene.flip-brush-horizontally}
    {:label "Flip Brush Vertically"
-    :command :flip-brush-vertically}
+    :command :scene.flip-brush-vertically}
    {:label "Rotate Brush 90 Degrees"
-    :command :rotate-brush-90-degrees}])
+    :command :scene.rotate-brush-90-degrees}])
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace

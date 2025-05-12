@@ -1,4 +1,4 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -29,21 +29,10 @@
   (:import [clojure.lang IHashEq ILookup Util]
            [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
            [com.dynamo.gamesys.proto GameSystem$FactoryDesc Gui$NodeDesc ModelProto$ModelDesc Physics$CollisionObjectDesc]
-           [java.io File Writer]
-           [org.apache.commons.io FilenameUtils]))
+           [java.io File Writer]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
-
-;; String urls that will be added as library dependencies to our test project.
-;; These extensions register additional protobuf resource types that we want to
-;; cover in our tests.
-(def ^:private sanctioned-extension-urls
-  (mapv #(System/getProperty %)
-        ["defold.extension.rive.url"
-         "defold.extension.simpledata.url"
-         "defold.extension.spine.url"
-         "defold.extension.texturepacker.url"]))
 
 (def ^:private supplemental-save-values-by-proj-path
   {"/referenced/empty.particlefx"
@@ -278,7 +267,8 @@
                   :attributes vertex-attribute}}
 
      "particlefx"
-     {:emitters {:modifiers {:properties (required {:points {:y 0.0}})}}
+     {:emitters {:modifiers {:properties (required {:points {:y 0.0}})}
+                 :attributes vertex-attribute}
       :modifiers {:properties (required {:points (required {:y 0.0})})}}
 
      "sprite"
@@ -348,24 +338,6 @@
                              :repeated (vector value)
                              value)))))))))
 
-(defn- protobuf-resource-types-by-editability [workspace]
-  (let [editable-protobuf-resource-types
-        (into (sorted-map)
-              (filter (fn [[_ext editable-resource-type]]
-                        (relevant-protobuf-resource-type? editable-resource-type)))
-              (workspace/get-resource-type-map workspace :editable))
-
-        distinctly-non-editable-protobuf-resource-types
-        (into (sorted-map)
-              (filter (fn [[ext non-editable-resource-type]]
-                        (and (relevant-protobuf-resource-type? non-editable-resource-type)
-                             (not (identical? non-editable-resource-type
-                                              (editable-protobuf-resource-types ext))))))
-              (workspace/get-resource-type-map workspace :non-editable))]
-
-    {:editable (into [] (map val) editable-protobuf-resource-types)
-     :non-editable (into [] (map val) distinctly-non-editable-protobuf-resource-types)}))
-
 (defn- sparse-protobuf-content-by-proj-path [workspace]
   (into (sorted-map)
         (mapcat (fn [[editability resource-types]]
@@ -385,13 +357,13 @@
                                            (pair proj-path content))))
                                   (range max-pb-map-depth)))))
                     resource-types)))
-        (protobuf-resource-types-by-editability workspace)))
+        (test-util/distinct-resource-types-by-editability workspace relevant-protobuf-resource-type?)))
 
-(defn- with-absolute-file-keys [^File project-root-directory values-by-proj-path]
+(defn- with-absolute-file-keys [^File project-directory values-by-proj-path]
   (into (sorted-map)
         (map (fn [[proj-path content]]
                (let [relative-path (subs proj-path 1) ; Strip leading slash.
-                     absolute-file (io/file project-root-directory relative-path)]
+                     absolute-file (io/file project-directory relative-path)]
                  (pair absolute-file content))))
         values-by-proj-path))
 
@@ -554,13 +526,13 @@
         (let [workspace (test-util/setup-workspace! world project-path)]
 
           ;; Add dependencies to all sanctioned extensions to game.project.
-          (test-util/set-libraries! workspace sanctioned-extension-urls)
+          (test-util/set-libraries! workspace test-util/sanctioned-extension-urls)
 
           ;; With the extensions added, we can populate the workspace.
-          (let [project-root-directory (workspace/project-path workspace)
+          (let [project-directory (workspace/project-directory workspace)
                 sparse-protobuf-content-by-proj-path (sparse-protobuf-content-by-proj-path workspace)
-                sparse-protobuf-content-by-absolute-file (with-absolute-file-keys project-root-directory sparse-protobuf-content-by-proj-path)
-                supplemental-save-values-by-absolute-file (with-absolute-file-keys project-root-directory supplemental-save-values-by-proj-path)]
+                sparse-protobuf-content-by-absolute-file (with-absolute-file-keys project-directory sparse-protobuf-content-by-proj-path)
+                supplemental-save-values-by-absolute-file (with-absolute-file-keys project-directory supplemental-save-values-by-proj-path)]
 
             ;; Ensure we have the parent directories in place for our content.
             (create-parent-directories! sparse-protobuf-content-by-absolute-file)
@@ -580,7 +552,7 @@
 
             (let [project (test-util/setup-project! workspace)
                   proj-paths (sort-by (fn [^String proj-path]
-                                        (pair (FilenameUtils/getExtension proj-path)
+                                        (pair (resource/filename->type-ext proj-path)
                                               proj-path))
                                       (keys sparse-protobuf-content-by-proj-path))]
               (test-util/clear-cached-save-data! project)

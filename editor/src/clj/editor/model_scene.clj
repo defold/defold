@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -32,7 +32,8 @@
             [editor.scene-picking :as scene-picking]
             [editor.workspace :as workspace]
             [internal.graph.error-values :as error-values]
-            [util.coll :as coll])
+            [util.coll :as coll]
+            [util.num :as num])
   (:import [com.google.protobuf ByteString]
            [com.jogamp.opengl GL GL2]
            [editor.gl.vertex2 VertexBuffer]
@@ -112,7 +113,7 @@
       :indexbuffer-format-16
       (let [short-buffer (.asShortBuffer byte-buffer)]
         (dotimes [i num-indices]
-          (aset out-indices i (int (.get short-buffer i)))))
+          (aset out-indices i (int (num/ushort->long (.get short-buffer i))))))
 
       :indexbuffer-format-32
       (let [int-buffer (.asIntBuffer byte-buffer)]
@@ -172,17 +173,25 @@
                 (some some? texcoord-datas) (assoc :texcoord-datas texcoord-datas)))
       (error-values/error-fatal "Failed to produce vertex buffers from mesh set. The scene might contain invalid data."))))
 
-(defn mesh->vb! [^VertexBuffer vbuf ^Matrix4d world-transform ^Matrix4d normal-transform vertex-attribute-bytes mesh-renderable-data]
+(defn mesh->vb! [^VertexBuffer vbuf ^Matrix4d world-transform ^Matrix4d normal-transform has-semantic-type-world-matrix has-semantic-type-normal-matrix vertex-attribute-bytes mesh-renderable-data]
   (let [mesh-renderable-data
         (cond-> mesh-renderable-data
                 world-transform (assoc :world-transform world-transform)
                 normal-transform (assoc :normal-transform normal-transform)
+                has-semantic-type-world-matrix (assoc :has-semantic-type-world-matrix true)
+                has-semantic-type-normal-matrix (assoc :has-semantic-type-normal-matrix true)
                 vertex-attribute-bytes (assoc :vertex-attribute-bytes vertex-attribute-bytes))]
     (graphics/put-attributes! vbuf [mesh-renderable-data])
     vbuf))
 
-(defn- request-vb! [^GL2 gl request-id mesh-renderable-data ^Matrix4d attribute-world-transform ^Matrix4d attribute-normal-transform vertex-description vertex-attribute-bytes]
-  (let [data {:mesh-renderable-data mesh-renderable-data :world-transform attribute-world-transform :normal-transform attribute-normal-transform :vertex-description vertex-description :vertex-attribute-bytes vertex-attribute-bytes}]
+(defn- request-vb! [^GL2 gl request-id mesh-renderable-data ^Matrix4d attribute-world-transform ^Matrix4d attribute-normal-transform has-semantic-type-world-matrix has-semantic-type-normal-matrix vertex-description vertex-attribute-bytes]
+  (let [data {:mesh-renderable-data mesh-renderable-data
+              :world-transform attribute-world-transform
+              :normal-transform attribute-normal-transform
+              :has-semantic-type-world-matrix has-semantic-type-world-matrix
+              :has-semantic-type-normal-matrix has-semantic-type-normal-matrix
+              :vertex-description vertex-description
+              :vertex-attribute-bytes vertex-attribute-bytes}]
     (scene-cache/request-object! ::vb request-id gl data)))
 
 (defn- render-mesh-opaque-impl [^GL2 gl render-args renderable request-prefix override-shader override-vertex-description extra-render-args]
@@ -193,10 +202,11 @@
                                    :vertex-space-local :coordinate-space-local
                                    :vertex-space-world :coordinate-space-world)
         vertex-description (or override-vertex-description
-                               (let [manufactured-attribute-keys [:position :texcoord0 :normal :tangent]
+                               (let [manufactured-attribute-keys [:position :texcoord0 :normal :tangent :color :mtx-world :mtx-normal]
                                      shader-bound-attributes (graphics/shader-bound-attributes gl shader material-attribute-infos manufactured-attribute-keys default-coordinate-space)]
                                  (graphics/make-vertex-description shader-bound-attributes)))
-        coordinate-space-info (graphics/coordinate-space-info (:attributes vertex-description))
+        vertex-attributes (:attributes vertex-description)
+        coordinate-space-info (graphics/coordinate-space-info vertex-attributes)
         render-transforms (math/derive-render-transforms world-transform
                                                          (:view render-args)
                                                          (:projection render-args)
@@ -204,14 +214,20 @@
                                                          coordinate-space-info)
         render-args (merge render-args render-transforms extra-render-args)
         world-space-semantic-types (:coordinate-space-world coordinate-space-info)
-        attribute-world-transform (when (contains? world-space-semantic-types :semantic-type-position)
+
+        has-semantic-type-world-matrix (graphics/contains-semantic-type? vertex-attributes :semantic-type-world-matrix)
+        has-semantic-type-normal-matrix (graphics/contains-semantic-type? vertex-attributes :semantic-type-normal-matrix)
+        attribute-world-transform (when (or (contains? world-space-semantic-types :semantic-type-position)
+                                            has-semantic-type-world-matrix)
                                     world-transform)
-        attribute-normal-transform (when (contains? world-space-semantic-types :semantic-type-normal)
-                                     (math/derive-normal-transform world-transform))
+        attribute-normal-transform (when (or (contains? world-space-semantic-types :semantic-type-normal)
+                                             has-semantic-type-normal-matrix)
+                                     (:normal render-transforms))
         request-id (if (or attribute-world-transform attribute-normal-transform)
                      [request-prefix node-id mesh-renderable-data vertex-attribute-bytes vertex-description] ; World-space attributes present. The request needs to be unique for this node-id.
                      [request-prefix mesh-renderable-data vertex-attribute-bytes vertex-description]) ; No world-space attributes present. We can share the GPU objects between instances of this mesh.
-        vb (request-vb! gl request-id mesh-renderable-data attribute-world-transform attribute-normal-transform vertex-description vertex-attribute-bytes)
+
+        vb (request-vb! gl request-id mesh-renderable-data attribute-world-transform attribute-normal-transform has-semantic-type-world-matrix has-semantic-type-normal-matrix vertex-description vertex-attribute-bytes)
         vertex-binding (vtx/use-with request-id vb shader)]
     (gl/with-gl-bindings gl render-args [vertex-binding shader]
       (doseq [[name t] textures]
@@ -356,22 +372,28 @@
 (defn- make-scene [renderable-mesh-set model-scene-resource-node-id]
   (let [{:keys [aabb renderable-models]} renderable-mesh-set
         model-scenes (mapv #(make-model-scene % model-scene-resource-node-id)
-                           renderable-models)]
+                           renderable-models)
+        children-scenes (into [{:node-id model-scene-resource-node-id
+                                :aabb aabb
+                                :renderable {:render-fn render-outline
+                                             :tags #{:model :outline}
+                                             :batch-key nil
+                                             :select-batch-key :not-rendered
+                                             :passes [pass/outline]}}]
+                              model-scenes)]
     {:node-id model-scene-resource-node-id
      :aabb aabb
-     :renderable {:render-fn render-outline
-                  :tags #{:model :outline}
+     :renderable {:tags #{:model}
                   :batch-key nil ; Batching is disabled in the editor for simplicity.
-                  :select-batch-key :not-rendered ; The render-fn only does anything during the outline pass.
-                  :passes [pass/outline pass/opaque-selection]} ; Include in a selection pass to ensure it can be selected and manipulated.
-     :children model-scenes}))
+                  :passes [pass/opaque-selection]} ; A selection pass to ensure it can be selected and manipulated.
+     :children children-scenes}))
 
 (g/defnk produce-scene [_node-id renderable-mesh-set]
   (make-scene renderable-mesh-set _node-id))
 
 (defn- augment-mesh-scene [mesh-scene old-node-id new-node-id new-node-outline-key material-name->material-scene-info]
   (let [mesh-renderable (:renderable mesh-scene)
-        material-name (:material-name mesh-renderable)
+        material-name (:material-name (:user-data mesh-renderable))
         material-scene-info (material-name->material-scene-info material-name)
         claimed-scene (scene/claim-child-scene old-node-id new-node-id new-node-outline-key mesh-scene)]
     (if (nil? material-scene-info)
@@ -383,7 +405,6 @@
         (assert (every? map? material-attribute-infos))
         (assert (every? keyword? (map :name-key material-attribute-infos)))
         (assert (shader/shader-lifecycle? shader))
-        (assert (map? vertex-attribute-bytes))
         (assert (every? keyword? (keys vertex-attribute-bytes)))
         (assert (every? bytes? (vals vertex-attribute-bytes)))
         (assert (#{:vertex-space-local :vertex-space-world} vertex-space))
@@ -418,6 +439,33 @@
         :children (mapv #(augment-model-scene % old-node-id new-node-id new-node-outline-key material-name->material-scene-info)
                         model-scenes)))))
 
+(defn make-material-name->material-scene-info
+  "Given some material-scene-infos, return a material-name->material-scene-info
+  fn suitable for use with the augment-scene function."
+  [material-scene-infos]
+  (let [;; When augmenting the scene, we only want to use material-scene-infos
+        ;; that are fully formed, and ignore the others.
+        usable-material-scene-infos
+        (filterv
+          (fn [material-scene-info]
+            (and (some? (:shader material-scene-info))
+                 (some? (:vertex-space material-scene-info))))
+          material-scene-infos)
+
+        ;; If we have no material associated with the index, we mirror the
+        ;; engine behavior by picking the first one:
+        ;; https://github.com/defold/defold/blob/a265a1714dc892eea285d54eae61d0846b48899d/engine/gamesys/src/gamesys/resources/res_model.cpp#L234-L238
+        fallback-material-scene-info
+        (first usable-material-scene-infos)
+
+        usable-material-scene-infos-by-material-name
+        (->> usable-material-scene-infos
+             (coll/pair-map-by :name)
+             (coll/not-empty))]
+
+    (fn material-name->material-scene-info [^String material-name]
+      (get usable-material-scene-infos-by-material-name material-name fallback-material-scene-info))))
+
 (g/defnode ModelSceneNode
   (inherits resource-node/ResourceNode)
 
@@ -442,8 +490,8 @@
     :view-types [:scene :text]))
 
 (defn- update-vb [^GL2 _gl ^VertexBuffer vb data]
-  (let [{:keys [mesh-renderable-data ^Matrix4d world-transform ^Matrix4d normal-transform vertex-attribute-bytes]} data]
-    (mesh->vb! vb world-transform normal-transform vertex-attribute-bytes mesh-renderable-data)
+  (let [{:keys [mesh-renderable-data ^Matrix4d world-transform ^Matrix4d normal-transform has-semantic-type-world-matrix has-semantic-type-normal-matrix vertex-attribute-bytes]} data]
+    (mesh->vb! vb world-transform normal-transform has-semantic-type-world-matrix has-semantic-type-normal-matrix vertex-attribute-bytes mesh-renderable-data)
     vb))
 
 (defn- make-vb [^GL2 gl data]

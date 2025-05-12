@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -17,6 +17,9 @@ package com.dynamo.bob.pipeline;
 import static org.junit.Assert.assertEquals;
 import java.util.List;
 
+import com.dynamo.graphics.proto.Graphics;
+import com.dynamo.render.proto.Compute;
+import com.google.protobuf.Message;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -33,13 +36,12 @@ public class ComputeBuilderTest extends AbstractProtoBuilderTest {
     @Test
     public void testSimple() throws Exception {
 
-        StringBuilder srcCompute = new StringBuilder();
-        srcCompute.append("#version 430\n");
-        srcCompute.append("void main() {}\n");
+        String srcCompute = """
+                #version 430
+                void main() {}
+                """;
 
-        addFile("/test.cp", "");
-
-        build("/test.cp", srcCompute.toString());
+        addAndBuildShaderDesc("/test.cp", srcCompute, "/test.shbundle");
 
         StringBuilder src = new StringBuilder();
         src.append("compute_program: \"/test.cp\"\n");
@@ -76,7 +78,10 @@ public class ComputeBuilderTest extends AbstractProtoBuilderTest {
         src.append("  filter_mag: FILTER_MODE_MAG_NEAREST\n");
         src.append("}\n");
 
-        ComputeDesc compute = (ComputeDesc) build("/test.compute", src.toString()).get(0);
+        List<Message> msg = build("/test.compute", src.toString());
+
+        ComputeDesc compute = getMessage(build("/test.compute", src.toString()), ComputeDesc.class);
+
         assertEquals(2, compute.getSamplersCount());
         assertEquals(2, compute.getConstantsCount());
 

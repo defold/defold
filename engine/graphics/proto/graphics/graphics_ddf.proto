@@ -19,8 +19,18 @@ message Cubemap
 
 enum CoordinateSpace
 {
-    COORDINATE_SPACE_WORLD = 1;
-    COORDINATE_SPACE_LOCAL = 2;
+    // Used when building the default "manufactured" attributes.
+    // This setting mean that we use the vertex coordinate system setting
+    // from the material (in case of models).
+    COORDINATE_SPACE_DEFAULT = 0;
+    COORDINATE_SPACE_WORLD   = 1;
+    COORDINATE_SPACE_LOCAL   = 2;
+}
+
+enum VertexStepFunction
+{
+    VERTEX_STEP_FUNCTION_VERTEX   = 0;
+    VERTEX_STEP_FUNCTION_INSTANCE = 1;
 }
 
 message VertexAttribute
@@ -36,15 +46,30 @@ message VertexAttribute
         TYPE_FLOAT            = 7;
     }
 
+    enum VectorType
+    {
+        VECTOR_TYPE_SCALAR = 1;
+        VECTOR_TYPE_VEC2   = 2;
+        VECTOR_TYPE_VEC3   = 3;
+        VECTOR_TYPE_VEC4   = 4;
+        VECTOR_TYPE_MAT2   = 5;
+        VECTOR_TYPE_MAT3   = 6;
+        VECTOR_TYPE_MAT4   = 7;
+    }
+
     enum SemanticType
     {
-        SEMANTIC_TYPE_NONE       = 1;
-        SEMANTIC_TYPE_POSITION   = 2;
-        SEMANTIC_TYPE_TEXCOORD   = 3;
-        SEMANTIC_TYPE_PAGE_INDEX = 4;
-        SEMANTIC_TYPE_COLOR      = 5;
-        SEMANTIC_TYPE_NORMAL     = 6;
-        SEMANTIC_TYPE_TANGENT    = 7;
+        SEMANTIC_TYPE_NONE          = 1;
+        SEMANTIC_TYPE_POSITION      = 2;
+        SEMANTIC_TYPE_TEXCOORD      = 3;
+        SEMANTIC_TYPE_PAGE_INDEX    = 4;
+        SEMANTIC_TYPE_COLOR         = 5;
+        SEMANTIC_TYPE_NORMAL        = 6;
+        SEMANTIC_TYPE_TANGENT       = 7;
+        SEMANTIC_TYPE_WORLD_MATRIX  = 8;
+        SEMANTIC_TYPE_NORMAL_MATRIX = 9;
+        SEMANTIC_TYPE_BONE_WEIGHTS  = 10;
+        SEMANTIC_TYPE_BONE_INDICES  = 11;
     }
 
     message LongValues
@@ -60,10 +85,12 @@ message VertexAttribute
     required string          name             = 1;
     optional uint64          name_hash        = 2 [(runtime_only) = true];
     optional SemanticType    semantic_type    = 3 [default = SEMANTIC_TYPE_NONE];
-    optional int32           element_count    = 4 [default = 0];
+    optional int32           element_count    = 4 [default = 0]; // Deprecated
     optional bool            normalize        = 5 [default = false];
     optional DataType        data_type        = 6 [default = TYPE_FLOAT];
     optional CoordinateSpace coordinate_space = 7 [default = COORDINATE_SPACE_LOCAL];
+    optional VertexStepFunction step_function = 11 [default = VERTEX_STEP_FUNCTION_VERTEX];
+    optional VectorType vector_type           = 12 [default = VECTOR_TYPE_VEC4];
 
     // Note: Add a channel field here for identifying a semantic "channel", i.e a second UV set
 
@@ -102,6 +129,8 @@ message TextureImage
         TYPE_CUBEMAP  = 2;
         TYPE_2D_ARRAY = 3;
         TYPE_2D_IMAGE = 4;
+        TYPE_3D       = 5;
+        TYPE_3D_IMAGE = 6;
     }
 
     enum CompressionType
@@ -116,6 +145,8 @@ message TextureImage
         COMPRESSION_TYPE_BASIS_UASTC = 3;
         // Basis ETC1S
         COMPRESSION_TYPE_BASIS_ETC1S = 4;
+        // ASTC
+        COMPRESSION_TYPE_ASTC = 5;
     }
 
     enum CompressionFlags
@@ -126,6 +157,8 @@ message TextureImage
 
     enum TextureFormat
     {
+        option allow_alias = true;
+
         TEXTURE_FORMAT_LUMINANCE         = 0;
         TEXTURE_FORMAT_RGB               = 1;
         TEXTURE_FORMAT_RGBA              = 2;
@@ -141,7 +174,9 @@ message TextureImage
         TEXTURE_FORMAT_LUMINANCE_ALPHA   = 10;
 
         TEXTURE_FORMAT_RGBA_ETC2         = 11;
-        TEXTURE_FORMAT_RGBA_ASTC_4x4     = 12;
+
+        TEXTURE_FORMAT_RGBA_ASTC_4X4     = 12;
+        TEXTURE_FORMAT_RGBA_ASTC_4x4     = 12; // Deprecated!
 
         TEXTURE_FORMAT_RGB_BC1           = 13;
         TEXTURE_FORMAT_RGBA_BC3          = 14;
@@ -157,21 +192,38 @@ message TextureImage
         TEXTURE_FORMAT_RG16F             = 23;
         TEXTURE_FORMAT_R32F              = 24;
         TEXTURE_FORMAT_RG32F             = 25;
+
+        // ASTC Formats
+        TEXTURE_FORMAT_RGBA_ASTC_5X4     = 26;
+        TEXTURE_FORMAT_RGBA_ASTC_5X5     = 27;
+        TEXTURE_FORMAT_RGBA_ASTC_6X5     = 28;
+        TEXTURE_FORMAT_RGBA_ASTC_6X6     = 29;
+        TEXTURE_FORMAT_RGBA_ASTC_8X5     = 30;
+        TEXTURE_FORMAT_RGBA_ASTC_8X6     = 31;
+        TEXTURE_FORMAT_RGBA_ASTC_8X8     = 32;
+        TEXTURE_FORMAT_RGBA_ASTC_10X5    = 33;
+        TEXTURE_FORMAT_RGBA_ASTC_10X6    = 34;
+        TEXTURE_FORMAT_RGBA_ASTC_10X8    = 35;
+        TEXTURE_FORMAT_RGBA_ASTC_10X10   = 36;
+        TEXTURE_FORMAT_RGBA_ASTC_12X10   = 37;
+        TEXTURE_FORMAT_RGBA_ASTC_12X12   = 38;
     }
 
     message Image
     {
         required uint32 width                     = 1;
         required uint32 height                    = 2;
-        required uint32 original_width            = 3;
-        required uint32 original_height           = 4;
-        required TextureFormat format             = 5;
-        repeated uint32 mip_map_offset            = 6;
-        repeated uint32 mip_map_size              = 7;    // always uncompressed (native) size
-        required bytes data                       = 8;
-        optional CompressionType compression_type = 9 [default = COMPRESSION_TYPE_DEFAULT];
-        optional uint64 compression_flags         = 10;
+        optional uint32 depth                     = 3 [default = 1];
+        required uint32 original_width            = 4;
+        required uint32 original_height           = 5;
+        optional uint32 original_depth            = 6 [default = 1];
+        required TextureFormat format             = 7;
+        repeated uint32 mip_map_offset            = 8;
+        repeated uint32 mip_map_size              = 9; // always uncompressed (native) size
+        optional CompressionType compression_type = 10 [default = COMPRESSION_TYPE_DEFAULT];
         repeated uint32 mip_map_size_compressed   = 11;
+        repeated uint32 mip_map_dimensions        = 12; // w0, h0, w1, h1, ...
+        optional uint32 data_size                 = 13;
     }
 
     repeated Image alternatives = 1;
@@ -179,7 +231,14 @@ message TextureImage
     // When count > 1 count mipmaps are laid out contiguously in memory and
     // the mip_map_offset should reflect that, e.g. times 6 for cubemaps
     required uint32 count       = 3;
-    optional uint32 usage_flags = 4 [default = 1];
+
+    // Runtime only, used for specifying how the texture should be used.
+    // Possible values are specified in dmsdk/graphics.h
+    optional uint32 usage_flags = 4 [(runtime_only) = true, default = 1];
+    // Runtime only, when creating textures in runtime we want to avoid
+    // making a copy of the texture data just to create the resource.
+    // This field can instead be used to store a pointer to the actual data.
+    optional uint64 image_data_address = 5 [(runtime_only) = true];
 }
 
 // We encapsulate the texture format in its own message due
@@ -194,9 +253,11 @@ message TextureFormatAlternative
         BEST    = 3;
     }
 
-    required TextureImage.TextureFormat format  = 1;
-    required CompressionLevel compression_level = 2;
-    optional TextureImage.CompressionType compression_type = 3 [default = COMPRESSION_TYPE_DEFAULT];
+    required TextureImage.TextureFormat format             = 1;
+    optional CompressionLevel compression_level            = 2;                                      // DEPRECATED, use compressor + compressor_preset instead
+    optional TextureImage.CompressionType compression_type = 3 [default = COMPRESSION_TYPE_DEFAULT]; // DEPRECATED, use compressor + compressor_preset instead
+    optional string compressor                             = 4;
+    optional string compressor_preset                      = 5;
 }
 
 message PathSettings
@@ -219,6 +280,7 @@ message PlatformProfile
         OS_ID_SWITCH  = 7;
         OS_ID_PS4     = 8;
         OS_ID_PS5     = 9;
+        OS_ID_XBOX    = 10;
     }
 
     required OS os                              = 1;
@@ -246,14 +308,15 @@ message ShaderDesc
 {
     enum Language
     {
-        LANGUAGE_GLSL_SM120 = 1; // OpenGL 2 compatible
-        LANGUAGE_GLSL_SM140 = 2; // OpenGL 3 compatible
-        LANGUAGE_GLES_SM100 = 3; // OpenGLES 2 / WebGL 1
-        LANGUAGE_GLES_SM300 = 4; // OpenGLES 3 / WebGL 2
-        LANGUAGE_SPIRV      = 5; // Vulkan / MoltenVK
-        LANGUAGE_PSSL       = 6; // Playstation
-        LANGUAGE_GLSL_SM430 = 7; // OpenGL 4.3+ compatible
-        LANGUAGE_GLSL_SM330 = 8; // OpenGL 3.3 (used for macos)
+        LANGUAGE_GLSL_SM120 = 1;  // OpenGL 2 compatible
+        LANGUAGE_GLES_SM100 = 2;  // OpenGLES 2 / WebGL 1
+        LANGUAGE_GLES_SM300 = 3;  // OpenGLES 3 / WebGL 2
+        LANGUAGE_SPIRV      = 4;  // Vulkan / MoltenVK
+        LANGUAGE_PSSL       = 5;  // Playstation
+        LANGUAGE_GLSL_SM430 = 6;  // OpenGL 4.3+ compatible
+        LANGUAGE_GLSL_SM330 = 7;  // OpenGL 3.3 (used for desktop platforms)
+        LANGUAGE_WGSL       = 8;  // WebGPU
+        LANGUAGE_HLSL       = 9;  // Windows / XBox compatible
     }
 
     enum ShaderType
@@ -291,8 +354,16 @@ message ShaderDesc
         SHADER_TYPE_UIMAGE2D          = 21;
         SHADER_TYPE_IMAGE2D           = 22;
         SHADER_TYPE_SAMPLER           = 23;
-
         SHADER_TYPE_STORAGE_BUFFER    = 24;
+        SHADER_TYPE_TEXTURE2D_ARRAY   = 25;
+        SHADER_TYPE_TEXTURE_CUBE      = 26;
+
+        SHADER_TYPE_TEXTURE3D         = 27;
+        SHADER_TYPE_UTEXTURE3D        = 28;
+        SHADER_TYPE_UIMAGE3D          = 29;
+        SHADER_TYPE_IMAGE3D           = 30;
+        SHADER_TYPE_SAMPLER3D_ARRAY   = 31;
+        SHADER_TYPE_TEXTURE3D_ARRAY   = 32;
     }
 
     message ResourceType
@@ -326,12 +397,28 @@ message ShaderDesc
 
     message ResourceBinding
     {
-        required string         name          = 1;
-        required uint64         name_hash     = 2;
-        required ResourceType   type          = 3;
-        optional uint32         set           = 4;
-        optional uint32         binding       = 5;
-        optional uint32         block_size    = 6;
+        required string         name               = 1;
+        required uint64         name_hash          = 2;
+        required ResourceType   type               = 3;
+        optional uint32         id                 = 4;
+        optional string         instance_name      = 5;
+        optional uint64         instance_name_hash = 6;
+        optional uint32         set                = 7;
+        optional uint32         binding            = 8;
+        optional uint32         element_count      = 9;
+        optional uint32         stage_flags        = 10; // 0x1=vert, 0x2=frag, 0x4=compute
+
+        oneof BindingInfo
+        {
+            // Uniform buffer block size
+            uint32 block_size = 11;
+            // Sampler object index
+            // Since we split combined samplers into
+            // a texture + sampler object we need to
+            // keep track of which of the textures
+            // the sampler originally is pointing to.
+            uint32 sampler_texture_index = 12;
+        }
     }
 
     message ShaderReflection
@@ -346,13 +433,12 @@ message ShaderDesc
 
     message Shader
     {
-        required Language language              = 1;
-        optional bytes    source                = 2;
-        optional string   name                  = 3;
-        optional bool     variant_texture_array = 4 [default = false];
+        required bytes      source                = 1;
+        required ShaderType shader_type           = 2;
+        required Language   language              = 3;
+        optional bool       variant_texture_array = 4 [default = false];
     }
 
     repeated Shader shaders              = 1;
-    required ShaderReflection reflection = 2;
-    required ShaderType shader_type      = 3;
+    optional ShaderReflection reflection = 2;
 }

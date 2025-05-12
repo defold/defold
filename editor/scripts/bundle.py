@@ -1,13 +1,13 @@
 #!/usr/bin/env python
-# Copyright 2020-2024 The Defold Foundation
+# Copyright 2020-2025 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -53,23 +53,22 @@ import http_cache
 
 
 DEFAULT_ARCHIVE_DOMAIN=os.environ.get("DM_ARCHIVE_DOMAIN", "d.defold.com")
-CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL", None)
 
 # If you update java version, don't forget to update it here too:
 # - /editor/bundle-resources/config at "launcher.jdk" key
 # - /scripts/build.py smoke_test, `java` variable
 # - /editor/src/clj/editor/updater.clj, `protected-dirs` let binding
-java_version = '17.0.5+8'
+java_version = '21.0.5+11'
 
-platform_to_java = {'x86_64-linux': 'linux-x64',
-                    'x86_64-macos': 'macos-x64',
-                    'arm64-macos': 'macos-arm64',
-                    'x86_64-win32': 'windows-x64'}
+platform_to_java = {'x86_64-linux': 'x64_linux',
+                    'x86_64-macos': 'x64_mac',
+                    'arm64-macos': 'aarch64_mac',
+                    'x86_64-win32': 'x64_windows'}
 
-python_platform_to_java = {'x86_64-linux': 'linux-x64',
-                           'x86_64-win32': 'windows-x64',
-                           'x86_64-darwin': 'macos-x64',
-                           'arm64-darwin': 'macos-arm64'}
+python_platform_to_java = {'x86_64-linux': 'x64_linux',
+                           'x86_64-win32': 'x64_windows',
+                           'x86_64-darwin': 'x64_mac',
+                           'arm64-darwin': 'aarch64_mac'}
 
 def log(msg):
     print(msg)
@@ -254,8 +253,10 @@ def launcher_path(options, platform, exe_suffix):
 def full_jdk_url(jdk_platform):
     version = urllib.parse.quote(java_version)
     platform = urllib.parse.quote(jdk_platform)
-    extension = "zip" if jdk_platform.startswith("windows") else "tar.gz"
-    return '%s/OpenJDK17U-jdk_%s_hotspot_%s.%s' % (CDN_PACKAGES_URL, platform, version, extension)
+    extension = "zip" if "windows" in jdk_platform else "tar.gz"
+    major_version = java_version.split('.')[0]
+    artifact_version = java_version.replace('+', '_')
+    return 'https://github.com/adoptium/temurin%s-binaries/releases/download/jdk-%s/OpenJDK%sU-jdk_%s_hotspot_%s.%s' % (major_version, version, major_version, platform, artifact_version, extension)
 
 def full_build_jdk_url():
     return full_jdk_url(python_platform_to_java["%s-%s" % (platform.machine(), sys.platform)])
@@ -279,14 +280,19 @@ def extract_build_jdk(build_jdk):
         return 'build/jdk/jdk-%s/Contents/Home' % java_version
     else:
         return 'build/jdk/jdk-%s' % java_version
+    
+def invoke_lein(args, jdk_path=None):
+    # this weird dance with env and bash instead of supplying env kwarg to run.command is needed for the build script to work on windows
+    jdk_path = jdk_path or os.environ['JAVA_HOME']
+    return run.command(['env', 'JAVA_CMD=%s/bin/java' % jdk_path, 'LEIN_HOME=build/lein', 'bash', './scripts/lein'] + args, stdout=True)
 
-def check_reflections(java_cmd_env):
+def check_reflections(jdk_path):
     reflection_prefix = 'Reflection warning, ' # final space important
     included_reflections = ['editor/', 'util/'] # [] = include all
     ignored_reflections = []
 
     # lein check puts reflection warnings on stderr, redirect to stdout to capture all output
-    output = run.command(['env', java_cmd_env, 'bash', './scripts/lein', 'with-profile', '+headless', 'check-and-exit'])
+    output = invoke_lein(['with-profile', '+headless', 'check-and-exit'], jdk_path=jdk_path)
     lines = output.splitlines()
     reflection_lines = (line for line in lines if re.match(reflection_prefix, line))
     reflections = (re.match('(' + reflection_prefix + ')(.*)', line).group(2) for line in reflection_lines)
@@ -298,31 +304,34 @@ def check_reflections(java_cmd_env):
             print(failure)
         exit(1)
 
+def write_docs(docs_dir, jdk_path=None):
+    invoke_lein(['with-profile', '+docs', 'run', '-m', 'editor.docs', docs_dir], jdk_path)
 
 def build(options):
     build_jdk = download_build_jdk()
     extracted_build_jdk = extract_build_jdk(build_jdk)
-    java_cmd_env = 'JAVA_CMD=%s/bin/java' % extracted_build_jdk
 
     print('Building editor')
 
-    init_command = ['env', java_cmd_env, 'bash', './scripts/lein', 'with-profile', '+release', 'init']
+    init_command = ['with-profile', '+release', 'init']
     if options.engine_sha1:
         init_command += [options.engine_sha1]
 
-    run.command(init_command)
+    invoke_lein(init_command, jdk_path=extracted_build_jdk)
 
-    build_ns_batches_command = ['env', java_cmd_env, 'bash', './scripts/lein', 'with-profile', '+release', 'build-ns-batches']
-    run.command(build_ns_batches_command)
+    build_ns_batches_command = ['run', '-m', 'editor.ns-batch-builder', 'resources/sorted_clojure_ns_list.edn']
+    invoke_lein(build_ns_batches_command, jdk_path=extracted_build_jdk)
 
-    check_reflections(java_cmd_env)
+    check_reflections(extracted_build_jdk)
 
     if options.skip_tests:
         print('Skipping tests')
     else:
-        run.command(['env', java_cmd_env, 'bash', './scripts/lein', 'test'])
+        invoke_lein(['test'], jdk_path=extracted_build_jdk)
+        # test that docs can be successfully produced
+        write_docs('target/docs', jdk_path=extracted_build_jdk)
 
-    run.command(['env', java_cmd_env, 'bash', './scripts/lein', 'prerelease'])
+    invoke_lein(['prerelease'], jdk_path=extracted_build_jdk)
 
 
 def get_exe_suffix(platform):
@@ -374,11 +383,11 @@ def remove_platform_files_from_archive(platform, jar):
     # find libs to remove in the root folder
     for file in files:
         if "/" not in file:
-            if (platform == "x86_64-macos" or platform == "arm64-macos") and (file.endswith(".so") or file.endswith(".dll")):
+            if platform in ["x86_64-macos", "arm64-macos"] and (file.endswith(".so") or file.endswith(".dll")):
                 files_to_remove.append(file)
-            elif platform == "x86_64-win32" and (file.endswith(".so") or file.endswith(".dylib")):
+            elif platform in ["x86_64-win32"] and (file.endswith(".so") or file.endswith(".dylib")):
                 files_to_remove.append(file)
-            elif platform == "x86_64-linux" and (file.endswith(".dll") or file.endswith(".dylib")):
+            elif platform in ["x86_64-linux", "arm64-linux"]  and (file.endswith(".dll") or file.endswith(".dylib")):
                 files_to_remove.append(file)
 
     # write new jar without the files that should be removed
@@ -398,12 +407,11 @@ def remove_platform_files_from_archive(platform, jar):
 def create_bundle(options):
     build_jdk = download_build_jdk()
     extracted_build_jdk = extract_build_jdk(build_jdk)
-    java_cmd_env = 'JAVA_CMD=%s/bin/java' % extracted_build_jdk
 
     mkdirs('target/editor')
     for platform in options.target_platform:
         print("Creating uberjar for platform %s" % platform)
-        run.command(['env', java_cmd_env, 'bash', './scripts/lein', 'with-profile', 'release,%s' % platform, 'uberjar'])
+        invoke_lein(['with-profile', 'release,%s' % platform, 'uberjar'], jdk_path=extracted_build_jdk)
         jar_file = 'target/editor-%s-standalone.jar' % platform
         print("Creating bundle for platform %s" % platform)
         rmtree('tmp')
@@ -618,6 +626,7 @@ Commands:
   build                 Build editor
   bundle                Create editor bundle (zip) from built files
   sign                  Sign editor bundle (zip)
+  docs                  Produce docs (editor.apidoc)
   installer             Create editor installer from bundle (zip)'''
 
     parser = optparse.OptionParser(usage)
@@ -691,6 +700,11 @@ Commands:
                       default = "target/editor",
                       help = 'Path to directory containing editor bundles')
 
+    parser.add_option('--docs-dir',
+                      default = 'target/docs',
+                      dest = 'docs_dir',
+                      help = 'Path to directory for docs output')
+
     options, commands = parser.parse_args()
 
     if (("bundle" in commands) or ("installer" in commands) or ("sign" in commands)) and not options.target_platform:
@@ -722,6 +736,8 @@ Commands:
     print('Resolved engine_artifacts=%s to sha1=%s' % (options.engine_artifacts, options.engine_sha1))
 
     for command in commands:
+        if command == "docs":
+            write_docs(options.docs_dir)
         if command == "build":
             build(options)
         elif command == "sign":

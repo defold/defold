@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -125,7 +125,7 @@
   ([workspace name]
    (touch-file workspace name true))
   ([workspace ^String name sync?]
-   (let [f (File. (workspace/project-path workspace) name)]
+   (let [f (File. (workspace/project-directory workspace) name)]
      (fs/create-parent-directories! f)
      (touch-until-new-mtime f))
    (when sync?
@@ -137,41 +137,41 @@
   (sync! workspace))
 
 (defn- write-file [workspace ^String name content]
-  (let [f (File. (workspace/project-path workspace) name)]
+  (let [f (File. (workspace/project-directory workspace) name)]
     (fs/create-parent-directories! f)
     (spit-until-new-mtime f content))
   (sync! workspace))
 
 (defn- read-file [workspace name]
-  (slurp (str (workspace/project-path workspace) name)))
+  (slurp (str (workspace/project-directory workspace) name)))
 
 (defn- add-file [workspace name]
   (write-file workspace name (template workspace name)))
 
 (defn- delete-file [workspace ^String name]
-  (let [f (File. (workspace/project-path workspace) name)]
+  (let [f (File. (workspace/project-directory workspace) name)]
     (fs/delete-file! f))
   (sync! workspace))
 
 (defn- copy-file [workspace name new-name]
-  (let [[f new-f] (mapv #(File. (workspace/project-path workspace) ^String %) [name new-name])]
+  (let [[f new-f] (mapv #(File. (workspace/project-directory workspace) ^String %) [name new-name])]
     (fs/copy-file! f new-f))
   (sync! workspace))
 
 (defn- copy-directory [workspace name new-name]
-  (let [[f new-f] (mapv #(File. (workspace/project-path workspace) ^String %) [name new-name])]
+  (let [[f new-f] (mapv #(File. (workspace/project-directory workspace) ^String %) [name new-name])]
     (fs/copy-directory! f new-f))
   (sync! workspace))
 
 (defn- move-file [workspace name new-name]
-  (let [[f new-f] (mapv #(File. (workspace/project-path workspace) ^String %) [name new-name])]
+  (let [[f new-f] (mapv #(File. (workspace/project-directory workspace) ^String %) [name new-name])]
     (fs/move-file! f new-f)
     (sync! workspace [[f new-f]])))
 
 (defn- add-img [workspace ^String name width height]
   (let [img (BufferedImage. width height BufferedImage/TYPE_INT_ARGB)
-        type (FilenameUtils/getExtension name)
-        f (File. (workspace/project-path workspace) name)]
+        type (resource/filename->type-ext name)
+        f (File. (workspace/project-directory workspace) name)]
     (do-until-new-mtime (fn [^File f] (ImageIO/write img type f)) f)
     (sync! workspace)))
 

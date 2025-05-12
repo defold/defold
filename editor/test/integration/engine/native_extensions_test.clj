@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -22,6 +22,7 @@
             [editor.engine.native-extensions :as native-extensions]
             [editor.fs :as fs]
             [editor.resource :as resource]
+            [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [support.test-support :refer [with-clean-system]]
             [util.repo :as repo])
@@ -48,7 +49,7 @@
    (with-clean-system
      (let [workspace (test-util/setup-scratch-workspace! world "test/resources/extension_project")
            _ (test-util/setup-project! workspace)
-           root (g/node-value workspace :root)]
+           root (workspace/project-directory workspace)]
        ;; The plugins/${platform}.zip archive has a following structure:
        ;; /bin
        ;;   /${platform}
@@ -117,7 +118,7 @@
   (with-clean-system
     (let [workspace (test-util/setup-scratch-workspace! world "test/resources/trivial_extension")
           project (test-util/setup-project! workspace)
-          test-prefs (test-util/make-test-prefs)]
+          test-prefs (test-util/make-build-stage-test-prefs)]
       (assert (= (native-extensions/get-build-server-url test-prefs project) "https://build-stage.defold.com"))
       (testing "clean project builds on server"
         (let [{:keys [error artifacts artifact-map etags engine]} (blocking-async-build! project test-prefs)]

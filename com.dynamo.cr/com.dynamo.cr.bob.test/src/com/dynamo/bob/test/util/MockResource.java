@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,9 +16,11 @@ package com.dynamo.bob.test.util;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Arrays;
 
 import com.dynamo.bob.fs.AbstractResource;
+import com.dynamo.bob.util.MiscUtil;
 
 public class MockResource extends AbstractResource<MockFileSystem> {
 
@@ -45,8 +47,16 @@ public class MockResource extends AbstractResource<MockFileSystem> {
     }
 
     @Override
-    public void setContent(byte[] content) {
+    public void setContent(byte[] content) throws IOException {
         this.content = Arrays.copyOf(content, content.length);
+    }
+
+    @Override
+    public void appendContent(byte[] content) throws IOException {
+        ArrayList<byte[]> parts = new ArrayList<>();
+        parts.add(this.content);
+        parts.add(content);
+        this.content = MiscUtil.concatenateArrays(parts);
     }
 
     @Override

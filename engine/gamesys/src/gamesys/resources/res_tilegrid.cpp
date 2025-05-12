@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -157,7 +157,9 @@ namespace dmGameSystem
         TileGridResource* tile_grid = new TileGridResource();
         dmGameSystemDDF::TileGrid* tile_grid_ddf = (dmGameSystemDDF::TileGrid*) params->m_PreloadData;
 
-        dmResource::Result r = AcquireResources(((PhysicsContext*) params->m_Context)->m_Context2D, params->m_Factory, tile_grid_ddf, tile_grid, params->m_Filename, false);
+        PhysicsContextBox2D* physics_context = (PhysicsContextBox2D*) params->m_Context;
+
+        dmResource::Result r = AcquireResources(physics_context->m_Context, params->m_Factory, tile_grid_ddf, tile_grid, params->m_Filename, false);
         if (r == dmResource::RESULT_OK)
         {
             dmResource::SetResource(params->m_Resource, tile_grid);
@@ -191,7 +193,8 @@ namespace dmGameSystem
         TileGridResource* tile_grid = (TileGridResource*) dmResource::GetResource(params->m_Resource);
         TileGridResource tmp_tile_grid;
 
-        dmResource::Result r = AcquireResources(((PhysicsContext*) params->m_Context)->m_Context2D, params->m_Factory, tile_grid_ddf, &tmp_tile_grid, params->m_Filename, true);
+        PhysicsContextBox2D* physics_context = (PhysicsContextBox2D*) params->m_Context;
+        dmResource::Result r = AcquireResources(physics_context->m_Context, params->m_Factory, tile_grid_ddf, &tmp_tile_grid, params->m_Filename, true);
         if (r == dmResource::RESULT_OK)
         {
             uint32_t layer_count_old = tile_grid->m_GridShapes.Size();

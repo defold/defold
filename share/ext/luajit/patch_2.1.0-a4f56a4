@@ -1,0 +1,101 @@
+diff -ruw --exclude=.git repo_a/src/Makefile repo_b/src/Makefile
+--- repo_a/src/Makefile	2025-01-14 08:16:22
++++ repo_b/src/Makefile	2025-01-14 08:16:25
+@@ -70,10 +70,10 @@
+ # as dynamic mode.
+ #
+ # Mixed mode creates a static + dynamic library and a statically linked luajit.
+-BUILDMODE= mixed
++#BUILDMODE= mixed
+ #
+ # Static mode creates a static library and a statically linked luajit.
+-#BUILDMODE= static
++BUILDMODE= static
+ #
+ # Dynamic mode creates a dynamic library and a dynamically linked luajit.
+ # Note: this executable will only run when the library is installed!
+@@ -322,7 +322,11 @@
+     $(error missing: export MACOSX_DEPLOYMENT_TARGET=XX.YY)
+   endif
+   TARGET_STRIP+= -x
++  ifeq (arm64,$(TARGET_LJARCH))
++    TARGET_XCFLAGS+= -DLUAJIT_UNWIND_INTERNAL
++  else
+     TARGET_XCFLAGS+= -DLUAJIT_UNWIND_EXTERNAL
++  endif
+   TARGET_XSHLDFLAGS= -dynamiclib -undefined dynamic_lookup -fPIC
+   TARGET_DYNXLDOPTS=
+   TARGET_XSHLDFLAGS+= -install_name $(TARGET_DYLIBPATH) -compatibility_version $(MAJVER).$(MINVER) -current_version $(MAJVER).$(MINVER).255
+diff -ruw --exclude=.git repo_a/src/lj_alloc.c repo_b/src/lj_alloc.c
+--- repo_a/src/lj_alloc.c	2025-01-14 08:16:22
++++ repo_b/src/lj_alloc.c	2025-01-14 08:16:25
+@@ -36,7 +36,7 @@
+ #ifndef LUAJIT_USE_SYSMALLOC
+ 
+ #define MAX_SIZE_T		(~(size_t)0)
+-#define MALLOC_ALIGNMENT	((size_t)8U)
++#define MALLOC_ALIGNMENT	((size_t)16U)
+ 
+ #define DEFAULT_GRANULARITY	((size_t)128U * (size_t)1024U)
+ #define DEFAULT_TRIM_THRESHOLD	((size_t)2U * (size_t)1024U * (size_t)1024U)
+diff -ruw --exclude=.git repo_a/src/lj_jit.h repo_b/src/lj_jit.h
+--- repo_a/src/lj_jit.h	2025-01-14 08:16:22
++++ repo_b/src/lj_jit.h	2025-01-14 08:16:25
+@@ -452,11 +452,11 @@
+   int32_t retdepth;	/* Return frame depth (count of RETF). */
+ 
+ #if LJ_K32__USED
+-  uint32_t k32[LJ_K32__MAX];  /* Common 4 byte constants used by backends. */
++  uint32_t k32[LJ_K32__MAX+1];  /* Common 4 byte constants used by backends. */
+ #endif
+   TValue ksimd[LJ_KSIMD__MAX*2+1];  /* 16 byte aligned SIMD constants. */
+ #if LJ_K64__USED
+-  TValue k64[LJ_K64__MAX];  /* Common 8 byte constants. */
++  TValue k64[LJ_K64__MAX+1];  /* Common 8 byte constants. */
+ #endif
+ 
+   IRIns *irbuf;		/* Temp. IR instruction buffer. Biased with REF_BIAS. */
+diff -ruw --exclude=.git repo_a/src/lj_obj.h repo_b/src/lj_obj.h
+--- repo_a/src/lj_obj.h	2025-01-14 08:16:22
++++ repo_b/src/lj_obj.h	2025-01-14 08:16:25
+@@ -320,15 +320,22 @@
+ /* -- Userdata object ----------------------------------------------------- */
+ 
+ /* Userdata object. Payload follows. */
+-typedef struct GCudata {
++typedef struct LJ_ALIGN(16) GCudata {
+   GCHeader;
+   uint8_t udtype;	/* Userdata type. */
+   uint8_t unused2;
+   GCRef env;		/* Should be at same offset in GCfunc. */
+   MSize len;		/* Size of payload. */
+   GCRef metatable;	/* Must be at same offset in GCtab. */
+-  uint32_t align1;	/* To force 8 byte alignment of the payload. */
++
++  uint32_t align0;      /* To force 8 byte alignment of the payload. */
++  #ifndef LJ_GC64
++      uint64_t align1;/* To force 16 byte alignment of the payload. */
++  #endif
++
+ } GCudata;
++
++LJ_STATIC_ASSERT((sizeof(GCudata) % 16) == 0);
+ 
+ /* Userdata types. */
+ enum {
+diff -ruw --exclude=.git repo_a/src/msvcbuild.bat repo_b/src/msvcbuild.bat
+--- repo_a/src/msvcbuild.bat	2025-01-14 08:16:22
++++ repo_b/src/msvcbuild.bat	2025-01-14 08:16:25
+@@ -15,10 +15,10 @@
+ @setlocal
+ @rem Add more debug flags here, e.g. DEBUGCFLAGS=/DLUA_USE_ASSERT
+ @set DEBUGCFLAGS=
+-@set LJCOMPILE=cl /nologo /c /O2 /W3 /D_CRT_SECURE_NO_DEPRECATE /D_CRT_STDIO_INLINE=__declspec(dllexport)__inline
++@set LJCOMPILE=cl /nologo /c /O2 /W3 /Fdlua51.pdb /D_CRT_SECURE_NO_DEPRECATE /D_CRT_STDIO_INLINE=__declspec(dllexport)__inline
+ @set LJDYNBUILD=/DLUA_BUILD_AS_DLL /MD
+ @set LJDYNBUILD_DEBUG=/DLUA_BUILD_AS_DLL /MDd 
+-@set LJCOMPILETARGET=/Zi
++@set LJCOMPILETARGET=
+ @set LJLINKTYPE=/DEBUG /RELEASE
+ @set LJLINKTYPE_DEBUG=/DEBUG
+ @set LJLINKTARGET=/OPT:REF /OPT:ICF /INCREMENTAL:NO

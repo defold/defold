@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -30,7 +30,9 @@
     #include "alloca_vendor.h"
 #elif defined(_WIN32)
     #include <malloc.h>
-    #define alloca(_SIZE) _alloca(_SIZE)
+    #if !defined(alloca)
+        #define alloca(_SIZE) _alloca(_SIZE) // done in malloc.h if _CRT_INTERNAL_NONSTDC_NAMES is non-zero
+    #endif
 #else
     #include <alloca.h>
 #endif

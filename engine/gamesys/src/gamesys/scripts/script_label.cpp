@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -264,7 +264,7 @@ static const char* LABEL_EXT = "labelc";
  *
  * @name label.set_text
  * @param url [type:string|hash|url] the label that should have a constant set
- * @param text [type:string] the text
+ * @param text [type:string|number] the text
  * @examples
  *
  * ```lua
@@ -277,7 +277,7 @@ static int SetText(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
 
-    dmGameObject::HInstance instance = CheckGoInstance(L);
+    (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
 
     size_t text_len = 0;
     const char* text = luaL_checklstring(L, 2, &text_len);
@@ -302,7 +302,7 @@ static int SetText(lua_State* L)
     dmScript::GetURL(L, &sender);
     dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-    if (dmMessage::RESULT_OK != dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetText::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SetText::m_DDFDescriptor, data, data_size, 0) )
+    if (dmMessage::RESULT_OK != dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetText::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::SetText::m_DDFDescriptor, data, data_size, 0) )
     {
         return DM_LUA_ERROR("Failed to send label string as message!");
     }

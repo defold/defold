@@ -1,19 +1,20 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns internal.java
-  (:import [java.lang.reflect Constructor Method Modifier]))
+  (:import [clojure.lang DynamicClassLoader]
+           [java.lang.reflect Constructor Method Modifier]))
 
 (set! *warn-on-reflection* true)
 
@@ -70,3 +71,12 @@
          (not (Modifier/isAbstract modifiers))
          (not= superclass subclass)
          (isa? subclass superclass))))
+
+;; Class loader used when loading editor extensions from libraries.
+;; It's important to use the same class loader, so the type signatures match.
+
+(def ^DynamicClassLoader class-loader
+  (DynamicClassLoader. (.getContextClassLoader (Thread/currentThread))))
+
+(defn load-class! [class-name]
+  (Class/forName class-name true class-loader))

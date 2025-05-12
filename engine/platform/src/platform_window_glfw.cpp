@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -26,10 +26,11 @@
 
 #include "platform_window.h"
 #include "platform_window_constants.h"
+#include "platform_window_opengl.h"
 
 namespace dmPlatform
 {
-    struct Window
+    struct dmWindow
     {
         WindowResizeCallback          m_ResizeCallback;
         void*                         m_ResizeCallbackUserData;
@@ -53,11 +54,12 @@ namespace dmPlatform
         uint32_t                      m_Samples               : 8;
         uint32_t                      m_WindowOpened          : 1;
         uint32_t                      m_SwapIntervalSupported : 1;
+        uint32_t                      m_SwapBufferSupported   : 1;
         uint32_t                      m_HighDPI               : 1;
     };
 
     // Needed by glfw2.7
-    static Window* g_Window = 0;
+    static dmWindow* g_Window = 0;
 
     static void OnWindowResize(int width, int height)
     {
@@ -136,8 +138,8 @@ namespace dmPlatform
     {
         if (g_Window == 0)
         {
-            Window* wnd = new Window;
-            memset(wnd, 0, sizeof(Window));
+            dmWindow* wnd = new dmWindow;
+            memset(wnd, 0, sizeof(dmWindow));
 
             if (glfwInit() == GL_FALSE)
             {
@@ -153,7 +155,7 @@ namespace dmPlatform
         return 0;
     }
 
-    static PlatformResult OpenWindowOpenGL(Window* wnd, const WindowParams& params)
+    static PlatformResult OpenWindowOpenGL(dmWindow* wnd, const WindowParams& params)
     {
         if (params.m_HighDPI)
         {
@@ -166,28 +168,36 @@ namespace dmPlatform
 #if defined(ANDROID)
         // Seems to work fine anyway without any hints
         // which is good, since we want to fallback from OpenGLES 3 to 2
-#elif defined(__linux__)
+#elif defined(DM_PLATFORM_IOS)
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 3);
-#elif defined(_WIN32)
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 3);
-#elif defined(__MACH__)
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
-    #if defined(DM_PLATFORM_IOS)
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 0); // 3.0 on iOS
-    #else
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 2); // 3.2 on macOS (actually picks 4.1 anyways)
-    #endif
 #endif
 
         bool is_desktop = false;
-#if defined(DM_PLATFORM_WINDOWS) || (defined(DM_PLATFORM_LINUX) && !defined(ANDROID)) || defined(DM_PLATFORM_MACOS)
+#if defined(DM_PLATFORM_LINUX) && !defined(ANDROID)
         is_desktop = true;
 #endif
-        if (is_desktop) {
-            glfwOpenWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-            glfwOpenWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+        if (is_desktop)
+        {
+            uint32_t major = 3, minor = 3;
+            if (!OpenGLGetVersion(params.m_OpenGLVersionHint, &major, &minor))
+            {
+                dmLogWarning("OpenGL version hint %d is not supported. Using default version (%d.%d)",
+                    params.m_OpenGLVersionHint, major, minor);
+            }
+
+            // Use specific OpenGL version.
+            if (major != 0 && minor != 0)
+            {
+                glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, major);
+                glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, minor);
+            }
+
+            if (params.m_OpenGLUseCoreProfileHint)
+            {
+                glfwOpenWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+                glfwOpenWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+            }
         }
 
         int mode = GLFW_WINDOW;
@@ -195,7 +205,7 @@ namespace dmPlatform
         {
             mode = GLFW_FULLSCREEN;
         }
-        if (!glfwOpenWindow(params.m_Width, params.m_Height, 8, 8, 8, 8, 32, 8, mode))
+        if (!glfwOpenWindow(params.m_Width, params.m_Height, 8, 8, 8, params.m_ContextAlphabits, 32, 8, mode))
         {
             if (is_desktop)
             {
@@ -216,7 +226,7 @@ namespace dmPlatform
 
                 glfwOpenWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 
-                if (!glfwOpenWindow(params.m_Width, params.m_Height, 8, 8, 8, 8, 32, 8, mode))
+                if (!glfwOpenWindow(params.m_Width, params.m_Height, 8, 8, 8, params.m_ContextAlphabits, 32, 8, mode))
                 {
                     return PLATFORM_RESULT_WINDOW_OPEN_ERROR;
                 }
@@ -228,11 +238,12 @@ namespace dmPlatform
         }
 
         wnd->m_SwapIntervalSupported = 1;
+        wnd->m_SwapBufferSupported = 1;
 
         return PLATFORM_RESULT_OK;
     }
 
-    static PlatformResult OpenWindowVulkan(Window* wnd, const WindowParams& params)
+    static PlatformResult OpenWindowNoAPI(dmWindow* wnd, const WindowParams& params)
     {
         glfwOpenWindowHint(GLFW_CLIENT_API,   GLFW_NO_API);
         glfwOpenWindowHint(GLFW_FSAA_SAMPLES, params.m_Samples);
@@ -243,6 +254,12 @@ namespace dmPlatform
         {
             return PLATFORM_RESULT_WINDOW_OPEN_ERROR;
         }
+
+    #if defined(ANDROID) || defined(DM_PLATFORM_IOS)
+        wnd->m_SwapBufferSupported = 1;
+    #endif
+        if(params.m_GraphicsApi == PLATFORM_GRAPHICS_API_WEBGPU)
+            wnd->m_SwapBufferSupported = 1;
 
         return PLATFORM_RESULT_OK;
     }
@@ -259,10 +276,12 @@ namespace dmPlatform
         switch(params.m_GraphicsApi)
         {
             case PLATFORM_GRAPHICS_API_OPENGL:
+            case PLATFORM_GRAPHICS_API_OPENGLES:
                 res = OpenWindowOpenGL(window, params);
                 break;
+            case PLATFORM_GRAPHICS_API_WEBGPU:
             case PLATFORM_GRAPHICS_API_VULKAN:
-                res = OpenWindowVulkan(window, params);
+                res = OpenWindowNoAPI(window, params);
                 break;
             default: assert(0);
         }
@@ -327,6 +346,11 @@ namespace dmPlatform
         glfwTerminate();
     }
 
+    void SetWindowTitle(HWindow window, const char* title)
+    {
+        glfwSetWindowTitle(title);
+    }
+
     void SetWindowSize(HWindow window, uint32_t width, uint32_t height)
     {
         glfwSetWindowSize((int)width, (int)height);
@@ -340,6 +364,11 @@ namespace dmPlatform
         {
             window->m_ResizeCallback(window->m_ResizeCallbackUserData, window_width, window_height);
         }
+    }
+
+    void SetWindowPosition(HWindow window, int32_t x, int32_t y)
+    {
+        glfwSetWindowPos(x, y);
     }
 
     uint32_t GetWindowWidth(HWindow window)
@@ -607,7 +636,10 @@ namespace dmPlatform
 
     void SwapBuffers(HWindow window)
     {
-        glfwSwapBuffers();
+        if (window->m_SwapBufferSupported)
+        {
+            glfwSwapBuffers();
+        }
     }
 
     void SetKeyboardCharCallback(HWindow window, WindowAddKeyboardCharCallback cb, void* user_data)

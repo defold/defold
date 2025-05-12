@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -28,9 +28,26 @@ namespace dmSound
 
     bool PlatformIsAudioInterrupted();
 
+    uint32_t GetDefaultFrameCount(uint32_t mix_rate);
+
     // Unit tests
     int64_t GetInternalPos(HSoundInstance);
     int32_t GetRefCount(HSoundData);
+
+    #define SOUND_MAX_DECODE_CHANNELS (2)
+    #define SOUND_MAX_MIX_CHANNELS (2)
+    #define SOUND_OUTBUFFER_COUNT (3)
+    #define SOUND_OUTBUFFER_COUNT_NO_THREADS (4)
+    #define SOUND_OUTBUFFER_MAX_COUNT (6)
+    #define SOUND_MAX_SPEED (5)
+    #define SOUND_MAX_HISTORY (4)
+    #define SOUND_MAX_FUTURE (4)
+    #define SOUND_INSTANCE_STATEFRAMECOUNT (SOUND_MAX_HISTORY + SOUND_MAX_SPEED + SOUND_MAX_FUTURE)         // "max speed" is used as "extra sample count" as we can at most leave these many samples in the buffers due to fractional positions etc.
+
+    const uint32_t RESAMPLE_FRACTION_BITS = 11; // matches number of polyphase filter bank entries (2048)
+
+    const dmhash_t MASTER_GROUP_HASH = dmHashString64("master");
+    const uint32_t GROUP_MEMORY_BUFFER_COUNT = 64;
 }
 
 #endif // #ifndef DM_SOUND_PRIVATE_H

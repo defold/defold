@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -52,15 +52,14 @@ namespace dmGameSystem
     static int Camera_AcquireFocus(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        dmGameObject::HInstance instance = CheckGoInstance(L);
+        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
 
         dmMessage::URL receiver;
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
         dmGamesysDDF::AcquireCameraFocus msg;
-        dmMessage::Post(&sender, &receiver, dmGamesysDDF::AcquireCameraFocus::m_DDFDescriptor->m_NameHash, (uintptr_t)instance,
-            0, (uintptr_t)dmGamesysDDF::AcquireCameraFocus::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        dmMessage::Post(&sender, &receiver, dmGamesysDDF::AcquireCameraFocus::m_DDFDescriptor->m_NameHash, 0, 0, (uintptr_t)dmGamesysDDF::AcquireCameraFocus::m_DDFDescriptor, &msg, sizeof(msg), 0);
         return 0;
     }
 
@@ -76,15 +75,14 @@ namespace dmGameSystem
     static int Camera_ReleaseFocus(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        dmGameObject::HInstance instance = CheckGoInstance(L);
+        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
 
         dmMessage::URL receiver;
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
         dmGamesysDDF::ReleaseCameraFocus msg;
-        dmMessage::Post(&sender, &receiver, dmGamesysDDF::ReleaseCameraFocus::m_DDFDescriptor->m_NameHash, (uintptr_t)instance,
-            0, (uintptr_t)dmGamesysDDF::ReleaseCameraFocus::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        dmMessage::Post(&sender, &receiver, dmGamesysDDF::ReleaseCameraFocus::m_DDFDescriptor->m_NameHash, 0, 0, (uintptr_t)dmGamesysDDF::ReleaseCameraFocus::m_DDFDescriptor, &msg, sizeof(msg), 0);
         return 0;
     }
 

@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -30,86 +30,71 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- replace-build-resources-with-fused-build-resource-paths
-  [pb-map dep-resources build-resource-field-value-paths]
-  (reduce (fn [pb-map [field-path build-resource]]
-            (let [fused-build-resource
-                  (when build-resource
-                    (or (get dep-resources build-resource)
-                        (throw (ex-info "dep-resources is missing a referenced build-resource."
-                                        {:build-resource build-resource
-                                         :dep-resources dep-resources}))))]
-              (coll/assoc-in-ex pb-map field-path (resource/resource->proj-path fused-build-resource))))
-          pb-map
-          build-resource-field-value-paths))
-
-(defn- make-build-resource-field-value-paths
-  [^Class pb-class pb-map dep-build-targets]
-  (let [resource-field-path-specs (protobuf/resource-field-path-specs pb-class)
-        pb-map->resource-field-value-paths (protobuf/get-field-value-paths-fn resource-field-path-specs)
-        resource-field-value-paths (pb-map->resource-field-value-paths pb-map)
-
-        resource-field-value->build-resource
-        (into {nil nil
-               "" nil}
-              (mapcat (fn [build-target]
-                        (let [build-resource (:resource build-target)
-                              source-resource (:resource build-resource)]
-                          (when-not (and (workspace/build-resource? build-resource)
-                                         (workspace/source-resource? source-resource))
-                            (throw (ex-info "dep-build-targets contains an invalid build target."
-                                            {:build-target build-target
-                                             :build-resource build-resource
-                                             :source-resource source-resource})))
-                          [(pair build-resource build-resource)
-                           (pair (resource/proj-path build-resource) build-resource)
-                           (pair source-resource build-resource)
-                           (pair (resource/proj-path source-resource) build-resource)])))
-              dep-build-targets)]
-
-    (mapv (fn [[field-path field-value]]
-            (when-not (or (nil? field-value)
-                          (string? field-value)
-                          (resource/resource? field-value))
-              (throw (ex-info "value for resource field in pb-map is not a Resource or proj-path."
-                              {:field-value field-value
-                               :field-path field-path
-                               :resource-field-path-specs resource-field-path-specs})))
-            (if-let [build-resource (resource-field-value->build-resource field-value)]
-              (pair field-path build-resource)
-              (throw (ex-info "deps-by-source is missing a referenced source-resource. Ensure it is among the dep-build-targets."
-                              {:field-value field-value
-                               :field-path field-path
-                               :deps-by-source resource-field-value->build-resource
-                               :source-resource field-value}))))
-          resource-field-value-paths)))
+(defn- replace-resources-with-fused-build-resource-paths [pb-map pb-class dep-resources]
+  (let [field-value->fused-path
+        (persistent!
+          (reduce-kv
+            (fn [acc build-resource fused-build-resource]
+              (let [source-resource (:resource build-resource)
+                    fused-path (resource/proj-path fused-build-resource)]
+                (when-not (and (workspace/build-resource? build-resource)
+                               (workspace/source-resource? source-resource))
+                  (throw (ex-info "dep-resources contains an invalid build resource."
+                                  {:build-resource build-resource
+                                   :source-resource source-resource})))
+                (-> acc
+                    (assoc! build-resource fused-path)
+                    (assoc! (resource/proj-path build-resource) fused-path)
+                    (assoc! source-resource fused-path)
+                    (assoc! (resource/proj-path source-resource) fused-path))))
+            (transient {"" nil
+                        nil nil})
+            dep-resources))]
+    (reduce
+      (fn [pb-map [field-path field-value]]
+        (when-not (or (nil? field-value)
+                      (string? field-value)
+                      (resource/resource? field-value))
+          (throw (ex-info "value for resource field in pb-map is not a Resource or proj-path."
+                          {:field-value field-value :field-path field-path})))
+        (let [fused-path (field-value->fused-path field-value ::not-found)]
+          (if (identical? ::not-found fused-path)
+            (throw (ex-info "dep-resources is missing a referenced source-resource. Ensure it is among the dep-build-targets."
+                            {:field-value field-value
+                             :field-path field-path
+                             :deps-by-source field-value->fused-path}))
+            (coll/assoc-in-ex pb-map field-path fused-path))))
+      pb-map
+      (protobuf/get-field-value-paths pb-map pb-class))))
 
 (defn- build-protobuf
   [resource dep-resources user-data]
-  (let [{:keys [pb-class pb-map build-resource-field-value-paths]} user-data
-        pb-map (replace-build-resources-with-fused-build-resource-paths pb-map dep-resources build-resource-field-value-paths)]
+  (let [{:keys [pb-class pb-map]} user-data
+        pb-map (replace-resources-with-fused-build-resource-paths pb-map pb-class dep-resources)]
     {:resource resource
      :content (protobuf/map->bytes pb-class pb-map)}))
 
 (defn make-protobuf-build-target
   ([node-id source-resource pb-class pb-map]
-   (make-protobuf-build-target node-id source-resource pb-class pb-map nil))
+   (make-protobuf-build-target node-id source-resource pb-class pb-map nil nil))
   ([node-id source-resource pb-class pb-map dep-build-targets]
+   (make-protobuf-build-target node-id source-resource pb-class pb-map dep-build-targets nil))
+  ([node-id source-resource pb-class pb-map dep-build-targets dynamic-deps]
    {:pre [(g/node-id? node-id)
           (protobuf/pb-class? pb-class)
           (map? pb-map)]}
-   (let [dep-build-targets (some-> dep-build-targets coll/not-empty flatten vec)
-         build-resource-field-value-paths (make-build-resource-field-value-paths pb-class pb-map dep-build-targets)]
-     (bt/with-content-hash
-       (cond-> {:node-id node-id
-                :resource (workspace/make-build-resource source-resource)
-                :build-fn build-protobuf
-                :user-data {:pb-class pb-class
-                            :pb-map pb-map
-                            :build-resource-field-value-paths build-resource-field-value-paths}}
+   (bt/with-content-hash
+     (cond-> {:node-id node-id
+              :resource (workspace/make-build-resource source-resource)
+              :build-fn build-protobuf
+              :user-data {:pb-class pb-class
+                          :pb-map pb-map}}
 
-               dep-build-targets
-               (assoc :deps dep-build-targets))))))
+             (coll/not-empty dep-build-targets)
+             (assoc :deps dep-build-targets)
+
+             (coll/not-empty dynamic-deps)
+             (assoc :dynamic-deps dynamic-deps)))))
 
 ;;--------------------------------------------------------------------
 
@@ -151,21 +136,25 @@
       (and (.exists f) (= mtime (.lastModified f)) (= size (.length f))))))
 
 (defn- to-disk! [artifact content-hash]
-  (assert (some? (:content artifact)))
+  (assert (or (some? (:write-content-fn artifact)) (some? (:content artifact))))
   (fs/create-parent-directories! (io/as-file (:resource artifact)))
-  (let [^bytes content (:content artifact)]
-    (with-open [out (io/output-stream (:resource artifact))]
-      (.write out content))
+  (let [^bytes content (:content artifact)
+        write-content-fn (:write-content-fn artifact)
+        sha1-hash (if write-content-fn
+                    ;; The write-content-fn returns the hash of the content
+                    (write-content-fn (:resource artifact) (:user-data artifact))
+                    ;; otherwise, we write and hash the content
+                    (with-open [out (io/output-stream (:resource artifact))]
+                      (.write out content)
+                      (digest/sha1-hex content)))]
     (let [^File target-f (io/as-file (:resource artifact))
           mtime (.lastModified target-f)
           size (.length target-f)]
-      (-> artifact
-          (dissoc :content)
-          (assoc
-            :content-hash content-hash
-            :mtime mtime
-            :size size
-            :etag (digest/sha1-hex content))))))
+      {:resource (:resource artifact)
+       :content-hash content-hash
+       :mtime mtime
+       :size size
+       :etag sha1-hash})))
 
 (defn- prune-build-dir! [build-dir build-targets-by-content-hash]
   (let [targets (into #{}

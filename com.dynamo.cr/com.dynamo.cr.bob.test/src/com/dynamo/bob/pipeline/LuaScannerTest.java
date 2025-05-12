@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -133,13 +133,13 @@ public class LuaScannerTest {
         assertTrue(property != null && property.status == status && property.line == line);
     }
 
-    private List<Property> getPropertiesFromString(String s) throws IOException {
+    private List<Property> getPropertiesFromString(String s) throws IOException, LuaScanner.LuaScannerException {
         LuaScanner scanner = new LuaScanner();
         scanner.parse(s);
         return scanner.getProperties();
     }
 
-    private List<Property> getPropertiesFromFile(String path) throws IOException {
+    private List<Property> getPropertiesFromFile(String path) throws IOException, LuaScanner.LuaScannerException {
         return getPropertiesFromString(getFile(path));
     }
 
@@ -209,13 +209,25 @@ public class LuaScannerTest {
 
     @Test
     public void testPropsUrl() throws Exception {
-        List<Property> properties = getPropertiesFromFile("test_props_url.lua");
+        LuaScanner scanner = new LuaScanner();
+        scanner.parse(getFile("test_props_url.lua"));
+        List<Property> properties = scanner.getProperties();
+        List<LuaScanner.LuaScannerException> exceptions = scanner.exceptions;
 
-        assertEquals(4, properties.size());
+        assertEquals(11, properties.size());
         assertProperty(properties, "prop1", "url", 0);
         assertProperty(properties, "prop2", "", 1);
         assertProperty(properties, "prop3", "", 2);
         assertProperty(properties, "prop4", "url", 3);
+        assertProperty(properties, "prop5", "", 4);
+        assertProperty(properties, "prop6", "socket:/path/to/object#fragment", 5);
+        assertProperty(properties, "prop7", "socket-hash:/path/to/object-hash#fragment-hash", 6);
+        assertProperty(properties, "prop8", ":#", 7);
+        // prop9, prop10, prop11 throw exception and line number starts from 1
+        assertEquals(3, exceptions.size());
+        assertEquals(9, exceptions.get(0).getLineNumber());
+        assertEquals(10, exceptions.get(1).getLineNumber());
+        assertEquals(11, exceptions.get(2).getLineNumber());
     }
 
     @Test
@@ -505,6 +517,46 @@ public class LuaScannerTest {
         scanner = new LuaScanner();
         scanner.parse(luaCode);
         expected = "  ";
+        assertEquals(expected, scanner.getParsedLua());
+    }
+
+    @Test
+    public void testGoPropertyHash() throws Exception {
+        String luaCode = "go.property(\"hash1\", hash(\"value\"))";
+        LuaScanner scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        String expected = " ";
+        assertEquals(expected, scanner.getParsedLua());
+
+        scanner = new LuaScanner();
+        scanner.setDebug();
+        scanner.parse(luaCode);
+        expected = " hash(\"value\")";
+        assertEquals(expected, scanner.getParsedLua());
+
+        luaCode = "go.property(\"hash2\", hash \"value\")";
+        scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        expected = "  ";
+        assertEquals(expected, scanner.getParsedLua());
+
+        luaCode = "go.property(\"hash3\", hash \"value\")";
+        scanner = new LuaScanner();
+        scanner.setDebug();
+        scanner.parse(luaCode);
+        expected = " hash \"value\"";
+        assertEquals(expected, scanner.getParsedLua());
+
+        luaCode = "go.property(\"data_texture\", resource.texture(\"/builtins/assets/images/logo/logo_256.png\"))";
+        scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        expected = " ";
+        assertEquals(expected, scanner.getParsedLua());
+
+        scanner = new LuaScanner();
+        scanner.setDebug();
+        scanner.parse(luaCode);
+        expected = " ";
         assertEquals(expected, scanner.getParsedLua());
     }
 }

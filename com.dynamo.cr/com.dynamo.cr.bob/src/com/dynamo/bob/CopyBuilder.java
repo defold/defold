@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -24,13 +24,12 @@ import com.dynamo.bob.fs.IResource;
  * @author Christian Murray
  *
  */
-public abstract class CopyBuilder extends Builder<Void> {
+public abstract class CopyBuilder extends Builder {
 
     @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-        Task<Void> task = Task.<Void>newBuilder(this)
+    public Task create(IResource input) throws IOException, CompileExceptionError {
+        Task task = Task.newBuilder(this)
                 .setName(params.name())
-                .disableCache()
                 .addInput(input)
                 .addOutput(input.changeExt(params.outExt()))
                 .build();
@@ -38,7 +37,7 @@ public abstract class CopyBuilder extends Builder<Void> {
     }
 
     @Override
-    public void build(Task<Void> task) throws IOException {
+    public void build(Task task) throws IOException {
         IResource in = task.input(0);
         IResource out = task.output(0);
         out.setContent(in.getContent());

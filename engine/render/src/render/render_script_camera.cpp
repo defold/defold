@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -109,11 +109,25 @@ namespace dmRender
         return 1;
     }
 
+    /*# get enabled
+    *
+    * @name camera.get_enabled
+    * @param camera [type:url|handle|nil] camera id
+    * @return flag [type:bool] true if the camera is enabled
+    */
+    static int RenderScriptCamera_GetEnabled(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        RenderCamera* camera = CheckRenderCamera(L, 1, g_RenderScriptCameraModule.m_RenderContext);
+        lua_pushboolean(L, camera->m_Enabled);
+        return 1;
+    }
+
     /*# get projection matrix
     *
     * @name camera.get_projection
     * @param camera [type:url|handle|nil] camera id
-    * @return projection [type:vmath.matrix4] the projection matrix.
+    * @return projection [type:matrix4] the projection matrix.
     */
     static int RenderScriptCamera_GetProjection(lua_State* L)
     {
@@ -127,7 +141,7 @@ namespace dmRender
     *
     * @name camera.get_view
     * @param camera [type:url|handle|nil] camera id
-    * @return view [type:vmath.matrix4] the view matrix.
+    * @return view [type:matrix4] the view matrix.
     */
     static int RenderScriptCamera_GetView(lua_State* L)
     {
@@ -192,7 +206,7 @@ namespace dmRender
     *
     * @name camera.get_orthographic_zoom
     * @param camera [type:url|handle|nil] camera id
-    * @return orthographic_zoom [type:boolean] true if the camera is using an orthographic projection.
+    * @return orthographic_zoom [type:number] the zoom level when the camera uses orthographic projection.
     */
     GET_CAMERA_DATA_PROPERTY_FN(OrthographicZoom, lua_pushnumber);
 
@@ -232,9 +246,9 @@ namespace dmRender
     *
     * @name camera.set_orthographic_zoom
     * @param camera [type:url|handle|nil] camera id
-    * @param orthographic_zoom [type:boolean] true if the camera is using an orthographic projection.
+    * @param orthographic_zoom [type:number] the zoom level when the camera uses orthographic projection.
     */
-    SET_CAMERA_DATA_PROPERTY_FN(OrthographicZoom, lua_toboolean);
+    SET_CAMERA_DATA_PROPERTY_FN(OrthographicZoom, lua_tonumber);
 
 #undef GET_CAMERA_DATA_PROPERTY_FN
 #undef SET_CAMERA_DATA_PROPERTY_FN
@@ -246,6 +260,7 @@ namespace dmRender
         // READ-ONLY
         {"get_projection",          RenderScriptCamera_GetProjection},
         {"get_view",                RenderScriptCamera_GetView},
+        {"get_enabled",             RenderScriptCamera_GetEnabled},
 
         // READ-WRITE
         {"get_aspect_ratio",        RenderScriptCamera_GetAspectRatio},

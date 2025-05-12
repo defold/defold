@@ -1,12 +1,12 @@
--- Copyright 2020-2024 The Defold Foundation
+-- Copyright 2020-2025 The Defold Foundation
 -- Copyright 2014-2020 King
 -- Copyright 2009-2014 Ragnar Svensson, Christian Murray
 -- Licensed under the Defold License version 1.0 (the "License"); you may not use
 -- this file except in compliance with the License.
--- 
+--
 -- You may obtain a copy of the License, together with FAQs at
 -- https://www.defold.com/license
--- 
+--
 -- Unless required by applicable law or agreed to in writing, software distributed
 -- under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 -- CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -51,6 +51,14 @@ local tparams_compressed = {
     height           = 32,
     format           = graphics.TEXTURE_FORMAT_RGB_ETC1,
     compression_type = graphics.COMPRESSION_TYPE_BASIS_UASTC,
+}
+
+local tparams_3d = {
+    width          = 32,
+    height         = 32,
+    depth          = 32,
+    type           = graphics.TEXTURE_TYPE_3D,
+    format         = graphics.TEXTURE_FORMAT_RGBA,
 }
 
 function test_simple()
@@ -127,7 +135,7 @@ end
 
 function test_async_simple(self)
     self.requests = {}
-    
+
     -- Request with buffer + callback
     local tex_buffer = buffer.create(tparams.width * tparams.height, {{name = hash("data"), type = buffer.VALUE_TYPE_UINT8, count = 4 }})
     self.requests[1] = {}
@@ -137,7 +145,6 @@ function test_async_simple(self)
             assert(result.path == self.requests[1].path)
 
             local t_info = resource.get_texture_info(result.path)
-            pprint(t_info)
             assert(t_info.width == tparams.width)
             assert(t_info.height == tparams.height)
             async_test_completed(self)
@@ -155,7 +162,6 @@ function test_async_simple(self)
             assert(result.path == self.requests[2].path)
 
             local t_info = resource.get_texture_info(result.path)
-            pprint(t_info)
             assert(t_info.width == tparams.width)
             assert(t_info.height == tparams.height)
             async_test_completed(self)
@@ -174,7 +180,6 @@ function test_async_simple(self)
             assert(result.path == self.requests[3].path)
 
             local t_info = resource.get_texture_info(result.path)
-            pprint(t_info)
             assert(t_info.width == tparams.width)
             assert(t_info.height == tparams.height)
             async_test_completed(self)
@@ -186,6 +191,56 @@ function test_async_simple(self)
 
     tex_buffer_gc = nil
     collectgarbage("collect")
+end
+
+async_basis_test_done = false
+async_basis_tests_complete = 0
+
+function async_basis_test_completed(self)
+    async_basis_tests_complete = async_basis_tests_complete + 1
+    async_basis_test_done = async_basis_tests_complete == #self.requests_basis
+end
+
+function test_async_basis(self)
+    local host_path = sys.get_host_path("src/gamesys/test/resource/blank.basis")
+    local f     = io.open(host_path, "rb")
+    local c     = f:read("*all")
+    local fsize = f:seek("end")
+    f:close()
+
+    local tex_buffer = buffer.create(fsize, {{name = hash("data"), type = buffer.VALUE_TYPE_UINT8, count = 1 }})
+    local stream     = buffer.get_stream(tex_buffer, hash("data"))
+
+    for i=1, fsize do
+        stream[i] = c:byte(i)
+    end
+
+    local tparams = {
+        type             = graphics.TEXTURE_TYPE_2D,
+        width            = 32,
+        height           = 32,
+        format           = graphics.TEXTURE_FORMAT_RGB_ETC1,
+        compression_type = graphics.COMPRESSION_TYPE_BASIS_UASTC,
+    }
+
+    self.requests_basis = {}
+
+    -- Request with buffer + callback
+    self.requests_basis[1] = {}
+    self.requests_basis[1].path, self.requests_basis[1].id = resource.create_texture_async("/test_async_basis.texturec", tparams, tex_buffer,
+        function(self, request_id, result)
+            assert(request_id  == self.requests_basis[1].id)
+            assert(result.path == self.requests_basis[1].path)
+
+            local t_info = resource.get_texture_info(result.path)
+            assert(t_info.width == tparams.width)
+            assert(t_info.height == tparams.height)
+            async_basis_test_completed(self)
+        end)
+
+    local t_info = resource.get_texture_info(self.requests_basis[1].path)
+    assert(t_info.width  == 1)
+    assert(t_info.height == 1)
 end
 
 function test_get_texture_info()
@@ -216,6 +271,17 @@ function test_get_texture_info()
 
     resource.release(t_id_cube)
 
+    local t_id_3d   = resource.create_texture("/test_get_texture_info_3d.texturec", tparams_3d)
+    local t_info_3d = resource.get_texture_info(t_id_3d)
+
+    assert(t_info_3d.type    == graphics.TEXTURE_TYPE_3D)
+    assert(t_info_3d.width   == 32)
+    assert(t_info_3d.height  == 32)
+    assert(t_info_3d.depth   == 32)
+    assert(t_info_3d.mipmaps == 1)
+
+    resource.release(t_id_3d)
+
     -- test incorrect handles by basic types
     assert_error(function() resource.get_texture_info(nil) end)
     assert_error(function() resource.get_texture_info(false) end)
@@ -224,6 +290,33 @@ function test_get_texture_info()
 
     -- test incorrect handles by explicitly removed resource id
     assert_error(function() resource.get_texture_info(t_id) end)
+end
+
+function test_3d_textures()
+    local t_id_simple = resource.create_texture("/test_3d_textures.texturec", tparams_3d)
+    local t_info_simple = resource.get_texture_info(t_id_simple)
+
+    assert(t_info_simple.width   == 32)
+    assert(t_info_simple.height  == 32)
+    assert(t_info_simple.depth   == 32)
+    assert(t_info_simple.mipmaps == 1)
+    assert(t_info_simple.type    == graphics.TEXTURE_TYPE_3D)
+
+    local tex_buffer = buffer.create(tparams_3d.width * tparams_3d.height * tparams_3d.depth, {{name = hash("data"), type = buffer.VALUE_TYPE_UINT8, count = 4 }})
+    local t_id_buffer = resource.create_texture("/test_3d_textures_buffer.texturec", tparams_3d, tex_buffer)
+    local t_info_buffer = resource.get_texture_info(t_id_buffer)
+
+    assert(t_info_buffer.width   == 32)
+    assert(t_info_buffer.height  == 32)
+    assert(t_info_buffer.depth   == 32)
+    assert(t_info_buffer.mipmaps == 1)
+    assert(t_info_buffer.type    == graphics.TEXTURE_TYPE_3D)
+
+    -- test with wrong depth
+    t_info_buffer.depth = 0
+    assert_error(function()
+        resource.create_texture("/test_3d_textures_wrong_depth.texturec", t_info_buffer)
+    end)
 end
 
 function update(self)
@@ -240,6 +333,8 @@ function update(self)
         test_get_texture_info,
         test_invalid,
         test_async_simple,
+        test_async_basis,
+        test_3d_textures,
     }
 
     if tests[self.update_counter] ~= nil then

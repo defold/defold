@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -24,6 +24,11 @@
 #include <dlib/path.h>
 #include <dlib/log.h>
 #include <dlib/testutil.h>
+
+#define SUPPORT_RMTREE
+#if defined(__EMSCRIPTEN__)
+    #undef SUPPORT_RMTREE
+#endif
 
 template <> char* jc_test_print_value(char* buffer, size_t buffer_len, dmSys::Result r) {
     return buffer + dmSnPrintf(buffer, buffer_len, "%s", dmSys::ResultToString(r));
@@ -70,6 +75,8 @@ TEST(dmSys, IsDir)
     ASSERT_EQ(dmSys::RESULT_UNKNOWN, r); // TODO: This api isn't very nice /MAWE
 }
 
+#if defined(SUPPORT_RMTREE)
+
 TEST(dmSys, Mkdir)
 {
     char path[128];
@@ -101,6 +108,7 @@ TEST(dmSys, Mkdir)
     r = dmSys::Rmdir(dmTestUtil::MakeHostPath(path, sizeof(path), "testdir/dir"));
     ASSERT_EQ(dmSys::RESULT_OK, r);
 }
+#endif
 
 TEST(dmSys, Unlink)
 {
@@ -124,6 +132,7 @@ TEST(dmSys, Unlink)
 TEST(dmSys, GetApplicationSupportPathBuffer)
 {
     char path[4];
+    char discard[128];
     path[3] = '!';
     dmSys::Result result = dmSys::GetApplicationSupportPath("testing", path, 3);
     ASSERT_EQ(dmSys::RESULT_INVAL, result);
@@ -134,6 +143,7 @@ TEST(dmSys, GetApplicationSupportPathBuffer)
 TEST(dmSys, GetApplicationSavePathBuffer)
 {
     char path[4];
+    char discard[128];
     path[3] = '!';
     dmSys::Result result = dmSys::GetApplicationSavePath("testing", path, 3);
     ASSERT_EQ(dmSys::RESULT_INVAL, result);
@@ -253,6 +263,57 @@ TEST(dmSys, LoadResource)
     ASSERT_EQ(dmSys::RESULT_OK, r);
     ASSERT_EQ(size, size2);
     ASSERT_GT(size, 0);
+}
+
+TEST(dmSys, LoadResourcePartial)
+{
+    char path[128];
+    uint8_t buffer[1024 * 100];
+    dmSys::Result r;
+    uint32_t nread;
+
+    // Checking errors
+    r = dmSys::LoadResourcePartial(dmTestUtil::MakeHostPath(path, sizeof(path), "does_not_exists"), 0, sizeof(buffer), buffer, &nread);
+    ASSERT_EQ(dmSys::RESULT_NOENT, r);
+    r = dmSys::ResourceSize(dmTestUtil::MakeHostPath(path, sizeof(path), "does_not_exists"), &nread);
+    ASSERT_EQ(dmSys::RESULT_NOENT, r);
+
+    r = dmSys::LoadResourcePartial(dmTestUtil::MakeHostPath(path, sizeof(path), "."), 0, sizeof(buffer), buffer, &nread);
+    ASSERT_EQ(dmSys::RESULT_NOENT, r);
+    r = dmSys::ResourceSize(dmTestUtil::MakeHostPath(path, sizeof(path), "does_not_exists"), &nread);
+    ASSERT_EQ(dmSys::RESULT_NOENT, r);
+
+    r = dmSys::LoadResourcePartial(dmTestUtil::MakeHostPath(path, sizeof(path), "wscript"), 0, 0, 0, &nread);
+    ASSERT_EQ(dmSys::RESULT_INVAL, r);
+
+    // Create a test file
+    const char* datapath = dmTestUtil::MakeHostPath(path, sizeof(path), "testdata");
+
+    uint8_t testdata[256];
+    uint32_t testdatasize = sizeof(testdata);
+    for (uint32_t i = 0; i < testdatasize; ++i)
+        testdata[i] = (uint8_t)i;
+
+    {
+        FILE* f = fopen(datapath, "wb");
+        ASSERT_NE((FILE*)0, f);
+        fwrite(testdata, 1, testdatasize, f);
+        fclose(f);
+    }
+
+    // Check reads of the file
+    uint32_t chunk_size = 70; // 256 is not evenly divisible by 70
+    uint32_t offset = 0;
+    while (offset < testdatasize)
+    {
+        r = dmSys::LoadResourcePartial(datapath, offset, chunk_size, buffer, &nread);
+        ASSERT_EQ(dmSys::RESULT_OK, r);
+
+        ASSERT_ARRAY_EQ_LEN(&testdata[offset], buffer, nread);
+
+        offset += nread;
+    }
+    ASSERT_EQ(testdatasize, offset);
 }
 
 int main(int argc, char **argv)

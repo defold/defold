@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 import os, re
-from waf_dynamo import dmsdk_add_files, copy_file_task, apidoc_extract_task, platform_supports_feature
+from waf_dynamo import dmsdk_add_files, copy_file_task, apidoc_extract_task, platform_supports_feature, platform_graphics_libs_and_symbols
 import waflib.Options
 
 def options(opt):
@@ -35,7 +35,7 @@ def build(bld):
                     target = 'engine',
                     proto_gen_py = True,
                     protoc_includes = ['../proto', bld.env['PREFIX'] + '/share'],
-                    embed_source='../content/materials/debug.vpc ../content/materials/debug.fpc ../content/builtins/connect/game.project ../content/builtins.arci ../content/builtins.arcd ../content/builtins.dmanifest',
+                    embed_source='../content/materials/debug.spc ../content/builtins/connect/game.project ../content/builtins.arci ../content/builtins.arcd ../content/builtins.dmanifest',
                     source='engine.cpp engine_main.cpp engine_loop.cpp extension.cpp physics_debug_render.cpp ../proto/engine/engine_ddf.proto ' + platform_main_cpp,
                     install_path = platform_lib_install_path,
                     use = 'engine_service')
@@ -59,13 +59,15 @@ def build(bld):
 
     resource_type_symbols = ['ResourceTypeGameObject', 'ResourceTypeCollection', 'ResourceTypeScript', 'ResourceTypeLua',
                              'ResourceTypeAnim', 'ResourceTypeAnimationSet', 'ResourceTypeGui', 'ResourceTypeGuiScript',
+                             'ResourceTypeOgg', 'ResourceTypeOpus', 'ResourceTypeWav',
                              'ResourceProviderFile', 'ResourceProviderArchive', 'ResourceProviderArchiveMutable', 'ResourceProviderZip']
-    component_type_symbols = ['ComponentTypeAnim', 'ComponentTypeScript', 'ComponentTypeGui', 'ComponentTypeMesh']
+    component_type_symbols = ['ComponentTypeAnim', 'ComponentTypeScript', 'ComponentTypeGui', 'ComponentTypeMesh', 'ComponentTypeSound']
 
-    exported_symbols = ['DefaultSoundDevice', 'AudioDecoderWav', 'CrashExt', 'ProfilerExt', 'LiveUpdateExt', 'ScriptBox2DExt', 'ScriptImageExt', 'ScriptModelExt']
+    exported_symbols = ['DefaultSoundDevice', 'AudioDecoderWav', 'CrashExt', 'ProfilerExt', 'LiveUpdateExt',
+                        'ScriptBox2DExt', 'ScriptImageExt', 'ScriptModelExt', 'ScriptTypesExt', 'ScriptHttp']
 
     # Add stb_vorbis and/or tremolo depending on platform
-    if bld.env['PLATFORM'] in ('arm64-nx64', 'win32', 'x86_64-win32', 'js-web', 'wasm-web'):
+    if bld.env['PLATFORM'] in ('arm64-nx64', 'win32', 'x86_64-win32', 'js-web', 'wasm-web', 'wasm_pthread-web'):
         exported_symbols.append('AudioDecoderStbVorbis')
     elif bld.env['PLATFORM'] in ('x86_64-ps4','x86_64-ps5',):
         pass # dont't add tremolo
@@ -73,40 +75,24 @@ def build(bld):
         exported_symbols.append('AudioDecoderTremolo')
         additional_libs.append('TREMOLO')
 
-    graphics_lib = 'GRAPHICS DMGLFW'
-    graphics_lib_symbols = ['GraphicsAdapterOpenGL']
+    if waflib.Options.options.with_opus:
+        additional_libs.append('OPUS')
+        exported_symbols += ['AudioDecoderOpus']
 
-    if waflib.Options.options.with_vulkan:
-        graphics_lib += ' GRAPHICS_VULKAN VULKAN'
-        graphics_lib_symbols.append('GraphicsAdapterVulkan')
-
-    if bld.env['PLATFORM'] in ('arm64-nx64',):
-        graphics_lib = 'GRAPHICS_VULKAN DMGLFW VULKAN'
-        graphics_lib_symbols = ['GraphicsAdapterVulkan']
-
-    if bld.env['PLATFORM'] in ('x86_64-ps4',):
-        graphics_lib = 'GRAPHICS'
-        graphics_lib_symbols = ['GraphicsAdapterPS4']
-
-    if bld.env['PLATFORM'] in ('x86_64-ps5'):
-        graphics_lib = 'GRAPHICS'
-        graphics_lib_symbols = ['GraphicsAdapterPS5']
+    graphics_lib, graphics_lib_symbols = platform_graphics_libs_and_symbols(bld.env['PLATFORM'])
 
     exported_symbols += graphics_lib_symbols
 
     if 'android' in bld.env['PLATFORM']:
-        sound_lib = 'SOUND OPENAL_SOFT OPENSLES'
         additional_libs.append('UNWIND')
         additional_libs.append('CPP_RUNTIME')
-    elif 'web' in bld.env['PLATFORM']:
-        sound_lib = 'SOUND OPENAL'
-    if 'arm64-nx64' in bld.env.PLATFORM:
+
+    if bld.env['PLATFORM'] in ['win32', 'x86_64-win32', 'arm64-nx64']:
         sound_lib  = 'SOUND'
     else:
         sound_lib = 'SOUND OPENAL'
 
     sound_lib = sound_lib.split()
-    graphics_lib = graphics_lib.split()
 
     dynamo_home = os.getenv('DYNAMO_HOME')
 
@@ -119,22 +105,26 @@ def build(bld):
 
     glfw_js = '../../../ext/lib/%s/js/library_glfw.js' % bld.env.PLATFORM
 
-    web_libs = [glfw_js, 'library_sys.js', 'library_script.js', 'library_sound.js']
+    web_libs = [glfw_js, 'library_sys.js', 'library_script.js', 'library_sound.js', 'library_render.js']
 
     main_cpp = 'common/main.cpp'
 
     bld.add_group()
 
     profile_lib = ['PROFILE', 'PROFILEREXT']
-    if bld.env['PLATFORM'] in ('js-web', 'wasm-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5'):
+    if bld.env['PLATFORM'] in ('arm64-nx64', 'x86_64-ps4', 'x86_64-ps5'):
         profile_lib = ['PROFILE_NULL', 'PROFILEREXT_NULL']
 
-    if bld.env['PLATFORM'] in ('x86_64-ps4', 'x86_64-ps5'):
+    if bld.env['PLATFORM'] in ('x86_64-ps4', 'x86_64-ps5', 'x86_64-linux', 'arm64-linux'):
         additional_libs.append('APP')
+
+    platform_lib = ['PLATFORM']
+    if not (platform_supports_feature(bld.env.PLATFORM, "opengl", None) or platform_supports_feature(bld.env.PLATFORM, "vulkan", None)):
+        platform_lib = ['PLATFORM_NULL']
 
     obj = bld(
         features = 'c cxx cprogram apk web extract_symbols',
-        use = 'engine_rs PROFILEREXT GAMEOBJECT DDF LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CRASH X PLATFORM engine engine_service'.split() + graphics_lib + sound_lib + profile_lib + additional_libs,
+        use = 'engine_rs PROFILEREXT GAMEOBJECT DDF LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CRASH engine engine_service'.split() + graphics_lib + sound_lib + profile_lib + platform_lib + additional_libs,
         web_libs = web_libs,
         exported_symbols = exported_symbols + resource_type_symbols + ['ResourceProviderHttp'] + component_type_symbols,
         includes = '../build ../proto . ..',
@@ -162,7 +152,7 @@ def build(bld):
 
     obj = bld(
         features = 'c cxx cprogram apk web extract_symbols',
-        use = 'PROFILE_NULL PROFILEREXT_NULL GAMEOBJECT DDF LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CRASH X PLATFORM engine_release engine_service_null'.split() + graphics_lib + sound_lib + additional_libs,
+        use = 'PROFILE_NULL PROFILEREXT_NULL GAMEOBJECT DDF LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CRASH engine_release engine_service_null'.split() + graphics_lib + sound_lib + platform_lib + additional_libs,
         web_libs = web_libs,
         exported_symbols = exported_symbols + resource_type_symbols + component_type_symbols,
         includes = '../build ../proto . ..',
@@ -195,7 +185,7 @@ def build(bld):
     obj = bld(
         features = 'c cxx cprogram apk web extract_symbols',
         use = 'RECORD_NULL GAMEOBJECT DDF LIVEUPDATE GAMESYS RESOURCE PHYSICS RENDER SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE PLATFORM_NULL RIG GUI CRASH DLIB SOUND_NULL engine engine_service'.split() + graphics_lib.split() + profile_lib + additional_libs,
-        exported_symbols = ['ProfilerExt', 'LiveUpdateExt', 'GraphicsAdapterNull'] + resource_type_symbols + component_type_symbols,
+        exported_symbols = ['ProfilerExt', 'LiveUpdateExt', 'ScriptTypesExt', 'GraphicsAdapterNull'] + resource_type_symbols + component_type_symbols,
         web_libs = web_libs,
         includes = '../build ../proto . ..',
         proto_gen_py = True,
@@ -207,13 +197,6 @@ def build(bld):
     if 'win32' in bld.env.PLATFORM:
         obj.source.append('engine.rc')
         obj.env.append_value('LINKFLAGS', ['Psapi.lib'])
-
-        src_dir = "%s/ext/lib/%s" % (bld.env.PREFIX, bld.env.PLATFORM)
-        install_path = os.path.join(bld.env["PREFIX"], 'bin', bld.env['PLATFORM'])
-        task = copy_file_task(bld, "%s/OpenAL32.dll" % src_dir)
-        task.install_path = install_path
-        task = copy_file_task(bld, "%s/wrap_oal.dll" % src_dir)
-        task.install_path = install_path
 
     if 'arm64-nx64' in bld.env['PLATFORM']:
         bld.install_files('${PREFIX}/bin/${PLATFORM}', 'dmengine.nso')

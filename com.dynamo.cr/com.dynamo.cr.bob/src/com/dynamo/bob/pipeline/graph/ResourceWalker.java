@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -81,20 +81,20 @@ public class ResourceWalker {
             return;
         }
 
-        GeneratedMessageV3.Builder<?> builder = ProtoBuilder.newBuilder(ext);
+        GeneratedMessageV3.Builder builder = ProtoBuilder.newBuilder(ext);
         try {
             final byte[] content = resource.output().getContent();
             if(content == null) {
                 throw new CompileExceptionError(resource, 0, "Unable to find resource " + resource.getPath());
             }
             builder.mergeFrom(content);
-            Message message = (Message)builder.build();
+            Message message = builder.build();
             visitor.visitMessage(message, resource, parentResource);
             visitMessage(project, resource, message, visitor);
         } catch(CompileExceptionError e) {
             throw e;
         } catch(Exception e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException("Resource '" + resource.getPath() + "': " + e.getMessage(), e);
         }
         visitor.leave(resource, parentResource);
     }

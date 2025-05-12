@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -73,8 +73,8 @@ namespace dmGraphics
 #endif
 
 #if defined(__linux__) && !defined(ANDROID)
-    Window GetNativeX11Window()             { return dmPlatform::GetX11Window(); }
-    GLXContext GetNativeX11GLXContext()     { return dmPlatform::GetX11GLXContext(); }
+    Window GetNativeX11Window()             { return dmPlatform::GetX11Window(GetWindow(GetInstalledContext())); }
+    GLXContext GetNativeX11GLXContext()     { return dmPlatform::GetX11GLXContext(GetWindow(GetInstalledContext())); }
 #else
     Window GetNativeX11Window()             { return 0; }
     GLXContext GetNativeX11GLXContext()     { return 0; }

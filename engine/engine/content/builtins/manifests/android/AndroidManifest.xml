@@ -5,6 +5,7 @@
         package="{{android.package}}"
         android:versionCode="{{android.version_code}}"
         android:versionName="{{project.version}}"
+        android:appCategory="game"
         android:installLocation="auto">
 
     <uses-feature android:required="true" android:glEsVersion="0x00020000" />

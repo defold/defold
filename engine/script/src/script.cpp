@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -33,14 +33,13 @@
 #include "script_luasocket.h"
 #include "script_bitop.h"
 #include "script_timer.h"
-#include "script_extensions.h"
 
 extern "C"
 {
 #include <lua/lualib.h>
 }
 
-DM_PROPERTY_GROUP(rmtp_Script, "");
+DM_PROPERTY_GROUP(rmtp_Script, "", 0);
 
 namespace dmScript
 {
@@ -207,7 +206,6 @@ namespace dmScript
         context->m_ContextTableRef = Ref(L, LUA_REGISTRYINDEX);
 
         InitializeTimer(context);
-        InitializeExtensions(context);
 
         for (HScriptExtension* l = context->m_ScriptExtensions.Begin(); l != context->m_ScriptExtensions.End(); ++l)
         {
@@ -1415,7 +1413,7 @@ namespace dmScript
             dmLogError("%s\n%s", lua_tostring(L, -2), lua_tostring(L, -1));
             lua_getfield(L, LUA_GLOBALSINDEX, "debug");
             if (lua_istable(L, -1)) {
-                lua_pushstring(L, SCRIPT_ERROR_HANDLER_VAR);
+                lua_pushliteral(L, SCRIPT_ERROR_HANDLER_VAR);
                 lua_rawget(L, -2);
                 if (lua_isfunction(L, -1)) {
                     lua_pushlstring(L, "lua", 3); // 1st arg: source = 'lua'
@@ -1522,26 +1520,26 @@ namespace dmScript
         int        m_Self;
     };
 
-    // static void printStack(lua_State* L)
-    // {
-    //     int top = lua_gettop(L);
-    //     int bottom = 1;
-    //     lua_getglobal(L, "tostring");
-    //     for(int i = top; i >= bottom; i--)
-    //     {
-    //         lua_pushvalue(L, -1);
-    //         lua_pushvalue(L, i);
-    //         lua_pcall(L, 1, 1, 0);
-    //         const char *str = lua_tostring(L, -1);
-    //         if (str) {
-    //             printf("%2d: %s\n", i, str);
-    //         }else{
-    //             printf("%2d: %s\n", i, luaL_typename(L, i));
-    //         }
-    //         lua_pop(L, 1);
-    //     }
-    //     lua_pop(L, 1);
-    // }
+    void PrintStack(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        int bottom = 1;
+        lua_getglobal(L, "tostring");
+        for(int i = top; i >= bottom; i--)
+        {
+            lua_pushvalue(L, -1);
+            lua_pushvalue(L, i);
+            lua_pcall(L, 1, 1, 0);
+            const char *str = lua_tostring(L, -1);
+            if (str) {
+                dmLogInfo("%2d: %s\n", i, str);
+            }else{
+                dmLogInfo("%2d: %s\n", i, luaL_typename(L, i));
+            }
+            lua_pop(L, 1);
+        }
+        lua_pop(L, 1);
+    }
 
     LuaCallbackInfo* CreateCallback(lua_State* L, int callback_stack_index)
     {

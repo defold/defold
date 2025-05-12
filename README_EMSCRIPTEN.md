@@ -13,7 +13,7 @@
 
 ## Updating emscripten version
 
-Note: This information is based on the latest update (2.0.11 -> 3.1.55), mileage may vary
+Note: This information is based on the latest update (3.1.55 -> 3.1.65)
 
 * update the `EMSCRIPTEN_VERSION_STR` in `scripts/build.py`
 * package_emscripten:
@@ -21,10 +21,11 @@ Note: This information is based on the latest update (2.0.11 -> 3.1.55), mileage
   - run the script `./script/package/package_emscripten.sh` on both OSX (x86_64 and arm64) and linux (x86_64) (tested on ubuntu 22.x)
   - copy the artifact(s) from the `local_sdk` folder to the s3-bucket `defold-packages`
 * run `./scripts/build.py install_ems` to get the latest sdk for your host platform
-* build protobuf for js-web and wasm-web (ubuntu/linux) and copy into the `defold/packages` folder
-* build bullet3d for js-web and wasm-web (ubuntu/linux)
+* build protobuf for js-web, wasm-web and wasm_pthread-web (ubuntu/linux) and copy into the `defold/packages` folder
+* build bullet3d for js-web, wasm-web and wasm_pthread-web (ubuntu/linux)
   - `./scripts/build.py build_external --platform=js-web`
   - `./scripts/build.py build_external --platform=wasm-web`
+  - `./scripts/build.py build_external --platform=wasm_pthread-web`
   - these are automatically copied to packages
 * building:
   - refresh the shell (`exit` + subsequent `scripts/build.py shell`)

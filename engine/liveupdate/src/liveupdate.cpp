@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -31,7 +31,7 @@
 #include <dlib/job_thread.h>
 #include <dmsdk/dlib/configfile.h>
 #include <dmsdk/dlib/profile.h>
-#include <dmsdk/extension/extension_gen.hpp>
+#include <dmsdk/extension/extension.hpp>
 
 #include <resource/resource.h>
 #include <resource/resource_archive.h>
@@ -40,11 +40,6 @@
 #include <resource/resource_verify.h>   // VerifyManifest
 #include <resource/resource_util.h>     // BytesToHexString for debug printing
 #include <resource/providers/provider.h>
-
-#if defined(_WIN32)
-#include <malloc.h>
-#define alloca(_SIZE) _alloca(_SIZE)
-#endif
 
 namespace dmLiveUpdate
 {
@@ -119,6 +114,7 @@ namespace dmLiveUpdate
         dmResourceProvider::HArchive    m_LiveupdateArchive;
         dmResource::HManifest           m_LiveupdateArchiveManifest;
         bool                            m_IsEnabled;
+        bool                            m_MainConttextHasExcludedEntries;
 
     } g_LiveUpdate;
 
@@ -857,7 +853,7 @@ namespace dmLiveUpdate
     }
 
     // ******************************************************************
-    // **
+    // ** DEPRECATED SCRIPT API
     // ******************************************************************
 
     bool HasLiveUpdateMount()
@@ -885,11 +881,25 @@ namespace dmLiveUpdate
     }
 
     // ******************************************************************
+    // ** SCRIPT API
+    // ******************************************************************
+
+    bool IsBuiltWithExcludedFiles()
+    {
+        return g_LiveUpdate.m_MainConttextHasExcludedEntries;
+    }
+
+    // ******************************************************************
     // ** LiveUpdate life cycle functions
     // ******************************************************************
 
     static dmExtension::Result InitializeLegacy(dmExtension::Params* params)
     {
+        if (!g_LiveUpdate.m_ResourceBaseArchive)
+        {
+            return dmExtension::RESULT_INIT_ERROR;
+        }
+
         g_LiveUpdate.m_LiveupdateArchive = FindLiveupdateArchiveMount(g_LiveUpdate.m_ResourceMounts, LIVEUPDATE_LEGACY_MOUNT_NAME);
         if (!g_LiveUpdate.m_LiveupdateArchive)
         {
@@ -919,44 +929,49 @@ namespace dmLiveUpdate
         }
         g_LiveUpdate.m_IsEnabled = true;
 
-        dmResource::HFactory factory = (dmResource::HFactory)params->m_ResourceFactory;
-
-        g_LiveUpdate.m_ResourceFactory = factory;
-        g_LiveUpdate.m_ResourceMounts = dmResource::GetMountsContext(factory);
-        g_LiveUpdate.m_ResourceBaseArchive = dmResource::GetBaseArchive(factory);
-
-        if (!g_LiveUpdate.m_ResourceBaseArchive)
-        {
-            return dmExtension::RESULT_OK;
-        }
-
-        dmResource::HManifest manifest;
-        dmResourceProvider::Result p_result = dmResourceProvider::GetManifest(g_LiveUpdate.m_ResourceBaseArchive, &manifest);
-        if (dmResourceProvider::RESULT_OK != p_result)
-        {
-            dmLogError("Could not get base archive manifest project id. Liveupdate disabled");
-            return dmExtension::RESULT_OK;
-        }
-
-        dmResource::Result r_result = dmResource::GetApplicationSupportPath(manifest, g_LiveUpdate.m_AppSupportPath, sizeof(g_LiveUpdate.m_AppSupportPath));
-        if (dmResource::RESULT_OK != r_result)
-        {
-            dmLogError("Could not determine liveupdate folder. Liveupdate disabled");
-            return dmExtension::RESULT_OK;
-        }
-
-        dmLogInfo("Liveupdate folder located at: %s", g_LiveUpdate.m_AppSupportPath);
-
+        // We initialize scripting first, as we might want to use file/http providers
         dmJobThread::JobThreadCreationParams job_thread_create_param;
         job_thread_create_param.m_ThreadNames[0] = "liveupdate_jobs";
         job_thread_create_param.m_ThreadCount    = 1;
 
         g_LiveUpdate.m_JobThread = dmJobThread::Create(job_thread_create_param);
 
+        dmResource::HFactory factory = (dmResource::HFactory)params->m_ResourceFactory;
+
         if (g_LiveUpdate.m_JobThread) // Make the liveupdate module `nil` if it isn't available
         {
             if (params->m_L) // TODO: until unit tests have been updated with a Lua context
                 ScriptInit(params->m_L, factory);
+        }
+
+        g_LiveUpdate.m_ResourceFactory = factory;
+        g_LiveUpdate.m_ResourceMounts = dmResource::GetMountsContext(factory);
+        g_LiveUpdate.m_ResourceBaseArchive = dmResource::GetBaseArchive(factory);
+        g_LiveUpdate.m_MainConttextHasExcludedEntries = false;
+
+        if (g_LiveUpdate.m_ResourceBaseArchive)
+        {
+            dmResource::HManifest manifest;
+            dmResourceProvider::Result p_result = dmResourceProvider::GetManifest(g_LiveUpdate.m_ResourceBaseArchive, &manifest);
+            if (dmResourceProvider::RESULT_OK != p_result)
+            {
+                dmLogError("Could not get base archive manifest project id. Liveupdate disabled");
+                return dmExtension::RESULT_OK;
+            }
+
+            dmResource::Result r_result = dmResource::GetApplicationSupportPath(manifest, g_LiveUpdate.m_AppSupportPath, sizeof(g_LiveUpdate.m_AppSupportPath));
+            if (dmResource::RESULT_OK != r_result)
+            {
+                dmLogError("Could not determine liveupdate folder. Liveupdate disabled");
+                return dmExtension::RESULT_OK;
+            }
+
+            g_LiveUpdate.m_MainConttextHasExcludedEntries = dmResource::HasManifestExcludedEntries(manifest);
+
+            if (g_LiveUpdate.m_MainConttextHasExcludedEntries)
+            {
+                dmLogInfo("Liveupdate folder located at: %s", g_LiveUpdate.m_AppSupportPath);
+            }
         }
 
         // initialize legacy mode
@@ -982,11 +997,9 @@ namespace dmLiveUpdate
         if (!IsLiveupdateEnabled())
             return dmExtension::RESULT_OK;
 
-        if (!g_LiveUpdate.m_ResourceBaseArchive)
-            return dmExtension::RESULT_OK;
-
         DM_PROFILE("LiveUpdate");
-        dmJobThread::Update(g_LiveUpdate.m_JobThread); // Flushes finished async jobs', and calls any Lua callbacks
+        if (g_LiveUpdate.m_JobThread)
+            dmJobThread::Update(g_LiveUpdate.m_JobThread); // Flushes finished async jobs', and calls any Lua callbacks
         return dmExtension::RESULT_OK;
     }
 };

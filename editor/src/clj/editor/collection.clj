@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -68,7 +68,7 @@
   (property id g/Str ; Required pb field.
             (dynamic error (g/fnk [_node-id id id-counts]
                              (or (validation/prop-error :fatal _node-id :id (partial validation/prop-id-duplicate? id-counts) id)
-                                 (validation/prop-error :warning _node-id :id validation/prop-contains-url-characters? id "Id"))))
+                                 (validation/prop-error :warning _node-id :id validation/prop-contains-prohibited-characters? id "Id"))))
             (dynamic read-only? (g/fnk [_node-id]
                                   (g/override? _node-id))))
   (property url g/Str
@@ -167,7 +167,7 @@
                                          (child-go-go self-id child-id))))}]}
       (merge node-outline-extras)
       (cond->
-        (resource/openable-resource? source-resource) (assoc :link source-resource :outline-reference? true))))
+        (some-> source-resource resource/proj-path) (assoc :link source-resource :outline-reference? true))))
 
 (defn- source-outline-subst [err]
   ;; TODO: embed error so can warn in outline
@@ -454,7 +454,7 @@
 
   (property name g/Str
             (dynamic error (g/fnk [_node-id name]
-                                 (validation/prop-error :warning _node-id :id validation/prop-contains-url-characters? name "Name"))))
+                                 (validation/prop-error :warning _node-id :id validation/prop-contains-prohibited-characters? name "Name"))))
 
   ;; This property is legacy and purposefully hidden
   ;; The feature is only useful for uniform scaling, we use non-uniform now
@@ -514,7 +514,7 @@
        :icon (or (not-empty (:icon source-outline)) collection-common/collection-icon)
        :children (:children source-outline)}
     (cond->
-      (resource/openable-resource? source-resource)
+      (resource/resource? source-resource)
       (assoc :link source-resource
              :outline-reference? true
              :alt-outline source-outline))))
@@ -666,7 +666,7 @@
 (defn- select-go-file [workspace project]
   (first (resource-dialog/make workspace project {:ext "go" :title "Select Game Object File"})))
 
-(handler/defhandler :add-from-file :workbench
+(handler/defhandler :edit.add-referenced-component :workbench
   (active? [selection] (selection->collection selection))
   (label [selection] "Add Game Object File")
   (run [workspace project app-view selection]
@@ -714,7 +714,7 @@
         (g/operation-label "Add Game Object")
         (make-embedded-go coll-node project prototype-desc id nil parent select-fn)))))
 
-(handler/defhandler :add :workbench
+(handler/defhandler :edit.add-embedded-component :workbench
   (active? [selection] (selection->collection selection))
   (label [selection user-data] "Add Game Object")
   (run [selection workspace project user-data app-view]
@@ -742,7 +742,7 @@
       (g/operation-label "Add Collection")
       (make-collection-instance self source-resource id transform-properties overrides select-fn))))
 
-(handler/defhandler :add-secondary :workbench
+(handler/defhandler :edit.add-secondary-embedded-component :workbench
   (active? [selection] (selection->game-object-instance selection))
   (label [] "Add Game Object")
   (run [selection project workspace app-view]
@@ -750,7 +750,7 @@
              collection (core/scope-of-type go-node CollectionNode)]
          (add-embedded-game-object! workspace project collection go-node (fn [node-ids] (app-view/select app-view node-ids))))))
 
-(handler/defhandler :add-secondary-from-file :workbench
+(handler/defhandler :edit.add-secondary-referenced-component :workbench
   (active? [selection] (or (selection->collection selection)
                          (selection->game-object-instance selection)))
   (label [selection] (if (selection->collection selection)
@@ -824,6 +824,7 @@
     :node-type CollectionNode
     :ddf-type GameObject$CollectionDesc
     :load-fn load-collection
+    :allow-unloaded-use true
     :dependencies-fn (collection-common/make-collection-dependencies-fn #(workspace/get-resource-type workspace :editable "go"))
     :sanitize-fn (partial sanitize-collection workspace)
     :string-encode-fn (partial string-encode-collection workspace)

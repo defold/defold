@@ -1,4 +1,4 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -82,15 +82,40 @@
   [downgraded-constant-value]
   [downgraded-constant-value])
 
-(defn- hack-downgrade-constant [constant]
-  (protobuf/sanitize constant :value hack-downgrade-constant-value))
+(defn editable-constant-type? [constant-type]
+  (case constant-type
+    :constant-type-user true
+    :constant-type-viewproj false
+    :constant-type-world false
+    :constant-type-texture false
+    :constant-type-view false
+    :constant-type-projection false
+    :constant-type-normal false
+    :constant-type-worldview false
+    :constant-type-worldviewproj false
+    :constant-type-user-matrix4 true))
 
-(defn- hack-upgrade-constant [constant]
-  (protobuf/sanitize constant :value hack-upgrade-constant-value))
+(defn sanitize-constant [constant]
+  {:pre [(map? constant)]} ; Material$MaterialDesc$Constant in map format.
+  (cond-> constant
+          (not (editable-constant-type? (:type constant)))
+          (dissoc :value)))
 
-(def hack-downgrade-constants (partial mapv hack-downgrade-constant))
+(defn- constant->editable-constant [constant]
+  {:pre [(map? constant)]} ; Material$MaterialDesc$Constant in map format.
+  (if (editable-constant-type? (:type constant))
+    (protobuf/sanitize constant :value hack-downgrade-constant-value)
+    (assoc constant :value protobuf/vector4-zero)))
 
-(def hack-upgrade-constants (partial mapv hack-upgrade-constant))
+(defn- editable-constant->constant [constant]
+  {:pre [(map? constant)]} ; Material$MaterialDesc$Constant in map format.
+  (if (editable-constant-type? (:type constant))
+    (protobuf/sanitize constant :value hack-upgrade-constant-value)
+    (dissoc constant :value)))
+
+(def constants->editable-constants (partial mapv constant->editable-constant))
+
+(def editable-constants->constants (partial mapv editable-constant->constant))
 
 (def ^:private editable-sampler-optional-field-defaults
   (-> Material$MaterialDesc$Sampler

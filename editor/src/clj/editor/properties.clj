@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -367,7 +367,8 @@
       {:type (:type property)}))
 
 (defn edit-type-id [property]
-  (let [t (:type (property-edit-type property))]
+  (let [t (:type (property-edit-type property))
+        t (or (g/value-type-dispatch-value t) t)]
     (if (:on-interface t)
       (:on t)
       t)))
@@ -409,6 +410,11 @@
         display-order))
 
 (defn- flatten-properties [properties]
+  ;; TODO:
+  ;; The (dynamic link) and (dynamic override) decorations supported here appear
+  ;; unused outside of tests. Remove this processing? It seems to only be used
+  ;; by the property editor, and we seem to override the `_properties` output
+  ;; instead to achieve the same result.
   (let [pairs (seq (:properties properties))
         flat-pairs (filter #(not-any? links (keys (second %))) pairs)
         link-pairs (filter #(contains? (second %) :link) pairs)
@@ -631,7 +637,9 @@
       v0)))
 
 (defn overridden? [property]
-  (and (contains? property :original-values) (not-every? nil? (:values property))))
+  (and (contains? property :original-values)
+       (every? some? (:original-values property))
+       (not-every? nil? (:values property))))
 
 (defn error-aggregate [vals]
   (when-let [errors (seq (remove nil? (distinct (filter g/error? vals))))]

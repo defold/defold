@@ -6,7 +6,7 @@ platforms:
             excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision"]
             excludeSymbols: []
             symbols: []
-            libs: ["physics_2d"]
+            libs: ["physics_2d_defold"]
             frameworks: []
             linkFlags: []
 
@@ -15,7 +15,7 @@ platforms:
             excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision"]
             excludeSymbols: []
             symbols: []
-            libs: ["physics_2d"]
+            libs: ["physics_2d_defold"]
             frameworks: []
             linkFlags: []
 
@@ -24,7 +24,15 @@ platforms:
             excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision"]
             excludeSymbols: []
             symbols: []
-            libs: ["physics_2d"]
+            libs: ["physics_2d_defold"]
+            linkFlags: []
+
+    arm64-linux:
+        context:
+            excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision"]
+            excludeSymbols: []
+            symbols: []
+            libs: ["physics_2d_defold"]
             linkFlags: []
 
     js-web:
@@ -33,7 +41,7 @@ platforms:
             excludeJsLibs: []
             excludeSymbols: []
             symbols: []
-            libs: ["physics_2d"]
+            libs: ["physics_2d_defold"]
             linkFlags: []
 
     wasm-web:
@@ -42,7 +50,16 @@ platforms:
             excludeJsLibs: []
             excludeSymbols: []
             symbols: []
-            libs: ["physics_2d"]
+            libs: ["physics_2d_defold"]
+            linkFlags: []
+
+    wasm_pthread-web:
+        context:
+            excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision"]
+            excludeJsLibs: []
+            excludeSymbols: []
+            symbols: []
+            libs: ["physics_2d_defold"]
             linkFlags: []
 
     x86-win32:
@@ -50,7 +67,7 @@ platforms:
             excludeLibs: ["libphysics","libLinearMath","libBulletDynamics","libBulletCollision"]
             excludeSymbols: []
             symbols: []
-            libs: ["libphysics_2d.lib"]
+            libs: ["libphysics_2d_defold.lib"]
             linkFlags: []
 
     x86_64-win32:
@@ -58,7 +75,7 @@ platforms:
             excludeLibs: ["libphysics","libLinearMath","libBulletDynamics","libBulletCollision"]
             excludeSymbols: []
             symbols: []
-            libs: ["libphysics_2d.lib"]
+            libs: ["libphysics_2d_defold.lib"]
             linkFlags: []
 
     armv7-android:
@@ -67,7 +84,7 @@ platforms:
             excludeJars: []
             excludeSymbols: []
             symbols: []
-            libs: ["physics_2d"]
+            libs: ["physics_2d_defold"]
             linkFlags: []
             jetifier: true
 
@@ -77,7 +94,7 @@ platforms:
             excludeJars: []
             excludeSymbols: []
             symbols: []
-            libs: ["physics_2d"]
+            libs: ["physics_2d_defold"]
             linkFlags: []
             jetifier: true
 
@@ -86,7 +103,7 @@ platforms:
             excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision"]
             excludeSymbols: []
             symbols: []
-            libs: ["physics_2d"]
+            libs: ["physics_2d_defold"]
             frameworks: []
             linkFlags: []
 
@@ -95,7 +112,7 @@ platforms:
             excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision"]
             excludeSymbols: []
             symbols: []
-            libs: ["physics_2d"]
+            libs: ["physics_2d_defold"]
             frameworks: []
             linkFlags: []
 
@@ -104,7 +121,7 @@ platforms:
             excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision"]
             excludeSymbols: []
             symbols: []
-            libs: ["physics_2d"]
+            libs: ["physics_2d_defold"]
             frameworks: []
             linkFlags: []
 

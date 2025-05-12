@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -18,16 +18,19 @@
             [clojure.spec.alpha :as s]
             [clojure.string :as string]
             [dynamo.graph :as g]
-            [editor.code.data :as data]
-            [editor.lsp.async :as lsp.async]
             [editor.code-completion :as code-completion]
+            [editor.code.data :as data]
+            [editor.code.util :as util]
+            [editor.lsp.async :as lsp.async]
             [editor.lsp.base :as lsp.base]
             [editor.lsp.jsonrpc :as lsp.jsonrpc]
             [editor.lua :as lua]
+            [editor.os :as os]
             [editor.resource :as resource]
-            [editor.util :as util]
             [editor.workspace :as workspace]
-            [service.log :as log])
+            [service.log :as log]
+            [util.coll :as coll]
+            [util.eduction :as e])
   (:import [editor.code.data Cursor CursorRange]
            [java.io File InputStream]
            [java.lang ProcessBuilder$Redirect ProcessHandle]
@@ -110,7 +113,7 @@
   (->RawRequest notification result-converter))
 
 (defn- make-uri-string [abs-path]
-  (let [path (if (util/is-win32?)
+  (let [path (if (os/is-win32?)
                (str "/" (string/replace abs-path "\\" "/"))
                abs-path)]
     (str (URI. "file" "" path nil))))
@@ -118,12 +121,13 @@
 (defn resource-uri [resource]
   (make-uri-string (resource/abs-path resource)))
 
-(defn- root-uri [workspace evaluation-context]
-  (make-uri-string (g/node-value workspace :root evaluation-context)))
+(defn- root-uri [basis workspace]
+  (make-uri-string (g/raw-property-value basis workspace :root)))
 
 (defn- maybe-resource [project uri evaluation-context]
-  (let [workspace (g/node-value project :workspace evaluation-context)]
-    (when-let [proj-path (workspace/as-proj-path workspace (.getPath (URI. uri)) evaluation-context)]
+  (let [basis (:basis evaluation-context)
+        workspace (g/node-value project :workspace evaluation-context)]
+    (when-let [proj-path (workspace/as-proj-path basis workspace (.getPath (URI. uri)))]
       (workspace/find-resource workspace proj-path evaluation-context))))
 
 ;; diagnostics
@@ -149,10 +153,14 @@
 (s/def ::resolve boolean?) ;; if completion item can be resolved to add e.g. documentation
 (s/def ::trigger-characters (s/coll-of string? :kind set?))
 (s/def ::completion (s/keys :req-un [::resolve ::trigger-characters]))
+(s/def ::hover boolean?)
+(s/def ::rename boolean?)
 (s/def ::capabilities (s/keys :req-un [::text-document-sync
                                        ::pull-diagnostics
                                        ::goto-definition
-                                       ::find-references]
+                                       ::find-references
+                                       ::hover
+                                       ::rename]
                               :opt-un [::completion]))
 
 (defn- lsp-position->editor-cursor [{:keys [line character]}]
@@ -205,7 +213,9 @@
                                                       diagnosticProvider
                                                       definitionProvider
                                                       referencesProvider
-                                                      completionProvider]}]
+                                                      completionProvider
+                                                      hoverProvider
+                                                      renameProvider]}]
   (cond-> {:text-document-sync (cond
                                  (nil? textDocumentSync)
                                  {:change :none :open-close false}
@@ -224,14 +234,18 @@
                                (nil? diagnosticProvider) :none
                                (:workspaceDiagnostics diagnosticProvider) :workspace
                                :else :text-document)
-           :goto-definition (cond
-                              (boolean? definitionProvider) definitionProvider
-                              (map? definitionProvider) true
-                              :else false)
-           :find-references (cond
-                              (boolean? referencesProvider) referencesProvider
-                              (map? referencesProvider) true
-                              :else false)}
+           :goto-definition (if (boolean? definitionProvider)
+                              definitionProvider
+                              (map? definitionProvider))
+           :find-references (if (boolean? referencesProvider)
+                              referencesProvider
+                              (map? referencesProvider))
+           :hover (if (boolean? hoverProvider)
+                    hoverProvider
+                    (map? hoverProvider))
+           :rename (and (map? renameProvider)
+                        (let [prepare (:prepareProvider renameProvider)]
+                          (and (boolean? prepare) prepare)))}
           completionProvider
           (assoc :completion {:resolve (boolean (:resolveProvider completionProvider))
                               :trigger-characters (set (:triggerCharacters completionProvider))})))
@@ -310,14 +324,22 @@
     jsonrpc
     "initialize"
     (lsp.async/with-auto-evaluation-context evaluation-context
-      (let [uri (root-uri (g/node-value project :workspace evaluation-context) evaluation-context)
+      (let [basis (:basis evaluation-context)
+            uri (root-uri basis (g/node-value project :workspace evaluation-context))
             title ((g/node-value project :settings evaluation-context) ["project" "title"])]
         {:processId (.pid (ProcessHandle/current))
          :rootUri uri
-         :capabilities {:workspace {:diagnostics {}}
+         :capabilities {:workspace {:diagnostics {}
+                                    :workspaceEdit {:documentChanges false
+                                                    :normalizesLineEndings true}}
                         :textDocument {:definition {:dynamicRegistration false
                                                     :linkSupport true}
-                                       :references {:dynamicRegistration false}}
+                                       :references {:dynamicRegistration false}
+                                       :hover {:dynamicRegistration false
+                                               :contentFormat [:markdown :plaintext]}
+                                       :rename {:dynamicRegistration false
+                                                :prepareSupport true
+                                                :honorsChangeAnnotations false}}
                         :completion {:dynamicRegistration false
                                      :completionItem {:snippetSupport true
                                                       :commitCharactersSupport true
@@ -348,7 +370,7 @@
 
   Required args:
     project     defold project node id
-    launcher    the server launcher, e.g. a map with following keys:
+    launcher    the server launcher, e.g. a map with the following keys:
                   :command    a shell command to launch the language process,
                               vector of strings, required
     in          input channel that server will take items from to execute,
@@ -378,8 +400,9 @@
   (a/go
     (try
       (let [directory (lsp.async/with-auto-evaluation-context evaluation-context
-                        (let [workspace (g/node-value project :workspace evaluation-context)]
-                          (workspace/project-path workspace evaluation-context)))
+                        (let [basis (:basis evaluation-context)
+                              workspace (g/node-value project :workspace evaluation-context)]
+                          (workspace/project-directory basis workspace)))
             connection (<! (a/thread (try (launch launcher directory) (catch Throwable e e))))]
         (if (instance? Throwable connection)
           (log/error :message "Language server process failed to start"
@@ -503,12 +526,23 @@
                   (keep #(lsp-location-or-location-link->editor-location % project evaluation-context))
                   result)))))))
 
+(defrecord MarkupContent [type value]
+  ;; We need markup content to be Comparable since it ends up in cursor regions
+  ;; that need to be comparable
+  Comparable
+  (compareTo [_ that]
+    (let [ret (compare type (:type that))]
+      (if (zero? ret)
+        (compare value (:value that))
+        ret))))
+
 (defn- markup-content:lsp->editor [{:keys [kind value]}]
   {:pre [(string? value)]}
-  {:type (case kind
-           "plaintext" :plaintext
-           "markdown" :markdown)
-   :value value})
+  (->MarkupContent
+    (case kind
+      "plaintext" :plaintext
+      "markdown" :markdown)
+    value))
 
 (defn- text-edit:lsp->editor [{:keys [range newText]}]
   {:value newText
@@ -534,7 +568,7 @@
         :type (some-> kind completion-item-kind:lsp->editor)
         :detail detail
         :doc (cond
-               (string? documentation) {:type :plaintext :value documentation}
+               (string? documentation) (->MarkupContent :plaintext documentation)
                documentation (markup-content:lsp->editor documentation))
         :tags (into (if deprecated #{:deprecated} #{})
                     (map completion-item-tag:lsp->editor)
@@ -658,3 +692,74 @@
                                :changed 2
                                :deleted 3)})
                     resource+change-types)}))
+
+(defn- hover-response->region [range content]
+  (assoc range
+    :type :hover
+    :hoverable true
+    :content (cond
+               (string? content) (->MarkupContent :plaintext content)
+               (:language content) (->MarkupContent :markdown (str "```" (:language content) "\n" (:value content) "\n```"))
+               :else (markup-content:lsp->editor content))))
+
+(defn hover
+  "See also:
+    https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_hover"
+  [resource ^Cursor cursor]
+  (raw-request
+    (lsp.jsonrpc/notification
+      "textDocument/hover"
+      {:textDocument {:uri (resource-uri resource)}
+       :position (editor-cursor->lsp-position cursor)})
+    (bound-fn [result _]
+      (when result
+        (let [{:keys [contents range]} result
+              range (or (some-> range lsp-range->editor-cursor-range)
+                        (data/->CursorRange cursor (data/->Cursor (.-row cursor) (inc (.-col cursor)))))
+              contents (if (vector? contents) contents [contents])]
+          (->> contents
+               (e/keep
+                 (fn [content]
+                   (let [region (hover-response->region range content)]
+                     (when-not (-> region :content :value string/blank?)
+                       region))))
+               vec))))))
+
+(defn prepare-rename
+  "See also:
+    https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_prepareRename"
+  [resource cursor range-converter]
+  (raw-request
+    (lsp.jsonrpc/notification
+      "textDocument/prepareRename"
+      {:textDocument {:uri (resource-uri resource)}
+       :position (editor-cursor->lsp-position cursor)})
+    (bound-fn [result _]
+      (when result
+        (cond
+          (:range result) (range-converter (lsp-range->editor-cursor-range (:range result)))
+          (:start result) (range-converter (lsp-range->editor-cursor-range result)))))))
+
+(defn rename
+  "See also:
+    https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_rename"
+  [resource cursor new-name]
+  (raw-request
+    (lsp.jsonrpc/notification
+      "textDocument/rename"
+      {:textDocument {:uri (resource-uri resource)}
+       :position (editor-cursor->lsp-position cursor)
+       :newName new-name})
+    (bound-fn [result project]
+      (lsp.async/with-auto-evaluation-context evaluation-context
+        (->> result
+             :changes
+             (e/keep (fn [[k edits]]
+                       (when-let [resource (maybe-resource project (str (symbol k)) evaluation-context)]
+                         (coll/pair resource
+                                    (->> edits
+                                         (mapv text-edit:lsp->editor)
+                                         (sort-by :cursor-range)
+                                         (mapv (fn [{:keys [cursor-range value]}]
+                                                 (coll/pair cursor-range (util/split-lines value)))))))))
+             (into {}))))))

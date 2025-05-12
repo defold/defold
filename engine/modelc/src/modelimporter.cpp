@@ -1,5 +1,5 @@
 
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -59,23 +59,23 @@ Options::Options()
 
 static void DestroyMesh(Mesh* mesh)
 {
-    delete[] mesh->m_Positions;
-    delete[] mesh->m_Normals;
-    delete[] mesh->m_Tangents;
-    delete[] mesh->m_Color;
-    delete[] mesh->m_Weights;
-    delete[] mesh->m_Bones;
-    delete[] mesh->m_TexCoord0;
-    delete[] mesh->m_TexCoord1;
+    mesh->m_Positions.SetCapacity(0);
+    mesh->m_Normals.SetCapacity(0);
+    mesh->m_Tangents.SetCapacity(0);
+    mesh->m_Colors.SetCapacity(0);
+    mesh->m_Weights.SetCapacity(0);
+    mesh->m_Bones.SetCapacity(0);
+    mesh->m_TexCoords0.SetCapacity(0);
+    mesh->m_TexCoords1.SetCapacity(0);
     free((void*)mesh->m_Name);
 }
 
 static void DestroyModel(Model* model)
 {
     free((void*)model->m_Name);
-    for (uint32_t i = 0; i < model->m_MeshesCount; ++i)
+    for (uint32_t i = 0; i < model->m_Meshes.Size(); ++i)
         DestroyMesh(&model->m_Meshes[i]);
-    delete[] model->m_Meshes;
+    model->m_Meshes.SetCapacity(0);
 }
 
 static void DestroyNode(Node* node)
@@ -85,37 +85,54 @@ static void DestroyNode(Node* node)
 
 static void DestroyBone(Bone* bone)
 {
-    delete bone->m_Children;
+    bone->m_Children.SetCapacity(0);
     free((void*)bone->m_Name);
+    bone->m_Name = 0;
 }
 
 static void DestroySkin(Skin* skin)
 {
     free((void*)skin->m_Name);
-    for (uint32_t i = 0; i < skin->m_BonesCount; ++i)
+    for (uint32_t i = 0; i < skin->m_Bones.Size(); ++i)
         DestroyBone(&skin->m_Bones[i]);
-    delete[] skin->m_Bones;
-    delete[] skin->m_BoneRemap;
+    skin->m_Bones.SetCapacity(0);
+    skin->m_BoneRemap.SetCapacity(0);
 }
 
 static void DestroyNodeAnimation(NodeAnimation* node_animation)
 {
-    delete[] node_animation->m_TranslationKeys;
-    delete[] node_animation->m_RotationKeys;
-    delete[] node_animation->m_ScaleKeys;
+    node_animation->m_TranslationKeys.SetCapacity(0);
+    node_animation->m_RotationKeys.SetCapacity(0);
+    node_animation->m_ScaleKeys.SetCapacity(0);
 }
 
 static void DestroyAnimation(Animation* animation)
 {
     free((void*)animation->m_Name);
-    for (uint32_t i = 0; i < animation->m_NodeAnimationsCount; ++i)
+    for (uint32_t i = 0; i < animation->m_NodeAnimations.Size(); ++i)
         DestroyNodeAnimation(&animation->m_NodeAnimations[i]);
-    delete[] animation->m_NodeAnimations;
+    animation->m_NodeAnimations.SetCapacity(0);
 }
 
 static void DestroyMaterial(Material* material)
 {
     free((void*)material->m_Name);
+    delete material->m_PbrMetallicRoughness;
+    delete material->m_PbrSpecularGlossiness;
+    delete material->m_Clearcoat;
+    delete material->m_Ior;
+    delete material->m_Specular;
+    delete material->m_Sheen;
+    delete material->m_Transmission;
+    delete material->m_Volume;
+    delete material->m_EmissiveStrength;
+    delete material->m_Iridescence;
+}
+
+static void DestroyBuffer(Buffer* buffer)
+{
+    free((void*)buffer->m_Uri);
+    //buffer->m_Buffer Memory owned by the gltf data
 }
 
 bool Validate(Scene* scene)
@@ -148,41 +165,35 @@ void DestroyScene(Scene* scene)
     scene->m_DestroyFn(scene);
     scene->m_OpaqueSceneData = 0;
 
-    for (uint32_t i = 0; i < scene->m_NodesCount; ++i)
+    for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
         DestroyNode(&scene->m_Nodes[i]);
-    scene->m_NodesCount = 0;
-    delete[] scene->m_Nodes;
+    scene->m_Nodes.SetCapacity(0);
 
-    scene->m_RootNodesCount = 0;
-    delete[] scene->m_RootNodes;
+    scene->m_RootNodes.SetCapacity(0);
 
-    for (uint32_t i = 0; i < scene->m_ModelsCount; ++i)
+    for (uint32_t i = 0; i < scene->m_Models.Size(); ++i)
         DestroyModel(&scene->m_Models[i]);
-    scene->m_ModelsCount = 0;
-    delete[] scene->m_Models;
+    scene->m_Models.SetCapacity(0);
 
-    for (uint32_t i = 0; i < scene->m_SkinsCount; ++i)
+    for (uint32_t i = 0; i < scene->m_Skins.Size(); ++i)
         DestroySkin(&scene->m_Skins[i]);
-    scene->m_SkinsCount = 0;
-    delete[] scene->m_Skins;
+    scene->m_Skins.SetCapacity(0);
 
-    for (uint32_t i = 0; i < scene->m_AnimationsCount; ++i)
+    for (uint32_t i = 0; i < scene->m_Animations.Size(); ++i)
         DestroyAnimation(&scene->m_Animations[i]);
-    scene->m_AnimationsCount = 0;
-    delete[] scene->m_Animations;
+    scene->m_Animations.SetCapacity(0);
 
-    for (uint32_t i = 0; i < scene->m_MaterialsCount; ++i)
+    for (uint32_t i = 0; i < scene->m_Materials.Size(); ++i)
         DestroyMaterial(&scene->m_Materials[i]);
-    scene->m_MaterialsCount = 0;
-    delete[] scene->m_Materials;
+    scene->m_Materials.SetCapacity(0);
 
-    for (uint32_t i = 0; i < scene->m_DynamicMaterialsCount; ++i)
+    for (uint32_t i = 0; i < scene->m_DynamicMaterials.Size(); ++i)
         DestroyMaterial(scene->m_DynamicMaterials[i]);
-    scene->m_DynamicMaterialsCount = 0;
-    free((void*)scene->m_DynamicMaterials);
+    scene->m_DynamicMaterials.SetCapacity(0);
 
-    scene->m_BuffersCount = 0;
-    delete[] scene->m_Buffers;
+    for (uint32_t i = 0; i < scene->m_Buffers.Size(); ++i)
+        DestroyBuffer(&scene->m_Buffers[i]);
+    scene->m_Buffers.SetCapacity(0);
 
     delete scene;
 }
@@ -241,7 +252,7 @@ Scene* LoadFromPath(Options* options, const char* path)
 
     if (dmModelImporter::NeedsResolve(scene))
     {
-        for (uint32_t i = 0; i < scene->m_BuffersCount; ++i)
+        for (uint32_t i = 0; i < scene->m_Buffers.Size(); ++i)
         {
             if (scene->m_Buffers[i].m_Buffer)
                 continue;
@@ -266,10 +277,10 @@ Scene* LoadFromPath(Options* options, const char* path)
 
 bool NeedsResolve(Scene* scene)
 {
-    for (uint32_t i = 0; i < scene->m_BuffersCount; ++i)
+    for (uint32_t i = 0; i < scene->m_Buffers.Size(); ++i)
     {
         if (!scene->m_Buffers[i].m_Buffer)
-            return true;;
+            return true;
     }
     return false;
 }

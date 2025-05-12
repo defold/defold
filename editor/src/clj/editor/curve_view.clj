@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -33,7 +33,8 @@
             [editor.types :as types]
             [editor.ui :as ui]
             [util.id-vec :as iv])
-  (:import [com.jogamp.opengl GL GL2 GLAutoDrawable]
+  (:import [com.defold.control DefoldStringConverter]
+           [com.jogamp.opengl GL GL2 GLAutoDrawable]
            [editor.properties Curve CurveSpread]
            [editor.types AABB Rect Region]
            [java.lang Runnable]
@@ -43,7 +44,7 @@
            [javafx.scene.control.cell CheckBoxListCell]
            [javafx.scene.image ImageView]
            [javafx.scene.layout AnchorPane]
-           [javafx.util Callback StringConverter]
+           [javafx.util Callback]
            [javax.vecmath Matrix4d Point3d Vector3d Vector4d]))
 
 (set! *warn-on-reflection* true)
@@ -637,11 +638,10 @@
           (ui/context! parent :curve-view {:view-id node-id} (SubSelectionProvider. app-view))
           (ui/fill-control pane)
           (ui/children! view [pane])
-          (let [converter (proxy [StringConverter] []
-                            (fromString ^Object [s] nil)
-                            (toString ^String [item] (if (:property item)
-                                                       (properties/label (:property item))
-                                                       "")))
+          (let [converter (DefoldStringConverter.
+                            #(if (:property %)
+                               (properties/label (:property %))
+                               ""))
                 selected-callback (reify Callback
                                     (call ^ObservableValue [this item]
                                       (let [hidden-curves (g/node-value node-id :hidden-curves)]
@@ -673,9 +673,9 @@
       (for [[[nid prop] idx] m]
         (g/update-property nid prop types/geom-delete idx)))))
 
-(handler/defhandler :delete :curve-view
+(handler/defhandler :edit.delete :curve-view
   (enabled? [selection] (not (empty? selection)))
   (run [selection] (delete-cps selection)))
 
-(handler/defhandler :frame-selection :curve-view
+(handler/defhandler :scene.frame-selection :curve-view
   (run [view-id selection] (frame-selection view-id selection true)))

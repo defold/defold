@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -55,9 +55,13 @@ namespace dmRender
     /*#
      * Font map handle
      * @typedef
-     * @name HFontMap
+     * @name HFont
      */
+    typedef struct FontMap* HFont;
+
+    // Old typedef, used internally. We want to migrate towards HFont
     typedef struct FontMap* HFontMap;
+
 
     /*#
      * Shader constant handle
@@ -178,8 +182,8 @@ namespace dmRender
         RenderObject();
         void Init();
 
-        static const uint32_t MAX_TEXTURE_COUNT = 8;
-        static const uint32_t MAX_VERTEX_BUFFER_COUNT = 2;
+        static const uint32_t MAX_TEXTURE_COUNT       = 8;
+        static const uint32_t MAX_VERTEX_BUFFER_COUNT = 3;
 
         HNamedConstantBuffer            m_ConstantBuffer;
         dmVMath::Matrix4                m_WorldTransform;
@@ -204,8 +208,10 @@ namespace dmRender
         dmGraphics::BlendFactor         m_DestinationBlendFactor;
         dmGraphics::FaceWinding         m_FaceWinding;
         StencilTestParams               m_StencilTestParams;
+        uint32_t                        m_VertexBufferOffsets[MAX_VERTEX_BUFFER_COUNT];
         uint32_t                        m_VertexStart;
         uint32_t                        m_VertexCount;
+        uint32_t                        m_InstanceCount;
         uint8_t                         m_SetBlendFactors : 1;
         uint8_t                         m_SetStencilTest : 1;
         uint8_t                         m_SetFaceWinding : 1;

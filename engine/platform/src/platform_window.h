@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -20,8 +20,9 @@
 
 namespace dmPlatform
 {
-    struct Window;
-    typedef Window* HWindow;
+    struct dmWindow;
+    typedef dmWindow* HWindow;
+
     typedef void (*WindowResizeCallback)(void* user_data, uint32_t width, uint32_t height);
     typedef void (*WindowFocusCallback)(void* user_data, uint32_t focus);
     typedef void (*WindowIconifyCallback)(void* user_data, uint32_t iconified);
@@ -40,10 +41,13 @@ namespace dmPlatform
 
     enum PlatformGraphicsApi
     {
-        PLATFORM_GRAPHICS_API_NULL   = 0,
-        PLATFORM_GRAPHICS_API_OPENGL = 1,
-        PLATFORM_GRAPHICS_API_VULKAN = 2,
-        PLATFORM_GRAPHICS_API_VENDOR = 3,
+        PLATFORM_GRAPHICS_API_NULL     = 0,
+        PLATFORM_GRAPHICS_API_OPENGL   = 1,
+        PLATFORM_GRAPHICS_API_OPENGLES = 2,
+        PLATFORM_GRAPHICS_API_VULKAN   = 3,
+        PLATFORM_GRAPHICS_API_VENDOR   = 4,
+        PLATFORM_GRAPHICS_API_WEBGPU   = 5,
+        PLATFORM_GRAPHICS_API_DIRECTX  = 6,
     };
 
     enum DeviceState
@@ -57,6 +61,7 @@ namespace dmPlatform
         DEVICE_STATE_KEYBOARD_PASSWORD   = 7,
         DEVICE_STATE_KEYBOARD_RESET      = 8,
         DEVICE_STATE_JOYSTICK_PRESENT    = 9,
+        DEVICE_STATE_MAX // Used to create arrays of correct size (private repo)
     };
 
     enum GamepadEvent
@@ -138,6 +143,10 @@ namespace dmPlatform
         bool                    m_HighDPI;
         // Window background color, RGB 0x00BBGGRR
         uint32_t                m_BackgroundColor;
+        uint8_t                 m_ContextAlphabits;
+        // OpenGL specific settings
+        uint8_t                 m_OpenGLVersionHint        : 7; // I.e: 33, 40-46, 0 (use highest available)
+        uint8_t                 m_OpenGLUseCoreProfileHint : 1;
     };
 
     struct TouchData
@@ -170,6 +179,7 @@ namespace dmPlatform
     void           GetMousePosition(HWindow window, int32_t* x, int32_t* y);
     uint32_t       GetTouchData(HWindow window, TouchData* touch_data, uint32_t touch_data_count);
     bool           GetAcceleration(HWindow window, float* x, float* y, float* z);
+
     const char*    GetJoystickDeviceName(HWindow window, uint32_t joystick_index);
     uint32_t       GetJoystickAxes(HWindow window, uint32_t joystick_index, float* values, uint32_t values_capacity);
     uint32_t       GetJoystickHats(HWindow window, uint32_t joystick_index, uint8_t* values, uint32_t values_capacity);
@@ -180,7 +190,9 @@ namespace dmPlatform
     bool           GetDeviceState(HWindow window, DeviceState state);
     bool           GetDeviceState(HWindow window, DeviceState state, int32_t op1);
 
+    void           SetWindowTitle(HWindow window, const char* title);
     void           SetWindowSize(HWindow window, uint32_t width, uint32_t height);
+    void           SetWindowPosition(HWindow window, int32_t x, int32_t y);
     void           SetSwapInterval(HWindow window, uint32_t swap_interval);
     void           SetKeyboardCharCallback(HWindow window, WindowAddKeyboardCharCallback cb, void* user_data);
     void           SetKeyboardMarkedTextCallback(HWindow window, WindowSetMarkedTextCallback cb, void* user_data);
@@ -191,9 +203,6 @@ namespace dmPlatform
     void           IconifyWindow(HWindow window);
     void           PollEvents(HWindow window);
     void           SwapBuffers(HWindow window);
-
-    void*          AcquireAuxContext(HWindow window);
-    void           UnacquireAuxContext(HWindow window, void* aux_context);
 
     void*          AcquireAuxContext(HWindow window);
     void           UnacquireAuxContext(HWindow window, void* aux_context);

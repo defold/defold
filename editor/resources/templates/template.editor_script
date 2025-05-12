@@ -1,10 +1,30 @@
 local M = {}
 
 function M.get_language_servers()
+    -- Define new language servers here
+    -- Learn more: https://defold.com/manuals/editor-scripts/#language-servers
+    -- Remove this function if not needed
     return {}
 end
 
 function M.get_commands()
+    -- Add editor commands
+    -- Learn more: https://defold.com/manuals/editor-scripts/#commands
+    -- Remove this function if not needed
+    return {}
+end
+
+function M.get_prefs_schema()
+    -- Define preferences that may be used by the editor script
+    -- Learn more: https://defold.com/manuals/editor-scripts/#prefs
+    -- Remove this function if not needed
+    return {}
+end
+
+function M.get_http_server_routes()
+    -- Define HTTP server routes for the editor HTTP server
+    -- Learn more: https://defold.com/manuals/editor-scripts/#http-server
+    -- Remove this function if not needed
     return {}
 end
 

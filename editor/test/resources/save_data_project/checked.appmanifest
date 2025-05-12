@@ -64,6 +64,13 @@ platforms:
       symbols: []
       libs: []
       linkFlags: []
+  arm64-linux:
+    context:
+      excludeLibs: []
+      excludeSymbols: []
+      symbols: []
+      libs: []
+      linkFlags: []
   x86-win32:
     context:
       excludeLibs: []
@@ -87,6 +94,14 @@ platforms:
       libs: []
       linkFlags: []
   wasm-web:
+    context:
+      excludeLibs: []
+      excludeJsLibs: []
+      excludeSymbols: []
+      symbols: []
+      libs: []
+      linkFlags: []
+  wasm_pthread-web:
     context:
       excludeLibs: []
       excludeJsLibs: []

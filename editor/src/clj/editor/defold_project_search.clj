@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -38,12 +38,14 @@
               (->> (g/node-value project :node-id+resources evaluation-context)
                    (into []
                          (keep (fn [[node-id resource]]
-                                 (when (and (not (resource/internal? resource))
+                                 (when (and (resource/loaded? resource)
+                                            (not (resource/internal? resource))
                                             (= :file (resource/source-type resource)))
                                    (let [resource-type (resource/resource-type resource)
                                          search-value-fn (when (:search-fn resource-type)
                                                            (:search-value-fn resource-type))]
                                      (when (and search-value-fn
+                                                (resource/exists? resource)
                                                 (resource/textual? resource))
                                        (let [search-value (search-value-fn node-id resource evaluation-context)]
                                          (when-not (g/error? search-value)
@@ -94,7 +96,8 @@
                       (string/replace #" " "")
                       (string/split #",")))]
     (fn search-resource? [resource]
-      (and (resource-matches-library-setting? resource search-libraries)
+      (and (resource/loaded? resource)
+           (resource-matches-library-setting? resource search-libraries)
            (resource-matches-file-ext? resource file-ext-patterns)))))
 
 (defn- start-search-thread [report-error! search-data-future resource-type->matches-fn search-resource? produce-fn]

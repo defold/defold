@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -27,6 +27,7 @@
 #include <dlib/testutil.h>
 #include <dlib/sys.h>
 #include <dlib/testutil.h>
+#include <extension/extension.hpp>
 
 static int g_HttpPort = 9001;
 char g_HttpAddress[128] = "localhost";
@@ -94,6 +95,8 @@ public:
     lua_State* L;
     dmMessage::URL m_DefaultURL;
     dmConfigFile::HConfig m_ConfigFile;
+    ExtensionAppParams  m_AppParams;
+    ExtensionParams     m_Params;
     int m_NumberOfFails;
 
 protected:
@@ -112,6 +115,17 @@ protected:
         script_context_params.m_ConfigFile = m_ConfigFile;
         m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
+
+        ExtensionAppParamsInitialize(&m_AppParams);
+        ExtensionParamsInitialize(&m_Params);
+
+        m_Params.m_L = dmScript::GetLuaState(m_ScriptContext);
+        ExtensionParamsSetContext(&m_Params, "lua", dmScript::GetLuaState(m_ScriptContext));
+        ExtensionParamsSetContext(&m_Params, "config", m_ConfigFile);
+
+        dmExtension::AppInitialize(&m_AppParams);
+        dmExtension::Initialize(&m_Params);
+
         L = dmScript::GetLuaState(m_ScriptContext);
 
         dmGameSystem::ScriptLibContext scriptlibcontext;
@@ -156,7 +170,15 @@ protected:
         if (m_DefaultURL.m_Socket) {
             dmMessage::DeleteSocket(m_DefaultURL.m_Socket);
         }
+
+        dmExtension::Finalize(&m_Params);
+        dmExtension::AppFinalize(&m_AppParams);
+
+        ExtensionParamsFinalize(&m_Params);
+        ExtensionAppParamsFinalize(&m_AppParams);
+
         dmScript::Finalize(m_ScriptContext);
+
         dmScript::DeleteContext(m_ScriptContext);
         dmConfigFile::Delete(m_ConfigFile);
     }
@@ -215,7 +237,7 @@ TEST_F(ScriptHttpTest, TestGetPost)
     }
     lua_pop(L, 1);
 
-    uint64_t start = dmTime::GetTime();
+    uint64_t start = dmTime::GetMonotonicTime();
 
     while (1) {
         dmSys::PumpMessageQueue();
@@ -239,7 +261,7 @@ TEST_F(ScriptHttpTest, TestGetPost)
 
         dmTime::Sleep(10 * 1000);
 
-        uint64_t now = dmTime::GetTime();
+        uint64_t now = dmTime::GetMonotonicTime();
         uint64_t elapsed = now - start;
 
         if (elapsed / 1000000 > 8) {
@@ -287,7 +309,7 @@ TEST_F(ScriptHttpTest, TestTimeout)
     }
     lua_pop(L, 1);
 
-    uint64_t start = dmTime::GetTime();
+    uint64_t start = dmTime::GetMonotonicTime();
     while (1) {
         dmSys::PumpMessageQueue();
         dmMessage::Dispatch(m_DefaultURL.m_Socket, DispatchCallbackDDF, this);
@@ -307,7 +329,7 @@ TEST_F(ScriptHttpTest, TestTimeout)
 
         dmTime::Sleep(10 * 1000);
 
-        uint64_t now = dmTime::GetTime();
+        uint64_t now = dmTime::GetMonotonicTime();
         uint64_t elapsed = now - start;
         if (elapsed / 1000000 > 4) {
             dmLogError("The test timed out\n");
@@ -358,8 +380,11 @@ static void Destroy()
     dmLog::LogFinalize();
 }
 
+extern "C" void dmExportedSymbols();
+
 int main(int argc, char **argv)
 {
+    dmExportedSymbols();
     TestMainPlatformInit();
     dmLog::LogParams params;
     dmLog::LogInitialize(&params);

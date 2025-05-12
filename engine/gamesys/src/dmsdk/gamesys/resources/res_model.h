@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -41,6 +41,12 @@ namespace dmGameSystem
     struct TextureResource;
     struct RenderTargetResource;
 
+    enum RigModelVertexFormat
+    {
+        RIG_MODEL_VERTEX_FORMAT_STATIC,
+        RIG_MODEL_VERTEX_FORMAT_SKINNED,
+    };
+
     struct ModelResourceBuffers
     {
         dmGraphics::HVertexBuffer   m_VertexBuffer;
@@ -48,6 +54,8 @@ namespace dmGameSystem
         uint32_t                    m_VertexCount;
         uint32_t                    m_IndexCount;
         dmGraphics::Type            m_IndexBufferElementType;
+        RigModelVertexFormat        m_RigModelVertexFormat;
+        uint8_t                     m_LastUsedFrame; // Used for statistics
     };
 
     struct MeshInfo

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -867,15 +867,15 @@ TEST(Socket, Timeout)
     memset(buf, 0, sizeof(buf));
 
     for (int i = 0; i < 10; ++i) {
-        uint64_t start = dmTime::GetTime();
+        uint64_t start = dmTime::GetMonotonicTime();
         r = dmSocket::Receive(client_socket, buf, sizeof(buf), &received);
-        uint64_t end = dmTime::GetTime();
+        uint64_t end = dmTime::GetMonotonicTime();
         ASSERT_EQ(dmSocket::RESULT_WOULDBLOCK, r);
         ASSERT_GE(end - start, timeout - 2500); // NOTE: Margin of 2500. Required on Linux
     }
 
     for (int i = 0; i < 10; ++i) {
-        uint64_t start = dmTime::GetTime();
+        uint64_t start = dmTime::GetMonotonicTime();
         for (int j = 0; j < 10000; ++j) {
             // Loop to ensure that we fill send buffers
             r = dmSocket::Send(client_socket, buf, sizeof(buf), &received);
@@ -883,7 +883,7 @@ TEST(Socket, Timeout)
                 break;
             }
         }
-        uint64_t end = dmTime::GetTime();
+        uint64_t end = dmTime::GetMonotonicTime();
         ASSERT_EQ(dmSocket::RESULT_WOULDBLOCK, r);
         ASSERT_GE(end - start, timeout - 2500); // NOTE: Margin of 2500. Required on Linux
     }

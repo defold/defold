@@ -37,7 +37,7 @@ message SpriteGeometry
     required float center_x = 3;
     required float center_y = 4;
 
-    required bool  rotated = 5; // If true, then the image is rotated 90 degrees (ccw)
+    required bool  rotated  = 5; // If true, then the image is rotated 90 degrees (ccw)
 
     // From the atlas image
     required SpriteTrimmingMode trim_mode = 6 [default = SPRITE_TRIM_MODE_OFF];
@@ -50,6 +50,10 @@ message SpriteGeometry
     repeated float  uvs     = 8;
     // list of 3-tuples, each defining a triangle in the vertex/uv list
     repeated uint32 indices = 9;
+
+    // In unit coords [-0.5, 0.5]. Default [0, 0]
+    optional float pivot_x  = 10 [default = 0];
+    optional float pivot_y  = 11 [default = 0];
 }
 
 message TextureSet

@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -26,8 +26,7 @@
             [editor.scene :as scene]
             [editor.workspace :as workspace]
             [internal.util :as util]
-            [service.log :as log]
-            [util.fn :as fn])
+            [service.log :as log])
   (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc]
            [java.io StringReader]
            [javax.vecmath Matrix4d]))
@@ -38,13 +37,11 @@
 
 (def component-transform-property-keys (set (keys scene/identity-transform-properties)))
 
-(defn- template-pb-map-raw [workspace resource-type]
+(defn template-pb-map [workspace resource-type]
   (let [template (workspace/template workspace resource-type)
         read-fn (:read-fn resource-type)]
     (with-open [reader (StringReader. template)]
       (read-fn reader))))
-
-(def template-pb-map (fn/memoize template-pb-map-raw))
 
 (defn strip-default-scale-from-component-desc [component-desc]
   ;; GameObject$ComponentDesc or GameObject$EmbeddedComponentDesc in map format.
@@ -227,7 +224,6 @@
 (defn game-object-build-target [source-resource host-resource-node-id component-instance-datas component-build-targets]
   {:pre [(workspace/source-resource? source-resource)
          (g/node-id? host-resource-node-id)
-         (vector? component-instance-datas)
          (vector? component-build-targets)]}
   ;; Extract the :component-instance-datas from the component build targets so
   ;; that overrides can be embedded in the resulting game object binary. We also

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -118,7 +118,6 @@ namespace dmResourceArchive
         ArchiveIndex*       m_ArchiveIndex;     // this could be mem-mapped or loaded into memory from file
         ArchiveFileIndex*   m_ArchiveFileIndex; // Used if the archive is loaded from file (bundled archive)
 
-        //ArchiveLoader       m_Loader;
         void*               m_UserData;         // private to the loader
 
         uint32_t m_ArchiveIndexSize;            // kept for unmapping
@@ -211,6 +210,19 @@ namespace dmResourceArchive
      * @return RESULT_OK on success
      */
     Result ReadEntry(HArchiveIndexContainer archive, const EntryData* entry, void* buffer);
+
+    /**
+     * Read a partial resource from the given archive
+     * @name ReadEntryPartial
+     * @param archive archive index handle
+     * @param entry_data entry data
+     * @param offset
+     * @param size
+     * @param buffer buffer to load to
+     * @param nread [out] the number of bytes read
+     * @return RESULT_OK on success
+     */
+    Result ReadEntryPartial(HArchiveIndexContainer archive, const EntryData* entry, uint32_t offset, uint32_t size, void* buffer, uint32_t* nread);
 
     /**
      * Delete archive index. Only required for archives created with LoadArchive function

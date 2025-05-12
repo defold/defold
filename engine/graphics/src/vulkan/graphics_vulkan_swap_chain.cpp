@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -241,8 +241,8 @@ namespace dmGraphics
 
         if (swapChain->HasMultiSampling())
         {
-            VkResult res = CreateTexture2D(vk_physical_device, vk_device,
-                vk_extent.width, vk_extent.height, 1, 1,
+            VkResult res = CreateTexture(vk_physical_device, vk_device,
+                vk_extent.width, vk_extent.height, 1, 1, 1,
                 swapChain->m_SampleCountFlag,
                 swapChain->m_SurfaceFormat.format,
                 VK_IMAGE_TILING_OPTIMAL,
@@ -316,7 +316,9 @@ namespace dmGraphics
         vkGetPhysicalDeviceSurfaceFormatsKHR(vk_device, surface, &format_count, 0);
         vkGetPhysicalDeviceSurfacePresentModesKHR(vk_device, surface, &present_modes_count, 0);
 
+#if defined(ANDROID)
         capabilities.m_SurfaceCapabilities.currentTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+#endif
 
         if (format_count > 0)
         {

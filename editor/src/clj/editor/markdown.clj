@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -29,15 +29,14 @@
             [cljfx.prop :as fx.prop]
             [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.code.data :as data]
+            [editor.code.resource :as r]
             [editor.defold-project :as project]
             [editor.fxui :as fxui]
             [editor.html-view :as html-view]
-            [editor.resource-io :as resource-io]
-            [editor.resource-node :as resource-node]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
-            [util.fn :as fn]
-            [util.text-util :as text-util])
+            [util.fn :as fn])
   (:import [java.net URI]
            [javafx.scene.control ScrollPane]
            [org.commonmark.ext.autolink AutolinkExtension]
@@ -71,10 +70,11 @@
 
       "file"
       (if-let [resource (g/with-auto-evaluation-context evaluation-context
-                          (let [workspace (project/workspace project evaluation-context)]
-                            (when-let [proj-path (workspace/as-proj-path workspace resolved-url evaluation-context)]
+                          (let [basis (:basis evaluation-context)
+                                workspace (project/workspace project evaluation-context)]
+                            (when-let [proj-path (workspace/as-proj-path basis workspace resolved-url)]
                               (workspace/find-resource workspace proj-path))))]
-        (ui/execute-command (ui/contexts (ui/main-scene)) :open {:resources [resource]})
+        (ui/execute-command (ui/contexts (ui/main-scene)) :file.open resource)
         (ui/open-url resolved-url))
 
       (ui/open-url resolved-url))))
@@ -432,34 +432,20 @@
     (.render renderer doc)))
 
 (g/defnode MarkdownNode
-  (inherits resource-node/ResourceNode)
+  (inherits r/CodeEditorResourceNode)
 
-  (output markdown g/Str :cached (g/fnk [_node-id resource]
-                                   (resource-io/with-error-translation resource _node-id :markdown
-                                     (slurp resource :encoding "UTF-8"))))
-
-  (output html g/Str :cached (g/fnk [markdown]
+  (output html g/Str :cached (g/fnk [save-value]
                                (str "<!DOCTYPE html>"
                                     "<html><head></head><body>"
-                                    (markdown->html markdown)
+                                    (-> save-value
+                                        data/lines->string
+                                        markdown->html)
                                     "</body></html>"))))
 
-(defn- search-value-fn [node-id _resource evaluation-context]
-  (g/node-value node-id :markdown evaluation-context))
-
-(defn search-fn
-  ([search-string]
-   (text-util/search-string->re-pattern search-string :case-insensitive))
-  ([markdown re-pattern]
-   (text-util/text->text-matches markdown re-pattern)))
-
 (defn register-resource-types [workspace]
-  (workspace/register-resource-type workspace
+  (r/register-code-resource-type workspace
     :ext "md"
     :label "Markdown"
-    :textual? true
-    :search-fn search-fn
-    :search-value-fn search-value-fn
     :node-type MarkdownNode
-    :view-types [:html :text]
+    :view-types [:html :code]
     :view-opts nil))

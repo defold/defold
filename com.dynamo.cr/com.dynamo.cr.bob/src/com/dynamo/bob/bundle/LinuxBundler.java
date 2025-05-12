@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -29,7 +29,7 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 
-@BundlerParams(platforms = {Platform.X86_64Linux})
+@BundlerParams(platforms = {"x86_64-linux", "arm64-linux"})
 public class LinuxBundler implements IBundler {
 
     @Override
@@ -72,7 +72,11 @@ public class LinuxBundler implements IBundler {
 
         // Copy executable
         File bundleExe = bundleExes.get(0);
-        File exeOut = new File(appDir, exeName + ".x86_64");
+        File exeOut;
+        if (platform.equals(Platform.X86_64Linux))
+            exeOut = new File(appDir, exeName + ".x86_64");
+        else
+            exeOut = new File(appDir, exeName + ".arm64");
         FileUtils.copyFile(bundleExe, exeOut);
         exeOut.setExecutable(true);
 
@@ -121,5 +125,7 @@ public class LinuxBundler implements IBundler {
 
         // Copy bundle resources into bundle directory
         ExtenderUtil.writeResourcesToDirectory(bundleResources, appDir);
+
+        BundleHelper.moveBundleIfNeed(project, bundleDir);
     }
 }

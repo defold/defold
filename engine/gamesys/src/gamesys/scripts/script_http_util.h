@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -32,7 +32,6 @@ namespace dmGameSystem
             return false;
         }
         size_t nwritten = fwrite(data, 1, data_len, f);
-        fflush(f);
         fclose(f);
         if (nwritten != data_len)
         {
@@ -67,7 +66,7 @@ namespace dmGameSystem
             if (resp->m_Status == 200) {
                 if (!WriteResponseToFile(resp->m_Path, response, resp->m_ResponseLength))
                 {
-                    lua_pushstring(L, "Failed to write to temp file");
+                    lua_pushliteral(L, "Failed to write to temp file");
                     lua_setfield(L, -2, "error");
                 }
             }
@@ -78,6 +77,19 @@ namespace dmGameSystem
             lua_pushlstring(L, response, resp->m_ResponseLength);
             lua_setfield(L, -2, "response");
         }
+
+        if (resp->m_Url)
+        {
+            lua_pushstring(L, resp->m_Url);
+            lua_setfield(L, -2, "url");
+        }
+
+        lua_pushinteger(L, resp->m_RangeStart);
+        lua_setfield(L, -2, "range_start");
+        lua_pushinteger(L, resp->m_RangeEnd);
+        lua_setfield(L, -2, "range_end");
+        lua_pushinteger(L, resp->m_DocumentSize);
+        lua_setfield(L, -2, "document_size");
 
         lua_pushliteral(L, "headers");
         lua_newtable(L);
@@ -112,6 +124,12 @@ namespace dmGameSystem
         }
         lua_rawset(L, -3);
 
+        return dmScript::RESULT_OK;
+    }
+
+    dmScript::Result HttpRequestProgressDecoder(lua_State* L, const dmDDF::Descriptor* desc, const char* data)
+    {
+        dmScript::PushDDFNoDecoder(L, desc, (const char*)data, false);
         return dmScript::RESULT_OK;
     }
 }

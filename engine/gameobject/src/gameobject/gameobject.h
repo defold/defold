@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -265,6 +265,15 @@ namespace dmGameObject
      * @return The register bound to the specified collection
      */
     HRegister GetRegister(HCollection collection);
+
+    /**
+     * Retrieve a collection from the socket name hash
+     * @param regist The register bound to the specified collection
+     * @param socket_name The name of the socket
+     * @return The game object collection if successful. 0 otherwise.
+     */
+    // Used by comp_collision_object.cpp to do cold lookups of urls
+    HCollection GetCollectionByHash(HRegister regist, dmhash_t socket_name);
 
     /**
      * Retrieve the frame message socket for the specified collection.

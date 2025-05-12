@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -76,6 +76,11 @@
     (let [code "x,y = require(\"myx\"), require(\"myy\")"
           result (select-keys (lua-info code) [:vars :requires])]
       (is (= {:vars #{"x" "y"}
+              :requires [["x" "myx"] ["y" "myy"]]} result))))
+  (testing "global with multiple global require assignments"
+    (let [code "x,y = _G.require(\"myx\"), _G.require(\"myy\")"
+          result (select-keys (lua-info code) [:vars :requires])]
+      (is (= {:vars #{"x" "y"}
               :requires [["x" "myx"] ["y" "myy"]]} result)))))
 
 (deftest test-require
@@ -84,6 +89,26 @@
           result (select-keys (lua-info code) [:vars :requires])]
       (is (= {:vars #{}
               :requires [[nil "mymath"]]} result))))
+  (testing "require function call with tail function call"
+    (let [code "require(\"deep_thought\").get_question(\"42\")"
+          result (select-keys (lua-info code) [:vars :requires])]
+      (is (= {:vars #{}
+              :requires [[nil "deep_thought"]]} result))))
+  (testing "global require function call with tail function call"
+    (let [code "_G.require(\"deep_thought\").get_question(\"42\")"
+          result (select-keys (lua-info code) [:vars :requires])]
+      (is (= {:vars #{}
+              :requires [[nil "deep_thought"]]} result))))
+  (testing "require function call with tail function call with local assignment"
+    (let [code "local result = require(\"deep_thought\").get_question(\"42\")"
+          result (select-keys (lua-info code) [:local-vars :requires])]
+      (is (= {:local-vars #{"result"}
+              :requires [["result" "deep_thought"]]} result))))
+  (testing "global require function call with tail function call with local assignment"
+    (let [code "local result = _G.require(\"deep_thought\").get_question(\"42\")"
+          result (select-keys (lua-info code) [:local-vars :requires])]
+      (is (= {:local-vars #{"result"}
+              :requires [["result" "deep_thought"]]} result))))
   (testing "require call as part of complex expression"
     (let [code (string/join "\n" ["state_rules[hash(\"main\")] = hash_rules("
                                   "    require \"main/state_rules\""

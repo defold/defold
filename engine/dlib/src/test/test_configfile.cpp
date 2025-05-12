@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -23,8 +23,8 @@
 #include <jc_test/jc_test.h>
 
 // We're currently disabling some tests on win32 host
-#if defined(_WIN32) || defined(DM_PLATFORM_VENDOR)
-#define HOST_WIN32
+#if defined(_WIN32) || defined(DM_PLATFORM_VENDOR) || defined(__EMSCRIPTEN__)
+#define SUPPORT_HTTP
 #endif
 
 const char* DEFAULT_ARGV[] = { "test_engine" };
@@ -129,7 +129,7 @@ TEST_P(Empty, Empty)
 const TestParam params_empty[] = {
     TestParam("src/test/data/empty.config"),
     TestParam("src/test/data/empty.config",false),
-#ifndef HOST_WIN32
+#ifndef SUPPORT_HTTP
     TestParam("http://localhost:%d/src/test/data/test.config")
 #endif
 };
@@ -145,7 +145,7 @@ TEST_P(MissingFile, MissingFile)
 
 const TestParam params_missing_file[] = {
     TestParam("does_not_exist"),
-#ifndef HOST_WIN32
+#ifndef SUPPORT_HTTP
     TestParam("http://localhost:%d/does_not_exist")
 #endif
 };
@@ -164,7 +164,7 @@ TEST_P(NoSection, NoSection)
 const TestParam params_no_section[] = {
     TestParam("src/test/data/nosection.config"),
     TestParam("src/test/data/nosection.config", true),
-#ifndef HOST_WIN32
+#ifndef SUPPORT_HTTP
     TestParam("http://localhost:%d/src/test/data/nosection.config")
 #endif
 };
@@ -180,7 +180,7 @@ TEST_P(SectionError, SectionError)
 const TestParam params_section_error[] = {
     TestParam("src/test/data/section_error.config"),
     TestParam("src/test/data/section_error.config", true),
-#ifndef HOST_WIN32
+#ifndef SUPPORT_HTTP
     TestParam("http://localhost:%d/src/test/data/section_error.config")
 #endif
 };
@@ -250,7 +250,7 @@ TEST_P(Test01, TestApiC)
 const TestParam params_test01[] = {
     TestParam("src/test/data/test.config"),
     TestParam("src/test/data/test.config", true),
-#ifndef HOST_WIN32
+#ifndef SUPPORT_HTTP
     TestParam("http://localhost:%d/src/test/data/test.config")
 #endif
 };
@@ -269,7 +269,7 @@ TEST_P(MissingTrailingNewline, MissingTrailingNewline)
 const TestParam params_missing_trailing_nl[] = {
     TestParam("src/test/data/missing_trailing_nl.config"),
     TestParam("src/test/data/missing_trailing_nl.config", true),
-#ifndef HOST_WIN32
+#ifndef SUPPORT_HTTP
     TestParam("http://localhost:%d/src/test/data/missing_trailing_nl.config")
 #endif
 };
@@ -307,7 +307,7 @@ int COMMAND_LINE_ARGC = sizeof(COMMAND_LINE_ARGV) / sizeof(COMMAND_LINE_ARGV[0])
 const TestParam params_command_line[] = {
     TestParam("src/test/data/test.config", COMMAND_LINE_ARGC, COMMAND_LINE_ARGV),
     TestParam("src/test/data/test.config", COMMAND_LINE_ARGC, COMMAND_LINE_ARGV, true),
-#ifndef HOST_WIN32
+#ifndef SUPPORT_HTTP
     TestParam("http://localhost:%d/src/test/data/test.config", COMMAND_LINE_ARGC, COMMAND_LINE_ARGV)
 #endif
 };

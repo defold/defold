@@ -1,13 +1,16 @@
 attribute vec4 position;
 attribute vec3 normal;
 attribute vec2 texcoord0;
+attribute vec4 color;
 
 varying vec3 var_normal;
 varying vec2 var_texcoord0;
+varying vec4 var_color;
 
 void main()
 {
     gl_Position   = position;
     var_normal    = normal;
     var_texcoord0 = texcoord0;
+    var_color = color;
 }

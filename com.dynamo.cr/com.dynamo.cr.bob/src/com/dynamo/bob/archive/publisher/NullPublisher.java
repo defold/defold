@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -14,7 +14,9 @@
 
 package com.dynamo.bob.archive.publisher;
 
+import com.dynamo.bob.archive.ArchiveEntry;
 import com.dynamo.bob.CompileExceptionError;
+import java.io.InputStream;
 
 public class NullPublisher extends Publisher {
 
@@ -22,9 +24,20 @@ public class NullPublisher extends Publisher {
         super(settings);
     }
 
-    @Override
-    public void Publish() throws CompileExceptionError {
-
+    public NullPublisher() {
+        super(new PublisherSettings());
     }
+
+    @Override
+    public void start() throws CompileExceptionError {}
+
+    @Override
+    public void stop() throws CompileExceptionError {}
+
+    @Override
+    public void publish(ArchiveEntry archiveEntry, InputStream data) throws CompileExceptionError {}
+
+    @Override
+    public void publish(ArchiveEntry archiveEntry, byte[] data) throws CompileExceptionError {}
 
 }

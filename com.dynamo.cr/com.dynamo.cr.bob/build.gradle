@@ -6,6 +6,9 @@ allprojects {
     tasks.withType(Jar) {
         exclude('tmp/**')
         includeEmptyDirs = false
+        if (project.hasProperty('keep-bob-uncompressed')) {
+            entryCompression = ZipEntryCompression.STORED
+        }
     }
     tasks.withType(Zip) {
         includeEmptyDirs = false
@@ -113,9 +116,9 @@ sourceSets {
 task copyDependencies {
     doLast {
         exec {
-            commandLine 'python', "${project.bobDir}/engine_version_generator.py"
+            commandLine project.python, "${project.bobDir}/engine_version_generator.py"
         }
-        def includeJars = ['dlib.jar', 'modelimporter.jar', 'texturecompiler.jar']
+        def includeJars = ['dlib.jar', 'modelimporter.jar', 'texturecompiler.jar', 'shaderc.jar']
         copy {
             from fileTree("${project.dynamoHome}/share/java") {
                 include includeJars
@@ -167,11 +170,12 @@ task createLuaJitShareZip(type: Zip, dependsOn: [compileSrc, compileGenerated]) 
 task compileBobLight(dependsOn: [getGitRevision, compileSrc, createLuaJitShareZip]) {
     doLast {
         def platformFiles = [
-                'x86_64-macos': ['glslang', 'spirv-cross', 'spirv-opt', 'luajit-32', 'luajit-64', 'lipo'],
-                'arm64-macos': ['glslang', 'spirv-cross', 'spirv-opt', 'luac-32', 'luajit-64', 'lipo'],
-                'x86_64-linux': ['glslang', 'spirv-cross', 'spirv-opt', 'luajit-32', 'luajit-64', 'lipo'],
-                'x86_64-win32': ['glslang.exe', 'spirv-cross.exe', 'spirv-opt.exe', 'luajit-64.exe', 'lipo.exe'],
-                'x86-win32': ['glslang.exe', 'spirv-cross.exe', 'spirv-opt.exe', 'luajit-32.exe']
+                'x86_64-macos': ['glslang', 'spirv-opt', 'luajit-64', 'lipo', 'tint'],
+                'arm64-macos': ['glslang', 'spirv-opt', 'luajit-64', 'lipo', 'tint'],
+                'x86_64-linux': ['glslang', 'spirv-opt', 'luajit-64', 'lipo', 'tint'],
+                'arm64-linux': ['glslang', 'spirv-opt', 'luajit-64', 'lipo', 'tint'],
+                'x86_64-win32': ['glslang.exe', 'spirv-opt.exe', 'luajit-64.exe', 'lipo.exe', 'tint.exe'],
+                'x86-win32': ['glslang.exe', 'spirv-opt.exe']
         ]
 
         platformFiles.forEach { platform, files ->
@@ -182,22 +186,23 @@ task compileBobLight(dependsOn: [getGitRevision, compileSrc, createLuaJitShareZi
                 into "${project.bobDir}/libexec/$platform"
             }
         }
-
+        def defaultTarName = 'luajit-2.1.0-a4f56a4'
         def tarFiles = [
-                'x86_64-linux': 'bin/x86_64-linux/**',
-                'x86_64-win32': 'bin/x86_64-win32/**',
-                'x86_64-macos': 'bin/x86_64-macos/**',
-                'arm64-macos': 'bin/arm64-macos/**'
+                'x86_64-linux': [pattern: 'bin/x86_64-linux/**', name: defaultTarName],
+                'arm64-linux': [pattern: 'bin/arm64-linux/**', name: defaultTarName],
+                'x86_64-win32': [pattern: 'bin/x86_64-win32/**', name: defaultTarName],
+                'x86_64-macos': [pattern: 'bin/x86_64-macos/**', name: defaultTarName],
+                'arm64-macos': [pattern: 'bin/arm64-macos/**', name: defaultTarName]
         ]
 
-        tarFiles.forEach { platform, includePattern ->
+        tarFiles.forEach { platform, config ->
             copy {
-                from tarTree(resources.gzip(file("../../packages/luajit-2.1.0-04dca79-${platform}.tar.gz")))
+                from tarTree(resources.gzip(file("../../packages/${config.name}-${platform}.tar.gz")))
                 into "${project.bobDir}/libexec/${platform}"
                 eachFile { fileCopyDetails ->
                     fileCopyDetails.path = fileCopyDetails.path.replaceFirst("^bin/$platform/", "")
                 }
-                include includePattern
+                include config.pattern
             }
         }
 
@@ -209,11 +214,12 @@ task compileBobLight(dependsOn: [getGitRevision, compileSrc, createLuaJitShareZi
         }
 
         def sharedLibs = [
-                'x86_64-macos': ['x86_64-macos/*texc_shared*', 'x86_64-macos/*modelc_shared*'],
-                'arm64-macos': ['arm64-macos/*texc_shared*', 'arm64-macos/*modelc_shared*'],
-                'x86_64-linux': ['x86_64-linux/*texc_shared*', 'x86_64-linux/*modelc_shared*'],
+                'x86_64-macos': ['x86_64-macos/*texc_shared*', 'x86_64-macos/*modelc_shared*', 'x86_64-macos/*shaderc_shared*'],
+                'arm64-macos': ['arm64-macos/*texc_shared*', 'arm64-macos/*modelc_shared*', 'arm64-macos/*shaderc_shared*'],
+                'x86_64-linux': ['x86_64-linux/*texc_shared*', 'x86_64-linux/*modelc_shared*', 'x86_64-linux/*shaderc_shared*'],
+                'arm64-linux': ['arm64-linux/*texc_shared*', 'arm64-linux/*modelc_shared*', 'arm64-linux/*shaderc_shared*'],
                 'win32': ['win32/*texc_shared*', 'win32/*modelc_shared*'],
-                'x86_64-win32': ['x86_64-win32/*texc_shared*', 'x86_64-win32/*modelc_shared*']
+                'x86_64-win32': ['x86_64-win32/*texc_shared*', 'x86_64-win32/*modelc_shared*', 'x86_64-win32/*shaderc_shared*']
         ]
 
         sharedLibs.forEach { platform, includePatterns ->
@@ -232,22 +238,6 @@ task compileBobLight(dependsOn: [getGitRevision, compileSrc, createLuaJitShareZi
 }
 
 task compile(dependsOn: ['compileBobLight']) {
-    doLast {
-        copy {
-            from fileTree("${project.dynamoHome}/ext/lib") {
-                include 'win32/OpenAL32.dll'
-                include 'win32/wrap_oal.dll'
-            }
-            into "${project.bobDir}/lib/x86-win32"
-        }
-        copy {
-            from fileTree("${project.dynamoHome}/ext/lib") {
-                include 'x86_64-win32/OpenAL32.dll'
-                include 'x86_64-win32/wrap_oal.dll'
-            }
-            into "${project.bobDir}/lib/x86_64-win32"
-        }
-    }
 }
 
 task createExternalLibsLightJar(type: Jar, dependsOn: compileSrc) {
@@ -292,15 +282,17 @@ task createBobLightJar(type: Jar, dependsOn: [createExternalLibsLightJar, create
     from fileTree(project.bobDir) {
         include 'lib/**/*texc_shared*',
                 'lib/**/*modelc_shared*',
+                'lib/**/*shaderc_shared*',
                 'lib/luajit-share.zip'
         exclude '**/*dSYM.zip',
                 'tmp/**'
     }
     from fileTree(project.bobDir) {
         include 'libexec/**/glslang*',
-                'libexec/**/spirv-cross*',
+                'libexec/**/tint*',
                 'libexec/**/spirv-opt*',
-                'libexec/**/luajit*'
+                'libexec/**/luajit*',
+                'libexec/**/aapt2*'
     }
 
     from {
@@ -365,9 +357,8 @@ task createBobJar(type: Jar, dependsOn: [createExternalLibsBuiltinsJar, createLu
     from fileTree(project.bobDir) {
         include 'lib/**/*texc_shared*',
                 'lib/**/*modelc_shared*',
+                'lib/**/*shaderc_shared*',
                 'lib/**/*libc++*',
-                'lib/*win32/OpenAL32.dll',
-                'lib/*win32/wrap_oal.dll',
                 'libexec/**/*',
                 'lib/report_template.html',
                 'lib/time_report_template.html',

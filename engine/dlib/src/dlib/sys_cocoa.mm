@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -163,16 +163,11 @@ namespace dmSys
 
     Result OpenURL(const char* url, const char* target)
     {
-        NSString* ns_url = [NSString stringWithUTF8String: url];
-        BOOL ret = [[UIApplication sharedApplication] openURL:[NSURL URLWithString: ns_url]];
-        if (ret == YES)
-        {
-            return RESULT_OK;
-        }
-        else
-        {
-            return RESULT_UNKNOWN;
-        }
+        NSString* ns_str = [NSString stringWithUTF8String:url];
+        NSURL* ns_url = [NSURL URLWithString:ns_str];
+        UIApplication *app = [UIApplication sharedApplication];
+        [app openURL:ns_url options:@{} completionHandler:nil];
+        return [app canOpenURL:ns_url] ? RESULT_OK : RESULT_UNKNOWN;
     }
 
     void GetSystemInfo(struct SystemInfo* info)

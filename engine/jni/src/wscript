@@ -4,9 +4,6 @@ import os
 def init(ctx):
     pass
 
-def options(opt):
-    opt.load('waf_dynamo')
-
 def configure(conf):
     conf.recurse('test')
 

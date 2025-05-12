@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -112,6 +112,11 @@ namespace dmProfileRender
     {
     }
 
+    ProfilerFrame::ProfilerFrame()
+    : m_Time(0)
+    {
+    }
+
     // The RenderProfile contains the current "live" frame and
     // stats used to sort/purge sample items
     struct RenderProfile
@@ -125,6 +130,7 @@ namespace dmProfileRender
         ProfilerFrame* m_CurrentFrame;
         ProfilerFrame* m_ActiveFrame;
         dmArray<ProfilerFrame*> m_RecordBuffer;
+        ProfilerFrame* m_LastPeakFrame;
 
         ProfilerMode m_Mode;
         ProfilerViewMode m_ViewMode;
@@ -350,7 +356,10 @@ namespace dmProfileRender
         const Area header_area  = GetHeaderArea(display_mode, profiler_area);
         const Area details_area = GetDetailsArea(display_mode, profiler_area, header_area);
 
+        ProfilerFrame empty_frame;
         ProfilerFrame* frame = render_profile->m_ActiveFrame ? render_profile->m_ActiveFrame : render_profile->m_CurrentFrame;
+        frame = frame ? frame : &empty_frame;
+
         std::sort(frame->m_Threads.Begin(), frame->m_Threads.End(), ThreadSortTimePred());
 
         const uint32_t properties_count  = frame->m_Properties.Size();
@@ -589,6 +598,7 @@ namespace dmProfileRender
         , m_LifeTime((uint32_t)((lifetime_in_milliseconds * ticks_per_second) / 1000))
         , m_CurrentFrame(0)
         , m_ActiveFrame(0)
+        , m_LastPeakFrame(0)
         , m_Mode(PROFILER_MODE_RUN)
         , m_ViewMode(PROFILER_VIEW_MODE_FULL)
         , m_MaxFrameTime(0)
@@ -601,6 +611,7 @@ namespace dmProfileRender
     {
         FlushRecording(render_profile, 0);
         DeleteProfilerFrame(render_profile->m_CurrentFrame);
+        DeleteProfilerFrame(render_profile->m_LastPeakFrame);
         delete render_profile;
     }
 
@@ -624,6 +635,7 @@ namespace dmProfileRender
             return;
         }
 
+        uint32_t last_thread_name = GetSelectedThread(render_profile, render_profile->m_CurrentFrame)->m_NameHash;
         if (render_profile->m_CurrentFrame)
         {
             DeleteProfilerFrame(render_profile->m_CurrentFrame);
@@ -633,35 +645,31 @@ namespace dmProfileRender
         if (!current_frame)
             return;
 
-        ProfilerThread* last_thread = GetSelectedThread(render_profile, render_profile->m_CurrentFrame);
-
         render_profile->m_CurrentFrame = DuplicateProfilerFrame(current_frame);
 
         ProfilerThread* current_thread = GetSelectedThread(render_profile, render_profile->m_CurrentFrame);
-        if (last_thread->m_NameHash != current_thread->m_NameHash)
+        if (last_thread_name != current_thread->m_NameHash)
         {
-            last_thread = 0;
             render_profile->m_MaxFrameTime = 0;
         }
 
-        //uint64_t last_frame_time = last_thread ? last_thread->m_SamplesTotalTime : 0;
         uint64_t this_frame_time = current_thread->m_SamplesTotalTime;
 
         bool new_peak_frame = render_profile->m_MaxFrameTime < this_frame_time;
         render_profile->m_MaxFrameTime = dmMath::Max(render_profile->m_MaxFrameTime, this_frame_time);
 
+        if (new_peak_frame)
+        {
+            if (render_profile->m_LastPeakFrame)
+            {
+                DeleteProfilerFrame(render_profile->m_LastPeakFrame);
+            }
+            render_profile->m_LastPeakFrame = DuplicateProfilerFrame(render_profile->m_CurrentFrame);
+        }
+
         if (render_profile->m_Mode == PROFILER_MODE_SHOW_PEAK_FRAME)
         {
-            if (new_peak_frame)
-            {
-                ProfilerFrame* snapshot = DuplicateProfilerFrame(render_profile->m_CurrentFrame);
-
-                FlushRecording(render_profile, 1);
-                render_profile->m_RecordBuffer.SetSize(1);
-                render_profile->m_RecordBuffer[0] = snapshot;
-            }
-
-            GotoRecordedFrame(render_profile, 0);
+            render_profile->m_ActiveFrame = render_profile->m_LastPeakFrame;
             return;
         }
 
@@ -677,10 +685,7 @@ namespace dmProfileRender
             render_profile->m_PlaybackFrame = (int32_t)render_profile->m_RecordBuffer.Size();
         }
 
-        if (render_profile->m_ViewMode != PROFILER_VIEW_MODE_MINIMIZED)
-        {
-            //
-        }
+        render_profile->m_ActiveFrame = 0;
     }
 
     void SetMode(HRenderProfile render_profile, ProfilerMode mode)
@@ -860,5 +865,75 @@ namespace dmProfileRender
         frame->m_Properties.Push(prop);
     }
 
+    static const char* GetIndent(int i)
+    {
+        static char buf[512];
+        uint32_t count = i * 4;
+        if (count >= sizeof(buf))
+            count = sizeof(buf) - 1;
+
+        memset(buf, ' ', count);
+        buf[count] = 0;
+        return buf;
+    }
+
+    static void DumpThread(ProfilerThread* thread)
+    {
+        const float ticks_per_second = 1000000.0f;
+        float frame_time_f = thread->m_SamplesTotalTime / ticks_per_second;
+        dmLogInfo("%sThread '%s': %f", GetIndent(1), dmHashReverseSafe32(thread->m_NameHash), frame_time_f);
+
+        uint32_t num_samples = thread->m_Samples.Size();
+        for (uint32_t i = 0; i < num_samples; ++i)
+        {
+            ProfilerSample& sample = thread->m_Samples[i];
+            float time = (sample.m_Time * 1000) / (float)ticks_per_second; // in milliseconds
+            float self_time = (sample.m_SelfTime * 1000) / (float)ticks_per_second; // in milliseconds
+
+            dmLogInfo("%s'%s': time: %.3f ms self: %.3f ms  count: %u", GetIndent(sample.m_Indent+1), dmHashReverseSafe32(sample.m_NameHash), time, self_time, sample.m_Count);
+        }
+    }
+
+    static void DumpProperties(ProfilerFrame* frame)
+    {
+        uint32_t num_properties = frame->m_Properties.Size();
+        for (uint32_t i = 0; i < num_properties; ++i)
+        {
+            const ProfilerProperty& property = frame->m_Properties[i];
+
+            char buffer[128];
+            switch(property.m_Type)
+            {
+            case dmProfile::PROPERTY_TYPE_BOOL:  dmSnPrintf(buffer, sizeof(buffer), "%s", property.m_Value.m_Bool?"True":"False"); break;
+            case dmProfile::PROPERTY_TYPE_S32:   dmSnPrintf(buffer, sizeof(buffer), "%d", property.m_Value.m_S32); break;
+            case dmProfile::PROPERTY_TYPE_U32:   dmSnPrintf(buffer, sizeof(buffer), "%u", property.m_Value.m_U32); break;
+            case dmProfile::PROPERTY_TYPE_F32:   dmSnPrintf(buffer, sizeof(buffer), "%f", property.m_Value.m_F32); break;
+            case dmProfile::PROPERTY_TYPE_S64:   dmSnPrintf(buffer, sizeof(buffer), "%lld", (long long)property.m_Value.m_S64); break;
+            case dmProfile::PROPERTY_TYPE_U64:   dmSnPrintf(buffer, sizeof(buffer), "%llx", (unsigned long long)property.m_Value.m_U64); break;
+            case dmProfile::PROPERTY_TYPE_F64:   dmSnPrintf(buffer, sizeof(buffer), "%g", property.m_Value.m_F64); break;
+            case dmProfile::PROPERTY_TYPE_GROUP: dmSnPrintf(buffer, sizeof(buffer), ""); break;
+            default: break;
+            }
+
+            dmLogInfo("%s'%s': %s", GetIndent(property.m_Indent+1), dmHashReverseSafe32(property.m_NameHash), buffer);
+        }
+    }
+
+    void DumpFrame(ProfilerFrame* frame)
+    {
+        dmLogInfo("**********************************************************************");
+        dmLogInfo("**********************************************************************");
+        dmLogInfo("Profiler threads:");
+        for (uint32_t i = 0; i < frame->m_Threads.Size(); ++i)
+        {
+            DumpThread(frame->m_Threads[i]);
+        }
+
+        dmLogInfo("");
+        dmLogInfo("Profiler properties:");
+
+        DumpProperties(frame);
+        dmLogInfo("**********************************************************************");
+    }
 
 } // namespace dmProfileRender

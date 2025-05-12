@@ -9,55 +9,58 @@ Make sure you have followed the [setup guide](README_SETUP.md) before attempting
 You can build and run the editor and use an existing released version of the Defold engine and command line tools:
 
 ```sh
-# open a terminal/console and change directory to `defold`
-cd defold
-
-# Setup the shell environment (consider putting it in an alias in your bash profile)
-python ./scripts/build.py shell
-
-# you only need to do this once
-python ./scripts/build.py install_ext
-
-# Change directory to the editor directory
-cd editor
-
-# build with pre-built engine binaries suitable for your editor version
-lein init archived-stable
-
-# start the editor
-lein run
-```
-
-
-## Build using local engine and tools
-These build steps build the engine and command line tools using [engine build instructions](../README_BUILD.md):
-
-```sh
-# open a terminal/console and change directory to `defold`
+# Open a terminal/console and change directory to `defold`
 cd defold
 
 # Setup the shell environment (consider putting it in an alias in your bash profile)
 ./scripts/build.py shell
 
-# Run install_ext for the correct platform
-./scripts/build.py install_ext --platform=...
+# Extracts packages - you only need to do this once
+./scripts/build.py install_ext
 
-# Build the engine
-./scripts/build.py build_engine --platform=... --skip-tests -- --skip-build-tests
-
-# Build builtins
-scripts/build.py build_builtins
-
-# Build reference documentation
-scripts/build.py build_docs
-
-# Build Bob
-scripts/build.py build_bob --skip-tests
-
-# Change directory to the editor directory
+# Change directory to the editor subdirectory
 cd editor
 
-# Build and run
+# Build with pre-built engine binaries suitable for your editor version
+lein init <sha1>
+
+# start the editor
+lein run
+```
+
+*NOTE* To select a sha1 here, use one of the matching [Defold releases](https://github.com/defold/defold/releases). E.g. if you're on the dev branch, use the "alpha" release. if you're on the beta branch, use the "beta" release. And if you're using the master branch use the "stable" release.
+
+## Build using local engine and tools
+These build steps build the engine and command line tools using the [engine build instructions](../README_BUILD.md).
+
+The `--platform=` is implied in these examples, as it defaults to the host platform (x86_64-win32, x86_64-linux, x86_64-macos or arm64-macos).
+
+```sh
+# Open a terminal/console and change directory to `defold`
+cd defold
+
+# Setup the shell environment (consider putting it in an alias in your bash profile)
+./scripts/build.py shell
+
+# Extracts packages - you only need to do this once
+./scripts/build.py install_ext
+
+# Build the engine
+./scripts/build.py build_engine --skip-tests -- --skip-build-tests
+
+# Build builtins
+./scripts/build.py build_builtins
+
+# Build reference documentation
+./scripts/build.py build_docs
+
+# Build Bob
+./scripts/build.py build_bob --skip-tests --keep-bob-uncompressed
+
+# Change directory to the editor subdirectory
+cd editor
+
+# Build and run the editor
 lein init
 lein run
 ```
@@ -77,7 +80,7 @@ If you are using a repl, you can also run the tests by calling `(suite/suite)`.
 Run the benchmarks:
 
 ```sh
-`lein benchmark`
+lein benchmark
 ```
 
 The results will be stored in the `test/benchmark/bench-result.txt` file. Make sure to have everything on your system closed down.

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -146,33 +146,6 @@ namespace dmGraphics
         }
     }
 
-    uint32_t VulkanGetDisplayDpi(HContext context)
-    {
-        return 0;
-    }
-
-    dmPlatform::HWindow VulkanGetWindow(HContext context)
-    {
-        return ((VulkanContext*) context)->m_Window;
-    }
-
-    uint32_t VulkanGetWidth(HContext context)
-    {
-        return ((VulkanContext*) context)->m_Width;
-    }
-
-    uint32_t VulkanGetHeight(HContext context)
-    {
-        return ((VulkanContext*) context)->m_Height;
-    }
-
-    void VulkanGetNativeWindowSize(HContext _context, uint32_t* width, uint32_t* height)
-    {
-        VulkanContext* context = (VulkanContext*) _context;
-        *width                 = dmPlatform::GetWindowWidth(context->m_Window);
-        *height                = dmPlatform::GetWindowHeight(context->m_Window);
-    }
-
     void VulkanSetWindowSize(HContext _context, uint32_t width, uint32_t height)
     {
         VulkanContext* context = (VulkanContext*) _context;
@@ -198,12 +171,5 @@ namespace dmGraphics
         {
             VulkanSetWindowSize(_context, width, height);
         }
-    }
-
-    void NativeSwapBuffers(HContext context)
-    {
-    #if defined(ANDROID) || defined(DM_PLATFORM_IOS)
-        dmPlatform::SwapBuffers(((VulkanContext*) context)->m_Window);
-    #endif
     }
 }

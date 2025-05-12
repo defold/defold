@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -23,12 +23,10 @@ namespace dmRender
      * Initialize debug render system
      * @param render_context Render context
      * @param max_vertex_count Max vertex count (per type)
-     * @param vp_desc VertexProgram shader desc
-     * @param vp_desc_size VertexProgram shader desc size
-     * @param fp_desc FragmentProgram shader desc
-     * @param fp_desc_size FragmentProgram shader desc size
+     * @param sp_desc ShaderProgram shader desc
+     * @param sp_desc_size ShaderProgram shader desc size
      */
-	void InitializeDebugRenderer(HRenderContext render_context, uint32_t max_vertex_count, const void* vp_desc, uint32_t vp_desc_size, const void* fp_desc, uint32_t fp_desc_size);
+	void InitializeDebugRenderer(HRenderContext render_context, uint32_t max_vertex_count, const void* sp_desc, uint32_t sp_desc_size);
 
     /**
      * Finalize debug render system

@@ -16,7 +16,7 @@ create_simple_protoc_task('particle_fx', '.particlefx', '.particlefxc', 'dmParti
 def build(bld):
     test_particle = bld(features = 'c cxx cprogram test',
                         includes = '. .. ../../proto',
-                        use = 'TESTMAIN DDF DLIB GRAPHICS_NULL PROFILE_NULL SOCKET PLATFORM_THREAD particle',
+                        use = 'TESTMAIN DDF DLIB PLATFORM_NULL GRAPHICS_NULL PROFILE_NULL SOCKET PLATFORM_THREAD particle',
                         proto_gen_py = True,
                         source = bld.path.ant_glob(['*.particlefx', '*.cpp']),
                         target = 'test_particle')

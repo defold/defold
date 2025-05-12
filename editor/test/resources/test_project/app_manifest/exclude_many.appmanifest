@@ -27,6 +27,14 @@ platforms:
             libs: ["record_null","profilerext_null","sound_null","hid_null","liveupdate_null","graphics_transcoder_null"]
             linkFlags: []
 
+    arm64-linux:
+        context:
+            excludeLibs: ["record","vpx","profilerext","sound","tremolo","hid","liveupdate","graphics_transcoder_basisu","basis_transcoder"]
+            excludeSymbols: ["ProfilerExt","DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo"]
+            symbols: []
+            libs: ["record_null","profilerext_null","sound_null","hid_null","liveupdate_null","graphics_transcoder_null"]
+            linkFlags: []
+
     js-web:
         context:
             excludeLibs: ["record","vpx","profilerext","sound","tremolo","hid","liveupdate","graphics_transcoder_basisu","basis_transcoder"]
@@ -37,6 +45,15 @@ platforms:
             linkFlags: []
 
     wasm-web:
+        context:
+            excludeLibs: ["record","vpx","profilerext","sound","tremolo","hid","liveupdate","graphics_transcoder_basisu","basis_transcoder"]
+            excludeJsLibs: []
+            excludeSymbols: ["ProfilerExt","DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo"]
+            symbols: []
+            libs: ["record_null","profilerext_null","sound_null","hid_null","liveupdate_null","graphics_transcoder_null"]
+            linkFlags: []
+
+    wasm_pthread-web:
         context:
             excludeLibs: ["record","vpx","profilerext","sound","tremolo","hid","liveupdate","graphics_transcoder_basisu","basis_transcoder"]
             excludeJsLibs: []

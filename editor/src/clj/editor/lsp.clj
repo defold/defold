@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -124,9 +124,9 @@
 (s/def ::resource resource/resource?)
 
 (defn- on-diagnostics-published [server resource diagnostics-result]
-  {:pre [(s/valid? ::server server)
-         (s/valid? ::resource resource)
-         (s/valid? ::lsp.server/diagnostics-result diagnostics-result)]}
+  {:pre [(s/assert ::server server)
+         (s/assert ::resource resource)
+         (s/assert ::lsp.server/diagnostics-result diagnostics-result)]}
   (fn [state]
     (let [state (assoc-in state [:server->server-state server :diagnostics resource] diagnostics-result)]
       (when-let [view-node (get-in state [:resource->view-node resource])]
@@ -161,8 +161,8 @@
     (set-view-node-completion-trigger-characters-tx state resource view-node)))
 
 (defn- on-server-initialized [server capabilities]
-  {:pre [(s/valid? ::server server)
-         (s/valid? ::lsp.server/capabilities capabilities)]}
+  {:pre [(s/assert ::server server)
+         (s/assert ::lsp.server/capabilities capabilities)]}
   (fn [{:keys [server->server-state] :as state}]
     (let [{:keys [languages]} server
           {:keys [in]} (get server->server-state server)
@@ -210,8 +210,7 @@
       (let [remaining-responses (dec (requests responses-ch))]
         (cond
           (:error response) (log/warn :message "Language server responded with error" :server server :error (:error response))
-          (nil? (:result response)) (log/info :message "Language server returned no response" :server server)
-          :else (a/put! responses-ch (server-response-value (:result response))))
+          (some? (:result response)) (a/put! responses-ch (server-response-value (:result response))))
         (let [state (if (zero? remaining-responses)
                       (do (a/close! responses-ch)
                           (-> state
@@ -246,7 +245,7 @@
                    :editor.lsp.server-state/diagnostics]))
 
 (defn- dispose-server-state! [state server {:keys [in out diagnostics] :as server-state}]
-  {:pre [(s/valid? ::server-state server-state)]}
+  {:pre [(s/assert ::server-state server-state)]}
   (ui/run-later
     (g/transact
       (concat
@@ -329,7 +328,7 @@
       (resource-polled? state resource)))
 
 (defn- text-sync-kind [capabilities]
-  {:post [(s/valid? ::lsp.server/change %)]}
+  {:post [(s/assert ::lsp.server/change %)]}
   (-> capabilities :text-document-sync :change))
 
 (defn- capability-sync-text? [capabilities]
@@ -438,7 +437,7 @@
 (s/def ::new-servers (s/coll-of ::server :kind set?))
 
 (defn set-servers [new-servers]
-  {:pre [(s/valid? ::new-servers new-servers)]}
+  {:pre [(s/assert ::new-servers new-servers)]}
   (fn [{:keys [server->server-state project] :as state}]
     (let [old-servers (set (keys server->server-state))
           to-remove (set/difference old-servers new-servers)
@@ -843,7 +842,8 @@
                    results so far"
   [lsp resource cursor context result-callback & {:keys [timeout-ms]
                                                   :or {timeout-ms 1000}}]
-  (if (resource/file-resource? resource)
+  (if (and (resource/file-resource? resource)
+           (resource/editable? resource))
     (lsp (bound-fn [state]
            (let [ch (a/chan 1)]
              (a/go (result-callback (<! (a/reduce
@@ -868,21 +868,75 @@
     ;; Don't ask the servers about dependency (zip) resources
     (do (result-callback {:complete true :items []}) nil)))
 
+(defn capability-resolve-completions? [capability]
+  (-> capability :completion :resolve boolean))
+
 (defn resolve-completion! [lsp completion result-callback & {:keys [timeout-ms]
                                                              :or {timeout-ms 5000}}]
   (if-let [completion-out (:editor.lsp.server-state/out (meta completion))]
     (lsp (bound-fn [state]
            (let [ch (a/chan 1)]
              (a/go (result-callback (or (<! ch) completion)))
-             (send-requests! state
-                             ch
-                             :requests-fn (fn [_ {:keys [out]}]
-                                            (when (= out completion-out)
-                                              [(lsp.server/resolve-completion
-                                                 completion
-                                                 #(vary-meta % dissoc :editor.lsp.server-state/out))]))
-                             :timeout-ms timeout-ms))))
+             (send-requests!
+               state ch
+               :capabilities-pred capability-resolve-completions?
+               :requests-fn (fn [_ {:keys [out]}]
+                              (when (= out completion-out)
+                                [(lsp.server/resolve-completion
+                                   completion
+                                   #(vary-meta % dissoc :editor.lsp.server-state/out))]))
+               :timeout-ms timeout-ms))))
     (result-callback completion)))
+
+(defn hover! [lsp resource cursor result-callback & {:keys [timeout-ms]
+                                                     :or {timeout-ms 1000}}]
+  (if (resource/file-resource? resource)
+    (lsp (bound-fn [state]
+           (let [ch (a/chan 1 cat)]
+             (a/go (result-callback (<! (a/into [] ch))))
+             (send-requests!
+               state ch
+               :capabilities-pred :hover
+               :language (resource/language resource)
+               :timeout-ms timeout-ms
+               :requests [(lsp.server/hover resource cursor)]))))
+    (do (result-callback []) nil)))
+
+(defn prepare-rename [lsp resource cursor result-callback & {:keys [timeout-ms]
+                                                             :or {timeout-ms 1000}}]
+  (if (and (resource/file-resource? resource)
+           (resource/editable? resource))
+    (lsp (bound-fn [state]
+           (let [ch (a/chan 1 (take 1))]
+             (a/go (result-callback (<! ch)))
+             (send-requests!
+               state ch
+               :capabilities-pred :rename
+               :language (resource/language resource)
+               :timeout-ms timeout-ms
+               :requests-fn (fn [_ {:keys [out]}]
+                              [(lsp.server/prepare-rename
+                                 resource
+                                 cursor
+                                 #(vary-meta % assoc
+                                             :editor.lsp.server-state/out out
+                                             :resource resource
+                                             :cursor cursor))])))))
+    (do (result-callback nil) nil)))
+
+(defn rename [lsp prepared-range new-name result-callback & {:keys [timeout-ms]
+                                                             :or {timeout-ms 5000}}]
+  (if-let [{:keys [resource cursor] rename-out :editor.lsp.server-state/out} (meta prepared-range)]
+    (lsp (bound-fn [state]
+           (let [ch (a/chan 1)]
+             (a/go (result-callback (<! ch)))
+             (send-requests!
+               state ch
+               :requests-fn (fn [_ {:keys [out]}]
+                              (when (= out rename-out)
+                                [(lsp.server/rename resource cursor new-name)]))
+               :timeout-ms timeout-ms))))
+    (throw (IllegalArgumentException. "Expected a prepared range" {:range prepared-range}))))
 
 (comment
   (val (first @running-lsps))

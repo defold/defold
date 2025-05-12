@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -47,6 +47,14 @@ public interface IResource {
      * @throws IOException
      */
     void setContent(byte[] content) throws IOException;
+
+    /**
+     * Append content for resource. #
+     * @note only valid operation for output-resources, see {@link IResource#output()}
+     * @param content content to append to resource
+     * @throws IOException
+     */
+    void appendContent(byte[] content) throws IOException;
 
     /**
      * Get sha1 checksum for resource
@@ -123,7 +131,7 @@ public interface IResource {
     IResource disableCache();
 
     /**
-     * Check if this resource should can be cached
+     * Check if this resource can be cached
      * @return True if resource can be cached. Defaults to true
      */
     boolean isCacheable();

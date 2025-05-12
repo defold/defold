@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,12 +15,13 @@
 (ns editor.buffers
   (:require [util.num :as num])
   (:import [com.google.protobuf ByteString]
-           [java.nio Buffer ByteBuffer ByteOrder DoubleBuffer FloatBuffer IntBuffer LongBuffer ShortBuffer]))
+           [java.nio Buffer ByteBuffer ByteOrder DoubleBuffer FloatBuffer IntBuffer LongBuffer ShortBuffer]
+           [java.nio.charset StandardCharsets]))
 
 (set! *warn-on-reflection* true)
 
 (defn slurp-bytes
-  [^ByteBuffer buff]
+  ^bytes [^ByteBuffer buff]
   (let [buff (.duplicate buff)
         n (.remaining buff)
         bytes (byte-array n)]
@@ -29,12 +30,16 @@
 
 (defn alias-buf-bytes
   "Avoids copy if possible."
-  [^ByteBuffer buff]
+  ^bytes [^ByteBuffer buff]
   (if (and (.hasArray buff) (= (.remaining buff) (alength (.array buff))))
     (.array buff)
     (slurp-bytes buff)))
 
-(defn bbuf->string [^ByteBuffer bb] (String. ^bytes (alias-buf-bytes bb) "UTF-8"))
+(defn bbuf->string
+  (^String [^ByteBuffer bb]
+   (String. (alias-buf-bytes bb) StandardCharsets/UTF_8))
+  (^String [^ByteBuffer bb ^long offset ^long length]
+   (String. (alias-buf-bytes bb) offset length StandardCharsets/UTF_8)))
 
 (defprotocol ByteStringCoding
   (byte-pack [source] "Return a Protocol Buffer compatible ByteString from the given source."))

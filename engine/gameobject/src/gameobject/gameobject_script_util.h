@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -28,6 +28,18 @@ namespace dmGameObject
     Result LuaLoad(dmResource::HFactory factory, dmScript::HContext context, dmLuaDDF::LuaModule* module);
     int    LuaToPropertyOptions(lua_State* L, int index, PropertyOptions* property_options, dmhash_t property_id, bool* index_requested);
     int    CheckGetPropertyResult(lua_State* L, const char* module_name, dmGameObject::PropertyResult result, const PropertyDesc& property_desc, dmhash_t property_id, const dmMessage::URL& target, const dmGameObject::PropertyOptions& property_options, bool index_requested);
+    int    HandleGoSetResult(lua_State* L, dmGameObject::PropertyResult result, dmhash_t property_id, dmGameObject::HInstance target_instance, const dmMessage::URL& target, const dmGameObject::PropertyOptions& property_options);
+
+    static const char* TYPE_NAMES[PROPERTY_TYPE_COUNT] = {
+        "number",        // PROPERTY_TYPE_NUMBER
+        "hash",          // PROPERTY_TYPE_HASH
+        "msg.url",       // PROPERTY_TYPE_URL
+        "vmath.vector3", // PROPERTY_TYPE_VECTOR3
+        "vmath.vector4", // PROPERTY_TYPE_VECTOR4
+        "vmath.quat",    // PROPERTY_TYPE_QUAT
+        "boolean",       // PROPERTY_TYPE_BOOLEAN
+        "vmath.matrix4", // PROPERTY_TYPE_MATRIX4
+    };
 }
 
 #endif // #ifndef DM_GAMEOBJECT_SCRIPT_UTIL_H

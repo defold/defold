@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -38,22 +38,13 @@ static void SetHttpAddress(lua_State* L)
 
 TEST_F(ComponentTest, HTTPRequest)
 {
-    dmGameSystem::ScriptLibContext scriptlibcontext;
-    scriptlibcontext.m_Factory         = m_Factory;
-    scriptlibcontext.m_Register        = m_Register;
-    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
-    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
-    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
-
-    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
-
-    lua_State* L = scriptlibcontext.m_LuaState;
+    lua_State* L = m_Scriptlibcontext.m_LuaState;
 
     dmMessage::URL m_DefaultURL;
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("default_socket", &m_DefaultURL.m_Socket));
     m_DefaultURL.m_Path = dmHashString64("default_path");
     m_DefaultURL.m_Fragment = dmHashString64("default_fragment");
-    dmScript::PushURL(scriptlibcontext.m_LuaState, m_DefaultURL);
+    dmScript::PushURL(m_Scriptlibcontext.m_LuaState, m_DefaultURL);
     lua_setglobal(L, DEFAULT_URL);
 
     SetHttpAddress(L);
@@ -63,9 +54,9 @@ TEST_F(ComponentTest, HTTPRequest)
     dmGameObject::HInstance go = ::Spawn(m_Factory, m_Collection, "/http/http_request.goc", dmHashString64("/http_request"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
-    uint64_t stop_time = dmTime::GetTime() + 1*1e6; // 1 second
+    uint64_t stop_time = dmTime::GetMonotonicTime() + 1*1e6; // 1 second
     bool tests_done = false;
-    while (dmTime::GetTime() < stop_time && !tests_done)
+    while (dmTime::GetMonotonicTime() < stop_time && !tests_done)
     {
     	ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
@@ -79,8 +70,6 @@ TEST_F(ComponentTest, HTTPRequest)
 
     ASSERT_TRUE(tests_done);
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
-
-    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
 extern "C" void dmExportedSymbols();

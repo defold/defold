@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -22,22 +22,20 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.io.BufferedWriter;
-
-import java.lang.management.ManagementFactory;
-import java.lang.management.RuntimeMXBean;
+import java.lang.Thread;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.codehaus.jackson.JsonFactory;
 import org.codehaus.jackson.JsonGenerator;
 
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
-
-import com.samskivert.mustache.Mustache;
-import com.samskivert.mustache.Template;
 
 /**
  * Class helps to profile time of the Bob tool and generate report.
@@ -49,15 +47,27 @@ public class TimeProfiler {
     /**
      * Helper class that contains profiling data and represents a linked list of scopes hierarchy.
      */
-    private static class ProfilingScope {
+    public static class ProfilingScope {
         public long startTime;
         public long endTime;
-        HashMap<String, String> additionalStringData;
-        HashMap<String, Float> additionalNumberData;
-        HashMap<String, Boolean> additionalBooleanData;
+        HashMap<String, Object> data;
 
         public ProfilingScope parent;
         public ArrayList<ProfilingScope> children;
+
+        public ProfilingScope() {}
+
+        public void addData(String fieldName, Object value) {
+            if (data == null) {
+                data = new HashMap<>();
+            }
+            data.put(fieldName, value);
+        }
+
+        public void stop() {
+            endTime = System.currentTimeMillis();
+            TimeProfiler.setCurrentScope(this.parent);
+        }
     }
 
     /**
@@ -70,13 +80,12 @@ public class TimeProfiler {
         public long timestamp;
     }
 
-    private static ArrayList<ProfilingMark> marks;
+    private static final ArrayList<ProfilingMark> marks = new ArrayList<>();
     private static long buildTime;
-
-    private static ProfilingScope rootScope;
-    private static ProfilingScope currentScope;
+    private static final Map<Long, ProfilingScope> rootScopes = new ConcurrentHashMap<>();
+    private static long mainThreadId;
+    private static final Map<Long, ProfilingScope> currentScopes = new ConcurrentHashMap<>();
     private static List<File> reportFiles;
-    private static Boolean fromEditor;
 
     private static long time() {
         return System.currentTimeMillis();
@@ -88,22 +97,10 @@ public class TimeProfiler {
         generator.writeNumber(scope.startTime - buildTime);
         generator.writeFieldName("duration");
         generator.writeNumber(scope.endTime - scope.startTime);
-        if (scope.additionalStringData != null) {
-            for (Map.Entry<String, String> entry : scope.additionalStringData.entrySet())  {
+        if (scope.data != null) {
+            for (Map.Entry<String, Object> entry : scope.data.entrySet()) {
                 generator.writeFieldName(entry.getKey());
-                generator.writeString(entry.getValue());
-            }
-        }
-        if (scope.additionalNumberData != null) {
-            for (Map.Entry<String, Float> entry : scope.additionalNumberData.entrySet())  {
-                generator.writeFieldName(entry.getKey());
-                generator.writeNumber(entry.getValue());
-            }
-        }
-        if (scope.additionalBooleanData != null) {
-            for (Map.Entry<String, Boolean> entry : scope.additionalBooleanData.entrySet())  {
-                generator.writeFieldName(entry.getKey());
-                generator.writeBoolean(entry.getValue());
+                generator.writeObject(entry.getValue());
             }
         }
         if (scope.children != null) {
@@ -117,20 +114,27 @@ public class TimeProfiler {
         generator.writeEndObject();
     }
 
-    private static String generateJSON(ProfilingScope scope) throws IOException {
-
-        StringWriter strWriter = new StringWriter();
-        BufferedWriter writer = null;
+    private static void generateJSON(BufferedWriter writer) throws IOException {
         JsonGenerator generator = null;
-
         try {
-            writer = new BufferedWriter(strWriter);
             generator = (new JsonFactory()).createJsonGenerator(writer);
             generator.useDefaultPrettyPrinter();
             generator.writeStartObject();
             generator.writeFieldName("data");
             generator.writeStartArray();
-            generateJsonRecursively(generator, scope);
+
+            // Ensure the main thread root comes first
+            if (rootScopes.containsKey(mainThreadId)) {
+                generateJsonRecursively(generator, rootScopes.get(mainThreadId));
+                rootScopes.remove(mainThreadId);
+            }
+
+            List<ProfilingScope> sortedScopes = new ArrayList<>(rootScopes.values());
+            Collections.sort(sortedScopes, Comparator.comparing((ProfilingScope scope) -> (String)scope.data.get("name")));
+            for (ProfilingScope scope : sortedScopes) {
+                generateJsonRecursively(generator, scope);
+            }
+
             generator.writeEndArray();
             generator.writeFieldName("marks");
             generator.writeStartArray();
@@ -149,69 +153,53 @@ public class TimeProfiler {
             generator.writeEndArray();
             generator.writeEndObject();
         } finally {
-            if (null != generator) {
-                generator.close();
+            if (generator != null) {
+                generator.flush();
             }
-            IOUtils.closeQuietly(writer);
         }
-
-        return strWriter.toString();
     }
 
-    private static void saveJSON(String jsonReport, File reportFile) throws IOException {
-        FileWriter fileJSONWriter = null;
-        fileJSONWriter = new FileWriter(reportFile);
-        fileJSONWriter.write(jsonReport);
-        fileJSONWriter.close();
-    }
-
-    private static void saveHTML(String jsonReport, File reportFile) throws IOException {
-        FileWriter fileHTMMLWriter = null;
-        fileHTMMLWriter = new FileWriter(reportFile);
-
+    public static String[] getHtmlContent() throws IOException {
         InputStream templateStream = Bob.class.getResourceAsStream("/lib/time_report_template.html");
-
-        StringWriter writer = new StringWriter();
         try {
+            StringWriter writer = new StringWriter();
             IOUtils.copy(templateStream, writer);
+            String templateString = writer.toString();
+            String token = "{{json-data}}";
+            int tokenIndex = templateString.indexOf(token);
+            String beforeToken = templateString.substring(0, tokenIndex - 1);
+            String afterToken = templateString.substring(tokenIndex + token.length()+1);
+            return new String[]{beforeToken, afterToken};
         } catch (IOException e) {
             throw new IOException("Error while reading time report template: " + e.toString());
         }
-        String templateString = writer.toString();
-
-        HashMap<String, Object> ctx = new HashMap<String, Object>();
-        ctx.put("json-data", jsonReport);
-
-        Template template = Mustache.compiler().compile(templateString);
-        StringWriter sw = new StringWriter();
-        template.execute(ctx, sw);
-        sw.flush();
-
-        fileHTMMLWriter.write(sw.toString());
-        fileHTMMLWriter.close();
+        finally {
+            IOUtils.closeQuietly(templateStream);
+        }
     }
 
-    public static void createReport(Boolean fromEditor) {
-        // avoid douple creation of the report by checking `fromEditor` flag
-        if (rootScope == null || TimeProfiler.fromEditor != fromEditor) {
+    public static void createReport() {
+        if (reportFiles == null) {
             return;
         }
-        ProfilingScope _rootScope = rootScope;
-        // Make sure that using of TimeProfiler is impossible from now on
-        rootScope = null;
         long reportStartTime = time();
 
-        //Close all unclosed scopes
-        while(currentScope != _rootScope) {
-            unsafeAddData("forceFinishedScope", true);
-            unsafeAddData("color", "#FF0000");
-            unsafeStop();
-        };
-        unsafeStop();
+        for (Map.Entry<Long, ProfilingScope> entry : rootScopes.entrySet()) {
+            ProfilingScope rootScope = entry.getValue();
+            rootScope.endTime = reportStartTime;
+        }
+
+        // Close all unclosed scopes
+        for (ProfilingScope scope : currentScopes.values()) {
+            while (scope != null && scope.endTime == 0) {
+                scope.addData("forceFinishedScope", true);
+                scope.addData("color", "#FF0000");
+                scope.endTime = time();
+                scope = scope.parent;
+            }
+        }
 
         try {
-            String jsonReport = generateJSON(_rootScope);
-
             // save report files, add '_time' to the given filenames
             // foo.json -> foo_time.json
             for (File reportFile : reportFiles) {
@@ -219,103 +207,132 @@ public class TimeProfiler {
                 String extension = "." + FilenameUtils.getExtension(reportFileName);
                 String finalReportFileName = reportFileName.replace(extension, FILENAME_POSTFIX + extension);
                 File finalReportFile = new File(reportFile.getParent(), finalReportFileName);
-                if (extension.equals(".json")) {
-                    saveJSON(jsonReport, finalReportFile);
+                File parentDir = finalReportFile.getParentFile();
+                if (parentDir != null && !parentDir.exists()) {
+                    if (!parentDir.mkdirs()) {
+                        System.out.println("Failed to create directories: " + parentDir);
+                    }
                 }
-                else if (extension.equals(".html")) {
-                    saveHTML(jsonReport, finalReportFile);
-                }
-                else {
-                    System.err.println("Report file " + reportFileName + "has unsupported extension");
+                int bufferSize = 8 * 1024 * 1024; // 8 MB in bytes
+                try (BufferedWriter writer = new BufferedWriter(new FileWriter(finalReportFile), bufferSize)) {
+                    if (extension.equals(".json")) {
+                        generateJSON(writer);
+                    } else if (extension.equals(".html")) {
+                        String[] htmlContent = getHtmlContent();
+                        writer.write(htmlContent[0]);
+                        writer.flush();
+                        generateJSON(writer);
+                        writer.flush();
+                        writer.write(htmlContent[1]);
+                    } else {
+                        System.err.println("Report file " + reportFileName + "has unsupported extension");
+                    }
+                    writer.flush();
+                    IOUtils.closeQuietly(writer);
                 }
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
+        } finally {
+            marks.clear();
+            currentScopes.clear();
+            rootScopes.clear();
+            reportFiles = null;
         }
 
         long reportEndTime = time();
-        System.out.printf("\nTime profiler report creation took %.2f seconds", (reportEndTime - reportStartTime)/1000.0f);
+        System.out.printf("Time profiler report creation took %.2f seconds\n", (reportEndTime - reportStartTime)/1000.0f);
     }
 
-    public static void init(List<File> reportFiles, Boolean fromEditor) throws IOException {
-        if (rootScope != null) {
-            return;
+    private static long getCurrentThreadId() {
+        return Thread.currentThread().getId();
+    }
+
+    private static void setCurrentScope(ProfilingScope scope) {
+        currentScopes.put(getCurrentThreadId(), scope);
+    }
+
+    public static ProfilingScope getCurrentScope() {
+        long threadId = getCurrentThreadId();
+        ProfilingScope profilingScope = currentScopes.get(getCurrentThreadId());
+        if (profilingScope == null) {
+            ProfilingScope newRoot = new ProfilingScope();
+            newRoot.startTime = time(); // Initialize properly
+            newRoot.addData("name", "Thread " + threadId);
+            newRoot.children = new ArrayList<>();
+            rootScopes.put(threadId, newRoot);
+            setCurrentScope(newRoot);
+            profilingScope = newRoot;
+        }
+        return profilingScope;
+    }
+
+    public static void init(List<File> reportFiles) throws IOException {
+        if (TimeProfiler.reportFiles != null) {
+            throw new RuntimeException("TimeProfiler.init() called while profiling was already in progress");
         }
         TimeProfiler.reportFiles = reportFiles;
-        TimeProfiler.fromEditor = fromEditor;
-        marks = new ArrayList();
+
         long startTime = time();
-        if (!fromEditor) {
-            RuntimeMXBean bean = ManagementFactory.getRuntimeMXBean();
-            startTime = bean.getStartTime(); //Returns the start time of the Java virtual machine in milliseconds.
-        }
         buildTime = startTime;
-        rootScope = new ProfilingScope();
-        rootScope.startTime = startTime;
-        currentScope = rootScope;
-        unsafeAddData("name", "Total time");
+        mainThreadId = getCurrentThreadId();
 
-        if (!fromEditor) {
-            ProfilingScope initScope = new ProfilingScope();
-            initScope.additionalStringData = new HashMap<String, String>();
-            initScope.additionalStringData.put("name", "Java VM init");
-            initScope.startTime = startTime;
-            initScope.endTime = time();
-            rootScope.children = new ArrayList<ProfilingScope>();
-            rootScope.children.add(initScope);
-            initScope.parent = rootScope;
+        ProfilingScope mainRoot = new ProfilingScope();
+        mainRoot.startTime = startTime;
+        mainRoot.addData("name", "Main thread");
+        rootScopes.put(mainThreadId, mainRoot);
+        setCurrentScope(mainRoot);
+
+        ProfilingScope initScope = new ProfilingScope();
+        initScope.addData("name", "Time Profiler init");
+        initScope.startTime = startTime;
+        initScope.endTime = time();
+        mainRoot.children = new ArrayList<>();
+        mainRoot.children.add(initScope);
+        initScope.parent = mainRoot;
+    }
+
+    public static void  addScopeToCurrentThread(ProfilingScope scope) {
+        if (scope == null) {
+            return;
         }
-
-        Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
-            @Override
-            public void run() {
-                createReport(fromEditor);
-            }
-        }));
+        ProfilingScope currentScope = getCurrentScope();
+        if (currentScope.children == null) {
+            currentScope.children = new ArrayList<>();
+        }
+        currentScope.children.add(scope);
+        scope.parent = currentScope;
     }
 
     public static void start() {
-        if (rootScope == null) {
-            return;
-        }
-        if (currentScope.children == null) {
-            currentScope.children = new ArrayList<ProfilingScope>();
-        }
-        ProfilingScope scope = new ProfilingScope();
-        scope.startTime = time();
-        scope.parent = currentScope;
-        currentScope.children.add(scope);
-        currentScope = scope;
+        start(null);
     }
 
     public static void start(String scopeName) {
-        if (rootScope == null) {
-            return;
+        ProfilingScope scope = new ProfilingScope();
+        scope.startTime = time();
+        if (scopeName != null) {
+            scope.addData("name", scopeName);
         }
-        start();
-        addData("name", scopeName);
+        addScopeToCurrentThread(scope);
+        setCurrentScope(scope);
     }
 
-    public static void startF(String fmt, Object... args) {
+    public static void start(String fmt, Object... args) {
         start(String.format(fmt, args));
     }
 
-    private static void unsafeStop() {
-        currentScope.endTime = time();
-        currentScope = currentScope.parent;
+    public static void stop() {
+        final ProfilingScope scope = getCurrentScope();
+        if (scope != null) scope.stop();
     }
 
-    public static void stop() {
-        if (rootScope == null) {
-            return;
-        }
-        unsafeStop();
+    public static void addData(String fieldName, Object data) {
+        final ProfilingScope scope = getCurrentScope();
+        if (scope != null) scope.addData(fieldName, data);
     }
 
     public static void addMark(String shortName, String fullName, String color) {
-        if (rootScope == null) {
-            return;
-        }
         ProfilingMark mark = new ProfilingMark();
         mark.timestamp = time();
         mark.shortName = shortName;
@@ -330,52 +347,6 @@ public class TimeProfiler {
 
     public static void addMark(String shortName, String fullName) {
         addMark(shortName, shortName, "#EADDCA");
-    }
-
-    private static void unsafeAddData(String fieldName, String data) {
-        if (currentScope.additionalStringData == null) {
-            currentScope.additionalStringData = new HashMap<String, String>();
-        }
-        currentScope.additionalStringData.put(fieldName, data);
-    }
-
-    private static void unsafeAddData(String fieldName, Float data) {
-        if (currentScope.additionalNumberData == null) {
-            currentScope.additionalNumberData = new HashMap<String, Float>();
-        }
-        currentScope.additionalNumberData.put(fieldName, data);
-    }
-
-    private static void unsafeAddData(String fieldName, Boolean data) {
-        if (currentScope.additionalBooleanData == null) {
-            currentScope.additionalBooleanData = new HashMap<String, Boolean>();
-        }
-        currentScope.additionalBooleanData.put(fieldName, data);
-    }
-
-    public static void addData(String fieldName, String data) {
-        if (rootScope == null) {
-            return;
-        }
-        unsafeAddData(fieldName, data);
-    }
-
-    public static void addData(String fieldName, Float data) {
-        if (rootScope == null) {
-            return;
-        }
-        unsafeAddData(fieldName, data);
-    }
-
-    public static void addData(String fieldName, Boolean data) {
-        if (rootScope == null) {
-            return;
-        }
-        unsafeAddData(fieldName, data);
-    }
-
-    public static void addData(String fieldName, Integer data) {
-        addData(fieldName, data.floatValue());
     }
 
 }

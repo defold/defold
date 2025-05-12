@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -115,7 +115,7 @@ namespace dmScript
      * @param L lua state
      * @param name_hash the hash of the name returned by SetGlobal
      */
-    void GetGlobal(lua_State*L, uint32_t name_hash);
+    void GetGlobal(lua_State* L, uint32_t name_hash);
 
     /**
      * Use a ScriptExtension to hook into various callbacks of the script lifetime
@@ -263,8 +263,18 @@ namespace dmScript
      * @param L Lua state
      * @param descriptor Field descriptor
      * @param data DDF data
+     * @param pointers_are_offets True if pointers are offsets
      */
-    void PushDDF(lua_State*L, const dmDDF::Descriptor* descriptor, const char* data);
+    void PushDDFNoDecoder(lua_State* L, const dmDDF::Descriptor* descriptor, const char* data, bool pointers_are_offsets);
+
+    /**
+     * Push DDF message to Lua stack. Invokes any registered decoder
+     * @note the pointers_are_offsets is set as false
+     * @param L Lua state
+     * @param descriptor Field descriptor
+     * @param data DDF data
+     */
+    void PushDDF(lua_State* L, const dmDDF::Descriptor* descriptor, const char* data);
 
     void RegisterDDFDecoder(void* descriptor, MessageDecoder decoder);
 
@@ -282,6 +292,15 @@ namespace dmScript
      * @return true if value at #index is a FloatVector
      */
     bool IsVector(lua_State *L, int index);
+
+    /*# get the value at index as a dmVMath::FloatVector*
+     * Get the value at index as a dmVMath::FloatVector*
+     * @name dmScript::ToVector
+     * @param L [type:lua_State*] Lua state
+     * @param index [type:int] Index of the value
+     * @return v [type:dmVMath::FloatVector*] The pointer to the value, or 0 if not correct type
+     */
+    dmVMath::FloatVector* ToVector(lua_State *L, int index);
 
     /**
      * Push a FloatVector value onto the supplied lua state, will increase the stack by 1.
@@ -680,6 +699,12 @@ namespace dmScript
      * @return Pointer to buffer
      */
     const char* GetProfilerString(lua_State* L, int optional_callback_index, const char* source_file_name, const char* function_name, const char* optional_message_name, char* buffer, uint32_t buffer_size);
+
+    /**
+     * Prints the current stack (uses dmLogInfo)
+     * @param L lua state
+     */
+    void PrintStack(lua_State* L);
 
 } // dmScript
 

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -31,7 +31,7 @@
 #include "comp_private.h"
 
 DM_PROPERTY_EXTERN(rmtp_Components);
-DM_PROPERTY_U32(rmtp_Camera, 0, FrameReset, "# components", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_Camera, 0, PROFILE_PROPERTY_FRAME_RESET, "# components", &rmtp_Components);
 
 namespace dmGameSystem
 {
@@ -175,6 +175,7 @@ namespace dmGameSystem
         *params.m_UserData = (uintptr_t) new_camera;
 
         CameraStackPush(w, new_camera);
+        dmRender::SetRenderCameraEnabled(render_context, camera.m_RenderCamera, true);
 
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -289,11 +290,13 @@ namespace dmGameSystem
             (dmDDF::Descriptor*)params.m_Message->m_Descriptor == dmGamesysDDF::AcquireCameraFocus::m_DDFDescriptor)
         {
             CameraStackPush(camera->m_World, camera);
+            dmRender::SetRenderCameraEnabled((dmRender::RenderContext*)params.m_Context, camera->m_RenderCamera, true);
         }
         else if (params.m_Message->m_Id == dmGameObjectDDF::Disable::m_DDFDescriptor->m_NameHash ||
             (dmDDF::Descriptor*)params.m_Message->m_Descriptor == dmGamesysDDF::ReleaseCameraFocus::m_DDFDescriptor)
         {
             CameraStackRemove(camera->m_World, camera);
+            dmRender::SetRenderCameraEnabled((dmRender::RenderContext*)params.m_Context, camera->m_RenderCamera, false);
         }
 
         return dmGameObject::UPDATE_RESULT_OK;

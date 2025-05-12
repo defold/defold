@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -237,7 +237,7 @@ namespace dmGameSystem
      * end
      * ```
      */
-    static int FactoryComp_CreateWithMessage(lua_State* L, dmGameObject::HCollection collection, dmGameObject::HInstance sender_instance, dmMessage::URL* receiver,
+    static int FactoryComp_CreateWithMessage(lua_State* L, dmGameObject::HCollection collection, dmMessage::URL* receiver,
                                             uint32_t index, dmhash_t id, dmGameObject::HPropertyContainer properties,
                                             const dmVMath::Point3& position, const dmVMath::Quat& rotation, const dmVMath::Vector3& scale)
     {
@@ -268,7 +268,7 @@ namespace dmGameSystem
             return luaL_error(L, "factory.create can not be called from this script type");
         }
 
-        dmMessage::Post(&sender, receiver, dmGameSystemDDF::Create::m_DDFDescriptor->m_NameHash, (uintptr_t)sender_instance,
+        dmMessage::Post(&sender, receiver, dmGameSystemDDF::Create::m_DDFDescriptor->m_NameHash, 0,
                         (uintptr_t)dmGameSystemDDF::Create::m_DDFDescriptor, buffer, sizeof(dmGameSystemDDF::Create) + properties_size, 0);
 
         return 0;
@@ -339,13 +339,13 @@ namespace dmGameSystem
         }
         else
         {
-            dmhash_t id = dmGameObject::ConstructInstanceId(index);
+            dmhash_t id = dmGameObject::CreateInstanceId();
 
             // TODO: When does this actually happen? In render scripts? Or unit tests only?
             bool msg_passing = dmGameObject::GetInstanceFromLua(L) == 0x0;
             if (msg_passing)
             {
-                FactoryComp_CreateWithMessage(L, collection, sender_instance, &receiver, index, id, properties, position, rotation, scale);
+                FactoryComp_CreateWithMessage(L, collection, &receiver, index, id, properties, position, rotation, scale);
                 // We currently don't know if the creation succeeds
                 dmScript::PushHash(L, id);
             }

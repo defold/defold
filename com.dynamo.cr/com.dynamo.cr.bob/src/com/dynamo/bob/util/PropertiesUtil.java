@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,21 +16,17 @@ package com.dynamo.bob.util;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.commons.io.FilenameUtils;
 
-import com.dynamo.bob.Builder;
-import com.dynamo.bob.Task;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.pipeline.BuilderUtil;
-import com.dynamo.bob.pipeline.CubemapBuilder;
 import com.dynamo.bob.pipeline.ProtoBuilders;
-import com.dynamo.bob.pipeline.TextureBuilder;
-import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.gameobject.proto.GameObject.PropertyDesc;
 import com.dynamo.gameobject.proto.GameObject.PropertyType;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarationEntry;
@@ -154,27 +150,14 @@ public class PropertiesUtil {
         return value;
     }
 
-    public static Collection<String> getPropertyDescResources(Project project, List<PropertyDesc> propertyDescList) {
-        Collection<String> resources = new HashSet<String>();
+    public static Map<String, String> getPropertyDescResources(Project project, List<PropertyDesc> propertyDescList) {
+        Map<String, String> resources = new HashMap<>();
         for (PropertyDesc desc : propertyDescList) {
             if (isResourceProperty(project, desc.getType(), desc.getValue())) {
-                resources.add(desc.getValue());
+                resources.put(desc.getId(), desc.getValue());
             }
         }
         return resources;
-    }
-
-    public static void createResourcePropertyTasks(Project project, IResource resource, IResource input) throws CompileExceptionError {
-        // Textures and cubemaps
-        Class<? extends Builder<?>> klass = project.getBuilderFromExtension(resource);
-        if ( klass == TextureBuilder.class || klass == CubemapBuilder.class) {
-            Task<?> embedTask = project.createTask(resource);
-            if (embedTask == null) {
-                throw new CompileExceptionError(input,
-                                                0,
-                                                String.format("Failed to create build task for component '%s'", resource.getPath()));
-            }
-        }
     }
 
 }

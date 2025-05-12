@@ -215,7 +215,7 @@ message SceneDesc
         required string particlefx  = 2 [(resource)=true];
     }
 
-    required string          script               = 1 [(resource)=true];
+    optional string          script               = 1 [(resource)=true];
     repeated FontDesc        fonts                = 2;
     repeated TextureDesc     textures             = 3;
     optional dmMath.Vector4  background_color     = 4; // Deprecated

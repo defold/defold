@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -144,8 +144,10 @@ namespace dmGameSystem
         dmGraphics::VertexAttributeInfos         m_ParticleAttributeInfos;
         uint32_t                                 m_MaxParticleFXCount;
         uint32_t                                 m_MaxParticleCount;
+        uint32_t                                 m_MaxParticleBufferCount;
         uint32_t                                 m_RenderedParticlesSize;
         uint32_t                                 m_MaxAnimationCount;
+        uint32_t                                 m_RenderOrder;
         float                                    m_DT;
         dmScript::ScriptWorld*                   m_ScriptWorld;
         CompGuiContext*                          m_CompGuiContext;

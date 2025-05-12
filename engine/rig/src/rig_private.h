@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -86,6 +86,7 @@ namespace dmRig
         float                         m_BlendTimer;
         // Max bone count used by skeleton (if it is used) and meshset
         uint16_t                      m_MaxBoneCount;
+        uint16_t                      m_PoseMatrixCacheIndex;
         /// Current player index
         uint8_t                       m_CurrentPlayer : 1;
         /// Whether we are currently X-fading or not
@@ -94,6 +95,23 @@ namespace dmRig
         uint8_t                       m_DoRender : 1;
         uint8_t                       : 4;
     };
+
+    /** Pose matrix cache
+     * A pose matrix cache stores a buffer of pose matrices for any given number of rig instances.
+     * The cache will keep growing as more rig instances are added, until it is explicitly reset.
+     * Resetting the cache will not release memory.
+     */
+    struct PoseMatrixCache
+    {
+        /// The array of pose matrices for all rig instances
+        dmArray<dmVMath::Matrix4> m_PoseMatrices;
+        /// The array of bone counts for the rig instances that have acquired a pose matrix cache slot
+        dmArray<uint32_t>         m_CacheEntryOffsets;
+        /// The max bone count found in the set of pose matrices (I think this can be removed?)
+        uint32_t                  m_MaxBoneCount;
+    };
+
+    PoseMatrixCache* GetPoseMatrixCache(HRigContext context);
 }
 
 #endif

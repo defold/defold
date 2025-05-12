@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -23,25 +23,36 @@ namespace dmGameSystem
 {
     void MakeTextureImage(CreateTextureResourceParams params, dmGraphics::TextureImage* texture_image)
     {
-        uint32_t* mip_map_sizes              = new uint32_t[params.m_MaxMipMaps];
+        uint32_t* mip_map_data_size          = new uint32_t[params.m_MaxMipMaps];
         uint32_t* mip_map_offsets            = new uint32_t[params.m_MaxMipMaps];
         uint32_t* mip_map_offsets_compressed = new uint32_t[1];
-        uint8_t layer_count                  = GetLayerCount(params.m_Type);
+        uint32_t* mip_map_dimensions         = new uint32_t[params.m_MaxMipMaps * 2];
+        uint8_t layer_count                  = GetLayerCount(params.m_Type) * dmMath::Max((uint16_t) 1, params.m_LayerCount);
 
         uint32_t data_size = 0;
         uint16_t mm_width  = params.m_Width;
         uint16_t mm_height = params.m_Height;
+        uint16_t mm_depth  = params.m_Depth;
+
         for (uint32_t i = 0; i < params.m_MaxMipMaps; ++i)
         {
-            mip_map_sizes[i]    = dmMath::Max(mm_width, mm_height);
-            mip_map_offsets[i]  = (data_size / 8);
-            data_size          += mm_width * mm_height * params.m_TextureBpp * layer_count;
-            mm_width           /= 2;
-            mm_height          /= 2;
+            mip_map_offsets[i]            = (data_size / 8);
+            mip_map_dimensions[i * 2 + 0] = mm_width;
+            mip_map_dimensions[i * 2 + 1] = mm_height;
+
+            // Calculate the data size per mipmap in bytes
+            // Graphics APIs require that the data size is _per slice_ and not the whole texture.
+            // This is a quirk from how the OpenGL adapter is implemented, and should probably be fixed.
+            uint32_t data_size_per_slice  = mm_width * mm_height * params.m_TextureBpp;
+            data_size                    += data_size_per_slice * layer_count;
+            mip_map_data_size[i]          = data_size_per_slice / 8;
+
+            mm_width                     /= 2;
+            mm_height                    /= 2;
         }
         assert(data_size > 0);
 
-        data_size                *= layer_count;
+        data_size                *= layer_count * mm_depth;
         uint32_t image_data_size  = data_size / 8; // bits -> bytes for compression formats
         uint8_t* image_data       = 0;
 
@@ -63,7 +74,7 @@ namespace dmGameSystem
             memset(image_data, 0, image_data_size);
         }
 
-        // Note: Right now we only support creating compressed 2D textures with 1 mipmap,
+        // Note: Right now we only support creating compressed textures with 1 mipmap,
         //       so we only need a pointer here for the data offset.
         mip_map_offsets_compressed[0] = image_data_size;
 
@@ -73,23 +84,25 @@ namespace dmGameSystem
         texture_image->m_Type                  = params.m_TextureType;
         texture_image->m_Count                 = layer_count;
         texture_image->m_UsageFlags            = params.m_UsageFlags;
+        texture_image->m_ImageDataAddress      = (uint64_t) image_data;
 
-        image->m_Width                = params.m_Width;
-        image->m_Height               = params.m_Height;
-        image->m_OriginalWidth        = params.m_Width;
-        image->m_OriginalHeight       = params.m_Height;
-        image->m_Format               = params.m_TextureFormat;
-        image->m_CompressionType      = params.m_CompressionType;
-        image->m_CompressionFlags     = 0;
-        image->m_Data.m_Data          = image_data;
-        image->m_Data.m_Count         = image_data_size;
-
-        image->m_MipMapOffset.m_Data  = mip_map_offsets;
-        image->m_MipMapOffset.m_Count = params.m_MaxMipMaps;
-        image->m_MipMapSize.m_Data    = mip_map_sizes;
-        image->m_MipMapSize.m_Count   = params.m_MaxMipMaps;
+        image->m_Width                        = params.m_Width;
+        image->m_Height                       = params.m_Height;
+        image->m_Depth                        = params.m_Depth;
+        image->m_OriginalWidth                = params.m_Width;
+        image->m_OriginalHeight               = params.m_Height;
+        image->m_OriginalDepth                = params.m_Depth;
+        image->m_Format                       = params.m_TextureFormat;
+        image->m_CompressionType              = params.m_CompressionType;
+        image->m_MipMapOffset.m_Data          = mip_map_offsets;
+        image->m_MipMapOffset.m_Count         = params.m_MaxMipMaps;
+        image->m_MipMapSize.m_Data            = mip_map_data_size;
+        image->m_MipMapSize.m_Count           = params.m_MaxMipMaps;
         image->m_MipMapSizeCompressed.m_Data  = mip_map_offsets_compressed;
         image->m_MipMapSizeCompressed.m_Count = 1;
+
+        image->m_MipMapDimensions.m_Data  = mip_map_dimensions;
+        image->m_MipMapDimensions.m_Count = params.m_MaxMipMaps * 2;
     }
 
     void DestroyTextureImage(dmGraphics::TextureImage& texture_image, bool destroy_image_data)
@@ -100,10 +113,31 @@ namespace dmGameSystem
             delete[] image.m_MipMapOffset.m_Data;
             delete[] image.m_MipMapSize.m_Data;
             delete[] image.m_MipMapSizeCompressed.m_Data;
-            if (destroy_image_data)
-                delete[] image.m_Data.m_Data;
+            delete[] image.m_MipMapDimensions.m_Data;
         }
         delete[] texture_image.m_Alternatives.m_Data;
+
+        if (destroy_image_data)
+        {
+            delete[] (uint8_t*) texture_image.m_ImageDataAddress;
+        }
+    }
+
+    void FillTextureResourceBuffer(const dmGraphics::TextureImage* texture_image, dmArray<uint8_t>& texture_resource_buffer)
+    {
+        dmArray<uint8_t> ddf_buffer;
+        dmDDF::Result ddf_result = dmDDF::SaveMessageToArray(texture_image, dmGraphics::TextureImage::m_DDFDescriptor, ddf_buffer);
+        assert(ddf_result == dmDDF::RESULT_OK);
+
+        // Construct the header size + message
+        const uint32_t TEXTURE_RES_MESSAGE_SIZE = sizeof(int32_t) + ddf_buffer.Size();
+
+        texture_resource_buffer.SetCapacity(TEXTURE_RES_MESSAGE_SIZE);
+        texture_resource_buffer.SetSize(TEXTURE_RES_MESSAGE_SIZE);
+
+        int32_t* texture_resource_header_size = (int32_t*) texture_resource_buffer.Begin();
+        *texture_resource_header_size = ddf_buffer.Size();
+        memcpy(texture_resource_buffer.Begin() + sizeof(int32_t), ddf_buffer.Begin(), ddf_buffer.Size());
     }
 
     dmGraphics::TextureImage::TextureFormat GraphicsTextureFormatToImageFormat(dmGraphics::TextureFormat textureformat)
@@ -134,6 +168,7 @@ namespace dmGameSystem
             GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RG16F);
             GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_R32F);
             GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RG32F);
+            default:break;
         };
     #undef GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE
         return (dmGraphics::TextureImage::TextureFormat) -1;
@@ -145,8 +180,10 @@ namespace dmGameSystem
         {
             case dmGraphics::TEXTURE_TYPE_2D:       return dmGraphics::TextureImage::TYPE_2D;
             case dmGraphics::TEXTURE_TYPE_2D_ARRAY: return dmGraphics::TextureImage::TYPE_2D_ARRAY;
+            case dmGraphics::TEXTURE_TYPE_3D:       return dmGraphics::TextureImage::TYPE_3D;
             case dmGraphics::TEXTURE_TYPE_CUBE_MAP: return dmGraphics::TextureImage::TYPE_CUBEMAP;
             case dmGraphics::TEXTURE_TYPE_IMAGE_2D: return dmGraphics::TextureImage::TYPE_2D_IMAGE;
+            case dmGraphics::TEXTURE_TYPE_IMAGE_3D: return dmGraphics::TextureImage::TYPE_3D_IMAGE;
             default: assert(0);
         }
         dmLogError("Unsupported texture type (%d)", texturetype);
@@ -158,12 +195,11 @@ namespace dmGameSystem
         dmGraphics::TextureImage texture_image = {};
         MakeTextureImage(create_params, &texture_image);
 
-        dmArray<uint8_t> ddf_buffer;
-        dmDDF::Result ddf_result = dmDDF::SaveMessageToArray(&texture_image, dmGraphics::TextureImage::m_DDFDescriptor, ddf_buffer);
-        assert(ddf_result == dmDDF::RESULT_OK);
+        dmArray<uint8_t> texture_resource_buffer;
+        FillTextureResourceBuffer(&texture_image, texture_resource_buffer);
 
         void* resource = 0x0;
-        dmResource::Result res = dmResource::CreateResource(factory, create_params.m_Path, ddf_buffer.Begin(), ddf_buffer.Size(), &resource);
+        dmResource::Result res = dmResource::CreateResource(factory, create_params.m_Path, texture_resource_buffer.Begin(), texture_resource_buffer.Size(), &resource);
 
         DestroyTextureImage(texture_image, create_params.m_Buffer == 0 && create_params.m_Data == 0);
 
@@ -189,16 +225,20 @@ namespace dmGameSystem
         texture_image.m_Alternatives.m_Count   = 1;
         texture_image.m_Type                   = GraphicsTextureTypeToImageType(params.m_TextureType);
         texture_image.m_Count                  = 1;
+        texture_image.m_ImageDataAddress       = (uint64_t) params.m_Data;
 
         image.m_Width                = params.m_Width;
         image.m_Height               = params.m_Height;
+        image.m_Depth                = params.m_Depth;
         image.m_OriginalWidth        = params.m_Width;
         image.m_OriginalHeight       = params.m_Height;
+        image.m_OriginalDepth        = params.m_Depth;
         image.m_Format               = GraphicsTextureFormatToImageFormat(params.m_TextureFormat);
         image.m_CompressionType      = params.m_CompressionType;
-        image.m_CompressionFlags     = 0;
-        image.m_Data.m_Data          = (uint8_t*) params.m_Data;
-        image.m_Data.m_Count         = params.m_DataSize;
+
+        uint32_t mip_map_dimensions[]    = {params.m_Width, params.m_Height};
+        image.m_MipMapDimensions.m_Data  = mip_map_dimensions;
+        image.m_MipMapDimensions.m_Count = 2;
 
         // Note: When uploading cubemap faces on OpenGL, we expect that the "data size" is **per** slice
         //       and not the entire data size of the buffer. For vulkan we don't look at this value but instead
@@ -218,6 +258,7 @@ namespace dmGameSystem
         ResTextureUploadParams& upload_params = recreate_params.m_UploadParams;
         upload_params.m_X                     = params.m_X;
         upload_params.m_Y                     = params.m_Y;
+        upload_params.m_Z                     = params.m_Z;
         upload_params.m_MipMap                = params.m_MipMap;
         upload_params.m_SubUpdate             = params.m_SubUpdate;
         upload_params.m_UploadSpecificMipmap  = 1;

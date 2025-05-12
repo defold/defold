@@ -14,8 +14,9 @@ def options(opt):
     opt.load('waf_dynamo')
 
 def configure(conf):
-    conf.load('waf_dynamo')
-    conf.load('java')
+    if not conf.env.IS_TARGET_DESKTOP:
+        print("Skipping build of jni library for non host platform")
+        return
 
     conf.env['STLIB_DLIB_NOASAN'] = ['dlib_noasan']
 
@@ -36,10 +37,12 @@ def configure(conf):
                      jni_outdir     = make_path('./jni'))
 
     if conf.env.PLATFORM in ('x86_64-win32','win32'):
-        conf.env['LINKFLAGS_DEBUG'] = ['dbghelp.lib'] #['user32.lib', 'shell32.lib', 'openal32.lib', 'dbghelp.lib']
+        conf.env['LINKFLAGS_DEBUG'] = ['dbghelp.lib']
 
 def build(bld):
-    bld.load('java')
+    if not bld.env.IS_TARGET_DESKTOP:
+        print("Skipping build of jni library for non host platform")
+        return
 
     bld.program(features = 'c cxx test',
                includes = ['.', '..', './jni'],
@@ -63,9 +66,12 @@ def build(bld):
 
     bld.env["JAVACFLAGS"] = '-g'.split()
 
-    bld(features='jar seq test',
-        basedir ='java',
-        destfile ='test_jni.jar',
-        name = 'test_jni',
-        classpath=classpath,
-        mainclass='com.dynamo.bob.pipeline.JniTest')
+    if bld.env.PLATFORM == bld.env.BUILD_PLATFORM:
+        # Until we've fixed setting the correct lib path for it to run on wrong host
+
+        bld(features='jar seq test',
+            basedir ='java',
+            destfile ='test_jni.jar',
+            name = 'test_jni',
+            classpath=classpath,
+            mainclass='com.dynamo.bob.pipeline.JniTest')

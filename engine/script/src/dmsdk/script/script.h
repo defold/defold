@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -406,9 +406,18 @@ namespace dmScript
      * @name dmScript::IsHash
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] Index of the value
-     * @return true if the value at #index is a hash
+     * @return result [type:bool] true if the value at #index is a hash
      */
     bool IsHash(lua_State *L, int index);
+
+    /*#
+     * Check if the value at #index is a hash
+     * @name dmScript::ToHash
+     * @param L [type:lua_State*] Lua state
+     * @param index [type:int] Index of the value
+     * @return hash [type: dmhash_t*] pointer to hash or 0 if it's not a hash
+     */
+    dmhash_t* ToHash(lua_State *L, int index);
 
     /*#
      * Push a hash value onto the supplied lua state, will increase the stack by 1.
@@ -452,8 +461,8 @@ namespace dmScript
      * Push DDF message to Lua stack
      * @param L [type: lua_State*] the Lua state
      * @param descriptor [type: const dmDDF::Descriptor*] field descriptor
-     * @param pointers_are_offets [type: bool] True if pointers are offsets
      * @param data [type: const char*] the message data (i.e. the message struct)
+     * @param pointers_are_offsets [type: bool] True if pointers are offsets
      */
     void PushDDF(lua_State*L, const dmDDF::Descriptor* descriptor, const char* data, bool pointers_are_offsets);
 

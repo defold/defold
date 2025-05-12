@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -39,10 +39,10 @@ import com.google.protobuf.TextFormat;
 
 import javax.xml.stream.XMLStreamException;
 
-@BuilderParams(name="AnimationSet", inExts=".animationset", outExt=".animationsetc")
-public class AnimationSetBuilder extends Builder<Void>  {
+@BuilderParams(name="AnimationSet", inExts=".animationset", outExt=".animationsetc", isCacheble = true)
+public class AnimationSetBuilder extends Builder  {
 
-    public static void collectAnimations(Task.TaskBuilder<Void> taskBuilder, Project project, IResource owner, AnimationSetDesc.Builder animSetDescBuilder) throws IOException, CompileExceptionError  {
+    public static void collectAnimations(Task.TaskBuilder taskBuilder, Project project, IResource owner, AnimationSetDesc.Builder animSetDescBuilder) throws IOException, CompileExceptionError  {
         for(AnimationInstanceDesc instance : animSetDescBuilder.getAnimationsList()) {
             IResource animFile = BuilderUtil.checkResource(project, owner, "animationset", instance.getAnimation());
             taskBuilder.addInput(animFile);
@@ -57,13 +57,12 @@ public class AnimationSetBuilder extends Builder<Void>  {
         }
     }
 
-
     @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-        Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
+    public Task create(IResource input) throws IOException, CompileExceptionError {
+        Task.TaskBuilder taskBuilder = Task.newBuilder(this)
             .setName(params.name())
-            .addInput(input);
-        taskBuilder.addOutput(input.changeExt(params.outExt()));
+            .addInput(input)
+            .addOutput(input.changeExt(params.outExt()));
 
         if( input.getAbsPath().endsWith(".animationset") ) {
             ByteArrayInputStream animFileIS = new ByteArrayInputStream(input.getContent());
@@ -77,14 +76,14 @@ public class AnimationSetBuilder extends Builder<Void>  {
         return taskBuilder.build();
     }
 
-    private void validateAndAddFile(Task<Void> task, String path, ArrayList<String> animFiles) throws CompileExceptionError {
+    private void validateAndAddFile(Task task, String path, ArrayList<String> animFiles) throws CompileExceptionError {
         if(animFiles.contains(path)) {
             throw new CompileExceptionError(task.input(0), -1, "Animation file referenced more than once: " + path);
         }
         animFiles.add(path);
     }
 
-    private void buildAnimations(Task<Void> task, boolean isAnimationSet, ModelImporter.DataResolver dataResolver, AnimationSetDesc.Builder animSetDescBuilder, AnimationSet.Builder animationSetBuilder,
+    private void buildAnimations(Task task, boolean isAnimationSet, ModelImporterJni.DataResolver dataResolver, AnimationSetDesc.Builder animSetDescBuilder, AnimationSet.Builder animationSetBuilder,
                                             String parentId, ArrayList<String> animFiles) throws CompileExceptionError, IOException {
         ArrayList<String> idList = new ArrayList<>(animSetDescBuilder.getAnimationsCount());
 
@@ -167,10 +166,10 @@ public class AnimationSetBuilder extends Builder<Void>  {
     }
 
     static void loadModelAnimations(boolean isAnimationSet, AnimationSet.Builder animationSetBuilder,
-                                    InputStream is, ModelImporter.DataResolver dataResolver, String animId, String parentId,
+                                    InputStream is, ModelImporterJni.DataResolver dataResolver, String animId, String parentId,
                                     String path, ArrayList<String> animationIds) throws IOException {
 
-        ModelImporter.Scene scene = ModelUtil.loadScene(is, path, new ModelImporter.Options(), dataResolver);
+        Modelimporter.Scene scene = ModelUtil.loadScene(is, path, new Modelimporter.Options(), dataResolver);
 
         ArrayList<String> localAnimationIds = new ArrayList<String>();
         AnimationSet.Builder animBuilder = AnimationSet.newBuilder();
@@ -185,7 +184,7 @@ public class AnimationSetBuilder extends Builder<Void>  {
         ModelUtil.unloadScene(scene);
     }
 
-    public static class ResourceDataResolver implements ModelImporter.DataResolver
+    public static class ResourceDataResolver implements ModelImporterJni.DataResolver
     {
         Project project;
 
@@ -211,7 +210,7 @@ public class AnimationSetBuilder extends Builder<Void>  {
     };
 
     // For the editor
-    static public void buildAnimations(boolean isAnimationSet, List<String> paths, List<InputStream> streams, ModelImporter.DataResolver dataResolver, List<String> parentIds,
+    static public void buildAnimations(boolean isAnimationSet, List<String> paths, List<InputStream> streams, ModelImporterJni.DataResolver dataResolver, List<String> parentIds,
                              AnimationSet.Builder animationSetBuilder, ArrayList<String> animationIds) throws IOException, CompileExceptionError {
 
 
@@ -255,7 +254,7 @@ public class AnimationSetBuilder extends Builder<Void>  {
 // END EDITOR SPECIFIC FUNCTIONS
 
     @Override
-    public void build(Task<Void> task) throws CompileExceptionError, IOException {
+    public void build(Task task) throws CompileExceptionError, IOException {
 
         ByteArrayInputStream animSetDescIS = new ByteArrayInputStream(task.input(0).getContent());
         InputStreamReader animSetDescISR = new InputStreamReader(animSetDescIS);

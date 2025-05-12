@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -114,15 +114,16 @@ public class ParticleLibrary {
         public long    nameHash;
         public int     semanticType;
         public int     dataType;
+        public int     vectorType;
+        public int     stepFunction;
         public int     coordinateSpace;
         public Pointer valuePtr;
-        public int     valueByteSize;
-        public int     elementCount;
+        public int     valueVectorType;
         public boolean normalize;
 
         @Override
         protected List<String> getFieldOrder() {
-            return Arrays.asList("nameHash", "semanticType", "dataType", "coordinateSpace", "valuePtr", "valueByteSize", "elementCount", "normalize");
+            return Arrays.asList("nameHash", "semanticType", "dataType", "vectorType", "stepFunction", "coordinateSpace", "valuePtr", "valueVectorType", "normalize");
         }
     }
 

@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -17,7 +17,8 @@
             [dynamo.graph :as g]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
-            [editor.util :as util]))
+            [editor.util :as util]
+            [util.coll :as coll]))
 
 (set! *warn-on-reflection* true)
 
@@ -46,9 +47,16 @@
   (when (> (id-counts id) 1)
     (format "'%s' is in use by another instance" id)))
 
-(defn prop-contains-url-characters? [id name]
-  (when (re-find #"[#:]" id)
-    (format "%s should not contain special URL symbols such as '#' or ':'" name)))
+(defn prop-contains-prohibited-characters? [id name]
+  (cond
+    (coll/empty? id)
+    nil
+
+    (re-find #"[#:]" id)
+    (format "%s should not contain special URL symbols such as '#' or ':'" name)
+
+    (or (= (first id) \space) (= (last id) \space))
+    (format "%s should not start or end with a space symbol" name)))
 
 (defn prop-negative? [v name]
   (when (< v 0)
@@ -103,6 +111,20 @@
                "'%s' must be between %f and %f")]
     (when (not (<= min v max))
       (util/format* tmpl name min max))))
+
+(defn prop-minimum-check? [min v name]
+  (when (< v min)
+    (let [tmpl (if (integer? min)
+                 "'%s' must be at least %d"
+                 "'%s' must be at least %f")]
+      (util/format* tmpl name min))))
+
+(defn prop-maximum-check? [max v name]
+  (when (> v max)
+    (let [tmpl (if (integer? max)
+                 "'%s' must be at most %d"
+                 "'%s' must be at most %f")]
+      (util/format* tmpl name max))))
 
 (defn prop-collision-shape-conflict? [shapes collision-shape]
   (when (and collision-shape (not (empty? shapes)))

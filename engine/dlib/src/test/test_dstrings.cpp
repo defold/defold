@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -198,8 +198,11 @@ TEST(dmStrings, dmStrError)
 
     // Pass invalid errno
     dmStrError(buf, sizeof(buf), -1);
+#if defined(__EMSCRIPTEN__)
+    ASSERT_STREQ("No error information", buf);
+#else
     ASSERT_STREQ("Unknown error -1", buf);
-
+#endif
     // Nothing set in buffer
     memset(buf, 1, sizeof(buf));
     dmStrError(buf, 0, 0);

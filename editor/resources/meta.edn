@@ -19,6 +19,11 @@
    :help "Write log file to disk",
    :default false,
    :path ["project" "write_log"]}
+  {:type :string,
+   :help "only the minimum log level and higher levels will be shown",
+   :default "1",
+   :path ["project" "minimum_log_level"]
+   :options [["0" "DEBUG = 0"] ["1" "USER DEBUG = 1"] ["2" "INFO = 2"] ["3" "WARNING = 3"] ["4" "ERROR = 4"] ["5" "FATAL = 5"]]}
   {:type :boolean,
    :help "compress archive (not for Android)",
    :default true,
@@ -78,6 +83,10 @@
    :help "enables some components to use a fixed frame rate. 0 means it's disabled. (Hz)",
    :default 60,
    :path ["engine" "fixed_update_frequency"]}
+  {:type :number,
+   :help "If the time step is too large, it will be capped to this max value (seconds)",
+   :default 0.5,
+   :path ["engine" "max_time_step"]}
   {:type :integer,
    :help
    "the width in pixels of the application window, 960 by default",
@@ -139,21 +148,29 @@
    :help "Render clear color - red channel",
    :label "Clear Color Red"
    :default 0,
+   :minimum 0.0,
+   :maximum 1.0,
    :path ["render" "clear_color_red"]}
   {:type :number,
    :help "Render clear color - green channel",
    :label "Clear Color Green"
    :default 0,
+   :minimum 0.0,
+   :maximum 1.0,
    :path ["render" "clear_color_green"]}
   {:type :number,
    :help "Render clear color - blue channel",
    :label "Clear Color Blue"
    :default 0,
+   :minimum 0.0,
+   :maximum 1.0,
    :path ["render" "clear_color_blue"]}
   {:type :number,
    :help "Render clear color - alpha channel",
    :label "Clear Color Alpha"
-   :default 0,
+   :default 1.0,
+   :minimum 0.0,
+   :maximum 1.0,
    :path ["render" "clear_color_alpha"]}
   {:type :integer,
    :help "max number of collision objects, 128 by default",
@@ -298,6 +315,24 @@
    "verify the return value after each graphics call",
    :default true,
    :path ["graphics" "verify_graphics_calls"]}
+  {:type :string,
+   :help
+   "OpenGL context version hint. If a specific version is selected, this will used as the minimum version required (does not apply to OpenGL ES). Defaults to OpenGL 3.3",
+   :default "33",
+   :path ["graphics" "opengl_version_hint"]
+   :options [["33" "OpenGL 3.3"]
+             ["40" "OpenGL 4.0"]
+             ["41" "OpenGL 4.1"]
+             ["42" "OpenGL 4.2"]
+             ["43" "OpenGL 4.3"]
+             ["44" "OpenGL 4.4"]
+             ["45" "OpenGL 4.5"]
+             ["46" "OpenGL 4.6"]
+             ["0" "Highest version available"]]}
+  {:type :boolean,
+   :help "Set the 'core' OpenGL profile hint when creating the context. The core profile removes all deprecated features from OpenGL, such as immediate mode rendering. Does not apply to OpenGL ES.",
+   :default true,
+   :path ["graphics" "opengl_core_profile_hint"]}
   {:type :boolean,
    :help "This setting is deprecated. Compile and output SPIR-V shaders for use with Metal or Vulkan",
    :default false,
@@ -366,6 +401,8 @@
   {:type :integer,
    :help "max number of instances per collection, 1024 by default",
    :default 1024,
+   :minimum 1,
+   :maximum 32765,
    :path ["collection" "max_instances"]}
   {:type :integer,
    :help "max number of game objects in the input stack, 16 by default",
@@ -375,6 +412,10 @@
    :help "global gain (volume), 1 by default",
    :default 1.0,
    :path ["sound" "gain"]}
+  {:type :boolean,
+   :help "if enabled, gain is linear. if disabled, uses exponential curve (e.g. 0.5 is 'half volume'). true by default.",
+   :default true,
+   :path ["sound" "use_linear_gain"]}
   {:type :integer,
    :help "max number of different sounds, 128 by default",
    :default 128,
@@ -388,17 +429,37 @@
    :default 16,
    :path ["sound" "max_sound_sources"]}
   {:type :integer,
-   :help "max number of concurrent sound instances, 256 by default",
+   :help "max number of concurrent sound instances (voices), 256 by default",
    :default 256,
    :path ["sound" "max_sound_instances"]}
   {:type :integer,
-   :help "max number of sound comonents in a collection, 32 by default",
+   :help "max number of sound components in a collection, 32 by default",
    :default 32,
    :path ["sound" "max_component_count"]}
+  {:type :integer,
+   :help "number of samples used for each audio update. 0 by default which means (1024 for 48khz sound device, 768 for 44.1khz sound device)",
+   :default 0,
+   :path ["sound" "sample_frame_count"]}
   {:type :boolean,
    :help "Enables sound threading",
    :default true,
    :path ["sound" "use_thread"]}
+  {:type :boolean,
+   :help "Enables sound streaming",
+   :default false,
+   :path ["sound" "stream_enabled"]}
+  {:type :integer,
+   :help "Size in bytes of each chunk that is loaded from a sound file, 16384 by default",
+   :default 16384,
+   :path ["sound" "stream_chunk_size"]}
+  {:type :integer,
+   :help "Size in bytes of the initial chunk that is loaded from each sound file, 16384 by default",
+   :default 16384,
+   :path ["sound" "stream_preload_size"]}
+  {:type :integer,
+   :help "Size in bytes of the sound streaming cache containing all chunks, 2097152 by default",
+   :default 2097152,
+   :path ["sound" "stream_cache_size"]}
   {:type :integer,
    :help "max number of sprites, 128 by default",
    :default 128,
@@ -417,6 +478,14 @@
    :default false,
    :path ["model" "split_meshes"]}
   {:type :integer,
+   :help "Max width of the bone matrix texture, 1024 by default. only the size needed for the animations will be used, and the value will rounded up to nearest PO2.",
+   :default 1024,
+   :path ["model" "max_bone_matrix_texture_width"]}
+  {:type :integer,
+   :help "Max height of the bone matrix texture, 1024 by default. only the size needed for the animations will be used, and the value will rounded up to nearest PO2.",
+   :default 1024,
+   :path ["model" "max_bone_matrix_texture_height"]}
+  {:type :integer,
    :help "max number of mesh components, 128 by default",
    :default 128,
    :path ["mesh" "max_count"]}
@@ -425,10 +494,13 @@
    :default 64,
    :path ["gui" "max_count"]},
   {:type :integer,
-   :help
-   "max number of particlefx nodes per collection",
-   :default 64,
-   :path ["gui" "max_particlefx_count"]}
+   :help "max total number of living particles. limits the GPU vertex buffer size. 1024 by default",
+   :default 1024,
+   :path ["particle_fx" "max_particle_count"]}
+  {:type :integer,
+   :help "max number of particles per upload to the GPU. limits the CPU memory usage. 1024 by default.",
+   :default 1024,
+   :path ["particle_fx" "max_particle_buffer_count"]}
   {:type :integer,
    :help
    "max total number of active animations in gui, 1024 by default",
@@ -456,10 +528,6 @@
    :help "max number of particle fx emitters, 64 by default",
    :default 64,
    :path ["particle_fx" "max_emitter_count"]}
-  {:type :integer,
-   :help "max total number of living particles, 1024 by default",
-   :default 1024,
-   :path ["particle_fx" "max_particle_count"]}
   {:type :integer,
    :help "max number of collection proxies, 8 by default",
    :default 8,
@@ -666,10 +734,12 @@
   {:type :integer,
    :help "minimum API Level required for the application to run (android:minSdkVersion)",
    :default 19,
+   :minimum 19,
    :path ["android" "minimum_sdk_version"]}
   {:type :integer,
    :help "the API Level that the application targets (android:targetSdkVersion)",
-   :default 34,
+   :default 35,
+   :minimum 19,
    :path ["android" "target_sdk_version"]}
   {:type :string,
    :help "package identifier",
@@ -784,6 +854,8 @@
   {:type :integer,
    :help "The size, in megabytes, of the application's heap",
    :default 256,
+   :minimum 32,
+   :maximum 4096,
    :path ["html5" "heap_size"]}
   {:type :resource,
    :filter "html",
@@ -846,6 +918,10 @@
    :help "pause in seconds before retry file loading after error",
    :default 1.0,
    :path ["html5" "retry_time"]}
+  {:type :boolean,
+   :help "set to true if you want graphics context has transparent backdrop",
+   :default false,
+   :path ["html5" "transparent_graphics_context"]}
   {:type :resource,
    :filter "appmanifest",
    :preserve-extension true,

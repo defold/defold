@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -31,6 +31,7 @@ import java.util.stream.Stream;
 import com.defold.editor.Editor;
 import com.dynamo.bob.util.FileUtil;
 
+import com.dynamo.graphics.proto.Graphics.PlatformProfile.OS;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.commons.io.FileUtils;
@@ -104,11 +105,19 @@ public class ResourceUnpacker {
                 if (alreadyUnpacked) {
                     logger.info("Already unpacked for the editor version {}", sha1);
                 } else {
-                    unpackResourceFile("builtins.zip", unpackPath.resolve("builtins"));
+                    unpackResourceFile("lib/builtins.zip", unpackPath.resolve("builtins"), false, true);
                     unpackResourceDir("/_unpack", unpackPath);
                     unpackResourceFile("libexec/" + platform.getPair() + "/libogg" + platform.getLibSuffix(), unpackPath);
                     unpackResourceFile("libexec/" + platform.getPair() + "/liboggz" + platform.getLibSuffix(), unpackPath);
-                    unpackResourceFile("libexec/" + platform.getPair() + "/oggz-validate" + platform.getExeSuffixes()[0], unpackPath, true);
+                    unpackResourceFile("libexec/" + platform.getPair() + "/oggz-validate" + platform.getExeSuffixes()[0], unpackPath, true, false);
+
+                    if (platform.isWindows()) {
+                        unpackResourceFile("libexec/" + platform.getPair() + "/dmengine.exe", unpackPath.resolve(platform.getPair()).resolve("bin"), true, true);
+                        unpackResourceFile("libexec/" + platform.getPair() + "/luajit-64.exe", unpackPath.resolve(platform.getPair()).resolve("bin"), true, true);
+                    }
+                    else {
+                        unpackResourceFile("libexec/" + platform.getPair() + "/luajit-64", unpackPath.resolve(platform.getPair()).resolve("bin"), true, true);
+                    }
 
                     Path binDir = unpackPath.resolve(platform.getPair() + "/bin").toAbsolutePath();
                     if (Files.exists(binDir)) {
@@ -146,10 +155,10 @@ public class ResourceUnpacker {
     }
 
     private static void unpackResourceFile(String resourceFileName, Path target) throws IOException {
-        unpackResourceFile(resourceFileName, target, false);
+        unpackResourceFile(resourceFileName, target, false, false);
     }
 
-    private static void unpackResourceFile(String resourceFileName, Path target, boolean executable) throws IOException {
+    private static void unpackResourceFile(String resourceFileName, Path target, boolean executable, boolean ignoreInputFilePath) throws IOException {
         ClassLoader classLoader = ResourceUnpacker.class.getClassLoader();
 
         try (InputStream inputStream = classLoader.getResourceAsStream(resourceFileName)) {
@@ -159,6 +168,9 @@ public class ResourceUnpacker {
             }
 
             Path outputPath = target.resolve(resourceFileName);
+            if (ignoreInputFilePath) {
+                outputPath =  target.resolve(outputPath.getFileName());
+            }
             File outputFile = outputPath.toFile();
 
             try {

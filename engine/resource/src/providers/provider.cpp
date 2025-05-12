@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -39,6 +39,7 @@ void ArchiveLoader::Verify()
     assert(m_Unmount != 0);
     assert(m_GetFileSize != 0);
     assert(m_ReadFile != 0);
+    assert(m_ReadFilePartial != 0);
 }
 
 void RegisterArchiveLoader(ArchiveLoader* loader)
@@ -48,14 +49,57 @@ void RegisterArchiveLoader(ArchiveLoader* loader)
     g_ArchiveLoaders = loader;
 }
 
-void Register(ArchiveLoader* loader, uint32_t size, const char* name, void (*setup_fn)(ArchiveLoader*))
+void Register(ArchiveLoader* loader, uint32_t size, const char* name,
+                    FRegisterLoader register_fn,
+                    FInitializeLoader initialize_fn,
+                    FFinalizeLoader finalize_fn)
 {
     memset(loader, 0, sizeof(ArchiveLoader));
     loader->m_NameHash = dmHashString64(name);
+    loader->m_Initialize = initialize_fn;
+    loader->m_Finalize = finalize_fn;
 
-    setup_fn(loader);
+    register_fn(loader);
     RegisterArchiveLoader(loader);
     DM_RESOURCE_DBG_LOG(2, "\nRegistered loader: %s %llx\n", name, loader->m_NameHash);
+}
+
+Result InitializeLoaders(ArchiveLoaderParams* params)
+{
+    ArchiveLoader* loader = g_ArchiveLoaders;
+    while (loader)
+    {
+        if (loader->m_Initialize)
+        {
+            Result result = loader->m_Initialize(params, loader);
+            if (result != RESULT_OK)
+            {
+                dmLogError("Failed to initialize file provider type: %s", dmHashReverseSafe64(loader->m_NameHash));
+                return result;
+            }
+        }
+        loader = loader->m_Next;
+    }
+    return RESULT_OK;
+}
+
+Result FinalizeLoaders(ArchiveLoaderParams* params)
+{
+    ArchiveLoader* loader = g_ArchiveLoaders;
+    while (loader)
+    {
+        if (loader->m_Finalize)
+        {
+            Result result = loader->m_Finalize(params, loader);
+            if (result != RESULT_OK)
+            {
+                dmLogError("Failed to finalize file provider type: %s", dmHashReverseSafe64(loader->m_NameHash));
+                return result;
+            }
+        }
+        loader = loader->m_Next;
+    }
+    return RESULT_OK;
 }
 
 void ClearArchiveLoaders(ArchiveLoader* loader)
@@ -133,6 +177,11 @@ Result GetFileSize(HArchive archive, dmhash_t path_hash, const char* path, uint3
 Result ReadFile(HArchive archive, dmhash_t path_hash, const char* path, uint8_t* buffer, uint32_t buffer_len)
 {
     return archive->m_Loader->m_ReadFile(archive->m_Internal, path_hash, path, buffer, buffer_len);
+}
+
+Result ReadFilePartial(HArchive archive, dmhash_t path_hash, const char* path, uint32_t offset, uint32_t size, uint8_t* buffer, uint32_t* nread)
+{
+    return archive->m_Loader->m_ReadFilePartial(archive->m_Internal, path_hash, path, offset, size, buffer, nread);
 }
 
 Result GetManifest(HArchive archive, dmResource::HManifest* out_manifest)

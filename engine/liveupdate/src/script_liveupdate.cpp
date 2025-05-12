@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -18,7 +18,7 @@
 
 #include <dlib/log.h>
 #include <dlib/uri.h>
-#include <extension/extension.h>
+#include <extension/extension.hpp>
 #include <resource/resource_manifest.h>
 #include <resource/resource_mounts.h>
 #include <resource/resource_verify.h>
@@ -365,7 +365,7 @@ namespace dmLiveUpdate
         if (name[0] == '_')
             return DM_LUA_ERROR("Name must not start with '_': %s", name);
 
-        // options at #4
+        // options at #5
 
         dmLiveUpdate::Result res = dmLiveUpdate::AddMountAsync(name, uri, priority, Callback_AddMount, cbk);
         if (dmLiveUpdate::RESULT_OK != res)
@@ -375,6 +375,15 @@ namespace dmLiveUpdate
         }
 
         lua_pushinteger(L, res);
+        return 1;
+    }
+
+    static int Resource_IsBuiltWithExcludedFiles(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        bool result = dmLiveUpdate::IsBuiltWithExcludedFiles();
+        lua_pushboolean(L, result);
         return 1;
     }
 
@@ -390,9 +399,10 @@ namespace dmLiveUpdate
         {"store_archive", dmLiveUpdate::Resource_StoreArchive},   // Store a .zip archive
 
 // New api
-        {"get_mounts",      dmLiveUpdate::Resource_GetMounts},      // Gets a list of the current mounts
-        {"add_mount",       dmLiveUpdate::Resource_AddMount},
-        {"remove_mount",    dmLiveUpdate::Resource_RemoveMount},
+        {"get_mounts",                      dmLiveUpdate::Resource_GetMounts},      // Gets a list of the current mounts
+        {"add_mount",                       dmLiveUpdate::Resource_AddMount},
+        {"remove_mount",                    dmLiveUpdate::Resource_RemoveMount},
+        {"is_built_with_excluded_files",    dmLiveUpdate::Resource_IsBuiltWithExcludedFiles},
 
         {0, 0}
     };

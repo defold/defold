@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -37,9 +37,9 @@ import com.dynamo.rig.proto.Rig.MeshSet;
 import com.dynamo.rig.proto.Rig.Skeleton;
 
 
-@BuilderParams(name="Meshset", inExts={".dae",".gltf",".glb"}, outExt=".meshsetc")
-public class MeshsetBuilder extends Builder<Void>  {
-    public static class ResourceDataResolver implements ModelImporter.DataResolver
+@BuilderParams(name="Meshset", inExts={".dae",".gltf",".glb"}, outExt=".meshsetc", paramsForSignature = {"model-split-large-meshes"})
+public class MeshsetBuilder extends Builder  {
+    public static class ResourceDataResolver implements ModelImporterJni.DataResolver
     {
         Project project;
 
@@ -65,18 +65,17 @@ public class MeshsetBuilder extends Builder<Void>  {
     };
 
     @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-        Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
+    public Task create(IResource input) throws IOException, CompileExceptionError {
+        Task.TaskBuilder taskBuilder = Task.newBuilder(this)
             .setName(params.name())
-            .addInput(input);
-
-        taskBuilder.addOutput(input.changeExt(params.outExt()));
-        taskBuilder.addOutput(input.changeExt(".skeletonc"));
-        taskBuilder.addOutput(input.changeExt("_generated_0.animationsetc"));
+            .addInput(input)
+            .addOutput(input.changeExt(params.outExt()))
+            .addOutput(input.changeExt(".skeletonc"))
+            .addOutput(input.changeExt("_generated_0.animationsetc"));
         return taskBuilder.build();
     }
 
-    public void buildCollada(Task<Void> task) throws CompileExceptionError, IOException {
+    public void buildCollada(Task task) throws CompileExceptionError, IOException {
         // Previously ColladaModelBuilder.java
         ByteArrayInputStream collada_is = new ByteArrayInputStream(task.input(0).getContent());
 
@@ -84,7 +83,7 @@ public class MeshsetBuilder extends Builder<Void>  {
         ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);
         MeshSet.Builder meshSetBuilder = MeshSet.newBuilder();
 
-        boolean split_meshes = this.project.getProjectProperties().getIntValue("model", "split_large_meshes", 0) != 0;
+        boolean split_meshes = this.project.option("model-split-large-meshes", "false").equals("true");
         try {
             ColladaUtil.loadMesh(collada_is, meshSetBuilder, true, split_meshes);
         } catch (XMLStreamException e) {
@@ -128,7 +127,7 @@ public class MeshsetBuilder extends Builder<Void>  {
     }
 
     @Override
-    public void build(Task<Void> task) throws CompileExceptionError, IOException {
+    public void build(Task task) throws CompileExceptionError, IOException {
 
         String suffix = BuilderUtil.getSuffix(task.input(0).getPath());
 
@@ -137,9 +136,9 @@ public class MeshsetBuilder extends Builder<Void>  {
             return;
         }
 
-        ModelImporter.Options options = new ModelImporter.Options();
+        Modelimporter.Options options = new Modelimporter.Options();
         ResourceDataResolver dataResolver = new ResourceDataResolver(this.project);
-        ModelImporter.Scene scene = ModelUtil.loadScene(task.input(0).getContent(), task.input(0).getPath(), options, dataResolver);
+        Modelimporter.Scene scene = ModelUtil.loadScene(task.input(0).getContent(), task.input(0).getPath(), options, dataResolver);
         if (scene == null) {
             throw new CompileExceptionError(task.input(0), -1, "Error loading model");
         }
@@ -148,8 +147,8 @@ public class MeshsetBuilder extends Builder<Void>  {
         {
             MeshSet.Builder meshSetBuilder = MeshSet.newBuilder();
 
-            int split_meshes = this.project.getProjectProperties().getIntValue("model", "split_large_meshes", 0);
-            if (split_meshes != 0) {
+            boolean split_meshes = this.project.option("model-split-large-meshes", "false").equals("true");
+            if (split_meshes) {
                 ModelUtil.splitMeshes(scene);
             }
 

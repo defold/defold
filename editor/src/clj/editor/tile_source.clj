@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -577,10 +577,10 @@
                      [(:width image-size 0) (:height image-size 0)]))
             (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["W" "H"]}))
             (dynamic read-only? (g/constantly true)))
-  (property tile-width g/Int ; Required protobuf field.
+  (property tile-width g/Int (default (protobuf/required-default Tile$TileSet :tile-width))
             (dynamic error (g/fnk [_node-id tile-width tile-width-error]
                              (validation/prop-error :fatal _node-id :tile-width validation/prop-negative? tile-width "Tile Width"))))
-  (property tile-height g/Int ; Required protobuf field.
+  (property tile-height g/Int (default (protobuf/required-default Tile$TileSet :tile-height))
             (dynamic error (g/fnk [_node-id tile-height tile-height-error]
                              (validation/prop-error :fatal _node-id :tile-height validation/prop-negative? tile-height "Tile Height"))))
   (property tile-margin g/Int (default (protobuf/default Tile$TileSet :tile-margin))
@@ -1005,7 +1005,7 @@
 (defn- selection->tile-source [selection]
   (handler/adapt-single selection TileSourceNode))
 
-(handler/defhandler :add :workbench
+(handler/defhandler :edit.add-embedded-component :workbench
   (active? [selection] (selection->tile-source selection))
   (label [selection user-data]
          (if-not user-data
@@ -1015,11 +1015,11 @@
            (when-not user-data
              [{:label "Animation"
                :icon animation-icon
-               :command :add
+               :command :edit.add-embedded-component
                :user-data {:action add-animation-node!}}
               {:label "Collision Group"
                :icon collision-icon
-               :command :add
+               :command :edit.add-embedded-component
                :user-data {:action add-collision-group-node!}}]))
   (run [selection user-data app-view]
     ((:action user-data) (selection->tile-source selection) (fn [node-ids] (app-view/select app-view node-ids)))))

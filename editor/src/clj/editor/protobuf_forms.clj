@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,8 +16,10 @@
   (:require [clojure.string :as str]
             [dynamo.graph :as g]
             [editor.protobuf :as protobuf]
-            [editor.util :as util])
-  (:import [com.dynamo.graphics.proto Graphics$PlatformProfile$OS Graphics$TextureFormatAlternative$CompressionLevel Graphics$TextureImage$CompressionType Graphics$TextureImage$TextureFormat Graphics$TextureProfiles]
+            [editor.util :as util]
+            [util.fn :as fn])
+  (:import [com.defold.extension.pipeline.texture ITextureCompressor TextureCompression TextureCompressorUncompressed]
+           [com.dynamo.graphics.proto Graphics$PlatformProfile Graphics$PlatformProfile$OS Graphics$TextureImage$TextureFormat Graphics$TextureProfiles]
            [com.dynamo.input.proto Input$Gamepad Input$GamepadMaps Input$GamepadType Input$InputBinding Input$Key Input$Mouse Input$Text Input$Touch]))
 
 (set! *warn-on-reflection* true)
@@ -48,7 +50,12 @@
 
 (defn make-options [enum-values]
   (let [prefix-size (longest-prefix-size enum-values)]
-    (map (juxt first #(display-name-or-default % prefix-size)) enum-values)))
+    (mapv (juxt first #(display-name-or-default % prefix-size)) enum-values)))
+
+(defn- make-enum-options-raw [^Class pb-enum-class]
+  (make-options (protobuf/enum-values pb-enum-class)))
+
+(def make-enum-options (fn/memoize make-enum-options-raw))
 
 (defn- default-form-ops [node-id]
   {:form-ops {:user-data {:node-id node-id}
@@ -223,22 +230,18 @@
     :texture-format-rgb-pvrtc-4bppv1
     :texture-format-rgba-bc3
     :texture-format-rgba-bc7
-    :texture-format-rgba-etc2
-    :texture-format-rgba-astc-4x4})
-
-(def texture-profiles-unsupported-compressions
-  #{:compression-type-webp
-    :compression-type-webp-lossy
-    :compression-type-basis-etc1s})
+    :texture-format-rgba-etc2})
 
 (defmethod protobuf-form-data Graphics$TextureProfiles [_node-id pb _def]
   (let [os-values (protobuf/enum-values Graphics$PlatformProfile$OS)
-        format-values (protobuf/enum-values Graphics$TextureImage$TextureFormat)
-        format-values-filtered (filterv (fn [fmt] (not (contains? texture-profiles-unsupported-formats (first fmt)))) format-values)
-        compression-values (protobuf/enum-values Graphics$TextureFormatAlternative$CompressionLevel)
-        compression-types (protobuf/enum-values Graphics$TextureImage$CompressionType)
-        compression-types-filtered (filterv (fn [fmt] (not (contains? texture-profiles-unsupported-compressions (first fmt)))) compression-types)
-        profile-options (mapv #(do [% %]) (map :name (:profiles pb)))]
+        format-values (distinct (protobuf/enum-values Graphics$TextureImage$TextureFormat))
+        format-values-filtered (filterv
+                                 (fn [fmt]
+                                   (not (contains? texture-profiles-unsupported-formats (first fmt))))
+                                 format-values)
+        profile-options (mapv #(do [% %]) (map :name (:profiles pb)))
+        ;; name + compressor instance
+        available-compressors (mapv #(vector % (TextureCompression/getCompressor %)) (TextureCompression/getInstalledCompressorNames))]
     {:navigation false
      :sections
      [{:title "Texture Profiles"
@@ -274,34 +277,48 @@
                                        [{:fields
                                          [{:path [:formats]
                                            :label "Formats"
-                                           :type :table
-                                           :columns [{:path [:format]
-                                                      :label "Format"
-                                                      :type :choicebox
-                                                      :options (sort-by first (make-options format-values-filtered))
-                                                      :default (ffirst format-values-filtered)}
-                                                     {:path [:compression-level]
-                                                      :label "Compression"
-                                                      :type :choicebox
-                                                      :options (make-options compression-values) ; Unsorted.
-                                                      :default (ffirst compression-values)}
-                                                     {:path [:compression-type]
-                                                      :label "Type"
-                                                      :type :choicebox
-                                                      :options (make-options compression-types-filtered) ; Unsorted.
-                                                      :default (ffirst compression-types-filtered)}]}
+                                           :type :2panel
+                                           :panel-key {:path [:format]
+                                                       :label "Format"
+                                                       :type :choicebox
+                                                       :options (sort-by first (make-options format-values-filtered))
+                                                       :default (ffirst format-values-filtered)}
+                                           :panel-form-fn
+                                           (fn panel-form-fn [selected-format]
+                                             (let [texture-format (when (:format selected-format)
+                                                                    (protobuf/val->pb-enum Graphics$TextureImage$TextureFormat (:format selected-format)))
+                                                   available-compressors-for-format (keep (fn [[compressor-name compressor-instance]]
+                                                                                            (when (.supportsTextureFormat ^ITextureCompressor compressor-instance texture-format)
+                                                                                              [compressor-name compressor-name]))
+                                                                                          available-compressors)
+                                                   available-presets-for-compressor (mapv
+                                                                                      (fn [preset-name]
+                                                                                        [preset-name (.getDisplayName (TextureCompression/getPreset preset-name))])
+                                                                                      (TextureCompression/getPresetNamesForCompressor (:compressor selected-format)))]
+                                               {:sections
+                                                [{:fields
+                                                  [{:path [:compressor]
+                                                    :label "Compressor"
+                                                    :type :choicebox
+                                                    :options (make-options available-compressors-for-format) ; Unsorted.
+                                                    :default (TextureCompressorUncompressed/TextureCompressorName)}
+                                                   {:path [:compressor-preset]
+                                                    :label "Compressor Preset"
+                                                    :type :choicebox
+                                                    :options available-presets-for-compressor ; Unsorted.
+                                                    :default (ffirst available-presets-for-compressor)}]}]}))}
                                           {:path [:mipmaps]
                                            :type :boolean
                                            :label "Mipmaps"}
                                           {:path [:max-texture-size]
                                            :type :integer
                                            :label "Max texture size"
-                                           :default 0
+                                           :default (protobuf/default Graphics$PlatformProfile :max-texture-size)
                                            :optional true}
                                           {:path [:premultiply-alpha]
                                            :type :boolean
                                            :label "Premultiply alpha"
-                                           :default true
+                                           :default (protobuf/default Graphics$PlatformProfile :premultiply-alpha)
                                            :optional true}]}]}}]}]}}]}]}))
 
 (defn produce-form-data

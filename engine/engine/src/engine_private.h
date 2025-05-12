@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -20,6 +20,7 @@
 #include <dmsdk/dlib/configfile.h>
 #include <dlib/hashtable.h>
 #include <dlib/message.h>
+#include <dlib/http_cache.h>
 
 #include <resource/resource.h>
 
@@ -42,6 +43,7 @@
 #include "engine_service.h"
 #include "engine.h"
 #include <engine/engine_ddf.h>
+#include <dmsdk/gamesys/resources/res_font.h>
 
 namespace dmEngine
 {
@@ -123,7 +125,8 @@ namespace dmEngine
         dmJobThread::HContext                       m_JobThreadContext;
         dmGraphics::HContext                        m_GraphicsContext;
         dmRender::HRenderContext                    m_RenderContext;
-        dmGameSystem::PhysicsContext                m_PhysicsContext;
+        dmGameSystem::PhysicsContextBox2D           m_PhysicsContextBox2D;
+        dmGameSystem::PhysicsContextBullet3D        m_PhysicsContextBullet3D;
         dmGameSystem::ParticleFXContext             m_ParticleFXContext;
         /// If the shared context is set, the three environment specific contexts below will point to the same context
         dmScript::HContext                          m_SharedScriptContext;
@@ -140,14 +143,14 @@ namespace dmEngine
         dmGameSystem::ModelContext                  m_ModelContext;
         dmGameSystem::LabelContext                  m_LabelContext;
         dmGameSystem::TilemapContext                m_TilemapContext;
-        dmGameSystem::SoundContext                  m_SoundContext;
         dmGameObject::ModuleContext                 m_ModuleContext;
 
-        dmRender::HFontMap                          m_SystemFontMap;
+        dmGameSystem::FontResource*                 m_SystemFont;
         dmHID::HContext                             m_HidContext;
         dmInput::HContext                           m_InputContext;
         dmInput::HBinding                           m_GameInputBinding;
         dmRender::HDisplayProfiles                  m_DisplayProfiles;
+        dmHttpCache::HCache                         m_HttpCache;
 
         dmGameSystem::RenderScriptPrototype*        m_RenderScriptPrototype;
 
@@ -157,6 +160,7 @@ namespace dmEngine
         bool                                        m_QuitOnEsc;
         bool                                        m_ConnectionAppMode;        //!< If the app was started on a device, listening for connections
         bool                                        m_RunWhileIconified;
+        bool                                        m_UseSwVSync;
         uint64_t                                    m_PreviousFrameTime;        // Used to calculate dt
         float                                       m_AccumFrameTime;           // Used to trigger frame updates when using m_UpdateFrequency != 0
         uint32_t                                    m_UpdateFrequency;
@@ -166,6 +170,7 @@ namespace dmEngine
         uint32_t                                    m_ClearColor;
         float                                       m_InvPhysicalWidth;
         float                                       m_InvPhysicalHeight;
+        float                                       m_MaxTimeStep;
 
         RecordData                                  m_RecordData;
     };

@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -22,6 +22,7 @@
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.settings-core :as settings-core]
+            [editor.validation :as validation]
             [editor.workspace :as workspace]))
 
 (g/defnode ResourceSettingNode
@@ -122,6 +123,16 @@
      :default-section-name (when-let [category-name (:default-category meta-info)]
                              (section-title category-name (get-in meta-info [:categories category-name])))}))
 
+(defn get-setting-build-error [setting-value meta-setting label]
+  (if (and (some? setting-value))
+    (let [max-error (when (some? (:maximum meta-setting))
+                      (validation/prop-maximum-check? (:maximum meta-setting) setting-value (string/join "." (:path meta-setting))))
+          min-error (when (some? (:minimum meta-setting))
+                      (validation/prop-minimum-check? (:minimum meta-setting) setting-value (string/join "." (:path meta-setting))))]
+      (cond
+        (some? max-error) (g/->error nil label :fatal nil max-error)
+        (some? min-error) (g/->error nil label :fatal nil min-error)))))
+
 (defn get-setting-error [setting-value meta-setting label]
   (cond
     (and (some? setting-value)
@@ -132,16 +143,19 @@
     (and (some? setting-value) (:deprecated meta-setting))
     (if (not= setting-value (:default meta-setting))
       (g/->error nil label (:severity-override meta-setting) nil (:help meta-setting))
-      (g/->error nil label (:severity-default meta-setting) nil (:help meta-setting)))))
+      (g/->error nil label (:severity-default meta-setting) nil (:help meta-setting)))
+
+    :else
+    (get-setting-build-error setting-value meta-setting label)))
 
 (defn get-settings-errors [form-data]
   (let [meta-settings (:meta-settings form-data)
         setting-values (:values form-data)]
-    (into {}
+    (into []
           (keep (fn [[setting-path setting-value]]
                   (let [meta-setting (settings-core/get-meta-setting meta-settings setting-path)]
-                    (when-some [error (get-setting-error setting-value meta-setting :build-targets)]
-                      [setting-path error]))))
+                    (when-some [error (get-setting-build-error setting-value meta-setting :build-targets)]
+                      error))))
           setting-values)))
 
 (g/defnk produce-form-data [_node-id meta-info raw-settings resource-setting-nodes resource-settings]

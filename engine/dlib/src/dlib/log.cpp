@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -662,7 +662,11 @@ void LogInternal(LogSeverity severity, const char* domain, const char* format, .
     n += dmSnPrintf(str_buf + n, dmLog::MAX_STRING_SIZE - n, "%s:%s: ", severity_str, domain);
     if (n < dmLog::MAX_STRING_SIZE)
     {
-        n += vsnprintf(str_buf + n, dmLog::MAX_STRING_SIZE - n, format, lst);
+        int length = vsnprintf(str_buf + n, dmLog::MAX_STRING_SIZE - n, format, lst);
+        if (length > 0)
+        {
+            n += length;
+        }
     }
 
     if (n < dmLog::MAX_STRING_SIZE)

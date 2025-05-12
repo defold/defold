@@ -12,6 +12,7 @@
  * @document
  * @name Base
  * @namespace base
+ * @language Lua
  */
 
 /*# asserts that condition is not nil and not false

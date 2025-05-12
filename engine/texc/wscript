@@ -31,7 +31,9 @@ def configure(conf):
     conf.env['STLIB_DLIB'] = 'dlib'
     conf.env['STLIB_DLIB_NOASAN'] = ['dlib_noasan']
     conf.env['STLIB_BASIS_ENCODER'] = 'basis_encoder'
+    conf.env['STLIB_BASIS_ENCODER_NOASAN'] = 'basis_encoder_noasan'
     conf.env['STLIB_BASIS_TRANSCODER'] = 'basis_transcoder'
+    conf.env['STLIB_ASTCENC'] = 'astcenc'
 
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="TEXC"')
 

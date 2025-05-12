@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -208,8 +208,8 @@ TEST_F(ScriptTimerTest, TestTimerTriggerCountLimit)
     };
 
     dmArray<dmScript::HTimer> handles;
-    handles.SetCapacity(65535u);
-    handles.SetSize(65535u);
+    handles.SetCapacity(dmScript::MAX_TIMER_CAPACITY);
+    handles.SetSize(dmScript::MAX_TIMER_CAPACITY);
 
     uint32_t timer_count = 0;
 
@@ -1008,6 +1008,80 @@ TEST_F(ScriptTimerTest, TestLuaTimerGetInfo)
         "assert(data2 == nil)\n";
 
     ASSERT_TRUE(RunString(L, check_get_info_cancelled));
+    ASSERT_EQ(top, lua_gettop(L));
+
+    FinalizeInstance(script_world);
+
+    dmScript::GetInstance(L);
+    DeleteScriptInstance(L);
+
+    lua_pushnil(L);
+    dmScript::SetInstance(L);
+
+    dmScript::DeleteScriptWorld(script_world);
+}
+
+
+TEST_F(ScriptTimerTest, TestLuaStress)
+{
+    int top = lua_gettop(L);
+    LuaInit(L);
+
+    dmScript::HScriptWorld script_world = dmScript::NewScriptWorld(m_Context);
+
+    // from https://github.com/defold/defold/issues/9491#issuecomment-2385551265
+    const char pre_script[] =
+    "local function boo()\n"
+    "    local t = timer.delay(0, false,\n"
+    "                         function(self, handle, elapsed_time)\n"
+    "                             test.callback_counter(handle, elapsed_time)\n"
+    "                             local i = 0\n"
+    "                             while i < 8 do\n"
+    "                                 boo()\n"
+    "                                 i = i + 1\n"
+    "                             end\n"
+    "                         end)\n"
+    "    if t == timer.INVALID_TIMER_HANDLE then\n"
+    "        return\n"
+    "    end\n"
+    "end\n"
+    "boo()\n";
+
+    const char post_script[] = "";
+
+    cb_callback_counter = 0u;
+    cb_elapsed_time = 0.0f;
+
+    const char* SCRIPTINSTANCE = "TestScriptInstance";
+
+    dmScript::RegisterUserType(L, SCRIPTINSTANCE, ScriptInstance_methods, ScriptInstance_meta);
+
+    CreateScriptInstance(L, SCRIPTINSTANCE);
+    dmScript::SetInstance(L);
+
+    ASSERT_TRUE(dmScript::IsInstanceValid(L));
+    dmScript::InitializeInstance(script_world);
+
+    ASSERT_TRUE(RunString(L, pre_script));
+    ASSERT_EQ(top, lua_gettop(L));
+
+    dmScript::UpdateScriptWorld(script_world, 1.0f);
+    ASSERT_EQ(1u, cb_callback_counter);
+    ASSERT_EQ(1.0f, cb_elapsed_time);
+
+    dmScript::UpdateScriptWorld(script_world, 1.0f);
+    ASSERT_EQ(9u, cb_callback_counter);
+    ASSERT_EQ(9.0f, cb_elapsed_time);
+
+    dmScript::UpdateScriptWorld(script_world, 1.0f);
+    ASSERT_EQ(73u, cb_callback_counter);
+    ASSERT_EQ(73.0f, cb_elapsed_time);
+
+    dmScript::UpdateScriptWorld(script_world, 1.0f);
+    ASSERT_EQ(585u, cb_callback_counter);
+    ASSERT_EQ(585.0f, cb_elapsed_time);
+
+    ASSERT_TRUE(RunString(L, post_script));
     ASSERT_EQ(top, lua_gettop(L));
 
     FinalizeInstance(script_world);

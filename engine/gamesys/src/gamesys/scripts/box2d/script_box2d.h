@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -17,7 +17,6 @@
 
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/dlib/vmath.h>
-#include <Box2D/Common/b2Math.h>
 
 namespace dmGameObject
 {
@@ -29,15 +28,10 @@ namespace dmGameSystem
     float GetPhysicsScale();
     float GetInvPhysicsScale();
 
-    b2Vec2           CheckVec2(struct lua_State* L, int index, float scale);
-    dmVMath::Vector3 FromB2(const b2Vec2& p, float inv_scale);
+    void  PushWorld(struct lua_State* L, void* world);
+    void  PushBody(struct lua_State* L, void* body, dmGameObject::HCollection collection, dmhash_t gameobject_id);
 
-    void    PushWorld(struct lua_State* L, class b2World* world);
-
-    void            PushBody(struct lua_State* L, class b2Body* body, dmGameObject::HCollection collection, dmhash_t gameobject_id);
-    class b2Body*   CheckBody(lua_State* L, int index);
-
-    void    ScriptBox2DInitializeBody(struct lua_State* L);
+    void  ScriptBox2DInitializeBody(struct lua_State* L);
 }
 
 #endif // DM_GAMESYS_SCRIPT_BOX2D_H

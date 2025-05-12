@@ -22,6 +22,8 @@ To enable tracing where every allocation is written to disk for analaysis:
 
     # DMMEMPROFILE_TRACE=1 dmengine_memprofile.sh
 
+The log file `memprofile.trace` is written in the current directory.
+
 Create a trace report using memprofile.sh
 
     memprofile.sh `which dmengine` memprofile.trace > report.html

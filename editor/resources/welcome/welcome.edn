@@ -24,12 +24,12 @@
                              :zip-url "https://github.com/defold/template-desktop/archive/master.zip"
                              :skip-root? true}
 
-                            {:name "Web Monetized game"
-                             :description "This template contains everything you need to start building a game for HTML5 with Web Monetization enabled."
-                             :image "web-monetization.svg"
-                             :duration "Short"
-                             :user-level "Intermediate"
-                             :zip-url "https://github.com/defold/template-webmonetization/archive/master.zip"
+                            {:name "Poki HTML5 game"
+                             :description "This template includes the Poki SDK, designed for both desktop and mobile web games. It also provides a quick export option to the Poki for Developers platform."
+                             :image "poki.svg"
+                             :duration "Medium"
+                             :user-level "Advanced"
+                             :zip-url "https://github.com/defold/template-html5-poki/archive/master.zip"
                              :skip-root? true}
 
                             {:name "Native Extension"
@@ -54,6 +54,14 @@
                              :duration "Medium"
                              :user-level "Intermediate"
                              :zip-url "https://github.com/defold/template-platformer/archive/main.zip"
+                             :skip-root? true}
+
+                             {:name "Rive project"
+                             :description "This template uses the rive extension to get you started."
+                             :image "rive.svg"
+                             :duration "Medium"
+                             :user-level "Advanced"
+                             :zip-url "https://github.com/defold/template-rive/archive/master.zip"
                              :skip-root? true}]}
 
                {:label "From Tutorial"

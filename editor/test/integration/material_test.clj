@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,6 +15,7 @@
 (ns integration.material-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [editor.resource :as resource]
             [integration.test-util :as test-util]
             [editor.workspace :as workspace]
             [editor.defold-project :as project]))
@@ -31,6 +32,38 @@
           samplers (g/node-value node-id :samplers)]
       (is (some? (g/node-value node-id :shader)))
       (is (= 1 (count samplers))))))
+
+(deftest material-combined-shaders
+  ;; Test that materials that have the same .vp and .fp pair will reference the same .sp file
+  (test-util/with-loaded-project
+    (let [node-id-material-1 (test-util/resource-node project "/materials/test_combined_shader_1.material")
+          node-id-material-2 (test-util/resource-node project "/materials/test_combined_shader_2.material")
+          node-id-material-3 (test-util/resource-node project "/materials/test_combined_shader_3.material")
+          build-targets-material-1 (g/node-value node-id-material-1 :build-targets)
+          build-targets-material-2 (g/node-value node-id-material-2 :build-targets)
+          build-targets-material-3 (g/node-value node-id-material-3 :build-targets)
+          sp-dep-material_1 (get-in build-targets-material-1 [0 :deps 0])
+          sp-dep-material_2 (get-in build-targets-material-2 [0 :deps 0])
+          sp-dep-material_3 (get-in build-targets-material-3 [0 :deps 0])]
+      (is (= (g/node-value node-id-material-1 :vertex-program)
+             (g/node-value node-id-material-2 :vertex-program)
+             (g/node-value node-id-material-3 :vertex-program)))
+      (is (= (g/node-value node-id-material-1 :fragment-program)
+             (g/node-value node-id-material-2 :fragment-program)
+             (g/node-value node-id-material-3 :fragment-program)))
+      ;; Check that the material content is different between the three materials
+      (is (not (= (get-in build-targets-material-1 [0 :content-hash])
+                  (get-in build-targets-material-2 [0 :content-hash])
+                  (get-in build-targets-material-3 [0 :content-hash]))))
+      (is (and some? (:resource sp-dep-material_1)
+               ;; Same resource path
+               (= (resource/proj-path (:resource sp-dep-material_1))
+                  (resource/proj-path (:resource sp-dep-material_2))
+                  (resource/proj-path (:resource sp-dep-material_3)))
+               ;; Same content hash of the dependency
+               (= (:content-hash sp-dep-material_1)
+                  (:content-hash sp-dep-material_2)
+                  (:content-hash sp-dep-material_3)))))))
 
 (deftest material-validation
   (test-util/with-loaded-project

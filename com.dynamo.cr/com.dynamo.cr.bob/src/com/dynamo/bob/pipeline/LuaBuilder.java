@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -20,6 +20,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
 import java.io.FileOutputStream;
+import java.io.ByteArrayInputStream;
+import java.nio.file.Files;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Collection;
 import java.util.Map;
 import java.util.HashMap;
@@ -33,6 +36,7 @@ import javax.vecmath.Vector3d;
 import javax.vecmath.Vector4d;
 
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.io.FileUtils;
 
 import com.defold.extension.pipeline.ILuaObfuscator;
 import com.defold.extension.pipeline.ILuaPreprocessor;
@@ -48,6 +52,8 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.pipeline.LuaScanner.Property.Status;
 import com.dynamo.bob.plugin.PluginScanner;
+import com.dynamo.bob.util.Exec;
+import com.dynamo.bob.util.Exec.Result;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.PropertiesUtil;
 import com.dynamo.lua.proto.Lua.LuaModule;
@@ -63,16 +69,18 @@ import com.google.protobuf.Message;
  * @author chmu
  *
  */
-public abstract class LuaBuilder extends Builder<Void> {
+public abstract class LuaBuilder extends Builder {
 
     private static Logger logger = Logger.getLogger(LuaBuilder.class.getName());
 
-    private static ArrayList<Platform> platformUsesLua51 = new ArrayList<Platform>(Arrays.asList(Platform.JsWeb, Platform.WasmWeb));
+    private static ArrayList<Platform> LUA51_PLATFORMS = new ArrayList<Platform>(Arrays.asList(Platform.JsWeb, Platform.WasmWeb, Platform.WasmPthreadWeb));
+    private static boolean useLua51;
+    private static String luaJITExePath;
 
     private static List<ILuaPreprocessor> luaPreprocessors = null;
     private static List<ILuaObfuscator> luaObfuscators = null;
 
-    private Map<String, LuaScanner> luaScanners = new HashMap();
+    private LuaScanner luaScanner;
 
     /**
      * Get a LuaScanner instance for a resource
@@ -84,8 +92,7 @@ public abstract class LuaBuilder extends Builder<Void> {
     private LuaScanner getLuaScanner(IResource resource) throws IOException, CompileExceptionError {
         final String path = resource.getAbsPath();
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
-        LuaScanner scanner = luaScanners.get(path);
-        if (scanner == null) {
+        if (luaScanner == null) {
             final byte[] scriptBytes = resource.getContent();
             String script = new String(scriptBytes, "UTF-8");
 
@@ -107,16 +114,22 @@ public abstract class LuaBuilder extends Builder<Void> {
                 }
             }
 
-            scanner = new LuaScanner();
-            scanner.parse(script);
-            luaScanners.put(path, scanner);
+            luaScanner = new LuaScanner();
+            if (variant == Bob.VARIANT_DEBUG)
+            {
+                luaScanner.setDebug();
+            }
+            luaScanner.parse(script);
+            for(LuaScanner.LuaScannerException e: luaScanner.exceptions) {
+                throw new CompileExceptionError(resource, e.getLineNumber(), e.getErrorMessage());
+            }
         }
-        return scanner;
+        return luaScanner;
     }
 
     @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-        Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
+    public Task create(IResource input) throws IOException, CompileExceptionError {
+        Task.TaskBuilder taskBuilder = Task.newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
                 .addOutput(input.changeExt(params.outExt()));
@@ -125,8 +138,7 @@ public abstract class LuaBuilder extends Builder<Void> {
         long finalLuaHash = MurmurHash.hash64(scanner.getParsedLua());
         taskBuilder.addExtraCacheKey(Long.toString(finalLuaHash));
 
-        List<LuaScanner.Property> properties = scanner.getProperties();
-        for (LuaScanner.Property property : properties) {
+        for (LuaScanner.Property property : scanner.getProperties()) {
 
             if (property.isResource) {
                 String value = (String) property.value;
@@ -139,78 +151,129 @@ public abstract class LuaBuilder extends Builder<Void> {
                     throw new IOException(String.format("Resource '%s' referenced from script resource property '%s' does not exist", value, property.name));
                 }
 
-                IResource resource = BuilderUtil.checkResource(this.project, input, property.name + " resource", value);
-                taskBuilder.addInput(resource);
-                PropertiesUtil.createResourcePropertyTasks(this.project, resource, input);
+                createSubTask(value, property.name, taskBuilder);
             }
         }
+
+        for (String module : scanner.getModules()) {
+            String module_file = String.format("/%s.lua", module.replaceAll("\\.", "/"));
+            createSubTask(module_file, "Lua module", taskBuilder);
+        }
+
+        // Create obfuscators if some exists.
+        if (luaObfuscators == null) {
+            luaObfuscators = PluginScanner.getOrCreatePlugins("com.defold.extension.pipeline", ILuaObfuscator.class);
+
+            if (luaObfuscators == null) {
+                luaObfuscators = new ArrayList<ILuaObfuscator>(0);
+            }
+        }
+
+        // check if the platform is using Lua 5.1 or LuaJIT
+        // get path of LuaJIT executable if the platform uses LuaJIT
+        Bob.initLua();
+        useLua51 = LUA51_PLATFORMS.contains(this.project.getPlatform());
+        luaJITExePath = Bob.getHostExeOnce("luajit-64", luaJITExePath);
 
         return taskBuilder.build();
     }
 
-    public byte[] constructBytecode(Task<Void> task, String source, File inputFile, File outputFile, List<String> options, Map<String, String> env) throws IOException, CompileExceptionError {
+    private long getSize(File f) throws IOException {
+        BasicFileAttributes attr = Files.readAttributes(f.toPath(), BasicFileAttributes.class);
+        return attr.size();
+    }
+    private void writeToFile(File f, byte[] b) throws CompileExceptionError, IOException {
+        InputStream in = new ByteArrayInputStream(b);
+        FileUtils.copyInputStreamToFile(in, f);
+        try {
+            int retries = 40;
+            while (getSize(f) < b.length) {
+                logger.info("File '%s' isn't written. Retry %d.", f.getPath(), retries);
+                Thread.sleep(50);
+                if (--retries == 0) {
+                    throw new CompileExceptionError(String.format("File '%s' is not of the expected size", f.getPath()));
+                }
+            }
+        }
+        catch (java.lang.InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private int executeProcess(Task task, List<String> options, Map<String, String> env, File inputFile, int retrievableFailure) throws IOException, CompileExceptionError {
+        Result r = Exec.execResultWithEnvironment(env, options);
+        int ret = r.ret;
+        String cmdOutput = new String(r.stdOutErr);
+        if (ret == retrievableFailure) {
+            return retrievableFailure;
+        }
+        if (ret != 0) {
+            logger.info("Bytecode construction failed with exit code %d", ret);
+
+            // Parse and handle the error output
+            int execSep = cmdOutput.indexOf(':');
+            if (execSep > 0) {
+                // then comes the filename and the line like this:
+                // "file.lua:30: <error message>"
+                int lineBegin = cmdOutput.indexOf(':', execSep + 1);
+                if (lineBegin > 0) {
+                    int lineEnd = cmdOutput.indexOf(':', lineBegin + 1);
+                    if (lineEnd > 0) {
+                        throw new CompileExceptionError(task.input(0),
+                                Integer.parseInt(cmdOutput.substring(
+                                        lineBegin + 1, lineEnd)),
+                                cmdOutput.substring(lineEnd + 2));
+                    }
+                }
+            } else {
+                System.out.printf("Lua Error: for file %s: '%s'\n", task.input(0).getPath(), cmdOutput);
+            }
+            // Since parsing out the actual error failed, as a backup just
+            // spit out whatever luajit/luac said.
+            inputFile.delete();
+            throw new CompileExceptionError(task.input(0), 1, cmdOutput);
+        }
+
+        return ret;
+    }
+
+    public byte[] constructBytecode(Task task, String source, File inputFile, File outputFile, List<String> options, Map<String, String> env) throws IOException, CompileExceptionError {
         FileOutputStream fo = null;
         RandomAccessFile rdr = null;
 
         try {
-            Bob.initLua(); // unpack the lua resources
-
             // Need to write the input file separately in case it comes from built-in, and cannot
             // be found through its path alone.
-            fo = new java.io.FileOutputStream(inputFile);
-            fo.write(source.getBytes());
-            fo.close();
+            writeToFile(inputFile, source.getBytes());
 
-            ProcessBuilder pb = new ProcessBuilder(options).redirectErrorStream(true);
-            pb.environment().putAll(env);
+            int maxRetries = 10;
+            int retries = 0;
+            int retrievableFailure = 139; // Segmentation fault or similar retrievable failure
 
-            Process p = pb.start();
-            InputStream is = null;
-            int ret = 127;
-
-            try {
-                ret = p.waitFor();
-                is = p.getInputStream();
-
-                int toRead = is.available();
-                byte[] buf = new byte[toRead];
-                is.read(buf);
-
-                String cmdOutput = new String(buf);
-                if (ret != 0) {
-                    // first delimiter is the executable name "luajit:" or "luac:"
-                    int execSep = cmdOutput.indexOf(':');
-                    if (execSep > 0) {
-                        // then comes the filename and the line like this:
-                        // "file.lua:30: <error message>"
-                        int lineBegin = cmdOutput.indexOf(':', execSep + 1);
-                        if (lineBegin > 0) {
-                            int lineEnd = cmdOutput.indexOf(':', lineBegin + 1);
-                            if (lineEnd > 0) {
-                                throw new CompileExceptionError(task.input(0),
-                                        Integer.parseInt(cmdOutput.substring(
-                                                lineBegin + 1, lineEnd)),
-                                        cmdOutput.substring(lineEnd + 2));
-                            }
-                        }
+            while (retries < maxRetries) {
+                int ret = executeProcess(task, options, env, inputFile, retrievableFailure);
+                if (ret == retrievableFailure) {
+                    retries++;
+                    logger.info("Attempt %d failed with exit code %d, retrying...", retries, retrievableFailure);
+                    try {
+                        Thread.sleep(50); // Pause before retrying
+                    } catch (InterruptedException e) {
+                        logger.severe("Unexpected interruption during retry", e);
                     }
-                    else {
-                        System.out.printf("Lua Error: for file %s: '%s'\n", task.input(0).getPath(), cmdOutput);
-                    }
-                    // Since parsing out the actual error failed, as a backup just
-                    // spit out whatever luajit/luac said.
-                    inputFile.delete();
-                    throw new CompileExceptionError(task.input(0), 1, cmdOutput);
+                } else {
+                    // Process completed successfully or failed with a non-retriable code
+                    break;
                 }
-            } catch (InterruptedException e) {
-                logger.severe("Unexpected interruption", e);
-            } finally {
-                IOUtils.closeQuietly(is);
             }
 
+            if (retries == maxRetries) {
+                throw new RuntimeException(String.format("Exceeded maximum retry attempts (%d) due to repeated exit code %d.", maxRetries, retrievableFailure));
+            }
+
+            // Read output file contents
             long resultBytes = outputFile.length();
             rdr = new RandomAccessFile(outputFile, "r");
-            byte tmp[] = new byte[(int) resultBytes];
+            byte[] tmp = new byte[(int) resultBytes];
             rdr.readFully(tmp);
 
             outputFile.delete();
@@ -227,13 +290,13 @@ public abstract class LuaBuilder extends Builder<Void> {
     // we always use @ + full path
     // if the path is shorter than 60 characters the runtime will show the full path
     // if the path is longer than 60 characters the runtime will show ... and the last portion of the path
-    private String getChunkName(Task<Void> task) {
+    private String getChunkName(Task task) {
         String chunkName = "@" + task.input(0).getPath();
         return chunkName;
     }
 
     /* We currently prefer source code over plain lua byte code due to the smaller size
-    public byte[] constructLuaBytecode(Task<Void> task, String luacExe, String source) throws IOException, CompileExceptionError {
+    public byte[] constructLuaBytecode(Task task, String luacExe, String source) throws IOException, CompileExceptionError {
         File outputFile = File.createTempFile("script", ".raw");
         File inputFile = File.createTempFile("script", ".lua");
 
@@ -288,9 +351,7 @@ public abstract class LuaBuilder extends Builder<Void> {
     }
     */
 
-    public byte[] constructLuaJITBytecode(Task<Void> task, String luajitExe, String source, boolean gen32bit) throws IOException, CompileExceptionError {
-
-        Bob.initLua(); // unpack the lua resources
+    public byte[] constructLuaJITBytecode(Task task, String source, boolean gen32bit) throws IOException, CompileExceptionError {
 
         File outputFile = File.createTempFile("script", ".raw");
         File inputFile = File.createTempFile("script", ".lua");
@@ -312,7 +373,7 @@ public abstract class LuaBuilder extends Builder<Void> {
         // -g = keep debug info
         final String chunkName = getChunkName(task);
         List<String> options = new ArrayList<String>();
-        options.add(Bob.getExe(Platform.getHostPlatform(), luajitExe));
+        options.add(luaJITExePath);
         options.add("-b");
         options.add("-d");
         options.add("-g");
@@ -401,12 +462,12 @@ public abstract class LuaBuilder extends Builder<Void> {
     }
 
     @Override
-    public void build(Task<Void> task) throws CompileExceptionError, IOException {
+    public void build(Task task) throws CompileExceptionError, IOException {
 
         LuaModule.Builder builder = LuaModule.newBuilder();
 
         // get and remove require and properties from LuaScanner
-        LuaScanner scanner = getLuaScanner(task.input(0));
+        LuaScanner scanner = getLuaScanner(task.firstInput());
         String script = scanner.getParsedLua();
         List<String> modules = scanner.getModules();
         List<LuaScanner.Property> properties = scanner.getProperties();
@@ -414,27 +475,19 @@ public abstract class LuaBuilder extends Builder<Void> {
         // add detected modules to builder
         for (String module : modules) {
             String module_file = String.format("/%s.lua", module.replaceAll("\\.", "/"));
-            BuilderUtil.checkResource(this.project, task.input(0), "module", module_file);
+            BuilderUtil.checkResource(this.project, task.firstInput(), "module", module_file);
             builder.addModules(module);
             builder.addResources(module_file + "c");
         }
 
         // add detected properties to builder
         Collection<String> propertyResources = new HashSet<String>();
-        PropertyDeclarations propertiesMsg = buildProperties(task.input(0), properties, propertyResources);
+        PropertyDeclarations propertiesMsg = buildProperties(task.firstInput(), properties, propertyResources);
         builder.setProperties(propertiesMsg);
         builder.addAllPropertyResources(propertyResources);
 
-        // Create and run obfuscators if some exists.
-        if (luaObfuscators == null) {
-            luaObfuscators = PluginScanner.getOrCreatePlugins("com.defold.extension.pipeline", ILuaObfuscator.class);
-
-            if (luaObfuscators == null) {
-                luaObfuscators = new ArrayList<ILuaObfuscator>(0);
-            }
-        }
-
-        final IResource sourceResource = task.input(0);
+        // apply obfuscation
+        final IResource sourceResource = task.firstInput();
         final String sourcePath = sourceResource.getAbsPath();
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
 
@@ -472,12 +525,14 @@ public abstract class LuaBuilder extends Builder<Void> {
         // even when compressed using lz4
         // this is unacceptable for html5 games where size is a key factor
         // see https://github.com/defold/defold/issues/6891 for more info
-        if (platformUsesLua51.contains(project.getPlatform())) {
+        if (useLua51) {
+            constructLuaJITBytecode(task, script, false);
             srcBuilder.setScript(ByteString.copyFrom(script.getBytes()));
         }
         // include uncompressed Lua source code instead of bytecode
         // see https://forum.defold.com/t/urgent-need-help-i-have-huge-problem-with-game-submission-to-apple/68031
         else if (useUncompressedLuaSource) {
+            constructLuaJITBytecode(task, script, false);
             srcBuilder.setScript(ByteString.copyFrom(script.getBytes()));
         }
         else {
@@ -495,13 +550,12 @@ public abstract class LuaBuilder extends Builder<Void> {
                     needs32bit = true;
             }
 
-            final String luajitExe = Platform.getHostPlatform().is64bit() ? "luajit-64" : "luajit-32";
             byte[] bytecode32 = new byte[0];
             byte[] bytecode64 = new byte[0];
             if (needs32bit)
-                bytecode32 = constructLuaJITBytecode(task, luajitExe, script, true);
+                bytecode32 = constructLuaJITBytecode(task, script, true);
             if (needs64bit)
-                bytecode64 = constructLuaJITBytecode(task, luajitExe, script, false);
+                bytecode64 = constructLuaJITBytecode(task, script, false);
 
             if ( needs32bit ^ needs64bit ) { // if only one of them is set
                 if (needs64bit) {
@@ -616,5 +670,11 @@ public abstract class LuaBuilder extends Builder<Void> {
             }
         }
         return builder.build();
+    }
+
+    @Override
+    public void clearState() {
+        super.clearState();
+        luaScanner = null;
     }
 }

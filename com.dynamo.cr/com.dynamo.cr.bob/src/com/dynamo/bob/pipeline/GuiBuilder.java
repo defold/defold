@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -31,7 +31,6 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.Task;
-import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.BobNLS;
 import com.dynamo.bob.util.MathUtil;
@@ -59,54 +58,6 @@ import org.apache.commons.io.FilenameUtils;
 @ProtoParams(srcClass = SceneDesc.class, messageClass = SceneDesc.class)
 @BuilderParams(name="Gui", inExts=".gui", outExt=".guic")
 public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
-
-    @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-        SceneDesc.Builder builder = SceneDesc.newBuilder();
-        ProtoUtil.merge(input, builder);
-
-        TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
-                .setName(params.name())
-                .addInput(input)
-                .addOutput(input.changeExt(params.outExt()));
-
-        List<String> templateList = new ArrayList<>();
-        for (NodeDesc n : builder.getNodesList()) {
-            if(n.getType() == Type.TYPE_TEMPLATE) {
-                if(!n.getTemplate().isEmpty() && !templateList.contains(n.getTemplate())) {
-                    templateList.add(n.getTemplate());
-                    taskBuilder.addInput(this.project.getResource(n.getTemplate()));
-                }
-            }
-        }
-
-        // For backwards compatibility
-        List<String> spineSceneList = new ArrayList<>();
-        for (SpineSceneDesc f : builder.getSpineScenesList()) {
-            if(!f.getSpineScene().isEmpty() && !spineSceneList.contains(f.getSpineScene())) {
-                spineSceneList.add(f.getSpineScene());
-                taskBuilder.addInput(this.project.getResource(f.getSpineScene()));
-            }
-        }
-
-        List<String> particlefxSceneList = new ArrayList<>();
-        for (ParticleFXDesc p : builder.getParticlefxsList()) {
-            if (!p.getParticlefx().isEmpty() && !particlefxSceneList.contains(p.getParticlefx())) {
-                particlefxSceneList.add(p.getParticlefx());
-                taskBuilder.addInput(this.project.getResource(p.getParticlefx()));
-            }
-        }
-
-        List<String> resourcesList = new ArrayList<>();
-        for (ResourceDesc resource : builder.getResourcesList()) {
-            if (!resource.getPath().isEmpty() && !resourcesList.contains(resource.getPath())) {
-                resourcesList.add(resource.getPath());
-                taskBuilder.addInput(this.project.getResource(resource.getPath()));
-            }
-        }
-
-        return taskBuilder.build();
-    }
 
     private static void quatToEuler(Quat4d quat, Tuple3d euler) {
         double heading;
@@ -718,7 +669,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
     }
 
     @Override()
-    protected SceneDesc.Builder transform(Task<Void> task, IResource input, SceneDesc.Builder messageBuilder) throws IOException, CompileExceptionError {
+    protected SceneDesc.Builder transform(Task task, IResource input, SceneDesc.Builder messageBuilder) throws IOException, CompileExceptionError {
         HashMap<String, SceneDesc.Builder> sceneResourceCache = new HashMap<String, SceneDesc.Builder>(32);
         MergeOriginalValuesIntoLayouts(messageBuilder);
         return transformScene(this, input.getPath(), messageBuilder, new SceneBuilderIO(this.project), sceneResourceCache, true);

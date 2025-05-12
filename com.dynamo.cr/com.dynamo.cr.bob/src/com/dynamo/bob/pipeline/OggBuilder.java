@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -27,17 +27,16 @@ import com.dynamo.bob.CopyBuilder;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
 import com.dynamo.bob.Platform;
+import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 
-@BuilderParams(name = "Ogg", inExts = ".ogg", outExt = ".oggc")
+@BuilderParams(name = "Ogg", inExts = ".ogg", outExt = ".oggc", paramsForSignature = {"sound-stream-enabled"})
 public class OggBuilder extends CopyBuilder{
+    private static String oggzValidateExePath;
 
     @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-        Platform curr_platform = Platform.getHostPlatform();
-        List<String> deps = List.of("libogg", "liboggz");
-        Bob.unpackSharedLibraries(curr_platform, deps);
+    public Task create(IResource input) throws IOException, CompileExceptionError {
         File tmpOggFile = null;
         try {
             tmpOggFile = File.createTempFile("ogg_tmp", null, Bob.getRootFolder());
@@ -51,9 +50,8 @@ public class OggBuilder extends CopyBuilder{
             throw new CompileExceptionError(input, 0, 
                 String.format("Cannot copy ogg file to further process", new String(exc.getMessage())));
         }
-        Result result = Exec.execResult(Bob.getExe(curr_platform, "oggz-validate"),
-            tmpOggFile.getAbsolutePath()
-        );
+        oggzValidateExePath = Bob.getHostExeOnce("oggz-validate", oggzValidateExePath);
+        Result result = Exec.execResult(oggzValidateExePath, tmpOggFile.getAbsolutePath());
 
         if (result.ret != 0) {
             throw new CompileExceptionError(input, 0, 
@@ -63,4 +61,16 @@ public class OggBuilder extends CopyBuilder{
         return super.create(input);
     }
 
+    @Override
+    public void build(Task task) throws IOException {
+        super.build(task);
+
+        boolean soundStreaming = this.project.option("sound-stream-enabled", "false").equals("true"); // if no value set use old hardcoded path (backward compatability)
+        boolean compressSounds = soundStreaming ? false : true; // We want to be able to read directly from the files as-is (without compression)
+        for(IResource res : task.getOutputs()) {
+            if (!compressSounds) {
+                project.addOutputFlags(res.getAbsPath(), Project.OutputFlags.UNCOMPRESSED);
+            }
+        }
+    }
 }

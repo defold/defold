@@ -1,45 +1,61 @@
 #! /usr/bin/env python
 import os
 from waflib.Options import options
+import gen_java
 
 def configure(conf):
-    pass
+    if not conf.env.IS_TARGET_DESKTOP:
+        print("Skipping build of modelc for non host platform")
+        return
+
+    dynamo_home = conf.env.DYNAMO_HOME
+    includes = [os.getcwd(),
+                os.path.join(dynamo_home, 'sdk', 'include')]
+
+    def make_path(path):
+        cwd = os.getcwd()
+        script_dir = conf.path.abspath()
+        return os.path.relpath(os.path.normpath(os.path.join(script_dir, path)), cwd)
+
+    gen_java.generate(header_path   = make_path('./texc.h'),
+                     namespace      = 'dmTexc',
+                     package_name   = 'com.dynamo.bob.pipeline',
+                     includes       = includes,
+                     java_outdir    = make_path('./java'),
+                     jni_outdir     = make_path('./jni'))
+
 
 def build(bld):
-
-    java_includes = [os.path.join(os.environ['JAVA_HOME'], 'include')]
-    if 'linux' in bld.env['PLATFORM']:
-        java_includes.append(os.path.join(os.environ['JAVA_HOME'], 'include', 'linux'))
-    if 'win32' in bld.env['PLATFORM']:
-        java_includes.append(os.path.join(os.environ['JAVA_HOME'], 'include', 'win32'))
-    if 'macos' in bld.env['PLATFORM']:
-        java_includes.append(os.path.join(os.environ['JAVA_HOME'], 'include', 'darwin'))
     texc_sources = bld.path.ant_glob("*.cpp")
+    texc_sources_no_jni = []
+
+    for x in texc_sources:
+        if not 'jni' in x.name:
+            texc_sources_no_jni.append(x)
 
     # The static library for the tests
     texc = bld.stlib(features = 'c cxx',
-                   source = texc_sources,
+                   source = texc_sources_no_jni,
                    includes = ['.'],
                    target   = 'texc')
 
     texc_shared = bld.shlib(features     = 'cxx cshlib skip_asan',
-                            source       = texc_sources,
+                            source       = texc_sources + bld.path.ant_glob("jni/*.cpp"),
                             includes     = ['.'],
                             target       = 'texc_shared',
-                            use          = 'BASIS_ENCODER DLIB_NOASAN PROFILE_NULL_NOASAN')
+                            use          = 'BASIS_ENCODER_NOASAN DLIB_NOASAN PROFILE_NULL_NOASAN JNI_NOASAN ASTCENC APP JDK')
 
     bld.install_files('${PREFIX}/include/texc', 'texc.h')
 
 
-    classpath = [os.path.join(bld.env.DYNAMO_HOME, '../../com.dynamo.cr/com.dynamo.cr.bob/lib/jna-5.13.0.jar'),
-                 os.path.join(bld.env.DYNAMO_HOME, '../..//com.dynamo.cr/com.dynamo.cr.bob/lib/jna-platform-5.13.0.jar')]
+    classpath = []
 
     bld(features='javac seq',
         classpath=classpath,
         srcdir='java',
         outdir='java')
 
-    bld.env["JAVACFLAGS"] = '-g -source 1.7 -target 1.7'.split()
+    bld.env["JAVACFLAGS"] = '-g'.split()
 
     bld(features='jar seq',
         basedir='java',

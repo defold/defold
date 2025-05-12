@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -44,9 +44,10 @@
 #include <gamesys/gamesys_ddf.h>
 #include <dmsdk/gamesys/render_constants.h>
 #include <dmsdk/gamesys/resources/res_material.h>
+#include <dmsdk/gamesys/resources/res_font.h>
 
 DM_PROPERTY_EXTERN(rmtp_Components);
-DM_PROPERTY_U32(rmtp_Label, 0, FrameReset, "# components", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_Label, 0, PROFILE_PROPERTY_FRAME_RESET, "# components", &rmtp_Components);
 
 namespace dmGameSystem
 {
@@ -72,7 +73,7 @@ namespace dmGameSystem
         LabelResource*              m_Resource;
         HComponentRenderConstants   m_RenderConstants;
         MaterialResource*           m_Material;
-        dmRender::HFontMap          m_FontMap;
+        FontResource*               m_Font;
 
         float                       m_Leading;
         float                       m_Tracking;
@@ -141,8 +142,13 @@ namespace dmGameSystem
         return GetMaterialResource(component, resource)->m_Material;
     }
 
+    static inline FontResource* GetFontResource(const LabelComponent* component, const LabelResource* resource) {
+        return component->m_Font ? component->m_Font : resource->m_Font;
+    }
+
     static inline dmRender::HFontMap GetFontMap(const LabelComponent* component, const LabelResource* resource) {
-        return component->m_FontMap ? component->m_FontMap : resource->m_FontMap;
+        FontResource* font = GetFontResource(component, resource);
+        return dmGameSystem::ResFontGetHandle(font);
     }
 
     void ReHash(LabelComponent* component)
@@ -153,11 +159,11 @@ namespace dmGameSystem
         LabelResource* resource = component->m_Resource;
         dmGameSystemDDF::LabelDesc* ddf = resource->m_DDF;
         dmRender::HMaterial material = GetMaterial(component, resource);
-        dmRender::HFontMap font_map = GetFontMap(component, resource);
+        FontResource* font = GetFontResource(component, resource);
 
         dmHashInit32(&state, reverse);
         dmHashUpdateBuffer32(&state, &material, sizeof(material));
-        dmHashUpdateBuffer32(&state, &font_map, sizeof(font_map));
+        dmHashUpdateBuffer32(&state, font, sizeof(font));
         dmHashUpdateBuffer32(&state, &ddf->m_BlendMode, sizeof(ddf->m_BlendMode));
         dmHashUpdateBuffer32(&state, &ddf->m_Color, sizeof(ddf->m_Color));
         dmHashUpdateBuffer32(&state, &ddf->m_Outline, sizeof(ddf->m_Outline));
@@ -283,8 +289,8 @@ namespace dmGameSystem
         if (component.m_Material) {
             dmResource::Release(factory, component.m_Material);
         }
-        if (component.m_FontMap) {
-            dmResource::Release(factory, component.m_FontMap);
+        if (component.m_Font) {
+            dmResource::Release(factory, component.m_Font);
         }
         if (component.m_RenderConstants)
         {
@@ -568,8 +574,13 @@ namespace dmGameSystem
     {
         LabelResource* resource = component->m_Resource;
         dmRender::HFontMap font_map = GetFontMap(component, resource);
-        dmRender::GetTextMetrics(font_map, component->m_Text, component->m_Size.getX(),
-                                    component->m_LineBreak, component->m_Leading, component->m_Tracking, &metrics);
+
+        dmRender::TextMetricsSettings settings;
+        settings.m_Width = component->m_Size.getX();
+        settings.m_LineBreak = component->m_LineBreak;
+        settings.m_Leading = component->m_Leading;
+        settings.m_Tracking = component->m_Tracking;
+        dmRender::GetTextMetrics(font_map, component->m_Text, &settings, &metrics);
 
         metrics.m_Width      = metrics.m_Width;
         metrics.m_Height     = metrics.m_Height;
@@ -614,7 +625,7 @@ namespace dmGameSystem
         }
         else if (get_property == PROP_FONT)
         {
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetFontMap(component, component->m_Resource), out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetFontResource(component, component->m_Resource), out_value);
         }
         else if (get_property == LABEL_PROP_LEADING)
         {
@@ -668,7 +679,7 @@ namespace dmGameSystem
         }
         else if (set_property == PROP_FONT)
         {
-            dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, FONT_EXT_HASH, (void**)&component->m_FontMap);
+            dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, FONT_EXT_HASH, (void**)&component->m_Font);
             component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
             return res;
         }

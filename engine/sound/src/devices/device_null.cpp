@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -26,7 +26,7 @@ namespace dmDeviceNull
     {
     }
 
-    dmSound::Result DeviceNullQueue(dmSound::HDevice device, const int16_t* samples, uint32_t sample_count)
+    dmSound::Result DeviceNullQueue(dmSound::HDevice device, const void* samples, uint32_t sample_count)
     {
         return dmSound::RESULT_OK;
     }
@@ -38,6 +38,7 @@ namespace dmDeviceNull
 
     void DeviceNullDeviceInfo(dmSound::HDevice device, dmSound::DeviceInfo* info)
     {
+        info->m_DSPImplementation = dmSound::DSPIMPL_TYPE_CPU;
     }
 
     void DeviceNullRestart(dmSound::HDevice device)
@@ -50,6 +51,7 @@ namespace dmDeviceNull
 
     }
 
-    DM_DECLARE_SOUND_DEVICE(NullSoundDevice, "null", DeviceNullOpen, DeviceNullClose, DeviceNullQueue, DeviceNullFreeBufferSlots, DeviceNullDeviceInfo, DeviceNullRestart, DeviceNullStop);
+    DM_DECLARE_SOUND_DEVICE(NullSoundDevice, "null", DeviceNullOpen, DeviceNullClose, DeviceNullQueue,
+                            DeviceNullFreeBufferSlots, 0, DeviceNullDeviceInfo, DeviceNullRestart, DeviceNullStop);
 }
 

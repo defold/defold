@@ -1,4 +1,4 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -18,6 +18,7 @@
             [editor.editor-extensions.actions :as actions]
             [editor.editor-extensions.coerce :as coerce]
             [editor.editor-extensions.error-handling :as error-handling]
+            [editor.editor-extensions.prefs-docs :as prefs-docs]
             [editor.editor-extensions.runtime :as rt]
             [editor.future :as future]
             [editor.handler :as handler]
@@ -82,53 +83,94 @@
     (fn [acc k v]
       (case k
         :selection (gen-selection-query v acc project)
+        :argument (gen-query acc [env cont] (cont assoc :argument (:user-data env)))
         acc))
     (fn [lua-fn]
       (fn [env]
         (lua-fn env {})))
     q))
 
-(defn command->dynamic-handler [{:keys [label query active run locations]} path project state]
+(def ^:private command-definition-coercer
+  (coerce/hash-map
+    :req {:label coerce/string
+          :locations (coerce/vector-of
+                       (coerce/enum "Assets" "Bundle" "Debug" "Edit" "Outline" "Project" "View")
+                       :distinct true
+                       :min-count 1)}
+    :opt {:query (coerce/hash-map
+                   :opt {:selection (coerce/hash-map
+                                      :req {:type (coerce/enum :resource :outline)
+                                            :cardinality (coerce/enum :one :many)})
+                         :argument (coerce/const true)})
+          :id prefs-docs/serializable-keyword-coercer
+          :active coerce/function
+          :run coerce/function}))
+
+(def command-coercer
+  (coerce/one-of
+    (coerce/wrap-with-pred coerce/userdata #(= :command (:type (meta %))) "is not a command")
+    command-definition-coercer))
+
+(def ^:private ext-command-args-coercer
+  (coerce/regex :command command-definition-coercer))
+
+(def ext-command-fn
+  (rt/varargs-lua-fn ext-command [{:keys [rt]} varargs]
+    (let [{:keys [command]} (rt/->clj rt ext-command-args-coercer varargs)]
+      (-> command
+          (with-meta {:type :command})
+          (rt/wrap-userdata "editor.command(...)")))))
+
+(defn command->dynamic-handler [{:keys [label query active id run locations]} path project state]
   (let [{:keys [rt display-output!]} state
         lua-fn->env-fn (compile-query query project)
         contexts (into #{}
                        (map {"Assets" :asset-browser
-                             "Outline" :outline
+                             "Bundle" :global
+                             "Debug" :global
                              "Edit" :global
+                             "Outline" :outline
+                             "Project" :global
                              "View" :global})
                        locations)
         locations (into #{}
                         (map {"Assets" :editor.asset-browser/context-menu-end
-                              "Outline" :editor.outline-view/context-menu-end
+                              "Bundle" :editor.bundle/menu
+                              "Debug" :editor.debug-view/debug-end
                               "Edit" :editor.app-view/edit-end
+                              "Outline" :editor.outline-view/context-menu-end
+                              "Project" ::project/project-end
                               "View" :editor.app-view/view-end})
                         locations)]
-    {:context-definition contexts
-     :menu-item {:label label}
-     :locations locations
-     :fns (cond-> {}
-                  active
-                  (assoc :active?
-                         (lua-fn->env-fn
-                           (fn [env opts]
-                             (error-handling/try-with-extension-exceptions
-                               :display-output! display-output!
-                               :label (str label "'s \"active\" in " path)
-                               :catch false
-                               (rt/->clj rt coerce/to-boolean (rt/invoke-immediate (:rt state) active (rt/->lua opts) (:evaluation-context env)))))))
+    (cond-> {:contexts contexts
+             :label label
+             :locations locations}
 
-                  (and (not active) query)
-                  (assoc :active? (lua-fn->env-fn (constantly true)))
+            id
+            (assoc :command id)
 
-                  run
-                  (assoc :run
-                         (lua-fn->env-fn
-                           (fn [_ opts]
-                             (let [error-label (str label "'s \"run\" in " path)]
-                               (-> (rt/invoke-suspending rt run (rt/->lua opts))
-                                   (future/then
-                                     (fn [lua-result]
-                                       (when-not (rt/coerces-to? rt coerce/null lua-result)
-                                         (lsp.async/with-auto-evaluation-context evaluation-context
-                                           (actions/perform! lua-result project state evaluation-context)))))
-                                   (future/catch #(error-handling/display-script-error! display-output! error-label %))))))))}))
+            active
+            (assoc :active?
+                   (lua-fn->env-fn
+                     (fn [env opts]
+                       (error-handling/try-with-extension-exceptions
+                         :display-output! display-output!
+                         :label (str label "'s \"active\" in " path)
+                         :catch false
+                         (rt/->clj rt coerce/to-boolean (rt/invoke-immediate-1 (:rt state) active (rt/->lua opts) (:evaluation-context env)))))))
+
+            (and (not active) query)
+            (assoc :active? (lua-fn->env-fn (constantly true)))
+
+            run
+            (assoc :run
+                   (lua-fn->env-fn
+                     (fn [_ opts]
+                       (let [error-label (str label "'s \"run\" in " path)]
+                         (-> (rt/invoke-suspending-1 rt run (rt/->lua opts))
+                             (future/then
+                               (fn [lua-result]
+                                 (when-not (rt/coerces-to? rt coerce/null lua-result)
+                                   (lsp.async/with-auto-evaluation-context evaluation-context
+                                     (actions/perform! lua-result project state evaluation-context)))))
+                             (future/catch #(error-handling/display-script-error! display-output! error-label %))))))))))

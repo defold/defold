@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -22,7 +22,6 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.util.HashSet;
 
 import org.apache.commons.configuration2.ex.ConfigurationException;
 import org.apache.commons.io.FileUtils;
@@ -94,7 +93,6 @@ public class MacOSBundlerTest {
             project.setOption("architectures", Platform.X86_64MacOS.getPair());
             project.setOption("archive", "true");
             project.setOption("bundle-output", outputDir);
-            project.findSources(contentRoot, new HashSet<String>());
             project.build(new NullProgress(), "clean", "build", "bundle");
         } catch (Exception e) {
             System.err.printf("Failed to build: %s\n", e.getMessage());

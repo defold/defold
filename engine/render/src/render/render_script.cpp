@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -206,24 +206,32 @@ namespace dmRender
 
         if (lua_istable(L, 3))
         {
-            ConstantBufferTableEntry* p_table_entry = (ConstantBufferTableEntry*) lua_newuserdata(L, sizeof(ConstantBufferTableEntry));
+            ConstantBufferTableEntry* table_entry = cb_table->m_ConstantArrayEntries.Get(name_hash);
+            // If we are re-assigning an existing entry that was previously ref'd by this function
+            // we have to unref the old value, otherwise we will leak memory
+            if (table_entry)
+            {
+                dmScript::Unref(L, LUA_REGISTRYINDEX, table_entry->m_LuaRef);
+            }
+
+            table_entry = (ConstantBufferTableEntry*) lua_newuserdata(L, sizeof(ConstantBufferTableEntry));
             luaL_getmetatable(L, RENDER_SCRIPT_CONSTANTBUFFER_ARRAY);
             lua_setmetatable(L, -2);
 
             lua_pushvalue(L, -1);
-            int p_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+            int p_ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
             lua_pop(L, 1);
 
-            p_table_entry->m_ConstantBuffer = cb;
-            p_table_entry->m_ConstantName   = name_hash;
-            p_table_entry->m_LuaRef         = p_ref;
+            table_entry->m_ConstantBuffer = cb;
+            table_entry->m_ConstantName   = name_hash;
+            table_entry->m_LuaRef         = p_ref;
 
             if (cb_table->m_ConstantArrayEntries.Full())
             {
                 cb_table->m_ConstantArrayEntries.SetCapacity(4, cb_table->m_ConstantArrayEntries.Size() + 1);
             }
 
-            cb_table->m_ConstantArrayEntries.Put(name_hash, *p_table_entry);
+            cb_table->m_ConstantArrayEntries.Put(name_hash, *table_entry);
 
             // If the table contains elements, we add them directly
             lua_pushvalue(L, 3);
@@ -250,6 +258,9 @@ namespace dmRender
             }
             lua_pop(L, 1);
         }
+        // TODO: If you set an entry to nil from a render script, we never clear up any memory or un-set the constant in the constant buffer.
+        //       The memory will be cleared later when a CB is GC'd and setting something to nil will currently cause an exception.
+        //       I (JG) think we should fix it and remove everything the constant values and table entries when this happens.
         else
         {
             RenderScriptSetNamedValueFromLua(L, 3, cb, name_hash, 0);
@@ -1698,7 +1709,7 @@ namespace dmRender
      * @param [options] [type:table] optional table with properties:
      *
      * `frustum`
-     * : [type:vmath.matrix4] A frustum matrix used to cull renderable items. (E.g. `local frustum = proj * view`). default=nil
+     * : [type:matrix4] A frustum matrix used to cull renderable items. (E.g. `local frustum = proj * view`). default=nil
      *
      * `frustum_planes`
      * : [type:int] Determines which sides of the frustum will be used. Default is render.FRUSTUM_PLANES_SIDES.
@@ -1810,7 +1821,7 @@ namespace dmRender
      * @param [options] [type:table] optional table with properties:
      *
      * `frustum`
-     * : [type:vmath.matrix4] A frustum matrix used to cull renderable items. (E.g. `local frustum = proj * view`). May be nil.
+     * : [type:matrix4] A frustum matrix used to cull renderable items. (E.g. `local frustum = proj * view`). May be nil.
      *
      * `frustum_planes`
      * : [type:int] Determines which sides of the frustum will be used. Default is render.FRUSTUM_PLANES_SIDES.
@@ -2870,6 +2881,72 @@ namespace dmRender
     }
 #undef CHECK_COMPUTE_SUPPORT
 
+   /*# set render's event listener
+    * Set or remove listener. Currenly only only two type of events can arrived:
+    * `render.CONTEXT_EVENT_CONTEXT_LOST` - when rendering context lost. Rending paused and all graphics resources become invalid.
+    * `render.CONTEXT_EVENT_CONTEXT_RESTORED` - when rendering context was restored. Rendering still paused and graphics resources still 
+    * invalid but can be reloaded.
+    *
+    * @name render.set_listener
+    * @param callback [type:function(self, event_type)|nil] A callback that receives all render related events.
+    * Pass `nil` if want to remove listener.
+    *
+    * `self`
+    * : [type:object] The render script
+    *
+    * `event_type`
+    * : [type:string] Rendering event. Possible values: `render.CONTEXT_EVENT_CONTEXT_LOST`, `render.CONTEXT_EVENT_CONTEXT_RESTORED`
+    *
+    * @examples
+    *
+    * Set listener and handle render context events.
+    *
+    * ```lua
+    * --- custom.render_script
+    * function init(self)
+    *    render.set_listener(function(self, event_type)
+    *        if event_type == render.CONTEXT_EVENT_CONTEXT_LOST then
+    *            --- Some stuff when rendering context is lost
+    *        elseif event_type == render.CONTEXT_EVENT_CONTEXT_RESTORED then
+    *            --- Start reload resources, reload game, etc.
+    *        end
+    *    end)
+    * end
+    * ```
+    */
+    static int RenderScript_SetListener(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        RenderScriptInstance* script_instance = RenderScriptInstance_Check(L);
+        dmScript::LuaCallbackInfo* cbk = script_instance->m_RenderContext->m_CallbackInfo;
+
+        int type = lua_type(L, 1);
+        if (type == LUA_TNONE || type == LUA_TNIL)
+        {
+            if (cbk != 0x0)
+            {
+                dmScript::DestroyCallback(cbk);
+                script_instance->m_RenderContext->m_CallbackInfo = 0x0;
+            }
+        }
+        else if (type == LUA_TFUNCTION)
+        {
+            if (cbk != 0x0)
+            {
+                dmScript::DestroyCallback(cbk);
+                script_instance->m_RenderContext->m_CallbackInfo = 0x0;
+            }
+            cbk = dmScript::CreateCallback(L, 1);
+            script_instance->m_RenderContext->m_CallbackInfo = cbk;
+        }
+        else
+        {
+            return DM_LUA_ERROR("argument 1 to render.set_listener() must be either nil or function");
+        }
+        return 0;
+    }
+
     static const luaL_reg Render_methods[] =
     {
         {"enable_state",                    RenderScript_EnableState},
@@ -2911,6 +2988,7 @@ namespace dmRender
         {"set_compute",                     RenderScript_SetCompute},
         {"dispatch_compute",                RenderScript_Dispatch},
         {"set_camera",                      RenderScript_SetCamera},
+        {"set_listener",                    RenderScript_SetListener},
         {0, 0}
     };
 
@@ -3097,6 +3175,12 @@ namespace dmRender
         // Flags (only flag here currently, so no need for an enum)
         lua_pushnumber(L, RENDER_SCRIPT_FLAG_TEXTURE_BIT);
         lua_setfield(L, -2, "TEXTURE_BIT");
+
+        lua_pushnumber(L, dmRender::CONTEXT_LOST);
+        lua_setfield(L, -2, "CONTEXT_EVENT_CONTEXT_LOST");
+
+        lua_pushnumber(L, dmRender::CONTEXT_RESTORED);
+        lua_setfield(L, -2, "CONTEXT_EVENT_CONTEXT_RESTORED");
 
         lua_pop(L, 1);
 

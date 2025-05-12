@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 
-# Copyright 2020-2024 The Defold Foundation
+# Copyright 2020-2025 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -18,19 +18,46 @@ set -e
 
 SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
-# config
-IOS_SDK_VERSION=16.2
-IOS_SIMULATOR_SDK_VERSION=16.2
-IOS_MIN_SDK_VERSION=11.0
+eval $(python $SCRIPTDIR/../../build_tools/set_sdk_vars.py VERSION_IPHONEOS VERSION_IPHONESIMULATOR VERSION_IPHONEOS_MIN VERSION_MACOSX_MIN VERSION_MACOSX VERSION_XCODE PACKAGES_EMSCRIPTEN_SDK)
 
-OSX_MIN_SDK_VERSION=10.13
-OSX_SDK_VERSION=13.1
-XCODE_VERSION=14.2
+# config
+IOS_SDK_VERSION=$VERSION_IPHONEOS
+IOS_SIMULATOR_SDK_VERSION=$VERSION_IPHONESIMULATOR
+IOS_MIN_SDK_VERSION=$VERSION_IPHONEOS_MIN
+
+OSX_MIN_SDK_VERSION=$VERSION_MACOSX_MIN
+OSX_SDK_VERSION=$VERSION_MACOSX
+XCODE_VERSION=$VERSION_XCODE
 
 OSX_SDK_ROOT=${DYNAMO_HOME}/ext/SDKs/MacOSX${OSX_SDK_VERSION}.sdk
 IOS_SDK_ROOT=${DYNAMO_HOME}/ext/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk
 IOS_SIMULATOR_SDK_ROOT=${DYNAMO_HOME}/ext/SDKs/iPhoneSimulator${IOS_SDK_VERSION}.sdk
 DARWIN_TOOLCHAIN_ROOT=${DYNAMO_HOME}/ext/SDKs/XcodeDefault${XCODE_VERSION}.xctoolchain
+
+EMSCRIPTEN_SDK_ROOT=${DYNAMO_HOME}/ext/SDKs/${PACKAGES_EMSCRIPTEN_SDK}
+export EMSCRIPTEN_BIN_DIR=${EMSCRIPTEN_SDK_ROOT}/upstream/emscripten
+export EM_CACHE=${EMSCRIPTEN_SDK_ROOT}/.defold_cache
+export EM_CONFIG=${EMSCRIPTEN_SDK_ROOT}/.emscripten
+
+readonly HOST_UNAME=$(uname)
+readonly HOST_ARCH=$(arch)
+
+HOST_PLATFORM=${HOST_UNAME}
+if [ "Darwin" == "${HOST_PLATFORM}" ]; then
+    HOST_PLATFORM="x86_64-macos"
+    if [ "arm64" == "${HOST_ARCH}" ]; then
+        HOST_PLATFORM="arm64-macos"
+    fi
+fi
+# if [ "Linux" == "${HOST_PLATFORM}" ]; then
+
+# fi
+
+if [ "${HOST_PLATFORM}" == "${HOST_UNAME}" ]; then
+    echo "Error setting HOST_PLATFORM: '${HOST_PLATFORM}'"
+    exit 1
+fi
+
 
 if [ "Darwin" == "$(uname)" ]; then
     if [ ! -d "${DARWIN_TOOLCHAIN_ROOT}" ]; then
@@ -146,7 +173,7 @@ function cmi_cleanup() {
 }
 
 function cmi_cross() {
-    if [[ $2 == "js-web" ]] || [[ $2 == "wasm-web" ]]; then
+    if [[ $2 == "js-web" ]] || [[ $2 == "wasm-web" ]] || [[ $2 == "wasm_pthread-web" ]]; then
         # Cross compiling protobuf for js-web with --host doesn't work
         # Unknown host in reported by configure script
         cmi_do $1
@@ -366,17 +393,29 @@ function cmi_setup_cc() {
             export RANLIB=$DARWIN_TOOLCHAIN_ROOT/usr/bin/ranlib
             ;;
 
-        linux)
-            export CPPFLAGS="-m32 -fPIC"
-            export CXXFLAGS="${CXXFLAGS} -m32 -fPIC"
-            export CFLAGS="${CFLAGS} -m32 -fPIC"
-            export LDFLAGS="-m32"
-            ;;
 
         x86_64-linux)
-            export CFLAGS="${CFLAGS} -fPIC"
-            export CXXFLAGS="${CXXFLAGS} -fPIC"
-            export CPPFLAGS="${CPPFLAGS} -fPIC"
+            export CFLAGS="${CFLAGS} --target=x86_64-unknown-linux-gnu -fPIC"
+            export CXXFLAGS="${CXXFLAGS} --target=x86_64-unknown-linux-gnu -fPIC"
+            export CPPFLAGS="${CPPFLAGS} --target=x86_64-unknown-linux-gnu -fPIC"
+
+            export CC=$(which clang)
+            export CXX=$(which clang++)
+            export AR=$(which ar)
+            export RANLIB=$(which ranlib)
+            export CPP="${CC} -E"
+            ;;
+
+        arm64-linux)
+            export CFLAGS="${CFLAGS} --target=aarch64-unknown-linux-gnu -fPIC"
+            export CXXFLAGS="${CXXFLAGS} --target=aarch64-unknown-linux-gnu -fPIC"
+            export CPPFLAGS="${CPPFLAGS} --target=aarch64-unknown-linux-gnu -fPIC"
+
+            export CC=$(which clang)
+            export CXX=$(which clang++)
+            export AR=$(which ar)
+            export RANLIB=$(which ranlib)
+            export CPP="${CC} -E"
             ;;
 
         win32)
@@ -393,26 +432,28 @@ function cmi_setup_cc() {
             export RANLIB=i586-mingw32msvc-ranlib
             ;;
 
-        js-web)
-            export CONFIGURE_WRAPPER=${EMSCRIPTEN}/emconfigure
-            export CC=${EMSCRIPTEN}/emcc
-            export CXX=${EMSCRIPTEN}/em++
-            export AR=${EMSCRIPTEN}/emar
-            export LD=${EMSCRIPTEN}/em++
-            export RANLIB=${EMSCRIPTEN}/emranlib
+        js-web|wasm-web)
+            export CONFIGURE_WRAPPER=${EMSCRIPTEN_BIN_DIR}/emconfigure
+            export CC=${EMSCRIPTEN_BIN_DIR}/emcc
+            export CXX=${EMSCRIPTEN_BIN_DIR}/em++
+            export AR=${EMSCRIPTEN_BIN_DIR}/emar
+            export LD=${EMSCRIPTEN_BIN_DIR}/em++
+            export RANLIB=${EMSCRIPTEN_BIN_DIR}/emranlib
             export CFLAGS="${CFLAGS} -fPIC -fno-exceptions"
             export CXXFLAGS="${CXXFLAGS} -fPIC -fno-exceptions"
+            export CMAKE_TOOLCHAIN_FILE="${EMSCRIPTEN_BIN_DIR}/cmake/Modules/Platform/Emscripten.cmake"
             ;;
 
-        wasm-web)
-            export CONFIGURE_WRAPPER=${EMSCRIPTEN}/emconfigure
-            export CC=${EMSCRIPTEN}/emcc
-            export CXX=${EMSCRIPTEN}/em++
-            export AR=${EMSCRIPTEN}/emar
-            export LD=${EMSCRIPTEN}/em++
-            export RANLIB=${EMSCRIPTEN}/emranlib
-            export CFLAGS="${CFLAGS} -fPIC -fno-exceptions"
-            export CXXFLAGS="${CXXFLAGS} -fPIC -fno-exceptions"
+        wasm_pthread-web)
+            export CONFIGURE_WRAPPER=${EMSCRIPTEN_BIN_DIR}/emconfigure
+            export CC=${EMSCRIPTEN_BIN_DIR}/emcc
+            export CXX=${EMSCRIPTEN_BIN_DIR}/em++
+            export AR=${EMSCRIPTEN_BIN_DIR}/emar
+            export LD=${EMSCRIPTEN_BIN_DIR}/em++
+            export RANLIB=${EMSCRIPTEN_BIN_DIR}/emranlib
+            export CFLAGS="${CFLAGS} -fPIC -fno-exceptions -pthread"
+            export CXXFLAGS="${CXXFLAGS} -fPIC -fno-exceptions -pthread"
+            export CMAKE_TOOLCHAIN_FILE="${EMSCRIPTEN_BIN_DIR}/cmake/Modules/Platform/Emscripten.cmake"
             ;;
 
         *)
@@ -437,12 +478,12 @@ function cmi() {
             cmi_cross $1 arm-linux
             ;;
 
-        arm64-ios|x86_64-ios|armv7-android|arm64-android|js-web|wasm-web)
+        arm64-ios|x86_64-ios|armv7-android|arm64-android|js-web|wasm-web|wasm_pthread-web)
             cmi_cross $1 arm-ios
             ;;
 
         # desktop
-        x86_64-macos|arm64-macos|x86_64-linux|win32|x86_64-win32)
+        x86_64-macos|arm64-macos|x86_64-linux|arm64-linux|win32|x86_64-win32)
             cmi_buildplatform $1
             ;;
 

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -320,6 +320,26 @@ static dmResourceProvider::Result ReadFile(dmResourceProvider::HArchiveInternal 
     return result;
 }
 
+static dmResourceProvider::Result ReadFilePartial(dmResourceProvider::HArchiveInternal _archive, dmhash_t path_hash, const char* path, uint32_t offset, uint32_t size, uint8_t* buffer, uint32_t* nread)
+{
+    ZipProviderContext* archive = (ZipProviderContext*)_archive;
+    EntryInfo* entry = archive->m_EntryMap.Get(path_hash);
+    if (!entry)
+        return dmResourceProvider::RESULT_NOT_FOUND;
+
+    dmZip::Result zr = dmZip::OpenEntry(archive->m_Zip, entry->m_EntryIndex);
+    if (dmZip::RESULT_OK != zr)
+        return dmResourceProvider::RESULT_IO_ERROR;
+
+    zr = dmZip::GetEntryDataOffset(archive->m_Zip, offset, size, (void*)buffer, nread);
+    dmZip::CloseEntry(archive->m_Zip);
+
+    if (dmZip::RESULT_OK != zr)
+        return dmResourceProvider::RESULT_IO_ERROR;
+
+    return dmResourceProvider::RESULT_OK;
+}
+
 static dmResourceProvider::Result GetManifest(dmResourceProvider::HArchiveInternal _archive, dmResource::HManifest* out_manifest)
 {
     ZipProviderContext* archive = (ZipProviderContext*)_archive;
@@ -333,13 +353,14 @@ static dmResourceProvider::Result GetManifest(dmResourceProvider::HArchiveIntern
 
 static void SetupArchiveLoaderHttpZip(dmResourceProvider::ArchiveLoader* loader)
 {
-    loader->m_CanMount      = MatchesUri;
-    loader->m_Mount         = Mount;
-    loader->m_Unmount       = Unmount;
-    loader->m_GetManifest   = GetManifest;
-    loader->m_GetFileSize   = GetFileSize;
-    loader->m_ReadFile      = ReadFile;
+    loader->m_CanMount          = MatchesUri;
+    loader->m_Mount             = Mount;
+    loader->m_Unmount           = Unmount;
+    loader->m_GetManifest       = GetManifest;
+    loader->m_GetFileSize       = GetFileSize;
+    loader->m_ReadFile          = ReadFile;
+    loader->m_ReadFilePartial   = ReadFilePartial;
 }
 
-DM_DECLARE_ARCHIVE_LOADER(ResourceProviderZip, "zip", SetupArchiveLoaderHttpZip);
+DM_DECLARE_ARCHIVE_LOADER(ResourceProviderZip, "zip", SetupArchiveLoaderHttpZip, 0, 0);
 }

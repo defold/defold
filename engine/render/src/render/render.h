@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -32,13 +32,20 @@ namespace dmRender
 
     static const uint32_t MAX_MATERIAL_TAG_COUNT = 32; // Max tag count per material
 
-    static const dmhash_t VERTEX_STREAM_POSITION   = dmHashString64("position");
-    static const dmhash_t VERTEX_STREAM_NORMAL     = dmHashString64("normal");
-    static const dmhash_t VERTEX_STREAM_TANGENT    = dmHashString64("tangent");
-    static const dmhash_t VERTEX_STREAM_COLOR      = dmHashString64("color");
-    static const dmhash_t VERTEX_STREAM_TEXCOORD0  = dmHashString64("texcoord0");
-    static const dmhash_t VERTEX_STREAM_TEXCOORD1  = dmHashString64("texcoord1");
-    static const dmhash_t VERTEX_STREAM_PAGE_INDEX = dmHashString64("page_index");
+    static const dmhash_t VERTEX_STREAM_POSITION        = dmHashString64("position");
+    static const dmhash_t VERTEX_STREAM_NORMAL          = dmHashString64("normal");
+    static const dmhash_t VERTEX_STREAM_TANGENT         = dmHashString64("tangent");
+    static const dmhash_t VERTEX_STREAM_COLOR           = dmHashString64("color");
+    static const dmhash_t VERTEX_STREAM_TEXCOORD0       = dmHashString64("texcoord0");
+    static const dmhash_t VERTEX_STREAM_TEXCOORD1       = dmHashString64("texcoord1");
+    static const dmhash_t VERTEX_STREAM_PAGE_INDEX      = dmHashString64("page_index");
+    static const dmhash_t VERTEX_STREAM_WORLD_MATRIX    = dmHashString64("mtx_world");
+    static const dmhash_t VERTEX_STREAM_NORMAL_MATRIX   = dmHashString64("mtx_normal");
+    static const dmhash_t VERTEX_STREAM_BONE_WEIGHTS    = dmHashString64("bone_weights");
+    static const dmhash_t VERTEX_STREAM_BONE_INDICES    = dmHashString64("bone_indices");
+    static const dmhash_t VERTEX_STREAM_ANIMATION_DATA  = dmHashString64("animation_data");
+
+    static const dmhash_t SAMPLER_POSE_MATRIX_CACHE = dmHashString64("pose_matrix_cache");
 
     typedef struct RenderTargetSetup*       HRenderTargetSetup;
     typedef uint64_t                        HRenderType;
@@ -51,9 +58,10 @@ namespace dmRender
     typedef struct BufferedRenderBuffer*    HBufferedRenderBuffer;
     typedef HOpaqueHandle                   HRenderCamera;
 
-    static const uint8_t RENDERLIST_INVALID_DISPATCH    = 0xff;
-    static const HRenderType INVALID_RENDER_TYPE_HANDLE = ~0ULL;
-    static const uint32_t INVALID_SAMPLER_UNIT          = 0xffffffff;
+    static const uint8_t RENDERLIST_INVALID_DISPATCH       = 0xff;
+    static const HRenderType INVALID_RENDER_TYPE_HANDLE    = ~0ULL;
+    static const uint32_t INVALID_SAMPLER_UNIT             = 0xffffffff;
+    static const uint8_t  INVALID_MATERIAL_ATTRIBUTE_INDEX = 0xff;
 
     /**
      * Display profiles handle
@@ -95,6 +103,12 @@ namespace dmRender
         TEXT_VALIGN_BOTTOM = 2
     };
 
+    enum RenderContextEvent
+    {
+        CONTEXT_LOST = 0,
+        CONTEXT_RESTORED = 1
+    };
+
     struct Predicate
     {
         static const uint32_t MAX_TAG_COUNT = 32;
@@ -108,7 +122,8 @@ namespace dmRender
         dmhash_t                                m_NameHash;
         dmRenderDDF::MaterialDesc::ConstantType m_Type;         // TODO: Make this a uint16_t as well
         dmGraphics::HUniformLocation            m_Location;     // Vulkan encodes vs/fs location in the lower/upper bits
-        uint16_t                                m_NumValues;
+        uint16_t                                m_NumValues:15;
+        uint16_t                                m_AllocatedValues:1; // If set, this constant owns the actual values
 
         Constant();
         Constant(dmhash_t name_hash, dmGraphics::HUniformLocation location);
@@ -116,8 +131,8 @@ namespace dmRender
 
     struct RenderConstant
     {
-        HConstant           m_Constant;
-        dmhash_t            m_ElementIds[4];
+        HConstant  m_Constant;
+        dmhash_t   m_ElementIdsName[4];
     };
 
     struct RenderContextParams
@@ -126,13 +141,11 @@ namespace dmRender
 
         dmScript::HContext              m_ScriptContext;
         HFontMap                        m_SystemFontMap;
-        void*                           m_VertexShaderDesc;
-        void*                           m_FragmentShaderDesc;
+        void*                           m_ShaderProgramDesc;
         uint32_t                        m_MaxRenderTypes;
         uint32_t                        m_MaxInstances;
         uint32_t                        m_MaxRenderTargets;
-        uint32_t                        m_VertexShaderDescSize;
-        uint32_t                        m_FragmentShaderDescSize;
+        uint32_t                        m_ShaderProgramDescSize;
         uint32_t                        m_MaxCharacters;
         uint32_t                        m_MaxBatches;
         uint32_t                        m_CommandBufferSize;
@@ -153,6 +166,15 @@ namespace dmRender
         uint8_t          m_OrthographicProjection : 1;
     };
 
+    struct MaterialProgramAttributeInfo
+    {
+        dmhash_t                           m_AttributeNameHash;
+        const dmGraphics::VertexAttribute* m_Attribute;
+        const uint8_t*                     m_ValuePtr;
+        dmhash_t                           m_ElementIds[4];
+        uint32_t                           m_ElementIndex;
+    };
+
     HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& params);
     Result DeleteRenderContext(HRenderContext render_context, dmScript::HContext script_context);
 
@@ -167,8 +189,12 @@ namespace dmRender
 
     const dmVMath::Matrix4& GetViewProjectionMatrix(HRenderContext render_context);
     const dmVMath::Matrix4& GetViewMatrix(HRenderContext render_context);
+    dmVMath::Matrix4 GetNormalMatrix(HRenderContext render_context, const dmVMath::Matrix4& world_matrix);
+
     void SetViewMatrix(HRenderContext render_context, const dmVMath::Matrix4& view);
     void SetProjectionMatrix(HRenderContext render_context, const dmVMath::Matrix4& projection);
+
+    HMaterial GetContextMaterial(HRenderContext render_context);
 
     Result ClearRenderObjects(HRenderContext context);
 
@@ -179,6 +205,9 @@ namespace dmRender
     Result Draw(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer);
     Result DrawDebug3d(HRenderContext context, const FrustumOptions* frustum_options);
     Result DrawDebug2d(HRenderContext context);
+
+    void SetRenderPause(HRenderContext context, uint8_t is_paused);
+    bool IsRenderPaused(HRenderContext context);
 
     /**
      * Render debug square. The upper left corner of the screen is (-1,-1) and the bottom right is (1,1).
@@ -239,7 +268,7 @@ namespace dmRender
     void                    OnReloadRenderScriptInstance(HRenderScriptInstance render_script_instance);
 
     // Material
-    HMaterial                       NewMaterial(dmRender::HRenderContext render_context, dmGraphics::HVertexProgram vertex_program, dmGraphics::HFragmentProgram fragment_program);
+    HMaterial                       NewMaterial(dmRender::HRenderContext render_context, dmGraphics::HProgram program); // dmGraphics::HVertexProgram vertex_program, dmGraphics::HFragmentProgram fragment_program);
     void                            DeleteMaterial(dmRender::HRenderContext render_context, HMaterial material);
     HSampler                        GetMaterialSampler(HMaterial material, uint32_t unit);
     dmhash_t                        GetMaterialSamplerNameHash(HMaterial material, uint32_t unit);
@@ -248,32 +277,27 @@ namespace dmRender
     void                            ApplyMaterialSampler(dmRender::HRenderContext render_context, HMaterial material, HSampler sampler, uint8_t value_index, dmGraphics::HTexture texture);
 
     dmGraphics::HProgram            GetMaterialProgram(HMaterial material);
-    dmGraphics::HVertexProgram      GetMaterialVertexProgram(HMaterial material);
-    dmGraphics::HFragmentProgram    GetMaterialFragmentProgram(HMaterial material);
     void                            SetMaterialProgramConstantType(HMaterial material, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type);
     bool                            GetMaterialProgramConstant(HMaterial, dmhash_t name_hash, HConstant& out_value);
 
-    struct MaterialProgramAttributeInfo
-    {
-        dmhash_t                           m_AttributeNameHash;
-        const dmGraphics::VertexAttribute* m_Attribute;
-        const uint8_t*                     m_ValuePtr;
-        dmhash_t                           m_ElementIds[4];
-        uint32_t                           m_ElementIndex;
-    };
+    Result                          SetConstantValuesRef(HConstant constant, dmVMath::Vector4* values, uint32_t num_values);
 
     dmGraphics::HVertexDeclaration  GetVertexDeclaration(HMaterial material);
+    dmGraphics::HVertexDeclaration  GetVertexDeclaration(HMaterial material, dmGraphics::VertexStepFunction step_function);
     bool                            GetMaterialProgramAttributeInfo(HMaterial material, dmhash_t name_hash, MaterialProgramAttributeInfo& info);
     void                            GetMaterialProgramAttributes(HMaterial material, const dmGraphics::VertexAttribute** attributes, uint32_t* attribute_count);
     void                            GetMaterialProgramAttributeValues(HMaterial material, uint32_t index, const uint8_t** value_ptr, uint32_t* num_values);
     void                            SetMaterialProgramAttributes(HMaterial material, const dmGraphics::VertexAttribute* attributes, uint32_t attributes_count);
+    void                            GetMaterialProgramAttributeMetadata(HMaterial material, dmGraphics::VertexAttributeInfoMetadata* metadata);
+    uint8_t                         GetMaterialAttributeIndex(HMaterial material, dmhash_t name_hash);
+    bool                            GetMaterialHasSkinnedAttributes(HMaterial material);
+    bool                            GetMaterialHasSkinnedMatrixCache(HMaterial material);
 
     // Compute
-    HComputeProgram                 NewComputeProgram(HRenderContext render_context, dmGraphics::HComputeProgram shader);
+    HComputeProgram                 NewComputeProgram(HRenderContext render_context, dmGraphics::HProgram program);
     void                            DeleteComputeProgram(dmRender::HRenderContext render_context, HComputeProgram program);
     HSampler                        GetComputeProgramSampler(HComputeProgram program, uint32_t unit);
     HRenderContext                  GetProgramRenderContext(HComputeProgram program);
-    dmGraphics::HComputeProgram     GetComputeProgramShader(HComputeProgram program);
     dmGraphics::HProgram            GetComputeProgram(HComputeProgram program);
     uint64_t                        GetProgramUserData(HComputeProgram program);
     void                            SetProgramUserData(HComputeProgram program, uint64_t user_data);
@@ -281,6 +305,7 @@ namespace dmRender
     void                            SetComputeProgramConstantType(HComputeProgram compute_program, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type);
     bool                            SetComputeProgramSampler(HComputeProgram compute_program, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);
     uint32_t                        GetComputeProgramSamplerUnit(HComputeProgram compute_program, dmhash_t name_hash);
+    bool                            GetComputeProgramConstant(HComputeProgram compute_program, dmhash_t name_hash, HConstant& out_value);
 
     /** Retrieve info about a hash related to a program constant
      * The function checks if the hash matches a constant or any element of it.
@@ -316,6 +341,8 @@ namespace dmRender
     void                            DeletePredicate(HPredicate predicate);
     Result                          AddPredicateTag(HPredicate predicate, dmhash_t tag);
 
+    HConstant                       NewConstant(dmhash_t name_hash);
+
     /** Buffered render buffers
      * A render buffer is a thin wrapper around vertex and index buffers that, depending on graphics context,
      * can allocate more backing storage if needed. E.g for Vulkan and vendor adapters, we cannot reuse the same
@@ -345,6 +372,7 @@ namespace dmRender
     HRenderBuffer                   GetBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer);
     int32_t                         GetBufferIndex(HRenderContext render_context, HBufferedRenderBuffer buffer);
     void                            SetBufferData(HRenderContext render_context, HBufferedRenderBuffer buffer, uint32_t size, void* data, dmGraphics::BufferUsage buffer_usage);
+    void                            SetBufferSubData(HRenderContext render_context, HBufferedRenderBuffer buffer, uint32_t offset, uint32_t size, void* data);
     void                            TrimBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer);
     void                            RewindBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer);
 
@@ -361,6 +389,7 @@ namespace dmRender
     void                            GetRenderCameraProjection(HRenderContext render_context, HRenderCamera camera, dmVMath::Matrix4* mtx);
     void                            SetRenderCameraData(HRenderContext render_context, HRenderCamera camera, const RenderCameraData* data);
     void                            GetRenderCameraData(HRenderContext render_context, HRenderCamera camera, RenderCameraData* data);
+    void                            SetRenderCameraEnabled(HRenderContext render_context, HRenderCamera camera, bool value);
     void                            UpdateRenderCamera(HRenderContext render_context, HRenderCamera camera, const dmVMath::Point3* position, const dmVMath::Quat* rotation);
 
     static inline dmGraphics::TextureWrap WrapFromDDF(dmRenderDDF::MaterialDesc::WrapMode wrap_mode)

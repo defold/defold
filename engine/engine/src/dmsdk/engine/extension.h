@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,13 +15,7 @@
 #ifndef DMSDK_ENGINE_EXTENSION_H
 #define DMSDK_ENGINE_EXTENSION_H
 
-#include <dmsdk/dlib/configfile.h>
-#include <dmsdk/extension/extension.h>
-
-HConfigFile EngineExtensionGetConfigFile(ExtensionAppParams* app_params);
-
-// TODO: Add C api's for the rest of the contexts
-
+// Due to some native extensions already including this file, expecting the C++ api
 #if defined(__cplusplus)
     #include "extension.hpp"
 #endif

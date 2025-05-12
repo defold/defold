@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -13,7 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include <assert.h>
-#include <extension/extension.h>
+#include <extension/extension.hpp>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <script/script.h>
@@ -170,13 +170,13 @@ namespace dmCrash
             lua_pushnumber(L, i+1);
 
             lua_newtable(L);
-            lua_pushstring(L, "name");
+            lua_pushliteral(L, "name");
             lua_pushstring(L, name);
             lua_settable(L, -3);
 
             char str[64];
             sprintf(str, "%p", addr);
-            lua_pushstring(L, "address");
+            lua_pushliteral(L, "address");
             lua_pushstring(L, str);
             lua_settable(L, -3);
 

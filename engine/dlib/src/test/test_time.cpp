@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -31,6 +31,17 @@ TEST(dmTime, GetTime)
     ASSERT_NEAR((double) 200000, (double) (end-start), (double) 40000);
 }
 #endif
+
+TEST(dmTime, GetMonotonicTime)
+{
+    uint64_t prev = dmTime::GetMonotonicTime();
+    for (int i = 0; i < 1000; ++i)
+    {
+        uint64_t next = dmTime::GetMonotonicTime();
+        ASSERT_LE(prev, next);
+        prev = next;
+    }
+}
 
 int main(int argc, char **argv)
 {

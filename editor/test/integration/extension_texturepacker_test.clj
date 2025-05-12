@@ -1,4 +1,4 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -19,7 +19,8 @@
             [editor.protobuf :as protobuf]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util])
-  (:import [com.dynamo.gamesys.proto TextureSetProto$TextureSet]
+  (:import [com.dynamo.bob.util TextureUtil]
+           [com.dynamo.gamesys.proto TextureSetProto$TextureSet]
            [com.dynamo.graphics.proto Graphics$TextureImage]))
 
 (set! *warn-on-reflection* true)
@@ -377,7 +378,7 @@
     (let [node-id (test-util/resource-node project "/examples/basic/basic.tpatlas")]
       (with-open [_ (test-util/build! node-id)]
         (let [built-textureset (->> node-id test-util/node-build-output (protobuf/bytes->map-without-defaults TextureSetProto$TextureSet))
-              built-texture (->> built-textureset :texture (workspace/build-path workspace) fs/read-bytes (protobuf/bytes->map-with-defaults Graphics$TextureImage))]
+              built-texture (->> built-textureset :texture (workspace/build-path workspace) fs/read-bytes TextureUtil/textureResourceBytesToTextureImage (protobuf/pb->map-with-defaults))]
           (is (= :type-2d-array (:type built-texture)))
           (is (= 4 (:count built-texture)))
           (is (= 4 (:page-count built-textureset)))

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -46,19 +46,14 @@ public @interface BuilderParams {
     String[] inExts();
 
     /**
-     * Task creating order. A task with create-order X
-     * is guaranteed to be created after every task with create-order Y
-     * and where X > Y
-     * The create-order can be used for task that collect inputs from
-     * task outputs
-     * @return create order
+     * Get bool that shows if tasks can be cached
+     * @return if task should be cached
      */
-    int createOrder() default 0;
+    boolean isCacheble() default false;
 
     /**
-     * Get bool that shows if tasks should be created automaticly
-     * for all files using this builder. 
-     * @return if task should be ignored
+     * Get parameters that should be included in the task signature produced by the builder
+     * @return Bob parameters that may affect the builder's task signature
      */
-    boolean ignoreTaskAutoCreation() default false;
+    String[] paramsForSignature() default {};
 }

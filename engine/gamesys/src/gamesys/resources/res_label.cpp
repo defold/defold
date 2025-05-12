@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -18,6 +18,7 @@
 #include <dlib/log.h>
 #include <gamesys/label_ddf.h>
 #include <dmsdk/gamesys/resources/res_material.h>
+#include <dmsdk/gamesys/resources/res_font.h>
 
 namespace dmGameSystem
 {
@@ -34,7 +35,7 @@ namespace dmGameSystem
             dmLogError("Failed to create Label component. This component only supports materials with the Vertex Space property set to 'vertex-space-world'");
             return dmResource::RESULT_NOT_SUPPORTED;
         }
-        result = dmResource::Get(factory, resource->m_DDF->m_Font, (void**) &resource->m_FontMap);
+        result = dmResource::Get(factory, resource->m_DDF->m_Font, (void**) &resource->m_Font);
         if (result != dmResource::RESULT_OK)
         {
             return result;
@@ -49,8 +50,8 @@ namespace dmGameSystem
             dmDDF::FreeMessage(resource->m_DDF);
         if (resource->m_Material != 0x0)
             dmResource::Release(factory, resource->m_Material);
-        if (resource->m_FontMap != 0x0)
-            dmResource::Release(factory, resource->m_FontMap);
+        if (resource->m_Font != 0x0)
+            dmResource::Release(factory, resource->m_Font);
     }
 
     dmResource::Result ResLabelPreload(const dmResource::ResourcePreloadParams* params)

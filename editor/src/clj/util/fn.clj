@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -23,8 +23,19 @@
 (set! *unchecked-math* :warn-on-boxed)
 
 (defonce constantly-false (constantly false))
-
 (defonce constantly-true (constantly true))
+(defonce constantly-nil (constantly nil))
+
+(defmacro constantly-fail
+  ([message-expr]
+   `(fn ~'fail ~'[& args]
+      (throw (ex-info ~message-expr
+                      {:args ~'args}))))
+  ([message-expr context-map-expr]
+   `(fn ~'fail ~'[& args]
+      (throw (ex-info ~message-expr
+                      (merge {:args ~'args}
+                             ~context-map-expr))))))
 
 (definline ^:private with-memoize-info [memoized-fn cache arity]
   `(with-meta ~memoized-fn
@@ -67,6 +78,18 @@
                           cached-result)))]
     (with-memoize-info memoized-fn cache arity)))
 
+(defn- ifn-class-arities-raw
+  [^Class ifn-class]
+  (into #{}
+        (keep (fn [^Method method]
+                (case (.getName method)
+                  "invoke" (.getParameterCount method)
+                  "getRequiredArity" -1 ; The function is variadic.
+                  nil)))
+        (java/get-declared-methods ifn-class)))
+
+(def ^:private ifn-class-arities (memoize-one ifn-class-arities-raw))
+
 (defn- ifn-class-max-arity-raw
   ^long [^Class ifn-class]
   (reduce (fn [^long max-arity ^Method method]
@@ -92,6 +115,22 @@
              (-> ifn-or-var meta :macro))
       (- max-arity 2) ; Subtract implicit arguments from macro.
       max-arity)))
+
+(defn has-explicit-arity?
+  "Returns true if the supplied function has a non-variadic implementation that
+  takes exactly the specified number of arguments, or false if it does not. You
+  can supply -1 for the arity to check if the function is variadic."
+  [ifn-or-var ^long arity]
+  (let [ifn (if (var? ifn-or-var)
+              (var-get ifn-or-var)
+              ifn-or-var)
+        arities (ifn-class-arities (class ifn))
+        adjusted-arity (if (and (not (neg? arity))
+                                (var? ifn-or-var)
+                                (-> ifn-or-var meta :macro))
+                         (+ arity 2) ; Adjust for implicit arguments to macro.
+                         arity)]
+    (contains? arities adjusted-arity)))
 
 (defn memoize
   "Like core.memoize, but uses an optimized cache based on the number of
@@ -169,13 +208,13 @@
                  (into {} key-value-pairs))]
     (fn key->value [key]
       (let [value (lookup key ::not-found)]
-        (if (not= ::not-found value)
-          value
+        (if (identical? ::not-found value)
           (throw (IllegalArgumentException.
                    (str "No matching clause: " key)
                    (ex-info "Key not found in lookup."
                             {:key key
-                             :valid-keys (keys lookup)}))))))))
+                             :valid-keys (keys lookup)})))
+          value)))))
 
 (deftype PartialFn [pfn fn args]
   Fn
@@ -246,3 +285,49 @@
   "Check if a multimethod has a matching method for the supplied arguments"
   [^MultiFn multi & args]
   (some? (.getMethod multi (apply (.-dispatchFn multi) args))))
+
+(defn make-call-logger
+  "Returns a function that keeps track of its invocations. Every
+  time it is called, the call and its arguments are stored in the
+  metadata associated with the returned function. If fn f is
+  supplied, it will be invoked after the call is logged."
+  ([]
+   (make-call-logger constantly-nil))
+  ([f]
+   (let [calls (atom [])]
+     (with-meta (fn [& args]
+                  (swap! calls conj args)
+                  (apply f args))
+                {::calls calls}))))
+
+(defn call-logger-calls
+  "Given a function obtained from make-call-logger, returns a
+  vector of sequences containing the arguments for every time it
+  was called."
+  [call-logger]
+  (-> call-logger meta ::calls deref))
+
+(defmacro with-logged-calls
+  "Temporarily redefines the specified functions into call-loggers
+  while executing the body. Returns a map of functions to the
+  result of (call-logger-calls fn). Non-invoked functions will not
+  be included in the returned map.
+
+  Example:
+  (with-logged-calls [print println]
+    (println :a)
+    (println :a :b))
+  => {#object[clojure.core$println] [(:a)
+                                     (:a :b)]}"
+  [var-symbols & body]
+  `(let [binding-map# ~(into {}
+                             (map (fn [var-symbol]
+                                    `[(var ~var-symbol) (make-call-logger)]))
+                             var-symbols)]
+     (with-redefs-fn binding-map# (fn [] ~@body))
+     (into {}
+           (keep (fn [[var# call-logger#]]
+                   (let [calls# (call-logger-calls call-logger#)]
+                     (when (seq calls#)
+                       [(deref var#) calls#]))))
+           binding-map#)))

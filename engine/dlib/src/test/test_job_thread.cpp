@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -62,9 +62,9 @@ TEST(dmJobThread, PushJobsMultipleThreads)
         dmJobThread::PushJob(ctx, process, callback, (void*) &contexts[i], (void*) &datas[i]);
     }
 
-    uint64_t stop_time = dmTime::GetTime() + 1*1e6; // 1 second
+    uint64_t stop_time = dmTime::GetMonotonicTime() + 1*1e6; // 1 second
     bool tests_done = false;
-    while (dmTime::GetTime() < stop_time && !tests_done)
+    while (dmTime::GetMonotonicTime() < stop_time && !tests_done)
     {
         dmJobThread::Update(ctx);
 

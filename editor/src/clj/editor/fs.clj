@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -17,8 +17,9 @@
             [clojure.string :as string]
             [util.coll :as coll])
   (:import [clojure.lang IReduceInit]
-           [java.io File FileNotFoundException IOException RandomAccessFile]
+           [java.io BufferedInputStream BufferedOutputStream File FileNotFoundException IOException RandomAccessFile]
            [java.nio.channels OverlappingFileLockException]
+           [java.nio.charset Charset StandardCharsets]
            [java.nio.file AccessDeniedException CopyOption FileAlreadyExistsException FileVisitResult FileVisitor Files LinkOption NoSuchFileException NotDirectoryException OpenOption Path SimpleFileVisitor StandardCopyOption StandardOpenOption]
            [java.nio.file.attribute BasicFileAttributes FileAttribute]
            [java.util UUID]))
@@ -29,6 +30,8 @@
 
 (defonce empty-link-option-array (make-array LinkOption 0))
 (defonce ^:private empty-string-array (make-array String 0))
+(defonce ^:private ^"[Ljava.nio.file.OpenOption;" append-open-options (into-array OpenOption [StandardOpenOption/WRITE StandardOpenOption/CREATE StandardOpenOption/APPEND]))
+(defonce ^:private ^"[Ljava.nio.file.OpenOption;" overwrite-open-options (into-array OpenOption [StandardOpenOption/WRITE StandardOpenOption/CREATE StandardOpenOption/TRUNCATE_EXISTING]))
 
 (defprotocol PathCoercions
   "Convert to Path objects."
@@ -47,11 +50,46 @@
   String
   (as-path [this] (Path/of this empty-string-array)))
 
-(defn to-real-path
+(extend-protocol io/IOFactory
+  Path
+  (make-reader [x opts]
+    (Files/newBufferedReader x (or (some-> (:encoding opts) Charset/forName)
+                                   StandardCharsets/UTF_8)))
+  (make-writer [x opts]
+    (Files/newBufferedWriter
+      x
+      (or (some-> (:encoding opts) Charset/forName)
+          StandardCharsets/UTF_8)
+      (if (:append opts)
+        append-open-options
+        overwrite-open-options)))
+  (make-input-stream [x _]
+    (BufferedInputStream.
+      (Files/newInputStream x empty-link-option-array)))
+  (make-output-stream [x opts]
+    (BufferedOutputStream.
+      (Files/newOutputStream
+        x
+        (if (:append opts)
+          append-open-options
+          overwrite-open-options)))))
+
+(defn path
+  (^Path [x]
+   (as-path x))
+  (^Path [parent child]
+   (let [child-path ^Path (as-path child)]
+     (if (.isAbsolute child-path)
+       (throw (IllegalArgumentException. (str child " is not a relative path")))
+       (.resolve ^Path (as-path parent) child-path))))
+  (^Path [parent child & children]
+   (reduce path (path parent child) children)))
+
+(defn real-path
   "Returns the canonical, real path to an existing file system entry. Throws an
   IOException if there was no matching entry in the file system."
-  ^Path [^Path path]
-  (.toRealPath path empty-link-option-array))
+  ^Path [p & ps]
+  (.toRealPath ^Path (apply path p ps) empty-link-option-array))
 
 (defn with-leading-slash
   ^String [^String path]
@@ -289,8 +327,6 @@
   "Creates a directory assuming all parent directories are in place. Returns the directory."
   ^File [^File directory]
   (.toFile (Files/createDirectory (.toPath directory) empty-file-attrs)))
-
-(def ^:private ^"[Ljava.nio.file.OpenOption;" overwrite-open-options (into-array OpenOption [StandardOpenOption/WRITE StandardOpenOption/CREATE StandardOpenOption/TRUNCATE_EXISTING]))
 
 (def ^:private ^"[Ljava.nio.file.LinkOption;" no-follow-link-options (into-array LinkOption [LinkOption/NOFOLLOW_LINKS]))
 
@@ -666,3 +702,35 @@
                                      ignored-dirnames)
                            (or include-hidden
                                (not (Files/isHidden dir-path))))))))))
+
+(defn path-exists? [path]
+  (Files/exists path empty-link-option-array))
+
+(defn path-is-directory? [path]
+  (Files/isDirectory path empty-link-option-array))
+
+(defn path-attributes
+  ^BasicFileAttributes [path]
+  (Files/readAttributes ^Path path BasicFileAttributes ^"[Ljava.nio.file.LinkOption;" empty-link-option-array))
+
+(defn path? [x]
+  (instance? Path x))
+
+(defn create-path-parent-directories! [^Path path]
+  (when-let [p (.getParent path)]
+    (create-path-directories! p)))
+
+(defn path-last-modified-time
+  ^long [p]
+  (.toMillis (Files/getLastModifiedTime p empty-link-option-array)))
+
+(defn path-size
+  ^long [p]
+  (Files/size p))
+
+(defn make-path-parents [^Path p]
+  (when-let [parent (.getParent p)]
+    (Files/createDirectories parent empty-file-attrs)))
+
+(defn delete-path-file! [p]
+  (Files/delete p))

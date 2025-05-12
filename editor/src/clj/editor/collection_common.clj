@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -149,12 +149,12 @@
   ;; for more info.
   (let [build-target-go-props (partial properties/build-target-go-props
                                        proj-path->resource-property-build-target)
-        component-property-infos (map (comp build-target-go-props :properties)
-                                      (:component-properties instance-desc-with-go-props))
-        component-go-props (map first component-property-infos)
-        component-property-descs (map #(protobuf/assign-repeated %1 :properties %2)
-                                      (:component-properties instance-desc-with-go-props)
-                                      component-go-props)
+        component-property-infos (mapv (comp build-target-go-props :properties)
+                                       (:component-properties instance-desc-with-go-props))
+        component-go-props (mapv first component-property-infos)
+        component-property-descs (mapv #(protobuf/assign-repeated %1 :properties %2)
+                                       (:component-properties instance-desc-with-go-props)
+                                       component-go-props)
         go-prop-dep-build-targets (into []
                                         (comp (mapcat second)
                                               (util/distinct-by (comp resource/proj-path :resource)))
@@ -323,7 +323,7 @@
 (defn collection-build-target [build-resource node-id name scale-along-z game-object-instance-build-targets collection-instance-build-targets]
   {:pre [(workspace/build-resource? build-resource)
          (g/node-id? node-id)
-         (string? name)
+         (or (nil? name) (string? name))
          (boolean? scale-along-z)
          (seqable? game-object-instance-build-targets)
          (seqable? collection-instance-build-targets)]}
@@ -344,7 +344,7 @@
       {:node-id node-id
        :resource build-resource
        :build-fn build-collection
-       :user-data {:name name
+       :user-data {:name (or name "")
                    :scale-along-z scale-along-z
                    :game-object-instance-datas (mapv #(dissoc % :property-deps)
                                                      game-object-instance-datas)}

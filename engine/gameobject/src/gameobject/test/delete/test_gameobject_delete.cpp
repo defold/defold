@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <map>
+#include <random>
 #include <vector>
 
 #include "../gameobject.h"
@@ -181,6 +182,9 @@ TEST_F(DeleteTest, DeleteSelf)
      * Component instances of type 'A' is used here. We need a specific ComponentUpdate though. (DeleteSelfComponentsUpdate)
      * See New(..., goproto01.goc") below.
      */
+    std::random_device rd;
+    std::mt19937 g(rd());
+
     for (int iter = 0; iter < 4; ++iter)
     {
         m_DeleteSelfInstances.clear();
@@ -196,7 +200,7 @@ TEST_F(DeleteTest, DeleteSelf)
             m_DeleteSelfIndices.push_back(i);
         }
 
-        std::random_shuffle(m_DeleteSelfIndices.begin(), m_DeleteSelfIndices.end());
+        std::shuffle(m_DeleteSelfIndices.begin(), m_DeleteSelfIndices.end(), g);
 
         while (m_DeleteSelfIndices.size() > 0)
         {

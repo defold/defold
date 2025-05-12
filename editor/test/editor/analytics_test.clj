@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,17 +15,15 @@
 (ns editor.analytics-test
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
-            [clojure.string :as string]
             [clojure.test :refer :all]
             [editor.analytics :as analytics]
             [editor.connection-properties :refer [connection-properties]]
             [editor.fs :as fs]
             [editor.system :as sys]
-            [integration.test-util :as test-util]
-            [service.log :as log])
-  (:import (java.net HttpURLConnection)
-           (java.nio.charset StandardCharsets)
-           (java.io FileNotFoundException)))
+            [service.log :as log]
+            [util.fn :as fn])
+  (:import [java.io FileNotFoundException]
+           [java.net HttpURLConnection]))
 
 (set! *warn-on-reflection* true)
 
@@ -73,21 +71,22 @@
   (let [validation-messages (let [validation-messages-atom (atom [])]
                               (with-redefs [analytics/get-response-code! (partial get-response-code-and-append-validation-messages! validation-messages-atom)
                                             sys/defold-version (constantly "0.1.234")]
-                                (with-config! {:cid mock-cid}
-                                  (analytics/start! validation-server-url send-interval)
-                                  (analytics/track-event! "test-category" "test-action")
-                                  (analytics/track-event! "test-category" "test-action" "test-label")
-                                  (analytics/track-exception! (NullPointerException.))
-                                  (analytics/track-screen! "test-screen-name")
-                                  (analytics/shutdown! shutdown-timeout)
-                                  @validation-messages-atom)))]
+                                (log/without-logging
+                                  (with-config! {:cid mock-cid}
+                                    (analytics/start! validation-server-url send-interval)
+                                    (analytics/track-event! "test-category" "test-action")
+                                    (analytics/track-event! "test-category" "test-action" "test-label")
+                                    (analytics/track-exception! (NullPointerException.))
+                                    (analytics/track-screen! "test-screen-name")
+                                    (analytics/shutdown! shutdown-timeout)
+                                    @validation-messages-atom))))]
     (is (= 0 (count validation-messages)))))
 
 (deftest send-error-test
   (with-redefs [sys/defold-version (constantly "0.1.234")]
 
     (testing "Bad response."
-      (let [post-call-logger (test-util/make-call-logger)]
+      (let [post-call-logger (fn/make-call-logger)]
         (with-redefs [analytics/get-response-code! (constantly 404)
                       analytics/post! post-call-logger]
           (log/without-logging
@@ -96,11 +95,11 @@
             (Thread/sleep 1000))
 
           ;; Shuts down after 5 retries.
-          (is (= 5 (count (test-util/call-logger-calls post-call-logger))))
+          (is (= 5 (count (fn/call-logger-calls post-call-logger))))
           (is (not (analytics/enabled?))))))
 
     (testing "Exception during post."
-      (let [post-call-logger (test-util/make-call-logger (fn [_ _ _] (throw (ex-info "Post failed" {}))))]
+      (let [post-call-logger (fn/make-call-logger (fn [_ _ _] (throw (ex-info "Post failed" {}))))]
         (with-redefs [analytics/get-response-code! (constantly 200)
                       analytics/post! post-call-logger]
           (log/without-logging
@@ -109,5 +108,5 @@
             (Thread/sleep 1000))
 
           ;; Shuts down after 5 retries.
-          (is (= 5 (count (test-util/call-logger-calls post-call-logger))))
+          (is (= 5 (count (fn/call-logger-calls post-call-logger))))
           (is (not (analytics/enabled?))))))))

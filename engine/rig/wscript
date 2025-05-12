@@ -30,10 +30,12 @@ def configure(conf):
     conf.recurse('src')
 
     conf.env.append_value('INCLUDES', "default/src")
-    conf.env['STLIB_DLIB_NOASAN'] = ['dlib_noasan']
-    conf.env['STLIB_DDF_NOASAN'] = ['ddf_noasan']
+    conf.env['STLIB_DLIB_NOASAN']          = ['dlib_noasan']
+    conf.env['STLIB_DDF_NOASAN']           = ['ddf_noasan']
+    conf.env['STLIB_GRAPHICS_NULL']        = ['graphics_null', 'graphics_proto']
+    conf.env['STLIB_GRAPHICS_NULL_NOASAN'] = ['graphics_null_noasan', 'graphics_proto_noasan'] # For the shared library used in editor
+    conf.env['STLIB_PLATFORM_NULL']        = ['platform_null']
 
-    platform = conf.env['PLATFORM']
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="RIG"')
 
 def build(bld):

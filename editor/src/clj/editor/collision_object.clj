@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -21,6 +21,7 @@
             [editor.defold-project :as project]
             [editor.geom :as geom]
             [editor.gl.pass :as pass]
+            [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.math :as math]
@@ -38,6 +39,7 @@
             [schema.core :as s]
             [util.murmur :as murmur])
   (:import [com.dynamo.gamesys.proto Physics$CollisionObjectDesc Physics$CollisionObjectType Physics$CollisionShape$Shape]
+           [com.jogamp.opengl GL2]
            [javax.vecmath Matrix4d Quat4d Vector3d]))
 
 (set! *warn-on-reflection* true)
@@ -113,7 +115,7 @@
                                                      {:node-id _node-id
                                                       :node-outline-key node-outline-key
                                                       :label (if (empty? id)
-                                                               (shape-type-label shape-type)
+                                                               (str "<Unnamed " (shape-type-label shape-type) ">")
                                                                id)
                                                       :icon (shape-type-icon shape-type)})))
 
@@ -394,7 +396,10 @@
         linear-damping :linear-damping
         angular-damping :angular-damping
         locked-rotation :locked-rotation
-        bullet :bullet)
+        bullet :bullet
+        event-collision :event-collision
+        event-contact :event-contact
+        event-trigger :event-trigger)
       (g/connect self :collision-group-node project :collision-group-nodes)
       (g/connect project :collision-groups-data self :collision-groups-data)
       (g/connect project :settings self :project-settings)
@@ -406,12 +411,46 @@
                   (outline/gen-node-outline-keys (map (comp shape-type-label :shape-type)
                                                       shapes)))))))
 
+(defn convex-hull-scene
+  [_node-id convex-shape-data color]
+  (when (and (= (:shape-type convex-shape-data) :type-hull)
+             (not-empty (:data convex-shape-data)))
+    (let [points (partition 3 (:data convex-shape-data))
+          [min-coords max-coords] (reduce (fn [[min-point max-point] point]
+                                            [(mapv min min-point point) (mapv max max-point point)])
+                                          [(repeat Double/MAX_VALUE) (repeat Double/MIN_VALUE)]
+                                          points)
+          aabb (geom/coords->aabb max-coords min-coords)
+          vbuf (vtx/flip! (reduce (fn [vb [x y z]] (scene-shapes/pos-vtx-put! vb x y z 0.0))
+                                  (scene-shapes/->pos-vtx (count points) :static)
+                                  points))]
+      {:node-id _node-id
+       :node-outline-key "Convex Hull"
+       :aabb aabb
+       :renderable {:render-fn render-triangles-uniform-scale
+                    :tags #{:collision-shape}
+                    :passes [pass/transparent pass/selection]
+                    :user-data {:color color
+                                :double-sided true
+                                :geometry {:primitive-type GL2/GL_POLYGON
+                                           :vbuf vbuf}}}
+       :children [{:node-id _node-id
+                   :aabb aabb
+                   :renderable {:render-fn render-lines-uniform-scale
+                                :tags #{:collision-shape :outline}
+                                :passes [pass/outline]
+                                :user-data {:color color
+                                            :geometry {:primitive-type GL2/GL_LINE_LOOP
+                                                       :vbuf vbuf}}}}]})))
+
 (g/defnk produce-scene
-  [_node-id child-scenes]
+  [_node-id child-scenes convex-shape-data collision-group-color]
   {:node-id _node-id
    :aabb geom/null-aabb
    :renderable {:passes [pass/selection]}
-   :children child-scenes})
+   :children (if convex-shape-data
+               [(convex-hull-scene _node-id convex-shape-data collision-group-color)]
+               child-scenes)})
 
 (defn- make-embedded-collision-shape [shapes]
   (loop [idx 0
@@ -439,7 +478,7 @@
 
 (g/defnk produce-save-value
   [collision-shape-resource type mass friction restitution
-   group mask angular-damping linear-damping locked-rotation bullet
+   group mask angular-damping linear-damping locked-rotation bullet event-collision event-contact event-trigger
    shapes]
   (let [embedded-collision-shape (make-embedded-collision-shape shapes)
         mask (cond-> []
@@ -459,6 +498,9 @@
           :angular-damping angular-damping
           :locked-rotation locked-rotation
           :bullet bullet
+          :event-collision event-collision
+          :event-contact event-contact
+          :event-trigger event-trigger
           :embedded-collision-shape embedded-collision-shape)
         (strip-empty-embedded-collision-shape))))
 
@@ -549,13 +591,15 @@
   (input dep-build-targets g/Any :array)
   (input collision-groups-data g/Any)
   (input project-settings g/Any)
+  (input convex-shape-data g/Any)
 
   (property collision-shape resource/Resource ; Nil is valid default.
             (value (gu/passthrough collision-shape-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :collision-shape-resource]
-                                            [:build-targets :dep-build-targets])))
+                                            [:build-targets :dep-build-targets]
+                                            [:save-value :convex-shape-data])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext #{"convexshape" "tilemap"}}))
             (dynamic error (g/fnk [_node-id collision-shape shapes]
                              (or (validation/prop-error :fatal _node-id :collision-shape validation/prop-resource-not-exists? collision-shape "Collision Shape")
@@ -583,6 +627,18 @@
             (default (protobuf/default Physics$CollisionObjectDesc :locked-rotation)))
   (property bullet g/Bool
             (default (protobuf/default Physics$CollisionObjectDesc :bullet)))
+  (property event-collision g/Bool
+            (dynamic label (g/constantly "Generate Collision Events"))
+            (dynamic tooltip (g/constantly "If disabled, filters out any collision events involving this collision object"))
+            (default (protobuf/default Physics$CollisionObjectDesc :event-collision)))
+  (property event-contact g/Bool
+            (dynamic label (g/constantly "Generate Contact Events"))
+            (dynamic tooltip (g/constantly "If disabled, filters out any contact events involving this collision object"))
+            (default (protobuf/default Physics$CollisionObjectDesc :event-contact)))
+  (property event-trigger g/Bool
+            (dynamic label (g/constantly "Generate Trigger Events"))
+            (dynamic tooltip (g/constantly "If disabled, filters out any trigger events involving this collision object"))
+            (default (protobuf/default Physics$CollisionObjectDesc :event-trigger)))
 
   (property group g/Str) ; Required protobuf field.
   (property mask g/Str) ; Nil is valid default.
@@ -654,7 +710,7 @@
 (defn- selection->collision-object [selection]
   (handler/adapt-single selection CollisionObjectNode))
 
-(handler/defhandler :add :workbench
+(handler/defhandler :edit.add-embedded-component :workbench
   (label [user-data]
          (if-not user-data
            "Add Shape"
@@ -669,7 +725,7 @@
                     (reduce-kv (fn [res shape-type {:keys [label icon]}]
                                  (conj res {:label label
                                             :icon icon
-                                            :command :add
+                                            :command :edit.add-embedded-component
                                             :user-data {:_node-id self :shape-type shape-type}}))
                                [])
                     (sort-by :label)

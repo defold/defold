@@ -1,19 +1,19 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns util.coll
-  (:refer-clojure :exclude [bounded-count empty? mapcat not-empty some])
+  (:refer-clojure :exclude [bounded-count empty? mapcat merge merge-with not-empty some])
   (:import [clojure.lang Cons IEditableCollection MapEntry]
            [java.util ArrayList]))
 
@@ -21,6 +21,38 @@
 (set! *unchecked-math* :warn-on-boxed)
 
 (def empty-sorted-map (sorted-map))
+
+(defmacro transfer
+  "Transfer the sequence supplied as the first argument into the destination
+  collection specified as the second argument, using a transducer composed of
+  the remaining arguments. Returns the resulting collection. Supplying :eduction
+  as the destination returns an eduction instead."
+  ([from to xform]
+   (case to
+     :eduction `(->Eduction ~xform ~from)
+     `(into ~to
+            ~xform
+            ~from)))
+  ([from to xform & xforms]
+   (case to
+     :eduction `(->Eduction (comp ~xform ~@xforms) ~from)
+     `(into ~to
+            (comp ~xform ~@xforms)
+            ~from))))
+
+(defn key-set
+  "Returns an unordered set with all keys from the supplied map."
+  [coll]
+  (into #{}
+        (map key)
+        coll))
+
+(defn sorted-key-set
+  "Returns a sorted set with all keys from the supplied map."
+  [coll]
+  (into (sorted-set)
+        (map key)
+        coll))
 
 (defn list-or-cons?
   "Returns true if the specified value is either a IPersistentList or a
@@ -77,6 +109,11 @@
       (fn ~'value->pair [~'value]
         (pair (key-fn# ~'value)
               (value-fn# ~'value))))))
+
+(defn flip
+  "Given a pair, returns a new pair with the elements flipped."
+  [[a b]]
+  (MapEntry. b a))
 
 (defn flipped-pair
   "Constructs a two-element collection that implements IPersistentVector from
@@ -135,7 +172,8 @@
     (nil? coll)
     true
 
-    (counted? coll)
+    (or (counted? coll)
+        (.isArray (class coll)))
     (zero? (count coll))
 
     (instance? CharSequence coll)
@@ -174,6 +212,104 @@
          (map (pair-fn key-fn value-fn))
          coll)))
 
+(defn merge
+  "Like core.merge, but makes use of transients for efficiency, and ignores
+  empty collections (even in LHS position!). Also works with sets."
+  ([] nil)
+  ([a] a)
+  ([a b]
+   (cond
+     (empty? a) b
+     (empty? b) a
+     (and (map? a) (supports-transient? a) (map? b)) (-> (reduce-kv assoc! (transient a) b) persistent! (with-meta (meta a)))
+     :else (into a b)))
+  ([a b & maps]
+   (reduce merge
+           (merge a b)
+           maps)))
+
+(defn merge-with
+  "Like core.merge-with, but makes use of transients for efficiency, and ignores
+  empty collections (even in LHS position!)."
+  ([_f] nil)
+  ([_f a] a)
+  ([f a b]
+   (cond
+     (empty? a) b
+     (empty? b) a
+
+     :else
+     (letfn [(merged-value [b-key b-value]
+               (let [a-value (get a b-key ::not-found)]
+                 (case a-value
+                   ::not-found b-value
+                   (f a-value b-value))))]
+       (if (supports-transient? a)
+         (-> (reduce (fn [result [b-key b-value]]
+                       (assoc! result b-key (merged-value b-key b-value)))
+                     (transient a)
+                     b)
+             (persistent!)
+             (with-meta (meta a)))
+         (reduce-kv (fn [result b-key b-value]
+                      (assoc result b-key (merged-value b-key b-value)))
+                    a
+                    b)))))
+  ([f a b & maps]
+   (reduce #(merge-with f %1 %2)
+           (merge-with f a b)
+           maps)))
+
+(defn merge-with-kv
+  "Similar to merge-with, but the conflict function is called with three
+  arguments: The key, the value, and the conflicting value."
+  ([_f] nil)
+  ([_f a] a)
+  ([f a b]
+   (cond
+     (empty? a) b
+     (empty? b) a
+
+     :else
+     (letfn [(merged-value [b-key b-value]
+               (let [a-value (get a b-key ::not-found)]
+                 (case a-value
+                   ::not-found b-value
+                   (f b-key a-value b-value))))]
+       (if (supports-transient? a)
+         (-> (reduce-kv (fn [result b-key b-value]
+                          (assoc! result b-key (merged-value b-key b-value)))
+                        (transient a)
+                        b)
+             (persistent!)
+             (with-meta (meta a)))
+         (reduce (fn [result [b-key b-value]]
+                   (assoc result b-key (merged-value b-key b-value)))
+                 a
+                 b)))))
+  ([f a b & maps]
+   (reduce #(merge-with-kv f %1 %2)
+           (merge-with-kv f a b)
+           maps)))
+
+(defn deep-merge
+  "Deep-merge the supplied maps. Values from later maps will overwrite values in
+  the previous maps. Records can be merged with maps, but are otherwise treated
+  as values. Any non-map collections are treated as values. Types and metadata
+  are preserved."
+  ([] nil)
+  ([a] a)
+  ([a b]
+   (cond
+     (and (record? b) (record? a)) b
+     (or (not (map? a)) (empty? a)) b
+     (and (map? b) (not (empty? b))) (merge-with deep-merge a b)
+     :else a))
+  ([a b & maps]
+   (reduce deep-merge
+           (deep-merge a b)
+           maps)))
+
 (defn partition-all-primitives
   "Returns a lazy sequence of primitive vectors. Like core.partition-all, but
   creates a new vector of a single primitive-type for each partition. The
@@ -206,6 +342,31 @@
      (when-let [in-progress (seq coll)]
        (let [finished (apply vector-of primitive-type (take partition-length in-progress))]
          (cons finished (partition-all-primitives primitive-type partition-length step (nthrest in-progress step))))))))
+
+(defn reduce-partitioned
+  "Partitions coll into the requested partition-length, then reduces using the
+  accumulate-fn with the resulting arguments from each partition. If coll cannot
+  be evenly partitioned, throws IllegalArgumentException."
+  [^long partition-length accumulate-fn init coll]
+  (if (pos-int? partition-length)
+    (transduce
+      (partition-all partition-length)
+      (fn
+        ([result] result)
+        ([result partition]
+         (case (rem (count partition) partition-length)
+           0 (apply accumulate-fn result partition)
+           (throw (IllegalArgumentException. "The length of coll must be a multiple of the partition-length.")))))
+      init
+      coll)
+    (throw (IllegalArgumentException. "The partition-length must be positive."))))
+
+(defn remove-index
+  "Removes an item at the specified position in a vector"
+  [coll ^long index]
+  (-> (into (subvec coll 0 index)
+            (subvec coll (inc index)))
+      (with-meta (meta coll))))
 
 (defn separate-by
   "Separates items in the supplied collection into two based on a predicate.
@@ -244,6 +405,41 @@
                         (conj (val result) item))))
               (pair empty-coll empty-coll)
               coll))))
+
+(defn aggregate-into
+  "Aggregate a sequence of key-value pairs into an associative collection. For
+  each key-value pair, we will look up the key in coll and run the accumulate-fn
+  on the existing value and the value from the key-value pair. The result will
+  be assoc:ed into coll. Optionally, an init value can be specified to use as
+  the first argument to the accumulate-fn when there is no existing value for
+  the key in coll. If no init value is supplied, the initial value will be
+  obtained by calling the accumulate-fn with no arguments at the start. If init
+  is a function, it will be called for each unseen key to produce an init
+  value for it."
+  ([coll accumulate-fn pairs]
+   (aggregate-into coll accumulate-fn (accumulate-fn) pairs))
+  ([coll accumulate-fn init pairs]
+   (if (empty? pairs)
+     coll
+     (let [use-transient (supports-transient? coll)
+           use-fn-init (fn? init)
+           assoc-fn (if use-transient assoc! assoc)
+           lookup-fn (if use-fn-init
+                       (fn lookup-fn [accumulated-by-key key]
+                         (let [accumulated (get accumulated-by-key key ::not-found)]
+                           (case accumulated
+                             ::not-found (init key)
+                             accumulated)))
+                       (fn lookup-fn [accumulated-by-key key]
+                         (get accumulated-by-key key init)))]
+       (cond-> (reduce (fn [accumulated-by-key [key value]]
+                         (let [accumulated (lookup-fn accumulated-by-key key)
+                               accumulated (accumulate-fn accumulated value)]
+                           (assoc-fn accumulated-by-key key accumulated)))
+                       (cond-> coll use-transient transient)
+                       pairs)
+               use-transient (-> (persistent!)
+                                 (with-meta (meta coll))))))))
 
 (defn mapcat-indexed
   "Returns the result of applying concat to the result of applying map-indexed
@@ -415,3 +611,16 @@
               (reduced ret)))
           nil
           coll))
+
+(defn str-rf
+  "Reducing function for string concatenation, useful for transduce context"
+  ([] (StringBuilder.))
+  ([^StringBuilder result] (.toString result))
+  ([^StringBuilder acc input] (.append acc (str input))))
+
+(defn join-to-string
+  "Like clojure.string/join, but uses reduce instead of lazy sequences"
+  ([coll]
+   (transduce identity str-rf coll))
+  ([sep coll]
+   (transduce (interpose (str sep)) str-rf coll)))

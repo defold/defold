@@ -1,4 +1,4 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -124,9 +124,9 @@
               (remove lua/preinstalled-modules))
         (:requires lua-info)))
 
-(defn- script->bytecode [lines proj-path arch]
+(defn- script->bytecode [lines proj-path]
   (try
-    (luajit/bytecode (data/lines-reader lines) proj-path arch)
+    (luajit/bytecode (data/lines-reader lines) proj-path)
     (catch Exception e
       (let [{:keys [filename line message]} (ex-data e)]
         (g/map->error
@@ -147,31 +147,47 @@
   (loop [cursor-ranges (transient [])
          tokens (lua-parser/tokens (data/lines-reader lines))
          paren-count 0
-         consumed []]
+         consumed []
+         skipped nil]
     (if-some [[text :as token] (first tokens)]
       (case (count consumed)
-        0 (recur cursor-ranges (next tokens) 0 (case text "go" (conj consumed token) []))
-        1 (recur cursor-ranges (next tokens) 0 (case text "." (conj consumed token) []))
-        2 (recur cursor-ranges (next tokens) 0 (case text "property" (conj consumed token) []))
+        0 (recur cursor-ranges (next tokens) 0 (case text "go" (conj consumed token) []) skipped)
+        1 (recur cursor-ranges (next tokens) 0 (case text "." (conj consumed token) []) skipped)
+        2 (recur cursor-ranges (next tokens) 0 (case text "property" (conj consumed token) []) skipped)
         3 (case text
-            "(" (recur cursor-ranges (next tokens) (inc paren-count) consumed)
+            "(" (recur cursor-ranges (next tokens) (inc paren-count) consumed skipped)
             ")" (let [paren-count (dec paren-count)]
                   (assert (not (neg? paren-count)))
                   (if (pos? paren-count)
-                    (recur cursor-ranges (next tokens) paren-count consumed)
+                    (recur cursor-ranges (next tokens) paren-count consumed skipped)
                     (let [next-tokens (next tokens)
                           [next-text :as next-token] (first next-tokens)
                           [_ start-row start-col] (first consumed)
                           [end-text end-row end-col] (if (= ";" next-text) next-token token)
                           end-col (+ ^long end-col (count end-text))
-                          start-cursor (data/->Cursor start-row start-col)
                           end-cursor (data/->Cursor end-row end-col)
-                          cursor-range (data/->CursorRange start-cursor end-cursor)]
-                      (recur (conj! cursor-ranges cursor-range)
-                             next-tokens
-                             0
-                             []))))
-            (recur cursor-ranges (next tokens) paren-count consumed)))
+                          start-cursor (data/->Cursor start-row start-col)]
+                      (if (nil? skipped)
+                        (let [cursor-range (data/->CursorRange start-cursor end-cursor)]
+                          (recur (conj! cursor-ranges cursor-range)
+                                 next-tokens
+                                 0
+                                 []
+                                 nil))
+                        (let [[_ end-row-skipped end-col-skipped] skipped
+                              end-cursor-before-skipped (data/->Cursor end-row-skipped end-col-skipped)
+                              cursor-range-before-skipped (data/->CursorRange start-cursor end-cursor-before-skipped)
+                              new-cursor-ranges (conj! cursor-ranges cursor-range-before-skipped)
+                              [_ start-row-after-skipped start-col-after-skipped] token
+                              start-cursor-after-skipped (data/->Cursor start-row-after-skipped start-col-after-skipped)
+                              cursor-range (data/->CursorRange start-cursor-after-skipped end-cursor)]
+                          (recur (conj! new-cursor-ranges cursor-range)
+                                 next-tokens
+                                 0
+                                 []
+                                 nil))))))
+            "hash" (recur cursor-ranges (next tokens) paren-count consumed token)
+            (recur cursor-ranges (next tokens) paren-count consumed skipped)))
       (persistent! cursor-ranges))))
 
 (defn- cursor-range->whitespace-lines [lines cursor-range]
@@ -190,7 +206,7 @@
   ;; We then strip go.property() declarations and recompile if needed.
   (let [lines (:lines user-data)
         proj-path (:proj-path user-data)
-        bytecode-or-error (script->bytecode lines proj-path :64-bit)]
+        bytecode-or-error (script->bytecode lines proj-path)]
     (g/precluding-errors
       [bytecode-or-error]
       (let [go-props (properties/build-go-props dep-resources (:go-props user-data))

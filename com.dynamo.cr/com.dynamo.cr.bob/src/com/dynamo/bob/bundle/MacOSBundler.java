@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -31,7 +31,7 @@ import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.FileUtil;
 
-@BundlerParams(platforms = {Platform.X86_64MacOS, Platform.Arm64MacOS})
+@BundlerParams(platforms = {"x86_64-macos", "arm64-macos"})
 public class MacOSBundler implements IBundler {
     private static Logger logger = Logger.getLogger(MacOSBundler.class.getName());
     public static final String ICON_NAME = "icon.icns";
@@ -185,5 +185,7 @@ public class MacOSBundler implements IBundler {
         // According to https://developer.apple.com/documentation/bundleresources/privacy_manifest_files/adding_a_privacy_manifest_to_your_app_or_third-party_sdk#4336738
         // the PrivacyInfo.xcprivacy  on macos should be in `Resources` folder
         BundleHelper.copyPrivacyManifest(project, platform, resourcesDir);
+
+        BundleHelper.moveBundleIfNeed(project, bundleDir);
     }
 }

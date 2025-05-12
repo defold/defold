@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -21,10 +21,16 @@
             [editor.gl.pass :as pass]
             [editor.gui :as gui]
             [editor.handler :as handler]
+            [editor.properties :as properties]
+            [editor.protobuf :as protobuf]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [internal.node :as in]
+            [support.test-support :as test-support]
+            [util.coll :as coll :refer [pair]]
             [util.fn :as fn])
-  (:import [javax.vecmath Matrix4d Vector3d]))
+  (:import [com.dynamo.gamesys.proto Gui$NodeDesc]
+           [javax.vecmath Matrix4d Vector3d]))
 
 (defn- prop [node-id label]
   (test-util/prop node-id label))
@@ -33,26 +39,41 @@
   (test-util/prop! node-id label val))
 
 (defn- gui-node [scene id]
-  (let [id->node (->> (get-in (g/node-value scene :node-outline) [:children 0])
-                   (tree-seq fn/constantly-true :children)
-                   (map :node-id)
-                   (map (fn [node-id] [(g/node-value node-id :id) node-id]))
-                   (into {}))]
+  (let [id->node (->> (get-in (g/valid-node-value scene :node-outline) [:children 0])
+                      (tree-seq fn/constantly-true :children)
+                      (map :node-id)
+                      (map (fn [node-id] [(g/valid-node-value node-id :id) node-id]))
+                      (into {}))]
     (id->node id)))
 
-(defn- gui-resource [resources-node-label scene id]
-  (->> (-> scene
-           (g/node-value resources-node-label)
-           (g/node-value :node-outline))
-       :children
-       (filter #(= id (:label %)))
-       first
-       :node-id))
+(defn- gui-resources-node [resources-node-outline-key scene]
+  (->> (g/node-value scene :node-outline)
+       (:children)
+       (some (fn [resources-node-outline]
+               (when (= resources-node-outline-key (:node-outline-key resources-node-outline))
+                 (:node-id resources-node-outline))))))
 
-(def ^:private gui-texture (partial gui-resource :textures-node))
-(def ^:private gui-font (partial gui-resource :fonts-node))
-(def ^:private gui-layer (partial gui-resource :layers-node))
-(def ^:private gui-particlefx-resource (partial gui-resource :particlefx-resources-node))
+(def ^:private gui-textures (partial gui-resources-node "Textures"))
+(def ^:private gui-fonts (partial gui-resources-node "Fonts"))
+(def ^:private gui-layers (partial gui-resources-node "Layers"))
+(def ^:private gui-particlefx-resources (partial gui-resources-node "Particle FX"))
+(def ^:private gui-materials (partial gui-resources-node "Materials"))
+(def ^:private gui-spine-scenes (partial gui-resources-node "Spine Scenes"))
+
+(defn- gui-resource-node [gui-resources-node-fn scene resource-name]
+  (some (fn [resource-node-outline]
+          (when (= resource-name (:node-outline-key resource-node-outline))
+            (:node-id resource-node-outline)))
+        (some-> (gui-resources-node-fn scene)
+                (g/node-value :node-outline)
+                (:children))))
+
+(def ^:private gui-texture (partial gui-resource-node gui-textures))
+(def ^:private gui-font (partial gui-resource-node gui-fonts))
+(def ^:private gui-layer (partial gui-resource-node gui-layers))
+(def ^:private gui-particlefx-resource (partial gui-resource-node gui-particlefx-resources))
+(def ^:private gui-material (partial gui-resource-node gui-materials))
+(def ^:private gui-spine-scene (partial gui-resource-node gui-spine-scenes))
 
 (defn- property-value-choices [node-id label]
   (->> (g/node-value node-id :_properties)
@@ -137,42 +158,42 @@
       (test-util/with-prop [pie :perimeter-vertices 1001]
         (is (g/error-fatal? (test-util/prop-error pie :perimeter-vertices)))))))
 
-(deftest gui-textures
+(deftest gui-textures-test
   (test-util/with-loaded-project
-   (let [node-id (test-util/resource-node project "/logic/main.gui")
-         outline (g/node-value node-id :node-outline)
-         png-node (get-in outline [:children 0 :children 1 :node-id])
-         png-tex (get-in outline [:children 1 :children 0 :node-id])]
-     (is (some? png-tex))
-     (is (= "png_texture" (prop png-node :texture)))
-     (prop! png-tex :name "new-name")
-     (is (= "new-name" (prop png-node :texture))))))
+    (let [node-id (test-util/resource-node project "/logic/main.gui")
+          outline (g/node-value node-id :node-outline)
+          png-node (get-in outline [:children 0 :children 1 :node-id])
+          png-tex (get-in outline [:children 1 :children 0 :node-id])]
+      (is (some? png-tex))
+      (is (= "png_texture" (prop png-node :texture)))
+      (prop! png-tex :name "new-name")
+      (is (= "new-name" (prop png-node :texture))))))
 
 (deftest gui-texture-validation
   (test-util/with-loaded-project
-   (let [node-id (test-util/resource-node project "/logic/main.gui")
-        atlas-tex (:node-id (test-util/outline node-id [1 1]))]
-     (test-util/with-prop [atlas-tex :name ""]
-       (is (g/error-fatal? (test-util/prop-error atlas-tex :name))))
-     (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.atlas")]]
-       (test-util/with-prop [atlas-tex :texture v]
-         (is (g/error-fatal? (test-util/prop-error atlas-tex :texture))))))))
+    (let [node-id (test-util/resource-node project "/logic/main.gui")
+          atlas-tex (:node-id (test-util/outline node-id [1 1]))]
+      (test-util/with-prop [atlas-tex :name ""]
+        (is (g/error-fatal? (test-util/prop-error atlas-tex :name))))
+      (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.atlas")]]
+        (test-util/with-prop [atlas-tex :texture v]
+          (is (g/error-fatal? (test-util/prop-error atlas-tex :texture))))))))
 
 (deftest gui-atlas
   (test-util/with-loaded-project
-   (let [node-id (test-util/resource-node project "/logic/main.gui")
-         outline (g/node-value node-id :node-outline)
-         box (get-in outline [:children 0 :children 2 :node-id])
-         atlas-tex (get-in outline [:children 1 :children 1 :node-id])]
-     (is (some? atlas-tex))
-     (is (= "atlas_texture/anim" (prop box :texture)))
-     (prop! atlas-tex :name "new-name")
-     (is (= "new-name/anim" (prop box :texture))))))
+    (let [node-id (test-util/resource-node project "/logic/main.gui")
+          outline (g/node-value node-id :node-outline)
+          box (get-in outline [:children 0 :children 2 :node-id])
+          atlas-tex (get-in outline [:children 1 :children 1 :node-id])]
+      (is (some? atlas-tex))
+      (is (= "atlas_texture/anim" (prop box :texture)))
+      (prop! atlas-tex :name "new-name")
+      (is (= "new-name/anim" (prop box :texture))))))
 
 (deftest gui-shaders
   (test-util/with-loaded-project
-   (let [node-id (test-util/resource-node project "/logic/main.gui")]
-     (is (some? (g/node-value node-id :material-shader))))))
+    (let [node-id (test-util/resource-node project "/logic/main.gui")]
+      (is (some? (g/node-value node-id :material-shader))))))
 
 (defn- font-resource-node [project gui-font-node]
   (project/get-resource-node project (g/node-value gui-font-node :font)))
@@ -180,67 +201,67 @@
 (defn- build-targets-deps [gui-scene-node]
   (map :node-id (:deps (first (g/node-value gui-scene-node :build-targets)))))
 
-(deftest gui-fonts
+(deftest gui-fonts-test
   (test-util/with-loaded-project
-   (let [gui-scene-node   (test-util/resource-node project "/logic/main.gui")
-         outline (g/node-value gui-scene-node :node-outline)
-         gui-font-node (get-in outline [:children 3 :children 0 :node-id])
-         old-font (font-resource-node project gui-font-node)
-         new-font (project/get-resource-node project "/fonts/big_score.font")]
-     (is (some? (g/node-value gui-font-node :font-data)))
-     (is (some #{old-font} (build-targets-deps gui-scene-node)))
-     (g/transact (g/set-property gui-font-node :font (g/node-value new-font :resource)))
-     (is (not (some #{old-font} (build-targets-deps gui-scene-node))))
-     (is (some #{new-font} (build-targets-deps gui-scene-node))))))
+    (let [gui-scene-node (test-util/resource-node project "/logic/main.gui")
+          outline (g/node-value gui-scene-node :node-outline)
+          gui-font-node (get-in outline [:children 3 :children 0 :node-id])
+          old-font (font-resource-node project gui-font-node)
+          new-font (project/get-resource-node project "/fonts/big_score.font")]
+      (is (some? (g/node-value gui-font-node :font-data)))
+      (is (some #{old-font} (build-targets-deps gui-scene-node)))
+      (g/transact (g/set-property gui-font-node :font (g/node-value new-font :resource)))
+      (is (not (some #{old-font} (build-targets-deps gui-scene-node))))
+      (is (some #{new-font} (build-targets-deps gui-scene-node))))))
 
 (deftest gui-font-validation
   (test-util/with-loaded-project
-   (let [gui-scene-node (test-util/resource-node project "/logic/main.gui")
-         gui-font-node (:node-id (test-util/outline gui-scene-node [3 0]))]
-     (is (nil? (test-util/prop-error gui-font-node :font)))
-     (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.font")]]
-       (test-util/with-prop [gui-font-node :font v]
-         (is (g/error-fatal? (test-util/prop-error gui-font-node :font))))))))
+    (let [gui-scene-node (test-util/resource-node project "/logic/main.gui")
+          gui-font-node (:node-id (test-util/outline gui-scene-node [3 0]))]
+      (is (nil? (test-util/prop-error gui-font-node :font)))
+      (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.font")]]
+        (test-util/with-prop [gui-font-node :font v]
+          (is (g/error-fatal? (test-util/prop-error gui-font-node :font))))))))
 
 (deftest gui-text-node
   (test-util/with-loaded-project
-   (let [node-id (test-util/resource-node project "/logic/main.gui")
-         outline (g/node-value node-id :node-outline)
-         nodes (into {} (map (fn [item] [(:label item) (:node-id item)]) (get-in outline [:children 0 :children])))
-         text-node (get nodes "hexagon_text")]
-     (is (= false (g/node-value text-node :line-break))))))
+    (let [node-id (test-util/resource-node project "/logic/main.gui")
+          outline (g/node-value node-id :node-outline)
+          nodes (into {} (map (fn [item] [(:label item) (:node-id item)]) (get-in outline [:children 0 :children])))
+          text-node (get nodes "hexagon_text")]
+      (is (= false (g/node-value text-node :line-break))))))
 
 (deftest gui-text-node-validation
   (test-util/with-loaded-project
-   (let [node-id (test-util/resource-node project "/logic/main.gui")
-         outline (g/node-value node-id :node-outline)
-         nodes (into {} (map (fn [item] [(:label item) (:node-id item)]) (get-in outline [:children 0 :children])))
-         text-node (get nodes "hexagon_text")]
-     (are [prop v test] (test-util/with-prop [text-node prop v]
-                          (is (test (test-util/prop-error text-node prop))))
-       :font nil                  g/error-fatal?
-       :font "not_a_defined_font" g/error-fatal?
-       :font "highscore"          nil?))))
+    (let [node-id (test-util/resource-node project "/logic/main.gui")
+          outline (g/node-value node-id :node-outline)
+          nodes (into {} (map (fn [item] [(:label item) (:node-id item)]) (get-in outline [:children 0 :children])))
+          text-node (get nodes "hexagon_text")]
+      (are [prop v test] (test-util/with-prop [text-node prop v]
+                           (is (test (test-util/prop-error text-node prop))))
+        :font ""                   g/error-fatal?
+        :font "not_a_defined_font" g/error-fatal?
+        :font "highscore"          nil?))))
 
 (deftest gui-text-node-text-layout
   (test-util/with-loaded-project
-   (let [node-id (test-util/resource-node project "/logic/main.gui")
-         outline (g/node-value node-id :node-outline)
-         nodes (into {} (map (fn [item] [(:label item) (:node-id item)]) (get-in outline [:children 0 :children])))
-         text-node (get nodes "multi_line_text")]
-     (is (some? (g/node-value text-node :text-layout)))
-     (is (some? (g/node-value text-node :aabb)))
-     (is (some? (g/node-value text-node :text-data))))))
+    (let [node-id (test-util/resource-node project "/logic/main.gui")
+          outline (g/node-value node-id :node-outline)
+          nodes (into {} (map (fn [item] [(:label item) (:node-id item)]) (get-in outline [:children 0 :children])))
+          text-node (get nodes "multi_line_text")]
+      (is (some? (g/node-value text-node :text-layout)))
+      (is (some? (g/node-value text-node :aabb)))
+      (is (some? (g/node-value text-node :text-data))))))
 
 (defn- render-order [view]
   (let [renderables (g/node-value view :all-renderables)]
     (->> (get renderables pass/transparent)
-      (map :node-id)
-      (filter #(and (some? %) (g/node-instance? gui/GuiNode %)))
-      (map #(g/node-value % :id))
-      vec)))
+         (map :node-id)
+         (filter #(and (some? %) (g/node-instance? gui/GuiNode %)))
+         (map #(g/node-value % :id))
+         vec)))
 
-(deftest gui-layers
+(deftest gui-layers-test
   (test-util/with-loaded-project
     (let [[node-id view] (test-util/open-scene-view! project app-view "/gui/layers.gui" 16 16)]
       (is (= ["box" "pie" "box1" "text"] (render-order view)))
@@ -282,14 +303,14 @@
         (is (false? (get-in props [:id :visible])))))))
 
 (deftest gui-templates-complex-property
- (test-util/with-loaded-project
-   (let [node-id (test-util/resource-node project "/gui/scene.gui")
-         sub-node (gui-node node-id "sub_scene/sub_box")]
-     (let [alpha (prop sub-node :alpha)]
-       (g/transact (g/set-property sub-node :alpha (* 0.5 alpha)))
-       (is (not= alpha (prop sub-node :alpha)))
-       (g/transact (g/clear-property sub-node :alpha))
-       (is (= alpha (prop sub-node :alpha)))))))
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/gui/scene.gui")
+          sub-node (gui-node node-id "sub_scene/sub_box")]
+      (let [alpha (prop sub-node :alpha)]
+        (g/transact (g/set-property sub-node :alpha (* 0.5 alpha)))
+        (is (not= alpha (prop sub-node :alpha)))
+        (g/transact (g/clear-property sub-node :alpha))
+        (is (= alpha (prop sub-node :alpha)))))))
 
 (deftest gui-template-hierarchy
   (test-util/with-loaded-project
@@ -348,12 +369,57 @@
         (is (not= (g/node-value box p) (g/node-value or-box p)))
         (is (= (g/node-value or-box p) v))))))
 
+(deftest gui-template-overrides-remain-after-external-template-change
+  (test-util/with-scratch-project "test/resources/gui_project"
+    (letfn [(select-labels [node-id labels]
+              (g/with-auto-evaluation-context evaluation-context
+                (into {}
+                      (map (fn [label]
+                             (pair label
+                                   (g/node-value node-id label evaluation-context))))
+                      labels)))
+
+            (select-gui-node-labels [gui-resource gui-node-name labels]
+              (-> (project/get-resource-node project gui-resource)
+                  (gui-node gui-node-name)
+                  (select-labels labels)))]
+
+      (let [button-gui-resource (workspace/find-resource workspace "/gui/template/button.gui")
+            panel-gui-resource (workspace/find-resource workspace "/gui/template/panel.gui")
+            window-gui-resource (workspace/find-resource workspace "/gui/template/window.gui")
+            panel-box-props-before (select-gui-node-labels panel-gui-resource "button/box" [:color :layer :texture])
+            window-box-props-before (select-gui-node-labels window-gui-resource "panel/button/box" [:color :layer :texture])]
+
+        (testing "Overrides should exist before external change."
+          (is (= {:color [0.0 1.0 0.0 1.0]
+                  :layer "panel_layer"
+                  :texture "panel_texture/button_checkered"}
+                 panel-box-props-before))
+          (is (= {:color [0.0 0.0 1.0 1.0]
+                  :layer "window_layer"
+                  :texture "window_texture/button_cloudy"}
+                 window-box-props-before)))
+
+        ;; Simulate external changes to 'button.gui'.
+        (let [modified-button-gui-content
+              (-> button-gui-resource
+                  (slurp)
+                  (str/replace "max_nodes: 123" "max_nodes: 100"))]
+          (test-support/spit-until-new-mtime button-gui-resource modified-button-gui-content)
+          (workspace/resource-sync! workspace))
+
+        (testing "Overrides should remain after external change."
+          (let [panel-box-props-after (select-gui-node-labels panel-gui-resource "button/box" [:color :layer :texture])
+                window-box-props-after (select-gui-node-labels window-gui-resource "panel/button/box" [:color :layer :texture])]
+            (is (= panel-box-props-before panel-box-props-after))
+            (is (= window-box-props-before window-box-props-after))))))))
+
 (defn- strip-scene [scene]
   (-> scene
-    (select-keys [:node-id :children :renderable])
-    (update :children (fn [c] (mapv #(strip-scene %) c)))
-    (update-in [:renderable :user-data] select-keys [:color])
-    (update :renderable select-keys [:user-data :tags])))
+      (select-keys [:node-id :children :renderable])
+      (update :children (fn [c] (mapv #(strip-scene %) c)))
+      (update-in [:renderable :user-data] select-keys [:color])
+      (update :renderable select-keys [:user-data :tags])))
 
 (defn- scene-by-nid [root-id node-id]
   (let [scene (g/node-value root-id :scene)
@@ -408,30 +474,42 @@
 (deftest gui-layout
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/gui/scene.gui")]
-      (is (= ["Landscape"] (map :name (:layouts (g/node-value node-id :pb-msg))))))))
+      (is (= ["Landscape"] (map :name (:layouts (g/node-value node-id :save-value))))))))
 
 (defn- add-layout! [project app-view scene name]
   (let [parent (g/node-value scene :layouts-node)
         user-data {:scene scene :parent parent :display-profile name :handler-fn gui/add-layout-handler}]
-    (test-util/handler-run :add [{:name :workbench :env {:selection [parent] :project project :user-data user-data :app-view app-view}}] user-data)))
+    (test-util/handler-run :edit.add-embedded-component [{:name :workbench :env {:selection [parent] :project project :user-data user-data :app-view app-view}}] user-data)))
 
 (defn- run-add-gui-node! [project scene app-view parent node-type custom-type]
   (let [user-data {:scene scene :parent parent :node-type node-type :custom-type custom-type :handler-fn gui/add-gui-node-handler}]
-    (test-util/handler-run :add [{:name :workbench :env {:selection [parent] :project project :user-data user-data :app-view app-view}}] user-data)))
+    (test-util/handler-run :edit.add-embedded-component [{:name :workbench :env {:selection [parent] :project project :user-data user-data :app-view app-view}}] user-data)))
 
 (defn- set-visible-layout! [scene layout]
   (g/transact (g/set-property scene :visible-layout layout)))
+
+(defmacro with-visible-layout! [scene layout & body]
+  `(let [scene# ~scene
+         layout# ~layout
+         prev-layout# (g/node-value scene# :visible-layout)]
+     (try
+       (set-visible-layout! scene# layout#)
+       ~@body
+       (finally
+         (set-visible-layout! scene# prev-layout#)))))
 
 (deftest gui-layout-active
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/gui/layouts.gui")
           box (gui-node node-id "box")
-          dims (g/node-value node-id :scene-dims)
-          scene (g/node-value node-id :scene)]
+          box-default-pos (g/valid-node-value box :position)
+          dims (g/valid-node-value node-id :scene-dims)]
       (set-visible-layout! node-id "Landscape")
-      (let [new-box (gui-node node-id "box")]
-        (is (and new-box (not= box new-box))))
-      (let [new-dims (g/node-value node-id :scene-dims)]
+      (is (identical? box (gui-node node-id "box")))
+      (is (= "Landscape" (:current-layout (g/valid-node-value box :trivial-gui-scene-info))))
+      (let [box-landscape-pos (g/valid-node-value box :position)]
+        (is (and box-landscape-pos (not= box-default-pos box-landscape-pos))))
+      (let [new-dims (g/valid-node-value node-id :scene-dims)]
         (is (and new-dims (not= dims new-dims)))))))
 
 (deftest gui-layout-add
@@ -440,7 +518,8 @@
           box (gui-node node-id "box")]
       (add-layout! project app-view node-id "Portrait")
       (set-visible-layout! node-id "Portrait")
-      (is (not= box (gui-node node-id "box"))))))
+      (is (identical? box (gui-node node-id "box")))
+      (is (= "Portrait" (:current-layout (g/valid-node-value box :trivial-gui-scene-info)))))))
 
 (deftest gui-layout-add-node
   (test-util/with-loaded-project
@@ -454,7 +533,7 @@
 
 (defn- gui-text [scene id]
   (-> (gui-node scene id)
-    (g/node-value :text)))
+      (g/node-value :text)))
 
 (defn- trans-x [root-id target-id]
   (let [s (tree-seq fn/constantly-true :children (g/node-value root-id :scene))]
@@ -467,9 +546,9 @@
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/gui/super_scene.gui")]
       (testing "regular layout override, through templates"
-               (is (= "Test" (gui-text node-id "scene/text")))
-               (set-visible-layout! node-id "Landscape")
-               (is (= "Testing Text" (gui-text node-id "scene/text"))))
+        (is (= "Test" (gui-text node-id "scene/text")))
+        (set-visible-layout! node-id "Landscape")
+        (is (= "Testing Text" (gui-text node-id "scene/text"))))
       (testing "scene generation"
         (is (= {:width 1280 :height 720}
                (g/node-value node-id :scene-dims)))
@@ -490,12 +569,62 @@
     (let [node-id (test-util/resource-node project "/gui/layouts.gui")
           gui-resource (g/node-value node-id :resource)
           context (handler/->context :workbench {:active-resource gui-resource :project project})
-          options (test-util/handler-options :set-gui-layout [context] nil)
+          options (test-util/handler-options :scene.set-gui-layout [context] nil)
           options-by-label (zipmap (map :label options) options)]
       (is (= ["Default" "Landscape"] (map :label options)))
-      (is (= (get options-by-label "Default") (test-util/handler-state :set-gui-layout [context] nil)))
+      (is (= (get options-by-label "Default") (test-util/handler-state :scene.set-gui-layout [context] nil)))
       (g/set-property! node-id :visible-layout "Landscape")
-      (is (= (get options-by-label "Landscape") (test-util/handler-state :set-gui-layout [context] nil))))))
+      (is (= (get options-by-label "Landscape") (test-util/handler-state :scene.set-gui-layout [context] nil))))))
+
+(deftest paste-gui-resource-test
+  (test-util/with-loaded-project "test/resources/gui_project"
+    (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))
+          scene (test-util/resource-node project "/gui/resources/button.gui")
+
+          check!
+          (fn check! [resource-name gui-resources-node-fn shape-name shape-resource-prop-kw expected-resource-choices]
+            (testing (format "Pasting %s resource" resource-name)
+              (let [resources-node (gui-resources-node-fn scene)
+                    resource-node (gui-resource-node gui-resources-node-fn scene resource-name)
+                    shape-node (gui-node scene shape-name)]
+                (is (some? resources-node))
+                (is (some? resource-node))
+                (is (some? shape-node))
+                (let [shape-resource-before (g/node-value shape-node shape-resource-prop-kw)]
+                  (with-open [_ (make-restore-point!)]
+                    (test-util/outline-duplicate! project resources-node [0])
+                    (is (= shape-resource-before (g/node-value shape-node shape-resource-prop-kw))
+                        "Shape should still refer to the original resource name.")
+                    (is (= expected-resource-choices
+                           (property-value-choices shape-node shape-resource-prop-kw))
+                        "The pasted resource should get a unique name among the selectable resources."))))))]
+      (check!
+        "button_font" gui-fonts "text" :font
+        ["button_font"
+         "button_font1"])
+      (check!
+        "button_layer" gui-layers "box" :layer
+        [""
+         "button_layer"
+         "button_layer1"])
+      (check!
+        "button_material" gui-materials "box" :material
+        [""
+         "button_material"
+         "button_material1"])
+      (check!
+        "button_particlefx" gui-particlefx-resources "particlefx" :particlefx
+        ["button_particlefx"
+         "button_particlefx1"])
+      (check!
+        "button_spinescene" gui-spine-scenes "spine" :spine-scene
+        ["button_spinescene"
+         "button_spinescene1"])
+      (check!
+        "button_texture" gui-textures "box" :texture
+        [""
+         "button_texture/button_striped"
+         "button_texture1/button_striped"]))))
 
 (deftest rename-referenced-gui-resource
   (test-util/with-loaded-project
@@ -508,19 +637,22 @@
             (is (some? res-node))
             (is (some? shape-node))
             (with-open [_ (make-restore-point!)]
-             (g/set-property! res-node :name new-name)
-             (is (= expected-name (g/node-value shape-node res-label)))
-             (is (= expected-choices (property-value-choices shape-node res-label)))
+              (g/set-property! res-node :name new-name)
+              (is (= expected-name (g/node-value shape-node res-label)))
+              (is (= expected-choices (property-value-choices shape-node res-label)))
 
-             (testing "Reference remains updated after resource deletion"
-               (g/delete-node! res-node)
-               (is (= expected-name (g/node-value shape-node res-label)))))))
+              (testing "Reference remains updated after resource deletion"
+                (g/delete-node! res-node)
+                (is (= expected-name (g/node-value shape-node res-label)))))))
         "font" gui-font "text" :font "renamed_font" "renamed_font" ["renamed_font"]
         "layer" gui-layer "pie" :layer "renamed_layer" "renamed_layer" ["" "renamed_layer"]
         "texture" gui-texture "box" :texture "renamed_texture" "renamed_texture/particle_blob" ["" "renamed_texture/particle_blob"]
         "particlefx" gui-particlefx-resource "particlefx" :particlefx "renamed_particlefx" "renamed_particlefx" ["renamed_particlefx"]))))
 
 (deftest rename-referenced-gui-resource-in-template
+  ;; Note: This test does not verify that override values in the outer scene
+  ;; that refer to resources in the template scene are updated after the rename.
+  ;; This is covered by template-layout-resource-rename-test below.
   (test-util/with-loaded-project
     (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))
           template-scene (test-util/resource-node project "/gui_resources/gui_resources.gui")
@@ -616,9 +748,9 @@
                 font-resource (test-util/resource workspace font-path)
                 font-resource-node (test-util/resource-node project font-path)
                 after-font-data (g/node-value font-resource-node :font-data)]
-          (is (not= after-font-data (g/node-value (:text shapes) :font-data)))
-          (add-font! scene (g/node-value (:text shapes) :font) font-resource)
-          (is (= after-font-data (g/node-value (:text shapes) :font-data))))))
+            (is (not= after-font-data (g/node-value (:text shapes) :font-data)))
+            (add-font! scene (g/node-value (:text shapes) :font) font-resource)
+            (is (= after-font-data (g/node-value (:text shapes) :font-data))))))
 
       (testing "Introduce missing referenced layer"
         (with-open [_ (make-restore-point!)]
@@ -645,9 +777,9 @@
           (let [particlefx-path "/particlefx/default.particlefx"
                 particlefx-resource (test-util/resource workspace particlefx-path)
                 particlefx-resource-node (test-util/resource-node project particlefx-path)]
-          (is (nil? (g/node-value (:particlefx shapes) :source-scene)))
-          (add-particlefx-resource! scene (g/node-value (:particlefx shapes) :particlefx) particlefx-resource)
-          (is (some? (g/node-value (:particlefx shapes) :source-scene)))))))))
+            (is (nil? (g/node-value (:particlefx shapes) :source-scene)))
+            (add-particlefx-resource! scene (g/node-value (:particlefx shapes) :particlefx) particlefx-resource)
+            (is (some? (g/node-value (:particlefx shapes) :source-scene)))))))))
 
 (deftest introduce-missing-referenced-gui-resource-in-template
   (test-util/with-loaded-project
@@ -680,11 +812,17 @@
 
       (testing "Introduce missing referenced layer in template scene"
         (with-open [_ (make-restore-point!)]
-          (is (nil? (g/node-value (:pie template-shapes) :layer-index)))
-          (is (nil? (g/node-value (:pie shapes) :layer-index)))
-          (add-layer! template-scene (g/node-value (:pie template-shapes) :layer) 0)
-          (is (= 0 (g/node-value (:pie template-shapes) :layer-index)))
-          (is (= 0 (g/node-value (:pie shapes) :layer-index)))))
+          (let [template-pie (:pie template-shapes)
+                imported-pie (:pie shapes)
+                template-layer (g/node-value template-pie :layer)]
+            (is (= template-layer (g/node-value imported-pie :layer))) ; Layer property is inherited from template.
+            (is (nil? (g/node-value template-pie :layer-index)))
+            (is (nil? (g/node-value imported-pie :layer-index)))
+            (add-layer! template-scene template-layer 0)
+            (is (= 0 (g/node-value template-pie :layer-index)))
+            (is (nil? (g/node-value imported-pie :layer-index))) ; Layers are isolated between scenes. The imported pie inherits the layer property, but there is still no matching layer in its scene.
+            (add-layer! scene template-layer 0)
+            (is (= 0 (g/node-value imported-pie :layer-index))))))
 
       (testing "Introduce missing referenced texture in template scene"
         (with-open [_ (make-restore-point!)]
@@ -739,10 +877,7 @@
   (#'gui/move-child-node! node-id offset))
 
 (defn- scene-gui-node-map [scene]
-  (into {}
-        (map (juxt :label :node-id)
-             (tree-seq :children :children (g/node-value scene :node-outline)))))
-
+  (g/node-value scene :node-ids))
 
 (deftest reorder-child-nodes
   ;; /gui/reorder.gui
@@ -796,53 +931,2098 @@
       (move-child-node! (id-map "text2") 1)
       (check-order scene < "text1" "text2"))))
 
-
-(defn- layout-gui-node-map [layout-node]
-  (let [layout-node-tree (ffirst (g/sources-of layout-node :layout-overrides))
-        layout-id-map (into {}
-                            (map (juxt :label :node-id)
-                                 (tree-seq :children :children (g/node-value layout-node-tree :node-outline))))]
-    layout-id-map))
-
 (deftest reordering-does-not-wipe-layout-overrides
   (test-util/with-loaded-project
-    (let [[workspace project _] (test-util/setup! world)
+    (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))
           scene (project/get-resource-node project "/gui/reorder.gui")
           id-map (scene-gui-node-map scene)
-          [landscape portrait] (map first (g/sources-of scene :layout-scenes))
-          landscape-id-map (layout-gui-node-map landscape)
-          portrait-id-map (layout-gui-node-map portrait)
-          scene-id-map (scene-gui-node-map scene)]
+          layouts (g/node-feeding-into scene :layout-names)
+          [landscape portrait] (map first (g/sources-of layouts :names))]
 
       ;; sanity
       (is (= "Landscape" (g/node-value landscape :name)))
       (is (= "Portrait" (g/node-value portrait :name)))
-      (is (= [(scene-id-map "box1") (landscape-id-map "box1")] (g/override-originals (landscape-id-map "box1"))))
-      (is (= [(scene-id-map "box2") (portrait-id-map "box2")] (g/override-originals (portrait-id-map "box2"))))
-      (is (= [0.0 0.0 0.0] (g/node-value (scene-id-map "box1") :position)))
-      (is (= [0.0 0.0 0.0] (g/node-value (scene-id-map "box2") :position)))
-      (is (= [-45.0 0.0 0.0] (g/node-value (scene-id-map "text1") :position)))
-      (is (= [45.0 0.0 0.0] (g/node-value (scene-id-map "text2") :position)))
+
+      (with-visible-layout! scene ""
+        (is (= [0.0 0.0 0.0] (g/node-value (id-map "box1") :position)))
+        (is (= [0.0 0.0 0.0] (g/node-value (id-map "box2") :position)))
+        (is (= [-45.0 0.0 0.0] (g/node-value (id-map "text1") :position)))
+        (is (= [45.0 0.0 0.0] (g/node-value (id-map "text2") :position))))
 
       ;; before move
-      (is (= [300.0 400.0 0.0] (g/node-value (landscape-id-map "box1") :position)))
-      (is (= [1000.0 400.0 0.0] (g/node-value (landscape-id-map "box2") :position)))
-      (is (= [360.0 900.0 0.0] (g/node-value (portrait-id-map "box1") :position)))
-      (is (= [360.0 350.0 0.0] (g/node-value (portrait-id-map "box2") :position)))
-      (is (= [45.0 0.0 0.0] (g/node-value (landscape-id-map "text1") :position))) ;; text1 & text2 swapped places in landscape vs default layout
-      (is (= [-45.0 0.0 0.0] (g/node-value (landscape-id-map "text2") :position)))
-      (is (= [0.0 -45.0 0.0] (g/node-value (portrait-id-map "text1") :position))) ;; text1 & text2 vertically stacked in portrait
-      (is (= [0.0 45.0 0.0] (g/node-value (portrait-id-map "text2") :position)))
+      (with-visible-layout! scene "Landscape"
+        (is (= [300.0 400.0 0.0] (g/node-value (id-map "box1") :position)))
+        (is (= [1000.0 400.0 0.0] (g/node-value (id-map "box2") :position)))
+        (is (= [45.0 0.0 0.0] (g/node-value (id-map "text1") :position))) ;; text1 & text2 swapped places in landscape vs default layout
+        (is (= [-45.0 0.0 0.0] (g/node-value (id-map "text2") :position))))
 
-      (move-child-node! (scene-id-map "box2") -1)
-      (move-child-node! (scene-id-map "text1") 1)
+      (with-visible-layout! scene "Portrait"
+        (is (= [360.0 900.0 0.0] (g/node-value (id-map "box1") :position)))
+        (is (= [360.0 350.0 0.0] (g/node-value (id-map "box2") :position)))
+        (is (= [0.0 -45.0 0.0] (g/node-value (id-map "text1") :position))) ;; text1 & text2 vertically stacked in portrait
+        (is (= [0.0 45.0 0.0] (g/node-value (id-map "text2") :position))))
 
       ;; reordering nodes should not change overrides for the layouts at all
-      (is (= [300.0 400.0 0.0] (g/node-value (landscape-id-map "box1") :position)))
-      (is (= [1000.0 400.0 0.0] (g/node-value (landscape-id-map "box2") :position)))
-      (is (= [360.0 900.0 0.0] (g/node-value (portrait-id-map "box1") :position)))
-      (is (= [360.0 350.0 0.0] (g/node-value (portrait-id-map "box2") :position)))
-      (is (= [45.0 0.0 0.0] (g/node-value (landscape-id-map "text1") :position)))
-      (is (= [-45.0 0.0 0.0] (g/node-value (landscape-id-map "text2") :position)))
-      (is (= [0.0 -45.0 0.0] (g/node-value (portrait-id-map "text1") :position)))
-      (is (= [0.0 45.0 0.0] (g/node-value (portrait-id-map "text2") :position))))))
+      (doseq [layout-during-reorder ["" "Landscape" "Portrait"]]
+        (with-open [_ (make-restore-point!)]
+          (with-visible-layout! scene layout-during-reorder
+            (move-child-node! (id-map "box2") -1)
+            (move-child-node! (id-map "text1") 1))
+
+          (with-visible-layout! scene ""
+            (is (= [0.0 0.0 0.0] (g/node-value (id-map "box1") :position)))
+            (is (= [0.0 0.0 0.0] (g/node-value (id-map "box2") :position)))
+            (is (= [-45.0 0.0 0.0] (g/node-value (id-map "text1") :position)))
+            (is (= [45.0 0.0 0.0] (g/node-value (id-map "text2") :position))))
+
+          (with-visible-layout! scene "Landscape"
+            (is (= [300.0 400.0 0.0] (g/node-value (id-map "box1") :position)))
+            (is (= [1000.0 400.0 0.0] (g/node-value (id-map "box2") :position)))
+            (is (= [45.0 0.0 0.0] (g/node-value (id-map "text1") :position)))
+            (is (= [-45.0 0.0 0.0] (g/node-value (id-map "text2") :position))))
+
+          (with-visible-layout! scene "Portrait"
+            (is (= [360.0 900.0 0.0] (g/node-value (id-map "box1") :position)))
+            (is (= [360.0 350.0 0.0] (g/node-value (id-map "box2") :position)))
+            (is (= [0.0 -45.0 0.0] (g/node-value (id-map "text1") :position)))
+            (is (= [0.0 45.0 0.0] (g/node-value (id-map "text2") :position)))))))))
+
+(def ^:private template-layout-gui-scene-proj-paths
+  ["/gui/template_layout/button.gui"
+   "/gui/template_layout/button_l.gui"
+   "/gui/template_layout/button_lp.gui"
+   "/gui/template_layout/panel_button.gui"
+   "/gui/template_layout/panel_button_l.gui"
+   "/gui/template_layout/panel_button_lp.gui"
+   "/gui/template_layout/panel_l_button.gui"
+   "/gui/template_layout/panel_l_button_l.gui"
+   "/gui/template_layout/panel_l_button_lp.gui"
+   "/gui/template_layout/panel_lp_button.gui"
+   "/gui/template_layout/panel_lp_button_l.gui"
+   "/gui/template_layout/panel_lp_button_lp.gui"])
+
+(deftest data-unaffected-by-visible-layout
+  (test-util/with-loaded-project "test/resources/gui_project"
+    (doseq [proj-path template-layout-gui-scene-proj-paths]
+      (testing proj-path
+        (let [scene (project/get-resource-node project proj-path)
+
+              scene-output-permutations
+              (coll/transfer ["" "Landscape" "Portrait"] []
+                (map (fn [layout]
+                       (with-visible-layout! scene layout
+                         (g/with-auto-evaluation-context evaluation-context
+                           (coll/transfer [:build-targets :save-value] {}
+                             (map (fn [output-label]
+                                    (let [output-value (g/valid-node-value scene output-label evaluation-context)]
+                                      (assert (some? output-value))
+                                      (pair output-label output-value)))))))))
+                (distinct))]
+
+          (is (= [(first scene-output-permutations)] scene-output-permutations)
+              "Changing the visible layout should not affect the data."))))))
+
+(defn- override-node-desc? [node-desc]
+  (or (:template-node-child node-desc)
+      (str/includes? (:id node-desc) "/")))
+
+(defn- make-displayed-layout->node->data [gui-scene-node-id data-fn]
+  {:pre [(g/node-id? gui-scene-node-id)
+         (ifn? data-fn)]}
+  (let [layout-names (cons "" (g/node-value gui-scene-node-id :layout-names))
+        gui-node-name->node-id (g/node-value gui-scene-node-id :node-ids)]
+    (coll/transfer layout-names (sorted-map)
+      (map (fn [layout-name]
+             (with-visible-layout! gui-scene-node-id layout-name
+               (g/with-auto-evaluation-context evaluation-context
+                 (pair (if (str/blank? layout-name) "Default" layout-name)
+                       (coll/transfer gui-node-name->node-id (sorted-map)
+                         (keep (fn [[gui-node-name gui-node-id]]
+                                 (let [data (data-fn gui-node-id evaluation-context)]
+                                   (when (coll/not-empty data)
+                                     (pair gui-node-name data))))))))))))))
+
+(defn- make-visibly-overridden-layout->node->props [gui-scene-node-id]
+  (make-displayed-layout->node->data
+    gui-scene-node-id
+    (fn data-fn [gui-node-id evaluation-context]
+      (->> (g/valid-node-value gui-node-id :_properties evaluation-context)
+           (vector)
+           (properties/coalesce)
+           (:properties)
+           (into
+             (if (:outline-overridden? (g/valid-node-value gui-node-id :node-outline evaluation-context))
+               #{:node-outline}
+               #{})
+             (keep (fn [[prop-kw coalesced-property]]
+                     (when (properties/overridden? coalesced-property)
+                       prop-kw))))))))
+
+(defn- make-displayed-layout->node->prop->value [gui-scene-node-id]
+  (make-displayed-layout->node->data
+    gui-scene-node-id
+    (fn data-fn [gui-node-id evaluation-context]
+      (let [node-type (g/node-type* (:basis evaluation-context) gui-node-id)
+            prop-labels (g/declared-property-labels node-type)
+            prop->default (in/defaults node-type)]
+        (coll/transfer prop-labels (sorted-map)
+          (remove #{:child-index :custom-type :generated-id :id :layout->prop->override :template :type})
+          (keep (fn [prop-label]
+                  (let [default-value (prop->default prop-label)
+                        prop-value (g/node-value gui-node-id prop-label evaluation-context)]
+                    (when (not= default-value prop-value)
+                      (pair prop-label prop-value))))))))))
+
+(defn- make-node->field->value [node-descs override-node-desc? node-desc-fn]
+  (coll/transfer node-descs (sorted-map)
+    (keep (fn [node-desc]
+            (when-some [field->value (node-desc-fn node-desc (override-node-desc? node-desc))]
+              (pair (:id node-desc) field->value))))))
+
+(defn- make-layout->node->field->value [scene-desc node-desc-fn]
+  (coll/transfer
+    (:layouts scene-desc)
+    (sorted-map "Default" (make-node->field->value (:nodes scene-desc) override-node-desc? node-desc-fn))
+    (map (fn [layout-desc]
+           (let [layout-name (:name layout-desc)]
+             (pair (if (str/blank? layout-name) "Default" layout-name)
+                   (make-node->field->value (:nodes layout-desc) fn/constantly-true node-desc-fn)))))))
+
+(defn- make-built-layout->node->field->value [gui-scene-node-id]
+  (let [build-targets (g/valid-node-value gui-scene-node-id :build-targets)
+        scene-desc (get-in build-targets [0 :user-data :pb])]
+    (make-layout->node->field->value
+      scene-desc
+      (fn node-desc-fn [node-desc _is-override-node-desc]
+        (dissoc node-desc :custom-type :id :type)))))
+
+(defn- make-saved-layout->node->field->value [gui-scene-node-id]
+  (let [scene-desc (g/valid-node-value gui-scene-node-id :save-value)]
+    (make-layout->node->field->value
+      scene-desc
+      (fn node-desc-fn [node-desc is-override-node-desc]
+        (if-not is-override-node-desc
+          (dissoc node-desc :custom-type :id :overridden-fields :template-node-child :type)
+          (reduce (fn [clean-node-desc overridden-pb-field-index]
+                    (let [overridden-pb-field (gui/pb-field-index->pb-field overridden-pb-field-index)]
+                      (assoc clean-node-desc
+                        overridden-pb-field (get node-desc overridden-pb-field (protobuf/default Gui$NodeDesc overridden-pb-field)))))
+                  (select-keys node-desc [:parent])
+                  (:overridden-fields node-desc)))))))
+
+(defn has-successor?
+  ([source-id+source-label target-id+target-label]
+   (has-successor? (g/now) source-id+source-label target-id+target-label))
+  ([basis [source-id source-label] [target-id target-label]]
+   (let [graph-id (g/node-id->graph-id source-id)
+         successor-endpoint-array (get-in basis [:graphs graph-id :successors source-id source-label])
+         length (count successor-endpoint-array)
+         target-endpoint (g/endpoint target-id target-label)]
+     (loop [index 0]
+       (cond
+         (= index length) false
+         (= target-endpoint (aget successor-endpoint-array index)) true
+         :else (recur (unchecked-inc-int index)))))))
+
+(deftest template-layout-visible-layout-property-successors-test
+  (test-util/with-loaded-project "test/resources/gui_project"
+    (let [referencing-scene (project/get-resource-node project "/gui/template_layout/panel_l_button_l.gui")
+          referenced-scene (project/get-resource-node project "/gui/template_layout/button_l.gui")]
+
+      ;; Add a new node to the referenced scene.
+      (let [referenced-scene-node-tree (g/node-value referenced-scene :node-tree)
+            added-text-props {:id "added" :font "font" :text "button default"}
+            referenced-scene-text (get (scene-gui-node-map referenced-scene) "text")
+            referenced-scene-added-text (gui/add-gui-node-with-props! referenced-scene referenced-scene-node-tree :type-text 0 added-text-props nil)]
+
+        ;; Override the text property on the added node for the Landscape layout in the referenced scene.
+        (with-visible-layout! referenced-scene "Landscape"
+          (test-util/prop! referenced-scene-added-text :text "button landscape"))
+
+        (testing "Current layout is reflected across referenced scenes."
+          (let [referencing-scene-node-map (scene-gui-node-map referencing-scene)
+                referencing-scene-button (get referencing-scene-node-map "button")
+                referencing-scene-node-tree (g/node-value referencing-scene :node-tree)
+                referencing-scene-referenced-scene (g/node-feeding-into referencing-scene-button :template-resource)
+                referencing-scene-referenced-scene-node-tree (g/node-value referencing-scene-referenced-scene :node-tree)
+                referencing-scene-referenced-scene-text (get referencing-scene-node-map "button/text")
+                referencing-scene-referenced-scene-added-text (get referencing-scene-node-map "button/added")]
+
+            (testing "Successors in referenced scene."
+              (is (has-successor? [referenced-scene :visible-layout] [referenced-scene :trivial-gui-scene-info]))
+              (is (has-successor? [referenced-scene :trivial-gui-scene-info] [referenced-scene-node-tree :trivial-gui-scene-info]))
+              (is (has-successor? [referenced-scene-node-tree :trivial-gui-scene-info] [referenced-scene-text :trivial-gui-scene-info]))
+              (is (has-successor? [referenced-scene-node-tree :trivial-gui-scene-info] [referenced-scene-added-text :trivial-gui-scene-info]))
+              (is (has-successor? [referenced-scene-text :trivial-gui-scene-info] [referenced-scene-text :prop->value]))
+              (is (has-successor? [referenced-scene-added-text :trivial-gui-scene-info] [referenced-scene-added-text :prop->value])))
+
+            (testing "Successors in referencing scene."
+              (is (has-successor? [referencing-scene :visible-layout] [referencing-scene :trivial-gui-scene-info]))
+              (is (has-successor? [referencing-scene :trivial-gui-scene-info] [referencing-scene-node-tree :trivial-gui-scene-info]))
+              (is (has-successor? [referencing-scene-node-tree :trivial-gui-scene-info] [referencing-scene-button :trivial-gui-scene-info]))
+              (is (has-successor? [referencing-scene-button :template-trivial-gui-scene-info] [referencing-scene-referenced-scene :trivial-gui-scene-info]))
+              (is (has-successor? [referencing-scene-referenced-scene :trivial-gui-scene-info] [referencing-scene-referenced-scene-node-tree :trivial-gui-scene-info]))
+              (is (has-successor? [referencing-scene-referenced-scene-node-tree :trivial-gui-scene-info] [referencing-scene-referenced-scene-text :trivial-gui-scene-info]))
+              (is (has-successor? [referencing-scene-referenced-scene-node-tree :trivial-gui-scene-info] [referencing-scene-referenced-scene-added-text :trivial-gui-scene-info]))
+              (is (has-successor? [referencing-scene-referenced-scene-text :trivial-gui-scene-info] [referencing-scene-referenced-scene-text :prop->value]))
+              (is (has-successor? [referencing-scene-referenced-scene-added-text :trivial-gui-scene-info] [referencing-scene-referenced-scene-added-text :prop->value])))
+
+            (testing "Visible layout selected for referencing scene is reflected in imported nodes."
+              (set-visible-layout! referencing-scene "")
+              (is (= "panel default" (g/node-value referencing-scene-referenced-scene-text :text)))
+              (is (= "button default" (g/node-value referencing-scene-referenced-scene-added-text :text)))
+
+              (set-visible-layout! referencing-scene "Landscape")
+              (is (= "panel landscape" (g/node-value referencing-scene-referenced-scene-text :text)))
+              (is (= "button landscape" (g/node-value referencing-scene-referenced-scene-added-text :text))))))))))
+
+(deftest template-layout-data-test
+  (test-util/with-loaded-project "test/resources/gui_project"
+    (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))]
+
+      (let [proj-path "/gui/template_layout/button.gui"]
+        (testing proj-path
+          (with-open [_ (make-restore-point!)]
+            (let [scene (project/get-resource-node project proj-path)]
+
+              (testing "Before modifications."
+                (is (= {"Default" {}}
+                       (make-visibly-overridden-layout->node->props scene)))
+                (is (= {"Default" {"text" {:font "font"
+                                           :text "button default"}}}
+                       (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"text" {:font "font"
+                                           :text "button default"}}}
+                       (make-built-layout->node->field->value scene)))
+                (is (= {"Default" {"text" {:font "font"
+                                           :text "button default"}}}
+                       (make-saved-layout->node->field->value scene))))))))
+
+      (let [proj-path "/gui/template_layout/button_l.gui"]
+        (testing proj-path
+          (with-open [_ (make-restore-point!)]
+            (let [scene (project/get-resource-node project proj-path)
+                  text (get (scene-gui-node-map scene) "text")]
+
+              (testing "Before modifications."
+                (is (= {"Default" {}
+                        "Landscape" {"text" #{:node-outline :text}}}
+                       (make-visibly-overridden-layout->node->props scene)))
+                (is (= {"Default" {"text" {:font "font"
+                                           :text "button default"}}
+                        "Landscape" {"text" {:font "font"
+                                             :text "button landscape"}}}
+                       (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"text" {:font "font"
+                                           :text "button default"}}
+                        "Landscape" {"text" {:font "font"
+                                             :text "button landscape"}}}
+                       (make-built-layout->node->field->value scene)))
+                (is (= {"Default" {"text" {:font "font"
+                                           :text "button default"}}
+                        "Landscape" {"text" {:text "button landscape"}}}
+                       (make-saved-layout->node->field->value scene))))
+
+              (testing "After clearing Landscape layout override."
+                (with-visible-layout! scene "Landscape"
+                  (test-util/prop-clear! text :text))
+                (is (= {"Default" {}
+                        "Landscape" {}}
+                       (make-visibly-overridden-layout->node->props scene)))
+                (is (= {"Default" {"text" {:font "font"
+                                           :text "button default"}}
+                        "Landscape" {"text" {:font "font"
+                                             :text "button default"}}}
+                       (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"text" {:font "font"
+                                           :text "button default"}}
+                        "Landscape" {}}
+                       (make-built-layout->node->field->value scene)))
+                (is (= {"Default" {"text" {:font "font"
+                                           :text "button default"}}
+                        "Landscape" {}}
+                       (make-saved-layout->node->field->value scene))))))))
+
+      (let [proj-path "/gui/template_layout/button_lp.gui"]
+        (testing proj-path
+          (with-open [_ (make-restore-point!)]
+            (let [scene (project/get-resource-node project proj-path)
+                  text (get (scene-gui-node-map scene) "text")]
+
+              (testing "Before modifications."
+                (is (= {"Default" {}
+                        "Landscape" {"text" #{:node-outline :text}}
+                        "Portrait" {"text" #{:node-outline :text}}}
+                       (make-visibly-overridden-layout->node->props scene)))
+                (is (= {"Default" {"text" {:font "font"
+                                           :text "button default"}}
+                        "Landscape" {"text" {:font "font"
+                                             :text "button landscape"}}
+                        "Portrait" {"text" {:font "font"
+                                            :text "button portrait"}}}
+                       (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"text" {:font "font"
+                                           :text "button default"}}
+                        "Landscape" {"text" {:font "font"
+                                             :text "button landscape"}}
+                        "Portrait" {"text" {:font "font"
+                                            :text "button portrait"}}}
+                       (make-built-layout->node->field->value scene)))
+                (is (= {"Default" {"text" {:font "font"
+                                           :text "button default"}}
+                        "Landscape" {"text" {:text "button landscape"}}
+                        "Portrait" {"text" {:text "button portrait"}}}
+                       (make-saved-layout->node->field->value scene))))
+
+              (testing "After clearing Landscape layout override."
+                (with-visible-layout! scene "Landscape"
+                  (test-util/prop-clear! text :text))
+                (is (= {"Default" {}
+                        "Landscape" {}
+                        "Portrait" {"text" #{:node-outline :text}}}
+                       (make-visibly-overridden-layout->node->props scene)))
+                (is (= {"Default" {"text" {:font "font"
+                                           :text "button default"}}
+                        "Landscape" {"text" {:font "font"
+                                             :text "button default"}}
+                        "Portrait" {"text" {:font "font"
+                                            :text "button portrait"}}}
+                       (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"text" {:font "font"
+                                           :text "button default"}}
+                        "Landscape" {}
+                        "Portrait" {"text" {:font "font"
+                                            :text "button portrait"}}}
+                       (make-built-layout->node->field->value scene)))
+                (is (= {"Default" {"text" {:font "font"
+                                           :text "button default"}}
+                        "Landscape" {}
+                        "Portrait" {"text" {:text "button portrait"}}}
+                       (make-saved-layout->node->field->value scene))))))))
+
+      (let [proj-path "/gui/template_layout/panel_button.gui"]
+        (testing proj-path
+          (with-open [_ (make-restore-point!)]
+            (let [scene (project/get-resource-node project proj-path)
+                  text (get (scene-gui-node-map scene) "button/text")]
+
+              (testing "Before modifications."
+                (is (= {"Default" {"button/text" #{:node-outline :text}}}
+                       (make-visibly-overridden-layout->node->props scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "panel default"}}}
+                       (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "panel default"}}}
+                       (make-built-layout->node->field->value scene)))
+                (is (= {"Default" {"button" {:template "/gui/template_layout/button.gui"}
+                                   "button/text" {:parent "button"
+                                                  :text "panel default"}}}
+                       (make-saved-layout->node->field->value scene))))
+
+              (testing "After clearing Default layout override."
+                (with-visible-layout! scene ""
+                  (test-util/prop-clear! text :text))
+                (is (= {"Default" {}}
+                       (make-visibly-overridden-layout->node->props scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "button default"}}}
+                       (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "button default"}}}
+                       (make-built-layout->node->field->value scene)))
+                (is (= {"Default" {"button" {:template "/gui/template_layout/button.gui"}
+                                   "button/text" {:parent "button"}}}
+                       (make-saved-layout->node->field->value scene))))))))
+
+      (let [proj-path "/gui/template_layout/panel_button_l.gui"]
+        (testing proj-path
+          (with-open [_ (make-restore-point!)]
+            (let [scene (project/get-resource-node project proj-path)
+                  text (get (scene-gui-node-map scene) "button/text")]
+
+              (testing "Before modifications."
+                (is (= {"Default" {"button/text" #{:node-outline :text}}}
+                       (make-visibly-overridden-layout->node->props scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "panel default"}}}
+                       (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "panel default"}}}
+                       (make-built-layout->node->field->value scene)))
+                (is (= {"Default" {"button" {:template "/gui/template_layout/button_l.gui"}
+                                   "button/text" {:parent "button"
+                                                  :text "panel default"}}}
+                       (make-saved-layout->node->field->value scene))))
+
+              (testing "After clearing Default layout override."
+                (with-visible-layout! scene ""
+                  (test-util/prop-clear! text :text))
+                (is (= {"Default" {}}
+                       (make-visibly-overridden-layout->node->props scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "button default"}}}
+                       (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "button default"}}}
+                       (make-built-layout->node->field->value scene)))
+                (is (= {"Default" {"button" {:template "/gui/template_layout/button_l.gui"}
+                                   "button/text" {:parent "button"}}}
+                       (make-saved-layout->node->field->value scene))))))))
+
+      (let [proj-path "/gui/template_layout/panel_button_lp.gui"]
+        (testing proj-path
+          (with-open [_ (make-restore-point!)]
+            (let [scene (project/get-resource-node project proj-path)
+                  text (get (scene-gui-node-map scene) "button/text")]
+
+              (testing "Before modifications."
+                (is (= {"Default" {"button/text" #{:node-outline :text}}}
+                       (make-visibly-overridden-layout->node->props scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "panel default"}}}
+                       (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "panel default"}}}
+                       (make-built-layout->node->field->value scene)))
+                (is (= {"Default" {"button" {:template "/gui/template_layout/button_lp.gui"}
+                                   "button/text" {:parent "button"
+                                                  :text "panel default"}}}
+                       (make-saved-layout->node->field->value scene))))
+
+              (testing "After clearing Default layout override."
+                (with-visible-layout! scene ""
+                  (test-util/prop-clear! text :text))
+                (is (= {"Default" {}}
+                       (make-visibly-overridden-layout->node->props scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "button default"}}}
+                       (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "button default"}}}
+                       (make-built-layout->node->field->value scene)))
+                (is (= {"Default" {"button" {:template "/gui/template_layout/button_lp.gui"}
+                                   "button/text" {:parent "button"}}}
+                       (make-saved-layout->node->field->value scene))))))))
+
+      (let [proj-path "/gui/template_layout/panel_l_button.gui"]
+        (testing proj-path
+          (with-open [_ (make-restore-point!)]
+            (let [scene (project/get-resource-node project proj-path)
+                  text (get (scene-gui-node-map scene) "button/text")]
+
+              (testing "Before modifications."
+                (is (= {"Default" {"button/text" #{:node-outline :text}}
+                        "Landscape" {"button/text" #{:node-outline :text}}}
+                       (make-visibly-overridden-layout->node->props scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "panel default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "panel landscape"}}}
+                       (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "panel default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "panel landscape"}}}
+                       (make-built-layout->node->field->value scene)))
+                (is (= {"Default" {"button" {:template "/gui/template_layout/button.gui"}
+                                   "button/text" {:parent "button"
+                                                  :text "panel default"}}
+                        "Landscape" {"button/text" {:parent "button"
+                                                    :text "panel landscape"}}}
+                       (make-saved-layout->node->field->value scene))))
+
+              (testing "After clearing Landscape layout override."
+                (with-visible-layout! scene "Landscape"
+                  (test-util/prop-clear! text :text))
+                (is (= {"Default" {"button/text" #{:node-outline :text}}
+                        "Landscape" {}}
+                       (make-visibly-overridden-layout->node->props scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "panel default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "panel default"}}}
+                       (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "panel default"}}
+                        "Landscape" {}}
+                       (make-built-layout->node->field->value scene)))
+                (is (= {"Default" {"button" {:template "/gui/template_layout/button.gui"}
+                                   "button/text" {:parent "button"
+                                                  :text "panel default"}}
+                        "Landscape" {}}
+                       (make-saved-layout->node->field->value scene))))
+
+              (testing "After clearing Landscape and Default layout overrides."
+                (with-visible-layout! scene ""
+                  (test-util/prop-clear! text :text))
+                (is (= {"Default" {}
+                        "Landscape" {}}
+                       (make-visibly-overridden-layout->node->props scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "button default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "button default"}}}
+                       (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "button default"}}
+                        "Landscape" {}}
+                       (make-built-layout->node->field->value scene)))
+                (is (= {"Default" {"button" {:template "/gui/template_layout/button.gui"}
+                                   "button/text" {:parent "button"}}
+                        "Landscape" {}}
+                       (make-saved-layout->node->field->value scene))))))))
+
+      (let [proj-path "/gui/template_layout/panel_l_button_l.gui"]
+        (testing proj-path
+          (with-open [_ (make-restore-point!)]
+            (let [scene (project/get-resource-node project proj-path)
+                  text (get (scene-gui-node-map scene) "button/text")]
+
+              (testing "Before modifications."
+                (is (= {"Default" {"button/text" #{:node-outline :text}}
+                        "Landscape" {"button/text" #{:node-outline :text}}}
+                       (make-visibly-overridden-layout->node->props scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "panel default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "panel landscape"}}}
+                       (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "panel default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "panel landscape"}}}
+                       (make-built-layout->node->field->value scene)))
+                (is (= {"Default" {"button" {:template "/gui/template_layout/button_l.gui"}
+                                   "button/text" {:parent "button"
+                                                  :text "panel default"}}
+                        "Landscape" {"button/text" {:parent "button"
+                                                    :text "panel landscape"}}}
+                       (make-saved-layout->node->field->value scene))))
+
+              (testing "After clearing Landscape layout override."
+                (with-visible-layout! scene "Landscape"
+                  (test-util/prop-clear! text :text))
+                (is (= {"Default" {"button/text" #{:node-outline :text}}
+                        "Landscape" {}}
+                       (make-visibly-overridden-layout->node->props scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "panel default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "button landscape"}}}
+                       (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "panel default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "button landscape"}}}
+                       (make-built-layout->node->field->value scene)))
+                (is (= {"Default" {"button" {:template "/gui/template_layout/button_l.gui"}
+                                   "button/text" {:parent "button"
+                                                  :text "panel default"}}
+                        "Landscape" {}}
+                       (make-saved-layout->node->field->value scene))))
+
+              (testing "After clearing Landscape and Default layout overrides."
+                (with-visible-layout! scene ""
+                  (test-util/prop-clear! text :text))
+                (is (= {"Default" {}
+                        "Landscape" {}}
+                       (make-visibly-overridden-layout->node->props scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "button default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "button landscape"}}}
+                       (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "button default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "button landscape"}}}
+                       (make-built-layout->node->field->value scene)))
+                (is (= {"Default" {"button" {:template "/gui/template_layout/button_l.gui"}
+                                   "button/text" {:parent "button"}}
+                        "Landscape" {}}
+                       (make-saved-layout->node->field->value scene))))))))
+
+      (let [proj-path "/gui/template_layout/panel_l_button_lp.gui"]
+        (testing proj-path
+          (with-open [_ (make-restore-point!)]
+            (let [scene (project/get-resource-node project proj-path)
+                  text (get (scene-gui-node-map scene) "button/text")]
+
+              (testing "Before modifications."
+                (is (= {"Default" {"button/text" #{:node-outline :text}}
+                        "Landscape" {"button/text" #{:node-outline :text}}}
+                       (make-visibly-overridden-layout->node->props scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "panel default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "panel landscape"}}}
+                       (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "panel default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "panel landscape"}}}
+                       (make-built-layout->node->field->value scene)))
+                (is (= {"Default" {"button" {:template "/gui/template_layout/button_lp.gui"}
+                                   "button/text" {:parent "button"
+                                                  :text "panel default"}}
+                        "Landscape" {"button/text" {:parent "button"
+                                                    :text "panel landscape"}}}
+                       (make-saved-layout->node->field->value scene))))
+
+              (testing "After clearing Landscape layout override."
+                (with-visible-layout! scene "Landscape"
+                  (test-util/prop-clear! text :text))
+                (is (= {"Default" {"button/text" #{:node-outline :text}}
+                        "Landscape" {}}
+                       (make-visibly-overridden-layout->node->props scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "panel default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "button landscape"}}}
+                       (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "panel default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "button landscape"}}}
+                       (make-built-layout->node->field->value scene)))
+                (is (= {"Default" {"button" {:template "/gui/template_layout/button_lp.gui"}
+                                   "button/text" {:parent "button"
+                                                  :text "panel default"}}
+                        "Landscape" {}}
+                       (make-saved-layout->node->field->value scene))))
+
+              (testing "After clearing Landscape and Default layout overrides."
+                (with-visible-layout! scene ""
+                  (test-util/prop-clear! text :text))
+                (is (= {"Default" {}
+                        "Landscape" {}}
+                       (make-visibly-overridden-layout->node->props scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "button default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "button landscape"}}}
+                       (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "button default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "button landscape"}}}
+                       (make-built-layout->node->field->value scene)))
+                (is (= {"Default" {"button" {:template "/gui/template_layout/button_lp.gui"}
+                                   "button/text" {:parent "button"}}
+                        "Landscape" {}}
+                       (make-saved-layout->node->field->value scene))))))))
+
+      (let [proj-path "/gui/template_layout/panel_lp_button.gui"]
+        (testing proj-path
+          (with-open [_ (make-restore-point!)]
+            (let [scene (project/get-resource-node project proj-path)
+                  text (get (scene-gui-node-map scene) "button/text")]
+
+              (testing "Before modifications."
+                (is (= {"Default" {"button/text" #{:node-outline :text}}
+                        "Landscape" {"button/text" #{:node-outline :text}}
+                        "Portrait" {"button/text" #{:node-outline :text}}}
+                       (make-visibly-overridden-layout->node->props scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "panel default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "panel landscape"}}
+                        "Portrait" {"button/text" {:font "font"
+                                                   :text "panel portrait"}}}
+                       (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "panel default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "panel landscape"}}
+                        "Portrait" {"button/text" {:font "font"
+                                                   :text "panel portrait"}}}
+                       (make-built-layout->node->field->value scene)))
+                (is (= {"Default" {"button" {:template "/gui/template_layout/button.gui"}
+                                   "button/text" {:parent "button"
+                                                  :text "panel default"}}
+                        "Landscape" {"button/text" {:parent "button"
+                                                    :text "panel landscape"}}
+                        "Portrait" {"button/text" {:parent "button"
+                                                   :text "panel portrait"}}}
+                       (make-saved-layout->node->field->value scene))))
+
+              (testing "After clearing Landscape layout override."
+                (with-visible-layout! scene "Landscape"
+                  (test-util/prop-clear! text :text))
+                (is (= {"Default" {"button/text" #{:node-outline :text}}
+                        "Landscape" {}
+                        "Portrait" {"button/text" #{:node-outline :text}}}
+                       (make-visibly-overridden-layout->node->props scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "panel default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "panel default"}}
+                        "Portrait" {"button/text" {:font "font"
+                                                   :text "panel portrait"}}}
+                       (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "panel default"}}
+                        "Landscape" {}
+                        "Portrait" {"button/text" {:font "font"
+                                                   :text "panel portrait"}}}
+                       (make-built-layout->node->field->value scene)))
+                (is (= {"Default" {"button" {:template "/gui/template_layout/button.gui"}
+                                   "button/text" {:parent "button"
+                                                  :text "panel default"}}
+                        "Landscape" {}
+                        "Portrait" {"button/text" {:parent "button"
+                                                   :text "panel portrait"}}}
+                       (make-saved-layout->node->field->value scene))))
+
+              (testing "After clearing Landscape and Default layout overrides."
+                (with-visible-layout! scene ""
+                  (test-util/prop-clear! text :text))
+                (is (= {"Default" {}
+                        "Landscape" {}
+                        "Portrait" {"button/text" #{:node-outline :text}}}
+                       (make-visibly-overridden-layout->node->props scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "button default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "button default"}}
+                        "Portrait" {"button/text" {:font "font"
+                                                   :text "panel portrait"}}}
+                       (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "button default"}}
+                        "Landscape" {}
+                        "Portrait" {"button/text" {:font "font"
+                                                   :text "panel portrait"}}}
+                       (make-built-layout->node->field->value scene)))
+                (is (= {"Default" {"button" {:template "/gui/template_layout/button.gui"}
+                                   "button/text" {:parent "button"}}
+                        "Landscape" {}
+                        "Portrait" {"button/text" {:parent "button"
+                                                   :text "panel portrait"}}}
+                       (make-saved-layout->node->field->value scene))))))))
+
+      (let [proj-path "/gui/template_layout/panel_lp_button_l.gui"]
+        (testing proj-path
+          (with-open [_ (make-restore-point!)]
+            (let [scene (project/get-resource-node project proj-path)
+                  text (get (scene-gui-node-map scene) "button/text")]
+
+              (testing "Before modifications."
+                (is (= {"Default" {"button/text" #{:node-outline :text}}
+                        "Landscape" {"button/text" #{:node-outline :text}}
+                        "Portrait" {"button/text" #{:node-outline :text}}}
+                       (make-visibly-overridden-layout->node->props scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "panel default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "panel landscape"}}
+                        "Portrait" {"button/text" {:font "font"
+                                                   :text "panel portrait"}}}
+                       (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "panel default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "panel landscape"}}
+                        "Portrait" {"button/text" {:font "font"
+                                                   :text "panel portrait"}}}
+                       (make-built-layout->node->field->value scene)))
+                (is (= {"Default" {"button" {:template "/gui/template_layout/button_l.gui"}
+                                   "button/text" {:parent "button"
+                                                  :text "panel default"}}
+                        "Landscape" {"button/text" {:parent "button"
+                                                    :text "panel landscape"}}
+                        "Portrait" {"button/text" {:parent "button"
+                                                   :text "panel portrait"}}}
+                       (make-saved-layout->node->field->value scene))))
+
+              (testing "After clearing Landscape layout override."
+                (with-visible-layout! scene "Landscape"
+                  (test-util/prop-clear! text :text))
+                (is (= {"Default" {"button/text" #{:node-outline :text}}
+                        "Landscape" {}
+                        "Portrait" {"button/text" #{:node-outline :text}}}
+                       (make-visibly-overridden-layout->node->props scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "panel default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "button landscape"}}
+                        "Portrait" {"button/text" {:font "font"
+                                                   :text "panel portrait"}}}
+                       (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "panel default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "button landscape"}}
+                        "Portrait" {"button/text" {:font "font"
+                                                   :text "panel portrait"}}}
+                       (make-built-layout->node->field->value scene)))
+                (is (= {"Default" {"button" {:template "/gui/template_layout/button_l.gui"}
+                                   "button/text" {:parent "button"
+                                                  :text "panel default"}}
+                        "Landscape" {}
+                        "Portrait" {"button/text" {:parent "button"
+                                                   :text "panel portrait"}}}
+                       (make-saved-layout->node->field->value scene))))
+
+              (testing "After clearing Landscape and Default layout overrides."
+                (with-visible-layout! scene ""
+                  (test-util/prop-clear! text :text))
+                (is (= {"Default" {}
+                        "Landscape" {}
+                        "Portrait" {"button/text" #{:node-outline :text}}}
+                       (make-visibly-overridden-layout->node->props scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "button default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "button landscape"}}
+                        "Portrait" {"button/text" {:font "font"
+                                                   :text "panel portrait"}}}
+                       (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "button default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "button landscape"}}
+                        "Portrait" {"button/text" {:font "font"
+                                                   :text "panel portrait"}}}
+                       (make-built-layout->node->field->value scene)))
+                (is (= {"Default" {"button" {:template "/gui/template_layout/button_l.gui"}
+                                   "button/text" {:parent "button"}}
+                        "Landscape" {}
+                        "Portrait" {"button/text" {:parent "button"
+                                                   :text "panel portrait"}}}
+                       (make-saved-layout->node->field->value scene))))))))
+
+      (let [proj-path "/gui/template_layout/panel_lp_button_lp.gui"]
+        (testing proj-path
+          (with-open [_ (make-restore-point!)]
+            (let [scene (project/get-resource-node project proj-path)
+                  text (get (scene-gui-node-map scene) "button/text")]
+
+              (testing "Before modifications."
+                (is (= {"Default" {"button/text" #{:node-outline :text}}
+                        "Landscape" {"button/text" #{:node-outline :text}}
+                        "Portrait" {"button/text" #{:node-outline :text}}}
+                       (make-visibly-overridden-layout->node->props scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "panel default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "panel landscape"}}
+                        "Portrait" {"button/text" {:font "font"
+                                                   :text "panel portrait"}}}
+                       (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "panel default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "panel landscape"}}
+                        "Portrait" {"button/text" {:font "font"
+                                                   :text "panel portrait"}}}
+                       (make-built-layout->node->field->value scene)))
+                (is (= {"Default" {"button" {:template "/gui/template_layout/button_lp.gui"}
+                                   "button/text" {:parent "button"
+                                                  :text "panel default"}}
+                        "Landscape" {"button/text" {:parent "button"
+                                                    :text "panel landscape"}}
+                        "Portrait" {"button/text" {:parent "button"
+                                                   :text "panel portrait"}}}
+                       (make-saved-layout->node->field->value scene))))
+
+              (testing "After clearing Landscape layout override."
+                (with-visible-layout! scene "Landscape"
+                  (test-util/prop-clear! text :text))
+                (is (= {"Default" {"button/text" #{:node-outline :text}}
+                        "Landscape" {}
+                        "Portrait" {"button/text" #{:node-outline :text}}}
+                       (make-visibly-overridden-layout->node->props scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "panel default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "button landscape"}}
+                        "Portrait" {"button/text" {:font "font"
+                                                   :text "panel portrait"}}}
+                       (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "panel default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "button landscape"}}
+                        "Portrait" {"button/text" {:font "font"
+                                                   :text "panel portrait"}}}
+                       (make-built-layout->node->field->value scene)))
+                (is (= {"Default" {"button" {:template "/gui/template_layout/button_lp.gui"}
+                                   "button/text" {:parent "button"
+                                                  :text "panel default"}}
+                        "Landscape" {}
+                        "Portrait" {"button/text" {:parent "button"
+                                                   :text "panel portrait"}}}
+                       (make-saved-layout->node->field->value scene))))
+
+              (testing "After clearing Landscape and Default layout overrides."
+                (with-visible-layout! scene ""
+                  (test-util/prop-clear! text :text))
+                (is (= {"Default" {}
+                        "Landscape" {}
+                        "Portrait" {"button/text" #{:node-outline :text}}}
+                       (make-visibly-overridden-layout->node->props scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "button default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "button landscape"}}
+                        "Portrait" {"button/text" {:font "font"
+                                                   :text "panel portrait"}}}
+                       (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "button default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "button landscape"}}
+                        "Portrait" {"button/text" {:font "font"
+                                                   :text "panel portrait"}}}
+                       (make-built-layout->node->field->value scene)))
+                (is (= {"Default" {"button" {:template "/gui/template_layout/button_lp.gui"}
+                                   "button/text" {:parent "button"}}
+                        "Landscape" {}
+                        "Portrait" {"button/text" {:parent "button"
+                                                   :text "panel portrait"}}}
+                       (make-saved-layout->node->field->value scene)))))))))))
+
+(deftest template-layout-add-referenced-layout-to-referencing-scene-test
+  (test-util/with-loaded-project "test/resources/gui_project"
+    (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))]
+      (with-open [_ (make-restore-point!)]
+        (let [referencing-scene (project/get-resource-node project "/gui/template_layout/panel_button.gui")
+              referenced-scene (project/get-resource-node project "/gui/template_layout/button.gui")
+              referenced-scene-text (get (scene-gui-node-map referenced-scene) "text")]
+
+          ;; Add the Landscape layout to the referenced scene.
+          (add-layout! project app-view referenced-scene "Landscape")
+
+          (testing "After adding Landscape layout to the referenced scene, but not yet to the referencing scene."
+            (testing "Referenced scene."
+              (is (= {"Default" {}
+                      "Landscape" {}}
+                     (make-visibly-overridden-layout->node->props referenced-scene)))
+              (is (= {"Default" {"text" {:font "font"
+                                         :text "button default"}}
+                      "Landscape" {"text" {:font "font"
+                                           :text "button default"}}}
+                     (make-displayed-layout->node->prop->value referenced-scene)))
+              (is (= {"Default" {"text" {:font "font"
+                                         :text "button default"}}
+                      "Landscape" {}}
+                     (make-built-layout->node->field->value referenced-scene)))
+              (is (= {"Default" {"text" {:font "font"
+                                         :text "button default"}}
+                      "Landscape" {}}
+                     (make-saved-layout->node->field->value referenced-scene))))
+
+            (testing "Referencing scene."
+              (is (= {"Default" {"button/text" #{:node-outline :text}}}
+                     (make-visibly-overridden-layout->node->props referencing-scene)))
+              (is (= {"Default" {"button/text" {:font "font"
+                                                :text "panel default"}}}
+                     (make-displayed-layout->node->prop->value referencing-scene)))
+              (is (= {"Default" {"button/text" {:font "font"
+                                                :text "panel default"}}}
+                     (make-built-layout->node->field->value referencing-scene)))
+              (is (= {"Default" {"button" {:template "/gui/template_layout/button.gui"}
+                                 "button/text" {:parent "button"
+                                                :text "panel default"}}}
+                     (make-saved-layout->node->field->value referencing-scene)))))
+
+          ;; Add the Landscape layout to the referencing scene as well. Before,
+          ;; it was only present in the referenced scene.
+          (add-layout! project app-view referencing-scene "Landscape")
+
+          (testing "After adding Landscape layout to the referencing scene, and now to the referenced scene as well."
+            (testing "Referenced scene."
+              (is (= {"Default" {}
+                      "Landscape" {}}
+                     (make-visibly-overridden-layout->node->props referenced-scene)))
+              (is (= {"Default" {"text" {:font "font"
+                                         :text "button default"}}
+                      "Landscape" {"text" {:font "font"
+                                           :text "button default"}}}
+                     (make-displayed-layout->node->prop->value referenced-scene)))
+              (is (= {"Default" {"text" {:font "font"
+                                         :text "button default"}}
+                      "Landscape" {}}
+                     (make-built-layout->node->field->value referenced-scene)))
+              (is (= {"Default" {"text" {:font "font"
+                                         :text "button default"}}
+                      "Landscape" {}}
+                     (make-saved-layout->node->field->value referenced-scene))))
+
+            (testing "Referencing scene."
+              (is (= {"Default" {"button/text" #{:node-outline :text}}
+                      "Landscape" {}}
+                     (make-visibly-overridden-layout->node->props referencing-scene)))
+              (is (= {"Default" {"button/text" {:font "font"
+                                                :text "panel default"}}
+                      "Landscape" {"button/text" {:font "font"
+                                                  :text "button default"}}}
+                     (make-displayed-layout->node->prop->value referencing-scene)))
+              (is (= {"Default" {"button/text" {:font "font"
+                                                :text "panel default"}}
+                      "Landscape" {"button/text" {:font "font"
+                                                  :text "button default"}}}
+                     (make-built-layout->node->field->value referencing-scene)))
+              (is (= {"Default" {"button" {:template "/gui/template_layout/button.gui"}
+                                 "button/text" {:parent "button"
+                                                :text "panel default"}}
+                      "Landscape" {}}
+                     (make-saved-layout->node->field->value referencing-scene)))))
+
+          ;; Override the text property for the Landscape layout in the referenced scene.
+          (with-visible-layout! referenced-scene "Landscape"
+            (test-util/prop! referenced-scene-text :text "button landscape"))
+
+          (testing "After overriding the text property for the Landscape layout in the referenced scene."
+            (testing "Referenced scene."
+              (is (= {"Default" {}
+                      "Landscape" {"text" #{:node-outline :text}}}
+                     (make-visibly-overridden-layout->node->props referenced-scene)))
+              (is (= {"Default" {"text" {:font "font"
+                                         :text "button default"}}
+                      "Landscape" {"text" {:font "font"
+                                           :text "button landscape"}}}
+                     (make-displayed-layout->node->prop->value referenced-scene)))
+              (is (= {"Default" {"text" {:font "font"
+                                         :text "button default"}}
+                      "Landscape" {"text" {:font "font"
+                                           :text "button landscape"}}}
+                     (make-built-layout->node->field->value referenced-scene)))
+              (is (= {"Default" {"text" {:font "font"
+                                         :text "button default"}}
+                      "Landscape" {"text" {:text "button landscape"}}}
+                     (make-saved-layout->node->field->value referenced-scene))))
+
+            (testing "Referencing scene."
+              (is (= {"Default" {"button/text" #{:node-outline :text}}
+                      "Landscape" {}}
+                     (make-visibly-overridden-layout->node->props referencing-scene)))
+              (is (= {"Default" {"button/text" {:font "font"
+                                                :text "panel default"}}
+                      "Landscape" {"button/text" {:font "font"
+                                                  :text "button landscape"}}}
+                     (make-displayed-layout->node->prop->value referencing-scene)))
+              (is (= {"Default" {"button/text" {:font "font"
+                                                :text "panel default"}}
+                      "Landscape" {"button/text" {:font "font"
+                                                  :text "button landscape"}}}
+                     (make-built-layout->node->field->value referencing-scene)))
+              (is (= {"Default" {"button" {:template "/gui/template_layout/button.gui"}
+                                 "button/text" {:parent "button"
+                                                :text "panel default"}}
+                      "Landscape" {}}
+                     (make-saved-layout->node->field->value referencing-scene))))))))))
+
+(deftest template-layout-add-referencing-layout-to-referenced-scene-test
+  (test-util/with-loaded-project "test/resources/gui_project"
+    (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))]
+      (with-open [_ (make-restore-point!)]
+        (let [referencing-scene (project/get-resource-node project "/gui/template_layout/panel_button.gui")
+              referenced-scene (project/get-resource-node project "/gui/template_layout/button.gui")
+              referenced-scene-text (get (scene-gui-node-map referenced-scene) "text")]
+
+          ;; Add the Landscape layout to the referencing scene.
+          (add-layout! project app-view referencing-scene "Landscape")
+
+          (testing "After adding Landscape layout to the referencing scene, but not yet to the referenced scene."
+            (testing "Referenced scene."
+              (is (= {"Default" {}}
+                     (make-visibly-overridden-layout->node->props referenced-scene)))
+              (is (= {"Default" {"text" {:font "font"
+                                         :text "button default"}}}
+                     (make-displayed-layout->node->prop->value referenced-scene)))
+              (is (= {"Default" {"text" {:font "font"
+                                         :text "button default"}}}
+                     (make-built-layout->node->field->value referenced-scene)))
+              (is (= {"Default" {"text" {:font "font"
+                                         :text "button default"}}}
+                     (make-saved-layout->node->field->value referenced-scene))))
+
+            (testing "Referencing scene."
+              (is (= {"Default" {"button/text" #{:node-outline :text}}
+                      "Landscape" {}}
+                     (make-visibly-overridden-layout->node->props referencing-scene)))
+              (is (= {"Default" {"button/text" {:font "font"
+                                                :text "panel default"}}
+                      "Landscape" {"button/text" {:font "font"
+                                                  :text "panel default"}}}
+                     (make-displayed-layout->node->prop->value referencing-scene)))
+              (is (= {"Default" {"button/text" {:font "font"
+                                                :text "panel default"}}
+                      "Landscape" {}}
+                     (make-built-layout->node->field->value referencing-scene)))
+              (is (= {"Default" {"button" {:template "/gui/template_layout/button.gui"}
+                                 "button/text" {:parent "button"
+                                                :text "panel default"}}
+                      "Landscape" {}}
+                     (make-saved-layout->node->field->value referencing-scene)))))
+
+          ;; Add the Landscape layout to the referenced scene as well. Before,
+          ;; it was only present in the referencing scene.
+          (add-layout! project app-view referenced-scene "Landscape")
+
+          (testing "After adding Landscape layout to the referencing scene, and now to the referenced scene as well."
+            (testing "Referenced scene."
+              (is (= {"Default" {}
+                      "Landscape" {}}
+                     (make-visibly-overridden-layout->node->props referenced-scene)))
+              (is (= {"Default" {"text" {:font "font"
+                                         :text "button default"}}
+                      "Landscape" {"text" {:font "font"
+                                           :text "button default"}}}
+                     (make-displayed-layout->node->prop->value referenced-scene)))
+              (is (= {"Default" {"text" {:font "font"
+                                         :text "button default"}}
+                      "Landscape" {}}
+                     (make-built-layout->node->field->value referenced-scene)))
+              (is (= {"Default" {"text" {:font "font"
+                                         :text "button default"}}
+                      "Landscape" {}}
+                     (make-saved-layout->node->field->value referenced-scene))))
+
+            (testing "Referencing scene."
+              (is (= {"Default" {"button/text" #{:node-outline :text}}
+                      "Landscape" {}}
+                     (make-visibly-overridden-layout->node->props referencing-scene)))
+              (is (= {"Default" {"button/text" {:font "font"
+                                                :text "panel default"}}
+                      "Landscape" {"button/text" {:font "font"
+                                                  :text "button default"}}}
+                     (make-displayed-layout->node->prop->value referencing-scene)))
+              (is (= {"Default" {"button/text" {:font "font"
+                                                :text "panel default"}}
+                      "Landscape" {"button/text" {:font "font"
+                                                  :text "button default"}}}
+                     (make-built-layout->node->field->value referencing-scene)))
+              (is (= {"Default" {"button" {:template "/gui/template_layout/button.gui"}
+                                 "button/text" {:parent "button"
+                                                :text "panel default"}}
+                      "Landscape" {}}
+                     (make-saved-layout->node->field->value referencing-scene)))))
+
+          ;; Override the text property for the Landscape layout in the referenced scene.
+          (with-visible-layout! referenced-scene "Landscape"
+            (test-util/prop! referenced-scene-text :text "button landscape"))
+
+          (testing "After overriding the text property for the Landscape layout in the referenced scene."
+            (testing "Referenced scene."
+              (is (= {"Default" {}
+                      "Landscape" {"text" #{:node-outline :text}}}
+                     (make-visibly-overridden-layout->node->props referenced-scene)))
+              (is (= {"Default" {"text" {:font "font"
+                                         :text "button default"}}
+                      "Landscape" {"text" {:font "font"
+                                           :text "button landscape"}}}
+                     (make-displayed-layout->node->prop->value referenced-scene)))
+              (is (= {"Default" {"text" {:font "font"
+                                         :text "button default"}}
+                      "Landscape" {"text" {:font "font"
+                                           :text "button landscape"}}}
+                     (make-built-layout->node->field->value referenced-scene)))
+              (is (= {"Default" {"text" {:font "font"
+                                         :text "button default"}}
+                      "Landscape" {"text" {:text "button landscape"}}}
+                     (make-saved-layout->node->field->value referenced-scene))))
+
+            (testing "Referencing scene."
+              (is (= {"Default" {"button/text" #{:node-outline :text}}
+                      "Landscape" {}}
+                     (make-visibly-overridden-layout->node->props referencing-scene)))
+              (is (= {"Default" {"button/text" {:font "font"
+                                                :text "panel default"}}
+                      "Landscape" {"button/text" {:font "font"
+                                                  :text "button landscape"}}}
+                     (make-displayed-layout->node->prop->value referencing-scene)))
+              (is (= {"Default" {"button/text" {:font "font"
+                                                :text "panel default"}}
+                      "Landscape" {"button/text" {:font "font"
+                                                  :text "button landscape"}}}
+                     (make-built-layout->node->field->value referencing-scene)))
+              (is (= {"Default" {"button" {:template "/gui/template_layout/button.gui"}
+                                 "button/text" {:parent "button"
+                                                :text "panel default"}}
+                      "Landscape" {}}
+                     (make-saved-layout->node->field->value referencing-scene)))))
+
+          ;; Add a new node to the referenced scene.
+          (let [referenced-scene-node-tree (g/node-value referenced-scene :node-tree)
+                added-text-props {:id "added" :font "font" :text "button default"}]
+            (gui/add-gui-node-with-props! referenced-scene referenced-scene-node-tree :type-text 0 added-text-props nil))
+
+          (testing "After adding a new text node to the referenced scene."
+            (testing "Referenced scene."
+              (is (= {"Default" {}
+                      "Landscape" {"text" #{:node-outline :text}}}
+                     (make-visibly-overridden-layout->node->props referenced-scene)))
+              (is (= {"Default" {"added" {:font "font"
+                                          :text "button default"}
+                                 "text" {:font "font"
+                                         :text "button default"}}
+                      "Landscape" {"added" {:font "font"
+                                            :text "button default"}
+                                   "text" {:font "font"
+                                           :text "button landscape"}}}
+                     (make-displayed-layout->node->prop->value referenced-scene)))
+              (is (= {"Default" {"added" {:font "font"
+                                          :text "button default"}
+                                 "text" {:font "font"
+                                         :text "button default"}}
+                      "Landscape" {"text" {:font "font"
+                                           :text "button landscape"}}}
+                     (make-built-layout->node->field->value referenced-scene)))
+              (is (= {"Default" {"added" {:font "font"
+                                          :text "button default"}
+                                 "text" {:font "font"
+                                         :text "button default"}}
+                      "Landscape" {"text" {:text "button landscape"}}}
+                     (make-saved-layout->node->field->value referenced-scene))))
+
+            (testing "Referencing scene."
+              (is (= {"Default" {"button/text" #{:node-outline :text}}
+                      "Landscape" {}}
+                     (make-visibly-overridden-layout->node->props referencing-scene)))
+              (is (= {"Default" {"button/added" {:font "font"
+                                                 :text "button default"}
+                                 "button/text" {:font "font"
+                                                :text "panel default"}}
+                      "Landscape" {"button/added" {:font "font"
+                                                   :text "button default"}
+                                   "button/text" {:font "font"
+                                                  :text "button landscape"}}}
+                     (make-displayed-layout->node->prop->value referencing-scene)))
+              (is (= {"Default" {"button/added" {:font "font"
+                                                 :text "button default"}
+                                 "button/text" {:font "font"
+                                                :text "panel default"}}
+                      "Landscape" {"button/text" {:font "font"
+                                                  :text "button landscape"}}}
+                     (make-built-layout->node->field->value referencing-scene)))
+              (is (= {"Default" {"button" {:template "/gui/template_layout/button.gui"}
+                                 "button/added" {:parent "button"}
+                                 "button/text" {:parent "button"
+                                                :text "panel default"}}
+                      "Landscape" {}}
+                     (make-saved-layout->node->field->value referencing-scene)))))
+
+          (let [referenced-scene-added-text (get (scene-gui-node-map referenced-scene) "added")
+                referencing-scene-added-text (get (scene-gui-node-map referencing-scene) "button/added")]
+
+            (testing "Before: Layout overrides are not present in either node (sanity check)."
+              (is (= {} (g/node-value referenced-scene-added-text :layout->prop->override)))
+              (is (= {} (g/node-value referencing-scene-added-text :layout->prop->override))))
+
+            ;; Override the text property on the added node for the Landscape layout in the referenced scene.
+            (with-visible-layout! referenced-scene "Landscape"
+              (test-util/prop! referenced-scene-added-text :text "button landscape"))
+
+            (testing "After: Layout override is present only in referenced scene node (sanity check)."
+              (is (= {"Landscape" {:text "button landscape"}} (g/node-value referenced-scene-added-text :layout->prop->override)))
+              (is (= {} (g/node-value referencing-scene-added-text :layout->prop->override)))))
+
+          (testing "After overriding the text property for the Landscape layout in the referenced scene."
+            (testing "Referenced scene."
+              (is (= {"Default" {}
+                      "Landscape" {"added" #{:node-outline :text}
+                                   "text" #{:node-outline :text}}}
+                     (make-visibly-overridden-layout->node->props referenced-scene)))
+              (is (= {"Default" {"added" {:font "font"
+                                          :text "button default"}
+                                 "text" {:font "font"
+                                         :text "button default"}}
+                      "Landscape" {"added" {:font "font"
+                                            :text "button landscape"}
+                                   "text" {:font "font"
+                                           :text "button landscape"}}}
+                     (make-displayed-layout->node->prop->value referenced-scene)))
+              (is (= {"Default" {"added" {:font "font"
+                                          :text "button default"}
+                                 "text" {:font "font"
+                                         :text "button default"}}
+                      "Landscape" {"added" {:font "font"
+                                            :text "button landscape"}
+                                   "text" {:font "font"
+                                           :text "button landscape"}}}
+                     (make-built-layout->node->field->value referenced-scene)))
+              (is (= {"Default" {"added" {:font "font"
+                                          :text "button default"}
+                                 "text" {:font "font"
+                                         :text "button default"}}
+                      "Landscape" {"added" {:text "button landscape"}
+                                   "text" {:text "button landscape"}}}
+                     (make-saved-layout->node->field->value referenced-scene))))
+
+            (testing "Referencing scene."
+              (is (= {"Default" {"button/text" #{:node-outline :text}}
+                      "Landscape" {}}
+                     (make-visibly-overridden-layout->node->props referencing-scene)))
+              (is (= {"Default" {"button/added" {:font "font"
+                                                 :text "button default"}
+                                 "button/text" {:font "font"
+                                                :text "panel default"}}
+                      "Landscape" {"button/added" {:font "font"
+                                                   :text "button landscape"}
+                                   "button/text" {:font "font"
+                                                  :text "button landscape"}}}
+                     (make-displayed-layout->node->prop->value referencing-scene)))
+              (is (= {"Default" {"button/added" {:font "font"
+                                                 :text "button default"}
+                                 "button/text" {:font "font"
+                                                :text "panel default"}}
+                      "Landscape" {"button/added" {:font "font"
+                                                   :text "button landscape"}
+                                   "button/text" {:font "font"
+                                                  :text "button landscape"}}}
+                     (make-built-layout->node->field->value referencing-scene)))
+              (is (= {"Default" {"button" {:template "/gui/template_layout/button.gui"}
+                                 "button/added" {:parent "button"}
+                                 "button/text" {:parent "button"
+                                                :text "panel default"}}
+                      "Landscape" {}}
+                     (make-saved-layout->node->field->value referencing-scene))))))))))
+
+(deftest template-layout-remove-gui-node-from-referenced-scene-test
+  (test-util/with-loaded-project "test/resources/gui_project"
+    (let [referencing-scene (project/get-resource-node project "/gui/template_layout/panel_l_button_l.gui")
+          referenced-scene (project/get-resource-node project "/gui/template_layout/button_l.gui")
+          referenced-scene-text (get (scene-gui-node-map referenced-scene) "text")]
+
+      ;; Delete the text node from the referenced scene.
+      (g/delete-node! referenced-scene-text)
+
+      (testing "After deleting the text node from the referenced scene."
+        (testing "Referenced scene."
+          (is (= {"Default" {}
+                  "Landscape" {}}
+                 (make-visibly-overridden-layout->node->props referenced-scene)))
+          (is (= {"Default" {}
+                  "Landscape" {}}
+                 (make-displayed-layout->node->prop->value referenced-scene)))
+          (is (= {"Default" {}
+                  "Landscape" {}}
+                 (make-built-layout->node->field->value referenced-scene)))
+          (is (= {"Default" {}
+                  "Landscape" {}}
+                 (make-saved-layout->node->field->value referenced-scene))))
+
+        (testing "Referencing scene."
+          (is (= {"Default" {}
+                  "Landscape" {}}
+                 (make-visibly-overridden-layout->node->props referencing-scene)))
+          (is (= {"Default" {}
+                  "Landscape" {}}
+                 (make-displayed-layout->node->prop->value referencing-scene)))
+          (is (= {"Default" {}
+                  "Landscape" {}}
+                 (make-built-layout->node->field->value referencing-scene)))
+          (is (= {"Default" {"button" {:template "/gui/template_layout/button_l.gui"}}
+                  "Landscape" {}}
+                 (make-saved-layout->node->field->value referencing-scene))))))))
+
+(deftest template-layout-add-gui-node-to-referenced-scene-test
+  (test-util/with-loaded-project "test/resources/gui_project"
+    (let [referencing-scene (project/get-resource-node project "/gui/template_layout/panel_l_button_l.gui")
+          referenced-scene (project/get-resource-node project "/gui/template_layout/button_l.gui")
+          referenced-scene-text (get (scene-gui-node-map referenced-scene) "text")
+          referenced-scene-node-tree (g/node-value referenced-scene :node-tree)
+          added-text-props {:id "added" :font "font" :text "button default"}
+          referenced-scene-added-text (gui/add-gui-node-with-props! referenced-scene referenced-scene-node-tree :type-text 0 added-text-props nil)
+          referencing-scene-added-text (get (scene-gui-node-map referencing-scene) "button/added")]
+
+      ;; Delete the original text node from the referenced scene in order to
+      ;; keep the test data simple.
+      (g/delete-node! referenced-scene-text)
+
+      (testing "After adding a new text node to the referenced scene."
+        (testing "Referenced scene."
+          (is (= {"Default" {}
+                  "Landscape" {}}
+                 (make-visibly-overridden-layout->node->props referenced-scene)))
+          (is (= {"Default" {"added" {:font "font"
+                                      :text "button default"}}
+                  "Landscape" {"added" {:font "font"
+                                        :text "button default"}}}
+                 (make-displayed-layout->node->prop->value referenced-scene)))
+          (is (= {"Default" {"added" {:font "font"
+                                      :text "button default"}}
+                  "Landscape" {}}
+                 (make-built-layout->node->field->value referenced-scene)))
+          (is (= {"Default" {"added" {:font "font"
+                                      :text "button default"}}
+                  "Landscape" {}}
+                 (make-saved-layout->node->field->value referenced-scene))))
+
+        (testing "Referencing scene."
+          (is (= {"Default" {}
+                  "Landscape" {}}
+                 (make-visibly-overridden-layout->node->props referencing-scene)))
+          (is (= {"Default" {"button/added" {:font "font"
+                                             :text "button default"}}
+                  "Landscape" {"button/added" {:font "font"
+                                               :text "button default"}}}
+                 (make-displayed-layout->node->prop->value referencing-scene)))
+          (is (= {"Default" {"button/added" {:font "font"
+                                             :text "button default"}}
+                  "Landscape" {}}
+                 (make-built-layout->node->field->value referencing-scene)))
+          (is (= {"Default" {"button" {:template "/gui/template_layout/button_l.gui"}
+                             "button/added" {:parent "button"}}
+                  "Landscape" {}}
+                 (make-saved-layout->node->field->value referencing-scene)))))
+
+      (testing "Before: Layout overrides are not present in either node (sanity check)."
+        (is (= {} (g/node-value referenced-scene-added-text :layout->prop->override)))
+        (is (= {} (g/node-value referencing-scene-added-text :layout->prop->override))))
+
+      ;; Override the text property for the Landscape layout in the referenced scene.
+      (with-visible-layout! referenced-scene "Landscape"
+        (test-util/prop! referenced-scene-added-text :text "button landscape"))
+
+      (testing "After: Layout override is present only in referenced scene node (sanity check)."
+        (is (= {"Landscape" {:text "button landscape"}} (g/node-value referenced-scene-added-text :layout->prop->override)))
+        (is (= {} (g/node-value referencing-scene-added-text :layout->prop->override))))
+
+      (testing "After overriding the text property for the Landscape layout in the referenced scene."
+        (testing "Referenced scene."
+          (is (= {"Default" {}
+                  "Landscape" {"added" #{:node-outline :text}}}
+                 (make-visibly-overridden-layout->node->props referenced-scene)))
+          (is (= {"Default" {"added" {:font "font"
+                                      :text "button default"}}
+                  "Landscape" {"added" {:font "font"
+                                        :text "button landscape"}}}
+                 (make-displayed-layout->node->prop->value referenced-scene)))
+          (is (= {"Default" {"added" {:font "font"
+                                      :text "button default"}}
+                  "Landscape" {"added" {:font "font"
+                                        :text "button landscape"}}}
+                 (make-built-layout->node->field->value referenced-scene)))
+          (is (= {"Default" {"added" {:font "font"
+                                      :text "button default"}}
+                  "Landscape" {"added" {:text "button landscape"}}}
+                 (make-saved-layout->node->field->value referenced-scene))))
+
+        (testing "Referencing scene."
+          (is (= {"Default" {}
+                  "Landscape" {}}
+                 (make-visibly-overridden-layout->node->props referencing-scene)))
+          (is (= {"Default" {"button/added" {:font "font"
+                                             :text "button default"}}
+                  "Landscape" {"button/added" {:font "font"
+                                               :text "button landscape"}}}
+                 (make-displayed-layout->node->prop->value referencing-scene)))
+          (is (= {"Default" {"button/added" {:font "font"
+                                             :text "button default"}}
+                  "Landscape" {"button/added" {:font "font"
+                                               :text "button landscape"}}}
+                 (make-built-layout->node->field->value referencing-scene)))
+          (is (= {"Default" {"button" {:template "/gui/template_layout/button_l.gui"}
+                             "button/added" {:parent "button"}}
+                  "Landscape" {}}
+                 (make-saved-layout->node->field->value referencing-scene))))))))
+
+(deftest template-layout-resource-rename-test
+  (test-util/with-loaded-project "test/resources/gui_project"
+    (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))]
+      (let [referencing-scene (project/get-resource-node project "/gui/resources/panel.gui")
+            referenced-scene (project/get-resource-node project "/gui/resources/button.gui")
+
+            make-layout->node->resource-field-values
+            (fn make-layout->node->resource-field-values [gui-scene-node-id]
+              (let [scene-desc (g/valid-node-value gui-scene-node-id :save-value)]
+                (make-layout->node->field->value
+                  scene-desc
+                  (fn node-desc-fn [node-desc _is-override-node-desc]
+                    (-> node-desc
+                        (select-keys [:font :layer :material :particlefx :spine-scene :texture])
+                        (coll/not-empty))))))]
+
+        (testing "Before renaming resources."
+          (testing "Referenced scene."
+            (is (= {"Default" {"box" {:layer "button_layer"
+                                      :material "button_material"
+                                      :texture "button_texture/button_striped"}
+                               "particlefx" {:layer "button_layer"
+                                             :material "button_material"
+                                             :particlefx "button_particlefx"}
+                               "pie" {:layer "button_layer"
+                                      :material "button_material"
+                                      :texture "button_texture/button_striped"}
+                               "spine" {:layer "button_layer"
+                                        :material "button_material"
+                                        :spine-scene "button_spinescene"}
+                               "text" {:font "button_font"
+                                       :layer "button_layer"
+                                       :material "button_material"}}
+                    "Landscape" {"box" {:layer "button_layer"
+                                        :material "button_material"
+                                        :texture "button_texture/button_striped"}
+                                 "particlefx" {:layer "button_layer"
+                                               :material "button_material"
+                                               :particlefx "button_particlefx"}
+                                 "pie" {:layer "button_layer"
+                                        :material "button_material"
+                                        :texture "button_texture/button_striped"}
+                                 "spine" {:layer "button_layer"
+                                          :material "button_material"
+                                          :spine-scene "button_spinescene"}
+                                 "text" {:font "button_font"
+                                         :layer "button_layer"
+                                         :material "button_material"}}}
+                   (make-layout->node->resource-field-values referenced-scene))))
+
+          (testing "Referencing scene."
+            (is (= {"Default" {"button_resources" {:layer "button_layer"}
+                               "button_resources/box" {:layer "button_layer"
+                                                       :material "button_material"
+                                                       :texture "button_texture/button_striped"}
+                               "button_resources/particlefx" {:layer "button_layer"
+                                                              :material "button_material"
+                                                              :particlefx "button_particlefx"}
+                               "button_resources/pie" {:layer "button_layer"
+                                                       :material "button_material"
+                                                       :texture "button_texture/button_striped"}
+                               "button_resources/spine" {:layer "button_layer"
+                                                         :material "button_material"
+                                                         :spine-scene "button_spinescene"}
+                               "button_resources/text" {:font "button_font"
+                                                        :layer "button_layer"
+                                                        :material "button_material"}
+                               "panel_resources" {:layer "panel_layer"}
+                               "panel_resources/box" {:layer "panel_layer"
+                                                      :material "panel_material"
+                                                      :texture "panel_texture/button_striped"}
+                               "panel_resources/particlefx" {:layer "panel_layer"
+                                                             :material "panel_material"
+                                                             :particlefx "panel_particlefx"}
+                               "panel_resources/pie" {:layer "panel_layer"
+                                                      :material "panel_material"
+                                                      :texture "panel_texture/button_striped"}
+                               "panel_resources/spine" {:layer "panel_layer"
+                                                        :material "panel_material"
+                                                        :spine-scene "panel_spinescene"}
+                               "panel_resources/text" {:font "panel_font"
+                                                       :layer "panel_layer"
+                                                       :material "panel_material"}}
+                    "Landscape" {"button_resources/box" {:layer "button_layer"
+                                                         :material "button_material"
+                                                         :texture "button_texture/button_striped"}
+                                 "button_resources/particlefx" {:layer "button_layer"
+                                                                :material "button_material"
+                                                                :particlefx "button_particlefx"}
+                                 "button_resources/pie" {:layer "button_layer"
+                                                         :material "button_material"
+                                                         :texture "button_texture/button_striped"}
+                                 "button_resources/spine" {:layer "button_layer"
+                                                           :material "button_material"
+                                                           :spine-scene "button_spinescene"}
+                                 "button_resources/text" {:font "button_font"
+                                                          :layer "button_layer"
+                                                          :material "button_material"}
+                                 "panel_resources/box" {:layer "panel_layer"
+                                                        :material "panel_material"
+                                                        :texture "panel_texture/button_striped"}
+                                 "panel_resources/particlefx" {:layer "panel_layer"
+                                                               :material "panel_material"
+                                                               :particlefx "panel_particlefx"}
+                                 "panel_resources/pie" {:layer "panel_layer"
+                                                        :material "panel_material"
+                                                        :texture "panel_texture/button_striped"}
+                                 "panel_resources/spine" {:layer "panel_layer"
+                                                          :material "panel_material"
+                                                          :spine-scene "panel_spinescene"}
+                                 "panel_resources/text" {:font "panel_font"
+                                                         :layer "panel_layer"
+                                                         :material "panel_material"}}}
+                   (make-layout->node->resource-field-values referencing-scene)))))
+
+        (testing "After renaming resources in the referenced scene."
+          (with-open [_ (make-restore-point!)]
+
+            ;; Rename all resources in the referenced scene.
+            (let [button-font (gui-font referenced-scene "button_font")
+                  button-layer (gui-layer referenced-scene "button_layer")
+                  button-material (gui-material referenced-scene "button_material")
+                  button-particlefx (gui-particlefx-resource referenced-scene "button_particlefx")
+                  button-spinescene (gui-spine-scene referenced-scene "button_spinescene")
+                  button-texture (gui-texture referenced-scene "button_texture")]
+              (test-util/prop! button-font :name "button_font_renamed")
+              (test-util/prop! button-layer :name "button_layer_renamed")
+              (test-util/prop! button-material :name "button_material_renamed")
+              (test-util/prop! button-particlefx :name "button_particlefx_renamed")
+              (test-util/prop! button-spinescene :name "button_spinescene_renamed")
+              (test-util/prop! button-texture :name "button_texture_renamed"))
+
+            (testing "Referenced scene."
+              (is (= {"Default" {"box" {:layer "button_layer_renamed"
+                                        :material "button_material_renamed"
+                                        :texture "button_texture_renamed/button_striped"}
+                                 "particlefx" {:layer "button_layer_renamed"
+                                               :material "button_material_renamed"
+                                               :particlefx "button_particlefx_renamed"}
+                                 "pie" {:layer "button_layer_renamed"
+                                        :material "button_material_renamed"
+                                        :texture "button_texture_renamed/button_striped"}
+                                 "spine" {:layer "button_layer_renamed"
+                                          :material "button_material_renamed"
+                                          :spine-scene "button_spinescene_renamed"}
+                                 "text" {:font "button_font_renamed"
+                                         :layer "button_layer_renamed"
+                                         :material "button_material_renamed"}}
+                      "Landscape" {"box" {:layer "button_layer_renamed"
+                                          :material "button_material_renamed"
+                                          :texture "button_texture_renamed/button_striped"}
+                                   "particlefx" {:layer "button_layer_renamed"
+                                                 :material "button_material_renamed"
+                                                 :particlefx "button_particlefx_renamed"}
+                                   "pie" {:layer "button_layer_renamed"
+                                          :material "button_material_renamed"
+                                          :texture "button_texture_renamed/button_striped"}
+                                   "spine" {:layer "button_layer_renamed"
+                                            :material "button_material_renamed"
+                                            :spine-scene "button_spinescene_renamed"}
+                                   "text" {:font "button_font_renamed"
+                                           :layer "button_layer_renamed"
+                                           :material "button_material_renamed"}}}
+                     (make-layout->node->resource-field-values referenced-scene))))
+
+            (testing "Referencing scene."
+              ;; Note: "button_layer" existed in both button.gui and panel.gui
+              ;; before the rename. After the rename of "button_layer" to
+              ;; "button_layer_renamed" in button.gui, we should not see any
+              ;; updated references to it in panel.gui, since it has its own
+              ;; "button_layer".
+              (is (= {"Default" {"button_resources" {:layer "button_layer"}
+                                 "button_resources/box" {:layer "button_layer"
+                                                         :material "button_material_renamed"
+                                                         :texture "button_texture_renamed/button_striped"}
+                                 "button_resources/particlefx" {:layer "button_layer"
+                                                                :material "button_material_renamed"
+                                                                :particlefx "button_particlefx_renamed"}
+                                 "button_resources/pie" {:layer "button_layer"
+                                                         :material "button_material_renamed"
+                                                         :texture "button_texture_renamed/button_striped"}
+                                 "button_resources/spine" {:layer "button_layer"
+                                                           :material "button_material_renamed"
+                                                           :spine-scene "button_spinescene_renamed"}
+                                 "button_resources/text" {:font "button_font_renamed"
+                                                          :layer "button_layer"
+                                                          :material "button_material_renamed"}
+                                 "panel_resources" {:layer "panel_layer"}
+                                 "panel_resources/box" {:layer "panel_layer"
+                                                        :material "panel_material"
+                                                        :texture "panel_texture/button_striped"}
+                                 "panel_resources/particlefx" {:layer "panel_layer"
+                                                               :material "panel_material"
+                                                               :particlefx "panel_particlefx"}
+                                 "panel_resources/pie" {:layer "panel_layer"
+                                                        :material "panel_material"
+                                                        :texture "panel_texture/button_striped"}
+                                 "panel_resources/spine" {:layer "panel_layer"
+                                                          :material "panel_material"
+                                                          :spine-scene "panel_spinescene"}
+                                 "panel_resources/text" {:font "panel_font"
+                                                         :layer "panel_layer"
+                                                         :material "panel_material"}}
+                      "Landscape" {"button_resources/box" {:layer "button_layer"
+                                                           :material "button_material_renamed"
+                                                           :texture "button_texture_renamed/button_striped"}
+                                   "button_resources/particlefx" {:layer "button_layer"
+                                                                  :material "button_material_renamed"
+                                                                  :particlefx "button_particlefx_renamed"}
+                                   "button_resources/pie" {:layer "button_layer"
+                                                           :material "button_material_renamed"
+                                                           :texture "button_texture_renamed/button_striped"}
+                                   "button_resources/spine" {:layer "button_layer"
+                                                             :material "button_material_renamed"
+                                                             :spine-scene "button_spinescene_renamed"}
+                                   "button_resources/text" {:font "button_font_renamed"
+                                                            :layer "button_layer"
+                                                            :material "button_material_renamed"}
+                                   "panel_resources/box" {:layer "panel_layer"
+                                                          :material "panel_material"
+                                                          :texture "panel_texture/button_striped"}
+                                   "panel_resources/particlefx" {:layer "panel_layer"
+                                                                 :material "panel_material"
+                                                                 :particlefx "panel_particlefx"}
+                                   "panel_resources/pie" {:layer "panel_layer"
+                                                          :material "panel_material"
+                                                          :texture "panel_texture/button_striped"}
+                                   "panel_resources/spine" {:layer "panel_layer"
+                                                            :material "panel_material"
+                                                            :spine-scene "panel_spinescene"}
+                                   "panel_resources/text" {:font "panel_font"
+                                                           :layer "panel_layer"
+                                                           :material "panel_material"}}}
+                     (make-layout->node->resource-field-values referencing-scene))))))
+
+        (testing "After renaming resources in the referencing scene."
+          (with-open [_ (make-restore-point!)]
+
+            ;; Rename all resources in the referencing scene.
+            (let [panel-font (gui-font referencing-scene "panel_font")
+                  panel-layer (gui-layer referencing-scene "panel_layer")
+                  panel-material (gui-material referencing-scene "panel_material")
+                  panel-particlefx (gui-particlefx-resource referencing-scene "panel_particlefx")
+                  panel-spinescene (gui-spine-scene referencing-scene "panel_spinescene")
+                  panel-texture (gui-texture referencing-scene "panel_texture")]
+              (test-util/prop! panel-font :name "panel_font_renamed")
+              (test-util/prop! panel-layer :name "panel_layer_renamed")
+              (test-util/prop! panel-material :name "panel_material_renamed")
+              (test-util/prop! panel-particlefx :name "panel_particlefx_renamed")
+              (test-util/prop! panel-spinescene :name "panel_spinescene_renamed")
+              (test-util/prop! panel-texture :name "panel_texture_renamed"))
+
+            (testing "Referenced scene."
+              (is (= {"Default" {"box" {:layer "button_layer"
+                                        :material "button_material"
+                                        :texture "button_texture/button_striped"}
+                                 "particlefx" {:layer "button_layer"
+                                               :material "button_material"
+                                               :particlefx "button_particlefx"}
+                                 "pie" {:layer "button_layer"
+                                        :material "button_material"
+                                        :texture "button_texture/button_striped"}
+                                 "spine" {:layer "button_layer"
+                                          :material "button_material"
+                                          :spine-scene "button_spinescene"}
+                                 "text" {:font "button_font"
+                                         :layer "button_layer"
+                                         :material "button_material"}}
+                      "Landscape" {"box" {:layer "button_layer"
+                                          :material "button_material"
+                                          :texture "button_texture/button_striped"}
+                                   "particlefx" {:layer "button_layer"
+                                                 :material "button_material"
+                                                 :particlefx "button_particlefx"}
+                                   "pie" {:layer "button_layer"
+                                          :material "button_material"
+                                          :texture "button_texture/button_striped"}
+                                   "spine" {:layer "button_layer"
+                                            :material "button_material"
+                                            :spine-scene "button_spinescene"}
+                                   "text" {:font "button_font"
+                                           :layer "button_layer"
+                                           :material "button_material"}}}
+                     (make-layout->node->resource-field-values referenced-scene))))
+
+            (testing "Referencing scene."
+              (is (= {"Default" {"button_resources" {:layer "button_layer"}
+                                 "button_resources/box" {:layer "button_layer"
+                                                         :material "button_material"
+                                                         :texture "button_texture/button_striped"}
+                                 "button_resources/particlefx" {:layer "button_layer"
+                                                                :material "button_material"
+                                                                :particlefx "button_particlefx"}
+                                 "button_resources/pie" {:layer "button_layer"
+                                                         :material "button_material"
+                                                         :texture "button_texture/button_striped"}
+                                 "button_resources/spine" {:layer "button_layer"
+                                                           :material "button_material"
+                                                           :spine-scene "button_spinescene"}
+                                 "button_resources/text" {:font "button_font"
+                                                          :layer "button_layer"
+                                                          :material "button_material"}
+                                 "panel_resources" {:layer "panel_layer_renamed"}
+                                 "panel_resources/box" {:layer "panel_layer_renamed"
+                                                        :material "panel_material_renamed"
+                                                        :texture "panel_texture_renamed/button_striped"}
+                                 "panel_resources/particlefx" {:layer "panel_layer_renamed"
+                                                               :material "panel_material_renamed"
+                                                               :particlefx "panel_particlefx_renamed"}
+                                 "panel_resources/pie" {:layer "panel_layer_renamed"
+                                                        :material "panel_material_renamed"
+                                                        :texture "panel_texture_renamed/button_striped"}
+                                 "panel_resources/spine" {:layer "panel_layer_renamed"
+                                                          :material "panel_material_renamed"
+                                                          :spine-scene "panel_spinescene_renamed"}
+                                 "panel_resources/text" {:font "panel_font_renamed"
+                                                         :layer "panel_layer_renamed"
+                                                         :material "panel_material_renamed"}}
+                      "Landscape" {"button_resources/box" {:layer "button_layer"
+                                                           :material "button_material"
+                                                           :texture "button_texture/button_striped"}
+                                   "button_resources/particlefx" {:layer "button_layer"
+                                                                  :material "button_material"
+                                                                  :particlefx "button_particlefx"}
+                                   "button_resources/pie" {:layer "button_layer"
+                                                           :material "button_material"
+                                                           :texture "button_texture/button_striped"}
+                                   "button_resources/spine" {:layer "button_layer"
+                                                             :material "button_material"
+                                                             :spine-scene "button_spinescene"}
+                                   "button_resources/text" {:font "button_font"
+                                                            :layer "button_layer"
+                                                            :material "button_material"}
+                                   "panel_resources/box" {:layer "panel_layer_renamed"
+                                                          :material "panel_material_renamed"
+                                                          :texture "panel_texture_renamed/button_striped"}
+                                   "panel_resources/particlefx" {:layer "panel_layer_renamed"
+                                                                 :material "panel_material_renamed"
+                                                                 :particlefx "panel_particlefx_renamed"}
+                                   "panel_resources/pie" {:layer "panel_layer_renamed"
+                                                          :material "panel_material_renamed"
+                                                          :texture "panel_texture_renamed/button_striped"}
+                                   "panel_resources/spine" {:layer "panel_layer_renamed"
+                                                            :material "panel_material_renamed"
+                                                            :spine-scene "panel_spinescene_renamed"}
+                                   "panel_resources/text" {:font "panel_font_renamed"
+                                                           :layer "panel_layer_renamed"
+                                                           :material "panel_material_renamed"}}}
+                     (make-layout->node->resource-field-values referencing-scene))))))))))
+
+(deftest template-layout-shadowing-resource-rename-test
+  (test-util/with-loaded-project "test/resources/gui_project"
+    (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))]
+      (let [referencing-scene (project/get-resource-node project "/gui/resources/shadowing_panel.gui")
+            referenced-scene (project/get-resource-node project "/gui/resources/shadowing_button.gui")
+
+            make-layout->node->resource-field-values
+            (fn make-layout->node->resource-field-values [gui-scene-node-id]
+              (let [scene-desc (g/valid-node-value gui-scene-node-id :save-value)]
+                (make-layout->node->field->value
+                  scene-desc
+                  (fn node-desc-fn [node-desc _is-override-node-desc]
+                    (-> node-desc
+                        (select-keys [:font :layer :material :particlefx :spine-scene :texture])
+                        (coll/not-empty))))))]
+
+        (testing "Before renaming resources."
+          (testing "Referenced scene."
+            (is (= {"Default" {"box" {:layer "shadowing_layer"
+                                      :material "shadowing_material"
+                                      :texture "shadowing_texture/button_striped"}
+                               "particlefx" {:layer "shadowing_layer"
+                                             :material "shadowing_material"
+                                             :particlefx "shadowing_particlefx"}
+                               "pie" {:layer "shadowing_layer"
+                                      :material "shadowing_material"
+                                      :texture "shadowing_texture/button_striped"}
+                               "spine" {:layer "shadowing_layer"
+                                        :material "shadowing_material"
+                                        :spine-scene "shadowing_spinescene"}
+                               "text" {:font "shadowing_font"
+                                       :layer "shadowing_layer"
+                                       :material "shadowing_material"}}
+                    "Landscape" {"box" {:layer "shadowing_layer"
+                                        :material "shadowing_material"
+                                        :texture "shadowing_texture/button_striped"}
+                                 "particlefx" {:layer "shadowing_layer"
+                                               :material "shadowing_material"
+                                               :particlefx "shadowing_particlefx"}
+                                 "pie" {:layer "shadowing_layer"
+                                        :material "shadowing_material"
+                                        :texture "shadowing_texture/button_striped"}
+                                 "spine" {:layer "shadowing_layer"
+                                          :material "shadowing_material"
+                                          :spine-scene "shadowing_spinescene"}
+                                 "text" {:font "shadowing_font"
+                                         :layer "shadowing_layer"
+                                         :material "shadowing_material"}}}
+                   (make-layout->node->resource-field-values referenced-scene))))
+
+          (testing "Referencing scene."
+            (is (= {"Default" {"shadowing_resources" {:layer "shadowing_layer"}
+                               "shadowing_resources/box" {:layer "shadowing_layer"
+                                                          :material "shadowing_material"
+                                                          :texture "shadowing_texture/button_striped"}
+                               "shadowing_resources/particlefx" {:layer "shadowing_layer"
+                                                                 :material "shadowing_material"
+                                                                 :particlefx "shadowing_particlefx"}
+                               "shadowing_resources/pie" {:layer "shadowing_layer"
+                                                          :material "shadowing_material"
+                                                          :texture "shadowing_texture/button_striped"}
+                               "shadowing_resources/spine" {:layer "shadowing_layer"
+                                                            :material "shadowing_material"
+                                                            :spine-scene "shadowing_spinescene"}
+                               "shadowing_resources/text" {:font "shadowing_font"
+                                                           :layer "shadowing_layer"
+                                                           :material "shadowing_material"}}
+                    "Landscape" {"shadowing_resources/box" {:layer "shadowing_layer"
+                                                            :material "shadowing_material"
+                                                            :texture "shadowing_texture/button_striped"}
+                                 "shadowing_resources/particlefx" {:layer "shadowing_layer"
+                                                                   :material "shadowing_material"
+                                                                   :particlefx "shadowing_particlefx"}
+                                 "shadowing_resources/pie" {:layer "shadowing_layer"
+                                                            :material "shadowing_material"
+                                                            :texture "shadowing_texture/button_striped"}
+                                 "shadowing_resources/spine" {:layer "shadowing_layer"
+                                                              :material "shadowing_material"
+                                                              :spine-scene "shadowing_spinescene"}
+                                 "shadowing_resources/text" {:font "shadowing_font"
+                                                             :layer "shadowing_layer"
+                                                             :material "shadowing_material"}}}
+                   (make-layout->node->resource-field-values referencing-scene)))))
+
+        (testing "After renaming resources in the referenced scene."
+          (with-open [_ (make-restore-point!)]
+
+            ;; Rename all resources in the referenced scene.
+            (let [button-font (gui-font referenced-scene "shadowing_font")
+                  button-layer (gui-layer referenced-scene "shadowing_layer")
+                  button-material (gui-material referenced-scene "shadowing_material")
+                  button-particlefx (gui-particlefx-resource referenced-scene "shadowing_particlefx")
+                  button-spinescene (gui-spine-scene referenced-scene "shadowing_spinescene")
+                  button-texture (gui-texture referenced-scene "shadowing_texture")]
+              (test-util/prop! button-font :name "shadowing_font_renamed")
+              (test-util/prop! button-layer :name "shadowing_layer_renamed")
+              (test-util/prop! button-material :name "shadowing_material_renamed")
+              (test-util/prop! button-particlefx :name "shadowing_particlefx_renamed")
+              (test-util/prop! button-spinescene :name "shadowing_spinescene_renamed")
+              (test-util/prop! button-texture :name "shadowing_texture_renamed"))
+
+            (testing "Referenced scene."
+              (is (= {"Default" {"box" {:layer "shadowing_layer_renamed"
+                                        :material "shadowing_material_renamed"
+                                        :texture "shadowing_texture_renamed/button_striped"}
+                                 "particlefx" {:layer "shadowing_layer_renamed"
+                                               :material "shadowing_material_renamed"
+                                               :particlefx "shadowing_particlefx_renamed"}
+                                 "pie" {:layer "shadowing_layer_renamed"
+                                        :material "shadowing_material_renamed"
+                                        :texture "shadowing_texture_renamed/button_striped"}
+                                 "spine" {:layer "shadowing_layer_renamed"
+                                          :material "shadowing_material_renamed"
+                                          :spine-scene "shadowing_spinescene_renamed"}
+                                 "text" {:font "shadowing_font_renamed"
+                                         :layer "shadowing_layer_renamed"
+                                         :material "shadowing_material_renamed"}}
+                      "Landscape" {"box" {:layer "shadowing_layer_renamed"
+                                          :material "shadowing_material_renamed"
+                                          :texture "shadowing_texture_renamed/button_striped"}
+                                   "particlefx" {:layer "shadowing_layer_renamed"
+                                                 :material "shadowing_material_renamed"
+                                                 :particlefx "shadowing_particlefx_renamed"}
+                                   "pie" {:layer "shadowing_layer_renamed"
+                                          :material "shadowing_material_renamed"
+                                          :texture "shadowing_texture_renamed/button_striped"}
+                                   "spine" {:layer "shadowing_layer_renamed"
+                                            :material "shadowing_material_renamed"
+                                            :spine-scene "shadowing_spinescene_renamed"}
+                                   "text" {:font "shadowing_font_renamed"
+                                           :layer "shadowing_layer_renamed"
+                                           :material "shadowing_material_renamed"}}}
+                     (make-layout->node->resource-field-values referenced-scene))))
+
+            (testing "Referencing scene."
+              ;; After the renames in button.gui, we should not see any updated
+              ;; references in panel.gui, since it has its own resources with
+              ;; identical names shadowing the resources in button.gui.
+              (is (= {"Default" {"shadowing_resources" {:layer "shadowing_layer"}
+                                 "shadowing_resources/box" {:layer "shadowing_layer"
+                                                            :material "shadowing_material"
+                                                            :texture "shadowing_texture/button_striped"}
+                                 "shadowing_resources/particlefx" {:layer "shadowing_layer"
+                                                                   :material "shadowing_material"
+                                                                   :particlefx "shadowing_particlefx"}
+                                 "shadowing_resources/pie" {:layer "shadowing_layer"
+                                                            :material "shadowing_material"
+                                                            :texture "shadowing_texture/button_striped"}
+                                 "shadowing_resources/spine" {:layer "shadowing_layer"
+                                                              :material "shadowing_material"
+                                                              :spine-scene "shadowing_spinescene"}
+                                 "shadowing_resources/text" {:font "shadowing_font"
+                                                             :layer "shadowing_layer"
+                                                             :material "shadowing_material"}}
+                      "Landscape" {"shadowing_resources/box" {:layer "shadowing_layer"
+                                                              :material "shadowing_material"
+                                                              :texture "shadowing_texture/button_striped"}
+                                   "shadowing_resources/particlefx" {:layer "shadowing_layer"
+                                                                     :material "shadowing_material"
+                                                                     :particlefx "shadowing_particlefx"}
+                                   "shadowing_resources/pie" {:layer "shadowing_layer"
+                                                              :material "shadowing_material"
+                                                              :texture "shadowing_texture/button_striped"}
+                                   "shadowing_resources/spine" {:layer "shadowing_layer"
+                                                                :material "shadowing_material"
+                                                                :spine-scene "shadowing_spinescene"}
+                                   "shadowing_resources/text" {:font "shadowing_font"
+                                                               :layer "shadowing_layer"
+                                                               :material "shadowing_material"}}}
+                     (make-layout->node->resource-field-values referencing-scene))))))
+
+        (testing "After renaming resources in the referencing scene."
+          (with-open [_ (make-restore-point!)]
+
+            ;; Rename all resources in the referencing scene.
+            (let [panel-font (gui-font referencing-scene "shadowing_font")
+                  panel-layer (gui-layer referencing-scene "shadowing_layer")
+                  panel-material (gui-material referencing-scene "shadowing_material")
+                  panel-particlefx (gui-particlefx-resource referencing-scene "shadowing_particlefx")
+                  panel-spinescene (gui-spine-scene referencing-scene "shadowing_spinescene")
+                  panel-texture (gui-texture referencing-scene "shadowing_texture")]
+              (test-util/prop! panel-font :name "shadowing_font_renamed")
+              (test-util/prop! panel-layer :name "shadowing_layer_renamed")
+              (test-util/prop! panel-material :name "shadowing_material_renamed")
+              (test-util/prop! panel-particlefx :name "shadowing_particlefx_renamed")
+              (test-util/prop! panel-spinescene :name "shadowing_spinescene_renamed")
+              (test-util/prop! panel-texture :name "shadowing_texture_renamed"))
+
+            (testing "Referenced scene."
+              (is (= {"Default" {"box" {:layer "shadowing_layer"
+                                        :material "shadowing_material"
+                                        :texture "shadowing_texture/button_striped"}
+                                 "particlefx" {:layer "shadowing_layer"
+                                               :material "shadowing_material"
+                                               :particlefx "shadowing_particlefx"}
+                                 "pie" {:layer "shadowing_layer"
+                                        :material "shadowing_material"
+                                        :texture "shadowing_texture/button_striped"}
+                                 "spine" {:layer "shadowing_layer"
+                                          :material "shadowing_material"
+                                          :spine-scene "shadowing_spinescene"}
+                                 "text" {:font "shadowing_font"
+                                         :layer "shadowing_layer"
+                                         :material "shadowing_material"}}
+                      "Landscape" {"box" {:layer "shadowing_layer"
+                                          :material "shadowing_material"
+                                          :texture "shadowing_texture/button_striped"}
+                                   "particlefx" {:layer "shadowing_layer"
+                                                 :material "shadowing_material"
+                                                 :particlefx "shadowing_particlefx"}
+                                   "pie" {:layer "shadowing_layer"
+                                          :material "shadowing_material"
+                                          :texture "shadowing_texture/button_striped"}
+                                   "spine" {:layer "shadowing_layer"
+                                            :material "shadowing_material"
+                                            :spine-scene "shadowing_spinescene"}
+                                   "text" {:font "shadowing_font"
+                                           :layer "shadowing_layer"
+                                           :material "shadowing_material"}}}
+                     (make-layout->node->resource-field-values referenced-scene))))
+
+            (testing "Referencing scene."
+              (is (= {"Default" {"shadowing_resources" {:layer "shadowing_layer_renamed"}
+                                 "shadowing_resources/box" {:layer "shadowing_layer_renamed"
+                                                            :material "shadowing_material_renamed"
+                                                            :texture "shadowing_texture_renamed/button_striped"}
+                                 "shadowing_resources/particlefx" {:layer "shadowing_layer_renamed"
+                                                                   :material "shadowing_material_renamed"
+                                                                   :particlefx "shadowing_particlefx_renamed"}
+                                 "shadowing_resources/pie" {:layer "shadowing_layer_renamed"
+                                                            :material "shadowing_material_renamed"
+                                                            :texture "shadowing_texture_renamed/button_striped"}
+                                 "shadowing_resources/spine" {:layer "shadowing_layer_renamed"
+                                                              :material "shadowing_material_renamed"
+                                                              :spine-scene "shadowing_spinescene_renamed"}
+                                 "shadowing_resources/text" {:font "shadowing_font_renamed"
+                                                             :layer "shadowing_layer_renamed"
+                                                             :material "shadowing_material_renamed"}}
+                      "Landscape" {"shadowing_resources/box" {:layer "shadowing_layer_renamed"
+                                                              :material "shadowing_material_renamed"
+                                                              :texture "shadowing_texture_renamed/button_striped"}
+                                   "shadowing_resources/particlefx" {:layer "shadowing_layer_renamed"
+                                                                     :material "shadowing_material_renamed"
+                                                                     :particlefx "shadowing_particlefx_renamed"}
+                                   "shadowing_resources/pie" {:layer "shadowing_layer_renamed"
+                                                              :material "shadowing_material_renamed"
+                                                              :texture "shadowing_texture_renamed/button_striped"}
+                                   "shadowing_resources/spine" {:layer "shadowing_layer_renamed"
+                                                                :material "shadowing_material_renamed"
+                                                                :spine-scene "shadowing_spinescene_renamed"}
+                                   "shadowing_resources/text" {:font "shadowing_font_renamed"
+                                                               :layer "shadowing_layer_renamed"
+                                                               :material "shadowing_material_renamed"}}}
+                     (make-layout->node->resource-field-values referencing-scene))))))))))

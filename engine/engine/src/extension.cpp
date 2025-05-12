@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -12,43 +12,27 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "extension.h"
-#include <stddef.h>
-#include <dlib/static_assert.h>
-#include <stddef.h> // offsetof
-
-// The same struct is used on all platforms. Although not all platforms use C++11 or higher,
-// we'll at least check on most platforms.
-// (I don't want to add any runtime code to do these types of checks /MAWE)
-#if __cplusplus >= 201103L
-DM_STATIC_ASSERT(offsetof(dmExtension::AppParams, m_ConfigFile) == offsetof(dmEngine::ExtensionAppParams, m_ConfigFile), Struct_Member_Offset_Mismatch);
-#endif
-
-
-HConfigFile EngineExtensionGetConfigFile(ExtensionAppParams* app_params)
-{
-    return ((dmEngine::ExtensionAppParams*)app_params)->m_ConfigFile;
-}
+#include <dmsdk/engine/extension.hpp>
 
 namespace dmEngine
 {
     dmConfigFile::HConfig GetConfigFile(dmExtension::AppParams* app_params)
     {
-        return ((dmEngine::ExtensionAppParams*)app_params)->m_ConfigFile;
+        return (HConfigFile)ExtensionAppParamsGetContext(app_params, dmHashString64("config"));
     }
 
     dmWebServer::HServer GetWebServer(dmExtension::AppParams* app_params)
     {
-        return ((dmEngine::ExtensionAppParams*)app_params)->m_WebServer;
+        return (dmWebServer::HServer)ExtensionAppParamsGetContext(app_params, dmHashString64("webserver"));
     }
 
     dmGameObject::HRegister GetGameObjectRegister(dmExtension::AppParams* app_params)
     {
-        return ((dmEngine::ExtensionAppParams*)app_params)->m_GameObjectRegister;
+        return (dmGameObject::HRegister)ExtensionAppParamsGetContext(app_params, dmHashString64("register"));
     }
 
     dmHID::HContext GetHIDContext(dmExtension::AppParams* app_params)
     {
-        return ((dmEngine::ExtensionAppParams*)app_params)->m_HIDContext;
+        return (dmHID::HContext)ExtensionAppParamsGetContext(app_params, dmHashString64("hid"));
     }
 }

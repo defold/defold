@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -47,7 +47,7 @@ static int Lua_Spawn(lua_State* L) {
     dmGameObject::HInstance instance = dmGameObject::GetInstanceFromLua(L);
     dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
     uint32_t index = dmGameObject::AcquireInstanceIndex(collection);
-    dmhash_t id = dmGameObject::ConstructInstanceId(index);
+    dmhash_t id = dmGameObject::CreateInstanceId();
     dmResource::HFactory factory = dmGameObject::GetFactory(collection);
     dmGameObject::HInstance spawned = Spawn(factory, collection, prototype, id, 0, dmVMath::Point3(0.0f, 0.0f, 0.0f), dmVMath::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
     if (spawned == 0x0) {

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -20,7 +20,7 @@
 
 namespace dmRender
 {
-    HComputeProgram NewComputeProgram(HRenderContext render_context, dmGraphics::HComputeProgram shader)
+    HComputeProgram NewComputeProgram(HRenderContext render_context, dmGraphics::HProgram compute_program)
     {
         if (!dmGraphics::IsContextFeatureSupported(render_context->m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_COMPUTE_SHADER))
         {
@@ -30,8 +30,7 @@ namespace dmRender
 
         ComputeProgram* program        = new ComputeProgram();
         program->m_RenderContext       = render_context;
-        program->m_Shader              = shader;
-        program->m_Program             = dmGraphics::NewProgram(render_context->m_GraphicsContext, shader);
+        program->m_Program             = compute_program;
         uint32_t total_constants_count = dmGraphics::GetUniformCount(program->m_Program);
 
         uint32_t constants_count = 0;
@@ -109,11 +108,6 @@ namespace dmRender
         return GetProgramSampler(program->m_Samplers, unit);
     }
 
-    dmGraphics::HComputeProgram GetComputeProgramShader(HComputeProgram program)
-    {
-        return program->m_Shader;
-    }
-
     dmGraphics::HProgram GetComputeProgram(HComputeProgram program)
     {
         return program->m_Program;
@@ -121,8 +115,6 @@ namespace dmRender
 
     void DeleteComputeProgram(dmRender::HRenderContext render_context, HComputeProgram program)
     {
-        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
-        dmGraphics::DeleteProgram(graphics_context, program->m_Program);
         delete program;
     }
 

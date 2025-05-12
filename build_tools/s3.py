@@ -1,12 +1,12 @@
-# Copyright 2020-2024 The Defold Foundation
+# Copyright 2020-2025 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -190,13 +190,14 @@ def move_release(archive_path, sha1, channel):
 
         # copy the file to the new location
         new_object = bucket.Object(new_key)
-        new_redirect = "http://%s/%s" % (bucket_name, new_key)
 
-        print("Copy object: %s -> %s" % (obj.key, new_key))
-        print("Create redirection %s to %s\n" % (obj.key, new_redirect))
+        print("Copy object: %s -> %s" % (redirect_name, new_key))
         new_object.copy_from(
-            CopySource={'Bucket': bucket_name, 'Key': obj.key}
+            CopySource={'Bucket': bucket_name, 'Key': redirect_name}
         )
+
+        new_redirect = "http://%s/%s" % (bucket_name, new_key)
+        print("Create redirection %s to %s\n" % (obj.key, new_redirect))
         # set redirect for old object to new object
         obj.copy_from(
             CopySource={'Bucket': bucket_name, 'Key': obj.key},

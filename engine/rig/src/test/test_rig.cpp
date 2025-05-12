@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -24,6 +24,7 @@
 #include <dmsdk/dlib/dstrings.h>
 
 #include <../rig.h>
+#include <../rig_private.h>
 
 using namespace dmVMath;
 
@@ -1878,6 +1879,45 @@ TEST_F(RigContextTest, DEF_3121)
     // Cleanup
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::InstanceDestroy(m_Context, instance));
     DeleteRigData(mesh_set, skeleton, animation_set);
+}
+
+TEST_F(RigContextTest, TestBindPoseCache)
+{
+    dmRig::HRigInstance instance = 0x0;
+
+    // Setup test data
+    dmRigDDF::Skeleton*     skeleton      = new dmRigDDF::Skeleton();
+    dmRigDDF::MeshSet*      mesh_set      = new dmRigDDF::MeshSet();
+    dmRigDDF::AnimationSet* animation_set = new dmRigDDF::AnimationSet();
+    dmArray<dmRig::RigBone> bind_pose;
+    dmHashTable64<uint32_t> bone_indices;
+    SetUpSimpleRig(bind_pose, bone_indices, skeleton, mesh_set, animation_set);
+
+    // Create rig instance
+    dmRig::InstanceCreateParams create_params = {0};
+    create_params.m_BindPose         = &bind_pose;
+    create_params.m_BoneIndices      = &bone_indices;
+    create_params.m_Skeleton         = skeleton;
+    create_params.m_MeshSet          = mesh_set;
+    create_params.m_ModelId          = dmHashString64("test");
+    create_params.m_DefaultAnimation = dmHashString64("valid");
+    create_params.m_AnimationSet     = animation_set;
+
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::InstanceCreate(m_Context, create_params, &instance));
+    dmRig::HCachePoseMatrixEntry pose_matrix_entry = dmRig::AcquirePoseMatrixCacheEntry(m_Context, instance);
+
+    ASSERT_NE(dmRig::INVALID_POSE_MATRIX_CACHE_ENTRY, pose_matrix_entry);
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+
+    const dmRig::PoseMatrixCache* cache = dmRig::GetPoseMatrixCache(m_Context);
+    ASSERT_EQ(bind_pose.Size(), cache->m_PoseMatrices.Size());
+
+    // If we update the cache again without resetting, we just write the same data into the cache again.
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(bind_pose.Size() * 2, cache->m_PoseMatrices.Size());
+
+    dmRig::ResetPoseMatrixCache(m_Context);
+    ASSERT_EQ(0, cache->m_PoseMatrices.Size());
 }
 
 #undef ASSERT_VERT_POS

@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -34,6 +34,7 @@
             [editor.validation :as validation]
             [editor.workspace :as workspace])
   (:import [com.dynamo.graphics.proto Graphics$Cubemap]
+           [com.dynamo.bob.util TextureUtil]
            [com.jogamp.opengl GL GL2]
            [java.awt.image BufferedImage]))
 
@@ -143,9 +144,10 @@
     (g/precluding-errors
       (vals images)
       (let [texture-images (tex-gen/make-cubemap-texture-images images texture-profile compress?)
-            cubemap-texture-image (tex-gen/assemble-cubemap-texture-images texture-images)]
+            cubemap-texture-image-generate-result (tex-gen/assemble-cubemap-texture-images texture-images)]
         {:resource resource
-         :content (protobuf/pb->bytes cubemap-texture-image)}))))
+         :write-content-fn tex-gen/write-texturec-content-fn
+         :user-data {:texture-generator-result cubemap-texture-image-generate-result}}))))
 
 (def ^:private cubemap-dir->property
   {:px :right

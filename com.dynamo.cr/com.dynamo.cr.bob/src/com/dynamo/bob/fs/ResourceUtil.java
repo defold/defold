@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -29,5 +29,18 @@ public class ResourceUtil {
         }
         fileName = fileName.substring(0, i);
         return fileName + ext;
+    }
+
+    /**
+     * Get extension of filename
+     * @param fileName file-name to get extension for
+     * @return the ext, including the '.' character
+     */
+    public static String getExt(String fileName) {
+        int i = fileName.lastIndexOf(".");
+        if (i == -1) {
+            throw new IllegalArgumentException(String.format("Missing extension in name '%s'", fileName));
+        }
+        return fileName.substring(i);
     }
 }

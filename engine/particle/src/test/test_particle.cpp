@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -45,13 +45,15 @@ struct TestVertex
     // Offset 40
 };
 
-static inline void FillAttribute(dmGraphics::VertexAttributeInfo& info, dmhash_t name_hash, dmGraphics::VertexAttribute::SemanticType semantic_type, uint32_t element_count)
+static inline void FillAttribute(dmGraphics::VertexAttributeInfo& info, dmhash_t name_hash, dmGraphics::VertexAttribute::SemanticType semantic_type, dmGraphics::VertexAttribute::VectorType source_vector_type)
 {
     info.m_NameHash        = name_hash;
     info.m_SemanticType    = semantic_type;
     info.m_CoordinateSpace = dmGraphics::COORDINATE_SPACE_WORLD;
+    info.m_DataType        = dmGraphics::VertexAttribute::TYPE_FLOAT;
+    info.m_VectorType      = source_vector_type;
     info.m_ValuePtr        = 0;
-    info.m_ValueByteSize   = sizeof(float) * element_count;
+    info.m_ValueVectorType = source_vector_type;
 }
 
 class ParticleTest : public jc_test_base_class
@@ -65,10 +67,10 @@ protected:
         m_VertexBuffer = new uint8_t[m_VertexBufferSize];
         m_Prototype = 0x0;
 
-        FillAttribute(m_AttributeInfos.m_Infos[0], dmHashString64("position"),   dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION,   3);
-        FillAttribute(m_AttributeInfos.m_Infos[1], dmHashString64("color"),      dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR,      4);
-        FillAttribute(m_AttributeInfos.m_Infos[2], dmHashString64("texcoord0"),  dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD,   2);
-        FillAttribute(m_AttributeInfos.m_Infos[3], dmHashString64("page_index"), dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX, 1);
+        FillAttribute(m_AttributeInfos.m_Infos[0], dmHashString64("position"),   dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION,   dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3);
+        FillAttribute(m_AttributeInfos.m_Infos[1], dmHashString64("color"),      dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR,      dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
+        FillAttribute(m_AttributeInfos.m_Infos[2], dmHashString64("texcoord0"),  dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD,   dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2);
+        FillAttribute(m_AttributeInfos.m_Infos[3], dmHashString64("page_index"), dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR);
 
         m_AttributeInfos.m_NumInfos     = 4;
         m_AttributeInfos.m_VertexStride = sizeof(TestVertex);
@@ -1479,7 +1481,6 @@ TEST_F(ParticleTest, Animation)
         dmParticle::Update(m_Context, dt, FetchAnimationCallback);
         TestVertex* vb = vertex_buffer;
         uint32_t vertex_buffer_size = 0;
-        uint32_t vb_offs = 0;
         for (uint32_t type = 0; type < type_count; ++type)
         {
             dmParticle::GenerateVertexData(m_Context, dt, instance, type, m_AttributeInfos, Vector4(1,1,1,1), (void*)vertex_buffer, 6 * type_count * sizeof(TestVertex), &vertex_buffer_size);
@@ -1504,7 +1505,6 @@ TEST_F(ParticleTest, Animation)
                     VerifyVertexDims(vb, 1, 1.0f, 2, 3);
                 }
                 vb += 6;
-                vb_offs += 6;
             }
         }
         ASSERT_EQ((vb - vertex_buffer) * sizeof(TestVertex), vertex_buffer_size);

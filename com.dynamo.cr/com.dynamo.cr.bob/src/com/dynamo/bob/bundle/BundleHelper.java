@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -24,6 +24,7 @@ import java.net.URL;
 import java.net.ConnectException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -36,6 +37,8 @@ import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
+import com.dynamo.bob.archive.publisher.Publisher;
+import com.dynamo.bob.archive.publisher.ZipPublisher;
 import com.sun.istack.Nullable;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -751,6 +754,7 @@ public class BundleHelper {
         }
     }
 
+
     private static void checkForDuplicates(List<ExtenderResource> resources) throws CompileExceptionError {
         Set<String> uniquePaths = new HashSet<>();
         for (ExtenderResource resource : resources) {
@@ -955,7 +959,17 @@ public class BundleHelper {
         return bundleIdentifier.matches("^[a-zA-Z][a-zA-Z0-9_-]*(\\.[a-zA-Z][a-zA-Z0-9_-]*)+$");
     }
 
-
+    // move archive into bundle folder if it's requested by a user
+    public static void moveBundleIfNeed(Project project, File bundleDir) throws IOException {
+        Publisher publisher = project.getPublisher();
+        if (publisher != null && publisher.shouldBeMovedIntoBundleFolder() && publisher instanceof ZipPublisher) {
+            ZipPublisher zipPublisher = (ZipPublisher) publisher;
+            File zipFile = zipPublisher.getZipFile();
+            if (zipFile != null && zipFile.exists()) {
+                Files.move(zipFile.toPath(), (new File(bundleDir, zipFile.getName())).toPath(), StandardCopyOption.REPLACE_EXISTING);
+            }
+        }
+    }
 
 
 }

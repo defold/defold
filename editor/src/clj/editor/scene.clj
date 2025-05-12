@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -32,6 +32,7 @@
             [editor.protobuf :as protobuf]
             [editor.render :as render]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.rulers :as rulers]
             [editor.scene-async :as scene-async]
             [editor.scene-cache :as scene-cache]
@@ -40,6 +41,7 @@
             [editor.scene-shapes :as scene-shapes]
             [editor.scene-text :as scene-text]
             [editor.scene-tools :as scene-tools]
+            [editor.scene-visibility :as scene-visibility]
             [editor.system :as system]
             [editor.types :as types]
             [editor.ui :as ui]
@@ -98,8 +100,8 @@
   (scene-text/overlay gl text x y))
 
 (defn- get-resource-name [node-id]
-  (let [{:keys [resource] :as resource-node} (and node-id (g/node-by-id node-id))]
-    (and resource (resource/resource-name resource))))
+  (when-let [resource (resource-node/as-resource node-id)]
+    (resource/resource-name resource)))
 
 (defn- render-error
   [gl render-args renderables nrenderables]
@@ -380,7 +382,7 @@
                           (some selection-set node-id-path) :parent-selected) ; Child nodes appear dimly selected if their parent is selected.
         visible? (and parent-shows-children
                       (:visible-self? renderable true)
-                      (not (contains? hidden-node-outline-key-paths node-outline-key-path))
+                      (not (scene-visibility/hidden-outline-key-path? hidden-node-outline-key-paths node-outline-key-path))
                       (not-any? (partial contains? hidden-renderable-tags) (:tags renderable)))
         aabb ^AABB (if visible? (:aabb scene geom/null-aabb) geom/null-aabb)
         flat-renderable (-> scene
@@ -927,7 +929,6 @@
   (let [x          (:x action)
         y          (:y action)
         screen-pos (Vector3d. x y 0)
-        view-graph (g/node-id->graph-id view)
         camera     (g/node-value (view->camera view) :camera)
         viewport   (g/node-value view :viewport)
         world-pos  (Point3d. (screen->world camera viewport screen-pos))
@@ -960,7 +961,7 @@
         (g/set-property view-id :play-mode new-play-mode)
         (g/set-property view-id :active-updatable-ids selected-updatable-ids)))))
 
-(handler/defhandler :scene-play :global
+(handler/defhandler :scene.play :global
   (active? [app-view evaluation-context]
            (when-let [view (active-scene-view app-view evaluation-context)]
              (seq (g/node-value view :updatables evaluation-context))))
@@ -978,7 +979,7 @@
       (g/set-property view-id :active-updatable-ids [])
       (g/set-property view-id :updatable-states {}))))
 
-(handler/defhandler :scene-stop :global
+(handler/defhandler :scene.stop :global
   (active? [app-view evaluation-context]
            (when-let [view (active-scene-view app-view evaluation-context)]
              (seq (g/node-value view :updatables evaluation-context))))
@@ -988,21 +989,28 @@
   (run [app-view] (when-let [view (active-scene-view app-view)]
                     (stop-handler view))))
 
-(defn set-camera! [camera-node start-camera end-camera animate?]
-  (if animate?
-    (let [duration 0.5]
-      (ui/anim! duration
-                (fn [^double t]
-                  (let [t (- (* t t 3) (* t t t 2))
-                        cam (c/interpolate start-camera end-camera t)]
-                    (g/transact
-                      (g/set-property camera-node :local-camera cam))))
-                (fn []
-                  (g/transact
-                    (g/set-property camera-node :local-camera end-camera)))))
-    (g/transact
-      (g/set-property camera-node :local-camera end-camera)))
-  nil)
+(defn set-camera!
+  ([camera-node start-camera end-camera animate?]
+   (set-camera! camera-node start-camera end-camera animate? nil))
+  ([camera-node start-camera end-camera animate? on-animation-end]
+   (if animate?
+     (let [duration 0.5]
+       (g/transact (g/set-property camera-node :animating true))
+       (ui/anim! duration
+                 (fn [^double t]
+                   (let [t (- (* t t 3) (* t t t 2))
+                         cam (c/interpolate start-camera end-camera t)]
+                     (g/transact
+                       (g/set-property camera-node :local-camera cam))))
+                 (fn []
+                   (g/transact
+                     [(g/set-property camera-node :local-camera end-camera)
+                      (g/set-property camera-node :animating false)])
+                   (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
+                   (when on-animation-end (on-animation-end)))))
+     (g/transact
+       (g/set-property camera-node :local-camera end-camera)))
+   nil))
 
 (defn- fudge-empty-aabb
   ^AABB [^AABB aabb]
@@ -1031,15 +1039,6 @@
          end-camera (c/camera-frame-aabb local-cam viewport aabb)]
      (set-camera! camera local-cam end-camera animate?))))
 
-
-(defn realign-camera [view animate?]
-  (let [aabb (fudge-empty-aabb (g/node-value view :selected-aabb))
-        camera (view->camera view)
-        viewport (g/node-value view :viewport)
-        local-cam (g/node-value camera :local-camera)
-        end-camera (c/camera-orthographic-realign (c/camera-ensure-orthographic local-cam) viewport aabb)]
-    (set-camera! camera local-cam end-camera animate?)))
-
 (defn set-camera-type! [view projection-type]
   (let [camera-controller (view->camera view)
         old-camera (g/node-value camera-controller :local-camera)
@@ -1050,37 +1049,122 @@
                          :perspective (c/camera-orthographic->perspective old-camera c/fov-y-35mm-full-frame))]
         (set-camera! camera-controller old-camera new-camera false)))))
 
-(handler/defhandler :frame-selection :global
+(defn- sync-camera-position
+  [^Camera camera-a ^Camera camera-b viewport]
+  (let [focus ^Vector4d (:focus-point camera-b)
+        point (c/camera-project camera-b viewport (Point3d. (.x focus) (.y focus) (.z focus)))
+        world (c/camera-unproject camera-a viewport (.x point) (.y point) (.z point))
+        delta (c/camera-unproject camera-b viewport (.x point) (.y point) (.z point))]
+    (.sub delta world)
+    (cond-> camera-a
+      :always
+      (-> (c/camera-ensure-orthographic)
+          (c/camera-move (.x delta) (.y delta) (.z delta))
+          (assoc :fov-x (:fov-x camera-b)
+                 :fov-y (:fov-y camera-b)))
+
+      (= (:type camera-a) :perspective)
+      (c/camera-orthographic->perspective c/fov-y-35mm-full-frame))))
+
+(defn- get-3d-camera
+  [camera]
+  (or (g/node-value camera :cached-3d-camera)
+      (c/tumble (g/node-value camera :local-camera) 200.0 -100.0)))
+
+(defn- camera-2d?
+  [view]
+  (some-> (view->camera view)
+          (g/node-value :local-camera)
+          (c/mode-2d?)))
+
+(defmulti realign-camera (fn [view _animate?] (if (camera-2d? view) :2d :3d)))
+
+(defmethod realign-camera :2d
+  [view animate?]
+  (let [camera-node (view->camera view)
+        local-cam (g/node-value camera-node :local-camera)
+        viewport (g/node-value view :viewport)
+        camera-3d (-> (get-3d-camera camera-node)
+                      (sync-camera-position local-cam viewport))
+        local-cam (cond-> local-cam
+                    (= (:type camera-3d) :perspective)
+                    (c/camera-orthographic->perspective c/fov-y-35mm-full-frame))]
+    (set-camera! camera-node local-cam camera-3d animate?)))
+
+(defmethod realign-camera :3d
+  [view animate?]
+  (let [camera-node (view->camera view)
+        local-cam (g/node-value camera-node :local-camera)
+        is-perspective (= (:type local-cam) :perspective)]
+    (g/transact (g/set-property camera-node :cached-3d-camera local-cam))
+    (let [end-camera (cond-> local-cam
+                       is-perspective c/camera-perspective->orthographic
+                       :always c/camera-orthographic-realign
+                       is-perspective (c/camera-orthographic->perspective c/fov-y-35mm-full-frame))]
+      (set-camera! camera-node local-cam end-camera animate? #(set-camera-type! view :orthographic)))))
+
+(handler/defhandler :scene.frame-selection :global
   (active? [app-view evaluation-context]
            (active-scene-view app-view evaluation-context))
   (enabled? [app-view evaluation-context]
             (when-let [view (active-scene-view app-view evaluation-context)]
               (let [selected (g/node-value view :selection evaluation-context)]
                 (not (empty? selected)))))
-  (run [app-view] (when-let [view (active-scene-view app-view)]
-                    (frame-selection view true))))
+  (run [app-view] (some-> (active-scene-view app-view)
+                          (frame-selection true))))
 
-(handler/defhandler :realign-camera :global
+(defn- camera-animating?
+  [app-view]
+  (some-> (active-scene-view app-view)
+          (view->camera)
+          (g/node-value :animating)))
+
+(handler/defhandler :scene.realign-camera :global
   (active? [app-view evaluation-context]
            (active-scene-view app-view evaluation-context))
-  (run [app-view] (when-let [view (active-scene-view app-view)]
-                    (realign-camera view true))))
+  (enabled? [app-view] (not (camera-animating? app-view)))
+  (run [app-view] (some-> (active-scene-view app-view) 
+                          (realign-camera true))))
 
-(handler/defhandler :set-camera-type :global
+(handler/defhandler :scene.set-camera-type :global
+  (label [user-data]
+    (if user-data
+      (case (:camera-type user-data)
+        :orthographic "Orthographic Camera"
+        :perspective "Perspective Camera")
+      "Set Camera Type"))
   (active? [app-view evaluation-context]
            (active-scene-view app-view evaluation-context))
   (run [app-view user-data]
        (when-some [view (active-scene-view app-view)]
          (set-camera-type! view (:camera-type user-data))))
+  (options [user-data]
+    (when-not user-data
+      [{:label "Orthographic"
+        :command :scene.set-camera-type
+        :user-data {:camera-type :orthographic}}
+       {:label "Perspective"
+        :command :scene.set-camera-type
+        :user-data {:camera-type :perspective}}]))
   (state [app-view user-data]
          (some-> (active-scene-view app-view)
                  (g/node-value :camera-type)
                  (= (:camera-type user-data)))))
 
-;; Used in the scene view tool bar.
-(handler/defhandler :toggle-perspective-camera :workbench
+(handler/defhandler :scene.toggle-interaction-mode :workbench
   (active? [app-view evaluation-context]
            (active-scene-view app-view evaluation-context))
+  (enabled? [app-view] (not (camera-animating? app-view)))
+  (run [app-view] (some-> (active-scene-view app-view) 
+                          (realign-camera true)))
+  (state [app-view] (camera-2d? (active-scene-view app-view))))
+
+;; Used in the scene view tool bar.
+(handler/defhandler :scene.toggle-camera-type :workbench
+  (active? [app-view evaluation-context]
+           (active-scene-view app-view evaluation-context))
+  (enabled? [app-view] (and (not (camera-2d? (active-scene-view app-view)))
+                            (not (camera-animating? app-view))))
   (run [app-view]
        (when-some [view (active-scene-view app-view)]
          (set-camera-type! view
@@ -1096,71 +1180,81 @@
   (assert (contains? #{:local :world} manip-space))
   (g/set-property! app-view :manip-space manip-space))
 
-(handler/defhandler :set-manip-space :global
+(handler/defhandler :scene.set-manipulator-space :global
+  (label [user-data]
+    (if user-data
+      (case (:manip-space user-data)
+        :world "World Space"
+        :local "Local Space")
+      "Set Manipulator Space"))
   (active? [app-view evaluation-context]
            (active-scene-view app-view evaluation-context))
   (enabled? [app-view user-data evaluation-context]
             (let [active-tool (g/node-value app-view :active-tool evaluation-context)]
               (contains? (scene-tools/supported-manip-spaces active-tool)
                          (:manip-space user-data))))
+  (options [user-data]
+    (when-not user-data
+      [{:label "World"
+        :command :scene.set-manipulator-space
+        :user-data {:manip-space :world}}
+       {:label "Local"
+        :command :scene.set-manipulator-space
+        :user-data {:manip-space :local}}]))
   (run [app-view user-data] (set-manip-space! app-view (:manip-space user-data)))
   (state [app-view user-data] (= (g/node-value app-view :manip-space) (:manip-space user-data))))
 
-(handler/defhandler :toggle-move-whole-pixels :global
+(handler/defhandler :scene.toggle-move-whole-pixels :global
   (active? [app-view evaluation-context] (active-scene-view app-view evaluation-context))
   (state [prefs] (scene-tools/move-whole-pixels? prefs))
   (run [prefs] (scene-tools/set-move-whole-pixels! prefs (not (scene-tools/move-whole-pixels? prefs)))))
 
-(handler/register-menu! ::menubar :editor.app-view/edit-end
+(handler/register-menu! ::menubar-edit :editor.app-view/edit-end
   [{:label :separator}
-   {:label "World Space"
-    :command :set-manip-space
+   {:command :scene.set-manipulator-space
     :user-data {:manip-space :world}
     :check true}
-   {:label "Local Space"
-    :command :set-manip-space
+   {:command :scene.set-manipulator-space
     :user-data {:manip-space :local}
     :check true}
    {:label :separator}
    {:label "Move Whole Pixels"
-    :command :toggle-move-whole-pixels
+    :command :scene.toggle-move-whole-pixels
     :check true}])
 
-(handler/register-menu! ::menubar :editor.app-view/view-end
+(handler/register-menu! ::menubar-view :editor.app-view/view-end
   [{:label "Toggle Visibility Filters"
-    :command :toggle-visibility-filters}
+    :command :scene.visibility.toggle-filters}
    {:label "Toggle Component Guides"
-    :command :toggle-component-guides}
+    :command :scene.visibility.toggle-component-guides}
    {:label "Toggle Grid"
-    :command :toggle-grid}
+    :command :scene.visibility.toggle-grid}
    {:label :separator}
    {:label "Show/Hide Selected Objects"
-    :command :hide-toggle-selected}
+    :command :scene.visibility.toggle-selection}
    {:label "Hide Unselected Objects"
-    :command :hide-unselected}
+    :command :scene.visibility.hide-unselected}
    {:label "Show Last Hidden Objects"
-    :command :show-last-hidden}
+    :command :scene.visibility.show-last-hidden}
    {:label "Show All Hidden Objects"
-    :command :show-all-hidden}
+    :command :scene.visibility.show-all}
    {:label :separator}
    {:label "Play"
-    :command :scene-play}
+    :command :scene.play}
    {:label "Stop"
-    :command :scene-stop}
+    :command :scene.stop}
    {:label :separator}
-   {:label "Orthographic Camera"
-    :command :set-camera-type
+   {:command :scene.set-camera-type
     :user-data {:camera-type :orthographic}
     :check true}
-   {:label "Perspective Camera"
-    :command :set-camera-type
+   {:command :scene.set-camera-type
     :user-data {:camera-type :perspective}
     :check true}
    {:label :separator}
    {:label "Frame Selection"
-    :command :frame-selection}
+    :command :scene.frame-selection}
    {:label "Realign Camera"
-    :command :realign-camera}])
+    :command :scene.realign-camera}])
 
 (defn dispatch-input [input-handlers action user-data]
   (reduce (fn [action [node-id label]]
@@ -1237,54 +1331,57 @@
 
 (defn- nudge! [scene-node-ids ^double dx ^double dy ^double dz]
   (g/transact
-    (for [node-id scene-node-ids
-          :let [[^double x ^double y ^double z] (g/node-value node-id :position)]]
-      (g/set-property node-id :position [(+ x dx) (+ y dy) (+ z dz)]))))
+    (g/with-auto-evaluation-context evaluation-context
+      (for [node-id scene-node-ids]
+        (scene-tools/manip-move evaluation-context node-id (Vector3d. dx dy dz))))))
 
 (declare selection->movable)
 
-(handler/defhandler :up :workbench
+(handler/defhandler :scene.move-up :workbench
   (active? [selection] (selection->movable selection))
   (run [selection] (nudge! (selection->movable selection) 0.0 1.0 0.0)))
 
-(handler/defhandler :down :workbench
+(handler/defhandler :scene.move-down :workbench
   (active? [selection] (selection->movable selection))
   (run [selection] (nudge! (selection->movable selection) 0.0 -1.0 0.0)))
 
-(handler/defhandler :left :workbench
+(handler/defhandler :scene.move-left :workbench
   (active? [selection] (selection->movable selection))
   (run [selection] (nudge! (selection->movable selection) -1.0 0.0 0.0)))
 
-(handler/defhandler :right :workbench
+(handler/defhandler :scene.move-right :workbench
   (active? [selection] (selection->movable selection))
   (run [selection] (nudge! (selection->movable selection) 1.0 0.0 0.0)))
 
-(handler/defhandler :up-major :workbench
+(handler/defhandler :scene.move-up-major :workbench
   (active? [selection] (selection->movable selection))
   (run [selection] (nudge! (selection->movable selection) 0.0 10.0 0.0)))
 
-(handler/defhandler :down-major :workbench
+(handler/defhandler :scene.move-down-major :workbench
   (active? [selection] (selection->movable selection))
   (run [selection] (nudge! (selection->movable selection) 0.0 -10.0 0.0)))
 
-(handler/defhandler :left-major :workbench
+(handler/defhandler :scene.move-left-major :workbench
   (active? [selection] (selection->movable selection))
   (run [selection] (nudge! (selection->movable selection) -10.0 0.0 0.0)))
 
-(handler/defhandler :right-major :workbench
+(handler/defhandler :scene.move-right-major :workbench
   (active? [selection] (selection->movable selection))
   (run [selection] (nudge! (selection->movable selection) 10.0 0.0 0.0)))
 
 (defn- handle-key-pressed! [^KeyEvent event]
-  ;; Only handle bare key events that cannot be bound to handlers here.
+  ;; Always interpret UP/DOWN/LEFT/RIGHT as move commands because otherwise they
+  ;; would be consumed by the TabPane and will trigger next/prev tab selection.
+  ;; Because of that, such key presses will not reach the workbench view and
+  ;; will not trigger the commands as might be expected
   (when (not= ::unhandled
               (if (or (.isAltDown event) (.isMetaDown event) (.isShiftDown event) (.isShortcutDown event))
                 ::unhandled
                 (condp = (.getCode event)
-                  KeyCode/UP (ui/run-command (.getSource event) :up)
-                  KeyCode/DOWN (ui/run-command (.getSource event) :down)
-                  KeyCode/LEFT (ui/run-command (.getSource event) :left)
-                  KeyCode/RIGHT (ui/run-command (.getSource event) :right)
+                  KeyCode/UP (ui/run-command (.getSource event) :scene.move-up)
+                  KeyCode/DOWN (ui/run-command (.getSource event) :scene.move-down)
+                  KeyCode/LEFT (ui/run-command (.getSource event) :scene.move-left)
+                  KeyCode/RIGHT (ui/run-command (.getSource event) :scene.move-right)
                   ::unhandled)))
     (.consume event)))
 
@@ -1319,6 +1416,8 @@
     (.setOnMouseClicked parent event-handler)
     (.setOnMouseMoved parent event-handler)
     (.setOnMouseDragged parent event-handler)
+    (.setOnDragOver parent event-handler)
+    (.setOnDragDropped parent event-handler)
     (.setOnScroll parent event-handler)
     (.setOnKeyPressed parent (ui/event-handler e
                                (when @process-events?
@@ -1469,7 +1568,8 @@
         tool-controller-type (get opts :tool-controller scene-tools/ToolController)]
     (g/make-nodes view-graph
                   [background      background/Background
-                   selection       [selection/SelectionController :select-fn (fn [selection op-seq]
+                   selection       [selection/SelectionController :drop-fn (:drop-fn opts)
+                                                                  :select-fn (fn [selection op-seq]
                                                                                (g/transact
                                                                                  (concat
                                                                                    (g/operation-sequence op-seq)
@@ -1594,7 +1694,7 @@
     :else
     num))
 
-(defn- non-zeroify-scale [scale]
+(defn non-zeroify-scale [scale]
   (into (coll/empty-with-meta scale)
         (map non-zeroify-component)
         scale))
@@ -1606,6 +1706,7 @@
             (dynamic visible (g/fnk [transform-properties] (contains? transform-properties :rotation)))
             (dynamic edit-type (g/constantly properties/quat-rotation-edit-type)))
   (property scale types/Vec3 (default default-scale)
+            (dynamic edit-type (g/constantly {:type types/Vec3 :precision 0.1}))
             (dynamic visible (g/fnk [transform-properties] (contains? transform-properties :scale)))
             (set (fn [_evaluation-context self _old-value new-value]
                    (when (some? new-value)
@@ -1625,38 +1726,47 @@
 (defmethod scene-tools/manip-scalable? ::SceneNode [node-id]
   (contains? (g/node-value node-id :transform-properties) :scale))
 
-(defmethod scene-tools/manip-move ::SceneNode [evaluation-context node-id delta]
-  (let [old-clj-position (g/node-value node-id :position evaluation-context)
-        old-vecmath-position (doto (Vector3d.) (math/clj->vecmath old-clj-position))
-        new-vecmath-position (math/add-vector old-vecmath-position delta)
+(defn- manip-scene-node [apply-delta-fn prop-kw evaluation-context node-id vecmath-delta]
+  (g/set-property node-id prop-kw
+    (-> (g/node-value node-id prop-kw evaluation-context)
+        (apply-delta-fn vecmath-delta))))
+
+(defn apply-move-delta [old-clj-position vecmath-delta]
+  (let [old-vecmath-position (doto (Vector3d.) (math/clj->vecmath old-clj-position))
+        new-vecmath-position (math/add-vector old-vecmath-position vecmath-delta)
         num-fn (if (math/float32? (first old-clj-position))
                  properties/round-scalar-float
-                 properties/round-scalar)
-        new-clj-position (into (coll/empty-with-meta old-clj-position)
-                               (map num-fn)
-                               (math/vecmath->clj new-vecmath-position))]
-    (g/set-property node-id :position new-clj-position)))
+                 properties/round-scalar)]
+    (into (coll/empty-with-meta old-clj-position)
+          (map num-fn)
+          (math/vecmath->clj new-vecmath-position))))
+
+(def manip-move-scene-node (partial manip-scene-node apply-move-delta :position))
+
+(defmethod scene-tools/manip-move ::SceneNode [evaluation-context node-id delta]
+  (manip-move-scene-node evaluation-context node-id delta))
+
+(defn apply-rotate-delta [old-clj-rotation vecmath-delta]
+  ;; Note! The rotation is not rounded here like we do for apply-move-delta and
+  ;; apply-scale-delta. As the user-facing property is the euler angles, they
+  ;; will be rounded in properties/quat->euler.
+  (let [new-vecmath-rotation (doto (Quat4d.) (math/clj->vecmath old-clj-rotation) (.mul vecmath-delta))]
+    (if (math/float32? (first old-clj-rotation))
+      (into (coll/empty-with-meta old-clj-rotation)
+            (map float)
+            (math/vecmath->clj new-vecmath-rotation))
+      (math/vecmath-into-clj new-vecmath-rotation
+                             (coll/empty-with-meta old-clj-rotation)))))
+
+(def manip-rotate-scene-node (partial manip-scene-node apply-rotate-delta :rotation))
 
 (defmethod scene-tools/manip-rotate ::SceneNode [evaluation-context node-id delta]
-  (let [old-clj-rotation (g/node-value node-id :rotation evaluation-context)
-        new-vecmath-rotation (doto (Quat4d.) (math/clj->vecmath old-clj-rotation) (.mul delta))
+  (manip-rotate-scene-node evaluation-context node-id delta))
 
-        ;; Note! The rotation is not rounded here like we do for manip-move and
-        ;; manip-scale. As the user-facing property is the euler angles, they
-        ;; will be rounded in properties/quat->euler.
-        new-clj-rotation
-        (if (math/float32? (first old-clj-rotation))
-          (into (coll/empty-with-meta old-clj-rotation)
-                (map float)
-                (math/vecmath->clj new-vecmath-rotation))
-          (math/vecmath-into-clj new-vecmath-rotation
-                                 (coll/empty-with-meta old-clj-rotation)))]
-    (g/set-property node-id :rotation new-clj-rotation)))
+(defn apply-scale-delta [old-scale vecmath-delta]
+  (properties/scale-and-round-vec old-scale vecmath-delta))
 
-(defn manip-scale-scene-node [evaluation-context node-id delta]
-  (let [old-scale (g/node-value node-id :scale evaluation-context)
-        new-scale (properties/scale-and-round-vec old-scale delta)]
-    (g/set-property node-id :scale new-scale)))
+(def manip-scale-scene-node (partial manip-scene-node apply-scale-delta :scale))
 
 (defmethod scene-tools/manip-scale ::SceneNode [evaluation-context node-id delta]
   (manip-scale-scene-node evaluation-context node-id delta))

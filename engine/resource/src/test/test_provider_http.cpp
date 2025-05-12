@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,9 +15,11 @@
 #include <stdio.h>
 #include <stdint.h>
 
+#include <dlib/configfile.h>
+#include <dlib/dstrings.h>
 #include <dlib/log.h>
-#include <dlib/testutil.h>
 #include <dlib/socket.h>
+#include <dlib/testutil.h>
 #include <dlib/uri.h>
 
 #include "../providers/provider.h"
@@ -26,11 +28,13 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
+static int32_t PORT = 6123; // can be configured
+
 // File generated with
 // data = b"\x00\x01\x02\x03\x04\x05\x06\x07"
 // with open('./src/test/files/src/test/files/somedata', 'wb') as f:
 //     f.write(data)
-const uint8_t SOMEDATA[8] = {0, 1, 2, 3, 4, 5, 6, 7};
+const uint8_t SOMEDATA[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
 
 typedef dmResourceProvider::ArchiveLoader ArchiveLoader;
 
@@ -70,14 +74,30 @@ TEST(HttpProviderBasic, CanMount)
 
 class HttpProviderArchive : public jc_test_base_class
 {
+public:
+    static void SetUpTestCase()
+    {
+        char path[1024];
+        dmTestUtil::MakeHostPath(path, sizeof(path), "build/src/test/somedata");
+        FILE* f = fopen(path, "wb");
+        ASSERT_NE((FILE*)0, f);
+        fwrite(SOMEDATA, sizeof(SOMEDATA), 1, f);
+        fclose(f);
+
+        dmLogInfo("Wrote test data: '%s'", path);
+    }
+
 protected:
     virtual void SetUp()
     {
         m_Loader = dmResourceProvider::FindLoaderByName(dmHashString64("http"));
         ASSERT_NE((ArchiveLoader*)0, m_Loader);
 
+        char buffer[128];
+        dmSnPrintf(buffer, sizeof(buffer), "http://localhost:%d", PORT);
+
         dmURI::Parts uri;
-        dmURI::Parse("http://localhost:6123", &uri);
+        dmURI::Parse(buffer, &uri);
 
         dmResourceProvider::Result result = dmResourceProvider::CreateMount(m_Loader, &uri, 0, &m_Archive);
         ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
@@ -116,13 +136,6 @@ TEST_F(HttpProviderArchive, GetSize)
 
 TEST_F(HttpProviderArchive, ReadFile)
 {
-    char path[1024];
-    dmTestUtil::MakeHostPath(path, sizeof(path), "build/src/test/somedata");
-    FILE* f = fopen(path, "wb");
-    ASSERT_NE((FILE*)0, f);
-    fwrite(SOMEDATA, sizeof(SOMEDATA), 1, f);
-    fclose(f);
-
     dmResourceProvider::Result result;
     uint8_t short_buffer[4] = {0};
     uint8_t long_buffer[64] = {0};
@@ -134,6 +147,39 @@ TEST_F(HttpProviderArchive, ReadFile)
     ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
     ASSERT_ARRAY_EQ_LEN(SOMEDATA, long_buffer, sizeof(SOMEDATA));
 }
+
+#if !defined(DM_TEST_NO_SUPPORT_RANGE_REQUEST)
+
+TEST_F(HttpProviderArchive, ReadFilePartial)
+{
+    dmResourceProvider::Result result;
+    uint8_t long_buffer[64];
+
+    uint32_t file_size;
+    result = dmResourceProvider::GetFileSize(m_Archive, 0, "/somedata", &file_size);
+    ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
+
+    result = dmResourceProvider::ReadFile(m_Archive, 0, "/somedata", long_buffer, sizeof(long_buffer));
+    ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
+    ASSERT_ARRAY_EQ_LEN(SOMEDATA, long_buffer, sizeof(SOMEDATA));
+
+    const uint32_t chunk_size = 5;
+    uint8_t short_buffer[chunk_size];
+
+    uint32_t offset = 0;
+    while (offset < file_size)
+    {
+        uint32_t nread;
+        result = dmResourceProvider::ReadFilePartial(m_Archive, 0, "/somedata", offset, chunk_size, short_buffer, &nread);
+        ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
+        ASSERT_GE(chunk_size, nread);
+
+        ASSERT_ARRAY_EQ_LEN(&long_buffer[offset], short_buffer, nread);
+        offset += nread;
+    }
+}
+#endif // DM_TEST_NO_SUPPORT_RANGE_REQUEST
+
 
 #if defined(DM_TEST_HTTP_SUPPORTED)
 
@@ -147,6 +193,21 @@ int main(int argc, char **argv)
     dmSocket::Initialize();
     dmLog::LogParams logparams;
     dmLog::LogInitialize(&logparams);
+
+    if(argc > 1)
+    {
+        char path[512];
+        dmTestUtil::MakeHostPath(path, sizeof(path), argv[1]);
+
+        dmConfigFile::HConfig config;
+        if( dmConfigFile::Load(path, argc, (const char**)argv, &config) != dmConfigFile::RESULT_OK )
+        {
+            dmLogError("Could not read config file '%s'", path);
+            return 1;
+        }
+        dmTestUtil::GetSocketsFromConfig(config, &PORT, 0, 0);
+        dmConfigFile::Delete(config);
+    }
 
     jc_test_init(&argc, argv);
     int result = jc_test_run_all();

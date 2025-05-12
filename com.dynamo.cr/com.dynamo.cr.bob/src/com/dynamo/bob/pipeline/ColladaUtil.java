@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -605,22 +605,22 @@ public class ColladaUtil {
         return a.stream().mapToInt(x -> x).toArray();
     }
 
-    private static ModelImporter.Aabb calcAabb(float[] positions) {
-        ModelImporter.Aabb aabb = new ModelImporter.Aabb();
+    private static Modelimporter.Aabb calcAabb(float[] positions) {
+        Modelimporter.Aabb aabb = ModelImporterJni.newAabb();
         for (int i = 0; i < positions.length; i += 3) {
-            aabb.expand(positions[i+0], positions[i+1], positions[i+2]);
+            ModelImporterJni.expandAabb(aabb, positions[i+0], positions[i+1], positions[i+2]);
         }
         return aabb;
     }
 
-    private static ModelImporter.Mesh createModelImporterMesh(List<Float> position_list,
+    private static Modelimporter.Mesh createModelImporterMesh(List<Float> position_list,
                                                               List<Float> normal_list,
                                                               List<Float> texcoord_list,
                                                               List<Float> bone_weights_list,
                                                               List<Integer> bone_indices_list,
                                                               List<Integer> mesh_index_list,
-                                                              ModelImporter.Material material) {
-        ModelImporter.Mesh mesh = new ModelImporter.Mesh();
+                                                              Modelimporter.Material material) {
+        Modelimporter.Mesh mesh = new Modelimporter.Mesh();
         mesh.name = "";
         mesh.material = material;
 
@@ -648,7 +648,6 @@ public class ColladaUtil {
             mesh.indices = toIntArray(mesh_index_list);
 
         mesh.vertexCount = position_list.size() / 3;
-        mesh.indexCount = mesh_index_list.size();
 
         return mesh;
     }
@@ -934,10 +933,10 @@ public class ColladaUtil {
 
         Rig.Model.Builder modelBuilder = Rig.Model.newBuilder();
 
-        ModelImporter.Material material = new ModelImporter.Material();
+        Modelimporter.Material material = new Modelimporter.Material();
 
-        List<ModelImporter.Mesh> allMeshes = new ArrayList<>();
-        ModelImporter.Mesh miMesh = createModelImporterMesh(new ArrayList<>(Arrays.asList(baked_position_list)),
+        List<Modelimporter.Mesh> allMeshes = new ArrayList<>();
+        Modelimporter.Mesh miMesh = createModelImporterMesh(new ArrayList<>(Arrays.asList(baked_position_list)),
                                                             new ArrayList<>(Arrays.asList(baked_normal_list)),
                                                             new ArrayList<>(Arrays.asList(baked_texcoord_list)),
                                                             new ArrayList<>(Arrays.asList(baked_bone_weights_list)),
@@ -951,7 +950,7 @@ public class ColladaUtil {
             allMeshes.add(miMesh);
         }
 
-        for (ModelImporter.Mesh newMesh : allMeshes) {
+        for (Modelimporter.Mesh newMesh : allMeshes) {
             modelBuilder.addMeshes(ModelUtil.loadMesh(newMesh));
         }
 
@@ -979,9 +978,9 @@ public class ColladaUtil {
         meshSetBuilder.addModels(modelBuilder);
         meshSetBuilder.setMaxBoneCount(max_bone_count);
 
-        ArrayList<ModelImporter.Bone> bones = loadSkeleton(collada);
+        ArrayList<Modelimporter.Bone> bones = loadSkeleton(collada);
         if (bones != null) {
-            for (ModelImporter.Bone bone : bones) {
+            for (Modelimporter.Bone bone : bones) {
                 meshSetBuilder.addBoneList(MurmurHash.hash64(bone.name));
             }
         }
@@ -1458,13 +1457,13 @@ public class ColladaUtil {
         return loadDAE(is);
     }
 
-    private static void flattenBoneTree(Bone colladaBone, ModelImporter.Bone parent, ArrayList<ModelImporter.Bone> out) {
+    private static void flattenBoneTree(Bone colladaBone, Modelimporter.Bone parent, ArrayList<Modelimporter.Bone> out) {
         String originalName = colladaBone.getSourceId();
         String newName = originalName;
         if (parent == null)
             newName = "root";
 
-        ModelImporter.Bone bone = new ModelImporter.Bone();
+        Modelimporter.Bone bone = new Modelimporter.Bone();
         bone.name           = newName;
         bone.parent         = parent;
         bone.node           = null;
@@ -1479,19 +1478,19 @@ public class ColladaUtil {
         }
     }
 
-    public static ArrayList<ModelImporter.Bone> loadSkeleton(XMLCOLLADA scene) throws IOException, XMLStreamException, LoaderException  {
+    public static ArrayList<Modelimporter.Bone> loadSkeleton(XMLCOLLADA scene) throws IOException, XMLStreamException, LoaderException  {
         ArrayList<String> boneIds = new ArrayList<>();
         ArrayList<Bone> colladaBones = loadSkeleton(scene, boneIds);
 
         if (colladaBones == null)
             return null;
 
-        ArrayList<ModelImporter.Bone> bones = new ArrayList<>();
+        ArrayList<Modelimporter.Bone> bones = new ArrayList<>();
         flattenBoneTree(colladaBones.get(0), null, bones);
         return bones;
     }
 
-    public static ArrayList<ModelImporter.Bone> loadSkeleton(byte[] content) throws IOException, IOException {
+    public static ArrayList<Modelimporter.Bone> loadSkeleton(byte[] content) throws IOException, IOException {
         try {
             XMLCOLLADA collada = loadDAE(new ByteArrayInputStream(content));
             return loadSkeleton(collada);
@@ -1577,9 +1576,9 @@ public class ColladaUtil {
         // System.out.printf("Scene Nodes:\n");
 
         // for (Node node : scene.nodes) {
-        //     System.out.printf("  Scene Node: %s  index: %d  id: %d  parent: %s\n", node.name, node.index, ModelImporter.AddressOf(node), node.parent != null ? node.parent.name : "");
-        //     System.out.printf("      local: id: %d\n", ModelImporter.AddressOf(node.local));
-        //     ModelImporter.DebugPrintTransform(node.local, 3);
+        //     System.out.printf("  Scene Node: %s  index: %d  id: %d  parent: %s\n", node.name, node.index, Modelimporter.AddressOf(node), node.parent != null ? node.parent.name : "");
+        //     System.out.printf("      local: id: %d\n", Modelimporter.AddressOf(node.local));
+        //     ModelImporterJni.DebugPrintTransform(node.local, 3);
         // }
 
 
@@ -1590,12 +1589,12 @@ public class ColladaUtil {
 
         //     for (Bone bone : scene.skins[0].bones) {
         //         System.out.printf("  Scene Bone: %s  index: %d  id: %d  nodeid: %d  parent: %s\n", bone.name, bone.index,
-        //                                     ModelImporter.AddressOf(bone), ModelImporter.AddressOf(bone.node),
+        //                                     Modelimporter.AddressOf(bone), Modelimporter.AddressOf(bone.node),
         //                                     bone.parent != null ? bone.parent.name : "");
-        //         System.out.printf("      local: id: %d\n", ModelImporter.AddressOf(bone.node.local));
-        //         ModelImporter.DebugPrintTransform(bone.node.local, 3);
+        //         System.out.printf("      local: id: %d\n", Modelimporter.AddressOf(bone.node.local));
+        //         ModelImporterJni.DebugPrintTransform(bone.node.local, 3);
         //         System.out.printf("      inv_bind_poser:\n");
-        //         ModelImporter.DebugPrintTransform(bone.invBindPose, 3);
+        //         ModelImporterJni.DebugPrintTransform(bone.invBindPose, 3);
         //     }
 
         //     System.out.printf("--------------------------------------------\n");
@@ -1603,13 +1602,13 @@ public class ColladaUtil {
 
         try {
             System.out.printf("Bones:\n");
-            ArrayList<ModelImporter.Bone> bones = loadSkeleton(scene);
+            ArrayList<Modelimporter.Bone> bones = loadSkeleton(scene);
             if (bones != null) {
-                for (ModelImporter.Bone bone : bones) {
+                for (Modelimporter.Bone bone : bones) {
                     System.out.printf("  Bone: %s  index: %d  parent: %s node: %s\n", bone.name, bone.index, bone.parent != null ? bone.parent.name : "null", bone.node != null ? bone.node.name : "null");
                     if (bone.node != null) {
                         System.out.printf("      local:\n");
-                        ModelImporter.DebugPrintTransform(bone.node.local, 3);
+                        ModelImporterJni.DebugPrintTransform(bone.node.local, 3);
                     }
                 }
                 System.out.printf("--------------------------------------------\n");

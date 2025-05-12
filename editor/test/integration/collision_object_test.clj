@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -41,17 +41,17 @@
             outline   (g/node-value node-id :node-outline)
             scene     (g/node-value node-id :scene)]
         (is (= 3 (count (:children scene))))
-        (is (= ["Collision Object" "Box" "Capsule" "Sphere"] (outline-seq outline)))))))
+        (is (= ["Collision Object" "<Unnamed Box>" "<Unnamed Capsule>" "<Unnamed Sphere>"] (outline-seq outline)))))))
 
 (deftest add-shapes
   (testing "Adding a sphere"
     (test-util/with-loaded-project
       (let [node-id   (test-util/resource-node project "/collision_object/three_shapes.collisionobject")]
         (app-view/select! app-view [node-id])
-        (test-util/handler-run :add [{:name :workbench :env {:selection [node-id] :app-view app-view}}] {:shape-type :type-sphere})
+        (test-util/handler-run :edit.add-embedded-component [{:name :workbench :env {:selection [node-id] :app-view app-view}}] {:shape-type :type-sphere})
         (let [outline (g/node-value node-id :node-outline)]
           (is (= 4 (count (:children outline))))
-          (is (= "Sphere" (last (outline-seq outline)))))))))
+          (is (= "<Unnamed Sphere>" (last (outline-seq outline)))))))))
 
 (deftest validation
   (test-util/with-loaded-project

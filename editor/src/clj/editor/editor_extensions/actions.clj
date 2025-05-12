@@ -1,4 +1,4 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -83,9 +83,9 @@
 (defn- shell! [commands project state]
   (let [{:keys [reload-resources! display-output!]} state
         root (lsp.async/with-auto-evaluation-context evaluation-context
-               (-> project
-                   (project/workspace evaluation-context)
-                   (workspace/project-path evaluation-context)))]
+               (let [basis (:basis evaluation-context)
+                     workspace (project/workspace project evaluation-context)]
+                 (workspace/project-directory basis workspace)))]
     (-> (await-all-sequentially
           (eduction
             (map

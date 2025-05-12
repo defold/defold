@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -23,42 +23,39 @@ import com.dynamo.bob.Task;
 import com.dynamo.bob.font.Fontc;
 import com.dynamo.bob.fs.IResource;
 
-import com.dynamo.bob.pipeline.GlyphBankBuilder;
-
 import com.dynamo.render.proto.Font.FontDesc;
 import com.dynamo.render.proto.Font.FontMap;
 
 @BuilderParams(name = "Font", inExts = ".font", outExt = ".fontc")
-public class FontBuilder extends Builder<Void>  {
+public class FontBuilder extends Builder  {
 
     @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
+    public Task create(IResource input) throws IOException, CompileExceptionError {
         FontDesc.Builder fontDescbuilder = FontDesc.newBuilder();
         ProtoUtil.merge(input, fontDescbuilder);
         FontDesc fontDesc = fontDescbuilder.build();
 
-        Task<?> embedTask = this.project.createTask(input, GlyphBankBuilder.class);
-
-        Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
+        Task.TaskBuilder taskBuilder = Task.newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
                 .addInput(input.getResource(fontDesc.getFont()))
                 .addOutput(input.changeExt(params.outExt()));
 
-        taskBuilder.addInput(embedTask.getOutputs().get(0));
+        Task glyphBankTask = createSubTask(input, GlyphBankBuilder.class, taskBuilder);
+        createSubTask(fontDesc.getMaterial(),"material", taskBuilder);
 
-        Task<Void> task = taskBuilder.build();
-        embedTask.setProductOf(task);
+        Task task = taskBuilder.build();
+        glyphBankTask.setProductOf(task);
         return task;
     }
 
     @Override
-    public void build(Task<Void> task) throws CompileExceptionError, IOException {
+    public void build(Task task) throws CompileExceptionError, IOException {
         FontDesc.Builder fontDescbuilder = FontDesc.newBuilder();
-        ProtoUtil.merge(task.input(0), fontDescbuilder);
+        ProtoUtil.merge(task.firstInput(), fontDescbuilder);
         FontDesc fontDesc = fontDescbuilder.build();
 
-        BuilderUtil.checkResource(this.project, task.input(0), "material", fontDesc.getMaterial());
+        BuilderUtil.checkResource(this.project, task.firstInput(), "material", fontDesc.getMaterial());
 
         int buildDirLen        = this.project.getBuildDirectory().length();
         String genResourcePath = task.input(2).getPath().substring(buildDirLen);
@@ -67,12 +64,20 @@ public class FontBuilder extends Builder<Void>  {
         fontMapBuilder.setMaterial(BuilderUtil.replaceExt(fontDesc.getMaterial(), ".material", ".materialc"));
 
         fontMapBuilder.setGlyphBank(genResourcePath);
+
+        fontMapBuilder.setSize(fontDesc.getSize());
+        fontMapBuilder.setAntialias(fontDesc.getAntialias());
         fontMapBuilder.setShadowX(fontDesc.getShadowX());
         fontMapBuilder.setShadowY(fontDesc.getShadowY());
+        fontMapBuilder.setShadowBlur(fontDesc.getShadowBlur());
+        fontMapBuilder.setShadowAlpha(fontDesc.getShadowAlpha());
         fontMapBuilder.setAlpha(fontDesc.getAlpha());
         fontMapBuilder.setOutlineAlpha(fontDesc.getOutlineAlpha());
-        fontMapBuilder.setShadowAlpha(fontDesc.getShadowAlpha());
+        fontMapBuilder.setOutlineWidth(fontDesc.getOutlineWidth());
         fontMapBuilder.setLayerMask(Fontc.GetFontMapLayerMask(fontDesc));
+
+        fontMapBuilder.setOutputFormat(fontDesc.getOutputFormat());
+        fontMapBuilder.setRenderMode(fontDesc.getRenderMode());
 
         task.output(0).setContent(fontMapBuilder.build().toByteArray());
     }

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,7 +16,6 @@
 #define DM_SOUND_DECODER_H
 
 #include "sound_codec.h"
-#include "sound_decoder.h"
 #include "sound.h"
 
 namespace dmSoundCodec
@@ -49,7 +48,7 @@ namespace dmSoundCodec
         /**
          * Open a stream for decoding
          */
-        Result (*m_OpenStream)(const void* buffer, const uint32_t size, HDecodeStream* out);
+        Result (*m_OpenStream)(dmSound::HSoundData sound_data, HDecodeStream* out);
 
         /**
          * Close and free decoding resources
@@ -57,10 +56,10 @@ namespace dmSoundCodec
         void (*m_CloseStream)(HDecodeStream);
 
         /**
-         * Fetch a chunk of PCM data from the decoder. The buffer will be filled as long as there is
+         * Fetch a chunk of PCM data from the decoder. The buffer(s) will be filled as long as there is
          * enough data left in the compressed stream.
          */
-        Result (*m_DecodeStream)(HDecodeStream decoder, char* buffer, uint32_t buffer_size, uint32_t* decoded);
+        Result (*m_DecodeStream)(HDecodeStream decoder, char* buffer[], uint32_t buffer_size, uint32_t* decoded);
 
         /**
          * Seek to the beginning.

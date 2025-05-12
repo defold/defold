@@ -40,6 +40,17 @@ def add_to_zip_file(task):
 
 def build(bld):
     resources = bld(source = ['test.cont_pb', 'test_ref.cont_pb', 'empty.script'])
+
+    # Create an archive without any liveupdate content
+    sources = ['archive_data/%s' % e for e in ['file4.ad', 'file1.ad', 'file3.ad', 'file2.ad', 'file5.script']]
+    archive = bld(features='barchive',
+                  source_root='src/test',
+                  resource_name='resources_no_lu',
+                  use_compression=False,
+                  source=' '.join(sources))
+
+    bld.add_group()
+
     # ArchiveBuilder (in test mode) automatically marks files with "liveupdate" as excluded resources
     sources = ['archive_data/%s' % e for e in ['file4.ad', 'file1.ad', 'file3.ad', 'file2.ad', 'file5.script', 'liveupdate.file7.ad', 'liveupdate.file6.script']]
 
@@ -111,6 +122,9 @@ def build(bld):
 
     # ******************************************************************************************************************************
     # Resource providers
+    skip_http_test = []
+    if bld.env.PLATFORM in ['wasm-web','wasm_pthread-web','js-web']:
+        skip_http_test = ['skip_test']
 
     bld.program(features     = 'cxx test',
                 includes     = '.. ../../proto',
@@ -119,13 +133,19 @@ def build(bld):
                 target       = 'test_provider_file',
                 source       = 'test_provider_file.cpp',)
 
+    embed_source = []
+    for name in ['resources', 'resources_compressed', 'resources_no_lu']:
+        embed_source.append(name + '.arci')
+        embed_source.append(name + '.arcd')
+        embed_source.append(name + '.dmanifest')
+
     bld.program(features     = 'cxx embed test',
                 includes     = '.. ../../proto',
                 use          = 'TESTMAIN DDF DLIB PROFILE_NULL SOCKET THREAD LUA resource',
                 exported_symbols = ['ResourceProviderArchive'],
                 target       = 'test_provider_archive',
                 source       = 'test_provider_archive.cpp',
-                embed_source = 'resources.arci resources.arcd resources.dmanifest resources_compressed.arci resources_compressed.arcd resources_compressed.dmanifest')
+                embed_source = embed_source)
 
     bld.program(features = 'cxx embed test',
                 includes     = '.. ../../proto',
@@ -133,9 +153,9 @@ def build(bld):
                 exported_symbols = ['ResourceProviderArchive', 'ResourceProviderArchiveMutable'],
                 target       = 'test_provider_archive_mutable',
                 source       = 'test_provider_archive_mutable.cpp',
-                embed_source = 'resources.arci resources.arcd resources.dmanifest resources_compressed.arci resources_compressed.arcd resources_compressed.dmanifest')
+                embed_source = embed_source)
 
-    bld.program(features     = 'cxx test',
+    bld.program(features     = ['cxx', 'test'] + skip_http_test,
                 includes     = '.. ../../proto',
                 defines      = defines,
                 use          = 'TESTMAIN DDF DLIB PROFILE_NULL SOCKET THREAD LUA resource',
@@ -153,9 +173,19 @@ def build(bld):
     bld.program(features     = 'cxx test',
                 includes     = '.. ../../proto',
                 use          = 'TESTMAIN DDF DLIB PROFILE_NULL SOCKET THREAD LUA resource',
-                exported_symbols = ['ResourceProviderArchive', 'ResourceProviderZip', 'ResourceProviderFile'], # 'ResourceProviderHttp',
+                exported_symbols = ['ResourceProviderArchive', 'ResourceProviderZip', 'ResourceProviderFile'],
                 target       = 'test_provider_multi',
                 source       = 'test_provider_multi.cpp',)
+
+    # ******************************************************************************************************************************
+    # Resource cache tests
+
+    bld.program(features     = 'cxx test',
+                includes     = '.. ../../proto',
+                use          = 'TESTMAIN DDF DLIB PROFILE_NULL SOCKET THREAD LUA resource',
+                exported_symbols = ['ResourceProviderArchive'],
+                target       = 'test_resource_chunk_cache',
+                source       = 'test_resource_chunk_cache.cpp',)
 
     # ******************************************************************************************************************************
     # Integration tests
@@ -166,7 +196,7 @@ def build(bld):
                 proto_gen_py = True,
                 target       = 'test_resource_archive',
                 source       = 'test_resource_archive.cpp',
-                embed_source = 'resources.arci resources.arcd resources.dmanifest resources_compressed.arci resources_compressed.arcd resources_compressed.dmanifest resources.public resources.manifest_hash')
+                embed_source = embed_source + 'resources.public resources.manifest_hash'.split())
 
     bld.program(features     = 'cxx test',
                 includes     = '.. ../../proto',
@@ -174,9 +204,9 @@ def build(bld):
                 exported_symbols = ['ResourceProviderFile', 'ResourceProviderZip', 'ResourceProviderArchive'],
                 target       = 'test_resource_mounts',
                 source       = 'test_resource_mounts.cpp',
-                embed_source = 'resources.arci resources.arcd resources.dmanifest resources_compressed.arci resources_compressed.arcd resources_compressed.dmanifest resources.public resources.manifest_hash')
+                embed_source = embed_source + 'resources.public resources.manifest_hash'.split())
 
-    bld.program(features     = 'cxx embed test',
+    bld.program(features     = ['cxx', 'embed', 'test'] + skip_http_test,
                 includes     = '.. ../../proto',
                 defines      = defines,
                 use          = 'TESTMAIN DDF DLIB PROFILE_NULL SOCKET THREAD LUA resource',

@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -64,12 +64,7 @@ public class SoundManager {
             if (activity.checkCallingOrSelfPermission("android.permission.READ_PHONE_STATE") != PackageManager.PERMISSION_GRANTED) {
                 Log.e(TAG, "App is missing the READ_PHONE_STATE permission. Audio will continue while phone call is active.");
             } else {
-                activity.runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        SoundManager.this.telephonyManager.listen(new CustomPhoneCallListener(SoundManager.this), PhoneStateListener.LISTEN_CALL_STATE);
-                    }
-                });
+                activity.runOnUiThread(() -> SoundManager.this.telephonyManager.listen(new CustomPhoneCallListener(SoundManager.this), PhoneStateListener.LISTEN_CALL_STATE));
             }
 
             this.updatePhoneCallState(this.telephonyManager.getCallState());

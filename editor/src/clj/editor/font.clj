@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -574,12 +574,18 @@
             pb-map (protobuf/make-map-without-defaults Font$FontMap
                      :material material
                      :glyph-bank (:resource glyph-bank-build-target)
+                     :size (:size font-map)
+                     :antialias (:antialias font-map)
                      :shadow-x (:shadow-x font-map)
                      :shadow-y (:shadow-y font-map)
+                     :shadow-blur (:shadow-blur font-map)
+                     :shadow-alpha (:shadow-alpha font-map)
                      :alpha (:alpha font-map)
                      :outline-alpha (:outline-alpha font-map)
-                     :shadow-alpha (:shadow-alpha font-map)
-                     :layer-mask (:layer-mask font-map))]
+                     :outline-width (:outline-width font-map)
+                     :layer-mask (:layer-mask font-map)
+                     :output-format (:output-format font-map)
+                     :render-mode (:render-mode font-map))]
         [(pipeline/make-protobuf-build-target _node-id resource Font$FontMap pb-map dep-build-targets+glyph-bank)])))
 
 (g/defnode FontSourceNode
@@ -695,7 +701,7 @@
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Font$FontTextureFormat))))
   (property render-mode g/Keyword (default (protobuf/default Font$FontDesc :render-mode))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Font$FontRenderMode))))
-  (property size g/Int ; Required protobuf field.
+  (property size g/Int (default (protobuf/required-default Font$FontDesc :size))
             (dynamic visible output-format-defold-or-distance-field?)
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-zero-or-below? size)))
   (property antialias g/Bool (default (protobuf/int->boolean (protobuf/default Font$FontDesc :antialias)))

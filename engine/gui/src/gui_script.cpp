@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -22,7 +22,6 @@
 #include <dmsdk/dlib/vmath.h>
 
 #include <script/script.h>
-
 #include <gameobject/gameobject_props_lua.h>
 #include <gameobject/gameobject_script_util.h>
 
@@ -398,7 +397,7 @@ namespace dmGui
         }
         else
         {
-            lua_pushstring(L,"<foreign scene node>");
+            lua_pushliteral(L, "<foreign scene node>");
         }
 
         return 1;
@@ -549,6 +548,48 @@ namespace dmGui
         assert(top + 1 == lua_gettop(L));
 
         return 1;
+    }
+
+    /*# gets the node type
+     *
+     * @name gui.get_type
+     * @param node [type:node] node from which to get the type
+     * @return type [type:constant] type
+     *
+     * - `gui.TYPE_BOX`
+     * - `gui.TYPE_TEXT`
+     * - `gui.TYPE_PIE`
+     * - `gui.TYPE_PARTICLEFX`
+     * - `gui.TYPE_CUSTOM`
+     * 
+     * @return subtype [type:integer|nil] id of the custom type
+     */
+    static int LuaGetType(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        dmGui::HScene scene = dmGui::GuiScriptInstance_Check(L);
+
+        HNode hnode;
+        LuaCheckNodeInternal(L, 1, &hnode);
+
+        dmGui::NodeType type = dmGui::GetNodeType(scene, hnode);
+        lua_pushnumber(L, type);
+
+        if (type == NODE_TYPE_CUSTOM)
+        {
+            uint32_t subtype = dmGui::GetNodeCustomType(scene, hnode);
+            lua_pushnumber(L, (lua_Number) subtype);
+        }
+        else
+        {
+            lua_pushnil(L);
+        }
+
+        assert(top + 2 == lua_gettop(L));
+
+        return 2;
     }
 
     /*# sets the id of the specified node
@@ -766,11 +807,12 @@ namespace dmGui
      * If the material has a constant array called 'tint_array' specified in the material, you can use `gui.set(node, "tint_array", vmath.vec4(1,0,0,1), { index = 4})` to set the fourth array element to a different value.
      *
      * @name gui.set
-     * @param node [type:node] node to set the property for
+     * @param node [type:node|url] node to set the property for, or msg.url() to the gui itself
      * @param property [type:string|hash|constant] the property to set 
      * @param value [type:number|vector4|vector3|quat] the property to set
      * @param [options] [type:table] optional options table (only applicable for material constants)
      * - `index` [type:integer] index into array property (1 based)
+     * - `key` [type:hash] name of internal property
      *
      * @examples
      *
@@ -813,6 +855,21 @@ namespace dmGui
      * -- update a sub-element in an array constant at position 4
      * gui.set(node, "tint_array.x", 1, {index = 4})
      * ```
+     *
+     * Set a named property
+     *
+     * ```lua
+     * function on_message(self, message_id, message, sender)
+     *    if message_id == hash("set_font") then
+     *        gui.set(msg.url(), "fonts", message.font, {key = "my_font_name"})
+     *        gui.set_font(gui.get_node("text"), "my_font_name")
+     *    elseif message_id == hash("set_texture") then
+     *        gui.set(msg.url(), "textures", message.texture, {key = "my_texture"})
+     *        gui.set_texture(gui.get_node("box"), "my_texture")
+     *        gui.play_flipbook(gui.get_node("box"), "logo_256")
+     *    end
+     * end
+     * ```
      */
     static int LuaSet(lua_State* L)
     {
@@ -820,11 +877,50 @@ namespace dmGui
 
         Scene* scene = GuiScriptInstance_Check(L);
 
-        HNode hnode;
-        LuaCheckNodeInternal(L, 1, &hnode);
-
         dmhash_t property_hash = dmScript::CheckHashOrString(L, 2);
         dmGui::PropDesc* pd = dmGui::GetPropertyDesc(property_hash);
+
+        dmGameObject::PropertyVar property_var;
+        dmGameObject::PropertyResult result = dmGameObject::LuaToVar(L, 3, property_var);
+
+        if (result != dmGameObject::PROPERTY_RESULT_OK)
+        {
+            return DM_LUA_ERROR("Property '%s' has an unsupported type", dmHashReverseSafe64(property_hash));
+        }
+
+        dmGameObject::PropertyOptions property_options = {};
+        if (lua_gettop(L) > 3)
+        {
+            int options_result = LuaToPropertyOptions(L, 4, &property_options, property_hash, 0);
+            if (options_result != 0)
+            {
+                return options_result;
+            }
+        }
+
+        if (dmScript::IsURL(L, 1))
+        {
+            dmMessage::URL sender;
+            dmScript::GetURL(L, &sender);
+            dmMessage::URL target;
+            dmScript::ResolveURL(L, 1, &target, &sender);
+            bool is_self = (sender.m_Socket == target.m_Socket) &&
+                           (sender.m_Path == target.m_Path) &&
+                           (sender.m_Fragment == target.m_Fragment);
+            if (!is_self)
+            {
+                return DM_LUA_ERROR("'gui.set()' can only be used to change a property of the GUI component itself, use 'msg.url()'");
+            }
+            dmGameObject::HInstance instance = (dmGameObject::HInstance)scene->m_Context->m_GetUserDataCallback(scene);
+            result = dmGameObject::SetProperty(instance, target.m_Fragment, property_hash, property_options, property_var);
+            if (result != dmGameObject::PROPERTY_RESULT_OK)
+            {
+                return HandleGoSetResult(L, result, property_hash, instance, target, property_options);
+            }
+            return 0;
+        }
+        HNode hnode;
+        LuaCheckNodeInternal(L, 1, &hnode);
 
         if (pd)
         {
@@ -877,25 +973,12 @@ namespace dmGui
             return 0;
         }
 
-        dmGameObject::PropertyVar property_var;
-        dmGameObject::PropertyOptions property_options = {};
-        dmGameObject::PropertyResult result = dmGameObject::LuaToVar(L, 3, property_var);
-
-        if (lua_gettop(L) > 3)
-        {
-            int options_result = LuaToPropertyOptions(L, 4, &property_options, property_hash, 0);
-            if (options_result != 0)
-            {
-                return options_result;
-            }
-        }
-
-        if (result == dmGameObject::PROPERTY_RESULT_OK && dmGui::SetMaterialProperty(scene, hnode, property_hash, property_var, &property_options))
+        if (dmGui::SetMaterialProperty(scene, hnode, property_hash, property_var, &property_options))
         {
             return 0;
         }
 
-        return DM_LUA_ERROR("property '%s' not found", dmHashReverseSafe64(property_hash));
+        return DM_LUA_ERROR("Property '%s' not found", dmHashReverseSafe64(property_hash));
     }
 
     /*# gets the index of the specified node
@@ -3976,7 +4059,7 @@ namespace dmGui
      *
      * @name gui.get_rotation
      * @param node [type:node] node to get the rotation from
-     * @return rotation [type:quat] node rotation
+     * @return rotation [type:quaternion] node rotation
      */
 
     /*# sets the node rotation
@@ -3985,7 +4068,7 @@ namespace dmGui
      *
      * @name gui.set_rotation
      * @param node [type:node] node to set the rotation for
-     * @param rotation [type:quat|vector4] new rotation
+     * @param rotation [type:quaternion|vector4] new rotation
      */
 
     /*# gets the node rotation
@@ -4813,6 +4896,7 @@ namespace dmGui
         {"get_node",        LuaGetNode},
         {"get_id",          LuaGetId},
         {"set_id",          LuaSetId},
+        {"get_type",        LuaGetType},
         {"get",             LuaGet},
         {"set",             LuaSet},
         {"get_index",       LuaGetIndex},
@@ -5123,6 +5207,32 @@ namespace dmGui
      * @variable
      */
 
+    /*# box type
+     *
+     * @name gui.TYPE_BOX
+     * @variable
+     */
+    /*# text type
+     *
+     * @name gui.TYPE_TEXT
+     * @variable
+     */
+    /*# pie type
+     *
+     * @name gui.TYPE_PIE
+     * @variable
+     */
+    /*# particlefx type
+     *
+     * @name gui.TYPE_PARTICLEFX
+     * @variable
+     */
+    /*# custom type
+     *
+     * @name gui.TYPE_CUSTOM
+     * @variable
+     */
+
     /*# fit adjust mode
      * Adjust mode is used when the screen resolution differs from the project settings.
      * The fit mode ensures that the entire node is visible in the adjusted gui scene.
@@ -5222,6 +5332,18 @@ namespace dmGui
         SETPROP(slice9, SLICE9)
 
 #undef SETPROP
+
+#define SETTYPE(name) \
+    lua_pushnumber(L, (lua_Number) NODE_TYPE_##name); \
+    lua_setfield(L, -2, "TYPE_"#name);\
+
+    SETTYPE(BOX)
+    SETTYPE(TEXT)
+    SETTYPE(PIE)
+    SETTYPE(PARTICLEFX)
+    SETTYPE(CUSTOM)
+
+#undef SETTYPE
 
 // For backwards compatibility
 #define SETEASINGOLD(name, easing) \
@@ -5527,22 +5649,37 @@ namespace dmGui
      *
      * Here is a brief description of the available table fields:
      *
-     * Field       | Description
-     * ----------- | ----------------------------------------------------------
-     * `value`     | The amount of input given by the user. This is usually 1 for buttons and 0-1 for analogue inputs. This is not present for mouse movement.
-     * `pressed`   | If the input was pressed this frame. This is not present for mouse movement.
-     * `released`  | If the input was released this frame. This is not present for mouse movement.
-     * `repeated`  | If the input was repeated this frame. This is similar to how a key on a keyboard is repeated when you hold it down. This is not present for mouse movement.
-     * `x`         | The x value of a pointer device, if present.
-     * `y`         | The y value of a pointer device, if present.
-     * `screen_x`  | The screen space x value of a pointer device, if present.
-     * `screen_y`  | The screen space y value of a pointer device, if present.
-     * `dx`        | The change in x value of a pointer device, if present.
-     * `dy`        | The change in y value of a pointer device, if present.
-     * `screen_dx` | The change in screen space x value of a pointer device, if present.
-     * `screen_dy` | The change in screen space y value of a pointer device, if present.
-     * `gamepad`   | The index of the gamepad device that provided the input.
-     * `touch`     | List of touch input, one element per finger, if present. See table below about touch input
+     *
+     * Field         | Description
+     * ------------- | ----------------------------------------------------------
+     * `value`       | The amount of input given by the user. This is usually 1 for buttons and 0-1 for analogue inputs. This is not present for mouse movement and text input.
+     * `pressed`     | If the input was pressed this frame. This is not present for mouse movement and text input.
+     * `released`    | If the input was released this frame. This is not present for mouse movement and text input.
+     * `repeated`    | If the input was repeated this frame. This is similar to how a key on a keyboard is repeated when you hold it down. This is not present for mouse movement and text input.
+     * `x`           | The x value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `y`           | The y value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `screen_x`    | The screen space x value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `screen_y`    | The screen space y value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `dx`          | The change in x value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `dy`          | The change in y value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `screen_dx`   | The change in screen space x value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `screen_dy`   | The change in screen space y value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `gamepad`     | The index of the gamepad device that provided the input. See table below about gamepad input.
+     * `touch`       | List of touch input, one element per finger, if present. See table below about touch input
+     * `text`        | Text input from a (virtual) keyboard or similar.
+     * `marked_text` | Sequence of entered symbols while entering a symbol combination, for example Japanese Kana.
+     *
+     * Gamepad specific fields:
+     *
+     * Field             | Description
+     * ----------------- | ----------------------------------------------------------
+     * `gamepad`         | The index of the gamepad device that provided the input.
+     * `userid`          | Id of the user associated with the controller. Usually only relevant on consoles.
+     * `gamepad_unknown` | True if the inout originated from an unknown/unmapped gamepad.
+     * `gamepad_name`    | Name of the gamepad
+     * `gamepad_axis`    | List of gamepad axis values. For raw gamepad input only.
+     * `gamepadhats`     | List of gamepad hat values. For raw gamepad input only.
+     * `gamepad_buttons` | List of gamepad button values. For raw gamepad input only.
      *
      * Touch input table:
      *

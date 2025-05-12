@@ -1,12 +1,12 @@
-;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -763,7 +763,9 @@
         (validation/prop-error :fatal _node-id :material shader/page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count "Image"))))
 
 (g/defnk produce-properties [_node-id _declared-properties material-attribute-infos vertex-attribute-overrides]
-  (let [attribute-properties (graphics/attribute-properties-by-property-key _node-id material-attribute-infos vertex-attribute-overrides)]
+  (let [attribute-properties
+        (when-not (g/error-value? material-attribute-infos)
+          (graphics/attribute-property-entries _node-id material-attribute-infos 0 vertex-attribute-overrides))]
     (-> _declared-properties
         (update :properties into attribute-properties)
         (update :display-order into (map first) attribute-properties))))
@@ -933,7 +935,7 @@
                  :frame-indices frame-indices-buffer}))))
   (output _properties g/Properties :cached produce-properties)
   (output vertex-attribute-bytes g/Any :cached (g/fnk [_node-id material-attribute-infos vertex-attribute-overrides]
-                                                 (graphics/attribute-bytes-by-attribute-key _node-id material-attribute-infos vertex-attribute-overrides))))
+                                                 (graphics/attribute-bytes-by-attribute-key _node-id material-attribute-infos 0 vertex-attribute-overrides))))
 
 (defn- build-pb [resource dep-resources user-data]
   (let [pb  (:pb user-data)
@@ -1093,7 +1095,7 @@
 (defn- selection->particlefx [selection]
   (handler/adapt-single selection ParticleFXNode))
 
-(handler/defhandler :add-secondary :workbench
+(handler/defhandler :edit.add-secondary-embedded-component :workbench
   (active? [selection] (or (selection->emitter selection)
                            (selection->particlefx selection)))
   (label [user-data] (if-not user-data
@@ -1109,7 +1111,7 @@
     (when (not user-data)
       (mapv (fn [[type data]] {:label (:label data)
                                :icon modifier-icon
-                               :command :add-secondary
+                               :command :edit.add-secondary-embedded-component
                                :user-data {:modifier-type type}}) mod-types))))
 
 (defn- make-emitter
@@ -1171,7 +1173,7 @@
           (g/operation-label "Add Emitter")
           (make-emitter self (assoc emitter :type type) select-fn true))))))
 
-(handler/defhandler :add :workbench
+(handler/defhandler :edit.add-embedded-component :workbench
   (active? [selection] (selection->particlefx selection))
   (label [user-data] (if-not user-data
                        "Add Emitter"
@@ -1183,7 +1185,7 @@
              (let [self (selection->particlefx selection)]
                (mapv (fn [[type data]] {:label (:label data)
                                         :icon emitter-icon
-                                        :command :add
+                                        :command :edit.add-embedded-component
                                         :user-data {:emitter-type type}}) emitter-types)))))
 
 

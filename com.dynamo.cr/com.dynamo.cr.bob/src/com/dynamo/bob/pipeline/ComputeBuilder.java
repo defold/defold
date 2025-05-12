@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -18,15 +18,12 @@ import java.io.IOException;
 
 import com.google.protobuf.TextFormat;
 
-import com.dynamo.bob.Bob;
-import com.dynamo.bob.Builder;
+import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Task;
-import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.ProtoParams;
-import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.render.proto.Compute.ComputeDesc;
 import com.dynamo.render.proto.Material.MaterialDesc;
 
@@ -40,35 +37,7 @@ import java.io.OutputStream;
 
 @ProtoParams(srcClass = ComputeDesc.class, messageClass = ComputeDesc.class)
 @BuilderParams(name = "Compute", inExts = {".compute"}, outExt = ".computec")
-public class ComputeBuilder extends Builder<Void>  {
-    @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-        TaskBuilder<Void> task = Task.<Void> newBuilder(this)
-                .setName(params.name())
-                .addInput(input)
-                .addOutput(input.changeExt(params.outExt()));
-
-        ComputeDesc.Builder computeBuilder = ComputeDesc.newBuilder();
-        ProtoUtil.merge(input, computeBuilder);
-
-        IResource computeProgramresource = this.project.getResource(computeBuilder.getComputeProgram()).changeExt(".cpc");
-        task.addInput(computeProgramresource);
-
-        for (MaterialDesc.Sampler sampler : computeBuilder.getSamplersList()) {
-            String texture = sampler.getTexture();
-            if (texture.isEmpty()) {
-                continue;
-            }
-
-            IResource res = BuilderUtil.checkResource(this.project, input, "texture", texture);
-            Task<?> embedTask = this.project.createTask(res);
-            if (embedTask == null) {
-                throw new CompileExceptionError(input, 0, String.format("Failed to create build task for component '%s'", res.getPath()));
-            }
-        }
-
-        return task.build();
-    }
+public class ComputeBuilder extends ProtoBuilder<ComputeDesc.Builder> {
 
     private static void buildSamplers(ComputeDesc.Builder computeBuilder) throws CompileExceptionError {
         for (int i=0; i < computeBuilder.getSamplersCount(); i++) {
@@ -77,14 +46,43 @@ public class ComputeBuilder extends Builder<Void>  {
         }
     }
 
+    private IResource getShaderProgram(ComputeDesc.Builder fromBuilder) {
+        String shaderPath = BuilderUtil.replaceExt(fromBuilder.getComputeProgram(), ".cp", ShaderProgramBuilderBundle.EXT);
+        return this.project.getResource(shaderPath);
+    }
+
     @Override
-    public void build(Task<Void> task) throws CompileExceptionError, IOException {
-        IResource res                        = task.input(0);
-        ComputeDesc.Builder computeBuilder = ComputeDesc.newBuilder();
-        ProtoUtil.merge(task.input(0), computeBuilder);
+    public Task create(IResource input) throws IOException, CompileExceptionError {
+        ComputeDesc.Builder computeBuilder = getSrcBuilder(input);
+
+        // The material should depend on the finally built shader resource file
+        // that is a combination of one or more shader modules
+        IResource shaderResourceOut = getShaderProgram(computeBuilder);
+
+        ShaderProgramBuilderBundle.ModuleBundle modules = ShaderProgramBuilderBundle.createBundle();
+        modules.addModule(computeBuilder.getComputeProgram());
+        shaderResourceOut.setContent(modules.toByteArray());
+
+        Task.TaskBuilder computeTaskBuilder = Task.newBuilder(this)
+                .setName(params.name())
+                .addInput(input)
+                .addOutput(input.changeExt(params.outExt()));
+
+        createSubTask(shaderResourceOut, computeTaskBuilder);
+
+        return computeTaskBuilder.build();
+    }
+
+
+    @Override
+    public void build(Task task) throws CompileExceptionError, IOException {
+        IResource res = task.firstInput();
+        ComputeDesc.Builder computeBuilder = getSrcBuilder(res);
 
         BuilderUtil.checkResource(this.project, res, "compute program", computeBuilder.getComputeProgram());
-        computeBuilder.setComputeProgram(BuilderUtil.replaceExt(computeBuilder.getComputeProgram(), ".cp", ".cpc"));
+        IResource shaderResourceOut = getShaderProgram(computeBuilder);
+
+        computeBuilder.setComputeProgram("/" + BuilderUtil.replaceExt(shaderResourceOut.getPath(), ".spc"));
 
         buildSamplers(computeBuilder);
 
@@ -93,27 +91,25 @@ public class ComputeBuilder extends Builder<Void>  {
     }
 
     // Running standalone:
-    // java -classpath $DYNAMO_HOME/share/java/bob-light.jar com.dynamo.bob.pipeline.computeBuilder <path-in.compute> <path-out.computec>
+    // java -classpath $DYNAMO_HOME/share/java/bob-light.jar com.dynamo.bob.pipeline.computeBuilder <path-in.compute> <path-in.compute_shader> <path-out.computec>
     public static void main(String[] args) throws IOException, CompileExceptionError {
 
         System.setProperty("java.awt.headless", "true");
 
-        Reader reader       = new BufferedReader(new FileReader(args[0]));
-        OutputStream output = new BufferedOutputStream(new FileOutputStream(args[1]));
+        String pathIn = args[0];
+        String nameSpc = args[1];
+        String pathOut = args[2];
 
-        try {
+        try (Reader reader = new BufferedReader(new FileReader(pathIn)); OutputStream output = new BufferedOutputStream(new FileOutputStream(pathOut))) {
             ComputeDesc.Builder computeBuilder = ComputeDesc.newBuilder();
             TextFormat.merge(reader, computeBuilder);
 
-            computeBuilder.setComputeProgram(BuilderUtil.replaceExt(computeBuilder.getComputeProgram(), ".cp", ".cpc"));
+            computeBuilder.setComputeProgram(nameSpc);
 
             buildSamplers(computeBuilder);
 
             ComputeDesc ComputeDesc = computeBuilder.build();
             ComputeDesc.writeTo(output);
-        } finally {
-            reader.close();
-            output.close();
         }
     }
 }
