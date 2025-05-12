@@ -611,15 +611,6 @@ def default_flags(self):
         flags += ['-O%s' % opt_level]
         linkflags += ['-O%s' % opt_level]
 
-        if with_pthread:
-            flags += ['-pthread']
-            linkflags += ['-pthread']
-        else:
-            self.env.append_value('DEFINES', ['DM_NO_THREAD_SUPPORT'])
-
-        if 'wasm' == target_arch:
-            flags += ['-msimd128', '-msse4.2', '-DDM_SOUND_DSP_IMPL=WASM']
-
         self.env['DM_HOSTFS']           = '/node_vfs/'
         self.env.append_value('DEFINES', ['JC_TEST_NO_DEATH_TEST', 'PTHREADS_DEBUG'])
         # This disables a few tests in test_httpclient (no real investigation done)
