@@ -18,6 +18,7 @@
             [editor.system :as system]
             [editor.geom :as geom]
             [editor.handler :as handler]
+            [editor.scene-picking :as scene-picking]
             [editor.types :as types]
             [editor.ui :as ui]
             [editor.gl.pass :as pass]
@@ -145,9 +146,10 @@
         added-nodes (add-dropped-resources! drop-fn resources op-seq)]
     (.consume event)
     (when (seq added-nodes)
-      (let [top-ids (filterv (comp not :node-id g/node-by-id) added-nodes)
-            ids-to-select (if (empty? top-ids) added-nodes top-ids)]
-        (select-fn ids-to-select op-seq))
+      (let [top-ids (->> (e/map g/node-by-id added-nodes)
+                         (scene-picking/top-nodes)
+                         (e/keep :_node-id))]
+        (select-fn top-ids op-seq))
       (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
       (.setDropCompleted event true))))
 
