@@ -34,6 +34,7 @@ namespace dmGameSystem
      * @document
      * @name Collection proxy
      * @namespace collectionproxy
+     * @language Lua
      */
 
     static dmhash_t GetCollectionUrlHashFromCollectionProxy(lua_State* L, int index, dmResource::HFactory* factory)

@@ -45,6 +45,7 @@ namespace dmGameSystem
      * @document
      * @name Model
      * @namespace model
+     * @language Lua
      */
 
     /*# [type:number] model cursor

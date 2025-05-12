@@ -32,6 +32,7 @@ namespace dmScript
      * @document
      * @name Types
      * @namespace types
+     * @language Lua
      */
 
     /*# Check if passed type is vector.

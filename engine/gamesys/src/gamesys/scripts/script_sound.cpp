@@ -44,6 +44,7 @@ namespace dmGameSystem
      * @document
      * @name Sound
      * @namespace sound
+     * @language Lua
      */
 
 
