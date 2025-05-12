@@ -12,6 +12,7 @@ option java_outer_classname = "Gui";
  * @document
  * @name GUI
  * @namespace gui
+ * @language Lua
  */
 
 message NodeDesc

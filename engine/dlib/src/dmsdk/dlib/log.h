@@ -26,7 +26,8 @@
  * @document
  * @name Log
  * @path engine/dlib/src/dmsdk/dlib/log.h
-*/
+ * @language C++
+ */
 
 /*# macro for debug category logging
  *

@@ -46,6 +46,7 @@ namespace dmRender
      * @document
      * @name Render
      * @namespace render
+     * @language C++
      */
 
     #define RENDER_SCRIPT_INSTANCE "RenderScriptInstance"

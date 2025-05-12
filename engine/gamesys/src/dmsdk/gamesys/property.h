@@ -33,6 +33,7 @@ namespace dmGameSystem
      * @namespace dmGameSystem
      * @name Property
      * @path engine/gamesys/src/dmsdk/gamesys/property.h
+     * @language C++
      */
 
     struct PropVector3

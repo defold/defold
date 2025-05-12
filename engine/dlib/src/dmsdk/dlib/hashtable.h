@@ -27,6 +27,7 @@
  * @document
  * @name Hashtable
  * @path engine/dlib/src/dmsdk/dlib/hashtable.h
+ * @language C++
  */
 
 

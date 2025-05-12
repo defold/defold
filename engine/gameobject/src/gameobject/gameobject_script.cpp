@@ -60,6 +60,7 @@ namespace dmGameObject
      * @document
      * @name Game object
      * @namespace go
+     * @language Lua
      */
 
     /*# [type:vector3] game object position

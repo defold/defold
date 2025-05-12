@@ -76,6 +76,7 @@ union SaveLoadBuffer
      * @document
      * @name System
      * @namespace sys
+     * @language Lua
      */
 
     char* Sys_SetupTableSerializationBuffer(int required_size)

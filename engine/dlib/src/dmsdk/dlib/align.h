@@ -21,6 +21,7 @@
  * @document
  * @name Align
  * @path engine/dlib/src/dmsdk/dlib/align.h
+ * @language C++
  */
 
 /*# data structure alignment macro

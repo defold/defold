@@ -23,6 +23,7 @@
  * @name Utf8
  * @namespace dmUtf8
  * @path engine/dlib/src/dmsdk/dlib/utf8.h
+ * @language C++
  */
 
 namespace dmUtf8

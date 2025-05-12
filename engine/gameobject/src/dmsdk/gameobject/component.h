@@ -33,6 +33,7 @@ namespace dmGameObject
      * @document
      * @name Component
      * @namespace dmGameObject
+     * @language C++
      */
 
     struct ComponentType;

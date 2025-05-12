@@ -47,6 +47,7 @@ namespace dmGui
      * @document
      * @name GUI
      * @namespace gui
+     * @language Lua
      */
 
     /*# [type:hash] gui material

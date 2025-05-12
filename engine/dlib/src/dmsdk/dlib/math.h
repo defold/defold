@@ -24,6 +24,7 @@
  * @name Math
  * @namespace dmMath
  * @path engine/dlib/src/dmsdk/dlib/math.h
+ * @language C++
  */
 
 namespace dmMath

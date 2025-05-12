@@ -22,6 +22,7 @@
  * @name Profile
  * @namespace dmProfile
  * @path engine/dlib/src/dmsdk/dlib/profile.h
+ * @language C++
  */
 
 #include <stdint.h>

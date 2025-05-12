@@ -38,6 +38,7 @@
  * @document
  * @name Hash
  * @path engine/dlib/src/dmsdk/dlib/hash.h
+ * @language C++
  */
 
 /*# dmhash_t type definition

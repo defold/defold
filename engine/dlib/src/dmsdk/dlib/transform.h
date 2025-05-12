@@ -26,6 +26,7 @@
  * @document
  * @name Transform
  * @namespace dmTransform
+ * @language C++
  */
 
 namespace dmTransform
