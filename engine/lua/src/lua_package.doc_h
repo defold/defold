@@ -12,6 +12,7 @@
  * @document
  * @name Package
  * @namespace package
+ * @language Lua
  */
 
 /*# search path used for loading DLLs using the ```require``` function
