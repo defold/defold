@@ -841,8 +841,11 @@
   (let [ext (resource/type-ext resource)]
     (case ext
       "go"
-      (let [game-object (selection->game-object-instance selection)
-            parent (or game-object collection)]
+      (let [go-node (selection->game-object-instance selection)
+            parent (or go-node collection)
+            collection (if go-node
+                         (core/scope-of-type go-node CollectionNode)
+                         collection)]
         (make-ref-go collection resource id transform-props parent nil nil))
 
       "collection"
