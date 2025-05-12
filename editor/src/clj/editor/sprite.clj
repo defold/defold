@@ -380,7 +380,8 @@
 
 (g/defnk produce-properties [_declared-properties _node-id default-animation material-attribute-infos material-max-page-count material-samplers material-shader texture-binding-infos vertex-attribute-overrides]
   (let [extension (workspace/resource-kind-extensions (project/workspace (project/get-project _node-id)) :atlas)
-        is-paged-material (boolean (some-> material-shader shader/is-using-array-samplers?))
+        is-paged-material (and (shader/shader-lifecycle? material-samplers)
+                               (shader/is-using-array-samplers? material-shader))
         texture-binding-index (util/name-index texture-binding-infos :sampler)
         material-sampler-index (if (g/error-value? material-samplers)
                                  {}

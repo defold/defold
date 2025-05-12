@@ -39,9 +39,9 @@
   ^:const ^:long non-paged-page-count 0)
 
 (defn texture-param->gl-texture-param
-  ^long [texture-param]
   "This function translates Clojure keywords into OpenGL constants. You can use
   the keywords in texture parameter maps."
+  ^long [texture-param]
   (case texture-param
     :base-level GL2/GL_TEXTURE_BASE_LEVEL
     :border-color GL2/GL_TEXTURE_BORDER_COLOR

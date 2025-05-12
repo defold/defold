@@ -762,16 +762,21 @@
                  :text (string/join \newline (error-message-lines [error]))}]}
     (if-let [overlay-anchor-pane-props (:overlay-anchor-pane-props scene)]
       overlay-anchor-pane-props
-      (let [info-text (or tool-info-text (:info-text scene))]
-        (if (and (string? info-text)
-                 (pos? (count info-text)))
-          {:mouse-transparent true
-           :children [{:fx/type fx.label/lifecycle
-                       :style-class "info-label"
-                       :anchor-pane/top 15
-                       :anchor-pane/left 30
-                       :text info-text}]}
-          {:visible false})))))
+      (if-let [info-text
+               (if (and (string? tool-info-text)
+                        (pos? (count tool-info-text)))
+                 tool-info-text
+                 (let [scene-info-text (:info-text scene)]
+                   (when (and (string? scene-info-text)
+                              (pos? (count scene-info-text)))
+                     scene-info-text)))]
+        {:mouse-transparent true
+         :children [{:fx/type fx.label/lifecycle
+                     :style-class "info-label"
+                     :anchor-pane/top 15
+                     :anchor-pane/left 30
+                     :text info-text}]}
+        {:visible false}))))
 
 (g/defnk produce-selection [scene-render-data renderables-aabb+picking-node-id ^GLAutoDrawable picking-drawable camera ^Region viewport pass->render-args ^Rect picking-rect]
   (when (some? picking-rect)

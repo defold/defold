@@ -358,12 +358,16 @@ This must be submitted to the driver for compilation before you can use it. See
     (.glUniform4fv gl loc count fb)))
 
 (defn- shader-type? [value]
+  ;; Enum values for compute shaders exist in Protobuf but are not supported by
+  ;; the OpenGL profile we use in the editor. Uncomment if we update.
   (case value
     (:shader-type-vertex :shader-type-fragment #_ :shader-type-compute) true
     false))
 
 (defn- shader-type->gl-shader-type
   ^long [shader-type]
+  ;; Enum values for compute shaders exist in Protobuf but are not supported by
+  ;; the OpenGL profile we use in the editor. Uncomment if we update.
   (case shader-type
     :shader-type-vertex GL2/GL_VERTEX_SHADER
     :shader-type-fragment GL2/GL_FRAGMENT_SHADER
