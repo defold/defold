@@ -934,7 +934,7 @@ static int CreateTexture(lua_State* L)
  *
  * @name resource.create_texture_async
  *
- * @param path [type:string] The path to the resource.
+ * @param path [type:string|hash] The path to the resource.
  * @param table [type:table] A table containing info about how to create the texture. Supported entries:
  * `type`
  * : [type:number] The texture type. Supported values:
