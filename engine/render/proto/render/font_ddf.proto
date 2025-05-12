@@ -56,8 +56,8 @@ message GlyphBank
         optional uint32 width             = 2 [default = 0];    // glyph width
         optional float  advance           = 3 [default = 0.0];
         optional float  left_bearing      = 4 [default = 0.0];
-        optional uint32 ascent            = 5 [default = 0]; // WHY 32 bits???
-        optional uint32 descent           = 6 [default = 0]; // WHY 32 bits???
+        optional int32 ascent             = 5 [default = 0]; // WHY 32 bits???
+        optional int32 descent            = 6 [default = 0]; // WHY 32 bits???
         optional int32  x                 = 7 [default = 0]; // only used in editor preview
         optional int32  y                 = 8 [default = 0]; // only used in editor preview
         optional uint64 glyph_data_offset = 9; // WHY 64 bits???
