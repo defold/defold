@@ -425,6 +425,7 @@ namespace dmGameSystem
 
         for (uint32_t i = 0; i < gui_world->m_RenderConstants.Size(); ++i)
         {
+            gui_world->m_RenderOrder = i;
             if (gui_world->m_RenderConstants[i])
             {
                 dmGameSystem::DestroyRenderConstants(gui_world->m_RenderConstants[i]);
