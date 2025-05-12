@@ -236,10 +236,8 @@ def apidoc_extract_task(bld, src):
             value = value.strip()
             if tag == 'document':
                 comment["is_document"] = True
-            elif tag == 'namespace':
-                comment["namespace"] = value
-            elif tag == 'path':
-                comment["path"] = value
+            else:
+                comment[tag] = value
         return comment
 
     def _parse_source(source_path):
@@ -261,17 +259,18 @@ def apidoc_extract_task(bld, src):
                 namespace = comment.get("namespace")
                 if comment["is_document"]:
                     comment_path = comment.get("path")
-                    comment_language = comment.get("language")
                     if not comment_path:
                         print("Missing @path in %s, adding %s" % (resource_path, source_path))
-                        comment_str = comment_str + ("* @path %s" % source_path)
-                    if not comment_language:
-                        print("Missing @language in %s, assuming C++" % (resource_path))
-                        comment_str = comment_str + "* @language C++"
+                        comment_str = comment_str + ("* @path %s\n" % source_path)
                     elif comment_path != source_path:
                         print("Path missmatch in %s, expected %s but was %s" % (resource_path, source_path, comment_path))
                         comment_str = comment_str.replace(comment_path, source_path)
 
+                    comment_language = comment.get("language")
+                    if not comment_language:
+                        print("Missing @language in %s, assuming C++" % (resource_path))
+                        comment_str = comment_str + "* @language C++\n"
+                    
                     if namespace:
                         default_namespace = namespace
                 
