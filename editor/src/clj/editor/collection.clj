@@ -752,6 +752,24 @@
              collection (core/scope-of-type go-node CollectionNode)]
          (add-embedded-game-object! workspace project collection go-node (fn [node-ids] (app-view/select app-view node-ids))))))
 
+(defn- contains-resource?
+  [project collection resource]
+  (let [path (resource/proj-path (g/node-value collection :resource))]
+    (loop [resources [resource]
+           checked-paths #{}]
+      (when-let [resource (first resources)]
+        (let [current-path (resource/proj-path resource)]
+          (or (= path current-path)
+              (let [resources (rest resources)]
+                (recur (if (contains? checked-paths current-path)
+                         resources
+                         (let [target-node (project/get-resource-node project resource)]
+                           (cond-> resources
+                             target-node
+                             (concat (->> (g/node-value target-node :ref-coll-ddf)
+                                          (keep #(workspace/resolve-resource resource (:collection %))))))))
+                       (conj checked-paths current-path)))))))))
+
 (handler/defhandler :edit.add-secondary-referenced-component :workbench
   (active? [selection] (or (selection->collection selection)
                          (selection->game-object-instance selection)))
@@ -761,8 +779,7 @@
   (run [selection workspace project app-view]
        (if-let [coll-node (selection->collection selection)]
          (let [ext "collection"
-               coll-node-path (resource/proj-path (g/node-value coll-node :resource))
-               accept (fn [x] (not= (resource/proj-path x) coll-node-path))]
+               accept (complement (partial contains-resource? project coll-node))]
            (when-let [resource (first (resource-dialog/make workspace project {:ext ext :title "Select Collection File" :accept-fn accept}))]
              (let [base (resource/base-name resource)
                    id (gen-instance-id coll-node base)
@@ -829,7 +846,7 @@
         (make-ref-go collection resource id transform-props parent nil nil))
 
       "collection"
-      (when (not= (g/maybe-node-value collection :resource) resource)
+      (when-not (contains-resource? (project/get-project collection) collection resource)
         (make-collection-instance collection resource id transform-props nil nil))
 
       nil)))
