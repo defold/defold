@@ -32,6 +32,7 @@
             [editor.resource-dialog :as resource-dialog]
             [editor.resource-node :as resource-node]
             [editor.scene :as scene]
+            [editor.scene-picking :as scene-picking]
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
@@ -754,21 +755,10 @@
 
 (defn- contains-resource?
   [project collection resource]
-  (let [path (resource/proj-path (g/node-value collection :resource))]
-    (loop [resources [resource]
-           checked-paths #{}]
-      (when-let [resource (first resources)]
-        (let [current-path (resource/proj-path resource)]
-          (or (= path current-path)
-              (let [resources (rest resources)]
-                (recur (if (contains? checked-paths current-path)
-                         resources
-                         (let [target-node (project/get-resource-node project resource)]
-                           (cond-> resources
-                             target-node
-                             (concat (->> (g/node-value target-node :ref-coll-ddf)
-                                          (keep #(workspace/resolve-resource resource (:collection %))))))))
-                       (conj checked-paths current-path)))))))))
+  (let [acc-fn (fn [target-node resource]
+                 (->> (g/node-value target-node :ref-coll-ddf)
+                      (keep #(workspace/resolve-resource resource (:collection %)))))]
+    (scene-picking/contains-resource? project acc-fn collection resource)))
 
 (handler/defhandler :edit.add-secondary-referenced-component :workbench
   (active? [selection] (or (selection->collection selection)

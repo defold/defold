@@ -1915,6 +1915,14 @@
 
 (def ^:private override-gui-node-init-props {:layout->prop->override {}})
 
+(defn- contains-resource?
+  [project gui-scene resource]
+  (let [acc-fn (fn [target-node resource]
+                 (->> (g/node-value target-node :node-msgs)
+                      (filter #(= :type-template (:type %)))
+                      (keep #(workspace/resolve-resource resource (:template %)))))]
+    (scene-picking/contains-resource? project acc-fn gui-scene resource)))
+
 (g/defnode TemplateNode
   (inherits GuiNode)
 
@@ -1922,7 +1930,10 @@
             (dynamic read-only? override-node?)
             (dynamic edit-type (g/fnk [_node-id] {:type resource/Resource
                                                   :ext "gui"
-                                                  :dialog-accept-fn (fn [r] (not= r (g/node-value (node->gui-scene _node-id) :resource)))
+                                                  :dialog-accept-fn (fn [r]
+                                                                      (let [gui-scene (node->gui-scene _node-id)
+                                                                            project (project/get-project (g/now) gui-scene)]
+                                                                        (not (contains-resource? project gui-scene r))))
                                                   :to-type (fn [v] (:resource v))
                                                   :from-type (fn [r] {:resource r :overrides {}})}))
             (dynamic error (g/fnk [_node-id template-resource]
@@ -3497,14 +3508,14 @@
 
 (defn add-template-gui-node-handler [project {:keys [scene parent node-type custom-type]} select-fn]
   (when-let [template-resources (resource-dialog/make (project/workspace project) project {:ext "gui"
-                                                                                           :accept-fn (fn [r] (not= r (g/node-value (node->gui-scene parent) :resource)))})]
+                                                                                           :accept-fn (fn [r] (not (contains-resource? project scene r)))})]
     (let [template-resource (first template-resources)
           template-id (resource->id template-resource)
           node-type-info (get-registered-node-type-info node-type custom-type)
           default-props (:defaults node-type-info)
           props (assoc default-props :template {:resource template-resource :overrides {}}
-                                     :id template-id)]
-    (add-gui-node-with-props! scene parent node-type custom-type props select-fn))))
+                       :id template-id)]
+      (add-gui-node-with-props! scene parent node-type custom-type props select-fn))))
 
 (defn- make-add-handler [scene parent label icon handler-fn user-data]
   {:label label :icon icon :command :edit.add-embedded-component
