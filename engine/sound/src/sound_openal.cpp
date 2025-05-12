@@ -395,6 +395,10 @@ namespace dmSound
                     dmLogInfo("opus streaming supported");
                     sound->m_DirectStreamingFormat[SOUND_DATA_TYPE_OPUS] = alGetEnumValue("AL_FORMAT_OPUS_EXT");
                 }
+                if (alIsExtensionPresent("AL_NF_wav")) {
+                    dmLogInfo("wav streaming supported");
+                    sound->m_DirectStreamingFormat[SOUND_DATA_TYPE_WAV] = alGetEnumValue("AL_FORMAT_WAV_EXT");
+                }
             }
         }
 
