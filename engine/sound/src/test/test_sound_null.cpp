@@ -36,7 +36,7 @@ static void DeviceClose(dmSound::HDevice device)
     (void)device;
 }
 
-static dmSound::Result DeviceQueue(dmSound::HDevice device, const int16_t* samples, uint32_t sample_count)
+static dmSound::Result DeviceQueue(dmSound::HDevice device, const void* samples, uint32_t sample_count)
 {
     (void)device;
     (void)samples;
