@@ -1419,7 +1419,7 @@ TEST_F(dmRenderScriptTest, TestRenderTargetResource)
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
-TEST_F(dmRenderScriptTest, TestRenderCameraGetInfo)
+TEST_F(dmRenderScriptTest, TestRenderCameraGetSetInfo)
 {
     dmRender::HRenderCamera camera = dmRender::NewRenderCamera(m_Context);
 
@@ -1431,10 +1431,12 @@ TEST_F(dmRenderScriptTest, TestRenderCameraGetInfo)
     dmRender::SetRenderCameraURL(m_Context, camera, &camera_url);
 
     dmRender::RenderCameraData data = {};
-    data.m_Viewport = dmVMath::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
-    data.m_Fov      = 90.0f;
-    data.m_NearZ    = 0.1f;
-    data.m_FarZ     = 100.0f;
+    data.m_Viewport         = dmVMath::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
+    data.m_Fov              = 90.0f;
+    data.m_NearZ            = 0.1f;
+    data.m_FarZ             = 100.0f;
+    data.m_AspectRatio      = 1.0f;
+    data.m_OrthographicZoom = 1.0f;
 
     dmRender::SetRenderCameraData(m_Context, camera, &data);
 
@@ -1451,9 +1453,21 @@ TEST_F(dmRenderScriptTest, TestRenderCameraGetInfo)
         "    assert(cams[1].socket == hash('main'))\n"
         "    assert(cams[1].path == hash('test_go'))\n"
         "    assert(cams[1].fragment == hash('camera'))\n"
+        // Test "get"
+        "    assert_near(camera.get_aspect_ratio(cams[1]), 1)\n"
         "    assert_near(camera.get_near_z(cams[1]), 0.1)\n"
         "    assert_near(camera.get_far_z(cams[1]), 100)\n"
         "    assert_near(camera.get_fov(cams[1]), 90)\n"
+        "    assert_near(camera.get_orthographic_zoom(cams[1]), 1)\n"
+        // Test "set"
+        "    camera.set_near_z(cams[1], -1)\n"
+        "    assert_near(camera.get_near_z(cams[1]), -1)\n"
+        "    camera.set_far_z(cams[1], 1)\n"
+        "    assert_near(camera.get_far_z(cams[1]), 1)\n"
+        "    camera.set_fov(cams[1], 45)\n"
+        "    assert_near(camera.get_fov(cams[1]), 45)\n"
+        "    camera.set_orthographic_zoom(cams[1], 2)\n"
+        "    assert_near(camera.get_orthographic_zoom(cams[1]), 2)\n"
         // Test set_camera()
         "    render.set_camera(cams[1])\n"
         "    render.set_camera()\n"
