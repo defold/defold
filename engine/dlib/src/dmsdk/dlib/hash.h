@@ -37,7 +37,6 @@
  *
  * @document
  * @name Hash
- * @namespace dmHash
  * @path engine/dlib/src/dmsdk/dlib/hash.h
  */
 

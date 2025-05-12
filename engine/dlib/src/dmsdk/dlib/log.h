@@ -25,7 +25,6 @@
  *
  * @document
  * @name Log
- * @namespace dmLog
  * @path engine/dlib/src/dmsdk/dlib/log.h
 */
 

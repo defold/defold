@@ -589,6 +589,7 @@ namespace dmGameObject
 
     /*#
      * Get instance from identifier
+     * @name GetInstanceFromIdentifier
      * @param collection [type: dmGameObject::HCollection] Collection
      * @param identifier [type: dmhash_t] Identifier
      * @return instance [type: dmGameObject::HInstance] Instance. NULL if instance isn't found.
@@ -607,6 +608,7 @@ namespace dmGameObject
 
     /*#
      * Get the component, component type and its world
+     * @name GetComponent
      * @param instance [type: dmGameObject::HInstance] Instance
      * @param component_id [type: dmhash_t] Component id
      * @param component_type [type: uint32_t*] (out) Component type. Used for validation.
@@ -795,6 +797,7 @@ namespace dmGameObject
 
     /*#
      * Retrieve the world in the collection connected to the supplied component
+     * @name GetWorld
      * @param collection Collection handle
      * @param component_type_index index of the component type
      * @return world [type:void*] The pointer to the world, 0x0 if not found
@@ -803,6 +806,7 @@ namespace dmGameObject
 
     /*#
      * Retrieve the context for a component type
+     * @name GetContext
      * @param collection Collection handle
      * @param component_type_index index of the component type
      * @return context [type:void*] The pointer to the context, 0x0 if not found

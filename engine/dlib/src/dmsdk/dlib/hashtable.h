@@ -26,7 +26,6 @@
  *
  * @document
  * @name Hashtable
- * @namespace dmHashTable
  * @path engine/dlib/src/dmsdk/dlib/hashtable.h
  */
 

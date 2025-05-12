@@ -141,7 +141,7 @@ namespace dmGameSystem
     void CompGuiNodeTypeSetCloneFn(CompGuiNodeType* type, CompGuiNodeCloneFn fn);
     void CompGuiNodeTypeSetNodeDescFn(CompGuiNodeType* type, CompGuiNodeSetNodeDescFn fn);
     void CompGuiNodeTypeSetUpdateFn(CompGuiNodeType* type, CompGuiNodeUpdateFn fn);
-    /*#
+    /**
      * Get the vertices in local space
      */
     void CompGuiNodeTypeSetGetVerticesFn(CompGuiNodeType* type, CompGuiNodeGetVerticesFn fn);

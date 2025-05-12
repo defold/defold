@@ -20,7 +20,6 @@
  *
  * @document
  * @name Align
- * @namespace dmAlign
  * @path engine/dlib/src/dmsdk/dlib/align.h
  */
 
