@@ -449,6 +449,7 @@ namespace dmRender
 
         tex_params.m_Width = glyph_image_width;
         tex_params.m_Height = glyph_image_height;
+        tex_params.m_Depth = 1;
 
         tex_params.m_X = x;
         tex_params.m_Y = y + offset_y;

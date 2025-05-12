@@ -365,6 +365,7 @@ namespace dmGameSystem
         tex_params.m_DataSize = sizeof(white_texture);
         tex_params.m_Width = 2;
         tex_params.m_Height = 2;
+        tex_params.m_Depth = 1;
         tex_params.m_MinFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
         tex_params.m_MagFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
 
