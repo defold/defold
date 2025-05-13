@@ -15,7 +15,7 @@
 (ns editor.compute
   (:require [dynamo.graph :as g]
             [editor.build-target :as bt]
-            [editor.code.shader :as code.shader]
+            [editor.code.shader-compilation :as shader-compilation]
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
             [editor.protobuf :as protobuf]
@@ -75,7 +75,7 @@
 (g/defnk produce-build-targets [_node-id save-value resource shader-source-info compute-program]
   (or (g/flatten-errors
         (prop-resource-error _node-id :compute-program compute-program "Compute Program" "cp"))
-      (let [compute-shader-build-target (code.shader/make-shader-build-target _node-id [shader-source-info] 0)
+      (let [compute-shader-build-target (shader-compilation/make-shader-build-target _node-id [shader-source-info] 0)
             dep-build-targets [compute-shader-build-target]
             compute-desc-with-build-resources (assoc save-value
                                                 :compute-program (:resource compute-shader-build-target)

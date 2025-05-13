@@ -18,6 +18,7 @@
             [editor.app-view :as app-view]
             [editor.build-target :as bt]
             [editor.collection-string-data :as collection-string-data]
+            [editor.core :as core]
             [editor.defold-project :as project]
             [editor.game-object-common :as game-object-common]
             [editor.graph-util :as gu]
@@ -31,9 +32,11 @@
             [editor.scene :as scene]
             [editor.scene-tools :as scene-tools]
             [editor.sound :as sound]
+            [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
-            [internal.util :as util])
+            [internal.util :as util]
+            [util.eduction :as e])
   (:import [com.dynamo.gameobject.proto GameObject$ComponentDesc GameObject$EmbeddedComponentDesc GameObject$PrototypeDesc]
            [com.dynamo.gamesys.proto Sound$SoundDesc]
            [javax.vecmath Vector3d]))
@@ -611,6 +614,19 @@
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace)]
     (collection-string-data/string-encode-prototype-desc ext->embedded-component-resource-type prototype-desc)))
 
+(defn- handle-drop
+  [selection workspace world-pos resources]
+  (when-let [parent (or (selection->game-object selection)
+                        (some #(core/scope-of-type % GameObjectNode) selection))]
+    (let [transform-props {:position (types/Point3d->Vec3 world-pos)}
+          taken-ids (map first (g/node-value parent :component-ids))
+          supported-exts (get-all-comp-exts workspace)]
+      (->> resources
+           (e/filter #(some #{(resource/type-ext %)} supported-exts))
+           (outline/name-resource-pairs taken-ids)
+           (mapv (fn [[id resource]]
+                   (add-component parent resource id transform-props nil nil)))))))
+
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
     :ext "go"
@@ -625,4 +641,5 @@
     :icon game-object-common/game-object-icon
     :icon-class :design
     :view-types [:scene :text]
-    :view-opts {:scene {:grid true}}))
+    :view-opts {:scene {:grid true
+                        :drop-fn handle-drop}}))

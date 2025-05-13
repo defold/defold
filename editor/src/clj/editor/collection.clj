@@ -32,10 +32,12 @@
             [editor.resource-dialog :as resource-dialog]
             [editor.resource-node :as resource-node]
             [editor.scene :as scene]
+            [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [internal.cache :as c]
-            [internal.util :as util])
+            [internal.util :as util]
+            [util.eduction :as e])
   (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$CollectionInstanceDesc GameObject$EmbeddedInstanceDesc GameObject$InstanceDesc]
            [internal.graph.types Arc]))
 
@@ -750,6 +752,13 @@
              collection (core/scope-of-type go-node CollectionNode)]
          (add-embedded-game-object! workspace project collection go-node (fn [node-ids] (app-view/select app-view node-ids))))))
 
+(defn- contains-resource?
+  [project collection resource]
+  (let [acc-fn (fn [target-node resource]
+                 (->> (g/node-value target-node :ref-coll-ddf)
+                      (keep #(workspace/resolve-resource resource (:collection %)))))]
+    (project/node-refers-to-resource? project collection resource acc-fn)))
+
 (handler/defhandler :edit.add-secondary-referenced-component :workbench
   (active? [selection] (or (selection->collection selection)
                          (selection->game-object-instance selection)))
@@ -759,8 +768,7 @@
   (run [selection workspace project app-view]
        (if-let [coll-node (selection->collection selection)]
          (let [ext "collection"
-               coll-node-path (resource/proj-path (g/node-value coll-node :resource))
-               accept (fn [x] (not= (resource/proj-path x) coll-node-path))]
+               accept (complement (partial contains-resource? project coll-node))]
            (when-let [resource (first (resource-dialog/make workspace project {:ext ext :title "Select Collection File" :accept-fn accept}))]
              (let [base (resource/base-name resource)
                    id (gen-instance-id coll-node base)
@@ -817,6 +825,36 @@
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace)]
     (collection-string-data/string-encode-collection-desc ext->embedded-component-resource-type collection-desc)))
 
+(defn- add-dropped-resource
+  [selection collection transform-props [id resource]]
+  (let [ext (resource/type-ext resource)]
+    (case ext
+      "go"
+      (let [go-node (selection->game-object-instance selection)
+            parent (or go-node collection)
+            collection (if go-node
+                         (core/scope-of-type go-node CollectionNode)
+                         collection)]
+        (make-ref-go collection resource id transform-props parent nil nil))
+
+      "collection"
+      (when-not (contains-resource? (project/get-project collection) collection resource)
+        (make-collection-instance collection resource id transform-props nil nil))
+
+      nil)))
+
+(defn- handle-drop
+  [selection _workspace world-pos resources]
+  (when-let [collection (or (selection->collection selection)
+                            (some #(core/scope-of-type % CollectionNode) selection))]
+    (let [transform-props {:position (types/Point3d->Vec3 world-pos)}
+          taken-ids (g/node-value collection :ids)
+          supported-exts #{"go" "collection"}]
+      (->> resources
+           (e/filter (comp (partial contains? supported-exts) resource/type-ext))
+           (outline/name-resource-pairs taken-ids)
+           (mapv (partial add-dropped-resource selection collection transform-props))))))
+
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
     :ext "collection"
@@ -831,4 +869,5 @@
     :icon collection-common/collection-icon
     :icon-class :design
     :view-types [:scene :text]
-    :view-opts {:scene {:grid true}}))
+    :view-opts {:scene {:grid true
+                        :drop-fn handle-drop}}))
