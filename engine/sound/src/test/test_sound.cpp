@@ -517,9 +517,10 @@ TEST_P(dmSoundTestLoopingTest, Loopcount)
     r = dmSound::DeleteSoundInstance(instance);
     ASSERT_EQ(dmSound::RESULT_OK, r);
 
-    // This is set up by observation: after first iteration, m_Time is 164.
-    // For each loop done afterwards, another 172 is added.
-    ASSERT_EQ(g_LoopbackDevice->m_Time, 164 + 172*loopcount);
+    uint32_t sound_frames = params.m_FrameCount * (loopcount + 1);      // +1 -> note that the count specifies how often we execute the loop point. The last loop will result in one more playback!
+    uint32_t blkend_frame = g_LoopbackDevice->m_DeviceFrameCount * g_LoopbackDevice->m_NumWrites;
+    uint32_t blkbeg_frame = blkend_frame - g_LoopbackDevice->m_DeviceFrameCount;
+    ASSERT_TRUE(blkbeg_frame <= sound_frames && sound_frames <= blkend_frame);
 
     r = dmSound::DeleteSoundData(sd);
     ASSERT_EQ(dmSound::RESULT_OK, r);
