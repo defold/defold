@@ -15,6 +15,7 @@
 (ns editor.atlas
   (:require [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.attachment :as attachment]
             [editor.camera :as c]
             [editor.colors :as colors]
             [editor.core :as core]
@@ -519,6 +520,15 @@
                                                  child-build-errors
                                                  own-build-errors))))
 
+(defn- get-animation-images [animation evaluation-context]
+  (let [child->order (g/node-value animation :child->order evaluation-context)]
+    (vec (sort-by child->order (keys child->order)))))
+
+(attachment/register!
+  AtlasAnimation :images
+  :add {:node-type AtlasImage :tx-attach-fn attach-image-to-animation}
+  :get get-animation-images)
+
 (g/defnk produce-save-value [margin inner-padding extrude-borders max-page-size img-ddf anim-ddf rename-patterns]
   (protobuf/make-map-without-defaults AtlasProto$Atlas
     :margin margin
@@ -802,8 +812,9 @@
                                          (assoc geometry :vertices rotated-vertices))])))
           layout-rects)))
 
-(defn- atlas-outline-sort-by-fn [v]
-  [(:name (g/node-type* (:node-id v)))])
+(defn- atlas-outline-sort-by-fn [basis v]
+  ;; NOTE: unsafe basis from node output! Only use for node type access!
+  (:k (g/node-type* basis (:node-id v))))
 
 (def ^:private default-max-page-size
   [(protobuf/default AtlasProto$Atlas :max-page-width)
@@ -887,11 +898,12 @@
 
   (output anim-ids         g/Any               :cached (g/fnk [animation-ids] (filter some? animation-ids)))
   (output id-counts        NameCounts          :cached (g/fnk [anim-ids] (frequencies anim-ids)))
-  (output node-outline     outline/OutlineData :cached (g/fnk [_node-id child-outlines own-build-errors]
+  (output node-outline     outline/OutlineData :cached (g/fnk [^:unsafe _evaluation-context _node-id child-outlines own-build-errors]
+                                                         ;; We use evaluation context to get child node types that should never change
                                                          {:node-id          _node-id
                                                           :node-outline-key "Atlas"
                                                           :label            "Atlas"
-                                                          :children         (vec (sort-by atlas-outline-sort-by-fn child-outlines))
+                                                          :children         (vec (sort-by (partial atlas-outline-sort-by-fn (:basis _evaluation-context))  child-outlines))
                                                           :icon             atlas-icon
                                                           :outline-error?   (g/error-fatal? own-build-errors)
                                                           :child-reqs       [{:node-type    AtlasImage
@@ -913,6 +925,21 @@
                                             (g/package-errors _node-id
                                                               child-build-errors
                                                               own-build-errors))))
+
+(defn- get-node-by-type [child-node-type]
+  (fn get-child-node-by-type [node evaluation-context]
+    (let [basis (:basis evaluation-context)]
+      (filterv #(= child-node-type (g/node-type* basis %)) (g/node-value node :nodes evaluation-context)))))
+
+(attachment/register!
+  AtlasNode :animations
+  :add {:node-type AtlasAnimation :tx-attach-fn attach-animation-to-atlas}
+  :get (get-node-by-type AtlasAnimation))
+
+(attachment/register!
+  AtlasNode :images
+  :add {:node-type AtlasImage :tx-attach-fn attach-image-to-atlas}
+  :get (get-node-by-type AtlasImage))
 
 (defn- make-image-nodes
   [attach-fn parent image-msgs]

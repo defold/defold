@@ -1,0 +1,90 @@
+local M = {}
+
+local function expect_error(initial_message, fn, ...)
+    local success, message = pcall(fn, ...)
+    if success then
+        print(("  %s => ??? unexpected success ???"):format(initial_message))
+    else
+        print(("  %s => %s"):format(initial_message, message))
+    end
+end
+
+function M.get_commands()
+    return {
+        editor.command({
+            id = "defold.test",
+            label = "Test",
+            locations = {"Edit"},
+            run = function()
+                print("Initial state:")
+                print(("  images: %s"):format(#editor.get("/test.atlas", "images")))
+                print(("  animations: %s"):format(#editor.get("/test.atlas", "animations")))
+                print(("  can add images: %s"):format(tostring(editor.can_add("/test.atlas", "images"))))
+                print(("  can add animations: %s"):format(tostring(editor.can_add("/test.atlas", "animations"))))
+                
+                print("Transaction: add image and animation")
+                editor.transact({
+                    editor.tx.add("/test.atlas", "images", {image = "/builtins/assets/images/logo/logo_256.png"}),
+                    editor.tx.add("/test.atlas", "animations", {
+                        id = "logos", 
+                        images = {
+                            {image = "/builtins/assets/images/logo/logo_blue_256.png"},
+                            {image = "/builtins/assets/images/logo/logo_256.png"}
+                        }
+                    })
+                })
+                
+                print("After transaction (add):")
+                local images = editor.get("/test.atlas", "images")
+                print(("  images: %s"):format(#images))
+                for i = 1, #images do
+                    local image_node = images[i]
+                    print(("    image: %s"):format(editor.get(image_node, "image")))
+                end
+                local animations = editor.get("/test.atlas", "animations")
+                print(("  animations: %s"):format(#animations))
+                for i = 1, #animations do
+                    local animation_node = animations[i]
+                    print(("    animation id: %s"):format(editor.get(animation_node, "id")))
+                    local animation_images = editor.get(animation_node, "images")
+                    print(("    animation images: %s"):format(#animation_images))
+                    for j = 1, #animation_images do
+                        local animation_image_node = animation_images[j]
+                        print(("      animation image: %s"):format(editor.get(animation_image_node, "image")))
+                    end
+                end
+                
+                print("Transaction: remove image")
+                editor.transact({editor.tx.remove("/test.atlas", "images", images[1])})
+                
+                print("After transaction (remove image):")
+                print(("  images: %s"):format(#editor.get("/test.atlas", "images")))
+                
+                print("Transaction: clear animation images")
+                editor.transact({editor.tx.clear(animations[1], "images")})
+                
+                print("After transaction (clear):")
+                print(("  animation images: %s"):format(#editor.get(animations[1], "images")))
+
+                print("Transaction: remove animation")
+                editor.transact({editor.tx.remove("/test.atlas", "animations", animations[1])})
+
+                print("After transaction (remove animation):")
+                print(("  animations: %s"):format(#editor.get("/test.atlas", "animations")))
+
+                print("Expected errors:")
+                expect_error("Wrong list name to add", editor.tx.add, "/test.atlas", "layers", {})
+                expect_error("Wrong list name to remove", editor.tx.remove, "/test.atlas", "layers", "/test.atlas")
+                expect_error("Wrong list item to remove", editor.tx.remove, "/test.atlas", "images", "/test.atlas")
+                expect_error("Wrong list name to clear", editor.tx.clear, "/test.atlas", "layers")
+                expect_error("Wrong child property name", editor.transact, {editor.tx.add("/test.atlas", "animations", { no_such_prop = true})})
+                expect_error("Added value is not a table", editor.tx.add, "/test.atlas", "images", "/foo.png")
+                expect_error("Added nested value is not a table", editor.tx.add, "/test.atlas", "animations", { images = { "/foo.png" }})
+                expect_error("Added node has invalid property value", editor.transact, {editor.tx.add("/test.atlas", "images", { pivot = "invalid-pivot" })})
+                expect_error("Added resource has wrong type", editor.transact, {editor.tx.add("/test.atlas", "images", {image = "/game.project"})})
+            end
+        })
+    }
+end
+
+return M
