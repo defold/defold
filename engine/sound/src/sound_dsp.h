@@ -432,7 +432,8 @@ static inline void ConvertFromS8(float* out, const int8_t* in, uint32_t num)
     }
     for(; num>0; --num)
     {
-        *(out++) = (float)*(in++);
+        int16_t s = *(in++);
+        *(out++) = (float)((s << 8) | (s && 0xff));
     }
 }
 
@@ -499,8 +500,10 @@ static inline void DeinterleaveFromS8(float* out[], const int8_t* in, uint32_t n
     float* out_r = (float*)vout_r;
     for(; num>0; --num)
     {
-        *(out_l++) = (float)*(in++);
-        *(out_r++) = (float)*(in++);
+        int16_t sl = *(in++);
+        int16_t sr = *(in++);
+        *(out_l++) = (float)((sl << 8) | (sl && 0xff));
+        *(out_r++) = (float)((sr << 8) | (sr && 0xff));
     }
 }
 
@@ -941,7 +944,8 @@ static inline void ConvertFromS8(float* out, const int8_t* in, uint32_t num)
     in = (const int8_t*)vin;
     for(; num>0; --num)
     {
-        *(out++) = (float)*(in++);
+        int16_t s = *(in++);
+        *(out++) = (float)((s << 8) | (s && 0xff));
     }
 }
 
@@ -1030,8 +1034,10 @@ static inline void DeinterleaveFromS8(float* out[], const int8_t* in, uint32_t n
     in = (const int8_t*)vin;
     for(; num>0; --num)
     {
-        *(out_l++) = (float)*(in++);
-        *(out_r++) = (float)*(in++);
+        int16_t sl = *(in++);
+        int16_t sr = *(in++);
+        *(out_l++) = (float)((sl << 8) | (sl && 0xff));
+        *(out_r++) = (float)((sr << 8) | (sr && 0xff));
     }
 }
 
@@ -1204,7 +1210,8 @@ static inline void ConvertFromS8(float* out, const int8_t* in, uint32_t num)
 {
     for(; num>0; --num)
     {
-        *(out++) = (float)*(in++);
+        int16_t s = *(in++);
+        *(out++) = (float)((s << 8) | (s && 0xff));
     }
 }
 
@@ -1236,8 +1243,10 @@ static inline void DeinterleaveFromS8(float* out[], const int8_t* in, uint32_t n
     float* out_r = out[1];
     for(; num>0; --num)
     {
-        *(out_l++) = (float)*(in++);
-        *(out_r++) = (float)*(in++);
+        int16_t sl = *(in++);
+        int16_t sr = *(in++);
+        *(out_l++) = (float)((sl << 8) | (sl && 0xff));
+        *(out_r++) = (float)((sr << 8) | (sr && 0xff));
     }
 }
 
