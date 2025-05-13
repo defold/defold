@@ -1921,7 +1921,7 @@
                  (->> (g/node-value target-node :node-msgs)
                       (filter #(= :type-template (:type %)))
                       (keep #(workspace/resolve-resource resource (:template %)))))]
-    (scene-picking/contains-resource? project acc-fn gui-scene resource)))
+    (project/node-refers-to-resource? project gui-scene resource acc-fn)))
 
 (g/defnode TemplateNode
   (inherits GuiNode)

@@ -32,7 +32,6 @@
             [editor.resource-dialog :as resource-dialog]
             [editor.resource-node :as resource-node]
             [editor.scene :as scene]
-            [editor.scene-picking :as scene-picking]
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
@@ -758,7 +757,7 @@
   (let [acc-fn (fn [target-node resource]
                  (->> (g/node-value target-node :ref-coll-ddf)
                       (keep #(workspace/resolve-resource resource (:collection %)))))]
-    (scene-picking/contains-resource? project acc-fn collection resource)))
+    (project/node-refers-to-resource? project collection resource acc-fn)))
 
 (handler/defhandler :edit.add-secondary-referenced-component :workbench
   (active? [selection] (or (selection->collection selection)

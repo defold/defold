@@ -13,10 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.scene-picking
-  (:require [dynamo.graph :as g]
-            [editor.defold-project :as project]
-            [editor.resource :as resource]
-            [util.coll :as coll]
+  (:require [util.coll :as coll]
             [util.eduction :as e]))
 
 (defn picking-id->color [^long picking-id]
@@ -44,21 +41,3 @@
                       (coll/some #(and (not= % (:node-id node))
                                        (contains? node-ids %)))))]
     (e/remove child? nodes)))
-
-(defn contains-resource?
-  [project acc-fn node-id resource]
-  (let [path (resource/proj-path (g/node-value node-id :resource))]
-    (println path)
-    (loop [resources [resource]
-           checked-paths #{}]
-      (when-let [resource (first resources)]
-        (let [current-path (resource/proj-path resource)]
-          (or (= path current-path)
-              (let [resources (rest resources)]
-                (recur (if (contains? checked-paths current-path)
-                         resources
-                         (let [target-node (project/get-resource-node project resource)]
-                           (cond-> resources
-                             target-node
-                             (concat (acc-fn target-node resource)))))
-                       (conj checked-paths current-path)))))))))
