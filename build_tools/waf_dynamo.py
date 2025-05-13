@@ -297,7 +297,7 @@ def apidoc_extract_task(bld, src):
             for k,v in elements.items():
                 # turn path into key which will later be used as the
                 # build target filename
-                key = s.replace("../", "").replace("/", "-")
+                key = "-".join(os.path.normpath(s).split(os.sep))
                 docs[key] = docs[key] + v
         all_docs.update(docs)
         return docs
