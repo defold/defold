@@ -189,9 +189,13 @@
     nil
     coll))
 
-(def into-set (fnil into #{}))
+(defonce conj-set (fnil conj #{}))
 
-(def into-vector (fnil into []))
+(defonce conj-vector (fnil conj []))
+
+(defonce into-set (fnil into #{}))
+
+(defonce into-vector (fnil into []))
 
 (defn pair-map-by
   "Returns a hash-map where the keys are the result of applying the supplied

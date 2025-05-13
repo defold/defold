@@ -14,7 +14,7 @@
 
 (ns editor.texture.engine
   (:require [clojure.string :as string]
-            [editor.buffers :refer [little-endian new-byte-buffer]]
+            [editor.buffers :as buffers]
             [editor.dialogs :as dialogs]
             [editor.image-util :refer [image-pixels]]
             [editor.ui :as ui]
@@ -62,11 +62,11 @@
   "This is specialized for use in texture writing. It assumes the image
    has already been converted to a 4-byte packed (not planar) format."
   [^BufferedImage img]
-  (let [width     (.getWidth img)
-        height    (.getHeight img)
+  (let [width (.getWidth img)
+        height (.getHeight img)
         data-size (* 4 width height)
-        raster    (image-pixels img)
-        buffer    (little-endian (new-byte-buffer data-size))]
+        raster (image-pixels img)
+        buffer (buffers/new-byte-buffer data-size :byte-order/little-endian)]
     (doseq [b raster]
       (.put buffer (byte (bit-and b 0xff))))
     (.flip buffer)

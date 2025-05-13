@@ -21,7 +21,7 @@
 
 (set! *warn-on-reflection* true)
 
-(defrecord RenderPass [nm selection model-transform depth-clipping]
+(defrecord RenderPass [name selection model-transform depth-clipping]
   types/Pass
   (types/selection?       [this] selection)
   (types/model-transform? [this] model-transform)

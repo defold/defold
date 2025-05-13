@@ -41,6 +41,7 @@
            [javax.vecmath Matrix4d]))
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (def mesh-icon "icons/32/Icons_27-AT-Mesh.png")
 (def model-file-types ["dae" "gltf" "glb"])
@@ -139,7 +140,7 @@
         texcoord0s (flat->vectors (:num-texcoord0-components mesh 0) (:texcoord0 mesh))
         texcoord1s (flat->vectors (:num-texcoord1-components mesh 0) (:texcoord1 mesh))
         indices (bytes-to-indices (:indices mesh) (:indices-format mesh))
-        max-index (reduce max 0 indices)
+        max-index (int (reduce max 0 indices))
         positions-count (count positions)]
     (if (and (some? positions)
              (some? normals)
@@ -173,7 +174,7 @@
                 (some some? texcoord-datas) (assoc :texcoord-datas texcoord-datas)))
       (error-values/error-fatal "Failed to produce vertex buffers from mesh set. The scene might contain invalid data."))))
 
-(defn mesh->vb! [^VertexBuffer vbuf ^Matrix4d world-transform ^Matrix4d normal-transform has-semantic-type-world-matrix has-semantic-type-normal-matrix vertex-attribute-bytes mesh-renderable-data]
+(defn populate-vb! [^VertexBuffer vbuf ^Matrix4d world-transform ^Matrix4d normal-transform has-semantic-type-world-matrix has-semantic-type-normal-matrix vertex-attribute-bytes mesh-renderable-data]
   (let [mesh-renderable-data
         (cond-> mesh-renderable-data
                 world-transform (assoc :world-transform world-transform)
@@ -181,18 +182,7 @@
                 has-semantic-type-world-matrix (assoc :has-semantic-type-world-matrix true)
                 has-semantic-type-normal-matrix (assoc :has-semantic-type-normal-matrix true)
                 vertex-attribute-bytes (assoc :vertex-attribute-bytes vertex-attribute-bytes))]
-    (graphics/put-attributes! vbuf [mesh-renderable-data])
-    vbuf))
-
-(defn- request-vb! [^GL2 gl request-id mesh-renderable-data ^Matrix4d attribute-world-transform ^Matrix4d attribute-normal-transform has-semantic-type-world-matrix has-semantic-type-normal-matrix vertex-description vertex-attribute-bytes]
-  (let [data {:mesh-renderable-data mesh-renderable-data
-              :world-transform attribute-world-transform
-              :normal-transform attribute-normal-transform
-              :has-semantic-type-world-matrix has-semantic-type-world-matrix
-              :has-semantic-type-normal-matrix has-semantic-type-normal-matrix
-              :vertex-description vertex-description
-              :vertex-attribute-bytes vertex-attribute-bytes}]
-    (scene-cache/request-object! ::vb request-id gl data)))
+    (graphics/put-attributes! vbuf [mesh-renderable-data])))
 
 (defn- render-mesh-opaque-impl [^GL2 gl render-args renderable request-prefix override-shader override-vertex-description extra-render-args]
   (let [{:keys [node-id user-data ^Matrix4d world-transform]} renderable
@@ -201,9 +191,12 @@
         default-coordinate-space (case (:vertex-space user-data :vertex-space-local)
                                    :vertex-space-local :coordinate-space-local
                                    :vertex-space-world :coordinate-space-world)
+        ;; TODO(instancing): We might not need the override-vertex-description? Seems like the override-shader should be enough.
+        ;; TODO(instancing): Also, we could maybe get this from the SPIRVReflector returned by ShaderProgramBuilderEditor/buildGLSLVariantTextureArray in shader-gen/transpile-shader-source?
         vertex-description (or override-vertex-description
-                               (let [manufactured-attribute-keys [:position :texcoord0 :normal :tangent :color :mtx-world :mtx-normal]
-                                     shader-bound-attributes (graphics/shader-bound-attributes gl shader material-attribute-infos manufactured-attribute-keys default-coordinate-space)]
+                               (let [shader-attribute-infos-by-name (shader/attribute-infos shader gl)
+                                     manufactured-attribute-keys [:position :texcoord0 :normal :tangent :color :mtx-world :mtx-normal]
+                                     shader-bound-attributes (graphics/shader-bound-attributes shader-attribute-infos-by-name material-attribute-infos manufactured-attribute-keys default-coordinate-space)]
                                  (graphics/make-vertex-description shader-bound-attributes)))
         vertex-attributes (:attributes vertex-description)
         coordinate-space-info (graphics/coordinate-space-info vertex-attributes)
@@ -226,17 +219,24 @@
         request-id (if (or attribute-world-transform attribute-normal-transform)
                      [request-prefix node-id mesh-renderable-data vertex-attribute-bytes vertex-description] ; World-space attributes present. The request needs to be unique for this node-id.
                      [request-prefix mesh-renderable-data vertex-attribute-bytes vertex-description]) ; No world-space attributes present. We can share the GPU objects between instances of this mesh.
-
-        vb (request-vb! gl request-id mesh-renderable-data attribute-world-transform attribute-normal-transform has-semantic-type-world-matrix has-semantic-type-normal-matrix vertex-description vertex-attribute-bytes)
-        vertex-binding (vtx/use-with request-id vb shader)]
-    (gl/with-gl-bindings gl render-args [vertex-binding shader]
+        vertex-buffer (scene-cache/request-object!
+                        ::vertex-buffer request-id gl
+                        {:mesh-renderable-data mesh-renderable-data
+                         :world-transform attribute-world-transform
+                         :normal-transform attribute-normal-transform
+                         :has-semantic-type-world-matrix has-semantic-type-world-matrix
+                         :has-semantic-type-normal-matrix has-semantic-type-normal-matrix
+                         :vertex-description vertex-description
+                         :vertex-attribute-bytes vertex-attribute-bytes})
+        vertex-buffer-binding (vtx/use-with request-id vertex-buffer shader)]
+    (gl/with-gl-bindings gl render-args [shader vertex-buffer-binding]
       (doseq [[name t] textures]
         (gl/bind gl t render-args)
         (shader/set-samplers-by-name shader gl name (:texture-units t)))
       (gl/gl-disable gl GL/GL_BLEND)
       (gl/gl-enable gl GL/GL_CULL_FACE)
       (gl/gl-cull-face gl GL/GL_BACK)
-      (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))
+      (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vertex-buffer))
       (gl/gl-disable gl GL/GL_CULL_FACE)
       (gl/gl-enable gl GL/GL_BLEND)
       (doseq [[_name t] textures]
@@ -246,10 +246,12 @@
   (render-mesh-opaque-impl gl render-args renderable ::mesh nil nil nil))
 
 (defn- render-mesh-opaque-selection [^GL2 gl render-args renderable]
+  ;; TODO(instancing): We should use instanced rendering and put the id as a per-instance attribute.
   (let [extra-render-args {:id (scene-picking/renderable-picking-id-uniform renderable)}]
     (render-mesh-opaque-impl gl render-args renderable ::mesh-selection id-shader id-vertex extra-render-args)))
 
 (defn- render-mesh [^GL2 gl render-args renderables rcount]
+  ;; TODO(instancing): Batch instanced meshes together and populate an instance-buffer with the per-instance attributes.
   (assert (= 1 rcount) "Batching is disabled in the editor for simplicity.")
   (let [pass (:pass render-args)
         renderable (first renderables)]
@@ -261,6 +263,7 @@
       (render-mesh-opaque-selection gl render-args renderable))))
 
 (defn- render-outline [^GL2 gl render-args renderables rcount]
+  ;; TODO(instancing): Seems like we could batch these? The :aabb should already be in world-space after flattening, but maybe the issue is selection highlighting?
   (assert (= 1 rcount) "Batching is disabled in the editor for simplicity.")
   (when (= pass/outline (:pass render-args))
     (let [renderable (first renderables)
@@ -371,22 +374,24 @@
 
 (defn- make-scene [renderable-mesh-set model-scene-resource-node-id]
   (let [{:keys [aabb renderable-models]} renderable-mesh-set
-        model-scenes (mapv #(make-model-scene % model-scene-resource-node-id)
-                           renderable-models)
-        children-scenes (into [{:node-id model-scene-resource-node-id
-                                :aabb aabb
-                                :renderable {:render-fn render-outline
-                                             :tags #{:model :outline}
-                                             :batch-key nil
-                                             :select-batch-key :not-rendered
-                                             :passes [pass/outline]}}]
-                              model-scenes)]
+
+        child-scenes
+        (into [{:node-id model-scene-resource-node-id
+                :aabb aabb
+                :renderable {:render-fn render-outline
+                             :tags #{:model :outline}
+                             :batch-key nil
+                             :select-batch-key :not-rendered
+                             :passes [pass/outline]}}]
+              (map #(make-model-scene % model-scene-resource-node-id))
+              renderable-models)]
+
     {:node-id model-scene-resource-node-id
      :aabb aabb
      :renderable {:tags #{:model}
                   :batch-key nil ; Batching is disabled in the editor for simplicity.
                   :passes [pass/opaque-selection]} ; A selection pass to ensure it can be selected and manipulated.
-     :children children-scenes}))
+     :children child-scenes}))
 
 (g/defnk produce-scene [_node-id renderable-mesh-set]
   (make-scene renderable-mesh-set _node-id))
@@ -489,17 +494,17 @@
     :icon-class :design
     :view-types [:scene :text]))
 
-(defn- update-vb [^GL2 _gl ^VertexBuffer vb data]
+(defn- update-vertex-buffer [^GL2 _gl ^VertexBuffer vb data]
+  ;; TODO(instancing): We should be able to store the populated VertexBuffers in the graph now that we have shader attribute reflection.
   (let [{:keys [mesh-renderable-data ^Matrix4d world-transform ^Matrix4d normal-transform has-semantic-type-world-matrix has-semantic-type-normal-matrix vertex-attribute-bytes]} data]
-    (mesh->vb! vb world-transform normal-transform has-semantic-type-world-matrix has-semantic-type-normal-matrix vertex-attribute-bytes mesh-renderable-data)
-    vb))
+    (populate-vb! vb world-transform normal-transform has-semantic-type-world-matrix has-semantic-type-normal-matrix vertex-attribute-bytes mesh-renderable-data)))
 
-(defn- make-vb [^GL2 gl data]
+(defn- make-vertex-buffer [^GL2 _gl data]
   (let [{:keys [mesh-renderable-data vertex-description]} data
         position-data (:position-data mesh-renderable-data)
         vbuf (vtx/make-vertex-buffer vertex-description :dynamic (count position-data))]
-    (update-vb gl vbuf data)))
+    (update-vertex-buffer nil vbuf data)))
 
-(defn- destroy-vbs [^GL2 gl vbs _])
+(defn- destroy-vertex-buffers [^GL2 gl vbs _])
 
-(scene-cache/register-object-cache! ::vb make-vb update-vb destroy-vbs)
+(scene-cache/register-object-cache! ::vertex-buffer make-vertex-buffer update-vertex-buffer destroy-vertex-buffers)
