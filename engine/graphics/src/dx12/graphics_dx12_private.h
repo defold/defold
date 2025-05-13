@@ -173,6 +173,7 @@ namespace dmGraphics
     struct DX12FrameResource
     {
         DX12RenderTarget        m_RenderTarget;
+        ID3D12Resource*         m_MsaaRenderTarget;
         ID3D12CommandAllocator* m_CommandAllocator;
         ID3D12Fence*            m_Fence;
         DX12ScratchBuffer       m_ScratchBuffer;
@@ -235,6 +236,7 @@ namespace dmGraphics
         uint32_t                           m_VerifyGraphicsCalls  : 1;
         uint32_t                           m_UseValidationLayers  : 1;
         uint32_t                           m_PrintDeviceInfo      : 1;
+        uint32_t                           m_MSAASampleCount      : 8;
     };
 }
 
