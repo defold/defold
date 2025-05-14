@@ -127,11 +127,13 @@
   (rt/lua-fn ext-get [{:keys [rt evaluation-context]} lua-node-id-or-path lua-property]
     (let [node-id-or-path (rt/->clj rt graph/node-id-or-path-coercer lua-node-id-or-path)
           property (rt/->clj rt coerce/string lua-property)
-          node-id (graph/node-id-or-path->node-id node-id-or-path project evaluation-context)
-          getter (graph/ext-value-getter node-id property evaluation-context)]
+          node-id-or-resource (graph/resolve-node-id-or-path node-id-or-path project evaluation-context)
+          getter (graph/ext-value-getter node-id-or-resource property evaluation-context)]
       (if getter
         (getter)
-        (throw (LuaError. (str (name (graph/node-id->type-keyword node-id evaluation-context))
+        (throw (LuaError. (str (if (resource/resource? node-id-or-resource)
+                                 (resource/proj-path node-id-or-resource)
+                                 (name (graph/node-id->type-keyword node-id-or-resource evaluation-context)))
                                " has no \""
                                property
                                "\" property")))))))
@@ -140,15 +142,16 @@
   (rt/lua-fn ext-can-get [{:keys [rt evaluation-context]} lua-node-id-or-path lua-property]
     (let [node-id-or-path (rt/->clj rt graph/node-id-or-path-coercer lua-node-id-or-path)
           property (rt/->clj rt coerce/string lua-property)
-          node-id (graph/node-id-or-path->node-id node-id-or-path project evaluation-context)]
-      (some? (graph/ext-value-getter node-id property evaluation-context)))))
+          node-id-or-resource (graph/resolve-node-id-or-path node-id-or-path project evaluation-context)]
+      (some? (graph/ext-value-getter node-id-or-resource property evaluation-context)))))
 
 (defn- make-ext-can-set-fn [project]
   (rt/lua-fn ext-can-set [{:keys [rt evaluation-context]} lua-node-id-or-path lua-property]
     (let [node-id-or-path (rt/->clj rt graph/node-id-or-path-coercer lua-node-id-or-path)
           property (rt/->clj rt coerce/string lua-property)
-          node-id (graph/node-id-or-path->node-id node-id-or-path project evaluation-context)]
-      (some? (graph/ext-lua-value-setter node-id property rt project evaluation-context)))))
+          node-id-or-resource (graph/resolve-node-id-or-path node-id-or-path project evaluation-context)]
+      (and (not (resource/resource? node-id-or-resource))
+           (some? (graph/ext-lua-value-setter node-id-or-resource property rt project evaluation-context))))))
 
 (defn- make-ext-create-directory-fn [project reload-resources!]
   (rt/suspendable-lua-fn ext-create-directory [{:keys [rt evaluation-context]} lua-proj-path]

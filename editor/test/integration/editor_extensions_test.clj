@@ -1181,3 +1181,28 @@ Expected errors:
       (let [actual (.toString out)]
         (is (= expected-attachment-test-output actual)
             (string/join "\n" (diff/make-diff-output-lines actual expected-attachment-test-output 3)))))))
+
+(def ^:private expected-resources-as-nodes-test-output
+  "Directory read:
+  can get path: true
+  can set path: false
+  can get children: true
+  can set children: false
+  can add children: false
+Assets path:
+  /assets
+Assets images:
+  /assets/a.png
+  /assets/b.png
+Expected errors:
+  Setting a property => /assets is not a file resource
+")
+
+(deftest resources-as-nodes-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/resources_as_nodes_project"
+    (let [out (StringBuilder.)]
+      (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+      (run-edit-menu-test-command!)
+      (let [actual (.toString out)]
+        (is (= expected-resources-as-nodes-test-output actual)
+            (string/join "\n" (diff/make-diff-output-lines actual expected-resources-as-nodes-test-output 3)))))))
