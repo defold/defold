@@ -1994,7 +1994,9 @@ namespace dmGameObject
 
 
     /*# check if the specified game object exists
-     *
+     * A lua-error will be raised if the game object belongs to another
+     * collection than the collection from which the function was called.
+     * 
      * @name go.exists
      * @param url [type:string|hash|url] url of the game object to check
      * @return exists [type:bool] true if the game object exists
