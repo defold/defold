@@ -2009,13 +2009,23 @@ namespace dmGameObject
     int Script_Exists(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        int top = lua_gettop(L);
-        if (top == 1 && lua_isnil(L, 1))
+        if (lua_isnil(L, 1))
         {
             return luaL_error(L, "The url shouldn't be `nil`");
         }
+
+        // get "this" instance
         ScriptInstance* i = ScriptInstance_Check(L);
         Instance* instance = i->m_Instance;
+
+        // resolve instance provided as argument and make sure it is the same as "this"
+        dmMessage::URL receiver;
+        dmScript::ResolveURL(L, 1, &receiver, 0x0);
+        if (receiver.m_Socket != dmGameObject::GetMessageSocket(instance->m_Collection->m_HCollection))
+        {
+            luaL_error(L, "function called can only access instances within the same collection.");
+        }
+
         dmMessage::URL sender;
         dmScript::GetURL(L, &sender);
         dmMessage::URL target;
