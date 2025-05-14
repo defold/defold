@@ -2059,6 +2059,35 @@ TEST_P(FactoryTest, Test)
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
+TEST_P(FactoryTest, IdHashTest)
+{
+    dmHashEnableReverseHash(true);
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = L;
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    // Spawn the game object with the script we want to call
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmhash_t go_hash = dmHashString64("/go");
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/factory/factory_hash_test.goc", go_hash, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+    go = dmGameObject::GetInstanceFromIdentifier(m_Collection, go_hash);
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGameObject::PostUpdate(m_Register);
+
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
 /* Collection factory dynamic and static loading */
 
 TEST_P(CollectionFactoryTest, Test)
@@ -3800,7 +3829,6 @@ FactoryTestParams factory_testparams [] =
     {"/factory/dynamic_factory_test.goc", true, false},
     {"/factory/factory_test.goc", false, true},
     {"/factory/factory_test.goc", false, false},
-    {"/factory/factory_hash_test.goc", true, true},
 };
 INSTANTIATE_TEST_CASE_P(Factory, FactoryTest, jc_test_values_in(factory_testparams));
 
