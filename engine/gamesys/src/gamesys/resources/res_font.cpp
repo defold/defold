@@ -466,9 +466,9 @@ namespace dmGameSystem
         dmRenderDDF::GlyphBank* glyph_bank = font->m_GlyphBankResource->m_DDF;
 
         printf("    ");
-        printf("c: '%c'  w: %2d    ", codepoint, glyph->m_Width);
+        printf("c: '%c' 0x%0X w: %2d    ", codepoint, codepoint, glyph->m_Width);
         printf("adv: %.2f  l: %.2f ", glyph->m_Advance, glyph->m_LeftBearing);
-        printf("asc/dsc: %u, %u ", glyph->m_Ascent, glyph->m_Descent);
+        printf("asc/dsc: %d, %d ", glyph->m_Ascent, glyph->m_Descent);
 
         printf("img w/h: %2d, %2d  masc: %2d", glyph_bank->m_CacheCellWidth, glyph_bank->m_CacheCellHeight, glyph_bank->m_CacheCellMaxAscent);
         printf("\n");
@@ -477,9 +477,9 @@ namespace dmGameSystem
     static void PrintDynamicGlyph(uint32_t codepoint, DynamicGlyph* glyph, FontResource* font)
     {
         printf("    ");
-        printf("c: '%c'  w: %2d    ", codepoint, glyph->m_Glyph.m_Width);
+        printf("c: '%c' 0x%0X  w: %2d    ", codepoint, codepoint, glyph->m_Glyph.m_Width);
         printf("adv: %.2f  l: %.2f ", glyph->m_Glyph.m_Advance, glyph->m_Glyph.m_LeftBearing);
-        printf("asc/dsc: %u, %u ", glyph->m_Glyph.m_Ascent, glyph->m_Glyph.m_Descent);
+        printf("asc/dsc: %d, %d ", glyph->m_Glyph.m_Ascent, glyph->m_Glyph.m_Descent);
 
         printf("img w/h: %2d, %2d ", glyph->m_DataImageWidth, glyph->m_DataImageHeight);
         printf("\n");
