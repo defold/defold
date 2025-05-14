@@ -52,6 +52,7 @@ namespace dmGameSystem
      * @document
      * @name Collision object
      * @namespace physics
+     * @language Lua
      */
 
     /*# spring joint type

@@ -39,6 +39,7 @@ namespace dmScript
      * @document
      * @name Built-ins
      * @namespace builtins
+     * @language Lua
      */
 
     #define SCRIPT_TYPE_NAME_HASH "hash"

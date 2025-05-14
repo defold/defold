@@ -35,6 +35,7 @@ namespace dmGameSystem
  * @document
  * @name Label
  * @namespace label
+ * @language Lua
  */
 
 /*# [type:vector4] label color

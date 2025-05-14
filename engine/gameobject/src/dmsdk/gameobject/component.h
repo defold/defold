@@ -33,6 +33,7 @@ namespace dmGameObject
      * @document
      * @name Component
      * @namespace dmGameObject
+     * @language C++
      */
 
     struct ComponentType;
@@ -796,7 +797,9 @@ namespace dmGameObject
         dmGameObject::RegisterComponentTypeDescriptor((struct dmGameObject::ComponentTypeDescriptor*) &desc, name, type_create_fn, type_destroy_fn); \
     }
 
-    /*# register a new component type
+    /*# Register a new component type
+     * @macro
+     * @name DM_DECLARE_COMPONENT_TYPE
      * @param symbol [type: cpp_symbol_name] The unique C++ symbol name
      * @param name [type: const char*] name of the component type (i.e. the resource suffix)
      * @param create_fn [type: dmGameObject::Result (*fn)(const ComponentTypeCreateCtx* ctx, HComponentType type)] The type configuration function. May not be 0.

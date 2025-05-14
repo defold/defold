@@ -39,6 +39,7 @@ namespace dmScript
      * @document
      * @name Timer
      * @namespace timer
+     * @language Lua
      */
 
     /*

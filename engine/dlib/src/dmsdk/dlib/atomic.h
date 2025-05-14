@@ -21,8 +21,8 @@
  *
  * @document
  * @name Atomic
- * @namespace dmAtomic
  * @path engine/dlib/src/dmsdk/dlib/atomic.h
+ * @language C++
  */
 
 // platform independent includes

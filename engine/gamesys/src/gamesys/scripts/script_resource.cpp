@@ -51,6 +51,7 @@ namespace dmGameSystem
  * @document
  * @name Resource
  * @namespace resource
+ * @language Lua
  */
 
 /*# reference to material resource

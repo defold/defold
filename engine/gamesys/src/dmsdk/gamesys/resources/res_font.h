@@ -22,6 +22,17 @@
 
 namespace dmGameSystem
 {
+    /*# Font resource functions
+     *
+     * Font resource functions.
+     *
+     * @document
+     * @namespace dmGameSystem
+     * @name Font Resource
+     * @path engine/gamesys/src/dmsdk/gamesys/resource/res_font.h
+     * @language C++
+     */
+
     /*#
      * Handle to font resource
      * @struct

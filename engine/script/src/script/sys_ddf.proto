@@ -15,6 +15,7 @@ option java_outer_classname = "System";
  * @document
  * @name System
  * @namespace sys
+ * @language Lua
  */
 
 /*# exits application

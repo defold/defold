@@ -46,6 +46,7 @@ namespace dmProfiler
  * @document
  * @name Profiler
  * @namespace profiler
+ * @language Lua
  */
 
 static uint32_t g_ProfilerPort = 0; // 0 means use the default port of the current library

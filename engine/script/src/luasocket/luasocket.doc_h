@@ -19,6 +19,7 @@
  * @document
  * @name LuaSocket
  * @namespace socket
+ * @language Lua
  */
 
 
