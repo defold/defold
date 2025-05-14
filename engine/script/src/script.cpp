@@ -83,6 +83,7 @@ namespace dmScript
         context->m_GraphicsContext = params.m_GraphicsContext;
         context->m_LuaState = lua_open();
         context->m_ContextTableRef = LUA_NOREF;
+        context->m_ContextWeakTableRef = LUA_NOREF;
         return context;
     }
 
@@ -202,7 +203,32 @@ namespace dmScript
         lua_pushlightuserdata(L, (void*)L);
         lua_setglobal(L, SCRIPT_MAIN_THREAD);
 
+        // Create main context table
         lua_newtable(L);
+        // [-1] context_table
+        // Create weak subtable
+        lua_newtable(L);
+        // [-2] context_table
+        // [-1] weak_table
+        lua_newtable(L);
+        // [-3] context_table
+        // [-2] weak_table
+        // [-1] mt
+        lua_pushliteral(L, "__mode");
+        lua_pushliteral(L, "v");
+        lua_settable(L, -3);         // mt.__mode = "v"
+        lua_setmetatable(L, -2);     // setmetatable(weak_table, mt)
+        // [-2] context_table
+        // [-1] weak_table
+
+        // context_table["__weak"] = weak_table
+        lua_pushvalue(L, -1);        // duplicate weak_table for storing in context
+        lua_setfield(L, -3, "__weak");  // context_table["__weak"] = weak_table
+
+        // Now store weak_table ref separately
+        context->m_ContextWeakTableRef = Ref(L, LUA_REGISTRYINDEX);
+
+        // Finally store context_table
         context->m_ContextTableRef = Ref(L, LUA_REGISTRYINDEX);
 
         InitializeTimer(context);
@@ -254,6 +280,7 @@ namespace dmScript
         lua_pop(L, 1);
 
         Unref(L, LUA_REGISTRYINDEX, context->m_ContextTableRef);
+        Unref(L, LUA_REGISTRYINDEX, context->m_ContextWeakTableRef);
     }
 
     lua_State* GetLuaState(HContext context)
