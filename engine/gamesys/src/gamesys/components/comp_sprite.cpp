@@ -899,7 +899,7 @@ namespace dmGameSystem
 
                 (*scratch_positions_world)[vertex_index] = world_matrix * p;
 
-                vertices = dmGraphics::WriteAttributes(vertices, vertex_index++, params);
+                vertices = dmGraphics::WriteAttributes(vertices, vertex_index++, 1, params);
             }
         }
 
@@ -1296,7 +1296,7 @@ namespace dmGameSystem
                     }
 
                     sprite_world->m_ScratchPositionWorld[vertex_index] = world_matrix * sprite_world->m_ScratchPositionWorld[vertex_index];
-                    vertices = dmGraphics::WriteAttributes(vertices, vertex_index, write_params);
+                    vertices = dmGraphics::WriteAttributes(vertices, vertex_index, 1, write_params);
                 }
 
                 const dmGameSystemDDF::SpriteGeometry* geometry = textures.m_Geometries[0];
@@ -1404,10 +1404,7 @@ namespace dmGameSystem
                         (const float**) scratch_pi_ptrs,
                         textures.m_NumTextures);
 
-                    vertices = dmGraphics::WriteAttributes(vertices, 0, write_params);
-                    vertices = dmGraphics::WriteAttributes(vertices, 1, write_params);
-                    vertices = dmGraphics::WriteAttributes(vertices, 2, write_params);
-                    vertices = dmGraphics::WriteAttributes(vertices, 3, write_params);
+                    vertices = dmGraphics::WriteAttributes(vertices, 0, 4, write_params);
 
                 #if 0
                     for (int f = 0; f < 4; ++f)
