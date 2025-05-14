@@ -15,7 +15,8 @@
 (ns editor.attachment
   "Extensible definitions for semantical node attachments"
   (:refer-clojure :exclude [remove])
-  (:require [dynamo.graph :as g]))
+  (:require [dynamo.graph :as g]
+            [util.coll :as coll]))
 
 (defonce ^:private state-atom
   ;; :add -> type -> list-kw -> type -> {:node-type ... :tx-attach-fn ...}
@@ -53,7 +54,7 @@
   nil)
 
 (defn add-impl [current-state parent-node-type parent-node-id attachment-tree init-fn]
-  (mapcat
+  (coll/mapcat
     (fn [[list-kw {:keys [init add]}]]
       (if-let [{:keys [node-type tx-attach-fn]} (-> current-state :add (get parent-node-type) list-kw)]
         (let [child-node-id (first (g/take-node-ids (g/node-id->graph-id parent-node-id) 1))]

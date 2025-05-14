@@ -47,6 +47,7 @@
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
+            [internal.graph.types :as gt]
             [internal.util :as util]
             [schema.core :as s]
             [util.coll :as coll :refer [pair]]
@@ -814,7 +815,7 @@
 
 (defn- atlas-outline-sort-by-fn [basis v]
   ;; NOTE: unsafe basis from node output! Only use for node type access!
-  (:k (g/node-type* basis (:node-id v))))
+  (g/node-type-kw basis (:node-id v)))
 
 (def ^:private default-max-page-size
   [(protobuf/default AtlasProto$Atlas :max-page-width)
@@ -926,20 +927,22 @@
                                                               child-build-errors
                                                               own-build-errors))))
 
-(defn- get-node-by-type [child-node-type]
-  (fn get-child-node-by-type [node evaluation-context]
+(defn- get-nodes-by-type [child-node-type]
+  (fn get-children-nodes-by-type [node evaluation-context]
     (let [basis (:basis evaluation-context)]
-      (filterv #(= child-node-type (g/node-type* basis %)) (g/node-value node :nodes evaluation-context)))))
+      (coll/transfer (g/explicit-arcs-by-target basis node :nodes) []
+        (map gt/source-id)
+        (filter #(= child-node-type (g/node-type* basis %)))))))
 
 (attachment/register!
   AtlasNode :animations
   :add {:node-type AtlasAnimation :tx-attach-fn attach-animation-to-atlas}
-  :get (get-node-by-type AtlasAnimation))
+  :get (get-nodes-by-type AtlasAnimation))
 
 (attachment/register!
   AtlasNode :images
   :add {:node-type AtlasImage :tx-attach-fn attach-image-to-atlas}
-  :get (get-node-by-type AtlasImage))
+  :get (get-nodes-by-type AtlasImage))
 
 (defn- make-image-nodes
   [attach-fn parent image-msgs]

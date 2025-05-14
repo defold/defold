@@ -837,7 +837,7 @@
                :err (line-writer #(display-output! :err %))
                :env {"editor" {"bundle" {"project_binary_name" ext-project-binary-name} ;; undocumented, hidden API!
                                "get" (make-ext-get-fn project)
-                               "can_add" (graph/make-ext-can-add project)
+                               "can_add" (graph/make-ext-can-add-fn project)
                                "can_get" (make-ext-can-get-fn project)
                                "can_set" (make-ext-can-set-fn project)
                                "command" commands/ext-command-fn

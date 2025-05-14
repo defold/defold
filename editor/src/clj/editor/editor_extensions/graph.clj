@@ -201,8 +201,11 @@
 
 (defmethod init-attachment :default [_ attachment] attachment)
 
+(def ^:private default-new-atlas-animation-name-lua-value
+  (rt/->lua "New Animation"))
+
 (defmethod init-attachment :editor.atlas/AtlasAnimation [_ attachment]
-  (cond-> attachment (not (contains? attachment "id")) (assoc "id" (rt/->lua "New Animation"))))
+  (cond-> attachment (not (contains? attachment "id")) (assoc "id" default-new-atlas-animation-name-lua-value)))
 
 (defn- init-txs [evaluation-context rt project node-type node-id attachment]
   (mapcat
@@ -254,7 +257,7 @@
 (def ^:private can-add-args-coercer
   (coerce/regex :node node-id-or-path-coercer :property coerce/string))
 
-(defn make-ext-can-add [project]
+(defn make-ext-can-add-fn [project]
   (rt/varargs-lua-fn ext-can-add [{:keys [rt evaluation-context]} varargs]
     (let [{:keys [node property]} (rt/->clj rt can-add-args-coercer varargs)
           node-id (node-id-or-path->node-id node project evaluation-context)

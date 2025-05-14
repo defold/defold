@@ -1146,11 +1146,20 @@ After transaction (add):
 Transaction: remove image
 After transaction (remove image):
   images: 0
+  animations: 1
+    animation id: logos
+    animation images: 2
+      animation image: /builtins/assets/images/logo/logo_blue_256.png
+      animation image: /builtins/assets/images/logo/logo_256.png
 Transaction: clear animation images
 After transaction (clear):
-  animation images: 0
+  images: 0
+  animations: 1
+    animation id: logos
+    animation images: 0
 Transaction: remove animation
 After transaction (remove animation):
+  images: 0
   animations: 0
 Expected errors:
   Wrong list name to add => AtlasNode does not define \"layers\"
