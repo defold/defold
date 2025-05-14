@@ -3800,6 +3800,7 @@ FactoryTestParams factory_testparams [] =
     {"/factory/dynamic_factory_test.goc", true, false},
     {"/factory/factory_test.goc", false, true},
     {"/factory/factory_test.goc", false, false},
+    {"/factory/factory_hash_test.goc", true, true},
 };
 INSTANTIATE_TEST_CASE_P(Factory, FactoryTest, jc_test_values_in(factory_testparams));
 

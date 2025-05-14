@@ -220,6 +220,13 @@ namespace dmScript
         lua_rawgeti(L, -1, ref);
         // [-2] context_table
         // [-1] value
+
+        if (lua_isnil(L, -1))
+        {
+            lua_pop(L, 2);
+            return;
+        }
+
         lua_remove(L, -2);
         // [-1] value
 
