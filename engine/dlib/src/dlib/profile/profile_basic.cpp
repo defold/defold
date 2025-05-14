@@ -100,35 +100,6 @@ static inline bool IsValidIndex(dmProfileIdx idx)
     return idx != DM_PROFILE_PROPERTY_INVALID_IDX;
 }
 
-static inline uint32_t MakeColorFromHash(uint32_t hash)
-{
-    // Borrowed from Remotery.c
-
-    // Hash integer line position to full hue
-    float h = (float)hash / (float)0xFFFFFFFF;
-    float r = dmMath::Clamp(fabsf(fmodf(h * 6 + 0, 6) - 3) - 1, 0.0f, 1.0f);
-    float g = dmMath::Clamp(fabsf(fmodf(h * 6 + 4, 6) - 3) - 1, 0.0f, 1.0f);
-    float b = dmMath::Clamp(fabsf(fmodf(h * 6 + 2, 6) - 3) - 1, 0.0f, 1.0f);
-
-    // Cubic smooth
-    r = r * r * (3 - 2 * r);
-    g = g * g * (3 - 2 * g);
-    b = b * b * (3 - 2 * b);
-
-    // Lerp to HSV lightness a little
-    float k = 0.4;
-    r = r * k + (1 - k);
-    g = g * k + (1 - k);
-    b = b * k + (1 - k);
-
-    uint8_t br = (uint8_t)255*dmMath::Clamp(r, 0.0f, 1.0f);
-    uint8_t bg = (uint8_t)255*dmMath::Clamp(g, 0.0f, 1.0f);
-    uint8_t bb = (uint8_t)255*dmMath::Clamp(b, 0.0f, 1.0f);
-    uint8_t ba = 0xFF;
-
-    return (ba<<24) | (br << 16) | (bg << 8) | (bb << 0);
-}
-
 ///////////////////////////////////////////////////////////////////////////////////////////////
 // ThreadData
 
@@ -705,8 +676,7 @@ namespace dmProfile
 
     uint32_t SampleGetColor(HSample hsample)
     {
-        Sample* sample = (Sample*)hsample;
-        return MakeColorFromHash(sample->m_NameHash);
+        return 0;
     }
 
 
@@ -837,7 +807,7 @@ static PropertyData* GetPropertyDataFromIdx(dmProfileIdx idx)
         return; \
     assert(data->m_Index == (IDX));
 
-static void SetupProperty(Property* prop, dmProfileIdx idx, const char* name, const char* desc, uint32_t flags, dmProfileIdx* parentidx)
+static void SetupProperty(Property* prop, dmProfileIdx idx, const char* name, const char* desc, uint32_t flags, dmProfileIdx* (*parentf)())
 {
     memset(prop, 0, sizeof(Property));
     prop->m_Flags        = flags;
@@ -846,7 +816,7 @@ static void SetupProperty(Property* prop, dmProfileIdx idx, const char* name, co
     prop->m_Description  = desc;
     prop->m_FirstChild   = dmProfile::INVALID_INDEX;
     prop->m_Sibling      = dmProfile::INVALID_INDEX;
-    prop->m_Parent       = parentidx ? *parentidx : 0;
+    prop->m_Parent       = parentf ? *parentf() : 0;
 
     // TODO: append them last so that they'll render in the same order they were registered
     Property* parent = GetPropertyFromIdx(prop->m_Parent);
@@ -861,72 +831,72 @@ static void SetupProperty(Property* prop, dmProfileIdx idx, const char* name, co
     }
 }
 
-dmProfileIdx dmProfileCreatePropertyGroup(const char* name, const char* desc, dmProfileIdx* parentidx)
+dmProfileIdx dmProfileCreatePropertyGroup(const char* name, const char* desc, dmProfileIdx* (*parent)())
 {
     ALLOC_PROP_AND_CHECK();
-    SetupProperty(prop, idx, name, desc, 0, parentidx);
+    SetupProperty(prop, idx, name, desc, 0, parent);
     prop->m_Type = dmProfile::PROPERTY_TYPE_GROUP;
     return idx;
 }
 
-dmProfileIdx dmProfileCreatePropertyBool(const char* name, const char* desc, int value, uint32_t flags, dmProfileIdx* parentidx)
+dmProfileIdx dmProfileCreatePropertyBool(const char* name, const char* desc, int value, uint32_t flags, dmProfileIdx* (*parent)())
 {
     ALLOC_PROP_AND_CHECK();
-    SetupProperty(prop, idx, name, desc, flags, parentidx);
+    SetupProperty(prop, idx, name, desc, flags, parent);
     prop->m_DefaultValue.m_Bool = (bool)value;
     prop->m_Type = dmProfile::PROPERTY_TYPE_BOOL;
     return idx;
 }
 
-dmProfileIdx dmProfileCreatePropertyS32(const char* name, const char* desc, int32_t value, uint32_t flags, dmProfileIdx* parentidx)
+dmProfileIdx dmProfileCreatePropertyS32(const char* name, const char* desc, int32_t value, uint32_t flags, dmProfileIdx* (*parent)())
 {
     ALLOC_PROP_AND_CHECK();
-    SetupProperty(prop, idx, name, desc, flags, parentidx);
+    SetupProperty(prop, idx, name, desc, flags, parent);
     prop->m_DefaultValue.m_S32 = value;
     prop->m_Type = dmProfile::PROPERTY_TYPE_S32;
     return idx;
 }
 
-dmProfileIdx dmProfileCreatePropertyU32(const char* name, const char* desc, uint32_t value, uint32_t flags, dmProfileIdx* parentidx)
+dmProfileIdx dmProfileCreatePropertyU32(const char* name, const char* desc, uint32_t value, uint32_t flags, dmProfileIdx* (*parent)())
 {
     ALLOC_PROP_AND_CHECK();
-    SetupProperty(prop, idx, name, desc, flags, parentidx);
+    SetupProperty(prop, idx, name, desc, flags, parent);
     prop->m_DefaultValue.m_U32 = value;
     prop->m_Type = dmProfile::PROPERTY_TYPE_U32;
     return idx;
 }
 
-dmProfileIdx dmProfileCreatePropertyF32(const char* name, const char* desc, float value, uint32_t flags, dmProfileIdx* parentidx)
+dmProfileIdx dmProfileCreatePropertyF32(const char* name, const char* desc, float value, uint32_t flags, dmProfileIdx* (*parent)())
 {
     ALLOC_PROP_AND_CHECK();
-    SetupProperty(prop, idx, name, desc, flags, parentidx);
+    SetupProperty(prop, idx, name, desc, flags, parent);
     prop->m_DefaultValue.m_F32 = value;
     prop->m_Type = dmProfile::PROPERTY_TYPE_F32;
     return idx;
 }
 
-dmProfileIdx dmProfileCreatePropertyS64(const char* name, const char* desc, int64_t value, uint32_t flags, dmProfileIdx* parentidx)
+dmProfileIdx dmProfileCreatePropertyS64(const char* name, const char* desc, int64_t value, uint32_t flags, dmProfileIdx* (*parent)())
 {
     ALLOC_PROP_AND_CHECK();
-    SetupProperty(prop, idx, name, desc, flags, parentidx);
+    SetupProperty(prop, idx, name, desc, flags, parent);
     prop->m_DefaultValue.m_S64 = value;
     prop->m_Type = dmProfile::PROPERTY_TYPE_S64;
     return idx;
 }
 
-dmProfileIdx dmProfileCreatePropertyU64(const char* name, const char* desc, uint64_t value, uint32_t flags, dmProfileIdx* parentidx)
+dmProfileIdx dmProfileCreatePropertyU64(const char* name, const char* desc, uint64_t value, uint32_t flags, dmProfileIdx* (*parent)())
 {
     ALLOC_PROP_AND_CHECK();
-    SetupProperty(prop, idx, name, desc, flags, parentidx);
+    SetupProperty(prop, idx, name, desc, flags, parent);
     prop->m_DefaultValue.m_U64 = value;
     prop->m_Type = dmProfile::PROPERTY_TYPE_U64;
     return idx;
 }
 
-dmProfileIdx dmProfileCreatePropertyF64(const char* name, const char* desc, double value, uint32_t flags, dmProfileIdx* parentidx)
+dmProfileIdx dmProfileCreatePropertyF64(const char* name, const char* desc, double value, uint32_t flags, dmProfileIdx* (*parent)())
 {
     ALLOC_PROP_AND_CHECK();
-    SetupProperty(prop, idx, name, desc, flags, parentidx);
+    SetupProperty(prop, idx, name, desc, flags, parent);
     prop->m_DefaultValue.m_F64 = value;
     prop->m_Type = dmProfile::PROPERTY_TYPE_F64;
     return idx;

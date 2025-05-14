@@ -623,7 +623,7 @@ def default_flags(self):
         self.env.append_value('DEFINES', ['DM_TEST_DLIB_HTTPCLIENT_NO_HOST_SERVER'])
 
         for f in ['CFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-Wall', '-fPIC', '-fno-exceptions', '-fno-rtti',
+            self.env.append_value(f, ['-Wall', '-fPIC', '-fno-exceptions', '-fno-rtti', '-Wno-nontrivial-memcall',
                                       '-DGL_ES_VERSION_2_0', '-DGOOGLE_PROTOBUF_NO_RTTI', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DDM_NO_SYSTEM_FUNCTION'])
             self.env.append_value(f, emflags_compile)
             self.env.append_value(f, flags)
@@ -2000,7 +2000,7 @@ def detect(conf):
     conf.env['STLIB_CRASH'] = 'crashext'
     conf.env['STLIB_CRASH_NULL'] = 'crashext_null'
     if TargetOS.WEB == target_os:
-        conf.env['STLIB_PROFILE'] = ['profile_basic']
+        conf.env['STLIB_PROFILE'] = ['profile_js']
     else:
         conf.env['STLIB_PROFILE'] = ['profile', 'remotery']
     conf.env['STLIB_PROFILE_NULL'] = ['profile_null', 'remotery_null']
