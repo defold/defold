@@ -208,37 +208,8 @@ def build(bld):
     # ******************************************************************
 
     libprofile_features = 'c cxx'
-    libprofile_includes = '. ./dlib/profile ./remotery'
-    libprofile_defines = ['VALGRIND'] + extra_defines
-
-    if bld.env['PLATFORM'] in ('js-web', 'wasm-web', 'wasm_pthread-web'):
-        libprofile_js = bld.stlib(features   = libprofile_features,
-                                  includes     = libprofile_includes,
-                                  defines      = libprofile_defines,
-                                  source       = 'dlib/profile/profile.cpp dlib/profile/profile_js.cpp',
-                                  target       = 'profile_js')
-    elif bld.env['PLATFORM'] not in ('arm64-nx64', 'x86_64-ps4', 'x86_64-ps5'):
-        libprofile = bld.stlib(features     = libprofile_features,
-                               includes     = libprofile_includes,
-                               defines      = libprofile_defines,
-                               source       = ['dlib/profile/profile.cpp', 'dlib/profile/profile_remotery.cpp'],
-                               target       = 'profile')
-
-        libprofile_noasan = bld.stlib(features     = libprofile.features + ['skip_asan'],
-                                      includes     = libprofile.includes,
-                                      defines      = libprofile.defines,
-                                      target       = 'profile_noasan')
-        libprofile_noasan.source = libprofile.source
-
     libprofile_includes = '. ./dlib/profile'
     libprofile_defines = extra_defines
-
-    # defold version
-    libprofile_basic = bld.stlib(features   = libprofile_features,
-                                includes     = libprofile_includes,
-                                defines      = libprofile_defines,
-                                source       = 'dlib/profile/profile.cpp dlib/profile/profile_basic.cpp',
-                                target       = 'profile_basic')
 
     # null version
     libprofile_null = bld.stlib(features     = libprofile_features,
@@ -252,6 +223,34 @@ def build(bld):
                                        defines      = libprofile_null.defines,
                                        target       = 'profile_null_noasan')
     libprofile_null_noasan.source = libprofile_null.source
+
+    if bld.env['PLATFORM'] in ('js-web', 'wasm-web', 'wasm_pthread-web'):
+        libprofile_js = bld.stlib(features   = libprofile_features,
+                                  includes     = libprofile_includes,
+                                  defines      = libprofile_defines,
+                                  source       = 'dlib/profile/profile.cpp dlib/profile/profile_js.cpp',
+                                  target       = 'profile_js')
+    elif bld.env['PLATFORM'] not in ('arm64-nx64', 'x86_64-ps4', 'x86_64-ps5'):
+        libprofile_includes = '. ./dlib/profile ./remotery'
+        libprofile = bld.stlib(features     = libprofile_features,
+                               includes     = libprofile_includes,
+                               defines      = libprofile_defines,
+                               source       = ['dlib/profile/profile.cpp', 'dlib/profile/profile_remotery.cpp'],
+                               target       = 'profile')
+
+        libprofile_noasan = bld.stlib(features     = libprofile.features + ['skip_asan'],
+                                      includes     = libprofile.includes,
+                                      defines      = libprofile.defines,
+                                      target       = 'profile_noasan')
+        libprofile_noasan.source = libprofile.source
+    else:
+        # defold version
+        libprofile_basic = bld.stlib(features   = libprofile_features,
+                                    includes     = libprofile_includes,
+                                    defines      = libprofile_defines,
+                                    source       = 'dlib/profile/profile.cpp dlib/profile/profile_basic.cpp',
+                                    target       = 'profile_basic')
+
 
     # ******************************************************************
 

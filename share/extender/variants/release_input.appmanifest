@@ -16,7 +16,7 @@ platforms:
 
     web:
         context:
-            excludeLibs: ["engine", "engine_service", "profile", "remotery", "profile_basic", "profile_js", "profilerext"]
+            excludeLibs: ["engine", "engine_service", "profile", "remotery", "profile_js", "profilerext"]
             libs: ["engine_release", "engine_service_null", "profile_null", "remotery_null", "profilerext_null"]
 
     win32:
