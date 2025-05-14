@@ -264,14 +264,21 @@ static uint32_t GetOrCacheNameHash(const char* name, uint32_t* pname_hash)
 
 static uint32_t InternalizeName(const char* original, uint32_t* pname_hash)
 {
-    const char* name = strdup(original);
-    uint32_t name_hash = GetOrCacheNameHash(name, pname_hash);
+    uint32_t name_hash = GetOrCacheNameHash(original, pname_hash);
 
     if (g_ProfileContext->m_Names.Full())
     {
         uint32_t cap = g_ProfileContext->m_Names.Capacity() + 64;
         g_ProfileContext->m_Names.SetCapacity((cap*2)/3, cap);
     }
+
+    const char** existing = g_ProfileContext->m_Names.Get(name_hash);
+    if (existing)
+    {
+        return name_hash;
+    }
+
+    const char* name = strdup(original);
     g_ProfileContext->m_Names.Put(name_hash, name);
     return name_hash;
 }
@@ -438,12 +445,19 @@ namespace dmProfile
         PropertyInitialize();
         CHECK_INITIALIZED();
         DM_MUTEX_SCOPED_LOCK(g_Lock);
+        int32_t thread_id = GetThreadId();
+        const char** existing = g_ProfileContext->m_ThreadNames.Get(thread_id);
+        if (existing)
+        {
+            free((void*)*existing);
+        }
+
         if (g_ProfileContext->m_ThreadNames.Full())
         {
             uint32_t cap = g_ProfileContext->m_ThreadNames.Capacity() + 32;
             g_ProfileContext->m_ThreadNames.SetCapacity((cap*2)/3, cap);
         }
-        g_ProfileContext->m_ThreadNames.Put(GetThreadId(), strdup(name));
+        g_ProfileContext->m_ThreadNames.Put(thread_id, strdup(name));
     }
 
     void AddCounter(const char* name, uint32_t amount)
