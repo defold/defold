@@ -65,8 +65,14 @@
                                           (node-ids->lua-selection q))
                                   (some-> selection
                                           (handler/adapt-every resource/Resource)
-                                          (->> (keep #(project/get-resource-node project % evaluation-context)))
-                                          (node-ids->lua-selection q)))]
+                                          (->> (into
+                                                 []
+                                                 (keep
+                                                   (fn [resource]
+                                                     (if-let [node-id (project/get-resource-node project resource evaluation-context)]
+                                                       (rt/wrap-userdata node-id)
+                                                       (resource/proj-path resource))))))
+                                          (ensure-selection-cardinality q)))]
                  (when-not (:evaluation-context env)
                    (g/update-cache-from-evaluation-context! evaluation-context))
                  (cont assoc :selection res)))))

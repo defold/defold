@@ -42,15 +42,26 @@
     (coerce/wrap-with-pred coerce/userdata g/node-id? "is not a node id")
     resource-path-coercer))
 
+(defn resolve-node-id-or-path
+  "Resolve node id or proj-path to either a node id or a folder resource
+
+  If a path points to a file resource, it will be resolved to node-id"
+  [node-id-or-path project evaluation-context]
+  (if (string? node-id-or-path)
+    (let [resource (workspace/find-resource (project/workspace project evaluation-context) node-id-or-path evaluation-context)]
+      (when-not resource
+        (throw (LuaError. (str node-id-or-path " not found"))))
+      (or (project/get-resource-node project resource evaluation-context)
+          resource))
+    node-id-or-path))
+
 (defn node-id-or-path->node-id
   "Coerce a value that may be node id or proj-path to existing node id"
   [node-id-or-path project evaluation-context]
-  (if (string? node-id-or-path)
-    (let [node-id (project/get-resource-node project node-id-or-path evaluation-context)]
-      (when (nil? node-id)
-        (throw (LuaError. (str node-id-or-path " not found"))))
-      node-id)
-    node-id-or-path))
+  (let [node-id-or-resource (resolve-node-id-or-path node-id-or-path project evaluation-context)]
+    (when (resource/resource? node-id-or-resource)
+      (throw (LuaError. (str (resource/proj-path node-id-or-resource) " is not a file resource"))))
+    node-id-or-resource))
 
 (defn node-id->type-keyword [node-id ec]
   (g/node-type-kw (:basis ec) node-id))
@@ -134,29 +145,35 @@
 (defn ext-value-getter
   "Create 0-arg fn that produces node property value
 
-  Returns nil if there is no getter for node-id+property
+  Returns nil if there is no getter for node-id-or-resource+property
 
   Args:
-    node-id               the node id
-    property              string property name
-    evaluation-context    used evaluation context"
-  [node-id property evaluation-context]
-  (or (when (fn/multi-responds? ext-get node-id property evaluation-context)
-        #(ext-get node-id property evaluation-context))
-      (when (and (= :editor.game-project/GameProjectNode (node-id->type-keyword node-id evaluation-context))
-                 (re-matches #"^[a-zA-Z_][a-zA-Z0-9_]*\.[a-zA-Z_][a-zA-Z0-9_]*$" property))
-        #(game-project/get-setting node-id (string/split property #"\." 2) evaluation-context))
-      (when-let [outline-property (outline-property node-id property evaluation-context)]
-        (when-let [to (-> outline-property
-                          properties/edit-type-id
-                          edit-type-id->value-converter
-                          :to)]
-          #(some-> (properties/value outline-property) to)))
-      (let [node-type (g/node-type* (:basis evaluation-context) node-id)
-            list-kw (property->prop-kw property)]
-        (when (attachment/defines? node-type list-kw)
-          (let [f (attachment/getter node-type list-kw)]
-            #(mapv rt/wrap-userdata (f node-id evaluation-context)))))))
+    node-id-or-resource    resolved node id or folder resource
+    property               string property name
+    evaluation-context     used evaluation context"
+  [node-id-or-resource property evaluation-context]
+  (if (resource/resource? node-id-or-resource)
+    (case property
+      "path" #(resource/proj-path node-id-or-resource)
+      "children" #(mapv resource/proj-path (resource/children node-id-or-resource))
+      nil)
+    (let [node-id node-id-or-resource]
+      (or (when (fn/multi-responds? ext-get node-id property evaluation-context)
+            #(ext-get node-id property evaluation-context))
+          (when (and (= :editor.game-project/GameProjectNode (node-id->type-keyword node-id evaluation-context))
+                     (re-matches #"^[a-zA-Z_][a-zA-Z0-9_]*\.[a-zA-Z_][a-zA-Z0-9_]*$" property))
+            #(game-project/get-setting node-id (string/split property #"\." 2) evaluation-context))
+          (when-let [outline-property (outline-property node-id property evaluation-context)]
+            (when-let [to (-> outline-property
+                              properties/edit-type-id
+                              edit-type-id->value-converter
+                              :to)]
+              #(some-> (properties/value outline-property) to)))
+          (let [node-type (g/node-type* (:basis evaluation-context) node-id)
+                list-kw (property->prop-kw property)]
+            (when (attachment/defines? node-type list-kw)
+              (let [f (attachment/getter node-type list-kw)]
+                #(mapv rt/wrap-userdata (f node-id evaluation-context)))))))))
 
 ;; endregion
 
@@ -260,9 +277,11 @@
 (defn make-ext-can-add-fn [project]
   (rt/varargs-lua-fn ext-can-add [{:keys [rt evaluation-context]} varargs]
     (let [{:keys [node property]} (rt/->clj rt can-add-args-coercer varargs)
-          node-id (node-id-or-path->node-id node project evaluation-context)
-          node-type (g/node-type* (:basis evaluation-context) node-id)]
-      (attachment/defines? node-type (property->prop-kw property)))))
+          node-id-or-resource (resolve-node-id-or-path node project evaluation-context)]
+      (and (not (resource/resource? node-id-or-resource))
+           (attachment/defines?
+             (g/node-type* (:basis evaluation-context) node-id-or-resource)
+             (property->prop-kw property))))))
 
 (def ^:private clear-args-coercer
   (coerce/regex :node node-id-or-path-coercer :property coerce/string))
