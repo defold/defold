@@ -18,10 +18,12 @@
             [dynamo.graph :as g]
             [editor.attachment :as attachment]
             [editor.code.util :as code.util]
+            [editor.collision-groups :as collision-groups]
             [editor.defold-project :as project]
             [editor.editor-extensions.coerce :as coerce]
             [editor.editor-extensions.runtime :as rt]
             [editor.game-project :as game-project]
+            [editor.id :as id]
             [editor.outline :as outline]
             [editor.properties :as properties]
             [editor.resource :as resource]
@@ -142,6 +144,12 @@
 (defmethod ext-get [:editor.resource/ResourceNode "path"] [node-id _ ec]
   (resource/resource->proj-path (g/node-value node-id :resource ec)))
 
+(defmethod ext-get [:editor.tile-source/TileSourceNode "tile_collision_groups"] [node-id _ ec]
+  (coll/pair-map-by
+    (comp inc key) ;; 0-indexed to 1-indexed
+    #(g/node-value (val %) :id ec)
+    (g/node-value node-id :tile->collision-group-node ec)))
+
 (defn ext-value-getter
   "Create 0-arg fn that produces node property value
 
@@ -192,6 +200,30 @@
      (g/set-property node-id :cursor-ranges [#code/range[[0 0] [0 0]]])
      (g/set-property node-id :regions [])]))
 
+(def ^:private tile-collision-group-coercer
+  (coerce/map-of coerce/integer coerce/string))
+
+(defmethod ext-setter [:editor.tile-source/TileSourceNode "tile_collision_groups"]
+  [node-id _ rt _]
+  (fn [lua-value]
+    (let [one-indexed-tile-index->collision-group-id (rt/->clj rt tile-collision-group-coercer lua-value)]
+      (g/expand-ec
+        (fn [evaluation-context]
+          (let [basis (:basis evaluation-context)
+                collision-id->node-id
+                (coll/pair-map-by
+                  #(g/node-value % :id evaluation-context)
+                  ((attachment/getter (g/node-type* basis node-id) :collision-groups) node-id evaluation-context))
+                new-tile->collision-group-node
+                (coll/pair-map-by
+                  (comp dec key) ;; 1-indexed to 0-indexed
+                  (fn [e]
+                    (let [id (val e)]
+                      (or (collision-id->node-id id)
+                          (throw (LuaError. (format "Collision group \"%s\" is not defined in the tilesource" id))))))
+                  one-indexed-tile-index->collision-group-id)]
+            (g/set-property node-id :tile->collision-group-node new-tile->collision-group-node)))))))
+
 (defn ext-lua-value-setter
   "Create 1-arg fn from new lua value to transaction steps setting the property
 
@@ -213,16 +245,27 @@
 
 ;; region attach
 
-(defmulti init-attachment (fn init-attachment-dispatch-fn [node-type _attachment]
+(defmulti init-attachment (fn init-attachment-dispatch-fn [node-type _attachment _project _evaluation-context]
                             (:k node-type)))
 
-(defmethod init-attachment :default [_ attachment] attachment)
+(defmethod init-attachment :default [_ attachment _ _] attachment)
 
-(def ^:private default-new-atlas-animation-name-lua-value
-  (rt/->lua "New Animation"))
+(def ^:private default-new-animation-name-lua-value (rt/->lua "New Animation"))
+(defmethod init-attachment :editor.atlas/AtlasAnimation [_ attachment _ _]
+  (cond-> attachment (not (contains? attachment "id")) (assoc "id" default-new-animation-name-lua-value)))
 
-(defmethod init-attachment :editor.atlas/AtlasAnimation [_ attachment]
-  (cond-> attachment (not (contains? attachment "id")) (assoc "id" default-new-atlas-animation-name-lua-value)))
+(def ^:private default-start-tile-lua-value (rt/->lua 1))
+(def ^:private default-end-tile-lua-value (rt/->lua 1))
+(defmethod init-attachment :editor.tile-source/TileAnimationNode [_ attachment _ _]
+  (cond-> attachment
+          (not (contains? attachment "id")) (assoc "id" default-new-animation-name-lua-value)
+          (not (contains? attachment "start_tile")) (assoc "start_tile" default-start-tile-lua-value)
+          (not (contains? attachment "end_tile")) (assoc "end_tile" default-end-tile-lua-value)))
+
+(defmethod init-attachment :editor.tile-source/CollisionGroupNode [_ attachment project evaluation-context]
+  (cond-> attachment
+          (not (contains? attachment "id"))
+          (assoc "id" (rt/->lua (id/gen "collision_group" (collision-groups/collision-groups (g/node-value project :collision-groups-data evaluation-context)))))))
 
 (defn- init-txs [evaluation-context rt project node-type node-id attachment]
   (mapcat
@@ -232,7 +275,7 @@
         (throw (LuaError. (format "Can't set property \"%s\" of %s"
                                   property
                                   (name (node-id->type-keyword node-id evaluation-context)))))))
-    (init-attachment node-type attachment)))
+    (init-attachment node-type attachment project evaluation-context)))
 
 (def ^:private attachment-coercer (coerce/map-of coerce/string coerce/untouched))
 (def ^:private attachments-coercer (coerce/vector-of attachment-coercer))
