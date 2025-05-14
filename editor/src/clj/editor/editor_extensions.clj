@@ -837,6 +837,7 @@
                :err (line-writer #(display-output! :err %))
                :env {"editor" {"bundle" {"project_binary_name" ext-project-binary-name} ;; undocumented, hidden API!
                                "get" (make-ext-get-fn project)
+                               "can_add" (graph/make-ext-can-add-fn project)
                                "can_get" (make-ext-can-get-fn project)
                                "can_set" (make-ext-can-set-fn project)
                                "command" commands/ext-command-fn
@@ -852,7 +853,10 @@
                                "prefs" (prefs-functions/env prefs)
                                "save" (make-ext-save-fn save!)
                                "transact" ext-transact
-                               "tx" {"set" (make-ext-tx-set-fn project)}
+                               "tx" {"set" (make-ext-tx-set-fn project)
+                                     "add" (graph/make-ext-add-fn project)
+                                     "clear" (graph/make-ext-clear-fn project)
+                                     "remove" (graph/make-ext-remove-fn project)}
                                "ui" (assoc
                                       (ui-components/env workspace project project-path)
                                       "open_resource" (make-open-resource-fn workspace open-resource!))

@@ -1127,3 +1127,57 @@ GET /test/resources/test.json as json => 200
                          (when-not (properties/read-only? p)
                            (is (some? (graph/ext-lua-value-setter node-id ext-key rt project ec))))))))
              dorun)))))
+
+(def ^:private expected-attachment-test-output
+  "Initial state:
+  images: 0
+  animations: 0
+  can add images: true
+  can add animations: true
+Transaction: add image and animation
+After transaction (add):
+  images: 1
+    image: /builtins/assets/images/logo/logo_256.png
+  animations: 1
+    animation id: logos
+    animation images: 2
+      animation image: /builtins/assets/images/logo/logo_blue_256.png
+      animation image: /builtins/assets/images/logo/logo_256.png
+Transaction: remove image
+After transaction (remove image):
+  images: 0
+  animations: 1
+    animation id: logos
+    animation images: 2
+      animation image: /builtins/assets/images/logo/logo_blue_256.png
+      animation image: /builtins/assets/images/logo/logo_256.png
+Transaction: clear animation images
+After transaction (clear):
+  images: 0
+  animations: 1
+    animation id: logos
+    animation images: 0
+Transaction: remove animation
+After transaction (remove animation):
+  images: 0
+  animations: 0
+Expected errors:
+  Wrong list name to add => AtlasNode does not define \"layers\"
+  Wrong list name to remove => AtlasNode does not define \"layers\"
+  Wrong list item to remove => /test.atlas is not in the \"images\" list of /test.atlas
+  Wrong list name to clear => AtlasNode does not define \"layers\"
+  Wrong child property name => Can't set property \"no_such_prop\" of AtlasAnimation
+  Added value is not a table => \"/foo.png\" is not a table
+  Added nested value is not a table => \"/foo.png\" is not a table
+  Added node has invalid property value => \"invalid-pivot\" is not a tuple
+  Added resource has wrong type => resource extension should be jpg or png
+")
+
+(deftest attachment-properties-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/transact_attachment_project"
+    (let [out (StringBuilder.)]
+      (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+      (run-edit-menu-test-command!)
+      (let [actual (.toString out)]
+        (is (= expected-attachment-test-output actual)
+            (string/join "\n" (diff/make-diff-output-lines actual expected-attachment-test-output 3)))))))
