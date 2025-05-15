@@ -147,6 +147,8 @@ namespace dmRender
      */
     HFontMap NewFontMap(dmRender::HRenderContext render_context, dmGraphics::HContext graphics_context, FontMapParams& params);
 
+    void SetFontMapLineHeight(HFontMap font_map, float max_ascent, float max_descent);
+    void GetFontMapLineHeight(HFontMap font_map, float* max_ascent, float* max_descent);
     void SetFontMapCacheSize(HFontMap font_map, uint32_t cell_width, uint32_t cell_height, uint32_t max_ascent);
     void GetFontMapCacheSize(HFontMap font_map, uint32_t* cell_width, uint32_t* cell_height, uint32_t* max_ascent);
 
