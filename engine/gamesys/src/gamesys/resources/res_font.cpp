@@ -366,6 +366,18 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
+    dmResource::Result ResFontSetLineHeight(FontResource* font, float max_ascent, float max_descent)
+    {
+        dmRender::SetFontMapLineHeight(font->m_FontMap, max_ascent, max_descent);
+        return dmResource::RESULT_OK;
+    }
+
+    dmResource::Result ResFontGetLineHeight(FontResource* font, float* max_ascent, float* max_descent)
+    {
+        dmRender::GetFontMapLineHeight(font->m_FontMap, max_ascent, max_descent);
+        return dmResource::RESULT_OK;
+    }
+
     dmResource::Result ResFontSetCacheCellSize(FontResource* font, uint32_t cell_width, uint32_t cell_height, uint32_t max_ascent)
     {
         dmRender::SetFontMapCacheSize(font->m_FontMap, cell_width, cell_height, max_ascent);

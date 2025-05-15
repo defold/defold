@@ -98,6 +98,26 @@ namespace dmGameSystem
     dmResource::Result ResFontGetInfo(FontResource* font, FontInfo* info);
 
     /*#
+     * Set the font line height, by specifying the max ascent and descent
+     * @name ResFontSetLineHeight
+     * @param font [type: FontResource*] The font resource to modify
+     * @param max_ascent [type: float] The max distance above the base line of any glyph
+     * @param max_descent [type: float] The max distance below the base line of any glyph
+     * @return result [type: dmResource::Result] RESULT_OK if successful
+     */
+    dmResource::Result ResFontSetLineHeight(FontResource* font, float max_ascent, float max_descent);
+
+    /*#
+     * Get the font line height (max_ascent + max_descent)
+     * @name ResFontGetLineHeight
+     * @param font [type: FontResource*] The font resource to modify
+     * @param max_ascent [type: float*] The max distance above the base line of any glyph
+     * @param max_descent [type: float*] The max distance below the base line of any glyph
+     * @return result [type: dmResource::Result] RESULT_OK if successful
+     */
+    dmResource::Result ResFontGetLineHeight(FontResource* font, float* max_ascent, float* max_descent);
+
+    /*#
      * Resets the glyph cache and sets the cell size.
      * @name ResFontSetCacheCellSize
      * @param font [type: FontResource*] The font resource to modify

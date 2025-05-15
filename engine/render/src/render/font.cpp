@@ -220,6 +220,18 @@ namespace dmRender
         return font_map;
     }
 
+    void SetFontMapLineHeight(HFontMap font_map, float max_ascent, float max_descent)
+    {
+        font_map->m_MaxAscent = max_ascent;
+        font_map->m_MaxDescent = max_descent;
+    }
+
+    void GetFontMapLineHeight(HFontMap font_map, float* max_ascent, float* max_descent)
+    {
+        *max_ascent = font_map->m_MaxAscent;
+        *max_descent = font_map->m_MaxDescent;
+    }
+
     void SetFontMapCacheSize(HFontMap font_map, uint32_t cell_width, uint32_t cell_height, uint32_t max_ascent)
     {
         font_map->m_IsCacheSizeDirty = 1;
@@ -331,8 +343,6 @@ namespace dmRender
         if (!IsPowerOfTwo(font_map->m_CacheHeight))
             font_map->m_CacheHeight = NextPowerOfTwo(font_map->m_CacheHeight);
 
-        font_map->m_MaxAscent = metrics->m_MaxAscent;
-        font_map->m_MaxDescent = metrics->m_MaxDescent;
         if (recreate_texture)
             RecreateTexture(font_map, graphics_context, font_map->m_CacheWidth, font_map->m_CacheHeight);
         else
