@@ -1,4 +1,4 @@
-var LibrarySoundDevice = 
+var LibrarySoundDevice =
 {
     $DefoldSoundDevice: {
         TryResumeAudio: function() {
@@ -12,10 +12,10 @@ var LibrarySoundDevice =
     },
     dmDeviceJSOpen: function(bufferCount) {
 
-        // globally shared data        
+        // globally shared data
         var shared = window._dmJSDeviceShared;
         if (shared === undefined) {
-            shared = { 
+            shared = {
                 count: 0,
                 devices: {}
             };
@@ -73,10 +73,10 @@ var LibrarySoundDevice =
 
                     // Setup buffer for data delivery...
                     var buf = shared.audioCtx.createBuffer(2, frame_count, this.sampleRate);
-                    
+
                     // Copy data from WASM memory
                     for(var c=0;c<2;c++) {
-                        var input = HEAPF32.subarray(samples / 4, samples / 4 + frame_count);
+                        var input = new Float32Array(HEAPF32, samples, frame_count);
                         buf.copyToChannel(input, c);
                         samples += frame_count * 4; // 4 bytes = sizeof(float)
                     }
@@ -123,7 +123,7 @@ var LibrarySoundDevice =
                 }
             };
         }
-        
+
         if (device != null) {
             shared.audioCtx.onstatechanged = function() {
                 if (device._isContextRunning()) {
@@ -137,7 +137,7 @@ var LibrarySoundDevice =
             };
             shared.devices[id] = device;
             return id;
-        } 
+        }
         return -1;
     },
     dmDeviceJSOpen__proxy: 'sync',
@@ -148,7 +148,7 @@ var LibrarySoundDevice =
     },
     dmDeviceJSQueue__proxy: 'sync',
     dmDeviceJSQueue__sig: 'viii',
-    
+
     dmDeviceJSFreeBufferSlots: function(id) {
         return window._dmJSDeviceShared.devices[id]._freeBufferSlots();
     },
