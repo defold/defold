@@ -27,7 +27,7 @@ namespace dmGameSystem
         uint32_t* mip_map_offsets            = new uint32_t[params.m_MaxMipMaps];
         uint32_t* mip_map_offsets_compressed = new uint32_t[1];
         uint32_t* mip_map_dimensions         = new uint32_t[params.m_MaxMipMaps * 2];
-        uint8_t layer_count                  = GetLayerCount(params.m_Type) * dmMath::Max((uint16_t) 1, params.m_LayerCount);
+        uint8_t layer_count                  = GetLayerCount(params.m_Type) * dmMath::Max((uint8_t) 1, params.m_LayerCount);
 
         uint32_t data_size = 0;
         uint16_t mm_width  = params.m_Width;
@@ -259,7 +259,7 @@ namespace dmGameSystem
         upload_params.m_X                     = params.m_X;
         upload_params.m_Y                     = params.m_Y;
         upload_params.m_Z                     = params.m_Z;
-        upload_params.m_Slice                 = params.m_Slice;
+        upload_params.m_Page                  = params.m_Slice;
         upload_params.m_MipMap                = params.m_MipMap;
         upload_params.m_SubUpdate             = params.m_SubUpdate;
         upload_params.m_UploadSpecificMipmap  = 1;

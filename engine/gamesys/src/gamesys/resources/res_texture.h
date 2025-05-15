@@ -26,7 +26,7 @@ namespace dmGameSystem
         uint16_t m_X;
         uint16_t m_Y;
         uint16_t m_Z;
-        uint16_t m_Slice;
+        uint8_t  m_Page;
         uint8_t  m_MipMap               : 5;
         uint8_t  m_UploadSpecificMipmap : 1;
         uint8_t  m_SubUpdate            : 1;

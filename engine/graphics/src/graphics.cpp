@@ -1888,9 +1888,9 @@ namespace dmGraphics
     {
         return g_functions.m_GetTextureUsageHintFlags(texture);
     }
-    uint8_t GetTextureSliceCount(HTexture texture)
+    uint8_t GetTexturePageCount(HTexture texture)
     {
-        return g_functions.m_GetTextureSliceCount(texture);
+        return g_functions.m_GetTexturePageCount(texture);
     }
     bool IsAssetHandleValid(HContext context, HAssetHandle asset_handle)
     {

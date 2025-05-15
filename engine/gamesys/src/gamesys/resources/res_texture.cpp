@@ -212,11 +212,11 @@ namespace dmGameSystem
             params.m_Width      = image->m_Width;
             params.m_Height     = image->m_Height;
             params.m_Depth      = image->m_Depth;
-            params.m_LayerCount = image_desc->m_DDFImage->m_Count;
+            params.m_LayerCount = (uint8_t)image_desc->m_DDFImage->m_Count;
             params.m_X          = upload_params.m_X;
             params.m_Y          = upload_params.m_Y;
             params.m_Z          = upload_params.m_Z;
-            params.m_Slice      = upload_params.m_Slice;
+            params.m_Slice      = upload_params.m_Page;
             params.m_SubUpdate  = upload_params.m_SubUpdate;
             params.m_MipMap     = specific_mip_requested ? upload_params.m_MipMap : 0;
 
@@ -228,7 +228,7 @@ namespace dmGameSystem
                 creation_params.m_Width          = image->m_Width;
                 creation_params.m_Height         = image->m_Height;
                 creation_params.m_Depth          = image->m_Depth;
-                creation_params.m_LayerCount     = image_desc->m_DDFImage->m_Count;
+                creation_params.m_LayerCount     = (uint8_t)image_desc->m_DDFImage->m_Count;
                 creation_params.m_OriginalWidth  = image->m_OriginalWidth;
                 creation_params.m_OriginalHeight = image->m_OriginalHeight;
                 creation_params.m_MipMapCount    = num_mips;
@@ -246,7 +246,7 @@ namespace dmGameSystem
                 uint16_t tex_width_mipmap  = dmGraphics::GetMipmapSize(tex_width_full, params.m_MipMap);
                 uint16_t tex_height_mipmap = dmGraphics::GetMipmapSize(tex_height_full, params.m_MipMap);
                 uint8_t  tex_mipmap_count  = dmGraphics::GetMipmapCount(dmMath::Max(tex_width_full, tex_height_full));
-                uint8_t  tex_slice_count   = dmGraphics::GetTextureSliceCount(texture);
+                uint8_t  tex_page_count    = dmGraphics::GetTexturePageCount(texture);
 
                 if (specific_mip_requested && params.m_MipMap > tex_mipmap_count)
                 {
@@ -263,9 +263,9 @@ namespace dmGameSystem
                     break;
                 }
 
-                if (params.m_SubUpdate && params.m_Slice > tex_slice_count)
+                if (params.m_SubUpdate && params.m_Slice >= tex_page_count)
                 {
-                    dmLogError("Slice index %u exceeds maximum texture slice count %u", params.m_Slice, tex_slice_count);
+                    dmLogError("Page index %u exceeds maximum texture page count %u", params.m_Slice, tex_page_count);
                     result = dmResource::RESULT_INVALID_DATA;
                     break;
                 }

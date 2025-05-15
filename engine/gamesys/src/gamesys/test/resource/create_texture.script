@@ -64,7 +64,7 @@ local tparams_3d = {
 local tparams_2d_array = {
     width          = 128,
     height         = 128,
-    slice_count    = 3,
+    page_count     = 3,
     type           = graphics.TEXTURE_TYPE_2D_ARRAY,
     format         = graphics.TEXTURE_FORMAT_RGB
 }
@@ -270,7 +270,7 @@ function test_get_texture_info()
     assert(t_info_by_handle.width       == 128)
     assert(t_info_by_handle.height      == 128)
     assert(t_info_by_handle.depth       == 1)
-    assert(t_info_by_handle.slice_count == 1)
+    assert(t_info_by_handle.page_count  == 1)
     assert(t_info_by_handle.mipmaps     == 1)
     assert(t_info_by_handle.type        == graphics.TEXTURE_TYPE_2D)
 
@@ -282,7 +282,7 @@ function test_get_texture_info()
     assert(t_info_cube.width       == 128)
     assert(t_info_cube.height      == 128)
     assert(t_info_cube.depth       == 6)
-    assert(t_info_cube.slice_count == 6) -- for cube map layer_count is always 6
+    assert(t_info_cube.page_count  == 6) -- for cube map layer_count is always 6
     assert(t_info_cube.mipmaps     == 1)
     assert(t_info_cube.type        == graphics.TEXTURE_TYPE_CUBE_MAP)
 
@@ -295,7 +295,7 @@ function test_get_texture_info()
     assert(t_info_3d.width       == 32)
     assert(t_info_3d.height      == 32)
     assert(t_info_3d.depth       == 32)
-    assert(t_info_3d.slice_count == 1)
+    assert(t_info_3d.page_count  == 1)
     assert(t_info_3d.mipmaps     == 1)
 
     resource.release(t_id_3d)
@@ -317,7 +317,7 @@ function test_3d_textures()
     assert(t_info_simple.width       == 32)
     assert(t_info_simple.height      == 32)
     assert(t_info_simple.depth       == 32)
-    assert(t_info_simple.slice_count == 1)
+    assert(t_info_simple.page_count  == 1)
     assert(t_info_simple.mipmaps     == 1)
     assert(t_info_simple.type        == graphics.TEXTURE_TYPE_3D)
 
@@ -328,7 +328,7 @@ function test_3d_textures()
     assert(t_info_buffer.width       == 32)
     assert(t_info_buffer.height      == 32)
     assert(t_info_buffer.depth       == 32)
-    assert(t_info_buffer.slice_count == 1)
+    assert(t_info_buffer.page_count  == 1)
     assert(t_info_buffer.mipmaps     == 1)
     assert(t_info_buffer.type        == graphics.TEXTURE_TYPE_3D)
 
@@ -351,7 +351,7 @@ local function test_2d_array_texture()
     assert(t_info_by_handle.width       == 128)
     assert(t_info_by_handle.height      == 128)
     assert(t_info_by_handle.depth       == 1)
-    assert(t_info_by_handle.slice_count == 3)
+    assert(t_info_by_handle.page_count  == 3)
     assert(t_info_by_handle.mipmaps     == 1)
     assert(t_info_by_handle.type        == graphics.TEXTURE_TYPE_2D_ARRAY)
 

@@ -136,18 +136,18 @@ local function test_slice_array()
     local t_param = {
         width          = 32,
         height         = 32,
-        slice_count    = 3,
+        page_count     = 3,
         type           = graphics.TEXTURE_TYPE_2D_ARRAY,
         format         = graphics.TEXTURE_FORMAT_RGB
     }
     local t_id   = resource.create_texture("/test_get_texture_info.texturec", t_param)
 
-    for slice = 0, t_param.slice_count - 1 do
+    for page = 0, t_param.page_count - 1 do
         local mm_buffer = buffer.create(t_param.width * t_param.height, {{ name = hash("data"), type = buffer.VALUE_TYPE_UINT8, count = 3 }})
         resource.set_texture(t_id, {
             width          = t_param.width,
             height         = t_param.height,
-            slice          = slice,
+            page           = page,
             type           = t_param.type,
             format         = t_param.format
         }, mm_buffer)
@@ -158,7 +158,7 @@ local function test_slice_idx_out_of_layer_count()
     local t_param = {
         width          = 32,
         height         = 32,
-        slice_count    = 3,
+        page_count     = 3,
         type           = graphics.TEXTURE_TYPE_2D_ARRAY,
         format         = graphics.TEXTURE_FORMAT_RGB
     }

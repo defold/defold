@@ -51,7 +51,7 @@ namespace dmGraphics
         volatile uint16_t m_DataState; // data state per mip-map (mipX = bitX). 0=ok, 1=pending
         uint8_t           m_MipMapCount;
         uint8_t           m_UsageHintFlags;
-        uint8_t           m_SliceCount; // slice count of texture array
+        uint8_t           m_PageCount; // page count of texture array
     };
 
     struct VertexStreamBuffer
