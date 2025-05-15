@@ -156,6 +156,14 @@ namespace dmScript
             lua_rawgeti(L, -1, *refp);
             // [-2] Context table
             // [-1] hash
+            if (lua_isnil(L, -1))
+            {
+                lua_pop(L, 1);
+                lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextWeakTableRef);
+                lua_rawgeti(L, -1, *refp);
+                lua_remove(L, -2);
+            }
+
             lua_remove(L, -2);
             // [-1] hash
         }
@@ -194,17 +202,58 @@ namespace dmScript
     void ReleaseHash(lua_State* L, dmhash_t hash)
     {
         int top = lua_gettop(L);
+
         HContext context = dmScript::GetScriptContext(L);
         dmHashTable64<int>* instances = &context->m_HashInstances;
         int* refp = instances->Get(hash);
-        if (refp != 0x0)
+        if (!refp)
         {
-            lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextTableRef);
-            // [-1] context table
-            luaL_unref(L, -1, *refp);
-            lua_pop(L, 1);
-            instances->Erase(hash);
+            assert(top == lua_gettop(L));
+            return;
         }
+
+        int ref = *refp;
+
+        // Retrieve the value from the strong table
+        lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextTableRef);
+        // [-1] context_table
+        lua_rawgeti(L, -1, ref);
+        // [-2] context_table
+        // [-1] value
+
+        if (lua_isnil(L, -1))
+        {
+            lua_pop(L, 2);
+            return;
+        }
+
+        lua_remove(L, -2);
+        // [-1] value
+
+        // Store the value in the weak table with the same key
+        lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextWeakTableRef);
+        // [-2] value
+        // [-1] weak_table
+        lua_pushvalue(L, -2);
+        // [-3] value
+        // [-2] weak_table
+        // [-1] value_copy
+        lua_rawseti(L, -2, ref);
+        // [-2] value
+        // [-1] weak_table
+        lua_pop(L, 1);
+        // [-1] value
+
+        // Remove value from strong table
+        lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextTableRef);
+        // [-2] value
+        // [-1] context_table
+        luaL_unref(L, -1, ref);
+        lua_pop(L, 1);
+        // [-1] value
+
+        lua_pop(L, 1); // pop value
+        // stack balanced
 
         assert(top == lua_gettop(L));
     }
@@ -319,6 +368,26 @@ namespace dmScript
         {0, 0}
     };
 
+    static int Hash_gc(lua_State* L)
+    {
+        dmhash_t hash = *(dmhash_t*)lua_touserdata(L, 1);
+        HContext context = dmScript::GetScriptContext(L);
+        if (context)
+        {
+            int* refp = context->m_HashInstances.Get(hash);
+            context->m_HashInstances.Erase(hash);
+            if (refp && context->m_ContextWeakTableRef != LUA_NOREF)
+            {
+                lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextWeakTableRef);
+                lua_pushinteger(L, *refp);
+                lua_pushnil(L);
+                lua_settable(L, -3);
+                lua_pop(L, 1);
+            }
+        }
+        return 0;
+    }
+
     void InitializeHash(lua_State* L)
     {
         int top = lua_gettop(L);
@@ -342,6 +411,10 @@ namespace dmScript
 
         lua_pushliteral(L, "__lt");
         lua_pushcfunction(L, Hash_lt);
+        lua_settable(L, -3);
+
+        lua_pushliteral(L, "__gc");
+        lua_pushcfunction(L, Hash_gc);
         lua_settable(L, -3);
 
         lua_pushcfunction(L, Hash_new);
