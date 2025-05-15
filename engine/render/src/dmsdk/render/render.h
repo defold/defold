@@ -34,6 +34,7 @@ namespace dmIntersection
  * @document
  * @name Render
  * @namespace dmRender
+ * @language C++
  */
 
 namespace dmRender

@@ -72,7 +72,10 @@ def build(bld):
             "drumloop.wav",
             "onefootstep.wav",
             "osc2_sin_440hz.wav",
-            "def2938.wav"]
+            "def2938.wav",
+            "music_adpcm.wav",
+            "mono_resample_framecount_16000_adpcm.wav",
+            "ambience_adpcm.wav"]
 
     for tone in [440, 2000]:
         for rate in [22050, 32000, 44000, 44100, 48000]:
@@ -133,7 +136,7 @@ def build(bld):
     soundlibs = ['SOUND', 'OPUS', 'decoder_wav', 'decoder_ogg', 'decoder_opus']
     exported_symbols = ["DefaultSoundDevice", "AudioDecoderWav", "AudioDecoderStbVorbis", "AudioDecoderOpus"]
 
-    if bld.env.PLATFORM not in ['js-web', 'wasm-web', 'win32', 'x86_64-win32', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5']:
+    if bld.env.PLATFORM not in ['js-web', 'wasm-web', 'wasm_pthread-web', 'win32', 'x86_64-win32', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5']:
         exported_symbols.append("AudioDecoderTremolo")
         soundlibs.append('TREMOLO')
 
@@ -158,13 +161,18 @@ def build(bld):
         extra_features = ['skip_test']
         print("Skipping sound test since current version throws an error with ASan")
 
-    bld.program(features = 'cxx embed test'.split() + extra_features,
+    test = bld.program(features = 'cxx embed test'.split() + extra_features,
                 includes = '../../src .',
                 use = 'TESTMAIN DLIB SOCKET PROFILE_NULL sound embedded_wavs embedded_oggs embedded_opus'.split() + soundlibs,
                 web_libs = ['library_sys.js', 'library_sound.js'],
                 exported_symbols = exported_symbols + ['LoopBackDevice'],
                 target = 'test_sound',
                 source = 'test_sound.cpp')
+
+    if bld.env['PLATFORM'] in ('wasm-web', 'wasm_pthread-web'):
+        for f in ['CFLAGS', 'CXXFLAGS']:
+            test.env.append_value(f, ['-msimd128', '-msse4.2', '-DDM_SOUND_DSP_IMPL=WASM'])
+
 
     # test that the linkage doesn't break again
     exported_symbols = 'NullSoundDevice TestNullDevice'

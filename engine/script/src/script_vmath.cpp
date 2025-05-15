@@ -66,6 +66,7 @@ namespace dmScript
      * @document
      * @name Vector math
      * @namespace vmath
+     * @language Lua
      */
 
 #define SCRIPT_LIB_NAME "vmath"

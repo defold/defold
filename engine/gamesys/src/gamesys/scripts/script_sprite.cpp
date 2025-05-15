@@ -43,6 +43,7 @@ namespace dmGameSystem
      * @document
      * @name Sprite
      * @namespace sprite
+     * @language Lua
      */
 
     /*# [type:vector3] sprite size

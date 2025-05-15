@@ -412,6 +412,10 @@
    :help "global gain (volume), 1 by default",
    :default 1.0,
    :path ["sound" "gain"]}
+  {:type :boolean,
+   :help "if enabled, gain is linear. if disabled, uses exponential curve (e.g. 0.5 is 'half volume'). true by default.",
+   :default true,
+   :path ["sound" "use_linear_gain"]}
   {:type :integer,
    :help "max number of different sounds, 128 by default",
    :default 128,
@@ -927,6 +931,10 @@
    :help "enable CPU usage sampling in release"
    :default false
    :path ["profiler" "track_cpu"]}
+  {:type :boolean
+   :help "enable in game profiler"
+   :default true
+   :path ["profiler" "enabled"]}
   {:type :integer
    :help "Number of milliseconds to sleep between server updates"
    :default 0

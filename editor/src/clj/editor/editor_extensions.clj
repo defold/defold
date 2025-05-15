@@ -28,10 +28,9 @@
             [editor.editor-extensions.commands :as commands]
             [editor.editor-extensions.error-handling :as error-handling]
             [editor.editor-extensions.graph :as graph]
-            [editor.editor-extensions.prefs-docs :as prefs-docs]
+            [editor.editor-extensions.http-server :as ext.http-server]
             [editor.editor-extensions.prefs-functions :as prefs-functions]
             [editor.editor-extensions.runtime :as rt]
-            [editor.editor-extensions.http-server :as ext.http-server]
             [editor.editor-extensions.ui-components :as ui-components]
             [editor.editor-extensions.zip :as zip]
             [editor.fs :as fs]
@@ -63,7 +62,7 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- ext-state
+(defn ext-state
   "Returns an extension state, a map with the following keys:
     :reload-resources!     0-arg function used to reload resources
     :display-output!       2-arg function used to display extension-related
@@ -128,11 +127,13 @@
   (rt/lua-fn ext-get [{:keys [rt evaluation-context]} lua-node-id-or-path lua-property]
     (let [node-id-or-path (rt/->clj rt graph/node-id-or-path-coercer lua-node-id-or-path)
           property (rt/->clj rt coerce/string lua-property)
-          node-id (graph/node-id-or-path->node-id node-id-or-path project evaluation-context)
-          getter (graph/ext-value-getter node-id property evaluation-context)]
+          node-id-or-resource (graph/resolve-node-id-or-path node-id-or-path project evaluation-context)
+          getter (graph/ext-value-getter node-id-or-resource property evaluation-context)]
       (if getter
         (getter)
-        (throw (LuaError. (str (name (graph/node-id->type-keyword node-id evaluation-context))
+        (throw (LuaError. (str (if (resource/resource? node-id-or-resource)
+                                 (resource/proj-path node-id-or-resource)
+                                 (name (graph/node-id->type-keyword node-id-or-resource evaluation-context)))
                                " has no \""
                                property
                                "\" property")))))))
@@ -141,15 +142,16 @@
   (rt/lua-fn ext-can-get [{:keys [rt evaluation-context]} lua-node-id-or-path lua-property]
     (let [node-id-or-path (rt/->clj rt graph/node-id-or-path-coercer lua-node-id-or-path)
           property (rt/->clj rt coerce/string lua-property)
-          node-id (graph/node-id-or-path->node-id node-id-or-path project evaluation-context)]
-      (some? (graph/ext-value-getter node-id property evaluation-context)))))
+          node-id-or-resource (graph/resolve-node-id-or-path node-id-or-path project evaluation-context)]
+      (some? (graph/ext-value-getter node-id-or-resource property evaluation-context)))))
 
 (defn- make-ext-can-set-fn [project]
   (rt/lua-fn ext-can-set [{:keys [rt evaluation-context]} lua-node-id-or-path lua-property]
     (let [node-id-or-path (rt/->clj rt graph/node-id-or-path-coercer lua-node-id-or-path)
           property (rt/->clj rt coerce/string lua-property)
-          node-id (graph/node-id-or-path->node-id node-id-or-path project evaluation-context)]
-      (some? (graph/ext-lua-value-setter node-id property rt project evaluation-context)))))
+          node-id-or-resource (graph/resolve-node-id-or-path node-id-or-path project evaluation-context)]
+      (and (not (resource/resource? node-id-or-resource))
+           (some? (graph/ext-lua-value-setter node-id-or-resource property rt project evaluation-context))))))
 
 (defn- make-ext-create-directory-fn [project reload-resources!]
   (rt/suspendable-lua-fn ext-create-directory [{:keys [rt evaluation-context]} lua-proj-path]
@@ -838,6 +840,7 @@
                :err (line-writer #(display-output! :err %))
                :env {"editor" {"bundle" {"project_binary_name" ext-project-binary-name} ;; undocumented, hidden API!
                                "get" (make-ext-get-fn project)
+                               "can_add" (graph/make-ext-can-add-fn project)
                                "can_get" (make-ext-can-get-fn project)
                                "can_set" (make-ext-can-set-fn project)
                                "command" commands/ext-command-fn
@@ -853,7 +856,10 @@
                                "prefs" (prefs-functions/env prefs)
                                "save" (make-ext-save-fn save!)
                                "transact" ext-transact
-                               "tx" {"set" (make-ext-tx-set-fn project)}
+                               "tx" {"set" (make-ext-tx-set-fn project)
+                                     "add" (graph/make-ext-add-fn project)
+                                     "clear" (graph/make-ext-clear-fn project)
+                                     "remove" (graph/make-ext-remove-fn project)}
                                "ui" (assoc
                                       (ui-components/env workspace project project-path)
                                       "open_resource" (make-open-resource-fn workspace open-resource!))

@@ -16,6 +16,7 @@
   "Code for interacting with graph from editor scripts, i.e. get/set values"
   (:require [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.attachment :as attachment]
             [editor.code.util :as code.util]
             [editor.defold-project :as project]
             [editor.editor-extensions.coerce :as coerce]
@@ -26,6 +27,8 @@
             [editor.resource :as resource]
             [editor.types :as types]
             [editor.util :as util]
+            [editor.workspace :as workspace]
+            [util.coll :as coll]
             [util.fn :as fn])
   (:import [org.luaj.vm2 LuaError]))
 
@@ -39,15 +42,26 @@
     (coerce/wrap-with-pred coerce/userdata g/node-id? "is not a node id")
     resource-path-coercer))
 
+(defn resolve-node-id-or-path
+  "Resolve node id or proj-path to either a node id or a folder resource
+
+  If a path points to a file resource, it will be resolved to node-id"
+  [node-id-or-path project evaluation-context]
+  (if (string? node-id-or-path)
+    (let [resource (workspace/find-resource (project/workspace project evaluation-context) node-id-or-path evaluation-context)]
+      (when-not resource
+        (throw (LuaError. (str node-id-or-path " not found"))))
+      (or (project/get-resource-node project resource evaluation-context)
+          resource))
+    node-id-or-path))
+
 (defn node-id-or-path->node-id
   "Coerce a value that may be node id or proj-path to existing node id"
   [node-id-or-path project evaluation-context]
-  (if (string? node-id-or-path)
-    (let [node-id (project/get-resource-node project node-id-or-path evaluation-context)]
-      (when (nil? node-id)
-        (throw (LuaError. (str node-id-or-path " not found"))))
-      node-id)
-    node-id-or-path))
+  (let [node-id-or-resource (resolve-node-id-or-path node-id-or-path project evaluation-context)]
+    (when (resource/resource? node-id-or-resource)
+      (throw (LuaError. (str (resource/proj-path node-id-or-resource) " is not a file resource"))))
+    node-id-or-resource))
 
 (defn node-id->type-keyword [node-id ec]
   (g/node-type-kw (:basis ec) node-id))
@@ -66,14 +80,26 @@
 (defn- resource-converter [lua-value rt outline-property project evaluation-context]
   (let [node-id-or-path (rt/->clj rt node-id-or-path-or-empty-string-coercer lua-value)]
     (when-not (= node-id-or-path "")
-      (let [node-id (node-id-or-path->node-id node-id-or-path project evaluation-context)
-            resource (g/node-value node-id :resource evaluation-context)
+      (let [resource (if (string? node-id-or-path)
+                       (-> project
+                           (project/workspace evaluation-context)
+                           (workspace/resolve-workspace-resource node-id-or-path evaluation-context))
+                       (g/node-value node-id-or-path :resource evaluation-context))
             ext (:ext (properties/property-edit-type outline-property))]
         (when (and (seq ext)
                    (not ((set ext) (resource/type-ext resource))))
           (throw (LuaError. (str "resource extension should be "
                                  (->> ext sort (util/join-words ", " " or "))))))
         resource))))
+
+(defn- choicebox-converter [lua-value rt outline-property _project _evaluation-context]
+  (let [opts (->> outline-property properties/property-edit-type :options (mapv first))]
+    (rt/->clj rt (apply coerce/enum opts) lua-value)))
+
+(defn- slider-converter [lua-value rt outline-property _project _evaluation-context]
+  (let [{:keys [min max] :or {min 0.0 max 1.0}} (properties/property-edit-type outline-property)
+        coercer (coerce/wrap-with-pred coerce/number #(<= min % max) (str "should be between " min " and " max))]
+    (double (rt/->clj rt coercer lua-value))))
 
 (def ^:private edit-type-id->value-converter
   {g/Str {:to identity :from (coercing-converter coerce/string)}
@@ -83,7 +109,11 @@
    types/Vec2 {:to identity :from (coercing-converter (coerce/tuple coerce/number coerce/number))}
    types/Vec3 {:to identity :from (coercing-converter (coerce/tuple coerce/number coerce/number coerce/number))}
    types/Vec4 {:to identity :from (coercing-converter (coerce/tuple coerce/number coerce/number coerce/number coerce/number))}
-   'editor.resource.Resource {:to resource/proj-path :from resource-converter}})
+   'editor.resource.Resource {:to resource/proj-path :from resource-converter}
+   types/Color {:to identity :from (coercing-converter (coerce/tuple coerce/number coerce/number coerce/number coerce/number))}
+   :multi-line-text {:to identity :from (coercing-converter coerce/string)}
+   :choicebox {:to identity :from choicebox-converter}
+   :slider {:to identity :from slider-converter}})
 
 (defn- property->prop-kw [property]
   (if (string/starts-with? property "__")
@@ -115,24 +145,35 @@
 (defn ext-value-getter
   "Create 0-arg fn that produces node property value
 
-  Returns nil if there is no getter for node-id+property
+  Returns nil if there is no getter for node-id-or-resource+property
 
   Args:
-    node-id               the node id
-    property              string property name
-    evaluation-context    used evaluation context"
-  [node-id property evaluation-context]
-  (or (when (fn/multi-responds? ext-get node-id property evaluation-context)
-        #(ext-get node-id property evaluation-context))
-      (when (and (= :editor.game-project/GameProjectNode (node-id->type-keyword node-id evaluation-context))
-                 (re-matches #"^[a-zA-Z_][a-zA-Z0-9_]*\.[a-zA-Z_][a-zA-Z0-9_]*$" property))
-        #(game-project/get-setting node-id (string/split property #"\." 2) evaluation-context))
-      (when-let [outline-property (outline-property node-id property evaluation-context)]
-        (when-let [to (-> outline-property
-                          properties/edit-type-id
-                          edit-type-id->value-converter
-                          :to)]
-          #(some-> (properties/value outline-property) to)))))
+    node-id-or-resource    resolved node id or folder resource
+    property               string property name
+    evaluation-context     used evaluation context"
+  [node-id-or-resource property evaluation-context]
+  (if (resource/resource? node-id-or-resource)
+    (case property
+      "path" #(resource/proj-path node-id-or-resource)
+      "children" #(mapv resource/proj-path (resource/children node-id-or-resource))
+      nil)
+    (let [node-id node-id-or-resource]
+      (or (when (fn/multi-responds? ext-get node-id property evaluation-context)
+            #(ext-get node-id property evaluation-context))
+          (when (and (= :editor.game-project/GameProjectNode (node-id->type-keyword node-id evaluation-context))
+                     (re-matches #"^[a-zA-Z_][a-zA-Z0-9_]*\.[a-zA-Z_][a-zA-Z0-9_]*$" property))
+            #(game-project/get-setting node-id (string/split property #"\." 2) evaluation-context))
+          (when-let [outline-property (outline-property node-id property evaluation-context)]
+            (when-let [to (-> outline-property
+                              properties/edit-type-id
+                              edit-type-id->value-converter
+                              :to)]
+              #(some-> (properties/value outline-property) to)))
+          (let [node-type (g/node-type* (:basis evaluation-context) node-id)
+                list-kw (property->prop-kw property)]
+            (when (attachment/defines? node-type list-kw)
+              (let [f (attachment/getter node-type list-kw)]
+                #(mapv rt/wrap-userdata (f node-id evaluation-context)))))))))
 
 ;; endregion
 
@@ -167,5 +208,112 @@
           #(properties/set-value evaluation-context
                                  outline-property
                                  (from % rt outline-property project evaluation-context)))))))
+
+;; endregion
+
+;; region attach
+
+(defmulti init-attachment (fn init-attachment-dispatch-fn [node-type _attachment]
+                            (:k node-type)))
+
+(defmethod init-attachment :default [_ attachment] attachment)
+
+(def ^:private default-new-atlas-animation-name-lua-value
+  (rt/->lua "New Animation"))
+
+(defmethod init-attachment :editor.atlas/AtlasAnimation [_ attachment]
+  (cond-> attachment (not (contains? attachment "id")) (assoc "id" default-new-atlas-animation-name-lua-value)))
+
+(defn- init-txs [evaluation-context rt project node-type node-id attachment]
+  (mapcat
+    (fn [[property lua-value]]
+      (if-let [setter (ext-lua-value-setter node-id property rt project evaluation-context)]
+        (setter lua-value)
+        (throw (LuaError. (format "Can't set property \"%s\" of %s"
+                                  property
+                                  (name (node-id->type-keyword node-id evaluation-context)))))))
+    (init-attachment node-type attachment)))
+
+(def ^:private attachment-coercer (coerce/map-of coerce/string coerce/untouched))
+(def ^:private attachments-coercer (coerce/vector-of attachment-coercer))
+
+(defn- parse-attachment [rt node-type attachment]
+  (reduce-kv
+    (fn [acc property lua-value]
+      (let [list-kw (property->prop-kw property)]
+        (if (attachment/defines? node-type list-kw)
+          (let [child-node-type (attachment/child-node-type node-type list-kw)]
+            (update acc :add
+                    into
+                    (map #(coll/pair list-kw (parse-attachment rt child-node-type %)))
+                    (rt/->clj rt attachments-coercer lua-value)))
+          (update acc :init assoc property lua-value))))
+    {:init {}
+     :add []}
+    attachment))
+
+(def ^:private add-args-coercer
+  (coerce/regex :node node-id-or-path-coercer
+                :property coerce/string
+                :attachment attachment-coercer))
+
+(defn make-ext-add-fn [project]
+  (rt/varargs-lua-fn ext-add [{:keys [rt evaluation-context]} varargs]
+    (let [{:keys [node property attachment]} (rt/->clj rt add-args-coercer varargs)
+          {:keys [basis]} evaluation-context
+          node-id (node-id-or-path->node-id node project evaluation-context)
+          node-type (g/node-type* basis node-id)
+          list-kw (property->prop-kw property)
+          _ (when-not (attachment/defines? node-type list-kw)
+              (throw (LuaError. (format "%s does not define \"%s\"" (name (:k node-type)) property))))
+          tree [[list-kw (parse-attachment rt (attachment/child-node-type node-type list-kw) attachment)]]]
+      (-> (attachment/add basis node-id tree (partial g/expand-ec init-txs rt project))
+          (with-meta {:type :transaction-step})
+          (rt/wrap-userdata "editor.tx.add(...)")))))
+
+(def ^:private can-add-args-coercer
+  (coerce/regex :node node-id-or-path-coercer :property coerce/string))
+
+(defn make-ext-can-add-fn [project]
+  (rt/varargs-lua-fn ext-can-add [{:keys [rt evaluation-context]} varargs]
+    (let [{:keys [node property]} (rt/->clj rt can-add-args-coercer varargs)
+          node-id-or-resource (resolve-node-id-or-path node project evaluation-context)]
+      (and (not (resource/resource? node-id-or-resource))
+           (attachment/defines?
+             (g/node-type* (:basis evaluation-context) node-id-or-resource)
+             (property->prop-kw property))))))
+
+(def ^:private clear-args-coercer
+  (coerce/regex :node node-id-or-path-coercer :property coerce/string))
+
+(defn make-ext-clear-fn [project]
+  (rt/varargs-lua-fn ext-clear [{:keys [rt evaluation-context]} varargs]
+    (let [{:keys [node property]} (rt/->clj rt clear-args-coercer varargs)
+          node-id (node-id-or-path->node-id node project evaluation-context)
+          node-type (g/node-type* (:basis evaluation-context) node-id)
+          list-kw (property->prop-kw property)]
+      (when-not (attachment/defines? node-type list-kw)
+        (throw (LuaError. (format "%s does not define \"%s\"" (name (:k node-type)) property))))
+      (-> (attachment/clear node-id list-kw)
+          (with-meta {:type :transaction-step})
+          (rt/wrap-userdata "editor.tx.clear(...)")))))
+
+(def ^:private remove-args-coercer
+  (coerce/regex :node node-id-or-path-coercer :property coerce/string :child node-id-or-path-coercer))
+
+(defn make-ext-remove-fn [project]
+  (rt/varargs-lua-fn ext-remove [{:keys [rt evaluation-context]} varargs]
+    (let [{:keys [node property child]} (rt/->clj rt remove-args-coercer varargs)
+          node-id (node-id-or-path->node-id node project evaluation-context)
+          child-node-id (node-id-or-path->node-id child project evaluation-context)
+          node-type (g/node-type* (:basis evaluation-context) node-id)
+          list-kw (property->prop-kw property)]
+      (when-not (attachment/defines? node-type list-kw)
+        (throw (LuaError. (format "%s does not define \"%s\"" (name (:k node-type)) property))))
+      (when-not (some #(= child-node-id %) ((attachment/getter node-type list-kw) node-id evaluation-context))
+        (throw (LuaError. (format "%s is not in the \"%s\" list of %s" child property node))))
+      (-> (attachment/remove node-id list-kw child-node-id)
+          (with-meta {:type :transaction-step})
+          (rt/wrap-userdata "editor.tx.remove(...)")))))
 
 ;; endregion

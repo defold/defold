@@ -20,6 +20,7 @@
             [editor.defold-project :as project]
             [editor.game-object :as game-object]
             [editor.gl.pass :as pass]
+            [editor.gl.shader :as shader]
             [editor.label :as label]
             [editor.math :as math]
             [editor.resource :as resource]
@@ -60,8 +61,8 @@
         (is (= node-id (some-> scene :renderable :select-batch-key)))
         (is (= :blend-mode-alpha (some-> scene :renderable :batch-key :blend-mode)))
         (is (= "Label" (some-> scene :renderable :user-data :text-data :text-layout :lines first)))
-        (is (string/includes? (some-> scene :renderable :user-data :material-shader :verts) "gl_Position"))
-        (is (string/includes? (some-> scene :renderable :user-data :material-shader :frags) "gl_FragColor"))))))
+        (is (string/includes? (some-> scene :renderable :user-data :material-shader shader/vertex-shader-source) "gl_Position"))
+        (is (string/includes? (some-> scene :renderable :user-data :material-shader shader/fragment-shader-source) "gl_FragColor"))))))
 
 (defn- get-render-calls-by-pass
   [scene camera selection key-fn]

@@ -37,7 +37,10 @@
         http-response-param {:name "response" :types ["response"] :doc "HTTP response value, userdata"}
         resource-path-param {:name "resource_path"
                              :types ["string"]
-                             :doc "Resource path (starting with <code>/</code>)"}]
+                             :doc "Resource path (starting with <code>/</code>)"}
+        transaction-step-param {:name "tx"
+                                :types ["transaction_step"]
+                                :doc "A transaction step"}]
     (vec
       (e/concat
         [{:name "editor"
@@ -57,13 +60,20 @@
                           :types ["boolean"]
                           :doc ""}]
           :description "Check if you can get this property so `editor.get()` won't throw an error"}
+         {:name "editor.can_add"
+          :type :function
+          :parameters [node-param property-param]
+          :returnvalues [{:name "value"
+                          :types ["boolean"]
+                          :doc ""}]
+          :description "Check if `editor.tx.add()` (as well as `editor.tx.clear()` and `editor.tx.remove()`) transaction with this property won't throw an error"}
          {:name "editor.can_set"
           :type :function
           :parameters [node-param property-param]
           :returnvalues [{:name "value"
                           :types ["boolean"]
                           :doc ""}]
-          :description "Check if `\"set\"` action with this property won't throw an error"}
+          :description "Check if `editor.tx.set()` transaction with this property won't throw an error"}
          {:name "editor.command"
           :type :function
           :description "Create an editor command"
@@ -266,10 +276,26 @@ editor.command({
                        {:name "value"
                         :types ["any"]
                         :doc "A new value for the property"}]
-          :returnvalues [{:name "result"
-                          :types ["transaction_step"]
-                          :doc "A transaction step"}]
-          :description "Create a set transaction step.\n\nWhen the step is transacted using `editor.transact()`, it will set the node's property to a supplied value"}
+          :returnvalues [transaction-step-param]
+          :description "Create transaction step that will set the node's property to a supplied value when transacted with `editor.transact()`."}
+         {:name "editor.tx.add"
+          :type :function
+          :parameters [node-param
+                       property-param
+                       {:name "value"
+                        :types ["any"]
+                        :doc "Added item for the property, a table from property key to either a valid <code>editor.tx.set()</code>-able value, or an array of valid <code>editor.tx.add()</code>-able values"}]
+          :description "Create a transaction step that will add a child item to a node's list property when transacted with `editor.transact()`."}
+         {:name "editor.tx.clear"
+          :type :function
+          :parameters [node-param property-param]
+          :returnvalues [transaction-step-param]
+          :description "Create a transaction step that will deletes all items from node's list property when transacted with `editor.transact()`."}
+         {:name "editor.tx.remove"
+          :type :function
+          :parameters [node-param property-param (assoc node-param :name "child_node")]
+          :returnvalues [transaction-step-param]
+          :description "Create a transaction step that will remove a child node from the node's list property when transacted with `editor.transact()`."}
          {:name "editor.version"
           :type :variable
           :description "A string, version name of Defold"}

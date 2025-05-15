@@ -101,3 +101,11 @@ platforms:
       symbols: []
       libs: []
       linkFlags: []
+  wasm_pthread-web:
+    context:
+      excludeLibs: []
+      excludeJsLibs: []
+      excludeSymbols: []
+      symbols: []
+      libs: []
+      linkFlags: []

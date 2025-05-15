@@ -1030,6 +1030,30 @@
       (pair context-id entry-count))
     (scene-cache/cache-stats)))
 
+(defn clear-caches!
+  "Clears the various caches used to enhance the performance of the editor and
+  the tests. You can specify which caches to clear. When called with no
+  arguments, clears all caches except the downloaded library dependency cache.
+
+  Optional args:
+    :library  Clear the downloaded library dependency cache.
+    :project  Clear the loaded project cache used by tests.
+    :scene    Clear the scene cache used to render Scene Views.
+    :system   Clear the system cache used to cache node outputs."
+  ([]
+   (clear-caches! :project :scene :system))
+  ([& cache-kws]
+   (let [clear-cache? (set cache-kws)]
+     (when (clear-cache? :library)
+       (test-util/clear-cached-libraries!))
+     (when (clear-cache? :project)
+       (test-util/clear-cached-projects!))
+     (when (clear-cache? :scene)
+       (scene-cache/clear-all!))
+     (when (and (g/cache)
+                (clear-cache? :system))
+       (g/clear-system-cache!)))))
+
 (set! *warn-on-reflection* false)
 
 (defn- buf-clj-attribute-data [^ByteBuffer buf ^long buf-vertex-attribute-offset ^long attribute-byte-size component-data-type]
@@ -1130,7 +1154,7 @@
 
              (namespaced-class-symbol RenderPass)
              (fn render-pass-pprint-handler [printer ^RenderPass render-pass]
-               (fmt-doc printer (symbol "pass" (.nm render-pass))))
+               (fmt-doc printer (symbol "pass" (.name render-pass))))
 
              (namespaced-class-symbol VertexBuffer)
              (partial object-data-pprint-handler nil vertex-buffer-print-data)}

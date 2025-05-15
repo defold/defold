@@ -20,6 +20,7 @@
             [editor.defold-project :as project]
             [editor.editor-extensions :as extensions]
             [editor.editor-extensions.coerce :as coerce]
+            [editor.editor-extensions.graph :as graph]
             [editor.editor-extensions.prefs-functions :as prefs-functions]
             [editor.editor-extensions.runtime :as rt]
             [editor.editor-extensions.vm :as vm]
@@ -30,6 +31,7 @@
             [editor.pipeline.bob :as bob]
             [editor.prefs :as prefs]
             [editor.process :as process]
+            [editor.properties :as properties]
             [editor.resource :as resource]
             [editor.ui :as ui]
             [editor.web-server :as web-server]
@@ -1102,3 +1104,105 @@ GET /test/resources/test.json as json => 200
         (let [actual (normalize-pprint-output (.toString out))]
           (is (= expected-http-server-test-output actual)
               (string/join "\n" (diff/make-diff-output-lines actual expected-http-server-test-output 3))))))))
+
+(deftest property-availability-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/property_availability_project"
+    (reload-editor-scripts! project)
+    (g/with-auto-evaluation-context ec
+      (let [{:keys [rt]} (extensions/ext-state project ec)]
+        (->> (g/node-value project :nodes ec)
+             (map #(g/node-value % :node-outline ec))
+             (mapcat #(tree-seq :children :children %))
+             (mapcat (fn [outline]
+                       (->> [(g/node-value (:node-id outline) :_properties ec)]
+                            properties/coalesce
+                            :properties
+                            vals
+                            (map #(assoc % :outline outline)))))
+             (keep (fn [{:keys [outline key edit-type] :as p}]
+                     (let [{:keys [node-id]} outline
+                           ext-key (string/replace (name key) \- \_)]
+                       (when-not (contains? #{:editor.properties.CurveSpread :editor.properties.Curve} (:k (:type edit-type)))
+                         (is (some? (graph/ext-value-getter node-id ext-key ec)))
+                         (when-not (properties/read-only? p)
+                           (is (some? (graph/ext-lua-value-setter node-id ext-key rt project ec))))))))
+             dorun)))))
+
+(def ^:private expected-attachment-test-output
+  "Initial state:
+  images: 0
+  animations: 0
+  can add images: true
+  can add animations: true
+Transaction: add image and animation
+After transaction (add):
+  images: 1
+    image: /builtins/assets/images/logo/logo_256.png
+  animations: 1
+    animation id: logos
+    animation images: 2
+      animation image: /builtins/assets/images/logo/logo_blue_256.png
+      animation image: /builtins/assets/images/logo/logo_256.png
+Transaction: remove image
+After transaction (remove image):
+  images: 0
+  animations: 1
+    animation id: logos
+    animation images: 2
+      animation image: /builtins/assets/images/logo/logo_blue_256.png
+      animation image: /builtins/assets/images/logo/logo_256.png
+Transaction: clear animation images
+After transaction (clear):
+  images: 0
+  animations: 1
+    animation id: logos
+    animation images: 0
+Transaction: remove animation
+After transaction (remove animation):
+  images: 0
+  animations: 0
+Expected errors:
+  Wrong list name to add => AtlasNode does not define \"layers\"
+  Wrong list name to remove => AtlasNode does not define \"layers\"
+  Wrong list item to remove => /test.atlas is not in the \"images\" list of /test.atlas
+  Wrong list name to clear => AtlasNode does not define \"layers\"
+  Wrong child property name => Can't set property \"no_such_prop\" of AtlasAnimation
+  Added value is not a table => \"/foo.png\" is not a table
+  Added nested value is not a table => \"/foo.png\" is not a table
+  Added node has invalid property value => \"invalid-pivot\" is not a tuple
+  Added resource has wrong type => resource extension should be jpg or png
+")
+
+(deftest attachment-properties-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/transact_attachment_project"
+    (let [out (StringBuilder.)]
+      (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+      (run-edit-menu-test-command!)
+      (let [actual (.toString out)]
+        (is (= expected-attachment-test-output actual)
+            (string/join "\n" (diff/make-diff-output-lines actual expected-attachment-test-output 3)))))))
+
+(def ^:private expected-resources-as-nodes-test-output
+  "Directory read:
+  can get path: true
+  can set path: false
+  can get children: true
+  can set children: false
+  can add children: false
+Assets path:
+  /assets
+Assets images:
+  /assets/a.png
+  /assets/b.png
+Expected errors:
+  Setting a property => /assets is not a file resource
+")
+
+(deftest resources-as-nodes-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/resources_as_nodes_project"
+    (let [out (StringBuilder.)]
+      (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+      (run-edit-menu-test-command!)
+      (let [actual (.toString out)]
+        (is (= expected-resources-as-nodes-test-output actual)
+            (string/join "\n" (diff/make-diff-output-lines actual expected-resources-as-nodes-test-output 3)))))))

@@ -18,8 +18,13 @@
             [support.test-support :refer [array=]])
   (:import [java.nio ByteBuffer]))
 
-(defn- buffer-with-contents ^ByteBuffer [byte-values]
-  (doto (b/new-byte-buffer (count byte-values))
+(defn- buffer-with-byte-size
+  ^ByteBuffer [byte-size]
+  (b/new-byte-buffer byte-size :byte-order/native))
+
+(defn- buffer-with-contents
+  ^ByteBuffer [byte-values]
+  (doto (buffer-with-byte-size (count byte-values))
     (.put (byte-array byte-values))
     .rewind))
 
@@ -108,16 +113,16 @@
     (are [expected buffer] (array= (byte-array expected) (contents-of (b/copy-buffer buffer)))
       []        (buffer-with-contents [])
       [0 0 0 0] (buffer-with-contents [1 2 3 4])
-      [1 2]     (doto (b/new-byte-buffer 2) (.put (byte 1)) (.put (byte 2)))
-      [1 2 0 0] (doto (b/new-byte-buffer 4) (.put (byte 1)) (.put (byte 2)))
-      [0 0]     (doto (b/new-byte-buffer 2) (.put (byte 1)) (.put (byte 2)) .rewind)
-      [0 0 0 0] (doto (b/new-byte-buffer 4) (.put (byte 1)) (.put (byte 2)) .rewind)
-      [1 0]     (doto (b/new-byte-buffer 2) (.put (byte 1)) (.put (byte 2)) .rewind .get)
-      [1 0 0 0] (doto (b/new-byte-buffer 4) (.put (byte 1)) (.put (byte 2)) .rewind .get)
-      [0 0]     (doto (b/new-byte-buffer 2) (.put (byte 1)) (.put (byte 2)) .flip)
-      [0 0 0 0] (doto (b/new-byte-buffer 4) (.put (byte 1)) (.put (byte 2)) .flip)
-      [1 0]     (doto (b/new-byte-buffer 2) (.put (byte 1)) (.put (byte 2)) .flip .get)
-      [1 0 0 0] (doto (b/new-byte-buffer 4) (.put (byte 1)) (.put (byte 2)) .flip .get)))
+      [1 2]     (doto (buffer-with-byte-size 2) (.put (byte 1)) (.put (byte 2)))
+      [1 2 0 0] (doto (buffer-with-byte-size 4) (.put (byte 1)) (.put (byte 2)))
+      [0 0]     (doto (buffer-with-byte-size 2) (.put (byte 1)) (.put (byte 2)) .rewind)
+      [0 0 0 0] (doto (buffer-with-byte-size 4) (.put (byte 1)) (.put (byte 2)) .rewind)
+      [1 0]     (doto (buffer-with-byte-size 2) (.put (byte 1)) (.put (byte 2)) .rewind .get)
+      [1 0 0 0] (doto (buffer-with-byte-size 4) (.put (byte 1)) (.put (byte 2)) .rewind .get)
+      [0 0]     (doto (buffer-with-byte-size 2) (.put (byte 1)) (.put (byte 2)) .flip)
+      [0 0 0 0] (doto (buffer-with-byte-size 4) (.put (byte 1)) (.put (byte 2)) .flip)
+      [1 0]     (doto (buffer-with-byte-size 2) (.put (byte 1)) (.put (byte 2)) .flip .get)
+      [1 0 0 0] (doto (buffer-with-byte-size 4) (.put (byte 1)) (.put (byte 2)) .flip .get)))
   (testing "does not impact input buffer properties"
     (let [b (buffer-with-contents [1 2 3 4])]
       (is (= [0 4 4] (buffer-properties b)))
@@ -135,21 +140,21 @@
         (= expected (buffer-properties input-buffer) (buffer-properties copy1) (buffer-properties copy2)))
       [0 0 0] (buffer-with-contents [])
       [0 4 4] (buffer-with-contents [1 2 3 4])
-      [2 2 2] (doto (b/new-byte-buffer 2) (.put (byte 1)) (.put (byte 2)))
-      [2 4 4] (doto (b/new-byte-buffer 4) (.put (byte 1)) (.put (byte 2)))
-      [0 2 2] (doto (b/new-byte-buffer 2) (.put (byte 1)) (.put (byte 2)) .rewind)
-      [0 4 4] (doto (b/new-byte-buffer 4) (.put (byte 1)) (.put (byte 2)) .rewind)
-      [1 2 2] (doto (b/new-byte-buffer 2) (.put (byte 1)) (.put (byte 2)) .rewind .get)
-      [1 4 4] (doto (b/new-byte-buffer 4) (.put (byte 1)) (.put (byte 2)) .rewind .get)
-      [0 2 2] (doto (b/new-byte-buffer 2) (.put (byte 1)) (.put (byte 2)) .flip)
+      [2 2 2] (doto (buffer-with-byte-size 2) (.put (byte 1)) (.put (byte 2)))
+      [2 4 4] (doto (buffer-with-byte-size 4) (.put (byte 1)) (.put (byte 2)))
+      [0 2 2] (doto (buffer-with-byte-size 2) (.put (byte 1)) (.put (byte 2)) .rewind)
+      [0 4 4] (doto (buffer-with-byte-size 4) (.put (byte 1)) (.put (byte 2)) .rewind)
+      [1 2 2] (doto (buffer-with-byte-size 2) (.put (byte 1)) (.put (byte 2)) .rewind .get)
+      [1 4 4] (doto (buffer-with-byte-size 4) (.put (byte 1)) (.put (byte 2)) .rewind .get)
+      [0 2 2] (doto (buffer-with-byte-size 2) (.put (byte 1)) (.put (byte 2)) .flip)
       ; TODO: output limit does not match input
-      ;[0 2 4] (doto (b/new-byte-buffer 4) (.put (byte 1)) (.put (byte 2)) .flip)
-      [1 2 2] (doto (b/new-byte-buffer 2) (.put (byte 1)) (.put (byte 2)) .flip .get)
+      ;[0 2 4] (doto (buffer-with-byte-size 4) (.put (byte 1)) (.put (byte 2)) .flip)
+      [1 2 2] (doto (buffer-with-byte-size 2) (.put (byte 1)) (.put (byte 2)) .flip .get)
       ; TODO: output limit does not match input
-      ;[1 2 4] (doto (b/new-byte-buffer 4) (.put (byte 1)) (.put (byte 2)) .flip .get)
+      ;[1 2 4] (doto (buffer-with-byte-size 4) (.put (byte 1)) (.put (byte 2)) .flip .get)
       ))
   (testing "input and output buffer data is independent"
-    (let [in  (doto (b/new-byte-buffer 4) (.put (byte 1)) (.put (byte 2)))
+    (let [in  (doto (buffer-with-byte-size 4) (.put (byte 1)) (.put (byte 2)))
           out (b/copy-buffer in)]
       (.put in  (byte 3))
       (.put out (byte 4))
@@ -161,16 +166,16 @@
     (are [expected buffer] (array= (byte-array expected) (.toByteArray (b/byte-pack buffer)))
       []        (buffer-with-contents [])
       [1 2 3 4] (buffer-with-contents [1 2 3 4])
-      []        (doto (b/new-byte-buffer 2) (.put (byte 1)) (.put (byte 2)))
-      [0 0]     (doto (b/new-byte-buffer 4) (.put (byte 1)) (.put (byte 2)))
-      [1 2]     (doto (b/new-byte-buffer 2) (.put (byte 1)) (.put (byte 2)) .rewind)
-      [1 2 0 0] (doto (b/new-byte-buffer 4) (.put (byte 1)) (.put (byte 2)) .rewind)
-      [2]       (doto (b/new-byte-buffer 2) (.put (byte 1)) (.put (byte 2)) .rewind .get)
-      [2 0 0]   (doto (b/new-byte-buffer 4) (.put (byte 1)) (.put (byte 2)) .rewind .get)
-      [1 2]     (doto (b/new-byte-buffer 2) (.put (byte 1)) (.put (byte 2)) .flip)
-      [1 2]     (doto (b/new-byte-buffer 4) (.put (byte 1)) (.put (byte 2)) .flip)
-      [2]       (doto (b/new-byte-buffer 2) (.put (byte 1)) (.put (byte 2)) .flip .get)
-      [2]       (doto (b/new-byte-buffer 4) (.put (byte 1)) (.put (byte 2)) .flip .get)))
+      []        (doto (buffer-with-byte-size 2) (.put (byte 1)) (.put (byte 2)))
+      [0 0]     (doto (buffer-with-byte-size 4) (.put (byte 1)) (.put (byte 2)))
+      [1 2]     (doto (buffer-with-byte-size 2) (.put (byte 1)) (.put (byte 2)) .rewind)
+      [1 2 0 0] (doto (buffer-with-byte-size 4) (.put (byte 1)) (.put (byte 2)) .rewind)
+      [2]       (doto (buffer-with-byte-size 2) (.put (byte 1)) (.put (byte 2)) .rewind .get)
+      [2 0 0]   (doto (buffer-with-byte-size 4) (.put (byte 1)) (.put (byte 2)) .rewind .get)
+      [1 2]     (doto (buffer-with-byte-size 2) (.put (byte 1)) (.put (byte 2)) .flip)
+      [1 2]     (doto (buffer-with-byte-size 4) (.put (byte 1)) (.put (byte 2)) .flip)
+      [2]       (doto (buffer-with-byte-size 2) (.put (byte 1)) (.put (byte 2)) .flip .get)
+      [2]       (doto (buffer-with-byte-size 4) (.put (byte 1)) (.put (byte 2)) .flip .get)))
   (testing "multiple calls to byte-pack return the same value"
     (are [buffer] (let [buffer-val   buffer
                         byte-string1 (b/byte-pack buffer-val)
@@ -178,16 +183,16 @@
                     (array= (.toByteArray byte-string1) (.toByteArray byte-string2)))
       (buffer-with-contents [])
       (buffer-with-contents [1 2 3 4])
-      (doto (b/new-byte-buffer 2) (.put (byte 1)) (.put (byte 2)))
-      (doto (b/new-byte-buffer 4) (.put (byte 1)) (.put (byte 2)))
-      (doto (b/new-byte-buffer 2) (.put (byte 1)) (.put (byte 2)) .rewind)
-      (doto (b/new-byte-buffer 4) (.put (byte 1)) (.put (byte 2)) .rewind)
-      (doto (b/new-byte-buffer 2) (.put (byte 1)) (.put (byte 2)) .rewind .get)
-      (doto (b/new-byte-buffer 4) (.put (byte 1)) (.put (byte 2)) .rewind .get)
-      (doto (b/new-byte-buffer 2) (.put (byte 1)) (.put (byte 2)) .flip)
-      (doto (b/new-byte-buffer 4) (.put (byte 1)) (.put (byte 2)) .flip)
-      (doto (b/new-byte-buffer 2) (.put (byte 1)) (.put (byte 2)) .flip .get)
-      (doto (b/new-byte-buffer 4) (.put (byte 1)) (.put (byte 2)) .flip .get))))
+      (doto (buffer-with-byte-size 2) (.put (byte 1)) (.put (byte 2)))
+      (doto (buffer-with-byte-size 4) (.put (byte 1)) (.put (byte 2)))
+      (doto (buffer-with-byte-size 2) (.put (byte 1)) (.put (byte 2)) .rewind)
+      (doto (buffer-with-byte-size 4) (.put (byte 1)) (.put (byte 2)) .rewind)
+      (doto (buffer-with-byte-size 2) (.put (byte 1)) (.put (byte 2)) .rewind .get)
+      (doto (buffer-with-byte-size 4) (.put (byte 1)) (.put (byte 2)) .rewind .get)
+      (doto (buffer-with-byte-size 2) (.put (byte 1)) (.put (byte 2)) .flip)
+      (doto (buffer-with-byte-size 4) (.put (byte 1)) (.put (byte 2)) .flip)
+      (doto (buffer-with-byte-size 2) (.put (byte 1)) (.put (byte 2)) .flip .get)
+      (doto (buffer-with-byte-size 4) (.put (byte 1)) (.put (byte 2)) .flip .get))))
 
 ;; -----------------------------------------------------------------------------
 ;; Buffer push! and put! tests
@@ -264,17 +269,13 @@
 
     [in-min in-max out-min out-max]))
 
-(defn- make-buffer
-  ^ByteBuffer [byte-size]
-  (b/little-endian (b/new-byte-buffer byte-size)))
-
 (deftest blit!-test
   (let [min Byte/MIN_VALUE
         max Byte/MAX_VALUE
         buffer->data (buffer->data-fn :byte)
         out-data (out-data-fn :byte)
         in-bytes (comp byte-array out-data)
-        buf (make-buffer 4)]
+        buf (buffer-with-byte-size 4)]
     (is (identical? buf (b/blit! buf 0 (in-bytes min min min min))) "Returns self")
     (is (zero? (.position buf)) "Position is unaffected")
     (is (= (out-data min min min min) (buffer->data buf)))
@@ -287,7 +288,7 @@
         element-byte-size (b/type-size :float)
         buffer->data (buffer->data-fn :float)
         out-data (out-data-fn :float)
-        buf (make-buffer (* 4 element-byte-size))]
+        buf (buffer-with-byte-size (* 4 element-byte-size))]
     (is (identical? buf (b/put-floats! buf 0 (vector min min min min))) "Put returns self")
     (is (zero? (.position buf)) "Position is unaffected")
     (is (= (out-data min min min min) (buffer->data buf)))
@@ -301,7 +302,7 @@
           element-byte-size (b/type-size data-type)
           buffer->data (buffer->data-fn data-type)
           out-data (out-data-fn data-type)
-          buf (make-buffer (* 4 element-byte-size))]
+          buf (buffer-with-byte-size (* 4 element-byte-size))]
       (testing (format "%s %ss" (if normalize "Normalized" "Non-normalized") (name data-type))
         (is (identical? buf (b/put! buf 0 data-type normalize (vector in-min in-min in-min in-min))) "Returns self")
         (is (zero? (.position buf)) "Position is unaffected")
@@ -315,7 +316,7 @@
         element-byte-size (b/type-size :float)
         buffer->data (buffer->data-fn :float)
         out-data (out-data-fn :float)
-        buf (make-buffer (* 4 element-byte-size))]
+        buf (buffer-with-byte-size (* 4 element-byte-size))]
     (is (identical? buf (b/push-floats! buf (vector min min))) "Returns self")
     (is (= (* 2 element-byte-size) (.position buf)) "Position advances")
     (is (= (out-data min min 0 0) (buffer->data buf)))
@@ -330,7 +331,7 @@
           element-byte-size (b/type-size data-type)
           buffer->data (buffer->data-fn data-type)
           out-data (out-data-fn data-type)
-          buf (make-buffer (* 4 element-byte-size))]
+          buf (buffer-with-byte-size (* 4 element-byte-size))]
       (testing (format "%s %ss" (if normalize "Normalized" "Non-normalized") (name data-type))
         (is (identical? buf (b/push! buf data-type normalize (vector in-min in-min))) "Returns self")
         (is (= (* 2 element-byte-size) (.position buf)) "Position advances")

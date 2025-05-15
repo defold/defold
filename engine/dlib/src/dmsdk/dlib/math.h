@@ -24,6 +24,7 @@
  * @name Math
  * @namespace dmMath
  * @path engine/dlib/src/dmsdk/dlib/math.h
+ * @language C++
  */
 
 namespace dmMath
@@ -43,6 +44,7 @@ namespace dmMath
 
     /*#
      * Max function
+     * @name Max
      * @param [type:class T] a Value a
      * @param [type:class T] b Value b
      * @return v [type:class T] Max of a and b
@@ -55,6 +57,7 @@ namespace dmMath
 
     /*#
      * Clamp function
+     * @name Clamp
      * @param [type:class T] v Value to clamp
      * @param [type:class T] min Lower bound
      * @param [type:class T] max Upper bound

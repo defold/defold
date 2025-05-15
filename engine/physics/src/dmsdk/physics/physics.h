@@ -22,6 +22,7 @@
  * @name Physics
  * @namespace dmPhysics
  * @path engine/physics/src/dmsdk/physics/physics.h
+ * @language C++
  */
 
 namespace dmPhysics

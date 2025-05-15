@@ -19,6 +19,7 @@
  * @name Alloca
  * @namespace dmMemory
  * @path engine/dlib/src/dmsdk/dlib/dalloca.h
+ * @language C++
  */
 
 #ifndef DMSDK_DALLOCA_H

@@ -302,6 +302,7 @@ namespace dmGameSystem
         GuiWorld* gui_world = new GuiWorld();
         if (!gui_context->m_Worlds.Full())
         {
+            gui_world->m_RenderOrder = gui_context->m_Worlds.Size();
             gui_context->m_Worlds.Push(gui_world);
         }
         else
@@ -424,6 +425,7 @@ namespace dmGameSystem
 
         for (uint32_t i = 0; i < gui_world->m_RenderConstants.Size(); ++i)
         {
+            gui_world->m_RenderOrder = i;
             if (gui_world->m_RenderConstants[i])
             {
                 dmGameSystem::DestroyRenderConstants(gui_world->m_RenderConstants[i]);
@@ -1028,9 +1030,12 @@ namespace dmGameSystem
         return (dmGameObject::HComponent)params.m_UserData;
     }
 
-    inline uint32_t MakeFinalRenderOrder(uint32_t scene_order, uint32_t sub_order)
+    inline uint32_t MakeFinalRenderOrder(uint32_t world_order, uint32_t scene_order, uint32_t sub_order)
     {
-        return (scene_order << 16) + sub_order;
+        // scene_order: 4 bits (max 15)
+        // world_order: 12 bits (max 4095)
+        // sub_order:   16 bits (max 65535)
+        return (scene_order << 28) | (world_order << 16) | sub_order;
     }
 
     static void SetBlendMode(dmRender::RenderObject& ro, dmGui::BlendMode blend_mode)
@@ -1147,6 +1152,7 @@ namespace dmGameSystem
                          uint32_t node_count,
                          RenderGuiContext* gui_context)
     {
+        GuiWorld* gui_world = gui_context->m_GuiWorld;
         for (uint32_t i = 0; i < node_count; ++i)
         {
             dmGui::HNode node = entries[i].m_Node;
@@ -1235,7 +1241,7 @@ namespace dmGameSystem
             dmRender::DrawText(gui_context->m_RenderContext, font_map, material, 0, params);
         }
 
-        dmRender::FlushTexts(gui_context->m_RenderContext, dmRender::RENDER_ORDER_AFTER_WORLD, MakeFinalRenderOrder(dmGui::GetRenderOrder(scene), gui_context->m_NextSortOrder++), false);
+        dmRender::FlushTexts(gui_context->m_RenderContext, dmRender::RENDER_ORDER_AFTER_WORLD, MakeFinalRenderOrder(gui_world->m_RenderOrder, dmGui::GetRenderOrder(scene), gui_context->m_NextSortOrder++), false);
     }
 
     static void RenderParticlefxNodes(dmGui::HScene scene,
@@ -2582,12 +2588,13 @@ namespace dmGameSystem
             dmRender::RenderListEntry* write_ptr = render_list;
 
             uint32_t render_order = dmGui::GetRenderOrder(c->m_Scene);
+            uint32_t world_order = gui_world->m_RenderOrder;
             while (lastEnd < gui_world->m_GuiRenderObjects.Size())
             {
                 const GuiRenderObject& gro = gui_world->m_GuiRenderObjects[lastEnd];
                 write_ptr->m_MinorOrder = 0;
                 write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_AFTER_WORLD;
-                write_ptr->m_Order = MakeFinalRenderOrder(render_order, gro.m_SortOrder);
+                write_ptr->m_Order = MakeFinalRenderOrder(world_order, render_order, gro.m_SortOrder);
                 write_ptr->m_UserData = (uintptr_t) &gro.m_RenderObject;
                 write_ptr->m_BatchKey = lastEnd;
                 write_ptr->m_TagListKey = dmRender::GetMaterialTagListKey(gro.m_RenderObject.m_Material);
@@ -3149,8 +3156,14 @@ namespace dmGameSystem
         gui_context->m_MaxAnimationCount = dmConfigFile::GetInt(ctx->m_Config, "gui.max_animation_count", 1024);
         gui_context->m_MaxParticleBufferCount = dmConfigFile::GetInt(ctx->m_Config, "gui.max_particle_buffer_count", 1024);
 
-        int32_t max_gui_count = dmConfigFile::GetInt(ctx->m_Config, "gui.max_instance_count", 128);
-        gui_context->m_Worlds.SetCapacity(max_gui_count);
+        // TODO: it seems like this is a hidden game.project property which should be gui.world_count like it is in physics
+        int32_t max_world_count = dmConfigFile::GetInt(ctx->m_Config, "gui.max_instance_count", 128);
+        if (max_world_count > 4096)
+        {
+            dmLogError("`gui.max_instance_count` has a maximum value of 4096, but it is set to %d. Decrease the value in `game.project`", max_world_count);
+            return dmGameObject::RESULT_UNKNOWN_ERROR;
+        }
+        gui_context->m_Worlds.SetCapacity(max_world_count);
 
         dmGui::InitializeScript(gui_context->m_ScriptContext);
 

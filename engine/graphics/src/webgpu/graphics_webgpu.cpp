@@ -452,7 +452,8 @@ static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams
     { //must recreate texture
         if (params.m_SubUpdate)
         {
-            dmLogError("Cannot receate texture for subdata %d vs %d", texture->m_GraphicsFormat, params.m_Format);
+            if (params.m_Format != TEXTURE_FORMAT_RGB || texture->m_GraphicsFormat != TEXTURE_FORMAT_RGBA) // this will transcode
+                dmLogError("Cannot handle subdata format changing %d vs %d", texture->m_GraphicsFormat, params.m_Format);
         }
         else
         {

@@ -13,11 +13,14 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.volatile-cache
-  (:require [clojure.core.cache :as cache]))
+  (:refer-clojure :exclude [empty])
+  (:require [clojure.core.cache :as cache]
+            [util.coll :as coll])
+  (:import [clojure.lang IMeta IObj]))
 
 (set! *warn-on-reflection* true)
 
-(cache/defcache VolatileCache [cache accessed]
+(cache/defcache VolatileCache [cache accessed metadata]
   cache/CacheProtocol
   (lookup [_ item]
           (get cache item))
@@ -26,17 +29,33 @@
   (has? [_ item]
         (contains? cache item))
   (hit [this item]
-       (VolatileCache. cache (conj accessed item)))
+       (VolatileCache. cache (conj accessed item) metadata))
   (miss [this item result]
-        (VolatileCache. (assoc cache item result) (conj accessed item)))
+        (VolatileCache. (assoc cache item result) (conj accessed item) metadata))
   (evict [_ key]
-         (VolatileCache. (dissoc cache key) (disj accessed key)))
+         (VolatileCache. (dissoc cache key) (disj accessed key) metadata))
   (seed [_ base]
-        (VolatileCache. base #{})))
+        (VolatileCache. base #{} metadata))
+
+  IMeta
+  (meta [_this] metadata)
+
+  IObj
+  (withMeta [_this metadata]
+            (VolatileCache. cache accessed metadata)))
 
 (defn volatile-cache-factory [base]
-  (VolatileCache. base #{}))
+  (VolatileCache. base #{} nil))
 
-(defn prune [^VolatileCache volatile-cache]
-  (let [accessed-fn (.accessed volatile-cache)]
-    (VolatileCache. (into {} (filter (fn [[k v]] (accessed-fn k)) (.cache volatile-cache))) #{})))
+(defonce empty (volatile-cache-factory {}))
+
+(defn prune
+  ^VolatileCache [^VolatileCache volatile-cache]
+  (let [accessed-key? (.accessed volatile-cache)
+        metadata (.metadata volatile-cache)
+        cache (.cache volatile-cache)
+        pruned-cache (into (coll/empty-with-meta cache)
+                           (filter (fn [entry]
+                                     (accessed-key? (key entry))))
+                           cache)]
+    (VolatileCache. pruned-cache #{} metadata)))

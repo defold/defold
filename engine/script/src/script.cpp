@@ -50,6 +50,7 @@ namespace dmScript
      * @document
      * @name Built-ins
      * @namespace builtins
+     * @language Lua
      */
 
     static const char INSTANCE_NAME[] = "__dm_script_instance__";

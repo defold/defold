@@ -63,7 +63,8 @@ namespace dmRender
         , m_CacheCellCount(0)
         , m_CacheCellPadding(0)
         , m_LayerMask(FACE)
-        , m_IsMonospaced(false)
+        , m_IsMonospaced(0)
+        , m_IsCacheSizeDirty(0)
         , m_Padding(0)
         {
         }

@@ -1,16 +1,16 @@
 var LibrarySoundDevice = 
 {
-   $DefoldSoundDevice: {
-       TryResumeAudio: function() {
-         if (window && window._dmJSDeviceShared) {
-           var audioCtx = window._dmJSDeviceShared.audioCtx;
-           if (audioCtx !== undefined && audioCtx.state != "running") {
-               audioCtx.resume();
-           }
-         }
-      }
-   },
-   dmDeviceJSOpen: function(bufferCount) {
+    $DefoldSoundDevice: {
+        TryResumeAudio: function() {
+            if (window && window._dmJSDeviceShared) {
+            var audioCtx = window._dmJSDeviceShared.audioCtx;
+            if (audioCtx !== undefined && audioCtx.state != "running") {
+                audioCtx.resume();
+            }
+            }
+        }
+    },
+    dmDeviceJSOpen: function(bufferCount) {
 
         // globally shared data        
         var shared = window._dmJSDeviceShared;
@@ -41,6 +41,8 @@ var LibrarySoundDevice =
                 sampleRate: shared.audioCtx.sampleRate,
                 bufferedTo: 0,
                 bufferDuration: 0,
+                bufferCache: {},
+                arrayCache: {},
                 creatingTime: Date.now() / 1000,
                 lastTimeInSuspendedState: Date.now() / 1000,
                 suspendedBufferedTo: 0,
@@ -56,8 +58,9 @@ var LibrarySoundDevice =
                     }
                     return 0;
                 },
-                _queue: function(samples, sample_count) {
-                    var len = sample_count / this.sampleRate;
+                _queue: function(samples, frame_count) {
+                    var lastBufferDuration = this.bufferDuration;
+                    var len = frame_count / this.sampleRate;
                     // use real buffer length next time.
                     this.bufferDuration = len;
                     // only append overall length of audio buffer in suspended stay
@@ -67,32 +70,40 @@ var LibrarySoundDevice =
                         this.suspendedBufferedTo += len;
                         return;
                     }
-                    var buf = shared.audioCtx.createBuffer(2, sample_count, this.sampleRate);
-                    var c0 = buf.getChannelData(0);
-                    var c1 = buf.getChannelData(1);
-                    for (var i=0;i<sample_count;i++) {
-                        c0[i] = getValue(samples+4*i, 'i16') / 32768;
-                        c1[i] = getValue(samples+4*i+2, 'i16') / 32768;
+
+                    // Setup buffer for data delivery...
+                    var buf = shared.audioCtx.createBuffer(2, frame_count, this.sampleRate);
+                    
+                    // Copy data from WASM memory
+                    for(var c=0;c<2;c++) {
+                        var input = HEAPF32.subarray(samples / 4, samples / 4 + frame_count);
+                        buf.copyToChannel(input, c);
+                        samples += frame_count * 4; // 4 bytes = sizeof(float)
                     }
                     var source = shared.audioCtx.createBufferSource();
                     source.buffer = buf;
                     source.connect(shared.audioCtx.destination);
+
                     var t = shared.audioCtx.currentTime;
-                    if (this.bufferedTo <= t) {
-                        source.start(t);
-                        this.bufferedTo = t + len;
+                    // Underrun or first buffer?
+                    if (this.bufferedTo / this.sampleRate <= t || lastBufferDuration == 0.0) {
+                        // Yes, restart buffering - offset is always computed based on queue length...
+                        var off = (bufferCount - 1) * this.bufferDuration;
+                        this.bufferedTo = (t + off) * this.sampleRate + frame_count;
+                        source.start(t + off);
                     } else {
-                        source.start(this.bufferedTo);
-                        this.bufferedTo = this.bufferedTo + len;
+                        // No, normal delivery...
+                        source.start(this.bufferedTo / this.sampleRate);
                     }
+                    this.bufferedTo = this.bufferedTo + frame_count;
                 },
                 _freeBufferSlots: function() {
                     var ahead = 0;
                     if (this._isContextRunning()) {
-                        // before knowing the length of each buffer.
+                        // before knowing the length of each buffer, we return a dummy count to enable initial delivery
                         if (this.bufferDuration == 0)
                             return 1;
-                        ahead = this.bufferedTo - shared.audioCtx.currentTime;
+                        ahead = this.bufferedTo / this.sampleRate - shared.audioCtx.currentTime;
                     } else {
                         // if audio context in suspended or closed state we simulate audio play
                         // by calculating play time
@@ -129,14 +140,20 @@ var LibrarySoundDevice =
         } 
         return -1;
     },
-    
+    dmDeviceJSOpen__proxy: 'sync',
+    dmDeviceJSOpen__sig: 'ii',
+
     dmDeviceJSQueue: function(id, samples, sample_count) {
         window._dmJSDeviceShared.devices[id]._queue(samples, sample_count)
     },
+    dmDeviceJSQueue__proxy: 'sync',
+    dmDeviceJSQueue__sig: 'viii',
     
     dmDeviceJSFreeBufferSlots: function(id) {
         return window._dmJSDeviceShared.devices[id]._freeBufferSlots();
     },
+    dmDeviceJSFreeBufferSlots__proxy: 'sync',
+    dmDeviceJSFreeBufferSlots__sig: 'ii',
 
     dmGetDeviceSampleRate: function(id) {
         return window._dmJSDeviceShared.devices[id].sampleRate;

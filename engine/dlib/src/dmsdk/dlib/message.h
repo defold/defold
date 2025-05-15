@@ -29,6 +29,7 @@
  * @document
  * @name Message
  * @namespace dmMessage
+ * @language C++
  */
 
 namespace dmMessage

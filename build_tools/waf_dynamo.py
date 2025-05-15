@@ -73,15 +73,15 @@ def platform_supports_feature(platform, feature, data):
     if is_platform_private(platform):
         return waf_dynamo_vendor.supports_feature(platform, feature, data)
     if feature == 'vulkan' or feature == 'compute':
-        return platform not in ['js-web', 'wasm-web', 'x86_64-ios']
+        return platform not in ['js-web', 'wasm-web', 'wasm_pthread-web', 'x86_64-ios']
     if feature == 'dx12':
         return platform in ['x86_64-win32']
     if feature == 'opengl_compute':
-        return platform not in ['js-web', 'wasm-web', 'x86_64-ios', 'arm64-ios', 'arm64-macos', 'x86_64-macos']
+        return platform not in ['js-web', 'wasm-web', 'wasm_pthread-web', 'x86_64-ios', 'arm64-ios', 'arm64-macos', 'x86_64-macos']
     if feature == 'opengles':
         return platform in ['arm64-linux']
     if feature == 'webgpu':
-        return platform in ['js-web', 'wasm-web']
+        return platform in ['js-web', 'wasm-web', 'wasm_pthread-web']
     return waf_dynamo_vendor.supports_feature(platform, feature, data)
 
 def platform_setup_tools(ctx, build_util):
@@ -200,9 +200,12 @@ def copy_file_task(bld, src, name=None):
                shell = True)
 
 #   Extract api docs from source files and store the raw text in .apidoc
-#   files per file and namespace for later collation into .json and .sdoc files.
+#   files per file for later collation into .json and .sdoc files.
 def apidoc_extract_task(bld, src):
     import re
+    from collections import defaultdict
+    all_docs = {}
+
     def _strip_comment_stars(str):
         lines = str.split('\n')
         ret = []
@@ -223,65 +226,95 @@ def apidoc_extract_task(bld, src):
         # * followed by possible spaces
         # * followed by every character that is not an @ or is an @ but not preceded by a new line (the value)
         lst = re.findall('^\s*@(\S+) *((?:[^@]|(?<!\n)@)*)', str, re.MULTILINE)
-        is_document = False
-        namespace = None
+        comment = {
+            "is_document": False,
+            "namespace": None,
+            "path": None
+        }
         for (tag, value) in lst:
             tag = tag.strip()
             value = value.strip()
             if tag == 'document':
-                is_document = True
-            elif tag == 'namespace':
-                namespace = value
-        return namespace, is_document
+                comment["is_document"] = True
+            else:
+                comment[tag] = value
+        return comment
 
-    def ns_elements(source):
-        lst = re.findall('/(\*#.*?)\*/', source, re.DOTALL)
+    def _parse_source(source_path):
+        resource = bld.path.find_resource(source_path)
+        if not resource:
+            sys.exit("Couldn't find resource: %s" % s)
+            return
+
         elements = {}
-        default_namespace = None
-        for comment_str in lst:
-            ns, is_doc = _parse_comment(comment_str)
-            if ns and is_doc:
-                default_namespace = ns
-            if not ns:
-                ns = default_namespace
-            if ns not in elements:
-                elements[ns] = []
-            elements[ns].append('/' + comment_str + '*/')
+        resource_path = resource.abspath()
+
+        with open(resource_path, encoding='utf8') as in_f:
+            source = in_f.read()
+            lst = re.findall('/(\*#.*?)\*/', source, re.DOTALL)
+            default_namespace = None
+            for comment_str in lst:
+                comment = _parse_comment(comment_str)
+
+                namespace = comment.get("namespace")
+                if comment["is_document"]:
+                    comment_path = comment.get("path")
+                    if not comment_path:
+                        print("Missing @path in %s, adding %s" % (resource_path, source_path))
+                        comment_str = comment_str + ("* @path %s\n" % source_path)
+                    elif comment_path != source_path:
+                        print("Path missmatch in %s, expected %s but was %s" % (resource_path, source_path, comment_path))
+                        comment_str = comment_str.replace(comment_path, source_path)
+
+                    comment_language = comment.get("language")
+                    if not comment_language:
+                        print("Missing @language in %s, assuming C++" % (resource_path))
+                        comment_str = comment_str + "* @language C++\n"
+                    
+                    if namespace:
+                        default_namespace = namespace
+                
+                if not namespace:
+                    namespace = default_namespace
+                    comment["namespace"] = default_namespace
+
+                if namespace:
+                    if namespace not in elements:
+                        elements[namespace] = []
+                    elements[namespace].append('/' + comment_str + '*/')
+                else:
+                    if resource_path not in elements:
+                        elements[resource_path] = []
+                    elements[resource_path].append('/' + comment_str + '*/')
+
         return elements
 
-    import waflib.Node
-    from itertools import chain
-    from collections import defaultdict
-    elements = {}
     def extract_docs(bld, src):
-        ret = defaultdict(list)
+        docs = defaultdict(list)
         # Gather data
         for s in src:
-            n = bld.path.find_resource(s)
-            if not n:
-                print("Couldn't find resource: %s" % s)
-                continue
-            with open(n.abspath(), encoding='utf8') as in_f:
-                source = in_f.read()
-                for k,v in chain(elements.items(), ns_elements(source).items()):
-                    if k == None:
-                        print("Missing namespace definition in " + n.abspath())
-                    ret[k] = ret[k] + v
-        return ret
+            elements = _parse_source(s)
+            for k,v in elements.items():
+                # turn path into key which will later be used as the
+                # build target filename
+                key = "-".join(os.path.normpath(s).split(os.sep))
+                key = key.replace("..-", "")
+                docs[key] = docs[key] + v
+        all_docs.update(docs)
+        return docs
 
     def write_docs(task):
-        # Write all namespace files
         for o in task.outputs:
-            ns = os.path.splitext(o.name)[0]
+            name = os.path.splitext(o.name)[0] # remove .apidoc
+            docs = all_docs[name]
             with open(str(o.get_bld()), 'w+') as out_f:
-                out_f.write('\n'.join(elements[ns]))
+                out_f.write('\n'.join(docs))
 
     if not getattr(Options.options, 'skip_apidocs', False):
-        elements = extract_docs(bld, src)
+        docs = extract_docs(bld, src)
         target = []
-        for ns in elements.keys():
-            if ns is not None:
-                target.append(ns + '.apidoc')
+        for key in docs.keys():
+            target.append(key + '.apidoc')
         return bld(rule=write_docs, name='apidoc_extract', source = src, target = target)
 
 
@@ -458,8 +491,6 @@ def default_flags(self):
 
         for f in ['CFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, [f'--target={clang_arch}', '-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-Werror=format', '-fno-exceptions','-fPIC', '-fvisibility=hidden'])
-            if build_util.get_target_platform() == 'x86_64-linux':
-                self.env.append_value(f, ['-msse4.1', '-DDM_SOUND_DSP_IMPL=SSE'])
 
             if f == 'CXXFLAGS':
                 self.env.append_value(f, ['-fno-rtti'])
@@ -483,9 +514,6 @@ def default_flags(self):
             if f == 'CXXFLAGS':
                 self.env.append_value(f, ['-fno-rtti', '-stdlib=libc++', '-fno-exceptions', '-nostdinc++'])
                 self.env.append_value(f, ['-isystem', '%s/usr/include/c++/v1' % sys_root])
-
-                if target_arch == 'x86_64':
-                    self.env.append_value(f, ['-DDM_SOUND_DSP_IMPL=SSE'])
 
         self.env.append_value('LINKFLAGS', ['-stdlib=libc++', '-isysroot', sys_root, '-mmacosx-version-min=%s' % sdk.VERSION_MACOSX_MIN, '-framework', 'Carbon','-flto'])
         self.env.append_value('LINKFLAGS', ['-target', '%s-apple-darwin19' % target_arch])
@@ -519,8 +547,6 @@ def default_flags(self):
             if f == 'CXXFLAGS':
                 self.env.append_value(f, ['-fno-exceptions', '-fno-rtti', '-stdlib=libc++', '-nostdinc++'])
                 self.env.append_value(f, ['-isystem', '%s/usr/include/c++/v1' % sys_root])
-                # While we have no Neon implementation, we may as well, use the fallback for the x86_64 target too
-                self.env.append_value(f, ['-DDM_SOUND_DSP_IMPL=Fallback'])
 
             self.env.append_value(f, ['-DDM_PLATFORM_IOS'])
             if 'x86_64' == target_arch:
@@ -572,10 +598,22 @@ def default_flags(self):
             'MAX_WEBGL_VERSION=2',
             'GL_SUPPORT_AUTOMATIC_ENABLE_EXTENSIONS=0',
             'IMPORTED_MEMORY=1',
-            'STACK_SIZE=5MB',
-            'MIN_FIREFOX_VERSION=34',
-            'MIN_SAFARI_VERSION=90000',
-            'MIN_CHROME_VERSION=32']
+            'STACK_SIZE=5MB']
+
+        with_pthread = False
+        if build_util.get_target_platform() == 'wasm_pthread-web':
+            with_pthread = True
+
+        if with_pthread:
+            emflags_link += [
+                'MIN_FIREFOX_VERSION=79',
+                'MIN_SAFARI_VERSION=150000',
+                'MIN_CHROME_VERSION=75']
+        else:
+            emflags_link += [
+                'MIN_FIREFOX_VERSION=40',
+                'MIN_SAFARI_VERSION=101000',
+                'MIN_CHROME_VERSION=45']
 
         if Options.options.with_webgpu and platform_supports_feature(build_util.get_target_platform(), 'webgpu', {}):
             emflags_link += ['USE_WEBGPU', 'GL_WORKAROUND_SAFARI_GETCONTEXT_BUG=0']
@@ -584,37 +622,41 @@ def default_flags(self):
             if int(opt_level) >= 3:
                 emflags_link += ['ASYNCIFY_ADVISE', 'ASYNCIFY_IGNORE_INDIRECT', 'ASYNCIFY_ADD=["main", "dmEngineCreate(int, char**)"]' ]
 
+        flags = []
+        linkflags = []
         if 'wasm' == target_arch:
             emflags_link += ['WASM=1', 'ALLOW_MEMORY_GROWTH=1']
+            if int(opt_level) < 2:
+                flags += ['-gseparate-dwarf', '-gsource-map']
+                linkflags += ['-gseparate-dwarf', '-gsource-map']
         else:
             emflags_link += ['WASM=0', 'LEGACY_VM_SUPPORT=1']
 
         emflags_link = zip(['-s'] * len(emflags_link), emflags_link)
         emflags_link =[j for i in emflags_link for j in i]
 
-        flags = []
         if os.environ.get('EMCFLAGS', None) is not None:
             flags += os.environ.get("EMCFLAGS", "").split(' ')
-        linkflags = []
+
         if os.environ.get('EMLINKFLAGS', None) is not None:
             linkflags += os.environ.get("EMLINKFLAGS", "").split(' ')
 
-        if int(opt_level) < 2:
-            flags = ['-gseparate-dwarf', '-gsource-map']
-            linkflags = ['-gseparate-dwarf', '-gsource-map']
         flags += ['-O%s' % opt_level]
         linkflags += ['-O%s' % opt_level]
 
-        if 'wasm' == target_arch:
-            flags += ['-msimd128', '-msse4.2', '-DDM_SOUND_DSP_IMPL=WASM']
+        if with_pthread:
+            flags += ['-pthread']
+            linkflags += ['-pthread']
+        else:
+            self.env.append_value('DEFINES', ['DM_NO_THREAD_SUPPORT'])
 
         self.env['DM_HOSTFS']           = '/node_vfs/'
-        self.env.append_value('DEFINES', ['DM_NO_THREAD_SUPPORT', 'JC_TEST_NO_DEATH_TEST'])
+        self.env.append_value('DEFINES', ['JC_TEST_NO_DEATH_TEST', 'PTHREADS_DEBUG'])
         # This disables a few tests in test_httpclient (no real investigation done)
         self.env.append_value('DEFINES', ['DM_TEST_DLIB_HTTPCLIENT_NO_HOST_SERVER'])
 
         for f in ['CFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-Wall', '-fPIC', '-fno-exceptions', '-fno-rtti',
+            self.env.append_value(f, ['-Wall', '-fPIC', '-fno-exceptions', '-fno-rtti', '-Wno-nontrivial-memcall',
                                       '-DGL_ES_VERSION_2_0', '-DGOOGLE_PROTOBUF_NO_RTTI', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DDM_NO_SYSTEM_FUNCTION'])
             self.env.append_value(f, emflags_compile)
             self.env.append_value(f, flags)
@@ -629,8 +671,7 @@ def default_flags(self):
             # 0x0600 = _WIN32_WINNT_VISTA
             self.env.append_value(f, ['/Oy-', '/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DDDF_EXPOSE_DESCRIPTORS',
                                         '/DWINVER=0x0600', '/D_WIN32_WINNT=0x0600', '/DNOMINMAX',
-                                        '/D_CRT_SECURE_NO_WARNINGS', '/wd4996', '/wd4200', '/DUNICODE', '/D_UNICODE',
-                                        '/arch:SSE4.2', '/DDM_SOUND_DSP_IMPL=SSE'])
+                                        '/D_CRT_SECURE_NO_WARNINGS', '/wd4996', '/wd4200', '/DUNICODE', '/D_UNICODE'])
 
         self.env.append_value('LINKFLAGS', '/DEBUG')
         self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB', 'Iphlpapi.LIB', 'AdvAPI32.Lib', 'Gdi32.lib'])
@@ -1688,7 +1729,7 @@ def detect(conf):
         print ("Codesign disabled", Options.options.skip_codesign)
 
     # Vulkan support
-    if Options.options.with_vulkan and build_util.get_target_platform() in ('arm64-linux', 'x86_64-ios', 'js-web', 'wasm-web'):
+    if Options.options.with_vulkan and build_util.get_target_platform() in ('arm64-linux', 'x86_64-ios', 'js-web', 'wasm-web', 'wasm_pthread-web'):
         conf.fatal('Vulkan is unsupported on %s' % build_util.get_target_platform())
 
     if target_os == TargetOS.WINDOWS:
@@ -1992,7 +2033,7 @@ def detect(conf):
     conf.env['STLIB_CRASH'] = 'crashext'
     conf.env['STLIB_CRASH_NULL'] = 'crashext_null'
     if TargetOS.WEB == target_os:
-        conf.env['STLIB_PROFILE'] = ['profile_basic']
+        conf.env['STLIB_PROFILE'] = ['profile_js']
     else:
         conf.env['STLIB_PROFILE'] = ['profile', 'remotery']
     conf.env['STLIB_PROFILE_NULL'] = ['profile_null', 'remotery_null']
@@ -2121,7 +2162,6 @@ def options(opt):
     opt.add_option('--disable-ccache', action="store_true", default=False, dest='disable_ccache', help='force disable of ccache')
     opt.add_option('--generate-compile-commands', action="store_true", default=False, dest='generate_compile_commands', help='generate (appending mode) compile_commands.json')
     opt.add_option('--use-vanilla-lua', action="store_true", default=False, dest='use_vanilla_lua', help='use luajit')
-    opt.add_option('--disable-feature', action='append', default=[], dest='disable_features', help='disable feature, --disable-feature=foo')
     opt.add_option('--opt-level', default="2", dest='opt_level', help='optimization level')
     opt.add_option('--ndebug', action='store_true', default=False, help='Defines NDEBUG for the engine')
     opt.add_option('--with-asan', action='store_true', default=False, dest='with_asan', help='Enables address sanitizer')
@@ -2137,3 +2177,9 @@ def options(opt):
     opt.add_option('--with-dx12', action='store_true', default=False, dest='with_dx12', help='Enables DX12 as a graphics backend')
     opt.add_option('--with-opus', action='store_true', default=False, dest='with_opus', help='Enable Opus audio codec support in runtime')
     opt.add_option('--with-webgpu', action='store_true', default=False, dest='with_webgpu', help='Enables WebGPU as graphics backend')
+
+    # Currently supported features: physics
+    opt.add_option('--disable-feature', action='append', default=[], dest='disable_features', help='disable feature, --disable-feature=foo')
+
+    # Currently supported features: physics, simd (html5)
+    opt.add_option('--enable-feature', action='append', default=[], dest='enable_features', help='enable feature, --disable-feature=foo')
