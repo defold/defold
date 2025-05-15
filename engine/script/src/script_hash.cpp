@@ -374,15 +374,16 @@ namespace dmScript
         HContext context = dmScript::GetScriptContext(L);
         if (context)
         {
-            context->m_HashInstances.Erase(hash);
-            lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextWeakTableRef);
             int* refp = context->m_HashInstances.Get(hash);
-            if (refp) {
+            context->m_HashInstances.Erase(hash);
+            if (refp && context->m_ContextWeakTableRef != LUA_NOREF)
+            {
+                lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextWeakTableRef);
                 lua_pushinteger(L, *refp);
                 lua_pushnil(L);
                 lua_settable(L, -3);
+                lua_pop(L, 1);
             }
-            lua_pop(L, 1);
         }
         return 0;
     }
@@ -412,7 +413,6 @@ namespace dmScript
         lua_pushcfunction(L, Hash_lt);
         lua_settable(L, -3);
 
-        // Add __gc
         lua_pushliteral(L, "__gc");
         lua_pushcfunction(L, Hash_gc);
         lua_settable(L, -3);

@@ -281,6 +281,8 @@ namespace dmScript
 
         Unref(L, LUA_REGISTRYINDEX, context->m_ContextTableRef);
         Unref(L, LUA_REGISTRYINDEX, context->m_ContextWeakTableRef);
+        context->m_ContextTableRef = LUA_NOREF;
+        context->m_ContextWeakTableRef = LUA_NOREF;
     }
 
     lua_State* GetLuaState(HContext context)
