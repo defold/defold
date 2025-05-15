@@ -32,7 +32,7 @@ namespace dmResourceMounts
 
 const char* MOUNTS_FILENAME = "liveupdate.mounts";
 
-const int MAX_NAME_LENGTH = 64;
+const int MAX_NAME_LENGTH = 128;
 
 struct ArchiveMount
 {
