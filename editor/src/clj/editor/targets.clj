@@ -117,14 +117,21 @@
 (defn update-launched-target! [target target-info on-service-url-found]
   (let [old @launched-targets]
     (reset! launched-targets
-            (mapv (fn [launched-target]
-                    (if (= (:id launched-target) (:id target))
-                      (let [result-target (merge launched-target target-info)]
-                        (when (and (:url target-info) (not (:url launched-target)))
-                          (on-service-url-found result-target))
-                        result-target)
-                      launched-target))
-                  old))
+            (map (fn [launched-target]
+                   (if (= (:id launched-target) (:id target))
+                     (let [result-target (merge launched-target target-info)]
+                       (when (and (:url target-info) (not (:url launched-target)))
+                         (future
+                           ;; Wait for the console stream to be marked as active
+                           (loop []
+                             (if (console/current-stream? (:log-stream result-target))
+                               (on-service-url-found result-target)
+                               (do
+                                 (Thread/sleep 100)
+                                 (recur))))))
+                       result-target)
+                     launched-target))
+                 old))
     (when (not= old @launched-targets)
       (clear-selected-target-hint!)
       (invalidate-target-menu!))))
