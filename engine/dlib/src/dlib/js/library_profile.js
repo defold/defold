@@ -18,7 +18,7 @@ var LibraryDmProfile = {
         }
     },
     dmProfileJSInit: function() {
-        if(typeof window.performance === 'undefined')
+        if(typeof performance === 'undefined')
             return false;
         return true;
     },
@@ -56,7 +56,7 @@ var LibraryDmProfile = {
             for(let c = thread.rootProperty.firstChild; c; c = c.nextSibling)
                 addToProperties(c, properties);
         }
-        window.performance.mark("frame", { detail: properties });
+        performance.mark("frame", { detail: properties });
     },
     dmProfileJSBeginMark: function(thread_id, name) {
         const thread = DefoldProfiler.getThread(thread_id);
@@ -77,10 +77,10 @@ var LibraryDmProfile = {
                 mark.parent.firstChild = mark.parent.lastChild = mark;
             thread.marks.set(mark.idx, mark);
         }
-        if(window.performance.beginMeasure)
-            window.performance.beginMeasure(mark.nameStr);
+        if(performance.beginMeasure)
+            performance.beginMeasure(mark.nameStr);
         else
-            mark.begins.push(window.performance.now());
+            mark.begins.push(performance.now());
         thread.currentMark = mark;
         return mark.idx;
     },
@@ -89,10 +89,10 @@ var LibraryDmProfile = {
         const mark = thread.currentMark;
         if(!mark || mark == thread.rootMark)
             return true;
-        if(window.performance.endMeasure)
-            window.performance.endMeasure(mark.nameStr);
+        if(performance.endMeasure)
+            performance.endMeasure(mark.nameStr);
         else
-            mark.measures.push(window.performance.measure(mark.nameStr, { start: mark.begins.pop() }));
+            mark.measures.push(performance.measure(mark.nameStr, { start: mark.begins.pop() }));
         thread.currentMark = mark.parent;
         return thread.currentMark === thread.rootMark;
     },
