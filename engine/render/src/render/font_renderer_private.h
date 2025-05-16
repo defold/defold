@@ -20,6 +20,7 @@
 
 #include <dlib/align.h>
 #include <dlib/math.h>
+#include <dlib/mutex.h>
 #include <dlib/utf8.h>
 
 #include <graphics/graphics.h>
@@ -38,7 +39,8 @@ namespace dmRender
     struct FontMap
     {
         FontMap()
-        : m_UserData(0)
+        : m_Mutex(0)
+        , m_UserData(0)
         , m_Texture(0)
         , m_Material(0)
         , m_NameHash(0)
@@ -83,6 +85,7 @@ namespace dmRender
             dmGraphics::DeleteTexture(m_Texture);
         }
 
+        dmMutex::HMutex         m_Mutex;
         void*                   m_UserData; // The font map resources (see res_font.cpp)
         dmGraphics::HContext    m_GraphicsContext; // Used to recreate textures
         HFontRenderBackend      m_FontRenderBackend;
