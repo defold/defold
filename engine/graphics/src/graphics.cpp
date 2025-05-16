@@ -1888,6 +1888,10 @@ namespace dmGraphics
     {
         return g_functions.m_GetTextureUsageHintFlags(texture);
     }
+    uint8_t GetTexturePageCount(HTexture texture)
+    {
+        return g_functions.m_GetTexturePageCount(texture);
+    }
     bool IsAssetHandleValid(HContext context, HAssetHandle asset_handle)
     {
         assert(asset_handle <= MAX_ASSET_HANDLE_VALUE);
