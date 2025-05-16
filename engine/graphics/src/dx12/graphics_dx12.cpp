@@ -330,6 +330,44 @@ namespace dmGraphics
         context->m_CommandList->SetDescriptorHeaps(DM_ARRAY_SIZE(heaps), heaps);
     }
 
+    static bool MultiSamplingCountSupported(ID3D12Device* device, DXGI_FORMAT format, uint32_t requested_count)
+    {
+        D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS query = {};
+        query.Format           = format;
+        query.SampleCount      = requested_count;
+        query.Flags            = D3D12_MULTISAMPLE_QUALITY_LEVELS_FLAG_NONE;
+        query.NumQualityLevels = 0;
+
+        HRESULT hr = device->CheckFeatureSupport(
+            D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS,
+            &query,
+            sizeof(query)
+        );
+        return SUCCEEDED(hr) && query.NumQualityLevels > 0;
+    }
+
+    static uint32_t GetClosestMultiSamplingCount(ID3D12Device* device, DXGI_FORMAT format, uint32_t requested_count)
+    {
+        if (MultiSamplingCountSupported(device, format, requested_count))
+            return requested_count;
+
+        // Same sample counts as vulkan
+        static const uint32_t sample_counts[] = { 64, 32, 16, 8, 4, 2, 1 };
+
+        for (uint32_t i=0; i < DM_ARRAY_SIZE(sample_counts); i++)
+        {
+            if (sample_counts[i] > requested_count)
+                continue;
+
+            if (MultiSamplingCountSupported(device, format, sample_counts[i]))
+            {
+                return sample_counts[i];
+            }
+        }
+
+        return 1;
+    }
+
     static bool DX12Initialize(HContext _context)
     {
         DX12Context* context = (DX12Context*) _context;
@@ -364,14 +402,18 @@ namespace dmGraphics
         uint32_t window_width = dmPlatform::GetWindowWidth(context->m_Window);
         uint32_t window_height = dmPlatform::GetWindowHeight(context->m_Window);
 
+        DXGI_FORMAT color_format = DXGI_FORMAT_R8G8B8A8_UNORM;
+
         // Create swapchain
         DXGI_MODE_DESC back_buffer_desc = {};
         back_buffer_desc.Width          = window_width;
         back_buffer_desc.Height         = window_height;
-        back_buffer_desc.Format         = DXGI_FORMAT_R8G8B8A8_UNORM;
+        back_buffer_desc.Format         = color_format;
 
+        // Note: These must be 1 and 0 - for MSAA we will render to an offscreen texture that is multisampled
         DXGI_SAMPLE_DESC sample_desc = {};
         sample_desc.Count            = 1;
+        sample_desc.Quality          = 0;
 
         DXGI_SWAP_CHAIN_DESC swap_chain_desc = {};
         swap_chain_desc.BufferCount          = MAX_FRAMEBUFFERS;
@@ -386,7 +428,7 @@ namespace dmGraphics
         factory->CreateSwapChain(context->m_CommandQueue, &swap_chain_desc, &swap_chain_tmp);
         context->m_SwapChain = static_cast<IDXGISwapChain3*>(swap_chain_tmp);
 
-        // frameIndex = swapChain->GetCurrentBackBufferIndex();
+        context->m_MSAASampleCount = GetClosestMultiSamplingCount(context->m_Device, color_format, dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_SAMPLE_COUNT));
 
         ////// MOVE THIS?
         D3D12_DESCRIPTOR_HEAP_DESC sampler_heap_desc = {};
@@ -396,9 +438,9 @@ namespace dmGraphics
         hr = context->m_Device->CreateDescriptorHeap(&sampler_heap_desc, IID_PPV_ARGS(&context->m_SamplerPool.m_DescriptorHeap));
         CHECK_HR_ERROR(hr);
 
-        // this heap is a render target view heap
+        // this heap is a render target view heap, we use this heap for the swapchain render targets only. The other render targets will use another heap for this
         D3D12_DESCRIPTOR_HEAP_DESC rt_view_heap_desc = {};
-        rt_view_heap_desc.NumDescriptors             = MAX_FRAMEBUFFERS;
+        rt_view_heap_desc.NumDescriptors             = MAX_FRAMEBUFFERS * (context->m_MSAASampleCount > 1 ? 2 : 1);
         rt_view_heap_desc.Type                       = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
         rt_view_heap_desc.Flags                      = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 
@@ -418,11 +460,47 @@ namespace dmGraphics
             hr = context->m_SwapChain->GetBuffer(i, IID_PPV_ARGS(&context->m_FrameResources[i].m_RenderTarget.m_Resource));
             CHECK_HR_ERROR(hr);
 
-            // the we "create" a render target view which binds the swap chain buffer (ID3D12Resource[n]) to the rtv handle
+            // we "create" a render target view which binds the swap chain buffer (ID3D12Resource[n]) to the rtv handle
             context->m_Device->CreateRenderTargetView(context->m_FrameResources[i].m_RenderTarget.m_Resource, NULL, rtv_handle);
-
-            // we increment the rtv handle by the rtv descriptor size we got above
             rtv_handle.Offset(1, context->m_RtvDescriptorSize);
+
+
+            // If the project is using multisampling, we need to create a secondary RT that we render into.
+            // This will later be resolved into the swap chain RT before presenting (via EndRenderPass).
+            if (context->m_MSAASampleCount > 1)
+            {
+                D3D12_RESOURCE_DESC msaa_desc = {};
+                msaa_desc.Dimension           = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+                msaa_desc.Width               = window_width;
+                msaa_desc.Height              = window_height;
+                msaa_desc.DepthOrArraySize    = 1;
+                msaa_desc.MipLevels           = 1;
+                msaa_desc.Format              = color_format;
+                msaa_desc.SampleDesc.Count    = context->m_MSAASampleCount;
+                msaa_desc.SampleDesc.Quality  = 0;
+                msaa_desc.Layout              = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+                msaa_desc.Flags               = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+
+                D3D12_CLEAR_VALUE clear_value = {};
+                clear_value.Format            = color_format;
+                clear_value.Color[0]          = 0.0f;
+                clear_value.Color[1]          = 0.0f;
+                clear_value.Color[2]          = 0.0f;
+                clear_value.Color[3]          = 1.0f;
+
+                hr = context->m_Device->CreateCommittedResource(
+                    &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+                    D3D12_HEAP_FLAG_NONE,
+                    &msaa_desc,
+                    D3D12_RESOURCE_STATE_RENDER_TARGET,
+                    &clear_value,
+                    IID_PPV_ARGS(&context->m_FrameResources[i].m_MsaaRenderTarget)
+                );
+                CHECK_HR_ERROR(hr);
+
+                context->m_Device->CreateRenderTargetView(context->m_FrameResources[i].m_MsaaRenderTarget, NULL, rtv_handle);
+                rtv_handle.Offset(1, context->m_RtvDescriptorSize);
+            }
 
             hr = context->m_Device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&context->m_FrameResources[i].m_CommandAllocator));
             CHECK_HR_ERROR(hr);
@@ -604,13 +682,35 @@ namespace dmGraphics
         DX12RenderTarget* current_rt = GetAssetFromContainer<DX12RenderTarget>(context->m_AssetHandleContainer, context->m_CurrentRenderTarget);
 
         if (!current_rt->m_IsBound)
-        {
             return false;
-        }
 
         if (current_rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
         {
-            context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(current_rt->m_Resource, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
+            if (context->m_MSAASampleCount > 1)
+            {
+                ID3D12Resource* msaaRT = context->m_FrameResources[context->m_CurrentFrameIndex].m_MsaaRenderTarget;
+                ID3D12Resource* swapchainRT = current_rt->m_Resource;
+
+                // Transition targets into dest and source (TODO: We should track the state of the resources, or actually _all_ resources)
+                context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(swapchainRT, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RESOLVE_DEST));
+                context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(msaaRT, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_RESOLVE_SOURCE));
+
+                // Resolve from MSAA to swapchain
+                context->m_CommandList->ResolveSubresource(
+                    swapchainRT, 0,
+                    msaaRT, 0,
+                    DXGI_FORMAT_R8G8B8A8_UNORM
+                );
+
+                // Transition resources back to previous state (to be used for next frame)
+                context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(swapchainRT, D3D12_RESOURCE_STATE_RESOLVE_DEST, D3D12_RESOURCE_STATE_PRESENT));
+                context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(msaaRT, D3D12_RESOURCE_STATE_RESOLVE_SOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET));
+            }
+            else
+            {
+                // No MSAA: just transition swapchain RT to PRESENT
+                context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(current_rt->m_Resource, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
+            }
         }
 
         current_rt->m_IsBound = 0;
@@ -622,33 +722,52 @@ namespace dmGraphics
         DX12RenderTarget* current_rt = GetAssetFromContainer<DX12RenderTarget>(context->m_AssetHandleContainer, context->m_CurrentRenderTarget);
         DX12RenderTarget* rt         = GetAssetFromContainer<DX12RenderTarget>(context->m_AssetHandleContainer, render_target);
 
-        if (current_rt->m_Id == rt->m_Id &&
-            current_rt->m_IsBound)
-        {
+        if (current_rt->m_Id == rt->m_Id && current_rt->m_IsBound)
             return;
-        }
 
         if (current_rt->m_IsBound)
-        {
             EndRenderPass(context);
-        }
 
-        ID3D12DescriptorHeap* rtv_heap = 0;
+        ID3D12DescriptorHeap* rtv_heap = NULL;
         uint32_t num_attachments = 0;
 
-        CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(context->m_RtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), context->m_CurrentFrameIndex, context->m_RtvDescriptorSize);
+        CD3DX12_CPU_DESCRIPTOR_HANDLE rtv_handle;
 
-        // TODO: This can be generalized into a function
         if (rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
         {
             num_attachments = 1;
             rtv_heap = context->m_RtvDescriptorHeap;
-            context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(rt->m_Resource, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
+
+            if (context->m_MSAASampleCount > 1)
+            {
+                // The handles are acquired interleaved (first main RT then the MSAA one, one per swapchain frame)
+                uint32_t rtv_index = context->m_CurrentFrameIndex * 2 + 1;
+
+                // MSAA enabled: bind the MSAA RT for current frame
+                ID3D12Resource* msaaRT = context->m_FrameResources[context->m_CurrentFrameIndex].m_MsaaRenderTarget;
+                rtv_handle = CD3DX12_CPU_DESCRIPTOR_HANDLE(
+                    context->m_RtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(),
+                    rtv_index,
+                    context->m_RtvDescriptorSize
+                );
+            }
+            else
+            {
+                // No MSAA: use the regular swapchain RT
+                ID3D12Resource* rtResource = rt->m_Resource;
+                rtv_handle = CD3DX12_CPU_DESCRIPTOR_HANDLE(
+                    context->m_RtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(),
+                    context->m_CurrentFrameIndex,
+                    context->m_RtvDescriptorSize
+                );
+
+                context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(rtResource, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
+            }
         }
         else
         {
             rtv_heap = rt->m_ColorAttachmentDescriptorHeap;
-            rtvHandle = rt->m_ColorAttachmentDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+            rtv_handle = rt->m_ColorAttachmentDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
 
             for (int i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
             {
@@ -663,11 +782,10 @@ namespace dmGraphics
             }
         }
 
-        context->m_RtvHandle = rtvHandle;
-        context->m_CommandList->OMSetRenderTargets(1, &context->m_RtvHandle, false, NULL);
+        context->m_RtvHandle = rtv_handle;
+        context->m_CommandList->OMSetRenderTargets(1, &context->m_RtvHandle, FALSE, NULL);
 
         rt->m_IsBound = 1;
-
         context->m_CurrentRenderTarget = render_target;
     }
 
@@ -1599,6 +1717,13 @@ namespace dmGraphics
         psoDesc.BlendState            = blendDesc; // TODO
         psoDesc.DepthStencilState     = depthStencilDesc;
         psoDesc.NumRenderTargets      = 1; // TODO
+
+        if (rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID && context->m_MSAASampleCount > 1)
+        {
+            psoDesc.RasterizerState.MultisampleEnable = true;
+            psoDesc.SampleDesc.Count                  = context->m_MSAASampleCount;
+            psoDesc.SampleDesc.Quality                = 0;
+        }
 
         HRESULT hr = context->m_Device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(pipeline));
         CHECK_HR_ERROR(hr);
