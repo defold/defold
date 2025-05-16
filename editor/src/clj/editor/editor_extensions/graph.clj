@@ -65,8 +65,8 @@
       (throw (LuaError. (str (resource/proj-path node-id-or-resource) " is not a file resource"))))
     node-id-or-resource))
 
-(defn node-id->type-keyword [node-id ec]
-  (g/node-type-kw (:basis ec) node-id))
+(defn node-id->type-keyword [node-id evaluation-context]
+  (g/node-type-kw (:basis evaluation-context) node-id))
 
 ;; region get
 
@@ -122,11 +122,11 @@
     (keyword property)
     (keyword (string/replace property "_" "-"))))
 
-(defn- outline-property [node-id property ec]
-  (when (g/node-instance? (:basis ec) outline/OutlineNode node-id)
+(defn- outline-property [node-id property evaluation-context]
+  (when (g/node-instance? (:basis evaluation-context) outline/OutlineNode node-id)
     (let [prop-kw (property->prop-kw property)
           outline-property (-> node-id
-                               (g/node-value :_properties ec)
+                               (g/node-value :_properties evaluation-context)
                                (get-in [:properties prop-kw]))]
       (when (and outline-property
                  (properties/visible? outline-property)
@@ -135,20 +135,20 @@
                 (not (contains? outline-property :prop-kw))
                 (assoc :prop-kw prop-kw))))))
 
-(defmulti ext-get (fn [node-id property ec]
-                    [(node-id->type-keyword node-id ec) property]))
+(defmulti ext-get (fn [node-id property evaluation-context]
+                    [(node-id->type-keyword node-id evaluation-context) property]))
 
-(defmethod ext-get [:editor.code.resource/CodeEditorResourceNode "text"] [node-id _ ec]
-  (string/join \newline (g/node-value node-id :lines ec)))
+(defmethod ext-get [:editor.code.resource/CodeEditorResourceNode "text"] [node-id _ evaluation-context]
+  (string/join \newline (g/node-value node-id :lines evaluation-context)))
 
-(defmethod ext-get [:editor.resource/ResourceNode "path"] [node-id _ ec]
-  (resource/resource->proj-path (g/node-value node-id :resource ec)))
+(defmethod ext-get [:editor.resource/ResourceNode "path"] [node-id _ evaluation-context]
+  (resource/resource->proj-path (g/node-value node-id :resource evaluation-context)))
 
-(defmethod ext-get [:editor.tile-source/TileSourceNode "tile_collision_groups"] [node-id _ ec]
+(defmethod ext-get [:editor.tile-source/TileSourceNode "tile_collision_groups"] [node-id _ evaluation-context]
   (coll/pair-map-by
     (comp inc key) ;; 0-indexed to 1-indexed
-    #(g/node-value (val %) :id ec)
-    (g/node-value node-id :tile->collision-group-node ec)))
+    #(g/node-value (val %) :id evaluation-context)
+    (g/node-value node-id :tile->collision-group-node evaluation-context)))
 
 (defn ext-value-getter
   "Create 0-arg fn that produces node property value

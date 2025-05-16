@@ -698,33 +698,37 @@
   (output anim-ids g/Any :cached (gu/passthrough animation-ids))
 
   (output collision-groups-data g/Any :cached (gu/passthrough collision-groups-data))
-  (output tile-count g/Int (g/fnk [tile-source-attributes]
-                             (* (:tiles-per-row tile-source-attributes) (:tiles-per-column tile-source-attributes))))
-  (output image-dim-error g/Err (g/fnk [image-size collision-size]
-                                  (when (and image-size collision-size)
-                                    (let [{img-w :width img-h :height} image-size
-                                          {coll-w :width coll-h :height} collision-size]
-                                      (when (or (not= img-w coll-w)
-                                                (not= img-h coll-h))
-                                        (g/error-fatal (format "both 'Image' and 'Collision' must have the same dimensions (%dx%d vs %dx%d)"
-                                                               img-w img-h
-                                                               coll-w coll-h)))))))
-  (output tile-width-error g/Err (g/fnk [image-size collision-size tile-width tile-margin]
-                                   (let [dims (or image-size collision-size)]
-                                     (when dims
-                                       (let [{w :width} dims
-                                             total-w (+ tile-width tile-margin)]
-                                         (when (< w total-w)
-                                           (g/error-fatal (format "the total width ('Tile Width' + 'Tile Margin') is greater than the 'Image' width (%d vs %d)"
-                                                                  total-w w))))))))
-  (output tile-height-error g/Err (g/fnk [image-size collision-size tile-height tile-margin]
-                                    (let [dims (or image-size collision-size)]
-                                      (when dims
-                                        (let [{h :height} dims
-                                              total-h (+ tile-height tile-margin)]
-                                          (when (< h total-h)
-                                            (g/error-fatal (format "the total height ('Tile Height' + 'Tile Margin') is greater than the 'Image' height (%d vs %d)"
-                                                                   total-h h)))))))))
+  (output tile-count g/Int
+          (g/fnk [tile-source-attributes]
+            (* (:tiles-per-row tile-source-attributes) (:tiles-per-column tile-source-attributes))))
+  (output image-dim-error g/Err
+          (g/fnk [image-size collision-size]
+            (when (and image-size collision-size)
+              (let [{img-w :width img-h :height} image-size
+                    {coll-w :width coll-h :height} collision-size]
+                (when (or (not= img-w coll-w)
+                          (not= img-h coll-h))
+                  (g/error-fatal (format "both 'Image' and 'Collision' must have the same dimensions (%dx%d vs %dx%d)"
+                                         img-w img-h
+                                         coll-w coll-h)))))))
+  (output tile-width-error g/Err
+          (g/fnk [image-size collision-size tile-width tile-margin]
+            (let [dims (or image-size collision-size)]
+              (when dims
+                (let [{w :width} dims
+                      total-w (+ tile-width tile-margin)]
+                  (when (< w total-w)
+                    (g/error-fatal (format "the total width ('Tile Width' + 'Tile Margin') is greater than the 'Image' width (%d vs %d)"
+                                           total-w w))))))))
+  (output tile-height-error g/Err
+          (g/fnk [image-size collision-size tile-height tile-margin]
+            (let [dims (or image-size collision-size)]
+              (when dims
+                (let [{h :height} dims
+                      total-h (+ tile-height tile-margin)]
+                  (when (< h total-h)
+                    (g/error-fatal (format "the total height ('Tile Height' + 'Tile Margin') is greater than the 'Image' height (%d vs %d)"
+                                           total-h h)))))))))
 
 (defn- get-nodes-by-type [child-node-type]
   (fn get-children-nodes-by-type [node evaluation-context]

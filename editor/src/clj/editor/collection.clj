@@ -158,14 +158,14 @@
                      :tx-attach-fn (fn [self-id child-id]
                                      (let [coll-id (core/scope-of-type self-id CollectionNode)]
                                        (concat
-                                         (g/update-property child-id :id outline/resolve-id (go-id->node-ids self-id))
+                                         (g/update-property child-id :id id/resolve (go-id->node-ids self-id))
                                          (attach-coll-ref-go coll-id child-id)
                                          (child-go-go self-id child-id))))}
                     {:node-type EmbeddedGOInstanceNode
                      :tx-attach-fn (fn [self-id child-id]
                                      (let [coll-id (core/scope-of-type self-id CollectionNode)]
                                        (concat
-                                         (g/update-property child-id :id outline/resolve-id (go-id->node-ids self-id))
+                                         (g/update-property child-id :id id/resolve (go-id->node-ids self-id))
                                          (attach-coll-embedded-go coll-id child-id)
                                          (child-go-go self-id child-id))))}]}
       (merge node-outline-extras)
@@ -436,19 +436,19 @@
      :child-reqs [{:node-type ReferencedGOInstanceNode
                    :tx-attach-fn (fn [self-id child-id]
                                    (concat
-                                     (g/update-property child-id :id outline/resolve-id (g/node-value self-id :ids))
+                                     (g/update-property child-id :id id/resolve (g/node-value self-id :ids))
                                      (attach-coll-ref-go self-id child-id)
                                      (child-coll-any self-id child-id)))}
                   {:node-type EmbeddedGOInstanceNode
                    :tx-attach-fn (fn [self-id child-id]
                                    (concat
-                                     (g/update-property child-id :id outline/resolve-id (g/node-value self-id :ids))
+                                     (g/update-property child-id :id id/resolve (g/node-value self-id :ids))
                                      (attach-coll-embedded-go self-id child-id)
                                      (child-coll-any self-id child-id)))}
                   {:node-type CollectionInstanceNode
                    :tx-attach-fn (fn [self-id child-id]
                                    (concat
-                                     (g/update-property child-id :id outline/resolve-id (g/node-value self-id :ids))
+                                     (g/update-property child-id :id id/resolve (g/node-value self-id :ids))
                                      (attach-coll-coll self-id child-id)
                                      (child-coll-any self-id child-id)))}]}))
 

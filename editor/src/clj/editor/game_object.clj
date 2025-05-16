@@ -396,7 +396,7 @@
     (when resolve-id?
       (->> (g/node-value self-id :component-ids)
            keys
-           (g/update-property comp-id :id outline/resolve-id)))
+           (g/update-property comp-id :id id/resolve)))
     (for [[from to] [[:node-outline :child-outlines]
                      [:_node-id :nodes]
                      [:build-targets :dep-build-targets]
