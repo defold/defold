@@ -76,8 +76,9 @@ var LibrarySoundDevice =
 
                     // Copy data from WASM memory
                     for(var c=0;c<2;c++) {
-                        var input = new Float32Array(HEAPF32, samples, frame_count);
-                        buf.copyToChannel(input, c);
+                        var input = new Float32Array(HEAPF32.buffer, samples, frame_count);
+                        // "double copy" - in threaded mode we will get a SharedArrayBuffer as the basis of HEAPF32. copyToChannel cannot handle shared buffers, hence we make a copy (which is no longer shared)
+                        buf.copyToChannel(input.slice(), c);
                         samples += frame_count * 4; // 4 bytes = sizeof(float)
                     }
                     var source = shared.audioCtx.createBufferSource();
