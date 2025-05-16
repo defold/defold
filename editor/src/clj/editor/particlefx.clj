@@ -30,6 +30,7 @@
             [editor.graph-util :as gu]
             [editor.graphics :as graphics]
             [editor.handler :as handler]
+            [editor.id :as id]
             [editor.material :as material]
             [editor.math :as math]
             [editor.outline :as outline]
@@ -1004,7 +1005,7 @@
                      [:emitter-indices :emitter-indices]]]
       (g/connect self-id from emitter-id to))
     (when resolve-id?
-      (g/update-property emitter-id :id outline/resolve-id (g/node-value self-id :ids)))))
+      (g/update-property emitter-id :id id/resolve (g/node-value self-id :ids)))))
 
 (g/defnode ParticleFXNode
   (inherits resource-node/ResourceNode)

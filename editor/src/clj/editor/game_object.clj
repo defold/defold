@@ -23,6 +23,7 @@
             [editor.game-object-common :as game-object-common]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
+            [editor.id :as id]
             [editor.outline :as outline]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
@@ -395,7 +396,7 @@
     (when resolve-id?
       (->> (g/node-value self-id :component-ids)
            keys
-           (g/update-property comp-id :id outline/resolve-id)))
+           (g/update-property comp-id :id id/resolve)))
     (for [[from to] [[:node-outline :child-outlines]
                      [:_node-id :nodes]
                      [:build-targets :dep-build-targets]
@@ -472,12 +473,7 @@
                                                  {} (map first component-id-pairs)))))
 
 (defn- gen-component-id [go-node base]
-  (let [ids (map first (g/node-value go-node :component-ids))]
-    (loop [postfix 0]
-      (let [id (if (= postfix 0) base (str base postfix))]
-        (if (empty? (filter #(= id %) ids))
-          id
-          (recur (inc postfix)))))))
+  (id/gen base (e/map first (g/node-value go-node :component-ids))))
 
 (defn- add-component [self source-resource id transform-properties properties select-fn]
   (let [path {:resource source-resource

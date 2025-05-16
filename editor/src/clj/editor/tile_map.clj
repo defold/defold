@@ -27,6 +27,7 @@
             [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
+            [editor.id :as id]
             [editor.material :as material]
             [editor.math :as math]
             [editor.outline :as outline]
@@ -1436,15 +1437,6 @@
       (some-> (selection->layer selection)
         core/scope)))
 
-(defn- gen-unique-name
-  [basename existing-names]
-  (let [existing-names (set existing-names)]
-    (loop [postfix 0]
-      (let [name (if (= postfix 0) basename (str basename postfix))]
-        (if (existing-names name)
-          (recur (inc postfix))
-          name)))))
-
 (defn- make-new-layer
   [id]
   (protobuf/make-map-without-defaults Tile$TileLayer
@@ -1453,8 +1445,7 @@
 
 (defn- add-layer-handler
   [tile-map-node]
-  (let [layer-ids (set (g/node-value tile-map-node :layer-ids))
-        layer-id (gen-unique-name "layer" layer-ids)]
+  (let [layer-id (id/gen "layer" (g/node-value tile-map-node :layer-ids))]
     (g/transact
      (concat
       (g/operation-label "Add layer")
