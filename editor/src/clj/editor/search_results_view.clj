@@ -29,6 +29,7 @@
             [cljfx.fx.tree-table-cell :as fx.tree-table-cell]
             [cljfx.fx.tree-table-column :as fx.tree-table-column]
             [cljfx.fx.tree-table-view :as fx.tree-table-view]
+            [cljfx.fx.v-box :as fx.v-box]
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.code.data :as data]
@@ -498,6 +499,10 @@
 
 (defmulti handle-override-inspector-event :event-type)
 
+(defmethod handle-override-inspector-event :on-refresh-view [{:keys [^Event fx/event]}]
+  (.consume event)
+  [[:refresh-view nil]])
+
 (defmethod handle-override-inspector-event :on-click-resource [{:keys [^Event fx/event resource]}]
   (.consume event)
   [[:open-resource {:resource resource}]])
@@ -545,51 +550,67 @@
             :pref-width 28
             :pref-height 28
             :mouse-transparent true}
-           {:fx/type fx.ext.tree-table-view/with-selection-props
+           {:fx/type fx.h-box/lifecycle
             :anchor-pane/bottom 0
             :anchor-pane/top 0
             :anchor-pane/left 0
             :anchor-pane/right 0
-            :props {:selection-mode :single
-                    :on-selected-item-changed {:event-type :on-select-item}}
-            :desc
-            (let [lifted-property-labels (:overridden-properties selected-item)
+            :children
+            [{:fx/type fx.v-box/lifecycle
+              :style-class "override-inspector-tool-bar"
+              :h-box/hgrow :never
+              :children
+              [{:fx/type fxui/button
+                :variant :icon
+                :on-action {:event-type :on-refresh-view}
+                :tooltip "Refresh View"
+                :graphic {:fx/type fxui/icon-graphic
+                          :type :icon/refresh
+                          :size 20.0}}]}
+             {:fx/type fx.ext.tree-table-view/with-selection-props
+              :h-box/hgrow :always
+              :props {:selection-mode :single
+                      :on-selected-item-changed {:event-type :on-select-item}}
+              :desc
+              (let [lifted-property-labels (:overridden-properties selected-item)
 
-                  context-menu
-                  (when (coll/not-empty lifted-property-labels)
-                    (let [lift-overrides-plan
-                          (when-some [source-node-id (:node-id selected-item)]
-                            (properties/lift-overrides-plan source-node-id lifted-property-labels))
+                    context-menu
+                    (when (coll/not-empty lifted-property-labels)
+                      (let [lift-overrides-plan
+                            (when-some [source-node-id (:node-id selected-item)]
+                              (properties/lift-overrides-plan source-node-id lifted-property-labels))
 
-                          action-description
-                          (some-> lift-overrides-plan properties/lift-overrides-description)]
+                            action-description
+                            (some-> lift-overrides-plan properties/lift-overrides-description)]
 
-                      {:fx/type fx.context-menu/lifecycle
-                       :items [{:fx/type fx.menu-item/lifecycle
-                                :text (or action-description "Lift Overrides")
-                                :disable (nil? action-description)
-                                :on-action {:event-type :on-lift-overrides
-                                            :lift-overrides-plan lift-overrides-plan}}]}))]
+                        {:fx/type fx.context-menu/lifecycle
+                         :items [{:fx/type fx.menu-item/lifecycle
+                                  :text (or action-description "Lift Overrides")
+                                  :disable (nil? action-description)
+                                  :on-action {:event-type :on-lift-overrides
+                                              :lift-overrides-plan lift-overrides-plan}}]}))]
 
-              (cond-> {:fx/type fx.tree-table-view/lifecycle
-                       :fixed-cell-size 24
-                       :event-filter {:event-type :on-click-table}
-                       :columns (into [{:fx/type fx.tree-table-column/lifecycle
-                                        :text "Resource"
-                                        :cell-value-factory identity
-                                        :cell-factory {:fx/cell-type fx.tree-table-cell/lifecycle
-                                                       :describe #'resource-cell}}]
-                                      (map (fn [property-keyword]
-                                             {:fx/type fx.tree-table-column/lifecycle
-                                              :text (str (properties/keyword->name property-keyword)
-                                                         (property-column-suffix (property-value property-keyword tree)))
-                                              :cell-value-factory (fn/partial #'property-value property-keyword)
-                                              :cell-factory {:fx/cell-type fx.tree-table-cell/lifecycle
-                                                             :describe #'value-cell}}))
-                                      (:display-order state))
-                       :root (->tree-item tree)}
+                (cond-> {:fx/type fx.tree-table-view/lifecycle
+                         :fixed-cell-size 24
+                         :event-filter {:event-type :on-click-table}
+                         :columns (into [{:fx/type fx.tree-table-column/lifecycle
+                                          :text "Resource"
+                                          :reorderable false
+                                          :cell-value-factory identity
+                                          :cell-factory {:fx/cell-type fx.tree-table-cell/lifecycle
+                                                         :describe #'resource-cell}}]
+                                        (map (fn [property-keyword]
+                                               {:fx/type fx.tree-table-column/lifecycle
+                                                :text (str (properties/keyword->name property-keyword)
+                                                           (property-column-suffix (property-value property-keyword tree)))
+                                                :reorderable false
+                                                :cell-value-factory (fn/partial #'property-value property-keyword)
+                                                :cell-factory {:fx/cell-type fx.tree-table-cell/lifecycle
+                                                               :describe #'value-cell}}))
+                                        (:display-order state))
+                         :root (->tree-item tree)}
 
-                      context-menu (assoc :context-menu context-menu)))})]}]}}))
+                        context-menu (assoc :context-menu context-menu)))}]})]}]}}))
 
 (defn- make-override-tree [node-id properties {:keys [basis] :as evaluation-context}]
   (let [property-pred (if (= :all properties)
@@ -692,11 +713,10 @@
         event-handler
         (fx/wrap-effects
           handle-override-inspector-event
-          {:lift-overrides (fn [lift-overrides-plan _]
+          {:refresh-view (fn [_ _]
+                           (refresh-view!))
+           :lift-overrides (fn [lift-overrides-plan _]
                              (let [tx-data (properties/lift-overrides-tx-data lift-overrides-plan)]
-                               (tap> {:kind :lift-overrides-effect
-                                      :lift-overrides-plan lift-overrides-plan
-                                      :tx-data tx-data})
                                (when (coll/not-empty tx-data)
                                  (g/transact tx-data)
                                  (refresh-view!))))

@@ -8,28 +8,47 @@
   -fx-border-color: -df-component-darker;
   -fx-border-width: 1;
   -fx-text-fill: -df-text;
+  >.icon-graphic {
+    -fx-background-color: -df-text;
+  }
+
   &:hover {
     -fx-background-color: -df-component-lighter;
     -fx-text-fill: -df-text-selected;
+    >.icon-graphic {
+      -fx-background-color: -df-text-selected;
+    }
   }
   &:armed {
     -fx-background-color: -df-component-light;
     -fx-text-fill: -df-text-selected;
+    >.icon-graphic {
+      -fx-background-color: -df-text-selected;
+    }
   }
   &.low-prio {
+    -fx-font-weight: normal;
     -fx-background-color: -df-component-darker;
     -fx-border-color: -df-background-lighter;
     -fx-text-fill: -df-text-dark;
-    -fx-font-weight: normal;
+    >.icon-graphic {
+      -fx-background-color: -df-text-dark;
+    }
   }
   &.low-prio:hover {
-      -fx-background-color: -df-component-light;
-      -fx-text-fill: -df-text;
+    -fx-background-color: -df-component-light;
+    -fx-text-fill: -df-text;
+    >.icon-graphic {
+      -fx-background-color: -df-text;
+    }
   }
   &.low-prio:armed {
-      -fx-background-color: -df-component-dark;
-      -fx-border-color: -df-text-dark;
-      -fx-text-fill: -df-text;
+    -fx-background-color: -df-component-dark;
+    -fx-border-color: -df-text-dark;
+    -fx-text-fill: -df-text;
+    >.icon-graphic {
+      -fx-background-color: -df-text;
+    }
   }
 }
 

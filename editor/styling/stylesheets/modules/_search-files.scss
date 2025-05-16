@@ -7,6 +7,29 @@
 }
 
 .search-results-view {
+    .override-inspector-tool-bar {
+        -fx-background-color: -df-background-light;
+        -fx-padding: 12px;
+        -fx-spacing: 12px;
+
+        .button-icon {
+            @extend .button-small;
+            -fx-min-width: 26px;
+            -fx-min-height: 26px;
+            -fx-padding: 0;
+            -fx-background-position: center;
+            -fx-background-radius: 2px;
+            -fx-background-repeat: no-repeat;
+            -fx-background-size: 20px 20px;
+            -fx-border-color: transparent;
+            -fx-border-width: 0;
+        }
+    }
+
+    .tree-table-view {
+        -fx-padding: 0 0 0 2px;
+    }
+
     .tree-view {
         .tree-cell {
             -fx-pref-width: 0;
