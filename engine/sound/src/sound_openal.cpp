@@ -831,6 +831,7 @@ namespace dmSound
     }
 
     static dmSoundCodec::Result Feed(HSoundInstance sound_instance) {
+        DM_PROFILE(__FUNCTION__);
         SoundSystem* sound = g_SoundSystem;
         SoundData &sound_data = sound->m_SoundData[sound_instance->m_SoundDataIndex];
         dmSoundCodec::Result r;
@@ -1064,10 +1065,15 @@ namespace dmSound
             alGetSourcei(source, AL_SOURCE_STATE, &state);
             if (instance.m_Playing) {
                 // feed new buffers and handle looping
+                uint16_t fed = 0;
                 while (instance.m_BufferCount < sound->m_BuffersPerSource) {
                     dmSoundCodec::Result r = Feed(&instance);
                     if (r == dmSoundCodec::RESULT_OK) {
                         // noop
+                        if (++fed >= sound->m_BuffersPerSource / 2) {
+                            // don't feed too many buffers at once to avoid spikes on sound start
+                            break;
+                        }
                     } else if (r == dmSoundCodec::RESULT_END_OF_STREAM) {
                         break;
                     } else {
