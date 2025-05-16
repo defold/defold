@@ -53,6 +53,15 @@ platforms:
             libs: ["record_null","profilerext_null","sound_null","hid_null","liveupdate_null","graphics_transcoder_null"]
             linkFlags: []
 
+    wasm_pthread-web:
+        context:
+            excludeLibs: ["record","vpx","profilerext","sound","tremolo","hid","liveupdate","graphics_transcoder_basisu","basis_transcoder"]
+            excludeJsLibs: []
+            excludeSymbols: ["ProfilerExt","DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo"]
+            symbols: []
+            libs: ["record_null","profilerext_null","sound_null","hid_null","liveupdate_null","graphics_transcoder_null"]
+            linkFlags: []
+
     x86-win32:
         context:
             excludeLibs: ["librecord","vpx","libprofilerext","libsound","libtremolo","libhid","libliveupdate","libgraphics_transcoder_basisu","libbasis_transcoder"]

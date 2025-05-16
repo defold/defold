@@ -28,6 +28,7 @@
  * @document
  * @name Component Render Constants
  * @namespace dmGameSystem
+ * @language C++
  */
 
 namespace dmGameObject

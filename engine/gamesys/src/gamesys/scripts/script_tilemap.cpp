@@ -43,6 +43,7 @@ namespace dmGameSystem
      * @document
      * @name Tilemap
      * @namespace tilemap
+     * @language Lua
      */
 
     /*# [type:hash] tile source

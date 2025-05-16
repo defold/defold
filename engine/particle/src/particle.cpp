@@ -1357,12 +1357,7 @@ namespace dmParticle
             }
 
             uint8_t* write_ptr = vertex_buffer + vertex_index * attribute_infos.m_VertexStride;
-            write_ptr = dmGraphics::WriteAttributes(write_ptr, 0, write_params);
-            write_ptr = dmGraphics::WriteAttributes(write_ptr, 1, write_params);
-            write_ptr = dmGraphics::WriteAttributes(write_ptr, 2, write_params);
-            write_ptr = dmGraphics::WriteAttributes(write_ptr, 3, write_params);
-            write_ptr = dmGraphics::WriteAttributes(write_ptr, 4, write_params);
-            write_ptr = dmGraphics::WriteAttributes(write_ptr, 5, write_params);
+            write_ptr = dmGraphics::WriteAttributes(write_ptr, 0, 6, write_params);
             vertex_index += 6;
         }
 

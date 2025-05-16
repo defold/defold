@@ -50,6 +50,7 @@ namespace dmGameSystem
      * @document
      * @name Collection factory
      * @namespace collectionfactory
+     * @language Lua
      */
 
     static int HashTableIndex(lua_State* L)

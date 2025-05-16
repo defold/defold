@@ -37,6 +37,7 @@ namespace dmScript
      * @document
      * @name Graphics
      * @namespace graphics
+     * @language Lua
      */
 
     /*#

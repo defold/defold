@@ -50,6 +50,7 @@ namespace dmGameSystem
      * @document
      * @name Factory
      * @namespace factory
+     * @language Lua
      */
 
     /*# Get factory status

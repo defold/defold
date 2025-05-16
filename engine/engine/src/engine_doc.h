@@ -17,6 +17,7 @@
  * @document
  * @name Engine runtime
  * @namespace engine
+ * @language C++
  */
 
 /*# override the save directory

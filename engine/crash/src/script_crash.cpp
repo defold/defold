@@ -39,6 +39,7 @@ namespace dmCrash
      * @document
      * @name Crash
      * @namespace crash
+     * @language Lua
      */
 
     static HDump CheckHandle(lua_State* L, int index)

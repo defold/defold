@@ -21,7 +21,10 @@ function init(self)
     assert(go.exists(msg.url(nil, "b", nil)), "Expected go msg.url(nil, 'b', nil) to exist")
     assert(not go.exists("unknown"), "Expected go 'unknown' to not exist")
     if pcall(go.exists, nil) then
-        assert(false, "Error expected if call go.exists with nil")
+        assert(false, "Error expected when calling go.exists with nil")
+    end
+    if pcall(go.exists, "foo:/bar") then
+        assert(false, "Error expected when calling go.exists with another collection")
     end
     assert(go.exists(), "Object itself always exists")
 end

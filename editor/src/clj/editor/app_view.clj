@@ -1847,6 +1847,7 @@ If you do not specifically require different script states, consider changing th
 
 (defn- refresh-scene-views! [app-view dt]
   (profiler/begin-frame)
+  (scene-cache/process-pending-deletions! nil)
   (doseq [view-id (g/node-value app-view :scene-view-ids)]
     (try
       (scene/refresh-scene-view! view-id dt)

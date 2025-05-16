@@ -90,7 +90,7 @@ namespace dmSys
         }
 
         /// Engine platform
-        char m_Platform[16];
+        char m_Platform[24];
         /// Engine version, e.g. 1.2.1
         char m_Version[16];
         /// Engine version hash string

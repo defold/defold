@@ -53,6 +53,15 @@ platforms:
             libs: ["physics_2d_defold"]
             linkFlags: []
 
+    wasm_pthread-web:
+        context:
+            excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision"]
+            excludeJsLibs: []
+            excludeSymbols: []
+            symbols: []
+            libs: ["physics_2d_defold"]
+            linkFlags: []
+
     x86-win32:
         context:
             excludeLibs: ["libphysics","libLinearMath","libBulletDynamics","libBulletCollision"]

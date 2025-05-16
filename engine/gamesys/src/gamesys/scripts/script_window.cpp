@@ -31,6 +31,7 @@ namespace dmGameSystem
      * @document
      * @name Window
      * @namespace window
+     * @language Lua
      */
 
 enum WindowEvent

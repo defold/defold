@@ -1093,9 +1093,8 @@ namespace dmRig
         for (uint32_t i = 0; i < num_indices; ++i)
         {
             uint32_t idx   = indices32?indices32[i]:indices16[i];
-            out_write_ptr  = dmGraphics::WriteAttributes(out_write_ptr, idx, params);
+            out_write_ptr  = dmGraphics::WriteAttributes(out_write_ptr, idx, 1, params);
         }
-
         return out_write_ptr;
     }
 

@@ -110,6 +110,7 @@ message CollisionObjectDesc
  * @document
  * @name Collision object
  * @namespace physics
+ * @language Lua
  */
 
 /*# applies a force on a collision object

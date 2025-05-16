@@ -30,6 +30,7 @@
             [editor.graph-util :as gu]
             [editor.graphics :as graphics]
             [editor.handler :as handler]
+            [editor.id :as id]
             [editor.material :as material]
             [editor.math :as math]
             [editor.outline :as outline]
@@ -431,17 +432,17 @@
                                        :geom-data-world (fn [size-x size-y _]
                                                           (geom/scale [size-x size-y 1] box-geom-data))}})
 
-(defn- convert-blend-mode [blend-mode-index]
-  (protobuf/pb-enum->val (.getValueDescriptor (Particle$BlendMode/valueOf ^int blend-mode-index))))
+(defn- convert-blend-mode [^long blend-mode-index]
+  (protobuf/pb-enum->val (.getValueDescriptor (Particle$BlendMode/forNumber blend-mode-index))))
 
 (defn- render-emitters-sim [^GL2 gl render-args renderables _rcount]
   (doseq [renderable renderables]
-    (let [user-data (:user-data renderable)
-          {:keys [emitter-sim-data emitter-index color max-particle-count]} user-data
+    (let [{:keys [color emitter-index emitter-sim-data material-attribute-infos max-particle-count vertex-attribute-bytes]} (:user-data renderable)
           shader (:shader emitter-sim-data)
-          shader-bound-attributes (graphics/shader-bound-attributes gl shader (:material-attribute-infos user-data) [:position :texcoord0 :page-index :color] :coordinate-space-world)
+          shader-attribute-infos-by-name (shader/attribute-infos shader gl)
+          manufactured-attribute-keys [:position :texcoord0 :page-index :color]
+          shader-bound-attributes (graphics/shader-bound-attributes shader-attribute-infos-by-name material-attribute-infos manufactured-attribute-keys :coordinate-space-world)
           vertex-description (graphics/make-vertex-description shader-bound-attributes)
-          vertex-attribute-bytes (:vertex-attribute-bytes user-data)
           pfx-sim-request-id (some-> renderable :updatable :node-id)]
       (when-let [pfx-sim-atom (when (and emitter-sim-data pfx-sim-request-id)
                                 (:pfx-sim (scene-cache/lookup-object ::pfx-sim pfx-sim-request-id nil)))]
@@ -758,7 +759,7 @@
       (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
 
 (defn- validate-material [_node-id material material-max-page-count material-shader texture-page-count]
-  (let [is-paged-material (shader/is-using-array-samplers? material-shader)]
+  (let [is-paged-material (boolean (some-> material-shader shader/is-using-array-samplers?))]
     (or (prop-resource-error :fatal _node-id :material material "Material")
         (validation/prop-error :fatal _node-id :material shader/page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count "Image"))))
 
@@ -1004,7 +1005,7 @@
                      [:emitter-indices :emitter-indices]]]
       (g/connect self-id from emitter-id to))
     (when resolve-id?
-      (g/update-property emitter-id :id outline/resolve-id (g/node-value self-id :ids)))))
+      (g/update-property emitter-id :id id/resolve (g/node-value self-id :ids)))))
 
 (g/defnode ParticleFXNode
   (inherits resource-node/ResourceNode)

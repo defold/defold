@@ -13,12 +13,16 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.scene
-  (:require [clojure.set :as set]
+  (:require [cljfx.api :as fx]
+            [cljfx.fx.label :as fx.label]
+            [clojure.set :as set]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.background :as background]
             [editor.camera :as c]
             [editor.colors :as colors]
             [editor.error-reporting :as error-reporting]
+            [editor.fxui :as fxui]
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.pass :as pass]
@@ -48,7 +52,8 @@
             [editor.view :as view]
             [editor.workspace :as workspace]
             [service.log :as log]
-            [util.coll :as coll]
+            [util.coll :as coll :refer [pair]]
+            [util.eduction :as e]
             [util.profiler :as profiler])
   (:import [com.jogamp.opengl GL GL2 GLAutoDrawable GLContext GLOffscreenAutoDrawable]
            [com.jogamp.opengl.glu GLU]
@@ -61,7 +66,6 @@
            [javafx.embed.swing SwingFXUtils]
            [javafx.geometry HPos VPos]
            [javafx.scene Node Parent]
-           [javafx.scene.control Label]
            [javafx.scene.image ImageView WritableImage]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.layout AnchorPane Pane]
@@ -96,42 +100,48 @@
     (throw (ex-info "Unsupported scale value."
                     {:value value}))))
 
-(defn overlay-text [^GL2 gl ^String text x y]
-  (scene-text/overlay gl text x y))
-
 (defn- get-resource-name [node-id]
   (when-let [resource (resource-node/as-resource node-id)]
     (resource/resource-name resource)))
 
+(defn- error-message-lines
+  [error-values]
+  (let [max-error-count 15 ; We limit the number of errors since traversing deep trees is slow.
+
+        distinct-errors
+        (coll/transfer error-values []
+          (mapcat #(tree-seq :causes :causes %))
+          (filter :message)
+          (remove :causes)
+          (map #(select-keys % [:_node-id :message]))
+          (distinct)
+          (take (inc max-error-count))) ; Produce one more error than we'll use so we'll know if we're over the limit.
+
+        error-message-lines
+        (coll/transfer distinct-errors ["RENDER ERROR:" ""]
+          (take max-error-count)
+          (map (fn [{:keys [_node-id message]}]
+                 (let [resource-name (get-resource-name _node-id)]
+                   (format "- %s: %s"
+                           (or resource-name "unknown")
+                           message)))))]
+
+    (cond-> error-message-lines
+            (< max-error-count (count distinct-errors))
+            (conj "...and more"))))
+
+(def ^:private renderable->error-value (comp :error :user-data))
+
 (defn- render-error
-  [gl render-args renderables nrenderables]
+  [gl render-args renderables _nrenderables]
   (when (= pass/overlay (:pass render-args))
-    (let [rendered-errors 15
-          errors (into []
-                       (comp
-                         (map (comp :error :user-data))
-                         (mapcat #(tree-seq :causes :causes %))
-                         (filter :message)
-                         (remove :causes)
-                         (map #(select-keys % [:_node-id :message]))
-                         (distinct)
-                         ;; don't go through all errors since traversing deep trees is too slow
-                         (take (inc rendered-errors)))
-                       renderables)]
-      (scene-text/overlay gl "Render error:" 24.0 -22.0)
-      (->> errors
-           (eduction
-             (take rendered-errors)
-             (map-indexed vector))
+    (let [error-values (e/map renderable->error-value renderables)
+          error-message-lines (error-message-lines error-values)]
+      (->> error-message-lines
+           (e/map-indexed coll/pair)
            (run!
-             (fn [[n error]]
-               (let [message (format "- %s: %s"
-                                     (or (get-resource-name (:_node-id error))
-                                         "unknown")
-                                     (:message error))]
-                 (scene-text/overlay gl message 24.0 (- -22.0 (* 14 (inc n))))))))
-      (when (< rendered-errors (count errors))
-        (scene-text/overlay gl "...and more" 24.0 (- -22.0 (* 14 (inc rendered-errors))))))))
+             (fn [[index error-message-line]]
+               (scene-text/overlay gl error-message-line 24.0 (- -22.0 (* 14 index)))))))))
 
 (defn substitute-render-data
   [error]
@@ -140,11 +150,8 @@
                    :batch-key ::error}]}])
 
 (defn substitute-scene [error]
-  {:aabb       geom/null-aabb
-   :renderable {:render-fn render-error
-                :user-data {:error error}
-                :batch-key ::error
-                :passes    [pass/overlay]}})
+  {:aabb geom/null-aabb
+   :error error})
 
 ;; Avoid recreating the image each frame
 (defonce ^:private cached-buf-img-ref (atom nil))
@@ -218,10 +225,10 @@
                                                                      (:texture render-args)))]
         (render-fn gl shared-render-args renderables count))
       (catch Exception e
-        (log/error :exception e
-                   :pass (:pass render-args)
+        (log/error :message "skipping renderable"
+                   :pass-name (:name (:pass render-args))
                    :render-fn render-fn
-                   :message "skipping renderable"
+                   :exception e
                    :ex-data (ex-data e))))))
 
 (defn batch-render [gl render-args renderables key-fn]
@@ -512,13 +519,17 @@
         renderables-by-pass))
 
 (g/defnk produce-scene-render-data [scene selection hidden-renderable-tags hidden-node-outline-key-paths camera]
-  (let [selection-set (set selection)
-        view-proj (c/camera-view-proj-matrix camera)
-        scene-renderables-by-pass (flatten-scene scene selection-set hidden-renderable-tags hidden-node-outline-key-paths view-proj)
-        selection-pass-renderables-by-node-id (get-selection-pass-renderables-by-node-id scene-renderables-by-pass)
-        selected-renderables (into [] (keep selection-pass-renderables-by-node-id) selection)]
-    {:renderables scene-renderables-by-pass
-     :selected-renderables selected-renderables}))
+  (if-let [error (:error scene)]
+    {:error error
+     :renderables {}
+     :selected-renderables []}
+    (let [selection-set (set selection)
+          view-proj (c/camera-view-proj-matrix camera)
+          scene-renderables-by-pass (flatten-scene scene selection-set hidden-renderable-tags hidden-node-outline-key-paths view-proj)
+          selection-pass-renderables-by-node-id (get-selection-pass-renderables-by-node-id scene-renderables-by-pass)
+          selected-renderables (into [] (keep selection-pass-renderables-by-node-id) selection)]
+      {:renderables scene-renderables-by-pass
+       :selected-renderables selected-renderables})))
 
 (defn- make-aabb-renderables-by-pass [^AABB aabb color renderable-tag]
   (assert (keyword? renderable-tag))
@@ -603,7 +614,7 @@
             (:children scene))))
 
 (g/defnode SceneRenderer
-  (property info-label Label (dynamic visible (g/constantly false)))
+  (property overlay-anchor-pane AnchorPane (dynamic visible (g/constantly false)))
   (property render-mode g/Keyword (default :normal))
 
   (input active-view g/NodeID)
@@ -738,6 +749,35 @@
   (assert (= (count buf) (* picking-drawable-size picking-drawable-size)) "picking buf of unexpected size")
   (map (partial aget buf) picking-buf-spiral-indices))
 
+(g/defnk produce-overlay-anchor-pane-props [scene ^:try tool-info-text]
+  (if-let [error (:error scene)]
+    {:children [{:fx/type cljfx.fx.text-area/lifecycle
+                 :anchor-pane/bottom 0
+                 :anchor-pane/left 0
+                 :anchor-pane/right 0
+                 :anchor-pane/top 0
+                 :style-class "info-text-area"
+                 :editable false
+                 :wrap-text true
+                 :text (string/join \newline (error-message-lines [error]))}]}
+    (if-let [overlay-anchor-pane-props (:overlay-anchor-pane-props scene)]
+      overlay-anchor-pane-props
+      (if-let [info-text
+               (if (and (string? tool-info-text)
+                        (pos? (count tool-info-text)))
+                 tool-info-text
+                 (let [scene-info-text (:info-text scene)]
+                   (when (and (string? scene-info-text)
+                              (pos? (count scene-info-text)))
+                     scene-info-text)))]
+        {:mouse-transparent true
+         :children [{:fx/type fx.label/lifecycle
+                     :style-class "info-label"
+                     :anchor-pane/top 15
+                     :anchor-pane/left 30
+                     :text info-text}]}
+        {:visible false}))))
+
 (g/defnk produce-selection [scene-render-data renderables-aabb+picking-node-id ^GLAutoDrawable picking-drawable camera ^Region viewport pass->render-args ^Rect picking-rect]
   (when (some? picking-rect)
     (cond
@@ -825,13 +865,23 @@
 (declare update-image-view!)
 
 (defn merge-render-datas [aux-render-data tool-render-data scene-render-data]
-  (let [all-renderables-by-pass (merge-with into
-                                            (:renderables aux-render-data)
-                                            (:renderables tool-render-data)
-                                            (:renderables scene-render-data))
-        sorted-renderables-by-pass (into {} (map (fn [[pass renderables]] [pass (vec (render-sort renderables))]) all-renderables-by-pass))]
-    {:renderables sorted-renderables-by-pass
-     :selected-renderables (:selected-renderables scene-render-data)}))
+  (if (:error scene-render-data)
+    {:renderables {}
+     :selected-renderables []}
+    (let [all-renderables-by-pass
+          (coll/merge-with
+            coll/merge
+            (:renderables aux-render-data)
+            (:renderables tool-render-data)
+            (:renderables scene-render-data))
+
+          sorted-renderables-by-pass
+          (coll/transfer all-renderables-by-pass {}
+            (map (fn [[pass renderables]]
+                   (pair pass
+                         (vec (render-sort renderables))))))]
+      {:renderables sorted-renderables-by-pass
+       :selected-renderables (:selected-renderables scene-render-data)})))
 
 (g/defnode SceneView
   (inherits view/WorkbenchView)
@@ -861,6 +911,7 @@
   (output inactive? g/Bool (g/fnk [_node-id active-view] (not= _node-id active-view)))
   (output info-text g/Str (g/fnk [scene tool-info-text]
                             (or tool-info-text (:info-text scene))))
+  (output overlay-anchor-pane-props g/Any :cached produce-overlay-anchor-pane-props)
   (output tool-renderables g/Any produce-tool-renderables)
   (output active-tool g/Keyword (gu/passthrough active-tool))
   (output manip-space g/Keyword (gu/passthrough manip-space))
@@ -881,22 +932,29 @@
   (output tool-selection g/Any :cached produce-tool-selection)
   (output selected-tool-renderables g/Any :cached produce-selected-tool-renderables))
 
+(defn- advance-user-data-component! [view-node key desc]
+  (let [component (g/user-data view-node key)]
+    (cond
+      (and component desc) (g/user-data! view-node key (fx/advance-component component desc))
+      component (do (fx/delete-component component) (g/user-data! view-node key nil))
+      desc (g/user-data! view-node key (fx/create-component desc)))))
+
 (defn refresh-scene-view! [node-id dt]
   (g/with-auto-evaluation-context evaluation-context
     (let [image-view (g/node-value node-id :image-view evaluation-context)]
       (when-not (ui/inside-hidden-tab? image-view)
         (let [drawable (g/node-value node-id :drawable evaluation-context)
-              async-copy-state-atom (g/node-value node-id :async-copy-state evaluation-context)
-              info-label (g/node-value node-id :info-label evaluation-context)
-              info-text (g/node-value node-id :info-text evaluation-context)]
-          (when (instance? Label info-label)
-            (if (or (g/error? info-text)
-                    (empty? info-text))
-              (ui/visible! info-label false)
-              (do (ui/text! info-label info-text)
-                  (ui/visible! info-label true))))
+              async-copy-state-atom (g/node-value node-id :async-copy-state evaluation-context)]
           (when (and (some? drawable) (some? async-copy-state-atom))
-            (update-image-view! image-view drawable async-copy-state-atom evaluation-context dt)))))))
+            (update-image-view! image-view drawable async-copy-state-atom evaluation-context dt)))
+        (when-let [overlay-anchor-pane (g/node-value node-id :overlay-anchor-pane evaluation-context)]
+          (let [overlay-anchor-pane-props (g/node-value node-id :overlay-anchor-pane-props evaluation-context)]
+            (advance-user-data-component!
+              node-id :overlay-anchor-pane
+              {:fx/type fxui/ext-with-anchor-pane-props
+               :props overlay-anchor-pane-props
+               :desc {:fx/type fxui/ext-value
+                      :value overlay-anchor-pane}})))))))
 
 (defn dispose-scene-view! [node-id]
   (when-let [scene (g/node-by-id node-id)]
@@ -1310,6 +1368,7 @@
             (reset! async-copy-state-atom (scene-async/finish-image! @async-copy-state-atom gl))
             (let [viewport (g/node-value view-id :viewport evaluation-context)
                   pass->render-args (g/node-value view-id :pass->render-args evaluation-context)]
+              (scene-cache/process-pending-deletions! gl)
               (render! gl-context render-mode renderables new-updatable-states viewport pass->render-args)
               (ui/user-data! image-view ::last-renderables renderables)
               (ui/user-data! image-view ::last-frame-version frame-version)
@@ -1318,14 +1377,12 @@
       ;; call frame-selection if it's the very first aabb change for the scene
       (let [prev-aabb (ui/user-data image-view ::prev-scene-aabb)
             scene-aabb (g/node-value view-id :scene-aabb evaluation-context)
-            active-view (g/node-value view-id :active-view evaluation-context)
             reframe? (and prev-aabb
                           (geom/predefined-aabb? prev-aabb)
                           (not (geom/predefined-aabb? scene-aabb)))]
         (ui/user-data! image-view ::prev-scene-aabb scene-aabb)
         (when reframe?
-          (when active-view
-            (frame-selection active-view true scene-aabb))))
+          (frame-selection view-id true scene-aabb)))
       (let [new-image (scene-async/image @async-copy-state-atom)]
         (when-not (identical? (.getImage image-view) new-image)
           (.setImage image-view new-image))))))
@@ -1468,10 +1525,9 @@
 (defn- make-scene-view-pane [view-id opts]
   (let [scene-view-pane ^Pane (ui/load-fxml "scene-view.fxml")]
     (ui/fill-control scene-view-pane)
-    (ui/with-controls scene-view-pane [^AnchorPane gl-view-anchor-pane]
-      (let [gl-pane (make-gl-pane! view-id opts)]
-        (ui/fill-control gl-pane)
-        (.add (.getChildren scene-view-pane) 0 gl-pane)))
+    (let [gl-pane (make-gl-pane! view-id opts)]
+      (ui/fill-control gl-pane)
+      (.add (.getChildren scene-view-pane) 0 gl-pane))
     (when (system/defold-dev?)
       (.setOnKeyPressed scene-view-pane (ui/event-handler event
                                           (let [key-event ^KeyEvent event]
@@ -1484,13 +1540,14 @@
   (let [view-id (g/make-node! scene-graph SceneView :updatable-states {})
         scene-view-pane (make-scene-view-pane view-id opts)]
     (ui/children! parent [scene-view-pane])
-    (ui/with-controls scene-view-pane [scene-view-info-label]
-      (g/set-property! view-id :info-label scene-view-info-label))
+    (ui/with-controls scene-view-pane [overlay-anchor-pane]
+      (g/set-property! view-id :overlay-anchor-pane overlay-anchor-pane))
     view-id))
 
 (g/defnk produce-frame [all-renderables ^Region viewport pass->render-args ^GLAutoDrawable drawable]
   (when drawable
     (gl/with-drawable-as-current drawable
+      (scene-cache/process-pending-deletions! gl)
       (render! gl-context :normal all-renderables nil viewport pass->render-args)
       (let [[w h] (vp-dims viewport)
             buf-image (read-to-buffered-image w h)]

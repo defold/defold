@@ -97,6 +97,8 @@ namespace dmSound
         uint32_t     m_MaxInstances;
         bool         m_UseThread;
         DSPImplType  m_DSPImplementation;
+        bool         m_UseLegacyStereoPan;
+        bool         m_UseLinearGain;
 
         InitializeParams()
         {
@@ -145,6 +147,7 @@ namespace dmSound
 
     Result GetGroupRMS(dmhash_t group_hash, float window, float* rms_left, float* rms_right);
     Result GetGroupPeak(dmhash_t group_hash, float window, float* peak_left, float* peak_right);
+    Result GetScaleFromGain(float gain, float* scale);
 
     Result Play(HSoundInstance sound_instance);
     Result Stop(HSoundInstance sound_instance);
@@ -191,6 +194,10 @@ namespace dmSound
         uint32_t m_MixRate;
         uint32_t m_FrameCount; // If != 0, the max size of the audio buffer
         DSPImplType m_DSPImplementation;
+        uint8_t m_UseNonInterleaved : 1; // If set output buffer contains channels in sequence instead of interleaved
+        uint8_t m_UseFloats : 1; // If set device expects float data
+        uint8_t m_UseNormalized : 1; // If set any float data must be normalized in range
+        uint8_t : 5;
     };
 
     /**
@@ -222,13 +229,13 @@ namespace dmSound
 
         /**
          * Queue buffer.
-         * @note Buffer data in 16-bit signed PCM stereo
+         * @note Buffer data in 16-bit signed PCM stereo or 32-bit float, interleaved or not - according to DeviceInfo data
          * @param device
          * @param frames
          * @param frame_count
          * @return
          */
-        Result (*m_Queue)(HDevice device, const int16_t* frames, uint32_t frame_count);
+        Result (*m_Queue)(HDevice device, const void* frames, uint32_t frame_count);
 
         /**
          * Number of free buffers

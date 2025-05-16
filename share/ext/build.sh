@@ -30,6 +30,7 @@ function usage() {
     echo " * i586-mingw32msvc"
     echo " * js-web"
     echo " * wasm-web"
+    echo " * wasm_pthread-web"
     echo " * win32 (luajit)"
     echo " * x86_64-win32 (luajit)"
     echo " * arm64-nx64"

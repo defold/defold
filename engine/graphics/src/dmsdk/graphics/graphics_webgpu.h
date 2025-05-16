@@ -33,6 +33,7 @@
  * @document
  * @name Graphics WebGPU
  * @namespace dmGraphics
+ * @language C++
  */
 
 namespace dmGraphics

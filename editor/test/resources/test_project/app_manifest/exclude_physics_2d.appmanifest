@@ -101,3 +101,12 @@ platforms:
             symbols: []
             libs: [physics_3d]
             linkFlags: []
+
+    wasm_pthread-web:
+        context:
+            excludeLibs: [physics, box2d, box2d_defold, script_box2d, script_box2d_defold]
+            excludeJsLibs: []
+            excludeSymbols: [ScriptBox2DExt]
+            symbols: []
+            libs: [physics_3d]
+            linkFlags: []

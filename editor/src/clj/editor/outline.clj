@@ -17,6 +17,7 @@
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.core :as core]
+            [editor.id :as id]
             [editor.resource :as resource]
             [editor.util :as util]
             [internal.cache :as c]
@@ -313,18 +314,6 @@
                 (g/delete-node (g/override-root (:node-id (value it)))))))
           (do-paste! "Drop" op-seq paste-data (:attachments fragment) item reqs select-fn))))))
 
-(defn- ids->lookup [ids]
-  (if (or (set? ids) (map? ids))
-    ids
-    (set ids)))
-
-(defn- lookup-insert [lookup id]
-  (cond (set? lookup) (conj lookup id)
-        (map? lookup) (assoc lookup id id)
-        :else (throw (ex-info (str "Unsupported lookup " (type lookup))
-                              {:id id
-                               :lookup lookup}))))
-
 (defn- trim-digits
   ^String [^String id]
   (loop [index (.length id)]
@@ -334,24 +323,9 @@
         (recur (unchecked-dec index))
         (subs id 0 index)))))
 
-(defn resolve-id [id ids]
-  (let [ids (ids->lookup ids)]
-    (if (ids id)
-      (let [prefix (trim-digits id)]
-        (loop [suffix ""
-               index 1]
-          (let [id (str prefix suffix)]
-            (if (contains? ids id)
-              (recur (str index) (inc index))
-              id))))
-      id)))
-
-(defn resolve-ids [wanted-ids taken-ids]
-  (first (reduce (fn [[resolved-ids taken-ids] wanted-id]
-                   (let [id (resolve-id wanted-id taken-ids)]
-                     [(conj resolved-ids id) (lookup-insert taken-ids id)]))
-                 [[] (ids->lookup taken-ids)]
-                 wanted-ids)))
+(defn name-resource-pairs [taken-ids resources]
+  (let [names (id/resolve-all (map resource/base-name resources) taken-ids)]
+    (map vector names resources)))
 
 (defn natural-sort [items]
   (->> items (sort-by :label util/natural-order) vec))

@@ -25,7 +25,7 @@
 
 (def android #{:armv7-android :arm64-android})
 
-(def web #{:js-web :wasm-web})
+(def web #{:js-web :wasm-web :wasm_pthread-web})
 
 (def linux #{:x86_64-linux :arm64-linux})
 
@@ -49,7 +49,7 @@
     ;; windows
     :x86-win32 :x86_64-win32
     ;; web
-    :js-web :wasm-web})
+    :js-web :wasm-web :wasm_pthread-web})
 
 (def custom-lib-names
   {:x86-win32 {"vpx" "vpx"
@@ -430,7 +430,7 @@
     (libs-toggles web ["graphics_webgpu"])
     (generic-contains-toggles web :symbols ["GraphicsAdapterWebGPU"])
     (generic-contains-toggles web :emscriptenLinkFlags ["USE_WEBGPU=1" "GL_WORKAROUND_SAFARI_GETCONTEXT_BUG=0"])
-    (generic-contains-toggles [:wasm-web] :emscriptenLinkFlags ["ASYNCIFY=1" "ASYNCIFY_IGNORE_INDIRECT=1" "ASYNCIFY_ADD=[\"main\",\"dmEngineCreate(*)\",\"requestDeviceCallback(*)\",\"WebGPUCreateSwapchain(*)\",\"instanceRequestAdapterCallback(*)\"]"])))
+    (generic-contains-toggles [:wasm-web :wasm_pthread-web] :emscriptenLinkFlags ["ASYNCIFY=1" "ASYNCIFY_IGNORE_INDIRECT=1" "ASYNCIFY_ADD=[\"main\",\"dmEngineCreate(*)\",\"requestDeviceCallback(*)\",\"WebGPUCreateSwapchain(*)\",\"instanceRequestAdapterCallback(*)\"]"])))
 
 (def graphics-web-setting
   (make-choice-setting
@@ -479,7 +479,8 @@
                   [:x86_64-win32 platform-pattern]
                   ;; web
                   [:js-web platform-pattern]
-                  [:wasm-web platform-pattern]]]]))
+                  [:wasm-web platform-pattern]
+                  [:wasm_pthread-web platform-pattern]]]]))
 
 (g/defnode AppManifestNode
   (inherits r/CodeEditorResourceNode)

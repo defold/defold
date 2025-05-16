@@ -441,13 +441,7 @@
 
   (output material-name->material-scene-info g/Any :cached
           (g/fnk [material-scene-infos]
-            (let [material-scene-infos-by-material-name (coll/pair-map-by :name material-scene-infos)]
-              (fn material-name->material-scene-info [^String material-name]
-                ;; If we have no material associated with the index, we mirror the
-                ;; engine behavior by picking the first one:
-                ;; https://github.com/defold/defold/blob/a265a1714dc892eea285d54eae61d0846b48899d/engine/gamesys/src/gamesys/resources/res_model.cpp#L234-L238
-                (or (material-scene-infos-by-material-name material-name)
-                    (first material-scene-infos))))))
+            (model-scene/make-material-name->material-scene-info material-scene-infos)))
 
   (property skeleton resource/Resource ; Nil is valid default.
             (value (gu/passthrough skeleton-resource))

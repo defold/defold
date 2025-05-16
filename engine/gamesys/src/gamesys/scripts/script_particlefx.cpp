@@ -48,6 +48,7 @@ namespace dmGameSystem
      * @document
      * @name Particle effects
      * @namespace particlefx
+     * @language Lua
      */
 
     /*# sleeping state
