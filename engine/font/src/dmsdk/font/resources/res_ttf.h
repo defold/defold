@@ -22,9 +22,11 @@ namespace dmFont
 {
     struct TTFResource;
 
-    const char* GetFontPath(TTFResource* resource);
-
     // PRIVATE
+
+    /* Gets the path of the resource (for debugging)
+    */
+    const char* GetFontPath(TTFResource* resource);
 
     /*
      *

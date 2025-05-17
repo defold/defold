@@ -92,6 +92,31 @@ namespace dmGameSystem
         FONT_GLYPH_COMPRESSION_DEFLATE = 1,
     };
 
+    static const uint32_t WHITESPACE_TAB               = 0x09;      // '\t'
+    static const uint32_t WHITESPACE_NEW_LINE          = 0x0A;      // '\n'
+    static const uint32_t WHITESPACE_CARRIAGE_RETURN   = 0x0D;      // '\r'
+    static const uint32_t WHITESPACE_SPACE             = 0x20;      // ' '
+    static const uint32_t WHITESPACE_ZERO_WIDTH_SPACE  = 0x200b;
+    static const uint32_t WHITESPACE_NO_BREAK_SPACE    = 0x00a0;
+    static const uint32_t WHITESPACE_IDEOGRAPHIC_SPACE = 0x3000;
+
+    /*#
+     * Checks if a codepoint is a whitespace
+     * @name IsWhiteSpace
+     * @param c [type: uint32_t] the codepoint
+     * @return result [type: bool] true if it's a whitespace
+     */
+    inline bool IsWhiteSpace(uint32_t c)
+    {
+        return c == WHITESPACE_SPACE ||
+               c == WHITESPACE_NEW_LINE ||
+               c == WHITESPACE_ZERO_WIDTH_SPACE ||
+               c == WHITESPACE_NO_BREAK_SPACE ||
+               c == WHITESPACE_IDEOGRAPHIC_SPACE ||
+               c == WHITESPACE_TAB ||
+               c == WHITESPACE_CARRIAGE_RETURN;
+    }
+
     /*#
      * @name ResFontGetHandle
      * @param font [type: FontResource*] The font resource to modify
