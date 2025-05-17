@@ -15,9 +15,10 @@
 
 #include <stdio.h> // printf
 
+#include <dlib/thread.h> // We want the defines DM_HAS_THREADS
+
 #include <dmsdk/dlib/dstrings.h>
 #include <dmsdk/dlib/math.h>
-#include <dmsdk/dlib/thread.h>
 #include <dmsdk/dlib/array.h>
 #include <dmsdk/dlib/atomic.h>
 #include <dmsdk/dlib/log.h>
