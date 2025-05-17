@@ -200,9 +200,12 @@ def copy_file_task(bld, src, name=None):
                shell = True)
 
 #   Extract api docs from source files and store the raw text in .apidoc
-#   files per file and namespace for later collation into .json and .sdoc files.
+#   files per file for later collation into .json and .sdoc files.
 def apidoc_extract_task(bld, src):
     import re
+    from collections import defaultdict
+    all_docs = {}
+
     def _strip_comment_stars(str):
         lines = str.split('\n')
         ret = []
@@ -223,65 +226,95 @@ def apidoc_extract_task(bld, src):
         # * followed by possible spaces
         # * followed by every character that is not an @ or is an @ but not preceded by a new line (the value)
         lst = re.findall('^\s*@(\S+) *((?:[^@]|(?<!\n)@)*)', str, re.MULTILINE)
-        is_document = False
-        namespace = None
+        comment = {
+            "is_document": False,
+            "namespace": None,
+            "path": None
+        }
         for (tag, value) in lst:
             tag = tag.strip()
             value = value.strip()
             if tag == 'document':
-                is_document = True
-            elif tag == 'namespace':
-                namespace = value
-        return namespace, is_document
+                comment["is_document"] = True
+            else:
+                comment[tag] = value
+        return comment
 
-    def ns_elements(source):
-        lst = re.findall('/(\*#.*?)\*/', source, re.DOTALL)
+    def _parse_source(source_path):
+        resource = bld.path.find_resource(source_path)
+        if not resource:
+            sys.exit("Couldn't find resource: %s" % s)
+            return
+
         elements = {}
-        default_namespace = None
-        for comment_str in lst:
-            ns, is_doc = _parse_comment(comment_str)
-            if ns and is_doc:
-                default_namespace = ns
-            if not ns:
-                ns = default_namespace
-            if ns not in elements:
-                elements[ns] = []
-            elements[ns].append('/' + comment_str + '*/')
+        resource_path = resource.abspath()
+
+        with open(resource_path, encoding='utf8') as in_f:
+            source = in_f.read()
+            lst = re.findall('/(\*#.*?)\*/', source, re.DOTALL)
+            default_namespace = None
+            for comment_str in lst:
+                comment = _parse_comment(comment_str)
+
+                namespace = comment.get("namespace")
+                if comment["is_document"]:
+                    comment_path = comment.get("path")
+                    if not comment_path:
+                        print("Missing @path in %s, adding %s" % (resource_path, source_path))
+                        comment_str = comment_str + ("* @path %s\n" % source_path)
+                    elif comment_path != source_path:
+                        print("Path missmatch in %s, expected %s but was %s" % (resource_path, source_path, comment_path))
+                        comment_str = comment_str.replace(comment_path, source_path)
+
+                    comment_language = comment.get("language")
+                    if not comment_language:
+                        print("Missing @language in %s, assuming C++" % (resource_path))
+                        comment_str = comment_str + "* @language C++\n"
+                    
+                    if namespace:
+                        default_namespace = namespace
+                
+                if not namespace:
+                    namespace = default_namespace
+                    comment["namespace"] = default_namespace
+
+                if namespace:
+                    if namespace not in elements:
+                        elements[namespace] = []
+                    elements[namespace].append('/' + comment_str + '*/')
+                else:
+                    if resource_path not in elements:
+                        elements[resource_path] = []
+                    elements[resource_path].append('/' + comment_str + '*/')
+
         return elements
 
-    import waflib.Node
-    from itertools import chain
-    from collections import defaultdict
-    elements = {}
     def extract_docs(bld, src):
-        ret = defaultdict(list)
+        docs = defaultdict(list)
         # Gather data
         for s in src:
-            n = bld.path.find_resource(s)
-            if not n:
-                print("Couldn't find resource: %s" % s)
-                continue
-            with open(n.abspath(), encoding='utf8') as in_f:
-                source = in_f.read()
-                for k,v in chain(elements.items(), ns_elements(source).items()):
-                    if k == None:
-                        print("Missing namespace definition in " + n.abspath())
-                    ret[k] = ret[k] + v
-        return ret
+            elements = _parse_source(s)
+            for k,v in elements.items():
+                # turn path into key which will later be used as the
+                # build target filename
+                key = "-".join(os.path.normpath(s).split(os.sep))
+                key = key.replace("..-", "")
+                docs[key] = docs[key] + v
+        all_docs.update(docs)
+        return docs
 
     def write_docs(task):
-        # Write all namespace files
         for o in task.outputs:
-            ns = os.path.splitext(o.name)[0]
+            name = os.path.splitext(o.name)[0] # remove .apidoc
+            docs = all_docs[name]
             with open(str(o.get_bld()), 'w+') as out_f:
-                out_f.write('\n'.join(elements[ns]))
+                out_f.write('\n'.join(docs))
 
     if not getattr(Options.options, 'skip_apidocs', False):
-        elements = extract_docs(bld, src)
+        docs = extract_docs(bld, src)
         target = []
-        for ns in elements.keys():
-            if ns is not None:
-                target.append(ns + '.apidoc')
+        for key in docs.keys():
+            target.append(key + '.apidoc')
         return bld(rule=write_docs, name='apidoc_extract', source = src, target = target)
 
 
@@ -616,9 +649,6 @@ def default_flags(self):
             linkflags += ['-pthread']
         else:
             self.env.append_value('DEFINES', ['DM_NO_THREAD_SUPPORT'])
-
-        if 'wasm' == target_arch:
-            flags += ['-msimd128', '-msse4.2', '-DDM_SOUND_DSP_IMPL=WASM']
 
         self.env['DM_HOSTFS']           = '/node_vfs/'
         self.env.append_value('DEFINES', ['JC_TEST_NO_DEATH_TEST', 'PTHREADS_DEBUG'])
@@ -2003,7 +2033,7 @@ def detect(conf):
     conf.env['STLIB_CRASH'] = 'crashext'
     conf.env['STLIB_CRASH_NULL'] = 'crashext_null'
     if TargetOS.WEB == target_os:
-        conf.env['STLIB_PROFILE'] = ['profile_basic']
+        conf.env['STLIB_PROFILE'] = ['profile_js']
     else:
         conf.env['STLIB_PROFILE'] = ['profile', 'remotery']
     conf.env['STLIB_PROFILE_NULL'] = ['profile_null', 'remotery_null']

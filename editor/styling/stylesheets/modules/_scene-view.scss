@@ -1,0 +1,179 @@
+#scene-view-anchor-pane {
+    #toolbar * {
+        -fx-focus-traversable: false;
+    }
+
+    #toolbar {
+        -fx-background-color: -df-component-dark;
+        -fx-border-width: 0;
+        -fx-border-insets: 0;
+        -fx-background-insets: 0;
+        -fx-background-radius: 20px;
+        -fx-padding: 5px;
+        -fx-spacing: 10px;
+        -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.2), 16, 0, 0, 0);
+
+        >.toggle-button {
+            -fx-background-color: transparent;
+            -fx-background-insets: 0;
+            -fx-background-radius: 15px;
+            -fx-pref-width: 30px;
+            -fx-pref-height: 30px;
+            -fx-border-width: 0;
+            -fx-alignment: center;
+
+            & > .image-view {
+                -fx-effect: innershadow(gaussian, -df-text, 20, 0.3, 0, 0) !important;
+            }
+
+            &:hover {
+                & > .image-view {
+                    -fx-effect: innershadow(gaussian, -df-text-selected, 20, 0.3, 0, 0) !important;
+                }
+
+                SVGPath {
+                    -fx-fill: -df-text-selected;
+                }
+            }
+            &:selected {
+                -fx-background-color: -df-background-light;
+                & > .image-view {
+                    -fx-effect: innershadow(gaussian, -df-text-selected, 20, 0.3, 0, 0) !important;
+                }
+
+                SVGPath {
+                    -fx-fill: -df-text-selected;
+                }
+            }
+        }
+
+        #visibility-settings-graphic {
+            & > #eye-icon {
+                -fx-translate-y: 1px;
+            }
+
+            & > #active-indicator {
+                visibility: hidden;
+                -fx-fill: -df-defold-orange;
+                -fx-stroke: -df-component-darker;
+                -fx-stroke-width: 1px;
+                -fx-translate-x: 3.5px;
+                -fx-translate-y: -5px;
+            }
+        }
+        .toggle-button {
+            &:selected > #visibility-settings-graphic > #active-indicator {
+                -fx-stroke: -df-background-light;
+            }
+
+            &.filters-active > #visibility-settings-graphic > #active-indicator {
+                visibility: visible;
+            }
+        }
+
+        .visibility-toggles-list {
+            -fx-background-color: -df-component-dark;
+            -fx-background-radius: 4px;
+            -fx-padding: 0px 0px 7px 0px;
+
+            > .first-entry {
+                -fx-background-radius: 4px 4px 0px 0px;
+                -fx-padding: 10px 8px 10px 8px;
+                -fx-background-color: -df-component-dark;
+            }
+
+            > HBox {
+                -fx-padding: 3px 8px 3px 8px;
+            }
+
+            > Separator {
+                -fx-padding: 7px 0px;
+                -fx-background-color: -df-component-dark;
+            }
+        }
+
+        .visibility-toggles-shadow {
+            -fx-background-color: rgba(0, 0, 0, 0.2);
+            -fx-background-radius: 4px;
+            -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 1.0), 16, 0, 0, 0);
+        }
+
+        SVGPath {
+            -fx-fill: -df-text;
+        }
+
+        .separator {
+            &:horizontal {
+                .line {
+                    -fx-border-color: -df-component-lighter;
+                }
+            }
+
+            &:vertical {
+                .line {
+                    -fx-border-color: -df-component-lighter;
+                }
+            }
+        }
+
+        /* This is for the gui device picker that pops up when an .gui file is active */
+        .cell {
+            -fx-alignment: center;
+            -fx-padding: 0 0 0 8px;
+            -fx-spacing: 8px;
+            -fx-border-width: 0;
+            -fx-border-insets: 0;
+            -fx-background-color: transparent;
+            >.image-view {
+                -fx-effect: innershadow(gaussian, -df-text, 20, 0.3, 0, 0) !important;
+            }
+            >.choice-box {
+                -fx-border-width: 0;
+                -fx-pref-width: 90px;
+                >.label {
+                    -fx-background-color: -df-component-dark;
+                    -fx-text-fill: -df-text;
+                }
+                .open-button {
+                    -fx-border-width: 0;
+                    -fx-background-color: -df-component-dark;
+                    .arrow {
+                        -fx-background-color: -df-text;
+                    }
+                }
+                &:hover, &:pressed, &:focused {
+                    .open-button {
+                        -fx-background-color: -df-component-dark;
+                        .arrow {
+                            -fx-background-color: -df-text-selected;
+                        }
+                    }
+                    >.label {
+                        -fx-text-fill: -df-text-selected;
+                    }
+                }
+            }
+        }
+    }
+
+    .info-label {
+        -fx-padding: 10px 15px;
+        -fx-spacing: 10px;
+        -fx-height: 30px;
+        -fx-font-size: 110%;
+        -fx-text-fill: -df-text;
+        -fx-effect: dropshadow(one-pass-box, rgba(0, 0, 0, 1), 0, 0, 1, 1);
+    }
+
+    .info-text-area {
+        -fx-font-family: 'Dejavu Sans Mono';
+        -fx-text-fill: #A2B0BE;
+        -fx-highlight-text-fill: #A2B0BE;
+        -fx-highlight-fill: #264A8B;
+
+        .content {
+            -fx-background-color: #27292D;
+            -fx-padding: 27px 22px;
+        }
+    }
+}

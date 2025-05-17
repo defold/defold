@@ -49,7 +49,7 @@
           mesh-renderable-data (:mesh-renderable-data user-data)
           vertex-count (count (:position-data mesh-renderable-data))
           vb (-> (->vtx-pos-nrm-tex vertex-count)
-                 (model-scene/mesh->vb! world-transform normal-transform vertex-attribute-bytes false false mesh-renderable-data))]
+                 (model-scene/populate-vb! world-transform normal-transform vertex-attribute-bytes false false mesh-renderable-data))]
       (is (= vertex-count (count vb))))))
 
 (deftest invalid-scene

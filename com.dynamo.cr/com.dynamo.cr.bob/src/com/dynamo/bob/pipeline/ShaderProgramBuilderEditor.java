@@ -38,18 +38,9 @@ public class ShaderProgramBuilderEditor {
         ShaderCompilePipeline.Options options = new ShaderCompilePipeline.Options();
         options.defines.add("EDITOR");
 
-        ShaderCompilePipeline pipeline;
-
-        try {
-            pipeline = ShaderProgramBuilder.newShaderPipeline(resourcePath, shaderDescs, options);
-        } catch (Exception e) {
-            // We don't have a graceful way to handle shader errors in the editor except for building/bundling
-            return new ShaderUtil.Common.GLSLCompileResult(source);
-        }
-
+        ShaderCompilePipeline pipeline = ShaderProgramBuilder.newShaderPipeline(resourcePath, shaderDescs, options);
         byte[] result = pipeline.crossCompile(shaderType, shaderLanguage);
         String compiledSource = new String(result);
-
         ShaderUtil.Common.GLSLCompileResult variantCompileResult = ShaderUtil.VariantTextureArrayFallback.transform(compiledSource, maxPageCount);
 
         // If the variant transformation didn't do anything, we pass the original source but without array samplers

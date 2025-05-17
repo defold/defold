@@ -299,10 +299,11 @@ namespace dmDeviceWasapi
     }
 
     // We get this call after we've returned a non zero value from the DeviceWasapiGetAvailableFrames()
-    static dmSound::Result DeviceWasapiQueue(dmSound::HDevice _device, const int16_t* samples, uint32_t sample_count)
+    static dmSound::Result DeviceWasapiQueue(dmSound::HDevice _device, const void* _samples, uint32_t sample_count)
     {
         assert(_device);
         SoundDevice* device = (SoundDevice*) _device;
+        const int16_t* samples = (const int16_t*)_samples;
 
         uint32_t buffer_size = 0;
         uint32_t buffer_pos = 0;

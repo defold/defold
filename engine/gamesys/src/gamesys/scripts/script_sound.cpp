@@ -44,6 +44,7 @@ namespace dmGameSystem
      * @document
      * @name Sound
      * @namespace sound
+     * @language Lua
      */
 
 
@@ -259,22 +260,15 @@ namespace dmGameSystem
     /*# set mixer group gain
      * Set mixer group gain
      *
-     * [icon:attention] Note that gain is in linear scale, between 0 and 1.
-     * To get the dB value from the gain, use the formula `20 * log(gain)`.
-     * Inversely, to find the linear value from a dB value, use the formula
-     * <code>10<sup>db/20</sup></code>.
-     *
      * @param group [type:string|hash] group name
-     * @param gain [type:number] gain in linear scale
+     * @param gain [type:number] gain in range [0..1] mapped to [0 .. -60dB]
      * @name sound.set_group_gain
      * @examples
      *
-     * Set mixer group gain on the "soundfx" group to -4 dB:
+     * Set mixer group gain on the "soundfx" group to 50% (-30dB):
      *
      * ```lua
-     * local gain_db = -4
-     * local gain = 10^gain_db/20 -- 0.63095734448019
-     * sound.set_group_gain("soundfx", gain)
+     * sound.set_group_gain("soundfx", 0.5)
      * ```
      */
     static int Sound_SetGroupGain(lua_State* L)
@@ -295,21 +289,16 @@ namespace dmGameSystem
     /*# get mixer group gain
      * Get mixer group gain
      *
-     * [icon:attention] Note that gain is in linear scale, between 0 and 1.
-     * To get the dB value from the gain, use the formula `20 * log(gain)`.
-     * Inversely, to find the linear value from a dB value, use the formula
-     * <code>10<sup>db/20</sup></code>.
-     *
      * @param group [type:string|hash] group name
      * @name sound.get_group_gain
-     * @return gain [type:number] gain in linear scale
+     * @return gain [type:number] gain in [0 1] range ([-60dB.. 0dB])
      * @examples
      *
      * Get the mixer group gain for the "soundfx" and convert to dB:
      *
      * ```lua
      * local gain = sound.get_group_gain("soundfx")
-     * local gain_db = 20 * log(gain)
+     * local gain_db = 60 * gain
      * ```
      */
     static int Sound_GetGroupGain(lua_State* L)
@@ -432,11 +421,6 @@ namespace dmGameSystem
     /*# plays a sound
      * Make the sound component play its sound. Multiple voices are supported. The limit is set to 32 voices per sound component.
      *
-     * [icon:attention] Note that gain is in linear scale, between 0 and 1.
-     * To get the dB value from the gain, use the formula `20 * log(gain)`.
-     * Inversely, to find the linear value from a dB value, use the formula
-     * <code>10<sup>db/20</sup></code>.
-     *
      * [icon:attention] A sound will continue to play even if the game object the sound component belonged to is deleted. You can call `sound.stop()` to stop the sound.
      *
      * @note Sounds are panned using a constant power panning (non linear fade). 0 means left/right channels are balanced at 71%/71% each.
@@ -480,7 +464,7 @@ namespace dmGameSystem
      * Assuming the script belongs to an instance with a sound-component with id "sound", this will make the component play its sound after 1 second:
      *
      * ```lua
-     * sound.play("#sound", { delay = 1, gain = 0.5, pan = -1.0 } )
+     * sound.play("#sound", { delay = 1, gain = 0.9, pan = -1.0 } )
      * ```
      *
      * Using the callback argument, you can chain several sounds together:
@@ -650,20 +634,15 @@ namespace dmGameSystem
     /*# set sound gain
      * Set gain on all active playing voices of a sound.
      *
-     * [icon:attention] Note that gain is in linear scale, between 0 and 1.
-     * To get the dB value from the gain, use the formula `20 * log(gain)`.
-     * Inversely, to find the linear value from a dB value, use the formula
-     * <code>10<sup>db/20</sup></code>.
-     *
      * @name sound.set_gain
      * @param url [type:string|hash|url] the sound to set the gain of
-     * @param [gain] [type:number] sound gain between 0 and 1. The final gain of the sound will be a combination of this gain, the group gain and the master gain.
+     * @param [gain] [type:number] sound gain between 0 and 1 [-60dB .. 0dB]. The final gain of the sound will be a combination of this gain, the group gain and the master gain.
      * @examples
      *
-     * Assuming the script belongs to an instance with a sound-component with id "sound", this will set the gain to 0.5
+     * Assuming the script belongs to an instance with a sound-component with id "sound", this will set the gain to 0.9
      *
      * ```lua
-     * sound.set_gain("#sound", 0.5)
+     * sound.set_gain("#sound", 0.9)
      * ```
      */
     static int Sound_SetGain(lua_State* L)
@@ -755,4 +734,95 @@ namespace dmGameSystem
     {
         dmSound::OnWindowFocus(focus);
     }
+
+    /*# plays a sound
+     * Post this message to a sound-component to make it play its sound. Multiple voices is supported. The limit is set to 32 voices per sound component.
+     *
+     * [icon:attention] Note that gain is in linear scale, between 0 and 1.
+     * To get the dB value from the gain, use the formula `20 * log(gain)`.
+     * Inversely, to find the linear value from a dB value, use the formula
+     * <code>10<sup>db/20</sup></code>.
+     *
+     * [icon:attention] A sound will continue to play even if the game object the sound component belonged to is deleted. You can send a `stop_sound` to stop the sound.
+     *
+     * [icon:attention] `play_id` should be specified in case you want to receive `sound_done` or `sound_stopped` in `on_message()`.
+     *
+     * @message
+     * @name play_sound
+     * @param [delay] [type:number] delay in seconds before the sound starts playing, default is 0.
+     * @param [gain] [type:number] sound gain between 0 and 1, default is 1.
+     * @param [play_id] [type:number] the identifier of the sound, can be used to distinguish between consecutive plays from the same component.
+     * @examples
+     *
+     * Assuming the script belongs to an instance with a sound-component with id "sound", this will make the component play its sound after 1 second:
+     *
+     * ```lua
+     * msg.post("#sound", "play_sound", {delay = 1, gain = 0.5})
+     * ```
+     *
+     * ```lua
+     * -- use `play_id` and `msg.post()` if you want to recieve `sound_done` or `sound_stopped` in on_message() 
+     * function init()
+     *  msg.post("#sound", "play_sound", {play_id = 1, delay = 1, gain = 0.5})
+     * end
+     *
+     * function on_message(self, message_id, message)
+     *  if message_id == hash("sound_done") then
+     *      print("Sound play id: "..message.play_id)
+     *  end
+     * end
+     * ```
+     */
+
+    /*# stop a playing a sound(s)
+     * Post this message to a sound-component to make it stop playing all active voices
+     *
+     * @message
+     * @name stop_sound
+     * @examples
+     *
+     * Assuming the script belongs to an instance with a sound-component with id "sound", this will make the component stop all playing voices:
+     *
+     * ```lua
+     * msg.post("#sound", "stop_sound")
+     * ```
+     */
+
+    /*# set sound gain
+     * Post this message to a sound-component to set gain on all active playing voices.
+     *
+     * [icon:attention] Note that gain is in linear scale, between 0 and 1.
+     * To get the dB value from the gain, use the formula `20 * log(gain)`.
+     * Inversely, to find the linear value from a dB value, use the formula
+     * <code>10<sup>db/20</sup></code>.
+     *
+     * @message
+     * @name set_gain
+     * @param [gain] [type:number] sound gain between 0 and 1, default is 1.
+     * @examples
+     *
+     * Assuming the script belongs to an instance with a sound-component with id "sound", this will set the gain to 0.5
+     *
+     * ```lua
+     * msg.post("#sound", "set_gain", {gain = 0.5})
+     * ```
+     */
+
+    /*# reports when a sound has finished playing
+     * This message is sent back to the sender of a `play_sound` message 
+     * if the sound could be played to completion and a `play_id` was provided with the `play_sound` message.
+     *
+     * @message
+     * @name sound_done
+     * @param [play_id] [type:number] id number supplied when the message was posted.
+     */
+
+    /*# reports when a sound has been manually stopped
+     * This message is sent back to the sender of a `play_sound` message, if the sound
+     * has been manually stopped and a `play_id` was provided with the `play_sound` message.
+     *
+     * @message
+     * @name sound_stopped
+     * @param [play_id] [type:number] id number supplied when the message was posted.
+     */
 }

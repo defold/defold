@@ -1,0 +1,155 @@
+local M = {}
+
+local function expect_error(initial_message, fn, ...)
+    local success, message = pcall(fn, ...)
+    if success then
+        print(("  %s => ??? unexpected success ???"):format(initial_message))
+    else
+        print(("  %s => %s"):format(initial_message, message))
+    end
+end
+
+local function print_atlas_contents(atlas)
+    local images = editor.get("/test.atlas", "images")
+    print(("  images: %s"):format(#images))
+    for i = 1, #images do
+        local image_node = images[i]
+        print(("    image: %s"):format(editor.get(image_node, "image")))
+    end
+    local animations = editor.get("/test.atlas", "animations")
+    print(("  animations: %s"):format(#animations))
+    for i = 1, #animations do
+        local animation_node = animations[i]
+        print(("    animation id: %s"):format(editor.get(animation_node, "id")))
+        local animation_images = editor.get(animation_node, "images")
+        print(("    animation images: %s"):format(#animation_images))
+        for j = 1, #animation_images do
+            local animation_image_node = animation_images[j]
+            print(("      animation image: %s"):format(editor.get(animation_image_node, "image")))
+        end
+    end
+end
+
+local function print_tilesource_contents(tilesource)
+    local animations = editor.get(tilesource, "animations")
+    print(("  animations: %s"):format(#animations))
+    for i = 1, #animations do
+        local animation_node = animations[i]
+        print(("    animation: %s"):format(editor.get(animation_node, "id")))
+    end
+    local collision_groups = editor.get(tilesource, "collision_groups")
+    print(("  collision groups: %s"):format(#collision_groups))
+    for i = 1, #collision_groups do
+        local node = collision_groups[i]
+        print(("    collision group: %s"):format(editor.get(node, "id")))
+    end
+    local tile_collision_groups = editor.get(tilesource, "tile_collision_groups")
+    local tile_collision_groups_count = 0
+    for _, _ in pairs(tile_collision_groups) do
+        tile_collision_groups_count = tile_collision_groups_count + 1
+    end
+    print(("  tile collision groups: %s"):format(tile_collision_groups_count))
+    for k, v in pairs(tile_collision_groups) do
+        print(("    tile collision group: %s %s"):format(k, v))
+    end
+end
+
+function M.get_commands()
+    return {
+        editor.command({
+            id = "defold.test",
+            label = "Test",
+            locations = {"Edit"},
+            run = function()
+                print("Atlas initial state:")
+                print_atlas_contents("/test.atlas")
+                print(("  can add images: %s"):format(tostring(editor.can_add("/test.atlas", "images"))))
+                print(("  can add animations: %s"):format(tostring(editor.can_add("/test.atlas", "animations"))))
+                
+                print("Transaction: add image and animation")
+                editor.transact({
+                    editor.tx.add("/test.atlas", "images", {image = "/builtins/assets/images/logo/logo_256.png"}),
+                    editor.tx.add("/test.atlas", "animations", {
+                        id = "logos", 
+                        images = {
+                            {image = "/builtins/assets/images/logo/logo_blue_256.png"},
+                            {image = "/builtins/assets/images/logo/logo_256.png"}
+                        }
+                    })
+                })
+                
+                print("After transaction (add):")
+                print_atlas_contents("/test.atlas")
+                local images = editor.get("/test.atlas", "images")
+                local animations = editor.get("/test.atlas", "animations")
+                
+                print("Transaction: remove image")
+                editor.transact({editor.tx.remove("/test.atlas", "images", images[1])})
+                
+                print("After transaction (remove image):")
+                print_atlas_contents("/test.atlas")
+                
+                print("Transaction: clear animation images")
+                editor.transact({editor.tx.clear(animations[1], "images")})
+                
+                print("After transaction (clear):")
+                print_atlas_contents("/test.atlas")
+
+                print("Transaction: remove animation")
+                editor.transact({editor.tx.remove("/test.atlas", "animations", animations[1])})
+
+                print("After transaction (remove animation):")
+                print_atlas_contents("/test.atlas")
+
+                print("Expected errors:")
+                expect_error("Wrong list name to add", editor.tx.add, "/test.atlas", "layers", {})
+                expect_error("Wrong list name to remove", editor.tx.remove, "/test.atlas", "layers", "/test.atlas")
+                expect_error("Wrong list item to remove", editor.tx.remove, "/test.atlas", "images", "/test.atlas")
+                expect_error("Wrong list name to clear", editor.tx.clear, "/test.atlas", "layers")
+                expect_error("Wrong child property name", editor.transact, { editor.tx.add("/test.atlas", "animations", { no_such_prop = true}) })
+                expect_error("Added value is not a table", editor.tx.add, "/test.atlas", "images", "/foo.png")
+                expect_error("Added nested value is not a table", editor.tx.add, "/test.atlas", "animations", { images = { "/foo.png" } })
+                expect_error("Added node has invalid property value", editor.transact, { editor.tx.add("/test.atlas", "images", { pivot = "invalid-pivot" }) })
+                expect_error("Added resource has wrong type", editor.transact, { editor.tx.add("/test.atlas", "images", { image = "/game.project" }) })
+
+                print("Tilesource initial state:")
+                local tilesource = "/test.tilesource"
+                print_tilesource_contents(tilesource)
+                
+                print("Transaction: add animations and collision groups")
+                editor.transact({
+                    editor.tx.add(tilesource, "animations", {id = "idle"}),
+                    editor.tx.add(tilesource, "animations", {id = "walk", start_tile = 2, end_tile = 6}),
+                    editor.tx.add(tilesource, "collision_groups", {id = "obstacle"}),
+                    editor.tx.add(tilesource, "collision_groups", {id = "character"}),
+                    editor.tx.add(tilesource, "collision_groups", {}),
+                    editor.tx.add(tilesource, "collision_groups", {}),
+                    editor.tx.set(tilesource, "tile_collision_groups", {[1] = "obstacle", [3] = "character"})
+                })
+
+                print("After transaction (add animations and collision groups):")
+                print_tilesource_contents(tilesource)
+
+                print("Transaction: set tile_collision_groups to its current value")
+                editor.transact({editor.tx.set(tilesource, "tile_collision_groups", editor.get(tilesource, "tile_collision_groups"))})
+
+                print("After transaction (tile_collision_groups roundtrip):")
+                print_tilesource_contents(tilesource)
+
+                print("Expected errors")
+                expect_error("Using non-existent collision group", editor.transact, {editor.tx.set(tilesource, "tile_collision_groups", {[2] = "does-not-exist"})})
+
+                print("Transaction: clear tilesource")
+                editor.transact({
+                    editor.tx.clear(tilesource, "animations"),
+                    editor.tx.clear(tilesource, "collision_groups"),
+                })
+
+                print("After transaction (clear):")
+                print_tilesource_contents(tilesource)
+            end
+        })
+    }
+end
+
+return M

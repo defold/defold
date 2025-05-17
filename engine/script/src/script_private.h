@@ -78,6 +78,7 @@ namespace dmScript
         dmArray<HScriptExtension>   m_ScriptExtensions;
         lua_State*                  m_LuaState;
         int                         m_ContextTableRef;
+        int                         m_ContextWeakTableRef;
     };
 
     HContext GetScriptContext(lua_State* L);

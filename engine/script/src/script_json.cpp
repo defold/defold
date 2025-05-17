@@ -43,6 +43,7 @@ namespace dmScript
      * @document
      * @name JSON
      * @namespace json
+     * @language Lua
      */
 
     static int JsonToLuaInternal(lua_State* L, const char* json, size_t json_len, int protected_mode)

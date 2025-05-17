@@ -14,12 +14,11 @@
 
 (ns editor.particle-lib
   (:require [editor.buffers :as buffers]
-            [editor.graphics :as graphics]
             [editor.math :as math]
             [editor.protobuf :as protobuf]
             [util.murmur :as murmur])
   (:import [com.defold.libs ParticleLibrary ParticleLibrary$AnimPlayback ParticleLibrary$AnimationData ParticleLibrary$FetchAnimationCallback ParticleLibrary$FetchAnimationResult ParticleLibrary$InstanceStats ParticleLibrary$VertexAttributeInfo ParticleLibrary$VertexAttributeInfos ParticleLibrary$Quat ParticleLibrary$RenderInstanceCallback ParticleLibrary$Stats ParticleLibrary$Vector3 ParticleLibrary$Vector4]
-           [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType Graphics$VertexAttribute$VectorType Graphics$VertexStepFunction]
+           [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType Graphics$VertexAttribute$VectorType Graphics$VertexStepFunction]
            [com.dynamo.particle.proto Particle$ParticleFX]
            [com.jogamp.common.nio Buffers]
            [com.sun.jna Pointer]
@@ -159,7 +158,7 @@
 
 (defn- attribute-name-key->byte-buffer ^ByteBuffer [name-key vertex-attribute-bytes]
   (when-let [attribute-bytes (get vertex-attribute-bytes name-key)]
-    (buffers/wrap-byte-array attribute-bytes)))
+    (buffers/wrap-byte-array attribute-bytes :byte-order/native)))
 
 (defn- semantic-type->int [semantic-type]
   (case semantic-type

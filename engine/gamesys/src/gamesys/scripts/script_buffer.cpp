@@ -51,6 +51,7 @@ namespace dmGameSystem
      * @document
      * @name Buffer
      * @namespace buffer
+     * @language Lua
      */
 
     /*# uint8

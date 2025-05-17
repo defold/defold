@@ -40,6 +40,7 @@ namespace dmGameSystem
      * @document
      * @name Image
      * @namespace image
+     * @language Lua
      */
 
     #define LIB_NAME "image"

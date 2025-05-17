@@ -12,7 +12,9 @@
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
-(ns editor.scene-picking)
+(ns editor.scene-picking
+  (:require [util.coll :as coll]
+            [util.eduction :as e]))
 
 (defn picking-id->color [^long picking-id]
   (assert (<= picking-id 0xffffff))
@@ -30,3 +32,12 @@
   (let [picking-id (:picking-id renderable)
         id-color (picking-id->color picking-id)]
     (float-array id-color)))
+
+(defn top-nodes
+  [nodes]
+  (let [node-ids (into #{} (map :node-id) nodes)
+        child? (fn [node]
+                 (->> (:node-id-path node)
+                      (coll/some #(and (not= % (:node-id node))
+                                       (contains? node-ids %)))))]
+    (e/remove child? nodes)))

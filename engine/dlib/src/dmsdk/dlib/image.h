@@ -25,6 +25,7 @@
  * @name Image
  * @namespace dmImage
  * @path engine/dlib/src/dmsdk/dlib/image.h
+ * @language C++
  */
 
 namespace dmImage

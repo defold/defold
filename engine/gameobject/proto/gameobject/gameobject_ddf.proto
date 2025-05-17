@@ -128,6 +128,7 @@ message CollectionDesc
  * @document
  * @name Game object
  * @namespace go
+ * @language Lua
  */
 
 /*# acquires the user input focus

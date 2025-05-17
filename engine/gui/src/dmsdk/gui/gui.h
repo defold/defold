@@ -26,6 +26,7 @@
  * @name Gui
  * @namespace dmGui
  * @path engine/gui/src/dmsdk/gui/gui.h
+ * @language C++
  */
 namespace dmGui
 {
