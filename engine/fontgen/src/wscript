@@ -10,7 +10,7 @@ def build(bld):
 
     bld.stlib(features = 'cxx',
                 includes = ['.'],
-                target   = 'font',
+                target   = 'fontgen',
                 defines  = [],
                 source   = bld.path.ant_glob(['*.cpp']))
 

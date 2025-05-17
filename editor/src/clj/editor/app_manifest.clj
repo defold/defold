@@ -444,8 +444,8 @@
 (def fontgen-setting
   (make-check-box-setting
     (concat
-      (libs-toggles all-platforms ["font"])
-      (generic-contains-toggles all-platforms :symbols ["ScriptFontExt" "ResourceTypeTTFFont"]))))
+      (libs-toggles all-platforms ["fontgen"])
+      (generic-contains-toggles all-platforms :symbols ["ScriptFontgenExt" "ResourceTypeTTFFont"]))))
 
 (def ^:private app-manifest-key-order-pattern
   (let [platform-pattern [[:context [;; defines

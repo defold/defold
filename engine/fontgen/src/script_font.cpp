@@ -19,7 +19,7 @@
 
 #include "fontgen.h"
 
-#define MODULE_NAME "font"
+#define MODULE_NAME "fontgen"
 
 
 static int LoadFont(lua_State* L)
@@ -177,4 +177,4 @@ static dmExtension::Result FinalizeFontGen(dmExtension::Params* params)
     return dmExtension::RESULT_OK;
 }
 
-DM_DECLARE_EXTENSION(ScriptFontExt, MODULE_NAME, AppInitializeFontGen, AppFinalizeFontGen, InitializeFontGen, 0, 0, FinalizeFontGen)
+DM_DECLARE_EXTENSION(ScriptFontgenExt, MODULE_NAME, AppInitializeFontGen, AppFinalizeFontGen, InitializeFontGen, 0, 0, FinalizeFontGen)
